@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { useAuth } from '../auth/AuthContext';
 import type { Campaign, CampaignCreateInput, RulesetId } from './campaignTypes';
+import { ensureCampaignExistsInDB } from '../../services/supabase/campaignSyncService';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 const ACTIVE_CAMPAIGN_LS_KEY = 'hsc-active-campaign-id';
@@ -131,17 +132,39 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   // Se abbiamo campagne ma l'ID attivo non esiste più (tra quelle possedute o a cui partecipo), seleziona la prima
   useEffect(() => {
     if (isLoading || campaigns.length === 0) return;
-    const exists = [...campaigns, ...joinedCampaigns].some(c => c.id === activeCampaignId);
-    if (!exists) {
+    const all = [...campaigns, ...joinedCampaigns];
+    const active = all.find(c => c.id === activeCampaignId);
+
+    if (!active) {
       const first = campaigns[0];
       setActiveCampaignId(first.id);
       localStorage.setItem(ACTIVE_CAMPAIGN_LS_KEY, first.id);
+      void ensureCampaignExistsInDB(first.id, {
+        name: first.name,
+        description: first.description,
+        ruleset: first.ruleset,
+        ownerId: first.ownerId
+      });
+      return;
     }
+
+    void ensureCampaignExistsInDB(active.id, {
+      name: active.name,
+      description: active.description,
+      ruleset: active.ruleset,
+      ownerId: active.ownerId
+    });
   }, [campaigns, joinedCampaigns, activeCampaignId, isLoading]);
 
   const setActiveCampaign = useCallback((campaign: Campaign) => {
     setActiveCampaignId(campaign.id);
     localStorage.setItem(ACTIVE_CAMPAIGN_LS_KEY, campaign.id);
+    void ensureCampaignExistsInDB(campaign.id, {
+      name: campaign.name,
+      description: campaign.description,
+      ruleset: campaign.ruleset,
+      ownerId: campaign.ownerId
+    });
   }, []);
 
   const createCampaign = useCallback(async (input: CampaignCreateInput): Promise<Campaign> => {
