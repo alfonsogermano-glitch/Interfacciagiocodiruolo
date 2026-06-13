@@ -22,6 +22,7 @@ import { useCampaign } from '../campaigns/CampaignContext';
 import { CampaignForm } from '../campaigns/CampaignSelector';
 import { RULESETS, type Campaign, type CampaignCreateInput, type RulesetId } from '../campaigns/campaignTypes';
 import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
+import { CharacterSheetModal } from '../components/character/CharacterSheetModal';
 import { getCharactersByOwner } from '../../services/characters/characterService';
 import { saveCharacter as saveCharacterToSupabase } from '../../services/supabase/charactersService';
 import { readDashboardSettings } from '../../services/settings/dashboardSettings';
@@ -83,6 +84,7 @@ export function HomeScreen({ onEnterCampaign }: HomeScreenProps) {
   // ─── Personaggi ────────────────────────────────────────────────────────────
   const [characters, setCharacters] = useState<CharacterSummary[]>([]);
   const [isLoadingCharacters, setIsLoadingCharacters] = useState(true);
+  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
 
   const loadCharacters = useCallback(async () => {
     if (!user) return;
@@ -262,9 +264,11 @@ export function HomeScreen({ onEnterCampaign }: HomeScreenProps) {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {characters.map(character => (
-                <div
+                <button
                   key={character.id}
-                  className="group relative overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4 transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
+                  type="button"
+                  onClick={() => setSelectedCharacterId(character.id)}
+                  className="group relative overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4 text-left transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
                 >
                   <div className="flex items-center gap-3">
                     {character.portraitUrl ? (
@@ -294,7 +298,7 @@ export function HomeScreen({ onEnterCampaign }: HomeScreenProps) {
                         : 'Nessuna campagna'}
                     </span>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -543,6 +547,14 @@ export function HomeScreen({ onEnterCampaign }: HomeScreenProps) {
             />
           </div>
         </div>
+      )}
+
+      {/* ─── Modale: scheda personaggio ────────────────────────────────────── */}
+      {selectedCharacterId && (
+        <CharacterSheetModal
+          characterId={selectedCharacterId}
+          onClose={() => setSelectedCharacterId(null)}
+        />
       )}
     </div>
   );
