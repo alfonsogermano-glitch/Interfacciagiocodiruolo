@@ -83,9 +83,10 @@ function getRulesetId(record: CharacterRecord): RulesetId {
 interface CharacterSheetModalProps {
   characterId: string;
   onClose: () => void;
+  onJoinSession?: () => void;
 }
 
-export function CharacterSheetModal({ characterId, onClose }: CharacterSheetModalProps) {
+export function CharacterSheetModal({ characterId, onClose, onJoinSession }: CharacterSheetModalProps) {
   const [record, setRecord] = useState<CharacterRecord | null>(null);
   const [character, setCharacter] = useState<Character | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -118,8 +119,10 @@ export function CharacterSheetModal({ characterId, onClose }: CharacterSheetModa
     };
   }, [characterId]);
 
+  const isEditable = record?.campaignId != null;
+
   const persistSheetData = async (patch: Partial<Character>) => {
-    if (!record) return;
+    if (!record || !isEditable) return;
 
     const nextSheetData = { ...record.sheetData, ...patch };
     setRecord({ ...record, sheetData: nextSheetData });
@@ -202,7 +205,23 @@ export function CharacterSheetModal({ characterId, onClose }: CharacterSheetModa
             </div>
 
             {/* Body */}
-            <div className="flex-1 space-y-5 overflow-y-auto p-5">
+            <div className="flex-1 overflow-y-auto p-5">
+              {!isEditable && (
+                <div className="mb-5 flex flex-col items-start gap-3 rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-[var(--dash-text)]">
+                    Questo personaggio non è ancora in una sessione.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onJoinSession}
+                    className="shrink-0 rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-4 py-2 text-sm font-semibold text-[var(--dash-text-strong)] transition-all hover:bg-[var(--dash-accent-2)]"
+                  >
+                    Unisciti a una sessione
+                  </button>
+                </div>
+              )}
+
+              <fieldset disabled={!isEditable} className="m-0 space-y-5 border-0 p-0 disabled:opacity-60">
               {/* Ambiti, Audacia, Prodigi */}
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4 sm:col-span-2 lg:col-span-1">
@@ -361,6 +380,7 @@ export function CharacterSheetModal({ characterId, onClose }: CharacterSheetModa
                   onUpdate={(equipment: Equipment[]) => persistSheetData({ equipment })}
                 />
               </div>
+              </fieldset>
             </div>
           </>
         )}

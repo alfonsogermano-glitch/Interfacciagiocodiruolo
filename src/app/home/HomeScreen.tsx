@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   CheckCircle2,
@@ -166,6 +166,15 @@ export function HomeScreen({ onEnterCampaign }: HomeScreenProps) {
   const [isJoining, setIsJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [joinSuccess, setJoinSuccess] = useState<string | null>(null);
+  const inviteCodeInputRef = useRef<HTMLInputElement | null>(null);
+
+  const focusInviteCodeInput = () => {
+    setSelectedCharacterId(null);
+    window.setTimeout(() => {
+      inviteCodeInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      inviteCodeInputRef.current?.focus();
+    }, 100);
+  };
 
   const handleJoinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -400,6 +409,7 @@ export function HomeScreen({ onEnterCampaign }: HomeScreenProps) {
                 Codice invito
               </label>
               <input
+                ref={inviteCodeInputRef}
                 type="text"
                 value={inviteCodeInput}
                 onChange={e => setInviteCodeInput(e.target.value.toUpperCase())}
@@ -554,6 +564,7 @@ export function HomeScreen({ onEnterCampaign }: HomeScreenProps) {
         <CharacterSheetModal
           characterId={selectedCharacterId}
           onClose={() => setSelectedCharacterId(null)}
+          onJoinSession={focusInviteCodeInput}
         />
       )}
     </div>
