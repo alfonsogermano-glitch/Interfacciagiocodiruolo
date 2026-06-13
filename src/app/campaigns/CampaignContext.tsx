@@ -1,0 +1,184 @@
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { useAuth } from '../auth/AuthContext';
+import type { Campaign, CampaignCreateInput, RulesetId } from './campaignTypes';
+
+const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
+const ACTIVE_CAMPAIGN_LS_KEY = 'hsc-active-campaign-id';
+const CAMPAIGNS_CACHE_LS_KEY = 'hsc-campaigns-cache';
+
+type CampaignContextValue = {
+  campaigns: Campaign[];
+  activeCampaign: Campaign | null;
+  activeCampaignId: string;
+  isLoading: boolean;
+  setActiveCampaign: (campaign: Campaign) => void;
+  createCampaign: (input: CampaignCreateInput) => Promise<Campaign>;
+  updateCampaign: (id: string, patch: Partial<CampaignCreateInput>) => Promise<void>;
+  deleteCampaign: (id: string) => Promise<void>;
+  refreshCampaigns: () => Promise<void>;
+};
+
+const CampaignContext = createContext<CampaignContextValue | null>(null);
+
+// Fallback per retrocompatibilità con dati esistenti
+const LEGACY_CAMPAIGN_ID = '10000000-0000-0000-0000-000000000001';
+
+function buildHeaders(accessToken: string) {
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${accessToken}`,
+  };
+}
+
+export function CampaignProvider({ children }: { children: React.ReactNode }) {
+  const { session } = useAuth();
+  const [campaigns, setCampaigns] = useState<Campaign[]>(
+    () => {
+      try {
+        const cached = localStorage.getItem(CAMPAIGNS_CACHE_LS_KEY);
+        return cached ? JSON.parse(cached) : [];
+      } catch { return []; }
+    }
+  );
+  const [activeCampaignId, setActiveCampaignId] = useState<string>(
+    () => localStorage.getItem(ACTIVE_CAMPAIGN_LS_KEY) ?? LEGACY_CAMPAIGN_ID
+  );
+  const [isLoading, setIsLoading] = useState(true);
+
+  const accessToken = session?.access_token ?? publicAnonKey;
+
+  const fetchCampaigns = useCallback(async () => {
+    if (!session?.access_token) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${SERVER_BASE}/campaigns`, {
+        headers: buildHeaders(session.access_token),
+      });
+
+      if (!res.ok) {
+        console.log('Errore fetch campagne:', await res.text());
+        setIsLoading(false);
+        return;
+      }
+
+      const { campaigns: fetched } = await res.json();
+      const list: Campaign[] = fetched ?? [];
+      setCampaigns(list);
+      try { localStorage.setItem(CAMPAIGNS_CACHE_LS_KEY, JSON.stringify(list)); } catch { /* quota */ }
+    } catch (err) {
+      console.log('Errore di rete fetch campagne:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [session?.access_token]);
+
+  // Carica campagne al mount e quando cambia sessione
+  useEffect(() => {
+    setIsLoading(true);
+    void fetchCampaigns();
+  }, [fetchCampaigns]);
+
+  // Se abbiamo campagne ma l'ID attivo non esiste più, seleziona la prima
+  useEffect(() => {
+    if (isLoading || campaigns.length === 0) return;
+    const exists = campaigns.some(c => c.id === activeCampaignId);
+    if (!exists) {
+      const first = campaigns[0];
+      setActiveCampaignId(first.id);
+      localStorage.setItem(ACTIVE_CAMPAIGN_LS_KEY, first.id);
+    }
+  }, [campaigns, activeCampaignId, isLoading]);
+
+  const setActiveCampaign = useCallback((campaign: Campaign) => {
+    setActiveCampaignId(campaign.id);
+    localStorage.setItem(ACTIVE_CAMPAIGN_LS_KEY, campaign.id);
+  }, []);
+
+  const createCampaign = useCallback(async (input: CampaignCreateInput): Promise<Campaign> => {
+    const res = await fetch(`${SERVER_BASE}/campaigns`, {
+      method: 'POST',
+      headers: buildHeaders(accessToken),
+      body: JSON.stringify(input),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error ?? 'Errore durante la creazione della campagna');
+    }
+
+    const created: Campaign = data.campaign;
+    setCampaigns(prev => {
+      const next = [...prev, created];
+      try { localStorage.setItem(CAMPAIGNS_CACHE_LS_KEY, JSON.stringify(next)); } catch { /* quota */ }
+      return next;
+    });
+
+    // Seleziona la nuova campagna automaticamente
+    setActiveCampaignId(created.id);
+    localStorage.setItem(ACTIVE_CAMPAIGN_LS_KEY, created.id);
+
+    return created;
+  }, [accessToken]);
+
+  const updateCampaign = useCallback(async (id: string, patch: Partial<CampaignCreateInput>) => {
+    const res = await fetch(`${SERVER_BASE}/campaigns/${id}`, {
+      method: 'PUT',
+      headers: buildHeaders(accessToken),
+      body: JSON.stringify(patch),
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? 'Errore aggiornamento campagna');
+
+    setCampaigns(prev => {
+      const next = prev.map(c => c.id === id ? data.campaign : c);
+      try { localStorage.setItem(CAMPAIGNS_CACHE_LS_KEY, JSON.stringify(next)); } catch { /* quota */ }
+      return next;
+    });
+  }, [accessToken]);
+
+  const deleteCampaign = useCallback(async (id: string) => {
+    const res = await fetch(`${SERVER_BASE}/campaigns/${id}`, {
+      method: 'DELETE',
+      headers: buildHeaders(accessToken),
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? 'Errore eliminazione campagna');
+
+    setCampaigns(prev => {
+      const next = prev.filter(c => c.id !== id);
+      try { localStorage.setItem(CAMPAIGNS_CACHE_LS_KEY, JSON.stringify(next)); } catch { /* quota */ }
+      return next;
+    });
+  }, [accessToken]);
+
+  const activeCampaign = campaigns.find(c => c.id === activeCampaignId) ?? null;
+
+  return (
+    <CampaignContext.Provider value={{
+      campaigns,
+      activeCampaign,
+      activeCampaignId,
+      isLoading,
+      setActiveCampaign,
+      createCampaign,
+      updateCampaign,
+      deleteCampaign,
+      refreshCampaigns: fetchCampaigns,
+    }}>
+      {children}
+    </CampaignContext.Provider>
+  );
+}
+
+export function useCampaign(): CampaignContextValue {
+  const ctx = useContext(CampaignContext);
+  if (!ctx) throw new Error('useCampaign deve essere usato dentro CampaignProvider');
+  return ctx;
+}

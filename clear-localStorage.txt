@@ -1,0 +1,17 @@
+// =====================================================
+// SCRIPT PER CANCELLARE LOCALSTORAGE
+// Copia e incolla questo codice nella Console del browser
+// =====================================================
+
+// Trova tutte le chiavi localStorage che iniziano con 'hsc_'
+const keys = Object.keys(localStorage).filter(key => key.startsWith('hsc_'));
+
+console.log(`Trovate ${keys.length} chiavi da cancellare:`, keys);
+
+// Cancella ogni chiave
+keys.forEach(key => {
+  localStorage.removeItem(key);
+  console.log(`✅ Cancellata: ${key}`);
+});
+
+console.log('✅ localStorage cancellato! Ricarica la pagina (F5)');
