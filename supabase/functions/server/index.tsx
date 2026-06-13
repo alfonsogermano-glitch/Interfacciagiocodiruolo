@@ -38,6 +38,38 @@ function campaignsKey(userId: string) {
   return `campaigns:${userId}`;
 }
 
+function inviteCodeKey(code: string) {
+  return `inviteCode:${code}`;
+}
+
+function campaignMembersKey(campaignId: string) {
+  return `campaignMembers:${campaignId}`;
+}
+
+function playerCampaignsKey(userId: string) {
+  return `playerCampaigns:${userId}`;
+}
+
+const INVITE_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+function randomInviteCode(): string {
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += INVITE_CODE_ALPHABET[Math.floor(Math.random() * INVITE_CODE_ALPHABET.length)];
+  }
+  return code;
+}
+
+async function generateUniqueInviteCode(): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = randomInviteCode();
+    const existing = await kv.get(inviteCodeKey(code));
+    if (!existing) return code;
+  }
+  // Fallback estremamente improbabile: usa un codice più lungo basato su UUID
+  return crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
+}
+
 // ─── Health ─────────────────────────────────────────────────────────────────
 
 app.get("/make-server-771c5bfd/health", (c) => {
@@ -128,18 +160,21 @@ app.post("/make-server-771c5bfd/campaigns", async (c) => {
     }
 
     const now = new Date().toISOString();
+    const inviteCode = await generateUniqueInviteCode();
     const newCampaign = {
       id: requestedId ?? crypto.randomUUID(),
       name: name.trim(),
       description: description?.trim() ?? "",
       ruleset: ruleset ?? "hsc",
       ownerId: userId,
+      inviteCode,
       createdAt: now,
       updatedAt: now,
     };
 
     const existing: unknown[] = await kv.get(campaignsKey(userId)) ?? [];
     await kv.set(campaignsKey(userId), [...existing, newCampaign]);
+    await kv.set(inviteCodeKey(inviteCode), { campaignId: newCampaign.id, ownerId: userId });
 
     return c.json({ campaign: newCampaign }, 201);
   } catch (err) {
@@ -208,6 +243,83 @@ app.delete("/make-server-771c5bfd/campaigns/:id", async (c) => {
   }
 });
 
+// ─── Campaigns: Join via invite code ───────────────────────────────────────
+
+app.post("/make-server-771c5bfd/campaigns/join", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const { code } = await c.req.json();
+    const normalizedCode = String(code ?? "").trim().toUpperCase();
+    if (!normalizedCode) {
+      return c.json({ error: "Il codice invito è obbligatorio" }, 400);
+    }
+
+    const membership: CampaignMembership | null = await kv.get(inviteCodeKey(normalizedCode));
+    if (!membership) {
+      return c.json({ error: "Codice invito non valido" }, 404);
+    }
+
+    if (membership.ownerId === userId) {
+      return c.json({ error: "Sei già il master di questa campagna" }, 400);
+    }
+
+    const ownerCampaigns: Campaign[] = await kv.get(campaignsKey(membership.ownerId)) ?? [];
+    const campaign = ownerCampaigns.find((cmp) => cmp.id === membership.campaignId);
+    if (!campaign) {
+      return c.json({ error: "Campagna non trovata" }, 404);
+    }
+
+    const members: { profileId: string; role: string; joinedAt: string }[] =
+      await kv.get(campaignMembersKey(membership.campaignId)) ?? [];
+    if (!members.some((m) => m.profileId === userId)) {
+      members.push({ profileId: userId, role: "player", joinedAt: new Date().toISOString() });
+      await kv.set(campaignMembersKey(membership.campaignId), members);
+    }
+
+    const playerCampaigns: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
+    if (!playerCampaigns.some((pc) => pc.campaignId === membership.campaignId)) {
+      playerCampaigns.push({ campaignId: membership.campaignId, ownerId: membership.ownerId });
+      await kv.set(playerCampaignsKey(userId), playerCampaigns);
+    }
+
+    return c.json({ campaign });
+  } catch (err) {
+    console.log("Errore POST campaigns/join:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+// ─── Campaigns: Joined (come player) ───────────────────────────────────────
+
+app.get("/make-server-771c5bfd/campaigns/joined", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const playerCampaigns: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
+
+    const campaigns: Campaign[] = [];
+    for (const membership of playerCampaigns) {
+      const ownerCampaigns: Campaign[] = await kv.get(campaignsKey(membership.ownerId)) ?? [];
+      const campaign = ownerCampaigns.find((cmp) => cmp.id === membership.campaignId);
+      if (campaign) campaigns.push(campaign);
+    }
+
+    return c.json({ campaigns });
+  } catch (err) {
+    console.log("Errore GET campaigns/joined:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
 // ─── Type helper (Deno) ─────────────────────────────────────────────────────
 
 interface Campaign {
@@ -216,8 +328,14 @@ interface Campaign {
   description: string;
   ruleset: string;
   ownerId: string;
+  inviteCode?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+interface CampaignMembership {
+  campaignId: string;
+  ownerId: string;
 }
 
 Deno.serve(app.fetch);

@@ -13,7 +13,8 @@ import {
   Image,
   LogOut,
   UserCircle2,
-  ChevronDown
+  ChevronDown,
+  Home
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { LoginPage } from './components/auth/LoginPage';
@@ -21,6 +22,7 @@ import { CampaignProvider, useCampaign } from './campaigns/CampaignContext';
 import { RulesetProvider } from './campaigns/RulesetContext';
 import { CampaignSelector, CampaignSwitcher } from './campaigns/CampaignSelector';
 import { MigrationWizard, isMigrationNeeded } from './campaigns/MigrationWizard';
+import { HomeScreen } from './home/HomeScreen';
 
 import { AdventureManager } from './components/gm/AdventureManager';
 import { PlayerCharacters } from './components/gm/PlayerCharacters';
@@ -59,7 +61,7 @@ type NavigationTarget = {
   entityType?: string;
 };
 
-function Dashboard() {
+function Dashboard({ onBackToHome }: { onBackToHome: () => void }) {
   const { user, signOut } = useAuth();
   const { activeCampaignId, campaigns, isLoading: campaignsLoading } = useCampaign();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -251,6 +253,15 @@ function Dashboard() {
             </div>
 
             <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onBackToHome}
+                className="flex items-center gap-2 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:border-[var(--dash-accent)] hover:bg-[var(--dash-surface-2)]"
+              >
+                <Home className="h-4 w-4 text-[var(--dash-accent)]" />
+                <span className="hidden sm:block">Home</span>
+              </button>
+
               <CampaignSwitcher onClick={() => setIsCampaignSelectorOpen(true)} />
 
               <input
@@ -558,8 +569,25 @@ function Dashboard() {
   );
 }
 
+const VIEW_LS_KEY = 'hsc-current-view';
+
 function AuthGate() {
   const { user, isLoading } = useAuth();
+  const { setActiveCampaign } = useCampaign();
+  const [view, setView] = useState<'home' | 'dashboard'>(
+    () => (localStorage.getItem(VIEW_LS_KEY) === 'dashboard' ? 'dashboard' : 'home')
+  );
+
+  const goToDashboard = (campaign?: Parameters<typeof setActiveCampaign>[0]) => {
+    if (campaign) setActiveCampaign(campaign);
+    localStorage.setItem(VIEW_LS_KEY, 'dashboard');
+    setView('dashboard');
+  };
+
+  const goToHome = () => {
+    localStorage.setItem(VIEW_LS_KEY, 'home');
+    setView('home');
+  };
 
   if (isLoading) {
     return (
@@ -573,7 +601,12 @@ function AuthGate() {
   }
 
   if (!user) return <LoginPage />;
-  return <Dashboard />;
+
+  if (view === 'home') {
+    return <HomeScreen onEnterCampaign={campaign => goToDashboard(campaign)} />;
+  }
+
+  return <Dashboard onBackToHome={goToHome} />;
 }
 
 export default function App() {

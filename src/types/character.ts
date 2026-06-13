@@ -237,7 +237,7 @@ export interface CharacterSheetData {
 
 export interface CharacterRecord {
   id: string;
-  campaignId: string;
+  campaignId: string | null;
   ownerProfileId: string;
 
   name: string;
@@ -256,7 +256,7 @@ export interface CharacterRecord {
 
 export interface CharacterSummary {
   id: string;
-  campaignId: string;
+  campaignId: string | null;
   ownerProfileId: string;
 
   name: string;
@@ -271,7 +271,7 @@ export interface CharacterSummary {
 }
 
 export interface CreateCharacterInput {
-  campaignId: string;
+  campaignId: string | null;
   ownerProfileId: string;
 
   name: string;

@@ -9,6 +9,7 @@ const CAMPAIGNS_CACHE_LS_KEY = 'hsc-campaigns-cache';
 
 type CampaignContextValue = {
   campaigns: Campaign[];
+  joinedCampaigns: Campaign[];
   activeCampaign: Campaign | null;
   activeCampaignId: string;
   isLoading: boolean;
@@ -17,6 +18,8 @@ type CampaignContextValue = {
   updateCampaign: (id: string, patch: Partial<CampaignCreateInput>) => Promise<void>;
   deleteCampaign: (id: string) => Promise<void>;
   refreshCampaigns: () => Promise<void>;
+  refreshJoinedCampaigns: () => Promise<void>;
+  joinCampaignByCode: (code: string) => Promise<Campaign>;
 };
 
 const CampaignContext = createContext<CampaignContextValue | null>(null);
@@ -44,6 +47,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   const [activeCampaignId, setActiveCampaignId] = useState<string>(
     () => localStorage.getItem(ACTIVE_CAMPAIGN_LS_KEY) ?? LEGACY_CAMPAIGN_ID
   );
+  const [joinedCampaigns, setJoinedCampaigns] = useState<Campaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const accessToken = session?.access_token ?? publicAnonKey;
@@ -76,22 +80,64 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     }
   }, [session?.access_token]);
 
+  const fetchJoinedCampaigns = useCallback(async () => {
+    if (!session?.access_token) return;
+
+    try {
+      const res = await fetch(`${SERVER_BASE}/campaigns/joined`, {
+        headers: buildHeaders(session.access_token),
+      });
+
+      if (!res.ok) {
+        console.log('Errore fetch campagne a cui partecipo:', await res.text());
+        return;
+      }
+
+      const { campaigns: fetched } = await res.json();
+      setJoinedCampaigns(fetched ?? []);
+    } catch (err) {
+      console.log('Errore di rete fetch campagne a cui partecipo:', err);
+    }
+  }, [session?.access_token]);
+
+  const joinCampaignByCode = useCallback(async (code: string): Promise<Campaign> => {
+    const res = await fetch(`${SERVER_BASE}/campaigns/join`, {
+      method: 'POST',
+      headers: buildHeaders(accessToken),
+      body: JSON.stringify({ code }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error ?? 'Errore durante l\'iscrizione alla campagna');
+    }
+
+    const joined: Campaign = data.campaign;
+    setJoinedCampaigns(prev => {
+      if (prev.some(c => c.id === joined.id)) return prev;
+      return [...prev, joined];
+    });
+
+    return joined;
+  }, [accessToken]);
+
   // Carica campagne al mount e quando cambia sessione
   useEffect(() => {
     setIsLoading(true);
     void fetchCampaigns();
-  }, [fetchCampaigns]);
+    void fetchJoinedCampaigns();
+  }, [fetchCampaigns, fetchJoinedCampaigns]);
 
-  // Se abbiamo campagne ma l'ID attivo non esiste più, seleziona la prima
+  // Se abbiamo campagne ma l'ID attivo non esiste più (tra quelle possedute o a cui partecipo), seleziona la prima
   useEffect(() => {
     if (isLoading || campaigns.length === 0) return;
-    const exists = campaigns.some(c => c.id === activeCampaignId);
+    const exists = [...campaigns, ...joinedCampaigns].some(c => c.id === activeCampaignId);
     if (!exists) {
       const first = campaigns[0];
       setActiveCampaignId(first.id);
       localStorage.setItem(ACTIVE_CAMPAIGN_LS_KEY, first.id);
     }
-  }, [campaigns, activeCampaignId, isLoading]);
+  }, [campaigns, joinedCampaigns, activeCampaignId, isLoading]);
 
   const setActiveCampaign = useCallback((campaign: Campaign) => {
     setActiveCampaignId(campaign.id);
@@ -158,11 +204,13 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     });
   }, [accessToken]);
 
-  const activeCampaign = campaigns.find(c => c.id === activeCampaignId) ?? null;
+  const activeCampaign =
+    [...campaigns, ...joinedCampaigns].find(c => c.id === activeCampaignId) ?? null;
 
   return (
     <CampaignContext.Provider value={{
       campaigns,
+      joinedCampaigns,
       activeCampaign,
       activeCampaignId,
       isLoading,
@@ -171,6 +219,8 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
       updateCampaign,
       deleteCampaign,
       refreshCampaigns: fetchCampaigns,
+      refreshJoinedCampaigns: fetchJoinedCampaigns,
+      joinCampaignByCode,
     }}>
       {children}
     </CampaignContext.Provider>

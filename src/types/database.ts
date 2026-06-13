@@ -41,7 +41,7 @@ export interface CampaignMemberRow {
 
 export interface CharacterRow {
   id: string;
-  campaign_id: string;
+  campaign_id: string | null;
   owner_profile_id: string;
 
   name: string;

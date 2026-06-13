@@ -25,7 +25,7 @@ const RULESET_ICONS: Record<RulesetId, React.ReactNode> = {
 
 // ─── Create/Edit Form ───────────────────────────────────────────────────────
 
-function CampaignForm({
+export function CampaignForm({
   initial,
   onSave,
   onCancel,

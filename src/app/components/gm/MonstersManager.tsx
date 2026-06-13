@@ -59,6 +59,7 @@ import {
 import { PortraitImage, ImageEditor, MonsterPortraitFrame, FrameTransformStepper, MonsterCoverFrame } from './monsters/MonsterImageComponents';
 import { FreschezzaMaxEditor, FreschezzaBoxesEditor } from './monsters/MonsterFreschezzaComponents';
 import { CatalogSelectionBlock, CustomEntriesEditor, Badge, Info, InfoBlock, TagsBlock } from './monsters/MonsterCatalogComponents';
+import { useCampaign } from '../../campaigns/CampaignContext';
 import { useRuleset } from '../../campaigns/RulesetContext';
 import { RulesetBadge } from '../../campaigns/RulesetGate';
 import { D20StatBlock, DEFAULT_D20_STATS, type D20Stats } from '../ruleset/D20StatBlock';
@@ -68,12 +69,14 @@ export function MonstersManager({
   navigationTarget = null,
   onNavigate
 }: MonstersManagerProps) {
- const {
-  items: monsters,
-  setItems: setMonsters,
-  upsert: upsertLocal,
-  remove: removeLocal
-} = useCampaignEntities(monsterStorage, activeCampaignId);
+  const { activeCampaignId } = useCampaign();
+
+  const {
+    items: monsters,
+    setItems: setMonsters,
+    upsert: upsertLocal,
+    remove: removeLocal
+  } = useCampaignEntities(monsterStorage, activeCampaignId);
 
   const { isHSC, isDnD5e, isPathfinder } = useRuleset();
   const isD20 = isDnD5e || isPathfinder;

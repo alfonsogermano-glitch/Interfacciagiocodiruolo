@@ -11,6 +11,7 @@ import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorag
 import { loadCharacters, saveCharacter as saveCharacterToSupabase, deleteCharacter as deleteCharacterFromSupabase } from '../../../services/supabase/charactersService';
 import { ensureDefaultCampaign } from '../../../services/supabase/campaignService';
 import { generateUUID } from '../../../lib/uuid';
+import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useRuleset } from '../../campaigns/RulesetContext';
 import { RulesetBadge } from '../../campaigns/RulesetGate';
@@ -30,6 +31,7 @@ interface PlayerCharactersProps {
 export function PlayerCharacters({
   storageRefreshKey = 0
 }: PlayerCharactersProps) {
+  const { user } = useAuth();
   const { activeCampaignId } = useCampaign();
   const { isHSC, isDnD5e, isPathfinder } = useRuleset();
   const isD20 = isDnD5e || isPathfinder;
@@ -102,7 +104,7 @@ export function PlayerCharacters({
     setCharacters(prev => [...prev, character]);
     // Salva su Supabase
     try {
-      await saveCharacterToSupabase(activeCampaignId, character);
+      await saveCharacterToSupabase(activeCampaignId, character, user?.id ?? '');
     } catch (error) {
       console.error('Errore salvataggio personaggio su Supabase:', error);
     }
@@ -128,7 +130,7 @@ export function PlayerCharacters({
     setCharacters(prev => prev.map(char => char.id === id ? updatedChar : char));
     // Salva su Supabase
     try {
-      await saveCharacterToSupabase(activeCampaignId, updatedChar);
+      await saveCharacterToSupabase(activeCampaignId, updatedChar, user?.id ?? '');
     } catch (error) {
       console.error('Errore aggiornamento personaggio su Supabase:', error);
     }
@@ -150,7 +152,7 @@ export function PlayerCharacters({
       };
 
       // Salva su Supabase
-      saveCharacterToSupabase(activeCampaignId, updated).catch(error => {
+      saveCharacterToSupabase(activeCampaignId, updated, user?.id ?? '').catch(error => {
         console.error('Errore salvataggio audacia su Supabase:', error);
       });
 
@@ -175,7 +177,7 @@ const updateProdigi = (id: string, delta: number) => {
       };
 
       // Salva su Supabase
-      saveCharacterToSupabase(activeCampaignId, updated).catch(error => {
+      saveCharacterToSupabase(activeCampaignId, updated, user?.id ?? '').catch(error => {
         console.error('Errore salvataggio prodigi su Supabase:', error);
       });
 

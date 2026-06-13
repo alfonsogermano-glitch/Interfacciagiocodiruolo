@@ -1,0 +1,549 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Check,
+  CheckCircle2,
+  Copy,
+  DoorOpen,
+  KeyRound,
+  Loader2,
+  LogOut,
+  Plus,
+  Scroll,
+  Skull,
+  Swords,
+  Castle,
+  Sparkles,
+  UserCircle2,
+  Users,
+  X,
+} from 'lucide-react';
+import { useAuth } from '../auth/AuthContext';
+import { useCampaign } from '../campaigns/CampaignContext';
+import { CampaignForm } from '../campaigns/CampaignSelector';
+import { RULESETS, type Campaign, type CampaignCreateInput, type RulesetId } from '../campaigns/campaignTypes';
+import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
+import { getCharactersByOwner } from '../../services/characters/characterService';
+import { saveCharacter as saveCharacterToSupabase } from '../../services/supabase/charactersService';
+import { readDashboardSettings } from '../../services/settings/dashboardSettings';
+import type { Character, CharacterSummary } from '../../types/character';
+
+const RULESET_ICONS: Record<RulesetId, React.ReactNode> = {
+  hsc: <Skull className="h-3.5 w-3.5" />,
+  dnd5e: <Swords className="h-3.5 w-3.5" />,
+  pathfinder: <Castle className="h-3.5 w-3.5" />,
+  custom: <Sparkles className="h-3.5 w-3.5" />,
+};
+
+function RulesetTag({ rulesetId }: { rulesetId: RulesetId }) {
+  const ruleset = RULESETS[rulesetId] ?? RULESETS.custom;
+
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium tracking-wide"
+      style={{
+        borderColor: `${ruleset.color}55`,
+        backgroundColor: `${ruleset.color}1a`,
+        color: ruleset.color,
+      }}
+    >
+      {RULESET_ICONS[rulesetId]}
+      {ruleset.name}
+    </span>
+  );
+}
+
+function SectionEyebrow({ index, label }: { index: string; label: string }) {
+  return (
+    <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-[var(--dash-muted)]">
+      <span className="text-[var(--dash-accent)]">{index}</span>
+      <span className="h-px flex-1 max-w-[60px] bg-[var(--dash-border-soft)]" />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+interface HomeScreenProps {
+  onEnterCampaign: (campaign: Campaign) => void;
+}
+
+export function HomeScreen({ onEnterCampaign }: HomeScreenProps) {
+  const { user, signOut } = useAuth();
+  const {
+    campaigns,
+    joinedCampaigns,
+    isLoading: campaignsLoading,
+    createCampaign,
+    joinCampaignByCode,
+  } = useCampaign();
+
+  const palette = useMemo(() => readDashboardSettings().palette, []);
+
+  const allCampaigns = useMemo(() => [...campaigns, ...joinedCampaigns], [campaigns, joinedCampaigns]);
+
+  // ─── Personaggi ────────────────────────────────────────────────────────────
+  const [characters, setCharacters] = useState<CharacterSummary[]>([]);
+  const [isLoadingCharacters, setIsLoadingCharacters] = useState(true);
+
+  const loadCharacters = useCallback(async () => {
+    if (!user) return;
+
+    setIsLoadingCharacters(true);
+    try {
+      const list = await getCharactersByOwner(user.id);
+      setCharacters(list);
+    } catch (error) {
+      console.error('Errore caricamento dei tuoi personaggi:', error);
+    } finally {
+      setIsLoadingCharacters(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    void loadCharacters();
+  }, [loadCharacters]);
+
+  const campaignNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    allCampaigns.forEach(campaign => map.set(campaign.id, campaign.name));
+    return map;
+  }, [allCampaigns]);
+
+  // Creazione PG: prima si scelge il regolamento, poi si apre il wizard
+  const [showRulesetPicker, setShowRulesetPicker] = useState(false);
+  const [characterWizardRuleset, setCharacterWizardRuleset] = useState<RulesetId | null>(null);
+
+  const openRulesetPicker = () => setShowRulesetPicker(true);
+
+  const chooseRulesetForNewCharacter = (rulesetId: RulesetId) => {
+    setCharacterWizardRuleset(rulesetId);
+    setShowRulesetPicker(false);
+  };
+
+  const handleAddCharacter = async (character: Character & { player: string; notes: string }) => {
+    if (!user) return;
+
+    try {
+      await saveCharacterToSupabase(null, character, user.id, characterWizardRuleset ?? undefined);
+    } catch (error) {
+      console.error('Errore salvataggio personaggio:', error);
+    } finally {
+      setCharacterWizardRuleset(null);
+      await loadCharacters();
+    }
+  };
+
+  // ─── Campagne (GM) ──────────────────────────────────────────────────────────
+  const [showCampaignForm, setShowCampaignForm] = useState(false);
+  const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
+  const [campaignFormError, setCampaignFormError] = useState<string | null>(null);
+  const [copiedCampaignId, setCopiedCampaignId] = useState<string | null>(null);
+
+  const handleCreateCampaign = async (data: CampaignCreateInput) => {
+    setIsCreatingCampaign(true);
+    setCampaignFormError(null);
+    try {
+      const created = await createCampaign(data);
+      setShowCampaignForm(false);
+      onEnterCampaign(created);
+    } catch (err) {
+      setCampaignFormError(String(err));
+    } finally {
+      setIsCreatingCampaign(false);
+    }
+  };
+
+  const copyInviteCode = (campaign: Campaign) => {
+    if (!campaign.inviteCode) return;
+    void navigator.clipboard.writeText(campaign.inviteCode);
+    setCopiedCampaignId(campaign.id);
+    window.setTimeout(() => setCopiedCampaignId(null), 1800);
+  };
+
+  // ─── Sessioni a cui partecipo (Player) ─────────────────────────────────────
+  const [inviteCodeInput, setInviteCodeInput] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const [joinSuccess, setJoinSuccess] = useState<string | null>(null);
+
+  const handleJoinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteCodeInput.trim()) return;
+
+    setIsJoining(true);
+    setJoinError(null);
+    setJoinSuccess(null);
+
+    try {
+      const joined = await joinCampaignByCode(inviteCodeInput.trim());
+      setJoinSuccess(`Ti sei unito a "${joined.name}".`);
+      setInviteCodeInput('');
+    } catch (err) {
+      setJoinError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  return (
+    <div
+      data-dashboard-palette={palette}
+      className="relative min-h-screen overflow-x-hidden bg-[var(--dash-bg)] text-[var(--dash-text)]"
+    >
+      {/* Atmosfera di fondo */}
+      <div
+        className="pointer-events-none fixed inset-0 z-0 opacity-50"
+        style={{
+          background:
+            'radial-gradient(circle at 15% -10%, var(--dash-accent) 0%, transparent 40%), radial-gradient(circle at 85% 0%, var(--dash-card-shadow) 0%, transparent 45%)',
+        }}
+      />
+      <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_transparent_0%,_var(--dash-bg)_75%)]" />
+
+      <header className="sticky top-0 z-40 border-b border-[var(--dash-border)] bg-[var(--dash-surface-2)]/95 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] shadow-[0_0_18px_var(--dash-card-shadow)]">
+              <Skull className="h-6 w-6 text-[var(--dash-accent)]" />
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--dash-muted)]">High School Cthulhu</p>
+              <h1 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Dashboard dell'Antico</h1>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="hidden text-right sm:block">
+              <p className="text-xs uppercase tracking-[0.2em] text-[var(--dash-muted)]">Bentornato</p>
+              <p className="text-sm font-medium text-[var(--dash-text-strong)]">{user?.displayName ?? user?.email}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="flex items-center gap-2 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:border-[var(--dash-danger-border)] hover:bg-[var(--dash-danger-bg)] hover:text-[var(--dash-danger-text)]"
+            >
+              <LogOut className="h-4 w-4" />
+              Esci
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="relative z-10 mx-auto max-w-[1400px] space-y-14 px-6 py-10">
+        {/* ─── Sezione 1: I miei personaggi ─────────────────────────────── */}
+        <section>
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <SectionEyebrow index="01" label="Anime in gioco" />
+              <div className="flex items-center gap-2.5">
+                <Users className="h-5 w-5 text-[var(--dash-accent)]" />
+                <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">I miei personaggi</h2>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={openRulesetPicker}
+              className="flex items-center gap-2 rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-4 py-2 text-sm font-semibold text-[var(--dash-text-strong)] shadow-[0_0_20px_var(--dash-card-shadow)] transition-all hover:bg-[var(--dash-accent-2)] hover:shadow-[0_0_28px_var(--dash-card-shadow)]"
+            >
+              <Plus className="h-4 w-4" /> Crea nuovo PG
+            </button>
+          </div>
+
+          {isLoadingCharacters ? (
+            <div className="flex items-center justify-center rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 py-12">
+              <Loader2 className="h-5 w-5 animate-spin text-[var(--dash-accent)]" />
+            </div>
+          ) : characters.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
+              <UserCircle2 className="h-10 w-10 text-[var(--dash-muted)]" />
+              <p className="text-sm text-[var(--dash-muted)]">
+                Non hai ancora nessun personaggio. Crea il tuo primo PG per iniziare l'avventura.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {characters.map(character => (
+                <div
+                  key={character.id}
+                  className="group relative overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4 transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
+                >
+                  <div className="flex items-center gap-3">
+                    {character.portraitUrl ? (
+                      <img
+                        src={character.portraitUrl}
+                        alt={character.name}
+                        className="h-12 w-12 rounded-full border border-[var(--dash-border-soft)] object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] text-[var(--dash-accent)]">
+                        <UserCircle2 className="h-6 w-6" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <h3 className="truncate text-sm font-semibold text-[var(--dash-text-strong)]">{character.name}</h3>
+                      <p className="truncate text-xs text-[var(--dash-muted)]">
+                        {character.style ?? 'Personaggio'}
+                        {character.viaggio ? ` · ${character.viaggio}` : ''}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 border-t border-[var(--dash-border-soft)] pt-2.5 text-xs">
+                    <span className="text-[var(--dash-accent-2)]">
+                      {character.campaignId
+                        ? campaignNameById.get(character.campaignId) ?? 'Campagna sconosciuta'
+                        : 'Nessuna campagna'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ─── Sezione 2: Le mie campagne ────────────────────────────────── */}
+        <section>
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <SectionEyebrow index="02" label="Storie dirette da te" />
+              <div className="flex items-center gap-2.5">
+                <Scroll className="h-5 w-5 text-[var(--dash-accent)]" />
+                <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Le mie campagne</h2>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setCampaignFormError(null); setShowCampaignForm(true); }}
+              className="flex items-center gap-2 rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-4 py-2 text-sm font-semibold text-[var(--dash-text-strong)] shadow-[0_0_20px_var(--dash-card-shadow)] transition-all hover:bg-[var(--dash-accent-2)] hover:shadow-[0_0_28px_var(--dash-card-shadow)]"
+            >
+              <Plus className="h-4 w-4" /> Crea nuova campagna
+            </button>
+          </div>
+
+          {campaignsLoading ? (
+            <div className="flex items-center justify-center rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 py-12">
+              <Loader2 className="h-5 w-5 animate-spin text-[var(--dash-accent)]" />
+            </div>
+          ) : campaigns.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
+              <Scroll className="h-10 w-10 text-[var(--dash-muted)]" />
+              <p className="text-sm text-[var(--dash-muted)]">
+                Non sei ancora master di nessuna campagna. Creane una per iniziare a costruire la tua storia.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {campaigns.map(campaign => {
+                const ruleset = RULESETS[campaign.ruleset] ?? RULESETS.custom;
+
+                return (
+                  <button
+                    key={campaign.id}
+                    type="button"
+                    onClick={() => onEnterCampaign(campaign)}
+                    className="group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4 pt-5 text-left transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
+                  >
+                    <span
+                      className="absolute inset-x-0 top-0 h-1"
+                      style={{ backgroundColor: ruleset.color }}
+                    />
+
+                    <div className="mb-2">
+                      <RulesetTag rulesetId={campaign.ruleset} />
+                    </div>
+                    <h3 className="text-base font-semibold tracking-wide text-[var(--dash-text-strong)]">{campaign.name}</h3>
+                    {campaign.description && (
+                      <p className="mt-1 line-clamp-2 text-xs text-[var(--dash-muted)]">{campaign.description}</p>
+                    )}
+
+                    {campaign.inviteCode && (
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={e => { e.stopPropagation(); copyInviteCode(campaign); }}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); copyInviteCode(campaign); } }}
+                        title="Copia codice invito"
+                        className="mt-3 inline-flex w-fit items-center gap-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 py-1 text-xs text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
+                      >
+                        <KeyRound className="h-3.5 w-3.5" />
+                        <span className="font-mono tracking-[0.2em]">{campaign.inviteCode}</span>
+                        {copiedCampaignId === campaign.id ? (
+                          <Check className="h-3.5 w-3.5 text-[var(--dash-accent)]" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* ─── Sezione 3: Sessioni a cui partecipo ──────────────────────────── */}
+        <section>
+          <div className="mb-5">
+            <SectionEyebrow index="03" label="Inviti ricevuti" />
+            <div className="flex items-center gap-2.5">
+              <DoorOpen className="h-5 w-5 text-[var(--dash-accent)]" />
+              <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Sessioni a cui partecipo</h2>
+            </div>
+          </div>
+
+          <form onSubmit={handleJoinSubmit} className="mb-5 flex flex-col gap-3 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4 sm:flex-row sm:items-start">
+            <div className="flex-1">
+              <label className="mb-1.5 block text-xs uppercase tracking-[0.2em] text-[var(--dash-muted)]">
+                Codice invito
+              </label>
+              <input
+                type="text"
+                value={inviteCodeInput}
+                onChange={e => setInviteCodeInput(e.target.value.toUpperCase())}
+                placeholder="es. AB12CD"
+                maxLength={12}
+                className="w-full rounded-xl border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-2.5 text-sm uppercase tracking-[0.25em] text-[var(--dash-text)] placeholder-[var(--dash-muted)] outline-none transition-shadow focus:border-[var(--dash-accent)] focus:shadow-[0_0_0_3px_var(--dash-card-shadow)]"
+              />
+              {joinError && <p className="mt-1.5 text-xs text-[var(--dash-danger-text)]">{joinError}</p>}
+              {joinSuccess && <p className="mt-1.5 text-xs text-[var(--dash-accent-2)]">{joinSuccess}</p>}
+            </div>
+            <button
+              type="submit"
+              disabled={isJoining || !inviteCodeInput.trim()}
+              className="flex items-center justify-center gap-2 rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--dash-text-strong)] shadow-[0_0_20px_var(--dash-card-shadow)] transition-all hover:bg-[var(--dash-accent-2)] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none sm:mt-[22px]"
+            >
+              {isJoining && <Loader2 className="h-4 w-4 animate-spin" />}
+              Unisciti
+            </button>
+          </form>
+
+          {joinedCampaigns.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
+              <DoorOpen className="h-10 w-10 text-[var(--dash-muted)]" />
+              <p className="text-sm text-[var(--dash-muted)]">
+                Non partecipi ancora a nessuna sessione come giocatore. Inserisci un codice invito per unirti a una campagna.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {joinedCampaigns.map(campaign => {
+                const ruleset = RULESETS[campaign.ruleset] ?? RULESETS.custom;
+
+                return (
+                  <button
+                    key={campaign.id}
+                    type="button"
+                    onClick={() => onEnterCampaign(campaign)}
+                    className="group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4 pt-5 text-left transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
+                  >
+                    <span
+                      className="absolute inset-x-0 top-0 h-1"
+                      style={{ backgroundColor: ruleset.color }}
+                    />
+
+                    <div className="mb-2">
+                      <RulesetTag rulesetId={campaign.ruleset} />
+                    </div>
+                    <h3 className="text-base font-semibold tracking-wide text-[var(--dash-text-strong)]">{campaign.name}</h3>
+                    {campaign.description && (
+                      <p className="mt-1 line-clamp-2 text-xs text-[var(--dash-muted)]">{campaign.description}</p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </main>
+
+      {/* ─── Modale: scegli regolamento per nuovo PG ──────────────────────── */}
+      {showRulesetPicker && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-surface)] p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--dash-muted)]">Nuovo personaggio</p>
+                <h3 className="text-lg font-semibold tracking-wide text-[var(--dash-text-strong)]">Scegli il regolamento</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRulesetPicker(false)}
+                className="rounded-lg p-1.5 text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              {Object.values(RULESETS).map(rs => (
+                <button
+                  key={rs.id}
+                  type="button"
+                  onClick={() => chooseRulesetForNewCharacter(rs.id)}
+                  className="group flex items-start gap-3 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-[0_6px_20px_var(--dash-card-shadow)]"
+                  style={{ borderColor: undefined }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = `${rs.color}88`; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = ''; }}
+                >
+                  <span
+                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                    style={{ backgroundColor: `${rs.color}1a`, color: rs.color }}
+                  >
+                    {RULESET_ICONS[rs.id]}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-[var(--dash-text-strong)]">
+                      {rs.name}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-[var(--dash-muted)] line-clamp-2">
+                      {rs.description}
+                    </span>
+                  </span>
+                  <CheckCircle2 className="ml-auto mt-0.5 h-4 w-4 shrink-0 text-[var(--dash-muted)] opacity-0 transition-opacity group-hover:opacity-100" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Wizard creazione personaggio ─────────────────────────────────── */}
+      {characterWizardRuleset && (
+        <CharacterCreationWizard
+          onClose={() => setCharacterWizardRuleset(null)}
+          onAdd={character => void handleAddCharacter(character)}
+          existingCharacters={[]}
+        />
+      )}
+
+      {/* ─── Modale: crea nuova campagna ───────────────────────────────────── */}
+      {showCampaignForm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-surface)] p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold tracking-wide text-[var(--dash-text-strong)]">Nuova campagna</h3>
+              <button
+                type="button"
+                onClick={() => setShowCampaignForm(false)}
+                className="rounded-lg p-1.5 text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {campaignFormError && (
+              <div className="mb-4 rounded-xl border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-4 py-3 text-sm text-[var(--dash-danger-text)]">
+                {campaignFormError}
+              </div>
+            )}
+
+            <CampaignForm
+              onSave={data => void handleCreateCampaign(data)}
+              onCancel={() => setShowCampaignForm(false)}
+              isSubmitting={isCreatingCampaign}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabaseClient';
 import type { Character } from '../../types/character';
+import type { RulesetId } from '../../app/campaigns/campaignTypes';
 import { readDashboardSettings } from '../settings/dashboardSettings';
 import { isTauriRuntime } from '../runtime/runtimeEnvironment';
 import {
@@ -11,7 +12,7 @@ import { createIndexedDbAdapter } from '../storage/indexedDbAdapter';
 
 type StoredCharacter = Character & {
   id: string;
-  campaignId?: string;
+  campaignId?: string | null;
   player: string;
   notes: string;
 };
@@ -35,7 +36,7 @@ async function loadLocalCharacters(campaignId: string): Promise<StoredCharacter[
 }
 
 async function saveLocalCharacter(
-  campaignId: string,
+  campaignId: string | null,
   character: StoredCharacter
 ): Promise<void> {
   const payload = {
@@ -44,7 +45,7 @@ async function saveLocalCharacter(
   };
 
   if (isTauriRuntime()) {
-    await saveTauriEntity<StoredCharacter>(campaignId, 'characters', payload);
+    await saveTauriEntity<StoredCharacter>(campaignId ?? 'unassigned', 'characters', payload);
     return;
   }
 
@@ -121,8 +122,10 @@ export async function loadCharacters(campaignId: string): Promise<(Character & {
  * Salva un personaggio (create o update)
  */
 export async function saveCharacter(
-  campaignId: string,
-  character: Character & {player: string; notes: string}
+  campaignId: string | null,
+  character: Character & {player: string; notes: string},
+  ownerProfileId: string,
+  ruleset?: RulesetId
 ): Promise<void> {
   if (shouldUseLocalMode()) {
     await saveLocalCharacter(campaignId, character);
@@ -134,6 +137,7 @@ export async function saveCharacter(
   const sheetData = {
     player: character.player,
     notes: character.notes,
+    ruleset: ruleset ?? undefined,
     ambiti: character.ambiti,
     abilita: character.abilita,
     freschezza: character.freschezza,
@@ -166,7 +170,7 @@ export async function saveCharacter(
     .upsert({
       id: character.id,
       campaign_id: campaignId,
-      owner_profile_id: 'demo-user',
+      owner_profile_id: ownerProfileId,
       name: character.name,
       style: character.style,
       viaggio: character.viaggio,

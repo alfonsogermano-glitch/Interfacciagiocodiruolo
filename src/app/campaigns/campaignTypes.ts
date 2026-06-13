@@ -65,6 +65,7 @@ export interface Campaign {
   description: string;
   ruleset: RulesetId;
   ownerId: string;
+  inviteCode?: string;
   createdAt: string;
   updatedAt: string;
 }
