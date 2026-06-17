@@ -22,6 +22,8 @@ type AuthContextValue = {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, displayName?: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
+  isPasswordRecovery: boolean;
+  clearPasswordRecovery: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -38,6 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   useEffect(() => {
     // Carica sessione esistente
@@ -48,7 +51,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Ascolta cambiamenti di stato auth
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+      }
       setSession(nextSession);
       setUser(nextSession ? sessionToUser(nextSession) : null);
     });
@@ -105,7 +111,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{
+      user, session, isLoading, signIn, signUp, signOut,
+      isPasswordRecovery, clearPasswordRecovery: () => setIsPasswordRecovery(false),
+    }}>
       {children}
     </AuthContext.Provider>
   );

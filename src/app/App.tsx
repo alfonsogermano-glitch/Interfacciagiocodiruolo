@@ -1,28 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  Eye,
-  Users,
-  Ghost,
-  Map,
-  Lightbulb,
-  Scroll,
-  Swords,
-  Bookmark,
-  Play,
-  GitBranch,
-  Image,
-  LogOut,
-  UserCircle2,
-  ChevronDown,
-  Home
-} from 'lucide-react';
 import { AuthProvider, useAuth } from './auth/AuthContext';
-import { LoginPage } from './components/auth/LoginPage';
+import LandingPage from './landing/LandingPage';
+import { SetNewPasswordModal } from './landing/SetNewPasswordModal';
 import { CampaignProvider, useCampaign } from './campaigns/CampaignContext';
 import { RulesetProvider } from './campaigns/RulesetContext';
 import { CampaignSelector, CampaignSwitcher } from './campaigns/CampaignSelector';
 import { MigrationWizard, isMigrationNeeded } from './campaigns/MigrationWizard';
 import { HomeScreen } from './home/HomeScreen';
+import { AppShell } from './layout/AppShell';
+import { LeftSidebar } from './layout/LeftSidebar';
+import { GmSectionSidebar } from './layout/GmSectionSidebar';
+import { TopBar } from './layout/TopBar';
+import { SettingsModal } from './components/SettingsModal';
 
 import { AdventureManager } from './components/gm/AdventureManager';
 import { PlayerCharacters } from './components/gm/PlayerCharacters';
@@ -37,7 +26,6 @@ import { GamePhases } from './components/gm/GamePhases';
 import { EquipmentCatalogPage } from '../features/gm/pages/EquipmentCatalogPage';
 import { VisualAssetsManager } from './components/gm/VisualAssetsManager';
 import { SceneEncounterManager } from './components/gm/SceneEncounterManager';
-import { SupabaseDebug } from './components/SupabaseDebug';
 
 import { ensureCampaignBootstrap } from '../services/campaign/ensureCampaignBootstrap';
 
@@ -54,19 +42,25 @@ import {
   type DashboardSettings
 } from '../services/settings/dashboardSettings';
 
-
 type NavigationTarget = {
   tabId: string;
   entityId?: string;
   entityType?: string;
 };
 
-function Dashboard({ onBackToHome }: { onBackToHome: () => void }) {
-  const { user, signOut } = useAuth();
+interface DashboardProps {
+  activeTab: string;
+  navigationTarget: NavigationTarget | null;
+  onNavigate: (target: NavigationTarget) => void;
+}
+
+function Dashboard({ activeTab, navigationTarget, onNavigate }: DashboardProps) {
   const { activeCampaignId, campaigns, isLoading: campaignsLoading } = useCampaign();
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isCampaignSelectorOpen, setIsCampaignSelectorOpen] = useState(false);
   const [wizardDismissed, setWizardDismissed] = useState(false);
+  const [campaignToastMessage, setCampaignToastMessage] = useState<string | null>(null);
+
+  const importCampaignInputRef = useRef<HTMLInputElement | null>(null);
 
   const migrationAlreadyDone = localStorage.getItem('hsc-migration-v1-done') === 'true';
   const showWizard =
@@ -74,106 +68,6 @@ function Dashboard({ onBackToHome }: { onBackToHome: () => void }) {
     !campaignsLoading &&
     !migrationAlreadyDone &&
     (campaigns.length === 0 || isMigrationNeeded());
-  const [activeTab, setActiveTab] = useState(() => {
-    if (typeof window === 'undefined') return 'phases';
-
-    return window.localStorage.getItem('hsc-active-main-tab') ?? 'phases';
-  });
-
-  const [campaignToastMessage, setCampaignToastMessage] = useState<string | null>(null);
-  const [isBootstrapped, setIsBootstrapped] = useState(false);
-  const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | null>(null);
-
-  const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>(
-    () => readDashboardSettings()
-  );
-
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [draftDashboardSettings, setDraftDashboardSettings] =
-    useState<DashboardSettings>(() => dashboardSettings);
-
-  const importCampaignInputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function bootstrapDashboard() {
-      try {
-        const loadedSettings = await loadDashboardSettings();
-
-        if (!cancelled) {
-          setDashboardSettings(loadedSettings);
-        }
-
-        ensureCampaignBootstrap();
-      } catch (error) {
-        console.error('Errore bootstrap dashboard:', error);
-
-        try {
-          ensureCampaignBootstrap();
-        } catch (bootstrapError) {
-          console.error('Errore bootstrap campagna:', bootstrapError);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsBootstrapped(true);
-        }
-      }
-    }
-
-    void bootstrapDashboard();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const changeActiveTab = (tabId: string) => {
-    setActiveTab(tabId);
-
-    try {
-      window.localStorage.setItem('hsc-active-main-tab', tabId);
-    } catch (error) {
-      console.error('Errore nel salvataggio del tab attivo:', error);
-    }
-  };
-
-  const navigateToEntity = (target: NavigationTarget) => {
-    setNavigationTarget(target);
-    changeActiveTab(target.tabId);
-  };
-
-  const updateDashboardSettings = (patch: Partial<DashboardSettings>) => {
-    setDashboardSettings(previousSettings => {
-      const nextSettings = {
-        ...previousSettings,
-        ...patch
-      };
-
-      console.log('Salvataggio impostazioni dashboard:', nextSettings);
-      saveDashboardSettings(nextSettings);
-
-      return nextSettings;
-    });
-  };
-
-  const openSettings = () => {
-    setDraftDashboardSettings(dashboardSettings);
-    setIsSettingsOpen(true);
-  };
-
-  const closeSettingsWithoutSaving = () => {
-    setDraftDashboardSettings(dashboardSettings);
-    setIsSettingsOpen(false);
-  };
-
-  const saveSettingsAndClose = () => {
-    updateDashboardSettings(draftDashboardSettings);
-    setDashboardSettings(draftDashboardSettings);
-    saveDashboardSettings(draftDashboardSettings);
-    setIsSettingsOpen(false);
-    showCampaignToast('Impostazioni salvate.');
-  };
 
   const showCampaignToast = (message: string) => {
     setCampaignToastMessage(message);
@@ -213,200 +107,79 @@ function Dashboard({ onBackToHome }: { onBackToHome: () => void }) {
     }
   };
 
-  const tabs = [
-    { id: 'phases', label: 'Fasi di Gioco', icon: Play },
-    { id: 'adventures', label: 'Avventure', icon: GitBranch },
-    { id: 'players', label: 'PG', icon: Users },
-    { id: 'npcs', label: 'PNG', icon: Ghost },
-    { id: 'map', label: 'Mappa', icon: Map },
-    { id: 'environments', label: 'Luoghi', icon: Bookmark },
-    { id: 'scene-encounter', label: 'Scene', icon: Play },
-    { id: 'clues', label: 'Indizi', icon: Lightbulb },
-    { id: 'situations', label: 'Situazioni', icon: Scroll },
-    { id: 'monsters', label: 'Mostri', icon: Swords },
-    { id: 'combat', label: 'Combattimento', icon: Swords },
-    { id: 'equipment-catalog', label: 'Archivio Oggetti', icon: Bookmark },
-    { id: 'visual-assets', label: 'Asset Grafici', icon: Image }
-  ];
-
-  if (!isBootstrapped) {
-    return null;
-  }
-
   return (
-    <div
-  data-dashboard-palette={dashboardSettings.palette}
-  className="min-h-screen bg-[var(--dash-bg)] text-[var(--dash-text)]"
-      >
-      <header className="sticky top-0 z-50 border-b-2 border-[var(--dash-border)] bg-[var(--dash-surface-2)]">
-        <div className="mx-auto max-w-[1800px] px-6 py-4">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Eye className="h-8 w-8 text-[var(--dash-accent)]" />
+    <div className="px-6 py-6">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <CampaignSwitcher onClick={() => setIsCampaignSelectorOpen(true)} />
 
-              <div>
-                <h1 className="text-[var(--dash-text)]">Dashboard dell'Antico</h1>
-                <p className="text-sm text-[var(--dash-muted)]">
-                  Controllo completo della sessione di gioco
-                </p>
-              </div>
-            </div>
+        <div className="flex items-center gap-2">
+          <input
+            ref={importCampaignInputRef}
+            type="file"
+            accept="application/json"
+            onChange={handleImportCampaign}
+            className="hidden"
+          />
 
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={onBackToHome}
-                className="flex items-center gap-2 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:border-[var(--dash-accent)] hover:bg-[var(--dash-surface-2)]"
-              >
-                <Home className="h-4 w-4 text-[var(--dash-accent)]" />
-                <span className="hidden sm:block">Home</span>
-              </button>
+          <button
+            type="button"
+            onClick={handleExportCampaign}
+            className="rounded-md border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-accent-2)]"
+          >
+            Esporta Campagna
+          </button>
 
-              <CampaignSwitcher onClick={() => setIsCampaignSelectorOpen(true)} />
-
-              <input
-                ref={importCampaignInputRef}
-                type="file"
-                accept="application/json"
-                onChange={handleImportCampaign}
-                className="hidden"
-              />
-
-              <button
-                type="button"
-                onClick={openSettings}
-                className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
-              >
-                Impostazioni
-              </button>
-
-              <button
-                type="button"
-                onClick={handleExportCampaign}
-                className="rounded-md border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-accent-2)]"
-              >
-                Esporta Campagna
-              </button>
-
-              <button
-                type="button"
-                onClick={() => importCampaignInputRef.current?.click()}
-                className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
-              >
-                Importa Campagna
-              </button>
-
-              {/* User menu */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsUserMenuOpen(v => !v)}
-                  className="flex items-center gap-2 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
-                >
-                  <UserCircle2 className="h-4 w-4 text-[var(--dash-accent)]" />
-                  <span className="hidden max-w-[120px] truncate sm:block">
-                    {user?.displayName ?? user?.email ?? 'Utente'}
-                  </span>
-                  <ChevronDown className="h-3 w-3 text-[var(--dash-muted)]" />
-                </button>
-
-                {isUserMenuOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-[60]"
-                      onClick={() => setIsUserMenuOpen(false)}
-                    />
-                    <div className="absolute right-0 top-full z-[70] mt-2 w-56 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-surface)] py-2 shadow-2xl">
-                      <div className="border-b border-[var(--dash-border-soft)] px-4 py-3">
-                        <p className="truncate text-sm font-medium text-[var(--dash-text-strong)]">
-                          {user?.displayName ?? 'Utente'}
-                        </p>
-                        <p className="truncate text-xs text-[var(--dash-muted)]">
-                          {user?.email}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => { setIsUserMenuOpen(false); void signOut(); }}
-                        className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-danger-text)]"
-                      >
-                        <LogOut className="h-4 w-4" />
-                        Esci
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <nav className="flex gap-2 overflow-x-auto pb-2">
-            {tabs.map(tab => {
-              const Icon = tab.icon;
-
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => changeActiveTab(tab.id)}
-                  className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 transition-colors ${
-                    activeTab === tab.id
-                      ? 'bg-[var(--dash-accent)] text-[var(--dash-text)]'
-                      : 'bg-[var(--dash-input)] text-[var(--dash-muted)] hover:bg-[var(--dash-border)]'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </nav>
+          <button
+            type="button"
+            onClick={() => importCampaignInputRef.current?.click()}
+            className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
+          >
+            Importa Campagna
+          </button>
         </div>
-      </header>
+      </div>
 
-      <main className="mx-auto max-w-[1800px] px-6 py-6">
-        {activeTab === 'phases' && <GamePhases />}
+      {activeTab === 'phases' && <GamePhases />}
 
-        {activeTab === 'adventures' && (
-          <AdventureManager campaignId={activeCampaignId} />
-        )}
+      {activeTab === 'adventures' && (
+        <AdventureManager campaignId={activeCampaignId} />
+      )}
 
-        {activeTab === 'players' && <PlayerCharacters />}
-        {activeTab === 'npcs' && (
-          <NPCManager navigationTarget={navigationTarget} />
-        )}
-        {activeTab === 'map' && <GameMap />}
+      {activeTab === 'players' && <PlayerCharacters />}
+      {activeTab === 'npcs' && (
+        <NPCManager navigationTarget={navigationTarget} />
+      )}
+      {activeTab === 'map' && <GameMap />}
 
-        {activeTab === 'environments' && (
-          <EnvironmentManager
-            campaignId={activeCampaignId}
-            navigationTarget={navigationTarget}
-            onNavigate={navigateToEntity}
-          />
-        )}
+      {activeTab === 'environments' && (
+        <EnvironmentManager
+          campaignId={activeCampaignId}
+          navigationTarget={navigationTarget}
+          onNavigate={onNavigate}
+        />
+      )}
 
-        {activeTab === 'scene-encounter' && <SceneEncounterManager />}
-        {activeTab === 'clues' && <CluesManager />}
-        {activeTab === 'situations' && <SituationsManager />}
-        {activeTab === 'monsters' && (
-          <MonstersManager
-            navigationTarget={navigationTarget}
-            onNavigate={navigateToEntity}
-          />
-        )}
-        {activeTab === 'combat' && <CombatTracker />}
+      {activeTab === 'scene-encounter' && <SceneEncounterManager />}
+      {activeTab === 'clues' && <CluesManager />}
+      {activeTab === 'situations' && <SituationsManager />}
+      {activeTab === 'monsters' && (
+        <MonstersManager
+          navigationTarget={navigationTarget}
+          onNavigate={onNavigate}
+        />
+      )}
+      {activeTab === 'combat' && <CombatTracker />}
 
-        {activeTab === 'equipment-catalog' && (
-          <EquipmentCatalogPage
-            campaignId={activeCampaignId}
-            onNavigate={navigateToEntity}
-          />
-        )}
+      {activeTab === 'equipment-catalog' && (
+        <EquipmentCatalogPage
+          campaignId={activeCampaignId}
+          onNavigate={onNavigate}
+        />
+      )}
 
-        {activeTab === 'visual-assets' && (
-          <VisualAssetsManager campaignId={activeCampaignId} />
-        )}
-      </main>
+      {activeTab === 'visual-assets' && (
+        <VisualAssetsManager campaignId={activeCampaignId} />
+      )}
 
       {isCampaignSelectorOpen && (
         <CampaignSelector onClose={() => setIsCampaignSelectorOpen(false)} />
@@ -423,160 +196,116 @@ function Dashboard({ onBackToHome }: { onBackToHome: () => void }) {
           </div>
         </div>
       )}
-
-      {isSettingsOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4">
-          <div className="w-full max-w-2xl rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-surface)] p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="mb-5">
-              <div className="text-xs uppercase tracking-[0.14em] text-[var(--dash-accent-2)]">
-                Impostazioni dashboard
-              </div>
-
-              <h3 className="mt-2 text-xl font-semibold text-[var(--dash-text-strong)]">
-                Personalizzazione & Database
-              </h3>
-            </div>
-
-            <div className="space-y-6">
-              {/* Sezione Personalizzazione */}
-              <div className="border-b border-[var(--dash-border)] pb-5">
-                <h4 className="text-sm font-medium text-[var(--dash-text-strong)] mb-3">Personalizzazione</h4>
-                <div className="space-y-4">
-                  <div>
-                    <label className="mb-2 block text-sm text-[var(--dash-text)]">
-                      Lingua
-                    </label>
-
-                    <select
-                      value={draftDashboardSettings.language}
-                      onChange={e =>
-                        setDraftDashboardSettings(previous => ({
-                          ...previous,
-                          language: e.target.value as DashboardSettings['language']
-                        }))
-                      }
-                      className="w-full rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text)]"
-                    >
-                      <option value="it">Italiano</option>
-                      <option value="en">English</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm text-[var(--dash-text)]">
-                      Palette
-                    </label>
-
-                    <select
-                      value={draftDashboardSettings.palette}
-                      onChange={e =>
-                        setDraftDashboardSettings(previous => ({
-                          ...previous,
-                          palette: e.target.value as DashboardSettings['palette']
-                        }))
-                      }
-                      className="w-full rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text)]"
-                    >
-                      <option value="cthulhu">Cthulhu classica</option>
-                      <option value="blood">Rosso sangue</option>
-                      <option value="amber">Ambra antica</option>
-                      <option value="emerald">Verde occulto</option>
-                      <option value="arcane">Blu arcano</option>
-                      <option value="noir">Noir</option>
-                      <option value="frost">Gelo</option>
-                      <option value="violet">Violetto cosmico</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-              {/* Sezione Salvataggio */}
-<div className="border-b border-[var(--dash-border)] pb-5">
-  <h4 className="mb-3 text-sm font-medium text-[var(--dash-text-strong)]">
-    Modalità salvataggio
-  </h4>
-
-  <div className="space-y-3">
-    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
-      <input
-        type="radio"
-        name="saveMode"
-        value="cloud"
-        checked={draftDashboardSettings.saveMode === 'cloud'}
-        onChange={() => setDraftDashboardSettings(previous => ({ ...previous, saveMode: 'cloud' }))}
-        className="mt-1"
-      />
-
-      <span>
-        <span className="block text-sm font-medium text-[var(--dash-text-strong)]">
-          Cloud Supabase
-        </span>
-        <span className="mt-1 block text-xs text-[var(--dash-muted)]">
-          Usa Supabase come archivio principale, mantenendo il fallback locale già esistente.
-        </span>
-      </span>
-    </label>
-
-    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
-      <input
-        type="radio"
-        name="saveMode"
-        value="local"
-        checked={draftDashboardSettings.saveMode === 'local'}
-        onChange={() => setDraftDashboardSettings(previous => ({ ...previous, saveMode: 'local' }))}
-        className="mt-1"
-      />
-
-      <span>
-        <span className="block text-sm font-medium text-[var(--dash-text-strong)]">
-          Locale sul dispositivo
-        </span>
-        <span className="mt-1 block text-xs text-[var(--dash-muted)]">
-          Salva i dati sul dispositivo dell’utente. In questa fase prepara la dashboard al futuro salvataggio locale stabile.
-        </span>
-      </span>
-    </label>
-  </div>
-</div>
-
-              {/* Sezione Supabase Debug */}
-              <div>
-                <h4 className="text-sm font-medium text-[var(--dash-text-strong)] mb-3">Database Supabase</h4>
-                <SupabaseDebug />
-              </div>
-            </div>
-
-            <div className="mt-6 flex justify-end gap-3 border-t border-[var(--dash-border)] pt-4">
-              <button
-                type="button"
-                onClick={closeSettingsWithoutSaving}
-                className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
-              >
-                Esci senza salvare
-              </button>
-
-              <button
-                type="button"
-                onClick={saveSettingsAndClose}
-                className="rounded-md border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-accent-2)]"
-              >
-                Salva impostazioni
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 const VIEW_LS_KEY = 'hsc-current-view';
+const ACTIVE_TAB_LS_KEY = 'hsc-active-main-tab';
 
 function AuthGate() {
-  const { user, isLoading } = useAuth();
-  const { setActiveCampaign } = useCampaign();
+  const { user, isLoading, signOut, isPasswordRecovery, clearPasswordRecovery } = useAuth();
+  const { setActiveCampaign, activeCampaign } = useCampaign();
+
   const [view, setView] = useState<'home' | 'dashboard'>(
     () => (localStorage.getItem(VIEW_LS_KEY) === 'dashboard' ? 'dashboard' : 'home')
   );
+
+  const [activeGmTab, setActiveGmTab] = useState(() => {
+    if (typeof window === 'undefined') return 'phases';
+
+    return window.localStorage.getItem(ACTIVE_TAB_LS_KEY) ?? 'phases';
+  });
+
+  const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | null>(null);
+  const [homeScrollTarget, setHomeScrollTarget] = useState<'characters' | 'campaigns' | null>(null);
+
+  const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>(
+    () => readDashboardSettings()
+  );
+  const [isBootstrapped, setIsBootstrapped] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [draftDashboardSettings, setDraftDashboardSettings] =
+    useState<DashboardSettings>(() => dashboardSettings);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function bootstrapDashboard() {
+      try {
+        const loadedSettings = await loadDashboardSettings();
+
+        if (!cancelled) {
+          setDashboardSettings(loadedSettings);
+        }
+
+        ensureCampaignBootstrap();
+      } catch (error) {
+        console.error('Errore bootstrap dashboard:', error);
+
+        try {
+          ensureCampaignBootstrap();
+        } catch (bootstrapError) {
+          console.error('Errore bootstrap campagna:', bootstrapError);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsBootstrapped(true);
+        }
+      }
+    }
+
+    void bootstrapDashboard();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const changeActiveGmTab = (tabId: string) => {
+    setActiveGmTab(tabId);
+
+    try {
+      window.localStorage.setItem(ACTIVE_TAB_LS_KEY, tabId);
+    } catch (error) {
+      console.error('Errore nel salvataggio del tab attivo:', error);
+    }
+  };
+
+  const navigateToEntity = (target: NavigationTarget) => {
+    setNavigationTarget(target);
+    changeActiveGmTab(target.tabId);
+  };
+
+  const updateDashboardSettings = (patch: Partial<DashboardSettings>) => {
+    setDashboardSettings(previousSettings => {
+      const nextSettings = {
+        ...previousSettings,
+        ...patch
+      };
+
+      saveDashboardSettings(nextSettings);
+
+      return nextSettings;
+    });
+  };
+
+  const openSettings = () => {
+    setDraftDashboardSettings(dashboardSettings);
+    setIsSettingsOpen(true);
+  };
+
+  const closeSettingsWithoutSaving = () => {
+    setDraftDashboardSettings(dashboardSettings);
+    setIsSettingsOpen(false);
+  };
+
+  const saveSettingsAndClose = () => {
+    updateDashboardSettings(draftDashboardSettings);
+    setDashboardSettings(draftDashboardSettings);
+    saveDashboardSettings(draftDashboardSettings);
+    setIsSettingsOpen(false);
+  };
 
   const goToDashboard = (campaign?: Parameters<typeof setActiveCampaign>[0]) => {
     if (campaign) setActiveCampaign(campaign);
@@ -587,6 +316,11 @@ function AuthGate() {
   const goToHome = () => {
     localStorage.setItem(VIEW_LS_KEY, 'home');
     setView('home');
+  };
+
+  const goToHomeSection = (section: 'characters' | 'campaigns') => {
+    goToHome();
+    setHomeScrollTarget(section);
   };
 
   if (isLoading) {
@@ -600,13 +334,69 @@ function AuthGate() {
     );
   }
 
-  if (!user) return <LoginPage />;
-
-  if (view === 'home') {
-    return <HomeScreen onEnterCampaign={campaign => goToDashboard(campaign)} />;
+  if (!user) {
+    return <LandingPage />;
   }
 
-  return <Dashboard onBackToHome={goToHome} />;
+  if (isPasswordRecovery) {
+    return <SetNewPasswordModal onComplete={clearPasswordRecovery} />;
+  }
+
+  if (!isBootstrapped) {
+    return null;
+  }
+
+  return (
+    <>
+      <AppShell
+        settings={dashboardSettings}
+        leftSidebar={
+          <LeftSidebar
+            view={view}
+            onGoHome={goToHome}
+            onGoToHomeSection={goToHomeSection}
+            onOpenSettings={openSettings}
+            onLogout={() => void signOut()}
+            activeCampaignName={activeCampaign?.name}
+          />
+        }
+        rightSidebar={
+          view === 'dashboard' ? (
+            <GmSectionSidebar activeTab={activeGmTab} onChangeTab={changeActiveGmTab} />
+          ) : null
+        }
+        topbar={
+          <TopBar
+            activeSection={view === 'dashboard' ? activeGmTab : null}
+            onLogout={() => void signOut()}
+          />
+        }
+      >
+        {view === 'home' ? (
+          <HomeScreen
+            onEnterCampaign={campaign => goToDashboard(campaign)}
+            scrollTarget={homeScrollTarget}
+            onScrollHandled={() => setHomeScrollTarget(null)}
+          />
+        ) : (
+          <Dashboard
+            activeTab={activeGmTab}
+            navigationTarget={navigationTarget}
+            onNavigate={navigateToEntity}
+          />
+        )}
+      </AppShell>
+
+      {isSettingsOpen && (
+        <SettingsModal
+          draft={draftDashboardSettings}
+          onChangeDraft={setDraftDashboardSettings}
+          onSave={saveSettingsAndClose}
+          onCancel={closeSettingsWithoutSaving}
+        />
+      )}
+    </>
+  );
 }
 
 export default function App() {
