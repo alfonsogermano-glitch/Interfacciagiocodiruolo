@@ -86,7 +86,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   };
 
   const handleOAuth = async (provider: 'google' | 'facebook' | 'apple' | 'discord') => {
-    if (provider !== 'google' && provider !== 'discord') {
+    if (provider !== 'google' && provider !== 'discord' && provider !== 'facebook') {
       console.log(`OAuth ${provider} non ancora configurato`);
       setOauthMessage('Funzione in arrivo');
       setTimeout(() => setOauthMessage(null), 2500);
