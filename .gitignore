@@ -1,2 +1,5 @@
 node_modules/
 dist/
+*.old
+*~
+src_backup*/

@@ -4,7 +4,11 @@ import { useAuth } from '../../auth/AuthContext';
 
 type Mode = 'signin' | 'signup';
 
-export function LoginPage() {
+interface LoginPageProps {
+  onGoBack: () => void;
+}
+
+export function LoginPage({ onGoBack }: LoginPageProps) {
   const { signIn, signUp } = useAuth();
 
   const [mode, setMode] = useState<Mode>('signin');
@@ -49,13 +53,24 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--dash-bg)] px-4">
+      {/* Back link */}
+      <div className="absolute left-6 top-5">
+        <button
+          type="button"
+          onClick={onGoBack}
+          className="flex items-center gap-1.5 text-sm text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text)]"
+        >
+          ← Torna alla home
+        </button>
+      </div>
+
       {/* Logo / Title */}
       <div className="mb-10 flex flex-col items-center gap-3 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-[var(--dash-accent)] bg-[var(--dash-surface-2)] shadow-[0_0_32px_var(--dash-accent)]/30">
           <Skull className="h-8 w-8 text-[var(--dash-accent)]" />
         </div>
         <h1 className="font-serif text-4xl font-bold tracking-tight text-[var(--dash-text-strong)]">
-          Dashboard dell'Antico
+          Hollow Gate
         </h1>
         <p className="max-w-xs text-sm text-[var(--dash-muted)]">
           {mode === 'signin'
@@ -174,7 +189,7 @@ export function LoginPage() {
       </div>
 
       <p className="mt-6 text-xs text-[var(--dash-muted)]">
-        Dashboard dell'Antico · High School Cthulhu VTT
+        Hollow Gate · High School Cthulhu VTT
       </p>
     </div>
   );

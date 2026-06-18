@@ -6,7 +6,6 @@ import {
   DoorOpen,
   KeyRound,
   Loader2,
-  LogOut,
   Plus,
   Scroll,
   Skull,
@@ -53,6 +52,12 @@ function RulesetTag({ rulesetId }: { rulesetId: RulesetId }) {
   );
 }
 
+function formatCreatedAt(value: string): string | null {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 function SectionEyebrow({ index, label }: { index: string; label: string }) {
   return (
     <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-[var(--dash-muted)]">
@@ -65,10 +70,12 @@ function SectionEyebrow({ index, label }: { index: string; label: string }) {
 
 interface HomeScreenProps {
   onEnterCampaign: (campaign: Campaign) => void;
+  scrollTarget?: 'characters' | 'campaigns' | null;
+  onScrollHandled?: () => void;
 }
 
-export function HomeScreen({ onEnterCampaign }: HomeScreenProps) {
-  const { user, signOut } = useAuth();
+export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: HomeScreenProps) {
+  const { user } = useAuth();
   const {
     campaigns,
     joinedCampaigns,
@@ -80,6 +87,17 @@ export function HomeScreen({ onEnterCampaign }: HomeScreenProps) {
   const palette = useMemo(() => readDashboardSettings().palette, []);
 
   const allCampaigns = useMemo(() => [...campaigns, ...joinedCampaigns], [campaigns, joinedCampaigns]);
+
+  const charactersSectionRef = useRef<HTMLDivElement | null>(null);
+  const campaignsSectionRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!scrollTarget) return;
+
+    const target = scrollTarget === 'characters' ? charactersSectionRef.current : campaignsSectionRef.current;
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    onScrollHandled?.();
+  }, [scrollTarget, onScrollHandled]);
 
   // ─── Personaggi ────────────────────────────────────────────────────────────
   const [characters, setCharacters] = useState<CharacterSummary[]>([]);
@@ -202,46 +220,68 @@ export function HomeScreen({ onEnterCampaign }: HomeScreenProps) {
     >
       {/* Atmosfera di fondo */}
       <div
-        className="pointer-events-none fixed inset-0 z-0 opacity-50"
+        className="pointer-events-none absolute inset-0 z-0 opacity-50"
         style={{
           background:
             'radial-gradient(circle at 15% -10%, var(--dash-accent) 0%, transparent 40%), radial-gradient(circle at 85% 0%, var(--dash-card-shadow) 0%, transparent 45%)',
         }}
       />
-      <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_transparent_0%,_var(--dash-bg)_75%)]" />
-
-      <header className="sticky top-0 z-40 border-b border-[var(--dash-border)] bg-[var(--dash-surface-2)]/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-[1400px] items-center justify-between px-6 py-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] shadow-[0_0_18px_var(--dash-card-shadow)]">
-              <Skull className="h-6 w-6 text-[var(--dash-accent)]" />
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--dash-muted)]">High School Cthulhu</p>
-              <h1 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Dashboard dell'Antico</h1>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="hidden text-right sm:block">
-              <p className="text-xs uppercase tracking-[0.2em] text-[var(--dash-muted)]">Bentornato</p>
-              <p className="text-sm font-medium text-[var(--dash-text-strong)]">{user?.displayName ?? user?.email}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void signOut()}
-              className="flex items-center gap-2 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:border-[var(--dash-danger-border)] hover:bg-[var(--dash-danger-bg)] hover:text-[var(--dash-danger-text)]"
-            >
-              <LogOut className="h-4 w-4" />
-              Esci
-            </button>
-          </div>
-        </div>
-      </header>
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_top,_transparent_0%,_var(--dash-bg)_75%)]" />
 
       <main className="relative z-10 mx-auto max-w-[1400px] space-y-14 px-6 py-10">
-        {/* ─── Sezione 1: I miei personaggi ─────────────────────────────── */}
+        {/* ─── Hero ───────────────────────────────────────────────────────── */}
+        <section className="flex items-center gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] shadow-[0_0_18px_var(--dash-card-shadow)]">
+            <Skull className="h-7 w-7 text-[var(--dash-accent)]" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--dash-muted)]">High School Cthulhu</p>
+            <h1 className="font-serif text-3xl font-semibold tracking-wide text-[var(--dash-text-strong)] sm:text-4xl">
+              Bentornato, {user?.displayName ?? user?.email}
+            </h1>
+          </div>
+        </section>
+
+        {/* ─── Azioni rapide ──────────────────────────────────────────────── */}
         <section>
+          <SectionEyebrow index="00" label="Inizia da qui" />
+          <h2 className="mb-5 text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Azioni rapide</h2>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => { setCampaignFormError(null); setShowCampaignForm(true); }}
+              className="group relative overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-gradient-to-br from-indigo-600 to-indigo-950 p-6 text-left text-white shadow-lg transition-all hover:-translate-y-1 hover:shadow-2xl"
+            >
+              <Scroll className="mb-4 h-9 w-9" />
+              <h3 className="text-lg font-semibold tracking-wide">Crea campagna</h3>
+              <p className="mt-1 text-sm text-white/80">Avvia una nuova storia e diventa il Game Master.</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={openRulesetPicker}
+              className="group relative overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-gradient-to-br from-rose-700 to-red-950 p-6 text-left text-white shadow-lg transition-all hover:-translate-y-1 hover:shadow-2xl"
+            >
+              <UserCircle2 className="mb-4 h-9 w-9" />
+              <h3 className="text-lg font-semibold tracking-wide">Crea personaggio</h3>
+              <p className="mt-1 text-sm text-white/80">Dai vita a un nuovo eroe pronto per l'avventura.</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={focusInviteCodeInput}
+              className="group relative overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-gradient-to-br from-emerald-600 to-teal-950 p-6 text-left text-white shadow-lg transition-all hover:-translate-y-1 hover:shadow-2xl"
+            >
+              <DoorOpen className="mb-4 h-9 w-9" />
+              <h3 className="text-lg font-semibold tracking-wide">Unisciti a sessione</h3>
+              <p className="mt-1 text-sm text-white/80">Inserisci un codice invito per entrare in una campagna.</p>
+            </button>
+          </div>
+        </section>
+
+        {/* ─── Sezione 1: I miei personaggi ─────────────────────────────── */}
+        <section ref={charactersSectionRef}>
           <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
             <div>
               <SectionEyebrow index="01" label="Anime in gioco" />
@@ -314,7 +354,7 @@ export function HomeScreen({ onEnterCampaign }: HomeScreenProps) {
         </section>
 
         {/* ─── Sezione 2: Le mie campagne ────────────────────────────────── */}
-        <section>
+        <section ref={campaignsSectionRef}>
           <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
             <div>
               <SectionEyebrow index="02" label="Storie dirette da te" />
@@ -366,6 +406,12 @@ export function HomeScreen({ onEnterCampaign }: HomeScreenProps) {
                     <h3 className="text-base font-semibold tracking-wide text-[var(--dash-text-strong)]">{campaign.name}</h3>
                     {campaign.description && (
                       <p className="mt-1 line-clamp-2 text-xs text-[var(--dash-muted)]">{campaign.description}</p>
+                    )}
+
+                    {formatCreatedAt(campaign.createdAt) && (
+                      <p className="mt-2 text-xs text-[var(--dash-muted)]">
+                        Creata il {formatCreatedAt(campaign.createdAt)}
+                      </p>
                     )}
 
                     {campaign.inviteCode && (

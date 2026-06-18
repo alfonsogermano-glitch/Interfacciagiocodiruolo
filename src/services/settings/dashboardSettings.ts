@@ -17,7 +17,8 @@ export type DashboardPalette =
   | 'arcane'
   | 'noir'
   | 'frost'
-  | 'violet';
+  | 'violet'
+  | 'questportal';
 
 export type DashboardSettings = {
   language: DashboardLanguage;
@@ -31,7 +32,7 @@ const SUPABASE_SETTINGS_KEY = 'dashboard_settings';
 
 export const DEFAULT_DASHBOARD_SETTINGS: DashboardSettings = {
   language: 'it',
-  palette: 'cthulhu',
+  palette: 'questportal',
   saveMode: 'cloud'
 };
 
@@ -66,7 +67,8 @@ function normalizeDashboardSettings(value: unknown): DashboardSettings {
     'arcane',
     'noir',
     'frost',
-    'violet'
+    'violet',
+    'questportal'
   ];
 
   const palette: DashboardPalette =

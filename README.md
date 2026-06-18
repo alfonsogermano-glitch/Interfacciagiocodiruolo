@@ -1,7 +1,7 @@
 
-  # Interfaccia gioco di ruolo
+  # Hollow Gate
 
-  This is a code bundle for Interfaccia gioco di ruolo. The original project is available at https://www.figma.com/design/y19u6V8RK52AEvJlWTBnoM/Interfaccia-gioco-di-ruolo.
+  This is a code bundle for Hollow Gate. The original project is available at https://www.figma.com/design/y19u6V8RK52AEvJlWTBnoM/Interfaccia-gioco-di-ruolo.
 
   ## Running the code
 

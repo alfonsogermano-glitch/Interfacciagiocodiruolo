@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import LandingPage from './landing/LandingPage';
+import { PrivacyPolicy } from './legal/PrivacyPolicy';
+import { DeleteData } from './legal/DeleteData';
 import { SetNewPasswordModal } from './landing/SetNewPasswordModal';
 import { CampaignProvider, useCampaign } from './campaigns/CampaignContext';
 import { RulesetProvider } from './campaigns/RulesetContext';
@@ -400,6 +402,10 @@ function AuthGate() {
 }
 
 export default function App() {
+  const path = window.location.pathname;
+  if (path === '/privacy') return <PrivacyPolicy />;
+  if (path === '/elimina-dati') return <DeleteData />;
+
   return (
     <AuthProvider>
       <CampaignProvider>

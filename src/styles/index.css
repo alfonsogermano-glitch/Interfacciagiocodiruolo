@@ -70,6 +70,7 @@
   --dash-surface: #151313;
   --dash-surface-2: #1a1a1a;
   --dash-panel: #211918;
+  --dash-sidebar-bg: #211918;
   --dash-input: #2a0e0e;
   --dash-border: #4a0e0e;
   --dash-border-soft: #4e3325;
@@ -93,6 +94,7 @@
   --dash-surface: #171010;
   --dash-surface-2: #211111;
   --dash-panel: #281313;
+  --dash-sidebar-bg: #281313;
   --dash-input: #320f0f;
   --dash-border: #5f1515;
   --dash-border-soft: #673232;
@@ -116,6 +118,7 @@
   --dash-surface: #17130b;
   --dash-surface-2: #211a0e;
   --dash-panel: #2a2112;
+  --dash-sidebar-bg: #2a2112;
   --dash-input: #30200d;
   --dash-border: #5a3510;
   --dash-border-soft: #6a4a24;
@@ -138,6 +141,7 @@
   --dash-surface: #0d1a14;
   --dash-surface-2: #13241b;
   --dash-panel: #16291f;
+  --dash-sidebar-bg: #16291f;
   --dash-input: #0f2a1d;
   --dash-border: #1e5a3a;
   --dash-border-soft: #2f6a4a;
@@ -161,6 +165,7 @@
   --dash-surface: #0d1420;
   --dash-surface-2: #121b2b;
   --dash-panel: #162237;
+  --dash-sidebar-bg: #162237;
   --dash-input: #10233a;
   --dash-border: #1f4d7a;
   --dash-border-soft: #315a83;
@@ -184,6 +189,7 @@
   --dash-surface: #111111;
   --dash-surface-2: #1a1a1a;
   --dash-panel: #202020;
+  --dash-sidebar-bg: #202020;
   --dash-input: #181818;
   --dash-border: #3a3a3a;
   --dash-border-soft: #4a4a4a;
@@ -207,6 +213,7 @@
   --dash-surface: #0e1a20;
   --dash-surface-2: #14242c;
   --dash-panel: #172b33;
+  --dash-sidebar-bg: #172b33;
   --dash-input: #102832;
   --dash-border: #235567;
   --dash-border-soft: #356879;
@@ -230,6 +237,7 @@
   --dash-surface: #15101d;
   --dash-surface-2: #1f172b;
   --dash-panel: #281d36;
+  --dash-sidebar-bg: #281d36;
   --dash-input: #23133a;
   --dash-border: #4e2b75;
   --dash-border-soft: #634383;
@@ -246,4 +254,36 @@
   --dash-card-frame: #8c5cc7;
   --dash-card-frame-soft: #3a2a4a;
   --dash-card-inner: #2a1d3a;
+}
+
+[data-dashboard-palette='questportal'] {
+  --dash-bg: #1a1b26;
+  --dash-sidebar-bg: #13141f;
+  --dash-surface: #1e2030;
+  --dash-surface-2: #1e2030;
+  --dash-panel: #1e2030;
+  --dash-input: #1e2030;
+  --dash-border: #2a2b3d;
+  --dash-border-soft: #2a2b3d;
+  --dash-accent: #6366f1;
+  --dash-accent-2: #818cf8;
+  --dash-text: #e0e0e0;
+  --dash-text-strong: #ffffff;
+  --dash-muted: #6b7280;
+  --dash-danger-border: #7a3a3a;
+  --dash-danger-bg: #2a1717;
+  --dash-danger-text: #f3dede;
+  --dash-danger-hover: #3a1c1c;
+  --dash-card-shadow: rgba(99, 102, 241, 0.18);
+  --dash-card-frame: #6366f1;
+  --dash-card-frame-soft: #2a2b3d;
+  --dash-card-inner: #24263a;
+}
+
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  display: none;
 }

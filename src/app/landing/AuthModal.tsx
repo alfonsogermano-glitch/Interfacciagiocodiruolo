@@ -85,10 +85,22 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     setPassword('');
   };
 
-  const handleOAuth = (provider: 'google' | 'facebook' | 'apple' | 'discord') => {
-    console.log(`OAuth ${provider} non ancora configurato`);
-    setOauthMessage('Funzione in arrivo');
-    setTimeout(() => setOauthMessage(null), 2500);
+  const handleOAuth = async (provider: 'google' | 'facebook' | 'apple' | 'discord') => {
+    if (provider !== 'google' && provider !== 'discord') {
+      console.log(`OAuth ${provider} non ancora configurato`);
+      setOauthMessage('Funzione in arrivo');
+      setTimeout(() => setOauthMessage(null), 2500);
+      return;
+    }
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+    if (error) {
+      setErrorMessage(`Errore durante l'accesso con ${provider}: ` + error.message);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
