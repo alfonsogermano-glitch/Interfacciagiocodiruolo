@@ -53,7 +53,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Ascolta cambiamenti di stato auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (event === 'PASSWORD_RECOVERY') {
-        setIsPasswordRecovery(true);
+        const hash = window.location.hash;
+        if (hash.includes('type=recovery')) {
+          setIsPasswordRecovery(true);
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
       }
       setSession(nextSession);
       setUser(nextSession ? sessionToUser(nextSession) : null);
@@ -113,7 +117,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, session, isLoading, signIn, signUp, signOut,
-      isPasswordRecovery, clearPasswordRecovery: () => setIsPasswordRecovery(false),
+      isPasswordRecovery,
+      clearPasswordRecovery: () => {
+        setIsPasswordRecovery(false);
+        if (window.location.hash.includes('type=recovery')) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+      },
     }}>
       {children}
     </AuthContext.Provider>

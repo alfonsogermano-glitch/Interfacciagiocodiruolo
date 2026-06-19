@@ -56,10 +56,8 @@ const DiscordIcon = () => (
 );
 
 const socialProviders = [
-  { id: 'google'   as const, label: 'Google',   Icon: GoogleIcon   },
-  { id: 'facebook' as const, label: 'Facebook', Icon: FacebookIcon },
-  { id: 'apple'    as const, label: 'Apple',    Icon: AppleIcon    },
-  { id: 'discord'  as const, label: 'Discord',  Icon: DiscordIcon  },
+  { id: 'google'  as const, label: 'Google',  Icon: GoogleIcon  },
+  { id: 'discord' as const, label: 'Discord', Icon: DiscordIcon },
 ];
 
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
