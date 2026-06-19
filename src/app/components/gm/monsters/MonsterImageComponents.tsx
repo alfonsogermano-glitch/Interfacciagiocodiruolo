@@ -91,12 +91,14 @@ export function ImageEditor({
   title,
   imageUrl,
   onUrlChange,
-  onFileChange
+  onFileChange,
+  isUploading
 }: {
   title: string;
   imageUrl: string;
   onUrlChange: (value: string) => void;
   onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  isUploading?: boolean;
 }) {
   return (
     <div>
@@ -108,6 +110,7 @@ export function ImageEditor({
         onChange={e => onUrlChange(e.target.value)}
         placeholder={`URL ${title.toLowerCase()}`}
         className="mb-2 w-full rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text)]"
+        disabled={isUploading}
       />
 
       <input
@@ -115,7 +118,12 @@ export function ImageEditor({
         accept="image/*"
         onChange={onFileChange}
         className="block w-full text-sm text-[var(--dash-text)] file:mr-4 file:rounded-md file:border-0 file:bg-[var(--dash-accent)] file:px-3 file:py-2 file:text-sm file:text-[var(--dash-text-strong)]"
+        disabled={isUploading}
       />
+
+      {isUploading && (
+        <p className="mt-2 text-sm text-[var(--dash-accent)]">Caricamento in corso…</p>
+      )}
     </div>
   );
 }

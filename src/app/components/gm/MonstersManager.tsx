@@ -59,6 +59,9 @@ import {
 import { PortraitImage, ImageEditor, MonsterPortraitFrame, FrameTransformStepper, MonsterCoverFrame } from './monsters/MonsterImageComponents';
 import { FreschezzaMaxEditor, FreschezzaBoxesEditor } from './monsters/MonsterFreschezzaComponents';
 import { CatalogSelectionBlock, CustomEntriesEditor, Badge, Info, InfoBlock, TagsBlock } from './monsters/MonsterCatalogComponents';
+import { isSupabaseConfigured, supabase } from '../../../lib/supabaseClient';
+import { generateUUID } from '../../../lib/uuid';
+import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useRuleset } from '../../campaigns/RulesetContext';
 import { RulesetBadge } from '../../campaigns/RulesetGate';
@@ -70,6 +73,7 @@ export function MonstersManager({
   onNavigate
 }: MonstersManagerProps) {
   const { activeCampaignId } = useCampaign();
+  const { user } = useAuth();
 
   const {
     items: monsters,
@@ -82,6 +86,7 @@ export function MonstersManager({
   const isD20 = isDnD5e || isPathfinder;
 
   const [isLoadingFromSupabase, setIsLoadingFromSupabase] = useState(true);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
    const [adventures, setAdventures] = useState<Adventure[]>([]);
 
@@ -760,7 +765,7 @@ useEffect(() => {
       return hasName !== hasDescription;
     });
 
-  const handleImageFileUpload = (
+  const handleImageFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>,
     target: 'portrait' | 'cover'
   ) => {
@@ -774,18 +779,44 @@ useEffect(() => {
       return;
     }
 
-    const reader = new FileReader();
+    const fieldKey = target === 'portrait' ? 'portraitImageUrl' : 'coverImageUrl';
 
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-
-      updateCurrentMonster({
-        ...currentMonster,
-        [target === 'portrait' ? 'portraitImageUrl' : 'coverImageUrl']: result
-      });
+    const readAsBase64 = () => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = typeof reader.result === 'string' ? reader.result : '';
+        updateCurrentMonster({ ...currentMonster, [fieldKey]: result });
+      };
+      reader.readAsDataURL(file);
     };
 
-    reader.readAsDataURL(file);
+    if (isSupabaseConfigured && supabase && user) {
+      setIsUploadingImage(true);
+      try {
+        const ext = file.name.split('.').pop() ?? 'png';
+        const monsterId = currentMonster.id || generateUUID();
+        const filePath = `${user.id}/${monsterId}-${Date.now()}.${ext}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('monster-images')
+          .upload(filePath, file, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('monster-images')
+          .getPublicUrl(filePath);
+
+        updateCurrentMonster({ ...currentMonster, [fieldKey]: publicUrl });
+      } catch (err) {
+        console.error('Errore upload immagine su Storage:', err);
+        readAsBase64();
+      } finally {
+        setIsUploadingImage(false);
+      }
+    } else {
+      readAsBase64();
+    }
   };
 
   const updatePortraitCrop = (patch: Partial<ImageCrop>) => {
@@ -1609,6 +1640,7 @@ const rotateCoverImageDegrees = (delta: number) => {
         })
       }
       onFileChange={e => handleImageFileUpload(e, 'portrait')}
+      isUploading={isUploadingImage}
     />
   </div>
 
@@ -1659,6 +1691,7 @@ const rotateCoverImageDegrees = (delta: number) => {
       })
     }
     onFileChange={e => handleImageFileUpload(e, 'cover')}
+    isUploading={isUploadingImage}
   />
 
 <div>

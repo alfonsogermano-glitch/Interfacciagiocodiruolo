@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Plus, Trash2, X } from 'lucide-react';
 import { generateUUID } from '../../../lib/uuid';
+import { isSupabaseConfigured, supabase } from '../../../lib/supabaseClient';
+import { useAuth } from '../../auth/AuthContext';
 import {
   VISUAL_ASSETS_CHANGED_EVENT,
   loadVisualAssetPreviews,
@@ -55,6 +57,7 @@ function createImageThumbnail(dataUrl: string, maxSize = 360): Promise<string> {
     };
 
     image.onerror = () => resolve(dataUrl);
+    image.crossOrigin = 'anonymous';
     image.src = dataUrl;
   });
 }
@@ -77,6 +80,17 @@ export function VisualAssetsManager({
     updated: number;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+  const { user } = useAuth();
+
+  const clearSelectedFile = () => {
+    if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
+    setSelectedFile(null);
+    setFilePreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -133,12 +147,9 @@ export function VisualAssetsManager({
     [groupedAssets, visibleCount]
   );
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     if (!file.type.startsWith('image/')) {
       alert('Seleziona un file immagine valido.');
@@ -146,22 +157,24 @@ export function VisualAssetsManager({
       return;
     }
 
-    const reader = new FileReader();
+    if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
+    setSelectedFile(file);
+    setFilePreviewUrl(URL.createObjectURL(file));
+  };
 
-    reader.onload = async () => {
-      const imageDataUrl =
-        typeof reader.result === 'string' ? reader.result : '';
+  const handleUpload = async () => {
+    if (!selectedFile) return;
 
-      if (!imageDataUrl) {
-        return;
-      }
+    const file = selectedFile;
+    const assetId = generateUUID();
 
+    const saveAsset = async (imageDataUrl: string) => {
       const thumbnailDataUrl = await createImageThumbnail(imageDataUrl);
 
       const newAsset: VisualAsset = {
-        id: generateUUID(),
+        id: assetId,
         campaignId,
-        name: assetName.trim() || file.name,
+        name: assetName.trim(),
         type: assetType,
         imageDataUrl,
         thumbnailDataUrl,
@@ -181,13 +194,44 @@ export function VisualAssetsManager({
       }
 
       setAssetName('');
-
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      clearSelectedFile();
     };
 
-    reader.readAsDataURL(file);
+    const readAsBase64 = () => {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const result = typeof reader.result === 'string' ? reader.result : '';
+        if (result) await saveAsset(result);
+      };
+      reader.readAsDataURL(file);
+    };
+
+    if (isSupabaseConfigured && supabase && user) {
+      setIsUploading(true);
+      try {
+        const ext = file.name.split('.').pop() ?? 'png';
+        const filePath = `${user.id}/${assetId}-${Date.now()}.${ext}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('visual-assets')
+          .upload(filePath, file, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('visual-assets')
+          .getPublicUrl(filePath);
+
+        await saveAsset(publicUrl);
+      } catch (err) {
+        console.error('Errore upload asset su Storage:', err);
+        readAsBase64();
+      } finally {
+        setIsUploading(false);
+      }
+    } else {
+      readAsBase64();
+    }
   };
 
   const handleRegenerateThumbnails = async () => {
@@ -252,38 +296,89 @@ export function VisualAssetsManager({
           <Image className="h-8 w-8 text-[var(--dash-accent-2)]" />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-[1fr_220px_auto]">
-          <input
-            type="text"
-            value={assetName}
-            onChange={e => setAssetName(e.target.value)}
-            placeholder="Nome asset, es. Cornice mostro"
-            className="rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text)] placeholder-[var(--dash-muted)]"
-          />
+        <div className="space-y-4">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--dash-muted)]">
+              1. Scegli immagine
+            </p>
+            <div className="flex items-center gap-3">
+              <label className="group inline-flex cursor-pointer items-center gap-2 rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface-2)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface)]">
+                <Plus className="h-4 w-4" />
+                Scegli file
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+              </label>
 
-          <select
-            value={assetType}
-            onChange={e => setAssetType(e.target.value as VisualAssetType)}
-            className="rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text)]"
-          >
-            {ASSET_TYPE_OPTIONS.map(option => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+              {selectedFile && (
+                <div className="flex items-center gap-3">
+                  {filePreviewUrl && (
+                    <img
+                      src={filePreviewUrl}
+                      alt="Preview"
+                      className="h-10 w-10 rounded border border-[var(--dash-border)] object-cover"
+                    />
+                  )}
+                  <span className="text-sm text-[var(--dash-text)]">
+                    {selectedFile.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={clearSelectedFile}
+                    className="text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-danger-text)]"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
 
-          <label className="group inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-accent-2)]">
-            <Plus className="h-4 w-4 group-hover:animate-[plusPulse_0.75s_ease-in-out_infinite]" />
-            Carica immagine
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-          </label>
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--dash-muted)]">
+              2. Nome e tipo
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <input
+                type="text"
+                value={assetName}
+                onChange={e => setAssetName(e.target.value)}
+                placeholder="Nome asset, es. Cornice mostro"
+                className="rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text)] placeholder-[var(--dash-muted)]"
+              />
+
+              <select
+                value={assetType}
+                onChange={e => setAssetType(e.target.value as VisualAssetType)}
+                className="rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text)]"
+              >
+                {ASSET_TYPE_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--dash-muted)]">
+              3. Carica
+            </p>
+            <button
+              type="button"
+              onClick={() => void handleUpload()}
+              disabled={!selectedFile || !assetName.trim() || isUploading}
+              className="group inline-flex items-center gap-2 rounded-md border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-accent-2)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Plus className="h-4 w-4" />
+              {isUploading ? 'Caricamento…' : 'Carica immagine'}
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">

@@ -628,6 +628,7 @@ function createVisualAssetThumbnail(dataUrl: string, maxSize = 360): Promise<str
     };
 
     image.onerror = () => resolve(dataUrl);
+    image.crossOrigin = 'anonymous';
     image.src = dataUrl;
   });
 }
