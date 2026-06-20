@@ -58,6 +58,7 @@ function EyeAnimation({ framesFolder, trigger, pos }: {
         transition: 'opacity 0.25s ease-in-out',
         zIndex: 1,
         pointerEvents: 'none',
+        ...(framesFolder === 'eye_frames_monster' && { mixBlendMode: 'screen' as const }),
       }}
     />
   );
