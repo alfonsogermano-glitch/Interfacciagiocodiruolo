@@ -22,12 +22,19 @@ function EyeAnimation({ framesFolder, trigger, pos }: {
     return [...open, ...open.slice().reverse()];
   }, [framesFolder]);
 
+  useEffect(() => {
+    const uniqueFrames = Array.from({ length: 7 }, (_, i) => `/${framesFolder}/final_${i}.png?v=3`);
+    uniqueFrames.forEach(src => {
+      const img = new Image();
+      img.src = src;
+    });
+  }, [framesFolder]);
+
   const [visible, setVisible] = useState(false);
   const [frameIndex, setFrameIndex] = useState(0);
 
   useEffect(() => {
     if (trigger === 0) return;
-    console.log('[EYE-FIRE]', framesFolder, 'trigger=', trigger);
 
     const timers: ReturnType<typeof setTimeout>[] = [];
     setFrameIndex(0);
@@ -37,7 +44,6 @@ function EyeAnimation({ framesFolder, trigger, pos }: {
     frames.forEach((_, i) => {
       if (i === 0) return;
       elapsed += FRAME_DURATIONS[i - 1];
-      console.log('[EYE-SCHED]', framesFolder, 'i=', i, 'elapsed=', elapsed);
       timers.push(setTimeout(() => setFrameIndex(i), elapsed));
     });
     timers.push(setTimeout(() => setVisible(false), TOTAL_DURATION));
@@ -80,7 +86,6 @@ function AlternatingEyes() {
       } else {
         setEyeB(prev => ({ trigger: prev.trigger + 1, pos }));
       }
-      console.log('[EYE-TICK]', tick, tick % 2 === 0 ? 'A' : 'B');
       tick++;
     };
 
