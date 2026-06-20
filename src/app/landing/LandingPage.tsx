@@ -37,6 +37,7 @@ function EyeAnimation({ framesFolder, trigger, pos }: {
     frames.forEach((_, i) => {
       if (i === 0) return;
       elapsed += FRAME_DURATIONS[i - 1];
+      console.log('[EYE-SCHED]', framesFolder, 'i=', i, 'elapsed=', elapsed);
       timers.push(setTimeout(() => setFrameIndex(i), elapsed));
     });
     timers.push(setTimeout(() => setVisible(false), TOTAL_DURATION));
