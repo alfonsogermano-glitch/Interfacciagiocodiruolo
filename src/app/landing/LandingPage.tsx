@@ -1,55 +1,47 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { BookOpen, Users, Wifi, Settings } from 'lucide-react';
 import { AuthModal } from './AuthModal';
 
-function RandomEye() {
-  const openFrames = [
-    '/eye_frames_v3/final_0.png','/eye_frames_v3/final_1.png','/eye_frames_v3/final_2.png',
-    '/eye_frames_v3/final_3.png','/eye_frames_v3/final_4.png','/eye_frames_v3/final_5.png',
-    '/eye_frames_v3/final_6.png',
-  ];
-  const frames = [...openFrames, ...openFrames.slice().reverse()];
-  const frameDurations = [90,90,90,90,90,90,500, 90,90,90,90,90,90,90];
+const FRAME_DURATIONS = [90,90,90,90,90,90,500, 90,90,90,90,90,90,90];
+const TOTAL_DURATION = FRAME_DURATIONS.reduce((a, b) => a + b, 0);
 
-  const [pos, setPos] = useState({ top: 8, left: 5 });
+function randomPos() {
+  const left = Math.random() < 0.5
+    ? 2 + Math.random() * 13
+    : 85 + Math.random() * 10;
+  return { top: 10 + Math.random() * 75, left };
+}
+
+function EyeAnimation({ framesFolder, trigger, pos }: {
+  framesFolder: string;
+  trigger: number;
+  pos: { top: number; left: number };
+}) {
+  const frames = useMemo(() => {
+    const open = Array.from({ length: 7 }, (_, i) => `/${framesFolder}/final_${i}.png`);
+    return [...open, ...open.slice().reverse()];
+  }, [framesFolder]);
+
   const [visible, setVisible] = useState(false);
   const [frameIndex, setFrameIndex] = useState(0);
 
   useEffect(() => {
+    if (trigger === 0) return;
+
     const timers: ReturnType<typeof setTimeout>[] = [];
+    setFrameIndex(0);
+    setVisible(true);
 
-    const randomPos = () => {
-      const left = Math.random() < 0.5
-        ? 2 + Math.random() * 13    // fascia sinistra: 2%–15%
-        : 85 + Math.random() * 10;  // fascia destra: 85%–95%
-      return { top: 10 + Math.random() * 75, left };
-    };
+    let elapsed = 0;
+    frames.forEach((_, i) => {
+      if (i === 0) return;
+      elapsed += FRAME_DURATIONS[i - 1];
+      timers.push(setTimeout(() => setFrameIndex(i), elapsed));
+    });
+    timers.push(setTimeout(() => setVisible(false), TOTAL_DURATION));
 
-    const playCycle = () => {
-      setPos(randomPos());
-      setFrameIndex(0);
-      setVisible(true);
-      let elapsed = 0;
-      frames.forEach((_, i) => {
-        if (i === 0) return;
-        elapsed += frameDurations[i - 1];
-        const t = setTimeout(() => setFrameIndex(i), elapsed);
-        timers.push(t);
-      });
-      const totalDuration = frameDurations.reduce((a, b) => a + b, 0);
-      const hideT = setTimeout(() => setVisible(false), totalDuration);
-      timers.push(hideT);
-    };
-
-    const firstShow = setTimeout(playCycle, 1500);
-    const interval = setInterval(playCycle, 5000);
-
-    return () => {
-      clearTimeout(firstShow);
-      clearInterval(interval);
-      timers.forEach(clearTimeout);
-    };
-  }, []);
+    return () => timers.forEach(clearTimeout);
+  }, [trigger, frames]);
 
   return (
     <img
@@ -67,6 +59,43 @@ function RandomEye() {
         pointerEvents: 'none',
       }}
     />
+  );
+}
+
+function AlternatingEyes() {
+  const [eyeA, setEyeA] = useState({ trigger: 0, pos: { top: 0, left: 0 } });
+  const [eyeB, setEyeB] = useState({ trigger: 0, pos: { top: 0, left: 0 } });
+
+  useEffect(() => {
+    let tick = 0;
+    let intervalId: ReturnType<typeof setInterval>;
+
+    const fire = () => {
+      const pos = randomPos();
+      if (tick % 2 === 0) {
+        setEyeA(prev => ({ trigger: prev.trigger + 1, pos }));
+      } else {
+        setEyeB(prev => ({ trigger: prev.trigger + 1, pos }));
+      }
+      tick++;
+    };
+
+    const firstTimeout = setTimeout(() => {
+      fire();
+      intervalId = setInterval(fire, 3000);
+    }, 1500);
+
+    return () => {
+      clearTimeout(firstTimeout);
+      clearInterval(intervalId);
+    };
+  }, []);
+
+  return (
+    <>
+      <EyeAnimation framesFolder="eye_frames_v3" trigger={eyeA.trigger} pos={eyeA.pos} />
+      <EyeAnimation framesFolder="eye_frames_monster" trigger={eyeB.trigger} pos={eyeB.pos} />
+    </>
   );
 }
 
@@ -105,7 +134,7 @@ export default function LandingPage() {
         />
 
         {/* Occhi animati casuali */}
-        <RandomEye />
+        <AlternatingEyes />
 
         {/* Contenuto: testo in cima, card in fondo */}
         <div style={{ position: 'relative', zIndex: 10, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center', padding: '2rem' }}>
