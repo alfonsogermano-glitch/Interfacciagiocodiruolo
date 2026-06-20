@@ -18,12 +18,12 @@ function EyeAnimation({ framesFolder, trigger, pos }: {
   pos: { top: number; left: number };
 }) {
   const frames = useMemo(() => {
-    const open = Array.from({ length: 7 }, (_, i) => `/${framesFolder}/final_${i}.png?v=3`);
+    const open = Array.from({ length: 7 }, (_, i) => `/${framesFolder}/final_${i}.png?v=4`);
     return [...open, ...open.slice().reverse()];
   }, [framesFolder]);
 
   useEffect(() => {
-    const uniqueFrames = Array.from({ length: 7 }, (_, i) => `/${framesFolder}/final_${i}.png?v=3`);
+    const uniqueFrames = Array.from({ length: 7 }, (_, i) => `/${framesFolder}/final_${i}.png?v=4`);
     uniqueFrames.forEach(src => {
       const img = new Image();
       img.src = src;
@@ -59,13 +59,12 @@ function EyeAnimation({ framesFolder, trigger, pos }: {
         position: 'absolute',
         top: `${pos.top}%`,
         left: `${pos.left}%`,
-        width: '110px',
+        width: framesFolder === 'eye_frames_monster' ? '85px' : '110px',
         height: 'auto',
         opacity: visible ? 0.7 : 0,
         transition: 'opacity 0.25s ease-in-out',
         zIndex: 1,
         pointerEvents: 'none',
-        ...(framesFolder === 'eye_frames_monster' && { mixBlendMode: 'screen' as const }),
       }}
     />
   );
