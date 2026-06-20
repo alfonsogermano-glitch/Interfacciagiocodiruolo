@@ -18,7 +18,7 @@ function EyeAnimation({ framesFolder, trigger, pos }: {
   pos: { top: number; left: number };
 }) {
   const frames = useMemo(() => {
-    const open = Array.from({ length: 7 }, (_, i) => `/${framesFolder}/final_${i}.png?v=2`);
+    const open = Array.from({ length: 7 }, (_, i) => `/${framesFolder}/final_${i}.png?v=3`);
     return [...open, ...open.slice().reverse()];
   }, [framesFolder]);
 
