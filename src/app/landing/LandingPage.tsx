@@ -27,6 +27,7 @@ function EyeAnimation({ framesFolder, trigger, pos }: {
 
   useEffect(() => {
     if (trigger === 0) return;
+    console.log('[EYE-FIRE]', framesFolder, 'trigger=', trigger);
 
     const timers: ReturnType<typeof setTimeout>[] = [];
     setFrameIndex(0);
@@ -77,6 +78,7 @@ function AlternatingEyes() {
       } else {
         setEyeB(prev => ({ trigger: prev.trigger + 1, pos }));
       }
+      console.log('[EYE-TICK]', tick, tick % 2 === 0 ? 'A' : 'B');
       tick++;
     };
 
