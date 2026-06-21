@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BookOpen, Users, Wifi, Settings } from 'lucide-react';
 import { AuthModal } from './AuthModal';
 
@@ -18,15 +18,17 @@ function EyeAnimation({ src, trigger, pos, width }: {
   width: number;
 }) {
   const [visible, setVisible] = useState(false);
-  const [playKey, setPlayKey] = useState(0);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
     if (trigger === 0) return;
     setVisible(true);
-    setPlayKey(k => k + 1);
+    if (imgRef.current) {
+      imgRef.current.src = `${src}#${trigger}`;
+    }
     const hideTimer = setTimeout(() => setVisible(false), TOTAL_DURATION);
     return () => clearTimeout(hideTimer);
-  }, [trigger]);
+  }, [trigger, src]);
 
   useEffect(() => {
     const img = new Image();
@@ -35,7 +37,7 @@ function EyeAnimation({ src, trigger, pos, width }: {
 
   return (
     <img
-      key={playKey}
+      ref={imgRef}
       src={src}
       alt=""
       style={{
