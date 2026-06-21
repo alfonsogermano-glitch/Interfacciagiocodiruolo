@@ -1,9 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { BookOpen, Users, Wifi, Settings } from 'lucide-react';
 import { AuthModal } from './AuthModal';
 
-const FRAME_DURATIONS = [90,90,90,90,90,90,500, 90,90,90,90,90,90,90];
-const TOTAL_DURATION = FRAME_DURATIONS.reduce((a, b) => a + b, 0);
+const TOTAL_DURATION = 1670;
 
 function randomPos() {
   const left = Math.random() < 0.5
@@ -12,54 +11,38 @@ function randomPos() {
   return { top: 10 + Math.random() * 75, left };
 }
 
-function EyeAnimation({ framesFolder, trigger, pos }: {
-  framesFolder: string;
+function EyeAnimation({ src, trigger, pos, width }: {
+  src: string;
   trigger: number;
   pos: { top: number; left: number };
+  width: number;
 }) {
-  const frames = useMemo(() => {
-    const open = Array.from({ length: 7 }, (_, i) => `/${framesFolder}/final_${i}.png?v=4`);
-    return [...open, ...open.slice().reverse()];
-  }, [framesFolder]);
-
-  useEffect(() => {
-    const uniqueFrames = Array.from({ length: 7 }, (_, i) => `/${framesFolder}/final_${i}.png?v=4`);
-    uniqueFrames.forEach(src => {
-      const img = new Image();
-      img.src = src;
-    });
-  }, [framesFolder]);
-
   const [visible, setVisible] = useState(false);
-  const [frameIndex, setFrameIndex] = useState(0);
+  const [playKey, setPlayKey] = useState(0);
 
   useEffect(() => {
     if (trigger === 0) return;
-
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    setFrameIndex(0);
     setVisible(true);
+    setPlayKey(k => k + 1);
+    const hideTimer = setTimeout(() => setVisible(false), TOTAL_DURATION);
+    return () => clearTimeout(hideTimer);
+  }, [trigger]);
 
-    let elapsed = 0;
-    frames.forEach((_, i) => {
-      if (i === 0) return;
-      elapsed += FRAME_DURATIONS[i - 1];
-      timers.push(setTimeout(() => setFrameIndex(i), elapsed));
-    });
-    timers.push(setTimeout(() => setVisible(false), TOTAL_DURATION));
-
-    return () => timers.forEach(clearTimeout);
-  }, [trigger, frames]);
+  useEffect(() => {
+    const img = new Image();
+    img.src = src;
+  }, [src]);
 
   return (
     <img
-      src={frames[frameIndex]}
+      key={playKey}
+      src={src}
       alt=""
       style={{
         position: 'absolute',
         top: `${pos.top}%`,
         left: `${pos.left}%`,
-        width: framesFolder === 'eye_frames_monster' ? '85px' : '110px',
+        width: `${width}px`,
         height: 'auto',
         opacity: visible ? 0.7 : 0,
         transition: 'opacity 0.25s ease-in-out',
@@ -101,8 +84,8 @@ function AlternatingEyes() {
 
   return (
     <>
-      <EyeAnimation framesFolder="eye_frames_v3" trigger={eyeA.trigger} pos={eyeA.pos} />
-      <EyeAnimation framesFolder="eye_frames_monster" trigger={eyeB.trigger} pos={eyeB.pos} />
+      <EyeAnimation src="/eye-anim/eye_human.webp" trigger={eyeA.trigger} pos={eyeA.pos} width={110} />
+      <EyeAnimation src="/eye-anim/eye_monster.webp" trigger={eyeB.trigger} pos={eyeB.pos} width={85} />
     </>
   );
 }
