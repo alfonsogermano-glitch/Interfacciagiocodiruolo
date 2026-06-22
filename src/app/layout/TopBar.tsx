@@ -6,6 +6,7 @@ interface TopBarProps {
   activeSection?: string | null;
   hasNotifications?: boolean;
   onLogout: () => void;
+  onEditProfile: () => void;
 }
 
 const SEARCH_PLACEHOLDERS: Record<string, string> = {
@@ -14,7 +15,7 @@ const SEARCH_PLACEHOLDERS: Record<string, string> = {
   players: 'Cerca personaggio...',
 };
 
-export function TopBar({ activeSection, hasNotifications = false, onLogout }: TopBarProps) {
+export function TopBar({ activeSection, hasNotifications = false, onLogout, onEditProfile }: TopBarProps) {
   const { user } = useAuth();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
@@ -73,6 +74,16 @@ export function TopBar({ activeSection, hasNotifications = false, onLogout }: To
 
         {isUserMenuOpen && (
           <div className="absolute right-0 top-full mt-1 min-w-[140px] rounded-lg border border-[var(--dash-border)] bg-[var(--dash-surface)] py-1 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => {
+                setIsUserMenuOpen(false);
+                onEditProfile();
+              }}
+              className="w-full px-3 py-1.5 text-left text-sm text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
+            >
+              Modifica profilo
+            </button>
             <button
               type="button"
               onClick={() => {

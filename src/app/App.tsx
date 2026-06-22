@@ -14,6 +14,7 @@ import { LeftSidebar } from './layout/LeftSidebar';
 import { GmSectionSidebar } from './layout/GmSectionSidebar';
 import { TopBar } from './layout/TopBar';
 import { SettingsModal } from './components/SettingsModal';
+import { EditProfileModal } from './components/EditProfileModal';
 
 import { AdventureManager } from './components/gm/AdventureManager';
 import { PlayerCharacters } from './components/gm/PlayerCharacters';
@@ -227,6 +228,7 @@ function AuthGate() {
   );
   const [isBootstrapped, setIsBootstrapped] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [draftDashboardSettings, setDraftDashboardSettings] =
     useState<DashboardSettings>(() => dashboardSettings);
 
@@ -371,6 +373,7 @@ function AuthGate() {
           <TopBar
             activeSection={view === 'dashboard' ? activeGmTab : null}
             onLogout={() => void signOut()}
+            onEditProfile={() => setIsEditProfileOpen(true)}
           />
         }
       >
@@ -396,6 +399,10 @@ function AuthGate() {
           onSave={saveSettingsAndClose}
           onCancel={closeSettingsWithoutSaving}
         />
+      )}
+
+      {isEditProfileOpen && (
+        <EditProfileModal onClose={() => setIsEditProfileOpen(false)} />
       )}
     </>
   );
