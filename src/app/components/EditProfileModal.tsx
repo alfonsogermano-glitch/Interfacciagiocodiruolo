@@ -158,7 +158,7 @@ export function EditProfileModal({ onClose }: EditProfileModalProps) {
               onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={onCropComplete}
             />
           </div>
-          <input type="range" min={ZOOM_MIN} max={ZOOM_MAX} step={1} value={Math.round(zoom)}
+          <input type="range" min={ZOOM_MIN} max={ZOOM_MAX} step={0.05} value={zoom}
             onChange={e => setZoom(Number(e.target.value))}
             style={{ width: '100%', marginTop: '1.25rem', accentColor: 'var(--dash-accent)' }} />
           <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
