@@ -131,8 +131,8 @@ export function EditProfileModal({ onClose }: EditProfileModalProps) {
   const handleWheelZoom = (e: React.WheelEvent) => {
     e.preventDefault();
     setZoom(z => {
-      const next = e.deltaY < 0 ? Math.round(z) + 1 : Math.round(z) - 1;
-      return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next));
+      const delta = e.deltaY < 0 ? 0.05 : -0.05;
+      return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z + delta));
     });
   };
 
