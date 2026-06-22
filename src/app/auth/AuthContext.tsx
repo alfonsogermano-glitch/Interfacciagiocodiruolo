@@ -25,11 +25,12 @@ type AuthContextValue = {
   signOut: () => Promise<void>;
   isPasswordRecovery: boolean;
   clearPasswordRecovery: () => void;
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function sessionToUser(session: Session): AuthUser {
+function fallbackUserFromIdentities(session: Session): AuthUser {
   const identities = session.user.identities ?? [];
   const mostRecent = identities.length > 0
     ? [...identities].sort((a, b) =>
@@ -57,11 +58,26 @@ function sessionToUser(session: Session): AuthUser {
     avatarUrl = data.avatar_url ?? data.picture ?? undefined;
   }
 
+  return { id: session.user.id, email: session.user.email ?? '', displayName, avatarUrl };
+}
+
+async function buildUserFromSession(session: Session): Promise<AuthUser> {
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('display_name, avatar_url, email')
+    .eq('id', session.user.id)
+    .maybeSingle();
+
+  if (error || !profile) {
+    console.log('Profilo non trovato a DB, uso fallback da identities:', error?.message);
+    return fallbackUserFromIdentities(session);
+  }
+
   return {
     id: session.user.id,
-    email: session.user.email ?? '',
-    displayName,
-    avatarUrl,
+    email: profile.email ?? session.user.email ?? '',
+    displayName: profile.display_name,
+    avatarUrl: profile.avatar_url ?? undefined,
   };
 }
 
@@ -72,15 +88,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   useEffect(() => {
-    // Carica sessione esistente
-    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+    let isMounted = true;
+
+    supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
+      if (!isMounted) return;
       setSession(existingSession);
-      setUser(existingSession ? sessionToUser(existingSession) : null);
+      setUser(existingSession ? await buildUserFromSession(existingSession) : null);
       setIsLoading(false);
     });
 
-    // Ascolta cambiamenti di stato auth
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
       if (event === 'PASSWORD_RECOVERY') {
         const hash = window.location.hash;
         if (hash.includes('type=recovery')) {
@@ -88,11 +105,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
         }
       }
+      if (!isMounted) return;
       setSession(nextSession);
-      setUser(nextSession ? sessionToUser(nextSession) : null);
+      setUser(nextSession ? await buildUserFromSession(nextSession) : null);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
@@ -143,6 +164,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const refreshUser = async () => {
+    if (!session) return;
+    setUser(await buildUserFromSession(session));
+  };
+
   return (
     <AuthContext.Provider value={{
       user, session, isLoading, signIn, signUp, signOut,
@@ -153,6 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
         }
       },
+      refreshUser,
     }}>
       {children}
     </AuthContext.Provider>
