@@ -13,6 +13,7 @@ export type AuthUser = {
   id: string;
   email: string;
   displayName: string;
+  avatarUrl?: string;
 };
 
 type AuthContextValue = {
@@ -29,13 +30,38 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 function sessionToUser(session: Session): AuthUser {
-  console.log('[AUTH-DEBUG] user_metadata completo:', JSON.stringify(session.user.user_metadata, null, 2));
-  console.log('[AUTH-DEBUG] provider:', session.user.app_metadata?.provider);
-  console.log('[AUTH-DEBUG] identities:', JSON.stringify(session.user.identities, null, 2));
+  const identities = session.user.identities ?? [];
+  const mostRecent = identities.length > 0
+    ? [...identities].sort((a, b) =>
+        new Date(b.updated_at ?? 0).getTime() - new Date(a.updated_at ?? 0).getTime()
+      )[0]
+    : null;
+
+  const data = mostRecent?.identity_data ?? {};
+  const provider = mostRecent?.provider ?? 'email';
+
+  let displayName: string;
+  let avatarUrl: string | undefined;
+
+  if (provider === 'email') {
+    displayName = session.user.user_metadata?.display_name ?? session.user.email ?? 'Utente';
+    avatarUrl = undefined;
+  } else {
+    displayName =
+      data.custom_claims?.global_name ??
+      data.full_name ??
+      data.name ??
+      data.nickname ??
+      session.user.email ??
+      'Utente';
+    avatarUrl = data.avatar_url ?? data.picture ?? undefined;
+  }
+
   return {
     id: session.user.id,
     email: session.user.email ?? '',
-    displayName: session.user.user_metadata?.display_name ?? session.user.email ?? 'Utente',
+    displayName,
+    avatarUrl,
   };
 }
 
