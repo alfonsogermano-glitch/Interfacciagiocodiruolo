@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { Loader2, X, Camera } from 'lucide-react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { useAuth, supabase } from '../auth/AuthContext';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 interface EditProfileModalProps {
   onClose: () => void;
@@ -51,8 +52,6 @@ export function EditProfileModal({ onClose }: EditProfileModalProps) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
-  const [showCameraTip, setShowCameraTip] = useState(false);
-
   const onCropComplete = useCallback((_area: Area, areaPixels: Area) => {
     setCroppedAreaPixels(areaPixels);
   }, []);
@@ -203,23 +202,19 @@ export function EditProfileModal({ onClose }: EditProfileModalProps) {
                 </span>
               )}
             </button>
-            <span
-              onMouseEnter={() => setShowCameraTip(true)}
-              onMouseLeave={() => setShowCameraTip(false)}
-              onClick={() => fileInputRef.current?.click()}
-              style={{ position: 'absolute', bottom: -2, right: -2, width: 28, height: 28,
-                       borderRadius: '50%', backgroundColor: '#c9a04e', display: 'flex',
-                       alignItems: 'center', justifyContent: 'center', border: '2px solid #0a0a0a',
-                       cursor: 'pointer' }}>
-              <Camera size={14} color="#0a0a0a" />
-            </span>
-            {showCameraTip && (
-              <span style={{ position: 'absolute', bottom: -32, right: -8, whiteSpace: 'nowrap',
-                             backgroundColor: '#111', border: '1px solid #444', borderRadius: 6,
-                             padding: '0.3rem 0.6rem', fontSize: '0.7rem', color: '#fff', zIndex: 10 }}>
-                Modifica immagine profilo
-              </span>
-            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{ position: 'absolute', bottom: -2, right: -2, width: 28, height: 28,
+                           borderRadius: '50%', backgroundColor: '#c9a04e', display: 'flex',
+                           alignItems: 'center', justifyContent: 'center', border: '2px solid #0a0a0a',
+                           cursor: 'pointer' }}>
+                  <Camera size={14} color="#0a0a0a" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="right">Modifica immagine profilo</TooltipContent>
+            </Tooltip>
           </div>
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
         </div>
