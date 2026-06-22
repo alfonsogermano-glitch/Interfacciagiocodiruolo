@@ -55,9 +55,18 @@ export function TopBar({ activeSection, hasNotifications = false, onLogout }: To
           onClick={() => setIsUserMenuOpen(open => !open)}
           className="flex items-center gap-2 rounded-full border border-[var(--dash-border)] bg-[var(--dash-surface)] px-2 py-1 transition-colors hover:text-[var(--dash-text)]"
         >
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--dash-accent)] text-xs font-semibold text-[var(--dash-text-strong)]">
-            {initials}
-          </span>
+          {user?.avatarUrl ? (
+            <img
+              src={user.avatarUrl}
+              alt=""
+              className="h-7 w-7 rounded-full object-cover"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          ) : (
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--dash-accent)] text-xs font-semibold text-[var(--dash-text-strong)]">
+              {initials}
+            </span>
+          )}
           <span className="text-sm text-[var(--dash-text)]">{displayName}</span>
           <ChevronDown className="h-3.5 w-3.5 text-[var(--dash-muted)]" />
         </button>
