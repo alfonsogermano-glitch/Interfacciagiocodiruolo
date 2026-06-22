@@ -94,6 +94,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       provider,
       options: {
         redirectTo: 'https://hollowgate.vercel.app',
+        scopes: provider === 'discord' ? 'identify email' : undefined,
+        queryParams: provider === 'google' ? { access_type: 'offline', prompt: 'consent' } : undefined,
       },
     });
     if (error) {

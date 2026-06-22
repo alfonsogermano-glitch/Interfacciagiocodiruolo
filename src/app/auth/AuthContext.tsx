@@ -29,6 +29,8 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 function sessionToUser(session: Session): AuthUser {
+  console.log('[AUTH-DEBUG] user_metadata completo:', JSON.stringify(session.user.user_metadata, null, 2));
+  console.log('[AUTH-DEBUG] provider:', session.user.app_metadata?.provider);
   return {
     id: session.user.id,
     email: session.user.email ?? '',
