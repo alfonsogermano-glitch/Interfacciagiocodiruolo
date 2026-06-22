@@ -28,6 +28,19 @@ const labelStyle: React.CSSProperties = {
   marginBottom: '0.4rem',
 };
 
+function getPasswordStrength(pwd: string): { score: number; label: string; color: string } {
+  if (!pwd) return { score: 0, label: '', color: '#444' };
+  let score = 0;
+  if (pwd.length >= 6) score++;
+  if (pwd.length >= 10) score++;
+  if (/[a-z]/.test(pwd) && /[A-Z]/.test(pwd)) score++;
+  if (/\d/.test(pwd)) score++;
+  if (/[^a-zA-Z0-9]/.test(pwd)) score++;
+  if (score <= 1) return { score, label: 'Debole', color: '#e0605a' };
+  if (score <= 3) return { score, label: 'Media', color: '#e0b04e' };
+  return { score, label: 'Forte', color: '#5ac88a' };
+}
+
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -74,6 +87,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [resetMode, setResetMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+
+  const passwordStrength = mode === 'signup' ? getPasswordStrength(password) : null;
 
   if (!isOpen) return null;
 
@@ -309,6 +324,22 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
+                {passwordStrength && password.length > 0 && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      {[0, 1, 2, 3, 4].map(i => (
+                        <div key={i} style={{
+                          flex: 1, height: 4, borderRadius: 2,
+                          backgroundColor: i < passwordStrength.score ? passwordStrength.color : '#333',
+                          transition: 'background-color 0.2s',
+                        }} />
+                      ))}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: passwordStrength.color, marginTop: '0.3rem' }}>
+                      {passwordStrength.label}
+                    </div>
+                  </div>
+                )}
                 {/* Password dimenticata (solo signin) */}
                 {mode === 'signin' && (
                   <button type="button"
@@ -345,6 +376,23 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   : (mode === 'signin' ? 'Accedi' : 'Crea account')}
               </button>
             </form>
+
+            <p style={{ fontSize: '0.75rem', color: '#777', textAlign: 'center',
+                        marginTop: '1rem', lineHeight: 1.5 }}>
+              {mode === 'signup'
+                ? 'Cliccando su «Crea account», «Continua con Google» o «Continua con Discord», '
+                : 'Continuando con «Continua con Google» o «Continua con Discord», '}
+              accetti i nostri{' '}
+              <a href="/termini" target="_blank" rel="noopener noreferrer"
+                 style={{ color: '#c9a04e', textDecoration: 'underline' }}>
+                Termini di Servizio
+              </a>{' '}
+              e la nostra{' '}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer"
+                 style={{ color: '#c9a04e', textDecoration: 'underline' }}>
+                Privacy Policy
+              </a>.
+            </p>
           </>
         )}
       </div>
