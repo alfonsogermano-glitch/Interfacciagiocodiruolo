@@ -214,6 +214,13 @@ function AuthGate() {
     () => (localStorage.getItem(VIEW_LS_KEY) === 'dashboard' ? 'dashboard' : 'home')
   );
 
+  useEffect(() => {
+    if (!user && !isLoading) {
+      setView('home');
+      localStorage.setItem(VIEW_LS_KEY, 'home');
+    }
+  }, [user, isLoading]);
+
   const [activeGmTab, setActiveGmTab] = useState(() => {
     if (typeof window === 'undefined') return 'phases';
 
