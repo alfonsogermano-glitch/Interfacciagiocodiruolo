@@ -249,6 +249,39 @@ app.post("/make-server-771c5bfd/campaigns/:id/open", async (c) => {
   }
 });
 
+// ─── Campaigns: Generate invite code ────────────────────────────────────────
+
+app.post("/make-server-771c5bfd/campaigns/:id/invite-code", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const campaignId = c.req.param("id");
+    const campaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const index = campaigns.findIndex((cmp) => cmp.id === campaignId);
+    if (index === -1) {
+      return c.json({ error: "Campagna non trovata o non sei il proprietario" }, 404);
+    }
+
+    if (campaigns[index].inviteCode) {
+      return c.json({ campaign: campaigns[index] });
+    }
+
+    const inviteCode = await generateUniqueInviteCode();
+    campaigns[index] = { ...campaigns[index], inviteCode, updatedAt: new Date().toISOString() };
+    await kv.set(campaignsKey(userId), campaigns);
+    await kv.set(inviteCodeKey(inviteCode), { campaignId, ownerId: userId });
+
+    return c.json({ campaign: campaigns[index] });
+  } catch (err) {
+    console.log("Errore POST campaigns/:id/invite-code:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
 // ─── Campaigns: Delete ──────────────────────────────────────────────────────
 
 app.delete("/make-server-771c5bfd/campaigns/:id", async (c) => {

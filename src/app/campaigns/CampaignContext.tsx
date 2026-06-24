@@ -21,6 +21,7 @@ type CampaignContextValue = {
   refreshCampaigns: () => Promise<void>;
   refreshJoinedCampaigns: () => Promise<void>;
   joinCampaignByCode: (code: string) => Promise<Campaign>;
+  generateInviteCode: (campaignId: string) => Promise<void>;
 };
 
 const CampaignContext = createContext<CampaignContextValue | null>(null);
@@ -173,6 +174,22 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     }
   }, [accessToken]);
 
+  const generateInviteCode = useCallback(async (campaignId: string) => {
+    try {
+      const res = await fetch(`${SERVER_BASE}/campaigns/${campaignId}/invite-code`, {
+        method: 'POST',
+        headers: buildHeaders(accessToken),
+      });
+      if (!res.ok) throw new Error('Richiesta fallita');
+      const { campaign: updated } = await res.json();
+      setCampaigns(prev =>
+        prev.map(c => (c.id === updated.id ? { ...c, inviteCode: updated.inviteCode } : c))
+      );
+    } catch (err) {
+      console.log('Errore generazione codice invito:', err);
+    }
+  }, [accessToken]);
+
   const setActiveCampaign = useCallback((campaign: Campaign) => {
     setActiveCampaignId(campaign.id);
     localStorage.setItem(ACTIVE_CAMPAIGN_LS_KEY, campaign.id);
@@ -264,6 +281,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
       refreshCampaigns: fetchCampaigns,
       refreshJoinedCampaigns: fetchJoinedCampaigns,
       joinCampaignByCode,
+      generateInviteCode,
     }}>
       {children}
     </CampaignContext.Provider>

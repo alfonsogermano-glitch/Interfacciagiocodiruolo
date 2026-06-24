@@ -72,6 +72,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: H
     isLoading: campaignsLoading,
     createCampaign,
     joinCampaignByCode,
+    generateInviteCode,
   } = useCampaign();
 
   const palette = useMemo(() => readDashboardSettings().palette, []);
@@ -141,6 +142,16 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: H
   const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
   const [campaignFormError, setCampaignFormError] = useState<string | null>(null);
   const [copiedCampaignId, setCopiedCampaignId] = useState<string | null>(null);
+  const [isGeneratingInviteCode, setIsGeneratingInviteCode] = useState(false);
+
+  const handleGenerateInviteCode = async (campaignId: string) => {
+    setIsGeneratingInviteCode(true);
+    try {
+      await generateInviteCode(campaignId);
+    } finally {
+      setIsGeneratingInviteCode(false);
+    }
+  };
 
   const handleCreateCampaign = async (data: CampaignCreateInput) => {
     setIsCreatingCampaign(true);
@@ -328,7 +339,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: H
                   </p>
                 )}
 
-                {mostRecentCampaign.inviteCode && (
+                {mostRecentCampaign.inviteCode ? (
                   <div
                     role="button"
                     tabIndex={0}
@@ -345,6 +356,20 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: H
                       <Copy className="h-3.5 w-3.5" />
                     )}
                   </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); handleGenerateInviteCode(mostRecentCampaign.id); }}
+                    disabled={isGeneratingInviteCode}
+                    className="mt-3 inline-flex w-fit items-center gap-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 py-1 text-xs text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isGeneratingInviteCode ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <KeyRound className="h-3.5 w-3.5" />
+                    )}
+                    <span>{isGeneratingInviteCode ? 'Generazione...' : 'Genera codice invito'}</span>
+                  </button>
                 )}
               </button>
             );
