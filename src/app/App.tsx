@@ -357,7 +357,7 @@ function AuthGate() {
             onLogout={() => void signOut()}
             campaigns={campaigns}
             activeCampaignId={activeCampaign?.id}
-            onSelectCampaign={(campaign) => setActiveCampaign(campaign)}
+            onSelectCampaign={(campaign) => goToDashboard(campaign)}
           />
         }
         rightSidebar={

@@ -74,30 +74,30 @@ export function LeftSidebar({
         <SidebarButton icon={LogOut} label="Esci" onClick={onLogout} />
       </nav>
 
-      <div className="mt-auto flex w-full flex-col gap-1.5 px-2">
-        {view === 'dashboard' ? (
-          campaigns.length === 0 ? (
-            <div className="py-2 text-center text-[10px] text-[var(--dash-muted)]">Nessuna campagna creata</div>
-          ) : (
-            campaigns.map(campaign => (
-              <button
-                key={campaign.id}
-                type="button"
-                onClick={() => onSelectCampaign(campaign)}
-                className={`flex flex-col items-center gap-1 rounded-lg border px-1.5 py-2 transition-colors ${
-                  campaign.id === activeCampaignId
-                    ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
-                    : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)]/60 hover:bg-[var(--dash-surface-2)]'
-                }`}
-              >
-                <Skull className="h-4 w-4 text-[var(--dash-accent-2)]" />
-                <span className="w-full truncate text-center text-[10px] text-[var(--dash-text)]" title={campaign.name}>
-                  {campaign.name}
-                </span>
-              </button>
-            ))
-          )
-        ) : null}
+      <div className="my-2 h-px w-10 bg-[var(--dash-border-soft)]" />
+
+      <div className="flex w-full flex-col gap-1.5 px-2">
+        {campaigns.length === 0 ? (
+          <div className="py-2 text-center text-[10px] text-[var(--dash-muted)]">Nessuna campagna creata</div>
+        ) : (
+          campaigns.map(campaign => (
+            <button
+              key={campaign.id}
+              type="button"
+              onClick={() => onSelectCampaign(campaign)}
+              className={`flex flex-col items-center gap-1 rounded-lg border px-1.5 py-2 transition-colors ${
+                campaign.id === activeCampaignId
+                  ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
+                  : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)]/60 hover:bg-[var(--dash-surface-2)]'
+              }`}
+            >
+              <Skull className="h-4 w-4 text-[var(--dash-accent-2)]" />
+              <span className="w-full truncate text-center text-[10px] text-[var(--dash-text)]" title={campaign.name}>
+                {campaign.name}
+              </span>
+            </button>
+          ))
+        )}
       </div>
     </aside>
   );
