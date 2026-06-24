@@ -71,6 +71,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
       }
 
       const { campaigns: fetched } = await res.json();
+      console.log('[CAMP-DEBUG] campagne ricevute dal server:', JSON.stringify(fetched, null, 2));
       const list: Campaign[] = fetched ?? [];
       setCampaigns(list);
       try { localStorage.setItem(CAMPAIGNS_CACHE_LS_KEY, JSON.stringify(list)); } catch { /* quota */ }
