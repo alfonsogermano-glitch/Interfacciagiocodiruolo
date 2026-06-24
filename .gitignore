@@ -3,3 +3,4 @@ dist/
 *.old
 *~
 src_backup*/
+supabase/.temp/
