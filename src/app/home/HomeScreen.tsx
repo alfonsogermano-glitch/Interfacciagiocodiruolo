@@ -290,7 +290,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: H
                 )[0]
               : null;
 
-            if (!mostRecentCampaign || !mostRecentCampaign.lastOpenedAt) {
+            if (!mostRecentCampaign) {
               return (
                 <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
                   <Scroll className="h-10 w-10 text-[var(--dash-muted)]" />
