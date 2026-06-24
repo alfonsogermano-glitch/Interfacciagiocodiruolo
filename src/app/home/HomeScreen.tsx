@@ -13,7 +13,6 @@ import {
   Castle,
   Sparkles,
   UserCircle2,
-  Users,
   X,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
@@ -56,16 +55,6 @@ function formatCreatedAt(value: string): string | null {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   return date.toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-function SectionEyebrow({ index, label }: { index: string; label: string }) {
-  return (
-    <div className="mb-1 flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-[var(--dash-muted)]">
-      <span className="text-[var(--dash-accent)]">{index}</span>
-      <span className="h-px flex-1 max-w-[60px] bg-[var(--dash-border-soft)]" />
-      <span>{label}</span>
-    </div>
-  );
 }
 
 interface HomeScreenProps {
@@ -121,12 +110,6 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: H
   useEffect(() => {
     void loadCharacters();
   }, [loadCharacters]);
-
-  const campaignNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    allCampaigns.forEach(campaign => map.set(campaign.id, campaign.name));
-    return map;
-  }, [allCampaigns]);
 
   // Creazione PG: prima si scelge il regolamento, poi si apre il wizard
   const [showRulesetPicker, setShowRulesetPicker] = useState(false);
@@ -248,7 +231,6 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: H
 
         {/* ─── Azioni rapide ──────────────────────────────────────────────── */}
         <section>
-          <SectionEyebrow index="00" label="Inizia da qui" />
           <h2 className="mb-5 text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Azioni rapide</h2>
 
           <div className="grid gap-4 sm:grid-cols-3">
@@ -284,96 +266,13 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: H
           </div>
         </section>
 
-        {/* ─── Sezione 1: I miei personaggi ─────────────────────────────── */}
-        <section ref={charactersSectionRef}>
-          <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <SectionEyebrow index="01" label="Anime in gioco" />
-              <div className="flex items-center gap-2.5">
-                <Users className="h-5 w-5 text-[var(--dash-accent)]" />
-                <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">I miei personaggi</h2>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={openRulesetPicker}
-              className="flex items-center gap-2 rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-4 py-2 text-sm font-semibold text-[var(--dash-text-strong)] shadow-[0_0_20px_var(--dash-card-shadow)] transition-all hover:bg-[var(--dash-accent-2)] hover:shadow-[0_0_28px_var(--dash-card-shadow)]"
-            >
-              <Plus className="h-4 w-4" /> Crea nuovo PG
-            </button>
-          </div>
-
-          {isLoadingCharacters ? (
-            <div className="flex items-center justify-center rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 py-12">
-              <Loader2 className="h-5 w-5 animate-spin text-[var(--dash-accent)]" />
-            </div>
-          ) : characters.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
-              <UserCircle2 className="h-10 w-10 text-[var(--dash-muted)]" />
-              <p className="text-sm text-[var(--dash-muted)]">
-                Non hai ancora nessun personaggio. Crea il tuo primo PG per iniziare l'avventura.
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {characters.map(character => (
-                <button
-                  key={character.id}
-                  type="button"
-                  onClick={() => setSelectedCharacterId(character.id)}
-                  className="group relative overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4 text-left transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
-                >
-                  <div className="flex items-center gap-3">
-                    {character.portraitUrl ? (
-                      <img
-                        src={character.portraitUrl}
-                        alt={character.name}
-                        className="h-12 w-12 rounded-full border border-[var(--dash-border-soft)] object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] text-[var(--dash-accent)]">
-                        <UserCircle2 className="h-6 w-6" />
-                      </div>
-                    )}
-                    <div className="min-w-0">
-                      <h3 className="truncate text-sm font-semibold text-[var(--dash-text-strong)]">{character.name}</h3>
-                      <p className="truncate text-xs text-[var(--dash-muted)]">
-                        {character.style ?? 'Personaggio'}
-                        {character.viaggio ? ` · ${character.viaggio}` : ''}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 border-t border-[var(--dash-border-soft)] pt-2.5 text-xs">
-                    <span className="text-[var(--dash-accent-2)]">
-                      {character.campaignId
-                        ? campaignNameById.get(character.campaignId) ?? 'Campagna sconosciuta'
-                        : 'Nessuna campagna'}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-
         {/* ─── Sezione 2: Le mie campagne ────────────────────────────────── */}
         <section ref={campaignsSectionRef}>
-          <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <SectionEyebrow index="02" label="Storie dirette da te" />
-              <div className="flex items-center gap-2.5">
-                <Scroll className="h-5 w-5 text-[var(--dash-accent)]" />
-                <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Le mie campagne</h2>
-              </div>
+          <div className="mb-5">
+            <div className="flex items-center gap-2.5">
+              <Scroll className="h-5 w-5 text-[var(--dash-accent)]" />
+              <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Le mie campagne</h2>
             </div>
-            <button
-              type="button"
-              onClick={() => { setCampaignFormError(null); setShowCampaignForm(true); }}
-              className="flex items-center gap-2 rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-4 py-2 text-sm font-semibold text-[var(--dash-text-strong)] shadow-[0_0_20px_var(--dash-card-shadow)] transition-all hover:bg-[var(--dash-accent-2)] hover:shadow-[0_0_28px_var(--dash-card-shadow)]"
-            >
-              <Plus className="h-4 w-4" /> Crea nuova campagna
-            </button>
           </div>
 
           {campaignsLoading ? (
@@ -446,7 +345,6 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: H
         {/* ─── Sezione 3: Sessioni a cui partecipo ──────────────────────────── */}
         <section>
           <div className="mb-5">
-            <SectionEyebrow index="03" label="Inviti ricevuti" />
             <div className="flex items-center gap-2.5">
               <DoorOpen className="h-5 w-5 text-[var(--dash-accent)]" />
               <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Sessioni a cui partecipo</h2>
