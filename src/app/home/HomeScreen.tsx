@@ -307,7 +307,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: H
               <button
                 type="button"
                 onClick={() => onEnterCampaign(mostRecentCampaign)}
-                className="group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4 pt-5 text-left transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
+                className="w-full group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4 pt-5 text-left transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
               >
                 <span
                   className="absolute inset-x-0 top-0 h-1"

@@ -159,10 +159,15 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
 
   const markCampaignOpened = useCallback(async (campaignId: string) => {
     try {
-      await fetch(`${SERVER_BASE}/campaigns/${campaignId}/open`, {
+      const res = await fetch(`${SERVER_BASE}/campaigns/${campaignId}/open`, {
         method: 'POST',
         headers: buildHeaders(accessToken),
       });
+      if (!res.ok) return;
+      const { campaign: updated } = await res.json();
+      setCampaigns(prev =>
+        prev.map(c => (c.id === updated.id ? { ...c, lastOpenedAt: updated.lastOpenedAt } : c))
+      );
     } catch (err) {
       console.log('Impossibile segnare la campagna come aperta:', err);
     }
