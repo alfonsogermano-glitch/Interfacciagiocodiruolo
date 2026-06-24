@@ -68,6 +68,7 @@ export interface Campaign {
   inviteCode?: string;
   createdAt: string;
   updatedAt: string;
+  lastOpenedAt?: string;
 }
 
 // id opzionale: usato dalla migrazione per preservare il legacy campaign ID

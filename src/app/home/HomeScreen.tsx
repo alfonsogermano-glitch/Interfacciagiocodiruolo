@@ -270,12 +270,12 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: H
           </div>
         </section>
 
-        {/* ─── Sezione 2: Le mie campagne ────────────────────────────────── */}
+        {/* ─── Sezione 2: Campagne recenti ─────────────────────────────── */}
         <section ref={campaignsSectionRef}>
           <div className="mb-5">
             <div className="flex items-center gap-2.5">
               <Scroll className="h-5 w-5 text-[var(--dash-accent)]" />
-              <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Le mie campagne</h2>
+              <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Campagne recenti</h2>
             </div>
           </div>
 
@@ -283,67 +283,72 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: H
             <div className="flex items-center justify-center rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 py-12">
               <Loader2 className="h-5 w-5 animate-spin text-[var(--dash-accent)]" />
             </div>
-          ) : campaigns.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
-              <Scroll className="h-10 w-10 text-[var(--dash-muted)]" />
-              <p className="text-sm text-[var(--dash-muted)]">
-                Non sei ancora master di nessuna campagna. Creane una per iniziare a costruire la tua storia.
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {campaigns.map(campaign => {
-                const ruleset = RULESETS[campaign.ruleset] ?? RULESETS.custom;
+          ) : (() => {
+            const mostRecentCampaign = campaigns.length > 0
+              ? [...campaigns].sort((a, b) =>
+                  new Date(b.lastOpenedAt ?? 0).getTime() - new Date(a.lastOpenedAt ?? 0).getTime()
+                )[0]
+              : null;
 
-                return (
-                  <button
-                    key={campaign.id}
-                    type="button"
-                    onClick={() => onEnterCampaign(campaign)}
-                    className="group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4 pt-5 text-left transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
+            if (!mostRecentCampaign || !mostRecentCampaign.lastOpenedAt) {
+              return (
+                <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
+                  <Scroll className="h-10 w-10 text-[var(--dash-muted)]" />
+                  <p className="text-sm text-[var(--dash-muted)]">
+                    Non hai ancora aperto nessuna campagna. Creane una dalle azioni rapide o entra in una esistente.
+                  </p>
+                </div>
+              );
+            }
+
+            const ruleset = RULESETS[mostRecentCampaign.ruleset] ?? RULESETS.custom;
+
+            return (
+              <button
+                type="button"
+                onClick={() => onEnterCampaign(mostRecentCampaign)}
+                className="group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4 pt-5 text-left transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
+              >
+                <span
+                  className="absolute inset-x-0 top-0 h-1"
+                  style={{ backgroundColor: ruleset.color }}
+                />
+
+                <div className="mb-2">
+                  <RulesetTag rulesetId={mostRecentCampaign.ruleset} />
+                </div>
+                <h3 className="text-base font-semibold tracking-wide text-[var(--dash-text-strong)]">{mostRecentCampaign.name}</h3>
+                {mostRecentCampaign.description && (
+                  <p className="mt-1 line-clamp-2 text-xs text-[var(--dash-muted)]">{mostRecentCampaign.description}</p>
+                )}
+
+                {formatCreatedAt(mostRecentCampaign.createdAt) && (
+                  <p className="mt-2 text-xs text-[var(--dash-muted)]">
+                    Creata il {formatCreatedAt(mostRecentCampaign.createdAt)}
+                  </p>
+                )}
+
+                {mostRecentCampaign.inviteCode && (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={e => { e.stopPropagation(); copyInviteCode(mostRecentCampaign); }}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); copyInviteCode(mostRecentCampaign); } }}
+                    title="Copia codice invito"
+                    className="mt-3 inline-flex w-fit items-center gap-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 py-1 text-xs text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
                   >
-                    <span
-                      className="absolute inset-x-0 top-0 h-1"
-                      style={{ backgroundColor: ruleset.color }}
-                    />
-
-                    <div className="mb-2">
-                      <RulesetTag rulesetId={campaign.ruleset} />
-                    </div>
-                    <h3 className="text-base font-semibold tracking-wide text-[var(--dash-text-strong)]">{campaign.name}</h3>
-                    {campaign.description && (
-                      <p className="mt-1 line-clamp-2 text-xs text-[var(--dash-muted)]">{campaign.description}</p>
+                    <KeyRound className="h-3.5 w-3.5" />
+                    <span className="font-mono tracking-[0.2em]">{mostRecentCampaign.inviteCode}</span>
+                    {copiedCampaignId === mostRecentCampaign.id ? (
+                      <Check className="h-3.5 w-3.5 text-[var(--dash-accent)]" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
                     )}
-
-                    {formatCreatedAt(campaign.createdAt) && (
-                      <p className="mt-2 text-xs text-[var(--dash-muted)]">
-                        Creata il {formatCreatedAt(campaign.createdAt)}
-                      </p>
-                    )}
-
-                    {campaign.inviteCode && (
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        onClick={e => { e.stopPropagation(); copyInviteCode(campaign); }}
-                        onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); copyInviteCode(campaign); } }}
-                        title="Copia codice invito"
-                        className="mt-3 inline-flex w-fit items-center gap-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 py-1 text-xs text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
-                      >
-                        <KeyRound className="h-3.5 w-3.5" />
-                        <span className="font-mono tracking-[0.2em]">{campaign.inviteCode}</span>
-                        {copiedCampaignId === campaign.id ? (
-                          <Check className="h-3.5 w-3.5 text-[var(--dash-accent)]" />
-                        ) : (
-                          <Copy className="h-3.5 w-3.5" />
-                        )}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+                  </div>
+                )}
+              </button>
+            );
+          })()}
         </section>
 
         {/* ─── Sezione 3: Sessioni a cui partecipo ──────────────────────────── */}

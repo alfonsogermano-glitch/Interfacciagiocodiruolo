@@ -156,6 +156,17 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     });
   }, [campaigns, joinedCampaigns, activeCampaignId, isLoading]);
 
+  const markCampaignOpened = useCallback(async (campaignId: string) => {
+    try {
+      await fetch(`${SERVER_BASE}/campaigns/${campaignId}/open`, {
+        method: 'POST',
+        headers: buildHeaders(accessToken),
+      });
+    } catch (err) {
+      console.log('Impossibile segnare la campagna come aperta:', err);
+    }
+  }, [accessToken]);
+
   const setActiveCampaign = useCallback((campaign: Campaign) => {
     setActiveCampaignId(campaign.id);
     localStorage.setItem(ACTIVE_CAMPAIGN_LS_KEY, campaign.id);
@@ -165,7 +176,10 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
       ruleset: campaign.ruleset,
       ownerId: campaign.ownerId
     });
-  }, []);
+    if (campaign.ownerId === session?.user?.id) {
+      void markCampaignOpened(campaign.id);
+    }
+  }, [session, markCampaignOpened]);
 
   const createCampaign = useCallback(async (input: CampaignCreateInput): Promise<Campaign> => {
     const res = await fetch(`${SERVER_BASE}/campaigns`, {

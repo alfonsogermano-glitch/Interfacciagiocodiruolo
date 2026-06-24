@@ -221,6 +221,34 @@ app.put("/make-server-771c5bfd/campaigns/:id", async (c) => {
   }
 });
 
+// ─── Campaigns: Mark opened ─────────────────────────────────────────────────
+
+app.post("/make-server-771c5bfd/campaigns/:id/open", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const campaignId = c.req.param("id");
+    const existing: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const idx = existing.findIndex((cmp) => cmp.id === campaignId);
+    if (idx === -1) {
+      return c.json({ error: "Campagna non trovata o non sei il proprietario" }, 404);
+    }
+
+    const now = new Date().toISOString();
+    existing[idx] = { ...existing[idx], lastOpenedAt: now };
+    await kv.set(campaignsKey(userId), existing);
+
+    return c.json({ campaign: existing[idx] });
+  } catch (err) {
+    console.log("Errore POST campaigns/:id/open:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
 // ─── Campaigns: Delete ──────────────────────────────────────────────────────
 
 app.delete("/make-server-771c5bfd/campaigns/:id", async (c) => {
@@ -331,6 +359,7 @@ interface Campaign {
   inviteCode?: string;
   createdAt: string;
   updatedAt: string;
+  lastOpenedAt?: string;
 }
 
 interface CampaignMembership {
