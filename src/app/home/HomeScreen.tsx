@@ -216,7 +216,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: H
   return (
     <div
       data-dashboard-palette={palette}
-      className="relative min-h-screen overflow-x-hidden bg-[var(--dash-bg)] text-[var(--dash-text)]"
+      className="relative min-h-screen overflow-x-hidden select-none bg-[var(--dash-bg)] text-[var(--dash-text)]"
     >
       {/* Atmosfera di fondo */}
       <div
@@ -231,11 +231,15 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: H
       <main className="relative z-10 mx-auto max-w-[1400px] space-y-14 px-6 py-10">
         {/* ─── Hero ───────────────────────────────────────────────────────── */}
         <section className="flex items-center gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] shadow-[0_0_18px_var(--dash-card-shadow)]">
-            <Skull className="h-7 w-7 text-[var(--dash-accent)]" />
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] shadow-[0_0_18px_var(--dash-card-shadow)]">
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <Skull className="h-7 w-7 text-[var(--dash-accent)]" />
+            )}
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--dash-muted)]">High School Cthulhu</p>
+            <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--dash-muted)]">Hollow Gate Dashboard</p>
             <h1 className="font-serif text-3xl font-semibold tracking-wide text-[var(--dash-text-strong)] sm:text-4xl">
               Bentornato, {user?.displayName ?? user?.email}
             </h1>
