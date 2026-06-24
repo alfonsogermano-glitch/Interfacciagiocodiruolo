@@ -195,7 +195,7 @@ const ACTIVE_TAB_LS_KEY = 'hsc-active-main-tab';
 
 function AuthGate() {
   const { user, isLoading, signOut, isPasswordRecovery, clearPasswordRecovery } = useAuth();
-  const { setActiveCampaign, activeCampaign } = useCampaign();
+  const { setActiveCampaign, activeCampaign, campaigns } = useCampaign();
 
   const [view, setView] = useState<'home' | 'dashboard'>(
     () => (localStorage.getItem(VIEW_LS_KEY) === 'dashboard' ? 'dashboard' : 'home')
@@ -355,7 +355,9 @@ function AuthGate() {
             onGoToHomeSection={goToHomeSection}
             onOpenSettings={openSettings}
             onLogout={() => void signOut()}
-            activeCampaignName={activeCampaign?.name}
+            campaigns={campaigns}
+            activeCampaignId={activeCampaign?.id}
+            onSelectCampaign={(campaign) => setActiveCampaign(campaign)}
           />
         }
         rightSidebar={

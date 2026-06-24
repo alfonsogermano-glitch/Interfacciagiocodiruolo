@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import { Home, Users, Scroll, Settings, LogOut, Skull } from 'lucide-react';
+import type { Campaign } from '../campaigns/campaignTypes';
 
 interface LeftSidebarProps {
   view: 'home' | 'dashboard';
@@ -7,7 +8,9 @@ interface LeftSidebarProps {
   onGoToHomeSection: (section: 'characters' | 'campaigns') => void;
   onOpenSettings: () => void;
   onLogout: () => void;
-  activeCampaignName?: string | null;
+  campaigns: Campaign[];
+  activeCampaignId?: string | null;
+  onSelectCampaign: (campaign: Campaign) => void;
 }
 
 function SidebarButton({
@@ -44,7 +47,9 @@ export function LeftSidebar({
   onGoToHomeSection,
   onOpenSettings,
   onLogout,
-  activeCampaignName,
+  campaigns,
+  activeCampaignId,
+  onSelectCampaign,
 }: LeftSidebarProps) {
   return (
     <aside className="flex h-full w-[100px] shrink-0 flex-col items-center gap-1 border-r border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
@@ -69,20 +74,28 @@ export function LeftSidebar({
         <SidebarButton icon={LogOut} label="Esci" onClick={onLogout} />
       </nav>
 
-      <div className="mt-auto w-full px-2">
+      <div className="mt-auto flex w-full flex-col gap-1.5 px-2">
         {view === 'dashboard' ? (
-          activeCampaignName ? (
-            <div className="flex flex-col items-center gap-1 rounded-lg border border-[var(--dash-border)] bg-[var(--dash-surface-2)] px-1.5 py-2">
-              <Skull className="h-4 w-4 text-[var(--dash-accent-2)]" />
-              <span
-                className="w-full truncate text-center text-[10px] text-[var(--dash-text)]"
-                title={activeCampaignName}
-              >
-                {activeCampaignName}
-              </span>
-            </div>
+          campaigns.length === 0 ? (
+            <div className="py-2 text-center text-[10px] text-[var(--dash-muted)]">Nessuna campagna creata</div>
           ) : (
-            <div className="py-2 text-center text-[10px] text-[var(--dash-muted)]">Nessuna campagna</div>
+            campaigns.map(campaign => (
+              <button
+                key={campaign.id}
+                type="button"
+                onClick={() => onSelectCampaign(campaign)}
+                className={`flex flex-col items-center gap-1 rounded-lg border px-1.5 py-2 transition-colors ${
+                  campaign.id === activeCampaignId
+                    ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
+                    : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)]/60 hover:bg-[var(--dash-surface-2)]'
+                }`}
+              >
+                <Skull className="h-4 w-4 text-[var(--dash-accent-2)]" />
+                <span className="w-full truncate text-center text-[10px] text-[var(--dash-text)]" title={campaign.name}>
+                  {campaign.name}
+                </span>
+              </button>
+            ))
           )
         ) : null}
       </div>
