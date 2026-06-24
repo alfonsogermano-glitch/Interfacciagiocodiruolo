@@ -7,7 +7,6 @@ import { SetNewPasswordModal } from './landing/SetNewPasswordModal';
 import { CampaignProvider, useCampaign } from './campaigns/CampaignContext';
 import { RulesetProvider } from './campaigns/RulesetContext';
 import { CampaignSelector, CampaignSwitcher } from './campaigns/CampaignSelector';
-import { MigrationWizard, isMigrationNeeded } from './campaigns/MigrationWizard';
 import { HomeScreen } from './home/HomeScreen';
 import { AppShell } from './layout/AppShell';
 import { LeftSidebar } from './layout/LeftSidebar';
@@ -60,17 +59,9 @@ interface DashboardProps {
 function Dashboard({ activeTab, navigationTarget, onNavigate }: DashboardProps) {
   const { activeCampaignId, campaigns, isLoading: campaignsLoading } = useCampaign();
   const [isCampaignSelectorOpen, setIsCampaignSelectorOpen] = useState(false);
-  const [wizardDismissed, setWizardDismissed] = useState(false);
   const [campaignToastMessage, setCampaignToastMessage] = useState<string | null>(null);
 
   const importCampaignInputRef = useRef<HTMLInputElement | null>(null);
-
-  const migrationAlreadyDone = localStorage.getItem('hsc-migration-v1-done') === 'true';
-  const showWizard =
-    !wizardDismissed &&
-    !campaignsLoading &&
-    !migrationAlreadyDone &&
-    (campaigns.length === 0 || isMigrationNeeded());
 
   const showCampaignToast = (message: string) => {
     setCampaignToastMessage(message);
@@ -186,10 +177,6 @@ function Dashboard({ activeTab, navigationTarget, onNavigate }: DashboardProps) 
 
       {isCampaignSelectorOpen && (
         <CampaignSelector onClose={() => setIsCampaignSelectorOpen(false)} />
-      )}
-
-      {showWizard && (
-        <MigrationWizard onComplete={() => setWizardDismissed(true)} />
       )}
 
       {campaignToastMessage && (
