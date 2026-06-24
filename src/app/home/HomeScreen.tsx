@@ -14,6 +14,7 @@ import {
   Sparkles,
   UserCircle2,
   X,
+  Zap,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from '../campaigns/CampaignContext';
@@ -231,7 +232,10 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: H
 
         {/* ─── Azioni rapide ──────────────────────────────────────────────── */}
         <section>
-          <h2 className="mb-5 text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Azioni rapide</h2>
+          <div className="mb-5 flex items-center gap-2.5">
+            <Zap className="h-5 w-5 text-[var(--dash-accent)]" />
+            <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Azioni rapide</h2>
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
             <button
