@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Bell, ChevronDown, Search } from 'lucide-react';
+import { Bell, ChevronDown, LogOut, Search, Settings, UserCircle2 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 
 interface TopBarProps {
   activeSection?: string | null;
   hasNotifications?: boolean;
   onLogout: () => void;
-  onEditProfile: () => void;
+  onOpenSettings: (tab: 'general' | 'profile') => void;
 }
 
 const SEARCH_PLACEHOLDERS: Record<string, string> = {
@@ -15,7 +15,7 @@ const SEARCH_PLACEHOLDERS: Record<string, string> = {
   players: 'Cerca personaggio...',
 };
 
-export function TopBar({ activeSection, hasNotifications = false, onLogout, onEditProfile }: TopBarProps) {
+export function TopBar({ activeSection, hasNotifications = false, onLogout, onOpenSettings }: TopBarProps) {
   const { user } = useAuth();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
@@ -73,16 +73,26 @@ export function TopBar({ activeSection, hasNotifications = false, onLogout, onEd
         </button>
 
         {isUserMenuOpen && (
-          <div className="absolute right-0 top-full mt-1 min-w-[140px] rounded-lg border border-[var(--dash-border)] bg-[var(--dash-surface)] py-1 shadow-2xl">
+          <div className="absolute right-0 top-full mt-1 min-w-[160px] rounded-lg border border-[var(--dash-border)] bg-[var(--dash-surface)] py-1 shadow-2xl">
             <button
               type="button"
               onClick={() => {
                 setIsUserMenuOpen(false);
-                onEditProfile();
+                onOpenSettings('profile');
               }}
-              className="w-full px-3 py-1.5 text-left text-sm text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
             >
-              Modifica profilo
+              <UserCircle2 className="h-4 w-4" /> Modifica profilo
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsUserMenuOpen(false);
+                onOpenSettings('general');
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
+            >
+              <Settings className="h-4 w-4" /> Impostazioni
             </button>
             <button
               type="button"
@@ -90,9 +100,9 @@ export function TopBar({ activeSection, hasNotifications = false, onLogout, onEd
                 setIsUserMenuOpen(false);
                 onLogout();
               }}
-              className="w-full px-3 py-1.5 text-left text-sm text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
             >
-              Esci
+              <LogOut className="h-4 w-4" /> Esci
             </button>
           </div>
         )}

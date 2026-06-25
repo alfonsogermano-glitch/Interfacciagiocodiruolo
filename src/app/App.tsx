@@ -13,7 +13,6 @@ import { LeftSidebar } from './layout/LeftSidebar';
 import { GmSectionSidebar } from './layout/GmSectionSidebar';
 import { TopBar } from './layout/TopBar';
 import { SettingsModal } from './components/SettingsModal';
-import { EditProfileModal } from './components/EditProfileModal';
 
 import { AdventureManager } from './components/gm/AdventureManager';
 import { PlayerCharacters } from './components/gm/PlayerCharacters';
@@ -222,7 +221,7 @@ function AuthGate() {
   );
   const [isBootstrapped, setIsBootstrapped] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'profile'>('general');
   const [draftDashboardSettings, setDraftDashboardSettings] =
     useState<DashboardSettings>(() => dashboardSettings);
 
@@ -288,8 +287,9 @@ function AuthGate() {
     });
   };
 
-  const openSettings = () => {
+  const openSettings = (tab: 'general' | 'profile' = 'general') => {
     setDraftDashboardSettings(dashboardSettings);
+    setSettingsInitialTab(tab);
     setIsSettingsOpen(true);
   };
 
@@ -353,8 +353,6 @@ function AuthGate() {
             view={view}
             onGoHome={goToHome}
             onGoToHomeSection={goToHomeSection}
-            onOpenSettings={openSettings}
-            onLogout={() => void signOut()}
             campaigns={campaigns}
             activeCampaignId={activeCampaign?.id}
             onSelectCampaign={(campaign) => goToDashboard(campaign)}
@@ -369,7 +367,7 @@ function AuthGate() {
           <TopBar
             activeSection={view === 'dashboard' ? activeGmTab : null}
             onLogout={() => void signOut()}
-            onEditProfile={() => setIsEditProfileOpen(true)}
+            onOpenSettings={(tab) => openSettings(tab)}
           />
         }
       >
@@ -395,11 +393,8 @@ function AuthGate() {
           onChangeDraft={setDraftDashboardSettings}
           onSave={saveSettingsAndClose}
           onCancel={closeSettingsWithoutSaving}
+          initialTab={settingsInitialTab}
         />
-      )}
-
-      {isEditProfileOpen && (
-        <EditProfileModal onClose={() => setIsEditProfileOpen(false)} />
       )}
     </>
   );

@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Home, Users, Scroll, Settings, LogOut, Skull } from 'lucide-react';
+import { Home, Users, Scroll, Skull } from 'lucide-react';
 import type { Campaign } from '../campaigns/campaignTypes';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/Tooltip';
 
@@ -7,8 +7,6 @@ interface LeftSidebarProps {
   view: 'home' | 'dashboard';
   onGoHome: () => void;
   onGoToHomeSection: (section: 'characters' | 'campaigns') => void;
-  onOpenSettings: () => void;
-  onLogout: () => void;
   campaigns: Campaign[];
   activeCampaignId?: string | null;
   onSelectCampaign: (campaign: Campaign) => void;
@@ -46,8 +44,6 @@ export function LeftSidebar({
   view,
   onGoHome,
   onGoToHomeSection,
-  onOpenSettings,
-  onLogout,
   campaigns,
   activeCampaignId,
   onSelectCampaign,
@@ -66,13 +62,6 @@ export function LeftSidebar({
         <SidebarButton icon={Home} label="Panoramica" onClick={onGoHome} active={view === 'home'} />
         <SidebarButton icon={Users} label="Personaggi" onClick={() => onGoToHomeSection('characters')} />
         <SidebarButton icon={Scroll} label="Campagne" onClick={() => onGoToHomeSection('campaigns')} />
-      </nav>
-
-      <div className="my-2 h-px w-10 bg-[var(--dash-border)]" />
-
-      <nav className="flex w-full flex-col items-center gap-1 px-2">
-        <SidebarButton icon={Settings} label="Impostazioni" onClick={onOpenSettings} />
-        <SidebarButton icon={LogOut} label="Esci" onClick={onLogout} />
       </nav>
 
       <div className="my-2 h-px w-10 bg-[var(--dash-border-soft)]" />
