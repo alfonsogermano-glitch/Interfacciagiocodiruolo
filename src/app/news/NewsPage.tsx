@@ -274,7 +274,7 @@ export function NewsPage() {
                     ) : (
                       <img key={i} src={block.url} alt=""
                         onClick={() => setLightboxUrl(block.url)}
-                        style={{ width: '100%', borderRadius: 10, marginBottom: '1rem', display: 'block', cursor: 'pointer' }} />
+                        style={{ width: '100%', borderRadius: 10, marginBottom: '1rem', display: 'block', cursor: 'zoom-in' }} />
                     )
                   )}
                 </div>
