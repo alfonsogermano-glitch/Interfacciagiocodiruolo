@@ -64,7 +64,7 @@ async function deleteLocalCharacter(characterId: string): Promise<void> {
 /**
  * Carica tutti i personaggi di una campagna
  */
-export async function loadCharacters(campaignId: string): Promise<(Character & {player: string; notes: string})[]> {
+export async function loadCharacters(campaignId: string): Promise<(Character & {player: string; notes: string; ownerProfileId: string})[]> {
   if (shouldUseLocalMode()) {
     return loadLocalCharacters(campaignId);
   }
@@ -86,6 +86,7 @@ export async function loadCharacters(campaignId: string): Promise<(Character & {
   return (data || []).map(row => ({
     id: row.id,
     name: row.name,
+    ownerProfileId: row.owner_profile_id,
     player: row.sheet_data?.player || '',
     notes: row.sheet_data?.notes || '',
     style: row.style || 'Jock',

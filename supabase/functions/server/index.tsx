@@ -429,6 +429,31 @@ app.get("/make-server-771c5bfd/campaigns/joined", async (c) => {
   }
 });
 
+// ─── Campaigns: Members (solo per il proprietario) ──────────────────────────
+
+app.get("/make-server-771c5bfd/campaigns/:id/members", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const campaignId = c.req.param("id");
+    const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const owns = myCampaigns.some((camp) => camp.id === campaignId);
+    if (!owns) {
+      return c.json({ error: "Campagna non trovata o non sei il proprietario" }, 404);
+    }
+
+    const members = await kv.get(campaignMembersKey(campaignId)) ?? [];
+    return c.json({ members });
+  } catch (err) {
+    console.log("Errore GET campaigns/:id/members:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
 // ─── Type helper (Deno) ─────────────────────────────────────────────────────
 
 interface Campaign {

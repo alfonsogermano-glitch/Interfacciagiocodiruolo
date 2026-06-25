@@ -9,6 +9,7 @@ import {
   Scroll,
   Play,
   Image,
+  Users,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/Tooltip';
 
@@ -18,6 +19,7 @@ interface GmSectionSidebarProps {
 }
 
 const PRIMARY_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: 'players', label: 'Personaggi', icon: Users },
   { id: 'npcs', label: 'PNG', icon: Ghost },
   { id: 'monsters', label: 'Mostri', icon: Swords },
   { id: 'environments', label: 'Luoghi', icon: Bookmark },

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { UserPlus, User, Heart, Brain, Shield, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { projectId } from '/utils/supabase/info';
 import { FrischezzaTracker } from '../FrischezzaTracker';
 import { FoliaSpiral } from '../FoliaSpiral';
 import { ConditionsPanel } from '../ConditionsPanel';
@@ -24,6 +25,7 @@ interface PlayerCharacter extends Character {
 }
 
 const PLAYER_CHARACTERS_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.playerCharacters;
+const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 interface PlayerCharactersProps {
   storageRefreshKey?: number;
 }
@@ -31,7 +33,7 @@ interface PlayerCharactersProps {
 export function PlayerCharacters({
   storageRefreshKey = 0
 }: PlayerCharactersProps) {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { activeCampaignId } = useCampaign();
   const { isHSC, isDnD5e, isPathfinder } = useRuleset();
   const isD20 = isDnD5e || isPathfinder;
@@ -46,6 +48,7 @@ export function PlayerCharacters({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [pendingImportCharacters, setPendingImportCharacters] = useState<PlayerCharacter[] | null>(null);
   const [showImportChoiceModal, setShowImportChoiceModal] = useState(false);
+  const [memberProfileIds, setMemberProfileIds] = useState<Set<string> | null>(null);
 
   // Carica personaggi da Supabase all'avvio
   useEffect(() => {
@@ -54,6 +57,25 @@ export function PlayerCharacters({
         await ensureDefaultCampaign(activeCampaignId);
         const loadedCharacters = await loadCharacters(activeCampaignId);
         setCharacters(loadedCharacters);
+
+        if (session?.access_token) {
+          try {
+            const membersRes = await fetch(
+              `${SERVER_BASE}/campaigns/${activeCampaignId}/members`,
+              { headers: { Authorization: `Bearer ${session.access_token}` } }
+            );
+            if (membersRes.ok) {
+              const { members } = await membersRes.json();
+              setMemberProfileIds(
+                new Set(members.map((m: { profileId: string }) => m.profileId))
+              );
+            } else {
+              setMemberProfileIds(null);
+            }
+          } catch {
+            setMemberProfileIds(null);
+          }
+        }
       } catch (error) {
         console.error('Errore caricamento personaggi da Supabase:', error);
         // Fallback a localStorage
@@ -73,7 +95,7 @@ export function PlayerCharacters({
       }
     }
     loadData();
-  }, [storageRefreshKey]);
+  }, [storageRefreshKey, session?.access_token]);
 
   // Salva su Supabase quando i personaggi cambiano
   useEffect(() => {
@@ -354,7 +376,11 @@ const showToast = (message: string) => {
     setToastMessage(null);
   }, 2600);
 };
-  
+
+  const visibleCharacters = memberProfileIds
+    ? characters.filter(char => memberProfileIds.has((char as any).ownerProfileId))
+    : characters;
+
   return (
   <div className="min-h-screen bg-[var(--dash-bg)] text-[var(--dash-text-strong)]">
     <div className="mx-auto max-w-7xl px-6 py-8">
@@ -441,7 +467,7 @@ const showToast = (message: string) => {
 )}
 
      <div className="space-y-5">
-  {characters.length === 0 ? (
+  {visibleCharacters.length === 0 ? (
     <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-8 py-12 text-center">
       <div className="mx-auto max-w-2xl">
         <div className="mb-3 text-xs uppercase tracking-[0.18em] text-[var(--dash-accent-2)]">
@@ -472,7 +498,7 @@ const showToast = (message: string) => {
       </div>
     </div>
   ) : (
-    characters.map(char => {
+    visibleCharacters.map(char => {
       const isExpanded = expandedCharacters.has(char.id);
       const currentTab = activeTab[char.id] || 'stats';
       const audaciaValue = typeof char.audacia === 'number' ? char.audacia : 1;
