@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Loader2, Plus, Trash2, Image as ImageIcon, X } from 'lucide-react';
 import { supabase } from '../auth/AuthContext';
 
 const ADMIN_USER_ID = '3c298159-e7d1-4507-ad06-b44765968162';
+const MAX_IMAGE_MB = 5;
+
+type ContentBlock = { type: 'text'; text: string } | { type: 'image'; url: string };
 
 interface NewsPost {
   id: string;
   title: string;
-  body: string;
+  content: ContentBlock[];
   created_at: string;
 }
 
@@ -30,11 +33,15 @@ export function NewsPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [posts, setPosts] = useState<NewsPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
   const [showCompose, setShowCompose] = useState(false);
   const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
+  const [blocks, setBlocks] = useState<ContentBlock[]>([]);
+  const [currentText, setCurrentText] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isAdmin = userId === ADMIN_USER_ID;
 
@@ -42,12 +49,12 @@ export function NewsPage() {
     setIsLoading(true);
     const { data, error: fetchError } = await supabase
       .from('news_posts')
-      .select('id, title, body, created_at')
+      .select('id, title, content, created_at')
       .order('created_at', { ascending: false });
     if (fetchError) {
       console.log('Errore caricamento news:', fetchError.message);
     } else {
-      setPosts(data ?? []);
+      setPosts((data ?? []) as NewsPost[]);
     }
     setIsLoading(false);
   };
@@ -59,18 +66,66 @@ export function NewsPage() {
     void loadPosts();
   }, []);
 
+  const addTextBlock = () => {
+    if (!currentText.trim()) return;
+    setBlocks(prev => [...prev, { type: 'text', text: currentText.trim() }]);
+    setCurrentText('');
+  };
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    if (!file.type.startsWith('image/')) {
+      setError('Seleziona un file immagine.');
+      return;
+    }
+    if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
+      setError(`L'immagine non può superare i ${MAX_IMAGE_MB} MB.`);
+      return;
+    }
+    setIsUploadingImage(true);
+    try {
+      const ext = file.name.split('.').pop() ?? 'jpg';
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from('news-images').upload(path, file);
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from('news-images').getPublicUrl(path);
+      setBlocks(prev => [...prev, { type: 'image', url: publicUrl }]);
+    } catch (err) {
+      console.log('Errore upload immagine:', err);
+      setError('Caricamento immagine non riuscito. Riprova.');
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const removeBlock = (index: number) => {
+    setBlocks(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const resetCompose = () => {
+    setShowCompose(false);
+    setTitle('');
+    setBlocks([]);
+    setCurrentText('');
+    setError(null);
+  };
+
   const handlePublish = async () => {
-    if (!title.trim() || !body.trim()) return;
+    const finalBlocks = currentText.trim()
+      ? [...blocks, { type: 'text' as const, text: currentText.trim() }]
+      : blocks;
+    if (!title.trim() || finalBlocks.length === 0) return;
     setIsPublishing(true);
     setError(null);
     try {
       const { error: insertError } = await supabase
         .from('news_posts')
-        .insert({ title: title.trim(), body: body.trim(), author_id: userId });
+        .insert({ title: title.trim(), content: finalBlocks, author_id: userId });
       if (insertError) throw insertError;
-      setTitle('');
-      setBody('');
-      setShowCompose(false);
+      resetCompose();
       await loadPosts();
     } catch (err) {
       console.log('Errore pubblicazione news:', err);
@@ -92,9 +147,11 @@ export function NewsPage() {
   return (
     <div style={pageStyle}>
       <div style={containerStyle}>
-        <a href="/" style={{ color: '#c9a04e', fontSize: '0.85rem', textDecoration: 'none' }}>
+        <button type="button" onClick={() => window.close()}
+          style={{ background: 'none', border: 'none', color: '#c9a04e', fontSize: '0.85rem',
+                   cursor: 'pointer', padding: 0 }}>
           ← Torna a Hollow Gate
-        </a>
+        </button>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '1.5rem 0 2rem' }}>
           <h1 style={{ fontFamily: 'serif', fontSize: '2rem', fontWeight: 'bold', color: '#fff' }}>
@@ -113,24 +170,66 @@ export function NewsPage() {
         {isAdmin && showCompose && (
           <div style={{ border: '1px solid #333', borderRadius: 12, padding: '1.25rem', marginBottom: '2rem' }}>
             <input type="text" value={title} onChange={e => setTitle(e.target.value)}
-              placeholder="Titolo" style={{ ...inputStyle, marginBottom: '0.75rem' }} />
-            <textarea value={body} onChange={e => setBody(e.target.value)}
-              placeholder="Testo della novità..." rows={5}
-              style={{ ...inputStyle, resize: 'vertical', minHeight: 100 }} />
-            {error && <div style={{ marginTop: '0.6rem', fontSize: '0.8rem', color: '#f8a0a0' }}>{error}</div>}
-            <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.9rem' }}>
-              <button type="button" onClick={() => { setShowCompose(false); setTitle(''); setBody(''); setError(null); }}
-                disabled={isPublishing}
+              placeholder="Titolo" style={{ ...inputStyle, marginBottom: '1rem' }} />
+
+            {blocks.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1rem' }}>
+                {blocks.map((block, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem',
+                                          border: '1px solid #292929', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
+                    {block.type === 'text' ? (
+                      <p style={{ flex: 1, fontSize: '0.8rem', color: '#ccc', margin: 0,
+                                  whiteSpace: 'pre-wrap', maxHeight: 60, overflow: 'hidden' }}>
+                        {block.text}
+                      </p>
+                    ) : (
+                      <img src={block.url} alt="" style={{ height: 50, borderRadius: 4, flexShrink: 0 }} />
+                    )}
+                    <button type="button" onClick={() => removeBlock(i)} aria-label="Rimuovi blocco"
+                      style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', flexShrink: 0 }}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <textarea value={currentText} onChange={e => setCurrentText(e.target.value)}
+              placeholder="Scrivi un paragrafo..." rows={4}
+              style={{ ...inputStyle, resize: 'vertical', minHeight: 90 }} />
+
+            <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.6rem' }}>
+              <button type="button" onClick={addTextBlock} disabled={!currentText.trim()}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.8rem',
+                         borderRadius: 999, backgroundColor: 'transparent', border: '1px solid #444',
+                         color: currentText.trim() ? '#ccc' : '#555', fontSize: '0.78rem',
+                         cursor: currentText.trim() ? 'pointer' : 'not-allowed' }}>
+                <Plus size={13} /> Aggiungi paragrafo
+              </button>
+              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploadingImage}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.8rem',
+                         borderRadius: 999, backgroundColor: 'transparent', border: '1px solid #444',
+                         color: '#ccc', fontSize: '0.78rem', cursor: 'pointer' }}>
+                {isUploadingImage ? <Loader2 size={13} className="animate-spin" /> : <ImageIcon size={13} />}
+                {isUploadingImage ? 'Caricamento...' : 'Aggiungi immagine'}
+              </button>
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} style={{ display: 'none' }} />
+            </div>
+
+            {error && <div style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: '#f8a0a0' }}>{error}</div>}
+
+            <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1.25rem', borderTop: '1px solid #292929', paddingTop: '1rem' }}>
+              <button type="button" onClick={resetCompose} disabled={isPublishing}
                 style={{ flex: 1, padding: '0.55rem', borderRadius: 999, backgroundColor: 'transparent',
                          border: '1px solid #444', color: '#aaa', fontSize: '0.8rem', cursor: 'pointer' }}>
                 Annulla
               </button>
-              <button type="button" onClick={handlePublish} disabled={isPublishing || !title.trim() || !body.trim()}
+              <button type="button" onClick={handlePublish}
+                disabled={isPublishing || !title.trim() || (blocks.length === 0 && !currentText.trim())}
                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
                          padding: '0.55rem', borderRadius: 999, backgroundColor: 'transparent',
                          border: '1.5px solid #c9a04e', color: '#c9a04e', fontWeight: 600, fontSize: '0.8rem',
-                         cursor: (isPublishing || !title.trim() || !body.trim()) ? 'not-allowed' : 'pointer',
-                         opacity: (isPublishing || !title.trim() || !body.trim()) ? 0.5 : 1 }}>
+                         cursor: 'pointer', opacity: isPublishing ? 0.6 : 1 }}>
                 {isPublishing && <Loader2 size={14} className="animate-spin" />}
                 {isPublishing ? 'Pubblicazione...' : 'Pubblica'}
               </button>
@@ -147,9 +246,9 @@ export function NewsPage() {
             Nessuna novità pubblicata ancora.
           </p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
             {posts.map(post => (
-              <div key={post.id} style={{ borderBottom: '1px solid #222', paddingBottom: '1.5rem' }}>
+              <div key={post.id} style={{ borderBottom: '1px solid #222', paddingBottom: '2rem' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
                   <div>
                     <div style={{ fontSize: '0.75rem', color: '#c9a04e', marginBottom: '0.3rem' }}>
@@ -164,9 +263,19 @@ export function NewsPage() {
                     </button>
                   )}
                 </div>
-                <p style={{ marginTop: '0.6rem', fontSize: '0.9rem', color: '#ccc', whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
-                  {post.body}
-                </p>
+                <div style={{ marginTop: '0.75rem' }}>
+                  {(post.content ?? []).map((block, i) =>
+                    block.type === 'text' ? (
+                      <p key={i} style={{ fontSize: '0.9rem', color: '#ccc', whiteSpace: 'pre-wrap',
+                                            lineHeight: 1.7, marginBottom: '1rem' }}>
+                        {block.text}
+                      </p>
+                    ) : (
+                      <img key={i} src={block.url} alt=""
+                        style={{ width: '100%', borderRadius: 10, marginBottom: '1rem', display: 'block' }} />
+                    )
+                  )}
+                </div>
               </div>
             ))}
           </div>
