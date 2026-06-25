@@ -24,7 +24,7 @@ import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizar
 import { CharacterSheetModal } from '../components/character/CharacterSheetModal';
 import { getCharactersByOwner } from '../../services/characters/characterService';
 import { saveCharacter as saveCharacterToSupabase } from '../../services/supabase/charactersService';
-import { readDashboardSettings } from '../../services/settings/dashboardSettings';
+import type { DashboardPalette } from '../../services/settings/dashboardSettings';
 import type { Character, CharacterSummary } from '../../types/character';
 
 const RULESET_ICONS: Record<RulesetId, React.ReactNode> = {
@@ -62,9 +62,10 @@ interface HomeScreenProps {
   onEnterCampaign: (campaign: Campaign) => void;
   scrollTarget?: 'characters' | 'campaigns' | null;
   onScrollHandled?: () => void;
+  palette: DashboardPalette;
 }
 
-export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: HomeScreenProps) {
+export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, palette }: HomeScreenProps) {
   const { user } = useAuth();
   const {
     campaigns,
@@ -74,8 +75,6 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled }: H
     joinCampaignByCode,
     generateInviteCode,
   } = useCampaign();
-
-  const palette = useMemo(() => readDashboardSettings().palette, []);
 
   const allCampaigns = useMemo(() => [...campaigns, ...joinedCampaigns], [campaigns, joinedCampaigns]);
 

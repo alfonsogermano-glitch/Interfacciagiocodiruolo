@@ -378,6 +378,7 @@ function AuthGate() {
             onEnterCampaign={campaign => goToDashboard(campaign)}
             scrollTarget={homeScrollTarget}
             onScrollHandled={() => setHomeScrollTarget(null)}
+            palette={dashboardSettings.palette}
           />
         ) : (
           <Dashboard
