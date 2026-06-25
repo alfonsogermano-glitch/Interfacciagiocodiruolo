@@ -148,7 +148,14 @@ export function NewsPage() {
   return (
     <div style={pageStyle}>
       <div style={containerStyle}>
-        <button type="button" onClick={() => window.close()}
+        <button type="button" onClick={() => {
+          if (window.opener && !window.opener.closed) {
+            window.opener.focus();
+          } else {
+            window.open('/', '_blank');
+          }
+          window.close();
+        }}
           style={{ background: 'none', border: 'none', color: '#c9a04e', fontSize: '0.85rem',
                    cursor: 'pointer', padding: 0 }}>
           ← Torna a Hollow Gate
