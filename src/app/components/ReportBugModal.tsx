@@ -72,7 +72,7 @@ export function ReportBugModal({ onClose, palette }: ReportBugModalProps) {
           <>
             <h2 style={titleStyle}>Grazie!</h2>
             <p style={{ color: 'var(--dash-muted)', textAlign: 'center', fontSize: '0.9rem' }}>
-              Il tuo report è stato inviato. Grazie per l&apos;aiuto a migliorare Hollow Gate.
+              Il tuo report è stato inviato. Grazie per il tuo aiuto!
             </p>
             <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center' }}>
               <button type="button" onClick={onClose}
