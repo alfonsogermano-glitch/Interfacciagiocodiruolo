@@ -297,8 +297,7 @@ export function NewsPage() {
             <X size={26} />
           </button>
           <img src={lightboxUrl} alt=""
-            onClick={e => e.stopPropagation()}
-            style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 8, objectFit: 'contain' }} />
+            style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 8, objectFit: 'contain', cursor: 'zoom-out' }} />
         </div>
       )}
     </div>
