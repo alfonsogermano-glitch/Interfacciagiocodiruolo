@@ -41,6 +41,7 @@ export function NewsPage() {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isAdmin = userId === ADMIN_USER_ID;
@@ -272,7 +273,8 @@ export function NewsPage() {
                       </p>
                     ) : (
                       <img key={i} src={block.url} alt=""
-                        style={{ width: '100%', borderRadius: 10, marginBottom: '1rem', display: 'block' }} />
+                        onClick={() => setLightboxUrl(block.url)}
+                        style={{ width: '100%', borderRadius: 10, marginBottom: '1rem', display: 'block', cursor: 'pointer' }} />
                     )
                   )}
                 </div>
@@ -281,6 +283,24 @@ export function NewsPage() {
           </div>
         )}
       </div>
+
+      {lightboxUrl && (
+        <div
+          onClick={() => setLightboxUrl(null)}
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.92)', zIndex: 2000,
+                   display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem',
+                   cursor: 'zoom-out' }}
+        >
+          <button type="button" onClick={() => setLightboxUrl(null)} aria-label="Chiudi"
+            style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', background: 'none', border: 'none',
+                     color: '#ccc', cursor: 'pointer', display: 'flex', padding: '0.4rem' }}>
+            <X size={26} />
+          </button>
+          <img src={lightboxUrl} alt=""
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 8, objectFit: 'contain' }} />
+        </div>
+      )}
     </div>
   );
 }
