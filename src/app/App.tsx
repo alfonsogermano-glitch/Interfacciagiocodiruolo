@@ -401,7 +401,7 @@ function AuthGate() {
       )}
 
       {isReportBugOpen && (
-        <ReportBugModal onClose={() => setIsReportBugOpen(false)} />
+        <ReportBugModal onClose={() => setIsReportBugOpen(false)} palette={dashboardSettings.palette} />
       )}
     </>
   );

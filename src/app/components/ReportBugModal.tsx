@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { X, Loader2, Send } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
+import type { DashboardPalette } from '../../services/settings/dashboardSettings';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
 interface ReportBugModalProps {
   onClose: () => void;
+  palette: DashboardPalette;
 }
 
 const overlayStyle: React.CSSProperties = {
@@ -31,7 +33,7 @@ const textareaStyle: React.CSSProperties = {
   outline: 'none', resize: 'vertical', minHeight: 130, fontFamily: 'inherit', boxSizing: 'border-box',
 };
 
-export function ReportBugModal({ onClose }: ReportBugModalProps) {
+export function ReportBugModal({ onClose, palette }: ReportBugModalProps) {
   const { user, session } = useAuth();
   const [message, setMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -60,7 +62,7 @@ export function ReportBugModal({ onClose }: ReportBugModalProps) {
   };
 
   return (
-    <div style={overlayStyle} onClick={onClose}>
+    <div data-dashboard-palette={palette} style={overlayStyle} onClick={onClose}>
       <div style={cardStyle} onClick={e => e.stopPropagation()}>
         <button type="button" onClick={onClose} aria-label="Chiudi" style={closeButtonStyle}>
           <X size={20} />
