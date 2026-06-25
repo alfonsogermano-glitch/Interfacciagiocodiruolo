@@ -14,7 +14,7 @@ import { GmSectionSidebar } from './layout/GmSectionSidebar';
 import { TopBar } from './layout/TopBar';
 import { SettingsModal } from './components/SettingsModal';
 import { ReportBugModal } from './components/ReportBugModal';
-import { NewsModal } from './components/NewsModal';
+import { NewsPage } from './news/NewsPage';
 
 import { AdventureManager } from './components/gm/AdventureManager';
 import { PlayerCharacters } from './components/gm/PlayerCharacters';
@@ -225,7 +225,6 @@ function AuthGate() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'profile'>('general');
   const [isReportBugOpen, setIsReportBugOpen] = useState(false);
-  const [isNewsOpen, setIsNewsOpen] = useState(false);
   const [draftDashboardSettings, setDraftDashboardSettings] =
     useState<DashboardSettings>(() => dashboardSettings);
 
@@ -373,7 +372,6 @@ function AuthGate() {
             onLogout={() => void signOut()}
             onOpenSettings={(tab) => openSettings(tab)}
             onReportBug={() => setIsReportBugOpen(true)}
-            onOpenNews={() => setIsNewsOpen(true)}
           />
         }
       >
@@ -407,9 +405,6 @@ function AuthGate() {
         <ReportBugModal onClose={() => setIsReportBugOpen(false)} palette={dashboardSettings.palette} />
       )}
 
-      {isNewsOpen && (
-        <NewsModal onClose={() => setIsNewsOpen(false)} palette={dashboardSettings.palette} />
-      )}
     </>
   );
 }
@@ -418,6 +413,7 @@ export default function App() {
   const path = window.location.pathname;
   if (path === '/privacy') return <PrivacyPolicy />;
   if (path === '/elimina-dati') return <DeleteData />;
+  if (path === '/news') return <NewsPage />;
 
   return (
     <AuthProvider>

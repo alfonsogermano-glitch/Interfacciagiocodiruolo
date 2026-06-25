@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, Loader2, Plus, Trash2 } from 'lucide-react';
-import { useAuth, supabase } from '../auth/AuthContext';
-import type { DashboardPalette } from '../../services/settings/dashboardSettings';
+import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { supabase } from '../auth/AuthContext';
 
 const ADMIN_USER_ID = '3c298159-e7d1-4507-ad06-b44765968162';
 
@@ -12,34 +11,23 @@ interface NewsPost {
   created_at: string;
 }
 
-interface NewsModalProps {
-  onClose: () => void;
-  palette: DashboardPalette;
-}
-
-const overlayStyle: React.CSSProperties = {
-  position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1000,
-  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
-};
-const cardStyle: React.CSSProperties = {
-  backgroundColor: 'var(--dash-bg)', border: '1px solid var(--dash-border-soft)', borderRadius: 16,
-  padding: '2rem', width: '100%', maxWidth: 640, maxHeight: '85vh', overflowY: 'auto',
-  position: 'relative', fontFamily: 'sans-serif',
-};
-const inputStyle: React.CSSProperties = {
-  width: '100%', backgroundColor: 'var(--dash-surface)', border: '1px solid var(--dash-border)',
-  borderRadius: 10, padding: '0.6rem 0.875rem', color: 'var(--dash-text)', fontSize: '0.875rem',
-  outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
-};
-
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-export function NewsModal({ onClose, palette }: NewsModalProps) {
-  const { user } = useAuth();
-  const isAdmin = user?.id === ADMIN_USER_ID;
+const pageStyle: React.CSSProperties = {
+  minHeight: '100vh', backgroundColor: '#000', color: '#e5e5e5', fontFamily: 'sans-serif',
+  padding: '3rem 1.5rem',
+};
+const containerStyle: React.CSSProperties = { maxWidth: 680, margin: '0 auto' };
+const inputStyle: React.CSSProperties = {
+  width: '100%', backgroundColor: '#111', border: '1px solid #333', borderRadius: 10,
+  padding: '0.6rem 0.875rem', color: '#fff', fontSize: '0.9rem', outline: 'none',
+  boxSizing: 'border-box', fontFamily: 'inherit',
+};
 
+export function NewsPage() {
+  const [userId, setUserId] = useState<string | null>(null);
   const [posts, setPosts] = useState<NewsPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCompose, setShowCompose] = useState(false);
@@ -47,6 +35,8 @@ export function NewsModal({ onClose, palette }: NewsModalProps) {
   const [body, setBody] = useState('');
   const [isPublishing, setIsPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isAdmin = userId === ADMIN_USER_ID;
 
   const loadPosts = async () => {
     setIsLoading(true);
@@ -62,7 +52,12 @@ export function NewsModal({ onClose, palette }: NewsModalProps) {
     setIsLoading(false);
   };
 
-  useEffect(() => { void loadPosts(); }, []);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUserId(session?.user?.id ?? null);
+    });
+    void loadPosts();
+  }, []);
 
   const handlePublish = async () => {
     if (!title.trim() || !body.trim()) return;
@@ -71,7 +66,7 @@ export function NewsModal({ onClose, palette }: NewsModalProps) {
     try {
       const { error: insertError } = await supabase
         .from('news_posts')
-        .insert({ title: title.trim(), body: body.trim(), author_id: user?.id });
+        .insert({ title: title.trim(), body: body.trim(), author_id: userId });
       if (insertError) throw insertError;
       setTitle('');
       setBody('');
@@ -95,50 +90,46 @@ export function NewsModal({ onClose, palette }: NewsModalProps) {
   };
 
   return (
-    <div data-dashboard-palette={palette} style={overlayStyle} onClick={onClose}>
-      <div style={cardStyle} onClick={e => e.stopPropagation()}>
-        <button type="button" onClick={onClose} aria-label="Chiudi"
-          style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none',
-                   color: 'var(--dash-muted)', cursor: 'pointer', display: 'flex', padding: '0.25rem' }}>
-          <X size={20} />
-        </button>
+    <div style={pageStyle}>
+      <div style={containerStyle}>
+        <a href="/" style={{ color: '#c9a04e', fontSize: '0.85rem', textDecoration: 'none' }}>
+          ← Torna a Hollow Gate
+        </a>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-          <h2 style={{ fontFamily: 'serif', color: 'var(--dash-text)', fontSize: '1.5rem', fontWeight: 'bold' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '1.5rem 0 2rem' }}>
+          <h1 style={{ fontFamily: 'serif', fontSize: '2rem', fontWeight: 'bold', color: '#fff' }}>
             News e Novità
-          </h2>
+          </h1>
           {isAdmin && !showCompose && (
             <button type="button" onClick={() => setShowCompose(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.9rem',
-                       borderRadius: 999, backgroundColor: 'transparent', border: '1.5px solid var(--dash-accent)',
-                       color: 'var(--dash-accent)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem',
+                       borderRadius: 999, backgroundColor: 'transparent', border: '1.5px solid #c9a04e',
+                       color: '#c9a04e', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
               <Plus size={14} /> Nuova news
             </button>
           )}
         </div>
 
         {isAdmin && showCompose && (
-          <div style={{ border: '1px solid var(--dash-border-soft)', borderRadius: 12, padding: '1.25rem', marginBottom: '1.5rem' }}>
+          <div style={{ border: '1px solid #333', borderRadius: 12, padding: '1.25rem', marginBottom: '2rem' }}>
             <input type="text" value={title} onChange={e => setTitle(e.target.value)}
               placeholder="Titolo" style={{ ...inputStyle, marginBottom: '0.75rem' }} />
             <textarea value={body} onChange={e => setBody(e.target.value)}
               placeholder="Testo della novità..." rows={5}
               style={{ ...inputStyle, resize: 'vertical', minHeight: 100 }} />
-            {error && (
-              <div style={{ marginTop: '0.6rem', fontSize: '0.8rem', color: 'var(--dash-danger-text)' }}>{error}</div>
-            )}
+            {error && <div style={{ marginTop: '0.6rem', fontSize: '0.8rem', color: '#f8a0a0' }}>{error}</div>}
             <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.9rem' }}>
               <button type="button" onClick={() => { setShowCompose(false); setTitle(''); setBody(''); setError(null); }}
                 disabled={isPublishing}
                 style={{ flex: 1, padding: '0.55rem', borderRadius: 999, backgroundColor: 'transparent',
-                         border: '1px solid var(--dash-border)', color: 'var(--dash-muted)', fontSize: '0.8rem', cursor: 'pointer' }}>
+                         border: '1px solid #444', color: '#aaa', fontSize: '0.8rem', cursor: 'pointer' }}>
                 Annulla
               </button>
               <button type="button" onClick={handlePublish} disabled={isPublishing || !title.trim() || !body.trim()}
                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
                          padding: '0.55rem', borderRadius: 999, backgroundColor: 'transparent',
-                         border: '1.5px solid var(--dash-accent)', color: 'var(--dash-accent)', fontWeight: 600,
-                         fontSize: '0.8rem', cursor: (isPublishing || !title.trim() || !body.trim()) ? 'not-allowed' : 'pointer',
+                         border: '1.5px solid #c9a04e', color: '#c9a04e', fontWeight: 600, fontSize: '0.8rem',
+                         cursor: (isPublishing || !title.trim() || !body.trim()) ? 'not-allowed' : 'pointer',
                          opacity: (isPublishing || !title.trim() || !body.trim()) ? 0.5 : 1 }}>
                 {isPublishing && <Loader2 size={14} className="animate-spin" />}
                 {isPublishing ? 'Pubblicazione...' : 'Pubblica'}
@@ -149,33 +140,31 @@ export function NewsModal({ onClose, palette }: NewsModalProps) {
 
         {isLoading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
-            <Loader2 size={24} className="animate-spin" style={{ color: 'var(--dash-muted)' }} />
+            <Loader2 size={24} className="animate-spin" style={{ color: '#666' }} />
           </div>
         ) : posts.length === 0 ? (
-          <p style={{ color: 'var(--dash-muted)', textAlign: 'center', padding: '2rem 0', fontSize: '0.9rem' }}>
+          <p style={{ color: '#666', textAlign: 'center', padding: '2rem 0', fontSize: '0.9rem' }}>
             Nessuna novità pubblicata ancora.
           </p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             {posts.map(post => (
-              <div key={post.id} style={{ borderBottom: '1px solid var(--dash-border-soft)', paddingBottom: '1.25rem' }}>
+              <div key={post.id} style={{ borderBottom: '1px solid #222', paddingBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
                   <div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--dash-accent-2)', marginBottom: '0.25rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: '#c9a04e', marginBottom: '0.3rem' }}>
                       {formatDate(post.created_at)}
                     </div>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--dash-text-strong)' }}>
-                      {post.title}
-                    </h3>
+                    <h2 style={{ fontSize: '1.15rem', fontWeight: 600, color: '#fff' }}>{post.title}</h2>
                   </div>
                   {isAdmin && (
                     <button type="button" onClick={() => handleDelete(post.id)} aria-label="Elimina"
-                      style={{ background: 'none', border: 'none', color: 'var(--dash-muted)', cursor: 'pointer', padding: '0.25rem' }}>
+                      style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: '0.25rem' }}>
                       <Trash2 size={16} />
                     </button>
                   )}
                 </div>
-                <p style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: 'var(--dash-text)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                <p style={{ marginTop: '0.6rem', fontSize: '0.9rem', color: '#ccc', whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>
                   {post.body}
                 </p>
               </div>
