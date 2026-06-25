@@ -32,7 +32,7 @@ const SUPABASE_SETTINGS_KEY = 'dashboard_settings';
 
 export const DEFAULT_DASHBOARD_SETTINGS: DashboardSettings = {
   language: 'it',
-  palette: 'questportal',
+  palette: 'cthulhu',
   saveMode: 'cloud'
 };
 

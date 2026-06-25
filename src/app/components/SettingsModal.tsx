@@ -65,14 +65,14 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel }: Settin
                   }
                   className="w-full rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text)]"
                 >
-                  <option value="questportal">Quest Portal</option>
-                  <option value="cthulhu">Cthulhu classica</option>
+                  <option value="cthulhu">Hollow Gate</option>
+                  <option value="questportal">Indaco Spettrale</option>
                   <option value="blood">Rosso sangue</option>
                   <option value="amber">Ambra antica</option>
                   <option value="emerald">Verde occulto</option>
                   <option value="arcane">Blu arcano</option>
-                  <option value="noir">Noir</option>
-                  <option value="frost">Gelo</option>
+                  <option value="noir">Noir Horror</option>
+                  <option value="frost">Gelo Siderale</option>
                   <option value="violet">Violetto cosmico</option>
                 </select>
               </div>
