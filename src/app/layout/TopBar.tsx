@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, Bug, ChevronDown, LogOut, Search, Settings } from 'lucide-react';
+import { Bell, Bug, ChevronDown, LogOut, Newspaper, Search, Settings } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 
 interface TopBarProps {
@@ -8,6 +8,7 @@ interface TopBarProps {
   onLogout: () => void;
   onOpenSettings: (tab: 'general' | 'profile') => void;
   onReportBug: () => void;
+  onOpenNews: () => void;
 }
 
 const SEARCH_PLACEHOLDERS: Record<string, string> = {
@@ -16,7 +17,7 @@ const SEARCH_PLACEHOLDERS: Record<string, string> = {
   players: 'Cerca personaggio...',
 };
 
-export function TopBar({ activeSection, hasNotifications = false, onLogout, onOpenSettings, onReportBug }: TopBarProps) {
+export function TopBar({ activeSection, hasNotifications = false, onLogout, onOpenSettings, onReportBug, onOpenNews }: TopBarProps) {
   const { user } = useAuth();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
@@ -84,6 +85,16 @@ export function TopBar({ activeSection, hasNotifications = false, onLogout, onOp
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
             >
               <Bug className="h-4 w-4" /> Segnala un Bug
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsUserMenuOpen(false);
+                onOpenNews();
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
+            >
+              <Newspaper className="h-4 w-4" /> News e Novità
             </button>
             <button
               type="button"
