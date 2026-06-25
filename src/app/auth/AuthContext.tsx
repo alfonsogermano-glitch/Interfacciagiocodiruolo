@@ -90,12 +90,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
-      if (!isMounted) return;
-      setSession(existingSession);
-      setUser(existingSession ? await buildUserFromSession(existingSession) : null);
-      setIsLoading(false);
-    });
+    // Timeout di sicurezza: se il recupero della sessione resta sospeso
+    // (rete lenta, richiesta che non risponde mai), l'app procede comunque
+    // dopo 8 secondi invece di restare bloccata sullo spinner per sempre.
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted) setIsLoading(false);
+    }, 8000);
+
+    supabase.auth.getSession()
+      .then(async ({ data: { session: existingSession } }) => {
+        if (!isMounted) return;
+        setSession(existingSession);
+        setUser(existingSession ? await buildUserFromSession(existingSession) : null);
+      })
+      .catch((err) => {
+        console.log('Errore nel recupero della sessione iniziale:', err);
+      })
+      .finally(() => {
+        clearTimeout(safetyTimeout);
+        if (isMounted) setIsLoading(false);
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
       if (event === 'PASSWORD_RECOVERY') {
@@ -106,12 +120,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
       if (!isMounted) return;
-      setSession(nextSession);
-      setUser(nextSession ? await buildUserFromSession(nextSession) : null);
+      try {
+        setSession(nextSession);
+        setUser(nextSession ? await buildUserFromSession(nextSession) : null);
+      } catch (err) {
+        console.log('Errore nella gestione del cambio di stato auth:', err);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
     });
 
     return () => {
       isMounted = false;
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, []);
