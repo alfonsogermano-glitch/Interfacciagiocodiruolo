@@ -13,6 +13,7 @@ import { LeftSidebar } from './layout/LeftSidebar';
 import { GmSectionSidebar } from './layout/GmSectionSidebar';
 import { TopBar } from './layout/TopBar';
 import { SettingsModal } from './components/SettingsModal';
+import { ReportBugModal } from './components/ReportBugModal';
 
 import { AdventureManager } from './components/gm/AdventureManager';
 import { PlayerCharacters } from './components/gm/PlayerCharacters';
@@ -222,6 +223,7 @@ function AuthGate() {
   const [isBootstrapped, setIsBootstrapped] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'profile'>('general');
+  const [isReportBugOpen, setIsReportBugOpen] = useState(false);
   const [draftDashboardSettings, setDraftDashboardSettings] =
     useState<DashboardSettings>(() => dashboardSettings);
 
@@ -368,6 +370,7 @@ function AuthGate() {
             activeSection={view === 'dashboard' ? activeGmTab : null}
             onLogout={() => void signOut()}
             onOpenSettings={(tab) => openSettings(tab)}
+            onReportBug={() => setIsReportBugOpen(true)}
           />
         }
       >
@@ -395,6 +398,10 @@ function AuthGate() {
           onCancel={closeSettingsWithoutSaving}
           initialTab={settingsInitialTab}
         />
+      )}
+
+      {isReportBugOpen && (
+        <ReportBugModal onClose={() => setIsReportBugOpen(false)} />
       )}
     </>
   );

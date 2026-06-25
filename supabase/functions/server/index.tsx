@@ -282,6 +282,54 @@ app.post("/make-server-771c5bfd/campaigns/:id/invite-code", async (c) => {
   }
 });
 
+// ─── Report Bug ─────────────────────────────────────────────────────────────
+
+app.post("/make-server-771c5bfd/report-bug", async (c) => {
+  const token = c.req.header("Authorization")?.split(" ")[1];
+  if (!token) return c.json({ error: "Non autorizzato" }, 401);
+  const userId = await getUserIdFromToken(token);
+  if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+  const { message, displayName, email } = await c.req.json();
+  if (!message || typeof message !== "string" || !message.trim()) {
+    return c.json({ error: "Il messaggio non può essere vuoto" }, 400);
+  }
+
+  const resendApiKey = Deno.env.get("RESEND_API_KEY");
+  if (!resendApiKey) {
+    console.log("RESEND_API_KEY non configurata");
+    return c.json({ error: "Servizio email non configurato" }, 500);
+  }
+
+  const emailText =
+    `Nuovo report bug da Hollow Gate VTT\n\n` +
+    `Utente: ${displayName || "Sconosciuto"}\n` +
+    `Email registrazione: ${email || "Sconosciuta"}\n\n` +
+    `Messaggio:\n${message.trim()}`;
+
+  const resendRes = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: "Hollow Gate <onboarding@resend.dev>",
+      to: "alfonso.germano@gmail.com",
+      subject: "Report Bug Hollow Gate VTT",
+      text: emailText,
+    }),
+  });
+
+  if (!resendRes.ok) {
+    const errText = await resendRes.text();
+    console.log("Errore invio email via Resend:", errText);
+    return c.json({ error: "Invio email fallito" }, 502);
+  }
+
+  return c.json({ success: true });
+});
+
 // ─── Campaigns: Delete ──────────────────────────────────────────────────────
 
 app.delete("/make-server-771c5bfd/campaigns/:id", async (c) => {
