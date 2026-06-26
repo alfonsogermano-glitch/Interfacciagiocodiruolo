@@ -203,6 +203,68 @@ export async function deleteCharacter(characterId: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function loadCharactersByOwner(ownerProfileId: string): Promise<(Character & {player: string; notes: string; ownerProfileId: string; campaignId: string | null})[]> {
+  if (shouldUseLocalMode()) return [];
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from('characters')
+    .select('*')
+    .eq('owner_profile_id', ownerProfileId)
+    .eq('status', 'active');
+
+  if (error) {
+    console.error('Errore caricamento personaggi per proprietario:', error);
+    return [];
+  }
+
+  return (data || []).map(row => ({
+    id: row.id,
+    name: row.name,
+    ownerProfileId: row.owner_profile_id,
+    campaignId: row.campaign_id,
+    player: row.sheet_data?.player || '',
+    notes: row.sheet_data?.notes || '',
+    style: row.style || 'Jock',
+    viaggio: row.viaggio || 'Campione',
+    ambiti: row.sheet_data?.ambiti || { Fisico: 1, Scuola: 1, Carisma: 1, Strada: 1 },
+    abilita: row.sheet_data?.abilita || {},
+    freschezza: row.sheet_data?.freschezza || 12,
+    maxFreschezza: row.sheet_data?.maxFreschezza || 12,
+    caselleFrischezzaCruciali: row.sheet_data?.caselleFrischezzaCruciali || [8, 12],
+    follia: row.sheet_data?.follia || 9,
+    maxFollia: row.sheet_data?.maxFollia || 9,
+    conditions: row.sheet_data?.conditions || [],
+    turbe: row.sheet_data?.turbe || [],
+    audacia: row.sheet_data?.audacia || 1,
+    prodigi: row.sheet_data?.prodigi || 0,
+    legame: row.sheet_data?.legame || '',
+    linkedCharacterId: row.sheet_data?.linkedCharacterId,
+    legameDescription: row.sheet_data?.legameDescription,
+    coverImageUrl: row.sheet_data?.coverImageUrl,
+    portraitImageUrl: row.sheet_data?.portraitImageUrl,
+    portraitCroppedImageUrl: row.sheet_data?.portraitCroppedImageUrl,
+    coverPositionX: row.sheet_data?.coverPositionX,
+    coverPositionY: row.sheet_data?.coverPositionY,
+    coverScale: row.sheet_data?.coverScale,
+    portraitCrop: row.sheet_data?.portraitCrop,
+    tutore: row.sheet_data?.tutore || '',
+    tratti: row.sheet_data?.tratti || [],
+    equipment: row.sheet_data?.equipment || [],
+    tipoSpeciale: row.sheet_data?.tipoSpeciale || ''
+  }));
+}
+
+export async function updateCharacterCampaign(characterId: string, campaignId: string | null): Promise<void> {
+  if (shouldUseLocalMode()) return;
+  if (!supabase) throw new Error('Supabase non configurato');
+  const { error } = await supabase
+    .from('characters')
+    .update({ campaign_id: campaignId })
+    .eq('id', characterId);
+  if (error) throw error;
+}
+
 /**
  * Aggiorna un campo specifico di un personaggio
  */
