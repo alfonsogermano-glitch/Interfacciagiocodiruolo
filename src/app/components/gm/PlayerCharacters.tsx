@@ -9,7 +9,7 @@ import { EquipmentPanel as LegacyEquipmentPanel } from '../EquipmentPanel';
 import { CharacterCreationWizard } from './CharacterCreationWizard';
 import type { Character } from '../../../types/character';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
-import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, deleteCharacter as deleteCharacterFromSupabase, deleteCharacterAsGm } from '../../../services/supabase/charactersService';
+import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, deleteCharacter as deleteCharacterFromSupabase, deleteCharacterAsGm, mapRowToCharacter } from '../../../services/supabase/charactersService';
 import { generateUUID } from '../../../lib/uuid';
 import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
@@ -25,7 +25,6 @@ interface PlayerCharacter extends Character {
 
 const PLAYER_CHARACTERS_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.playerCharacters;
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
-const RECENT_EDIT_SUPPRESS_MS = 2500;
 interface PlayerCharactersProps {
   storageRefreshKey?: number;
 }
@@ -46,9 +45,7 @@ export function PlayerCharacters({
   const [editingCharacter, setEditingCharacter] = useState<PlayerCharacter | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const loadSeqRef = useRef(0);
-  const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const recentlyEditedRef = useRef<Record<string, { value: PlayerCharacter; timestamp: number }>>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [pendingImportCharacters, setPendingImportCharacters] = useState<PlayerCharacter[] | null>(null);
   const [showImportChoiceModal, setShowImportChoiceModal] = useState(false);
@@ -63,15 +60,7 @@ export function PlayerCharacters({
         loadedCharacters = await loadCharacters(activeCampaignId);
       }
       if (loadSeqRef.current !== mySeq) return;
-      const now = Date.now();
-      const merged = loadedCharacters.map(serverChar => {
-        const recent = recentlyEditedRef.current[serverChar.id];
-        if (recent && now - recent.timestamp < RECENT_EDIT_SUPPRESS_MS) {
-          return recent.value;
-        }
-        return serverChar;
-      });
-      setCharacters(merged);
+      setCharacters(loadedCharacters);
     } catch (error) {
       console.error('Errore caricamento personaggi da Supabase:', error);
       if (loadSeqRef.current !== mySeq) return;
@@ -125,20 +114,35 @@ export function PlayerCharacters({
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'characters', filter: `campaign_id=eq.${activeCampaignId}` },
-        () => {
-          if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
-          realtimeDebounceRef.current = setTimeout(() => {
-            loadData();
-          }, 400);
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as any)?.id;
+            if (!deletedId) return;
+            setCharacters(prev => prev.filter(c => c.id !== deletedId));
+            return;
+          }
+          const row = payload.new as any;
+          if (!row) return;
+          const mapped = mapRowToCharacter(row) as PlayerCharacter;
+          setCharacters(prev => {
+            const exists = prev.some(c => c.id === mapped.id);
+            const next = exists
+              ? prev.map(c => (c.id === mapped.id ? mapped : c))
+              : [...prev, mapped];
+            return next.sort((a, b) => {
+              const at = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
+              const bt = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
+              return at - bt;
+            });
+          });
         }
       )
       .subscribe();
 
     return () => {
-      if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
       supabase.removeChannel(channel);
     };
-  }, [activeCampaignId, loadData]);
+  }, [activeCampaignId]);
 
   // Salva su Supabase quando i personaggi cambiano
   useEffect(() => {
