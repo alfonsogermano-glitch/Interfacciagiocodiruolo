@@ -10,7 +10,6 @@ import { CharacterCreationWizard } from './CharacterCreationWizard';
 import type { Character } from '../../../types/character';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
 import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, deleteCharacter as deleteCharacterFromSupabase } from '../../../services/supabase/charactersService';
-import { ensureDefaultCampaign } from '../../../services/supabase/campaignService';
 import { generateUUID } from '../../../lib/uuid';
 import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
@@ -53,7 +52,6 @@ export function PlayerCharacters({
   useEffect(() => {
     async function loadData() {
       try {
-        await ensureDefaultCampaign(activeCampaignId);
         if (session?.access_token) {
           const loadedCharacters = await loadCharactersViaServer(activeCampaignId, SERVER_BASE, session.access_token);
           setCharacters(loadedCharacters);
