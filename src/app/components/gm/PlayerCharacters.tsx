@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { UserPlus, User, Heart, Brain, Shield, ChevronDown, ChevronUp, X, Loader2 } from 'lucide-react';
 import { projectId } from '/utils/supabase/info';
 import { FrischezzaTracker } from '../FrischezzaTracker';
@@ -11,7 +11,7 @@ import type { Character } from '../../../types/character';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
 import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, deleteCharacter as deleteCharacterFromSupabase, deleteCharacterAsGm } from '../../../services/supabase/charactersService';
 import { generateUUID } from '../../../lib/uuid';
-import { useAuth } from '../../auth/AuthContext';
+import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useRuleset } from '../../campaigns/RulesetContext';
 import { RulesetBadge } from '../../campaigns/RulesetGate';
@@ -48,36 +48,58 @@ export function PlayerCharacters({
   const [pendingImportCharacters, setPendingImportCharacters] = useState<PlayerCharacter[] | null>(null);
   const [showImportChoiceModal, setShowImportChoiceModal] = useState(false);
 
+  const loadData = useCallback(async () => {
+    try {
+      if (session?.access_token) {
+        const loadedCharacters = await loadCharactersViaServer(activeCampaignId, SERVER_BASE, session.access_token);
+        setCharacters(loadedCharacters);
+      } else {
+        const loadedCharacters = await loadCharacters(activeCampaignId);
+        setCharacters(loadedCharacters);
+      }
+    } catch (error) {
+      console.error('Errore caricamento personaggi da Supabase:', error);
+      try {
+        const savedCharacters = window.localStorage.getItem(PLAYER_CHARACTERS_STORAGE_KEY);
+        if (savedCharacters) {
+          const parsed = JSON.parse(savedCharacters);
+          if (Array.isArray(parsed)) {
+            setCharacters(parsed);
+          }
+        }
+      } catch (e) {
+        console.error('Errore fallback localStorage:', e);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [activeCampaignId, session?.access_token]);
+
   // Carica personaggi da Supabase all'avvio
   useEffect(() => {
-    async function loadData() {
-      try {
-        if (session?.access_token) {
-          const loadedCharacters = await loadCharactersViaServer(activeCampaignId, SERVER_BASE, session.access_token);
-          setCharacters(loadedCharacters);
-        } else {
-          const loadedCharacters = await loadCharacters(activeCampaignId);
-          setCharacters(loadedCharacters);
-        }
-      } catch (error) {
-        console.error('Errore caricamento personaggi da Supabase:', error);
-        try {
-          const savedCharacters = window.localStorage.getItem(PLAYER_CHARACTERS_STORAGE_KEY);
-          if (savedCharacters) {
-            const parsed = JSON.parse(savedCharacters);
-            if (Array.isArray(parsed)) {
-              setCharacters(parsed);
-            }
-          }
-        } catch (e) {
-          console.error('Errore fallback localStorage:', e);
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    }
     loadData();
-  }, [storageRefreshKey, activeCampaignId, session?.access_token]);
+  }, [storageRefreshKey, loadData]);
+
+  // Realtime: si aggiorna in automatico quando qualcuno (GM o altro
+  // giocatore) modifica un personaggio di questa campagna
+  useEffect(() => {
+    if (!activeCampaignId) return;
+
+    const channel = supabase
+      .channel(`characters-campaign-${activeCampaignId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'characters', filter: `campaign_id=eq.${activeCampaignId}` },
+        () => {
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeCampaignId, loadData]);
 
   // Salva su Supabase quando i personaggi cambiano
   useEffect(() => {
