@@ -133,6 +133,8 @@ export function PlayerCharacters({
   const updateCharacter = async (id: string, updatedChar: PlayerCharacter) => {
     setCharacters(prev => prev.map(char => char.id === id ? updatedChar : char));
     const isMineUpdate = (updatedChar as any).ownerProfileId === user?.id;
+    console.log('[EDIT-DEBUG] updatedChar.ownerProfileId=', (updatedChar as any).ownerProfileId,
+      '| user.id=', user?.id, '| isMineUpdate=', isMineUpdate);
     try {
       if (isMineUpdate || !(updatedChar as any).ownerProfileId) {
         await saveCharacterToSupabase(activeCampaignId, updatedChar, user?.id ?? '');
