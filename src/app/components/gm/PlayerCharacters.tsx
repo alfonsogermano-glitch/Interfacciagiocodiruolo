@@ -9,7 +9,7 @@ import { EquipmentPanel as LegacyEquipmentPanel } from '../EquipmentPanel';
 import { CharacterCreationWizard } from './CharacterCreationWizard';
 import type { Character } from '../../../types/character';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
-import { loadCharacters, saveCharacter as saveCharacterToSupabase, deleteCharacter as deleteCharacterFromSupabase } from '../../../services/supabase/charactersService';
+import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, deleteCharacter as deleteCharacterFromSupabase } from '../../../services/supabase/charactersService';
 import { ensureDefaultCampaign } from '../../../services/supabase/campaignService';
 import { generateUUID } from '../../../lib/uuid';
 import { useAuth } from '../../auth/AuthContext';
@@ -48,37 +48,21 @@ export function PlayerCharacters({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [pendingImportCharacters, setPendingImportCharacters] = useState<PlayerCharacter[] | null>(null);
   const [showImportChoiceModal, setShowImportChoiceModal] = useState(false);
-  const [memberProfileIds, setMemberProfileIds] = useState<Set<string> | null>(null);
 
   // Carica personaggi da Supabase all'avvio
   useEffect(() => {
     async function loadData() {
       try {
         await ensureDefaultCampaign(activeCampaignId);
-        const loadedCharacters = await loadCharacters(activeCampaignId);
-        setCharacters(loadedCharacters);
-
         if (session?.access_token) {
-          try {
-            const membersRes = await fetch(
-              `${SERVER_BASE}/campaigns/${activeCampaignId}/members`,
-              { headers: { Authorization: `Bearer ${session.access_token}` } }
-            );
-            if (membersRes.ok) {
-              const { members } = await membersRes.json();
-              setMemberProfileIds(
-                new Set(members.map((m: { profileId: string }) => m.profileId))
-              );
-            } else {
-              setMemberProfileIds(null);
-            }
-          } catch {
-            setMemberProfileIds(null);
-          }
+          const loadedCharacters = await loadCharactersViaServer(activeCampaignId, SERVER_BASE, session.access_token);
+          setCharacters(loadedCharacters);
+        } else {
+          const loadedCharacters = await loadCharacters(activeCampaignId);
+          setCharacters(loadedCharacters);
         }
       } catch (error) {
         console.error('Errore caricamento personaggi da Supabase:', error);
-        // Fallback a localStorage
         try {
           const savedCharacters = window.localStorage.getItem(PLAYER_CHARACTERS_STORAGE_KEY);
           if (savedCharacters) {
@@ -95,7 +79,7 @@ export function PlayerCharacters({
       }
     }
     loadData();
-  }, [storageRefreshKey, session?.access_token]);
+  }, [storageRefreshKey, activeCampaignId, session?.access_token]);
 
   // Salva su Supabase quando i personaggi cambiano
   useEffect(() => {
@@ -377,10 +361,7 @@ const showToast = (message: string) => {
   }, 2600);
 };
 
-  const isOwner = activeCampaign?.ownerId === user?.id;
-  const visibleCharacters = memberProfileIds && !isOwner
-    ? characters.filter(char => memberProfileIds.has((char as any).ownerProfileId))
-    : characters;
+  const visibleCharacters = characters;
 
   return (
   <div className="min-h-screen bg-[var(--dash-bg)] text-[var(--dash-text-strong)]">

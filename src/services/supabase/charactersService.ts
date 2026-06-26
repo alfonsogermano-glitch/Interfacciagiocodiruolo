@@ -203,6 +203,53 @@ export async function deleteCharacter(characterId: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function loadCharactersViaServer(
+  campaignId: string,
+  serverBase: string,
+  accessToken: string
+): Promise<(Character & {player: string; notes: string; ownerProfileId: string})[]> {
+  const res = await fetch(`${serverBase}/campaigns/${campaignId}/characters`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return [];
+  const { characters: rows } = await res.json();
+
+  return (rows || []).map((row: any) => ({
+    id: row.id,
+    name: row.name,
+    ownerProfileId: row.owner_profile_id,
+    player: row.sheet_data?.player || '',
+    notes: row.sheet_data?.notes || '',
+    style: row.style || 'Jock',
+    viaggio: row.viaggio || 'Campione',
+    ambiti: row.sheet_data?.ambiti || { Fisico: 1, Scuola: 1, Carisma: 1, Strada: 1 },
+    abilita: row.sheet_data?.abilita || {},
+    freschezza: row.sheet_data?.freschezza || 12,
+    maxFreschezza: row.sheet_data?.maxFreschezza || 12,
+    caselleFrischezzaCruciali: row.sheet_data?.caselleFrischezzaCruciali || [8, 12],
+    follia: row.sheet_data?.follia || 9,
+    maxFollia: row.sheet_data?.maxFollia || 9,
+    conditions: row.sheet_data?.conditions || [],
+    turbe: row.sheet_data?.turbe || [],
+    audacia: row.sheet_data?.audacia || 1,
+    prodigi: row.sheet_data?.prodigi || 0,
+    legame: row.sheet_data?.legame || '',
+    linkedCharacterId: row.sheet_data?.linkedCharacterId,
+    legameDescription: row.sheet_data?.legameDescription,
+    coverImageUrl: row.sheet_data?.coverImageUrl,
+    portraitImageUrl: row.sheet_data?.portraitImageUrl,
+    portraitCroppedImageUrl: row.sheet_data?.portraitCroppedImageUrl,
+    coverPositionX: row.sheet_data?.coverPositionX,
+    coverPositionY: row.sheet_data?.coverPositionY,
+    coverScale: row.sheet_data?.coverScale,
+    portraitCrop: row.sheet_data?.portraitCrop,
+    tutore: row.sheet_data?.tutore || '',
+    tratti: row.sheet_data?.tratti || [],
+    equipment: row.sheet_data?.equipment || [],
+    tipoSpeciale: row.sheet_data?.tipoSpeciale || ''
+  }));
+}
+
 export async function loadCharactersByOwner(ownerProfileId: string): Promise<(Character & {player: string; notes: string; ownerProfileId: string; campaignId: string | null})[]> {
   if (shouldUseLocalMode()) return [];
   if (!supabase) return [];

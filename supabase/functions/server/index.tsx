@@ -552,6 +552,40 @@ app.get("/make-server-771c5bfd/campaigns/:id/members", async (c) => {
   }
 });
 
+app.get("/make-server-771c5bfd/campaigns/:id/characters", async (c) => {
+  const token = c.req.header("Authorization")?.split(" ")[1];
+  if (!token) return c.json({ error: "Non autorizzato" }, 401);
+  const userId = await getUserIdFromToken(token);
+  if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+  const campaignId = c.req.param("id");
+
+  const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+  const isOwner = myCampaigns.some((camp) => camp.id === campaignId);
+
+  if (!isOwner) {
+    const myJoined = await kv.get(playerCampaignsKey(userId)) ?? [];
+    const isMember = myJoined.some((pc) => pc.campaignId === campaignId);
+    if (!isMember) {
+      return c.json({ error: "Non hai accesso a questa campagna" }, 403);
+    }
+  }
+
+  const admin = getAdminClient();
+  const { data, error } = await admin
+    .from("characters")
+    .select("*")
+    .eq("campaign_id", campaignId)
+    .eq("status", "active");
+
+  if (error) {
+    console.log("Errore lettura personaggi campagna:", error);
+    return c.json({ error: "Errore lettura personaggi" }, 500);
+  }
+
+  return c.json({ characters: data ?? [] });
+});
+
 // ─── Type helper (Deno) ─────────────────────────────────────────────────────
 
 interface Campaign {
