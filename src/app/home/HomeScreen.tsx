@@ -23,7 +23,7 @@ import { RULESETS, type Campaign, type CampaignCreateInput, type RulesetId } fro
 import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
 import { CharacterSheetModal } from '../components/character/CharacterSheetModal';
 import { getCharactersByOwner } from '../../services/characters/characterService';
-import { saveCharacter as saveCharacterToSupabase } from '../../services/supabase/charactersService';
+import { saveCharacter as saveCharacterToSupabase, loadCharactersByOwner } from '../../services/supabase/charactersService';
 import type { DashboardPalette } from '../../services/settings/dashboardSettings';
 import type { Character, CharacterSummary } from '../../types/character';
 
@@ -178,7 +178,13 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
   const [isJoining, setIsJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [joinSuccess, setJoinSuccess] = useState<string | null>(null);
+  const [myCharacters, setMyCharacters] = useState<Awaited<ReturnType<typeof loadCharactersByOwner>>>([]);
   const inviteCodeInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    loadCharactersByOwner(user.id).then(setMyCharacters);
+  }, [user?.id]);
 
   const focusInviteCodeInput = () => {
     setSelectedCharacterId(null);
@@ -422,7 +428,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {joinedCampaigns.map(campaign => {
                 const ruleset = RULESETS[campaign.ruleset] ?? RULESETS.custom;
-
+                const myCharacterHere = myCharacters.find(c => c.campaignId === campaign.id);
                 return (
                   <button
                     key={campaign.id}
@@ -434,7 +440,6 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
                       className="absolute inset-x-0 top-0 h-1"
                       style={{ backgroundColor: ruleset.color }}
                     />
-
                     <div className="mb-2">
                       <RulesetTag rulesetId={campaign.ruleset} />
                     </div>
@@ -442,6 +447,9 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
                     {campaign.description && (
                       <p className="mt-1 line-clamp-2 text-xs text-[var(--dash-muted)]">{campaign.description}</p>
                     )}
+                    <p className="mt-2 text-xs text-[var(--dash-accent-2)]">
+                      {myCharacterHere ? `Stai giocando come: ${myCharacterHere.name}` : 'Nessun personaggio assegnato'}
+                    </p>
                   </button>
                 );
               })}
