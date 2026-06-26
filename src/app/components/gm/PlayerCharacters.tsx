@@ -54,9 +54,11 @@ export function PlayerCharacters({
   useEffect(() => {
     async function loadData() {
       try {
+        console.log('[PC-DEBUG] loadData START, hasToken=', !!session?.access_token, 'isLoading attuale=', isLoading);
         await ensureDefaultCampaign(activeCampaignId);
         const loadedCharacters = await loadCharacters(activeCampaignId);
         setCharacters(loadedCharacters);
+        console.log('[PC-DEBUG] characters caricati:', loadedCharacters.length);
 
         if (session?.access_token) {
           try {
@@ -69,11 +71,14 @@ export function PlayerCharacters({
               setMemberProfileIds(
                 new Set(members.map((m: { profileId: string }) => m.profileId))
               );
+              console.log('[PC-DEBUG] membri caricati:', members.length);
             } else {
               setMemberProfileIds(null);
+              console.log('[PC-DEBUG] membri NON caricati, filtro disattivato');
             }
           } catch {
             setMemberProfileIds(null);
+            console.log('[PC-DEBUG] membri NON caricati, filtro disattivato');
           }
         }
       } catch (error) {
@@ -91,6 +96,7 @@ export function PlayerCharacters({
           console.error('Errore fallback localStorage:', e);
         }
       } finally {
+        console.log('[PC-DEBUG] loadData FINE, isLoading -> false');
         setIsLoading(false);
       }
     }
@@ -380,6 +386,8 @@ const showToast = (message: string) => {
   const visibleCharacters = memberProfileIds
     ? characters.filter(char => memberProfileIds.has((char as any).ownerProfileId))
     : characters;
+
+  console.log('[PC-DEBUG] RENDER - isLoading:', isLoading, '| characters:', characters.length, '| memberProfileIds:', memberProfileIds ? Array.from(memberProfileIds) : null, '| visibleCharacters:', visibleCharacters.length);
 
   return (
   <div className="min-h-screen bg-[var(--dash-bg)] text-[var(--dash-text-strong)]">
