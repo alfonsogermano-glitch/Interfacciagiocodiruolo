@@ -166,16 +166,21 @@ export function PlayerCharacters({
 };
 
   const updateCharacter = async (id: string, updatedChar: PlayerCharacter) => {
+    console.log('[FOLIA-SAVE] updateCharacter chiamata, id=', id, 'follia=', updatedChar.follia, 'ownerProfileId=', (updatedChar as any).ownerProfileId, 'user.id=', user?.id);
     setCharacters(prev => prev.map(char => char.id === id ? updatedChar : char));
     const isMineUpdate = (updatedChar as any).ownerProfileId === user?.id;
     try {
       if (isMineUpdate || !(updatedChar as any).ownerProfileId) {
+        console.log('[FOLIA-SAVE] percorso: MIO (saveCharacterToSupabase)');
         await saveCharacterToSupabase(activeCampaignId, updatedChar, user?.id ?? '');
       } else {
+        console.log('[FOLIA-SAVE] percorso: GM (saveCharacterAsGm)');
         await saveCharacterAsGm(activeCampaignId, id, updatedChar, SERVER_BASE, session?.access_token ?? '');
       }
+      console.log('[FOLIA-SAVE] salvataggio completato con successo');
     } catch (error) {
       console.error('Errore aggiornamento personaggio su Supabase:', error);
+      console.log('[FOLIA-SAVE] salvataggio FALLITO:', error);
     }
   };
 
