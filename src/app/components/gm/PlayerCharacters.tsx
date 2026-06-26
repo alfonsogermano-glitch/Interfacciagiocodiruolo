@@ -81,7 +81,6 @@ export function PlayerCharacters({
   }, [activeCampaignId, session?.access_token]);
 
   const persistCharacter = useCallback((id: string, updatedChar: PlayerCharacter) => {
-    recentlyEditedRef.current[id] = { value: updatedChar, timestamp: Date.now() };
     if (saveTimersRef.current[id]) {
       clearTimeout(saveTimersRef.current[id]);
     }
