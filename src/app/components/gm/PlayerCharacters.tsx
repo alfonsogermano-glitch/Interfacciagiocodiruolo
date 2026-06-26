@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { UserPlus, User, Heart, Brain, Shield, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { UserPlus, User, Heart, Brain, Shield, ChevronDown, ChevronUp, X, Loader2 } from 'lucide-react';
 import { projectId } from '/utils/supabase/info';
 import { FrischezzaTracker } from '../FrischezzaTracker';
 import { FoliaSpiral } from '../FoliaSpiral';
@@ -467,7 +467,11 @@ const showToast = (message: string) => {
 )}
 
      <div className="space-y-5">
-  {visibleCharacters.length === 0 ? (
+  {isLoading ? (
+    <div className="flex justify-center py-16">
+      <Loader2 className="h-6 w-6 animate-spin text-[var(--dash-muted)]" />
+    </div>
+  ) : visibleCharacters.length === 0 ? (
     <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-8 py-12 text-center">
       <div className="mx-auto max-w-2xl">
         <div className="mb-3 text-xs uppercase tracking-[0.18em] text-[var(--dash-accent-2)]">
