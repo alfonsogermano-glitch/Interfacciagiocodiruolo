@@ -185,10 +185,16 @@ export function PlayerCharacters({
         audacia: next
       };
 
-      // Salva su Supabase
-      saveCharacterToSupabase(activeCampaignId, updated, user?.id ?? '').catch(error => {
-        console.error('Errore salvataggio audacia su Supabase:', error);
-      });
+      const isMine = (char as any).ownerProfileId === user?.id;
+      if (isMine || !(char as any).ownerProfileId) {
+        saveCharacterToSupabase(activeCampaignId, updated, user?.id ?? '').catch(error => {
+          console.error('Errore salvataggio audacia su Supabase:', error);
+        });
+      } else {
+        saveCharacterAsGm(activeCampaignId, id, updated, SERVER_BASE, session?.access_token ?? '').catch(error => {
+          console.error('Errore salvataggio audacia su Supabase (GM):', error);
+        });
+      }
 
       return updated;
     })
@@ -210,10 +216,16 @@ const updateProdigi = (id: string, delta: number) => {
         prodigi: next
       };
 
-      // Salva su Supabase
-      saveCharacterToSupabase(activeCampaignId, updated, user?.id ?? '').catch(error => {
-        console.error('Errore salvataggio prodigi su Supabase:', error);
-      });
+      const isMine = (char as any).ownerProfileId === user?.id;
+      if (isMine || !(char as any).ownerProfileId) {
+        saveCharacterToSupabase(activeCampaignId, updated, user?.id ?? '').catch(error => {
+          console.error('Errore salvataggio prodigi su Supabase:', error);
+        });
+      } else {
+        saveCharacterAsGm(activeCampaignId, id, updated, SERVER_BASE, session?.access_token ?? '').catch(error => {
+          console.error('Errore salvataggio prodigi su Supabase (GM):', error);
+        });
+      }
 
       return updated;
     })
