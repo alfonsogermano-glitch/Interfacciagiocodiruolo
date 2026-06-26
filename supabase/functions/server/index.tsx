@@ -388,6 +388,10 @@ app.post("/make-server-771c5bfd/campaigns/join", async (c) => {
     if (!members.some((m) => m.profileId === userId)) {
       members.push({ profileId: userId, role: "player", joinedAt: new Date().toISOString() });
       await kv.set(campaignMembersKey(membership.campaignId), members);
+      await getAdminClient().from('campaign_members').upsert(
+        { campaign_id: membership.campaignId, profile_id: userId, role: 'player' },
+        { onConflict: 'campaign_id,profile_id' }
+      );
     }
 
     const playerCampaigns: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
@@ -450,6 +454,10 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
       if (!members.some((m) => m.profileId === userId)) {
         members.push({ profileId: userId, role: "player", joinedAt: new Date().toISOString() });
         await kv.set(campaignMembersKey(targetCampaignId), members);
+        await getAdminClient().from('campaign_members').upsert(
+          { campaign_id: targetCampaignId, profile_id: userId, role: 'player' },
+          { onConflict: 'campaign_id,profile_id' }
+        );
       }
       const playerCampaigns = await kv.get(playerCampaignsKey(userId)) ?? [];
       if (!playerCampaigns.some((pc) => pc.campaignId === targetCampaignId)) {
@@ -488,6 +496,9 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
       if (!remaining || remaining.length === 0) {
         const oldMembers = await kv.get(campaignMembersKey(oldCampaignId)) ?? [];
         await kv.set(campaignMembersKey(oldCampaignId), oldMembers.filter((m) => m.profileId !== userId));
+        await getAdminClient().from('campaign_members').delete()
+          .eq('campaign_id', oldCampaignId)
+          .eq('profile_id', userId);
 
         const oldPlayerCampaigns = await kv.get(playerCampaignsKey(userId)) ?? [];
         await kv.set(playerCampaignsKey(userId), oldPlayerCampaigns.filter((pc) => pc.campaignId !== oldCampaignId));
