@@ -46,6 +46,7 @@ export function PlayerCharacters({
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const loadSeqRef = useRef(0);
   const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [pendingImportCharacters, setPendingImportCharacters] = useState<PlayerCharacter[] | null>(null);
   const [showImportChoiceModal, setShowImportChoiceModal] = useState(false);
@@ -79,6 +80,24 @@ export function PlayerCharacters({
       if (loadSeqRef.current === mySeq) setIsLoading(false);
     }
   }, [activeCampaignId, session?.access_token]);
+
+  const persistCharacter = useCallback((id: string, updatedChar: PlayerCharacter) => {
+    if (saveTimersRef.current[id]) {
+      clearTimeout(saveTimersRef.current[id]);
+    }
+    saveTimersRef.current[id] = setTimeout(async () => {
+      const isMine = (updatedChar as any).ownerProfileId === user?.id;
+      try {
+        if (isMine || !(updatedChar as any).ownerProfileId) {
+          await saveCharacterToSupabase(activeCampaignId, updatedChar, user?.id ?? '');
+        } else {
+          await saveCharacterAsGm(activeCampaignId, id, updatedChar, SERVER_BASE, session?.access_token ?? '');
+        }
+      } catch (error) {
+        console.error('Errore salvataggio personaggio su Supabase:', error);
+      }
+    }, 400);
+  }, [activeCampaignId, session?.access_token, user?.id]);
 
   // Carica personaggi da Supabase all'avvio
   useEffect(() => {
@@ -165,23 +184,9 @@ export function PlayerCharacters({
   setEditingCharacter(null);
 };
 
-  const updateCharacter = async (id: string, updatedChar: PlayerCharacter) => {
-    console.log('[FOLIA-SAVE] updateCharacter chiamata, id=', id, 'follia=', updatedChar.follia, 'ownerProfileId=', (updatedChar as any).ownerProfileId, 'user.id=', user?.id);
+  const updateCharacter = (id: string, updatedChar: PlayerCharacter) => {
     setCharacters(prev => prev.map(char => char.id === id ? updatedChar : char));
-    const isMineUpdate = (updatedChar as any).ownerProfileId === user?.id;
-    try {
-      if (isMineUpdate || !(updatedChar as any).ownerProfileId) {
-        console.log('[FOLIA-SAVE] percorso: MIO (saveCharacterToSupabase)');
-        await saveCharacterToSupabase(activeCampaignId, updatedChar, user?.id ?? '');
-      } else {
-        console.log('[FOLIA-SAVE] percorso: GM (saveCharacterAsGm)');
-        await saveCharacterAsGm(activeCampaignId, id, updatedChar, SERVER_BASE, session?.access_token ?? '');
-      }
-      console.log('[FOLIA-SAVE] salvataggio completato con successo');
-    } catch (error) {
-      console.error('Errore aggiornamento personaggio su Supabase:', error);
-      console.log('[FOLIA-SAVE] salvataggio FALLITO:', error);
-    }
+    persistCharacter(id, updatedChar);
   };
 
   const updateAudacia = (id: string, delta: number) => {
@@ -199,16 +204,7 @@ export function PlayerCharacters({
         audacia: next
       };
 
-      const isMine = (char as any).ownerProfileId === user?.id;
-      if (isMine || !(char as any).ownerProfileId) {
-        saveCharacterToSupabase(activeCampaignId, updated, user?.id ?? '').catch(error => {
-          console.error('Errore salvataggio audacia su Supabase:', error);
-        });
-      } else {
-        saveCharacterAsGm(activeCampaignId, id, updated, SERVER_BASE, session?.access_token ?? '').catch(error => {
-          console.error('Errore salvataggio audacia su Supabase (GM):', error);
-        });
-      }
+      persistCharacter(id, updated);
 
       return updated;
     })
@@ -230,16 +226,7 @@ const updateProdigi = (id: string, delta: number) => {
         prodigi: next
       };
 
-      const isMine = (char as any).ownerProfileId === user?.id;
-      if (isMine || !(char as any).ownerProfileId) {
-        saveCharacterToSupabase(activeCampaignId, updated, user?.id ?? '').catch(error => {
-          console.error('Errore salvataggio prodigi su Supabase:', error);
-        });
-      } else {
-        saveCharacterAsGm(activeCampaignId, id, updated, SERVER_BASE, session?.access_token ?? '').catch(error => {
-          console.error('Errore salvataggio prodigi su Supabase (GM):', error);
-        });
-      }
+      persistCharacter(id, updated);
 
       return updated;
     })
