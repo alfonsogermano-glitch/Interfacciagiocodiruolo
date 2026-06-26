@@ -312,6 +312,79 @@ export async function updateCharacterCampaign(characterId: string, campaignId: s
   if (error) throw error;
 }
 
+export async function saveCharacterAsGm(
+  campaignId: string,
+  characterId: string,
+  character: Character & { player: string; notes: string },
+  serverBase: string,
+  accessToken: string,
+  ruleset?: RulesetId
+): Promise<void> {
+  const sheetData = {
+    player: character.player,
+    notes: character.notes,
+    ruleset: ruleset ?? undefined,
+    ambiti: character.ambiti,
+    abilita: character.abilita,
+    freschezza: character.freschezza,
+    maxFreschezza: character.maxFreschezza,
+    caselleFrischezzaCruciali: character.caselleFrischezzaCruciali,
+    follia: character.follia,
+    maxFollia: character.maxFollia,
+    conditions: character.conditions,
+    turbe: character.turbe,
+    audacia: character.audacia,
+    prodigi: character.prodigi,
+    legame: character.legame,
+    linkedCharacterId: character.linkedCharacterId,
+    legameDescription: character.legameDescription,
+    coverImageUrl: character.coverImageUrl,
+    portraitImageUrl: character.portraitImageUrl,
+    portraitCroppedImageUrl: character.portraitCroppedImageUrl,
+    coverPositionX: character.coverPositionX,
+    coverPositionY: character.coverPositionY,
+    coverScale: character.coverScale,
+    portraitCrop: character.portraitCrop,
+    tutore: character.tutore,
+    tratti: character.tratti,
+    equipment: character.equipment,
+    tipoSpeciale: character.tipoSpeciale
+  };
+
+  const res = await fetch(`${serverBase}/campaigns/${campaignId}/characters/${characterId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({
+      name: character.name,
+      style: character.style,
+      viaggio: character.viaggio,
+      portraitUrl: character.portraitImageUrl || null,
+      backgroundUrl: character.coverImageUrl || null,
+      sheetData,
+    }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? 'Errore aggiornamento personaggio');
+  }
+}
+
+export async function deleteCharacterAsGm(
+  campaignId: string,
+  characterId: string,
+  serverBase: string,
+  accessToken: string
+): Promise<void> {
+  const res = await fetch(`${serverBase}/campaigns/${campaignId}/characters/${characterId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? 'Errore eliminazione personaggio');
+  }
+}
+
 /**
  * Aggiorna un campo specifico di un personaggio
  */

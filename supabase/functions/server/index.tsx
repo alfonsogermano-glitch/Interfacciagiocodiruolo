@@ -586,6 +586,96 @@ app.get("/make-server-771c5bfd/campaigns/:id/characters", async (c) => {
   return c.json({ characters: data ?? [] });
 });
 
+app.put("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c) => {
+  const token = c.req.header("Authorization")?.split(" ")[1];
+  if (!token) return c.json({ error: "Non autorizzato" }, 401);
+  const userId = await getUserIdFromToken(token);
+  if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+  const campaignId = c.req.param("id");
+  const characterId = c.req.param("characterId");
+
+  const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+  const isOwner = myCampaigns.some((camp) => camp.id === campaignId);
+  if (!isOwner) {
+    return c.json({ error: "Solo il proprietario della campagna può modificare i personaggi altrui" }, 403);
+  }
+
+  const admin = getAdminClient();
+  const { data: existing, error: fetchError } = await admin
+    .from("characters")
+    .select("owner_profile_id, campaign_id")
+    .eq("id", characterId)
+    .single();
+
+  if (fetchError || !existing) {
+    return c.json({ error: "Personaggio non trovato" }, 404);
+  }
+  if (existing.campaign_id !== campaignId) {
+    return c.json({ error: "Il personaggio non appartiene a questa campagna" }, 400);
+  }
+
+  const { sheetData, name, style, viaggio, portraitUrl, backgroundUrl } = await c.req.json();
+
+  const { error: updateError } = await admin
+    .from("characters")
+    .update({
+      name,
+      style,
+      viaggio,
+      portrait_url: portraitUrl ?? null,
+      background_url: backgroundUrl ?? null,
+      sheet_data: sheetData,
+    })
+    .eq("id", characterId);
+
+  if (updateError) {
+    console.log("Errore update personaggio (GM):", updateError);
+    return c.json({ error: "Errore aggiornamento personaggio" }, 500);
+  }
+
+  return c.json({ success: true });
+});
+
+app.delete("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c) => {
+  const token = c.req.header("Authorization")?.split(" ")[1];
+  if (!token) return c.json({ error: "Non autorizzato" }, 401);
+  const userId = await getUserIdFromToken(token);
+  if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+  const campaignId = c.req.param("id");
+  const characterId = c.req.param("characterId");
+
+  const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+  const isOwner = myCampaigns.some((camp) => camp.id === campaignId);
+  if (!isOwner) {
+    return c.json({ error: "Solo il proprietario della campagna può eliminare i personaggi altrui" }, 403);
+  }
+
+  const admin = getAdminClient();
+  const { data: existing } = await admin
+    .from("characters")
+    .select("campaign_id")
+    .eq("id", characterId)
+    .single();
+
+  if (!existing || existing.campaign_id !== campaignId) {
+    return c.json({ error: "Personaggio non trovato in questa campagna" }, 404);
+  }
+
+  const { error: deleteError } = await admin
+    .from("characters")
+    .delete()
+    .eq("id", characterId);
+
+  if (deleteError) {
+    console.log("Errore eliminazione personaggio (GM):", deleteError);
+    return c.json({ error: "Errore eliminazione personaggio" }, 500);
+  }
+
+  return c.json({ success: true });
+});
+
 // ─── Type helper (Deno) ─────────────────────────────────────────────────────
 
 interface Campaign {

@@ -9,7 +9,7 @@ import { EquipmentPanel as LegacyEquipmentPanel } from '../EquipmentPanel';
 import { CharacterCreationWizard } from './CharacterCreationWizard';
 import type { Character } from '../../../types/character';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
-import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, deleteCharacter as deleteCharacterFromSupabase } from '../../../services/supabase/charactersService';
+import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, deleteCharacter as deleteCharacterFromSupabase, deleteCharacterAsGm } from '../../../services/supabase/charactersService';
 import { generateUUID } from '../../../lib/uuid';
 import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
@@ -132,9 +132,13 @@ export function PlayerCharacters({
 
   const updateCharacter = async (id: string, updatedChar: PlayerCharacter) => {
     setCharacters(prev => prev.map(char => char.id === id ? updatedChar : char));
-    // Salva su Supabase
+    const isMineUpdate = (updatedChar as any).ownerProfileId === user?.id;
     try {
-      await saveCharacterToSupabase(activeCampaignId, updatedChar, user?.id ?? '');
+      if (isMineUpdate || !(updatedChar as any).ownerProfileId) {
+        await saveCharacterToSupabase(activeCampaignId, updatedChar, user?.id ?? '');
+      } else {
+        await saveCharacterAsGm(activeCampaignId, id, updatedChar, SERVER_BASE, session?.access_token ?? '');
+      }
     } catch (error) {
       console.error('Errore aggiornamento personaggio su Supabase:', error);
     }
@@ -191,28 +195,32 @@ const updateProdigi = (id: string, delta: number) => {
 };
 
   const deleteCharacter = (id: string) => {
-  if (confirm('Sei sicuro di voler eliminare questo personaggio?')) {
-    setCharacters(prev =>
-      prev
-        .filter(char => char.id !== id)
-        .map(char =>
-          char.linkedCharacterId === id
-            ? {
-                ...char,
-                linkedCharacterId: undefined,
-                legame: 'Da definire in seguito'
-              }
-            : char
-        )
-    );
+  if (!confirm('Sei sicuro di voler eliminare questo personaggio?')) return;
 
-    const newExpanded = new Set(expandedCharacters);
-    newExpanded.delete(id);
-    setExpandedCharacters(newExpanded);
+  const target = characters.find(c => c.id === id);
+  const isMineDelete = (target as any)?.ownerProfileId === user?.id;
 
-    // Elimina da Supabase
+  setCharacters(prev =>
+    prev
+      .filter(char => char.id !== id)
+      .map(char =>
+        char.linkedCharacterId === id
+          ? { ...char, linkedCharacterId: undefined, legame: 'Da definire in seguito' }
+          : char
+      )
+  );
+
+  const newExpanded = new Set(expandedCharacters);
+  newExpanded.delete(id);
+  setExpandedCharacters(newExpanded);
+
+  if (isMineDelete || !(target as any)?.ownerProfileId) {
     deleteCharacterFromSupabase(id).catch(error => {
       console.error('Errore eliminazione personaggio da Supabase:', error);
+    });
+  } else {
+    deleteCharacterAsGm(activeCampaignId, id, SERVER_BASE, session?.access_token ?? '').catch(error => {
+      console.error('Errore eliminazione personaggio da Supabase (GM):', error);
     });
   }
 };
@@ -360,6 +368,7 @@ const showToast = (message: string) => {
 };
 
   const visibleCharacters = characters;
+  const isOwner = activeCampaign?.ownerId === user?.id;
 
   return (
   <div className="min-h-screen bg-[var(--dash-bg)] text-[var(--dash-text-strong)]">
@@ -487,6 +496,7 @@ const showToast = (message: string) => {
       const currentTab = activeTab[char.id] || 'stats';
       const audaciaValue = typeof char.audacia === 'number' ? char.audacia : 1;
       const prodigiValue = typeof char.prodigi === 'number' ? char.prodigi : 1;
+      const isMine = (char as any).ownerProfileId === user?.id;
 
       return (
         <div
@@ -602,6 +612,7 @@ const showToast = (message: string) => {
       </div>
     </div>
 
+    {(isMine || isOwner) && (
     <div className="group relative">
       <button
         onClick={() => startEditingCharacter(char)}
@@ -615,7 +626,9 @@ const showToast = (message: string) => {
         <div className="absolute right-3 top-full h-2 w-2 rotate-45 border-r border-b border-[var(--dash-accent)] bg-[var(--dash-panel)]" />
       </div>
     </div>
+    )}
 
+    {(isMine || isOwner) && (
     <div className="group relative">
       <button
         onClick={() => deleteCharacter(char.id)}
@@ -629,6 +642,7 @@ const showToast = (message: string) => {
         <div className="absolute right-3 top-full h-2 w-2 rotate-45 border-r border-b border-[var(--dash-danger-hover)] bg-[var(--dash-danger-bg)]" />
       </div>
     </div>
+    )}
   </div>
 
   
