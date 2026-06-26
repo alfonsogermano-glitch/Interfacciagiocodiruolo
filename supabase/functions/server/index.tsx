@@ -587,7 +587,8 @@ app.get("/make-server-771c5bfd/campaigns/:id/characters", async (c) => {
     .from("characters")
     .select("*")
     .eq("campaign_id", campaignId)
-    .eq("status", "active");
+    .eq("status", "active")
+    .order("created_at", { ascending: true });
 
   if (error) {
     console.log("Errore lettura personaggi campagna:", error);

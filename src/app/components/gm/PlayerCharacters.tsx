@@ -64,8 +64,12 @@ export function PlayerCharacters({
       }
       if (loadSeqRef.current !== mySeq) return;
       const now = Date.now();
+      console.log('[SYNC-DEBUG] loadData merge - sono GM?=', activeCampaign?.ownerId === user?.id, '| recentlyEdited keys=', Object.keys(recentlyEditedRef.current));
       const merged = loadedCharacters.map(serverChar => {
         const recent = recentlyEditedRef.current[serverChar.id];
+        if (recent) {
+          console.log('[SYNC-DEBUG] trovato recente per', serverChar.id, '| età ms=', now - recent.timestamp, '| dentro finestra?=', (now - recent.timestamp < RECENT_EDIT_SUPPRESS_MS));
+        }
         if (recent && now - recent.timestamp < RECENT_EDIT_SUPPRESS_MS) {
           return recent.value;
         }
@@ -93,6 +97,7 @@ export function PlayerCharacters({
 
   const persistCharacter = useCallback((id: string, updatedChar: PlayerCharacter) => {
     recentlyEditedRef.current[id] = { value: updatedChar, timestamp: Date.now() };
+    console.log('[SYNC-DEBUG] persistCharacter - id=', id, '| sono GM?=', activeCampaign?.ownerId === user?.id, '| user.id=', user?.id);
     if (saveTimersRef.current[id]) {
       clearTimeout(saveTimersRef.current[id]);
     }

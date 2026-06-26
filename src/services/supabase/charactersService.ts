@@ -75,7 +75,8 @@ export async function loadCharacters(campaignId: string): Promise<(Character & {
     .from('characters')
     .select('*')
     .eq('campaign_id', campaignId)
-    .eq('status', 'active');
+    .eq('status', 'active')
+    .order('created_at', { ascending: true });
 
   if (error) {
     console.error('Errore caricamento personaggi:', error);
@@ -258,7 +259,8 @@ export async function loadCharactersByOwner(ownerProfileId: string): Promise<(Ch
     .from('characters')
     .select('*')
     .eq('owner_profile_id', ownerProfileId)
-    .eq('status', 'active');
+    .eq('status', 'active')
+    .order('created_at', { ascending: true });
 
   if (error) {
     console.error('Errore caricamento personaggi per proprietario:', error);
