@@ -64,12 +64,8 @@ export function PlayerCharacters({
       }
       if (loadSeqRef.current !== mySeq) return;
       const now = Date.now();
-      console.log('[SYNC-DEBUG] loadData merge - sono GM?=', activeCampaign?.ownerId === user?.id, '| recentlyEdited keys=', Object.keys(recentlyEditedRef.current));
       const merged = loadedCharacters.map(serverChar => {
         const recent = recentlyEditedRef.current[serverChar.id];
-        if (recent) {
-          console.log('[SYNC-DEBUG] trovato recente per', serverChar.id, '| età ms=', now - recent.timestamp, '| dentro finestra?=', (now - recent.timestamp < RECENT_EDIT_SUPPRESS_MS));
-        }
         if (recent && now - recent.timestamp < RECENT_EDIT_SUPPRESS_MS) {
           return recent.value;
         }
@@ -97,19 +93,15 @@ export function PlayerCharacters({
 
   const persistCharacter = useCallback((id: string, updatedChar: PlayerCharacter) => {
     recentlyEditedRef.current[id] = { value: updatedChar, timestamp: Date.now() };
-    console.log('[SYNC-DEBUG] persistCharacter - id=', id, '| sono GM?=', activeCampaign?.ownerId === user?.id, '| user.id=', user?.id);
     if (saveTimersRef.current[id]) {
       clearTimeout(saveTimersRef.current[id]);
     }
-    console.log('[RACE-DEBUG] PROGRAMMO salvataggio - id=', id, '| follia=', updatedChar.follia, '| freschezza=', updatedChar.freschezza, '| sono GM?=', activeCampaign?.ownerId === user?.id, '| timestamp=', Date.now());
     saveTimersRef.current[id] = setTimeout(async () => {
       const isMine = (updatedChar as any).ownerProfileId === user?.id;
       try {
         if (isMine || !(updatedChar as any).ownerProfileId) {
-          console.log('[RACE-DEBUG] INVIO salvataggio - id=', id, '| follia=', updatedChar.follia, '| freschezza=', updatedChar.freschezza, '| timestamp=', Date.now());
           await saveCharacterToSupabase(activeCampaignId, updatedChar, user?.id ?? '');
         } else {
-          console.log('[RACE-DEBUG] INVIO salvataggio - id=', id, '| follia=', updatedChar.follia, '| freschezza=', updatedChar.freschezza, '| timestamp=', Date.now());
           await saveCharacterAsGm(activeCampaignId, id, updatedChar, SERVER_BASE, session?.access_token ?? '');
         }
       } catch (error) {
