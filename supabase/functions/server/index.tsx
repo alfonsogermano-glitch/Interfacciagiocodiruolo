@@ -403,6 +403,104 @@ app.post("/make-server-771c5bfd/campaigns/join", async (c) => {
   }
 });
 
+app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const characterId = c.req.param("id");
+    const { campaignId, inviteCode } = await c.req.json();
+    const admin = getAdminClient();
+
+    const { data: character, error: charError } = await admin
+      .from("characters")
+      .select("id, campaign_id, owner_profile_id")
+      .eq("id", characterId)
+      .single();
+
+    if (charError || !character) {
+      return c.json({ error: "Personaggio non trovato" }, 404);
+    }
+    if (character.owner_profile_id !== userId) {
+      return c.json({ error: "Non sei il proprietario di questo personaggio" }, 403);
+    }
+
+    const oldCampaignId: string | null = character.campaign_id;
+    let targetCampaignId: string | null = null;
+
+    if (inviteCode) {
+      const normalizedCode = String(inviteCode).trim().toUpperCase();
+      const membership = await kv.get(inviteCodeKey(normalizedCode));
+      if (!membership) {
+        return c.json({ error: "Codice invito non valido" }, 404);
+      }
+      if (membership.ownerId === userId) {
+        return c.json({ error: "Sei già il master di questa campagna" }, 400);
+      }
+      const ownerCampaigns = await kv.get(campaignsKey(membership.ownerId)) ?? [];
+      const campaign = ownerCampaigns.find((cmp) => cmp.id === membership.campaignId);
+      if (!campaign) {
+        return c.json({ error: "Campagna non trovata" }, 404);
+      }
+      targetCampaignId = membership.campaignId;
+
+      const members = await kv.get(campaignMembersKey(targetCampaignId)) ?? [];
+      if (!members.some((m) => m.profileId === userId)) {
+        members.push({ profileId: userId, role: "player", joinedAt: new Date().toISOString() });
+        await kv.set(campaignMembersKey(targetCampaignId), members);
+      }
+      const playerCampaigns = await kv.get(playerCampaignsKey(userId)) ?? [];
+      if (!playerCampaigns.some((pc) => pc.campaignId === targetCampaignId)) {
+        playerCampaigns.push({ campaignId: targetCampaignId, ownerId: membership.ownerId });
+        await kv.set(playerCampaignsKey(userId), playerCampaigns);
+      }
+    } else if (campaignId) {
+      const myCampaigns = await kv.get(campaignsKey(userId)) ?? [];
+      const myJoined = await kv.get(playerCampaignsKey(userId)) ?? [];
+      const isOwned = myCampaigns.some((cmp) => cmp.id === campaignId);
+      const isJoined = myJoined.some((pc) => pc.campaignId === campaignId);
+      if (!isOwned && !isJoined) {
+        return c.json({ error: "Non hai accesso a questa campagna" }, 403);
+      }
+      targetCampaignId = campaignId;
+    }
+
+    const { error: updateError } = await admin
+      .from("characters")
+      .update({ campaign_id: targetCampaignId })
+      .eq("id", characterId);
+    if (updateError) {
+      console.log("Errore update campaign_id:", updateError);
+      return c.json({ error: "Errore aggiornamento personaggio" }, 500);
+    }
+
+    if (oldCampaignId && oldCampaignId !== targetCampaignId) {
+      const { data: remaining } = await admin
+        .from("characters")
+        .select("id")
+        .eq("campaign_id", oldCampaignId)
+        .eq("owner_profile_id", userId)
+        .eq("status", "active")
+        .neq("id", characterId);
+
+      if (!remaining || remaining.length === 0) {
+        const oldMembers = await kv.get(campaignMembersKey(oldCampaignId)) ?? [];
+        await kv.set(campaignMembersKey(oldCampaignId), oldMembers.filter((m) => m.profileId !== userId));
+
+        const oldPlayerCampaigns = await kv.get(playerCampaignsKey(userId)) ?? [];
+        await kv.set(playerCampaignsKey(userId), oldPlayerCampaigns.filter((pc) => pc.campaignId !== oldCampaignId));
+      }
+    }
+
+    return c.json({ success: true, campaignId: targetCampaignId });
+  } catch (err) {
+    console.log("Errore POST characters/:id/assign-campaign:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
 // ─── Campaigns: Joined (come player) ───────────────────────────────────────
 
 app.get("/make-server-771c5bfd/campaigns/joined", async (c) => {
