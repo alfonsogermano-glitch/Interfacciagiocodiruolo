@@ -25,6 +25,7 @@ interface PlayerCharacter extends Character {
 
 const PLAYER_CHARACTERS_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.playerCharacters;
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
+const RECENT_EDIT_SUPPRESS_MS = 2500;
 interface PlayerCharactersProps {
   storageRefreshKey?: number;
 }
@@ -47,6 +48,7 @@ export function PlayerCharacters({
   const loadSeqRef = useRef(0);
   const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const recentlyEditedRef = useRef<Record<string, { value: PlayerCharacter; timestamp: number }>>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [pendingImportCharacters, setPendingImportCharacters] = useState<PlayerCharacter[] | null>(null);
   const [showImportChoiceModal, setShowImportChoiceModal] = useState(false);
@@ -61,7 +63,15 @@ export function PlayerCharacters({
         loadedCharacters = await loadCharacters(activeCampaignId);
       }
       if (loadSeqRef.current !== mySeq) return;
-      setCharacters(loadedCharacters);
+      const now = Date.now();
+      const merged = loadedCharacters.map(serverChar => {
+        const recent = recentlyEditedRef.current[serverChar.id];
+        if (recent && now - recent.timestamp < RECENT_EDIT_SUPPRESS_MS) {
+          return recent.value;
+        }
+        return serverChar;
+      });
+      setCharacters(merged);
     } catch (error) {
       console.error('Errore caricamento personaggi da Supabase:', error);
       if (loadSeqRef.current !== mySeq) return;
@@ -82,6 +92,7 @@ export function PlayerCharacters({
   }, [activeCampaignId, session?.access_token]);
 
   const persistCharacter = useCallback((id: string, updatedChar: PlayerCharacter) => {
+    recentlyEditedRef.current[id] = { value: updatedChar, timestamp: Date.now() };
     if (saveTimersRef.current[id]) {
       clearTimeout(saveTimersRef.current[id]);
     }
