@@ -7,7 +7,6 @@ interface FoliaSpiralProps {
 }
 
 export function FoliaSpiral({ current, max, onUpdate }: FoliaSpiralProps) {
-  console.log('[FOLIA-DEBUG] RENDER - current=', current, 'max=', max);
   const boxes = Array.from({ length: max }, (_, i) => i + 1);
   const crucialBoxes = [3, 6, 9];
 
@@ -24,7 +23,6 @@ export function FoliaSpiral({ current, max, onUpdate }: FoliaSpiralProps) {
                 key={box}
                 type="button"
                 onClick={() => {
-                  console.log('[FOLIA-DEBUG] click box=', box, 'current(prop)=', current, 'isBlacked=', isBlacked, 'max=', max);
                   if (isBlacked && box === current) {
                     onUpdate(current - 1);
                   } else {

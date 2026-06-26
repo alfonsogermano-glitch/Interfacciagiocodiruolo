@@ -44,21 +44,26 @@ export function PlayerCharacters({
   const [showWizard, setShowWizard] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<PlayerCharacter | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const loadSeqRef = useRef(0);
+  const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [pendingImportCharacters, setPendingImportCharacters] = useState<PlayerCharacter[] | null>(null);
   const [showImportChoiceModal, setShowImportChoiceModal] = useState(false);
 
   const loadData = useCallback(async () => {
+    const mySeq = ++loadSeqRef.current;
     try {
+      let loadedCharacters;
       if (session?.access_token) {
-        const loadedCharacters = await loadCharactersViaServer(activeCampaignId, SERVER_BASE, session.access_token);
-        setCharacters(loadedCharacters);
+        loadedCharacters = await loadCharactersViaServer(activeCampaignId, SERVER_BASE, session.access_token);
       } else {
-        const loadedCharacters = await loadCharacters(activeCampaignId);
-        setCharacters(loadedCharacters);
+        loadedCharacters = await loadCharacters(activeCampaignId);
       }
+      if (loadSeqRef.current !== mySeq) return;
+      setCharacters(loadedCharacters);
     } catch (error) {
       console.error('Errore caricamento personaggi da Supabase:', error);
+      if (loadSeqRef.current !== mySeq) return;
       try {
         const savedCharacters = window.localStorage.getItem(PLAYER_CHARACTERS_STORAGE_KEY);
         if (savedCharacters) {
@@ -71,7 +76,7 @@ export function PlayerCharacters({
         console.error('Errore fallback localStorage:', e);
       }
     } finally {
-      setIsLoading(false);
+      if (loadSeqRef.current === mySeq) setIsLoading(false);
     }
   }, [activeCampaignId, session?.access_token]);
 
@@ -91,12 +96,16 @@ export function PlayerCharacters({
         'postgres_changes',
         { event: '*', schema: 'public', table: 'characters', filter: `campaign_id=eq.${activeCampaignId}` },
         () => {
-          loadData();
+          if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
+          realtimeDebounceRef.current = setTimeout(() => {
+            loadData();
+          }, 400);
         }
       )
       .subscribe();
 
     return () => {
+      if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
       supabase.removeChannel(channel);
     };
   }, [activeCampaignId, loadData]);
