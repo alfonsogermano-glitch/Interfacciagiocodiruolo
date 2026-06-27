@@ -107,41 +107,61 @@ export function PlayerCharacters({
   // giocatore) modifica un personaggio di questa campagna
   useEffect(() => {
     if (!activeCampaignId) return;
-    console.log('[RT-DEBUG] Iscrizione Realtime con activeCampaignId=', activeCampaignId, '| timestamp=', Date.now());
 
-    const channel = supabase
-      .channel(`characters-campaign-${activeCampaignId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'characters', filter: `campaign_id=eq.${activeCampaignId}` },
-        (payload) => {
-          console.log('[RT-DEBUG] Evento ricevuto - tipo=', payload.eventType, '| campaign_id riga=', (payload.new as any)?.campaign_id ?? (payload.old as any)?.campaign_id, '| timestamp=', Date.now());
-          if (payload.eventType === 'DELETE') {
-            const deletedId = (payload.old as any)?.id;
-            if (!deletedId) return;
-            setCharacters(prev => prev.filter(c => c.id !== deletedId));
-            return;
+    let isActive = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const handleEvent = (payload: any) => {
+      if (payload.eventType === 'DELETE') {
+        const deletedId = (payload.old as any)?.id;
+        if (!deletedId) return;
+        setCharacters(prev => prev.filter(c => c.id !== deletedId));
+        return;
+      }
+      const row = payload.new as any;
+      if (!row) return;
+      const mapped = mapRowToCharacter(row) as PlayerCharacter;
+      setCharacters(prev => {
+        const exists = prev.some(c => c.id === mapped.id);
+        const next = exists
+          ? prev.map(c => (c.id === mapped.id ? mapped : c))
+          : [...prev, mapped];
+        return next.sort((a, b) => {
+          const at = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
+          const bt = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
+          return at - bt;
+        });
+      });
+    };
+
+    const subscribeChannel = () => {
+      if (!isActive) return;
+      channel = supabase
+        .channel(`characters-campaign-${activeCampaignId}-${Date.now()}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'characters', filter: `campaign_id=eq.${activeCampaignId}` },
+          handleEvent
+        )
+        .subscribe((status) => {
+          console.log('[RT-STATUS]', status);
+          if (!isActive) return;
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            if (channel) supabase.removeChannel(channel);
+            retryTimeout = setTimeout(() => {
+              if (isActive) subscribeChannel();
+            }, 1000);
           }
-          const row = payload.new as any;
-          if (!row) return;
-          const mapped = mapRowToCharacter(row) as PlayerCharacter;
-          setCharacters(prev => {
-            const exists = prev.some(c => c.id === mapped.id);
-            const next = exists
-              ? prev.map(c => (c.id === mapped.id ? mapped : c))
-              : [...prev, mapped];
-            return next.sort((a, b) => {
-              const at = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
-              const bt = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
-              return at - bt;
-            });
-          });
-        }
-      )
-      .subscribe();
+        });
+    };
+
+    subscribeChannel();
 
     return () => {
-      supabase.removeChannel(channel);
+      isActive = false;
+      if (retryTimeout) clearTimeout(retryTimeout);
+      if (channel) supabase.removeChannel(channel);
     };
   }, [activeCampaignId]);
 
