@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Eye, EyeOff, Loader2, X } from 'lucide-react';
 import { useAuth, supabase } from '../auth/AuthContext';
 
@@ -82,6 +82,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [displayName, setDisplayName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [oauthMessage, setOauthMessage] = useState<string | null>(null);
   const [resetMode, setResetMode] = useState(false);
@@ -89,6 +90,12 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [isResetting, setIsResetting] = useState(false);
 
   const passwordStrength = mode === 'signup' ? getPasswordStrength(password) : null;
+
+  useEffect(() => {
+    return () => {
+      if (submitTimeoutRef.current) clearTimeout(submitTimeoutRef.current);
+    };
+  }, []);
 
   if (!isOpen) return null;
 
@@ -120,19 +127,27 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
-
     if (mode === 'signup' && password.length < 6) {
       setErrorMessage('La password deve avere almeno 6 caratteri.');
       return;
     }
-
     setIsSubmitting(true);
+
+    submitTimeoutRef.current = setTimeout(() => {
+      setIsSubmitting(false);
+      setErrorMessage('La richiesta sta impiegando troppo tempo. Controlla la connessione e riprova.');
+    }, 12000);
+
     try {
       const result = mode === 'signin'
         ? await signIn(email, password)
         : await signUp(email, password, displayName || undefined);
       if (result.error) setErrorMessage(translateError(result.error));
     } finally {
+      if (submitTimeoutRef.current) {
+        clearTimeout(submitTimeoutRef.current);
+        submitTimeoutRef.current = null;
+      }
       setIsSubmitting(false);
     }
   };
