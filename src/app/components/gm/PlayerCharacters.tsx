@@ -95,7 +95,7 @@ export function PlayerCharacters({
       } catch (error) {
         console.error('Errore salvataggio personaggio su Supabase:', error);
       }
-    }, 400);
+    }, 150);
   }, [activeCampaignId, session?.access_token, user?.id]);
 
   // Carica personaggi da Supabase all'avvio
