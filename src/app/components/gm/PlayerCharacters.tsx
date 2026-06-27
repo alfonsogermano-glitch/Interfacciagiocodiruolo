@@ -109,8 +109,10 @@ export function PlayerCharacters({
     if (!activeCampaignId) return;
 
     let isActive = true;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let currentChannel: ReturnType<typeof supabase.channel> | null = null;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let retryCount = 0;
+    const MAX_RETRIES = 5;
 
     const handleEvent = (payload: any) => {
       if (payload.eventType === 'DELETE') {
@@ -137,23 +139,45 @@ export function PlayerCharacters({
 
     const subscribeChannel = () => {
       if (!isActive) return;
-      channel = supabase
-        .channel(`characters-campaign-${activeCampaignId}-${Date.now()}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'characters', filter: `campaign_id=eq.${activeCampaignId}` },
-          handleEvent
-        )
-        .subscribe((status) => {
-          console.log('[RT-STATUS]', status);
-          if (!isActive) return;
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            if (channel) supabase.removeChannel(channel);
-            retryTimeout = setTimeout(() => {
-              if (isActive) subscribeChannel();
-            }, 1000);
+
+      const channelName = `characters-campaign-${activeCampaignId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const ch = supabase.channel(channelName).on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'characters', filter: `campaign_id=eq.${activeCampaignId}` },
+        handleEvent
+      );
+
+      let settled = false;
+
+      ch.subscribe((status) => {
+        console.log('[RT-STATUS]', status, channelName);
+        if (!isActive) return;
+
+        if (status === 'SUBSCRIBED') {
+          retryCount = 0;
+          settled = true;
+          return;
+        }
+
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          if (settled) return; // questo canale ha già gestito il suo esito, ignora duplicati
+          settled = true;
+
+          try { supabase.removeChannel(ch); } catch { /* ignora */ }
+          if (currentChannel === ch) currentChannel = null;
+
+          if (retryCount >= MAX_RETRIES) {
+            console.log('[RT-STATUS] troppi tentativi falliti, mi fermo');
+            return;
           }
-        });
+          retryCount += 1;
+          retryTimeout = setTimeout(() => {
+            if (isActive) subscribeChannel();
+          }, 1000);
+        }
+      });
+
+      currentChannel = ch;
     };
 
     subscribeChannel();
@@ -161,7 +185,9 @@ export function PlayerCharacters({
     return () => {
       isActive = false;
       if (retryTimeout) clearTimeout(retryTimeout);
-      if (channel) supabase.removeChannel(channel);
+      if (currentChannel) {
+        try { supabase.removeChannel(currentChannel); } catch { /* ignora */ }
+      }
     };
   }, [activeCampaignId]);
 
