@@ -107,6 +107,7 @@ export function PlayerCharacters({
   // giocatore) modifica un personaggio di questa campagna
   useEffect(() => {
     if (!activeCampaignId) return;
+    console.log('[RT-DEBUG] Iscrizione Realtime con activeCampaignId=', activeCampaignId, '| timestamp=', Date.now());
 
     const channel = supabase
       .channel(`characters-campaign-${activeCampaignId}`)
@@ -114,6 +115,7 @@ export function PlayerCharacters({
         'postgres_changes',
         { event: '*', schema: 'public', table: 'characters', filter: `campaign_id=eq.${activeCampaignId}` },
         (payload) => {
+          console.log('[RT-DEBUG] Evento ricevuto - tipo=', payload.eventType, '| campaign_id riga=', (payload.new as any)?.campaign_id ?? (payload.old as any)?.campaign_id, '| timestamp=', Date.now());
           if (payload.eventType === 'DELETE') {
             const deletedId = (payload.old as any)?.id;
             if (!deletedId) return;
