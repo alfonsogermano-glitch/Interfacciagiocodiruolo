@@ -113,7 +113,6 @@ export function PlayerCharacters({
     const MAX_RETRIES = 5;
 
     const handleBroadcast = (msg: any) => {
-      console.log('[BROADCAST-DEBUG] payload ricevuto:', msg);
       const data = msg?.payload ?? {};
       const operation = data.operation as string | undefined;
 
@@ -150,7 +149,6 @@ export function PlayerCharacters({
         .on('broadcast', { event: 'UPDATE' }, handleBroadcast)
         .on('broadcast', { event: 'DELETE' }, handleBroadcast)
         .subscribe((status) => {
-          console.log('[RT-STATUS]', status);
           if (!isActive) return;
 
           if (status === 'SUBSCRIBED') {
