@@ -103,8 +103,6 @@ export function PlayerCharacters({
     loadData();
   }, [storageRefreshKey, loadData]);
 
-  // Realtime: si aggiorna in automatico quando qualcuno (GM o altro
-  // giocatore) modifica un personaggio di questa campagna
   useEffect(() => {
     if (!activeCampaignId) return;
 
@@ -114,14 +112,18 @@ export function PlayerCharacters({
     let retryCount = 0;
     const MAX_RETRIES = 5;
 
-    const handleEvent = (payload: any) => {
-      if (payload.eventType === 'DELETE') {
-        const deletedId = (payload.old as any)?.id;
+    const handleBroadcast = (msg: any) => {
+      console.log('[BROADCAST-DEBUG] payload ricevuto:', msg);
+      const data = msg?.payload ?? {};
+      const operation = data.operation as string | undefined;
+
+      if (operation === 'DELETE') {
+        const deletedId = data.old_record?.id;
         if (!deletedId) return;
         setCharacters(prev => prev.filter(c => c.id !== deletedId));
         return;
       }
-      const row = payload.new as any;
+      const row = data.record;
       if (!row) return;
       const mapped = mapRowToCharacter(row) as PlayerCharacter;
       setCharacters(prev => {
@@ -137,45 +139,35 @@ export function PlayerCharacters({
       });
     };
 
-    const subscribeChannel = () => {
+    const subscribeChannel = async () => {
       if (!isActive) return;
-
-      const channelName = `characters-campaign-${activeCampaignId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const ch = supabase.channel(channelName).on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'characters', filter: `campaign_id=eq.${activeCampaignId}` },
-        handleEvent
-      );
+      await supabase.realtime.setAuth(); // necessario per l'autorizzazione sui canali privati
 
       let settled = false;
+      const ch = supabase
+        .channel(`campaign:${activeCampaignId}`, { config: { private: true } })
+        .on('broadcast', { event: 'INSERT' }, handleBroadcast)
+        .on('broadcast', { event: 'UPDATE' }, handleBroadcast)
+        .on('broadcast', { event: 'DELETE' }, handleBroadcast)
+        .subscribe((status) => {
+          console.log('[RT-STATUS]', status);
+          if (!isActive) return;
 
-      ch.subscribe((status) => {
-        console.log('[RT-STATUS]', status, channelName);
-        if (!isActive) return;
-
-        if (status === 'SUBSCRIBED') {
-          retryCount = 0;
-          settled = true;
-          return;
-        }
-
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          if (settled) return; // questo canale ha già gestito il suo esito, ignora duplicati
-          settled = true;
-
-          try { supabase.removeChannel(ch); } catch { /* ignora */ }
-          if (currentChannel === ch) currentChannel = null;
-
-          if (retryCount >= MAX_RETRIES) {
-            console.log('[RT-STATUS] troppi tentativi falliti, mi fermo');
+          if (status === 'SUBSCRIBED') {
+            retryCount = 0;
+            settled = true;
             return;
           }
-          retryCount += 1;
-          retryTimeout = setTimeout(() => {
-            if (isActive) subscribeChannel();
-          }, 1000);
-        }
-      });
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            if (settled) return;
+            settled = true;
+            try { supabase.removeChannel(ch); } catch { /* ignora */ }
+            if (currentChannel === ch) currentChannel = null;
+            if (retryCount >= MAX_RETRIES) return;
+            retryCount += 1;
+            retryTimeout = setTimeout(() => { if (isActive) subscribeChannel(); }, 1000);
+          }
+        });
 
       currentChannel = ch;
     };

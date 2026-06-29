@@ -192,13 +192,13 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   const setActiveCampaign = useCallback((campaign: Campaign) => {
     setActiveCampaignId(campaign.id);
     localStorage.setItem(ACTIVE_CAMPAIGN_LS_KEY, campaign.id);
-    void ensureCampaignExistsInDB(campaign.id, {
-      name: campaign.name,
-      description: campaign.description,
-      ruleset: campaign.ruleset,
-      ownerId: campaign.ownerId
-    });
     if (campaign.ownerId === session?.user?.id) {
+      void ensureCampaignExistsInDB(campaign.id, {
+        name: campaign.name,
+        description: campaign.description,
+        ruleset: campaign.ruleset,
+        ownerId: campaign.ownerId
+      });
       void markCampaignOpened(campaign.id);
     }
   }, [session, markCampaignOpened]);
