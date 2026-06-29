@@ -182,6 +182,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    try {
+      await supabase.removeAllChannels();
+    } catch (error) {
+      console.error('Errore chiusura canali Realtime prima del logout:', error);
+    }
     await supabase.auth.signOut();
   };
 
