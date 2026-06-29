@@ -161,11 +161,15 @@ export function PlayerCharacters({
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             if (settled) return;
             settled = true;
-            try { supabase.removeChannel(ch); } catch { /* ignora */ }
             if (currentChannel === ch) currentChannel = null;
-            if (retryCount >= MAX_RETRIES) return;
-            retryCount += 1;
-            retryTimeout = setTimeout(() => { if (isActive) subscribeChannel(); }, 1000);
+            (async () => {
+              try {
+                await supabase.removeChannel(ch);
+              } catch { /* ignora */ }
+              if (retryCount >= MAX_RETRIES) return;
+              retryCount += 1;
+              retryTimeout = setTimeout(() => { if (isActive) subscribeChannel(); }, 1000);
+            })();
           }
         });
 
