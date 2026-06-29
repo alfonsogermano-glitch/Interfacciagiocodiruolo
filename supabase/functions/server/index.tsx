@@ -538,6 +538,36 @@ app.get("/make-server-771c5bfd/campaigns/joined", async (c) => {
   }
 });
 
+// ─── Campaigns: Overview (campagne proprie con conteggio giocatori + personaggi) ───
+
+app.get("/make-server-771c5bfd/campaigns/overview", async (c) => {
+  const token = c.req.header("Authorization")?.split(" ")[1];
+  if (!token) return c.json({ error: "Non autorizzato" }, 401);
+  const userId = await getUserIdFromToken(token);
+  if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+  const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+  const admin = getAdminClient();
+
+  const enriched = await Promise.all(
+    myCampaigns.map(async (camp) => {
+      const members = await kv.get(campaignMembersKey(camp.id)) ?? [];
+      const { data: chars } = await admin
+        .from("characters")
+        .select("id, name")
+        .eq("campaign_id", camp.id)
+        .eq("status", "active");
+      return {
+        ...camp,
+        memberCount: members.length,
+        characters: (chars ?? []).map((ch: any) => ({ id: ch.id, name: ch.name })),
+      };
+    })
+  );
+
+  return c.json({ campaigns: enriched });
+});
+
 // ─── Campaigns: Members (solo per il proprietario) ──────────────────────────
 
 app.get("/make-server-771c5bfd/campaigns/:id/members", async (c) => {
@@ -700,6 +730,7 @@ interface Campaign {
   createdAt: string;
   updatedAt: string;
   lastOpenedAt?: string;
+  logoUrl?: string;
 }
 
 interface CampaignMembership {

@@ -69,6 +69,7 @@ export interface Campaign {
   createdAt: string;
   updatedAt: string;
   lastOpenedAt?: string;
+  logoUrl?: string;
 }
 
 // id opzionale: usato dalla migrazione per preservare il legacy campaign ID
