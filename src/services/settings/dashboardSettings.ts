@@ -32,7 +32,7 @@ const SUPABASE_SETTINGS_KEY = 'dashboard_settings';
 
 export const DEFAULT_DASHBOARD_SETTINGS: DashboardSettings = {
   language: 'it',
-  palette: 'cthulhu',
+  palette: 'noir',
   saveMode: 'cloud'
 };
 

@@ -237,13 +237,13 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
                   <div>
                     <label className="mb-2 block text-sm text-[var(--dash-text)]">Palette</label>
                     <select value={draft.palette} onChange={e => onChangeDraft(previous => ({ ...previous, palette: e.target.value as DashboardSettings['palette'] }))} className="w-full rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text)]">
-                      <option value="cthulhu">Hollow Gate</option>
+                      <option value="noir">Hollow Gate</option>
                       <option value="questportal">Indaco Spettrale</option>
                       <option value="blood">Rosso Sangue</option>
                       <option value="amber">Ambra Antica</option>
                       <option value="emerald">Verde Occulto</option>
                       <option value="arcane">Blu Arcano</option>
-                      <option value="noir">Noir Horror</option>
+                      <option value="cthulhu">Bracieri Antichi</option>
                       <option value="frost">Gelo Siderale</option>
                       <option value="violet">Violetto Cosmico</option>
                     </select>
