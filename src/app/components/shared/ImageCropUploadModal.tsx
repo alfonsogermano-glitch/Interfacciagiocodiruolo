@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { X, Loader2, Upload } from 'lucide-react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { supabase } from '../../auth/AuthContext';
@@ -38,6 +38,7 @@ async function getCroppedBlob(imageSrc: string, area: Area): Promise<Blob> {
 
 export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', aspect = 1, onUploaded, onClose }: ImageCropUploadModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cropAreaRef = useRef<HTMLDivElement | null>(null);
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -66,13 +67,19 @@ export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', 
     setZoom(1);
   };
 
-  const handleWheelZoom = (e: React.WheelEvent) => {
-    e.preventDefault();
-    setZoom(z => {
-      const delta = e.deltaY < 0 ? 0.05 : -0.05;
-      return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z + delta));
-    });
-  };
+  useEffect(() => {
+    const el = cropAreaRef.current;
+    if (!el || !rawImageSrc) return;
+    const wheelHandler = (e: WheelEvent) => {
+      e.preventDefault();
+      setZoom(z => {
+        const delta = e.deltaY < 0 ? 0.05 : -0.05;
+        return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z + delta));
+      });
+    };
+    el.addEventListener('wheel', wheelHandler, { passive: false });
+    return () => el.removeEventListener('wheel', wheelHandler);
+  }, [rawImageSrc]);
 
   const handleConfirm = async () => {
     if (!rawImageSrc || !croppedAreaPixels) return;
@@ -135,9 +142,9 @@ export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', 
         ) : (
           <>
             <div
+              ref={cropAreaRef}
               style={{ position: 'relative', width: '100%', height: 280, backgroundColor: '#000',
                         borderRadius: 12, overflow: 'hidden', touchAction: 'none' }}
-              onWheel={handleWheelZoom}
             >
               <Cropper
                 image={rawImageSrc} crop={crop} zoom={zoom} aspect={aspect} cropShape={cropShape} showGrid={false}
