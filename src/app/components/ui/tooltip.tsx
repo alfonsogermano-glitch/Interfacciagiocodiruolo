@@ -53,9 +53,7 @@ function TooltipContent({
   const [colors, setColors] = React.useState(() => readPaletteColors());
 
   React.useEffect(() => {
-    const fresh = readPaletteColors();
-    console.log('[TT-COLOR-DEBUG] colori letti:', fresh, '| elemento trovato:', document.querySelector('[data-dashboard-palette]'));
-    setColors(fresh);
+    setColors(readPaletteColors());
   }, []);
 
   return (
