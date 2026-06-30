@@ -44,12 +44,13 @@ function TooltipContent({
 
   React.useEffect(() => {
     const el = document.querySelector('[data-dashboard-palette]') as HTMLElement | null;
-    console.log('[TOOLTIP-DEBUG] elemento trovato:', el, '| data-dashboard-palette:', el?.getAttribute('data-dashboard-palette'));
     setContainer(el);
   }, []);
 
+  if (!container) return null;
+
   return (
-    <TooltipPrimitive.Portal container={container ?? undefined}>
+    <TooltipPrimitive.Portal key="has-container" container={container}>
       <TooltipPrimitive.Content
         data-slot="tooltip-content"
         sideOffset={sideOffset}
