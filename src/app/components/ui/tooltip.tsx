@@ -44,6 +44,7 @@ function TooltipContent({
 
   React.useEffect(() => {
     const el = document.querySelector('[data-dashboard-palette]') as HTMLElement | null;
+    console.log('[TOOLTIP-DEBUG] elemento trovato:', el, '| data-dashboard-palette:', el?.getAttribute('data-dashboard-palette'));
     setContainer(el);
   }, []);
 
