@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { X, Loader2, Upload } from 'lucide-react';
+import { X, Loader2, Upload, RotateCcw } from 'lucide-react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { supabase } from '../../auth/AuthContext';
 
@@ -158,11 +158,18 @@ export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', 
 
             {error && <p style={{ color: 'var(--dash-danger-text)', fontSize: '0.8rem', marginTop: '0.6rem' }}>{error}</p>}
 
-            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
+            <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1.25rem' }}>
               <button type="button" onClick={() => setRawImageSrc(null)} disabled={isUploading}
                 style={{ flex: 1, padding: '0.6rem', borderRadius: 999, backgroundColor: 'transparent',
                          border: '1px solid var(--dash-border)', color: 'var(--dash-muted)', fontSize: '0.875rem', cursor: 'pointer' }}>
                 Annulla
+              </button>
+              <button type="button" onClick={() => { setCrop({ x: 0, y: 0 }); setZoom(1); }} disabled={isUploading}
+                title="Ripristina zoom e posizione"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
+                         width: 40, padding: '0.6rem', borderRadius: 999, backgroundColor: 'transparent',
+                         border: '1px solid var(--dash-border)', color: 'var(--dash-muted)', cursor: isUploading ? 'not-allowed' : 'pointer' }}>
+                <RotateCcw size={15} />
               </button>
               <button type="button" onClick={handleConfirm} disabled={isUploading}
                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
