@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Plus } from 'lucide-react';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import LandingPage from './landing/LandingPage';
 import { PrivacyPolicy } from './legal/PrivacyPolicy';
@@ -6,7 +7,8 @@ import { DeleteData } from './legal/DeleteData';
 import { SetNewPasswordModal } from './landing/SetNewPasswordModal';
 import { CampaignProvider, useCampaign } from './campaigns/CampaignContext';
 import { RulesetProvider } from './campaigns/RulesetContext';
-import { CampaignSelector, CampaignSwitcher } from './campaigns/CampaignSelector';
+import { CampaignForm } from './campaigns/CampaignSelector';
+import { type CampaignCreateInput } from './campaigns/campaignTypes';
 import { HomeScreen } from './home/HomeScreen';
 import { AppShell } from './layout/AppShell';
 import { LeftSidebar } from './layout/LeftSidebar';
@@ -34,11 +36,6 @@ import { SceneEncounterManager } from './components/gm/SceneEncounterManager';
 
 import { ensureCampaignBootstrap } from '../services/campaign/ensureCampaignBootstrap';
 
-import {
-  downloadCampaignBackup,
-  importCampaignBackup,
-  readCampaignBackupFromFile
-} from '../services/campaign/campaignBackupService';
 
 import {
   loadDashboardSettings,
@@ -60,80 +57,35 @@ interface DashboardProps {
 }
 
 function Dashboard({ activeTab, navigationTarget, onNavigate }: DashboardProps) {
-  const { activeCampaignId, campaigns, isLoading: campaignsLoading } = useCampaign();
-  const [isCampaignSelectorOpen, setIsCampaignSelectorOpen] = useState(false);
-  const [campaignToastMessage, setCampaignToastMessage] = useState<string | null>(null);
+  const { activeCampaignId, campaigns, isLoading: campaignsLoading, createCampaign } = useCampaign();
+  const [showCampaignForm, setShowCampaignForm] = useState(false);
+  const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
+  const [campaignFormError, setCampaignFormError] = useState<string | null>(null);
 
-  const importCampaignInputRef = useRef<HTMLInputElement | null>(null);
-
-  const showCampaignToast = (message: string) => {
-    setCampaignToastMessage(message);
-
-    window.setTimeout(() => {
-      setCampaignToastMessage(null);
-    }, 2600);
-  };
-
-  const handleExportCampaign = () => {
+  const handleCreateCampaign = async (data: CampaignCreateInput) => {
+    setIsCreatingCampaign(true);
+    setCampaignFormError(null);
     try {
-      downloadCampaignBackup();
-      showCampaignToast('Campagna esportata con successo.');
-    } catch (error) {
-      console.error('Errore durante l’esportazione della campagna:', error);
-      showCampaignToast('Errore durante l’esportazione della campagna.');
-    }
-  };
-
-  const handleImportCampaign = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = event.target.files?.[0];
-
-    if (!file) return;
-
-    try {
-      const backup = await readCampaignBackupFromFile(file);
-      importCampaignBackup(backup);
-      showCampaignToast('Campagna importata con successo. Ricarico i dati...');
-      window.location.reload();
-    } catch (error) {
-      console.error('Errore durante l’importazione della campagna:', error);
-      showCampaignToast('File campagna non valido o danneggiato.');
+      await createCampaign(data);
+      setShowCampaignForm(false);
+    } catch (err) {
+      setCampaignFormError(String(err));
     } finally {
-      event.target.value = '';
+      setIsCreatingCampaign(false);
     }
   };
 
   return (
     <div className="px-6 py-6">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <CampaignSwitcher onClick={() => setIsCampaignSelectorOpen(true)} />
-
-        <div className="flex items-center gap-2">
-          <input
-            ref={importCampaignInputRef}
-            type="file"
-            accept="application/json"
-            onChange={handleImportCampaign}
-            className="hidden"
-          />
-
-          <button
-            type="button"
-            onClick={handleExportCampaign}
-            className="rounded-md border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-accent-2)]"
-          >
-            Esporta Campagna
-          </button>
-
-          <button
-            type="button"
-            onClick={() => importCampaignInputRef.current?.click()}
-            className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
-          >
-            Importa Campagna
-          </button>
-        </div>
+      <div className="mb-6 flex flex-wrap items-center justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => setShowCampaignForm(true)}
+          className="group inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--dash-text-strong)] shadow-lg shadow-black/20 transition-colors hover:bg-[var(--dash-accent-2)]"
+        >
+          <Plus className="h-4 w-4 group-hover:animate-[plusPulse_0.75s_ease-in-out_infinite]" />
+          Nuova Campagna
+        </button>
       </div>
 
       {activeTab === 'phases' && <GamePhases />}
@@ -180,14 +132,20 @@ function Dashboard({ activeTab, navigationTarget, onNavigate }: DashboardProps) 
         <VisualAssetsManager campaignId={activeCampaignId} />
       )}
 
-      {isCampaignSelectorOpen && (
-        <CampaignSelector onClose={() => setIsCampaignSelectorOpen(false)} />
-      )}
-
-      {campaignToastMessage && (
-        <div className="pointer-events-none fixed inset-0 z-[90] flex items-center justify-center">
-          <div className="max-w-sm rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] px-6 py-4 text-center text-sm text-[var(--dash-text-strong)] shadow-2xl">
-            {campaignToastMessage}
+      {showCampaignForm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-surface)] p-6 shadow-2xl">
+            <h3 className="mb-4 text-lg font-semibold tracking-wide text-[var(--dash-text-strong)]">Nuova campagna</h3>
+            {campaignFormError && (
+              <div className="mb-4 rounded-xl border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-4 py-3 text-sm text-[var(--dash-danger-text)]">
+                {campaignFormError}
+              </div>
+            )}
+            <CampaignForm
+              onSave={data => void handleCreateCampaign(data)}
+              onCancel={() => setShowCampaignForm(false)}
+              isSubmitting={isCreatingCampaign}
+            />
           </div>
         </div>
       )}
