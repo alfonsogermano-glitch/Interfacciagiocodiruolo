@@ -61,6 +61,7 @@ function TooltipContent({
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
   const container = React.useContext(TooltipPaletteContext);
+  console.log('[TT-DEBUG] TooltipContent renderizzato, container=', container, '| è dentro root?', container ? document.getElementById('root')?.contains(container) : 'n/a');
 
   if (!container) return null;
 
