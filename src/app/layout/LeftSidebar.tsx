@@ -80,16 +80,25 @@ export function LeftSidebar({
                 <button
                   type="button"
                   onClick={() => onSelectCampaign(campaign)}
-                  className={`flex flex-col items-center gap-1 rounded-lg border px-1.5 py-2 transition-colors ${
+                  className={`flex flex-col items-center justify-center gap-1 overflow-hidden rounded-lg border transition-colors ${
+                    campaign.logoUrl ? 'p-0' : 'px-1.5 py-2'
+                  } ${
                     campaign.id === activeCampaignId
                       ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
                       : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)]/60 hover:bg-[var(--dash-surface-2)]'
                   }`}
+                  style={{ width: '100%', aspectRatio: campaign.logoUrl ? '1 / 1' : undefined }}
                 >
-                  <Skull className="h-4 w-4 text-[var(--dash-accent-2)]" />
-                  <span className="w-full break-words text-center text-[10px] leading-tight text-[var(--dash-text)]">
-                    {campaign.name}
-                  </span>
+                  {campaign.logoUrl ? (
+                    <img src={campaign.logoUrl} alt={campaign.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <>
+                      <Skull className="h-4 w-4 text-[var(--dash-accent-2)]" />
+                      <span className="w-full break-words text-center text-[10px] leading-tight text-[var(--dash-text)]">
+                        {campaign.name}
+                      </span>
+                    </>
+                  )}
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right">{campaign.name}</TooltipContent>
