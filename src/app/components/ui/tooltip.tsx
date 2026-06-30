@@ -3,28 +3,6 @@ import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { cn } from "./utils";
 
-const TooltipPaletteContext = React.createContext<HTMLElement | null>(null);
-
-export function TooltipPaletteProvider({
-  containerRef,
-  children,
-}: {
-  containerRef: React.RefObject<HTMLElement | null>;
-  children: React.ReactNode;
-}) {
-  const [el, setEl] = React.useState<HTMLElement | null>(null);
-
-  React.useEffect(() => {
-    setEl(containerRef.current);
-  }, [containerRef]);
-
-  return (
-    <TooltipPaletteContext.Provider value={el}>
-      {children}
-    </TooltipPaletteContext.Provider>
-  );
-}
-
 function TooltipProvider({
   delayDuration = 0,
   ...props
@@ -54,26 +32,39 @@ function TooltipTrigger({
   return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
 }
 
+function readPaletteColors() {
+  const el = document.querySelector('[data-dashboard-palette]');
+  const fallback = { panel: '#1a1a1a', text: '#f5f5f5', border: '#444444' };
+  if (!el) return fallback;
+  const computed = getComputedStyle(el);
+  return {
+    panel: computed.getPropertyValue('--dash-panel').trim() || fallback.panel,
+    text: computed.getPropertyValue('--dash-text-strong').trim() || fallback.text,
+    border: computed.getPropertyValue('--dash-border-soft').trim() || fallback.border,
+  };
+}
+
 function TooltipContent({
   className,
   sideOffset = 0,
   children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
-  const container = React.useContext(TooltipPaletteContext);
-  console.log('[TT-DEBUG] TooltipContent renderizzato, container=', container, '| è dentro root?', container ? document.getElementById('root')?.contains(container) : 'n/a');
+  const [colors, setColors] = React.useState(() => readPaletteColors());
 
-  if (!container) return null;
+  React.useEffect(() => {
+    setColors(readPaletteColors());
+  }, []);
 
   return (
-    <TooltipPrimitive.Portal container={container}>
+    <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content
         data-slot="tooltip-content"
         sideOffset={sideOffset}
         style={{
-          backgroundColor: 'var(--dash-panel)',
-          color: 'var(--dash-text-strong)',
-          border: '1px solid var(--dash-border-soft)',
+          backgroundColor: colors.panel,
+          color: colors.text,
+          border: `1px solid ${colors.border}`,
         }}
         className={cn(
           "animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 w-fit origin-(--radix-tooltip-content-transform-origin) rounded-md px-3 py-1.5 text-xs text-balance shadow-lg",
@@ -83,7 +74,7 @@ function TooltipContent({
       >
         {children}
         <TooltipPrimitive.Arrow
-          style={{ fill: 'var(--dash-panel)' }}
+          style={{ fill: colors.panel }}
           className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px]"
         />
       </TooltipPrimitive.Content>
