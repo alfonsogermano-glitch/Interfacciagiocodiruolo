@@ -19,6 +19,7 @@ import { NewsPage } from './news/NewsPage';
 import { AdventureManager } from './components/gm/AdventureManager';
 import { PlayerCharacters } from './components/gm/PlayerCharacters';
 import { MyCharactersPage } from './components/gm/MyCharactersPage';
+import { CampaignsPage } from './components/gm/CampaignsPage';
 import { NPCManager } from './components/gm/NPCManager';
 import { EnvironmentManager } from './components/gm/EnvironmentManager';
 import { CluesManager } from './components/gm/CluesManager';
@@ -143,6 +144,7 @@ function Dashboard({ activeTab, navigationTarget, onNavigate }: DashboardProps) 
 
       {activeTab === 'players' && <PlayerCharacters />}
       {activeTab === 'characters' && <MyCharactersPage />}
+      {activeTab === 'campaigns' && <CampaignsPage />}
       {activeTab === 'npcs' && (
         <NPCManager navigationTarget={navigationTarget} />
       )}
@@ -359,6 +361,7 @@ function AuthGate() {
             onGoHome={goToHome}
             onGoToHomeSection={goToHomeSection}
             onGoToCharacters={() => { goToDashboard(); changeActiveGmTab('characters'); }}
+            onGoToCampaigns={() => { goToDashboard(); changeActiveGmTab('campaigns'); }}
             campaigns={campaigns}
             activeCampaignId={activeCampaign?.id}
             onSelectCampaign={(campaign) => goToDashboard(campaign)}

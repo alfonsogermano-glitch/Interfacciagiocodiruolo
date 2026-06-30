@@ -8,6 +8,7 @@ interface LeftSidebarProps {
   onGoHome: () => void;
   onGoToHomeSection: (section: 'characters' | 'campaigns') => void;
   onGoToCharacters: () => void;
+  onGoToCampaigns: () => void;
   campaigns: Campaign[];
   activeCampaignId?: string | null;
   onSelectCampaign: (campaign: Campaign) => void;
@@ -46,6 +47,7 @@ export function LeftSidebar({
   onGoHome,
   onGoToHomeSection,
   onGoToCharacters,
+  onGoToCampaigns,
   campaigns,
   activeCampaignId,
   onSelectCampaign,
@@ -63,7 +65,7 @@ export function LeftSidebar({
       <nav className="flex w-full flex-col items-center gap-1 px-2">
         <SidebarButton icon={Home} label="Panoramica" onClick={onGoHome} active={view === 'home'} />
         <SidebarButton icon={Users} label="Personaggi" onClick={onGoToCharacters} />
-        <SidebarButton icon={Scroll} label="Campagne" onClick={() => onGoToHomeSection('campaigns')} />
+        <SidebarButton icon={Scroll} label="Campagne" onClick={onGoToCampaigns} />
       </nav>
 
       <div className="my-2 h-px w-10 bg-[var(--dash-border-soft)]" />
