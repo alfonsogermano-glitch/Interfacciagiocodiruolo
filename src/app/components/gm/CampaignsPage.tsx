@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Users, KeyRound, Copy, Check, Camera, Loader2 } from 'lucide-react';
+import { Search, Users, KeyRound, Copy, Check, Camera, Loader2, Plus } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
-import { RULESETS, VISIBLE_RULESETS, type RulesetId } from '../../campaigns/campaignTypes';
+import { useCampaign } from '../../campaigns/CampaignContext';
+import { CampaignForm } from '../../campaigns/CampaignSelector';
+import { RULESETS, VISIBLE_RULESETS, type RulesetId, type CampaignCreateInput } from '../../campaigns/campaignTypes';
 import { ImageCropUploadModal } from '../shared/ImageCropUploadModal';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
@@ -40,6 +42,25 @@ export function CampaignsPage() {
 
   const [logoUploadFor, setLogoUploadFor] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const { createCampaign } = useCampaign();
+  const [showCampaignForm, setShowCampaignForm] = useState(false);
+  const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
+  const [campaignFormError, setCampaignFormError] = useState<string | null>(null);
+
+  const handleCreateCampaign = async (data: CampaignCreateInput) => {
+    setIsCreatingCampaign(true);
+    setCampaignFormError(null);
+    try {
+      await createCampaign(data);
+      setShowCampaignForm(false);
+      await load();
+    } catch (err) {
+      setCampaignFormError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsCreatingCampaign(false);
+    }
+  };
 
   const load = async () => {
     setIsLoading(true);
@@ -127,7 +148,17 @@ export function CampaignsPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Campagne</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Campagne</h2>
+        <button
+          type="button"
+          onClick={() => setShowCampaignForm(true)}
+          className="group inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-bg)] px-5 py-2.5 text-sm font-semibold text-[var(--dash-text-strong)] shadow-lg shadow-black/20 transition-colors hover:bg-[var(--dash-panel)]"
+        >
+          <Plus className="h-4 w-4 group-hover:animate-[plusPulse_0.75s_ease-in-out_infinite]" />
+          Nuova Campagna
+        </button>
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <select value={sortOption} onChange={e => setSortOption(e.target.value as SortOption)} style={inputStyle}>
@@ -243,6 +274,24 @@ export function CampaignsPage() {
           onUploaded={(url) => handleLogoUploaded(logoUploadFor, url)}
           onClose={() => setLogoUploadFor(null)}
         />
+      )}
+
+      {showCampaignForm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-surface)] p-6 shadow-2xl">
+            <h3 className="mb-4 text-lg font-semibold tracking-wide text-[var(--dash-text-strong)]">Nuova campagna</h3>
+            {campaignFormError && (
+              <div className="mb-4 rounded-xl border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-4 py-3 text-sm text-[var(--dash-danger-text)]">
+                {campaignFormError}
+              </div>
+            )}
+            <CampaignForm
+              onSave={data => void handleCreateCampaign(data)}
+              onCancel={() => { setShowCampaignForm(false); setCampaignFormError(null); }}
+              isSubmitting={isCreatingCampaign}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

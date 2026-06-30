@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import LandingPage from './landing/LandingPage';
 import { PrivacyPolicy } from './legal/PrivacyPolicy';
@@ -7,8 +6,6 @@ import { DeleteData } from './legal/DeleteData';
 import { SetNewPasswordModal } from './landing/SetNewPasswordModal';
 import { CampaignProvider, useCampaign } from './campaigns/CampaignContext';
 import { RulesetProvider } from './campaigns/RulesetContext';
-import { CampaignForm } from './campaigns/CampaignSelector';
-import { type CampaignCreateInput } from './campaigns/campaignTypes';
 import { HomeScreen } from './home/HomeScreen';
 import { AppShell } from './layout/AppShell';
 import { LeftSidebar } from './layout/LeftSidebar';
@@ -57,36 +54,10 @@ interface DashboardProps {
 }
 
 function Dashboard({ activeTab, navigationTarget, onNavigate }: DashboardProps) {
-  const { activeCampaignId, campaigns, isLoading: campaignsLoading, createCampaign } = useCampaign();
-  const [showCampaignForm, setShowCampaignForm] = useState(false);
-  const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
-  const [campaignFormError, setCampaignFormError] = useState<string | null>(null);
-
-  const handleCreateCampaign = async (data: CampaignCreateInput) => {
-    setIsCreatingCampaign(true);
-    setCampaignFormError(null);
-    try {
-      await createCampaign(data);
-      setShowCampaignForm(false);
-    } catch (err) {
-      setCampaignFormError(String(err));
-    } finally {
-      setIsCreatingCampaign(false);
-    }
-  };
+  const { activeCampaignId, campaigns, isLoading: campaignsLoading } = useCampaign();
 
   return (
     <div className="px-6 py-6">
-      <div className="mb-6 flex flex-wrap items-center justify-end gap-3">
-        <button
-          type="button"
-          onClick={() => setShowCampaignForm(true)}
-          className="group inline-flex items-center justify-center gap-2 rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--dash-text-strong)] shadow-lg shadow-black/20 transition-colors hover:bg-[var(--dash-accent-2)]"
-        >
-          <Plus className="h-4 w-4 group-hover:animate-[plusPulse_0.75s_ease-in-out_infinite]" />
-          Nuova Campagna
-        </button>
-      </div>
 
       {activeTab === 'phases' && <GamePhases />}
 
@@ -132,23 +103,6 @@ function Dashboard({ activeTab, navigationTarget, onNavigate }: DashboardProps) 
         <VisualAssetsManager campaignId={activeCampaignId} />
       )}
 
-      {showCampaignForm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-surface)] p-6 shadow-2xl">
-            <h3 className="mb-4 text-lg font-semibold tracking-wide text-[var(--dash-text-strong)]">Nuova campagna</h3>
-            {campaignFormError && (
-              <div className="mb-4 rounded-xl border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-4 py-3 text-sm text-[var(--dash-danger-text)]">
-                {campaignFormError}
-              </div>
-            )}
-            <CampaignForm
-              onSave={data => void handleCreateCampaign(data)}
-              onCancel={() => setShowCampaignForm(false)}
-              isSubmitting={isCreatingCampaign}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
