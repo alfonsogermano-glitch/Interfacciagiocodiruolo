@@ -1,9 +1,29 @@
 "use client";
-
 import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-
 import { cn } from "./utils";
+
+const TooltipPaletteContext = React.createContext<HTMLElement | null>(null);
+
+export function TooltipPaletteProvider({
+  containerRef,
+  children,
+}: {
+  containerRef: React.RefObject<HTMLElement | null>;
+  children: React.ReactNode;
+}) {
+  const [el, setEl] = React.useState<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    setEl(containerRef.current);
+  }, [containerRef]);
+
+  return (
+    <TooltipPaletteContext.Provider value={el}>
+      {children}
+    </TooltipPaletteContext.Provider>
+  );
+}
 
 function TooltipProvider({
   delayDuration = 0,
@@ -40,17 +60,12 @@ function TooltipContent({
   children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
-  const [container, setContainer] = React.useState<HTMLElement | null>(null);
-
-  React.useEffect(() => {
-    const el = document.querySelector('[data-dashboard-palette]') as HTMLElement | null;
-    setContainer(el);
-  }, []);
+  const container = React.useContext(TooltipPaletteContext);
 
   if (!container) return null;
 
   return (
-    <TooltipPrimitive.Portal key="has-container" container={container}>
+    <TooltipPrimitive.Portal container={container}>
       <TooltipPrimitive.Content
         data-slot="tooltip-content"
         sideOffset={sideOffset}
