@@ -9,9 +9,6 @@ import {
   Plus,
   Scroll,
   Skull,
-  Swords,
-  Castle,
-  Sparkles,
   UserCircle2,
   X,
   Zap,
@@ -21,36 +18,12 @@ import { useCampaign } from '../campaigns/CampaignContext';
 import { CampaignForm } from '../campaigns/CampaignSelector';
 import { RULESETS, type Campaign, type CampaignCreateInput, type RulesetId } from '../campaigns/campaignTypes';
 import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
+import { RulesetTag } from '../components/shared/RulesetTag';
 import { CharacterSheetModal } from '../components/character/CharacterSheetModal';
 import { getCharactersByOwner } from '../../services/characters/characterService';
 import { saveCharacter as saveCharacterToSupabase, loadCharactersByOwner } from '../../services/supabase/charactersService';
 import type { DashboardPalette } from '../../services/settings/dashboardSettings';
 import type { Character, CharacterSummary } from '../../types/character';
-
-const RULESET_ICONS: Record<RulesetId, React.ReactNode> = {
-  hsc: <Skull className="h-3.5 w-3.5" />,
-  dnd5e: <Swords className="h-3.5 w-3.5" />,
-  pathfinder: <Castle className="h-3.5 w-3.5" />,
-  custom: <Sparkles className="h-3.5 w-3.5" />,
-};
-
-function RulesetTag({ rulesetId }: { rulesetId: RulesetId }) {
-  const ruleset = RULESETS[rulesetId] ?? RULESETS.custom;
-
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium tracking-wide"
-      style={{
-        borderColor: `${ruleset.color}55`,
-        backgroundColor: `${ruleset.color}1a`,
-        color: ruleset.color,
-      }}
-    >
-      {RULESET_ICONS[rulesetId]}
-      {ruleset.name}
-    </span>
-  );
-}
 
 function formatCreatedAt(value: string): string | null {
   const date = new Date(value);

@@ -4,6 +4,8 @@ import { useAuth } from '../../auth/AuthContext';
 import { RULESETS, type RulesetId } from '../../campaigns/campaignTypes';
 import { ImageCropUploadModal } from '../shared/ImageCropUploadModal';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
+import { RulesetTag } from '../shared/RulesetTag';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
@@ -24,16 +26,6 @@ interface OverviewCampaign {
 
 type SortOption = 'name-asc' | 'name-desc' | 'date-asc' | 'date-desc';
 
-function RulesetBadge({ rulesetId }: { rulesetId: RulesetId }) {
-  const ruleset = RULESETS[rulesetId] ?? RULESETS.custom;
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.15rem 0.6rem',
-                   borderRadius: 999, fontSize: '0.7rem', fontWeight: 600, color: '#fff',
-                   backgroundColor: ruleset.color, whiteSpace: 'nowrap' }}>
-      {ruleset.name}
-    </span>
-  );
-}
 
 export function CampaignsPage() {
   const { session } = useAuth();
@@ -191,18 +183,23 @@ export function CampaignsPage() {
                     <Users className="h-9 w-9 text-[var(--dash-accent-2)]" />
                   </div>
                 )}
-                <button type="button" onClick={() => setLogoUploadFor(campaign.id)}
-                  style={{ position: 'absolute', bottom: 6, right: 6, width: 26, height: 26, borderRadius: '50%',
-                           backgroundColor: 'var(--dash-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                           border: '2px solid var(--dash-bg)', cursor: 'pointer' }}>
-                  <Camera size={13} color="var(--dash-bg)" />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" onClick={() => setLogoUploadFor(campaign.id)}
+                      style={{ position: 'absolute', bottom: 6, right: 6, width: 26, height: 26, borderRadius: '50%',
+                               backgroundColor: 'var(--dash-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                               border: '2px solid var(--dash-bg)', cursor: 'pointer' }}>
+                      <Camera size={13} color="var(--dash-bg)" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">Inserisci l'immagine Logo della campagna</TooltipContent>
+                </Tooltip>
               </div>
 
               <div className="flex min-w-0 flex-1 flex-col px-5 py-4">
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="truncate text-lg font-semibold text-[var(--dash-text-strong)]">{campaign.name}</h3>
-                  <RulesetBadge rulesetId={campaign.ruleset} />
+                  <RulesetTag rulesetId={campaign.ruleset} />
                 </div>
                 {campaign.description && (
                   <p className="mt-1 truncate text-sm text-[var(--dash-muted)]">{campaign.description}</p>
@@ -242,6 +239,7 @@ export function CampaignsPage() {
           storagePath={`${logoUploadFor}/logo.jpg`}
           cropShape="rect"
           aspect={1}
+          uploadLabel="Seleziona l'immagine del Logo Campagna"
           onUploaded={(url) => handleLogoUploaded(logoUploadFor, url)}
           onClose={() => setLogoUploadFor(null)}
         />

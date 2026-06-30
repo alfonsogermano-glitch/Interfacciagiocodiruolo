@@ -8,6 +8,7 @@ interface ImageCropUploadModalProps {
   storagePath: string;
   cropShape?: 'round' | 'rect';
   aspect?: number;
+  uploadLabel?: string;
   onUploaded: (publicUrl: string) => void;
   onClose: () => void;
 }
@@ -36,7 +37,7 @@ async function getCroppedBlob(imageSrc: string, area: Area): Promise<Blob> {
   });
 }
 
-export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', aspect = 1, onUploaded, onClose }: ImageCropUploadModalProps) {
+export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', aspect = 1, uploadLabel, onUploaded, onClose }: ImageCropUploadModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cropAreaRef = useRef<HTMLDivElement | null>(null);
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
@@ -125,7 +126,7 @@ export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', 
 
         <h2 style={{ fontFamily: 'serif', color: 'var(--dash-text)', fontSize: '1.2rem', fontWeight: 'bold',
                      textAlign: 'center', marginBottom: '1.25rem' }}>
-          {rawImageSrc ? 'Ritaglia immagine' : 'Carica immagine'}
+          {rawImageSrc ? 'Ritaglia immagine' : (uploadLabel ?? 'Carica immagine')}
         </h2>
 
         {!rawImageSrc ? (
