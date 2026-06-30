@@ -326,25 +326,15 @@ export async function loadDashboardSettings(): Promise<DashboardSettings> {
   return cachedDashboardSettings;
 }
 
-export function saveDashboardSettings(settings: DashboardSettings): void {
+export async function saveDashboardSettings(settings: DashboardSettings): Promise<void> {
   cachedDashboardSettings = normalizeDashboardSettings(settings);
-
-  // Salvataggio immediato e sincrono.
   saveToLocalStorage(cachedDashboardSettings);
-
-  // Salvataggi persistenti.
-  void saveToIndexedDb(cachedDashboardSettings).catch(error => {
-    console.error('Errore salvataggio impostazioni dashboard in IndexedDB:', error);
-  });
-
-  void saveToSupabase(cachedDashboardSettings).catch(error => {
-    console.error('Errore salvataggio impostazioni dashboard in Supabase:', error);
-  });
-
-  if (isTauriRuntime()) {
-    void saveTauriDashboardSettings(cachedDashboardSettings).catch(error => {
-      console.error('Errore salvataggio impostazioni dashboard in SQLite/Tauri:', error);
-    });
+  void saveToIndexedDb(cachedDashboardSettings);
+  try {
+    await saveToSupabase(cachedDashboardSettings);
+  } catch (error) {
+    console.error('Errore salvataggio impostazioni su Supabase:', error);
+    // non blocchiamo l'utente, il dato è già in localStorage
   }
 }
 

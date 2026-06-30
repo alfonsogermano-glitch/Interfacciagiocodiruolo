@@ -52,7 +52,9 @@ function TooltipContent({
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
   const [colors, setColors] = React.useState(() => readPaletteColors());
 
-  React.useEffect(() => {
+  // Rilegge i colori ogni volta che il tooltip cambia stato (aperto/chiuso)
+  // così cattura sempre la palette corrente, anche se è cambiata dopo il mount
+  const handleOpenChange = React.useCallback(() => {
     setColors(readPaletteColors());
   }, []);
 
@@ -61,6 +63,7 @@ function TooltipContent({
       <TooltipPrimitive.Content
         data-slot="tooltip-content"
         sideOffset={sideOffset}
+        onPointerEnter={handleOpenChange}
         style={{
           backgroundColor: colors.panel,
           color: colors.text,

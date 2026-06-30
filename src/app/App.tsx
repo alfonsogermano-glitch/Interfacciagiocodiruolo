@@ -217,10 +217,10 @@ function AuthGate() {
     setIsSettingsOpen(false);
   };
 
-  const saveSettingsAndClose = () => {
+  const saveSettingsAndClose = async () => {
     updateDashboardSettings(draftDashboardSettings);
     setDashboardSettings(draftDashboardSettings);
-    saveDashboardSettings(draftDashboardSettings);
+    await saveDashboardSettings(draftDashboardSettings);
     setIsSettingsOpen(false);
   };
 
