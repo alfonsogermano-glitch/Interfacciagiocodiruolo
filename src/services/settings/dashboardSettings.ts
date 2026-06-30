@@ -90,6 +90,7 @@ function readSettingsSynchronously(): DashboardSettings {
 
   try {
     const rawLocalStorage = window.localStorage.getItem(DASHBOARD_SETTINGS_KEY);
+    console.log('[SETTINGS-DEBUG] valore grezzo letto da localStorage:', rawLocalStorage);
 
     if (rawLocalStorage) {
       return normalizeDashboardSettings(JSON.parse(rawLocalStorage));
@@ -98,6 +99,7 @@ function readSettingsSynchronously(): DashboardSettings {
     console.error('Errore lettura sincrona impostazioni dashboard:', error);
   }
 
+  console.log('[SETTINGS-DEBUG] FALLBACK al default - perché siamo arrivati qui?');
   return DEFAULT_DASHBOARD_SETTINGS;
 }
 
