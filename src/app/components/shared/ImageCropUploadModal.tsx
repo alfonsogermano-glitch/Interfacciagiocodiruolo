@@ -20,10 +20,9 @@ const MAX_IMAGE_MB = 5;
 async function getCroppedBlob(imageSrc: string, area: Area): Promise<Blob> {
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image();
-    console.log('[CROP-DEBUG] inizio caricamento immagine, src=', imageSrc.slice(0, 50));
     img.crossOrigin = 'anonymous';
-    img.onload = () => { console.log('[CROP-DEBUG] onload scattato'); resolve(img); };
-    img.onerror = (e) => { console.log('[CROP-DEBUG] onerror scattato', e); reject(e); };
+    img.onload = () => resolve(img);
+    img.onerror = reject;
     img.src = imageSrc;
   });
   const canvas = document.createElement('canvas');
