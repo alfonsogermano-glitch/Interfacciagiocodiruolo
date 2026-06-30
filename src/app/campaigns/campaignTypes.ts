@@ -1,4 +1,4 @@
-export type RulesetId = 'hsc' | 'dnd5e' | 'pathfinder' | 'custom';
+export type RulesetId = 'hsc' | 'dnd5e' | 'pathfinder' | 'coc7e' | 'cocclassic' | 'custom';
 
 export interface RulesetDefinition {
   id: RulesetId;
@@ -47,6 +47,26 @@ export const RULESETS: Record<RulesetId, RulesetDefinition> = {
     hasAudacia: false,
     diceType: 'd20',
   },
+  coc7e: {
+    id: 'coc7e',
+    name: 'Il Richiamo di Cthulhu 7° Ed.',
+    description: 'Indagini nei misteri dei Miti di Cthulhu nell\'America anni \'20, con un sistema a percentuali aggiornato e più snello rispetto alle edizioni precedenti.',
+    color: '#1a5c3a',
+    stats: ['FOR', 'DES', 'COS', 'INT', 'POT', 'EDU', 'ASP', 'FAS'],
+    healthLabel: 'Punti Ferita',
+    hasAudacia: false,
+    diceType: 'd100',
+  },
+  cocclassic: {
+    id: 'cocclassic',
+    name: 'Il Richiamo di Cthulhu Classic Edition',
+    description: 'La versione storica del gioco di ruolo investigativo lovecraftiano, con il classico sistema percentuale e la Tabella della Resistenza per i confronti diretti.',
+    color: '#3d2b1f',
+    stats: ['FOR', 'DES', 'COS', 'INT', 'POT', 'EDU', 'ASP', 'FAS'],
+    healthLabel: 'Punti Ferita',
+    hasAudacia: false,
+    diceType: 'd100',
+  },
   custom: {
     id: 'custom',
     name: 'Regolamento personalizzato',
@@ -58,6 +78,10 @@ export const RULESETS: Record<RulesetId, RulesetDefinition> = {
     diceType: 'd6',
   },
 };
+
+export const VISIBLE_RULESETS = Object.values(RULESETS).filter(
+  rs => rs.id !== 'dnd5e' && rs.id !== 'pathfinder'
+);
 
 export interface Campaign {
   id: string;

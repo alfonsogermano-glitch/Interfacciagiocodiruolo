@@ -16,7 +16,7 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from '../campaigns/CampaignContext';
 import { CampaignForm } from '../campaigns/CampaignSelector';
-import { RULESETS, type Campaign, type CampaignCreateInput, type RulesetId } from '../campaigns/campaignTypes';
+import { RULESETS, VISIBLE_RULESETS, type Campaign, type CampaignCreateInput, type RulesetId } from '../campaigns/campaignTypes';
 import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
 import { RulesetTag } from '../components/shared/RulesetTag';
 import { CharacterSheetModal } from '../components/character/CharacterSheetModal';
@@ -450,7 +450,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
-              {Object.values(RULESETS).map(rs => (
+              {VISIBLE_RULESETS.map(rs => (
                 <button
                   key={rs.id}
                   type="button"

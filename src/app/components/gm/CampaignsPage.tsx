@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Search, Users, KeyRound, Copy, Check, Camera, Loader2 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
-import { RULESETS, type RulesetId } from '../../campaigns/campaignTypes';
+import { RULESETS, VISIBLE_RULESETS, type RulesetId } from '../../campaigns/campaignTypes';
 import { ImageCropUploadModal } from '../shared/ImageCropUploadModal';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
@@ -146,7 +146,7 @@ export function CampaignsPage() {
 
         <select value={rulesetFilter} onChange={e => setRulesetFilter(e.target.value)} style={inputStyle}>
           <option value="">Tutti i regolamenti</option>
-          {Object.values(RULESETS).map(r => (
+          {VISIBLE_RULESETS.map(r => (
             <option key={r.id} value={r.id}>{r.name}</option>
           ))}
         </select>

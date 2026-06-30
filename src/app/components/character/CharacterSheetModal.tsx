@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import {
   Backpack,
   Brain,
+  BookOpen,
   Castle,
+  FileText,
   Heart,
   Link2,
   Loader2,
@@ -27,6 +29,8 @@ const RULESET_ICONS: Record<RulesetId, React.ReactNode> = {
   hsc: <Skull className="h-3.5 w-3.5" />,
   dnd5e: <Swords className="h-3.5 w-3.5" />,
   pathfinder: <Castle className="h-3.5 w-3.5" />,
+  coc7e: <FileText className="h-3.5 w-3.5" />,
+  cocclassic: <BookOpen className="h-3.5 w-3.5" />,
   custom: <Sparkles className="h-3.5 w-3.5" />
 };
 

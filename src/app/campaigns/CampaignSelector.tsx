@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   Plus,
   BookOpen,
+  FileText,
   Trash2,
   Edit2,
   CheckCircle2,
@@ -14,12 +15,14 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useCampaign } from './CampaignContext';
-import { RULESETS, type Campaign, type CampaignCreateInput, type RulesetId } from './campaignTypes';
+import { RULESETS, VISIBLE_RULESETS, type Campaign, type CampaignCreateInput, type RulesetId } from './campaignTypes';
 
 const RULESET_ICONS: Record<RulesetId, React.ReactNode> = {
   hsc: <Skull className="h-4 w-4" />,
   dnd5e: <Swords className="h-4 w-4" />,
   pathfinder: <Castle className="h-4 w-4" />,
+  coc7e: <FileText className="h-4 w-4" />,
+  cocclassic: <BookOpen className="h-4 w-4" />,
   custom: <Sparkles className="h-4 w-4" />,
 };
 
@@ -75,7 +78,7 @@ export function CampaignForm({
       <div>
         <label className="mb-2 block text-sm text-[var(--dash-text)]">Regolamento</label>
         <div className="grid gap-2 sm:grid-cols-2">
-          {(Object.values(RULESETS)).map(rs => (
+          {VISIBLE_RULESETS.map(rs => (
             <button
               key={rs.id}
               type="button"
