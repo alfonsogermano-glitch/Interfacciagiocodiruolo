@@ -86,6 +86,10 @@ export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', 
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(storagePath);
       onUploaded(`${publicUrl}?t=${Date.now()}`);
+      setRawImageSrc(null);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setCroppedAreaPixels(null);
     } catch (err) {
       console.error('Errore upload immagine:', err);
       setError('Caricamento non riuscito. Riprova.');
@@ -132,7 +136,7 @@ export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', 
           <>
             <div
               style={{ position: 'relative', width: '100%', height: 280, backgroundColor: '#000',
-                        borderRadius: 12, overflow: 'hidden' }}
+                        borderRadius: 12, overflow: 'hidden', touchAction: 'none' }}
               onWheel={handleWheelZoom}
             >
               <Cropper
