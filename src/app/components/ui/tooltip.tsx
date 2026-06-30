@@ -21,20 +21,7 @@ function Tooltip({
 }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
   return (
     <TooltipProvider>
-      <TooltipPrimitive.Root
-        data-slot="tooltip"
-        onOpenChange={(open) => {
-          if (open) {
-            // forza un re-render di tutti i TooltipContent figli
-            // aggiornando un attributo sul documento — approccio più affidabile
-            document.documentElement.setAttribute(
-              'data-tooltip-open',
-              Date.now().toString()
-            );
-          }
-        }}
-        {...props}
-      />
+      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
     </TooltipProvider>
   );
 }
@@ -66,14 +53,7 @@ function TooltipContent({
   const [colors, setColors] = React.useState(() => readPaletteColors());
 
   React.useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setColors(readPaletteColors());
-    });
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-tooltip-open'],
-    });
-    return () => observer.disconnect();
+    setColors(readPaletteColors());
   }, []);
 
   return (
