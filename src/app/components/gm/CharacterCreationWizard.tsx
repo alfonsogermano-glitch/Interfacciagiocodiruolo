@@ -1,4 +1,4 @@
-  import { useState, useEffect } from 'react';
+  import { useState, useEffect, useRef } from 'react';
   import { X } from 'lucide-react';
   import type { Character, Stile, Viaggio, Trait, Abilita, Equipment } from '../../../types/character';
   import { STYLE_TRAITS, JOURNEY_TRAITS } from '../../../data/traits';
@@ -424,6 +424,8 @@
   const [dragTarget, setDragTarget] = useState<null | 'cover' | 'portrait'>(null);
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const [startPosition, setStartPosition] = useState<{ x: number; y: number } | null>(null);
+  const portraitZoomRef = useRef<HTMLDivElement | null>(null);
+  const coverZoomRef = useRef<HTMLDivElement | null>(null);
   const [portraitCropStart, setPortraitCropStart] = useState<{
     centerX: number;
     centerY: number;
@@ -471,6 +473,28 @@
     }
   };
   
+  useEffect(() => {
+    const portraitEl = portraitZoomRef.current;
+    const coverEl = coverZoomRef.current;
+
+    const portraitHandler = (e: WheelEvent) => {
+      e.preventDefault();
+      handleImageWheel(e as any, 'portrait');
+    };
+    const coverHandler = (e: WheelEvent) => {
+      e.preventDefault();
+      handleImageWheel(e as any, 'cover');
+    };
+
+    portraitEl?.addEventListener('wheel', portraitHandler, { passive: false });
+    coverEl?.addEventListener('wheel', coverHandler, { passive: false });
+
+    return () => {
+      portraitEl?.removeEventListener('wheel', portraitHandler);
+      coverEl?.removeEventListener('wheel', coverHandler);
+    };
+  }, [portraitImageUrl, coverImageUrl]);
+
   useEffect(() => {
     if (!dragTarget || !dragStart) {
       return;
@@ -1557,8 +1581,9 @@ const equipment: Equipment[] = [
      <div className="mt-4 overflow-hidden rounded-xl border border-[#3d2b21] bg-[#1a1515]">
     {coverImageUrl ? (
       <div
+        ref={coverZoomRef}
         onMouseDown={(e) => handleDragStart(e, 'cover')}
-        onWheel={(e) => handleImageWheel(e, 'cover')}
+        style={{ touchAction: 'none' }}
         className="relative h-48 w-full cursor-move select-none overflow-hidden"
       >
         <img
@@ -1618,8 +1643,9 @@ const equipment: Equipment[] = [
   
    <div className="mt-4 flex justify-center">
     <div
+      ref={portraitZoomRef}
       onMouseDown={(e) => handleDragStart(e, 'portrait')}
-      onWheel={(e) => handleImageWheel(e, 'portrait')}
+      style={{ touchAction: 'none' }}
       className="relative flex h-40 w-40 cursor-move items-center justify-center overflow-hidden rounded-full border-2 border-[#8a5a34] bg-[#1a1515] select-none"
     >
       {portraitCroppedImageUrl ? (
