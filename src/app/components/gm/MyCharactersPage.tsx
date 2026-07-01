@@ -197,19 +197,19 @@ export function MyCharactersPage() {
                   <div className="flex min-w-0 flex-1 flex-col justify-center gap-1 px-4 py-3 pr-10">
                     <h3 className="truncate text-lg font-semibold text-[var(--dash-text-strong)]">{char.name}</h3>
                     <p className="truncate text-sm text-[var(--dash-muted)]">{char.style} · {char.viaggio}</p>
-                    <span className="mt-1 flex items-center gap-1.5 truncate text-xs text-[var(--dash-accent-2)]">
+                    <span className="mt-1 flex items-center gap-2 truncate text-sm text-[var(--dash-accent-2)]">
                       {campaignInfo ? (
                         campaignInfo.logoUrl ? (
                           <img
                             src={campaignInfo.logoUrl}
                             alt=""
-                            className="h-5 w-5 shrink-0 rounded object-cover"
+                            className="h-7 w-7 shrink-0 rounded object-cover"
                           />
                         ) : (
                           <img
                             src="/icon-source-1024.png"
                             alt=""
-                            className="h-5 w-5 shrink-0 object-contain opacity-80"
+                            className="h-7 w-7 shrink-0 object-contain opacity-80"
                             style={{ filter: 'invert(1)' }}
                           />
                         )
