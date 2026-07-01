@@ -11,7 +11,7 @@ import {
   Image,
   Users,
 } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/Tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 
 interface GmSectionSidebarProps {
   activeTab: string;

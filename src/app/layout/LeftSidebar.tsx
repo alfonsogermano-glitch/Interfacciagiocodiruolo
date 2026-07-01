@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import { Home, Users, Scroll, Skull } from 'lucide-react';
 import type { Campaign } from '../campaigns/campaignTypes';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/Tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 
 interface LeftSidebarProps {
   view: 'home' | 'dashboard';
