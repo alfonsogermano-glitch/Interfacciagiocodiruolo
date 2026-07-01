@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Home, Users, Scroll, Skull } from 'lucide-react';
+import { Home, Users, Scroll } from 'lucide-react';
 import type { Campaign } from '../campaigns/campaignTypes';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 
@@ -92,12 +92,20 @@ export function LeftSidebar({
                   {campaign.logoUrl ? (
                     <img src={campaign.logoUrl} alt={campaign.name} className="h-full w-full object-cover" />
                   ) : (
-                    <>
-                      <Skull className="h-4 w-4 text-[var(--dash-accent-2)]" />
-                      <span className="w-full break-words text-center text-[10px] leading-tight text-[var(--dash-text)]">
+                    <div className="relative flex h-full w-full items-center justify-center p-2">
+                      <img
+                        src="/icon-source-1024.png"
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-contain p-1.5 opacity-70"
+                        style={{ filter: 'invert(1)' }}
+                      />
+                      <span
+                        className="relative z-10 w-full break-words text-center text-[10px] font-semibold leading-tight text-white"
+                        style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.7)' }}
+                      >
                         {campaign.name}
                       </span>
-                    </>
+                    </div>
                   )}
                 </button>
               </TooltipTrigger>
