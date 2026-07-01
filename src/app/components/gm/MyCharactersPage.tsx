@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, User, Loader2, Pencil, Trash2, KeyRound, MoreVertical, Users2 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
@@ -23,6 +24,8 @@ export function MyCharactersPage() {
   const [editingCharacter, setEditingCharacter] = useState<OwnedCharacter | null>(null);
   const [detailCharacter, setDetailCharacter] = useState<OwnedCharacter | null>(null);
   const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const menuButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const [inviteModeFor, setInviteModeFor] = useState<string | null>(null);
   const [inviteCodeDraft, setInviteCodeDraft] = useState('');
@@ -195,16 +198,29 @@ export function MyCharactersPage() {
                 <div className="absolute right-3 top-3 z-10">
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); setOpenMenuFor(isMenuOpen ? null : char.id); }}
+                    ref={(el) => { menuButtonRefs.current[char.id] = el; }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isMenuOpen) {
+                        setOpenMenuFor(null);
+                        return;
+                      }
+                      const rect = menuButtonRefs.current[char.id]?.getBoundingClientRect();
+                      if (rect) {
+                        setMenuPosition({ top: rect.bottom + 4, left: rect.right - 224 });
+                      }
+                      setOpenMenuFor(char.id);
+                    }}
                     className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--dash-border-soft)] bg-black/40 text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text-strong)]"
                   >
                     <MoreVertical className="h-4 w-4" />
                   </button>
 
-                  {isMenuOpen && (
+                  {isMenuOpen && menuPosition && createPortal(
                     <div
                       onClick={(e) => e.stopPropagation()}
-                      className="absolute right-0 top-9 z-20 w-56 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1.5 shadow-2xl"
+                      style={{ position: 'fixed', top: menuPosition.top, left: menuPosition.left }}
+                      className="z-[1000] w-56 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1.5 shadow-2xl"
                     >
                       <button
                         type="button"
@@ -264,7 +280,8 @@ export function MyCharactersPage() {
                         </div>
                       )}
                       {error && <p className="px-3 pb-2 text-xs text-[var(--dash-danger-text)]">{error}</p>}
-                    </div>
+                    </div>,
+                    document.body
                   )}
                 </div>
               </div>
