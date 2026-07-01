@@ -210,10 +210,8 @@ export function CampaignsPage() {
                 {campaign.logoUrl ? (
                   <img src={campaign.logoUrl} alt={campaign.name} className="h-full w-full object-cover" />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center p-6">
-                    <div className="flex h-full w-full items-center justify-center rounded-xl bg-white p-3 shadow-lg">
-                      <img src="/icon-source-1024.png" alt="Hollow Gate" className="h-full w-full object-contain" />
-                    </div>
+                  <div className="flex h-full w-full items-center justify-center p-7">
+                    <img src="/icon-source-1024.png" alt="Hollow Gate" className="h-full w-full object-contain opacity-90" />
                   </div>
                 )}
                 <Tooltip>
