@@ -296,9 +296,16 @@ export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
                   ) : (
                     <span />
                   )}
-                  <span className="shrink-0 text-[10px] text-[var(--dash-muted)]">
-                    Creata il {new Date(campaign.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </span>
+                  <div className="flex shrink-0 flex-col items-end text-[10px] text-[var(--dash-muted)]">
+                    <span>
+                      Creata il {new Date(campaign.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </span>
+                    {campaign.updatedAt && new Date(campaign.updatedAt).getTime() !== new Date(campaign.createdAt).getTime() && (
+                      <span>
+                        Ultima modifica il {new Date(campaign.updatedAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
