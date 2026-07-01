@@ -2,6 +2,24 @@
 import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { cn } from "./utils";
+import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId, type PaletteColors } from "./paletteColors";
+
+const PaletteColorsContext = React.createContext<PaletteColors>(DEFAULT_PALETTE_COLORS);
+
+export function TooltipColorsProvider({
+  palette,
+  children,
+}: {
+  palette: string;
+  children: React.ReactNode;
+}) {
+  const colors = PALETTE_COLORS[palette as PaletteId] ?? DEFAULT_PALETTE_COLORS;
+  return (
+    <PaletteColorsContext.Provider value={colors}>
+      {children}
+    </PaletteColorsContext.Provider>
+  );
+}
 
 function TooltipProvider({
   delayDuration = 0,
@@ -32,29 +50,13 @@ function TooltipTrigger({
   return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
 }
 
-function readPaletteColors() {
-  const el = document.querySelector('[data-dashboard-palette]');
-  const fallback = { panel: '#1a1a1a', text: '#f5f5f5', border: '#444444' };
-  if (!el) return fallback;
-  const computed = getComputedStyle(el);
-  return {
-    panel: computed.getPropertyValue('--dash-panel').trim() || fallback.panel,
-    text: computed.getPropertyValue('--dash-text-strong').trim() || fallback.text,
-    border: computed.getPropertyValue('--dash-border-soft').trim() || fallback.border,
-  };
-}
-
 function TooltipContent({
   className,
   sideOffset = 0,
   children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
-  const [colors, setColors] = React.useState(() => readPaletteColors());
-
-  React.useEffect(() => {
-    setColors(readPaletteColors());
-  }, []);
+  const colors = React.useContext(PaletteColorsContext);
 
   return (
     <TooltipPrimitive.Portal>
