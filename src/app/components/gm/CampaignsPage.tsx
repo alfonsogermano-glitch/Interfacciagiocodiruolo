@@ -296,7 +296,7 @@ export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
                   ) : (
                     <span />
                   )}
-                  <div className="flex shrink-0 flex-col items-end text-[10px] text-[var(--dash-muted)]">
+                  <div className="flex shrink-0 flex-col items-end text-xs text-[var(--dash-muted)]">
                     <span>
                       Creata il {new Date(campaign.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
                     </span>
