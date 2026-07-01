@@ -203,13 +203,13 @@ export function MyCharactersPage() {
                           <img
                             src={campaignInfo.logoUrl}
                             alt=""
-                            className="h-4 w-4 shrink-0 rounded object-cover"
+                            className="h-5 w-5 shrink-0 rounded object-cover"
                           />
                         ) : (
                           <img
                             src="/icon-source-1024.png"
                             alt=""
-                            className="h-4 w-4 shrink-0 object-contain opacity-80"
+                            className="h-5 w-5 shrink-0 object-contain opacity-80"
                             style={{ filter: 'invert(1)' }}
                           />
                         )
