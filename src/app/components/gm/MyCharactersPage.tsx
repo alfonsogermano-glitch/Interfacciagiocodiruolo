@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { CharacterCreationWizard } from './CharacterCreationWizard';
 import { CharacterDetailModal } from './CharacterDetailModal';
+import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { loadCharactersByOwner, saveCharacter, deleteCharacter } from '../../../services/supabase/charactersService';
 import type { Character } from '../../../types/character';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
@@ -30,6 +31,7 @@ export function MyCharactersPage() {
   const [showWizard, setShowWizard] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<OwnedCharacter | null>(null);
   const [detailCharacter, setDetailCharacter] = useState<OwnedCharacter | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [menuColors, setMenuColors] = useState(() => getCurrentPaletteColors());
@@ -77,10 +79,15 @@ export function MyCharactersPage() {
     await load();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Eliminare questo personaggio? L\'azione non è reversibile.')) return;
-    await deleteCharacter(id);
+  const requestDelete = (id: string) => {
     setOpenMenuFor(null);
+    setDeleteTargetId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTargetId) return;
+    await deleteCharacter(deleteTargetId);
+    setDeleteTargetId(null);
     await load();
   };
 
@@ -266,7 +273,7 @@ export function MyCharactersPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDelete(char.id)}
+                        onClick={() => requestDelete(char.id)}
                         className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[#f1d3d3] hover:bg-[#231313]"
                       >
                         <Trash2 className="h-4 w-4" /> Elimina
@@ -344,6 +351,16 @@ export function MyCharactersPage() {
             setDetailCharacter(updated);
             persistCharacter(updated.id, updated);
           }}
+        />
+      )}
+
+      {deleteTargetId && (
+        <ConfirmDialog
+          title="Eliminare il personaggio?"
+          message="Questa azione non è reversibile. Il personaggio e tutti i suoi dati verranno eliminati definitivamente."
+          confirmLabel="Elimina"
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteTargetId(null)}
         />
       )}
     </div>
