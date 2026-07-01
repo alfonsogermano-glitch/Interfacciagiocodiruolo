@@ -45,9 +45,9 @@ function SidebarButton({
 
 function MarqueeName({ name }: { name: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const textRef = useRef<HTMLDivElement | null>(null);
+  const textRef = useRef<HTMLSpanElement | null>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
-  const [shift, setShift] = useState(0);
+  const [duration, setDuration] = useState(6);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -56,21 +56,39 @@ function MarqueeName({ name }: { name: string }) {
     const overflow = text.scrollWidth - container.clientWidth;
     if (overflow > 2) {
       setIsOverflowing(true);
-      setShift(-overflow - 4);
+      // velocità costante indipendente dalla lunghezza: più lungo il nome,
+      // più tempo impiega il loop, così la velocità percepita resta uniforme
+      setDuration(Math.max(4, text.scrollWidth / 25));
     } else {
       setIsOverflowing(false);
-      setShift(0);
     }
   }, [name]);
+
+  if (!isOverflowing) {
+    return (
+      <div ref={containerRef} className="w-full overflow-hidden">
+        <span
+          ref={textRef}
+          className="block px-1 py-0.5 text-center text-[9px] font-semibold leading-tight text-[var(--dash-text)]"
+        >
+          {name}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div ref={containerRef} className="w-full overflow-hidden">
       <div
-        ref={textRef}
-        className={`marquee-track px-1 py-0.5 text-[9px] font-semibold leading-tight text-[var(--dash-text)] ${isOverflowing ? 'is-overflowing' : ''}`}
-        style={{ ['--marquee-shift' as string]: `${shift}px` }}
+        className="marquee-loop flex w-max whitespace-nowrap py-0.5"
+        style={{ animationDuration: `${duration}s` }}
       >
-        {name}
+        <span ref={textRef} className="px-1 text-[9px] font-semibold leading-tight text-[var(--dash-text)]">
+          {name}
+        </span>
+        <span className="px-1 text-[9px] font-semibold leading-tight text-[var(--dash-text)]" aria-hidden="true">
+          {name}
+        </span>
       </div>
     </div>
   );
@@ -127,12 +145,12 @@ export function LeftSidebar({
                     <img src={campaign.logoUrl} alt={campaign.name} className="h-full w-full object-cover" />
                   ) : (
                     <div className="flex h-full w-full flex-col">
-                      <div className="flex flex-1 items-center justify-center overflow-hidden p-1.5">
+                      <div className="flex flex-1 items-center justify-center overflow-hidden p-0.5">
                         <img
                           src="/icon-source-1024.png"
                           alt=""
                           className="h-full w-full object-contain"
-                          style={{ filter: 'invert(1)', opacity: 0.85 }}
+                          style={{ filter: 'invert(1)', opacity: 0.9 }}
                         />
                       </div>
                       <div

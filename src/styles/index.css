@@ -288,25 +288,16 @@
   display: none;
 }
 
-.marquee-track {
-  white-space: nowrap;
-  display: inline-block;
-}
-.marquee-track:hover,
-.marquee-track {
-  animation: none;
-}
-
-/* L'animazione scatta solo se il contenuto reale supera la larghezza
-   disponibile - gestito via JS più sotto, qui solo la keyframe */
-@keyframes marqueeScroll {
-  0%, 15% {
+@keyframes marqueeLoop {
+  from {
     transform: translateX(0);
   }
-  85%, 100% {
-    transform: translateX(var(--marquee-shift, 0px));
+  to {
+    transform: translateX(-50%);
   }
 }
-.marquee-track.is-overflowing {
-  animation: marqueeScroll 4s ease-in-out infinite;
+.marquee-loop {
+  animation-name: marqueeLoop;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
 }
