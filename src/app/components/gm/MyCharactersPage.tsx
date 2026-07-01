@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, User, Loader2, Pencil, Trash2, KeyRound, MoreVertical, Users2 } from 'lucide-react';
+import { Plus, User, Loader2, Pencil, Trash2, KeyRound, MoreVertical } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { CharacterCreationWizard } from './CharacterCreationWizard';
@@ -47,9 +47,10 @@ export function MyCharactersPage() {
     ...joinedCampaigns.map(c => ({ id: c.id, name: c.name, suffix: '(partecipi)' })),
   ];
 
-  const campaignNameFor = (campaignId: string | null) => {
+  const campaignInfoFor = (campaignId: string | null) => {
     if (!campaignId) return null;
-    return allCampaignOptions.find(c => c.id === campaignId)?.name ?? null;
+    const found = [...campaigns, ...joinedCampaigns].find(c => c.id === campaignId);
+    return found ? { name: found.name, logoUrl: found.logoUrl } : null;
   };
 
   const load = async () => {
@@ -166,7 +167,7 @@ export function MyCharactersPage() {
             const isInviteMode = inviteModeFor === char.id;
             const error = assignErrors[char.id];
             const isMenuOpen = openMenuFor === char.id;
-            const campaignName = campaignNameFor(char.campaignId);
+            const campaignInfo = campaignInfoFor(char.campaignId);
 
             return (
               <div
@@ -196,9 +197,24 @@ export function MyCharactersPage() {
                   <div className="flex min-w-0 flex-1 flex-col justify-center gap-1 px-4 py-3 pr-10">
                     <h3 className="truncate text-lg font-semibold text-[var(--dash-text-strong)]">{char.name}</h3>
                     <p className="truncate text-sm text-[var(--dash-muted)]">{char.style} · {char.viaggio}</p>
-                    <span className="mt-1 flex items-center gap-1 truncate text-xs text-[var(--dash-accent-2)]">
-                      <Users2 className="h-3.5 w-3.5 shrink-0" />
-                      {campaignName ?? 'Nessuna campagna'}
+                    <span className="mt-1 flex items-center gap-1.5 truncate text-xs text-[var(--dash-accent-2)]">
+                      {campaignInfo ? (
+                        campaignInfo.logoUrl ? (
+                          <img
+                            src={campaignInfo.logoUrl}
+                            alt=""
+                            className="h-4 w-4 shrink-0 rounded object-cover"
+                          />
+                        ) : (
+                          <img
+                            src="/icon-source-1024.png"
+                            alt=""
+                            className="h-4 w-4 shrink-0 object-contain opacity-80"
+                            style={{ filter: 'invert(1)' }}
+                          />
+                        )
+                      ) : null}
+                      <span className="truncate">{campaignInfo?.name ?? 'Nessuna Campagna'}</span>
                     </span>
                   </div>
                 </button>
