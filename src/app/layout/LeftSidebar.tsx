@@ -1,3 +1,4 @@
+import { useRef, useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Home, Users, Scroll } from 'lucide-react';
 import type { Campaign } from '../campaigns/campaignTypes';
@@ -39,6 +40,39 @@ function SidebarButton({
       <Icon className="h-5 w-5" />
       <span className="text-[10px] leading-tight text-center">{label}</span>
     </button>
+  );
+}
+
+function MarqueeName({ name }: { name: string }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const textRef = useRef<HTMLDivElement | null>(null);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const [shift, setShift] = useState(0);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const text = textRef.current;
+    if (!container || !text) return;
+    const overflow = text.scrollWidth - container.clientWidth;
+    if (overflow > 2) {
+      setIsOverflowing(true);
+      setShift(-overflow - 4);
+    } else {
+      setIsOverflowing(false);
+      setShift(0);
+    }
+  }, [name]);
+
+  return (
+    <div ref={containerRef} className="w-full overflow-hidden">
+      <div
+        ref={textRef}
+        className={`marquee-track px-1 py-0.5 text-[9px] font-semibold leading-tight text-[var(--dash-text)] ${isOverflowing ? 'is-overflowing' : ''}`}
+        style={{ ['--marquee-shift' as string]: `${shift}px` }}
+      >
+        {name}
+      </div>
+    </div>
   );
 }
 
@@ -92,19 +126,21 @@ export function LeftSidebar({
                   {campaign.logoUrl ? (
                     <img src={campaign.logoUrl} alt={campaign.name} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="relative flex h-full w-full items-end justify-center overflow-hidden">
-                      <img
-                        src="/icon-source-1024.png"
-                        alt=""
-                        className="absolute inset-0 h-full w-full object-contain p-2 opacity-60"
-                        style={{ filter: 'invert(1)' }}
-                      />
-                      <span
-                        className="relative z-10 w-full break-words px-1 py-1 text-center text-[10px] font-semibold leading-tight text-white"
-                        style={{ backgroundColor: 'rgba(0,0,0,0.72)' }}
+                    <div className="flex h-full w-full flex-col">
+                      <div className="flex flex-1 items-center justify-center overflow-hidden p-1.5">
+                        <img
+                          src="/icon-source-1024.png"
+                          alt=""
+                          className="h-full w-full object-contain"
+                          style={{ filter: 'invert(1)', opacity: 0.85 }}
+                        />
+                      </div>
+                      <div
+                        className="w-full shrink-0"
+                        style={{ backgroundColor: 'var(--dash-panel)' }}
                       >
-                        {campaign.name}
-                      </span>
+                        <MarqueeName name={campaign.name} />
+                      </div>
                     </div>
                   )}
                 </button>

@@ -287,3 +287,26 @@
 *::-webkit-scrollbar {
   display: none;
 }
+
+.marquee-track {
+  white-space: nowrap;
+  display: inline-block;
+}
+.marquee-track:hover,
+.marquee-track {
+  animation: none;
+}
+
+/* L'animazione scatta solo se il contenuto reale supera la larghezza
+   disponibile - gestito via JS più sotto, qui solo la keyframe */
+@keyframes marqueeScroll {
+  0%, 15% {
+    transform: translateX(0);
+  }
+  85%, 100% {
+    transform: translateX(var(--marquee-shift, 0px));
+  }
+}
+.marquee-track.is-overflowing {
+  animation: marqueeScroll 4s ease-in-out infinite;
+}
