@@ -624,14 +624,7 @@ const showToast = (message: string) => {
     <img
       src={char.coverImageUrl}
       alt={`Sfondo di ${char.name}`}
-      className="absolute left-1/2 top-1/2 select-none"
-      style={{
-        width: '100%',
-        height: '100%',
-        objectFit: 'cover',
-        transform: `translate(calc(-50% + ${char.coverPositionX ?? 0}px), calc(-50% + ${char.coverPositionY ?? 0}px)) scale(${char.coverScale ?? 1})`,
-        transformOrigin: 'center center'
-      }}
+      className="absolute inset-0 h-full w-full select-none object-cover"
       draggable={false}
     />
   ) : (

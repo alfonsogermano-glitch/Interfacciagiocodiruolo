@@ -1,5 +1,6 @@
-  import { useState, useEffect, useRef } from 'react';
+  import { useState, useEffect } from 'react';
   import { X } from 'lucide-react';
+  import { ImageCropUploadModal } from '../shared/ImageCropUploadModal';
   import type { Character, Stile, Viaggio, Trait, Abilita, Equipment } from '../../../types/character';
   import { STYLE_TRAITS, JOURNEY_TRAITS } from '../../../data/traits';
   import {
@@ -421,227 +422,9 @@
   zoom: initialCharacter?.portraitCrop?.zoom ?? 1
   }));
   
-  const [dragTarget, setDragTarget] = useState<null | 'cover' | 'portrait'>(null);
-  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
-  const [startPosition, setStartPosition] = useState<{ x: number; y: number } | null>(null);
-  const portraitZoomRef = useRef<HTMLDivElement | null>(null);
-  const coverZoomRef = useRef<HTMLDivElement | null>(null);
-  const [portraitCropStart, setPortraitCropStart] = useState<{
-    centerX: number;
-    centerY: number;
-  } | null>(null);
-  
-  const clampScale = (value: number) => Math.max(1, Math.min(3, value));
-  const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
-  
-  const handleDragStart = (
-    event: React.MouseEvent<HTMLDivElement>,
-    target: 'cover' | 'portrait'
-  ) => {
-    event.preventDefault();
-  
-    setDragTarget(target);
-    setDragStart({ x: event.clientX, y: event.clientY });
-  
-    if (target === 'cover') {
-      setStartPosition({ x: coverPositionX, y: coverPositionY });
-      setPortraitCropStart(null);
-    } else {
-      setStartPosition({ x: 0, y: 0 });
-      setPortraitCropStart({
-        centerX: portraitCrop.centerX,
-        centerY: portraitCrop.centerY
-      });
-    }
-  };
-  
-  const handleImageWheel = (
-    event: React.WheelEvent<HTMLDivElement>,
-    target: 'cover' | 'portrait'
-  ) => {
-    event.preventDefault();
-  
-    const delta = event.deltaY > 0 ? -0.08 : 0.08;
-  
-    if (target === 'cover') {
-      setCoverScale(prev => clampScale(prev + delta));
-    } else {
-      setPortraitCrop(prev => ({
-        ...prev,
-        zoom: clampScale(prev.zoom + delta)
-      }));
-    }
-  };
-  
-  useEffect(() => {
-    const portraitEl = portraitZoomRef.current;
-    const coverEl = coverZoomRef.current;
+  const [showPortraitCrop, setShowPortraitCrop] = useState(false);
+  const [showCoverCrop, setShowCoverCrop] = useState(false);
 
-    const portraitHandler = (e: WheelEvent) => {
-      e.preventDefault();
-      handleImageWheel(e as any, 'portrait');
-    };
-    const coverHandler = (e: WheelEvent) => {
-      e.preventDefault();
-      handleImageWheel(e as any, 'cover');
-    };
-
-    portraitEl?.addEventListener('wheel', portraitHandler, { passive: false });
-    coverEl?.addEventListener('wheel', coverHandler, { passive: false });
-
-    return () => {
-      portraitEl?.removeEventListener('wheel', portraitHandler);
-      coverEl?.removeEventListener('wheel', coverHandler);
-    };
-  }, [portraitImageUrl, coverImageUrl]);
-
-  useEffect(() => {
-    if (!dragTarget || !dragStart) {
-      return;
-    }
-  
-    const handleMouseMove = (event: MouseEvent) => {
-      const deltaX = event.clientX - dragStart.x;
-      const deltaY = event.clientY - dragStart.y;
-  
-      if (dragTarget === 'cover' && startPosition) {
-        setCoverPositionX(startPosition.x + deltaX);
-        setCoverPositionY(startPosition.y + deltaY);
-        return;
-      }
-  
-      if (dragTarget === 'portrait' && portraitCropStart) {
-      const previewSize = 160;
-      const dragFactor = 0.7;
-  
-      const deltaXNormalized = (deltaX / previewSize) * dragFactor;
-      const deltaYNormalized = (deltaY / previewSize) * dragFactor;
-  
-    setPortraitCrop(prev => ({
-    ...prev,
-    centerX: clamp01(portraitCropStart.centerX - deltaXNormalized / prev.zoom),
-    centerY: clamp01(portraitCropStart.centerY - deltaYNormalized / prev.zoom)
-  }));
-  }
-    };
-  
-    const handleMouseUp = () => {
-      setDragTarget(null);
-      setDragStart(null);
-      setStartPosition(null);
-      setPortraitCropStart(null);
-    };
-  
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-  
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [dragTarget, dragStart, startPosition, portraitCropStart]);
-  
-  const createCroppedPortrait = (source: string): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-  
-      img.onload = () => {
-        const outputSize = 1024;
-        const canvas = document.createElement('canvas');
-        canvas.width = outputSize;
-        canvas.height = outputSize;
-  
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Canvas non disponibile'));
-          return;
-        }
-  
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.clearRect(0, 0, outputSize, outputSize);
-  
-        const drawWidth = img.width * portraitCrop.zoom;
-        const drawHeight = img.height * portraitCrop.zoom;
-  
-        const drawX = outputSize / 2 - portraitCrop.centerX * drawWidth;
-        const drawY = outputSize / 2 - portraitCrop.centerY * drawHeight;
-  
-        ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
-  
-        resolve(canvas.toDataURL('image/png'));
-      };
-  
-      img.onerror = () => reject(new Error('Impossibile caricare l’immagine'));
-      img.src = source;
-    });
-  };
-  
-  useEffect(() => {
-    if (!portraitImageUrl) {
-      setPortraitCroppedImageUrl('');
-      return;
-    }
-  
-    let cancelled = false;
-  
-    const updatePortraitPreview = async () => {
-      try {
-        const cropped = await createCroppedPortrait(portraitImageUrl);
-        if (!cancelled) {
-          setPortraitCroppedImageUrl(cropped);
-        }
-      } catch (error) {
-        console.error('Errore aggiornamento portrait preview:', error);
-      }
-    };
-  
-    updatePortraitPreview();
-  
-    return () => {
-      cancelled = true;
-    };
-  }, [portraitImageUrl, portraitCrop]);
-  
-  const handleImageFileUpload = (
-    event: React.ChangeEvent<HTMLInputElement>,
-    target: 'cover' | 'portrait'
-  ) => {
-    const file = event.target.files?.[0];
-  
-    if (!file) {
-      return;
-    }
-  
-    if (!file.type.startsWith('image/')) {
-      alert('Seleziona un file immagine valido.');
-      return;
-    }
-  
-    const reader = new FileReader();
-  
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-  
-      if (target === 'cover') {
-        setCoverImageUrl(result);
-        setCoverPositionX(0);
-        setCoverPositionY(0);
-        setCoverScale(1);
-      } else {
-        setPortraitImageUrl(result);
-        setPortraitCroppedImageUrl('');
-        setPortraitCrop({
-          centerX: 0.5,
-          centerY: 0.5,
-          zoom: 1.15
-        });
-      }
-    };
-  
-    reader.readAsDataURL(file);
-  };
-  
     // Step 7: Equipaggiamento
     const [inTasca, setInTasca] = useState<string[]>(() =>
   initialCharacter?.equipment
@@ -952,18 +735,8 @@ const equipment: Equipment[] = [
         abilitaFinali[abilita] = getAbilitaTotalValue(abilita);
       });
   
-      let finalPortraitCroppedImageUrl: string | undefined = portraitCroppedImageUrl || undefined;
-  
-  if (portraitImageUrl) {
-    try {
-      finalPortraitCroppedImageUrl = await createCroppedPortrait(portraitImageUrl);
-    } catch (error) {
-      console.error('Errore nella generazione del portrait ritagliato:', error);
-    }
-  }
+      const finalPortraitCroppedImageUrl: string | undefined = portraitCroppedImageUrl || undefined;
 
-      
-  
       const character: Character & { player: string; notes: string } = {
         id: initialCharacter?.id ?? generateUUID(),
         name: name.trim(),
@@ -1568,58 +1341,49 @@ const equipment: Equipment[] = [
         className="mb-4 w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-4 py-3 text-[#f3e7d0] placeholder-[#6f5d4f] outline-none focus:border-[#8a5a34]"
       />
   
-      <label className="mb-2 block text-xs uppercase tracking-[0.08em] text-[#a88f72]">
-        Oppure carica da file
-      </label>
-      <input
-        type="file"
-        accept="image/*"
-        onChange={(e) => handleImageFileUpload(e, 'cover')}
-        className="block w-full text-sm text-[#cbb9a2] file:mr-4 file:rounded-md file:border-0 file:bg-[#4a2a1d] file:px-3 file:py-2 file:text-sm file:text-[#f3e7d0] hover:file:bg-[#5a3323]"
-      />
-  
-     <div className="mt-4 overflow-hidden rounded-xl border border-[#3d2b21] bg-[#1a1515]">
-    {coverImageUrl ? (
-      <div
-        ref={coverZoomRef}
-        onMouseDown={(e) => handleDragStart(e, 'cover')}
-        style={{ touchAction: 'none' }}
-        className="relative h-48 w-full cursor-move select-none overflow-hidden"
-      >
-        <img
-          src={coverImageUrl}
-          alt="Anteprima sfondo personaggio"
-          className="absolute left-1/2 top-1/2 select-none"
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            transform: `translate(calc(-50% + ${coverPositionX}px), calc(-50% + ${coverPositionY}px)) scale(${coverScale})`,
-            transformOrigin: 'center center',
-            willChange: 'transform'
+      <div className="mt-4 overflow-hidden rounded-xl border border-[#3d2b21] bg-[#1a1515]">
+        <button
+          type="button"
+          onClick={() => setShowCoverCrop(true)}
+          className="relative h-48 w-full overflow-hidden"
+        >
+          {coverImageUrl ? (
+            <img src={coverImageUrl} alt="Anteprima sfondo personaggio" className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-48 items-center justify-center text-sm text-[#8f7c68]">
+              Nessuno sfondo selezionato
+            </div>
+          )}
+          <div className="absolute inset-x-0 bottom-0 bg-black/40 px-3 py-2 text-xs text-[#f3e7d0]">
+            Clicca per scegliere/ritagliare
+          </div>
+        </button>
+      </div>
+
+      {showCoverCrop && (
+        <ImageCropUploadModal
+          bucket="character-portraits"
+          storagePath={`${initialCharacter?.id ?? 'new'}-${Date.now()}/cover.jpg`}
+          cropShape="rect"
+          aspect={16 / 9}
+          uploadLabel="Seleziona lo sfondo del personaggio"
+          onUploaded={(url) => {
+            setCoverImageUrl(url);
+            setCoverPositionX(0);
+            setCoverPositionY(0);
+            setCoverScale(1);
+            setShowCoverCrop(false);
           }}
-          draggable={false}
+          onClose={() => setShowCoverCrop(false)}
         />
-  
-        <div className="absolute inset-0 bg-gradient-to-t from-[#120f10]/80 via-[#120f10]/25 to-transparent" />
-  
-        <div className="absolute inset-x-0 bottom-0 bg-black/40 px-3 py-2 text-xs text-[#f3e7d0]">
-          Trascina per centrare · Rotellina per zoom
-        </div>
-      </div>
-    ) : (
-      <div className="flex h-48 items-center justify-center text-sm text-[#8f7c68]">
-        Nessuno sfondo selezionato
-      </div>
-    )}
-  </div>
+      )}
     </div>
-  
+
     <div className="rounded-2xl border border-[#463227] bg-[#120f0f] p-4">
       <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[#c78b52]">
         Portrait tondo
       </div>
-  
+
       <label className="mb-2 block text-xs uppercase tracking-[0.08em] text-[#a88f72]">
         URL immagine
       </label>
@@ -1630,51 +1394,41 @@ const equipment: Equipment[] = [
         placeholder="https://..."
         className="mb-4 w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-4 py-3 text-[#f3e7d0] placeholder-[#6f5d4f] outline-none focus:border-[#8a5a34]"
       />
-  
-      <label className="mb-2 block text-xs uppercase tracking-[0.08em] text-[#a88f72]">
-        Oppure carica da file
-      </label>
-      <input
-        type="file"
-        accept="image/*"
-        onChange={(e) => handleImageFileUpload(e, 'portrait')}
-        className="block w-full text-sm text-[#cbb9a2] file:mr-4 file:rounded-md file:border-0 file:bg-[#4a2a1d] file:px-3 file:py-2 file:text-sm file:text-[#f3e7d0] hover:file:bg-[#5a3323]"
-      />
-  
-   <div className="mt-4 flex justify-center">
-    <div
-      ref={portraitZoomRef}
-      onMouseDown={(e) => handleDragStart(e, 'portrait')}
-      style={{ touchAction: 'none' }}
-      className="relative flex h-40 w-40 cursor-move items-center justify-center overflow-hidden rounded-full border-2 border-[#8a5a34] bg-[#1a1515] select-none"
-    >
-      {portraitCroppedImageUrl ? (
-        <img
-          src={portraitCroppedImageUrl}
-          alt="Anteprima portrait"
-          className="h-full w-full object-cover select-none"
-          draggable={false}
+
+      <div className="mt-4 flex flex-col items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setShowPortraitCrop(true)}
+          className="relative flex h-40 w-40 items-center justify-center overflow-hidden rounded-full border-2 border-[#8a5a34] bg-[#1a1515]"
+        >
+          {portraitCroppedImageUrl || portraitImageUrl ? (
+            <img
+              src={portraitCroppedImageUrl || portraitImageUrl}
+              alt="Anteprima portrait"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="text-center text-sm text-[#8f7c68]">Nessun portrait</div>
+          )}
+        </button>
+        <p className="text-center text-xs text-[#8f7c68]">Clicca per scegliere/ritagliare</p>
+      </div>
+
+      {showPortraitCrop && (
+        <ImageCropUploadModal
+          bucket="character-portraits"
+          storagePath={`${initialCharacter?.id ?? 'new'}-${Date.now()}/portrait.jpg`}
+          cropShape="round"
+          aspect={1}
+          uploadLabel="Seleziona il ritratto del personaggio"
+          onUploaded={(url) => {
+            setPortraitCroppedImageUrl(url);
+            setPortraitImageUrl(url);
+            setShowPortraitCrop(false);
+          }}
+          onClose={() => setShowPortraitCrop(false)}
         />
-      ) : portraitImageUrl ? (
-        <img
-          src={portraitImageUrl}
-          alt="Anteprima portrait"
-          className="h-full w-full object-cover select-none opacity-80"
-          draggable={false}
-        />
-      ) : (
-        <div className="text-center text-sm text-[#8f7c68]">
-          Nessun portrait
-        </div>
       )}
-    </div>
-  </div>
-  
-  {portraitImageUrl && (
-    <p className="mt-3 text-center text-xs text-[#8f7c68]">
-      Trascina per centrare · Rotellina per zoom
-    </p>
-  )}
     </div>
   </div>
       </div>
