@@ -8,11 +8,18 @@ import { CharacterDetailModal } from './CharacterDetailModal';
 import { loadCharactersByOwner, saveCharacter, deleteCharacter } from '../../../services/supabase/charactersService';
 import type { Character } from '../../../types/character';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/paletteColors';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 const INVITE_OPTION_VALUE = '__invite__';
 
 type OwnedCharacter = Character & { player: string; notes: string; ownerProfileId: string; campaignId: string | null };
+
+function getCurrentPaletteColors() {
+  const el = document.querySelector('[data-dashboard-palette]');
+  const palette = el?.getAttribute('data-dashboard-palette') as PaletteId | null;
+  return palette && PALETTE_COLORS[palette] ? PALETTE_COLORS[palette] : DEFAULT_PALETTE_COLORS;
+}
 
 export function MyCharactersPage() {
   const { user, session } = useAuth();
@@ -25,6 +32,7 @@ export function MyCharactersPage() {
   const [detailCharacter, setDetailCharacter] = useState<OwnedCharacter | null>(null);
   const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [menuColors, setMenuColors] = useState(() => getCurrentPaletteColors());
   const menuButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const [inviteModeFor, setInviteModeFor] = useState<string | null>(null);
@@ -209,6 +217,7 @@ export function MyCharactersPage() {
                       if (rect) {
                         setMenuPosition({ top: rect.bottom + 4, left: rect.right - 224 });
                       }
+                      setMenuColors(getCurrentPaletteColors());
                       setOpenMenuFor(char.id);
                     }}
                     className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--dash-border-soft)] bg-black/40 text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text-strong)]"
@@ -223,8 +232,8 @@ export function MyCharactersPage() {
                         position: 'fixed',
                         top: menuPosition.top,
                         left: menuPosition.left,
-                        backgroundColor: '#1a1a1a',
-                        border: '1px solid #3a3a3a',
+                        backgroundColor: menuColors.panel,
+                        border: `1px solid ${menuColors.border}`,
                         borderRadius: '0.75rem',
                         padding: '0.375rem',
                         boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
@@ -234,7 +243,8 @@ export function MyCharactersPage() {
                       <button
                         type="button"
                         onClick={() => { setEditingCharacter(char); setShowWizard(true); setOpenMenuFor(null); }}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[#d8d2ca] hover:bg-[#1a1a1a]"
+                        style={{ color: menuColors.text }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-[#1a1a1a]"
                       >
                         <Pencil className="h-4 w-4" /> Modifica
                       </button>
@@ -257,7 +267,8 @@ export function MyCharactersPage() {
                             onChange={e => setInviteCodeDraft(e.target.value.toUpperCase())}
                             placeholder="Codice invito"
                             disabled={isPending}
-                            className="w-full rounded-lg border border-[#3a3a3a] bg-[#181818] px-2 py-1 text-xs uppercase tracking-[0.15em] text-[#d8d2ca]"
+                            style={{ color: menuColors.text }}
+                            className="w-full rounded-lg border border-[#3a3a3a] bg-[#181818] px-2 py-1 text-xs uppercase tracking-[0.15em]"
                           />
                           <div className="flex gap-2">
                             <button type="button" onClick={() => handleConfirmInvite(char.id)} disabled={isPending || !inviteCodeDraft.trim()}
@@ -277,7 +288,8 @@ export function MyCharactersPage() {
                             value={char.campaignId ?? ''}
                             onChange={e => handleSelectChange(char.id, e.target.value)}
                             disabled={isPending}
-                            className="w-full rounded-lg border border-[#3a3a3a] bg-[#181818] px-2 py-1 text-xs text-[#d8d2ca]"
+                            style={{ color: menuColors.text }}
+                            className="w-full rounded-lg border border-[#3a3a3a] bg-[#181818] px-2 py-1 text-xs"
                           >
                             <option value="">— Nessuna campagna —</option>
                             {allCampaignOptions.map(c => (
