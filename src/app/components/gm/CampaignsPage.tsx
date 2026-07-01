@@ -282,17 +282,24 @@ export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
                   )}
                 </div>
 
-                {campaign.inviteCode && (
-                  <button
-                    type="button"
-                    onClick={() => copyInviteCode(campaign)}
-                    className="mt-auto inline-flex w-fit items-center gap-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 py-1 text-xs text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
-                  >
-                    <KeyRound className="h-3.5 w-3.5" />
-                    <span className="font-mono tracking-[0.2em]">{campaign.inviteCode}</span>
-                    {copiedId === campaign.id ? <Check className="h-3.5 w-3.5 text-[var(--dash-accent)]" /> : <Copy className="h-3.5 w-3.5" />}
-                  </button>
-                )}
+                <div className="mt-auto flex items-center justify-between gap-2">
+                  {campaign.inviteCode ? (
+                    <button
+                      type="button"
+                      onClick={() => copyInviteCode(campaign)}
+                      className="inline-flex w-fit items-center gap-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 py-1 text-xs text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
+                    >
+                      <KeyRound className="h-3.5 w-3.5" />
+                      <span className="font-mono tracking-[0.2em]">{campaign.inviteCode}</span>
+                      {copiedId === campaign.id ? <Check className="h-3.5 w-3.5 text-[var(--dash-accent)]" /> : <Copy className="h-3.5 w-3.5" />}
+                    </button>
+                  ) : (
+                    <span />
+                  )}
+                  <span className="shrink-0 text-[10px] text-[var(--dash-muted)]">
+                    Creata il {new Date(campaign.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </span>
+                </div>
               </div>
             </div>
           ))}
