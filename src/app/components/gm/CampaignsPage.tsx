@@ -211,7 +211,12 @@ export function CampaignsPage() {
                   <img src={campaign.logoUrl} alt={campaign.name} className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center p-7">
-                    <img src="/icon-source-1024.png" alt="Hollow Gate" className="h-full w-full object-contain opacity-90" />
+                    <img
+                      src="/icon-source-1024.png"
+                      alt="Hollow Gate"
+                      className="h-full w-full object-contain opacity-80"
+                      style={{ filter: 'invert(1)' }}
+                    />
                   </div>
                 )}
                 <Tooltip>
