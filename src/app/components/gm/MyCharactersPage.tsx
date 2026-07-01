@@ -219,25 +219,34 @@ export function MyCharactersPage() {
                   {isMenuOpen && menuPosition && createPortal(
                     <div
                       onClick={(e) => e.stopPropagation()}
-                      style={{ position: 'fixed', top: menuPosition.top, left: menuPosition.left }}
-                      className="z-[1000] w-56 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1.5 shadow-2xl"
+                      style={{
+                        position: 'fixed',
+                        top: menuPosition.top,
+                        left: menuPosition.left,
+                        backgroundColor: '#1a1a1a',
+                        border: '1px solid #3a3a3a',
+                        borderRadius: '0.75rem',
+                        padding: '0.375rem',
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+                      }}
+                      className="z-[1000] w-56"
                     >
                       <button
                         type="button"
                         onClick={() => { setEditingCharacter(char); setShowWizard(true); setOpenMenuFor(null); }}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[#d8d2ca] hover:bg-[#1a1a1a]"
                       >
                         <Pencil className="h-4 w-4" /> Modifica
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(char.id)}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--dash-danger-text)] hover:bg-[var(--dash-danger-bg)]"
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[#f1d3d3] hover:bg-[#231313]"
                       >
                         <Trash2 className="h-4 w-4" /> Elimina
                       </button>
-                      <div className="my-1 border-t border-[var(--dash-border-soft)]" />
-                      <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.08em] text-[var(--dash-muted)]">
+                      <div className="my-1 border-t border-[#4a4a4a]" />
+                      <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.08em] text-[#8d877f]">
                         Assegna a campagna
                       </div>
                       {isInviteMode ? (
@@ -248,16 +257,16 @@ export function MyCharactersPage() {
                             onChange={e => setInviteCodeDraft(e.target.value.toUpperCase())}
                             placeholder="Codice invito"
                             disabled={isPending}
-                            className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 py-1 text-xs uppercase tracking-[0.15em] text-[var(--dash-text)]"
+                            className="w-full rounded-lg border border-[#3a3a3a] bg-[#181818] px-2 py-1 text-xs uppercase tracking-[0.15em] text-[#d8d2ca]"
                           />
                           <div className="flex gap-2">
                             <button type="button" onClick={() => handleConfirmInvite(char.id)} disabled={isPending || !inviteCodeDraft.trim()}
-                              className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-[var(--dash-accent)] px-2 py-1 text-xs text-[var(--dash-accent)] disabled:opacity-50">
+                              className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-[#8a8176] px-2 py-1 text-xs text-[#8a8176] disabled:opacity-50">
                               {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <KeyRound className="h-3 w-3" />}
                               Conferma
                             </button>
                             <button type="button" onClick={() => { setInviteModeFor(null); setInviteCodeDraft(''); }} disabled={isPending}
-                              className="rounded-lg px-2 py-1 text-xs text-[var(--dash-muted)] hover:text-[var(--dash-text)]">
+                              className="rounded-lg px-2 py-1 text-xs text-[#8d877f] hover:text-[#d8d2ca]">
                               Annulla
                             </button>
                           </div>
@@ -268,7 +277,7 @@ export function MyCharactersPage() {
                             value={char.campaignId ?? ''}
                             onChange={e => handleSelectChange(char.id, e.target.value)}
                             disabled={isPending}
-                            className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 py-1 text-xs text-[var(--dash-text)]"
+                            className="w-full rounded-lg border border-[#3a3a3a] bg-[#181818] px-2 py-1 text-xs text-[#d8d2ca]"
                           >
                             <option value="">— Nessuna campagna —</option>
                             {allCampaignOptions.map(c => (
@@ -276,10 +285,10 @@ export function MyCharactersPage() {
                             ))}
                             <option value={INVITE_OPTION_VALUE}>+ Usa un codice invito...</option>
                           </select>
-                          {isPending && <Loader2 className="mt-1 h-3.5 w-3.5 animate-spin text-[var(--dash-muted)]" />}
+                          {isPending && <Loader2 className="mt-1 h-3.5 w-3.5 animate-spin text-[#8d877f]" />}
                         </div>
                       )}
-                      {error && <p className="px-3 pb-2 text-xs text-[var(--dash-danger-text)]">{error}</p>}
+                      {error && <p className="px-3 pb-2 text-xs text-[#f1d3d3]">{error}</p>}
                     </div>,
                     document.body
                   )}
