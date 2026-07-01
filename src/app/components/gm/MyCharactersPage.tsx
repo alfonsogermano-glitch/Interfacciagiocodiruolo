@@ -128,6 +128,7 @@ export function MyCharactersPage() {
     try {
       await callAssignEndpoint(characterId, { campaignId: value || null });
       await Promise.all([load(), refreshCampaigns(), refreshJoinedCampaigns()]);
+      setOpenMenuFor(null);
     } catch (err) {
       setAssignErrors(prev => ({ ...prev, [characterId]: err instanceof Error ? err.message : String(err) }));
     } finally {
