@@ -261,7 +261,7 @@ export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
 
                 <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--dash-text)]">
                   <span className="flex items-center gap-1">
-                    <Users className="h-3.5 w-3.5" /> {campaign.memberCount} giocatori
+                    <Users className="h-3.5 w-3.5" /> {campaign.memberCount} {campaign.memberCount === 1 ? 'giocatore' : 'giocatori'}
                   </span>
                   {campaign.characters.length > 0 && (
                     <span className="flex flex-wrap items-center gap-1 text-[var(--dash-muted)]">
