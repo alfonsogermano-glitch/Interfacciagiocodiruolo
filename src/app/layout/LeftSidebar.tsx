@@ -92,16 +92,16 @@ export function LeftSidebar({
                   {campaign.logoUrl ? (
                     <img src={campaign.logoUrl} alt={campaign.name} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="relative flex h-full w-full items-center justify-center p-2">
+                    <div className="relative flex h-full w-full items-end justify-center overflow-hidden">
                       <img
                         src="/icon-source-1024.png"
                         alt=""
-                        className="absolute inset-0 h-full w-full object-contain p-1.5 opacity-70"
+                        className="absolute inset-0 h-full w-full object-contain p-2 opacity-60"
                         style={{ filter: 'invert(1)' }}
                       />
                       <span
-                        className="relative z-10 w-full break-words text-center text-[10px] font-semibold leading-tight text-white"
-                        style={{ textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,0.7)' }}
+                        className="relative z-10 w-full break-words px-1 py-1 text-center text-[10px] font-semibold leading-tight text-white"
+                        style={{ backgroundColor: 'rgba(0,0,0,0.72)' }}
                       >
                         {campaign.name}
                       </span>
