@@ -87,7 +87,7 @@ export function LeftSidebar({
                       ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
                       : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)]/60 hover:bg-[var(--dash-surface-2)]'
                   }`}
-                  style={{ width: '100%', aspectRatio: campaign.logoUrl ? '1 / 1' : undefined }}
+                  style={{ width: '100%', aspectRatio: '1 / 1' }}
                 >
                   {campaign.logoUrl ? (
                     <img src={campaign.logoUrl} alt={campaign.name} className="h-full w-full object-cover" />
