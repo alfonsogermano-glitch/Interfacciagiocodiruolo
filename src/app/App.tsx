@@ -65,9 +65,9 @@ function Dashboard({ activeTab, navigationTarget, onNavigate }: DashboardProps) 
         <AdventureManager campaignId={activeCampaignId} />
       )}
 
-      {activeTab === 'players' && <PlayerCharacters />}
+      {activeTab === 'players' && <PlayerCharacters navigationTarget={navigationTarget} />}
       {activeTab === 'characters' && <MyCharactersPage />}
-      {activeTab === 'campaigns' && <CampaignsPage />}
+      {activeTab === 'campaigns' && <CampaignsPage onNavigate={onNavigate} />}
       {activeTab === 'npcs' && (
         <NPCManager navigationTarget={navigationTarget} />
       )}

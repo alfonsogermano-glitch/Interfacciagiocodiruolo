@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { X, Loader2, Upload, RotateCcw } from 'lucide-react';
+import { X, Loader2, Upload, RotateCcw, Trash2 } from 'lucide-react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { supabase } from '../../auth/AuthContext';
 
@@ -10,6 +10,7 @@ interface ImageCropUploadModalProps {
   aspect?: number;
   uploadLabel?: string;
   onUploaded: (publicUrl: string) => void;
+  onRemove?: () => void;
   onClose: () => void;
 }
 
@@ -36,7 +37,7 @@ async function getCroppedBlob(imageSrc: string, area: Area): Promise<Blob> {
   });
 }
 
-export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', aspect = 1, uploadLabel, onUploaded, onClose }: ImageCropUploadModalProps) {
+export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', aspect = 1, uploadLabel, onUploaded, onRemove, onClose }: ImageCropUploadModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cropAreaRef = useRef<HTMLDivElement | null>(null);
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
@@ -129,13 +130,21 @@ export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', 
         </h2>
 
         {!rawImageSrc ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '1.5rem 0' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '1.5rem 0' }}>
             <button type="button" onClick={() => fileInputRef.current?.click()}
               style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.65rem 1.25rem',
                        borderRadius: 999, backgroundColor: 'transparent', border: '1.5px solid var(--dash-accent)',
                        color: 'var(--dash-accent)', fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer' }}>
               <Upload size={16} /> Scegli immagine
             </button>
+            {onRemove && (
+              <button type="button" onClick={onRemove}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.1rem',
+                         borderRadius: 999, backgroundColor: 'transparent', border: '1.5px solid var(--dash-danger-border)',
+                         color: 'var(--dash-danger-text)', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
+                <Trash2 size={14} /> Elimina logo
+              </button>
+            )}
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
             {error && <p style={{ color: 'var(--dash-danger-text)', fontSize: '0.8rem' }}>{error}</p>}
           </div>

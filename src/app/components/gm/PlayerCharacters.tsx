@@ -27,10 +27,12 @@ const PLAYER_CHARACTERS_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.playerCharacters;
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 interface PlayerCharactersProps {
   storageRefreshKey?: number;
+  navigationTarget?: { tabId: string; entityId?: string; entityType?: string } | null;
 }
 
 export function PlayerCharacters({
-  storageRefreshKey = 0
+  storageRefreshKey = 0,
+  navigationTarget
 }: PlayerCharactersProps) {
   const { user, session } = useAuth();
   const { activeCampaignId, activeCampaign } = useCampaign();
@@ -196,7 +198,19 @@ export function PlayerCharacters({
       console.error('Errore backup localStorage:', error);
     }
   }, [characters, isLoading]);
-  
+
+  useEffect(() => {
+    if (navigationTarget?.tabId !== 'players') return;
+    if (navigationTarget.entityType !== 'character') return;
+    if (!navigationTarget.entityId) return;
+    const charToOpen = characters.find(c => c.id === navigationTarget.entityId);
+    if (!charToOpen) return;
+    setExpandedCharacters(prev => new Set(prev).add(charToOpen.id));
+    // scorre la pagina fino alla card, se il ref esiste
+    const el = document.getElementById(`character-card-${charToOpen.id}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [navigationTarget, characters]);
+
   const toggleExpanded = (id: string) => {
     const newExpanded = new Set(expandedCharacters);
     if (newExpanded.has(id)) {
@@ -596,6 +610,7 @@ const showToast = (message: string) => {
       return (
         <div
           key={char.id}
+          id={`character-card-${char.id}`}
           className="rounded-2xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] shadow-[0_10px_28px_rgba(0,0,0,0.35)]"
         >
           <div className={`relative z-10 bg-gradient-to-r from-[var(--dash-panel)] via-[var(--dash-surface-2)] to-[var(--dash-surface)] p-5 ${

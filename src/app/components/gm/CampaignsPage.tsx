@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Users, KeyRound, Copy, Check, Camera, Loader2, Plus } from 'lucide-react';
+import { Search, Users, User, KeyRound, Copy, Check, Camera, Loader2, Plus } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { CampaignForm } from '../../campaigns/CampaignSelector';
@@ -28,8 +28,11 @@ interface OverviewCampaign {
 
 type SortOption = 'name-asc' | 'name-desc' | 'date-asc' | 'date-desc';
 
+interface CampaignsPageProps {
+  onNavigate: (target: { tabId: string; entityId?: string; entityType?: string }) => void;
+}
 
-export function CampaignsPage() {
+export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
   const { session } = useAuth();
   const [campaigns, setCampaigns] = useState<OverviewCampaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -133,6 +136,21 @@ export function CampaignsPage() {
     }
   };
 
+  const handleLogoRemoved = async (campaignId: string) => {
+    setCampaigns(prev => prev.map(c => (c.id === campaignId ? { ...c, logoUrl: undefined } : c)));
+    setLogoUploadFor(null);
+    try {
+      const accessToken = session?.access_token ?? publicAnonKey;
+      await fetch(`${SERVER_BASE}/campaigns/${campaignId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ logoUrl: null }),
+      });
+    } catch (err) {
+      console.error('Errore rimozione logo:', err);
+    }
+  };
+
   const copyInviteCode = (campaign: OverviewCampaign) => {
     if (!campaign.inviteCode) return;
     navigator.clipboard.writeText(campaign.inviteCode).then(() => {
@@ -228,7 +246,7 @@ export function CampaignsPage() {
                       <Camera size={13} color="var(--dash-bg)" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="right">Inserisci l'immagine Logo della campagna</TooltipContent>
+                  <TooltipContent side="right">Modifica il logo della Campagna</TooltipContent>
                 </Tooltip>
               </div>
 
@@ -246,8 +264,20 @@ export function CampaignsPage() {
                     <Users className="h-3.5 w-3.5" /> {campaign.memberCount} giocatori
                   </span>
                   {campaign.characters.length > 0 && (
-                    <span className="truncate text-[var(--dash-muted)]">
-                      {campaign.characters.map(ch => ch.name).join(', ')}
+                    <span className="flex flex-wrap items-center gap-1 text-[var(--dash-muted)]">
+                      <User className="h-3.5 w-3.5 shrink-0" />
+                      {campaign.characters.map((ch, i) => (
+                        <span key={ch.id} className="flex items-center">
+                          <button
+                            type="button"
+                            onClick={() => onNavigate({ tabId: 'players', entityId: ch.id, entityType: 'character' })}
+                            className="underline-offset-2 hover:text-[var(--dash-accent-2)] hover:underline"
+                          >
+                            {ch.name}
+                          </button>
+                          {i < campaign.characters.length - 1 && <span className="ml-1">,</span>}
+                        </span>
+                      ))}
                     </span>
                   )}
                 </div>
@@ -277,6 +307,7 @@ export function CampaignsPage() {
           aspect={1}
           uploadLabel="Seleziona l'immagine del Logo Campagna"
           onUploaded={(url) => handleLogoUploaded(logoUploadFor, url)}
+          onRemove={campaigns.find(c => c.id === logoUploadFor)?.logoUrl ? () => handleLogoRemoved(logoUploadFor!) : undefined}
           onClose={() => setLogoUploadFor(null)}
         />
       )}
