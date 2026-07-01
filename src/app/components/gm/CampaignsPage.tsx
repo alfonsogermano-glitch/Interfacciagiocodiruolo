@@ -165,7 +165,7 @@ export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 select-none">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Campagne</h2>
         <button
