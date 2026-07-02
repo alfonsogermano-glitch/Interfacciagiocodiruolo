@@ -69,6 +69,7 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
       .channel(`campaign:${activeCampaign.id}`, { config: { private: true } })
       .on('presence', { event: 'sync' }, () => {
         const state = ch.presenceState();
+        console.log('[SYNC-DEBUG] sync ricevuto, isOwner=', isOwner, '| state=', JSON.stringify(state));
         const online = Object.values(state).some((presences: any) =>
           presences.some((p: any) => p.role === 'gm')
         );
