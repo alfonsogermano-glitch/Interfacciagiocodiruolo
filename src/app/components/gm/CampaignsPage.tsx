@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Search, Users, User, KeyRound, Copy, Check, Camera, Loader2, Plus } from 'lucide-react';
-import { useAuth } from '../../auth/AuthContext';
+import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { CampaignForm } from '../../campaigns/CampaignSelector';
 import { RULESETS, VISIBLE_RULESETS, type RulesetId, type CampaignCreateInput } from '../../campaigns/campaignTypes';
@@ -47,6 +47,7 @@ export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
   const [logoUploadFor, setLogoUploadFor] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [togglingSession, setTogglingSession] = useState<string | null>(null);
+  const [gmPresenceStatus, setGmPresenceStatus] = useState<Record<string, 'tracking' | 'idle'>>({});
 
   const { createCampaign } = useCampaign();
   const [showCampaignForm, setShowCampaignForm] = useState(false);
@@ -87,6 +88,31 @@ export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
   };
 
   useEffect(() => { void load(); }, [session?.access_token]);
+
+  useEffect(() => {
+    const channels: Record<string, ReturnType<typeof supabase.channel>> = {};
+
+    campaigns.forEach((campaign) => {
+      if (campaign.sessionActive && !channels[campaign.id]) {
+        const ch = supabase
+          .channel(`campaign:${campaign.id}`, { config: { private: true } })
+          .subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+              await ch.track({ role: 'gm', online_at: new Date().toISOString() });
+              setGmPresenceStatus(prev => ({ ...prev, [campaign.id]: 'tracking' }));
+            }
+          });
+        channels[campaign.id] = ch;
+      }
+    });
+
+    return () => {
+      Object.values(channels).forEach((ch) => {
+        ch.untrack();
+        supabase.removeChannel(ch);
+      });
+    };
+  }, [campaigns.map(c => `${c.id}:${c.sessionActive}`).join(',')]);
 
   const allCharacterNames = useMemo(() => {
     const names = new Set<string>();
@@ -327,6 +353,11 @@ export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
                     >
                       {togglingSession === campaign.id ? '...' : campaign.sessionActive ? '🟢 Sessione ON' : '⚪ Sessione OFF'}
                     </button>
+                    {campaign.sessionActive && (
+                      <span className="text-[10px] text-[var(--dash-muted)]">
+                        Presenza: {gmPresenceStatus[campaign.id] === 'tracking' ? '✅ tracciata' : '⏳...'}
+                      </span>
+                    )}
                   </div>
                   <div className="flex shrink-0 flex-col items-end text-xs text-[var(--dash-muted)]">
                     <span>
