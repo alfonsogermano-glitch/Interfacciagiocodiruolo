@@ -23,6 +23,7 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   const [characterLookupDone, setCharacterLookupDone] = useState(false);
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const lookupSeqRef = useRef(0);
   const isOwner = activeCampaign?.ownerId === user?.id;
   const sessionActive = localSessionActive ?? !!activeCampaign?.sessionActive;
 
@@ -32,6 +33,9 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
 
   // Trova il proprio personaggio in questa campagna (solo per i giocatori)
   useEffect(() => {
+    const mySeq = ++lookupSeqRef.current;
+    console.log('[LOOKUP-DEBUG] avvio ricerca personaggio, seq=', mySeq, 'isOwner=', isOwner);
+
     if (isOwner) {
       setOwnCharacterId(null);
       setCharacterLookupDone(true);
@@ -41,15 +45,17 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
       setCharacterLookupDone(false);
       return;
     }
-    let cancelled = false;
     setCharacterLookupDone(false);
     loadCharactersByOwner(user.id).then(chars => {
-      if (cancelled) return;
+      if (lookupSeqRef.current !== mySeq) {
+        console.log('[LOOKUP-DEBUG] risultato scartato (seq superata), seq=', mySeq, 'attuale=', lookupSeqRef.current);
+        return;
+      }
       const mine = chars.find(c => c.campaignId === activeCampaign.id);
+      console.log('[LOOKUP-DEBUG] risultato applicato, seq=', mySeq, 'characterId=', mine?.id);
       setOwnCharacterId(mine?.id ?? null);
       setCharacterLookupDone(true);
     });
-    return () => { cancelled = true; };
   }, [isOwner, user?.id, activeCampaign?.id]);
 
   useEffect(() => {
