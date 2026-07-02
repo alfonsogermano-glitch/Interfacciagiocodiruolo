@@ -50,7 +50,7 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
   const [togglingSession, setTogglingSession] = useState<string | null>(null);
   const [gmPresenceStatus, setGmPresenceStatus] = useState<Record<string, 'tracking' | 'idle'>>({});
 
-  const { createCampaign } = useCampaign();
+  const { createCampaign, joinedCampaigns } = useCampaign();
   const [showCampaignForm, setShowCampaignForm] = useState(false);
   const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
   const [campaignFormError, setCampaignFormError] = useState<string | null>(null);
@@ -381,6 +381,41 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {joinedCampaigns.length > 0 && (
+        <div className="space-y-4 pt-2">
+          <h3 className="text-base font-semibold tracking-wide text-[var(--dash-text-strong)]">
+            Campagne a cui partecipi
+          </h3>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {joinedCampaigns.map(campaign => (
+              <button
+                key={campaign.id}
+                type="button"
+                onClick={() => onEnterCampaign(campaign as any)}
+                className="group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4 pt-5 text-left transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
+              >
+                <span
+                  className="absolute inset-x-0 top-0 h-1"
+                  style={{ backgroundColor: (RULESETS[campaign.ruleset] ?? RULESETS.custom).color }}
+                />
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <RulesetTag rulesetId={campaign.ruleset} />
+                  {campaign.sessionActive && (
+                    <span className="flex items-center gap-1 rounded-full bg-green-900/40 px-2 py-0.5 text-[10px] font-semibold text-green-300">
+                      ● In sessione
+                    </span>
+                  )}
+                </div>
+                <h4 className="text-base font-semibold tracking-wide text-[var(--dash-text-strong)]">{campaign.name}</h4>
+                {campaign.description && (
+                  <p className="mt-1 line-clamp-2 text-xs text-[var(--dash-muted)]">{campaign.description}</p>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
