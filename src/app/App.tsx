@@ -6,6 +6,7 @@ import { DeleteData } from './legal/DeleteData';
 import { SetNewPasswordModal } from './landing/SetNewPasswordModal';
 import { CampaignProvider, useCampaign } from './campaigns/CampaignContext';
 import { CampaignHome } from './campaigns/CampaignHome';
+import type { Campaign } from './campaigns/campaignTypes';
 import { RulesetProvider } from './campaigns/RulesetContext';
 import { HomeScreen } from './home/HomeScreen';
 import { AppShell } from './layout/AppShell';
@@ -52,9 +53,10 @@ interface DashboardProps {
   activeTab: string;
   navigationTarget: NavigationTarget | null;
   onNavigate: (target: NavigationTarget) => void;
+  onEnterCampaign: (campaign: Campaign) => void;
 }
 
-function Dashboard({ activeTab, navigationTarget, onNavigate }: DashboardProps) {
+function Dashboard({ activeTab, navigationTarget, onNavigate, onEnterCampaign }: DashboardProps) {
   const { activeCampaignId, campaigns, isLoading: campaignsLoading } = useCampaign();
 
   return (
@@ -68,7 +70,7 @@ function Dashboard({ activeTab, navigationTarget, onNavigate }: DashboardProps) 
 
       {activeTab === 'players' && <PlayerCharacters navigationTarget={navigationTarget} />}
       {activeTab === 'characters' && <MyCharactersPage />}
-      {activeTab === 'campaigns' && <CampaignsPage onNavigate={onNavigate} />}
+      {activeTab === 'campaigns' && <CampaignsPage onNavigate={onNavigate} onEnterCampaign={onEnterCampaign} />}
       {activeTab === 'npcs' && (
         <NPCManager navigationTarget={navigationTarget} />
       )}
@@ -237,6 +239,7 @@ function AuthGate() {
   };
 
   const goToManagement = () => {
+    changeActiveGmTab('map');
     localStorage.setItem(VIEW_LS_KEY, 'dashboard');
     setView('dashboard');
   };
@@ -318,6 +321,7 @@ function AuthGate() {
             activeTab={activeGmTab}
             navigationTarget={navigationTarget}
             onNavigate={navigateToEntity}
+            onEnterCampaign={goToDashboard}
           />
         )}
       </AppShell>

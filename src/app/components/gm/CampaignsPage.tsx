@@ -31,9 +31,10 @@ type SortOption = 'name-asc' | 'name-desc' | 'date-asc' | 'date-desc';
 
 interface CampaignsPageProps {
   onNavigate: (target: { tabId: string; entityId?: string; entityType?: string }) => void;
+  onEnterCampaign: (campaign: OverviewCampaign) => void;
 }
 
-export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
+export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProps) {
   const { session } = useAuth();
   const [campaigns, setCampaigns] = useState<OverviewCampaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -269,7 +270,14 @@ export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
       ) : (
         <div className="flex flex-col gap-4">
           {filteredSorted.map(campaign => (
-            <div key={campaign.id} className="flex h-[156px] overflow-hidden rounded-2xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] shadow-xl">
+            <div
+              key={campaign.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onEnterCampaign(campaign)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEnterCampaign(campaign); } }}
+              className="flex h-[156px] cursor-pointer overflow-hidden rounded-2xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] shadow-xl transition-colors hover:border-[var(--dash-accent)]"
+            >
               <div className="relative h-full w-[154px] shrink-0 overflow-hidden bg-black/30">
                 {campaign.logoUrl ? (
                   <img src={campaign.logoUrl} alt={campaign.name} className="h-full w-full object-cover" />
@@ -285,7 +293,7 @@ export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
                 )}
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button type="button" onClick={() => setLogoUploadFor(campaign.id)}
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setLogoUploadFor(campaign.id); }}
                       style={{ position: 'absolute', bottom: 6, right: 6, width: 26, height: 26, borderRadius: '50%',
                                backgroundColor: 'var(--dash-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                border: '2px solid var(--dash-bg)', cursor: 'pointer' }}>
@@ -316,7 +324,7 @@ export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
                         <span key={ch.id} className="flex items-center">
                           <button
                             type="button"
-                            onClick={() => onNavigate({ tabId: 'players', entityId: ch.id, entityType: 'character' })}
+                            onClick={(e) => { e.stopPropagation(); onNavigate({ tabId: 'players', entityId: ch.id, entityType: 'character' }); }}
                             className="underline-offset-2 hover:text-[var(--dash-accent-2)] hover:underline"
                           >
                             {ch.name}
@@ -333,7 +341,7 @@ export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
                     {campaign.inviteCode ? (
                       <button
                         type="button"
-                        onClick={() => copyInviteCode(campaign)}
+                        onClick={(e) => { e.stopPropagation(); copyInviteCode(campaign); }}
                         className="inline-flex w-fit items-center gap-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 py-1 text-xs text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
                       >
                         <KeyRound className="h-3.5 w-3.5" />
@@ -343,7 +351,7 @@ export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
                     ) : null}
                     <button
                       type="button"
-                      onClick={() => toggleSession(campaign)}
+                      onClick={(e) => { e.stopPropagation(); toggleSession(campaign); }}
                       disabled={togglingSession === campaign.id}
                       className={`inline-flex w-fit items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-colors ${
                         campaign.sessionActive
