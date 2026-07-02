@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Search, Users, User, KeyRound, Copy, Check, Camera, Loader2, Plus } from 'lucide-react';
-import { useAuth, supabase } from '../../auth/AuthContext';
+import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { CampaignForm } from '../../campaigns/CampaignSelector';
 import { RULESETS, VISIBLE_RULESETS, type RulesetId, type CampaignCreateInput } from '../../campaigns/campaignTypes';
@@ -51,8 +51,6 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
 
   const [logoUploadFor, setLogoUploadFor] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [togglingSession, setTogglingSession] = useState<string | null>(null);
-  const [gmPresenceStatus, setGmPresenceStatus] = useState<Record<string, 'tracking' | 'idle'>>({});
 
   const [showCampaignForm, setShowCampaignForm] = useState(false);
   const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
@@ -115,31 +113,6 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
   };
 
   useEffect(() => { void load(); }, [session?.access_token, joinedCampaigns.length]);
-
-  useEffect(() => {
-    const channels: Record<string, ReturnType<typeof supabase.channel>> = {};
-
-    ownedCampaigns.forEach((campaign) => {
-      if (campaign.sessionActive && !channels[campaign.id]) {
-        const ch = supabase
-          .channel(`campaign:${campaign.id}`, { config: { private: true } })
-          .subscribe(async (status) => {
-            if (status === 'SUBSCRIBED') {
-              await ch.track({ role: 'gm', online_at: new Date().toISOString() });
-              setGmPresenceStatus(prev => ({ ...prev, [campaign.id]: 'tracking' }));
-            }
-          });
-        channels[campaign.id] = ch;
-      }
-    });
-
-    return () => {
-      Object.values(channels).forEach((ch) => {
-        ch.untrack();
-        supabase.removeChannel(ch);
-      });
-    };
-  }, [ownedCampaigns.map(c => `${c.id}:${c.sessionActive}`).join(',')]);
 
   const allCampaigns = useMemo(() => [...ownedCampaigns, ...joinedEnriched], [ownedCampaigns, joinedEnriched]);
 
@@ -214,24 +187,6 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
       setCopiedId(campaign.id);
       setTimeout(() => setCopiedId(null), 1500);
     });
-  };
-
-  const toggleSession = async (campaign: OverviewCampaign) => {
-    setTogglingSession(campaign.id);
-    try {
-      const accessToken = session?.access_token ?? publicAnonKey;
-      const res = await fetch(`${SERVER_BASE}/campaigns/${campaign.id}/session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ active: !campaign.sessionActive }),
-      });
-      if (!res.ok) throw new Error('Errore cambio stato sessione');
-      await load();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setTogglingSession(null);
-    }
   };
 
   const inputStyle: React.CSSProperties = {
@@ -392,25 +347,6 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
                         {copiedId === campaign.id ? <Check className="h-3.5 w-3.5 text-[var(--dash-accent)]" /> : <Copy className="h-3.5 w-3.5" />}
                       </button>
                     ) : null}
-                    {campaign.isOwned && (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); toggleSession(campaign); }}
-                        disabled={togglingSession === campaign.id}
-                        className={`inline-flex w-fit items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-colors ${
-                          campaign.sessionActive
-                            ? 'border-green-700 bg-green-900/40 text-green-300'
-                            : 'border-[var(--dash-border-soft)] bg-[var(--dash-panel)] text-[var(--dash-muted)]'
-                        }`}
-                      >
-                        {togglingSession === campaign.id ? '...' : campaign.sessionActive ? '🟢 Sessione ON' : '⚪ Sessione OFF'}
-                      </button>
-                    )}
-                    {!campaign.isOwned && campaign.sessionActive && (
-                      <span className="rounded-lg border border-green-700 bg-green-900/40 px-2.5 py-1 text-xs text-green-300">
-                        🟢 In sessione
-                      </span>
-                    )}
                   </div>
                   <div className="flex shrink-0 flex-col items-end text-xs text-[var(--dash-muted)]">
                     <span>
