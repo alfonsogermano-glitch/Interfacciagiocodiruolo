@@ -68,9 +68,11 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
       .channel(`campaign:${activeCampaign.id}`, { config: { private: true } })
       .on('presence', { event: 'sync' }, () => {
         const state = ch.presenceState();
+        console.log('[GM-ONLINE-DEBUG] presence sync scattato, state=', JSON.stringify(state));
         const online = Object.values(state).some((presences: any) =>
           presences.some((p: any) => p.role === 'gm')
         );
+        console.log('[GM-ONLINE-DEBUG] gmOnline calcolato=', online);
         setGmOnline(online);
       })
       .on('broadcast', { event: 'session_change' }, (msg) => {
