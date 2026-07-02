@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { useAuth } from '../auth/AuthContext';
 import type { Campaign, CampaignCreateInput, RulesetId } from './campaignTypes';
@@ -263,25 +263,43 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     });
   }, [accessToken]);
 
-  const activeCampaign =
-    [...campaigns, ...joinedCampaigns].find(c => c.id === activeCampaignId) ?? null;
+  const activeCampaign = useMemo(
+    () => [...campaigns, ...joinedCampaigns].find(c => c.id === activeCampaignId) ?? null,
+    [campaigns, joinedCampaigns, activeCampaignId]
+  );
+
+  const value = useMemo<CampaignContextValue>(() => ({
+    campaigns,
+    joinedCampaigns,
+    activeCampaign,
+    activeCampaignId,
+    isLoading,
+    setActiveCampaign,
+    createCampaign,
+    updateCampaign,
+    deleteCampaign,
+    refreshCampaigns: fetchCampaigns,
+    refreshJoinedCampaigns: fetchJoinedCampaigns,
+    joinCampaignByCode,
+    generateInviteCode,
+  }), [
+    campaigns,
+    joinedCampaigns,
+    activeCampaign,
+    activeCampaignId,
+    isLoading,
+    setActiveCampaign,
+    createCampaign,
+    updateCampaign,
+    deleteCampaign,
+    fetchCampaigns,
+    fetchJoinedCampaigns,
+    joinCampaignByCode,
+    generateInviteCode,
+  ]);
 
   return (
-    <CampaignContext.Provider value={{
-      campaigns,
-      joinedCampaigns,
-      activeCampaign,
-      activeCampaignId,
-      isLoading,
-      setActiveCampaign,
-      createCampaign,
-      updateCampaign,
-      deleteCampaign,
-      refreshCampaigns: fetchCampaigns,
-      refreshJoinedCampaigns: fetchJoinedCampaigns,
-      joinCampaignByCode,
-      generateInviteCode,
-    }}>
+    <CampaignContext.Provider value={value}>
       {children}
     </CampaignContext.Provider>
   );
