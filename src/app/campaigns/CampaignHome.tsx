@@ -77,7 +77,8 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
           if (isOwner) {
             await ch.track({ role: 'gm', online_at: new Date().toISOString() });
           } else if (ownCharacterId) {
-            await ch.track({ role: 'player', characterId: ownCharacterId, online_at: new Date().toISOString() });
+            const result = await ch.track({ role: 'player', characterId: ownCharacterId, online_at: new Date().toISOString() });
+            console.log('[PRESENCE-DEBUG3] track result=', result);
           }
           setChannelReady(true);
         }
