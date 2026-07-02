@@ -20,6 +20,7 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   const [localSessionActive, setLocalSessionActive] = useState<boolean | null>(null);
   const [channelReady, setChannelReady] = useState(false);
   const [ownCharacterId, setOwnCharacterId] = useState<string | null>(null);
+  const [characterLookupDone, setCharacterLookupDone] = useState(false);
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const isOwner = activeCampaign?.ownerId === user?.id;
@@ -31,21 +32,28 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
 
   // Trova il proprio personaggio in questa campagna (solo per i giocatori)
   useEffect(() => {
-    if (isOwner || !user?.id || !activeCampaign?.id) {
+    if (isOwner) {
       setOwnCharacterId(null);
+      setCharacterLookupDone(true);
+      return;
+    }
+    if (!user?.id || !activeCampaign?.id) {
+      setCharacterLookupDone(false);
       return;
     }
     let cancelled = false;
+    setCharacterLookupDone(false);
     loadCharactersByOwner(user.id).then(chars => {
       if (cancelled) return;
       const mine = chars.find(c => c.campaignId === activeCampaign.id);
       setOwnCharacterId(mine?.id ?? null);
+      setCharacterLookupDone(true);
     });
     return () => { cancelled = true; };
   }, [isOwner, user?.id, activeCampaign?.id]);
 
   useEffect(() => {
-    if (!activeCampaign?.id) return;
+    if (!activeCampaign?.id || !characterLookupDone) return;
     setChannelReady(false);
 
     const ch = supabase
@@ -64,7 +72,6 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
         }
       })
       .subscribe(async (status) => {
-        console.log('[PRESENCE-DEBUG] canale SUBSCRIBED, isOwner=', isOwner, '| ownCharacterId=', ownCharacterId);
         if (status === 'SUBSCRIBED') {
           if (isOwner) {
             await ch.track({ role: 'gm', online_at: new Date().toISOString() });
@@ -83,7 +90,7 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
       channelRef.current = null;
       setChannelReady(false);
     };
-  }, [activeCampaign?.id, isOwner, ownCharacterId]);
+  }, [activeCampaign?.id, isOwner, ownCharacterId, characterLookupDone]);
 
   const handleToggleSession = async () => {
     if (!activeCampaign?.id) return;
