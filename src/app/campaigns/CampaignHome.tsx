@@ -59,6 +59,7 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   }, [isOwner, user?.id, activeCampaign?.id]);
 
   useEffect(() => {
+    console.log('[GUARD-DEBUG] activeCampaign.id=', activeCampaign?.id, '| characterLookupDone=', characterLookupDone);
     if (!activeCampaign?.id || !characterLookupDone) return;
     setChannelReady(false);
 
