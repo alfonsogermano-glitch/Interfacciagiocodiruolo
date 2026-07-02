@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Play, Square, Settings, Loader2 } from 'lucide-react';
-import { useAuth, supabase } from '../auth/AuthContext';
+import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
 import { loadCharactersByOwner } from '../../services/supabase/charactersService';
+import { acquireCampaignChannel, releaseCampaignChannel } from '../../services/realtime/campaignPresence';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
@@ -12,7 +13,6 @@ interface CampaignHomeProps {
 }
 
 export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
-  console.log('[CAMPAIGNHOME-MOUNT] componente montato');
   const { user, session } = useAuth();
   const { activeCampaign, refreshCampaigns } = useCampaign();
 
@@ -23,7 +23,7 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   const [ownCharacterId, setOwnCharacterId] = useState<string | null>(null);
   const [characterLookupDone, setCharacterLookupDone] = useState(false);
 
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const channelRef = useRef<ReturnType<typeof acquireCampaignChannel> | null>(null);
   const isOwner = activeCampaign?.ownerId === user?.id;
   const sessionActive = localSessionActive ?? !!activeCampaign?.sessionActive;
 
@@ -55,41 +55,39 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
 
   useEffect(() => {
     if (!activeCampaign?.id || !characterLookupDone) return;
+    const campaignId = activeCampaign.id;
     setChannelReady(false);
 
-    const ch = supabase
-      .channel(`campaign:${activeCampaign.id}`, { config: { private: true } })
-      .on('presence', { event: 'sync' }, () => {
-        const state = ch.presenceState();
+    const ch = acquireCampaignChannel(campaignId, {
+      onPresenceSync: (channel) => {
+        const state = channel.presenceState();
         const online = Object.values(state).some((presences: any) =>
           presences.some((p: any) => p.role === 'gm')
         );
         setGmOnline(online);
-      })
-      .on('broadcast', { event: 'session_change' }, (msg) => {
-        const active = msg?.payload?.active;
-        if (typeof active === 'boolean') {
-          setLocalSessionActive(active);
-        }
-      })
-      .subscribe(async (status) => {
-        console.log('[PRESENCE-DEBUG2] isOwner=', isOwner, '| ownCharacterId=', ownCharacterId, '| characterLookupDone=', characterLookupDone, '| activeCampaign.id=', activeCampaign?.id);
-        if (status === 'SUBSCRIBED') {
-          if (isOwner) {
-            await ch.track({ role: 'gm', online_at: new Date().toISOString() });
-          } else if (ownCharacterId) {
-            const result = await ch.track({ role: 'player', characterId: ownCharacterId, online_at: new Date().toISOString() });
-            console.log('[PRESENCE-DEBUG3] track result=', result);
+      },
+      onBroadcast: {
+        session_change: (msg: any) => {
+          const active = msg?.payload?.active;
+          if (typeof active === 'boolean') {
+            setLocalSessionActive(active);
           }
-          setChannelReady(true);
+        },
+      },
+      onSubscribed: async (channel) => {
+        if (isOwner) {
+          await channel.track({ role: 'gm', online_at: new Date().toISOString() });
+        } else if (ownCharacterId) {
+          await channel.track({ role: 'player', characterId: ownCharacterId, online_at: new Date().toISOString() });
         }
-      });
+        setChannelReady(true);
+      },
+    });
 
     channelRef.current = ch;
 
     return () => {
-      if (isOwner || ownCharacterId) ch.untrack();
-      supabase.removeChannel(ch);
+      releaseCampaignChannel(campaignId, isOwner || !!ownCharacterId);
       channelRef.current = null;
       setChannelReady(false);
     };

@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Search, Users, User, KeyRound, Copy, Check, Camera, Loader2, Plus } from 'lucide-react';
-import { useAuth, supabase } from '../../auth/AuthContext';
+import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { CampaignForm } from '../../campaigns/CampaignSelector';
 import { RULESETS, VISIBLE_RULESETS, type RulesetId, type CampaignCreateInput } from '../../campaigns/campaignTypes';
+import { acquireCampaignChannel, releaseCampaignChannel } from '../../../services/realtime/campaignPresence';
 import { ImageCropUploadModal } from '../shared/ImageCropUploadModal';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
@@ -118,14 +119,13 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
   const allCampaigns = useMemo(() => [...ownedCampaigns, ...joinedEnriched], [ownedCampaigns, joinedEnriched]);
 
   useEffect(() => {
-    const channels: Record<string, ReturnType<typeof supabase.channel>> = {};
+    const acquiredIds: string[] = [];
 
     allCampaigns.forEach((campaign) => {
-      if (campaign.characters.length === 0 || channels[campaign.id]) return;
-      const ch = supabase
-        .channel(`campaign:${campaign.id}`, { config: { private: true } })
-        .on('presence', { event: 'sync' }, () => {
-          const state = ch.presenceState();
+      if (campaign.characters.length === 0) return;
+      acquireCampaignChannel(campaign.id, {
+        onPresenceSync: (channel) => {
+          const state = channel.presenceState();
           const ids = new Set<string>();
           Object.values(state).forEach((presences: any) => {
             presences.forEach((p: any) => {
@@ -133,13 +133,13 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
             });
           });
           setOnlineCharIds(prev => ({ ...prev, [campaign.id]: ids }));
-        })
-        .subscribe();
-      channels[campaign.id] = ch;
+        },
+      });
+      acquiredIds.push(campaign.id);
     });
 
     return () => {
-      Object.values(channels).forEach((ch) => supabase.removeChannel(ch));
+      acquiredIds.forEach((id) => releaseCampaignChannel(id, false));
     };
   }, [allCampaigns.map(c => c.id).join(',')]);
 
