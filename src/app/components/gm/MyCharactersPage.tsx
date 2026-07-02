@@ -44,6 +44,7 @@ export function MyCharactersPage() {
   const [gmOnlineFor, setGmOnlineFor] = useState<Record<string, boolean>>({});
 
   const saveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const loadSeqRef = useRef(0);
 
   const allCampaignOptions = [
     ...campaigns.map(c => ({ id: c.id, name: c.name, suffix: '(tua campagna)' })),
@@ -57,19 +58,15 @@ export function MyCharactersPage() {
   };
 
   const load = async () => {
-    console.log('[CHANNELS-DEBUG] canali Realtime attivi:', (supabase as any).realtime?.channels?.length ?? 'n/d');
     if (!user?.id) return;
-    const startedAt = Date.now();
-    console.log('[CHARS-DEBUG] load() START, user.id=', user.id, '| timestamp=', startedAt);
+    const mySeq = ++loadSeqRef.current;
     setIsLoading(true);
     try {
       const data = await loadCharactersByOwner(user.id);
-      console.log('[CHARS-DEBUG] load() FINE dopo', Date.now() - startedAt, 'ms, personaggi trovati=', data.length);
+      if (loadSeqRef.current !== mySeq) return;
       setCharacters(data);
-    } catch (err) {
-      console.log('[CHARS-DEBUG] load() ERRORE dopo', Date.now() - startedAt, 'ms:', err);
     } finally {
-      setIsLoading(false);
+      if (loadSeqRef.current === mySeq) setIsLoading(false);
     }
   };
 
