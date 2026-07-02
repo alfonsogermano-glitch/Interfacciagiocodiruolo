@@ -71,12 +71,35 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
       setLocalSessionActive(nextActive);
 
       // Annuncia il cambio a chiunque stia già osservando il canale
-      // (es. i giocatori sulla stessa Home Campagna), senza aspettare
-      // che ricarichino manualmente
-      const ch = supabase.channel(`campaign:${activeCampaign.id}`, { config: { private: true } });
-      await ch.subscribe();
-      await ch.send({ type: 'broadcast', event: 'session_change', payload: { active: nextActive } });
-      supabase.removeChannel(ch);
+      await new Promise<void>((resolve) => {
+        const ch = supabase.channel(`campaign:${activeCampaign.id}`, { config: { private: true } });
+        let settled = false;
+
+        const cleanup = () => {
+          if (settled) return;
+          settled = true;
+          supabase.removeChannel(ch);
+          resolve();
+        };
+
+        const safetyTimeout = setTimeout(cleanup, 3000);
+
+        ch.subscribe(async (status) => {
+          if (status === 'SUBSCRIBED' && !settled) {
+            try {
+              await ch.send({ type: 'broadcast', event: 'session_change', payload: { active: nextActive } });
+            } catch (err) {
+              console.error('Errore invio broadcast session_change:', err);
+            } finally {
+              clearTimeout(safetyTimeout);
+              cleanup();
+            }
+          } else if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') && !settled) {
+            clearTimeout(safetyTimeout);
+            cleanup();
+          }
+        });
+      });
 
       await refreshCampaigns();
     } catch (err) {
