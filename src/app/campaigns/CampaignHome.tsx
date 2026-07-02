@@ -28,16 +28,15 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   const sessionActive = localSessionActive ?? !!activeCampaign?.sessionActive;
 
   useEffect(() => {
+    console.log('[SESSION-DEBUG] sessionActive dal context=', activeCampaign?.sessionActive);
     setLocalSessionActive(activeCampaign?.sessionActive ?? false);
   }, [activeCampaign?.id, activeCampaign?.sessionActive]);
 
   useEffect(() => {
     if (!activeCampaign?.id) return;
-    if (isOwner) {
-      void refreshCampaigns();
-    } else {
-      void refreshJoinedCampaigns();
-    }
+    console.log('[REFRESH-DEBUG] avvio refresh, isOwner=', isOwner);
+    const promise = isOwner ? refreshCampaigns() : refreshJoinedCampaigns();
+    void promise.then(() => console.log('[REFRESH-DEBUG] refresh completato'));
   }, [activeCampaign?.id, isOwner]);
 
   // Trova il proprio personaggio in questa campagna (solo per i giocatori)
