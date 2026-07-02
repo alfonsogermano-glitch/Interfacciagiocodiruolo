@@ -57,6 +57,7 @@ export function MyCharactersPage() {
   };
 
   const load = async () => {
+    console.log('[CHANNELS-DEBUG] canali Realtime attivi:', (supabase as any).realtime?.channels?.length ?? 'n/d');
     if (!user?.id) return;
     const startedAt = Date.now();
     console.log('[CHARS-DEBUG] load() START, user.id=', user.id, '| timestamp=', startedAt);
