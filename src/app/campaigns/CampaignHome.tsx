@@ -72,6 +72,7 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
         }
       })
       .subscribe(async (status) => {
+        console.log('[PRESENCE-DEBUG2] isOwner=', isOwner, '| ownCharacterId=', ownCharacterId, '| characterLookupDone=', characterLookupDone, '| activeCampaign.id=', activeCampaign?.id);
         if (status === 'SUBSCRIBED') {
           if (isOwner) {
             await ch.track({ role: 'gm', online_at: new Date().toISOString() });
