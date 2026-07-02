@@ -263,6 +263,14 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
         <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[var(--dash-muted)]" /></div>
       ) : error ? (
         <p className="text-sm text-[var(--dash-danger-text)]">{error}</p>
+      ) : campaigns.length === 0 ? (
+        joinedCampaigns.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
+            <p className="text-sm text-[var(--dash-muted)]">
+              Non hai ancora nessuna campagna. Creane una, oppure entra in una campagna esistente con un codice invito.
+            </p>
+          </div>
+        ) : null
       ) : filteredSorted.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
           <p className="text-sm text-[var(--dash-muted)]">Nessuna campagna corrisponde ai filtri.</p>
