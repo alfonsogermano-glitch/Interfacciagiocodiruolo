@@ -12,6 +12,7 @@ interface CampaignHomeProps {
 }
 
 export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
+  console.log('[CAMPAIGNHOME-MOUNT] componente montato');
   const { user, session } = useAuth();
   const { activeCampaign, refreshCampaigns } = useCampaign();
 
