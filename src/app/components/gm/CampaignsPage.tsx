@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Users, User, KeyRound, Copy, Check, Camera, Loader2, Plus } from 'lucide-react';
 import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
@@ -51,6 +51,7 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
 
   const [logoUploadFor, setLogoUploadFor] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const loadSeqRef = useRef(0);
   const [onlineCharIds, setOnlineCharIds] = useState<Record<string, Set<string>>>({});
 
   const [showCampaignForm, setShowCampaignForm] = useState(false);
@@ -72,6 +73,7 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
   };
 
   const load = async () => {
+    const mySeq = ++loadSeqRef.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -82,6 +84,7 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
       });
       if (!ownedRes.ok) throw new Error('Errore caricamento campagne possedute');
       const { campaigns: ownedData } = await ownedRes.json();
+      if (loadSeqRef.current !== mySeq) return;
       setOwnedCampaigns((ownedData ?? []).map((c: any) => ({ ...c, isOwned: true })));
 
       // Arricchisce ciascuna campagna partecipata con i personaggi attivi;
@@ -104,12 +107,14 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
           }
         })
       );
+      if (loadSeqRef.current !== mySeq) return;
       setJoinedEnriched(enriched);
     } catch (err) {
+      if (loadSeqRef.current !== mySeq) return;
       console.error(err);
       setError('Impossibile caricare le campagne. Riprova.');
     } finally {
-      setIsLoading(false);
+      if (loadSeqRef.current === mySeq) setIsLoading(false);
     }
   };
 
