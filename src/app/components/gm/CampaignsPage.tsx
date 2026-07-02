@@ -126,7 +126,6 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
         .channel(`campaign:${campaign.id}`, { config: { private: true } })
         .on('presence', { event: 'sync' }, () => {
           const state = ch.presenceState();
-          console.log('[PRESENCE-SYNC] campaignId=', campaign.id, '| state=', JSON.stringify(state));
           const ids = new Set<string>();
           Object.values(state).forEach((presences: any) => {
             presences.forEach((p: any) => {
