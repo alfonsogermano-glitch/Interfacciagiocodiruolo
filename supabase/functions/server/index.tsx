@@ -221,6 +221,36 @@ app.put("/make-server-771c5bfd/campaigns/:id", async (c) => {
   }
 });
 
+app.post("/make-server-771c5bfd/campaigns/:id/session", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const campaignId = c.req.param("id");
+    const { active } = await c.req.json();
+
+    const campaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const index = campaigns.findIndex((c: Campaign) => c.id === campaignId);
+    if (index === -1) {
+      return c.json({ error: "Campagna non trovata o non sei il proprietario" }, 404);
+    }
+
+    const updated = { ...campaigns[index], sessionActive: !!active, updatedAt: new Date().toISOString() };
+    campaigns[index] = updated;
+    await kv.set(campaignsKey(userId), campaigns);
+
+    // Sincronizza anche su Postgres, per la lettura RLS lato giocatori
+    await getAdminClient().from('campaigns').update({ session_active: !!active }).eq('id', campaignId);
+
+    return c.json({ campaign: updated });
+  } catch (err) {
+    console.log("Errore POST campaigns/:id/session:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
 // ─── Campaigns: Mark opened ─────────────────────────────────────────────────
 
 app.post("/make-server-771c5bfd/campaigns/:id/open", async (c) => {
@@ -731,6 +761,7 @@ interface Campaign {
   updatedAt: string;
   lastOpenedAt?: string;
   logoUrl?: string;
+  sessionActive?: boolean;
 }
 
 interface CampaignMembership {

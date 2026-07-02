@@ -22,6 +22,7 @@ interface OverviewCampaign {
   updatedAt: string;
   lastOpenedAt?: string;
   logoUrl?: string;
+  sessionActive?: boolean;
   memberCount: number;
   characters: { id: string; name: string }[];
 }
@@ -45,6 +46,7 @@ export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
 
   const [logoUploadFor, setLogoUploadFor] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [togglingSession, setTogglingSession] = useState<string | null>(null);
 
   const { createCampaign } = useCampaign();
   const [showCampaignForm, setShowCampaignForm] = useState(false);
@@ -157,6 +159,24 @@ export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
       setCopiedId(campaign.id);
       setTimeout(() => setCopiedId(null), 1500);
     });
+  };
+
+  const toggleSession = async (campaign: OverviewCampaign) => {
+    setTogglingSession(campaign.id);
+    try {
+      const accessToken = session?.access_token ?? publicAnonKey;
+      const res = await fetch(`${SERVER_BASE}/campaigns/${campaign.id}/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ active: !campaign.sessionActive }),
+      });
+      if (!res.ok) throw new Error('Errore cambio stato sessione');
+      await load();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setTogglingSession(null);
+    }
   };
 
   const inputStyle: React.CSSProperties = {
@@ -283,19 +303,31 @@ export function CampaignsPage({ onNavigate }: CampaignsPageProps) {
                 </div>
 
                 <div className="mt-auto flex items-center justify-between gap-2">
-                  {campaign.inviteCode ? (
+                  <div className="flex items-center gap-2">
+                    {campaign.inviteCode ? (
+                      <button
+                        type="button"
+                        onClick={() => copyInviteCode(campaign)}
+                        className="inline-flex w-fit items-center gap-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 py-1 text-xs text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
+                      >
+                        <KeyRound className="h-3.5 w-3.5" />
+                        <span className="font-mono tracking-[0.2em]">{campaign.inviteCode}</span>
+                        {copiedId === campaign.id ? <Check className="h-3.5 w-3.5 text-[var(--dash-accent)]" /> : <Copy className="h-3.5 w-3.5" />}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
-                      onClick={() => copyInviteCode(campaign)}
-                      className="inline-flex w-fit items-center gap-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 py-1 text-xs text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
+                      onClick={() => toggleSession(campaign)}
+                      disabled={togglingSession === campaign.id}
+                      className={`inline-flex w-fit items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-colors ${
+                        campaign.sessionActive
+                          ? 'border-green-700 bg-green-900/40 text-green-300'
+                          : 'border-[var(--dash-border-soft)] bg-[var(--dash-panel)] text-[var(--dash-muted)]'
+                      }`}
                     >
-                      <KeyRound className="h-3.5 w-3.5" />
-                      <span className="font-mono tracking-[0.2em]">{campaign.inviteCode}</span>
-                      {copiedId === campaign.id ? <Check className="h-3.5 w-3.5 text-[var(--dash-accent)]" /> : <Copy className="h-3.5 w-3.5" />}
+                      {togglingSession === campaign.id ? '...' : campaign.sessionActive ? '🟢 Sessione ON' : '⚪ Sessione OFF'}
                     </button>
-                  ) : (
-                    <span />
-                  )}
+                  </div>
                   <div className="flex shrink-0 flex-col items-end text-xs text-[var(--dash-muted)]">
                     <span>
                       Creata il {new Date(campaign.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
