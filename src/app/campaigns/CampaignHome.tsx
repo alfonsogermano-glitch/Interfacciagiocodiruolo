@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Play, Square, Settings, Loader2 } from 'lucide-react';
 import { useAuth, supabase } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
@@ -17,18 +17,20 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   const [isToggling, setIsToggling] = useState(false);
   const [gmOnline, setGmOnline] = useState(false);
   const [localSessionActive, setLocalSessionActive] = useState<boolean | null>(null);
+  const [channelReady, setChannelReady] = useState(false);
 
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const isOwner = activeCampaign?.ownerId === user?.id;
   const sessionActive = localSessionActive ?? !!activeCampaign?.sessionActive;
 
-  // Riallinea lo stato locale ogni volta che cambia la campagna attiva
-  // (es. dopo un refreshCampaigns, o entrando in una campagna diversa)
   useEffect(() => {
     setLocalSessionActive(activeCampaign?.sessionActive ?? false);
   }, [activeCampaign?.id, activeCampaign?.sessionActive]);
 
   useEffect(() => {
     if (!activeCampaign?.id) return;
+    setChannelReady(false);
+
     const ch = supabase
       .channel(`campaign:${activeCampaign.id}`, { config: { private: true } })
       .on('presence', { event: 'sync' }, () => {
@@ -45,14 +47,21 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
         }
       })
       .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED' && isOwner) {
-          await ch.track({ role: 'gm', online_at: new Date().toISOString() });
+        if (status === 'SUBSCRIBED') {
+          if (isOwner) {
+            await ch.track({ role: 'gm', online_at: new Date().toISOString() });
+          }
+          setChannelReady(true);
         }
       });
+
+    channelRef.current = ch;
 
     return () => {
       if (isOwner) ch.untrack();
       supabase.removeChannel(ch);
+      channelRef.current = null;
+      setChannelReady(false);
     };
   }, [activeCampaign?.id, isOwner]);
 
@@ -70,36 +79,15 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
 
       setLocalSessionActive(nextActive);
 
-      // Annuncia il cambio a chiunque stia già osservando il canale
-      await new Promise<void>((resolve) => {
-        const ch = supabase.channel(`campaign:${activeCampaign.id}`, { config: { private: true } });
-        let settled = false;
-
-        const cleanup = () => {
-          if (settled) return;
-          settled = true;
-          supabase.removeChannel(ch);
-          resolve();
-        };
-
-        const safetyTimeout = setTimeout(cleanup, 3000);
-
-        ch.subscribe(async (status) => {
-          if (status === 'SUBSCRIBED' && !settled) {
-            try {
-              await ch.send({ type: 'broadcast', event: 'session_change', payload: { active: nextActive } });
-            } catch (err) {
-              console.error('Errore invio broadcast session_change:', err);
-            } finally {
-              clearTimeout(safetyTimeout);
-              cleanup();
-            }
-          } else if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') && !settled) {
-            clearTimeout(safetyTimeout);
-            cleanup();
-          }
-        });
-      });
+      // Riusa il canale già aperto (con la presenza già tracciata), invece
+      // di crearne uno nuovo con lo stesso nome
+      if (channelRef.current && channelReady) {
+        try {
+          await channelRef.current.send({ type: 'broadcast', event: 'session_change', payload: { active: nextActive } });
+        } catch (err) {
+          console.error('Errore invio broadcast session_change:', err);
+        }
+      }
 
       await refreshCampaigns();
     } catch (err) {
