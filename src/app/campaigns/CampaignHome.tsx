@@ -64,6 +64,7 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
         }
       })
       .subscribe(async (status) => {
+        console.log('[PRESENCE-DEBUG] canale SUBSCRIBED, isOwner=', isOwner, '| ownCharacterId=', ownCharacterId);
         if (status === 'SUBSCRIBED') {
           if (isOwner) {
             await ch.track({ role: 'gm', online_at: new Date().toISOString() });
