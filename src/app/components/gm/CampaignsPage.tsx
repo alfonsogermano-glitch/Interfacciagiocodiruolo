@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Search, Users, User, KeyRound, Copy, Check, Camera, Loader2, Plus } from 'lucide-react';
-import { useAuth } from '../../auth/AuthContext';
+import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { CampaignForm } from '../../campaigns/CampaignSelector';
 import { RULESETS, VISIBLE_RULESETS, type RulesetId, type CampaignCreateInput } from '../../campaigns/campaignTypes';
@@ -51,6 +51,7 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
 
   const [logoUploadFor, setLogoUploadFor] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [onlineCharIds, setOnlineCharIds] = useState<Record<string, Set<string>>>({});
 
   const [showCampaignForm, setShowCampaignForm] = useState(false);
   const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
@@ -115,6 +116,32 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
   useEffect(() => { void load(); }, [session?.access_token, joinedCampaigns.length]);
 
   const allCampaigns = useMemo(() => [...ownedCampaigns, ...joinedEnriched], [ownedCampaigns, joinedEnriched]);
+
+  useEffect(() => {
+    const channels: Record<string, ReturnType<typeof supabase.channel>> = {};
+
+    allCampaigns.forEach((campaign) => {
+      if (campaign.characters.length === 0 || channels[campaign.id]) return;
+      const ch = supabase
+        .channel(`campaign:${campaign.id}`, { config: { private: true } })
+        .on('presence', { event: 'sync' }, () => {
+          const state = ch.presenceState();
+          const ids = new Set<string>();
+          Object.values(state).forEach((presences: any) => {
+            presences.forEach((p: any) => {
+              if (p.role === 'player' && p.characterId) ids.add(p.characterId);
+            });
+          });
+          setOnlineCharIds(prev => ({ ...prev, [campaign.id]: ids }));
+        })
+        .subscribe();
+      channels[campaign.id] = ch;
+    });
+
+    return () => {
+      Object.values(channels).forEach((ch) => supabase.removeChannel(ch));
+    };
+  }, [allCampaigns.map(c => c.id).join(',')]);
 
   const allCharacterNames = useMemo(() => {
     const names = new Set<string>();
@@ -323,8 +350,13 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); onNavigate({ tabId: 'players', entityId: ch.id, entityType: 'character' }); }}
-                            className="underline-offset-2 hover:text-[var(--dash-accent-2)] hover:underline"
+                            className="inline-flex items-center gap-1 underline-offset-2 hover:text-[var(--dash-accent-2)] hover:underline"
                           >
+                            <span
+                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                                onlineCharIds[campaign.id]?.has(ch.id) ? 'bg-green-400' : 'bg-gray-600'
+                              }`}
+                            />
                             {ch.name}
                           </button>
                           {i < campaign.characters.length - 1 && <span className="ml-1">,</span>}

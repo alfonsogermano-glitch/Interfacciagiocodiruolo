@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Play, Square, Settings, Loader2 } from 'lucide-react';
 import { useAuth, supabase } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
+import { loadCharactersByOwner } from '../../services/supabase/charactersService';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
@@ -18,6 +19,7 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   const [gmOnline, setGmOnline] = useState(false);
   const [localSessionActive, setLocalSessionActive] = useState<boolean | null>(null);
   const [channelReady, setChannelReady] = useState(false);
+  const [ownCharacterId, setOwnCharacterId] = useState<string | null>(null);
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const isOwner = activeCampaign?.ownerId === user?.id;
@@ -26,6 +28,21 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   useEffect(() => {
     setLocalSessionActive(activeCampaign?.sessionActive ?? false);
   }, [activeCampaign?.id, activeCampaign?.sessionActive]);
+
+  // Trova il proprio personaggio in questa campagna (solo per i giocatori)
+  useEffect(() => {
+    if (isOwner || !user?.id || !activeCampaign?.id) {
+      setOwnCharacterId(null);
+      return;
+    }
+    let cancelled = false;
+    loadCharactersByOwner(user.id).then(chars => {
+      if (cancelled) return;
+      const mine = chars.find(c => c.campaignId === activeCampaign.id);
+      setOwnCharacterId(mine?.id ?? null);
+    });
+    return () => { cancelled = true; };
+  }, [isOwner, user?.id, activeCampaign?.id]);
 
   useEffect(() => {
     if (!activeCampaign?.id) return;
@@ -50,6 +67,8 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
         if (status === 'SUBSCRIBED') {
           if (isOwner) {
             await ch.track({ role: 'gm', online_at: new Date().toISOString() });
+          } else if (ownCharacterId) {
+            await ch.track({ role: 'player', characterId: ownCharacterId, online_at: new Date().toISOString() });
           }
           setChannelReady(true);
         }
@@ -58,12 +77,12 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
     channelRef.current = ch;
 
     return () => {
-      if (isOwner) ch.untrack();
+      if (isOwner || ownCharacterId) ch.untrack();
       supabase.removeChannel(ch);
       channelRef.current = null;
       setChannelReady(false);
     };
-  }, [activeCampaign?.id, isOwner]);
+  }, [activeCampaign?.id, isOwner, ownCharacterId]);
 
   const handleToggleSession = async () => {
     if (!activeCampaign?.id) return;
@@ -79,8 +98,6 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
 
       setLocalSessionActive(nextActive);
 
-      // Riusa il canale già aperto (con la presenza già tracciata), invece
-      // di crearne uno nuovo con lo stesso nome
       if (channelRef.current && channelReady) {
         try {
           await channelRef.current.send({ type: 'broadcast', event: 'session_change', payload: { active: nextActive } });
