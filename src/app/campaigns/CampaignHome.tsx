@@ -16,9 +16,16 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
 
   const [isToggling, setIsToggling] = useState(false);
   const [gmOnline, setGmOnline] = useState(false);
+  const [localSessionActive, setLocalSessionActive] = useState<boolean | null>(null);
 
   const isOwner = activeCampaign?.ownerId === user?.id;
-  const sessionActive = !!activeCampaign?.sessionActive;
+  const sessionActive = localSessionActive ?? !!activeCampaign?.sessionActive;
+
+  // Riallinea lo stato locale ogni volta che cambia la campagna attiva
+  // (es. dopo un refreshCampaigns, o entrando in una campagna diversa)
+  useEffect(() => {
+    setLocalSessionActive(activeCampaign?.sessionActive ?? false);
+  }, [activeCampaign?.id, activeCampaign?.sessionActive]);
 
   useEffect(() => {
     if (!activeCampaign?.id) return;
@@ -30,6 +37,12 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
           presences.some((p: any) => p.role === 'gm')
         );
         setGmOnline(online);
+      })
+      .on('broadcast', { event: 'session_change' }, (msg) => {
+        const active = msg?.payload?.active;
+        if (typeof active === 'boolean') {
+          setLocalSessionActive(active);
+        }
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED' && isOwner) {
@@ -46,13 +59,25 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   const handleToggleSession = async () => {
     if (!activeCampaign?.id) return;
     setIsToggling(true);
+    const nextActive = !sessionActive;
     try {
       const accessToken = session?.access_token ?? publicAnonKey;
       await fetch(`${SERVER_BASE}/campaigns/${activeCampaign.id}/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ active: !sessionActive }),
+        body: JSON.stringify({ active: nextActive }),
       });
+
+      setLocalSessionActive(nextActive);
+
+      // Annuncia il cambio a chiunque stia già osservando il canale
+      // (es. i giocatori sulla stessa Home Campagna), senza aspettare
+      // che ricarichino manualmente
+      const ch = supabase.channel(`campaign:${activeCampaign.id}`, { config: { private: true } });
+      await ch.subscribe();
+      await ch.send({ type: 'broadcast', event: 'session_change', payload: { active: nextActive } });
+      supabase.removeChannel(ch);
+
       await refreshCampaigns();
     } catch (err) {
       console.error('Errore cambio stato sessione:', err);
