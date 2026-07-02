@@ -5,6 +5,7 @@ import { PrivacyPolicy } from './legal/PrivacyPolicy';
 import { DeleteData } from './legal/DeleteData';
 import { SetNewPasswordModal } from './landing/SetNewPasswordModal';
 import { CampaignProvider, useCampaign } from './campaigns/CampaignContext';
+import { CampaignHome } from './campaigns/CampaignHome';
 import { RulesetProvider } from './campaigns/RulesetContext';
 import { HomeScreen } from './home/HomeScreen';
 import { AppShell } from './layout/AppShell';
@@ -114,7 +115,7 @@ function AuthGate() {
   const { user, isLoading, signOut, isPasswordRecovery, clearPasswordRecovery } = useAuth();
   const { setActiveCampaign, activeCampaign, campaigns } = useCampaign();
 
-  const [view, setView] = useState<'home' | 'dashboard'>(
+  const [view, setView] = useState<'home' | 'campaign-home' | 'dashboard'>(
     () => (localStorage.getItem(VIEW_LS_KEY) === 'dashboard' ? 'dashboard' : 'home')
   );
 
@@ -225,7 +226,17 @@ function AuthGate() {
   };
 
   const goToDashboard = (campaign?: Parameters<typeof setActiveCampaign>[0]) => {
-    if (campaign) setActiveCampaign(campaign);
+    if (campaign) {
+      setActiveCampaign(campaign);
+      localStorage.setItem(VIEW_LS_KEY, 'campaign-home');
+      setView('campaign-home');
+    } else {
+      localStorage.setItem(VIEW_LS_KEY, 'dashboard');
+      setView('dashboard');
+    }
+  };
+
+  const goToManagement = () => {
     localStorage.setItem(VIEW_LS_KEY, 'dashboard');
     setView('dashboard');
   };
@@ -300,6 +311,8 @@ function AuthGate() {
             onScrollHandled={() => setHomeScrollTarget(null)}
             palette={dashboardSettings.palette}
           />
+        ) : view === 'campaign-home' ? (
+          <CampaignHome onGoToManagement={goToManagement} />
         ) : (
           <Dashboard
             activeTab={activeGmTab}
