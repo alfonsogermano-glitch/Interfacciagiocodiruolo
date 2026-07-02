@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, User, Loader2, Pencil, Trash2, KeyRound, MoreVertical } from 'lucide-react';
-import { useAuth } from '../../auth/AuthContext';
+import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { CharacterCreationWizard } from './CharacterCreationWizard';
 import { CharacterDetailModal } from './CharacterDetailModal';
@@ -41,6 +41,7 @@ export function MyCharactersPage() {
   const [inviteCodeDraft, setInviteCodeDraft] = useState('');
   const [pendingCharacterId, setPendingCharacterId] = useState<string | null>(null);
   const [assignErrors, setAssignErrors] = useState<Record<string, string>>({});
+  const [gmOnlineFor, setGmOnlineFor] = useState<Record<string, boolean>>({});
 
   const saveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -64,6 +65,29 @@ export function MyCharactersPage() {
   };
 
   useEffect(() => { void load(); }, [user?.id]);
+
+  useEffect(() => {
+    const campaignIds = Array.from(new Set(characters.map(c => c.campaignId).filter(Boolean))) as string[];
+    const channels: Record<string, ReturnType<typeof supabase.channel>> = {};
+
+    campaignIds.forEach((campaignId) => {
+      const ch = supabase
+        .channel(`campaign:${campaignId}`, { config: { private: true } })
+        .on('presence', { event: 'sync' }, () => {
+          const state = ch.presenceState();
+          const isGmOnline = Object.values(state).some((presences: any) =>
+            presences.some((p: any) => p.role === 'gm')
+          );
+          setGmOnlineFor(prev => ({ ...prev, [campaignId]: isGmOnline }));
+        })
+        .subscribe();
+      channels[campaignId] = ch;
+    });
+
+    return () => {
+      Object.values(channels).forEach((ch) => supabase.removeChannel(ch));
+    };
+  }, [characters.map(c => c.campaignId).join(',')]);
 
   useEffect(() => {
     const closeMenu = () => setOpenMenuFor(null);
@@ -224,6 +248,11 @@ export function MyCharactersPage() {
                       ) : null}
                       <span className="truncate">{campaignInfo?.name ?? 'Nessuna Campagna'}</span>
                     </span>
+                    {char.campaignId && (
+                      <span className="text-[10px] text-[var(--dash-muted)]">
+                        GM: {gmOnlineFor[char.campaignId] ? '🟢 online' : '⚪ offline'}
+                      </span>
+                    )}
                   </div>
                 </button>
 
