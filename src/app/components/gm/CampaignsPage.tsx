@@ -25,6 +25,7 @@ interface OverviewCampaign {
   sessionActive?: boolean;
   memberCount: number;
   characters: { id: string; name: string }[];
+  isOwned: boolean;
 }
 
 type SortOption = 'name-asc' | 'name-desc' | 'date-asc' | 'date-desc';
@@ -35,8 +36,11 @@ interface CampaignsPageProps {
 }
 
 export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProps) {
-  const { session } = useAuth();
-  const [campaigns, setCampaigns] = useState<OverviewCampaign[]>([]);
+  const { session, user } = useAuth();
+  const { createCampaign, joinedCampaigns } = useCampaign();
+
+  const [ownedCampaigns, setOwnedCampaigns] = useState<OverviewCampaign[]>([]);
+  const [joinedEnriched, setJoinedEnriched] = useState<OverviewCampaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,7 +54,6 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
   const [togglingSession, setTogglingSession] = useState<string | null>(null);
   const [gmPresenceStatus, setGmPresenceStatus] = useState<Record<string, 'tracking' | 'idle'>>({});
 
-  const { createCampaign, joinedCampaigns } = useCampaign();
   const [showCampaignForm, setShowCampaignForm] = useState(false);
   const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
   const [campaignFormError, setCampaignFormError] = useState<string | null>(null);
@@ -74,12 +77,35 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
     setError(null);
     try {
       const accessToken = session?.access_token ?? publicAnonKey;
-      const res = await fetch(`${SERVER_BASE}/campaigns/overview`, {
+
+      const ownedRes = await fetch(`${SERVER_BASE}/campaigns/overview`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      if (!res.ok) throw new Error('Errore caricamento campagne');
-      const { campaigns: data } = await res.json();
-      setCampaigns(data ?? []);
+      if (!ownedRes.ok) throw new Error('Errore caricamento campagne possedute');
+      const { campaigns: ownedData } = await ownedRes.json();
+      setOwnedCampaigns((ownedData ?? []).map((c: any) => ({ ...c, isOwned: true })));
+
+      // Arricchisce ciascuna campagna partecipata con i personaggi attivi;
+      // /members nega sempre l'accesso ai non-owner, quindi memberCount
+      // è stimato dal numero di personaggi, unico dato disponibile a un member
+      const enriched = await Promise.all(
+        joinedCampaigns.map(async (jc) => {
+          try {
+            const charsRes = await fetch(`${SERVER_BASE}/campaigns/${jc.id}/characters`, { headers: { Authorization: `Bearer ${accessToken}` } });
+            const charsData = charsRes.ok ? await charsRes.json() : { characters: [] };
+            const characters = (charsData.characters ?? []).map((ch: any) => ({ id: ch.id, name: ch.name }));
+            return {
+              ...jc,
+              isOwned: false,
+              memberCount: characters.length,
+              characters,
+            } as OverviewCampaign;
+          } catch {
+            return { ...jc, isOwned: false, memberCount: 0, characters: [] } as OverviewCampaign;
+          }
+        })
+      );
+      setJoinedEnriched(enriched);
     } catch (err) {
       console.error(err);
       setError('Impossibile caricare le campagne. Riprova.');
@@ -88,12 +114,12 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
     }
   };
 
-  useEffect(() => { void load(); }, [session?.access_token]);
+  useEffect(() => { void load(); }, [session?.access_token, joinedCampaigns.length]);
 
   useEffect(() => {
     const channels: Record<string, ReturnType<typeof supabase.channel>> = {};
 
-    campaigns.forEach((campaign) => {
+    ownedCampaigns.forEach((campaign) => {
       if (campaign.sessionActive && !channels[campaign.id]) {
         const ch = supabase
           .channel(`campaign:${campaign.id}`, { config: { private: true } })
@@ -113,16 +139,18 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
         supabase.removeChannel(ch);
       });
     };
-  }, [campaigns.map(c => `${c.id}:${c.sessionActive}`).join(',')]);
+  }, [ownedCampaigns.map(c => `${c.id}:${c.sessionActive}`).join(',')]);
+
+  const allCampaigns = useMemo(() => [...ownedCampaigns, ...joinedEnriched], [ownedCampaigns, joinedEnriched]);
 
   const allCharacterNames = useMemo(() => {
     const names = new Set<string>();
-    campaigns.forEach(c => c.characters.forEach(ch => names.add(ch.name)));
+    allCampaigns.forEach(c => c.characters.forEach(ch => names.add(ch.name)));
     return Array.from(names).sort((a, b) => a.localeCompare(b));
-  }, [campaigns]);
+  }, [allCampaigns]);
 
   const filteredSorted = useMemo(() => {
-    let list = [...campaigns];
+    let list = [...allCampaigns];
 
     if (characterFilter) {
       list = list.filter(c => c.characters.some(ch => ch.name === characterFilter));
@@ -148,10 +176,10 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
     });
 
     return list;
-  }, [campaigns, characterFilter, rulesetFilter, textSearch, sortOption]);
+  }, [allCampaigns, characterFilter, rulesetFilter, textSearch, sortOption]);
 
   const handleLogoUploaded = async (campaignId: string, url: string) => {
-    setCampaigns(prev => prev.map(c => (c.id === campaignId ? { ...c, logoUrl: url } : c)));
+    setOwnedCampaigns(prev => prev.map(c => (c.id === campaignId ? { ...c, logoUrl: url } : c)));
     setLogoUploadFor(null);
     try {
       const accessToken = session?.access_token ?? publicAnonKey;
@@ -166,7 +194,7 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
   };
 
   const handleLogoRemoved = async (campaignId: string) => {
-    setCampaigns(prev => prev.map(c => (c.id === campaignId ? { ...c, logoUrl: undefined } : c)));
+    setOwnedCampaigns(prev => prev.map(c => (c.id === campaignId ? { ...c, logoUrl: undefined } : c)));
     setLogoUploadFor(null);
     try {
       const accessToken = session?.access_token ?? publicAnonKey;
@@ -263,14 +291,12 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
         <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[var(--dash-muted)]" /></div>
       ) : error ? (
         <p className="text-sm text-[var(--dash-danger-text)]">{error}</p>
-      ) : campaigns.length === 0 ? (
-        joinedCampaigns.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
-            <p className="text-sm text-[var(--dash-muted)]">
-              Non hai ancora nessuna campagna. Creane una, oppure entra in una campagna esistente con un codice invito.
-            </p>
-          </div>
-        ) : null
+      ) : allCampaigns.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
+          <p className="text-sm text-[var(--dash-muted)]">
+            Non hai ancora nessuna campagna. Creane una, oppure entra in una campagna esistente con un codice invito.
+          </p>
+        </div>
       ) : filteredSorted.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
           <p className="text-sm text-[var(--dash-muted)]">Nessuna campagna corrisponde ai filtri.</p>
@@ -299,22 +325,31 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
                     />
                   </div>
                 )}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); setLogoUploadFor(campaign.id); }}
-                      style={{ position: 'absolute', bottom: 6, right: 6, width: 26, height: 26, borderRadius: '50%',
-                               backgroundColor: 'var(--dash-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                               border: '2px solid var(--dash-bg)', cursor: 'pointer' }}>
-                      <Camera size={13} color="var(--dash-bg)" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">Modifica il logo della Campagna</TooltipContent>
-                </Tooltip>
+                {campaign.isOwned && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setLogoUploadFor(campaign.id); }}
+                        style={{ position: 'absolute', bottom: 6, right: 6, width: 26, height: 26, borderRadius: '50%',
+                                 backgroundColor: 'var(--dash-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                 border: '2px solid var(--dash-bg)', cursor: 'pointer' }}>
+                        <Camera size={13} color="var(--dash-bg)" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">Modifica il logo della Campagna</TooltipContent>
+                  </Tooltip>
+                )}
               </div>
 
               <div className="flex min-w-0 flex-1 flex-col px-5 py-4">
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="truncate text-lg font-semibold text-[var(--dash-text-strong)]">{campaign.name}</h3>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h3 className="truncate text-lg font-semibold text-[var(--dash-text-strong)]">{campaign.name}</h3>
+                    {!campaign.isOwned && (
+                      <span className="shrink-0 rounded-full bg-[var(--dash-panel)] px-2 py-0.5 text-[10px] font-semibold text-[var(--dash-accent-2)]">
+                        Partecipi
+                      </span>
+                    )}
+                  </div>
                   <RulesetTag rulesetId={campaign.ruleset} />
                 </div>
                 {campaign.description && (
@@ -346,7 +381,7 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
 
                 <div className="mt-auto flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    {campaign.inviteCode ? (
+                    {campaign.isOwned && campaign.inviteCode ? (
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); copyInviteCode(campaign); }}
@@ -357,21 +392,23 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
                         {copiedId === campaign.id ? <Check className="h-3.5 w-3.5 text-[var(--dash-accent)]" /> : <Copy className="h-3.5 w-3.5" />}
                       </button>
                     ) : null}
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); toggleSession(campaign); }}
-                      disabled={togglingSession === campaign.id}
-                      className={`inline-flex w-fit items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-colors ${
-                        campaign.sessionActive
-                          ? 'border-green-700 bg-green-900/40 text-green-300'
-                          : 'border-[var(--dash-border-soft)] bg-[var(--dash-panel)] text-[var(--dash-muted)]'
-                      }`}
-                    >
-                      {togglingSession === campaign.id ? '...' : campaign.sessionActive ? '🟢 Sessione ON' : '⚪ Sessione OFF'}
-                    </button>
-                    {campaign.sessionActive && (
-                      <span className="text-[10px] text-[var(--dash-muted)]">
-                        Presenza: {gmPresenceStatus[campaign.id] === 'tracking' ? '✅ tracciata' : '⏳...'}
+                    {campaign.isOwned && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); toggleSession(campaign); }}
+                        disabled={togglingSession === campaign.id}
+                        className={`inline-flex w-fit items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-colors ${
+                          campaign.sessionActive
+                            ? 'border-green-700 bg-green-900/40 text-green-300'
+                            : 'border-[var(--dash-border-soft)] bg-[var(--dash-panel)] text-[var(--dash-muted)]'
+                        }`}
+                      >
+                        {togglingSession === campaign.id ? '...' : campaign.sessionActive ? '🟢 Sessione ON' : '⚪ Sessione OFF'}
+                      </button>
+                    )}
+                    {!campaign.isOwned && campaign.sessionActive && (
+                      <span className="rounded-lg border border-green-700 bg-green-900/40 px-2.5 py-1 text-xs text-green-300">
+                        🟢 In sessione
                       </span>
                     )}
                   </div>
@@ -392,41 +429,6 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
         </div>
       )}
 
-      {joinedCampaigns.length > 0 && (
-        <div className="space-y-4 pt-2">
-          <h3 className="text-base font-semibold tracking-wide text-[var(--dash-text-strong)]">
-            Campagne a cui partecipi
-          </h3>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {joinedCampaigns.map(campaign => (
-              <button
-                key={campaign.id}
-                type="button"
-                onClick={() => onEnterCampaign(campaign as any)}
-                className="group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4 pt-5 text-left transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
-              >
-                <span
-                  className="absolute inset-x-0 top-0 h-1"
-                  style={{ backgroundColor: (RULESETS[campaign.ruleset] ?? RULESETS.custom).color }}
-                />
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <RulesetTag rulesetId={campaign.ruleset} />
-                  {campaign.sessionActive && (
-                    <span className="flex items-center gap-1 rounded-full bg-green-900/40 px-2 py-0.5 text-[10px] font-semibold text-green-300">
-                      ● In sessione
-                    </span>
-                  )}
-                </div>
-                <h4 className="text-base font-semibold tracking-wide text-[var(--dash-text-strong)]">{campaign.name}</h4>
-                {campaign.description && (
-                  <p className="mt-1 line-clamp-2 text-xs text-[var(--dash-muted)]">{campaign.description}</p>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {logoUploadFor && (
         <ImageCropUploadModal
           bucket="campaign-logos"
@@ -435,22 +437,22 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
           aspect={1}
           uploadLabel="Seleziona l'immagine del Logo Campagna"
           onUploaded={(url) => handleLogoUploaded(logoUploadFor, url)}
-          onRemove={campaigns.find(c => c.id === logoUploadFor)?.logoUrl ? () => handleLogoRemoved(logoUploadFor!) : undefined}
+          onRemove={ownedCampaigns.find(c => c.id === logoUploadFor)?.logoUrl ? () => handleLogoRemoved(logoUploadFor) : undefined}
           onClose={() => setLogoUploadFor(null)}
         />
       )}
 
       {showCampaignForm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-surface)] p-6 shadow-2xl">
-            <h3 className="mb-4 text-lg font-semibold tracking-wide text-[var(--dash-text-strong)]">Nuova campagna</h3>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-6 shadow-2xl">
+            <h3 className="mb-4 text-lg font-semibold text-[var(--dash-text-strong)]">Nuova campagna</h3>
             {campaignFormError && (
-              <div className="mb-4 rounded-xl border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-4 py-3 text-sm text-[var(--dash-danger-text)]">
+              <div className="mb-4 rounded-lg border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-3 py-2 text-sm text-[var(--dash-danger-text)]">
                 {campaignFormError}
               </div>
             )}
             <CampaignForm
-              onSave={data => void handleCreateCampaign(data)}
+              onSave={handleCreateCampaign}
               onCancel={() => { setShowCampaignForm(false); setCampaignFormError(null); }}
               isSubmitting={isCreatingCampaign}
             />
