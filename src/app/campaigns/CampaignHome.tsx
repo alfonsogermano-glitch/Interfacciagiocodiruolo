@@ -13,7 +13,7 @@ interface CampaignHomeProps {
 
 export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   const { user, session } = useAuth();
-  const { activeCampaign, refreshCampaigns } = useCampaign();
+  const { activeCampaign, refreshCampaigns, refreshJoinedCampaigns } = useCampaign();
 
   const [isToggling, setIsToggling] = useState(false);
   const [gmOnline, setGmOnline] = useState(false);
@@ -28,14 +28,21 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   const sessionActive = localSessionActive ?? !!activeCampaign?.sessionActive;
 
   useEffect(() => {
-    console.log('[SESSION-DEBUG] activeCampaign.sessionActive=', activeCampaign?.sessionActive, '| activeCampaign.id=', activeCampaign?.id);
     setLocalSessionActive(activeCampaign?.sessionActive ?? false);
   }, [activeCampaign?.id, activeCampaign?.sessionActive]);
+
+  useEffect(() => {
+    if (!activeCampaign?.id) return;
+    if (isOwner) {
+      void refreshCampaigns();
+    } else {
+      void refreshJoinedCampaigns();
+    }
+  }, [activeCampaign?.id, isOwner]);
 
   // Trova il proprio personaggio in questa campagna (solo per i giocatori)
   useEffect(() => {
     const mySeq = ++lookupSeqRef.current;
-    console.log('[LOOKUP-DEBUG] avvio ricerca personaggio, seq=', mySeq, 'isOwner=', isOwner);
 
     if (isOwner) {
       setOwnCharacterId(null);
@@ -48,19 +55,14 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
     }
     setCharacterLookupDone(false);
     loadCharactersByOwner(user.id).then(chars => {
-      if (lookupSeqRef.current !== mySeq) {
-        console.log('[LOOKUP-DEBUG] risultato scartato (seq superata), seq=', mySeq, 'attuale=', lookupSeqRef.current);
-        return;
-      }
+      if (lookupSeqRef.current !== mySeq) return;
       const mine = chars.find(c => c.campaignId === activeCampaign.id);
-      console.log('[LOOKUP-DEBUG] risultato applicato, seq=', mySeq, 'characterId=', mine?.id);
       setOwnCharacterId(mine?.id ?? null);
       setCharacterLookupDone(true);
     });
   }, [isOwner, user?.id, activeCampaign?.id]);
 
   useEffect(() => {
-    console.log('[GUARD-DEBUG] activeCampaign.id=', activeCampaign?.id, '| characterLookupDone=', characterLookupDone);
     if (!activeCampaign?.id || !characterLookupDone) return;
     setChannelReady(false);
 
@@ -68,11 +70,9 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
       .channel(`campaign:${activeCampaign.id}`, { config: { private: true } })
       .on('presence', { event: 'sync' }, () => {
         const state = ch.presenceState();
-        console.log('[GM-ONLINE-DEBUG] presence sync scattato, state=', JSON.stringify(state));
         const online = Object.values(state).some((presences: any) =>
           presences.some((p: any) => p.role === 'gm')
         );
-        console.log('[GM-ONLINE-DEBUG] gmOnline calcolato=', online);
         setGmOnline(online);
       })
       .on('broadcast', { event: 'session_change' }, (msg) => {
@@ -82,7 +82,6 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
         }
       })
       .subscribe(async (status) => {
-        console.log('[CH-DEBUG] status=', status, 'timestamp=', Date.now());
         if (status === 'SUBSCRIBED') {
           if (isOwner) {
             await ch.track({ role: 'gm', online_at: new Date().toISOString() });
@@ -93,12 +92,9 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
         }
       });
 
-    console.log('[CH-DEBUG] canale creato per', activeCampaign.id, 'timestamp=', Date.now());
-
     channelRef.current = ch;
 
     return () => {
-      console.log('[CH-DEBUG] CLEANUP per', activeCampaign?.id, 'timestamp=', Date.now());
       if (isOwner || ownCharacterId) ch.untrack();
       supabase.removeChannel(ch);
       channelRef.current = null;
