@@ -58,10 +58,18 @@ export function MyCharactersPage() {
 
   const load = async () => {
     if (!user?.id) return;
+    const startedAt = Date.now();
+    console.log('[CHARS-DEBUG] load() START, user.id=', user.id, '| timestamp=', startedAt);
     setIsLoading(true);
-    const data = await loadCharactersByOwner(user.id);
-    setCharacters(data);
-    setIsLoading(false);
+    try {
+      const data = await loadCharactersByOwner(user.id);
+      console.log('[CHARS-DEBUG] load() FINE dopo', Date.now() - startedAt, 'ms, personaggi trovati=', data.length);
+      setCharacters(data);
+    } catch (err) {
+      console.log('[CHARS-DEBUG] load() ERRORE dopo', Date.now() - startedAt, 'ms:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => { void load(); }, [user?.id]);

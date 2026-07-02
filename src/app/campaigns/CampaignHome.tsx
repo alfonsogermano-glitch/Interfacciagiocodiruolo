@@ -72,6 +72,7 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
         }
       })
       .subscribe(async (status) => {
+        console.log('[CH-DEBUG] status=', status, 'timestamp=', Date.now());
         if (status === 'SUBSCRIBED') {
           if (isOwner) {
             await ch.track({ role: 'gm', online_at: new Date().toISOString() });
@@ -82,9 +83,12 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
         }
       });
 
+    console.log('[CH-DEBUG] canale creato per', activeCampaign.id, 'timestamp=', Date.now());
+
     channelRef.current = ch;
 
     return () => {
+      console.log('[CH-DEBUG] CLEANUP per', activeCampaign?.id, 'timestamp=', Date.now());
       if (isOwner || ownCharacterId) ch.untrack();
       supabase.removeChannel(ch);
       channelRef.current = null;
