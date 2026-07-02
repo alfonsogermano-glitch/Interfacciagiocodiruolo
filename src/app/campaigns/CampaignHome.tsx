@@ -28,6 +28,7 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   const sessionActive = localSessionActive ?? !!activeCampaign?.sessionActive;
 
   useEffect(() => {
+    console.log('[SESSION-DEBUG] activeCampaign.sessionActive=', activeCampaign?.sessionActive, '| activeCampaign.id=', activeCampaign?.id);
     setLocalSessionActive(activeCampaign?.sessionActive ?? false);
   }, [activeCampaign?.id, activeCampaign?.sessionActive]);
 
