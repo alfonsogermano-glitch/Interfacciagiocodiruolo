@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Play, Square, Settings, Loader2 } from 'lucide-react';
-import { useAuth } from '../auth/AuthContext';
+import { useAuth, supabase } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
 import { loadCharactersByOwner } from '../../services/supabase/charactersService';
-import { acquireCampaignChannel, releaseCampaignChannel } from '../../services/realtime/campaignPresence';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
@@ -23,7 +22,7 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   const [ownCharacterId, setOwnCharacterId] = useState<string | null>(null);
   const [characterLookupDone, setCharacterLookupDone] = useState(false);
 
-  const channelRef = useRef<ReturnType<typeof acquireCampaignChannel> | null>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const isOwner = activeCampaign?.ownerId === user?.id;
   const sessionActive = localSessionActive ?? !!activeCampaign?.sessionActive;
 
@@ -55,39 +54,39 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
 
   useEffect(() => {
     if (!activeCampaign?.id || !characterLookupDone) return;
-    const campaignId = activeCampaign.id;
     setChannelReady(false);
 
-    const ch = acquireCampaignChannel(campaignId, {
-      onPresenceSync: (channel) => {
-        const state = channel.presenceState();
+    const ch = supabase
+      .channel(`campaign:${activeCampaign.id}`, { config: { private: true } })
+      .on('presence', { event: 'sync' }, () => {
+        const state = ch.presenceState();
         const online = Object.values(state).some((presences: any) =>
           presences.some((p: any) => p.role === 'gm')
         );
         setGmOnline(online);
-      },
-      onBroadcast: {
-        session_change: (msg: any) => {
-          const active = msg?.payload?.active;
-          if (typeof active === 'boolean') {
-            setLocalSessionActive(active);
-          }
-        },
-      },
-      onSubscribed: async (channel) => {
-        if (isOwner) {
-          await channel.track({ role: 'gm', online_at: new Date().toISOString() });
-        } else if (ownCharacterId) {
-          await channel.track({ role: 'player', characterId: ownCharacterId, online_at: new Date().toISOString() });
+      })
+      .on('broadcast', { event: 'session_change' }, (msg) => {
+        const active = msg?.payload?.active;
+        if (typeof active === 'boolean') {
+          setLocalSessionActive(active);
         }
-        setChannelReady(true);
-      },
-    });
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          if (isOwner) {
+            await ch.track({ role: 'gm', online_at: new Date().toISOString() });
+          } else if (ownCharacterId) {
+            await ch.track({ role: 'player', characterId: ownCharacterId, online_at: new Date().toISOString() });
+          }
+          setChannelReady(true);
+        }
+      });
 
     channelRef.current = ch;
 
     return () => {
-      releaseCampaignChannel(campaignId, isOwner || !!ownCharacterId);
+      if (isOwner || ownCharacterId) ch.untrack();
+      supabase.removeChannel(ch);
       channelRef.current = null;
       setChannelReady(false);
     };
