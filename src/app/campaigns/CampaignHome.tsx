@@ -95,14 +95,16 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
           setLocalSessionActive(active);
         }
       })
-      .subscribe(async (status) => {
+      .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          if (isOwner) {
-            await ch.track({ role: 'gm', online_at: new Date().toISOString() });
-          } else if (ownCharacterId) {
-            await ch.track({ role: 'player', characterId: ownCharacterId, online_at: new Date().toISOString() });
-          }
-          setChannelReady(true);
+          setTimeout(async () => {
+            if (isOwner) {
+              await ch.track({ role: 'gm', online_at: new Date().toISOString() });
+            } else if (ownCharacterId) {
+              await ch.track({ role: 'player', characterId: ownCharacterId, online_at: new Date().toISOString() });
+            }
+            setChannelReady(true);
+          }, 0);
         }
       });
 

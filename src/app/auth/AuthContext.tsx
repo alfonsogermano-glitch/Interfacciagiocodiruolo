@@ -111,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (isMounted) setIsLoading(false);
       });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, nextSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (event === 'PASSWORD_RECOVERY') {
         const hash = window.location.hash;
         if (hash.includes('type=recovery')) {
@@ -120,14 +120,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
       if (!isMounted) return;
-      try {
-        setSession(nextSession);
-        setUser(nextSession ? await buildUserFromSession(nextSession) : null);
-      } catch (err) {
-        console.log('Errore nella gestione del cambio di stato auth:', err);
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
+
+      setTimeout(async () => {
+        if (!isMounted) return;
+        try {
+          setSession(nextSession);
+          setUser(nextSession ? await buildUserFromSession(nextSession) : null);
+        } catch (err) {
+          console.log('Errore nella gestione del cambio di stato auth:', err);
+        } finally {
+          if (isMounted) setIsLoading(false);
+        }
+      }, 0);
     });
 
     return () => {
