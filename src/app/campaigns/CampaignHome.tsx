@@ -29,15 +29,13 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   const sessionActive = localSessionActive ?? !!activeCampaign?.sessionActive;
 
   useEffect(() => {
-    console.log('[SESSION-DEBUG] sessionActive dal context=', activeCampaign?.sessionActive);
     setLocalSessionActive(activeCampaign?.sessionActive ?? false);
   }, [activeCampaign?.id, activeCampaign?.sessionActive]);
 
   useEffect(() => {
     if (!activeCampaign?.id) return;
-    console.log('[REFRESH-DEBUG] avvio refresh, isOwner=', isOwner);
     const promise = isOwner ? refreshCampaigns() : refreshJoinedCampaigns();
-    void promise.then(() => console.log('[REFRESH-DEBUG] refresh completato'));
+    void promise;
   }, [activeCampaign?.id, isOwner]);
 
   // Trova il proprio personaggio in questa campagna (solo per i giocatori)
@@ -54,36 +52,26 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
       return;
     }
     setCharacterLookupDone(false);
-    console.log('[LOOKUP2-DEBUG] chiamata loadCharactersByOwner AVVIATA, seq=', mySeq);
     loadCharactersByOwner(user.id)
       .then(chars => {
-        console.log('[LOOKUP2-DEBUG] loadCharactersByOwner COMPLETATA, seq=', mySeq, '| seq attuale=', lookupSeqRef.current, '| trovati=', chars.length);
-        if (lookupSeqRef.current !== mySeq) {
-          console.log('[LOOKUP2-DEBUG] scartato, seq superata');
-          return;
-        }
+        if (lookupSeqRef.current !== mySeq) return;
         const mine = chars.find(c => c.campaignId === activeCampaign.id);
         setOwnCharacterId(mine?.id ?? null);
         setCharacterLookupDone(true);
       })
       .catch(err => {
-        console.log('[LOOKUP2-DEBUG] ERRORE:', err);
+        console.error('Errore nel caricamento dei personaggi:', err);
       });
   }, [isOwner, user?.id, activeCampaign?.id]);
 
   useEffect(() => {
-    console.log('[CHANNEL-EFFECT-DEBUG] valutazione - activeCampaign.id=', activeCampaign?.id, '| characterLookupDone=', characterLookupDone, '| ownCharacterId=', ownCharacterId, '| isOwner=', isOwner);
-    if (!activeCampaign?.id || !characterLookupDone) {
-      console.log('[CHANNEL-EFFECT-DEBUG] BLOCCATO dalla guardia, esco senza aprire il canale');
-      return;
-    }
+    if (!activeCampaign?.id || !characterLookupDone) return;
     setChannelReady(false);
 
     const ch = supabase
       .channel(`campaign:${activeCampaign.id}`, { config: { private: true } })
       .on('presence', { event: 'sync' }, () => {
         const state = ch.presenceState();
-        console.log('[SYNC-DEBUG] sync ricevuto, isOwner=', isOwner, '| state=', JSON.stringify(state));
         const online = Object.values(state).some((presences: any) =>
           presences.some((p: any) => p.role === 'gm')
         );
@@ -108,7 +96,6 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
         }
       });
 
-    console.log('[CHANNEL-EFFECT-DEBUG] canale creato per campaign:', activeCampaign.id);
     channelRef.current = ch;
 
     return () => {
@@ -124,7 +111,6 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
     if (!sessionActive || gmOnline) return;
 
     const timer = setTimeout(() => {
-      console.log('[SELF-HEAL] GM sembra offline da troppo tempo con sessione attiva, ricreo il canale');
       setChannelGeneration(g => g + 1);
     }, 6000);
 
