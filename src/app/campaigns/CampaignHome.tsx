@@ -54,12 +54,21 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
       return;
     }
     setCharacterLookupDone(false);
-    loadCharactersByOwner(user.id).then(chars => {
-      if (lookupSeqRef.current !== mySeq) return;
-      const mine = chars.find(c => c.campaignId === activeCampaign.id);
-      setOwnCharacterId(mine?.id ?? null);
-      setCharacterLookupDone(true);
-    });
+    console.log('[LOOKUP2-DEBUG] chiamata loadCharactersByOwner AVVIATA, seq=', mySeq);
+    loadCharactersByOwner(user.id)
+      .then(chars => {
+        console.log('[LOOKUP2-DEBUG] loadCharactersByOwner COMPLETATA, seq=', mySeq, '| seq attuale=', lookupSeqRef.current, '| trovati=', chars.length);
+        if (lookupSeqRef.current !== mySeq) {
+          console.log('[LOOKUP2-DEBUG] scartato, seq superata');
+          return;
+        }
+        const mine = chars.find(c => c.campaignId === activeCampaign.id);
+        setOwnCharacterId(mine?.id ?? null);
+        setCharacterLookupDone(true);
+      })
+      .catch(err => {
+        console.log('[LOOKUP2-DEBUG] ERRORE:', err);
+      });
   }, [isOwner, user?.id, activeCampaign?.id]);
 
   useEffect(() => {
