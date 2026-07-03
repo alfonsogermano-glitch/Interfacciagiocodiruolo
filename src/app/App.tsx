@@ -295,7 +295,7 @@ function AuthGate() {
           />
         }
         rightSidebar={
-          view === 'dashboard' ? (
+          view === 'dashboard' && !['characters', 'campaigns'].includes(activeGmTab) ? (
             <GmSectionSidebar activeTab={activeGmTab} onChangeTab={changeActiveGmTab} />
           ) : view === 'campaign-home' ? (
             <SessionRightSidebar />
