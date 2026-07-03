@@ -16,6 +16,7 @@ import { TopBar } from './layout/TopBar';
 import { SettingsModal } from './components/SettingsModal';
 import { ReportBugModal } from './components/ReportBugModal';
 import { NewsPage } from './news/NewsPage';
+import { SessionRightSidebar } from './components/session/SessionRightSidebar';
 
 import { AdventureManager } from './components/gm/AdventureManager';
 import { PlayerCharacters } from './components/gm/PlayerCharacters';
@@ -296,6 +297,8 @@ function AuthGate() {
         rightSidebar={
           view === 'dashboard' ? (
             <GmSectionSidebar activeTab={activeGmTab} onChangeTab={changeActiveGmTab} />
+          ) : view === 'campaign-home' ? (
+            <SessionRightSidebar />
           ) : null
         }
         topbar={
