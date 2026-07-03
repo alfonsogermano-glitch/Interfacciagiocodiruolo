@@ -21,6 +21,7 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   const [channelReady, setChannelReady] = useState(false);
   const [ownCharacterId, setOwnCharacterId] = useState<string | null>(null);
   const [characterLookupDone, setCharacterLookupDone] = useState(false);
+  const [channelGeneration, setChannelGeneration] = useState(0);
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const lookupSeqRef = useRef(0);
@@ -105,7 +106,19 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
       channelRef.current = null;
       setChannelReady(false);
     };
-  }, [activeCampaign?.id, isOwner, ownCharacterId, characterLookupDone]);
+  }, [activeCampaign?.id, isOwner, ownCharacterId, characterLookupDone, channelGeneration]);
+
+  useEffect(() => {
+    if (isOwner) return;
+    if (!sessionActive || gmOnline) return;
+
+    const timer = setTimeout(() => {
+      console.log('[SELF-HEAL] GM sembra offline da troppo tempo con sessione attiva, ricreo il canale');
+      setChannelGeneration(g => g + 1);
+    }, 6000);
+
+    return () => clearTimeout(timer);
+  }, [isOwner, sessionActive, gmOnline]);
 
   const handleToggleSession = async () => {
     if (!activeCampaign?.id) return;
