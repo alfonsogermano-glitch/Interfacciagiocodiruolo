@@ -62,7 +62,11 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   }, [isOwner, user?.id, activeCampaign?.id]);
 
   useEffect(() => {
-    if (!activeCampaign?.id || !characterLookupDone) return;
+    console.log('[CHANNEL-EFFECT-DEBUG] valutazione - activeCampaign.id=', activeCampaign?.id, '| characterLookupDone=', characterLookupDone, '| ownCharacterId=', ownCharacterId, '| isOwner=', isOwner);
+    if (!activeCampaign?.id || !characterLookupDone) {
+      console.log('[CHANNEL-EFFECT-DEBUG] BLOCCATO dalla guardia, esco senza aprire il canale');
+      return;
+    }
     setChannelReady(false);
 
     const ch = supabase
@@ -92,6 +96,7 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
         }
       });
 
+    console.log('[CHANNEL-EFFECT-DEBUG] canale creato per campaign:', activeCampaign.id);
     channelRef.current = ch;
 
     return () => {
