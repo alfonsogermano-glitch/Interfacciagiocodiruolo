@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { User, Heart, Brain, Shield, Loader2 } from 'lucide-react';
+import { User, Brain, ChevronDown, ChevronRight, Loader2, Skull, Ghost } from 'lucide-react';
 import { projectId } from '/utils/supabase/info';
 import { FrischezzaTracker } from '../FrischezzaTracker';
 import { FoliaSpiral } from '../FoliaSpiral';
@@ -8,6 +8,7 @@ import { TurbePanel } from '../TurbePanel';
 import { EquipmentPanel as LegacyEquipmentPanel } from '../EquipmentPanel';
 import type { Character } from '../../../types/character';
 import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, mapRowToCharacter } from '../../../services/supabase/charactersService';
+import { loadNPCs, loadMonsters } from '../../../services/supabase/entitiesService';
 import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useRuleset } from '../../campaigns/RulesetContext';
@@ -17,7 +18,31 @@ interface PlayerCharacter extends Character {
   notes: string;
 }
 
+type EntityKind = 'pg' | 'png' | 'mostro';
+interface ListEntry {
+  kind: EntityKind;
+  id: string;
+  name: string;
+  subtitle: string;
+  portraitUrl?: string;
+}
+
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
+
+function SectionHeader({ title, count, isOpen, onToggle }: { title: string; count: number; isOpen: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="flex w-full items-center justify-between px-4 py-2 text-left"
+    >
+      <span className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+        {title} <span className="text-[var(--dash-muted)]">({count})</span>
+      </span>
+      {isOpen ? <ChevronDown className="h-3.5 w-3.5 text-[var(--dash-muted)]" /> : <ChevronRight className="h-3.5 w-3.5 text-[var(--dash-muted)]" />}
+    </button>
+  );
+}
 
 export function SessionCharactersPanel() {
   const { user, session } = useAuth();
@@ -25,9 +50,12 @@ export function SessionCharactersPanel() {
   const { isHSC } = useRuleset();
 
   const [characters, setCharacters] = useState<PlayerCharacter[]>([]);
+  const [npcs, setNpcs] = useState<any[]>([]);
+  const [monsters, setMonsters] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<{ kind: EntityKind; id: string } | null>(null);
   const [currentTab, setCurrentTab] = useState<'stats' | 'conditions' | 'equipment'>('stats');
+  const [openSections, setOpenSections] = useState({ pg: true, png: true, mostro: true });
 
   const loadSeqRef = useRef(0);
   const saveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -36,17 +64,22 @@ export function SessionCharactersPanel() {
   const loadData = useCallback(async () => {
     const mySeq = ++loadSeqRef.current;
     try {
-      let loaded;
-      if (session?.access_token) {
-        loaded = await loadCharactersViaServer(activeCampaignId, SERVER_BASE, session.access_token);
-      } else {
-        loaded = await loadCharacters(activeCampaignId);
-      }
+      const [loadedChars, loadedNpcs, loadedMonsters] = await Promise.all([
+        session?.access_token
+          ? loadCharactersViaServer(activeCampaignId, SERVER_BASE, session.access_token)
+          : loadCharacters(activeCampaignId),
+        loadNPCs(activeCampaignId),
+        loadMonsters(activeCampaignId),
+      ]);
       if (loadSeqRef.current !== mySeq) return;
-      setCharacters(loaded);
-      setSelectedId(prev => prev && loaded.some((c: any) => c.id === prev) ? prev : (loaded[0]?.id ?? null));
+      setCharacters(loadedChars);
+      setNpcs(loadedNpcs);
+      setMonsters(loadedMonsters);
+      if (!selected && loadedChars[0]) {
+        setSelected({ kind: 'pg', id: loadedChars[0].id });
+      }
     } catch (error) {
-      console.error('Errore caricamento personaggi (sessione):', error);
+      console.error('Errore caricamento scheda unificata:', error);
     } finally {
       if (loadSeqRef.current === mySeq) setIsLoading(false);
     }
@@ -56,7 +89,6 @@ export function SessionCharactersPanel() {
 
   useEffect(() => {
     if (!activeCampaignId) return;
-    let isActive = true;
     let currentChannel: ReturnType<typeof supabase.channel> | null = null;
 
     const handleBroadcast = (msg: any) => {
@@ -88,7 +120,6 @@ export function SessionCharactersPanel() {
     })();
 
     return () => {
-      isActive = false;
       if (currentChannel) { try { supabase.removeChannel(currentChannel); } catch {} }
     };
   }, [activeCampaignId]);
@@ -114,61 +145,98 @@ export function SessionCharactersPanel() {
     persistCharacter(id, updatedChar);
   };
 
-  const selected = characters.find(c => c.id === selectedId) ?? null;
-  const isMine = selected ? (selected as any).ownerProfileId === user?.id : false;
+  const toggleSection = (key: keyof typeof openSections) => {
+    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const selectedChar = selected?.kind === 'pg' ? characters.find(c => c.id === selected.id) ?? null : null;
+  const selectedNpc = selected?.kind === 'png' ? npcs.find(n => n.id === selected.id) ?? null : null;
+  const selectedMonster = selected?.kind === 'mostro' ? monsters.find(m => m.id === selected.id) ?? null : null;
+  const isMine = selectedChar ? (selectedChar as any).ownerProfileId === user?.id : false;
   const canEdit = isMine || isOwner;
 
   if (isLoading) {
     return <div className="flex h-full items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[var(--dash-muted)]" /></div>;
   }
 
-  if (characters.length === 0) {
-    return <div className="flex h-full items-center justify-center p-8 text-center text-sm text-[var(--dash-muted)]">Nessun personaggio giocante presente in questa campagna.</div>;
-  }
+  const renderListItem = (entry: ListEntry) => (
+    <button
+      key={`${entry.kind}-${entry.id}`}
+      type="button"
+      onClick={() => { setSelected({ kind: entry.kind, id: entry.id }); setCurrentTab('stats'); }}
+      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors ${
+        selected?.kind === entry.kind && selected.id === entry.id ? 'bg-[var(--dash-surface-2)]' : 'hover:bg-[var(--dash-surface-2)]/50'
+      }`}
+    >
+      <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-[var(--dash-accent)] bg-[var(--dash-input)]">
+        {entry.portraitUrl ? (
+          <img src={entry.portraitUrl} alt={entry.name} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            {entry.kind === 'png' ? <Ghost className="h-4 w-4 text-[var(--dash-accent-2)]" /> : entry.kind === 'mostro' ? <Skull className="h-4 w-4 text-[var(--dash-accent-2)]" /> : <User className="h-4 w-4 text-[var(--dash-accent-2)]" />}
+          </div>
+        )}
+      </div>
+      <div className="min-w-0">
+        <div className="truncate text-sm font-medium text-[var(--dash-text-strong)]">{entry.name}</div>
+        <div className="truncate text-xs text-[var(--dash-muted)]">{entry.subtitle}</div>
+      </div>
+    </button>
+  );
 
   return (
     <div className="flex h-full">
-      <div className="w-64 shrink-0 overflow-y-auto border-r border-[var(--dash-border-soft)]">
-        {characters.map(char => (
-          <button
-            key={char.id}
-            type="button"
-            onClick={() => { setSelectedId(char.id); setCurrentTab('stats'); }}
-            className={`flex w-full items-center gap-3 border-b border-[var(--dash-border-soft)] px-4 py-3 text-left transition-colors ${
-              selectedId === char.id ? 'bg-[var(--dash-surface-2)]' : 'hover:bg-[var(--dash-surface-2)]/50'
-            }`}
-          >
-            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-[var(--dash-accent)] bg-[var(--dash-input)]">
-              {char.portraitCroppedImageUrl || char.portraitImageUrl ? (
-                <img src={char.portraitCroppedImageUrl || char.portraitImageUrl} alt={char.name} className="h-full w-full object-cover" />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center"><User className="h-5 w-5 text-[var(--dash-accent-2)]" /></div>
-              )}
-            </div>
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-[var(--dash-text-strong)]">{char.name}</div>
-              <div className="truncate text-xs text-[var(--dash-muted)]">{char.player || char.style}</div>
-            </div>
-          </button>
-        ))}
+      <div className="w-64 shrink-0 overflow-y-auto py-3">
+        <SectionHeader title="Personaggi" count={characters.length} isOpen={openSections.pg} onToggle={() => toggleSection('pg')} />
+        {openSections.pg && (
+          <div className="space-y-1 px-2 pb-2">
+            {characters.map(c => renderListItem({
+              kind: 'pg', id: c.id, name: c.name, subtitle: c.player || c.style,
+              portraitUrl: c.portraitCroppedImageUrl || c.portraitImageUrl,
+            }))}
+            {characters.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun personaggio.</div>}
+          </div>
+        )}
+
+        <SectionHeader title="PNG" count={npcs.length} isOpen={openSections.png} onToggle={() => toggleSection('png')} />
+        {openSections.png && (
+          <div className="space-y-1 px-2 pb-2">
+            {npcs.map(n => renderListItem({
+              kind: 'png', id: n.id, name: n.name, subtitle: n.role || 'PNG',
+              portraitUrl: n.portraitCroppedImageUrl || n.portraitImageUrl,
+            }))}
+            {npcs.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun PNG.</div>}
+          </div>
+        )}
+
+        <SectionHeader title="Mostri" count={monsters.length} isOpen={openSections.mostro} onToggle={() => toggleSection('mostro')} />
+        {openSections.mostro && (
+          <div className="space-y-1 px-2 pb-2">
+            {monsters.map(m => renderListItem({
+              kind: 'mostro', id: m.id, name: m.name, subtitle: 'Mostro',
+              portraitUrl: m.portraitImageUrl,
+            }))}
+            {monsters.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun mostro.</div>}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-5">
         {!selected ? (
-          <div className="flex h-full items-center justify-center text-sm text-[var(--dash-muted)]">Seleziona un personaggio</div>
-        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-[var(--dash-muted)]">Seleziona una scheda dalla lista</div>
+        ) : selectedChar ? (
           <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-90' : ''}>
             <div className="mb-4 flex items-center gap-3">
               <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-[var(--dash-accent)] bg-[var(--dash-input)]">
-                {selected.portraitCroppedImageUrl || selected.portraitImageUrl ? (
-                  <img src={selected.portraitCroppedImageUrl || selected.portraitImageUrl} alt={selected.name} className="h-full w-full object-cover" />
+                {selectedChar.portraitCroppedImageUrl || selectedChar.portraitImageUrl ? (
+                  <img src={selectedChar.portraitCroppedImageUrl || selectedChar.portraitImageUrl} alt={selectedChar.name} className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center"><User className="h-6 w-6 text-[var(--dash-accent-2)]" /></div>
                 )}
               </div>
               <div>
-                <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">{selected.name}</h3>
-                <p className="text-sm text-[var(--dash-muted)]">{selected.style} · {selected.viaggio}</p>
+                <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">{selectedChar.name}</h3>
+                <p className="text-sm text-[var(--dash-muted)]">{selectedChar.style} · {selectedChar.viaggio}</p>
               </div>
             </div>
 
@@ -202,25 +270,25 @@ export function SessionCharactersPanel() {
               <div className="space-y-4">
                 <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
                   <FrischezzaTracker
-                    current={selected.freschezza}
-                    max={selected.maxFreschezza}
-                    crucialBoxes={selected.caselleFrischezzaCruciali}
-                    onUpdate={(value) => updateCharacter(selected.id, { ...selected, freschezza: value })}
+                    current={selectedChar.freschezza}
+                    max={selectedChar.maxFreschezza}
+                    crucialBoxes={selectedChar.caselleFrischezzaCruciali}
+                    onUpdate={(value) => updateCharacter(selectedChar.id, { ...selectedChar, freschezza: value })}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  {Object.entries(selected.ambiti).map(([ambito, value]) => (
+                  {Object.entries(selectedChar.ambiti).map(([ambito, value]) => (
                     <div key={ambito} className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
                       <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">{ambito}</div>
-                      <div className="mt-1 text-xl font-semibold text-[var(--dash-text-strong)]">{value}</div>
+                      <div className="mt-1 text-xl font-semibold text-[var(--dash-text-strong)]">{value as any}</div>
                     </div>
                   ))}
                 </div>
                 <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
                   <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Tratti</div>
-                  {selected.tratti.length > 0 ? (
+                  {selectedChar.tratti.length > 0 ? (
                     <div className="space-y-2">
-                      {selected.tratti.map((trait, idx) => (
+                      {selectedChar.tratti.map((trait, idx) => (
                         <div key={idx} className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-2 text-sm">
                           <div className="font-medium text-[var(--dash-text-strong)]">{trait.name}</div>
                           {trait.description && <div className="text-xs text-[var(--dash-text)]">{trait.description}</div>}
@@ -238,28 +306,115 @@ export function SessionCharactersPanel() {
               <div className="space-y-4">
                 <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
                   <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Condizioni attive</div>
-                  <ConditionsPanel conditions={selected.conditions} onUpdate={(conditions) => updateCharacter(selected.id, { ...selected, conditions })} />
+                  <ConditionsPanel conditions={selectedChar.conditions} onUpdate={(conditions) => updateCharacter(selectedChar.id, { ...selectedChar, conditions })} />
                 </div>
                 <div className="rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] p-4">
                   <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
                     <Brain className="h-3.5 w-3.5 text-purple-400" /> Spirale della Follia
                   </div>
-                  <FoliaSpiral current={selected.follia} max={selected.maxFollia} onUpdate={(value) => updateCharacter(selected.id, { ...selected, follia: value })} />
+                  <FoliaSpiral current={selectedChar.follia} max={selectedChar.maxFollia} onUpdate={(value) => updateCharacter(selectedChar.id, { ...selectedChar, follia: value })} />
                 </div>
                 <div className="rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] p-4">
                   <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Turbe mentali</div>
-                  <TurbePanel turbe={selected.turbe} onUpdate={(turbe) => updateCharacter(selected.id, { ...selected, turbe })} />
+                  <TurbePanel turbe={selectedChar.turbe} onUpdate={(turbe) => updateCharacter(selectedChar.id, { ...selectedChar, turbe })} />
                 </div>
               </div>
             )}
 
             {currentTab === 'equipment' && (
               <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
-                <LegacyEquipmentPanel equipment={selected.equipment} onUpdate={(equipment) => updateCharacter(selected.id, { ...selected, equipment })} />
+                <LegacyEquipmentPanel equipment={selectedChar.equipment} onUpdate={(equipment) => updateCharacter(selectedChar.id, { ...selectedChar, equipment })} />
               </div>
             )}
           </fieldset>
-        )}
+        ) : selectedNpc ? (
+          <div>
+            <div className="mb-4 flex items-center gap-3">
+              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-[var(--dash-accent)] bg-[var(--dash-input)]">
+                {selectedNpc.portraitCroppedImageUrl || selectedNpc.portraitImageUrl ? (
+                  <img src={selectedNpc.portraitCroppedImageUrl || selectedNpc.portraitImageUrl} alt={selectedNpc.name} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center"><Ghost className="h-6 w-6 text-[var(--dash-accent-2)]" /></div>
+                )}
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">{selectedNpc.name}</h3>
+                <p className="text-sm text-[var(--dash-muted)]">{selectedNpc.role}</p>
+              </div>
+            </div>
+            <div className="space-y-3 text-sm">
+              {selectedNpc.description && (
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Descrizione</div>
+                  <p className="text-[var(--dash-text)]">{selectedNpc.description}</p>
+                </div>
+              )}
+              {selectedNpc.personality && (
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Personalità</div>
+                  <p className="text-[var(--dash-text)]">{selectedNpc.personality}</p>
+                </div>
+              )}
+              {isOwner && selectedNpc.secrets && (
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Segreti (solo GM)</div>
+                  <p className="text-[var(--dash-text)]">{selectedNpc.secrets}</p>
+                </div>
+              )}
+              {(selectedNpc.attacco || selectedNpc.difesa) && (
+                <div className="grid grid-cols-2 gap-3">
+                  {selectedNpc.attacco && (
+                    <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
+                      <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Attacco</div>
+                      <div className="mt-1 text-sm font-semibold text-[var(--dash-text-strong)]">{selectedNpc.attacco}</div>
+                    </div>
+                  )}
+                  {selectedNpc.difesa && (
+                    <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
+                      <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Difesa</div>
+                      <div className="mt-1 text-sm font-semibold text-[var(--dash-text-strong)]">{selectedNpc.difesa}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : selectedMonster ? (
+          <div>
+            <div className="mb-4 flex items-center gap-3">
+              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-[var(--dash-accent)] bg-[var(--dash-input)]">
+                {selectedMonster.portraitImageUrl ? (
+                  <img src={selectedMonster.portraitImageUrl} alt={selectedMonster.name} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center"><Skull className="h-6 w-6 text-[var(--dash-accent-2)]" /></div>
+                )}
+              </div>
+              <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">{selectedMonster.name}</h3>
+            </div>
+            <div className="space-y-3 text-sm">
+              {selectedMonster.description && (
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Descrizione</div>
+                  <p className="text-[var(--dash-text)]">{selectedMonster.description}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                {selectedMonster.attacco && (
+                  <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
+                    <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Attacco</div>
+                    <div className="mt-1 text-sm font-semibold text-[var(--dash-text-strong)]">{selectedMonster.attacco}</div>
+                  </div>
+                )}
+                {selectedMonster.difesa && (
+                  <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
+                    <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Difesa</div>
+                    <div className="mt-1 text-sm font-semibold text-[var(--dash-text-strong)]">{selectedMonster.difesa}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
