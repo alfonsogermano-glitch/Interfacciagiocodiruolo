@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { Play, Square, Settings, Loader2 } from 'lucide-react';
+import { Play, Square, Settings, Loader2, AlertTriangle } from 'lucide-react';
 import { useAuth, supabase } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
 import { loadCharactersByOwner } from '../../services/supabase/charactersService';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
+const AUTO_CLOSE_AFTER_MS = 60 * 60 * 1000; // 1 ora
 
 interface CampaignHomeProps {
   onGoToManagement: () => void;
@@ -22,6 +23,8 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   const [ownCharacterId, setOwnCharacterId] = useState<string | null>(null);
   const [characterLookupDone, setCharacterLookupDone] = useState(false);
   const [channelGeneration, setChannelGeneration] = useState(0);
+  const [autoClosedNotice, setAutoClosedNotice] = useState(false);
+  const autoCloseCheckedRef = useRef(false);
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const lookupSeqRef = useRef(0);
@@ -37,6 +40,34 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
     const promise = isOwner ? refreshCampaigns() : refreshJoinedCampaigns();
     void promise;
   }, [activeCampaign?.id, isOwner]);
+
+  // Il GM, al rientro, verifica se una sessione è rimasta attiva troppo a
+  // lungo (es. ha chiuso il browser senza terminarla esplicitamente) e la
+  // chiude automaticamente, senza intaccare le disconnessioni brevi/pausa
+  useEffect(() => {
+    if (!isOwner || !activeCampaign?.id || autoCloseCheckedRef.current) return;
+    if (!activeCampaign.sessionActive) return;
+
+    const activatedAt = activeCampaign.sessionActivatedAt ? new Date(activeCampaign.sessionActivatedAt).getTime() : null;
+    if (!activatedAt) return;
+
+    autoCloseCheckedRef.current = true;
+
+    if (Date.now() - activatedAt > AUTO_CLOSE_AFTER_MS) {
+      const accessToken = session?.access_token ?? publicAnonKey;
+      fetch(`${SERVER_BASE}/campaigns/${activeCampaign.id}/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ active: false }),
+      })
+        .then(() => {
+          setLocalSessionActive(false);
+          setAutoClosedNotice(true);
+          void refreshCampaigns();
+        })
+        .catch(err => console.error('Errore chiusura automatica sessione:', err));
+    }
+  }, [isOwner, activeCampaign?.id, activeCampaign?.sessionActive, activeCampaign?.sessionActivatedAt, session]);
 
   // Trova il proprio personaggio in questa campagna (solo per i giocatori)
   useEffect(() => {
@@ -130,6 +161,7 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
       });
 
       setLocalSessionActive(nextActive);
+      setAutoClosedNotice(false);
 
       if (channelRef.current && channelReady) {
         try {
@@ -165,6 +197,13 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
           <p className="mt-1 max-w-md text-sm text-[var(--dash-muted)]">{activeCampaign.description}</p>
         )}
       </div>
+
+      {autoClosedNotice && (
+        <div className="flex items-center gap-2 rounded-xl border border-amber-800 bg-amber-900/30 px-4 py-2 text-sm text-amber-200">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          La sessione precedente era rimasta attiva da più di un'ora senza attività ed è stata chiusa automaticamente.
+        </div>
+      )}
 
       {isOwner ? (
         <div className="flex flex-wrap items-center justify-center gap-3">

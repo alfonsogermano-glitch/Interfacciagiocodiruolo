@@ -237,7 +237,12 @@ app.post("/make-server-771c5bfd/campaigns/:id/session", async (c) => {
       return c.json({ error: "Campagna non trovata o non sei il proprietario" }, 404);
     }
 
-    const updated = { ...campaigns[index], sessionActive: !!active, updatedAt: new Date().toISOString() };
+    const updated = {
+      ...campaigns[index],
+      sessionActive: !!active,
+      sessionActivatedAt: active ? new Date().toISOString() : campaigns[index].sessionActivatedAt,
+      updatedAt: new Date().toISOString()
+    };
     campaigns[index] = updated;
     await kv.set(campaignsKey(userId), campaigns);
 
@@ -762,6 +767,7 @@ interface Campaign {
   lastOpenedAt?: string;
   logoUrl?: string;
   sessionActive?: boolean;
+  sessionActivatedAt?: string;
 }
 
 interface CampaignMembership {
