@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { User, Brain, ChevronDown, ChevronRight, Loader2, Skull, Ghost } from 'lucide-react';
 import { MoreVertical, Copy, UserMinus, UserX } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
+import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/paletteColors';
 import { projectId } from '/utils/supabase/info';
 import { FrischezzaTracker } from '../FrischezzaTracker';
 import { FoliaSpiral } from '../FoliaSpiral';
@@ -32,6 +33,12 @@ interface ListEntry {
 }
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
+
+function getCurrentPaletteColors() {
+  const el = document.querySelector('[data-dashboard-palette]');
+  const palette = el?.getAttribute('data-dashboard-palette') as PaletteId | null;
+  return palette && PALETTE_COLORS[palette] ? PALETTE_COLORS[palette] : DEFAULT_PALETTE_COLORS;
+}
 
 function SectionHeader({ title, count, isOpen, onToggle }: { title: string; count: number; isOpen: boolean; onToggle: () => void }) {
   return (
@@ -138,6 +145,7 @@ export function SessionCharactersPanel() {
   const [confirmRemoveChar, setConfirmRemoveChar] = useState(false);
   const [confirmRemovePlayer, setConfirmRemovePlayer] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [menuColors] = useState(() => getCurrentPaletteColors());
   const charMenuButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const loadSeqRef = useRef(0);
@@ -399,12 +407,12 @@ export function SessionCharactersPanel() {
             <div className="mb-4 flex items-start gap-4">
               <DraggablePortrait
                 url={selectedChar.portraitCroppedImageUrl || selectedChar.portraitImageUrl}
-                fallbackIcon={<User className="h-10 w-10 text-[var(--dash-accent-2)]" />}
-                size={96}
+                fallbackIcon={<User className="h-12 w-12 text-[var(--dash-accent-2)]" />}
+                size={116}
                 draggable={canDragEntity('pg', (selectedChar as any).ownerProfileId)}
                 onDragStart={(e) => e.dataTransfer.setData('application/x-hollowgate-entity', JSON.stringify({ kind: 'pg', id: selectedChar.id }))}
               />
-              <div className="min-w-0 flex-1 space-y-1.5">
+              <div className="min-w-0 flex-1 space-y-1">
                 <input
                   type="text"
                   value={selectedChar.name}
@@ -412,6 +420,9 @@ export function SessionCharactersPanel() {
                   disabled={!canEdit}
                   className="w-full rounded-lg border border-transparent bg-transparent px-1 text-xl font-semibold text-[var(--dash-text-strong)] outline-none transition-colors hover:border-[var(--dash-border-soft)] focus:border-[var(--dash-accent)] disabled:cursor-not-allowed"
                 />
+                <p className="px-1 text-sm text-[var(--dash-muted)]">
+                  {selectedChar.style} · {selectedChar.viaggio}
+                </p>
                 <input
                   type="text"
                   value={selectedChar.player}
@@ -432,11 +443,6 @@ export function SessionCharactersPanel() {
                     {(selectedChar as any).ownerDisplayName || 'Giocatore sconosciuto'}
                   </span>
                 </div>
-                {(selectedChar as any).createdAt && (
-                  <p className="text-[10px] text-[var(--dash-muted)]">
-                    Creato il {new Date((selectedChar as any).createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </p>
-                )}
               </div>
 
               {canEdit && (
@@ -461,8 +467,8 @@ export function SessionCharactersPanel() {
                         position: 'fixed',
                         top: charMenuPosition.top,
                         left: charMenuPosition.left,
-                        backgroundColor: 'var(--dash-panel)',
-                        border: '1px solid var(--dash-border-soft)',
+                        backgroundColor: menuColors.panel,
+                        border: `1px solid ${menuColors.border}`,
                       }}
                       className="z-[1000] w-60 rounded-xl p-1.5 shadow-2xl"
                     >
@@ -471,14 +477,16 @@ export function SessionCharactersPanel() {
                           <button
                             type="button"
                             onClick={() => setCopySubmenuOpen(true)}
-                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
+                            style={{ color: menuColors.text }}
+                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-opacity hover:opacity-75"
                           >
                             <Copy className="h-4 w-4" /> Copia in un'altra campagna
                           </button>
                           <button
                             type="button"
                             onClick={() => setConfirmRemoveChar(true)}
-                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
+                            style={{ color: menuColors.text }}
+                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-opacity hover:opacity-75"
                           >
                             <UserMinus className="h-4 w-4" /> Rimuovi il personaggio
                           </button>
@@ -486,26 +494,35 @@ export function SessionCharactersPanel() {
                             <button
                               type="button"
                               onClick={() => setConfirmRemovePlayer(true)}
-                              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--dash-danger-text)] hover:bg-[var(--dash-danger-bg)]"
+                              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-300 transition-opacity hover:opacity-75"
                             >
                               <UserX className="h-4 w-4" /> Rimuovi il giocatore
                             </button>
                           )}
+                          {(selectedChar as any).createdAt && (
+                            <>
+                              <div style={{ borderTop: `1px solid ${menuColors.border}` }} className="my-1" />
+                              <div className="px-3 py-1.5 text-[11px]" style={{ color: menuColors.text, opacity: 0.6 }}>
+                                Creato il {new Date((selectedChar as any).createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
+                              </div>
+                            </>
+                          )}
                         </>
                       ) : (
                         <div className="max-h-64 overflow-y-auto">
-                          <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.08em] text-[var(--dash-muted)]">
+                          <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.08em]" style={{ color: menuColors.text, opacity: 0.6 }}>
                             Campagne compatibili
                           </div>
                           {compatibleCampaigns.length === 0 ? (
-                            <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessuna campagna compatibile trovata.</div>
+                            <div className="px-3 py-2 text-xs" style={{ color: menuColors.text, opacity: 0.6 }}>Nessuna campagna compatibile trovata.</div>
                           ) : (
                             compatibleCampaigns.map((c) => (
                               <button
                                 key={c.id}
                                 type="button"
                                 onClick={() => handleCopyToCampaign(c.id)}
-                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
+                                style={{ color: menuColors.text }}
+                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-opacity hover:opacity-75"
                               >
                                 {c.name}
                               </button>
@@ -514,13 +531,14 @@ export function SessionCharactersPanel() {
                           <button
                             type="button"
                             onClick={() => setCopySubmenuOpen(false)}
-                            className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]"
+                            style={{ color: menuColors.text, opacity: 0.6 }}
+                            className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs"
                           >
                             ← Indietro
                           </button>
                         </div>
                       )}
-                      {actionError && <p className="px-3 pt-1 text-xs text-[var(--dash-danger-text)]">{actionError}</p>}
+                      {actionError && <p className="px-3 pt-1 text-xs text-red-300">{actionError}</p>}
                     </div>,
                     document.body
                   )}
