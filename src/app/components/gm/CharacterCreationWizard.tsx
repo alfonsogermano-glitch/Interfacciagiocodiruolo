@@ -635,7 +635,7 @@
     const canProceed = () => {
       switch (step) {
         case 1:
-          return name.trim().length > 0 && player.trim().length > 0;
+          return name.trim().length > 0;
         case 2:
           return style && viaggio;
         case 3:
@@ -895,13 +895,13 @@ const equipment: Equipment[] = [
   
                   <div>
                     <label className="mb-2 block text-sm uppercase tracking-[0.08em] text-[#b79f84]">
-                      Nome del Giocatore *
+                      Breve descrizione del personaggio
                     </label>
                     <input
                       type="text"
                       value={player}
                       onChange={(e) => setPlayer(e.target.value)}
-                      placeholder="Il tuo nome"
+                      placeholder="Es. Il timido secchione del gruppo"
                       className="w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-4 py-3 text-[#f3e7d0] placeholder-[#6f5d4f] outline-none transition-colors focus:border-[#8a5a34]"
                     />
                   </div>

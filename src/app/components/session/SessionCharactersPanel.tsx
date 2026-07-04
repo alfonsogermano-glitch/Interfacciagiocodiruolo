@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { User, Brain, ChevronDown, ChevronRight, Loader2, Skull, Ghost } from 'lucide-react';
+import { MoreVertical, Copy, UserMinus, UserX } from 'lucide-react';
+import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { projectId } from '/utils/supabase/info';
 import { FrischezzaTracker } from '../FrischezzaTracker';
 import { FoliaSpiral } from '../FoliaSpiral';
@@ -120,6 +122,7 @@ function DraggablePortrait({
 export function SessionCharactersPanel() {
   const { user, session } = useAuth();
   const { activeCampaignId, activeCampaign } = useCampaign();
+  const { campaigns: ownedCampaigns, joinedCampaigns } = useCampaign();
   const { isHSC } = useRuleset();
 
   const [characters, setCharacters] = useState<PlayerCharacter[]>([]);
@@ -129,6 +132,13 @@ export function SessionCharactersPanel() {
   const [selected, setSelected] = useState<{ kind: EntityKind; id: string } | null>(null);
   const [currentTab, setCurrentTab] = useState<'stats' | 'conditions' | 'equipment'>('stats');
   const [openSections, setOpenSections] = useState({ pg: true, png: true, mostro: true });
+  const [charMenuOpen, setCharMenuOpen] = useState(false);
+  const [charMenuPosition, setCharMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [copySubmenuOpen, setCopySubmenuOpen] = useState(false);
+  const [confirmRemoveChar, setConfirmRemoveChar] = useState(false);
+  const [confirmRemovePlayer, setConfirmRemovePlayer] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const charMenuButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const loadSeqRef = useRef(0);
   const saveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -222,6 +232,73 @@ export function SessionCharactersPanel() {
     persistCharacter(id, updatedChar);
   };
 
+  const compatibleCampaigns = [...ownedCampaigns, ...joinedCampaigns].filter(
+    (c) => c.id !== activeCampaignId && c.ruleset === activeCampaign?.ruleset
+  );
+
+  const handleCopyToCampaign = async (targetCampaignId: string) => {
+    if (!selectedChar) return;
+    setActionError(null);
+    try {
+      const accessToken = session?.access_token ?? '';
+      const res = await fetch(`${SERVER_BASE}/characters/${selectedChar.id}/copy-to-campaign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ campaignId: targetCampaignId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Errore durante la copia');
+      setCharMenuOpen(false);
+      setCopySubmenuOpen(false);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleRemoveCharacterFromCampaign = async () => {
+    if (!selectedChar) return;
+    setActionError(null);
+    try {
+      const accessToken = session?.access_token ?? '';
+      const res = await fetch(`${SERVER_BASE}/characters/${selectedChar.id}/assign-campaign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ campaignId: null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Errore durante la rimozione');
+      setConfirmRemoveChar(false);
+      setCharMenuOpen(false);
+      setSelected(null);
+      await loadData();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleRemovePlayer = async () => {
+    if (!selectedChar) return;
+    const playerProfileId = (selectedChar as any).ownerProfileId;
+    if (!playerProfileId) return;
+    setActionError(null);
+    try {
+      const accessToken = session?.access_token ?? '';
+      const res = await fetch(`${SERVER_BASE}/campaigns/${activeCampaignId}/remove-player`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ playerProfileId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Errore durante la rimozione del giocatore');
+      setConfirmRemovePlayer(false);
+      setCharMenuOpen(false);
+      setSelected(null);
+      await loadData();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   const toggleSection = (key: keyof typeof openSections) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
@@ -276,6 +353,7 @@ export function SessionCharactersPanel() {
   );
 
   return (
+    <>
     <div className="flex h-full">
       <div className="w-64 shrink-0 overflow-y-auto border-r border-[var(--dash-border-soft)] py-3">
         <SectionHeader title="Personaggi" count={characters.length} isOpen={openSections.pg} onToggle={() => toggleSection('pg')} />
@@ -318,18 +396,136 @@ export function SessionCharactersPanel() {
           <div className="flex h-full items-center justify-center text-sm text-[var(--dash-muted)]">Seleziona una scheda dalla lista</div>
         ) : selectedChar ? (
           <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-90' : ''}>
-            <div className="mb-4 flex items-center gap-3">
+            <div className="mb-4 flex items-start gap-4">
               <DraggablePortrait
                 url={selectedChar.portraitCroppedImageUrl || selectedChar.portraitImageUrl}
-                fallbackIcon={<User className="h-6 w-6 text-[var(--dash-accent-2)]" />}
-                size={56}
+                fallbackIcon={<User className="h-10 w-10 text-[var(--dash-accent-2)]" />}
+                size={96}
                 draggable={canDragEntity('pg', (selectedChar as any).ownerProfileId)}
                 onDragStart={(e) => e.dataTransfer.setData('application/x-hollowgate-entity', JSON.stringify({ kind: 'pg', id: selectedChar.id }))}
               />
-              <div>
-                <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">{selectedChar.name}</h3>
-                <p className="text-sm text-[var(--dash-muted)]">{selectedChar.style} · {selectedChar.viaggio}</p>
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <input
+                  type="text"
+                  value={selectedChar.name}
+                  onChange={(e) => updateCharacter(selectedChar.id, { ...selectedChar, name: e.target.value })}
+                  disabled={!canEdit}
+                  className="w-full rounded-lg border border-transparent bg-transparent px-1 text-xl font-semibold text-[var(--dash-text-strong)] outline-none transition-colors hover:border-[var(--dash-border-soft)] focus:border-[var(--dash-accent)] disabled:cursor-not-allowed"
+                />
+                <input
+                  type="text"
+                  value={selectedChar.player}
+                  onChange={(e) => updateCharacter(selectedChar.id, { ...selectedChar, player: e.target.value })}
+                  disabled={!canEdit}
+                  placeholder="Breve descrizione del personaggio"
+                  className="w-full rounded-lg border border-transparent bg-transparent px-1 text-sm text-[var(--dash-text)] outline-none transition-colors hover:border-[var(--dash-border-soft)] focus:border-[var(--dash-accent)] disabled:cursor-not-allowed"
+                />
+                <div className="flex items-center gap-2 pt-1">
+                  <div className="h-6 w-6 shrink-0 overflow-hidden rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-input)]">
+                    {(selectedChar as any).ownerAvatarUrl ? (
+                      <img src={(selectedChar as any).ownerAvatarUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center"><User className="h-3.5 w-3.5 text-[var(--dash-accent-2)]" /></div>
+                    )}
+                  </div>
+                  <span className="text-xs text-[var(--dash-muted)]">
+                    {(selectedChar as any).ownerDisplayName || 'Giocatore sconosciuto'}
+                  </span>
+                </div>
+                {(selectedChar as any).createdAt && (
+                  <p className="text-[10px] text-[var(--dash-muted)]">
+                    Creato il {new Date((selectedChar as any).createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                )}
               </div>
+
+              {canEdit && (
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    ref={charMenuButtonRef}
+                    onClick={() => {
+                      if (charMenuOpen) { setCharMenuOpen(false); return; }
+                      const rect = charMenuButtonRef.current?.getBoundingClientRect();
+                      if (rect) setCharMenuPosition({ top: rect.bottom + 4, left: rect.right - 240 });
+                      setCharMenuOpen(true);
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+
+                  {charMenuOpen && charMenuPosition && createPortal(
+                    <div
+                      style={{
+                        position: 'fixed',
+                        top: charMenuPosition.top,
+                        left: charMenuPosition.left,
+                        backgroundColor: 'var(--dash-panel)',
+                        border: '1px solid var(--dash-border-soft)',
+                      }}
+                      className="z-[1000] w-60 rounded-xl p-1.5 shadow-2xl"
+                    >
+                      {!copySubmenuOpen ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setCopySubmenuOpen(true)}
+                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
+                          >
+                            <Copy className="h-4 w-4" /> Copia in un'altra campagna
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmRemoveChar(true)}
+                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
+                          >
+                            <UserMinus className="h-4 w-4" /> Rimuovi il personaggio
+                          </button>
+                          {isOwner && (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmRemovePlayer(true)}
+                              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--dash-danger-text)] hover:bg-[var(--dash-danger-bg)]"
+                            >
+                              <UserX className="h-4 w-4" /> Rimuovi il giocatore
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <div className="max-h-64 overflow-y-auto">
+                          <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.08em] text-[var(--dash-muted)]">
+                            Campagne compatibili
+                          </div>
+                          {compatibleCampaigns.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessuna campagna compatibile trovata.</div>
+                          ) : (
+                            compatibleCampaigns.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => handleCopyToCampaign(c.id)}
+                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
+                              >
+                                {c.name}
+                              </button>
+                            ))
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setCopySubmenuOpen(false)}
+                            className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]"
+                          >
+                            ← Indietro
+                          </button>
+                        </div>
+                      )}
+                      {actionError && <p className="px-3 pt-1 text-xs text-[var(--dash-danger-text)]">{actionError}</p>}
+                    </div>,
+                    document.body
+                  )}
+                </div>
+              )}
             </div>
 
             {!canEdit && (
@@ -509,5 +705,24 @@ export function SessionCharactersPanel() {
         ) : null}
       </div>
     </div>
+    {confirmRemoveChar && (
+      <ConfirmDialog
+        title="Rimuovere il personaggio dalla campagna?"
+        message="Il personaggio non verrà eliminato: resterà nel database del giocatore, semplicemente non farà più parte di questa campagna."
+        confirmLabel="Rimuovi"
+        onConfirm={handleRemoveCharacterFromCampaign}
+        onCancel={() => setConfirmRemoveChar(false)}
+      />
+    )}
+    {confirmRemovePlayer && (
+      <ConfirmDialog
+        title="Rimuovere il giocatore dalla campagna?"
+        message="Il giocatore e tutti i suoi personaggi verranno rimossi da questa campagna. L'account e i personaggi restano intatti, semplicemente non parteciperanno più qui."
+        confirmLabel="Rimuovi"
+        onConfirm={handleRemovePlayer}
+        onCancel={() => setConfirmRemovePlayer(false)}
+      />
+    )}
+    </>
   );
 }

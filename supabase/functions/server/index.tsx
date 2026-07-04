@@ -462,8 +462,13 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
     if (charError || !character) {
       return c.json({ error: "Personaggio non trovato" }, 404);
     }
-    if (character.owner_profile_id !== userId) {
-      return c.json({ error: "Non sei il proprietario di questo personaggio" }, 403);
+    const isCharacterOwner = character.owner_profile_id === userId;
+    if (!isCharacterOwner) {
+      const myCampaignsForCheck: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+      const isGmHere = character.campaign_id && myCampaignsForCheck.some((camp) => camp.id === character.campaign_id);
+      if (!isGmHere) {
+        return c.json({ error: "Non hai i permessi su questo personaggio" }, 403);
+      }
     }
 
     const oldCampaignId: string | null = character.campaign_id;
@@ -543,6 +548,110 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
     return c.json({ success: true, campaignId: targetCampaignId });
   } catch (err) {
     console.log("Errore POST characters/:id/assign-campaign:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.post("/make-server-771c5bfd/characters/:id/copy-to-campaign", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const characterId = c.req.param("id");
+    const { campaignId } = await c.req.json();
+    if (!campaignId) return c.json({ error: "campaignId obbligatorio" }, 400);
+
+    const admin = getAdminClient();
+    const { data: original, error: fetchError } = await admin
+      .from("characters")
+      .select("*")
+      .eq("id", characterId)
+      .single();
+
+    if (fetchError || !original) {
+      return c.json({ error: "Personaggio non trovato" }, 404);
+    }
+
+    const isOwnerOfCharacter = original.owner_profile_id === userId;
+    const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const isGmOfOriginCampaign = myCampaigns.some((camp) => camp.id === original.campaign_id);
+    if (!isOwnerOfCharacter && !isGmOfOriginCampaign) {
+      return c.json({ error: "Non hai i permessi per copiare questo personaggio" }, 403);
+    }
+
+    const isGmOfTargetCampaign = myCampaigns.some((camp) => camp.id === campaignId);
+    const myJoined = await kv.get(playerCampaignsKey(userId)) ?? [];
+    const isMemberOfTarget = myJoined.some((pc) => pc.campaignId === campaignId);
+    if (!isGmOfTargetCampaign && !isMemberOfTarget) {
+      return c.json({ error: "Non hai accesso alla campagna di destinazione" }, 403);
+    }
+
+    const { id, created_at, updated_at, ...rest } = original;
+    const { data: copy, error: insertError } = await admin
+      .from("characters")
+      .insert({
+        ...rest,
+        campaign_id: campaignId,
+        name: `${original.name} (copia)`,
+      })
+      .select("*")
+      .single();
+
+    if (insertError) {
+      console.log("Errore copia personaggio:", insertError);
+      return c.json({ error: "Errore durante la copia" }, 500);
+    }
+
+    return c.json({ character: copy });
+  } catch (err) {
+    console.log("Errore POST characters/:id/copy-to-campaign:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.post("/make-server-771c5bfd/campaigns/:id/remove-player", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const campaignId = c.req.param("id");
+    const { playerProfileId } = await c.req.json();
+    if (!playerProfileId) return c.json({ error: "playerProfileId obbligatorio" }, 400);
+
+    const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const isGm = myCampaigns.some((camp) => camp.id === campaignId);
+    if (!isGm) {
+      return c.json({ error: "Solo il proprietario della campagna può rimuovere un giocatore" }, 403);
+    }
+
+    const admin = getAdminClient();
+
+    // Svincola tutti i personaggi del giocatore in questa campagna
+    await admin
+      .from("characters")
+      .update({ campaign_id: null })
+      .eq("campaign_id", campaignId)
+      .eq("owner_profile_id", playerProfileId);
+
+    // Revoca l'appartenenza dal KV (campagna) e dal profilo del giocatore
+    const members = await kv.get(campaignMembersKey(campaignId)) ?? [];
+    await kv.set(campaignMembersKey(campaignId), members.filter((m: any) => m.profileId !== playerProfileId));
+
+    const playerCampaigns = await kv.get(playerCampaignsKey(playerProfileId)) ?? [];
+    await kv.set(playerCampaignsKey(playerProfileId), playerCampaigns.filter((pc: any) => pc.campaignId !== campaignId));
+
+    // Revoca anche su Postgres (per Presence/RLS)
+    await admin.from('campaign_members').delete()
+      .eq('campaign_id', campaignId)
+      .eq('profile_id', playerProfileId);
+
+    return c.json({ success: true });
+  } catch (err) {
+    console.log("Errore POST campaigns/:id/remove-player:", err);
     return c.json({ error: `Errore interno: ${err}` }, 500);
   }
 });
@@ -664,19 +773,24 @@ app.get("/make-server-771c5bfd/campaigns/:id/characters", async (c) => {
   const ownerIds = Array.from(new Set(rows.map((r: any) => r.owner_profile_id).filter(Boolean)));
 
   let displayNameById: Record<string, string> = {};
+  let avatarUrlById: Record<string, string> = {};
   if (ownerIds.length > 0) {
     const { data: profiles } = await admin
       .from("profiles")
-      .select("id, display_name")
+      .select("id, display_name, avatar_url")
       .in("id", ownerIds);
     displayNameById = Object.fromEntries(
       (profiles ?? []).map((p: any) => [p.id, p.display_name])
+    );
+    avatarUrlById = Object.fromEntries(
+      (profiles ?? []).map((p: any) => [p.id, p.avatar_url])
     );
   }
 
   const enrichedRows = rows.map((r: any) => ({
     ...r,
     owner_display_name: displayNameById[r.owner_profile_id] ?? null,
+    owner_avatar_url: avatarUrlById[r.owner_profile_id] ?? null,
   }));
 
   return c.json({ characters: enrichedRows });
