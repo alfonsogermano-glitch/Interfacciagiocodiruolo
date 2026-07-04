@@ -25,6 +25,7 @@ interface ListEntry {
   name: string;
   subtitle: string;
   portraitUrl?: string;
+  ownerProfileId?: string | null;
 }
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
@@ -41,6 +42,51 @@ function SectionHeader({ title, count, isOpen, onToggle }: { title: string; coun
       </span>
       {isOpen ? <ChevronDown className="h-3.5 w-3.5 text-[var(--dash-muted)]" /> : <ChevronRight className="h-3.5 w-3.5 text-[var(--dash-muted)]" />}
     </button>
+  );
+}
+
+function DraggablePortrait({
+  url,
+  fallbackIcon,
+  size = 56,
+  draggable,
+  onDragStart,
+}: {
+  url?: string;
+  fallbackIcon: React.ReactNode;
+  size?: number;
+  draggable: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+}) {
+  return (
+    <div
+      draggable={draggable}
+      onDragStart={onDragStart}
+      className={`group relative shrink-0 overflow-hidden rounded-md border-2 border-[var(--dash-accent)] bg-[var(--dash-input)] ${
+        draggable ? 'cursor-grab active:cursor-grabbing' : ''
+      }`}
+      style={{ width: size, height: size }}
+    >
+      {url ? (
+        <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center">{fallbackIcon}</div>
+      )}
+      {draggable && (
+        <div
+          className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-md opacity-0 transition-opacity duration-150 group-hover:opacity-100"
+          style={{ backgroundColor: 'rgba(0,0,0,0.35)' }}
+        >
+          <div className="h-full w-full overflow-hidden rounded-full border-2 border-[var(--dash-accent)]" style={{ width: size, height: size }}>
+            {url ? (
+              <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-[var(--dash-input)]">{fallbackIcon}</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -159,6 +205,12 @@ export function SessionCharactersPanel() {
   const isMine = selectedChar ? (selectedChar as any).ownerProfileId === user?.id : false;
   const canEdit = isMine || isOwner;
 
+  const canDragEntity = (kind: EntityKind, ownerProfileId?: string | null) => {
+    if (isOwner) return true; // il GM può trascinare tutto: PG, PNG, Mostri
+    if (kind === 'pg' && ownerProfileId === user?.id) return true; // il giocatore solo il proprio PG
+    return false;
+  };
+
   if (isLoading) {
     return <div className="flex h-full items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[var(--dash-muted)]" /></div>;
   }
@@ -172,9 +224,17 @@ export function SessionCharactersPanel() {
         selected?.kind === entry.kind && selected.id === entry.id ? 'bg-[var(--dash-surface-2)]' : 'hover:bg-[var(--dash-surface-2)]/50'
       }`}
     >
-      <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-[var(--dash-accent)] bg-[var(--dash-input)]">
+      <div
+        draggable={canDragEntity(entry.kind, entry.ownerProfileId)}
+        onDragStart={(e) => {
+          e.dataTransfer.setData('application/x-hollowgate-entity', JSON.stringify({ kind: entry.kind, id: entry.id }));
+        }}
+        className={`relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-[var(--dash-input)] ${
+          canDragEntity(entry.kind, entry.ownerProfileId) ? 'cursor-grab active:cursor-grabbing' : ''
+        }`}
+      >
         {entry.portraitUrl ? (
-          <img src={entry.portraitUrl} alt={entry.name} className="h-full w-full object-cover" />
+          <img src={entry.portraitUrl} alt={entry.name} className="h-full w-full object-cover" draggable={false} />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
             {entry.kind === 'png' ? <Ghost className="h-4 w-4 text-[var(--dash-accent-2)]" /> : entry.kind === 'mostro' ? <Skull className="h-4 w-4 text-[var(--dash-accent-2)]" /> : <User className="h-4 w-4 text-[var(--dash-accent-2)]" />}
@@ -197,6 +257,7 @@ export function SessionCharactersPanel() {
             {characters.map(c => renderListItem({
               kind: 'pg', id: c.id, name: c.name, subtitle: (c as any).ownerDisplayName || c.player || c.style,
               portraitUrl: c.portraitCroppedImageUrl || c.portraitImageUrl,
+              ownerProfileId: (c as any).ownerProfileId,
             }))}
             {characters.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun personaggio.</div>}
           </div>
@@ -231,13 +292,13 @@ export function SessionCharactersPanel() {
         ) : selectedChar ? (
           <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-90' : ''}>
             <div className="mb-4 flex items-center gap-3">
-              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-[var(--dash-accent)] bg-[var(--dash-input)]">
-                {selectedChar.portraitCroppedImageUrl || selectedChar.portraitImageUrl ? (
-                  <img src={selectedChar.portraitCroppedImageUrl || selectedChar.portraitImageUrl} alt={selectedChar.name} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center"><User className="h-6 w-6 text-[var(--dash-accent-2)]" /></div>
-                )}
-              </div>
+              <DraggablePortrait
+                url={selectedChar.portraitCroppedImageUrl || selectedChar.portraitImageUrl}
+                fallbackIcon={<User className="h-6 w-6 text-[var(--dash-accent-2)]" />}
+                size={56}
+                draggable={canDragEntity('pg', (selectedChar as any).ownerProfileId)}
+                onDragStart={(e) => e.dataTransfer.setData('application/x-hollowgate-entity', JSON.stringify({ kind: 'pg', id: selectedChar.id }))}
+              />
               <div>
                 <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">{selectedChar.name}</h3>
                 <p className="text-sm text-[var(--dash-muted)]">{selectedChar.style} · {selectedChar.viaggio}</p>
@@ -334,13 +395,13 @@ export function SessionCharactersPanel() {
         ) : selectedNpc ? (
           <div>
             <div className="mb-4 flex items-center gap-3">
-              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-[var(--dash-accent)] bg-[var(--dash-input)]">
-                {selectedNpc.portraitCroppedImageUrl || selectedNpc.portraitImageUrl ? (
-                  <img src={selectedNpc.portraitCroppedImageUrl || selectedNpc.portraitImageUrl} alt={selectedNpc.name} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center"><Ghost className="h-6 w-6 text-[var(--dash-accent-2)]" /></div>
-                )}
-              </div>
+              <DraggablePortrait
+                url={selectedNpc.portraitCroppedImageUrl || selectedNpc.portraitImageUrl}
+                fallbackIcon={<Ghost className="h-6 w-6 text-[var(--dash-accent-2)]" />}
+                size={56}
+                draggable={canDragEntity('png')}
+                onDragStart={(e) => e.dataTransfer.setData('application/x-hollowgate-entity', JSON.stringify({ kind: 'png', id: selectedNpc.id }))}
+              />
               <div>
                 <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">{selectedNpc.name}</h3>
                 <p className="text-sm text-[var(--dash-muted)]">{selectedNpc.role}</p>
@@ -386,13 +447,13 @@ export function SessionCharactersPanel() {
         ) : selectedMonster ? (
           <div>
             <div className="mb-4 flex items-center gap-3">
-              <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 border-[var(--dash-accent)] bg-[var(--dash-input)]">
-                {selectedMonster.portraitImageUrl ? (
-                  <img src={selectedMonster.portraitImageUrl} alt={selectedMonster.name} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center"><Skull className="h-6 w-6 text-[var(--dash-accent-2)]" /></div>
-                )}
-              </div>
+              <DraggablePortrait
+                url={selectedMonster.portraitImageUrl}
+                fallbackIcon={<Skull className="h-6 w-6 text-[var(--dash-accent-2)]" />}
+                size={56}
+                draggable={canDragEntity('mostro')}
+                onDragStart={(e) => e.dataTransfer.setData('application/x-hollowgate-entity', JSON.stringify({ kind: 'mostro', id: selectedMonster.id }))}
+              />
               <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">{selectedMonster.name}</h3>
             </div>
             <div className="space-y-3 text-sm">
