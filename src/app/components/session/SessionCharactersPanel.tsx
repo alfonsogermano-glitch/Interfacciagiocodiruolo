@@ -61,7 +61,31 @@ function DraggablePortrait({
   return (
     <div
       draggable={draggable}
-      onDragStart={onDragStart}
+      onDragStart={(e) => {
+        if (url) {
+          const img = new Image();
+          img.src = url;
+          const canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.clip();
+            // Se l'immagine non è ancora caricata nella cache del browser,
+            // il disegno potrebbe risultare vuoto la prima volta: è un
+            // compromesso accettabile, l'immagine è quasi sempre già in
+            // cache perché già visibile a schermo
+            ctx.drawImage(img, 0, 0, size, size);
+            ctx.restore();
+            e.dataTransfer.setDragImage(canvas, size / 2, size / 2);
+          }
+        }
+        onDragStart?.(e);
+      }}
       className={`group relative shrink-0 overflow-hidden rounded-md border-2 border-[var(--dash-accent)] bg-[var(--dash-input)] ${
         draggable ? 'cursor-grab active:cursor-grabbing' : ''
       }`}
