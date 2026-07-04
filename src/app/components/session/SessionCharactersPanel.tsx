@@ -141,10 +141,12 @@ export function SessionCharactersPanel() {
   const [openSections, setOpenSections] = useState({ pg: true, png: true, mostro: true });
   const [charMenuOpen, setCharMenuOpen] = useState(false);
   const [charMenuPosition, setCharMenuPosition] = useState<{ top: number; left: number } | null>(null);
-  const [copySubmenuOpen, setCopySubmenuOpen] = useState(false);
   const [confirmRemoveChar, setConfirmRemoveChar] = useState(false);
   const [confirmRemovePlayer, setConfirmRemovePlayer] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [showCopyDialog, setShowCopyDialog] = useState(false);
+  const [copyTargetId, setCopyTargetId] = useState<string | null>(null);
+  const [isCopying, setIsCopying] = useState(false);
   const [menuColors] = useState(() => getCurrentPaletteColors());
   const charMenuButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -244,22 +246,25 @@ export function SessionCharactersPanel() {
     (c) => c.id !== activeCampaignId && c.ruleset === activeCampaign?.ruleset
   );
 
-  const handleCopyToCampaign = async (targetCampaignId: string) => {
-    if (!selectedChar) return;
+  const handleConfirmCopy = async () => {
+    if (!selectedChar || !copyTargetId) return;
+    setIsCopying(true);
     setActionError(null);
     try {
       const accessToken = session?.access_token ?? '';
       const res = await fetch(`${SERVER_BASE}/characters/${selectedChar.id}/copy-to-campaign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ campaignId: targetCampaignId }),
+        body: JSON.stringify({ campaignId: copyTargetId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Errore durante la copia');
-      setCharMenuOpen(false);
-      setCopySubmenuOpen(false);
+      setShowCopyDialog(false);
+      setCopyTargetId(null);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsCopying(false);
     }
   };
 
@@ -472,71 +477,38 @@ export function SessionCharactersPanel() {
                       }}
                       className="z-[1000] w-60 rounded-xl p-1.5 shadow-2xl"
                     >
-                      {!copySubmenuOpen ? (
+                      <button
+                        type="button"
+                        onClick={() => { setCharMenuOpen(false); setShowCopyDialog(true); }}
+                        style={{ color: menuColors.text }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-opacity hover:opacity-75"
+                      >
+                        <Copy className="h-4 w-4" /> Copia in un'altra campagna
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRemoveChar(true)}
+                        style={{ color: menuColors.text }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-opacity hover:opacity-75"
+                      >
+                        <UserMinus className="h-4 w-4" /> Rimuovi il personaggio
+                      </button>
+                      {isOwner && (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmRemovePlayer(true)}
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-300 transition-opacity hover:opacity-75"
+                        >
+                          <UserX className="h-4 w-4" /> Rimuovi il giocatore
+                        </button>
+                      )}
+                      {(selectedChar as any).createdAt && (
                         <>
-                          <button
-                            type="button"
-                            onClick={() => setCopySubmenuOpen(true)}
-                            style={{ color: menuColors.text }}
-                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-opacity hover:opacity-75"
-                          >
-                            <Copy className="h-4 w-4" /> Copia in un'altra campagna
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmRemoveChar(true)}
-                            style={{ color: menuColors.text }}
-                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-opacity hover:opacity-75"
-                          >
-                            <UserMinus className="h-4 w-4" /> Rimuovi il personaggio
-                          </button>
-                          {isOwner && (
-                            <button
-                              type="button"
-                              onClick={() => setConfirmRemovePlayer(true)}
-                              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-red-300 transition-opacity hover:opacity-75"
-                            >
-                              <UserX className="h-4 w-4" /> Rimuovi il giocatore
-                            </button>
-                          )}
-                          {(selectedChar as any).createdAt && (
-                            <>
-                              <div style={{ borderTop: `1px solid ${menuColors.border}` }} className="my-1" />
-                              <div className="px-3 py-1.5 text-[11px]" style={{ color: menuColors.text, opacity: 0.6 }}>
-                                Creato il {new Date((selectedChar as any).createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
-                              </div>
-                            </>
-                          )}
-                        </>
-                      ) : (
-                        <div className="max-h-64 overflow-y-auto">
-                          <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.08em]" style={{ color: menuColors.text, opacity: 0.6 }}>
-                            Campagne compatibili
+                          <div style={{ borderTop: `1px solid ${menuColors.border}` }} className="my-1" />
+                          <div className="px-3 py-1.5 text-[11px]" style={{ color: menuColors.text, opacity: 0.6 }}>
+                            Creato il {new Date((selectedChar as any).createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
                           </div>
-                          {compatibleCampaigns.length === 0 ? (
-                            <div className="px-3 py-2 text-xs" style={{ color: menuColors.text, opacity: 0.6 }}>Nessuna campagna compatibile trovata.</div>
-                          ) : (
-                            compatibleCampaigns.map((c) => (
-                              <button
-                                key={c.id}
-                                type="button"
-                                onClick={() => handleCopyToCampaign(c.id)}
-                                style={{ color: menuColors.text }}
-                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-opacity hover:opacity-75"
-                              >
-                                {c.name}
-                              </button>
-                            ))
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setCopySubmenuOpen(false)}
-                            style={{ color: menuColors.text, opacity: 0.6 }}
-                            className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs"
-                          >
-                            ← Indietro
-                          </button>
-                        </div>
+                        </>
                       )}
                       {actionError && <p className="px-3 pt-1 text-xs text-red-300">{actionError}</p>}
                     </div>,
@@ -740,6 +712,70 @@ export function SessionCharactersPanel() {
         onConfirm={handleRemovePlayer}
         onCancel={() => setConfirmRemovePlayer(false)}
       />
+    )}
+    {showCopyDialog && (
+      <div
+        className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/80 p-4"
+        onClick={() => { setShowCopyDialog(false); setCopyTargetId(null); }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{ backgroundColor: menuColors.panel, border: `1px solid ${menuColors.border}` }}
+          className="w-full max-w-sm rounded-2xl p-5 shadow-2xl"
+        >
+          <h3 className="mb-1 text-base font-semibold" style={{ color: menuColors.text }}>
+            Copia in un'altra campagna
+          </h3>
+          <p className="mb-4 text-sm" style={{ color: menuColors.text, opacity: 0.75 }}>
+            Scegli la campagna di destinazione. Verrà creata una copia del personaggio; l'originale resterà qui invariato.
+          </p>
+
+          <div className="mb-4 max-h-56 space-y-1 overflow-y-auto">
+            {compatibleCampaigns.length === 0 ? (
+              <p className="text-sm" style={{ color: menuColors.text, opacity: 0.6 }}>
+                Nessuna campagna compatibile trovata (stesso regolamento, diversa da quella attuale).
+              </p>
+            ) : (
+              compatibleCampaigns.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setCopyTargetId(c.id)}
+                  style={{
+                    color: menuColors.text,
+                    backgroundColor: copyTargetId === c.id ? menuColors.border : 'transparent',
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors"
+                >
+                  {c.name}
+                </button>
+              ))
+            )}
+          </div>
+
+          {actionError && <p className="mb-3 text-xs text-red-300">{actionError}</p>}
+
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => { setShowCopyDialog(false); setCopyTargetId(null); }}
+              style={{ border: `1px solid ${menuColors.border}`, color: menuColors.text }}
+              className="rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
+            >
+              Annulla
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmCopy}
+              disabled={!copyTargetId || isCopying}
+              style={{ backgroundColor: menuColors.border, color: '#f4efe8', opacity: !copyTargetId || isCopying ? 0.5 : 1 }}
+              className="rounded-lg px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-80"
+            >
+              {isCopying ? 'Copia in corso...' : 'Conferma'}
+            </button>
+          </div>
+        </div>
+      </div>
     )}
     </>
   );
