@@ -58,31 +58,14 @@ function DraggablePortrait({
   draggable: boolean;
   onDragStart?: (e: React.DragEvent) => void;
 }) {
+  const dragGhostRef = useRef<HTMLImageElement | null>(null);
+
   return (
     <div
       draggable={draggable}
       onDragStart={(e) => {
-        if (url) {
-          const img = new Image();
-          img.src = url;
-          const canvas = document.createElement('canvas');
-          canvas.width = size;
-          canvas.height = size;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
-            ctx.closePath();
-            ctx.clip();
-            // Se l'immagine non è ancora caricata nella cache del browser,
-            // il disegno potrebbe risultare vuoto la prima volta: è un
-            // compromesso accettabile, l'immagine è quasi sempre già in
-            // cache perché già visibile a schermo
-            ctx.drawImage(img, 0, 0, size, size);
-            ctx.restore();
-            e.dataTransfer.setDragImage(canvas, size / 2, size / 2);
-          }
+        if (url && dragGhostRef.current) {
+          e.dataTransfer.setDragImage(dragGhostRef.current, size / 2, size / 2);
         }
         onDragStart?.(e);
       }}
@@ -101,7 +84,7 @@ function DraggablePortrait({
           className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-md opacity-0 transition-opacity duration-150 group-hover:opacity-100"
           style={{ backgroundColor: 'rgba(0,0,0,0.35)' }}
         >
-          <div className="h-full w-full overflow-hidden rounded-full border-2 border-[var(--dash-accent)]" style={{ width: size, height: size }}>
+          <div className="overflow-hidden rounded-full border-2 border-[var(--dash-accent)]" style={{ width: size, height: size }}>
             {url ? (
               <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
             ) : (
@@ -109,6 +92,18 @@ function DraggablePortrait({
             )}
           </div>
         </div>
+      )}
+      {/* Immagine tonda "fantasma", sempre presente nel DOM (già caricata),
+          usata solo come anteprima durante il trascinamento */}
+      {url && (
+        <img
+          ref={dragGhostRef}
+          src={url}
+          alt=""
+          draggable={false}
+          className="pointer-events-none absolute rounded-full object-cover"
+          style={{ width: size, height: size, left: -9999, top: -9999 }}
+        />
       )}
     </div>
   );
