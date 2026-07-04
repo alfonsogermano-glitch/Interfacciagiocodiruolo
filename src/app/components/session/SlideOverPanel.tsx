@@ -31,15 +31,15 @@ export function SlideOverPanel({ isOpen, onClose, children, widthClassName = 'w-
 
   return (
     <div
-      className={`fixed top-16 bottom-0 z-[900] flex flex-col shadow-2xl transition-transform duration-300 ease-out ${widthClassName} ${
-        isOpen ? 'translate-x-0' : 'translate-x-full'
-      }`}
+      className={`fixed top-16 bottom-0 z-[900] flex flex-col shadow-2xl transition-transform duration-300 ease-out ${widthClassName}`}
       style={{
         right: SESSION_SIDEBAR_WIDTH,
+        width: undefined,
         backgroundColor: `${colors.panel}ee`,
         borderLeft: `1px solid ${colors.border}`,
         backdropFilter: 'blur(6px)',
         pointerEvents: isOpen ? 'auto' : 'none',
+        transform: isOpen ? 'translateX(0)' : 'translateX(calc(100% + 4rem))',
       }}
     >
       <div className="flex-1 overflow-hidden">
