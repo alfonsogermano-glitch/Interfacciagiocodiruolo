@@ -186,7 +186,7 @@ export function SessionCharactersPanel() {
 
   return (
     <div className="flex h-full">
-      <div className="w-64 shrink-0 overflow-y-auto py-3">
+      <div className="w-64 shrink-0 overflow-y-auto border-r border-[var(--dash-border-soft)] py-3">
         <SectionHeader title="Personaggi" count={characters.length} isOpen={openSections.pg} onToggle={() => toggleSection('pg')} />
         {openSections.pg && (
           <div className="space-y-1 px-2 pb-2">

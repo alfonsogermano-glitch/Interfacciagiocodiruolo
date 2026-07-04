@@ -19,8 +19,6 @@ export function SessionRightSidebar() {
     setOpenPanel(prev => (prev === id ? null : id));
   };
 
-  const activeMeta = ICONS.find(i => i.id === openPanel);
-
   return (
     <>
       <aside className="flex h-full w-16 shrink-0 flex-col items-center gap-2 border-l border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
@@ -47,7 +45,6 @@ export function SessionRightSidebar() {
       <SlideOverPanel
         isOpen={openPanel !== null}
         onClose={() => setOpenPanel(null)}
-        title={activeMeta?.label ?? ''}
       >
         {openPanel === 'characters' && <SessionCharactersPanel />}
       </SlideOverPanel>
