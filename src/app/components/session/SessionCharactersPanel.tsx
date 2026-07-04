@@ -242,7 +242,7 @@ export function SessionCharactersPanel() {
     persistCharacter(id, updatedChar);
   };
 
-  const compatibleCampaigns = [...ownedCampaigns, ...joinedCampaigns].filter(
+  const compatibleCampaigns = (isOwner ? ownedCampaigns : joinedCampaigns).filter(
     (c) => c.id !== activeCampaignId && c.ruleset === activeCampaign?.ruleset
   );
 
