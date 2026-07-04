@@ -21,7 +21,7 @@ export function SessionRightSidebar() {
 
   return (
     <>
-      <aside className="flex h-full w-16 shrink-0 flex-col items-center gap-2 border-l border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
+      <aside className="relative z-[950] flex h-full w-16 shrink-0 flex-col items-center gap-2 border-l border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
         {ICONS.map(({ id, label, icon: Icon, enabled }) => (
           <button
             key={id}
