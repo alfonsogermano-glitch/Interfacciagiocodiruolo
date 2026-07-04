@@ -660,7 +660,26 @@ app.get("/make-server-771c5bfd/campaigns/:id/characters", async (c) => {
     return c.json({ error: "Errore lettura personaggi" }, 500);
   }
 
-  return c.json({ characters: data ?? [] });
+  const rows = data ?? [];
+  const ownerIds = Array.from(new Set(rows.map((r: any) => r.owner_profile_id).filter(Boolean)));
+
+  let displayNameById: Record<string, string> = {};
+  if (ownerIds.length > 0) {
+    const { data: profiles } = await admin
+      .from("profiles")
+      .select("id, display_name")
+      .in("id", ownerIds);
+    displayNameById = Object.fromEntries(
+      (profiles ?? []).map((p: any) => [p.id, p.display_name])
+    );
+  }
+
+  const enrichedRows = rows.map((r: any) => ({
+    ...r,
+    owner_display_name: displayNameById[r.owner_profile_id] ?? null,
+  }));
+
+  return c.json({ characters: enrichedRows });
 });
 
 app.put("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c) => {

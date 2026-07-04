@@ -72,9 +72,11 @@ export function SessionCharactersPanel() {
         loadMonsters(activeCampaignId),
       ]);
       if (loadSeqRef.current !== mySeq) return;
-      setCharacters(loadedChars);
-      setNpcs(loadedNpcs);
-      setMonsters(loadedMonsters);
+      const sortByName = <T extends { name: string }>(arr: T[]) =>
+        [...arr].sort((a, b) => a.name.localeCompare(b.name, 'it'));
+      setCharacters(sortByName(loadedChars));
+      setNpcs(sortByName(loadedNpcs));
+      setMonsters(sortByName(loadedMonsters));
       if (!selected && loadedChars[0]) {
         setSelected({ kind: 'pg', id: loadedChars[0].id });
       }
@@ -104,7 +106,9 @@ export function SessionCharactersPanel() {
       const mapped = mapRowToCharacter(row) as PlayerCharacter;
       setCharacters(prev => {
         const exists = prev.some(c => c.id === mapped.id);
-        return exists ? prev.map(c => (c.id === mapped.id ? mapped : c)) : [...prev, mapped];
+        return exists
+          ? prev.map(c => (c.id === mapped.id ? { ...mapped, ownerDisplayName: (c as any).ownerDisplayName } : c))
+          : [...prev, mapped];
       });
     };
 
@@ -191,7 +195,7 @@ export function SessionCharactersPanel() {
         {openSections.pg && (
           <div className="space-y-1 px-2 pb-2">
             {characters.map(c => renderListItem({
-              kind: 'pg', id: c.id, name: c.name, subtitle: c.player || c.style,
+              kind: 'pg', id: c.id, name: c.name, subtitle: (c as any).ownerDisplayName || c.player || c.style,
               portraitUrl: c.portraitCroppedImageUrl || c.portraitImageUrl,
             }))}
             {characters.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun personaggio.</div>}

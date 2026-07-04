@@ -66,6 +66,7 @@ function mapRowToCharacter(row: any) {
     id: row.id,
     name: row.name,
     ownerProfileId: row.owner_profile_id,
+    ownerDisplayName: row.owner_display_name ?? null,
     campaignId: row.campaign_id,
     createdAt: row.created_at,
     player: row.sheet_data?.player || '',

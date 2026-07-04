@@ -130,7 +130,7 @@ export function PlayerCharacters({
       setCharacters(prev => {
         const exists = prev.some(c => c.id === mapped.id);
         const next = exists
-          ? prev.map(c => (c.id === mapped.id ? mapped : c))
+          ? prev.map(c => (c.id === mapped.id ? { ...mapped, ownerDisplayName: (c as any).ownerDisplayName } : c))
           : [...prev, mapped];
         return next.sort((a, b) => {
           const at = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
@@ -669,7 +669,7 @@ const showToast = (message: string) => {
   )}
 
   <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[var(--dash-text)]">
-    <span>Giocatore: {char.player}</span>
+    <span>Giocatore: {(char as any).ownerDisplayName || char.player}</span>
     <span className="text-[var(--dash-muted)]">•</span>
     <span>{char.style}</span>
     <span className="text-[var(--dash-muted)]">•</span>
