@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { User, Brain, ChevronDown, ChevronRight, Loader2, Skull, Ghost } from 'lucide-react';
 import { projectId } from '/utils/supabase/info';
 import { FrischezzaTracker } from '../FrischezzaTracker';
@@ -93,17 +94,24 @@ function DraggablePortrait({
           </div>
         </div>
       )}
-      {/* Immagine tonda "fantasma", sempre presente nel DOM (già caricata),
-          usata solo come anteprima durante il trascinamento */}
-      {url && (
+      {url && draggable && createPortal(
         <img
           ref={dragGhostRef}
           src={url}
           alt=""
           draggable={false}
-          className="pointer-events-none absolute rounded-full object-cover"
-          style={{ width: size, height: size, left: -9999, top: -9999 }}
-        />
+          style={{
+            position: 'fixed',
+            left: -9999,
+            top: -9999,
+            width: size,
+            height: size,
+            borderRadius: '9999px',
+            objectFit: 'cover',
+            pointerEvents: 'none',
+          }}
+        />,
+        document.body
       )}
     </div>
   );
