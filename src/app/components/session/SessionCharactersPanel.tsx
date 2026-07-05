@@ -559,7 +559,7 @@ export function SessionCharactersPanel() {
                 </div>
 
                 <div className="rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] p-4">
-                  <div className="mb-3 flex items-center gap-2 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+                  <div className="mb-2 flex items-center gap-2 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
                     <Heart className="h-4 w-4 text-red-500" />
                     Freschezza
                   </div>
