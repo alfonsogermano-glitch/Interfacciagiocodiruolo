@@ -37,13 +37,13 @@ export function FrischezzaTracker({
                   }}
                   className={`relative h-8 w-8 shrink-0 rounded border-2 transition-all hover:scale-110 ${
                     isBlacked
-                      ? 'border-red-500 bg-red-950'
+                      ? 'border-red-400 bg-red-600 shadow-[0_0_8px_rgba(248,113,113,0.6)]'
                       : 'border-red-900/60 bg-red-950/30 hover:border-red-600'
-                  } ${isCrucial ? 'ring-2 ring-red-500' : ''}`}
+                  } ${isCrucial && isBlacked ? 'ring-2 ring-red-300' : isCrucial ? 'ring-2 ring-red-500' : ''}`}
                   title={isCrucial ? 'Casella Cruciale' : `Casella ${box}`}
                 >
                   {isCrucial && (
-                    <AlertCircle className="absolute inset-0 m-auto h-4 w-4 text-red-400" />
+                    <AlertCircle className={`absolute inset-0 m-auto h-4 w-4 ${isBlacked ? 'text-white' : 'text-red-400'}`} />
                   )}
                 </button>
               </div>
