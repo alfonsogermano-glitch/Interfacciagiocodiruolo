@@ -478,56 +478,74 @@ export function SessionCharactersPanel() {
     updateCharacter(selectedChar.id, { ...selectedChar, tabOrder: order } as any);
   };
 
+  const DRAG_THRESHOLD_PX = 6;
+  const pointerStartRef = useRef<{ x: number; y: number; tabId: string } | null>(null);
+
   const handlePointerDownTab = (e: React.PointerEvent, tabId: string) => {
     if (!canEdit || renamingTabId === tabId) return;
-    // Evita che parta il drag cliccando sul bottone ⋮ o su un input
     const target = e.target as HTMLElement;
     if (target.closest('[data-no-drag]') || target.closest('input')) return;
-    e.preventDefault();
-    setDraggedTabId(tabId);
+    // Non avviamo subito il drag: memorizziamo solo il punto di partenza.
+    // Se il mouse non si muove abbastanza prima del rilascio, sarà un click normale.
+    pointerStartRef.current = { x: e.clientX, y: e.clientY, tabId };
   };
 
   useEffect(() => {
-    if (!draggedTabId) return;
-
-    document.body.style.cursor = 'grabbing';
-
     const handleMove = (e: PointerEvent) => {
-      const container = tabsContainerRef.current;
-      if (!container) return;
-      const tabEls = Array.from(
-        container.querySelectorAll<HTMLElement>('[data-tab-id]'),
-      );
-      let newIndex = tabEls.length;
-      for (let i = 0; i < tabEls.length; i++) {
-        const rect = tabEls[i].getBoundingClientRect();
-        const mid = rect.left + rect.width / 2;
-        if (e.clientX < mid) {
-          newIndex = i;
-          break;
+      if (draggedTabId) {
+        // Drag già attivo: calcola la tab/posizione target come prima
+        const container = tabsContainerRef.current;
+        if (!container) return;
+        const tabEls = Array.from(
+          container.querySelectorAll<HTMLElement>('[data-tab-id]'),
+        );
+        let newIndex = tabEls.length;
+        for (let i = 0; i < tabEls.length; i++) {
+          const rect = tabEls[i].getBoundingClientRect();
+          const mid = rect.left + rect.width / 2;
+          if (e.clientX < mid) {
+            newIndex = i;
+            break;
+          }
         }
+        dragOverIndexRef.current = newIndex;
+        setDragOverIndex(newIndex);
+        return;
       }
-      dragOverIndexRef.current = newIndex;
-      setDragOverIndex(newIndex);
+
+      // Nessun drag attivo: controlla se abbiamo superato la soglia per avviarlo
+      const start = pointerStartRef.current;
+      if (!start) return;
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD_PX) {
+        setDraggedTabId(start.tabId);
+        document.body.style.cursor = 'grabbing';
+      }
     };
 
     const handleUp = () => {
-      const targetIndex = dragOverIndexRef.current;
-      setTabOrder(prev => {
-        if (targetIndex === null) return prev;
-        const next = prev.filter(id => id !== draggedTabId);
-        next.splice(targetIndex, 0, draggedTabId);
-        persistTabOrder(next);
-        return next;
-      });
-      document.body.style.cursor = '';
-      setDraggedTabId(null);
-      setDragOverIndex(null);
-      dragOverIndexRef.current = null;
+      if (draggedTabId) {
+        const targetIndex = dragOverIndexRef.current;
+        setTabOrder(prev => {
+          if (targetIndex === null) return prev;
+          const next = prev.filter(id => id !== draggedTabId);
+          next.splice(targetIndex, 0, draggedTabId);
+          persistTabOrder(next);
+          return next;
+        });
+        document.body.style.cursor = '';
+        setDraggedTabId(null);
+        setDragOverIndex(null);
+        dragOverIndexRef.current = null;
+      }
+      // Se non era mai partito il drag, non facciamo nulla: il click sulla tab
+      // ha già funzionato normalmente tramite il suo onClick.
+      pointerStartRef.current = null;
     };
 
     window.addEventListener('pointermove', handleMove);
-    window.addEventListener('pointerup', handleUp, { once: true });
+    window.addEventListener('pointerup', handleUp);
     return () => {
       window.removeEventListener('pointermove', handleMove);
       window.removeEventListener('pointerup', handleUp);
@@ -866,8 +884,8 @@ export function SessionCharactersPanel() {
                   data-tab-id={tab.id}
                   onPointerDown={(e) => handlePointerDownTab(e, tab.id)}
                   className={`group relative flex items-center ${
-                    canEdit && renamingTabId !== tab.id ? 'cursor-grab' : ''
-                  } ${draggedTabId === tab.id ? 'opacity-40' : ''} ${
+                    draggedTabId === tab.id ? 'opacity-40' : ''
+                  } ${
                     dragOverIndex === idx && draggedTabId && draggedTabId !== tab.id
                       ? 'border-l-2 border-[var(--dash-accent)] pl-1'
                       : ''
@@ -890,8 +908,6 @@ export function SessionCharactersPanel() {
                     <button
                       onClick={() => setCurrentTab(tab.id)}
                       className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
-                        canEdit && renamingTabId !== tab.id ? 'cursor-grab active:cursor-grabbing' : ''
-                      } ${
                         currentTab === tab.id
                           ? 'border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
                           : 'border border-transparent bg-transparent text-[var(--dash-text)] hover:bg-[var(--dash-panel)]'
