@@ -888,6 +888,8 @@ export function SessionCharactersPanel() {
                     <button
                       onClick={() => setCurrentTab(tab.id)}
                       className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
+                        canEdit && renamingTabId !== tab.id ? 'cursor-grab active:cursor-grabbing' : ''
+                      } ${
                         currentTab === tab.id
                           ? 'border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
                           : 'border border-transparent bg-transparent text-[var(--dash-text)] hover:bg-[var(--dash-panel)]'
@@ -907,7 +909,7 @@ export function SessionCharactersPanel() {
                           e.stopPropagation();
                           setOpenMenuTabId(prev => (prev === tab.id ? null : tab.id));
                         }}
-                        className="rounded p-0.5 text-[var(--dash-muted)] opacity-0 transition-opacity hover:text-[var(--dash-text-strong)] group-hover:opacity-100"
+                        className="cursor-pointer rounded p-0.5 text-[var(--dash-muted)] opacity-0 transition-opacity hover:text-[var(--dash-text-strong)] group-hover:opacity-100"
                       >
                         <MoreVertical className="h-3.5 w-3.5" />
                       </button>
