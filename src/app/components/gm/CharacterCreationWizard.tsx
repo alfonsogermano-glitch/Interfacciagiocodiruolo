@@ -795,10 +795,10 @@ const equipment: Equipment[] = [
         <div className="border-b border-[#4a3126] bg-gradient-to-r from-[#241816] via-[#1a1414] to-[#131213] px-6 py-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-    <h2 className="text-2xl font-semibold uppercase tracking-[0.08em] text-[#f3e7d0]">
+    <h2 className="text-2xl font-semibold uppercase tracking-[0.08em] text-[var(--dash-text-strong)]">
       {initialCharacter ? 'Modifica Personaggio' : 'Creazione Personaggio'}
     </h2>
-    <p className="mt-1 text-sm text-[#b79f84]">
+    <p className="mt-1 text-sm text-[var(--dash-muted)]">
       {initialCharacter
         ? `Modifica in corso · Passaggio ${step} di ${totalSteps}`
         : `Passaggio ${step} di ${totalSteps}`}
@@ -807,7 +807,7 @@ const equipment: Equipment[] = [
   
             <button
               onClick={onClose}
-              className="rounded-md border border-[#5a4030] bg-[#1b1616] p-2 text-[#cbb9a2] transition-colors hover:bg-[#2a1f1d] hover:text-[#f3e7d0]"
+              className="rounded-md border border-[#5a4030] bg-[#1b1616] p-2 text-[#cbb9a2] transition-colors hover:bg-[#2a1f1d] hover:text-[var(--dash-text-strong)]"
             >
               <X className="h-5 w-5" />
             </button>
@@ -815,13 +815,13 @@ const equipment: Equipment[] = [
   
           {/* Progress */}
           <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.08em] text-[#a88f72]">
+            <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
               <span>Avanzamento rituale</span>
               <span>{Math.round((step / totalSteps) * 100)}%</span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-[#2a201e]">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-[#8a3d24] to-[#c78b52] transition-all duration-300"
+                className="h-full rounded-full bg-gradient-to-r from-[#8a3d24] to-[var(--dash-accent-2)] transition-all duration-300"
                 style={{ width: `${(step / totalSteps) * 100}%` }}
               />
             </div>
@@ -850,7 +850,7 @@ const equipment: Equipment[] = [
                   key={label}
                   className={`rounded-full border px-3 py-1 text-xs uppercase tracking-[0.08em] ${
                     isCurrent
-                      ? 'border-[#8a5a34] bg-[#4a2a1d] text-[#f3e7d0]'
+                      ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)] text-[var(--dash-text-strong)]'
                       : isDone
                         ? 'border-[#5c4637] bg-[#211918] text-[#d6c4ac]'
                         : 'border-[#352823] bg-transparent text-[#8f7c68]'
@@ -869,18 +869,18 @@ const equipment: Equipment[] = [
           {step === 1 && (
             <div className="mx-auto max-w-2xl space-y-6">
               <div>
-                <h3 className="text-xl font-semibold text-[#f3e7d0]">Informazioni Base</h3>
-                <p className="mt-1 text-sm text-[#b79f84]">
+                <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">Informazioni Base</h3>
+                <p className="mt-1 text-sm text-[var(--dash-muted)]">
                   Definisci identità e giocatore del personaggio.
                 </p>
               </div>
   
-              <div className="rounded-2xl border border-[#463227] bg-[#171313] p-5">
-                <p className="mb-4 text-xs italic text-[#a88f72]">* Campo obbligatorio</p>
+              <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
+                <p className="mb-4 text-xs italic text-[var(--dash-accent-2)]">* Campo obbligatorio</p>
   
                 <div className="space-y-4">
                   <div>
-                    <label className="mb-2 block text-sm uppercase tracking-[0.08em] text-[#b79f84]">
+                    <label className="mb-2 block text-sm uppercase tracking-[0.08em] text-[var(--dash-muted)]">
                       Nome dello Studente *
                     </label>
                     <input
@@ -888,13 +888,13 @@ const equipment: Equipment[] = [
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Es. Takeshi Yamada"
-                      className="w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-4 py-3 text-[#f3e7d0] placeholder-[#6f5d4f] outline-none transition-colors focus:border-[#8a5a34]"
+                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[#6f5d4f] outline-none transition-colors focus:border-[var(--dash-accent)]"
                       autoFocus
                     />
                   </div>
   
                   <div>
-                    <label className="mb-2 block text-sm uppercase tracking-[0.08em] text-[#b79f84]">
+                    <label className="mb-2 block text-sm uppercase tracking-[0.08em] text-[var(--dash-muted)]">
                       Breve descrizione del personaggio
                     </label>
                     <input
@@ -902,7 +902,7 @@ const equipment: Equipment[] = [
                       value={player}
                       onChange={(e) => setPlayer(e.target.value)}
                       placeholder="Es. Il timido secchione del gruppo"
-                      className="w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-4 py-3 text-[#f3e7d0] placeholder-[#6f5d4f] outline-none transition-colors focus:border-[#8a5a34]"
+                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[#6f5d4f] outline-none transition-colors focus:border-[var(--dash-accent)]"
                     />
                   </div>
                 </div>
@@ -913,16 +913,16 @@ const equipment: Equipment[] = [
         {step === 2 && (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <h3 className="text-xl font-semibold text-[#f3e7d0]">Stile e Viaggio</h3>
-        <p className="mt-1 text-sm text-[#b79f84]">
+        <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">Stile e Viaggio</h3>
+        <p className="mt-1 text-sm text-[var(--dash-muted)]">
           Scegli l’archetipo e il percorso che definiscono il personaggio.
         </p>
       </div>
   
       <div className="grid gap-4 lg:grid-cols-2">
         {/* STILE */}
-        <div className="rounded-2xl border border-[#463227] bg-[#171313] p-5">
-          <label className="mb-4 block text-sm uppercase tracking-[0.08em] text-[#b79f84]">
+        <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
+          <label className="mb-4 block text-sm uppercase tracking-[0.08em] text-[var(--dash-muted)]">
             Stile *
           </label>
   
@@ -937,8 +937,8 @@ const equipment: Equipment[] = [
                   }}
                   className={`rounded-md border px-3 py-2 text-sm transition-colors ${
                     style === st
-                      ? 'border-[#8a5a34] bg-[#4a2a1d] text-[#f3e7d0]'
-                      : 'border-[#4b372b] bg-[#0f0d0d] text-[#d9c8b2] hover:bg-[#181313]'
+                      ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)] text-[var(--dash-text-strong)]'
+                      : 'border-[var(--dash-border)] bg-[var(--dash-input)] text-[#d9c8b2] hover:bg-[#181313]'
                   }`}
                 >
                  <span className="cursor-help group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4">
@@ -946,7 +946,7 @@ const equipment: Equipment[] = [
                 </span>
                 </button>
   
-                <div className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-lg border border-[#6a452f] bg-[#221714] px-3 py-2 text-xs leading-relaxed text-[#f3e7d0] shadow-xl group-hover:block">
+                <div className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-lg border border-[#6a452f] bg-[#221714] px-3 py-2 text-xs leading-relaxed text-[var(--dash-text-strong)] shadow-xl group-hover:block">
                   {STYLE_DESCRIPTIONS[st]}
                 </div>
               </div>
@@ -955,8 +955,8 @@ const equipment: Equipment[] = [
         </div>
   
         {/* VIAGGIO */}
-        <div className="rounded-2xl border border-[#463227] bg-[#171313] p-5">
-          <label className="mb-4 block text-sm uppercase tracking-[0.08em] text-[#b79f84]">
+        <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
+          <label className="mb-4 block text-sm uppercase tracking-[0.08em] text-[var(--dash-muted)]">
             Viaggio *
           </label>
   
@@ -971,8 +971,8 @@ const equipment: Equipment[] = [
           onClick={() => setViaggio(v)}
           className={`rounded-md border px-3 py-2 text-sm transition-colors ${
             viaggio === v
-              ? 'border-[#8a5a34] bg-[#4a2a1d] text-[#f3e7d0]'
-              : 'border-[#4b372b] bg-[#0f0d0d] text-[#d9c8b2] hover:bg-[#181313]'
+              ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)] text-[var(--dash-text-strong)]'
+              : 'border-[var(--dash-border)] bg-[var(--dash-input)] text-[#d9c8b2] hover:bg-[#181313]'
           }`}
         >
           <span className="cursor-help hover:underline hover:decoration-dotted hover:underline-offset-4">
@@ -981,7 +981,7 @@ const equipment: Equipment[] = [
         </button>
   
         <div
-          className={`pointer-events-none absolute top-full z-20 mt-2 hidden w-64 rounded-lg border border-[#6a452f] bg-[#221714] px-3 py-2 text-xs leading-relaxed text-[#f3e7d0] shadow-xl group-hover:block ${
+          className={`pointer-events-none absolute top-full z-20 mt-2 hidden w-64 rounded-lg border border-[#6a452f] bg-[#221714] px-3 py-2 text-xs leading-relaxed text-[var(--dash-text-strong)] shadow-xl group-hover:block ${
             isLast ? 'right-0' : 'left-0'
           }`}
         >
@@ -995,24 +995,24 @@ const equipment: Equipment[] = [
       </div>
   
       {/* AMBITI */}
-      <div className="rounded-2xl border border-[#463227] bg-[#171313] p-5">
-        <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[#a88f72]">
+      <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
+        <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
           Ambiti risultanti
         </div>
   
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
          {Object.entries(ambiti).map(([ambito, value]) => (
     <div key={ambito} className="group relative">
-      <div className="rounded-xl border border-[#3d2b21] bg-[#120f0f] p-4">
-        <div className="text-xs uppercase tracking-[0.08em] text-[#a88f72]">
+      <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] p-4">
+        <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
           <span className="cursor-help group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4">
           {ambito}
           </span>
         </div>
-        <div className="mt-3 text-2xl font-semibold text-[#f3e7d0]">{value}</div>
+        <div className="mt-3 text-2xl font-semibold text-[var(--dash-text-strong)]">{value}</div>
       </div>
   
-      <div className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 hidden max-w-[260px] rounded-lg border border-[#6a452f] bg-[#221714] px-3 py-2 text-xs leading-5 text-[#f3e7d0] shadow-xl group-hover:block">
+      <div className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 hidden max-w-[260px] rounded-lg border border-[#6a452f] bg-[#221714] px-3 py-2 text-xs leading-5 text-[var(--dash-text-strong)] shadow-xl group-hover:block">
     {AMBITO_DESCRIPTIONS[ambito as AmbitoType]}
       </div>
     </div>
@@ -1026,16 +1026,16 @@ const equipment: Equipment[] = [
           {step === 3 && (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <h3 className="text-xl font-semibold text-[#f3e7d0]">Legami e Tutore</h3>
-        <p className="mt-1 text-sm text-[#b79f84]">
+        <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">Legami e Tutore</h3>
+        <p className="mt-1 text-sm text-[var(--dash-muted)]">
           Definisci chi guida il personaggio e il suo legame con il gruppo.
         </p>
       </div>
   
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-[#463227] bg-[#171313] p-5">
+        <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
           <div className="mb-4">
-            <div className="mb-2 text-sm uppercase tracking-[0.08em] text-[#b79f84]">
+            <div className="mb-2 text-sm uppercase tracking-[0.08em] text-[var(--dash-muted)]">
               Tutore *
             </div>
   
@@ -1045,8 +1045,8 @@ const equipment: Equipment[] = [
     onClick={() => setTutoreInputType('custom')}
     className={`rounded-md px-3 py-2 text-sm border ${
       tutoreInputType === 'custom'
-        ? 'border-[#8a5a34] bg-[#4a2a1d] text-[#f3e7d0]'
-        : 'border-[#4b372b] bg-[#120f0f] text-[#b79f84]'
+        ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)] text-[var(--dash-text-strong)]'
+        : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] text-[var(--dash-muted)]'
     }`}
   >
     Inserimento libero
@@ -1056,8 +1056,8 @@ const equipment: Equipment[] = [
     onClick={() => setTutoreInputType('notable')}
     className={`rounded-md px-3 py-2 text-sm border ${
       tutoreInputType === 'notable'
-        ? 'border-[#8a5a34] bg-[#4a2a1d] text-[#f3e7d0]'
-        : 'border-[#4b372b] bg-[#120f0f] text-[#b79f84]'
+        ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)] text-[var(--dash-text-strong)]'
+        : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] text-[var(--dash-muted)]'
     }`}
   >
     Abitanti degni di nota
@@ -1070,13 +1070,13 @@ const equipment: Equipment[] = [
                 value={tutore}
                 onChange={(e) => setTutore(e.target.value)}
                 placeholder="Es. Professor Armitage"
-                className="w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-4 py-3 text-[#f3e7d0] placeholder-[#6f5d4f] outline-none focus:border-[#8a5a34]"
+                className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[#6f5d4f] outline-none focus:border-[var(--dash-accent)]"
               />
             ) : (
               <select
     value={tutore}
     onChange={(e) => setTutore(e.target.value)}
-    className="w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-4 py-3 text-[#f3e7d0] outline-none focus:border-[#8a5a34]"
+    className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
   >
     <option value="">Seleziona un abitante</option>
     {NOTABLE_CITIZENS.map((citizen) => (
@@ -1089,13 +1089,13 @@ const equipment: Equipment[] = [
           </div>
         </div>
   
-        <div className="rounded-2xl border border-[#463227] bg-[#171313] p-5">
+        <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
           <div className="mb-4">
-            <div className="mb-2 text-sm uppercase tracking-[0.08em] text-[#b79f84]">
+            <div className="mb-2 text-sm uppercase tracking-[0.08em] text-[var(--dash-muted)]">
               Legame *
             </div>
   
-            <label className="mb-2 block text-xs uppercase tracking-[0.08em] text-[#a88f72]">
+            <label className="mb-2 block text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
               Personaggio collegato
             </label>
             <select
@@ -1114,7 +1114,7 @@ const equipment: Equipment[] = [
         : '');
     }
   }}
-    className="mb-4 w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-4 py-3 text-[#f3e7d0] outline-none focus:border-[#8a5a34]"
+    className="mb-4 w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
   >
     <option value="">Seleziona</option>
     <option value="LATER">Seleziona in seguito</option>
@@ -1127,7 +1127,7 @@ const equipment: Equipment[] = [
   
             {selectedCharacterId !== '' && selectedCharacterId !== 'LATER' && (
     <>
-      <label className="mb-2 block text-xs uppercase tracking-[0.08em] text-[#a88f72]">
+      <label className="mb-2 block text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
         Descrizione del legame
       </label>
       <input
@@ -1135,13 +1135,13 @@ const equipment: Equipment[] = [
         value={legame}
         onChange={(e) => setLegame(e.target.value)}
         placeholder="Es. Fratello maggiore, migliore amica, rivale..."
-        className="w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-4 py-3 text-[#f3e7d0] placeholder-[#6f5d4f] outline-none focus:border-[#8a5a34]"
+        className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[#6f5d4f] outline-none focus:border-[var(--dash-accent)]"
       />
     </>
   )}
   
             {selectedCharacterId === 'LATER' && (
-              <div className="rounded-xl border border-[#3d2b21] bg-[#120f0f] p-4 text-sm text-[#cbb9a2]">
+              <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] p-4 text-sm text-[#cbb9a2]">
                 Questo legame verrà gestito in un secondo momento, dopo la creazione di tutti gli altri Personaggi.
               </div>
             )}
@@ -1153,13 +1153,13 @@ const equipment: Equipment[] = [
           {step === 4 && (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h3 className="text-xl font-semibold text-[#f3e7d0]">Tipo Speciale</h3>
-        <p className="mt-1 text-sm text-[#b79f84]">
+        <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">Tipo Speciale</h3>
+        <p className="mt-1 text-sm text-[var(--dash-muted)]">
          Scegli una persona che occupa un posto speciale nella tua storia.
         </p>
       </div>
   
-      <div className="rounded-2xl border border-[#463227] bg-[#171313] p-5">
+      <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
         <div className="mb-4 flex gap-2">
           <button
     type="button"
@@ -1169,8 +1169,8 @@ const equipment: Equipment[] = [
     }}
     className={`rounded-md px-3 py-2 text-sm border ${
       tipoSpecialeInputType === 'custom'
-        ? 'border-[#8a5a34] bg-[#4a2a1d] text-[#f3e7d0]'
-        : 'border-[#4b372b] bg-[#120f0f] text-[#b79f84]'
+        ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)] text-[var(--dash-text-strong)]'
+        : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] text-[var(--dash-muted)]'
     }`}
   >
     Inserimento libero
@@ -1183,8 +1183,8 @@ const equipment: Equipment[] = [
     }}
     className={`rounded-md px-3 py-2 text-sm border ${
       tipoSpecialeInputType === 'notable'
-        ? 'border-[#8a5a34] bg-[#4a2a1d] text-[#f3e7d0]'
-        : 'border-[#4b372b] bg-[#120f0f] text-[#b79f84]'
+        ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)] text-[var(--dash-text-strong)]'
+        : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] text-[var(--dash-muted)]'
     }`}
   >
     Abitanti degni di nota
@@ -1193,7 +1193,7 @@ const equipment: Equipment[] = [
   
         {tipoSpecialeInputType === 'custom' ? (
           <div>
-            <label className="mb-2 block text-sm uppercase tracking-[0.08em] text-[#b79f84]">
+            <label className="mb-2 block text-sm uppercase tracking-[0.08em] text-[var(--dash-muted)]">
               Tipo Speciale *
             </label>
             <input
@@ -1201,18 +1201,18 @@ const equipment: Equipment[] = [
               value={tipoSpeciale}
               onChange={(e) => setTipoSpeciale(e.target.value)}
               placeholder="Es. Abigail Prinn"
-              className="w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-4 py-3 text-[#f3e7d0] placeholder-[#6f5d4f] outline-none focus:border-[#8a5a34]"
+              className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[#6f5d4f] outline-none focus:border-[var(--dash-accent)]"
             />
           </div>
         ) : (
           <div>
-            <label className="mb-2 block text-sm uppercase tracking-[0.08em] text-[#b79f84]">
+            <label className="mb-2 block text-sm uppercase tracking-[0.08em] text-[var(--dash-muted)]">
               Cittadino di riferimento *
             </label>
             <select
               value={tipoSpeciale}
               onChange={(e) => setTipoSpeciale(e.target.value)}
-              className="w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-4 py-3 text-[#f3e7d0] outline-none focus:border-[#8a5a34]"
+              className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
             >
               <option value="">Seleziona un cittadino</option>
               {availableTipoSpecialeCitizens.map((citizen) => (
@@ -1230,26 +1230,26 @@ const equipment: Equipment[] = [
           {step === 5 && (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
-        <h3 className="text-xl font-semibold text-[#f3e7d0]">Abilità</h3>
-        <p className="mt-1 text-sm text-[#b79f84]">
+        <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">Abilità</h3>
+        <p className="mt-1 text-sm text-[var(--dash-muted)]">
           Assegna i 2 punti bonus rimasti. Il valore massimo per abilità è 4.
         </p>
       </div>
   
-      <div className="rounded-2xl border border-[#463227] bg-[#171313] p-5">
+      <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
         <div className="mb-4 flex items-center justify-between">
-          <div className="text-sm uppercase tracking-[0.08em] text-[#b79f84]">
+          <div className="text-sm uppercase tracking-[0.08em] text-[var(--dash-muted)]">
             Punti abilità rimasti
           </div>
-          <div className="rounded-full border border-[#8a5a34] bg-[#4a2a1d] px-4 py-1 text-sm font-semibold text-[#f3e7d0]">
+          <div className="rounded-full border border-[var(--dash-accent)] bg-[var(--dash-surface)] px-4 py-1 text-sm font-semibold text-[var(--dash-text-strong)]">
             {puntiAbilitaRimasti}
           </div>
         </div>
   
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {Object.entries(ABILITA_PER_AMBITO).map(([ambito, abilitaList]) => (
-            <div key={ambito} className="rounded-xl border border-[#3d2b21] bg-[#120f0f] p-4">
-              <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[#c78b52]">
+            <div key={ambito} className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] p-4">
+              <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
                 {ambito}
               </div>
   
@@ -1263,14 +1263,14 @@ const equipment: Equipment[] = [
                   return (
                     <div
                       key={abilita}
-                      className="rounded-lg border border-[#2f2521] bg-[#171313] p-3"
+                      className="rounded-lg border border-[#2f2521] bg-[var(--dash-panel)] p-3"
                     >
                       <div className="mb-2 flex items-center justify-between">
-                        <span className="text-sm text-[#f3e7d0]">{abilita}</span>
-                        <span className="text-lg font-semibold text-[#f3e7d0]">{totalValue}</span>
+                        <span className="text-sm text-[var(--dash-text-strong)]">{abilita}</span>
+                        <span className="text-lg font-semibold text-[var(--dash-text-strong)]">{totalValue}</span>
                       </div>
   
-                      <div className="flex items-center justify-between text-xs text-[#a88f72]">
+                      <div className="flex items-center justify-between text-xs text-[var(--dash-accent-2)]">
                         <span>Base: {getAbilitaBaseValue(abilita)}</span>
                         <span>Bonus: +{bonusValue}</span>
                       </div>
@@ -1288,7 +1288,7 @@ const equipment: Equipment[] = [
                           type="button"
                           onClick={() => addBonusAbilita(abilita)}
                           disabled={!canAdd}
-                          className="rounded-md border border-[#8a5a34] bg-[#4a2a1d] px-3 py-1.5 text-sm text-[#f3e7d0] disabled:opacity-30"
+                          className="rounded-md border border-[var(--dash-accent)] bg-[var(--dash-surface)] px-3 py-1.5 text-sm text-[var(--dash-text-strong)] disabled:opacity-30"
                         >
                           +
                         </button>
@@ -1307,14 +1307,14 @@ const equipment: Equipment[] = [
           {step === 6 && (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <h3 className="text-xl font-semibold text-[#f3e7d0]">Storia</h3>
-        <p className="mt-1 text-sm text-[#b79f84]">
+        <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">Storia</h3>
+        <p className="mt-1 text-sm text-[var(--dash-muted)]">
           Annotazioni, dettagli di background, memorie e tono del personaggio.
         </p>
       </div>
   
-      <div className="rounded-2xl border border-[#463227] bg-[#171313] p-5">
-        <label className="mb-3 block text-sm uppercase tracking-[0.08em] text-[#b79f84]">
+      <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
+        <label className="mb-3 block text-sm uppercase tracking-[0.08em] text-[var(--dash-muted)]">
           Note narrative
         </label>
         <textarea
@@ -1322,15 +1322,15 @@ const equipment: Equipment[] = [
           onChange={(e) => setStoria(e.target.value)}
           placeholder="Scrivi qui il background, dettagli importanti, relazioni, paure, motivazioni..."
           rows={10}
-          className="w-full rounded-xl border border-[#4b372b] bg-[#0f0d0d] px-4 py-4 text-[#f3e7d0] placeholder-[#6f5d4f] outline-none focus:border-[#8a5a34]"
+          className="w-full rounded-xl border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-4 text-[var(--dash-text-strong)] placeholder-[#6f5d4f] outline-none focus:border-[var(--dash-accent)]"
         />
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
-    <div className="rounded-2xl border border-[#463227] bg-[#120f0f] p-4">
-      <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[#c78b52]">
+    <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] p-4">
+      <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
         Sfondo personalizzato del personaggio
       </div>
   
-      <label className="mb-2 block text-xs uppercase tracking-[0.08em] text-[#a88f72]">
+      <label className="mb-2 block text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
         URL immagine
       </label>
       <input
@@ -1338,10 +1338,10 @@ const equipment: Equipment[] = [
         value={coverImageUrl}
         onChange={(e) => setCoverImageUrl(e.target.value)}
         placeholder="https://..."
-        className="mb-4 w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-4 py-3 text-[#f3e7d0] placeholder-[#6f5d4f] outline-none focus:border-[#8a5a34]"
+        className="mb-4 w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[#6f5d4f] outline-none focus:border-[var(--dash-accent)]"
       />
   
-      <div className="mt-4 overflow-hidden rounded-xl border border-[#3d2b21] bg-[#1a1515]">
+      <div className="mt-4 overflow-hidden rounded-xl border border-[var(--dash-border-soft)] bg-[#1a1515]">
         <button
           type="button"
           onClick={() => setShowCoverCrop(true)}
@@ -1354,7 +1354,7 @@ const equipment: Equipment[] = [
               Nessuno sfondo selezionato
             </div>
           )}
-          <div className="absolute inset-x-0 bottom-0 bg-black/40 px-3 py-2 text-xs text-[#f3e7d0]">
+          <div className="absolute inset-x-0 bottom-0 bg-black/40 px-3 py-2 text-xs text-[var(--dash-text-strong)]">
             Clicca per scegliere/ritagliare
           </div>
         </button>
@@ -1379,12 +1379,12 @@ const equipment: Equipment[] = [
       )}
     </div>
 
-    <div className="rounded-2xl border border-[#463227] bg-[#120f0f] p-4">
-      <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[#c78b52]">
+    <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] p-4">
+      <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
         Portrait tondo
       </div>
 
-      <label className="mb-2 block text-xs uppercase tracking-[0.08em] text-[#a88f72]">
+      <label className="mb-2 block text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
         URL immagine
       </label>
       <input
@@ -1392,14 +1392,14 @@ const equipment: Equipment[] = [
         value={portraitImageUrl}
         onChange={(e) => setPortraitImageUrl(e.target.value)}
         placeholder="https://..."
-        className="mb-4 w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-4 py-3 text-[#f3e7d0] placeholder-[#6f5d4f] outline-none focus:border-[#8a5a34]"
+        className="mb-4 w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[#6f5d4f] outline-none focus:border-[var(--dash-accent)]"
       />
 
       <div className="mt-4 flex flex-col items-center gap-3">
         <button
           type="button"
           onClick={() => setShowPortraitCrop(true)}
-          className="relative flex h-40 w-40 items-center justify-center overflow-hidden rounded-full border-2 border-[#8a5a34] bg-[#1a1515]"
+          className="relative flex h-40 w-40 items-center justify-center overflow-hidden rounded-full border-2 border-[var(--dash-accent)] bg-[#1a1515]"
         >
           {portraitCroppedImageUrl || portraitImageUrl ? (
             <img
@@ -1438,27 +1438,27 @@ const equipment: Equipment[] = [
           {step === 7 && (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
-        <h3 className="text-xl font-semibold text-[#f3e7d0]">Equipaggiamento</h3>
-        <p className="mt-1 text-sm text-[#b79f84]">
+        <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">Equipaggiamento</h3>
+        <p className="mt-1 text-sm text-[var(--dash-muted)]">
           Organizza ciò che porti con te, ciò che trasporti e ciò che resta a casa.
         </p>
       </div>
   
-      <div className="rounded-2xl border border-[#463227] bg-[#171313] p-5">
-        <label className="mb-4 flex items-center gap-3 text-sm text-[#f3e7d0]">
+      <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
+        <label className="mb-4 flex items-center gap-3 text-sm text-[var(--dash-text-strong)]">
           <input
             type="checkbox"
             checked={hasZaino}
             onChange={(e) => setHasZaino(e.target.checked)}
-            className="h-4 w-4 accent-[#8a5a34]"
+            className="h-4 w-4 accent-[var(--dash-accent)]"
           />
           Il personaggio ha uno zaino
         </label>
   
         <div className="grid gap-4 xl:grid-cols-3">
           {/* IN TASCA */}
-          <div className="rounded-xl border border-[#3d2b21] bg-[#120f0f] p-4">
-            <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[#c78b52]">
+          <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] p-4">
+            <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
               In Tasca ({inTasca.length}/5)
             </div>
   
@@ -1470,7 +1470,7 @@ const equipment: Equipment[] = [
                     e.target.value = '';
                   }
                 }}
-                className="w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-3 py-2 text-[#f3e7d0]"
+                className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text-strong)]"
               >
                 <option value="">Aggiungi oggetto</option>
                 {OGGETTI_TASCABILI
@@ -1491,9 +1491,9 @@ const equipment: Equipment[] = [
               {inTasca.map(item => (
                 <div
                   key={item}
-                  className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[#171313] px-3 py-2"
+                  className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[var(--dash-panel)] px-3 py-2"
                 >
-                  <span className="text-sm text-[#f3e7d0]">{item}</span>
+                  <span className="text-sm text-[var(--dash-text-strong)]">{item}</span>
                   <button
                     type="button"
                     onClick={() => removeFromInTasca(item)}
@@ -1507,15 +1507,15 @@ const equipment: Equipment[] = [
           </div>
   
           {/* TRASPORTABILI */}
-          <div className="rounded-xl border border-[#3d2b21] bg-[#120f0f] p-4">
-            <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[#c78b52]">
+          <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] p-4">
+            <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
               Trasportabili ({trasportabiliNelZaino.length + trasportabiliIndossati.length}/4)
             </div>
   
             {hasZaino ? (
               <div className="space-y-4">
                 <div>
-                  <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[#a88f72]">
+                  <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
                     Nello zaino
                   </div>
   
@@ -1527,7 +1527,7 @@ const equipment: Equipment[] = [
                           e.target.value = '';
                         }
                       }}
-                      className="w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-3 py-2 text-[#f3e7d0]"
+                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text-strong)]"
                     >
                       <option value="">Aggiungi oggetto</option>
                       {OGGETTI_TRASPORTABILI
@@ -1549,9 +1549,9 @@ const equipment: Equipment[] = [
                     {trasportabiliNelZaino.map(item => (
                       <div
                         key={item}
-                        className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[#171313] px-3 py-2"
+                        className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[var(--dash-panel)] px-3 py-2"
                       >
-                        <span className="text-sm text-[#f3e7d0]">{item}</span>
+                        <span className="text-sm text-[var(--dash-text-strong)]">{item}</span>
                         <button
                           type="button"
                           onClick={() => removeFromTrasportabiliNelZaino(item)}
@@ -1565,7 +1565,7 @@ const equipment: Equipment[] = [
                 </div>
   
                 <div>
-                  <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[#a88f72]">
+                  <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
                     Indossati / Addosso
                   </div>
   
@@ -1577,7 +1577,7 @@ const equipment: Equipment[] = [
                           e.target.value = '';
                         }
                       }}
-                      className="w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-3 py-2 text-[#f3e7d0]"
+                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text-strong)]"
                     >
                       <option value="">Aggiungi oggetto</option>
                       {OGGETTI_TRASPORTABILI
@@ -1599,9 +1599,9 @@ const equipment: Equipment[] = [
                     {trasportabiliIndossati.map(item => (
                       <div
                         key={item}
-                        className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[#171313] px-3 py-2"
+                        className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[var(--dash-panel)] px-3 py-2"
                       >
-                        <span className="text-sm text-[#f3e7d0]">{item}</span>
+                        <span className="text-sm text-[var(--dash-text-strong)]">{item}</span>
                         <button
                           type="button"
                           onClick={() => removeFromTrasportabiliIndossati(item)}
@@ -1616,7 +1616,7 @@ const equipment: Equipment[] = [
               </div>
             ) : (
               <div>
-                <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[#a88f72]">
+                <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
                   Indossati / Addosso
                 </div>
   
@@ -1628,7 +1628,7 @@ const equipment: Equipment[] = [
                         e.target.value = '';
                       }
                     }}
-                    className="w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-3 py-2 text-[#f3e7d0]"
+                    className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text-strong)]"
                   >
                     <option value="">Aggiungi oggetto</option>
                     {OGGETTI_TRASPORTABILI
@@ -1649,9 +1649,9 @@ const equipment: Equipment[] = [
                   {trasportabiliIndossati.map(item => (
                     <div
                       key={item}
-                      className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[#171313] px-3 py-2"
+                      className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[var(--dash-panel)] px-3 py-2"
                     >
-                      <span className="text-sm text-[#f3e7d0]">{item}</span>
+                      <span className="text-sm text-[var(--dash-text-strong)]">{item}</span>
                       <button
                         type="button"
                         onClick={() => removeFromTrasportabiliIndossati(item)}
@@ -1667,14 +1667,14 @@ const equipment: Equipment[] = [
           </div>
   
           {/* A CASA */}
-          <div className="rounded-xl border border-[#3d2b21] bg-[#120f0f] p-4">
-            <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[#c78b52]">
+          <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] p-4">
+            <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
               A Casa
             </div>
   
             <div className="space-y-4">
               <div>
-                <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[#a88f72]">
+                <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
                   Tascabili
                 </div>
                 <div className="mb-3 flex gap-2">
@@ -1685,7 +1685,7 @@ const equipment: Equipment[] = [
                         e.target.value = '';
                       }
                     }}
-                    className="w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-3 py-2 text-[#f3e7d0]"
+                    className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text-strong)]"
                   >
                     <option value="">Aggiungi oggetto</option>
                     {OGGETTI_TASCABILI
@@ -1706,9 +1706,9 @@ const equipment: Equipment[] = [
                   {tascabiliACasa.map(item => (
                     <div
                       key={item}
-                      className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[#171313] px-3 py-2"
+                      className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[var(--dash-panel)] px-3 py-2"
                     >
-                      <span className="text-sm text-[#f3e7d0]">{item}</span>
+                      <span className="text-sm text-[var(--dash-text-strong)]">{item}</span>
                       <button
                         type="button"
                         onClick={() => removeFromTascabiliACasa(item)}
@@ -1722,7 +1722,7 @@ const equipment: Equipment[] = [
               </div>
   
               <div>
-                <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[#a88f72]">
+                <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
                   Trasportabili
                 </div>
                 <div className="mb-3 flex gap-2">
@@ -1733,7 +1733,7 @@ const equipment: Equipment[] = [
                         e.target.value = '';
                       }
                     }}
-                    className="w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-3 py-2 text-[#f3e7d0]"
+                    className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text-strong)]"
                   >
                     <option value="">Aggiungi oggetto</option>
                     {OGGETTI_TRASPORTABILI
@@ -1755,9 +1755,9 @@ const equipment: Equipment[] = [
                   {trasportabiliACasa.map(item => (
                     <div
                       key={item}
-                      className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[#171313] px-3 py-2"
+                      className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[var(--dash-panel)] px-3 py-2"
                     >
-                      <span className="text-sm text-[#f3e7d0]">{item}</span>
+                      <span className="text-sm text-[var(--dash-text-strong)]">{item}</span>
                       <button
                         type="button"
                         onClick={() => removeFromTrasportabiliACasa(item)}
@@ -1771,7 +1771,7 @@ const equipment: Equipment[] = [
               </div>
   
               <div>
-                <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[#a88f72]">
+                <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
                   Risorse
                 </div>
                 <div className="mb-3 flex gap-2">
@@ -1782,7 +1782,7 @@ const equipment: Equipment[] = [
                         e.target.value = '';
                       }
                     }}
-                    className="w-full rounded-lg border border-[#4b372b] bg-[#0f0d0d] px-3 py-2 text-[#f3e7d0]"
+                    className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text-strong)]"
                   >
                     <option value="">Aggiungi oggetto</option>
                     {RISORSE
@@ -1799,9 +1799,9 @@ const equipment: Equipment[] = [
                   {risorseACasa.map(item => (
                     <div
                       key={item}
-                      className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[#171313] px-3 py-2"
+                      className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[var(--dash-panel)] px-3 py-2"
                     >
-                      <span className="text-sm text-[#f3e7d0]">{item}</span>
+                      <span className="text-sm text-[var(--dash-text-strong)]">{item}</span>
                       <button
                         type="button"
                         onClick={() => removeFromRisorseACasa(item)}
@@ -1823,15 +1823,15 @@ const equipment: Equipment[] = [
         {step === 8 && (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
-        <h3 className="text-xl font-semibold text-[#f3e7d0]">Tratti</h3>
-        <p className="mt-1 text-sm text-[#b79f84]">
+        <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">Tratti</h3>
+        <p className="mt-1 text-sm text-[var(--dash-muted)]">
           Seleziona 1 tratto di Stile e 2 tratti di Viaggio.
         </p>
       </div>
   
       <div className="grid gap-4 xl:grid-cols-2">
-        <div className="rounded-2xl border border-[#463227] bg-[#171313] p-5">
-          <div className="mb-4 text-sm uppercase tracking-[0.08em] text-[#c78b52]">
+        <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
+          <div className="mb-4 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
             Tratto di Stile
           </div>
   
@@ -1846,24 +1846,24 @@ const equipment: Equipment[] = [
                   onClick={() => setSelectedStyleTrait(trait)}
                   className={`w-full rounded-xl border p-4 text-left transition-colors ${
                     isSelected
-                      ? 'border-[#8a5a34] bg-[#4a2a1d]'
-                      : 'border-[#3d2b21] bg-[#120f0f] hover:bg-[#181313]'
+                      ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)]'
+                      : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] hover:bg-[#181313]'
                   }`}
                 >
-                  <div className="font-semibold text-[#f3e7d0]">{trait.name}</div>
+                  <div className="font-semibold text-[var(--dash-text-strong)]">{trait.name}</div>
                   <div className="mt-1 text-sm text-[#cbb9a2]">{trait.description}</div>
-                  <div className="mt-2 text-xs text-[#a88f72]">{trait.benefit}</div>
+                  <div className="mt-2 text-xs text-[var(--dash-accent-2)]">{trait.benefit}</div>
                 </button>
               );
             })}
           </div>
         </div>
   
-        <div className="rounded-2xl border border-[#463227] bg-[#171313] p-5">
-          <div className="mb-2 text-sm uppercase tracking-[0.08em] text-[#c78b52]">
+        <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
+          <div className="mb-2 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
             Tratti di Viaggio
           </div>
-          <div className="mb-4 text-xs text-[#a88f72]">
+          <div className="mb-4 text-xs text-[var(--dash-accent-2)]">
             Selezionati: {selectedJourneyTraits.length} / 2
           </div>
   
@@ -1878,13 +1878,13 @@ const equipment: Equipment[] = [
                   onClick={() => toggleJourneyTrait(trait)}
                   className={`w-full rounded-xl border p-4 text-left transition-colors ${
                     isSelected
-                      ? 'border-[#8a5a34] bg-[#4a2a1d]'
-                      : 'border-[#3d2b21] bg-[#120f0f] hover:bg-[#181313]'
+                      ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)]'
+                      : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] hover:bg-[#181313]'
                   }`}
                 >
-                  <div className="font-semibold text-[#f3e7d0]">{trait.name}</div>
+                  <div className="font-semibold text-[var(--dash-text-strong)]">{trait.name}</div>
                   <div className="mt-1 text-sm text-[#cbb9a2]">{trait.description}</div>
-                  <div className="mt-2 text-xs text-[#a88f72]">{trait.benefit}</div>
+                  <div className="mt-2 text-xs text-[var(--dash-accent-2)]">{trait.benefit}</div>
                 </button>
               );
             })}
@@ -1913,7 +1913,7 @@ const equipment: Equipment[] = [
     <button
       onClick={handleNext}
       disabled={!canProceed()}
-      className="rounded-md border border-[#8a5a34] bg-[#4a2a1d] px-4 py-2 text-sm text-[#f3e7d0] transition-colors hover:bg-[#5a3323] disabled:cursor-not-allowed disabled:opacity-40"
+      className="rounded-md border border-[var(--dash-accent)] bg-[var(--dash-surface)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[#5a3323] disabled:cursor-not-allowed disabled:opacity-40"
     >
       Avanti
     </button>
@@ -1921,7 +1921,7 @@ const equipment: Equipment[] = [
     <button
       onClick={handleSubmit}
       disabled={!canProceed()}
-      className="rounded-md border border-[#8a5a34] bg-[#6a341f] px-4 py-2 text-sm text-[#f3e7d0] transition-colors hover:bg-[#7a3d24] disabled:cursor-not-allowed disabled:opacity-40"
+      className="rounded-md border border-[var(--dash-accent)] bg-[#6a341f] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[#7a3d24] disabled:cursor-not-allowed disabled:opacity-40"
     >
       {initialCharacter ? 'Salva modifiche' : 'Crea Personaggio'}
     </button>
