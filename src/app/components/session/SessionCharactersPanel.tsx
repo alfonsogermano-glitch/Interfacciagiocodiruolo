@@ -304,6 +304,17 @@ export function SessionCharactersPanel() {
     persistCharacter(id, updatedChar);
   };
 
+  const updateSelectedCharAmbito = (charId: string, ambito: string, delta: number) => {
+    setCharacters(prev => prev.map(c => {
+      if (c.id !== charId) return c;
+      const currentValue = (c.ambiti as any)[ambito] ?? 0;
+      const nextValue = Math.max(0, Math.min(2, currentValue + delta));
+      const updated = { ...c, ambiti: { ...c.ambiti, [ambito]: nextValue } };
+      persistCharacter(charId, updated);
+      return updated;
+    }));
+  };
+
   const compatibleCampaigns = (isOwner ? ownedCampaigns : joinedCampaigns).filter(
     (c) => c.id !== activeCampaignId && c.ruleset === activeCampaign?.ruleset
   );
@@ -632,10 +643,7 @@ export function SessionCharactersPanel() {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                updateCharacter(selectedChar.id, {
-                                  ...selectedChar,
-                                  ambiti: { ...selectedChar.ambiti, [ambito]: Math.max(0, value - 1) },
-                                });
+                                updateSelectedCharAmbito(selectedChar.id, ambito, -1);
                               }}
                               className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-xs text-[var(--dash-text-strong)] hover:bg-[var(--dash-panel)]"
                             >
@@ -648,10 +656,7 @@ export function SessionCharactersPanel() {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                updateCharacter(selectedChar.id, {
-                                  ...selectedChar,
-                                  ambiti: { ...selectedChar.ambiti, [ambito]: Math.min(2, value + 1) },
-                                });
+                                updateSelectedCharAmbito(selectedChar.id, ambito, 1);
                               }}
                               className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-xs text-[var(--dash-text-strong)] hover:bg-[var(--dash-accent-2)]"
                             >
