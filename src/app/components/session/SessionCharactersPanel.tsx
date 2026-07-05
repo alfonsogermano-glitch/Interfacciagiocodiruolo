@@ -310,6 +310,7 @@ export function SessionCharactersPanel() {
       const currentValue = (c.ambiti as any)[ambito] ?? 0;
       const nextValue = Math.max(0, Math.min(2, currentValue + delta));
       const updated = { ...c, ambiti: { ...c.ambiti, [ambito]: nextValue } };
+      console.log('[AVATAR-DEBUG] prima=', (c as any).ownerAvatarUrl, '| dopo=', (updated as any).ownerAvatarUrl);
       persistCharacter(charId, updated);
       return updated;
     }));
