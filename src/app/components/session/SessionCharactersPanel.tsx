@@ -399,7 +399,7 @@ export function SessionCharactersPanel() {
 
   return (
     <>
-    <div className="flex h-full">
+    <div className="flex h-full select-none">
       <div className="w-64 shrink-0 overflow-y-auto border-r border-[var(--dash-border-soft)] py-3">
         <SectionHeader title="Personaggi" count={characters.length} isOpen={openSections.pg} onToggle={() => toggleSection('pg')} />
         {openSections.pg && (
@@ -650,6 +650,55 @@ export function SessionCharactersPanel() {
                     <span className="text-xs text-[var(--dash-muted)]">{selectedChar.follia} / {selectedChar.maxFollia}</span>
                   </div>
                   <FoliaSpiral current={selectedChar.follia} max={selectedChar.maxFollia} onUpdate={(value) => updateCharacter(selectedChar.id, { ...selectedChar, follia: value })} />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                    <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Audacia</div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-lg font-semibold text-[var(--dash-text-strong)]">
+                        {typeof selectedChar.audacia === 'number' ? selectedChar.audacia : 1}
+                        <span className="ml-1 text-xs font-normal text-[var(--dash-muted)]">/ 6</span>
+                      </span>
+                      {canEdit && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => updateCharacter(selectedChar.id, { ...selectedChar, audacia: Math.max(0, (typeof selectedChar.audacia === 'number' ? selectedChar.audacia : 1) - 1) })}
+                            className="flex h-6 w-6 items-center justify-center rounded border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] text-sm text-[var(--dash-text-strong)]"
+                          >−</button>
+                          <button
+                            type="button"
+                            onClick={() => updateCharacter(selectedChar.id, { ...selectedChar, audacia: Math.min(6, (typeof selectedChar.audacia === 'number' ? selectedChar.audacia : 1) + 1) })}
+                            className="flex h-6 w-6 items-center justify-center rounded border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-sm text-[var(--dash-text-strong)]"
+                          >+</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                    <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Prodigi</div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-lg font-semibold text-[var(--dash-text-strong)]">
+                        {typeof selectedChar.prodigi === 'number' ? selectedChar.prodigi : 1}
+                        <span className="ml-1 text-xs font-normal text-[var(--dash-muted)]">/ 2</span>
+                      </span>
+                      {canEdit && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => updateCharacter(selectedChar.id, { ...selectedChar, prodigi: Math.max(0, (typeof selectedChar.prodigi === 'number' ? selectedChar.prodigi : 1) - 1) })}
+                            className="flex h-6 w-6 items-center justify-center rounded border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] text-sm text-[var(--dash-text-strong)]"
+                          >−</button>
+                          <button
+                            type="button"
+                            onClick={() => updateCharacter(selectedChar.id, { ...selectedChar, prodigi: Math.min(2, (typeof selectedChar.prodigi === 'number' ? selectedChar.prodigi : 1) + 1) })}
+                            className="flex h-6 w-6 items-center justify-center rounded border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-sm text-[var(--dash-text-strong)]"
+                          >+</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
