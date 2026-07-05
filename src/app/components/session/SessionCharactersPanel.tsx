@@ -626,7 +626,7 @@ export function SessionCharactersPanel() {
                         }`}
                       >
                         <div className="truncate text-[10px] uppercase tracking-[0.05em] text-[var(--dash-accent-2)]">{ambito}</div>
-                        <div className="mt-0.5 flex items-center justify-center gap-1.5">
+                        <div className="mt-0.5 flex items-center justify-between gap-1">
                           {canEdit && (
                             <button
                               type="button"
