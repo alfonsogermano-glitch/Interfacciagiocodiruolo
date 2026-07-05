@@ -760,6 +760,7 @@ export function SessionCharactersPanel() {
                         <div key={idx} className="rounded-lg border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-2 text-sm">
                           <div className="font-medium text-[var(--dash-text-strong)]">{trait.name}</div>
                           {trait.description && <div className="text-xs text-[var(--dash-text)]">{trait.description}</div>}
+                          {trait.benefit && <div className="mt-1 text-xs text-[var(--dash-accent-2)]">{trait.benefit}</div>}
                         </div>
                       ))}
                     </div>
