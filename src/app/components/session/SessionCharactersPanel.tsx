@@ -613,19 +613,53 @@ export function SessionCharactersPanel() {
                     const value = (selectedChar.ambiti as any)[ambito];
                     const isExpanded = expandedAmbito === ambito;
                     return (
-                      <button
+                      <div
                         key={ambito}
-                        type="button"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setExpandedAmbito(isExpanded ? null : ambito)}
-                        className={`rounded-lg border-2 px-2 py-2 text-center transition-colors ${
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpandedAmbito(isExpanded ? null : ambito); }}
+                        className={`cursor-pointer rounded-lg border-2 px-1.5 py-2 text-center transition-colors ${
                           isExpanded
                             ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
                             : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] hover:border-[var(--dash-accent)]'
                         }`}
                       >
                         <div className="truncate text-[10px] uppercase tracking-[0.05em] text-[var(--dash-accent-2)]">{ambito}</div>
-                        <div className="mt-0.5 text-lg font-semibold text-[var(--dash-text-strong)]">{value}</div>
-                      </button>
+                        <div className="mt-0.5 flex items-center justify-center gap-1.5">
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateCharacter(selectedChar.id, {
+                                  ...selectedChar,
+                                  ambiti: { ...selectedChar.ambiti, [ambito]: Math.max(0, value - 1) },
+                                });
+                              }}
+                              className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-xs text-[var(--dash-text-strong)] hover:bg-[var(--dash-panel)]"
+                            >
+                              −
+                            </button>
+                          )}
+                          <span className="text-lg font-semibold text-[var(--dash-text-strong)]">{value}</span>
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateCharacter(selectedChar.id, {
+                                  ...selectedChar,
+                                  ambiti: { ...selectedChar.ambiti, [ambito]: Math.min(2, value + 1) },
+                                });
+                              }}
+                              className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-xs text-[var(--dash-text-strong)] hover:bg-[var(--dash-accent-2)]"
+                            >
+                              +
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
