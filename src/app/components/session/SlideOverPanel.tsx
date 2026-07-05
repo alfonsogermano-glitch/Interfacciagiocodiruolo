@@ -31,7 +31,7 @@ export function SlideOverPanel({ isOpen, onClose, children, widthClassName = 'w-
 
   return (
     <div
-      className={`fixed top-0 bottom-0 z-[900] flex flex-col shadow-2xl transition-transform duration-300 ease-out ${widthClassName}`}
+      className={`fixed top-12 bottom-0 z-[900] flex flex-col shadow-2xl transition-transform duration-300 ease-out ${widthClassName}`}
       style={{
         right: SESSION_SIDEBAR_WIDTH,
         width: undefined,
