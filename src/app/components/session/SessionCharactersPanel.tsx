@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { User, Brain, ChevronDown, ChevronRight, Loader2, Skull, Ghost, Heart, Star } from 'lucide-react';
 import { MoreVertical, Copy, UserMinus, UserX } from 'lucide-react';
+import { Plus, GripVertical, X } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/paletteColors';
 import { projectId } from '/utils/supabase/info';
@@ -198,7 +199,12 @@ export function SessionCharactersPanel() {
   const [monsters, setMonsters] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selected, setSelected] = useState<{ kind: EntityKind; id: string } | null>(null);
-  const [currentTab, setCurrentTab] = useState<'summary' | 'conditions' | 'equipment'>('summary');
+  const [currentTab, setCurrentTab] = useState<string>('summary');
+  const [customTabs, setCustomTabs] = useState<{ id: string; tab_name: string; content: string; position: number }[]>([]);
+  const [isAddingTab, setIsAddingTab] = useState(false);
+  const [newTabName, setNewTabName] = useState('');
+  const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
   const [expandedAmbito, setExpandedAmbito] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState({ pg: true, png: true, mostro: true });
   const [charMenuOpen, setCharMenuOpen] = useState(false);
@@ -405,6 +411,124 @@ export function SessionCharactersPanel() {
   const isMine = selectedChar ? (selectedChar as any).ownerProfileId === user?.id : false;
   const canEdit = isMine || isOwner;
 
+  useEffect(() => {
+    if (!selectedChar) {
+      setCustomTabs([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const accessToken = session?.access_token ?? '';
+        const res = await fetch(
+          `${SERVER_BASE}/campaigns/${activeCampaignId}/notes?entityType=character&entityId=${selectedChar.id}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+        const data = await res.json();
+        if (cancelled) return;
+        if (res.ok) setCustomTabs((data.notes ?? []).sort((a: any, b: any) => a.position - b.position));
+      } catch (err) {
+        console.error('Errore caricamento tab personalizzate:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedChar?.id, activeCampaignId, session?.access_token]);
+
+  const handleAddCustomTab = async () => {
+    if (!selectedChar || !newTabName.trim()) return;
+    try {
+      const accessToken = session?.access_token ?? '';
+      const res = await fetch(`${SERVER_BASE}/campaigns/${activeCampaignId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ entityType: 'character', entityId: selectedChar.id, tabName: newTabName.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setCustomTabs(prev => [...prev, data.note]);
+      setCurrentTab(data.note.id);
+      setNewTabName('');
+      setIsAddingTab(false);
+    } catch (err) {
+      console.error('Errore creazione tab:', err);
+    }
+  };
+
+  const handleRenameCustomTab = async (tabId: string) => {
+    if (!renameDraft.trim()) { setRenamingTabId(null); return; }
+    try {
+      const accessToken = session?.access_token ?? '';
+      const res = await fetch(`${SERVER_BASE}/notes/${tabId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ tabName: renameDraft.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, tab_name: data.note.tab_name } : t)));
+      }
+    } catch (err) {
+      console.error('Errore rinomina tab:', err);
+    } finally {
+      setRenamingTabId(null);
+    }
+  };
+
+  const handleDeleteCustomTab = async (tabId: string) => {
+    if (!window.confirm('Eliminare questa tab? Il contenuto andrà perso.')) return;
+    try {
+      const accessToken = session?.access_token ?? '';
+      await fetch(`${SERVER_BASE}/notes/${tabId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      setCustomTabs(prev => prev.filter(t => t.id !== tabId));
+      if (currentTab === tabId) setCurrentTab('summary');
+    } catch (err) {
+      console.error('Errore eliminazione tab:', err);
+    }
+  };
+
+  const handleMoveCustomTab = (tabId: string, direction: -1 | 1) => {
+    setCustomTabs(prev => {
+      const idx = prev.findIndex(t => t.id === tabId);
+      const targetIdx = idx + direction;
+      if (idx === -1 || targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[targetIdx]] = [next[targetIdx], next[idx]];
+      // Salva la nuova posizione sul server per entrambe le tab scambiate
+      next.forEach((t, i) => {
+        if (t.position !== i) {
+          const accessToken = session?.access_token ?? '';
+          fetch(`${SERVER_BASE}/notes/${t.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify({ position: i }),
+          }).catch(err => console.error('Errore salvataggio ordine tab:', err));
+        }
+      });
+      return next.map((t, i) => ({ ...t, position: i }));
+    });
+  };
+
+  const customTabSaveTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const handleCustomTabContentChange = (tabId: string, content: string) => {
+    setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, content } : t)));
+    if (customTabSaveTimerRef.current[tabId]) clearTimeout(customTabSaveTimerRef.current[tabId]);
+    customTabSaveTimerRef.current[tabId] = setTimeout(async () => {
+      try {
+        const accessToken = session?.access_token ?? '';
+        await fetch(`${SERVER_BASE}/notes/${tabId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ content }),
+        });
+      } catch (err) {
+        console.error('Errore salvataggio contenuto tab:', err);
+      }
+    }, 400);
+  };
+
   const canDragEntity = (kind: EntityKind, ownerProfileId?: string | null) => {
     if (isOwner) return true; // il GM può trascinare tutto: PG, PNG, Mostri
     if (kind === 'pg' && ownerProfileId === user?.id) return true; // il giocatore solo il proprio PG
@@ -607,11 +731,11 @@ export function SessionCharactersPanel() {
               </div>
             )}
 
-            <div className="mb-4 flex flex-wrap gap-2 border-b border-[var(--dash-border-soft)] pb-3">
+            <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-[var(--dash-border-soft)] pb-3">
               {[
-                { id: 'summary' as const, label: 'Riepilogo' },
-                { id: 'conditions' as const, label: 'Condizioni & Follia' },
-                { id: 'equipment' as const, label: 'Equipaggiamento' }
+                { id: 'summary', label: 'Riepilogo' },
+                { id: 'conditions', label: 'Condizioni & Follia' },
+                { id: 'equipment', label: 'Equipaggiamento' }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -625,6 +749,72 @@ export function SessionCharactersPanel() {
                   {tab.label}
                 </button>
               ))}
+
+              {customTabs.map((tab, idx) => (
+                <div key={tab.id} className="group relative flex items-center">
+                  {renamingTabId === tab.id ? (
+                    <input
+                      type="text"
+                      autoFocus
+                      value={renameDraft}
+                      onChange={(e) => setRenameDraft(e.target.value)}
+                      onBlur={() => handleRenameCustomTab(tab.id)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleRenameCustomTab(tab.id); if (e.key === 'Escape') setRenamingTabId(null); }}
+                      className="w-28 rounded-md border border-[var(--dash-accent)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text)]"
+                    />
+                  ) : (
+                    <button
+                      onClick={() => setCurrentTab(tab.id)}
+                      onDoubleClick={() => { if (canEdit) { setRenamingTabId(tab.id); setRenameDraft(tab.tab_name); } }}
+                      className={`rounded-md px-3 py-1.5 pr-6 text-sm transition-colors ${
+                        currentTab === tab.id
+                          ? 'border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
+                          : 'border border-transparent bg-transparent text-[var(--dash-text)] hover:bg-[var(--dash-panel)]'
+                      }`}
+                      title={canEdit ? 'Doppio click per rinominare' : tab.tab_name}
+                    >
+                      {tab.tab_name}
+                    </button>
+                  )}
+                  {canEdit && renamingTabId !== tab.id && (
+                    <div className="absolute -right-1 top-1/2 flex -translate-y-1/2 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                      {idx > 0 && (
+                        <button onClick={() => handleMoveCustomTab(tab.id, -1)} className="rounded p-0.5 text-[var(--dash-muted)] hover:text-[var(--dash-text-strong)]" title="Sposta a sinistra">◀</button>
+                      )}
+                      {idx < customTabs.length - 1 && (
+                        <button onClick={() => handleMoveCustomTab(tab.id, 1)} className="rounded p-0.5 text-[var(--dash-muted)] hover:text-[var(--dash-text-strong)]" title="Sposta a destra">▶</button>
+                      )}
+                      <button onClick={() => handleDeleteCustomTab(tab.id)} className="rounded p-0.5 text-[var(--dash-danger-text)]" title="Elimina">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {canEdit && (
+                isAddingTab ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={newTabName}
+                      onChange={(e) => setNewTabName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustomTab(); if (e.key === 'Escape') setIsAddingTab(false); }}
+                      placeholder="Nome tab..."
+                      className="w-28 rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text)]"
+                    />
+                    <button onClick={handleAddCustomTab} className="rounded-md bg-[var(--dash-accent)] px-2 py-1 text-xs text-[var(--dash-text-strong)]">OK</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsAddingTab(true)}
+                    className="flex items-center gap-1 rounded-md border border-dashed border-[var(--dash-border-soft)] px-2 py-1.5 text-xs text-[var(--dash-muted)] hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Nuova tab
+                  </button>
+                )
+              )}
             </div>
 
             {currentTab === 'summary' && isHSC && (
@@ -789,6 +979,17 @@ export function SessionCharactersPanel() {
                 <LegacyEquipmentPanel equipment={selectedChar.equipment} onUpdate={(equipment) => updateCharacter(selectedChar.id, { ...selectedChar, equipment })} />
               </div>
             )}
+
+            {customTabs.map(tab => currentTab === tab.id && (
+              <textarea
+                key={tab.id}
+                value={tab.content}
+                onChange={(e) => handleCustomTabContentChange(tab.id, e.target.value)}
+                disabled={!canEdit}
+                placeholder="Scrivi qui..."
+                className="h-64 w-full resize-none rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4 text-sm text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
+              />
+            ))}
           </fieldset>
         ) : selectedNpc ? (
           <div>
