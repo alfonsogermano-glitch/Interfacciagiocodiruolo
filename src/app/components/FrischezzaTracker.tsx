@@ -16,7 +16,7 @@ export function FrischezzaTracker({
   const boxes = Array.from({ length: max }, (_, i) => i + 1);
 
   return (
-    <div className="rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] p-4">
+    <div className="rounded-lg border border-red-900/60 bg-red-950/20 p-4">
       <div className="relative">
         <div className="flex flex-row items-center justify-center">
           {boxes.map((box, idx) => {
@@ -25,7 +25,7 @@ export function FrischezzaTracker({
 
             return (
               <div key={box} className="flex items-center">
-                {idx > 0 && <div className="h-px w-2 bg-[var(--dash-border-soft)]" />}
+                {idx > 0 && <div className="h-px w-2 bg-red-900/50" />}
                 <button
                   type="button"
                   onClick={() => {
@@ -37,13 +37,13 @@ export function FrischezzaTracker({
                   }}
                   className={`relative h-8 w-8 shrink-0 rounded border-2 transition-all hover:scale-110 ${
                     isBlacked
-                      ? 'border-[var(--dash-accent-2)] bg-[var(--dash-bg)]'
-                      : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] hover:border-[var(--dash-accent)]'
-                  } ${isCrucial ? 'ring-2 ring-[var(--dash-accent-2)]' : ''}`}
+                      ? 'border-red-500 bg-red-950'
+                      : 'border-red-900/60 bg-red-950/30 hover:border-red-600'
+                  } ${isCrucial ? 'ring-2 ring-red-500' : ''}`}
                   title={isCrucial ? 'Casella Cruciale' : `Casella ${box}`}
                 >
                   {isCrucial && (
-                    <AlertCircle className="absolute inset-0 m-auto h-4 w-4 text-red-500" />
+                    <AlertCircle className="absolute inset-0 m-auto h-4 w-4 text-red-400" />
                   )}
                 </button>
               </div>
@@ -52,7 +52,7 @@ export function FrischezzaTracker({
         </div>
       </div>
 
-      <div className="mt-3 text-xs text-[var(--dash-muted)]">
+      <div className="mt-3 text-xs text-red-200/60">
         Clicca su una casella per annerirla/cancellarla
       </div>
     </div>
