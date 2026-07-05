@@ -701,7 +701,7 @@ app.put("/make-server-771c5bfd/notes/:noteId", async (c) => {
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
     const noteId = c.req.param("noteId");
-    const { tabName, content, position } = await c.req.json();
+    const { tabName, content, position, hidden } = await c.req.json();
 
     const admin = getAdminClient();
     const { data: existing, error: fetchError } = await admin
@@ -718,6 +718,7 @@ app.put("/make-server-771c5bfd/notes/:noteId", async (c) => {
     if (typeof tabName === 'string') patch.tab_name = tabName;
     if (typeof content === 'string') patch.content = content;
     if (typeof position === 'number') patch.position = position;
+    if (typeof hidden === 'boolean') patch.hidden = hidden;
 
     const { data, error } = await admin
       .from('entity_notes')

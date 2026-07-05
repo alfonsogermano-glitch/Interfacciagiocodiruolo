@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { User, Brain, ChevronDown, ChevronRight, Loader2, Skull, Ghost, Heart, Star } from 'lucide-react';
 import { MoreVertical, Copy, UserMinus, UserX } from 'lucide-react';
-import { Plus, GripVertical, X } from 'lucide-react';
+import { Plus, Pencil, EyeOff, Eye, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/paletteColors';
 import { projectId } from '/utils/supabase/info';
@@ -62,6 +62,14 @@ const ABILITA_PER_AMBITO: Record<string, string[]> = {
   Carisma: ['Esibirsi', 'Parlantina', 'Fascino', 'Intuito', 'Leadership'],
   Strada: ['Furtività', 'Mira', 'Sopravvivenza', 'Crimine', 'Allerta'],
 };
+
+const BASE_TABS = [
+  { id: 'summary', label: 'Riepilogo' },
+  { id: 'conditions', label: 'Condizioni & Follia' },
+  { id: 'equipment', label: 'Equipaggiamento' },
+] as const;
+
+const BASE_TAB_IDS = BASE_TABS.map(t => t.id) as string[];
 
 function AbilitaDots({ value, onChange, disabled }: { value: number; onChange: (v: number) => void; disabled: boolean }) {
   const dots = [1, 2, 3, 4];
@@ -200,11 +208,12 @@ export function SessionCharactersPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [selected, setSelected] = useState<{ kind: EntityKind; id: string } | null>(null);
   const [currentTab, setCurrentTab] = useState<string>('summary');
-  const [customTabs, setCustomTabs] = useState<{ id: string; tab_name: string; content: string; position: number }[]>([]);
-  const [isAddingTab, setIsAddingTab] = useState(false);
-  const [newTabName, setNewTabName] = useState('');
+  const [customTabs, setCustomTabs] = useState<{ id: string; tab_name: string; content: string; position: number; hidden: boolean }[]>([]);
+  const [tabOrder, setTabOrder] = useState<string[]>(BASE_TAB_IDS);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
+  const [openMenuTabId, setOpenMenuTabId] = useState<string | null>(null);
+  const [confirmDeleteTabId, setConfirmDeleteTabId] = useState<string | null>(null);
   const [expandedAmbito, setExpandedAmbito] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState({ pg: true, png: true, mostro: true });
   const [charMenuOpen, setCharMenuOpen] = useState(false);
@@ -426,7 +435,12 @@ export function SessionCharactersPanel() {
         );
         const data = await res.json();
         if (cancelled) return;
-        if (res.ok) setCustomTabs((data.notes ?? []).sort((a: any, b: any) => a.position - b.position));
+        if (res.ok) {
+          const sorted = (data.notes ?? [])
+            .map((n: any) => ({ ...n, hidden: n.hidden ?? false }))
+            .sort((a: any, b: any) => a.position - b.position);
+          setCustomTabs(sorted);
+        }
       } catch (err) {
         console.error('Errore caricamento tab personalizzate:', err);
       }
@@ -434,21 +448,60 @@ export function SessionCharactersPanel() {
     return () => { cancelled = true; };
   }, [selectedChar?.id, activeCampaignId, session?.access_token]);
 
+  // Riconcilia tabOrder ogni volta che cambiano personaggio o tab custom:
+  // parte dall'ordine salvato (o da quello base), scarta id non più esistenti,
+  // accoda le tab nuove non ancora presenti nell'ordine.
+  useEffect(() => {
+    const validIds = new Set([...BASE_TAB_IDS, ...customTabs.map(t => t.id)]);
+    const saved: string[] = (selectedChar as any)?.tabOrder?.length
+      ? (selectedChar as any).tabOrder
+      : BASE_TAB_IDS;
+    const kept = saved.filter((id: string) => validIds.has(id));
+    const missing = [...validIds].filter(id => !kept.includes(id));
+    setTabOrder([...kept, ...missing]);
+  }, [selectedChar?.id, customTabs]);
+
+  // Chiude il menu ⋮ al click fuori
+  useEffect(() => {
+    if (!openMenuTabId) return;
+    const close = () => setOpenMenuTabId(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [openMenuTabId]);
+
+  const persistTabOrder = (order: string[]) => {
+    if (!selectedChar) return;
+    updateCharacter(selectedChar.id, { ...selectedChar, tabOrder: order } as any);
+  };
+
+  const handleMoveTab = (tabId: string, direction: -1 | 1) => {
+    setTabOrder(prev => {
+      const idx = prev.indexOf(tabId);
+      const targetIdx = idx + direction;
+      if (idx === -1 || targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[targetIdx]] = [next[targetIdx], next[idx]];
+      persistTabOrder(next);
+      return next;
+    });
+  };
+
   const handleAddCustomTab = async () => {
-    if (!selectedChar || !newTabName.trim()) return;
+    if (!selectedChar) return;
     try {
       const accessToken = session?.access_token ?? '';
       const res = await fetch(`${SERVER_BASE}/campaigns/${activeCampaignId}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ entityType: 'character', entityId: selectedChar.id, tabName: newTabName.trim() }),
+        body: JSON.stringify({ entityType: 'character', entityId: selectedChar.id, tabName: 'Nuova tab' }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setCustomTabs(prev => [...prev, data.note]);
+      setCustomTabs(prev => [...prev, { ...data.note, hidden: data.note.hidden ?? false }]);
       setCurrentTab(data.note.id);
-      setNewTabName('');
-      setIsAddingTab(false);
+      // Entra subito in rinomina: il "+" crea e si passa direttamente al nome
+      setRenamingTabId(data.note.id);
+      setRenameDraft('Nuova tab');
     } catch (err) {
       console.error('Errore creazione tab:', err);
     }
@@ -474,8 +527,27 @@ export function SessionCharactersPanel() {
     }
   };
 
+  const handleToggleHideCustomTab = async (tabId: string) => {
+    const tab = customTabs.find(t => t.id === tabId);
+    if (!tab) return;
+    const nextHidden = !tab.hidden;
+    setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, hidden: nextHidden } : t)));
+    try {
+      const accessToken = session?.access_token ?? '';
+      const res = await fetch(`${SERVER_BASE}/notes/${tabId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ hidden: nextHidden }),
+      });
+      if (!res.ok) throw new Error('PUT hidden failed');
+    } catch (err) {
+      console.error('Errore nascondi tab:', err);
+      setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, hidden: !nextHidden } : t)));
+    }
+  };
+
+  // Chiamata SOLO dopo conferma nel ConfirmDialog (niente più window.confirm)
   const handleDeleteCustomTab = async (tabId: string) => {
-    if (!window.confirm('Eliminare questa tab? Il contenuto andrà perso.')) return;
     try {
       const accessToken = session?.access_token ?? '';
       await fetch(`${SERVER_BASE}/notes/${tabId}`, {
@@ -483,32 +555,17 @@ export function SessionCharactersPanel() {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       setCustomTabs(prev => prev.filter(t => t.id !== tabId));
+      setTabOrder(prev => {
+        const next = prev.filter(id => id !== tabId);
+        persistTabOrder(next);
+        return next;
+      });
       if (currentTab === tabId) setCurrentTab('summary');
     } catch (err) {
       console.error('Errore eliminazione tab:', err);
+    } finally {
+      setConfirmDeleteTabId(null);
     }
-  };
-
-  const handleMoveCustomTab = (tabId: string, direction: -1 | 1) => {
-    setCustomTabs(prev => {
-      const idx = prev.findIndex(t => t.id === tabId);
-      const targetIdx = idx + direction;
-      if (idx === -1 || targetIdx < 0 || targetIdx >= prev.length) return prev;
-      const next = [...prev];
-      [next[idx], next[targetIdx]] = [next[targetIdx], next[idx]];
-      // Salva la nuova posizione sul server per entrambe le tab scambiate
-      next.forEach((t, i) => {
-        if (t.position !== i) {
-          const accessToken = session?.access_token ?? '';
-          fetch(`${SERVER_BASE}/notes/${t.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-            body: JSON.stringify({ position: i }),
-          }).catch(err => console.error('Errore salvataggio ordine tab:', err));
-        }
-      });
-      return next.map((t, i) => ({ ...t, position: i }));
-    });
   };
 
   const customTabSaveTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -528,6 +585,23 @@ export function SessionCharactersPanel() {
       }
     }, 400);
   };
+
+  const orderedTabs = tabOrder
+    .map(id => {
+      const base = BASE_TABS.find(t => t.id === id);
+      if (base) return { id: base.id as string, label: base.label as string, isCustom: false, hidden: false };
+      const custom = customTabs.find(t => t.id === id);
+      if (!custom) return null;
+      return { id: custom.id, label: custom.tab_name, isCustom: true, hidden: custom.hidden };
+    })
+    .filter((t): t is { id: string; label: string; isCustom: boolean; hidden: boolean } => t !== null)
+    .filter(t => canEdit || !t.hidden);
+
+  // Se la tab attiva è sparita (nascosta/eliminata da altri), torna al riepilogo
+  useEffect(() => {
+    if (!orderedTabs.some(t => t.id === currentTab)) setCurrentTab('summary');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderedTabs.map(t => t.id).join(','), currentTab]);
 
   const canDragEntity = (kind: EntityKind, ownerProfileId?: string | null) => {
     if (isOwner) return true; // il GM può trascinare tutto: PG, PNG, Mostri
@@ -732,25 +806,7 @@ export function SessionCharactersPanel() {
             )}
 
             <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-[var(--dash-border-soft)] pb-3">
-              {[
-                { id: 'summary', label: 'Riepilogo' },
-                { id: 'conditions', label: 'Condizioni & Follia' },
-                { id: 'equipment', label: 'Equipaggiamento' }
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setCurrentTab(tab.id)}
-                  className={`rounded-md px-3 py-1.5 text-sm transition-colors ${
-                    currentTab === tab.id
-                      ? 'border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
-                      : 'border border-transparent bg-transparent text-[var(--dash-text)] hover:bg-[var(--dash-panel)]'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-
-              {customTabs.map((tab, idx) => (
+              {orderedTabs.map((tab, idx) => (
                 <div key={tab.id} className="group relative flex items-center">
                   {renamingTabId === tab.id ? (
                     <input
@@ -759,61 +815,118 @@ export function SessionCharactersPanel() {
                       value={renameDraft}
                       onChange={(e) => setRenameDraft(e.target.value)}
                       onBlur={() => handleRenameCustomTab(tab.id)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleRenameCustomTab(tab.id); if (e.key === 'Escape') setRenamingTabId(null); }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleRenameCustomTab(tab.id);
+                        if (e.key === 'Escape') setRenamingTabId(null);
+                      }}
                       className="w-28 rounded-md border border-[var(--dash-accent)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text)]"
                     />
                   ) : (
                     <button
                       onClick={() => setCurrentTab(tab.id)}
-                      onDoubleClick={() => { if (canEdit) { setRenamingTabId(tab.id); setRenameDraft(tab.tab_name); } }}
-                      className={`rounded-md px-3 py-1.5 pr-6 text-sm transition-colors ${
+                      className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
                         currentTab === tab.id
                           ? 'border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
                           : 'border border-transparent bg-transparent text-[var(--dash-text)] hover:bg-[var(--dash-panel)]'
-                      }`}
-                      title={canEdit ? 'Doppio click per rinominare' : tab.tab_name}
+                      } ${tab.hidden ? 'opacity-50' : ''} ${tab.isCustom && canEdit ? 'pr-7' : ''}`}
+                      title={tab.hidden ? `${tab.label} (nascosta ai giocatori)` : tab.label}
                     >
-                      {tab.tab_name}
+                      {tab.hidden && <EyeOff className="h-3 w-3" />}
+                      {tab.label}
                     </button>
                   )}
+
+                  {/* Frecce di riordino su hover — per TUTTE le tab (base incluse) */}
                   {canEdit && renamingTabId !== tab.id && (
-                    <div className="absolute -right-1 top-1/2 flex -translate-y-1/2 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="pointer-events-none absolute -bottom-2.5 left-1/2 flex -translate-x-1/2 gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
                       {idx > 0 && (
-                        <button onClick={() => handleMoveCustomTab(tab.id, -1)} className="rounded p-0.5 text-[var(--dash-muted)] hover:text-[var(--dash-text-strong)]" title="Sposta a sinistra">◀</button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleMoveTab(tab.id, -1); }}
+                          className="rounded bg-[var(--dash-panel)] px-1 text-[10px] leading-none text-[var(--dash-muted)] shadow hover:text-[var(--dash-text-strong)]"
+                          title="Sposta a sinistra"
+                        >
+                          ◀
+                        </button>
                       )}
-                      {idx < customTabs.length - 1 && (
-                        <button onClick={() => handleMoveCustomTab(tab.id, 1)} className="rounded p-0.5 text-[var(--dash-muted)] hover:text-[var(--dash-text-strong)]" title="Sposta a destra">▶</button>
+                      {idx < orderedTabs.length - 1 && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleMoveTab(tab.id, 1); }}
+                          className="rounded bg-[var(--dash-panel)] px-1 text-[10px] leading-none text-[var(--dash-muted)] shadow hover:text-[var(--dash-text-strong)]"
+                          title="Sposta a destra"
+                        >
+                          ▶
+                        </button>
                       )}
-                      <button onClick={() => handleDeleteCustomTab(tab.id)} className="rounded p-0.5 text-[var(--dash-danger-text)]" title="Elimina">
-                        <X className="h-3 w-3" />
+                    </div>
+                  )}
+
+                  {/* Menu ⋮ — SOLO tab personalizzate */}
+                  {tab.isCustom && canEdit && renamingTabId !== tab.id && (
+                    <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuTabId(prev => (prev === tab.id ? null : tab.id));
+                        }}
+                        className="rounded p-0.5 text-[var(--dash-muted)] opacity-0 transition-opacity hover:text-[var(--dash-text-strong)] group-hover:opacity-100"
+                        title="Opzioni tab"
+                      >
+                        <MoreVertical className="h-3.5 w-3.5" />
                       </button>
+
+                      {openMenuTabId === tab.id && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute right-0 top-full z-30 mt-1 w-40 overflow-hidden rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] py-1 shadow-xl"
+                        >
+                          <button
+                            onClick={() => {
+                              setRenamingTabId(tab.id);
+                              setRenameDraft(tab.label);
+                              setOpenMenuTabId(null);
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-input)] hover:text-[var(--dash-text-strong)]"
+                          >
+                            <Pencil className="h-3.5 w-3.5" /> Rinomina
+                          </button>
+                          <button
+                            onClick={() => {
+                              handleToggleHideCustomTab(tab.id);
+                              setOpenMenuTabId(null);
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-input)] hover:text-[var(--dash-text-strong)]"
+                          >
+                            {tab.hidden ? (
+                              <><Eye className="h-3.5 w-3.5" /> Mostra</>
+                            ) : (
+                              <><EyeOff className="h-3.5 w-3.5" /> Nascondi</>
+                            )}
+                          </button>
+                          <div className="mx-2 my-1 border-t border-[var(--dash-border-soft)]" />
+                          <button
+                            onClick={() => {
+                              setConfirmDeleteTabId(tab.id);
+                              setOpenMenuTabId(null);
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--dash-danger-text)] transition-colors hover:bg-[var(--dash-input)]"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> Elimina
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               ))}
 
               {canEdit && (
-                isAddingTab ? (
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="text"
-                      autoFocus
-                      value={newTabName}
-                      onChange={(e) => setNewTabName(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddCustomTab(); if (e.key === 'Escape') setIsAddingTab(false); }}
-                      placeholder="Nome tab..."
-                      className="w-28 rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text)]"
-                    />
-                    <button onClick={handleAddCustomTab} className="rounded-md bg-[var(--dash-accent)] px-2 py-1 text-xs text-[var(--dash-text-strong)]">OK</button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setIsAddingTab(true)}
-                    className="flex items-center gap-1 rounded-md border border-dashed border-[var(--dash-border-soft)] px-2 py-1.5 text-xs text-[var(--dash-muted)] hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Nuova tab
-                  </button>
-                )
+                <button
+                  onClick={handleAddCustomTab}
+                  className="flex items-center justify-center rounded-md border border-dashed border-[var(--dash-border-soft)] p-1.5 text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
+                  title="Aggiungi tab"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
               )}
             </div>
 
@@ -980,16 +1093,18 @@ export function SessionCharactersPanel() {
               </div>
             )}
 
-            {customTabs.map(tab => currentTab === tab.id && (
-              <textarea
-                key={tab.id}
-                value={tab.content}
-                onChange={(e) => handleCustomTabContentChange(tab.id, e.target.value)}
-                disabled={!canEdit}
-                placeholder="Scrivi qui..."
-                className="h-64 w-full resize-none rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4 text-sm text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
-              />
-            ))}
+            {customTabs.map(tab =>
+              currentTab === tab.id && (canEdit || !tab.hidden) ? (
+                <textarea
+                  key={tab.id}
+                  value={tab.content}
+                  onChange={(e) => handleCustomTabContentChange(tab.id, e.target.value)}
+                  disabled={!canEdit}
+                  placeholder="Scrivi qui..."
+                  className="h-64 w-full resize-none rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4 text-sm text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
+                />
+              ) : null
+            )}
           </fieldset>
         ) : selectedNpc ? (
           <div>
@@ -1097,6 +1212,15 @@ export function SessionCharactersPanel() {
         confirmLabel="Rimuovi"
         onConfirm={handleRemovePlayer}
         onCancel={() => setConfirmRemovePlayer(false)}
+      />
+    )}
+    {confirmDeleteTabId && (
+      <ConfirmDialog
+        title="Eliminare questa tab?"
+        message={`"${customTabs.find(t => t.id === confirmDeleteTabId)?.tab_name}" e tutto il suo contenuto andranno persi. L'azione non è reversibile.`}
+        confirmLabel="Elimina"
+        onConfirm={() => handleDeleteCustomTab(confirmDeleteTabId)}
+        onCancel={() => setConfirmDeleteTabId(null)}
       />
     )}
     {showCopyDialog && (

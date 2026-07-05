@@ -97,6 +97,7 @@ function mapRowToCharacter(row: any) {
     portraitCrop: row.sheet_data?.portraitCrop,
     tutore: row.sheet_data?.tutore || '',
     tratti: row.sheet_data?.tratti || [],
+    tabOrder: row.sheet_data?.tabOrder || [],
     equipment: row.sheet_data?.equipment || [],
     tipoSpeciale: row.sheet_data?.tipoSpeciale || ''
   };
@@ -172,6 +173,7 @@ export async function saveCharacter(
     portraitCrop: character.portraitCrop,
     tutore: character.tutore,
     tratti: character.tratti,
+    tabOrder: (character as any).tabOrder || [],
     equipment: character.equipment,
     tipoSpeciale: character.tipoSpeciale
   };
