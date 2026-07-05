@@ -55,6 +55,35 @@ function SectionHeader({ title, count, isOpen, onToggle }: { title: string; coun
   );
 }
 
+const ABILITA_PER_AMBITO: Record<string, string[]> = {
+  Fisico: ['Muscoli', 'Sport', 'Acrobatica', 'Resistenza', 'Freddezza'],
+  Scuola: ['Cultura', 'Tecnologia', 'Studio', 'Pronto Soccorso', 'Scienze'],
+  Carisma: ['Esibirsi', 'Parlantina', 'Fascino', 'Intuito', 'Leadership'],
+  Strada: ['Furtività', 'Mira', 'Sopravvivenza', 'Crimine', 'Allerta'],
+};
+
+function AbilitaDots({ value, onChange, disabled }: { value: number; onChange: (v: number) => void; disabled: boolean }) {
+  const dots = [1, 2, 3, 4];
+  return (
+    <div className="flex gap-1">
+      {dots.map((dot) => {
+        const filled = dot <= value;
+        return (
+          <button
+            key={dot}
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(filled && dot === value ? dot - 1 : dot)}
+            className={`h-3.5 w-3.5 rounded-full border transition-all ${
+              filled ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]' : 'border-[var(--dash-border-soft)] bg-transparent'
+            } ${disabled ? '' : 'hover:scale-125'}`}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 const TOKEN_SIZE = 64;
 
 function DraggablePortrait({
@@ -140,6 +169,7 @@ export function SessionCharactersPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [selected, setSelected] = useState<{ kind: EntityKind; id: string } | null>(null);
   const [currentTab, setCurrentTab] = useState<'summary' | 'conditions' | 'equipment'>('summary');
+  const [expandedAmbito, setExpandedAmbito] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState({ pg: true, png: true, mostro: true });
   const [charMenuOpen, setCharMenuOpen] = useState(false);
   const [charMenuPosition, setCharMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -549,13 +579,52 @@ export function SessionCharactersPanel() {
             {currentTab === 'summary' && isHSC && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  {Object.entries(selectedChar.ambiti).map(([ambito, value]) => (
-                    <div key={ambito} className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-4 py-3">
-                      <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">{ambito}</div>
-                      <div className="mt-2 text-2xl font-semibold text-[var(--dash-text-strong)]">{value as any}</div>
-                    </div>
-                  ))}
+                  {(['Fisico', 'Scuola', 'Carisma', 'Strada'] as const).map((ambito) => {
+                    const value = (selectedChar.ambiti as any)[ambito];
+                    const isExpanded = expandedAmbito === ambito;
+                    return (
+                      <button
+                        key={ambito}
+                        type="button"
+                        onClick={() => setExpandedAmbito(isExpanded ? null : ambito)}
+                        className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                          isExpanded
+                            ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
+                            : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] hover:border-[var(--dash-accent)]'
+                        }`}
+                      >
+                        <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">{ambito}</div>
+                        <div className="mt-2 text-2xl font-semibold text-[var(--dash-text-strong)]">{value}</div>
+                      </button>
+                    );
+                  })}
                 </div>
+
+                {expandedAmbito && (
+                  <div className="rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] p-4">
+                    <div className="mb-3 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+                      Abilità · {expandedAmbito}
+                    </div>
+                    <div className="space-y-2.5">
+                      {ABILITA_PER_AMBITO[expandedAmbito].map((abilita) => {
+                        const currentValue = (selectedChar.abilita as any)?.[abilita] ?? 1;
+                        return (
+                          <div key={abilita} className="flex items-center justify-between">
+                            <span className="text-sm text-[var(--dash-text)]">{abilita}</span>
+                            <AbilitaDots
+                              value={currentValue}
+                              disabled={!canEdit}
+                              onChange={(v) => updateCharacter(selectedChar.id, {
+                                ...selectedChar,
+                                abilita: { ...selectedChar.abilita, [abilita]: v },
+                              })}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 <div className="rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] p-4">
                   <div className="mb-3 flex items-center justify-between">
