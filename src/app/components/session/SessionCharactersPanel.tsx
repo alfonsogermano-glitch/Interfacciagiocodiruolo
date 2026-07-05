@@ -214,6 +214,7 @@ export function SessionCharactersPanel() {
 
   const loadSeqRef = useRef(0);
   const saveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const recentLocalEditRef = useRef<Record<string, number>>({});
   const isOwner = activeCampaign?.ownerId === user?.id;
 
   const loadData = useCallback(async () => {
@@ -258,6 +259,10 @@ export function SessionCharactersPanel() {
       }
       const row = data.record;
       if (!row) return;
+      const lastLocalEdit = recentLocalEditRef.current[row.id];
+      if (lastLocalEdit && Date.now() - lastLocalEdit < 1200) {
+        return;
+      }
       const mapped = mapRowToCharacter(row) as PlayerCharacter;
       setCharacters(prev => {
         const exists = prev.some(c => c.id === mapped.id);
@@ -288,6 +293,7 @@ export function SessionCharactersPanel() {
   }, [activeCampaignId]);
 
   const persistCharacter = useCallback((id: string, updatedChar: PlayerCharacter) => {
+    recentLocalEditRef.current[id] = Date.now();
     if (saveTimersRef.current[id]) clearTimeout(saveTimersRef.current[id]);
     saveTimersRef.current[id] = setTimeout(async () => {
       const isMine = (updatedChar as any).ownerProfileId === user?.id;
