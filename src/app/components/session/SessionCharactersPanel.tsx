@@ -856,7 +856,9 @@ export function SessionCharactersPanel() {
 
             <div
               ref={tabsContainerRef}
-              className="mb-4 flex flex-wrap items-center gap-2 border-b border-[var(--dash-border-soft)] pb-3"
+              className={`mb-4 flex flex-wrap items-center gap-2 border-b border-[var(--dash-border-soft)] pb-3 ${
+                draggedTabId ? 'pointer-events-none select-none' : ''
+              }`}
             >
               {orderedTabs.map((tab, idx) => (
                 <div
@@ -909,7 +911,7 @@ export function SessionCharactersPanel() {
                           e.stopPropagation();
                           setOpenMenuTabId(prev => (prev === tab.id ? null : tab.id));
                         }}
-                        className="cursor-pointer rounded p-0.5 text-[var(--dash-muted)] opacity-0 transition-opacity hover:text-[var(--dash-text-strong)] group-hover:opacity-100"
+                        className="cursor-default rounded p-0.5 text-[var(--dash-muted)] opacity-0 transition-opacity hover:text-[var(--dash-text-strong)] group-hover:opacity-100"
                       >
                         <MoreVertical className="h-3.5 w-3.5" />
                       </button>
