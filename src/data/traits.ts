@@ -174,522 +174,522 @@ export const JOURNEY_TRAITS: Record<Viaggio, Trait[]> = {
   ],
   Bullo: [
     {
-      name: 'Intimidatorio',
-      description: 'Sai come spaventare gli altri',
-      benefit: '+1 ai tiri per intimidire'
+      name: 'Alpha Dog',
+      description: 'Quando entri in una stanza, la gerarchia si stabilisce da sola.',
+      benefit: 'Spendi 1 Audacia. Effettua un qualunque Tiro di Reazione adoperando Leadership invece dell\'Abilità richiesta.'
     },
     {
-      name: 'Forte e robusto',
-      description: 'Sei molto più forte della media',
-      benefit: '+1 ai tiri di Muscoli'
+      name: 'Bugiardo',
+      description: 'Le tue scuse sono sempre più creative dei tuoi crimini.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per mentire e raggirare.'
     },
     {
-      name: 'Reputazione temibile',
-      description: 'Tutti sanno chi sei',
-      benefit: 'Bonus quando usi la tua reputazione'
+      name: 'Manesco',
+      description: 'Preferisci risolvere le discussioni con i pugni piuttosto che con le parole.',
+      benefit: 'Durante una rissa o una colluttazione rilanci in Sicurezza tutti i tiri.'
     },
     {
-      name: 'Pugni pesanti',
-      description: 'Sai come colpire duro',
-      benefit: '+1 danni nel combattimento corpo a corpo'
+      name: 'Minaccioso',
+      description: 'Basta uno sguardo per far cambiare idea a chiunque.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per minacciare o intimidire.'
     }
   ],
   'Fratello maggiore': [
     {
-      name: 'Protettivo',
-      description: 'Proteggi chi ti sta a cuore',
-      benefit: '+1 quando difendi qualcuno'
+      name: 'Altruista',
+      description: 'Il tuo bisogno di aiutare gli altri viene sempre prima del tuo.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per aiutare qualcuno in difficoltà. Se fallisci perdi 1 punto di Freschezza aggiuntivo.'
     },
     {
-      name: 'Responsabile',
-      description: 'Ti prendi cura degli altri',
-      benefit: '+1 ai tiri di Pronto Soccorso'
+      name: 'Giovane marmotta',
+      description: 'Un weekend nei boschi con gli scout ti ha insegnato più di quanto ammetterai mai.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per procacciarti cibo e rifugio in ambienti naturali.'
     },
     {
-      name: 'Esempio da seguire',
-      description: 'Gli altri ti guardano come modello',
-      benefit: '+1 ai tiri di Leadership con persone più giovani'
+      name: 'Migliore Amico',
+      description: 'Non lasci mai indietro nessuno, costi quel che costi.',
+      benefit: 'Spendi 1 Audacia. Subisci una perdita di Freschezza o una Condizione al posto di un altro Studente.'
     },
     {
-      name: 'Esperienza vissuta',
-      description: 'Hai già visto tanto',
-      benefit: 'Bonus ai tiri di Percezione per pericoli'
+      name: 'Salvataggio',
+      description: 'Arrivi sempre al momento giusto, come nei film.',
+      benefit: 'Spendi 1 Audacia. Eviti che un compagno ottenga la Condizione Spezzato oppure salva un compagno che sta per andare Fuori dai giochi.'
     }
   ],
 
   // CHEERLEADER
   'Stronza suprema': [
     {
-      name: 'Regina della scuola',
-      description: 'Controlli le dinamiche sociali',
-      benefit: '+1 ai tiri di Raggirare'
+      name: 'Agile come un gatto',
+      description: 'Non ti sporchi mai le mani, o le scarpe.',
+      benefit: 'Spendi 2 Audacia. Esibisciti in una pericolosa acrobazia, evita le conseguenze di una caduta o abbandona un combattimento senza tirare i dadi.'
     },
     {
-      name: 'Lingua tagliente',
-      description: 'Le tue parole feriscono',
-      benefit: '+1 quando insulti o denigri qualcuno'
+      name: 'Alpha Dog',
+      description: 'Quando entri in una stanza, la gerarchia si stabilisce da sola.',
+      benefit: 'Spendi 1 Audacia. Effettua un qualunque Tiro di Reazione adoperando Leadership invece dell\'Abilità richiesta.'
     },
     {
-      name: 'Manipolatrice',
-      description: 'Sai come ottenere ciò che vuoi',
-      benefit: '+1 ai tiri per manipolare'
+      name: 'Fascino intimidatorio',
+      description: 'Un tuo sguardo vale più di mille minacce.',
+      benefit: 'Spendi 2 Audacia. Ottieni un\'informazione o un favore senza tirare i dadi.'
     },
     {
-      name: 'Rete sociale',
-      description: 'Conosci tutti i segreti',
-      benefit: 'Bonus quando cerchi informazioni sui compagni'
+      name: 'Volteggio',
+      description: 'Ti muovi con una grazia che nasconde artigli affilati.',
+      benefit: 'Spendi 1 Audacia. Reagisci contro un Avversario tirando Acrobatica +1 invece dell\'Abilità richiesta.'
     }
   ],
   "Fidanzata d'America": [
     {
-      name: 'Adorabile',
-      description: 'Tutti ti vogliono bene',
-      benefit: '+1 ai tiri di Carisma'
+      name: 'Infermiere',
+      description: 'Supereroe stanco con le Crocs ai piedi.',
+      benefit: 'Spendi 1 Audacia. Cura la Condizione Malconcio, Malato o Intossicato di un compagno.'
     },
     {
-      name: 'Sorriso perfetto',
-      description: 'Il tuo sorriso conquista tutti',
-      benefit: '+1 alle azioni sociali positive'
+      name: 'Altruista',
+      description: 'Il tuo bisogno di aiutare gli altri viene sempre prima del tuo.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per aiutare qualcuno in difficoltà. Se fallisci perdi 1 punto di Freschezza aggiuntivo.'
     },
     {
-      name: 'Spirito di squadra',
-      description: 'Sai come motivare il gruppo',
-      benefit: '+1 ai tiri di Leadership quando supporti'
+      name: 'Incoraggiamento',
+      description: 'Le tue parole sanno tirare fuori il meglio dagli altri.',
+      benefit: 'Spendi 1 Audacia. Un altro Studente riceve +1 al suo prossimo Tiro di Azione e rilancia in Sicurezza.'
     },
     {
-      name: 'Ottimista',
-      description: 'Mantieni sempre il morale alto',
-      benefit: 'Bonus quando cerchi di sollevare il morale'
+      name: 'Studente modello',
+      description: 'I professori ti adorano, e tu sfrutti la cosa senza vergogna.',
+      benefit: 'Rilancia in Sicurezza tutti i tiri quando ti relazioni con i professori.'
     }
   ],
   Sbandata: [
     {
-      name: 'Amore cieco',
-      description: 'Farai di tutto per chi ami',
-      benefit: '+1 quando agisci per proteggere la persona amata'
+      name: 'Brutte compagnie',
+      description: 'Il tuo ragazzo/a ha delle amicizie che tua madre non approverebbe mai.',
+      benefit: 'Spendi 2 Audacia. Ottieni informazioni o risorse grazie alle tue connessioni con i bassifondi o alla tua fama.'
     },
     {
-      name: 'Romantica',
-      description: 'Credi nell\'amore vero',
-      benefit: '+1 ai tiri di Percezione riguardo sentimenti'
+      name: 'Bugiardo',
+      description: 'Le tue scuse sono sempre più creative dei tuoi crimini.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per mentire o raggirare.'
     },
     {
-      name: 'Dedizione totale',
-      description: 'Non ti arrendi mai',
-      benefit: 'Bonus quando persegui un obiettivo romantico'
+      name: 'Consiglio non richiesto',
+      description: 'Sai sempre come dovrebbero fare le cose gli altri, che lo vogliano sapere o no.',
+      benefit: 'Spendi 1 Audacia. Un compagno ottiene +1 al suo prossimo Tiro Azione e rilancia in Sicurezza ma perde 1 punto di Freschezza.'
     },
     {
-      name: 'Cuore spezzato',
-      description: 'Hai sofferto per amore',
-      benefit: '+1 ai tiri contro manipolazione emotiva'
+      name: 'Non sono stato io!',
+      description: 'Hai un talento naturale nello scaricare le colpe altrove.',
+      benefit: 'Spendi 1 Audacia. Un compagno soffre le conseguenze di un tuo fallimento al posto tuo.'
     }
   ],
 
   // NERD
   'Primo della classe': [
     {
-      name: 'Genio accademico',
-      description: 'Sei il migliore in tutte le materie',
-      benefit: '+1 ai tiri di Studio'
+      name: 'Attento',
+      description: 'Non ti sfugge mai nulla, nemmeno quello che gli altri preferirebbero tenere nascosto.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per notare piccoli indizi come macchioline di sangue o altre sostanze, odori strani, nascondigli, eccetera.'
     },
     {
-      name: 'Ricerca meticolosa',
-      description: 'Sai dove trovare informazioni',
-      benefit: '+1 quando fai ricerche'
+      name: 'Giovane marmotta',
+      description: 'Un weekend nei boschi con gli scout ti ha insegnato più di quanto ammetterai mai.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per procacciarti cibo e rifugio in ambienti naturali.'
     },
     {
-      name: 'Memoria perfetta',
-      description: 'Ricordi ogni dettaglio',
-      benefit: '+1 ai tiri di memoria'
+      name: 'Studente modello',
+      description: 'I professori ti adorano, e tu sfrutti la cosa senza vergogna.',
+      benefit: 'Rilancia in Sicurezza tutti i tiri quando ti relazioni con i professori.'
     },
     {
-      name: 'Perfezionista',
-      description: 'Fai sempre le cose al meglio',
-      benefit: 'Puoi ritirare un dado fallito per sessione'
+      name: 'Tuttofare',
+      description: 'Non sei il più bravo in niente, ma te la cavi decentemente in tutto.',
+      benefit: 'Spendi 1 Audacia. Rilanci in Sicurezza durante il tuo prossimo tiro.'
     }
   ],
   Smanettone: [
     {
-      name: 'Hacker',
-      description: 'Puoi entrare in qualsiasi sistema',
-      benefit: '+1 ai tiri per hackerare'
+      name: 'Meccanico',
+      description: 'Se ha un motore, tu sai come farlo ripartire.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per compiere riparazioni meccaniche o far partire veicoli a motore.'
     },
     {
-      name: 'Tecnico esperto',
-      description: 'Capisci come funziona la tecnologia',
-      benefit: '+1 ai tiri di Manualità con elettronica'
+      name: 'Piccolo chimico',
+      description: 'Il tuo laboratorio in cantina ha già causato più di un\'esplosione controllata.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per interagire o studiare sostanze chimiche o per riconoscere fenomeni scientifici.'
     },
     {
-      name: 'Gadget improvvisato',
-      description: 'Puoi costruire dispositivi utili',
-      benefit: 'Una volta per sessione puoi creare un gadget semplice'
+      name: 'Pilota',
+      description: 'Hai raggiunto finalmente la tua indipendenza in fatto di mobilità.',
+      benefit: 'Lo so, ti eri già esaltato, ma significa solo che possiedi un\'auto o una motocicletta personale: è proprio tua, non devi chiedere a mamma di prestartela!'
     },
     {
-      name: 'Rete digitale',
-      description: 'Hai contatti online ovunque',
-      benefit: 'Bonus quando cerchi informazioni online'
+      name: 'Informatico',
+      description: 'Password, firewall, sistemi criptati: per te sono solo un simpatico rompicapo.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per interfacciarti con l\'informatica e l\'elettronica.'
     }
   ],
   Sapientino: [
     {
-      name: 'Cultura generale',
-      description: 'Sai un po\' di tutto',
-      benefit: '+1 ai tiri di conoscenza generale'
+      name: 'Consiglio non richiesto',
+      description: 'Sai sempre come dovrebbero fare le cose gli altri, che lo vogliano sapere o no.',
+      benefit: 'Spendi 1 Audacia. Un compagno ottiene +1 al suo prossimo Tiro Azione e rilancia in Sicurezza ma perde 1 punto di Freschezza.'
     },
     {
-      name: 'Curioso',
-      description: 'Vuoi sempre sapere di più',
-      benefit: '+1 ai tiri di Percezione per dettagli'
+      name: 'Enciclopedia vivente',
+      description: 'Se esiste una domanda, tu hai già la risposta pronta, che qualcuno l\'abbia chiesta o no.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per ricordare eventi storici, luoghi geografici o nozioni di cultura generale.'
     },
     {
-      name: 'Enciclopedia ambulante',
-      description: 'Hai informazioni su tutto',
-      benefit: 'Bonus quando ricordi fatti oscuri'
+      name: 'Non sono stato io!',
+      description: 'Hai un talento naturale nello scaricare le colpe altrove.',
+      benefit: 'Spendi 1 Audacia. Un compagno soffre le conseguenze di un tuo fallimento al posto tuo.'
     },
     {
-      name: 'Deduzione logica',
-      description: 'Colleghi i puntini facilmente',
-      benefit: '+1 quando analizzi indizi'
+      name: 'Pettegolezzo',
+      description: 'Sei un asso nel reperire informazioni indiscrete su fatti altrui.',
+      benefit: 'Spendi 1 Audacia. Inventa o chiedi all\'Antico un\'informazione scomoda ottenuta ascoltando i pettegolezzi. Oppure metti in giro una voce.'
     }
   ],
 
   // GOTH
   Occultista: [
     {
-      name: 'Ritualista',
-      description: 'Conosci rituali oscuri',
-      benefit: '+1 quando esegui rituali'
+      name: 'Conoscenze paranormali',
+      description: 'Passi più tempo a leggere di demonologia che di matematica, e si vede.',
+      benefit: 'Ricevi un +1 a tutti tiri legati a eventi paranormali, artefatti e formule arcane.'
     },
     {
-      name: 'Grimorio personale',
-      description: 'Hai un libro di conoscenze occulte',
-      benefit: '+1 ai tiri per conoscenze sovrannaturali'
+      name: 'Esoterista',
+      description: 'Il velo tra i mondi per te è più sottile che per chiunque altro.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri legati a eventi paranormali.'
     },
     {
-      name: 'Terzo occhio',
-      description: 'Percepisci l\'invisibile',
-      benefit: '+1 ai tiri per percepire presenze'
+      name: 'Freddo come il ghiaccio',
+      description: 'L\'orrore ti scivola addosso come acqua su un vetro.',
+      benefit: 'Rilanci in Sicurezza i Tiri Follia.'
     },
     {
-      name: 'Protezione arcana',
-      description: 'Conosci metodi di protezione',
-      benefit: '+1 quando ti proteggi dal sovrannaturale'
+      name: 'Sbagliando si impara',
+      description: 'Guardi attentamente ogni errore altrui: la prossima volta tocca a te, e non fallirai.',
+      benefit: 'Spendi 2 Audacia. Dopo che un compagno ha fallito un tiro, superi automaticamente lo stesso tiro.'
     }
   ],
   Metallaro: [
     {
-      name: 'Resistenza al dolore',
-      description: 'Il dolore non ti ferma',
-      benefit: '+1 ai tiri di Resistenza'
+      name: 'Alpha Dog',
+      description: 'Quando entri in una stanza, la gerarchia si stabilisce da sola.',
+      benefit: 'Spendi 1 Audacia. Effettua un qualunque Tiro di Reazione adoperando Leadership invece dell\'Abilità richiesta.'
     },
     {
-      name: 'Presenza intimidatoria',
-      description: 'Il tuo aspetto spaventa',
-      benefit: '+1 ai tiri per intimidire'
+      name: 'Animale da palcoscenico',
+      description: 'Sul palco (o ovunque tu decida che sia il tuo palco) sei semplicemente inarrestabile.',
+      benefit: 'Scegli una forma d\'arte (es. musica, danza, street art, eccetera). Ottieni +1 e rilanci in Sicurezza tutti i tiri relativi alla tua arte.'
     },
     {
-      name: 'Musica della furia',
-      description: 'La musica ti dà forza',
-      benefit: '+1 quando usi la musica per caricarti'
+      name: 'Palestrato',
+      description: 'Hai un fisico molto muscoloso e potente.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per sollevare, trascinare, trasportare o rompere qualcosa.'
     },
     {
-      name: 'Banda metal',
-      description: 'Hai amici nella scena metal',
-      benefit: 'Bonus quando cerchi aiuto dalla comunità metal'
+      name: 'Super popolare',
+      description: 'Sei estremamente noto e ampiamente apprezzato.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri quando ti relazioni con altri studenti della scuola.'
     }
   ],
   Emo: [
     {
-      name: 'Sensibile',
-      description: 'Capisci le emozioni altrui',
-      benefit: '+1 ai tiri di Percezione su emozioni'
+      name: 'Nichilista',
+      description: 'Niente ha davvero importanza, e questo ti rende stranamente lucido nei momenti peggiori.',
+      benefit: 'Spendi 2 Audacia. Superi automaticamente un Tiro Reazione.'
     },
     {
-      name: 'Espressione artistica',
-      description: 'Esprimi i tuoi sentimenti artisticamente',
-      benefit: '+1 ai tiri di Esibirsi'
+      name: 'Ombra',
+      description: 'Ti confondi con gli angoli bui molto meglio di quanto la gente pensi sia possibile.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per restare nell\'ombra o eclissarti tra la folla.'
     },
     {
-      name: 'Anima tormentata',
-      description: 'Hai già sofferto molto',
-      benefit: '+1 ai tiri contro manipolazione emotiva'
+      name: 'Sesto Senso',
+      description: 'Vedi attraverso le persone come se fossero fatte di vetro colorato.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per comprendere le intenzioni altrui, per interrogare e per riconoscere le bugie.'
     },
     {
-      name: 'Empatia profonda',
-      description: 'Ti connetti profondamente con gli altri',
-      benefit: 'Bonus quando consoli qualcuno'
+      name: 'Temprato dalle difficoltà',
+      description: 'Ogni crisi che hai attraversato ti ha reso più duro da spezzare, non di meno.',
+      benefit: 'Dopo aver annerito la tua Casella Critica di Freschezza guadagni 2 Audacia.'
     }
   ],
 
   // SELF-MADE
   'Ex-promessa': [
     {
-      name: 'Talento innato',
-      description: 'Eri davvero bravo una volta',
-      benefit: '+1 nella tua vecchia specialità'
+      name: 'Allenato',
+      description: 'Hai un corpo in forma e ben preparato.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per correre, arrampicarsi o nuotare.'
     },
     {
-      name: 'Determinazione',
-      description: 'Vuoi tornare ai vecchi livelli',
-      benefit: '+1 quando ti impegni al massimo'
+      name: 'Migliore Amico',
+      description: 'Non lasci mai indietro nessuno, costi quel che costi.',
+      benefit: 'Spendi 1 Audacia. Subisci una perdita di Freschezza o una Condizione al posto di un altro Studente.'
     },
     {
-      name: 'Ricordi di gloria',
-      description: 'Alcuni si ricordano di te',
-      benefit: 'Bonus quando usi la tua vecchia fama'
+      name: 'Rubacuori',
+      description: 'Il tuo antico fascino da campione non è ancora del tutto svanito.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per sedurre.'
     },
     {
-      name: 'Secondo tentativo',
-      description: 'Hai una seconda possibilità',
-      benefit: 'Puoi ritirare un dado fallito per sessione'
+      name: 'Stoico',
+      description: 'Sei forte, impassibile e controllato. Nulla ti turba!',
+      benefit: 'Spendi 2 Audacia. Curati da una singola Condizione. Non puoi curare la Condizione Spezzato in questo modo.'
     }
   ],
   Lavoratore: [
     {
-      name: 'Etica del lavoro',
-      description: 'Sai cosa significa lavorare duro',
-      benefit: '+1 ai tiri di Resistenza fisica'
+      name: 'Lupo solitario',
+      description: 'Meglio soli che male accompagnati!',
+      benefit: 'Ricevi un +1 a tutti i tiri quando ti trovi da solo a dover affrontare un Tiro Azione.'
     },
     {
-      name: 'Pratico',
-      description: 'Sai come fare le cose',
-      benefit: '+1 ai tiri di Manualità'
+      name: 'Meccanico',
+      description: 'Se ha un motore, tu sai come farlo ripartire.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per compiere riparazioni meccaniche o far partire veicoli a motore.'
     },
     {
-      name: 'Soldi extra',
-      description: 'Hai un reddito dal lavoro',
-      benefit: 'Hai più risorse economiche degli altri'
+      name: 'Salvataggio',
+      description: 'Arrivi sempre al momento giusto, come nei film.',
+      benefit: 'Spendi 1 Audacia. Eviti che un compagno ottenga la Condizione Spezzato oppure salva un compagno che sta per andare Fuori dai giochi.'
     },
     {
-      name: 'Rete lavorativa',
-      description: 'Conosci persone dal lavoro',
-      benefit: 'Bonus quando cerchi aiuto dai colleghi'
+      name: 'Tosto',
+      description: 'Il tuo lavoro ti ha insegnato a reggere qualsiasi cosa la giornata ti butti addosso.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per resistere a sonno, fatica e condizioni estreme.'
     }
   ],
   Espulso: [
     {
-      name: 'Passato oscuro',
-      description: 'Hai fatto cose di cui non vai fiero',
-      benefit: '+1 ai tiri di Crimine'
+      name: 'Incoraggiamento',
+      description: 'Le tue parole sanno tirare fuori il meglio dagli altri.',
+      benefit: 'Spendi 1 Audacia. Un altro Studente riceve +1 al suo prossimo Tiro di Azione e rilancia in Sicurezza.'
     },
     {
-      name: 'Duro a morire',
-      description: 'Ne hai passate tante',
-      benefit: '+1 ai tiri di Resistenza'
+      name: 'L\'arte dell\'arrangiarsi',
+      description: 'Anni passati a cavartela da solo ti hanno insegnato a non tornare mai a mani vuote.',
+      benefit: 'Spendi 1 Audacia. Procurati cibo, armi improvvisate o altre importanti risorse grazie al tuo ingegno e alle tue conoscenze.'
     },
     {
-      name: 'Lezione imparata',
-      description: 'Sai cosa non fare',
-      benefit: '+1 quando eviti guai'
+      name: 'Piccolo chimico',
+      description: 'Il tuo laboratorio in cantina ha già causato più di un\'esplosione controllata.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per interagire o studiare sostanze chimiche o per riconoscere fenomeni scientifici.'
     },
     {
-      name: 'Seconda possibilità',
-      description: 'Vuoi redimarti',
-      benefit: 'Bonus quando cerchi di fare la cosa giusta'
+      name: 'Sempre sul pezzo',
+      description: 'Hai gli occhi anche dietro la schiena.',
+      benefit: 'Spendi 1 Audacia. Effettua un qualunque Tiro di Reazione adoperando l\'Abilità Freddezza invece dell\'Abilità richiesta.'
     }
   ],
 
   // REBEL
   Teppista: [
     {
-      name: 'Rissa da strada',
-      description: 'Sai come combattere',
-      benefit: '+1 ai tiri di combattimento corpo a corpo'
+      name: 'Animale da palcoscenico',
+      description: 'Sul palco (o ovunque tu decida che sia il tuo palco) sei semplicemente inarrestabile.',
+      benefit: 'Scegli una forma d\'arte (es. musica, danza, street art, eccetera). Ottieni +1 e rilanci in Sicurezza tutti i tiri relativi alla tua arte.'
     },
     {
-      name: 'Reputazione',
-      description: 'Sei conosciuto come un duro',
-      benefit: '+1 ai tiri per intimidire'
+      name: 'Osso troppo duro',
+      description: 'Più ti fanno male, più diventi difficile da fermare.',
+      benefit: 'Spendi 1 Audacia. Dopo aver fallito un Tiro Reazione contro un Avversario, gli infliggi la perdita di 2 punti di Freschezza.'
     },
     {
-      name: 'Banda',
-      description: 'Hai amici teppisti',
-      benefit: 'Bonus quando chiami rinforzi'
+      name: 'Piccolo chimico',
+      description: 'Il tuo laboratorio in cantina ha già causato più di un\'esplosione controllata.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per interagire o studiare sostanze chimiche o per riconoscere fenomeni scientifici.'
     },
     {
-      name: 'Sopravvissuto',
-      description: 'Sei sopravvissuto a molte risse',
-      benefit: '+1 ai tiri di Resistenza'
+      name: 'Scassinatore',
+      description: 'Nessuna serratura tra te e dove vuoi arrivare è mai stata un vero ostacolo.',
+      benefit: 'Spendi 2 Audacia. Apri una serratura senza tirare dadi.'
     }
   ],
   Attivista: [
     {
-      name: 'Carisma da leader',
-      description: 'Sai ispirare gli altri',
-      benefit: '+1 ai tiri di Leadership'
+      name: 'Incoraggiamento',
+      description: 'Le tue parole sanno tirare fuori il meglio dagli altri.',
+      benefit: 'Spendi 1 Audacia. Un altro Studente riceve +1 al suo prossimo Tiro di Azione e rilancia in Sicurezza.'
     },
     {
-      name: 'Rete di attivisti',
-      description: 'Conosci altri attivisti',
-      benefit: 'Bonus quando organizzi proteste'
+      name: 'Motivatore',
+      description: 'Sai come far sentire chiunque capace di spostare le montagne, almeno per un momento.',
+      benefit: 'Spendi 1 Audacia e fai guadagnare +2 al prossimo Tiro di un compagno.'
     },
     {
-      name: 'Eloquenza',
-      description: 'Sai parlare in pubblico',
-      benefit: '+1 ai tiri di Esibirsi quando parli'
+      name: 'Salvataggio',
+      description: 'Arrivi sempre al momento giusto, come nei film.',
+      benefit: 'Spendi 1 Audacia. Eviti che un compagno ottenga la Condizione Spezzato oppure salva un compagno che sta per andare Fuori dai giochi.'
     },
     {
-      name: 'Causa giusta',
-      description: 'Credi fermamente nella tua causa',
-      benefit: '+1 quando agisci per i tuoi ideali'
+      name: 'Temprato dalle difficoltà',
+      description: 'Ogni crisi che hai attraversato ti ha reso più duro da spezzare, non di meno.',
+      benefit: 'Dopo aver annerito la tua Casella Critica di Freschezza guadagni 2 Audacia.'
     }
   ],
   Skater: [
     {
       name: 'Acrobata',
-      description: 'Sei esperto in acrobazie e manovre difficili',
-      benefit: '+1 ai tiri di Acrobatica'
+      description: 'Sei agile ed esperto in acrobazie.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per compiere acrobazie o frenare le cadute.'
     },
     {
       name: 'Intascare',
-      description: 'Sai come nascondere piccoli oggetti',
-      benefit: '+1 ai tiri per nascondere oggetti tascabili'
+      description: 'Le mani veloci sono un talento naturale, non serve nemmeno pensarci.',
+      benefit: 'Spendi 2 Audacia. Ruba un piccolo oggetto senza tirare dadi.'
     },
     {
-      name: 'Sesto senso',
-      description: 'Percepisci i pericoli prima che accadano',
-      benefit: '+1 ai tiri di Allerta per percepire pericoli'
+      name: 'Sesto Senso',
+      description: 'Vedi attraverso le persone come se fossero fatte di vetro colorato.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per comprendere le intenzioni altrui, per interrogare e per riconoscere le bugie.'
     },
     {
       name: 'Volteggio',
-      description: 'Puoi eseguire trick spettacolari',
-      benefit: '+1 ai tiri di Acrobatica con lo skateboard'
+      description: 'Ti muovi con una grazia che nasconde artigli affilati.',
+      benefit: 'Spendi 1 Audacia. Reagisci contro un Avversario tirando Acrobatica +1 invece dell\'Abilità richiesta.'
     }
   ],
 
   // GANGSTA
   Delinquente: [
     {
-      name: 'Vita criminale',
-      description: 'Conosci il mondo del crimine',
-      benefit: '+1 ai tiri di Crimine'
+      name: 'Bassifondi',
+      description: 'Conosci i bassifondi e sai come muoverti in mezzo a criminali e poco di buono.',
+      benefit: 'Rilanci in Sicurezza tutti i Tiri relativi agli ambienti criminali.'
     },
     {
-      name: 'Spietato',
-      description: 'Fai ciò che serve',
-      benefit: '+1 quando usi la violenza'
+      name: 'Manesco',
+      description: 'Preferisci risolvere le discussioni con i pugni piuttosto che con le parole.',
+      benefit: 'Durante una rissa o una colluttazione rilanci in Sicurezza tutti i tiri.'
     },
     {
-      name: 'Contatti loschi',
-      description: 'Conosci gente pericolosa',
-      benefit: 'Bonus quando cerchi aiuto nel crimine'
+      name: 'Stoico',
+      description: 'Sei forte, impassibile e controllato. Nulla ti turba!',
+      benefit: 'Spendi 2 Audacia. Curati da una singola Condizione. Non puoi curare la Condizione Spezzato in questo modo.'
     },
     {
-      name: 'Sopravvissuto delle strade',
-      description: 'Sei cresciuto in strada',
-      benefit: '+1 ai tiri di Allerta per pericoli'
+      name: 'Tosto',
+      description: 'Le tue giornate ti hanno insegnato a reggere qualsiasi cosa ti buttino addosso.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per resistere a sonno, fatica e condizioni estreme.'
     }
   ],
   'Genio del ghetto': [
     {
-      name: 'Intelligenza di strada',
-      description: 'Capisci le dinamiche del ghetto',
-      benefit: '+1 ai tiri sociali nel ghetto'
+      name: 'L\'arte dell\'arrangiarsi',
+      description: 'Anni passati a cavartela da solo ti hanno insegnato a non tornare mai a mani vuote.',
+      benefit: 'Spendi 1 Audacia. Procurati cibo, armi improvvisate o altre importanti risorse grazie al tuo ingegno e alle tue conoscenze.'
     },
     {
-      name: 'Talento nascosto',
-      description: 'Sei molto più intelligente di quanto sembri',
-      benefit: '+1 ai tiri di Studio'
+      name: 'L\'ho letto in un libro',
+      description: 'Sei un lettore compulsivo!',
+      benefit: 'Spendi 1 Audacia. Effettua un qualunque tiro adoperando l\'Abilità Cultura invece dell\'Abilità richiesta.'
     },
     {
-      name: 'Ambizione',
-      description: 'Vuoi uscire dal ghetto',
-      benefit: '+1 quando lavori per il futuro'
+      name: 'Sbagliando si impara',
+      description: 'Guardi attentamente ogni errore altrui: la prossima volta tocca a te, e non fallirai.',
+      benefit: 'Spendi 2 Audacia. Dopo che un compagno ha fallito un tiro, superi automaticamente lo stesso tiro.'
     },
     {
-      name: 'Doppia vita',
-      description: 'Sai muoverti in più mondi',
-      benefit: 'Bonus quando ti adatti a contesti diversi'
+      name: 'Studente modello',
+      description: 'I professori ti adorano, e tu sfrutti la cosa senza vergogna.',
+      benefit: 'Rilancia in Sicurezza tutti i tiri quando ti relazioni con i professori.'
     }
   ],
   Ladruncolo: [
     {
-      name: 'Dita veloci',
-      description: 'Sei un esperto borsaiolo',
-      benefit: '+1 ai tiri per rubare'
+      name: 'Intascare',
+      description: 'Le mani veloci sono un talento naturale, non serve nemmeno pensarci.',
+      benefit: 'Spendi 2 Audacia. Ruba un piccolo oggetto senza tirare dadi.'
     },
     {
-      name: 'Furtivo',
-      description: 'Ti muovi senza fare rumore',
-      benefit: '+1 ai tiri di Furtività'
+      name: 'Ombra',
+      description: 'Ti confondi con gli angoli bui molto meglio di quanto la gente pensi sia possibile.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per restare nell\'ombra o eclissarti tra la folla.'
     },
     {
-      name: 'Occhio clinico',
-      description: 'Riconosci gli oggetti di valore',
-      benefit: '+1 quando valuti oggetti'
+      name: 'Scassinatore',
+      description: 'Nessuna serratura tra te e dove vuoi arrivare è mai stata un vero ostacolo.',
+      benefit: 'Spendi 2 Audacia. Apri una serratura senza tirare dadi.'
     },
     {
-      name: 'Via di fuga',
-      description: 'Trovi sempre una via d\'uscita',
-      benefit: '+1 quando scappi'
+      name: 'Tuttofare',
+      description: 'Non sei il più bravo in niente, ma te la cavi decentemente in tutto.',
+      benefit: 'Spendi 1 Audacia. Rilanci in Sicurezza durante il tuo prossimo tiro.'
     }
   ],
 
   // DADDY'S KID
   'Party animal': [
     {
-      name: 'Mondano',
-      description: 'Conosci tutti i posti giusti',
-      benefit: '+1 nelle situazioni di festa'
+      name: 'Copiare',
+      description: 'Sei un maestro nell\'imitare le azioni altrui.',
+      benefit: 'Spendi 2 Audacia. Dopo che un compagno ha superato un tiro con successo, superi automaticamente lo stesso tiro.'
     },
     {
-      name: 'Carisma sfrenato',
-      description: 'Sei l\'anima della festa',
-      benefit: '+1 ai tiri di Esibirsi in contesti sociali'
+      name: 'Giullare',
+      description: 'Sai come intrattenere e distrarre.',
+      benefit: 'Spendi 1 Audacia. Rincuori o rallegri un altro Studente, curando la Condizione Fuso, Sfigato o Fifone.'
     },
     {
-      name: 'Resistenza all\'alcol',
-      description: 'Reggi più degli altri',
-      benefit: '+1 contro effetti di intossicazione'
+      name: 'Rubacuori',
+      description: 'Il tuo fascino naturale funziona ovunque ci sia musica alta e luci basse.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per sedurre.'
     },
     {
-      name: 'Vita notturna',
-      description: 'Conosci il giro delle feste',
-      benefit: 'Bonus quando cerchi informazioni nella vita notturna'
+      name: 'Super popolare',
+      description: 'Sei estremamente noto e ampiamente apprezzato.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri quando ti relazioni con altri studenti della scuola.'
     }
   ],
   'Nato per vincere': [
     {
-      name: 'Vincente',
-      description: 'La fortuna ti assiste sempre',
-      benefit: '+1 ai tiri quando conta davvero'
+      name: 'Allenato',
+      description: 'Hai un corpo in forma e ben preparato.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per correre, arrampicarsi o nuotare.'
     },
     {
-      name: 'Fiducia in sé',
-      description: 'Sai di valere',
-      benefit: '+1 ai tiri di Leadership'
+      name: 'Palestrato',
+      description: 'Hai un fisico molto muscoloso e potente.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per sollevare, trascinare, trasportare o rompere qualcosa.'
     },
     {
-      name: 'Eredità familiare',
-      description: 'La tua famiglia ha una storia di successi',
-      benefit: 'Bonus quando usi il nome di famiglia'
+      name: 'Sbagliando si impara',
+      description: 'Guardi attentamente ogni errore altrui: la prossima volta tocca a te, e non fallirai.',
+      benefit: 'Spendi 2 Audacia. Dopo che un compagno ha fallito un tiro, superi automaticamente lo stesso tiro.'
     },
     {
-      name: 'Aspettative alte',
-      description: 'Devi essere il migliore',
-      benefit: '+1 quando cerchi di eccellere'
+      name: 'Tosto',
+      description: 'I tuoi allenamenti ti hanno insegnato a reggere qualsiasi cosa la giornata ti butti addosso.',
+      benefit: 'Rilanci in Sicurezza tutti i tiri per resistere a sonno, fatica e condizioni estreme.'
     }
   ],
   'Rampollo della malavita': [
     {
-      name: 'Famiglia criminale',
-      description: 'Tuo padre è un boss',
-      benefit: '+1 quando usi le connessioni criminali'
+      name: 'Alpha Dog',
+      description: 'Quando entri in una stanza, la gerarchia si stabilisce da sola.',
+      benefit: 'Spendi 1 Audacia. Effettua un qualunque Tiro di Reazione adoperando Leadership invece dell\'Abilità richiesta.'
     },
     {
-      name: 'Rispetto della malavita',
-      description: 'I criminali ti rispettano',
-      benefit: '+1 quando interagisci con criminali'
+      name: 'Bassifondi',
+      description: 'Conosci i bassifondi e sai come muoverti in mezzo a criminali e poco di buono.',
+      benefit: 'Rilanci in Sicurezza tutti i Tiri relativi agli ambienti criminali.'
     },
     {
-      name: 'Protezione',
-      description: 'Hai sempre delle guardie del corpo',
-      benefit: 'Bonus quando sei in pericolo'
+      name: 'Brutte compagnie',
+      description: 'Nonostante l\'educazione impeccabile, conosci gente che tuo padre preferirebbe non nominare a cena.',
+      benefit: 'Spendi 2 Audacia. Ottieni informazioni o risorse grazie alle tue connessioni con i bassifondi o alla tua fama.'
     },
     {
-      name: 'Affari sporchi',
-      description: 'Conosci come funzionano gli affari illegali',
-      benefit: '+1 ai tiri di Crimine'
+      name: 'Osso troppo duro',
+      description: 'Più ti fanno male, più diventi difficile da fermare.',
+      benefit: 'Spendi 1 Audacia. Dopo aver fallito un Tiro Reazione contro un Avversario, gli infliggi la perdita di 2 punti di Freschezza.'
     }
   ]
 };
