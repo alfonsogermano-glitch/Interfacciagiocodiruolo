@@ -87,26 +87,29 @@ function AbilitaDots({ value, onChange, disabled }: { value: number; onChange: (
 function StarRating({ value, max, onChange, disabled }: { value: number; max: number; onChange: (v: number) => void; disabled: boolean }) {
   const stars = Array.from({ length: max }, (_, i) => i + 1);
   return (
-    <div className="flex gap-1">
-      {stars.map((star) => {
-        const filled = star <= value;
-        return (
-          <button
-            key={star}
-            type="button"
-            disabled={disabled}
-            onClick={() => onChange(filled && star === value ? star - 1 : star)}
-            className={disabled ? '' : 'transition-transform hover:scale-110'}
-          >
-            <Star
-              className="h-5 w-5"
-              fill={filled ? '#eab308' : 'none'}
-              color={filled ? '#eab308' : 'var(--dash-border-soft)'}
-              strokeWidth={filled ? 1 : 1.5}
-            />
-          </button>
-        );
-      })}
+    <div className="flex items-center justify-between">
+      <div className="flex gap-1">
+        {stars.map((star) => {
+          const filled = star <= value;
+          return (
+            <button
+              key={star}
+              type="button"
+              disabled={disabled}
+              onClick={() => onChange(filled ? star - 1 : star)}
+              className={disabled ? '' : 'transition-transform hover:scale-110'}
+            >
+              <Star
+                className="h-5 w-5"
+                fill={filled ? '#eab308' : 'none'}
+                color={filled ? '#eab308' : 'var(--dash-border-soft)'}
+                strokeWidth={filled ? 1 : 1.5}
+              />
+            </button>
+          );
+        })}
+      </div>
+      <span className="text-xs text-[var(--dash-muted)]">{value} / {max}</span>
     </div>
   );
 }
