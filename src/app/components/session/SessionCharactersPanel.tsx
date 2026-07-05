@@ -563,15 +563,12 @@ export function SessionCharactersPanel() {
                     <Heart className="h-4 w-4 text-red-500" />
                     Freschezza
                   </div>
-                  <div className="text-lg font-semibold text-[var(--dash-text-strong)]">
-                    {selectedChar.freschezza}/{selectedChar.maxFreschezza}
-                  </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--dash-border-soft)]">
-                    <div
-                      className="h-full rounded-full bg-red-700"
-                      style={{ width: `${(selectedChar.freschezza / selectedChar.maxFreschezza) * 100}%` }}
-                    />
-                  </div>
+                  <FrischezzaTracker
+                    current={selectedChar.freschezza}
+                    max={selectedChar.maxFreschezza}
+                    crucialBoxes={selectedChar.caselleFrischezzaCruciali}
+                    onUpdate={(value) => updateCharacter(selectedChar.id, { ...selectedChar, freschezza: value })}
+                  />
                 </div>
 
                 <div className="rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] p-4">
