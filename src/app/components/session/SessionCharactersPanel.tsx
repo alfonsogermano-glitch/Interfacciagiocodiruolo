@@ -215,7 +215,9 @@ export function SessionCharactersPanel() {
   const [openMenuTabId, setOpenMenuTabId] = useState<string | null>(null);
   const [confirmDeleteTabId, setConfirmDeleteTabId] = useState<string | null>(null);
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
-  const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const tabsContainerRef = useRef<HTMLDivElement | null>(null);
+  const dragOverIndexRef = useRef<number | null>(null);
   const [expandedAmbito, setExpandedAmbito] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState({ pg: true, png: true, mostro: true });
   const [charMenuOpen, setCharMenuOpen] = useState(false);
@@ -476,25 +478,62 @@ export function SessionCharactersPanel() {
     updateCharacter(selectedChar.id, { ...selectedChar, tabOrder: order } as any);
   };
 
-  const handleTabDrop = (targetId: string) => {
-    if (!draggedTabId || draggedTabId === targetId) {
-      setDraggedTabId(null);
-      setDragOverTabId(null);
-      return;
-    }
-    setTabOrder(prev => {
-      const next = [...prev];
-      const fromIdx = next.indexOf(draggedTabId);
-      const toIdx = next.indexOf(targetId);
-      if (fromIdx === -1 || toIdx === -1) return prev;
-      next.splice(fromIdx, 1);
-      next.splice(toIdx, 0, draggedTabId);
-      persistTabOrder(next);
-      return next;
-    });
-    setDraggedTabId(null);
-    setDragOverTabId(null);
+  const handlePointerDownTab = (e: React.PointerEvent, tabId: string) => {
+    if (!canEdit || renamingTabId === tabId) return;
+    // Evita che parta il drag cliccando sul bottone ⋮ o su un input
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('input')) return;
+    e.preventDefault();
+    setDraggedTabId(tabId);
   };
+
+  useEffect(() => {
+    if (!draggedTabId) return;
+
+    document.body.style.cursor = 'grabbing';
+
+    const handleMove = (e: PointerEvent) => {
+      const container = tabsContainerRef.current;
+      if (!container) return;
+      const tabEls = Array.from(
+        container.querySelectorAll<HTMLElement>('[data-tab-id]'),
+      );
+      let newIndex = tabEls.length;
+      for (let i = 0; i < tabEls.length; i++) {
+        const rect = tabEls[i].getBoundingClientRect();
+        const mid = rect.left + rect.width / 2;
+        if (e.clientX < mid) {
+          newIndex = i;
+          break;
+        }
+      }
+      dragOverIndexRef.current = newIndex;
+      setDragOverIndex(newIndex);
+    };
+
+    const handleUp = () => {
+      const targetIndex = dragOverIndexRef.current;
+      setTabOrder(prev => {
+        if (targetIndex === null) return prev;
+        const next = prev.filter(id => id !== draggedTabId);
+        next.splice(targetIndex, 0, draggedTabId);
+        persistTabOrder(next);
+        return next;
+      });
+      document.body.style.cursor = '';
+      setDraggedTabId(null);
+      setDragOverIndex(null);
+      dragOverIndexRef.current = null;
+    };
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp, { once: true });
+    return () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      document.body.style.cursor = '';
+    };
+  }, [draggedTabId]);
 
   const handleAddCustomTab = async () => {
     if (!selectedChar) return;
@@ -815,32 +854,21 @@ export function SessionCharactersPanel() {
               </div>
             )}
 
-            <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-[var(--dash-border-soft)] pb-3">
-              {orderedTabs.map((tab) => (
+            <div
+              ref={tabsContainerRef}
+              className="mb-4 flex flex-wrap items-center gap-2 border-b border-[var(--dash-border-soft)] pb-3"
+            >
+              {orderedTabs.map((tab, idx) => (
                 <div
                   key={tab.id}
-                  draggable={canEdit && renamingTabId !== tab.id}
-                  onDragStart={(e) => {
-                    setDraggedTabId(tab.id);
-                    e.dataTransfer.effectAllowed = 'move';
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    if (draggedTabId && draggedTabId !== tab.id) setDragOverTabId(tab.id);
-                  }}
-                  onDragLeave={() => setDragOverTabId(prev => (prev === tab.id ? null : prev))}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    handleTabDrop(tab.id);
-                  }}
-                  onDragEnd={() => {
-                    setDraggedTabId(null);
-                    setDragOverTabId(null);
-                  }}
-                  className={`group relative flex items-center transition-transform ${
-                    canEdit && renamingTabId !== tab.id ? 'cursor-grab active:cursor-grabbing' : ''
+                  data-tab-id={tab.id}
+                  onPointerDown={(e) => handlePointerDownTab(e, tab.id)}
+                  className={`group relative flex items-center ${
+                    canEdit && renamingTabId !== tab.id ? 'cursor-grab' : ''
                   } ${draggedTabId === tab.id ? 'opacity-40' : ''} ${
-                    dragOverTabId === tab.id ? 'scale-105 border-l-2 border-[var(--dash-accent)] pl-1' : ''
+                    dragOverIndex === idx && draggedTabId && draggedTabId !== tab.id
+                      ? 'border-l-2 border-[var(--dash-accent)] pl-1'
+                      : ''
                   }`}
                 >
                   {renamingTabId === tab.id ? (
@@ -850,7 +878,6 @@ export function SessionCharactersPanel() {
                       value={renameDraft}
                       onChange={(e) => setRenameDraft(e.target.value)}
                       onBlur={() => handleRenameCustomTab(tab.id)}
-                      onMouseDown={(e) => e.stopPropagation()}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleRenameCustomTab(tab.id);
                         if (e.key === 'Escape') setRenamingTabId(null);
@@ -876,7 +903,6 @@ export function SessionCharactersPanel() {
                   {tab.isCustom && canEdit && renamingTabId !== tab.id && (
                     <div className="absolute right-1 top-1/2 -translate-y-1/2">
                       <button
-                        onMouseDown={(e) => e.stopPropagation()}
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpenMenuTabId(prev => (prev === tab.id ? null : tab.id));
@@ -931,6 +957,10 @@ export function SessionCharactersPanel() {
                   )}
                 </div>
               ))}
+
+              {draggedTabId && dragOverIndex === orderedTabs.length && (
+                <div className="h-6 w-0.5 rounded bg-[var(--dash-accent)]" />
+              )}
 
               {canEdit && (
                 <button
