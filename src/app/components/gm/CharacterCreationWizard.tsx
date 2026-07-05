@@ -790,9 +790,9 @@ const equipment: Equipment[] = [
    
     return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[#5c3b2b] bg-[#120f10] shadow-2xl">
+      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[var(--dash-border)] bg-[var(--dash-bg)] shadow-2xl">
         {/* Header */}
-        <div className="border-b border-[#4a3126] bg-gradient-to-r from-[#241816] via-[#1a1414] to-[#131213] px-6 py-5">
+        <div className="border-b border-[var(--dash-border)] bg-gradient-to-r from-[var(--dash-panel)] via-[var(--dash-panel)] to-[var(--dash-panel)] px-6 py-5">
           <div className="flex items-start justify-between gap-4">
             <div>
     <h2 className="text-2xl font-semibold uppercase tracking-[0.08em] text-[var(--dash-text-strong)]">
@@ -807,7 +807,7 @@ const equipment: Equipment[] = [
   
             <button
               onClick={onClose}
-              className="rounded-md border border-[#5a4030] bg-[#1b1616] p-2 text-[#cbb9a2] transition-colors hover:bg-[#2a1f1d] hover:text-[var(--dash-text-strong)]"
+              className="rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface-2)] p-2 text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]"
             >
               <X className="h-5 w-5" />
             </button>
@@ -819,9 +819,9 @@ const equipment: Equipment[] = [
               <span>Avanzamento rituale</span>
               <span>{Math.round((step / totalSteps) * 100)}%</span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-[#2a201e]">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--dash-surface-2)]">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-[#8a3d24] to-[var(--dash-accent-2)] transition-all duration-300"
+                className="h-full rounded-full bg-gradient-to-r from-[var(--dash-accent)] to-[var(--dash-accent-2)] transition-all duration-300"
                 style={{ width: `${(step / totalSteps) * 100}%` }}
               />
             </div>
@@ -829,7 +829,7 @@ const equipment: Equipment[] = [
         </div>
   
         {/* Step nav */}
-        <div className="border-b border-[#3b2a22] bg-[#151213] px-6 py-3">
+        <div className="border-b border-[var(--dash-border)] bg-[var(--dash-panel)] px-6 py-3">
           <div className="flex flex-wrap gap-2">
             {[
               'Base',
@@ -852,8 +852,8 @@ const equipment: Equipment[] = [
                     isCurrent
                       ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)] text-[var(--dash-text-strong)]'
                       : isDone
-                        ? 'border-[#5c4637] bg-[#211918] text-[#d6c4ac]'
-                        : 'border-[#352823] bg-transparent text-[#8f7c68]'
+                        ? 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] text-[var(--dash-text-strong)]'
+                        : 'border-[var(--dash-border-soft)] bg-transparent text-[var(--dash-muted)]'
                   }`}
                 >
                   {stepNumber}. {label}
@@ -864,7 +864,7 @@ const equipment: Equipment[] = [
         </div>
   
         {/* Content */}
-        <div className="flex-1 overflow-y-auto bg-[#110f10] px-6 py-6">
+        <div className="flex-1 overflow-y-auto bg-[var(--dash-bg)] px-6 py-6">
           {/* Step 1 */}
           {step === 1 && (
             <div className="mx-auto max-w-2xl space-y-6">
@@ -888,7 +888,7 @@ const equipment: Equipment[] = [
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Es. Takeshi Yamada"
-                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[#6f5d4f] outline-none transition-colors focus:border-[var(--dash-accent)]"
+                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[var(--dash-muted)] outline-none transition-colors focus:border-[var(--dash-accent)]"
                       autoFocus
                     />
                   </div>
@@ -902,7 +902,7 @@ const equipment: Equipment[] = [
                       value={player}
                       onChange={(e) => setPlayer(e.target.value)}
                       placeholder="Es. Il timido secchione del gruppo"
-                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[#6f5d4f] outline-none transition-colors focus:border-[var(--dash-accent)]"
+                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[var(--dash-muted)] outline-none transition-colors focus:border-[var(--dash-accent)]"
                     />
                   </div>
                 </div>
@@ -938,7 +938,7 @@ const equipment: Equipment[] = [
                   className={`rounded-md border px-3 py-2 text-sm transition-colors ${
                     style === st
                       ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)] text-[var(--dash-text-strong)]'
-                      : 'border-[var(--dash-border)] bg-[var(--dash-input)] text-[#d9c8b2] hover:bg-[#181313]'
+                      : 'border-[var(--dash-border)] bg-[var(--dash-input)] text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]'
                   }`}
                 >
                  <span className="cursor-help group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4">
@@ -946,7 +946,7 @@ const equipment: Equipment[] = [
                 </span>
                 </button>
   
-                <div className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-lg border border-[#6a452f] bg-[#221714] px-3 py-2 text-xs leading-relaxed text-[var(--dash-text-strong)] shadow-xl group-hover:block">
+                <div className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-64 rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] px-3 py-2 text-xs leading-relaxed text-[var(--dash-text-strong)] shadow-xl group-hover:block">
                   {STYLE_DESCRIPTIONS[st]}
                 </div>
               </div>
@@ -972,7 +972,7 @@ const equipment: Equipment[] = [
           className={`rounded-md border px-3 py-2 text-sm transition-colors ${
             viaggio === v
               ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)] text-[var(--dash-text-strong)]'
-              : 'border-[var(--dash-border)] bg-[var(--dash-input)] text-[#d9c8b2] hover:bg-[#181313]'
+              : 'border-[var(--dash-border)] bg-[var(--dash-input)] text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]'
           }`}
         >
           <span className="cursor-help hover:underline hover:decoration-dotted hover:underline-offset-4">
@@ -981,7 +981,7 @@ const equipment: Equipment[] = [
         </button>
   
         <div
-          className={`pointer-events-none absolute top-full z-20 mt-2 hidden w-64 rounded-lg border border-[#6a452f] bg-[#221714] px-3 py-2 text-xs leading-relaxed text-[var(--dash-text-strong)] shadow-xl group-hover:block ${
+          className={`pointer-events-none absolute top-full z-20 mt-2 hidden w-64 rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] px-3 py-2 text-xs leading-relaxed text-[var(--dash-text-strong)] shadow-xl group-hover:block ${
             isLast ? 'right-0' : 'left-0'
           }`}
         >
@@ -1012,7 +1012,7 @@ const equipment: Equipment[] = [
         <div className="mt-3 text-2xl font-semibold text-[var(--dash-text-strong)]">{value}</div>
       </div>
   
-      <div className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 hidden max-w-[260px] rounded-lg border border-[#6a452f] bg-[#221714] px-3 py-2 text-xs leading-5 text-[var(--dash-text-strong)] shadow-xl group-hover:block">
+      <div className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 hidden max-w-[260px] rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] px-3 py-2 text-xs leading-5 text-[var(--dash-text-strong)] shadow-xl group-hover:block">
     {AMBITO_DESCRIPTIONS[ambito as AmbitoType]}
       </div>
     </div>
@@ -1070,7 +1070,7 @@ const equipment: Equipment[] = [
                 value={tutore}
                 onChange={(e) => setTutore(e.target.value)}
                 placeholder="Es. Professor Armitage"
-                className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[#6f5d4f] outline-none focus:border-[var(--dash-accent)]"
+                className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[var(--dash-muted)] outline-none focus:border-[var(--dash-accent)]"
               />
             ) : (
               <select
@@ -1135,13 +1135,13 @@ const equipment: Equipment[] = [
         value={legame}
         onChange={(e) => setLegame(e.target.value)}
         placeholder="Es. Fratello maggiore, migliore amica, rivale..."
-        className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[#6f5d4f] outline-none focus:border-[var(--dash-accent)]"
+        className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[var(--dash-muted)] outline-none focus:border-[var(--dash-accent)]"
       />
     </>
   )}
   
             {selectedCharacterId === 'LATER' && (
-              <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] p-4 text-sm text-[#cbb9a2]">
+              <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] p-4 text-sm text-[var(--dash-text)]">
                 Questo legame verrà gestito in un secondo momento, dopo la creazione di tutti gli altri Personaggi.
               </div>
             )}
@@ -1201,7 +1201,7 @@ const equipment: Equipment[] = [
               value={tipoSpeciale}
               onChange={(e) => setTipoSpeciale(e.target.value)}
               placeholder="Es. Abigail Prinn"
-              className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[#6f5d4f] outline-none focus:border-[var(--dash-accent)]"
+              className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[var(--dash-muted)] outline-none focus:border-[var(--dash-accent)]"
             />
           </div>
         ) : (
@@ -1263,7 +1263,7 @@ const equipment: Equipment[] = [
                   return (
                     <div
                       key={abilita}
-                      className="rounded-lg border border-[#2f2521] bg-[var(--dash-panel)] p-3"
+                      className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3"
                     >
                       <div className="mb-2 flex items-center justify-between">
                         <span className="text-sm text-[var(--dash-text-strong)]">{abilita}</span>
@@ -1280,7 +1280,7 @@ const equipment: Equipment[] = [
                           type="button"
                           onClick={() => removeBonusAbilita(abilita)}
                           disabled={!canRemove}
-                          className="rounded-md border border-[#5a4030] bg-[#1b1616] px-3 py-1.5 text-sm text-[#e7d7c0] disabled:opacity-30"
+                          className="rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface-2)] px-3 py-1.5 text-sm text-[var(--dash-text-strong)] disabled:opacity-30"
                         >
                           −
                         </button>
@@ -1322,7 +1322,7 @@ const equipment: Equipment[] = [
           onChange={(e) => setStoria(e.target.value)}
           placeholder="Scrivi qui il background, dettagli importanti, relazioni, paure, motivazioni..."
           rows={10}
-          className="w-full rounded-xl border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-4 text-[var(--dash-text-strong)] placeholder-[#6f5d4f] outline-none focus:border-[var(--dash-accent)]"
+          className="w-full rounded-xl border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-4 text-[var(--dash-text-strong)] placeholder-[var(--dash-muted)] outline-none focus:border-[var(--dash-accent)]"
         />
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
     <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] p-4">
@@ -1338,10 +1338,10 @@ const equipment: Equipment[] = [
         value={coverImageUrl}
         onChange={(e) => setCoverImageUrl(e.target.value)}
         placeholder="https://..."
-        className="mb-4 w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[#6f5d4f] outline-none focus:border-[var(--dash-accent)]"
+        className="mb-4 w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[var(--dash-muted)] outline-none focus:border-[var(--dash-accent)]"
       />
   
-      <div className="mt-4 overflow-hidden rounded-xl border border-[var(--dash-border-soft)] bg-[#1a1515]">
+      <div className="mt-4 overflow-hidden rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-input)]">
         <button
           type="button"
           onClick={() => setShowCoverCrop(true)}
@@ -1350,7 +1350,7 @@ const equipment: Equipment[] = [
           {coverImageUrl ? (
             <img src={coverImageUrl} alt="Anteprima sfondo personaggio" className="h-full w-full object-cover" />
           ) : (
-            <div className="flex h-48 items-center justify-center text-sm text-[#8f7c68]">
+            <div className="flex h-48 items-center justify-center text-sm text-[var(--dash-muted)]">
               Nessuno sfondo selezionato
             </div>
           )}
@@ -1392,14 +1392,14 @@ const equipment: Equipment[] = [
         value={portraitImageUrl}
         onChange={(e) => setPortraitImageUrl(e.target.value)}
         placeholder="https://..."
-        className="mb-4 w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[#6f5d4f] outline-none focus:border-[var(--dash-accent)]"
+        className="mb-4 w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[var(--dash-muted)] outline-none focus:border-[var(--dash-accent)]"
       />
 
       <div className="mt-4 flex flex-col items-center gap-3">
         <button
           type="button"
           onClick={() => setShowPortraitCrop(true)}
-          className="relative flex h-40 w-40 items-center justify-center overflow-hidden rounded-full border-2 border-[var(--dash-accent)] bg-[#1a1515]"
+          className="relative flex h-40 w-40 items-center justify-center overflow-hidden rounded-full border-2 border-[var(--dash-accent)] bg-[var(--dash-input)]"
         >
           {portraitCroppedImageUrl || portraitImageUrl ? (
             <img
@@ -1408,10 +1408,10 @@ const equipment: Equipment[] = [
               className="h-full w-full object-cover"
             />
           ) : (
-            <div className="text-center text-sm text-[#8f7c68]">Nessun portrait</div>
+            <div className="text-center text-sm text-[var(--dash-muted)]">Nessun portrait</div>
           )}
         </button>
-        <p className="text-center text-xs text-[#8f7c68]">Clicca per scegliere/ritagliare</p>
+        <p className="text-center text-xs text-[var(--dash-muted)]">Clicca per scegliere/ritagliare</p>
       </div>
 
       {showPortraitCrop && (
@@ -1491,13 +1491,13 @@ const equipment: Equipment[] = [
               {inTasca.map(item => (
                 <div
                   key={item}
-                  className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[var(--dash-panel)] px-3 py-2"
+                  className="flex items-center justify-between rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2"
                 >
                   <span className="text-sm text-[var(--dash-text-strong)]">{item}</span>
                   <button
                     type="button"
                     onClick={() => removeFromInTasca(item)}
-                    className="text-sm text-[#d7b7b7]"
+                    className="text-sm text-[var(--dash-text-strong)]"
                   >
                     Rimuovi
                   </button>
@@ -1549,13 +1549,13 @@ const equipment: Equipment[] = [
                     {trasportabiliNelZaino.map(item => (
                       <div
                         key={item}
-                        className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[var(--dash-panel)] px-3 py-2"
+                        className="flex items-center justify-between rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2"
                       >
                         <span className="text-sm text-[var(--dash-text-strong)]">{item}</span>
                         <button
                           type="button"
                           onClick={() => removeFromTrasportabiliNelZaino(item)}
-                          className="text-sm text-[#d7b7b7]"
+                          className="text-sm text-[var(--dash-text-strong)]"
                         >
                           Rimuovi
                         </button>
@@ -1599,13 +1599,13 @@ const equipment: Equipment[] = [
                     {trasportabiliIndossati.map(item => (
                       <div
                         key={item}
-                        className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[var(--dash-panel)] px-3 py-2"
+                        className="flex items-center justify-between rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2"
                       >
                         <span className="text-sm text-[var(--dash-text-strong)]">{item}</span>
                         <button
                           type="button"
                           onClick={() => removeFromTrasportabiliIndossati(item)}
-                          className="text-sm text-[#d7b7b7]"
+                          className="text-sm text-[var(--dash-text-strong)]"
                         >
                           Rimuovi
                         </button>
@@ -1649,13 +1649,13 @@ const equipment: Equipment[] = [
                   {trasportabiliIndossati.map(item => (
                     <div
                       key={item}
-                      className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[var(--dash-panel)] px-3 py-2"
+                      className="flex items-center justify-between rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2"
                     >
                       <span className="text-sm text-[var(--dash-text-strong)]">{item}</span>
                       <button
                         type="button"
                         onClick={() => removeFromTrasportabiliIndossati(item)}
-                        className="text-sm text-[#d7b7b7]"
+                        className="text-sm text-[var(--dash-text-strong)]"
                       >
                         Rimuovi
                       </button>
@@ -1706,13 +1706,13 @@ const equipment: Equipment[] = [
                   {tascabiliACasa.map(item => (
                     <div
                       key={item}
-                      className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[var(--dash-panel)] px-3 py-2"
+                      className="flex items-center justify-between rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2"
                     >
                       <span className="text-sm text-[var(--dash-text-strong)]">{item}</span>
                       <button
                         type="button"
                         onClick={() => removeFromTascabiliACasa(item)}
-                        className="text-sm text-[#d7b7b7]"
+                        className="text-sm text-[var(--dash-text-strong)]"
                       >
                         Rimuovi
                       </button>
@@ -1755,13 +1755,13 @@ const equipment: Equipment[] = [
                   {trasportabiliACasa.map(item => (
                     <div
                       key={item}
-                      className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[var(--dash-panel)] px-3 py-2"
+                      className="flex items-center justify-between rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2"
                     >
                       <span className="text-sm text-[var(--dash-text-strong)]">{item}</span>
                       <button
                         type="button"
                         onClick={() => removeFromTrasportabiliACasa(item)}
-                        className="text-sm text-[#d7b7b7]"
+                        className="text-sm text-[var(--dash-text-strong)]"
                       >
                         Rimuovi
                       </button>
@@ -1799,13 +1799,13 @@ const equipment: Equipment[] = [
                   {risorseACasa.map(item => (
                     <div
                       key={item}
-                      className="flex items-center justify-between rounded-lg border border-[#2f2521] bg-[var(--dash-panel)] px-3 py-2"
+                      className="flex items-center justify-between rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2"
                     >
                       <span className="text-sm text-[var(--dash-text-strong)]">{item}</span>
                       <button
                         type="button"
                         onClick={() => removeFromRisorseACasa(item)}
-                        className="text-sm text-[#d7b7b7]"
+                        className="text-sm text-[var(--dash-text-strong)]"
                       >
                         Rimuovi
                       </button>
@@ -1847,11 +1847,11 @@ const equipment: Equipment[] = [
                   className={`w-full rounded-xl border p-4 text-left transition-colors ${
                     isSelected
                       ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)]'
-                      : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] hover:bg-[#181313]'
+                      : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] hover:bg-[var(--dash-surface-2)]'
                   }`}
                 >
                   <div className="font-semibold text-[var(--dash-text-strong)]">{trait.name}</div>
-                  <div className="mt-1 text-sm text-[#cbb9a2]">{trait.description}</div>
+                  <div className="mt-1 text-sm text-[var(--dash-text)]">{trait.description}</div>
                   <div className="mt-2 text-xs text-[var(--dash-accent-2)]">{trait.benefit}</div>
                 </button>
               );
@@ -1879,11 +1879,11 @@ const equipment: Equipment[] = [
                   className={`w-full rounded-xl border p-4 text-left transition-colors ${
                     isSelected
                       ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)]'
-                      : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] hover:bg-[#181313]'
+                      : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] hover:bg-[var(--dash-surface-2)]'
                   }`}
                 >
                   <div className="font-semibold text-[var(--dash-text-strong)]">{trait.name}</div>
-                  <div className="mt-1 text-sm text-[#cbb9a2]">{trait.description}</div>
+                  <div className="mt-1 text-sm text-[var(--dash-text)]">{trait.description}</div>
                   <div className="mt-2 text-xs text-[var(--dash-accent-2)]">{trait.benefit}</div>
                 </button>
               );
@@ -1896,16 +1896,16 @@ const equipment: Equipment[] = [
         </div>
   
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-[#3b2a22] bg-[#151213] px-6 py-4">
+        <div className="flex items-center justify-between border-t border-[var(--dash-border)] bg-[var(--dash-panel)] px-6 py-4">
           <button
             onClick={handleBack}
             disabled={step === 1}
-            className="rounded-md border border-[#5a4030] bg-[#1b1616] px-4 py-2 text-sm text-[#e7d7c0] transition-colors hover:bg-[#2a1f1d] disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface-2)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             Indietro
           </button>
   
-          <div className="text-xs uppercase tracking-[0.08em] text-[#8f7c68]">
+          <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-muted)]">
             Step {step} / {totalSteps}
           </div>
   
@@ -1913,7 +1913,7 @@ const equipment: Equipment[] = [
     <button
       onClick={handleNext}
       disabled={!canProceed()}
-      className="rounded-md border border-[var(--dash-accent)] bg-[var(--dash-surface)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[#5a3323] disabled:cursor-not-allowed disabled:opacity-40"
+      className="rounded-md border border-[var(--dash-accent)] bg-[var(--dash-surface)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-accent-2)] disabled:cursor-not-allowed disabled:opacity-40"
     >
       Avanti
     </button>
@@ -1921,7 +1921,7 @@ const equipment: Equipment[] = [
     <button
       onClick={handleSubmit}
       disabled={!canProceed()}
-      className="rounded-md border border-[var(--dash-accent)] bg-[#6a341f] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[#7a3d24] disabled:cursor-not-allowed disabled:opacity-40"
+      className="rounded-md border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-accent-2)] disabled:cursor-not-allowed disabled:opacity-40"
     >
       {initialCharacter ? 'Salva modifiche' : 'Crea Personaggio'}
     </button>
