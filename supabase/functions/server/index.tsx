@@ -594,7 +594,6 @@ app.post("/make-server-771c5bfd/characters/:id/copy-to-campaign", async (c) => {
       .insert({
         ...rest,
         campaign_id: campaignId,
-        name: `${original.name} (copia)`,
       })
       .select("*")
       .single();
@@ -607,6 +606,157 @@ app.post("/make-server-771c5bfd/characters/:id/copy-to-campaign", async (c) => {
     return c.json({ character: copy });
   } catch (err) {
     console.log("Errore POST characters/:id/copy-to-campaign:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+// Verifica se l'utente può leggere/scrivere le note di una data entità
+async function canAccessEntityNotes(
+  admin: any, userId: string, campaignId: string, entityType: string, entityId: string
+): Promise<boolean> {
+  const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+  const isGm = myCampaigns.some((camp) => camp.id === campaignId);
+  if (isGm) return true;
+  if (entityType !== 'character') return false; // PNG/Mostro: solo GM
+  const { data: character } = await admin
+    .from('characters')
+    .select('owner_profile_id')
+    .eq('id', entityId)
+    .single();
+  return !!character && character.owner_profile_id === userId;
+}
+
+app.get("/make-server-771c5bfd/campaigns/:campaignId/notes", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const campaignId = c.req.param("campaignId");
+    const entityType = c.req.query("entityType");
+    const entityId = c.req.query("entityId");
+    if (!entityType || !entityId) return c.json({ error: "entityType e entityId obbligatori" }, 400);
+
+    const admin = getAdminClient();
+    const allowed = await canAccessEntityNotes(admin, userId, campaignId, entityType, entityId);
+    if (!allowed) return c.json({ error: "Non hai accesso alle note di questa scheda" }, 403);
+
+    const { data, error } = await admin
+      .from('entity_notes')
+      .select('*')
+      .eq('campaign_id', campaignId)
+      .eq('entity_type', entityType)
+      .eq('entity_id', entityId)
+      .order('position', { ascending: true });
+
+    if (error) return c.json({ error: "Errore lettura note" }, 500);
+    return c.json({ notes: data ?? [] });
+  } catch (err) {
+    console.log("Errore GET notes:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.post("/make-server-771c5bfd/campaigns/:campaignId/notes", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const campaignId = c.req.param("campaignId");
+    const { entityType, entityId, tabName } = await c.req.json();
+    if (!entityType || !entityId || !tabName) return c.json({ error: "Campi obbligatori mancanti" }, 400);
+
+    const admin = getAdminClient();
+    const allowed = await canAccessEntityNotes(admin, userId, campaignId, entityType, entityId);
+    if (!allowed) return c.json({ error: "Non hai accesso alle note di questa scheda" }, 403);
+
+    const { count } = await admin
+      .from('entity_notes')
+      .select('*', { count: 'exact', head: true })
+      .eq('entity_type', entityType)
+      .eq('entity_id', entityId);
+
+    const { data, error } = await admin
+      .from('entity_notes')
+      .insert({ campaign_id: campaignId, entity_type: entityType, entity_id: entityId, tab_name: tabName, position: count ?? 0 })
+      .select('*')
+      .single();
+
+    if (error) return c.json({ error: "Errore creazione tab" }, 500);
+    return c.json({ note: data });
+  } catch (err) {
+    console.log("Errore POST notes:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.put("/make-server-771c5bfd/notes/:noteId", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const noteId = c.req.param("noteId");
+    const { tabName, content } = await c.req.json();
+
+    const admin = getAdminClient();
+    const { data: existing, error: fetchError } = await admin
+      .from('entity_notes')
+      .select('*')
+      .eq('id', noteId)
+      .single();
+    if (fetchError || !existing) return c.json({ error: "Tab non trovata" }, 404);
+
+    const allowed = await canAccessEntityNotes(admin, userId, existing.campaign_id, existing.entity_type, existing.entity_id);
+    if (!allowed) return c.json({ error: "Non hai accesso a questa tab" }, 403);
+
+    const patch: any = { updated_at: new Date().toISOString() };
+    if (typeof tabName === 'string') patch.tab_name = tabName;
+    if (typeof content === 'string') patch.content = content;
+
+    const { data, error } = await admin
+      .from('entity_notes')
+      .update(patch)
+      .eq('id', noteId)
+      .select('*')
+      .single();
+
+    if (error) return c.json({ error: "Errore aggiornamento tab" }, 500);
+    return c.json({ note: data });
+  } catch (err) {
+    console.log("Errore PUT notes:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.delete("/make-server-771c5bfd/notes/:noteId", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const noteId = c.req.param("noteId");
+    const admin = getAdminClient();
+    const { data: existing, error: fetchError } = await admin
+      .from('entity_notes')
+      .select('*')
+      .eq('id', noteId)
+      .single();
+    if (fetchError || !existing) return c.json({ error: "Tab non trovata" }, 404);
+
+    const allowed = await canAccessEntityNotes(admin, userId, existing.campaign_id, existing.entity_type, existing.entity_id);
+    if (!allowed) return c.json({ error: "Non hai accesso a questa tab" }, 403);
+
+    const { error } = await admin.from('entity_notes').delete().eq('id', noteId);
+    if (error) return c.json({ error: "Errore eliminazione tab" }, 500);
+    return c.json({ success: true });
+  } catch (err) {
+    console.log("Errore DELETE notes:", err);
     return c.json({ error: `Errore interno: ${err}` }, 500);
   }
 });
