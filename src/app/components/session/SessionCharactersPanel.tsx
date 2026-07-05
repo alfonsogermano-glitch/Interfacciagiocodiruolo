@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { User, Brain, ChevronDown, ChevronRight, Loader2, Skull, Ghost } from 'lucide-react';
+import { User, Brain, ChevronDown, ChevronRight, Loader2, Skull, Ghost, Heart } from 'lucide-react';
 import { MoreVertical, Copy, UserMinus, UserX } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/paletteColors';
@@ -139,7 +139,7 @@ export function SessionCharactersPanel() {
   const [monsters, setMonsters] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selected, setSelected] = useState<{ kind: EntityKind; id: string } | null>(null);
-  const [currentTab, setCurrentTab] = useState<'stats' | 'conditions' | 'equipment'>('stats');
+  const [currentTab, setCurrentTab] = useState<'summary' | 'stats' | 'conditions' | 'equipment'>('summary');
   const [openSections, setOpenSections] = useState({ pg: true, png: true, mostro: true });
   const [charMenuOpen, setCharMenuOpen] = useState(false);
   const [charMenuPosition, setCharMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -528,6 +528,7 @@ export function SessionCharactersPanel() {
 
             <div className="mb-4 flex flex-wrap gap-2 border-b border-[var(--dash-border-soft)] pb-3">
               {[
+                { id: 'summary' as const, label: 'Riepilogo' },
                 { id: 'stats' as const, label: 'Stato' },
                 { id: 'conditions' as const, label: 'Condizioni & Follia' },
                 { id: 'equipment' as const, label: 'Equipaggiamento' }
@@ -545,6 +546,49 @@ export function SessionCharactersPanel() {
                 </button>
               ))}
             </div>
+
+            {currentTab === 'summary' && isHSC && (
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+                {Object.entries(selectedChar.ambiti).map(([ambito, value]) => (
+                  <div key={ambito} className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-4 py-3">
+                    <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">{ambito}</div>
+                    <div className="mt-2 text-2xl font-semibold text-[var(--dash-text-strong)]">{value as any}</div>
+                  </div>
+                ))}
+
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-4 py-3">
+                  <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+                    <Heart className="h-3.5 w-3.5 text-red-500" />
+                    Freschezza
+                  </div>
+                  <div className="text-lg font-semibold text-[var(--dash-text-strong)]">
+                    {selectedChar.freschezza}/{selectedChar.maxFreschezza}
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--dash-border-soft)]">
+                    <div
+                      className="h-full rounded-full bg-red-700"
+                      style={{ width: `${(selectedChar.freschezza / selectedChar.maxFreschezza) * 100}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-4 py-3">
+                  <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+                    <Brain className="h-3.5 w-3.5 text-purple-400" />
+                    Follia
+                  </div>
+                  <div className="text-lg font-semibold text-[var(--dash-text-strong)]">
+                    {selectedChar.follia}/{selectedChar.maxFollia}
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--dash-border-soft)]">
+                    <div
+                      className="h-full rounded-full bg-purple-700"
+                      style={{ width: `${(selectedChar.follia / selectedChar.maxFollia) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {currentTab === 'stats' && isHSC && (
               <div className="space-y-4">
