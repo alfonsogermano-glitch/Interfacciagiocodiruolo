@@ -218,6 +218,7 @@ export function SessionCharactersPanel() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const tabsContainerRef = useRef<HTMLDivElement | null>(null);
   const dragOverIndexRef = useRef<number | null>(null);
+  const dragSourceIndexRef = useRef<number | null>(null);
   const [expandedAmbito, setExpandedAmbito] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState({ pg: true, png: true, mostro: true });
   const [charMenuOpen, setCharMenuOpen] = useState(false);
@@ -519,25 +520,27 @@ export function SessionCharactersPanel() {
       const dx = e.clientX - start.x;
       const dy = e.clientY - start.y;
       if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD_PX) {
+        dragSourceIndexRef.current = tabOrder.indexOf(start.tabId);
         setDraggedTabId(start.tabId);
-        document.body.style.cursor = 'grabbing';
       }
     };
 
     const handleUp = () => {
       if (draggedTabId) {
         const targetIndex = dragOverIndexRef.current;
+        const sourceIndex = dragSourceIndexRef.current;
         setTabOrder(prev => {
-          if (targetIndex === null) return prev;
+          if (targetIndex === null || sourceIndex === null) return prev;
+          const finalIndex = targetIndex > sourceIndex ? targetIndex - 1 : targetIndex;
           const next = prev.filter(id => id !== draggedTabId);
-          next.splice(targetIndex, 0, draggedTabId);
+          next.splice(finalIndex, 0, draggedTabId);
           persistTabOrder(next);
           return next;
         });
-        document.body.style.cursor = '';
         setDraggedTabId(null);
         setDragOverIndex(null);
         dragOverIndexRef.current = null;
+        dragSourceIndexRef.current = null;
       }
       // Se non era mai partito il drag, non facciamo nulla: il click sulla tab
       // ha già funzionato normalmente tramite il suo onClick.
@@ -549,7 +552,6 @@ export function SessionCharactersPanel() {
     return () => {
       window.removeEventListener('pointermove', handleMove);
       window.removeEventListener('pointerup', handleUp);
-      document.body.style.cursor = '';
     };
   }, [draggedTabId]);
 
@@ -1258,6 +1260,9 @@ export function SessionCharactersPanel() {
         ) : null}
       </div>
     </div>
+    {draggedTabId && (
+      <div className="fixed inset-0 z-[9999] cursor-grabbing" />
+    )}
     {confirmRemoveChar && (
       <ConfirmDialog
         title="Rimuovere il personaggio dalla campagna?"
