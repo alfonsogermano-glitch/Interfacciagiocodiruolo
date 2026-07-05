@@ -617,7 +617,7 @@ export function SessionCharactersPanel() {
                         key={ambito}
                         type="button"
                         onClick={() => setExpandedAmbito(isExpanded ? null : ambito)}
-                        className={`rounded-lg border px-2 py-2 text-center transition-colors ${
+                        className={`rounded-lg border-2 px-2 py-2 text-center transition-colors ${
                           isExpanded
                             ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
                             : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] hover:border-[var(--dash-accent)]'
@@ -631,7 +631,7 @@ export function SessionCharactersPanel() {
                 </div>
 
                 {expandedAmbito && (
-                  <div className="rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] p-4">
+                  <div className="rounded-xl border-2 border-[var(--dash-accent)] bg-[var(--dash-panel)] p-4">
                     <div className="mb-3 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
                       Abilità · {expandedAmbito}
                     </div>
@@ -656,7 +656,7 @@ export function SessionCharactersPanel() {
                   </div>
                 )}
 
-                <div className="rounded-xl border border-red-900/60 bg-red-950/20 p-3">
+                <div className="rounded-xl border-2 border-red-900/60 bg-red-950/20 p-3">
                   <div className="mb-2 flex items-center justify-between">
                     <div className="flex items-center gap-2 text-xs uppercase tracking-[0.08em] text-red-500/80">
                       <Heart className="h-4 w-4 text-red-500" />
@@ -671,7 +671,7 @@ export function SessionCharactersPanel() {
                     onUpdate={(value) => updateCharacter(selectedChar.id, { ...selectedChar, freschezza: value })}
                   />
                 </div>
-                <div className="rounded-xl border border-purple-900/60 bg-purple-950/20 p-3">
+                <div className="rounded-xl border-2 border-purple-900/60 bg-purple-950/20 p-3">
                   <div className="mb-2 flex items-center justify-between">
                     <div className="flex items-center gap-2 text-xs uppercase tracking-[0.08em] text-purple-400/80">
                       <Brain className="h-4 w-4 text-purple-400" />
@@ -683,7 +683,7 @@ export function SessionCharactersPanel() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-yellow-900/60 bg-yellow-950/20 p-3">
+                  <div className="rounded-xl border-2 border-yellow-900/60 bg-yellow-950/20 p-3">
                     <div className="mb-2 text-xs uppercase tracking-[0.08em] text-yellow-500/80">Audacia</div>
                     <StarRating
                       value={typeof selectedChar.audacia === 'number' ? selectedChar.audacia : 1}
@@ -692,7 +692,7 @@ export function SessionCharactersPanel() {
                       onChange={(v) => updateCharacter(selectedChar.id, { ...selectedChar, audacia: v })}
                     />
                   </div>
-                  <div className="rounded-xl border border-yellow-900/60 bg-yellow-950/20 p-3">
+                  <div className="rounded-xl border-2 border-yellow-900/60 bg-yellow-950/20 p-3">
                     <div className="mb-2 text-xs uppercase tracking-[0.08em] text-yellow-500/80">Prodigi</div>
                     <StarRating
                       value={typeof selectedChar.prodigi === 'number' ? selectedChar.prodigi : 1}
@@ -703,12 +703,12 @@ export function SessionCharactersPanel() {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
+                <div className="rounded-xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
                   <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Tratti</div>
                   {selectedChar.tratti.length > 0 ? (
                     <div className="space-y-2">
                       {selectedChar.tratti.map((trait, idx) => (
-                        <div key={idx} className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-2 text-sm">
+                        <div key={idx} className="rounded-lg border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-2 text-sm">
                           <div className="font-medium text-[var(--dash-text-strong)]">{trait.name}</div>
                           {trait.description && <div className="text-xs text-[var(--dash-text)]">{trait.description}</div>}
                         </div>
