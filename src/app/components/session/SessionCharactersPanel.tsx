@@ -109,7 +109,7 @@ function StarRating({ value, max, onChange, disabled }: { value: number; max: nu
           );
         })}
       </div>
-      <span className="text-xs text-[var(--dash-muted)]">{value} / {max}</span>
+      <span className="text-xs text-yellow-500/70">{value} / {max}</span>
     </div>
   );
 }
@@ -608,7 +608,7 @@ export function SessionCharactersPanel() {
 
             {currentTab === 'summary' && isHSC && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div className="grid grid-cols-4 gap-2">
                   {(['Fisico', 'Scuola', 'Carisma', 'Strada'] as const).map((ambito) => {
                     const value = (selectedChar.ambiti as any)[ambito];
                     const isExpanded = expandedAmbito === ambito;
@@ -617,14 +617,14 @@ export function SessionCharactersPanel() {
                         key={ambito}
                         type="button"
                         onClick={() => setExpandedAmbito(isExpanded ? null : ambito)}
-                        className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                        className={`rounded-lg border px-2 py-2 text-center transition-colors ${
                           isExpanded
                             ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
                             : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] hover:border-[var(--dash-accent)]'
                         }`}
                       >
-                        <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">{ambito}</div>
-                        <div className="mt-2 text-2xl font-semibold text-[var(--dash-text-strong)]">{value}</div>
+                        <div className="truncate text-[10px] uppercase tracking-[0.05em] text-[var(--dash-accent-2)]">{ambito}</div>
+                        <div className="mt-0.5 text-lg font-semibold text-[var(--dash-text-strong)]">{value}</div>
                       </button>
                     );
                   })}
@@ -683,8 +683,8 @@ export function SessionCharactersPanel() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
-                    <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Audacia</div>
+                  <div className="rounded-xl border border-yellow-900/60 bg-yellow-950/20 p-3">
+                    <div className="mb-2 text-xs uppercase tracking-[0.08em] text-yellow-500/80">Audacia</div>
                     <StarRating
                       value={typeof selectedChar.audacia === 'number' ? selectedChar.audacia : 1}
                       max={6}
@@ -692,8 +692,8 @@ export function SessionCharactersPanel() {
                       onChange={(v) => updateCharacter(selectedChar.id, { ...selectedChar, audacia: v })}
                     />
                   </div>
-                  <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
-                    <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Prodigi</div>
+                  <div className="rounded-xl border border-yellow-900/60 bg-yellow-950/20 p-3">
+                    <div className="mb-2 text-xs uppercase tracking-[0.08em] text-yellow-500/80">Prodigi</div>
                     <StarRating
                       value={typeof selectedChar.prodigi === 'number' ? selectedChar.prodigi : 1}
                       max={2}
