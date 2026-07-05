@@ -55,6 +55,8 @@ function SectionHeader({ title, count, isOpen, onToggle }: { title: string; coun
   );
 }
 
+const TOKEN_SIZE = 48;
+
 function DraggablePortrait({
   url,
   fallbackIcon,
@@ -75,7 +77,7 @@ function DraggablePortrait({
       draggable={draggable}
       onDragStart={(e) => {
         if (url && dragGhostRef.current) {
-          e.dataTransfer.setDragImage(dragGhostRef.current, size / 2, size / 2);
+          e.dataTransfer.setDragImage(dragGhostRef.current, TOKEN_SIZE / 2, TOKEN_SIZE / 2);
         }
         onDragStart?.(e);
       }}
@@ -94,7 +96,7 @@ function DraggablePortrait({
           className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-md opacity-0 transition-opacity duration-150 group-hover:opacity-100"
           style={{ backgroundColor: 'rgba(0,0,0,0.35)' }}
         >
-          <div className="overflow-hidden rounded-full border-2 border-[var(--dash-accent)]" style={{ width: size, height: size }}>
+          <div className="overflow-hidden rounded-full border-2 border-[var(--dash-accent)]" style={{ width: TOKEN_SIZE, height: TOKEN_SIZE }}>
             {url ? (
               <img src={url} alt="" className="h-full w-full object-cover" draggable={false} />
             ) : (
@@ -113,8 +115,8 @@ function DraggablePortrait({
             position: 'fixed',
             left: -9999,
             top: -9999,
-            width: size,
-            height: size,
+            width: TOKEN_SIZE,
+            height: TOKEN_SIZE,
             borderRadius: '9999px',
             objectFit: 'cover',
             pointerEvents: 'none',
