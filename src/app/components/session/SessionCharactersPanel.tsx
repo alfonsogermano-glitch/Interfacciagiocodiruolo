@@ -548,17 +548,19 @@ export function SessionCharactersPanel() {
             </div>
 
             {currentTab === 'summary' && isHSC && (
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-                {Object.entries(selectedChar.ambiti).map(([ambito, value]) => (
-                  <div key={ambito} className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-4 py-3">
-                    <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">{ambito}</div>
-                    <div className="mt-2 text-2xl font-semibold text-[var(--dash-text-strong)]">{value as any}</div>
-                  </div>
-                ))}
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  {Object.entries(selectedChar.ambiti).map(([ambito, value]) => (
+                    <div key={ambito} className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-4 py-3">
+                      <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">{ambito}</div>
+                      <div className="mt-2 text-2xl font-semibold text-[var(--dash-text-strong)]">{value as any}</div>
+                    </div>
+                  ))}
+                </div>
 
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-4 py-3">
-                  <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
-                    <Heart className="h-3.5 w-3.5 text-red-500" />
+                <div className="rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] p-4">
+                  <div className="mb-3 flex items-center gap-2 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+                    <Heart className="h-4 w-4 text-red-500" />
                     Freschezza
                   </div>
                   <div className="text-lg font-semibold text-[var(--dash-text-strong)]">
@@ -572,34 +574,18 @@ export function SessionCharactersPanel() {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-4 py-3">
-                  <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
-                    <Brain className="h-3.5 w-3.5 text-purple-400" />
-                    Follia
+                <div className="rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] p-4">
+                  <div className="mb-3 flex items-center gap-2 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+                    <Brain className="h-4 w-4 text-purple-400" />
+                    Spirale della Follia
                   </div>
-                  <div className="text-lg font-semibold text-[var(--dash-text-strong)]">
-                    {selectedChar.follia}/{selectedChar.maxFollia}
-                  </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--dash-border-soft)]">
-                    <div
-                      className="h-full rounded-full bg-purple-700"
-                      style={{ width: `${(selectedChar.follia / selectedChar.maxFollia) * 100}%` }}
-                    />
-                  </div>
+                  <FoliaSpiral current={selectedChar.follia} max={selectedChar.maxFollia} onUpdate={(value) => updateCharacter(selectedChar.id, { ...selectedChar, follia: value })} />
                 </div>
               </div>
             )}
 
             {currentTab === 'stats' && isHSC && (
               <div className="space-y-4">
-                <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
-                  <FrischezzaTracker
-                    current={selectedChar.freschezza}
-                    max={selectedChar.maxFreschezza}
-                    crucialBoxes={selectedChar.caselleFrischezzaCruciali}
-                    onUpdate={(value) => updateCharacter(selectedChar.id, { ...selectedChar, freschezza: value })}
-                  />
-                </div>
                 <div className="grid grid-cols-2 gap-3">
                   {Object.entries(selectedChar.ambiti).map(([ambito, value]) => (
                     <div key={ambito} className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
@@ -631,12 +617,6 @@ export function SessionCharactersPanel() {
                 <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
                   <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Condizioni attive</div>
                   <ConditionsPanel conditions={selectedChar.conditions} onUpdate={(conditions) => updateCharacter(selectedChar.id, { ...selectedChar, conditions })} />
-                </div>
-                <div className="rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] p-4">
-                  <div className="mb-2 flex items-center gap-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
-                    <Brain className="h-3.5 w-3.5 text-purple-400" /> Spirale della Follia
-                  </div>
-                  <FoliaSpiral current={selectedChar.follia} max={selectedChar.maxFollia} onUpdate={(value) => updateCharacter(selectedChar.id, { ...selectedChar, follia: value })} />
                 </div>
                 <div className="rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] p-4">
                   <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Turbe mentali</div>
