@@ -55,7 +55,7 @@ function SectionHeader({ title, count, isOpen, onToggle }: { title: string; coun
   );
 }
 
-const TOKEN_SIZE = 48;
+const TOKEN_SIZE = 64;
 
 function DraggablePortrait({
   url,
