@@ -139,7 +139,7 @@ export function SessionCharactersPanel() {
   const [monsters, setMonsters] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selected, setSelected] = useState<{ kind: EntityKind; id: string } | null>(null);
-  const [currentTab, setCurrentTab] = useState<'summary' | 'stats' | 'conditions' | 'equipment'>('summary');
+  const [currentTab, setCurrentTab] = useState<'summary' | 'conditions' | 'equipment'>('summary');
   const [openSections, setOpenSections] = useState({ pg: true, png: true, mostro: true });
   const [charMenuOpen, setCharMenuOpen] = useState(false);
   const [charMenuPosition, setCharMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -529,7 +529,6 @@ export function SessionCharactersPanel() {
             <div className="mb-4 flex flex-wrap gap-2 border-b border-[var(--dash-border-soft)] pb-3">
               {[
                 { id: 'summary' as const, label: 'Riepilogo' },
-                { id: 'stats' as const, label: 'Stato' },
                 { id: 'conditions' as const, label: 'Condizioni & Follia' },
                 { id: 'equipment' as const, label: 'Equipaggiamento' }
               ].map(tab => (
@@ -583,19 +582,7 @@ export function SessionCharactersPanel() {
                   </div>
                   <FoliaSpiral current={selectedChar.follia} max={selectedChar.maxFollia} onUpdate={(value) => updateCharacter(selectedChar.id, { ...selectedChar, follia: value })} />
                 </div>
-              </div>
-            )}
 
-            {currentTab === 'stats' && isHSC && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  {Object.entries(selectedChar.ambiti).map(([ambito, value]) => (
-                    <div key={ambito} className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
-                      <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">{ambito}</div>
-                      <div className="mt-1 text-xl font-semibold text-[var(--dash-text-strong)]">{value as any}</div>
-                    </div>
-                  ))}
-                </div>
                 <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
                   <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Tratti</div>
                   {selectedChar.tratti.length > 0 ? (
