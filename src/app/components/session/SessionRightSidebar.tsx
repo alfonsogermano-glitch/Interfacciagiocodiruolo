@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { MessageSquare, Users2, StickyNote, Dices } from 'lucide-react';
 import { SlideOverPanel } from './SlideOverPanel';
 import { SessionCharactersPanel } from './SessionCharactersPanel';
+import { SessionNotesPanel } from './SessionNotesPanel';
 
 type SessionPanelId = 'chat' | 'characters' | 'notes' | 'dice';
 
 const ICONS: { id: SessionPanelId; label: string; icon: typeof Users2; enabled: boolean }[] = [
   { id: 'chat', label: 'Chat', icon: MessageSquare, enabled: false },
   { id: 'characters', label: 'Personaggi', icon: Users2, enabled: true },
-  { id: 'notes', label: 'Note', icon: StickyNote, enabled: false },
+  { id: 'notes', label: 'Note', icon: StickyNote, enabled: true },
   { id: 'dice', label: 'Dadi', icon: Dices, enabled: false },
 ];
 
@@ -47,6 +48,7 @@ export function SessionRightSidebar() {
         onClose={() => setOpenPanel(null)}
       >
         {openPanel === 'characters' && <SessionCharactersPanel />}
+        {openPanel === 'notes' && <SessionNotesPanel />}
       </SlideOverPanel>
     </>
   );
