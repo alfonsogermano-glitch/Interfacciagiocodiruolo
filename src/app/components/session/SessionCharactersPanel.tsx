@@ -482,7 +482,7 @@ export function SessionCharactersPanel() {
     if (!canEdit || renamingTabId === tabId) return;
     // Evita che parta il drag cliccando sul bottone ⋮ o su un input
     const target = e.target as HTMLElement;
-    if (target.closest('button') || target.closest('input')) return;
+    if (target.closest('[data-no-drag]') || target.closest('input')) return;
     e.preventDefault();
     setDraggedTabId(tabId);
   };
@@ -892,7 +892,6 @@ export function SessionCharactersPanel() {
                           ? 'border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
                           : 'border border-transparent bg-transparent text-[var(--dash-text)] hover:bg-[var(--dash-panel)]'
                       } ${tab.hidden ? 'opacity-50' : ''} ${tab.isCustom && canEdit ? 'pr-7' : ''}`}
-                      title={tab.hidden ? `${tab.label} (nascosta ai giocatori)` : tab.label}
                     >
                       {tab.hidden && <EyeOff className="h-3 w-3" />}
                       {tab.label}
@@ -903,12 +902,12 @@ export function SessionCharactersPanel() {
                   {tab.isCustom && canEdit && renamingTabId !== tab.id && (
                     <div className="absolute right-1 top-1/2 -translate-y-1/2">
                       <button
+                        data-no-drag
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpenMenuTabId(prev => (prev === tab.id ? null : tab.id));
                         }}
                         className="rounded p-0.5 text-[var(--dash-muted)] opacity-0 transition-opacity hover:text-[var(--dash-text-strong)] group-hover:opacity-100"
-                        title="Opzioni tab"
                       >
                         <MoreVertical className="h-3.5 w-3.5" />
                       </button>
