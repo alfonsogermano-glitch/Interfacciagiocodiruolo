@@ -564,7 +564,7 @@ export function SessionCharactersPanel() {
                       <Heart className="h-4 w-4 text-red-500" />
                       Freschezza
                     </div>
-                    <span className="text-xs text-[var(--dash-muted)]">{selectedChar.maxFreschezza - selectedChar.freschezza} / {selectedChar.maxFreschezza}</span>
+                    <span className="text-xs text-[var(--dash-muted)]">{selectedChar.freschezza} / {selectedChar.maxFreschezza}</span>
                   </div>
                   <FrischezzaTracker
                     current={selectedChar.freschezza}

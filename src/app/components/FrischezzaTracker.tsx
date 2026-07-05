@@ -18,33 +18,35 @@ export function FrischezzaTracker({
   return (
     <div className="rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] p-4">
       <div className="relative">
-        <div className="flex flex-row justify-center gap-2">
-          {boxes.map(box => {
+        <div className="flex flex-row items-center justify-center">
+          {boxes.map((box, idx) => {
             const isBlacked = box <= max - current;
             const isCrucial = crucialBoxes.includes(box);
 
             return (
-              <button
-                key={box}
-                type="button"
-                onClick={() => {
-                  if (isBlacked) {
-                    onUpdate(max - (box - 1));
-                  } else {
-                    onUpdate(max - box);
-                  }
-                }}
-                className={`relative h-8 w-8 rounded border-2 transition-all hover:scale-110 ${
-                  isBlacked
-                    ? 'border-[var(--dash-accent-2)] bg-[var(--dash-bg)]'
-                    : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] hover:border-[var(--dash-accent)]'
-                } ${isCrucial ? 'ring-2 ring-[var(--dash-accent-2)]' : ''}`}
-                title={isCrucial ? 'Casella Cruciale' : `Casella ${box}`}
-              >
-                {isCrucial && (
-                  <AlertCircle className="absolute inset-0 m-auto h-4 w-4 text-red-500" />
-                )}
-              </button>
+              <div key={box} className="flex items-center">
+                {idx > 0 && <div className="h-px w-2 bg-[var(--dash-border-soft)]" />}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isBlacked) {
+                      onUpdate(max - (box - 1));
+                    } else {
+                      onUpdate(max - box);
+                    }
+                  }}
+                  className={`relative h-8 w-8 shrink-0 rounded border-2 transition-all hover:scale-110 ${
+                    isBlacked
+                      ? 'border-[var(--dash-accent-2)] bg-[var(--dash-bg)]'
+                      : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] hover:border-[var(--dash-accent)]'
+                  } ${isCrucial ? 'ring-2 ring-[var(--dash-accent-2)]' : ''}`}
+                  title={isCrucial ? 'Casella Cruciale' : `Casella ${box}`}
+                >
+                  {isCrucial && (
+                    <AlertCircle className="absolute inset-0 m-auto h-4 w-4 text-red-500" />
+                  )}
+                </button>
+              </div>
             );
           })}
         </div>

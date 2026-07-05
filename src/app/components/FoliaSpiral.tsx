@@ -13,39 +13,39 @@ export function FoliaSpiral({ current, max, onUpdate }: FoliaSpiralProps) {
   return (
     <div className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
       <div className="relative">
-        <div className="flex flex-row justify-center gap-2">
-          {boxes.map(box => {
+        <div className="flex flex-row items-center justify-center">
+          {boxes.map((box, idx) => {
             const isBlacked = box <= current;
             const isCrucial = crucialBoxes.includes(box);
 
             return (
-              <button
-                key={box}
-                type="button"
-                onClick={() => {
-                  if (isBlacked && box === current) {
-                    onUpdate(current - 1);
-                  } else {
-                    onUpdate(box);
+              <div key={box} className="flex items-center">
+                {idx > 0 && <div className="h-px w-2 bg-[var(--dash-border-soft)]" />}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isBlacked && box === current) {
+                      onUpdate(current - 1);
+                    } else {
+                      onUpdate(box);
+                    }
+                  }}
+                  className={`relative h-8 w-8 shrink-0 rounded-full border-2 transition-all hover:scale-125 ${
+                    isBlacked
+                      ? 'border-[var(--dash-accent)] bg-[var(--dash-bg)]'
+                      : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] hover:border-[var(--dash-accent-2)]'
+                  } ${isCrucial ? 'ring-2 ring-[var(--dash-accent-2)]' : ''}`}
+                  title={
+                    isCrucial
+                      ? `Casella Cruciale - Turba ${crucialBoxes.indexOf(box) + 1}`
+                      : `Casella ${box}`
                   }
-                }}
-                className={`relative h-8 w-8 rounded-full border-2 transition-all hover:scale-125 ${
-                  isBlacked
-                    ? 'border-[var(--dash-accent)] bg-[var(--dash-bg)]'
-                    : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] hover:border-[var(--dash-accent-2)]'
-                } ${isCrucial ? 'ring-2 ring-[var(--dash-accent-2)]' : ''}`}
-                title={
-                  isCrucial
-                    ? `Casella Cruciale - Turba ${
-                        crucialBoxes.indexOf(box) + 1
-                      }`
-                    : `Casella ${box}`
-                }
-              >
-                {isCrucial && (
-                  <Skull className="absolute inset-0 m-auto h-4 w-4 text-[var(--dash-accent-2)]" />
-                )}
-              </button>
+                >
+                  {isCrucial && (
+                    <Skull className="absolute inset-0 m-auto h-4 w-4 text-[var(--dash-accent-2)]" />
+                  )}
+                </button>
+              </div>
             );
           })}
         </div>
