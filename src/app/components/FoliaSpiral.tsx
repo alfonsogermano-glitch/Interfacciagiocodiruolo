@@ -24,8 +24,8 @@ export function FoliaSpiral({ current, max, onUpdate }: FoliaSpiralProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    if (isBlacked && box === current) {
-                      onUpdate(current - 1);
+                    if (isBlacked) {
+                      onUpdate(box - 1);
                     } else {
                       onUpdate(box);
                     }
