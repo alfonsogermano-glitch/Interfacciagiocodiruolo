@@ -214,6 +214,8 @@ export function SessionCharactersPanel() {
   const [renameDraft, setRenameDraft] = useState('');
   const [openMenuTabId, setOpenMenuTabId] = useState<string | null>(null);
   const [confirmDeleteTabId, setConfirmDeleteTabId] = useState<string | null>(null);
+  const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
+  const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
   const [expandedAmbito, setExpandedAmbito] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState({ pg: true, png: true, mostro: true });
   const [charMenuOpen, setCharMenuOpen] = useState(false);
@@ -474,16 +476,24 @@ export function SessionCharactersPanel() {
     updateCharacter(selectedChar.id, { ...selectedChar, tabOrder: order } as any);
   };
 
-  const handleMoveTab = (tabId: string, direction: -1 | 1) => {
+  const handleTabDrop = (targetId: string) => {
+    if (!draggedTabId || draggedTabId === targetId) {
+      setDraggedTabId(null);
+      setDragOverTabId(null);
+      return;
+    }
     setTabOrder(prev => {
-      const idx = prev.indexOf(tabId);
-      const targetIdx = idx + direction;
-      if (idx === -1 || targetIdx < 0 || targetIdx >= prev.length) return prev;
       const next = [...prev];
-      [next[idx], next[targetIdx]] = [next[targetIdx], next[idx]];
+      const fromIdx = next.indexOf(draggedTabId);
+      const toIdx = next.indexOf(targetId);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+      next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, draggedTabId);
       persistTabOrder(next);
       return next;
     });
+    setDraggedTabId(null);
+    setDragOverTabId(null);
   };
 
   const handleAddCustomTab = async () => {
@@ -806,8 +816,33 @@ export function SessionCharactersPanel() {
             )}
 
             <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-[var(--dash-border-soft)] pb-3">
-              {orderedTabs.map((tab, idx) => (
-                <div key={tab.id} className="group relative flex items-center">
+              {orderedTabs.map((tab) => (
+                <div
+                  key={tab.id}
+                  draggable={canEdit && renamingTabId !== tab.id}
+                  onDragStart={(e) => {
+                    setDraggedTabId(tab.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (draggedTabId && draggedTabId !== tab.id) setDragOverTabId(tab.id);
+                  }}
+                  onDragLeave={() => setDragOverTabId(prev => (prev === tab.id ? null : prev))}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    handleTabDrop(tab.id);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedTabId(null);
+                    setDragOverTabId(null);
+                  }}
+                  className={`group relative flex items-center transition-transform ${
+                    canEdit && renamingTabId !== tab.id ? 'cursor-grab active:cursor-grabbing' : ''
+                  } ${draggedTabId === tab.id ? 'opacity-40' : ''} ${
+                    dragOverTabId === tab.id ? 'scale-105 border-l-2 border-[var(--dash-accent)] pl-1' : ''
+                  }`}
+                >
                   {renamingTabId === tab.id ? (
                     <input
                       type="text"
@@ -815,6 +850,7 @@ export function SessionCharactersPanel() {
                       value={renameDraft}
                       onChange={(e) => setRenameDraft(e.target.value)}
                       onBlur={() => handleRenameCustomTab(tab.id)}
+                      onMouseDown={(e) => e.stopPropagation()}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleRenameCustomTab(tab.id);
                         if (e.key === 'Escape') setRenamingTabId(null);
@@ -836,34 +872,11 @@ export function SessionCharactersPanel() {
                     </button>
                   )}
 
-                  {/* Frecce di riordino su hover — per TUTTE le tab (base incluse) */}
-                  {canEdit && renamingTabId !== tab.id && (
-                    <div className="pointer-events-none absolute -bottom-2.5 left-1/2 flex -translate-x-1/2 gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
-                      {idx > 0 && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleMoveTab(tab.id, -1); }}
-                          className="rounded bg-[var(--dash-panel)] px-1 text-[10px] leading-none text-[var(--dash-muted)] shadow hover:text-[var(--dash-text-strong)]"
-                          title="Sposta a sinistra"
-                        >
-                          ◀
-                        </button>
-                      )}
-                      {idx < orderedTabs.length - 1 && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleMoveTab(tab.id, 1); }}
-                          className="rounded bg-[var(--dash-panel)] px-1 text-[10px] leading-none text-[var(--dash-muted)] shadow hover:text-[var(--dash-text-strong)]"
-                          title="Sposta a destra"
-                        >
-                          ▶
-                        </button>
-                      )}
-                    </div>
-                  )}
-
                   {/* Menu ⋮ — SOLO tab personalizzate */}
                   {tab.isCustom && canEdit && renamingTabId !== tab.id && (
                     <div className="absolute right-1 top-1/2 -translate-y-1/2">
                       <button
+                        onMouseDown={(e) => e.stopPropagation()}
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpenMenuTabId(prev => (prev === tab.id ? null : tab.id));
