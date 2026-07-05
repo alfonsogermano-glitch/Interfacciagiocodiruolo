@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { User, Brain, ChevronDown, ChevronRight, Loader2, Skull, Ghost, Heart } from 'lucide-react';
+import { User, Brain, ChevronDown, ChevronRight, Loader2, Skull, Ghost, Heart, Star } from 'lucide-react';
 import { MoreVertical, Copy, UserMinus, UserX } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/paletteColors';
@@ -78,6 +78,33 @@ function AbilitaDots({ value, onChange, disabled }: { value: number; onChange: (
               filled ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]' : 'border-[var(--dash-border-soft)] bg-transparent'
             } ${disabled ? '' : 'hover:scale-125'}`}
           />
+        );
+      })}
+    </div>
+  );
+}
+
+function StarRating({ value, max, onChange, disabled }: { value: number; max: number; onChange: (v: number) => void; disabled: boolean }) {
+  const stars = Array.from({ length: max }, (_, i) => i + 1);
+  return (
+    <div className="flex gap-1">
+      {stars.map((star) => {
+        const filled = star <= value;
+        return (
+          <button
+            key={star}
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(filled && star === value ? star - 1 : star)}
+            className={disabled ? '' : 'transition-transform hover:scale-110'}
+          >
+            <Star
+              className="h-5 w-5"
+              fill={filled ? '#eab308' : 'none'}
+              color={filled ? '#eab308' : 'var(--dash-border-soft)'}
+              strokeWidth={filled ? 1 : 1.5}
+            />
+          </button>
         );
       })}
     </div>
@@ -654,50 +681,22 @@ export function SessionCharactersPanel() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
-                    <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Audacia</div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-lg font-semibold text-[var(--dash-text-strong)]">
-                        {typeof selectedChar.audacia === 'number' ? selectedChar.audacia : 1}
-                        <span className="ml-1 text-xs font-normal text-[var(--dash-muted)]">/ 6</span>
-                      </span>
-                      {canEdit && (
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => updateCharacter(selectedChar.id, { ...selectedChar, audacia: Math.max(0, (typeof selectedChar.audacia === 'number' ? selectedChar.audacia : 1) - 1) })}
-                            className="flex h-6 w-6 items-center justify-center rounded border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] text-sm text-[var(--dash-text-strong)]"
-                          >−</button>
-                          <button
-                            type="button"
-                            onClick={() => updateCharacter(selectedChar.id, { ...selectedChar, audacia: Math.min(6, (typeof selectedChar.audacia === 'number' ? selectedChar.audacia : 1) + 1) })}
-                            className="flex h-6 w-6 items-center justify-center rounded border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-sm text-[var(--dash-text-strong)]"
-                          >+</button>
-                        </div>
-                      )}
-                    </div>
+                    <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Audacia</div>
+                    <StarRating
+                      value={typeof selectedChar.audacia === 'number' ? selectedChar.audacia : 1}
+                      max={6}
+                      disabled={!canEdit}
+                      onChange={(v) => updateCharacter(selectedChar.id, { ...selectedChar, audacia: v })}
+                    />
                   </div>
                   <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
-                    <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Prodigi</div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-lg font-semibold text-[var(--dash-text-strong)]">
-                        {typeof selectedChar.prodigi === 'number' ? selectedChar.prodigi : 1}
-                        <span className="ml-1 text-xs font-normal text-[var(--dash-muted)]">/ 2</span>
-                      </span>
-                      {canEdit && (
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => updateCharacter(selectedChar.id, { ...selectedChar, prodigi: Math.max(0, (typeof selectedChar.prodigi === 'number' ? selectedChar.prodigi : 1) - 1) })}
-                            className="flex h-6 w-6 items-center justify-center rounded border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] text-sm text-[var(--dash-text-strong)]"
-                          >−</button>
-                          <button
-                            type="button"
-                            onClick={() => updateCharacter(selectedChar.id, { ...selectedChar, prodigi: Math.min(2, (typeof selectedChar.prodigi === 'number' ? selectedChar.prodigi : 1) + 1) })}
-                            className="flex h-6 w-6 items-center justify-center rounded border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-sm text-[var(--dash-text-strong)]"
-                          >+</button>
-                        </div>
-                      )}
-                    </div>
+                    <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Prodigi</div>
+                    <StarRating
+                      value={typeof selectedChar.prodigi === 'number' ? selectedChar.prodigi : 1}
+                      max={2}
+                      disabled={!canEdit}
+                      onChange={(v) => updateCharacter(selectedChar.id, { ...selectedChar, prodigi: v })}
+                    />
                   </div>
                 </div>
 
