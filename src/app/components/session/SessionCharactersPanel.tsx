@@ -656,13 +656,13 @@ export function SessionCharactersPanel() {
                   </div>
                 )}
 
-                <div className="rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+                <div className="rounded-xl border border-red-900/60 bg-red-950/20 p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.08em] text-red-500/80">
                       <Heart className="h-4 w-4 text-red-500" />
                       Freschezza
                     </div>
-                    <span className="text-xs text-[var(--dash-muted)]">{selectedChar.freschezza} / {selectedChar.maxFreschezza}</span>
+                    <span className="text-xs text-red-200/60">{selectedChar.freschezza} / {selectedChar.maxFreschezza}</span>
                   </div>
                   <FrischezzaTracker
                     current={selectedChar.freschezza}
@@ -671,13 +671,13 @@ export function SessionCharactersPanel() {
                     onUpdate={(value) => updateCharacter(selectedChar.id, { ...selectedChar, freschezza: value })}
                   />
                 </div>
-                <div className="rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+                <div className="rounded-xl border border-purple-900/60 bg-purple-950/20 p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.08em] text-purple-400/80">
                       <Brain className="h-4 w-4 text-purple-400" />
                       Spirale della Follia
                     </div>
-                    <span className="text-xs text-[var(--dash-muted)]">{selectedChar.follia} / {selectedChar.maxFollia}</span>
+                    <span className="text-xs text-purple-200/60">{selectedChar.follia} / {selectedChar.maxFollia}</span>
                   </div>
                   <FoliaSpiral current={selectedChar.follia} max={selectedChar.maxFollia} onUpdate={(value) => updateCharacter(selectedChar.id, { ...selectedChar, follia: value })} />
                 </div>

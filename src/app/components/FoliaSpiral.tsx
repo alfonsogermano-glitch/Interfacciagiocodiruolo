@@ -1,4 +1,5 @@
 import { Skull } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 interface FoliaSpiralProps {
   current: number;
@@ -11,7 +12,7 @@ export function FoliaSpiral({ current, max, onUpdate }: FoliaSpiralProps) {
   const crucialBoxes = [3, 6, 9];
 
   return (
-    <div className="rounded-lg border border-purple-900/60 bg-purple-950/20 p-4">
+    <div>
       <div className="relative">
         <div className="flex flex-row items-center justify-center">
           {boxes.map((box, idx) => {
@@ -21,30 +22,34 @@ export function FoliaSpiral({ current, max, onUpdate }: FoliaSpiralProps) {
             return (
               <div key={box} className="flex items-center">
                 {idx > 0 && <div className="h-px w-2 bg-purple-900/50" />}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isBlacked) {
-                      onUpdate(box - 1);
-                    } else {
-                      onUpdate(box);
-                    }
-                  }}
-                  className={`relative h-8 w-8 shrink-0 rounded-full border-2 transition-all hover:scale-125 ${
-                    isBlacked
-                      ? 'border-purple-400 bg-purple-600 shadow-[0_0_8px_rgba(192,132,252,0.6)]'
-                      : 'border-purple-900/60 bg-purple-950/30 hover:border-purple-600'
-                  } ${isCrucial && isBlacked ? 'ring-2 ring-purple-300' : isCrucial ? 'ring-2 ring-purple-500' : ''}`}
-                  title={
-                    isCrucial
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isBlacked) {
+                          onUpdate(box - 1);
+                        } else {
+                          onUpdate(box);
+                        }
+                      }}
+                      className={`relative h-8 w-8 shrink-0 rounded-full border-2 transition-all hover:scale-125 ${
+                        isBlacked
+                          ? 'border-purple-400 bg-purple-600 shadow-[0_0_8px_rgba(192,132,252,0.6)]'
+                          : 'border-purple-900/60 bg-purple-950/30 hover:border-purple-600'
+                      } ${isCrucial && isBlacked ? 'ring-2 ring-purple-300' : isCrucial ? 'ring-2 ring-purple-500' : ''}`}
+                    >
+                      {isCrucial && (
+                        <Skull className={`absolute inset-0 m-auto h-4 w-4 ${isBlacked ? 'text-white' : 'text-purple-400'}`} />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {isCrucial
                       ? `Casella Cruciale - Turba ${crucialBoxes.indexOf(box) + 1}`
-                      : `Casella ${box}`
-                  }
-                >
-                  {isCrucial && (
-                    <Skull className={`absolute inset-0 m-auto h-4 w-4 ${isBlacked ? 'text-white' : 'text-purple-400'}`} />
-                  )}
-                </button>
+                      : `Casella ${box}`}
+                  </TooltipContent>
+                </Tooltip>
               </div>
             );
           })}
