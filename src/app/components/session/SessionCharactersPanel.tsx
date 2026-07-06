@@ -886,13 +886,12 @@ export function SessionCharactersPanel() {
                   data-tab-id={tab.id}
                   onPointerDown={(e) => handlePointerDownTab(e, tab.id)}
                   className={`group relative flex items-center ${
-                    draggedTabId === tab.id ? 'opacity-40' : ''
-                  } ${
                     dragOverId === tab.id
                       ? 'border-l-2 border-[var(--dash-accent)] pl-1'
                       : ''
                   }`}
                 >
+                <div className={draggedTabId === tab.id ? 'flex items-center opacity-40' : 'flex items-center'}>
                   {renamingTabId === tab.id ? (
                     <input
                       type="text"
@@ -976,6 +975,7 @@ export function SessionCharactersPanel() {
                       )}
                     </div>
                   )}
+                </div>
                 </div>
               ))}
 
