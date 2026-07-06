@@ -1179,7 +1179,7 @@ export function SessionCharactersPanel() {
     {confirmUnassignEntity && (
       <ConfirmDialog
         title={`Rimuovere ${selected?.kind === 'mostro' ? 'il mostro' : 'il PNG'} dalla campagna?`}
-        message="Non verrà eliminato: resterà nel catalogo e potrà essere riassegnato in futuro da PNG/Mostri."
+        message={`${(selected?.kind === 'mostro' ? selectedMonster?.name : selectedNpc?.name) ?? "L'entità"} verrà scollegato da questa campagna. Al momento l'app non ha ancora una vista catalogo per le entità non assegnate: non sarà raggiungibile da nessuna schermata finché questa funzionalità non verrà completata.`}
         confirmLabel="Rimuovi"
         danger={false}
         onConfirm={handleUnassignNpcOrMonster}
