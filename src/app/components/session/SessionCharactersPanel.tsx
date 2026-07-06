@@ -443,11 +443,13 @@ export function SessionCharactersPanel() {
     (async () => {
       try {
         const accessToken = session?.access_token ?? '';
+        console.log('[DEBUG GET notes] invio richiesta', { characterId: selectedChar.id, t: Date.now() });
         const res = await fetch(
           `${SERVER_BASE}/campaigns/${activeCampaignId}/notes?entityType=character&entityId=${selectedChar.id}`,
           { headers: { Authorization: `Bearer ${accessToken}` } }
         );
         const data = await res.json();
+        console.log('[DEBUG GET notes] risposta ricevuta (raw dal server)', { characterId: selectedChar.id, t: Date.now(), cancelled, raw: JSON.stringify(data) });
         if (cancelled) return;
         if (res.ok) {
           const sorted = (data.notes ?? [])
@@ -626,11 +628,14 @@ export function SessionCharactersPanel() {
     });
     try {
       const accessToken = session?.access_token ?? '';
+      console.log('[DEBUG PUT hidden] invio richiesta', { tabId, nextHidden, t: Date.now() });
       const res = await fetch(`${SERVER_BASE}/notes/${tabId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ hidden: nextHidden }),
       });
+      const data = await res.json().catch(() => null);
+      console.log('[DEBUG PUT hidden] risposta ricevuta', { tabId, ok: res.ok, status: res.status, serverHidden: data?.note?.hidden, t: Date.now() });
       if (!res.ok) throw new Error('PUT hidden failed');
     } catch (err) {
       console.error('Errore nascondi tab:', err);
