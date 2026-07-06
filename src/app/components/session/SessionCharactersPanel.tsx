@@ -270,6 +270,9 @@ export function SessionCharactersPanel() {
 
     const handleBroadcast = (msg: any) => {
       const data = msg?.payload ?? {};
+      // DEBUG TEMPORANEO — da rimuovere dopo aver individuato il reset di `hidden`
+      console.log('[DEBUG handleBroadcast] evento ricevuto:', msg?.event, 'payload grezzo:', JSON.stringify(data));
+      console.trace('[DEBUG handleBroadcast stack]');
       if (data.operation === 'DELETE') {
         const deletedId = data.old_record?.id;
         if (!deletedId) return;
@@ -424,8 +427,15 @@ export function SessionCharactersPanel() {
   const isMine = selectedChar ? (selectedChar as any).ownerProfileId === user?.id : false;
   const canEdit = isMine || isOwner;
 
+  // DEBUG TEMPORANEO — da rimuovere dopo aver individuato il reset di `hidden`
+  const debugLogCustomTabs = (label: string, tabs: any[]) => {
+    console.log('[DEBUG setCustomTabs]', `call-site: ${label}`, JSON.stringify(tabs.map((t: any) => ({ id: t.id, tab_name: t.tab_name, hidden: t.hidden }))));
+    console.trace('[DEBUG setCustomTabs stack]');
+  };
+
   useEffect(() => {
     if (!selectedChar) {
+      debugLogCustomTabs('fetch effect — selectedChar nullo, reset a []', []);
       setCustomTabs([]);
       return;
     }
@@ -443,6 +453,7 @@ export function SessionCharactersPanel() {
           const sorted = (data.notes ?? [])
             .map((n: any) => ({ ...n, hidden: n.hidden ?? false }))
             .sort((a: any, b: any) => a.position - b.position);
+          debugLogCustomTabs(`fetch effect — GET notes per selectedChar.id=${selectedChar.id}`, sorted);
           setCustomTabs(sorted);
         }
       } catch (err) {
@@ -566,7 +577,11 @@ export function SessionCharactersPanel() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setCustomTabs(prev => [...prev, { ...data.note, hidden: data.note.hidden ?? false }]);
+      setCustomTabs(prev => {
+        const next = [...prev, { ...data.note, hidden: data.note.hidden ?? false }];
+        debugLogCustomTabs('handleAddCustomTab', next);
+        return next;
+      });
       setCurrentTab(data.note.id);
       // Entra subito in rinomina: il "+" crea e si passa direttamente al nome
       setRenamingTabId(data.note.id);
@@ -587,7 +602,11 @@ export function SessionCharactersPanel() {
       });
       const data = await res.json();
       if (res.ok) {
-        setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, tab_name: data.note.tab_name } : t)));
+        setCustomTabs(prev => {
+          const next = prev.map(t => (t.id === tabId ? { ...t, tab_name: data.note.tab_name } : t));
+          debugLogCustomTabs('handleRenameCustomTab', next);
+          return next;
+        });
       }
     } catch (err) {
       console.error('Errore rinomina tab:', err);
@@ -600,7 +619,11 @@ export function SessionCharactersPanel() {
     const tab = customTabs.find(t => t.id === tabId);
     if (!tab) return;
     const nextHidden = !tab.hidden;
-    setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, hidden: nextHidden } : t)));
+    setCustomTabs(prev => {
+      const next = prev.map(t => (t.id === tabId ? { ...t, hidden: nextHidden } : t));
+      debugLogCustomTabs('handleToggleHideCustomTab optimistic', next);
+      return next;
+    });
     try {
       const accessToken = session?.access_token ?? '';
       const res = await fetch(`${SERVER_BASE}/notes/${tabId}`, {
@@ -611,7 +634,11 @@ export function SessionCharactersPanel() {
       if (!res.ok) throw new Error('PUT hidden failed');
     } catch (err) {
       console.error('Errore nascondi tab:', err);
-      setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, hidden: !nextHidden } : t)));
+      setCustomTabs(prev => {
+        const next = prev.map(t => (t.id === tabId ? { ...t, hidden: !nextHidden } : t));
+        debugLogCustomTabs('handleToggleHideCustomTab rollback', next);
+        return next;
+      });
     }
   };
 
@@ -623,7 +650,11 @@ export function SessionCharactersPanel() {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      setCustomTabs(prev => prev.filter(t => t.id !== tabId));
+      setCustomTabs(prev => {
+        const next = prev.filter(t => t.id !== tabId);
+        debugLogCustomTabs('handleDeleteCustomTab', next);
+        return next;
+      });
       setTabOrder(prev => {
         const next = prev.filter(id => id !== tabId);
         persistTabOrder(next);
@@ -639,7 +670,11 @@ export function SessionCharactersPanel() {
 
   const customTabSaveTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const handleCustomTabContentChange = (tabId: string, content: string) => {
-    setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, content } : t)));
+    setCustomTabs(prev => {
+      const next = prev.map(t => (t.id === tabId ? { ...t, content } : t));
+      debugLogCustomTabs('handleCustomTabContentChange', next);
+      return next;
+    });
     if (customTabSaveTimerRef.current[tabId]) clearTimeout(customTabSaveTimerRef.current[tabId]);
     customTabSaveTimerRef.current[tabId] = setTimeout(async () => {
       try {
