@@ -215,10 +215,9 @@ export function SessionCharactersPanel() {
   const [openMenuTabId, setOpenMenuTabId] = useState<string | null>(null);
   const [confirmDeleteTabId, setConfirmDeleteTabId] = useState<string | null>(null);
   const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | 'END' | null>(null);
   const tabsContainerRef = useRef<HTMLDivElement | null>(null);
-  const dragOverIndexRef = useRef<number | null>(null);
-  const dragSourceIndexRef = useRef<number | null>(null);
+  const dragOverIdRef = useRef<string | 'END' | null>(null);
   const [expandedAmbito, setExpandedAmbito] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState({ pg: true, png: true, mostro: true });
   const [charMenuOpen, setCharMenuOpen] = useState(false);
@@ -494,23 +493,25 @@ export function SessionCharactersPanel() {
   useEffect(() => {
     const handleMove = (e: PointerEvent) => {
       if (draggedTabId) {
-        // Drag già attivo: calcola la tab/posizione target come prima
         const container = tabsContainerRef.current;
         if (!container) return;
+        // Esclude la tab trascinata dal calcolo: così il conteggio non si sfalsa
+        // in base alla direzione, ed è simmetrico a sinistra e a destra.
         const tabEls = Array.from(
           container.querySelectorAll<HTMLElement>('[data-tab-id]'),
-        );
-        let newIndex = tabEls.length;
-        for (let i = 0; i < tabEls.length; i++) {
-          const rect = tabEls[i].getBoundingClientRect();
+        ).filter(el => el.dataset.tabId !== draggedTabId);
+
+        let target: string | 'END' = 'END';
+        for (const el of tabEls) {
+          const rect = el.getBoundingClientRect();
           const mid = rect.left + rect.width / 2;
           if (e.clientX < mid) {
-            newIndex = i;
+            target = el.dataset.tabId as string;
             break;
           }
         }
-        dragOverIndexRef.current = newIndex;
-        setDragOverIndex(newIndex);
+        dragOverIdRef.current = target;
+        setDragOverId(target);
         return;
       }
 
@@ -520,27 +521,27 @@ export function SessionCharactersPanel() {
       const dx = e.clientX - start.x;
       const dy = e.clientY - start.y;
       if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD_PX) {
-        dragSourceIndexRef.current = tabOrder.indexOf(start.tabId);
         setDraggedTabId(start.tabId);
       }
     };
 
     const handleUp = () => {
       if (draggedTabId) {
-        const targetIndex = dragOverIndexRef.current;
-        const sourceIndex = dragSourceIndexRef.current;
+        const finalTarget = dragOverIdRef.current;
         setTabOrder(prev => {
-          if (targetIndex === null || sourceIndex === null) return prev;
-          const finalIndex = targetIndex > sourceIndex ? targetIndex - 1 : targetIndex;
           const next = prev.filter(id => id !== draggedTabId);
-          next.splice(finalIndex, 0, draggedTabId);
+          if (finalTarget === 'END' || finalTarget === null) {
+            next.push(draggedTabId);
+          } else {
+            const idx = next.indexOf(finalTarget);
+            next.splice(idx === -1 ? next.length : idx, 0, draggedTabId);
+          }
           persistTabOrder(next);
           return next;
         });
         setDraggedTabId(null);
-        setDragOverIndex(null);
-        dragOverIndexRef.current = null;
-        dragSourceIndexRef.current = null;
+        setDragOverId(null);
+        dragOverIdRef.current = null;
       }
       // Se non era mai partito il drag, non facciamo nulla: il click sulla tab
       // ha già funzionato normalmente tramite il suo onClick.
@@ -880,7 +881,7 @@ export function SessionCharactersPanel() {
                 draggedTabId ? 'pointer-events-none select-none' : ''
               }`}
             >
-              {orderedTabs.map((tab, idx) => (
+              {orderedTabs.map((tab) => (
                 <div
                   key={tab.id}
                   data-tab-id={tab.id}
@@ -888,7 +889,7 @@ export function SessionCharactersPanel() {
                   className={`group relative flex items-center ${
                     draggedTabId === tab.id ? 'opacity-40' : ''
                   } ${
-                    dragOverIndex === idx && draggedTabId && draggedTabId !== tab.id
+                    dragOverId === tab.id && draggedTabId && draggedTabId !== tab.id
                       ? 'border-l-2 border-[var(--dash-accent)] pl-1'
                       : ''
                   }`}
@@ -979,7 +980,7 @@ export function SessionCharactersPanel() {
                 </div>
               ))}
 
-              {draggedTabId && dragOverIndex === orderedTabs.length && (
+              {draggedTabId && dragOverId === 'END' && (
                 <div className="h-6 w-0.5 rounded bg-[var(--dash-accent)]" />
               )}
 
