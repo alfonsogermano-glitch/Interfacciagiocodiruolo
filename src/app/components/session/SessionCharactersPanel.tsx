@@ -18,6 +18,7 @@ import {
   deleteNPC, deleteMonster,
   unassignNPCFromCampaign, unassignMonsterFromCampaign,
   copyNPCToCampaign, copyMonsterToCampaign,
+  toCamelCase,
 } from '../../../services/supabase/entitiesService';
 import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
@@ -284,29 +285,57 @@ export function SessionCharactersPanel() {
 
     const handleBroadcast = (msg: any) => {
       const data = msg?.payload ?? {};
+      const table = data.table;
+
       if (data.operation === 'DELETE') {
         const deletedId = data.old_record?.id;
         if (!deletedId) return;
-        setCharacters(prev => prev.filter(c => c.id !== deletedId));
+        if (table === 'characters') {
+          setCharacters(prev => prev.filter(c => c.id !== deletedId));
+        } else if (table === 'npcs') {
+          setNpcs(prev => prev.filter(n => n.id !== deletedId));
+        } else if (table === 'monsters') {
+          setMonsters(prev => prev.filter(m => m.id !== deletedId));
+        } else {
+          console.warn('[handleBroadcast] tabella non gestita:', table);
+        }
         return;
       }
+
       const row = data.record;
       if (!row) return;
       const lastLocalEdit = recentLocalEditRef.current[row.id];
       if (lastLocalEdit && Date.now() - lastLocalEdit < 1200) {
         return;
       }
-      const mapped = mapRowToCharacter(row) as PlayerCharacter;
-      setCharacters(prev => {
-        const exists = prev.some(c => c.id === mapped.id);
-        return exists
-          ? prev.map(c => (c.id === mapped.id ? {
-              ...mapped,
-              ownerDisplayName: (c as any).ownerDisplayName,
-              ownerAvatarUrl: (c as any).ownerAvatarUrl,
-            } : c))
-          : [...prev, mapped];
-      });
+
+      if (table === 'characters') {
+        const mapped = mapRowToCharacter(row) as PlayerCharacter;
+        setCharacters(prev => {
+          const exists = prev.some(c => c.id === mapped.id);
+          return exists
+            ? prev.map(c => (c.id === mapped.id ? {
+                ...mapped,
+                ownerDisplayName: (c as any).ownerDisplayName,
+                ownerAvatarUrl: (c as any).ownerAvatarUrl,
+              } : c))
+            : [...prev, mapped];
+        });
+      } else if (table === 'npcs') {
+        const mapped = toCamelCase(row);
+        setNpcs(prev => {
+          const exists = prev.some(n => n.id === mapped.id);
+          return exists ? prev.map(n => (n.id === mapped.id ? mapped : n)) : [...prev, mapped];
+        });
+      } else if (table === 'monsters') {
+        const mapped = toCamelCase(row);
+        setMonsters(prev => {
+          const exists = prev.some(m => m.id === mapped.id);
+          return exists ? prev.map(m => (m.id === mapped.id ? mapped : m)) : [...prev, mapped];
+        });
+      } else {
+        console.warn('[handleBroadcast] tabella non gestita:', table);
+      }
     };
 
     (async () => {
@@ -532,9 +561,9 @@ export function SessionCharactersPanel() {
       onClick: () => {},
     },
     {
-      key: 'visible-to-players',
-      icon: entity.visibleToPlayers ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />,
-      label: 'Visibile ai giocatori',
+      key: 'toggle-visibility',
+      icon: entity.visibleToPlayers ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />,
+      label: entity.visibleToPlayers ? 'Rendi invisibile ai giocatori' : 'Rendi visibile ai giocatori',
       onClick: handleToggleVisibleToPlayers,
     },
   ];

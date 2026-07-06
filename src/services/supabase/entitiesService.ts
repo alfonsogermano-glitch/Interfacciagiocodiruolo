@@ -205,6 +205,8 @@ function toCamelCase(obj: any): any {
   return camelCased;
 }
 
+export { toCamelCase };
+
 // ============= NPC =============
 
 export interface NPC {
