@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { User, Brain, ChevronDown, ChevronRight, Loader2, Skull, Ghost, Heart, Star } from 'lucide-react';
-import { Copy, UserMinus, UserX, Eye, EyeOff, Search } from 'lucide-react';
+import { Copy, UserMinus, UserX, Eye, EyeOff, Search, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/paletteColors';
 import { projectId } from '/utils/supabase/info';
@@ -16,6 +16,7 @@ import {
   loadNPCs, loadMonsters,
   saveNPC, saveMonster,
   deleteNPC, deleteMonster,
+  unassignNPCFromCampaign, unassignMonsterFromCampaign,
   copyNPCToCampaign, copyMonsterToCampaign,
 } from '../../../services/supabase/entitiesService';
 import { useAuth, supabase } from '../../auth/AuthContext';
@@ -236,7 +237,8 @@ export function SessionCharactersPanel() {
   const [openSections, setOpenSections] = useState({ pg: true, png: true, mostro: true });
   const [confirmRemoveChar, setConfirmRemoveChar] = useState(false);
   const [confirmRemovePlayer, setConfirmRemovePlayer] = useState(false);
-  const [confirmRemoveEntity, setConfirmRemoveEntity] = useState(false);
+  const [confirmUnassignEntity, setConfirmUnassignEntity] = useState(false);
+  const [confirmDeleteEntity, setConfirmDeleteEntity] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showCopyDialog, setShowCopyDialog] = useState(false);
   const [copyTargetId, setCopyTargetId] = useState<string | null>(null);
@@ -430,14 +432,44 @@ export function SessionCharactersPanel() {
     }
   };
 
-  const handleRemoveNpcOrMonster = async () => {
+  // Scollega l'entità dalla campagna corrente senza eliminarla: resta nel
+  // catalogo, riassegnabile in futuro da NPCManager/MonstersManager.
+  const handleUnassignNpcOrMonster = async () => {
     setActionError(null);
     try {
       if (selected?.kind === 'png' && selectedNpc) {
+        await unassignNPCFromCampaign(selectedNpc.id);
+        setNpcs(prev => prev.filter(n => n.id !== selectedNpc.id));
+        setSelected(null);
+      } else if (selected?.kind === 'mostro' && selectedMonster) {
+        await unassignMonsterFromCampaign(selectedMonster.id);
+        setMonsters(prev => prev.filter(m => m.id !== selectedMonster.id));
+        setSelected(null);
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setConfirmUnassignEntity(false);
+    }
+  };
+
+  // Eliminazione definitiva: cancella anche le tab personalizzate associate
+  // (comprese quelle nascoste), come promesso nel ConfirmDialog.
+  const handleDeleteNpcOrMonster = async () => {
+    setActionError(null);
+    try {
+      const accessToken = session?.access_token ?? '';
+      if (selected?.kind === 'png' && selectedNpc) {
+        await Promise.all(npcTabs.customTabs.map(tab =>
+          fetch(`${SERVER_BASE}/notes/${tab.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${accessToken}` } })
+        ));
         await deleteNPC(selectedNpc.id);
         setNpcs(prev => prev.filter(n => n.id !== selectedNpc.id));
         setSelected(null);
       } else if (selected?.kind === 'mostro' && selectedMonster) {
+        await Promise.all(monsterTabs.customTabs.map(tab =>
+          fetch(`${SERVER_BASE}/notes/${tab.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${accessToken}` } })
+        ));
         await deleteMonster(selectedMonster.id);
         setMonsters(prev => prev.filter(m => m.id !== selectedMonster.id));
         setSelected(null);
@@ -445,7 +477,7 @@ export function SessionCharactersPanel() {
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err));
     } finally {
-      setConfirmRemoveEntity(false);
+      setConfirmDeleteEntity(false);
     }
   };
 
@@ -473,7 +505,7 @@ export function SessionCharactersPanel() {
     }
   };
 
-  const buildEntityMenuItems = (entity: any, removeLabel: string) => [
+  const buildEntityMenuItems = (entity: any, deleteLabel: string) => [
     {
       key: 'copy',
       icon: <Copy className="h-4 w-4" />,
@@ -481,10 +513,16 @@ export function SessionCharactersPanel() {
       onClick: () => setShowCopyDialog(true),
     },
     {
-      key: 'remove',
+      key: 'unassign',
       icon: <UserMinus className="h-4 w-4" />,
-      label: removeLabel,
-      onClick: () => setConfirmRemoveEntity(true),
+      label: 'Rimuovi dalla campagna',
+      onClick: () => setConfirmUnassignEntity(true),
+    },
+    {
+      key: 'delete',
+      icon: <Trash2 className="h-4 w-4" />,
+      label: deleteLabel,
+      onClick: () => setConfirmDeleteEntity(true),
       danger: true,
     },
     {
@@ -950,7 +988,7 @@ export function SessionCharactersPanel() {
               {isOwner && (
                 <EntityKebabMenu
                   colors={menuColors}
-                  items={buildEntityMenuItems(selectedNpc, 'Rimuovi il PNG')}
+                  items={buildEntityMenuItems(selectedNpc, 'Elimina il PNG')}
                   footer={entityMenuFooter(selectedNpc)}
                 />
               )}
@@ -1031,7 +1069,7 @@ export function SessionCharactersPanel() {
               {isOwner && (
                 <EntityKebabMenu
                   colors={menuColors}
-                  items={buildEntityMenuItems(selectedMonster, 'Rimuovi il mostro')}
+                  items={buildEntityMenuItems(selectedMonster, 'Elimina il mostro')}
                   footer={entityMenuFooter(selectedMonster)}
                 />
               )}
@@ -1107,13 +1145,23 @@ export function SessionCharactersPanel() {
         onCancel={() => setConfirmRemovePlayer(false)}
       />
     )}
-    {confirmRemoveEntity && (
+    {confirmUnassignEntity && (
       <ConfirmDialog
         title={`Rimuovere ${selected?.kind === 'mostro' ? 'il mostro' : 'il PNG'} dalla campagna?`}
-        message="L'entità verrà eliminata definitivamente da questa campagna. L'azione non è reversibile."
+        message="Non verrà eliminato: resterà nel catalogo e potrà essere riassegnato in futuro da PNG/Mostri."
         confirmLabel="Rimuovi"
-        onConfirm={handleRemoveNpcOrMonster}
-        onCancel={() => setConfirmRemoveEntity(false)}
+        danger={false}
+        onConfirm={handleUnassignNpcOrMonster}
+        onCancel={() => setConfirmUnassignEntity(false)}
+      />
+    )}
+    {confirmDeleteEntity && (
+      <ConfirmDialog
+        title={`Eliminare definitivamente ${(selected?.kind === 'mostro' ? selectedMonster?.name : selectedNpc?.name) ?? ''}?`}
+        message="Questa azione non può essere annullata e cancellerà anche tutte le sue tab, comprese quelle nascoste."
+        confirmLabel="Elimina definitivamente"
+        onConfirm={handleDeleteNpcOrMonster}
+        onCancel={() => setConfirmDeleteEntity(false)}
       />
     )}
     {showCopyDialog && (

@@ -339,6 +339,17 @@ export async function deleteNPC(npcId: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function unassignNPCFromCampaign(npcId: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase non configurato');
+
+  const { error } = await supabase
+    .from('npcs')
+    .update({ campaign_id: null })
+    .eq('id', npcId);
+
+  if (error) throw error;
+}
+
 export async function copyNPCToCampaign(npcId: string, targetCampaignId: string): Promise<void> {
   if (!supabase) throw new Error('Supabase non configurato');
 
@@ -612,6 +623,17 @@ export async function deleteMonster(monsterId: string): Promise<void> {
   const { error } = await supabase
     .from('monsters')
     .delete()
+    .eq('id', monsterId);
+
+  if (error) throw error;
+}
+
+export async function unassignMonsterFromCampaign(monsterId: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase non configurato');
+
+  const { error } = await supabase
+    .from('monsters')
+    .update({ campaign_id: null })
     .eq('id', monsterId);
 
   if (error) throw error;
