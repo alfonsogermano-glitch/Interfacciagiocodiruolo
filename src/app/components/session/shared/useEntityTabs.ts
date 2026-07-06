@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { projectId } from '/utils/supabase/info';
+import { supabase } from '../../../auth/AuthContext';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
@@ -64,6 +65,7 @@ export function useEntityTabs({
   const dragOverIdRef = useRef<string | 'END' | null>(null);
   const pointerStartRef = useRef<{ x: number; y: number; tabId: string } | null>(null);
   const customTabSaveTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const recentLocalEditRef = useRef<Record<string, number>>({});
 
   // Fetch delle note (tab personalizzate) dell'entità selezionata
   useEffect(() => {
@@ -92,6 +94,58 @@ export function useEntityTabs({
     })();
     return () => { cancelled = true; };
   }, [entityId, campaignId, accessToken, entityType]);
+
+  // Realtime: propaga creazione/modifica/eliminazione di tab fatte da altri
+  // client (es. il GM) verso chiunque stia guardando la stessa entità.
+  // Riusa lo stesso canale campaign:{campaignId} già usato per
+  // characters/npcs/monsters (stessa convenzione: un topic per campagna),
+  // filtrando qui per tabella e per entity_type/entity_id.
+  useEffect(() => {
+    if (!campaignId || !entityId) return;
+    let currentChannel: ReturnType<typeof supabase.channel> | null = null;
+
+    const matchesThisEntity = (record: any) =>
+      !!record && record.entity_type === entityType && record.entity_id === entityId;
+
+    const handleBroadcast = (msg: any) => {
+      const data = msg?.payload ?? {};
+      if (data.table !== 'entity_notes') return;
+
+      if (data.operation === 'DELETE') {
+        if (!matchesThisEntity(data.old_record)) return;
+        const deletedId = data.old_record?.id;
+        if (!deletedId) return;
+        setCustomTabs(prev => prev.filter(t => t.id !== deletedId));
+        return;
+      }
+
+      const row = data.record;
+      if (!matchesThisEntity(row)) return;
+      const lastLocalEdit = recentLocalEditRef.current[row.id];
+      if (lastLocalEdit && Date.now() - lastLocalEdit < 1200) return;
+
+      const mapped: EntityCustomTab = { ...row, hidden: row.hidden ?? false };
+      setCustomTabs(prev => {
+        const exists = prev.some(t => t.id === mapped.id);
+        return exists ? prev.map(t => (t.id === mapped.id ? mapped : t)) : [...prev, mapped];
+      });
+    };
+
+    (async () => {
+      await supabase.realtime.setAuth();
+      const ch = supabase
+        .channel(`campaign:${campaignId}`, { config: { private: true } })
+        .on('broadcast', { event: 'INSERT' }, handleBroadcast)
+        .on('broadcast', { event: 'UPDATE' }, handleBroadcast)
+        .on('broadcast', { event: 'DELETE' }, handleBroadcast)
+        .subscribe();
+      currentChannel = ch;
+    })();
+
+    return () => {
+      if (currentChannel) { try { supabase.removeChannel(currentChannel); } catch {} }
+    };
+  }, [campaignId, entityId, entityType]);
 
   // Riconcilia tabOrder ogni volta che cambiano entità o tab custom:
   // parte dall'ordine salvato (o da quello base), scarta id non più esistenti,
@@ -203,6 +257,7 @@ export function useEntityTabs({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
+      recentLocalEditRef.current[data.note.id] = Date.now();
       setCustomTabs(prev => [...prev, { ...data.note, hidden: data.note.hidden ?? false }]);
       setCurrentTab(data.note.id);
       // Entra subito in rinomina: il "+" crea e si passa direttamente al nome
@@ -215,6 +270,7 @@ export function useEntityTabs({
 
   const handleRenameCustomTab = async (tabId: string) => {
     if (!renameDraft.trim()) { setRenamingTabId(null); return; }
+    recentLocalEditRef.current[tabId] = Date.now();
     try {
       const res = await fetch(`${SERVER_BASE}/notes/${tabId}`, {
         method: 'PUT',
@@ -236,6 +292,7 @@ export function useEntityTabs({
     const tab = customTabs.find(t => t.id === tabId);
     if (!tab) return;
     const nextHidden = !tab.hidden;
+    recentLocalEditRef.current[tabId] = Date.now();
     setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, hidden: nextHidden } : t)));
     try {
       const res = await fetch(`${SERVER_BASE}/notes/${tabId}`, {
@@ -252,6 +309,7 @@ export function useEntityTabs({
 
   // Chiamata SOLO dopo conferma nel ConfirmDialog (niente più window.confirm)
   const handleDeleteCustomTab = async (tabId: string) => {
+    recentLocalEditRef.current[tabId] = Date.now();
     try {
       const accessTokenValue = accessToken ?? '';
       await fetch(`${SERVER_BASE}/notes/${tabId}`, {
@@ -273,6 +331,7 @@ export function useEntityTabs({
   };
 
   const handleCustomTabContentChange = (tabId: string, content: string) => {
+    recentLocalEditRef.current[tabId] = Date.now();
     setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, content } : t)));
     if (customTabSaveTimerRef.current[tabId]) clearTimeout(customTabSaveTimerRef.current[tabId]);
     customTabSaveTimerRef.current[tabId] = setTimeout(async () => {

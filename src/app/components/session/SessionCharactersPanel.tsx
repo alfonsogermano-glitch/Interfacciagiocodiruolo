@@ -296,6 +296,8 @@ export function SessionCharactersPanel() {
           setNpcs(prev => prev.filter(n => n.id !== deletedId));
         } else if (table === 'monsters') {
           setMonsters(prev => prev.filter(m => m.id !== deletedId));
+        } else if (table === 'entity_notes') {
+          // Gestito dentro useEntityTabs (sottoscrizione dedicata), non qui.
         } else {
           console.warn('[handleBroadcast] tabella non gestita:', table);
         }
@@ -333,6 +335,8 @@ export function SessionCharactersPanel() {
           const exists = prev.some(m => m.id === mapped.id);
           return exists ? prev.map(m => (m.id === mapped.id ? mapped : m)) : [...prev, mapped];
         });
+      } else if (table === 'entity_notes') {
+        // Gestito dentro useEntityTabs (sottoscrizione dedicata), non qui.
       } else {
         console.warn('[handleBroadcast] tabella non gestita:', table);
       }
