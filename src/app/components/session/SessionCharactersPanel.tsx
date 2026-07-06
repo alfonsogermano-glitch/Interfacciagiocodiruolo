@@ -495,11 +495,9 @@ export function SessionCharactersPanel() {
       if (draggedTabId) {
         const container = tabsContainerRef.current;
         if (!container) return;
-        // Esclude la tab trascinata dal calcolo: così il conteggio non si sfalsa
-        // in base alla direzione, ed è simmetrico a sinistra e a destra.
         const tabEls = Array.from(
           container.querySelectorAll<HTMLElement>('[data-tab-id]'),
-        ).filter(el => el.dataset.tabId !== draggedTabId);
+        );
 
         let target: string | 'END' = 'END';
         for (const el of tabEls) {
@@ -529,6 +527,7 @@ export function SessionCharactersPanel() {
       if (draggedTabId) {
         const finalTarget = dragOverIdRef.current;
         setTabOrder(prev => {
+          if (finalTarget === draggedTabId) return prev; // resta ferma, nessun riordino
           const next = prev.filter(id => id !== draggedTabId);
           if (finalTarget === 'END' || finalTarget === null) {
             next.push(draggedTabId);
@@ -889,7 +888,7 @@ export function SessionCharactersPanel() {
                   className={`group relative flex items-center ${
                     draggedTabId === tab.id ? 'opacity-40' : ''
                   } ${
-                    dragOverId === tab.id && draggedTabId && draggedTabId !== tab.id
+                    dragOverId === tab.id
                       ? 'border-l-2 border-[var(--dash-accent)] pl-1'
                       : ''
                   }`}
