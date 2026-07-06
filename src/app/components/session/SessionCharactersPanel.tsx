@@ -844,31 +844,33 @@ export function SessionCharactersPanel() {
                       >
                         <div className="truncate text-[10px] uppercase tracking-[0.05em] text-[var(--dash-accent-2)]">{ambito}</div>
                         <div className="mt-0.5 flex items-center justify-between gap-1">
-                          {canEdit && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updateSelectedCharAmbito(selectedChar.id, ambito, -1);
-                              }}
-                              className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-xs text-[var(--dash-text-strong)] hover:bg-[var(--dash-panel)]"
-                            >
-                              −
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            tabIndex={canEdit ? 0 : -1}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateSelectedCharAmbito(selectedChar.id, ambito, -1);
+                            }}
+                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-xs text-[var(--dash-text-strong)] hover:bg-[var(--dash-panel)] ${
+                              canEdit ? '' : 'invisible'
+                            }`}
+                          >
+                            −
+                          </button>
                           <span className="text-lg font-semibold text-[var(--dash-text-strong)]">{value}</span>
-                          {canEdit && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updateSelectedCharAmbito(selectedChar.id, ambito, 1);
-                              }}
-                              className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-xs text-[var(--dash-text-strong)] hover:bg-[var(--dash-accent-2)]"
-                            >
-                              +
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            tabIndex={canEdit ? 0 : -1}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateSelectedCharAmbito(selectedChar.id, ambito, 1);
+                            }}
+                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-xs text-[var(--dash-text-strong)] hover:bg-[var(--dash-accent-2)] ${
+                              canEdit ? '' : 'invisible'
+                            }`}
+                          >
+                            +
+                          </button>
                         </div>
                       </div>
                     );
