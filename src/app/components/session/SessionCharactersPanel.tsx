@@ -732,7 +732,8 @@ export function SessionCharactersPanel() {
         {!selected ? (
           <div className="flex h-full items-center justify-center text-sm text-[var(--dash-muted)]">Seleziona una scheda dalla lista</div>
         ) : selectedChar ? (
-          <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-90' : ''}>
+          <>
+            <div className={!canEdit ? 'opacity-90' : ''}>
             <div className="mb-4 flex items-start gap-4">
               <DraggablePortrait
                 url={selectedChar.portraitCroppedImageUrl || selectedChar.portraitImageUrl}
@@ -820,9 +821,11 @@ export function SessionCharactersPanel() {
                 Puoi visualizzare questo personaggio ma non modificarlo.
               </div>
             )}
+            </div>
 
             <EntityTabBar canEdit={canEdit} tabs={charTabs} />
 
+            <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-90' : ''}>
             {charTabs.currentTab === 'summary' && isHSC && (
               <div className="space-y-4">
                 <div className="grid grid-cols-4 gap-2">
@@ -1000,9 +1003,11 @@ export function SessionCharactersPanel() {
                 />
               ) : null
             )}
-          </fieldset>
+            </fieldset>
+          </>
         ) : selectedNpc ? (
-          <fieldset disabled={!isOwner} className={!isOwner ? 'opacity-90' : ''}>
+          <>
+            <div className={!isOwner ? 'opacity-90' : ''}>
             <div className="mb-4 flex items-start gap-3">
               <DraggablePortrait
                 url={selectedNpc.portraitCroppedImageUrl || selectedNpc.portraitImageUrl}
@@ -1030,9 +1035,11 @@ export function SessionCharactersPanel() {
                 Puoi visualizzare questa scheda ma non modificarla.
               </div>
             )}
+            </div>
 
             <EntityTabBar canEdit={isOwner} tabs={npcTabs} />
 
+            <fieldset disabled={!isOwner} className={!isOwner ? 'opacity-90' : ''}>
             {npcTabs.currentTab === 'summary' && (
               <div className="space-y-3 text-sm">
                 {selectedNpc.description && (
@@ -1084,9 +1091,11 @@ export function SessionCharactersPanel() {
                 />
               ) : null
             )}
-          </fieldset>
+            </fieldset>
+          </>
         ) : selectedMonster ? (
-          <fieldset disabled={!isOwner} className={!isOwner ? 'opacity-90' : ''}>
+          <>
+            <div className={!isOwner ? 'opacity-90' : ''}>
             <div className="mb-4 flex items-start gap-3">
               <DraggablePortrait
                 url={selectedMonster.portraitImageUrl}
@@ -1111,9 +1120,11 @@ export function SessionCharactersPanel() {
                 Puoi visualizzare questa scheda ma non modificarla.
               </div>
             )}
+            </div>
 
             <EntityTabBar canEdit={isOwner} tabs={monsterTabs} />
 
+            <fieldset disabled={!isOwner} className={!isOwner ? 'opacity-90' : ''}>
             {monsterTabs.currentTab === 'summary' && (
               <div className="space-y-3 text-sm">
                 {selectedMonster.description && (
@@ -1151,7 +1162,8 @@ export function SessionCharactersPanel() {
                 />
               ) : null
             )}
-          </fieldset>
+            </fieldset>
+          </>
         ) : null}
       </div>
     </div>
