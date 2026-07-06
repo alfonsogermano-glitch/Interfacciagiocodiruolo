@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { User, Brain, ChevronDown, ChevronRight, Loader2, Skull, Ghost, Heart, Star } from 'lucide-react';
-import { Copy, UserMinus, UserX } from 'lucide-react';
+import { Copy, UserMinus, UserX, Eye, EyeOff, Search } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/paletteColors';
 import { projectId } from '/utils/supabase/info';
@@ -12,7 +12,12 @@ import { TurbePanel } from '../TurbePanel';
 import { EquipmentPanel as LegacyEquipmentPanel } from '../EquipmentPanel';
 import type { Character } from '../../../types/character';
 import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, mapRowToCharacter } from '../../../services/supabase/charactersService';
-import { loadNPCs, loadMonsters } from '../../../services/supabase/entitiesService';
+import {
+  loadNPCs, loadMonsters,
+  saveNPC, saveMonster,
+  deleteNPC, deleteMonster,
+  copyNPCToCampaign, copyMonsterToCampaign,
+} from '../../../services/supabase/entitiesService';
 import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useRuleset } from '../../campaigns/RulesetContext';
@@ -33,6 +38,7 @@ interface ListEntry {
   subtitle: string;
   portraitUrl?: string;
   ownerProfileId?: string | null;
+  hiddenFromPlayers?: boolean;
 }
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
@@ -69,6 +75,12 @@ const BASE_TABS = [
   { id: 'summary', label: 'Riepilogo' },
   { id: 'conditions', label: 'Condizioni & Follia' },
   { id: 'equipment', label: 'Equipaggiamento' },
+] as const;
+
+// Per ora PNG e Mostri hanno solo la tab "Riepilogo": altre eventuali tab
+// base verranno aggiunte in seguito.
+const NPC_MONSTER_BASE_TABS = [
+  { id: 'summary', label: 'Riepilogo' },
 ] as const;
 
 function AbilitaDots({ value, onChange, disabled }: { value: number; onChange: (v: number) => void; disabled: boolean }) {
@@ -131,12 +143,16 @@ function DraggablePortrait({
   size = 56,
   draggable,
   onDragStart,
+  hiddenFromPlayers = false,
+  hiddenBadgePosition = 'top-right',
 }: {
   url?: string;
   fallbackIcon: React.ReactNode;
   size?: number;
   draggable: boolean;
   onDragStart?: (e: React.DragEvent) => void;
+  hiddenFromPlayers?: boolean;
+  hiddenBadgePosition?: 'center' | 'top-right';
 }) {
   const dragGhostRef = useRef<HTMLImageElement | null>(null);
 
@@ -171,6 +187,15 @@ function DraggablePortrait({
               <div className="flex h-full w-full items-center justify-center bg-[var(--dash-input)]">{fallbackIcon}</div>
             )}
           </div>
+        </div>
+      )}
+      {hiddenFromPlayers && (
+        <div
+          className={`pointer-events-none absolute flex items-center justify-center rounded-full bg-black/70 ${
+            hiddenBadgePosition === 'center' ? 'inset-0 m-auto h-5 w-5' : 'right-0.5 top-0.5 h-5 w-5'
+          }`}
+        >
+          <EyeOff className="h-3 w-3 text-white" />
         </div>
       )}
       {url && draggable && createPortal(
@@ -211,6 +236,7 @@ export function SessionCharactersPanel() {
   const [openSections, setOpenSections] = useState({ pg: true, png: true, mostro: true });
   const [confirmRemoveChar, setConfirmRemoveChar] = useState(false);
   const [confirmRemovePlayer, setConfirmRemovePlayer] = useState(false);
+  const [confirmRemoveEntity, setConfirmRemoveEntity] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showCopyDialog, setShowCopyDialog] = useState(false);
   const [copyTargetId, setCopyTargetId] = useState<string | null>(null);
@@ -335,18 +361,24 @@ export function SessionCharactersPanel() {
   );
 
   const handleConfirmCopy = async () => {
-    if (!selectedChar || !copyTargetId) return;
+    if (!selected || !copyTargetId) return;
     setIsCopying(true);
     setActionError(null);
     try {
-      const accessToken = session?.access_token ?? '';
-      const res = await fetch(`${SERVER_BASE}/characters/${selectedChar.id}/copy-to-campaign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ campaignId: copyTargetId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Errore durante la copia');
+      if (selected.kind === 'pg') {
+        const accessToken = session?.access_token ?? '';
+        const res = await fetch(`${SERVER_BASE}/characters/${selected.id}/copy-to-campaign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ campaignId: copyTargetId }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? 'Errore durante la copia');
+      } else if (selected.kind === 'png') {
+        await copyNPCToCampaign(selected.id, copyTargetId);
+      } else if (selected.kind === 'mostro') {
+        await copyMonsterToCampaign(selected.id, copyTargetId);
+      }
       setShowCopyDialog(false);
       setCopyTargetId(null);
     } catch (err) {
@@ -398,6 +430,90 @@ export function SessionCharactersPanel() {
     }
   };
 
+  const handleRemoveNpcOrMonster = async () => {
+    setActionError(null);
+    try {
+      if (selected?.kind === 'png' && selectedNpc) {
+        await deleteNPC(selectedNpc.id);
+        setNpcs(prev => prev.filter(n => n.id !== selectedNpc.id));
+        setSelected(null);
+      } else if (selected?.kind === 'mostro' && selectedMonster) {
+        await deleteMonster(selectedMonster.id);
+        setMonsters(prev => prev.filter(m => m.id !== selectedMonster.id));
+        setSelected(null);
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setConfirmRemoveEntity(false);
+    }
+  };
+
+  const handleToggleVisibleToPlayers = async () => {
+    if (selected?.kind === 'png' && selectedNpc) {
+      const nextVisible = !selectedNpc.visibleToPlayers;
+      const updated = { ...selectedNpc, visibleToPlayers: nextVisible };
+      setNpcs(prev => prev.map(n => (n.id === selectedNpc.id ? updated : n)));
+      try {
+        await saveNPC(activeCampaignId, updated);
+      } catch (err) {
+        console.error('Errore aggiornamento visibilità PNG:', err);
+        setNpcs(prev => prev.map(n => (n.id === selectedNpc.id ? selectedNpc : n)));
+      }
+    } else if (selected?.kind === 'mostro' && selectedMonster) {
+      const nextVisible = !selectedMonster.visibleToPlayers;
+      const updated = { ...selectedMonster, visibleToPlayers: nextVisible };
+      setMonsters(prev => prev.map(m => (m.id === selectedMonster.id ? updated : m)));
+      try {
+        await saveMonster(activeCampaignId, updated);
+      } catch (err) {
+        console.error('Errore aggiornamento visibilità mostro:', err);
+        setMonsters(prev => prev.map(m => (m.id === selectedMonster.id ? selectedMonster : m)));
+      }
+    }
+  };
+
+  const buildEntityMenuItems = (entity: any, removeLabel: string) => [
+    {
+      key: 'copy',
+      icon: <Copy className="h-4 w-4" />,
+      label: "Copia in un'altra campagna",
+      onClick: () => setShowCopyDialog(true),
+    },
+    {
+      key: 'remove',
+      icon: <UserMinus className="h-4 w-4" />,
+      label: removeLabel,
+      onClick: () => setConfirmRemoveEntity(true),
+      danger: true,
+    },
+    {
+      key: 'requestable',
+      icon: <Search className="h-4 w-4" />,
+      label: 'Richiedibile',
+      onClick: () => {},
+    },
+    {
+      key: 'visible-to-players',
+      icon: entity.visibleToPlayers ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />,
+      label: 'Visibile ai giocatori',
+      onClick: handleToggleVisibleToPlayers,
+    },
+  ];
+
+  const entityMenuFooter = (entity: any) => (
+    <>
+      {entity.createdAt && (
+        <>
+          <div style={{ borderTop: `1px solid ${menuColors.border}` }} className="my-1" />
+          <div className="px-3 py-1.5 text-[11px]" style={{ color: menuColors.text, opacity: 0.6 }}>
+            Creato il {new Date(entity.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </div>
+        </>
+      )}
+    </>
+  );
+
   const toggleSection = (key: keyof typeof openSections) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
@@ -421,6 +537,40 @@ export function SessionCharactersPanel() {
       updateCharacter(selectedChar.id, { ...selectedChar, tabOrder: order } as any);
     },
   });
+
+  const npcTabs = useEntityTabs({
+    entityType: 'npc',
+    entityId: selectedNpc?.id ?? null,
+    campaignId: activeCampaignId,
+    accessToken: session?.access_token,
+    canEdit: isOwner,
+    baseTabs: NPC_MONSTER_BASE_TABS.map(t => ({ id: t.id, label: t.label })),
+    savedTabOrder: selectedNpc?.tabOrder,
+    onPersistTabOrder: (order) => {
+      if (!selectedNpc) return;
+      setNpcs(prev => prev.map(n => (n.id === selectedNpc.id ? { ...n, tabOrder: order } : n)));
+      saveNPC(activeCampaignId, { ...selectedNpc, tabOrder: order }).catch(err => console.error('Errore salvataggio ordine tab PNG:', err));
+    },
+  });
+
+  const monsterTabs = useEntityTabs({
+    entityType: 'monster',
+    entityId: selectedMonster?.id ?? null,
+    campaignId: activeCampaignId,
+    accessToken: session?.access_token,
+    canEdit: isOwner,
+    baseTabs: NPC_MONSTER_BASE_TABS.map(t => ({ id: t.id, label: t.label })),
+    savedTabOrder: selectedMonster?.tabOrder,
+    onPersistTabOrder: (order) => {
+      if (!selectedMonster) return;
+      setMonsters(prev => prev.map(m => (m.id === selectedMonster.id ? { ...m, tabOrder: order } : m)));
+      saveMonster(activeCampaignId, { ...selectedMonster, tabOrder: order }).catch(err => console.error('Errore salvataggio ordine tab mostro:', err));
+    },
+  });
+
+  // I giocatori (non GM) non vedono affatto in lista i PNG/Mostri non resi visibili
+  const visibleNpcs = isOwner ? npcs : npcs.filter(n => n.visibleToPlayers);
+  const visibleMonsters = isOwner ? monsters : monsters.filter(m => m.visibleToPlayers);
 
   const canDragEntity = (kind: EntityKind, ownerProfileId?: string | null) => {
     if (isOwner) return true; // il GM può trascinare tutto: PG, PNG, Mostri
@@ -457,6 +607,11 @@ export function SessionCharactersPanel() {
             {entry.kind === 'png' ? <Ghost className="h-4 w-4 text-[var(--dash-accent-2)]" /> : entry.kind === 'mostro' ? <Skull className="h-4 w-4 text-[var(--dash-accent-2)]" /> : <User className="h-4 w-4 text-[var(--dash-accent-2)]" />}
           </div>
         )}
+        {entry.hiddenFromPlayers && (
+          <div className="pointer-events-none absolute inset-0 m-auto flex h-4 w-4 items-center justify-center rounded-full bg-black/70">
+            <EyeOff className="h-2.5 w-2.5 text-white" />
+          </div>
+        )}
       </div>
       <div className="min-w-0">
         <div className="truncate text-sm font-medium text-[var(--dash-text-strong)]">{entry.name}</div>
@@ -481,25 +636,27 @@ export function SessionCharactersPanel() {
           </div>
         )}
 
-        <SectionHeader title="PNG" count={npcs.length} isOpen={openSections.png} onToggle={() => toggleSection('png')} />
+        <SectionHeader title="PNG" count={visibleNpcs.length} isOpen={openSections.png} onToggle={() => toggleSection('png')} />
         {openSections.png && (
           <div className="space-y-1 px-2 pb-2">
-            {npcs.map(n => renderListItem({
+            {visibleNpcs.map(n => renderListItem({
               kind: 'png', id: n.id, name: n.name, subtitle: n.role || 'PNG',
               portraitUrl: n.portraitCroppedImageUrl || n.portraitImageUrl,
+              hiddenFromPlayers: !n.visibleToPlayers,
             }))}
-            {npcs.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun PNG.</div>}
+            {visibleNpcs.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun PNG.</div>}
           </div>
         )}
 
-        <SectionHeader title="Mostri" count={monsters.length} isOpen={openSections.mostro} onToggle={() => toggleSection('mostro')} />
+        <SectionHeader title="Mostri" count={visibleMonsters.length} isOpen={openSections.mostro} onToggle={() => toggleSection('mostro')} />
         {openSections.mostro && (
           <div className="space-y-1 px-2 pb-2">
-            {monsters.map(m => renderListItem({
+            {visibleMonsters.map(m => renderListItem({
               kind: 'mostro', id: m.id, name: m.name, subtitle: 'Mostro',
               portraitUrl: m.portraitImageUrl,
+              hiddenFromPlayers: !m.visibleToPlayers,
             }))}
-            {monsters.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun mostro.</div>}
+            {visibleMonsters.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun mostro.</div>}
           </div>
         )}
       </div>
@@ -776,96 +933,160 @@ export function SessionCharactersPanel() {
             )}
           </fieldset>
         ) : selectedNpc ? (
-          <div>
-            <div className="mb-4 flex items-center gap-3">
+          <fieldset disabled={!isOwner} className={!isOwner ? 'opacity-90' : ''}>
+            <div className="mb-4 flex items-start gap-3">
               <DraggablePortrait
                 url={selectedNpc.portraitCroppedImageUrl || selectedNpc.portraitImageUrl}
                 fallbackIcon={<Ghost className="h-6 w-6 text-[var(--dash-accent-2)]" />}
                 size={56}
                 draggable={canDragEntity('png')}
                 onDragStart={(e) => e.dataTransfer.setData('application/x-hollowgate-entity', JSON.stringify({ kind: 'png', id: selectedNpc.id }))}
+                hiddenFromPlayers={!selectedNpc.visibleToPlayers}
               />
-              <div>
+              <div className="min-w-0 flex-1">
                 <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">{selectedNpc.name}</h3>
                 <p className="text-sm text-[var(--dash-muted)]">{selectedNpc.role}</p>
               </div>
-            </div>
-            <div className="space-y-3 text-sm">
-              {selectedNpc.description && (
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
-                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Descrizione</div>
-                  <p className="text-[var(--dash-text)]">{selectedNpc.description}</p>
-                </div>
-              )}
-              {selectedNpc.personality && (
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
-                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Personalità</div>
-                  <p className="text-[var(--dash-text)]">{selectedNpc.personality}</p>
-                </div>
-              )}
-              {isOwner && selectedNpc.secrets && (
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
-                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Segreti (solo GM)</div>
-                  <p className="text-[var(--dash-text)]">{selectedNpc.secrets}</p>
-                </div>
-              )}
-              {(selectedNpc.attacco || selectedNpc.difesa) && (
-                <div className="grid grid-cols-2 gap-3">
-                  {selectedNpc.attacco && (
-                    <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
-                      <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Attacco</div>
-                      <div className="mt-1 text-sm font-semibold text-[var(--dash-text-strong)]">{selectedNpc.attacco}</div>
-                    </div>
-                  )}
-                  {selectedNpc.difesa && (
-                    <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
-                      <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Difesa</div>
-                      <div className="mt-1 text-sm font-semibold text-[var(--dash-text-strong)]">{selectedNpc.difesa}</div>
-                    </div>
-                  )}
-                </div>
+              {isOwner && (
+                <EntityKebabMenu
+                  colors={menuColors}
+                  items={buildEntityMenuItems(selectedNpc, 'Rimuovi il PNG')}
+                  footer={entityMenuFooter(selectedNpc)}
+                />
               )}
             </div>
-          </div>
+
+            {!isOwner && (
+              <div className="mb-4 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-xs text-[var(--dash-muted)]">
+                Puoi visualizzare questa scheda ma non modificarla.
+              </div>
+            )}
+
+            <EntityTabBar canEdit={isOwner} tabs={npcTabs} />
+
+            {npcTabs.currentTab === 'summary' && (
+              <div className="space-y-3 text-sm">
+                {selectedNpc.description && (
+                  <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                    <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Descrizione</div>
+                    <p className="text-[var(--dash-text)]">{selectedNpc.description}</p>
+                  </div>
+                )}
+                {selectedNpc.personality && (
+                  <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                    <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Personalità</div>
+                    <p className="text-[var(--dash-text)]">{selectedNpc.personality}</p>
+                  </div>
+                )}
+                {isOwner && selectedNpc.secrets && (
+                  <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                    <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Segreti (solo GM)</div>
+                    <p className="text-[var(--dash-text)]">{selectedNpc.secrets}</p>
+                  </div>
+                )}
+                {(selectedNpc.attacco || selectedNpc.difesa) && (
+                  <div className="grid grid-cols-2 gap-3">
+                    {selectedNpc.attacco && (
+                      <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
+                        <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Attacco</div>
+                        <div className="mt-1 text-sm font-semibold text-[var(--dash-text-strong)]">{selectedNpc.attacco}</div>
+                      </div>
+                    )}
+                    {selectedNpc.difesa && (
+                      <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
+                        <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Difesa</div>
+                        <div className="mt-1 text-sm font-semibold text-[var(--dash-text-strong)]">{selectedNpc.difesa}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {npcTabs.customTabs.map(tab =>
+              npcTabs.currentTab === tab.id && (isOwner || !tab.hidden) ? (
+                <textarea
+                  key={tab.id}
+                  value={tab.content}
+                  onChange={(e) => npcTabs.handleCustomTabContentChange(tab.id, e.target.value)}
+                  disabled={!isOwner}
+                  placeholder="Scrivi qui..."
+                  className="h-64 w-full resize-none rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4 text-sm text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
+                />
+              ) : null
+            )}
+          </fieldset>
         ) : selectedMonster ? (
-          <div>
-            <div className="mb-4 flex items-center gap-3">
+          <fieldset disabled={!isOwner} className={!isOwner ? 'opacity-90' : ''}>
+            <div className="mb-4 flex items-start gap-3">
               <DraggablePortrait
                 url={selectedMonster.portraitImageUrl}
                 fallbackIcon={<Skull className="h-6 w-6 text-[var(--dash-accent-2)]" />}
                 size={56}
                 draggable={canDragEntity('mostro')}
                 onDragStart={(e) => e.dataTransfer.setData('application/x-hollowgate-entity', JSON.stringify({ kind: 'mostro', id: selectedMonster.id }))}
+                hiddenFromPlayers={!selectedMonster.visibleToPlayers}
               />
-              <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">{selectedMonster.name}</h3>
-            </div>
-            <div className="space-y-3 text-sm">
-              {selectedMonster.description && (
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
-                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Descrizione</div>
-                  <p className="text-[var(--dash-text)]">{selectedMonster.description}</p>
-                </div>
+              <h3 className="min-w-0 flex-1 text-xl font-semibold text-[var(--dash-text-strong)]">{selectedMonster.name}</h3>
+              {isOwner && (
+                <EntityKebabMenu
+                  colors={menuColors}
+                  items={buildEntityMenuItems(selectedMonster, 'Rimuovi il mostro')}
+                  footer={entityMenuFooter(selectedMonster)}
+                />
               )}
-              <div className="grid grid-cols-2 gap-3">
-                {selectedMonster.attacco && (
-                  <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
-                    <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Attacco</div>
-                    <div className="mt-1 text-sm font-semibold text-[var(--dash-text-strong)]">{selectedMonster.attacco}</div>
-                  </div>
-                )}
-                {selectedMonster.difesa && (
-                  <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
-                    <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Difesa</div>
-                    <div className="mt-1 text-sm font-semibold text-[var(--dash-text-strong)]">{selectedMonster.difesa}</div>
-                  </div>
-                )}
-              </div>
             </div>
-          </div>
+
+            {!isOwner && (
+              <div className="mb-4 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-xs text-[var(--dash-muted)]">
+                Puoi visualizzare questa scheda ma non modificarla.
+              </div>
+            )}
+
+            <EntityTabBar canEdit={isOwner} tabs={monsterTabs} />
+
+            {monsterTabs.currentTab === 'summary' && (
+              <div className="space-y-3 text-sm">
+                {selectedMonster.description && (
+                  <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                    <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Descrizione</div>
+                    <p className="text-[var(--dash-text)]">{selectedMonster.description}</p>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  {selectedMonster.attacco && (
+                    <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
+                      <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Attacco</div>
+                      <div className="mt-1 text-sm font-semibold text-[var(--dash-text-strong)]">{selectedMonster.attacco}</div>
+                    </div>
+                  )}
+                  {selectedMonster.difesa && (
+                    <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
+                      <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Difesa</div>
+                      <div className="mt-1 text-sm font-semibold text-[var(--dash-text-strong)]">{selectedMonster.difesa}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {monsterTabs.customTabs.map(tab =>
+              monsterTabs.currentTab === tab.id && (isOwner || !tab.hidden) ? (
+                <textarea
+                  key={tab.id}
+                  value={tab.content}
+                  onChange={(e) => monsterTabs.handleCustomTabContentChange(tab.id, e.target.value)}
+                  disabled={!isOwner}
+                  placeholder="Scrivi qui..."
+                  className="h-64 w-full resize-none rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4 text-sm text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
+                />
+              ) : null
+            )}
+          </fieldset>
         ) : null}
       </div>
     </div>
-    {charTabs.draggedTabId && (
+    {(charTabs.draggedTabId || npcTabs.draggedTabId || monsterTabs.draggedTabId) && (
       <div className="fixed inset-0 z-[9999] cursor-grabbing" />
     )}
     {confirmRemoveChar && (
@@ -886,6 +1107,15 @@ export function SessionCharactersPanel() {
         onCancel={() => setConfirmRemovePlayer(false)}
       />
     )}
+    {confirmRemoveEntity && (
+      <ConfirmDialog
+        title={`Rimuovere ${selected?.kind === 'mostro' ? 'il mostro' : 'il PNG'} dalla campagna?`}
+        message="L'entità verrà eliminata definitivamente da questa campagna. L'azione non è reversibile."
+        confirmLabel="Rimuovi"
+        onConfirm={handleRemoveNpcOrMonster}
+        onCancel={() => setConfirmRemoveEntity(false)}
+      />
+    )}
     {showCopyDialog && (
       <div
         className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/80 p-4"
@@ -900,7 +1130,7 @@ export function SessionCharactersPanel() {
             Copia in un'altra campagna
           </h3>
           <p className="mb-4 text-sm" style={{ color: menuColors.text, opacity: 0.75 }}>
-            Scegli la campagna di destinazione. Verrà creata una copia del personaggio; l'originale resterà qui invariato.
+            Scegli la campagna di destinazione. Verrà creata una copia; l'originale resterà qui invariato.
           </p>
 
           <div className="mb-4 max-h-56 space-y-1 overflow-y-auto">

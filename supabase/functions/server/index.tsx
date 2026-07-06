@@ -617,13 +617,24 @@ async function canAccessEntityNotes(
   const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
   const isGm = myCampaigns.some((camp) => camp.id === campaignId);
   if (isGm) return true;
-  if (entityType !== 'character') return false; // PNG/Mostro: solo GM
-  const { data: character } = await admin
-    .from('characters')
-    .select('owner_profile_id')
+  if (entityType === 'character') {
+    const { data: character } = await admin
+      .from('characters')
+      .select('owner_profile_id')
+      .eq('id', entityId)
+      .single();
+    return !!character && character.owner_profile_id === userId;
+  }
+  // PNG/Mostro: un giocatore (non GM) può leggere le note solo se l'entità
+  // è stata resa visibile ai giocatori.
+  const table = entityType === 'npc' ? 'npcs' : entityType === 'monster' ? 'monsters' : null;
+  if (!table) return false;
+  const { data: entity } = await admin
+    .from(table)
+    .select('visible_to_players')
     .eq('id', entityId)
     .single();
-  return !!character && character.owner_profile_id === userId;
+  return !!entity && entity.visible_to_players === true;
 }
 
 app.get("/make-server-771c5bfd/campaigns/:campaignId/notes", async (c) => {

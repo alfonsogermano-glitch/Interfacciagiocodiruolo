@@ -249,6 +249,10 @@ export interface NPC {
   imageUrl?: string;
   tags?: string[];
   notes?: string;
+
+  visibleToPlayers?: boolean;
+  tabOrder?: string[];
+  createdAt?: string;
 }
 
 export async function loadNPCs(campaignId: string): Promise<NPC[]> {
@@ -335,6 +339,25 @@ export async function deleteNPC(npcId: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function copyNPCToCampaign(npcId: string, targetCampaignId: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase non configurato');
+
+  const { data: original, error: fetchError } = await supabase
+    .from('npcs')
+    .select('*')
+    .eq('id', npcId)
+    .single();
+
+  if (fetchError || !original) throw fetchError ?? new Error('PNG non trovato');
+
+  const { id, created_at, updated_at, ...rest } = original as any;
+  const { error } = await supabase
+    .from('npcs')
+    .insert({ ...rest, campaign_id: targetCampaignId });
+
+  if (error) throw error;
+}
+
 // ============= MOSTRI =============
 
 export interface Monster {
@@ -413,6 +436,9 @@ export interface Monster {
 
   createdAt: string;
   updatedAt: string;
+
+  visibleToPlayers?: boolean;
+  tabOrder?: string[];
 
   // Legacy fields from DB
   baseType?: string;
@@ -587,6 +613,25 @@ export async function deleteMonster(monsterId: string): Promise<void> {
     .from('monsters')
     .delete()
     .eq('id', monsterId);
+
+  if (error) throw error;
+}
+
+export async function copyMonsterToCampaign(monsterId: string, targetCampaignId: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase non configurato');
+
+  const { data: original, error: fetchError } = await supabase
+    .from('monsters')
+    .select('*')
+    .eq('id', monsterId)
+    .single();
+
+  if (fetchError || !original) throw fetchError ?? new Error('Mostro non trovato');
+
+  const { id, created_at, updated_at, ...rest } = original as any;
+  const { error } = await supabase
+    .from('monsters')
+    .insert({ ...rest, campaign_id: targetCampaignId });
 
   if (error) throw error;
 }
