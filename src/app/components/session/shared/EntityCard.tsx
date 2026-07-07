@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { EyeOff } from 'lucide-react';
+import { DraggablePortrait } from './DraggablePortrait';
 
 interface EntityCardProps {
   name: string;
@@ -26,37 +27,35 @@ export function EntityCard({ name, subtitle, photoUrl, onClick, hiddenBadge, cor
   return (
     <div
       onClick={onClick}
-      className={`flex h-[190px] flex-col overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] transition-colors hover:border-[var(--dash-accent)] ${
+      className={`relative flex items-start gap-3 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-2.5 pr-9 transition-colors hover:border-[var(--dash-accent)] ${
         onClick ? 'cursor-pointer' : ''
       }`}
     >
-      <div className="relative min-h-0 flex-1 overflow-hidden bg-[var(--dash-panel)]">
-        {photoUrl ? (
-          <img src={photoUrl} alt={name} className="absolute inset-0 h-full w-full object-cover" />
-        ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-[var(--dash-muted)]">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-input)] font-serif text-sm font-semibold text-[var(--dash-accent-2)]">
-              {getInitials(name)}
-            </div>
-            <span className="text-[10px] uppercase tracking-[0.08em]">Nessuna foto</span>
-          </div>
-        )}
+      <div className="relative shrink-0">
+        <DraggablePortrait
+          url={photoUrl ?? undefined}
+          fallbackIcon={
+            <span className="font-serif text-xs font-semibold text-[var(--dash-accent-2)]">{getInitials(name)}</span>
+          }
+          size={76}
+          draggable={false}
+        />
 
         {hiddenBadge && (
-          <div className="absolute bottom-2 left-2 z-[3] inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/65 px-2 py-1 text-[10px] font-semibold text-white">
+          <div className="absolute bottom-0.5 left-0.5 z-[3] inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/75 px-1.5 py-0.5 text-[9px] font-semibold text-white">
             <EyeOff className="h-2.5 w-2.5" />
             Nascosto
           </div>
         )}
-
-        {cornerAction && (
-          <div onClick={e => e.stopPropagation()} className="absolute right-2 top-2 z-[3]">
-            {cornerAction}
-          </div>
-        )}
       </div>
 
-      <div className="flex-none border-t border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-3 py-2">
+      {cornerAction && (
+        <div onClick={e => e.stopPropagation()} className="absolute right-2 top-2 z-[3]">
+          {cornerAction}
+        </div>
+      )}
+
+      <div className="min-w-0 flex-1 pt-0.5">
         <h3 className="truncate font-serif text-sm font-semibold text-[var(--dash-text-strong)]">{name || 'Senza nome'}</h3>
         {subtitle && <p className="truncate text-xs text-[var(--dash-muted)]">{subtitle}</p>}
         {children && (
