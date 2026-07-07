@@ -34,7 +34,16 @@ type EntityFilter = 'all' | 'assigned' | 'unassigned';
 type SortMode = 'recent' | 'name';
 type ActiveTab = 'characters' | 'npcs' | 'monsters';
 
-const GRID_CLASS = 'grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]';
+// 3 colonne fisse dentro un contenitore centrato: max-width = 3 card ideali (portrait 96px +
+// testo, misurato nel browser) + 2 gap-4 tra le colonne. Vedi indagine in PR per il conto esatto.
+const GRID_CONTAINER_CLASS = 'mx-auto w-full max-w-[1096px]';
+const GRID_CLASS = 'grid grid-cols-3 gap-4';
+
+function withPlaceholders<T>(items: T[]): (T | null)[] {
+  const remainder = items.length % 3;
+  const placeholderCount = remainder === 0 ? 0 : 3 - remainder;
+  return [...items, ...Array<null>(placeholderCount).fill(null)];
+}
 
 function getCurrentPaletteColors() {
   const el = document.querySelector('[data-dashboard-palette]');
@@ -692,7 +701,7 @@ export function MyCharactersPage() {
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[var(--dash-muted)]" /></div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
+          <div className={`${GRID_CONTAINER_CLASS} rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center`}>
             <p className="text-sm text-[var(--dash-muted)]">
               {entries.length === 0
                 ? `Non hai ancora creato nessun ${labelSingular}.`
@@ -704,8 +713,16 @@ export function MyCharactersPage() {
             </p>
           </div>
         ) : (
-          <div className={GRID_CLASS}>
-            {filtered.map(entry => renderEntityCard(entry))}
+          <div className={GRID_CONTAINER_CLASS}>
+            <div className={GRID_CLASS}>
+              {withPlaceholders(filtered).map((entry, index) =>
+                entry ? (
+                  renderEntityCard(entry)
+                ) : (
+                  <div key={`placeholder-${index}`} className="invisible pointer-events-none" aria-hidden="true" />
+                )
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -775,7 +792,7 @@ export function MyCharactersPage() {
           {isLoading ? (
             <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[var(--dash-muted)]" /></div>
           ) : filteredCharacters.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
+            <div className={`${GRID_CONTAINER_CLASS} rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center`}>
               <p className="text-sm text-[var(--dash-muted)]">
                 {characters.length === 0
                   ? 'Non hai ancora creato nessun personaggio.'
@@ -787,8 +804,16 @@ export function MyCharactersPage() {
               </p>
             </div>
           ) : (
-            <div className={GRID_CLASS}>
-              {filteredCharacters.map(char => renderCharacterCard(char))}
+            <div className={GRID_CONTAINER_CLASS}>
+              <div className={GRID_CLASS}>
+                {withPlaceholders(filteredCharacters).map((char, index) =>
+                  char ? (
+                    renderCharacterCard(char)
+                  ) : (
+                    <div key={`placeholder-${index}`} className="invisible pointer-events-none" aria-hidden="true" />
+                  )
+                )}
+              </div>
             </div>
           )}
         </div>
