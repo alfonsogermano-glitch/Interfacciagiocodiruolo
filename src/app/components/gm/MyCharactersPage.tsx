@@ -31,7 +31,7 @@ const INVITE_OPTION_VALUE = '__invite__';
 type OwnedCharacter = Character & { player: string; notes: string; ownerProfileId: string; campaignId: string | null };
 type CatalogEntry = { kind: 'npc'; entity: NPC } | { kind: 'monster'; entity: Monster };
 type EntityFilter = 'all' | 'assigned' | 'unassigned';
-type SortMode = 'recent' | 'name';
+type SortMode = 'recent' | 'oldest' | 'name' | 'name-desc';
 type ActiveTab = 'characters' | 'npcs' | 'monsters';
 
 // 3 colonne fisse dentro un contenitore centrato: max-width = 3 card ideali (portrait 140px +
@@ -72,6 +72,10 @@ function sortByNameOrDate<T extends { name: string; createdAt?: string }>(items:
   const copy = [...items];
   if (mode === 'name') {
     copy.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'it', { sensitivity: 'base' }));
+  } else if (mode === 'name-desc') {
+    copy.sort((a, b) => (b.name || '').localeCompare(a.name || '', 'it', { sensitivity: 'base' }));
+  } else if (mode === 'oldest') {
+    copy.sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
   } else {
     copy.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
   }
@@ -82,6 +86,10 @@ function sortEntries(items: CatalogEntry[], mode: SortMode): CatalogEntry[] {
   const copy = [...items];
   if (mode === 'name') {
     copy.sort((a, b) => (a.entity.name || '').localeCompare(b.entity.name || '', 'it', { sensitivity: 'base' }));
+  } else if (mode === 'name-desc') {
+    copy.sort((a, b) => (b.entity.name || '').localeCompare(a.entity.name || '', 'it', { sensitivity: 'base' }));
+  } else if (mode === 'oldest') {
+    copy.sort((a, b) => new Date(a.entity.createdAt ?? 0).getTime() - new Date(b.entity.createdAt ?? 0).getTime());
   } else {
     copy.sort((a, b) => new Date(b.entity.createdAt ?? 0).getTime() - new Date(a.entity.createdAt ?? 0).getTime());
   }
@@ -681,7 +689,9 @@ export function MyCharactersPage() {
             className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-1.5 text-xs text-[var(--dash-text)]"
           >
             <option value="recent">Ordina: Più recenti</option>
+            <option value="oldest">Ordina: Meno recenti</option>
             <option value="name">Ordina: Nome (A-Z)</option>
+            <option value="name-desc">Ordina: Nome (Z-A)</option>
           </select>
 
           <button type="button" onClick={() => setFilter('all')} className={pillClass(filter === 'all')}>
@@ -772,7 +782,9 @@ export function MyCharactersPage() {
               className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-1.5 text-xs text-[var(--dash-text)]"
             >
               <option value="recent">Ordina: Più recenti</option>
+              <option value="oldest">Ordina: Meno recenti</option>
               <option value="name">Ordina: Nome (A-Z)</option>
+              <option value="name-desc">Ordina: Nome (Z-A)</option>
             </select>
 
             <button type="button" onClick={() => setCharFilter('all')} className={pillClass(charFilter === 'all')}>
