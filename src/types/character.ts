@@ -114,6 +114,7 @@ export interface Character {
   name: string;
   style: Stile;
   viaggio: Viaggio;
+  description?: string;
 
   // Ambiti
   ambiti: {
@@ -189,6 +190,7 @@ export interface GameState {
 export interface CharacterSheetData {
   style?: Stile;
   viaggio?: Viaggio;
+  description?: string;
 
   ambiti?: {
     Fisico: number;

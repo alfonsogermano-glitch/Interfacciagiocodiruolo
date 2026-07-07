@@ -288,8 +288,8 @@ export function MyCharactersPage() {
         key={char.id}
         name={char.name}
         subtitle={styleViaggio}
-        secondaryText={char.notes}
-        photoUrl={char.portraitCroppedImageUrl || char.portraitImageUrl}
+        secondaryText={char.description}
+        photoUrl={char.portraitCroppedImageUrl || char.portraitImageUrl || user?.avatarUrl}
         onClick={() => setDetailCharacter(char)}
         cornerAction={
           <button

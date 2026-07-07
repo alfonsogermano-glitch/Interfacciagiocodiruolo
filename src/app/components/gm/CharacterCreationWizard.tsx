@@ -304,7 +304,7 @@
   
     // Step 1-2: Info Base
     const [name, setName] = useState(initialCharacter?.name ?? '');
-    const [player, setPlayer] = useState(initialCharacter?.player ?? '');
+    const [description, setDescription] = useState(initialCharacter?.description ?? '');
     const [style, setStyle] = useState<Stile>(initialCharacter?.style ?? 'Jock');
     const [viaggio, setViaggio] = useState<Viaggio>(initialCharacter?.viaggio ?? 'Campione');
   
@@ -740,7 +740,10 @@ const equipment: Equipment[] = [
       const character: Character & { player: string; notes: string } = {
         id: initialCharacter?.id ?? generateUUID(),
         name: name.trim(),
-        player: player.trim(),
+        // player non è più un campo del wizard: è sempre derivato dal proprietario, mai digitato manualmente.
+        // Si preserva un eventuale valore legacy già presente sul personaggio, senza mai scriverlo da qui.
+        player: initialCharacter?.player ?? '',
+        description: description.trim(),
         style,
         viaggio,
         ambiti,
@@ -899,8 +902,8 @@ const equipment: Equipment[] = [
                     </label>
                     <input
                       type="text"
-                      value={player}
-                      onChange={(e) => setPlayer(e.target.value)}
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
                       placeholder="Es. Il timido secchione del gruppo"
                       className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[var(--dash-muted)] outline-none transition-colors focus:border-[var(--dash-accent)]"
                     />

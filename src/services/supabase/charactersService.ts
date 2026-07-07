@@ -72,6 +72,7 @@ function mapRowToCharacter(row: any) {
     createdAt: row.created_at,
     player: row.sheet_data?.player || '',
     notes: row.sheet_data?.notes || '',
+    description: row.sheet_data?.description || '',
     style: row.style || 'Jock',
     viaggio: row.viaggio || 'Campione',
     ambiti: row.sheet_data?.ambiti || { Fisico: 1, Scuola: 1, Carisma: 1, Strada: 1 },
@@ -149,6 +150,7 @@ export async function saveCharacter(
   const sheetData = {
     player: character.player,
     notes: character.notes,
+    description: character.description,
     ruleset: ruleset ?? undefined,
     ambiti: character.ambiti,
     abilita: character.abilita,
@@ -269,6 +271,7 @@ export async function saveCharacterAsGm(
   const sheetData = {
     player: character.player,
     notes: character.notes,
+    description: character.description,
     ruleset: ruleset ?? undefined,
     ambiti: character.ambiti,
     abilita: character.abilita,

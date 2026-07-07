@@ -675,8 +675,8 @@ export function SessionCharactersPanel() {
                 </p>
                 <input
                   type="text"
-                  value={selectedChar.player}
-                  onChange={(e) => updateCharacter(selectedChar.id, { ...selectedChar, player: e.target.value })}
+                  value={selectedChar.description ?? ''}
+                  onChange={(e) => updateCharacter(selectedChar.id, { ...selectedChar, description: e.target.value })}
                   disabled={!canEdit}
                   placeholder="Breve descrizione del personaggio"
                   className="w-full rounded-lg border border-transparent bg-transparent px-1 text-sm text-[var(--dash-text)] outline-none transition-colors hover:border-[var(--dash-border-soft)] focus:border-[var(--dash-accent)] disabled:cursor-not-allowed"
