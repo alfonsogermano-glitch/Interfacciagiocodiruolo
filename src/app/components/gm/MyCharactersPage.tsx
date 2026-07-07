@@ -280,12 +280,15 @@ export function MyCharactersPage() {
     const error = assignErrors[char.id];
     const isMenuOpen = openMenuFor === char.id;
     const campaignInfo = campaignInfoFor(char.campaignId);
+    // stesso formato di SessionCharactersPanel.tsx:673-675 ({style} · {viaggio})
+    const styleViaggio = [char.style, char.viaggio].filter(Boolean).join(' · ') || 'Personaggio';
 
     return (
       <EntityCard
         key={char.id}
         name={char.name}
-        subtitle={char.style || char.viaggio || 'Personaggio'}
+        subtitle={styleViaggio}
+        secondaryText={char.notes}
         photoUrl={char.portraitCroppedImageUrl || char.portraitImageUrl}
         onClick={() => setDetailCharacter(char)}
         cornerAction={

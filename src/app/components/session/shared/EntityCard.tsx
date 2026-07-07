@@ -5,6 +5,7 @@ import { DraggablePortrait } from './DraggablePortrait';
 interface EntityCardProps {
   name: string;
   subtitle?: string;
+  secondaryText?: string;
   photoUrl?: string | null;
   onClick?: () => void;
   hiddenBadge?: boolean;
@@ -12,11 +13,11 @@ interface EntityCardProps {
   children?: ReactNode;
 }
 
-export function EntityCard({ name, subtitle, photoUrl, onClick, hiddenBadge, cornerAction, children }: EntityCardProps) {
+export function EntityCard({ name, subtitle, secondaryText, photoUrl, onClick, hiddenBadge, cornerAction, children }: EntityCardProps) {
   return (
     <div
       onClick={onClick}
-      className={`relative flex items-start gap-3 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-2.5 pr-9 transition-colors hover:border-[var(--dash-accent)] ${
+      className={`relative flex items-stretch gap-3 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-2.5 pr-9 transition-colors hover:border-[var(--dash-accent)] ${
         onClick ? 'cursor-pointer' : ''
       }`}
     >
@@ -49,11 +50,14 @@ export function EntityCard({ name, subtitle, photoUrl, onClick, hiddenBadge, cor
         </div>
       )}
 
-      <div className="min-w-0 flex-1 pt-1.5">
+      <div className="flex min-w-0 flex-1 flex-col pt-1.5">
         <h3 className="truncate font-serif text-base font-semibold text-[var(--dash-text-strong)]">{name || 'Senza nome'}</h3>
         {subtitle && <p className="truncate text-sm text-[var(--dash-muted)]">{subtitle}</p>}
+        {secondaryText && (
+          <p className="mt-1 line-clamp-2 text-xs text-[var(--dash-muted)]">{secondaryText}</p>
+        )}
         {children && (
-          <div onClick={e => e.stopPropagation()} className="mt-2">
+          <div onClick={e => e.stopPropagation()} className="mt-auto pt-2">
             {children}
           </div>
         )}
