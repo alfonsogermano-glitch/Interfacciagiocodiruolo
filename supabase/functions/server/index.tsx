@@ -612,10 +612,10 @@ app.post("/make-server-771c5bfd/characters/:id/copy-to-campaign", async (c) => {
 
 // Verifica se l'utente può leggere/scrivere le note di una data entità
 async function canAccessEntityNotes(
-  admin: any, userId: string, campaignId: string, entityType: string, entityId: string
+  admin: any, userId: string, campaignId: string | null, entityType: string, entityId: string
 ): Promise<boolean> {
   const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
-  const isGm = myCampaigns.some((camp) => camp.id === campaignId);
+  const isGm = !!campaignId && myCampaigns.some((camp) => camp.id === campaignId);
   if (isGm) return true;
   if (entityType === 'character') {
     const { data: character } = await admin
@@ -625,16 +625,29 @@ async function canAccessEntityNotes(
       .single();
     return !!character && character.owner_profile_id === userId;
   }
-  // PNG/Mostro: un giocatore (non GM) può leggere le note solo se l'entità
-  // è stata resa visibile ai giocatori.
+  // PNG/Mostro: il proprietario ha sempre accesso (es. cataloghi senza
+  // campagna, dove non esiste un GM di riferimento); un giocatore (non GM,
+  // non proprietario) può leggere le note solo se l'entità è stata resa
+  // visibile ai giocatori.
   const table = entityType === 'npc' ? 'npcs' : entityType === 'monster' ? 'monsters' : null;
   if (!table) return false;
   const { data: entity } = await admin
     .from(table)
-    .select('visible_to_players')
+    .select('visible_to_players, owner_profile_id')
     .eq('id', entityId)
     .single();
-  return !!entity && entity.visible_to_players === true;
+  if (!entity) return false;
+  return entity.owner_profile_id === userId || entity.visible_to_players === true;
+}
+
+// Il client valorizza :campaignId col template literal `${activeCampaignId}`:
+// per un'entità senza campagna (es. catalogo PG/PNG/Mostri fuori sessione),
+// activeCampaignId è null/undefined lato JS e finisce nel path come la
+// stringa letterale "null"/"undefined". Qui la normalizziamo a un vero null,
+// cosi' le query/insert sotto usano IS NULL invece di confrontare la colonna
+// UUID con quella stringa (che altrimenti fa fallire la query).
+function parseCampaignIdParam(raw: string | undefined): string | null {
+  return raw && raw !== "null" && raw !== "undefined" ? raw : null;
 }
 
 app.get("/make-server-771c5bfd/campaigns/:campaignId/notes", async (c) => {
@@ -644,7 +657,7 @@ app.get("/make-server-771c5bfd/campaigns/:campaignId/notes", async (c) => {
     const userId = await getUserIdFromToken(token);
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
-    const campaignId = c.req.param("campaignId");
+    const campaignId = parseCampaignIdParam(c.req.param("campaignId"));
     const entityType = c.req.query("entityType");
     const entityId = c.req.query("entityId");
     if (!entityType || !entityId) return c.json({ error: "entityType e entityId obbligatori" }, 400);
@@ -653,13 +666,15 @@ app.get("/make-server-771c5bfd/campaigns/:campaignId/notes", async (c) => {
     const allowed = await canAccessEntityNotes(admin, userId, campaignId, entityType, entityId);
     if (!allowed) return c.json({ error: "Non hai accesso alle note di questa scheda" }, 403);
 
-    const { data, error } = await admin
+    let query = admin
       .from('entity_notes')
       .select('*')
-      .eq('campaign_id', campaignId)
       .eq('entity_type', entityType)
       .eq('entity_id', entityId)
       .order('position', { ascending: true });
+    query = campaignId ? query.eq('campaign_id', campaignId) : query.is('campaign_id', null);
+
+    const { data, error } = await query;
 
     if (error) return c.json({ error: "Errore lettura note" }, 500);
     return c.json({ notes: data ?? [] });
@@ -676,7 +691,7 @@ app.post("/make-server-771c5bfd/campaigns/:campaignId/notes", async (c) => {
     const userId = await getUserIdFromToken(token);
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
-    const campaignId = c.req.param("campaignId");
+    const campaignId = parseCampaignIdParam(c.req.param("campaignId"));
     const { entityType, entityId, tabName } = await c.req.json();
     if (!entityType || !entityId || !tabName) return c.json({ error: "Campi obbligatori mancanti" }, 400);
 
