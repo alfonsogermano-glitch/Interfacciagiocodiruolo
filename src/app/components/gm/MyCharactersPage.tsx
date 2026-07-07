@@ -2,15 +2,16 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Plus, Loader2, Pencil, Trash2, KeyRound, MoreVertical,
-  Copy, UserMinus, Search, Eye, EyeOff, MapPin
+  Copy, UserMinus, Search, Eye, EyeOff, MapPin, ArrowLeft
 } from 'lucide-react';
 import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
+import { useRuleset } from '../../campaigns/RulesetContext';
 import { CharacterCreationWizard } from './CharacterCreationWizard';
-import { CharacterDetailModal } from './CharacterDetailModal';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { EntityCard } from '../session/shared/EntityCard';
 import { EntityKebabMenu } from '../session/shared/EntityKebabMenu';
+import { EntityDetailView } from '../session/shared/EntityDetailView';
 import { loadCharactersByOwner, saveCharacter, deleteCharacter } from '../../../services/supabase/charactersService';
 import {
   loadNPCsByOwner, loadMonstersByOwner,
@@ -102,9 +103,23 @@ function filterEntries(all: CatalogEntry[], filter: EntityFilter): CatalogEntry[
   return all;
 }
 
-export function MyCharactersPage() {
+type DetailContext = { entityType: 'character' | 'npc' | 'monster'; id: string };
+
+interface MyCharactersPageProps {
+  // La vista dettaglio a pagina intera e' pilotata da App.tsx (stato
+  // rightSidebarContext), non da uno stato locale qui: la rail
+  // Scheda/Immagine/Token deve montare nello slot rightSidebar di AppShell,
+  // fuori dalla portata di un componente annidato dentro <main>. Vedi il
+  // commento su RightSidebarContext in App.tsx.
+  detailContext: DetailContext | null;
+  onOpenDetail: (entityType: DetailContext['entityType'], id: string) => void;
+  onCloseDetail: () => void;
+}
+
+export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }: MyCharactersPageProps) {
   const { user, session } = useAuth();
   const { campaigns, joinedCampaigns, refreshCampaigns, refreshJoinedCampaigns } = useCampaign();
+  const { isHSC } = useRuleset();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('characters');
 
@@ -114,7 +129,6 @@ export function MyCharactersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showWizard, setShowWizard] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<OwnedCharacter | null>(null);
-  const [detailCharacter, setDetailCharacter] = useState<OwnedCharacter | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -290,7 +304,7 @@ export function MyCharactersPage() {
         subtitle={styleViaggio}
         secondaryText={char.description}
         photoUrl={char.portraitCroppedImageUrl || char.portraitImageUrl || user?.avatarUrl}
-        onClick={() => setDetailCharacter(char)}
+        onClick={() => onOpenDetail('character', char.id)}
         cornerAction={
           <button
             type="button"
@@ -470,6 +484,18 @@ export function MyCharactersPage() {
     }
   };
 
+  // Salvataggio immediato (nessun debounce, come in SessionCharactersPanel)
+  // usato da EntityDetailView quando aperta su un PNG/Mostro dal catalogo.
+  const persistEntity = (entityType: 'npc' | 'monster', updated: NPC | Monster) => {
+    if (entityType === 'npc') {
+      setNpcs(prev => prev.map(n => (n.id === updated.id ? (updated as NPC) : n)));
+      saveNPC(updated.campaignId ?? '', updated as NPC).catch(err => console.error('Errore salvataggio PNG:', err));
+    } else {
+      setMonsters(prev => prev.map(m => (m.id === updated.id ? (updated as Monster) : m)));
+      saveMonster(updated.campaignId ?? '', updated as Monster).catch(err => console.error('Errore salvataggio mostro:', err));
+    }
+  };
+
   const removeEntity = (entry: CatalogEntry) => {
     if (entry.kind === 'npc') {
       setNpcs(prev => prev.filter(n => n.id !== entry.entity.id));
@@ -594,6 +620,7 @@ export function MyCharactersPage() {
         subtitle={typeLabel}
         photoUrl={photoUrl}
         hiddenBadge={!entity.visibleToPlayers}
+        onClick={() => onOpenDetail(kind, entity.id)}
         cornerAction={
           isUnassigned ? undefined : (
             <EntityKebabMenu
@@ -748,8 +775,27 @@ export function MyCharactersPage() {
   const tabLabel = (tab: ActiveTab) =>
     tab === 'characters' ? 'Personaggi giocanti' : tab === 'npcs' ? 'PNG' : 'Mostri';
 
+  // Derivato dalle liste live (non uno snapshot statico), cosi' la vista
+  // rapida resta coerente con eventuali aggiornamenti nel frattempo -
+  // stesso pattern di selectedChar/selectedNpc/selectedMonster in
+  // SessionCharactersPanel.tsx.
+  const detailData: (OwnedCharacter | NPC | Monster) | null =
+    detailContext?.entityType === 'character' ? characters.find(c => c.id === detailContext.id) ?? null :
+    detailContext?.entityType === 'npc' ? npcs.find(n => n.id === detailContext.id) ?? null :
+    detailContext?.entityType === 'monster' ? monsters.find(m => m.id === detailContext.id) ?? null :
+    null;
+
   return (
-    <div className="space-y-6 select-none">
+    <div className="relative overflow-hidden">
+      {/* Griglia e vista dettaglio come due pannelli di uno stesso binario che
+          scorre con translateX - vera navigazione dentro il tab "characters",
+          non un overlay: la rail Scheda/Immagine/Token vive fuori da qui, nel
+          rightSidebar di AppShell (vedi detailContext/onOpenDetail/onCloseDetail). */}
+      <div
+        className="flex transition-transform duration-300 ease-out"
+        style={{ width: '200%', transform: detailContext ? 'translateX(-50%)' : 'translateX(0%)' }}
+      >
+      <div className="w-1/2 shrink-0 space-y-6 select-none">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1">
           {(['characters', 'npcs', 'monsters'] as const).map(tab => (
@@ -865,16 +911,6 @@ export function MyCharactersPage() {
         />
       )}
 
-      {detailCharacter && (
-        <CharacterDetailModal
-          character={detailCharacter}
-          onClose={() => setDetailCharacter(null)}
-          onUpdate={(updated) => {
-            setDetailCharacter(updated);
-            persistCharacter(updated.id, updated);
-          }}
-        />
-      )}
 
       {deleteTargetId && (
         <ConfirmDialog
@@ -971,6 +1007,38 @@ export function MyCharactersPage() {
           </div>
         </div>
       )}
+      </div>
+
+      <div className="w-1/2 shrink-0 px-1">
+        {detailContext && detailData && (
+          <>
+            <button
+              type="button"
+              onClick={onCloseDetail}
+              className="mb-4 inline-flex items-center gap-2 text-sm text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Indietro a {tabLabel(activeTab)}
+            </button>
+            <EntityDetailView
+              entityType={detailContext.entityType}
+              entity={detailData}
+              onUpdate={(updated) => {
+                if (detailContext.entityType === 'character') persistCharacter(updated.id, updated);
+                else persistEntity(detailContext.entityType, updated);
+              }}
+              canEdit
+              campaignId={detailData.campaignId ?? null}
+              accessToken={session?.access_token}
+              isHSC={isHSC}
+              draggable={false}
+              showOwnerRow={false}
+              showRail={false}
+            />
+          </>
+        )}
+      </div>
+      </div>
     </div>
   );
 }

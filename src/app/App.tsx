@@ -17,6 +17,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { ReportBugModal } from './components/ReportBugModal';
 import { NewsPage } from './news/NewsPage';
 import { SessionRightSidebar } from './components/session/SessionRightSidebar';
+import { EntityDetailRail } from './components/session/shared/EntityDetailRail';
 
 import { AdventureManager } from './components/gm/AdventureManager';
 import { PlayerCharacters } from './components/gm/PlayerCharacters';
@@ -50,14 +51,32 @@ type NavigationTarget = {
   entityType?: string;
 };
 
+// Contesto di cio' che va mostrato nello slot rightSidebar di AppShell,
+// sollevato qui perche' quello slot vive come flex-sibling di <main> (vedi
+// AppShell.tsx), fuori dalla portata di uno stato locale dentro le pagine
+// che ci vivono dentro.
+//
+// Oggi gestisce solo il caso "dettaglio di un personaggio/PNG/mostro aperto
+// da MyCharactersPage" ('characters-detail'). E' pensato per diventare in
+// futuro un'unione piu' ampia di contesti con lo stesso bisogno (GM dentro
+// una campagna, giocatore dentro una campagna, modalita' modifica campagna,
+// ciascuno con le proprie icone/pannelli nello stesso slot) - non abbiamo
+// ancora costruito quell'astrazione perche' sarebbe prematuro senza aver
+// visto gli altri casi in pratica, ma il nome e la forma a union sono gia'
+// pensati per quello.
+type RightSidebarContext =
+  | { kind: 'characters-detail'; entityType: 'character' | 'npc' | 'monster'; id: string };
+
 interface DashboardProps {
   activeTab: string;
   navigationTarget: NavigationTarget | null;
   onNavigate: (target: NavigationTarget) => void;
   onEnterCampaign: (campaign: Campaign) => void;
+  rightSidebarContext: RightSidebarContext | null;
+  onChangeRightSidebarContext: (context: RightSidebarContext | null) => void;
 }
 
-function Dashboard({ activeTab, navigationTarget, onNavigate, onEnterCampaign }: DashboardProps) {
+function Dashboard({ activeTab, navigationTarget, onNavigate, onEnterCampaign, rightSidebarContext, onChangeRightSidebarContext }: DashboardProps) {
   const { activeCampaignId, campaigns, isLoading: campaignsLoading } = useCampaign();
 
   return (
@@ -70,7 +89,13 @@ function Dashboard({ activeTab, navigationTarget, onNavigate, onEnterCampaign }:
       )}
 
       {activeTab === 'players' && <PlayerCharacters navigationTarget={navigationTarget} />}
-      {activeTab === 'characters' && <MyCharactersPage />}
+      {activeTab === 'characters' && (
+        <MyCharactersPage
+          detailContext={rightSidebarContext?.kind === 'characters-detail' ? rightSidebarContext : null}
+          onOpenDetail={(entityType, id) => onChangeRightSidebarContext({ kind: 'characters-detail', entityType, id })}
+          onCloseDetail={() => onChangeRightSidebarContext(null)}
+        />
+      )}
       {activeTab === 'campaigns' && <CampaignsPage onNavigate={onNavigate} onEnterCampaign={onEnterCampaign} />}
       {activeTab === 'npcs' && (
         <NPCManager navigationTarget={navigationTarget} />
@@ -137,6 +162,7 @@ function AuthGate() {
 
   const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | null>(null);
   const [homeScrollTarget, setHomeScrollTarget] = useState<'characters' | 'campaigns' | null>(null);
+  const [rightSidebarContext, setRightSidebarContext] = useState<RightSidebarContext | null>(null);
 
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>(
     () => readDashboardSettings()
@@ -184,6 +210,10 @@ function AuthGate() {
 
   const changeActiveGmTab = (tabId: string) => {
     setActiveGmTab(tabId);
+    // Cambiare tab (anche ricliccare quello attuale, es. "Personaggi" nella
+    // LeftSidebar) riporta sempre alla vista di riposo di quel tab, non
+    // riprende un dettaglio lasciato aperto in precedenza.
+    setRightSidebarContext(null);
 
     try {
       window.localStorage.setItem(ACTIVE_TAB_LS_KEY, tabId);
@@ -229,6 +259,7 @@ function AuthGate() {
   };
 
   const goToDashboard = (campaign?: Parameters<typeof setActiveCampaign>[0]) => {
+    setRightSidebarContext(null);
     if (campaign) {
       setActiveCampaign(campaign);
       localStorage.setItem(VIEW_LS_KEY, 'campaign-home');
@@ -246,6 +277,7 @@ function AuthGate() {
   };
 
   const goToHome = () => {
+    setRightSidebarContext(null);
     localStorage.setItem(VIEW_LS_KEY, 'home');
     setView('home');
   };
@@ -295,7 +327,9 @@ function AuthGate() {
           />
         }
         rightSidebar={
-          view === 'dashboard' && !['characters', 'campaigns'].includes(activeGmTab) ? (
+          view === 'dashboard' && activeGmTab === 'characters' && rightSidebarContext?.kind === 'characters-detail' ? (
+            <EntityDetailRail />
+          ) : view === 'dashboard' && !['characters', 'campaigns'].includes(activeGmTab) ? (
             <GmSectionSidebar activeTab={activeGmTab} onChangeTab={changeActiveGmTab} />
           ) : view === 'campaign-home' ? (
             <SessionRightSidebar />
@@ -325,6 +359,8 @@ function AuthGate() {
             navigationTarget={navigationTarget}
             onNavigate={navigateToEntity}
             onEnterCampaign={goToDashboard}
+            rightSidebarContext={rightSidebarContext}
+            onChangeRightSidebarContext={setRightSidebarContext}
           />
         )}
       </AppShell>
