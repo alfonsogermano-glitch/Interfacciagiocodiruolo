@@ -536,6 +536,7 @@ export function SessionCharactersPanel() {
             campaignId={activeCampaignId}
             accessToken={session?.access_token}
             isHSC={isHSC}
+            showRail={false}
             draggable={canDragEntity('pg', (selectedChar as any).ownerProfileId)}
             onDragStart={(e) => e.dataTransfer.setData('application/x-hollowgate-entity', JSON.stringify({ kind: 'pg', id: selectedChar.id }))}
             headerAction={canEdit ? (
@@ -590,6 +591,7 @@ export function SessionCharactersPanel() {
             campaignId={activeCampaignId}
             accessToken={session?.access_token}
             isHSC={isHSC}
+            showRail={false}
             draggable={canDragEntity('png')}
             onDragStart={(e) => e.dataTransfer.setData('application/x-hollowgate-entity', JSON.stringify({ kind: 'png', id: selectedNpc.id }))}
             headerAction={isOwner ? (
@@ -612,6 +614,7 @@ export function SessionCharactersPanel() {
             campaignId={activeCampaignId}
             accessToken={session?.access_token}
             isHSC={isHSC}
+            showRail={false}
             draggable={canDragEntity('mostro')}
             onDragStart={(e) => e.dataTransfer.setData('application/x-hollowgate-entity', JSON.stringify({ kind: 'mostro', id: selectedMonster.id }))}
             headerAction={isOwner ? (
