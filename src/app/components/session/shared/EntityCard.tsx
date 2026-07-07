@@ -12,17 +12,6 @@ interface EntityCardProps {
   children?: ReactNode;
 }
 
-function getInitials(name: string): string {
-  const trimmed = name.trim();
-  if (!trimmed) return '?';
-
-  const parts = trimmed.split(/\s+/);
-  const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
-
-  return (first + last).toUpperCase();
-}
-
 export function EntityCard({ name, subtitle, photoUrl, onClick, hiddenBadge, cornerAction, children }: EntityCardProps) {
   return (
     <div
@@ -35,7 +24,12 @@ export function EntityCard({ name, subtitle, photoUrl, onClick, hiddenBadge, cor
         <DraggablePortrait
           url={photoUrl ?? undefined}
           fallbackIcon={
-            <span className="font-serif text-base font-semibold text-[var(--dash-accent-2)]">{getInitials(name)}</span>
+            <img
+              src="/icon-source-1024.png"
+              alt=""
+              className="h-full w-full object-contain"
+              style={{ filter: 'invert(1)', opacity: 0.9 }}
+            />
           }
           size={140}
           draggable={false}
