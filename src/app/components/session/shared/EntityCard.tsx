@@ -37,7 +37,7 @@ export function EntityCard({ name, subtitle, photoUrl, onClick, hiddenBadge, cor
           fallbackIcon={
             <span className="font-serif text-base font-semibold text-[var(--dash-accent-2)]">{getInitials(name)}</span>
           }
-          size={120}
+          size={140}
           draggable={false}
         />
 
