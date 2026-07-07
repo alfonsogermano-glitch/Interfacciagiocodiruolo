@@ -35,9 +35,9 @@ export function EntityCard({ name, subtitle, photoUrl, onClick, hiddenBadge, cor
         <DraggablePortrait
           url={photoUrl ?? undefined}
           fallbackIcon={
-            <span className="font-serif text-sm font-semibold text-[var(--dash-accent-2)]">{getInitials(name)}</span>
+            <span className="font-serif text-base font-semibold text-[var(--dash-accent-2)]">{getInitials(name)}</span>
           }
-          size={96}
+          size={120}
           draggable={false}
         />
 
@@ -55,11 +55,11 @@ export function EntityCard({ name, subtitle, photoUrl, onClick, hiddenBadge, cor
         </div>
       )}
 
-      <div className="min-w-0 flex-1 pt-1">
-        <h3 className="truncate font-serif text-sm font-semibold text-[var(--dash-text-strong)]">{name || 'Senza nome'}</h3>
-        {subtitle && <p className="truncate text-xs text-[var(--dash-muted)]">{subtitle}</p>}
+      <div className="min-w-0 flex-1 pt-1.5">
+        <h3 className="truncate font-serif text-base font-semibold text-[var(--dash-text-strong)]">{name || 'Senza nome'}</h3>
+        {subtitle && <p className="truncate text-sm text-[var(--dash-muted)]">{subtitle}</p>}
         {children && (
-          <div onClick={e => e.stopPropagation()} className="mt-1">
+          <div onClick={e => e.stopPropagation()} className="mt-2">
             {children}
           </div>
         )}
