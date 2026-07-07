@@ -32,6 +32,9 @@ type OwnedCharacter = Character & { player: string; notes: string; ownerProfileI
 type CatalogEntry = { kind: 'npc'; entity: NPC } | { kind: 'monster'; entity: Monster };
 type EntityFilter = 'all' | 'assigned' | 'unassigned';
 type SortMode = 'recent' | 'name';
+type ActiveTab = 'characters' | 'npcs' | 'monsters';
+
+const GRID_CLASS = 'grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(320px,1fr))]';
 
 function getCurrentPaletteColors() {
   const el = document.querySelector('[data-dashboard-palette]');
@@ -76,11 +79,17 @@ function sortEntries(items: CatalogEntry[], mode: SortMode): CatalogEntry[] {
   return copy;
 }
 
+function filterEntries(all: CatalogEntry[], filter: EntityFilter): CatalogEntry[] {
+  if (filter === 'assigned') return all.filter(e => e.entity.campaignId);
+  if (filter === 'unassigned') return all.filter(e => !e.entity.campaignId);
+  return all;
+}
+
 export function MyCharactersPage() {
   const { user, session } = useAuth();
   const { campaigns, joinedCampaigns, refreshCampaigns, refreshJoinedCampaigns } = useCampaign();
 
-  const [activeTab, setActiveTab] = useState<'characters' | 'entities'>('characters');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('characters');
 
   // ============= Personaggi giocanti =============
 
@@ -376,12 +385,22 @@ export function MyCharactersPage() {
     );
   };
 
-  // ============= PNG e Mostri =============
+  // ============= PNG =============
 
-  const [entries, setEntries] = useState<CatalogEntry[]>([]);
-  const [isLoadingEntries, setIsLoadingEntries] = useState(true);
-  const [entityFilter, setEntityFilter] = useState<EntityFilter>('all');
-  const [entitySort, setEntitySort] = useState<SortMode>('recent');
+  const [npcs, setNpcs] = useState<NPC[]>([]);
+  const [isLoadingNpcs, setIsLoadingNpcs] = useState(true);
+  const [npcFilter, setNpcFilter] = useState<EntityFilter>('all');
+  const [npcSort, setNpcSort] = useState<SortMode>('recent');
+
+  // ============= Mostri =============
+
+  const [monsters, setMonsters] = useState<Monster[]>([]);
+  const [isLoadingMonsters, setIsLoadingMonsters] = useState(true);
+  const [monsterFilter, setMonsterFilter] = useState<EntityFilter>('all');
+  const [monsterSort, setMonsterSort] = useState<SortMode>('recent');
+
+  // ============= Azioni condivise PNG/Mostri =============
+
   const [entityAssigningId, setEntityAssigningId] = useState<string | null>(null);
   const [entityAssignErrors, setEntityAssignErrors] = useState<Record<string, string>>({});
   const [copyDialogEntry, setCopyDialogEntry] = useState<CatalogEntry | null>(null);
@@ -391,25 +410,28 @@ export function MyCharactersPage() {
   const [unassignEntry, setUnassignEntry] = useState<CatalogEntry | null>(null);
   const [deleteEntry, setDeleteEntry] = useState<CatalogEntry | null>(null);
 
-  const loadEntries = async () => {
+  const loadNpcs = async () => {
     if (!user?.id) return;
-    setIsLoadingEntries(true);
+    setIsLoadingNpcs(true);
     try {
-      const [npcs, monsters] = await Promise.all([
-        loadNPCsByOwner(user.id),
-        loadMonstersByOwner(user.id)
-      ]);
-
-      setEntries([
-        ...npcs.map((entity): CatalogEntry => ({ kind: 'npc', entity })),
-        ...monsters.map((entity): CatalogEntry => ({ kind: 'monster', entity }))
-      ]);
+      setNpcs(await loadNPCsByOwner(user.id));
     } finally {
-      setIsLoadingEntries(false);
+      setIsLoadingNpcs(false);
     }
   };
 
-  useEffect(() => { void loadEntries(); }, [user?.id]);
+  const loadMonstersList = async () => {
+    if (!user?.id) return;
+    setIsLoadingMonsters(true);
+    try {
+      setMonsters(await loadMonstersByOwner(user.id));
+    } finally {
+      setIsLoadingMonsters(false);
+    }
+  };
+
+  useEffect(() => { void loadNpcs(); }, [user?.id]);
+  useEffect(() => { void loadMonstersList(); }, [user?.id]);
 
   const entityName = (entry: CatalogEntry) =>
     entry.entity.name?.trim() || (entry.kind === 'npc' ? 'PNG senza nome' : 'Mostro senza nome');
@@ -419,10 +441,22 @@ export function MyCharactersPage() {
     return campaigns.find(c => c.id === campaignId)?.name ?? 'Campagna sconosciuta';
   };
 
-  const assignedEntries = entries.filter(e => e.entity.campaignId);
-  const unassignedEntries = entries.filter(e => !e.entity.campaignId);
-  const entityFilterPool = entityFilter === 'assigned' ? assignedEntries : entityFilter === 'unassigned' ? unassignedEntries : entries;
-  const filteredEntries = sortEntries(entityFilterPool, entitySort);
+  // applica un aggiornamento locale ottimistico sullo stato giusto (npcs o monsters) in base al kind
+  const applyEntityUpdate = (entry: CatalogEntry, updater: (entity: NPC | Monster) => NPC | Monster) => {
+    if (entry.kind === 'npc') {
+      setNpcs(prev => prev.map(n => (n.id === entry.entity.id ? (updater(n) as NPC) : n)));
+    } else {
+      setMonsters(prev => prev.map(m => (m.id === entry.entity.id ? (updater(m) as Monster) : m)));
+    }
+  };
+
+  const removeEntity = (entry: CatalogEntry) => {
+    if (entry.kind === 'npc') {
+      setNpcs(prev => prev.filter(n => n.id !== entry.entity.id));
+    } else {
+      setMonsters(prev => prev.filter(m => m.id !== entry.entity.id));
+    }
+  };
 
   const handleAssignEntity = async (entry: CatalogEntry, targetCampaignId: string) => {
     if (!targetCampaignId) return;
@@ -436,9 +470,7 @@ export function MyCharactersPage() {
         await assignMonsterToCampaign(entry.entity.id, targetCampaignId);
       }
 
-      setEntries(prev => prev.map(e =>
-        e.entity.id === entry.entity.id ? { ...e, entity: { ...e.entity, campaignId: targetCampaignId } } as CatalogEntry : e
-      ));
+      applyEntityUpdate(entry, e => ({ ...e, campaignId: targetCampaignId }));
     } catch (err) {
       setEntityAssignErrors(prev => ({ ...prev, [entry.entity.id]: err instanceof Error ? err.message : String(err) }));
     } finally {
@@ -450,7 +482,7 @@ export function MyCharactersPage() {
     const nextVisible = !entry.entity.visibleToPlayers;
     const updated = { ...entry.entity, visibleToPlayers: nextVisible };
 
-    setEntries(prev => prev.map(e => (e.entity.id === entry.entity.id ? { ...e, entity: updated } as CatalogEntry : e)));
+    applyEntityUpdate(entry, () => updated);
 
     try {
       if (entry.kind === 'npc') {
@@ -460,7 +492,7 @@ export function MyCharactersPage() {
       }
     } catch (err) {
       console.error('Errore aggiornamento visibilità:', err);
-      setEntries(prev => prev.map(e => (e.entity.id === entry.entity.id ? entry : e)));
+      applyEntityUpdate(entry, () => entry.entity);
     }
   };
 
@@ -473,9 +505,7 @@ export function MyCharactersPage() {
         await unassignMonsterFromCampaign(unassignEntry.entity.id);
       }
 
-      setEntries(prev => prev.map(e =>
-        e.entity.id === unassignEntry.entity.id ? { ...e, entity: { ...e.entity, campaignId: null } } as CatalogEntry : e
-      ));
+      applyEntityUpdate(unassignEntry, e => ({ ...e, campaignId: null }));
     } catch (err) {
       console.error('Errore rimozione dalla campagna:', err);
     } finally {
@@ -492,7 +522,7 @@ export function MyCharactersPage() {
         await deleteMonster(deleteEntry.entity.id);
       }
 
-      setEntries(prev => prev.filter(e => e.entity.id !== deleteEntry.entity.id));
+      removeEntity(deleteEntry);
     } catch (err) {
       console.error('Errore eliminazione:', err);
     } finally {
@@ -617,32 +647,95 @@ export function MyCharactersPage() {
     );
   };
 
+  // sezione toolbar+griglia condivisa da tab PNG e tab Mostri (stessa struttura, sorgente dati diversa)
+  const renderEntityTab = (params: {
+    entries: CatalogEntry[];
+    filter: EntityFilter;
+    setFilter: (f: EntityFilter) => void;
+    sort: SortMode;
+    setSort: (s: SortMode) => void;
+    isLoading: boolean;
+    labelSingular: string; // "PNG" / "mostro"
+    labelPluralLower: string; // "PNG" / "mostri"
+  }) => {
+    const { entries, filter, setFilter, sort, setSort, isLoading, labelSingular, labelPluralLower } = params;
+    const assigned = entries.filter(e => e.entity.campaignId);
+    const unassigned = entries.filter(e => !e.entity.campaignId);
+    const filtered = sortEntries(filterEntries(entries, filter), sort);
+
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={sort}
+            onChange={e => setSort(e.target.value as SortMode)}
+            className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-1.5 text-xs text-[var(--dash-text)]"
+          >
+            <option value="recent">Ordina: Più recenti</option>
+            <option value="name">Ordina: Nome (A-Z)</option>
+          </select>
+
+          <button type="button" onClick={() => setFilter('all')} className={pillClass(filter === 'all')}>
+            Tutti <span className="opacity-70">({entries.length})</span>
+          </button>
+          <button type="button" onClick={() => setFilter('assigned')} className={pillClass(filter === 'assigned')}>
+            In campagna <span className="opacity-70">({assigned.length})</span>
+          </button>
+          <button type="button" onClick={() => setFilter('unassigned')} className={pillClass(filter === 'unassigned')}>
+            Non in campagna <span className="opacity-70">({unassigned.length})</span>
+          </button>
+          <button type="button" className={pillClass(false, true)} disabled title={`In arrivo: filtro per ${labelPluralLower} richiedibili dai giocatori`}>
+            Richiedibile
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[var(--dash-muted)]" /></div>
+        ) : filtered.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
+            <p className="text-sm text-[var(--dash-muted)]">
+              {entries.length === 0
+                ? `Non hai ancora creato nessun ${labelSingular}.`
+                : filter === 'assigned'
+                  ? `Nessun ${labelSingular} in campagna con questo filtro.`
+                  : filter === 'unassigned'
+                    ? `Nessun ${labelSingular} scollegato da una campagna.`
+                    : `Nessun ${labelSingular} trovato.`}
+            </p>
+          </div>
+        ) : (
+          <div className={GRID_CLASS}>
+            {filtered.map(entry => renderEntityCard(entry))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const npcEntries = npcs.map((entity): CatalogEntry => ({ kind: 'npc', entity }));
+  const monsterEntries = monsters.map((entity): CatalogEntry => ({ kind: 'monster', entity }));
+
+  const tabLabel = (tab: ActiveTab) =>
+    tab === 'characters' ? 'Personaggi giocanti' : tab === 'npcs' ? 'PNG' : 'Mostri';
+
   return (
     <div className="space-y-6 select-none">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1">
-          <button
-            type="button"
-            onClick={() => setActiveTab('characters')}
-            className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === 'characters'
-                ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
-                : 'text-[var(--dash-muted)] hover:text-[var(--dash-text)]'
-            }`}
-          >
-            Personaggi giocanti
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('entities')}
-            className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === 'entities'
-                ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
-                : 'text-[var(--dash-muted)] hover:text-[var(--dash-text)]'
-            }`}
-          >
-            PNG e mostri
-          </button>
+          {(['characters', 'npcs', 'monsters'] as const).map(tab => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === tab
+                  ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
+                  : 'text-[var(--dash-muted)] hover:text-[var(--dash-text)]'
+              }`}
+            >
+              {tabLabel(tab)}
+            </button>
+          ))}
         </div>
 
         {activeTab === 'characters' && (
@@ -653,7 +746,7 @@ export function MyCharactersPage() {
         )}
       </div>
 
-      {activeTab === 'characters' ? (
+      {activeTab === 'characters' && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <select
@@ -694,58 +787,34 @@ export function MyCharactersPage() {
               </p>
             </div>
           ) : (
-            <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
+            <div className={GRID_CLASS}>
               {filteredCharacters.map(char => renderCharacterCard(char))}
             </div>
           )}
         </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={entitySort}
-              onChange={e => setEntitySort(e.target.value as SortMode)}
-              className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-1.5 text-xs text-[var(--dash-text)]"
-            >
-              <option value="recent">Ordina: Più recenti</option>
-              <option value="name">Ordina: Nome (A-Z)</option>
-            </select>
-
-            <button type="button" onClick={() => setEntityFilter('all')} className={pillClass(entityFilter === 'all')}>
-              Tutti <span className="opacity-70">({entries.length})</span>
-            </button>
-            <button type="button" onClick={() => setEntityFilter('assigned')} className={pillClass(entityFilter === 'assigned')}>
-              In campagna <span className="opacity-70">({assignedEntries.length})</span>
-            </button>
-            <button type="button" onClick={() => setEntityFilter('unassigned')} className={pillClass(entityFilter === 'unassigned')}>
-              Non in campagna <span className="opacity-70">({unassignedEntries.length})</span>
-            </button>
-            <button type="button" className={pillClass(false, true)} disabled title="In arrivo: filtro per PNG/Mostri richiedibili dai giocatori">
-              Richiedibile
-            </button>
-          </div>
-
-          {isLoadingEntries ? (
-            <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[var(--dash-muted)]" /></div>
-          ) : filteredEntries.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
-              <p className="text-sm text-[var(--dash-muted)]">
-                {entries.length === 0
-                  ? 'Non hai ancora creato nessun PNG o mostro.'
-                  : entityFilter === 'assigned'
-                    ? 'Nessun PNG o mostro in campagna con questo filtro.'
-                    : entityFilter === 'unassigned'
-                      ? 'Nessun PNG o mostro scollegato da una campagna.'
-                      : 'Nessun PNG o mostro trovato.'}
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
-              {filteredEntries.map(entry => renderEntityCard(entry))}
-            </div>
-          )}
-        </div>
       )}
+
+      {activeTab === 'npcs' && renderEntityTab({
+        entries: npcEntries,
+        filter: npcFilter,
+        setFilter: setNpcFilter,
+        sort: npcSort,
+        setSort: setNpcSort,
+        isLoading: isLoadingNpcs,
+        labelSingular: 'PNG',
+        labelPluralLower: 'PNG',
+      })}
+
+      {activeTab === 'monsters' && renderEntityTab({
+        entries: monsterEntries,
+        filter: monsterFilter,
+        setFilter: setMonsterFilter,
+        sort: monsterSort,
+        setSort: setMonsterSort,
+        isLoading: isLoadingMonsters,
+        labelSingular: 'mostro',
+        labelPluralLower: 'mostri',
+      })}
 
       {showWizard && (
         <CharacterCreationWizard
@@ -780,7 +849,7 @@ export function MyCharactersPage() {
       {unassignEntry && (
         <ConfirmDialog
           title={`Rimuovere ${unassignEntry.kind === 'monster' ? 'il mostro' : 'il PNG'} dalla campagna?`}
-          message={`${entityName(unassignEntry)} verrà scollegato da questa campagna. Potrai ritrovarlo e riassegnarlo qui, nella tab "PNG e mostri" → "Non in campagna".`}
+          message={`${entityName(unassignEntry)} verrà scollegato da questa campagna. Potrai ritrovarlo e riassegnarlo qui, nella tab "${unassignEntry.kind === 'monster' ? 'Mostri' : 'PNG'}" → "Non in campagna".`}
           confirmLabel="Rimuovi"
           danger={false}
           onConfirm={handleConfirmUnassignEntity}
