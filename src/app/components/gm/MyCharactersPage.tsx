@@ -34,7 +34,7 @@ type EntityFilter = 'all' | 'assigned' | 'unassigned';
 type SortMode = 'recent' | 'name';
 type ActiveTab = 'characters' | 'npcs' | 'monsters';
 
-const GRID_CLASS = 'grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(320px,1fr))]';
+const GRID_CLASS = 'grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]';
 
 function getCurrentPaletteColors() {
   const el = document.querySelector('[data-dashboard-palette]');
