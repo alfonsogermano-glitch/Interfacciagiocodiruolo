@@ -50,12 +50,13 @@ export function generateId(prefix = 'monster'): string {
   return generateUUID();
 }
 
-export function createEmptyMonster(campaignId = ''): Monster {
+export function createEmptyMonster(campaignId = '', ownerProfileId?: string): Monster {
   const now = new Date().toISOString();
 
   return {
     id: generateId(),
     campaignId,
+    ownerProfileId,
     createdAt: now,
     updatedAt: now,
 
@@ -115,7 +116,7 @@ export function createEmptyMonster(campaignId = ''): Monster {
   };
 }
 
-export function createMonsterFromBase(baseId: string, campaignId = ''): Monster | null {
+export function createMonsterFromBase(baseId: string, campaignId = '', ownerProfileId?: string): Monster | null {
   const base = MONSTER_BASE_CATALOG.find(item => item.id === baseId);
 
   if (!base) return null;
@@ -128,6 +129,7 @@ export function createMonsterFromBase(baseId: string, campaignId = ''): Monster 
     updatedAt: now,
     baseMonsterId: base.id,
     campaignId,
+    ownerProfileId,
     adventureId: null,
     environmentId: null,
     mapLocationId: null,
@@ -192,6 +194,7 @@ export function normalizeMonster(monster: Partial<Monster> & { id?: string; name
     updatedAt: monster.updatedAt ?? new Date().toISOString(),
     baseMonsterId: monster.baseMonsterId ?? null,
     campaignId: monster.campaignId ?? '',
+    ownerProfileId: monster.ownerProfileId,
     adventureId: monster.adventureId ?? null,
     environmentId: monster.environmentId ?? null,
     mapLocationId: monster.mapLocationId ?? null,

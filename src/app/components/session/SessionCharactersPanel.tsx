@@ -396,7 +396,7 @@ export function SessionCharactersPanel() {
   );
 
   const handleConfirmCopy = async () => {
-    if (!selected || !copyTargetId) return;
+    if (!selected || !copyTargetId || !user) return;
     setIsCopying(true);
     setActionError(null);
     try {
@@ -410,9 +410,9 @@ export function SessionCharactersPanel() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? 'Errore durante la copia');
       } else if (selected.kind === 'png') {
-        await copyNPCToCampaign(selected.id, copyTargetId);
+        await copyNPCToCampaign(selected.id, copyTargetId, user.id);
       } else if (selected.kind === 'mostro') {
-        await copyMonsterToCampaign(selected.id, copyTargetId);
+        await copyMonsterToCampaign(selected.id, copyTargetId, user.id);
       }
       setShowCopyDialog(false);
       setCopyTargetId(null);
@@ -1195,7 +1195,7 @@ export function SessionCharactersPanel() {
     {confirmUnassignEntity && (
       <ConfirmDialog
         title={`Rimuovere ${selected?.kind === 'mostro' ? 'il mostro' : 'il PNG'} dalla campagna?`}
-        message={`${(selected?.kind === 'mostro' ? selectedMonster?.name : selectedNpc?.name) ?? "L'entità"} verrà scollegato da questa campagna. Al momento l'app non ha ancora una vista catalogo per le entità non assegnate: non sarà raggiungibile da nessuna schermata finché questa funzionalità non verrà completata.`}
+        message={`${(selected?.kind === 'mostro' ? selectedMonster?.name : selectedNpc?.name) ?? "L'entità"} verrà scollegato da questa campagna. Potrai ritrovarlo e riassegnarlo da Personaggi → PNG e mostri → Non in campagna.`}
         confirmLabel="Rimuovi"
         danger={false}
         onConfirm={handleUnassignNpcOrMonster}

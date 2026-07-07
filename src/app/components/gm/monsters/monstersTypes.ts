@@ -111,6 +111,7 @@ export interface Monster extends BaseCampaignEntity {
   notes: string;
   isCustom: boolean;
   d20Stats?: D20Stats;
+  ownerProfileId?: string;
 }
 
 export interface NavigationTarget {

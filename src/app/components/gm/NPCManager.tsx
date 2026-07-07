@@ -5,6 +5,7 @@ import { loadEnvironmentReferences } from '../../../services/campaign/entityRefe
 import type { Adventure } from '../../../types/adventure';
 import { loadNPCs, saveNPC as saveNPCToSupabase, deleteNPC as deleteNPCFromSupabase } from '../../../services/supabase/entitiesService';
 import { generateUUID } from '../../../lib/uuid';
+import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useRuleset } from '../../campaigns/RulesetContext';
 import { RulesetBadge } from '../../campaigns/RulesetGate';
@@ -56,6 +57,7 @@ interface NPC {
 
   puntoDebole?: string;
   d20Stats?: D20Stats;
+  ownerProfileId?: string;
 }
 
 const NPC_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.npcs;
@@ -88,6 +90,7 @@ export function NPCManager({
   navigationTarget = null
 }: NPCManagerProps) {
   const { activeCampaignId } = useCampaign();
+  const { user } = useAuth();
   const { isHSC, isDnD5e, isPathfinder } = useRuleset();
   const isD20 = isDnD5e || isPathfinder;
 
@@ -230,6 +233,7 @@ export function NPCManager({
   const createEmptyNPC = (): NPC => ({
     id: generateUUID(),
     campaignId: activeCampaignId,
+    ownerProfileId: user?.id,
     environmentId: null,
     adventureId: null,
     name: '',

@@ -255,6 +255,7 @@ export interface NPC {
   visibleToPlayers?: boolean;
   tabOrder?: string[];
   createdAt?: string;
+  ownerProfileId?: string;
 }
 
 export async function loadNPCs(campaignId: string): Promise<NPC[]> {
@@ -352,7 +353,35 @@ export async function unassignNPCFromCampaign(npcId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function copyNPCToCampaign(npcId: string, targetCampaignId: string): Promise<void> {
+export async function assignNPCToCampaign(npcId: string, campaignId: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase non configurato');
+
+  const { error } = await supabase
+    .from('npcs')
+    .update({ campaign_id: campaignId })
+    .eq('id', npcId);
+
+  if (error) throw error;
+}
+
+export async function loadNPCsByOwner(ownerProfileId: string): Promise<NPC[]> {
+  if (shouldUseLocalMode()) return [];
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from('npcs')
+    .select('*')
+    .eq('owner_profile_id', ownerProfileId);
+
+  if (error) {
+    console.error('Errore caricamento PNG per proprietario:', error);
+    return [];
+  }
+
+  return (data || []).map(toCamelCase);
+}
+
+export async function copyNPCToCampaign(npcId: string, targetCampaignId: string, ownerProfileId: string): Promise<void> {
   if (!supabase) throw new Error('Supabase non configurato');
 
   const { data: original, error: fetchError } = await supabase
@@ -363,10 +392,10 @@ export async function copyNPCToCampaign(npcId: string, targetCampaignId: string)
 
   if (fetchError || !original) throw fetchError ?? new Error('PNG non trovato');
 
-  const { id, created_at, updated_at, ...rest } = original as any;
+  const { id, created_at, updated_at, owner_profile_id, ...rest } = original as any;
   const { error } = await supabase
     .from('npcs')
-    .insert({ ...rest, campaign_id: targetCampaignId });
+    .insert({ ...rest, campaign_id: targetCampaignId, owner_profile_id: ownerProfileId });
 
   if (error) throw error;
 }
@@ -452,6 +481,7 @@ export interface Monster {
 
   visibleToPlayers?: boolean;
   tabOrder?: string[];
+  ownerProfileId?: string;
 
   // Legacy fields from DB
   baseType?: string;
@@ -641,7 +671,35 @@ export async function unassignMonsterFromCampaign(monsterId: string): Promise<vo
   if (error) throw error;
 }
 
-export async function copyMonsterToCampaign(monsterId: string, targetCampaignId: string): Promise<void> {
+export async function assignMonsterToCampaign(monsterId: string, campaignId: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase non configurato');
+
+  const { error } = await supabase
+    .from('monsters')
+    .update({ campaign_id: campaignId })
+    .eq('id', monsterId);
+
+  if (error) throw error;
+}
+
+export async function loadMonstersByOwner(ownerProfileId: string): Promise<Monster[]> {
+  if (shouldUseLocalMode()) return [];
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from('monsters')
+    .select('*')
+    .eq('owner_profile_id', ownerProfileId);
+
+  if (error) {
+    console.error('Errore caricamento mostri per proprietario:', error);
+    return [];
+  }
+
+  return (data || []).map(toCamelCase);
+}
+
+export async function copyMonsterToCampaign(monsterId: string, targetCampaignId: string, ownerProfileId: string): Promise<void> {
   if (!supabase) throw new Error('Supabase non configurato');
 
   const { data: original, error: fetchError } = await supabase
@@ -652,10 +710,10 @@ export async function copyMonsterToCampaign(monsterId: string, targetCampaignId:
 
   if (fetchError || !original) throw fetchError ?? new Error('Mostro non trovato');
 
-  const { id, created_at, updated_at, ...rest } = original as any;
+  const { id, created_at, updated_at, owner_profile_id, ...rest } = original as any;
   const { error } = await supabase
     .from('monsters')
-    .insert({ ...rest, campaign_id: targetCampaignId });
+    .insert({ ...rest, campaign_id: targetCampaignId, owner_profile_id: ownerProfileId });
 
   if (error) throw error;
 }

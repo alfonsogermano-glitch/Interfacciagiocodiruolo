@@ -552,7 +552,7 @@ useEffect(() => {
 
   const addCustomMonster = () => {
   setBaseMonsterIdToCreate('');
-  const monster = createEmptyMonster(activeCampaignId);
+  const monster = createEmptyMonster(activeCampaignId, user?.id);
 
   setEditingMonster(monster);
   clearSelectedMonster();
@@ -560,7 +560,7 @@ useEffect(() => {
 };
 
   const addMonsterFromBase = () => {
-  const newMonster = createMonsterFromBase(baseMonsterIdToCreate, activeCampaignId);
+  const newMonster = createMonsterFromBase(baseMonsterIdToCreate, activeCampaignId, user?.id);
   if (!newMonster) return;
 
   setEditingMonster(newMonster);
