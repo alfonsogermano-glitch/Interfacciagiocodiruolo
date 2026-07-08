@@ -17,7 +17,6 @@ import { SettingsModal } from './components/SettingsModal';
 import { ReportBugModal } from './components/ReportBugModal';
 import { NewsPage } from './news/NewsPage';
 import { SessionRightSidebar } from './components/session/SessionRightSidebar';
-import { EntityDetailRail } from './components/session/shared/EntityDetailRail';
 
 import { AdventureManager } from './components/gm/AdventureManager';
 import { PlayerCharacters } from './components/gm/PlayerCharacters';
@@ -327,9 +326,12 @@ function AuthGate() {
           />
         }
         rightSidebar={
-          view === 'dashboard' && activeGmTab === 'characters' && rightSidebarContext?.kind === 'characters-detail' ? (
-            <EntityDetailRail />
-          ) : view === 'dashboard' && !['characters', 'campaigns'].includes(activeGmTab) ? (
+          // niente rail per la tab "characters": EntityDetailRail vive li',
+          // fixed, dentro MyCharactersPage stessa (vedi commento in quel file) -
+          // se montata qui come sibling flex di <main>, farebbe ricalcolare la
+          // larghezza della griglia (e quindi ricentrarla) ogni volta che il
+          // pannello dettaglio si apre/chiude.
+          view === 'dashboard' && !['characters', 'campaigns'].includes(activeGmTab) ? (
             <GmSectionSidebar activeTab={activeGmTab} onChangeTab={changeActiveGmTab} />
           ) : view === 'campaign-home' ? (
             <SessionRightSidebar />

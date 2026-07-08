@@ -12,6 +12,7 @@ import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { EntityCard } from '../session/shared/EntityCard';
 import { EntityKebabMenu } from '../session/shared/EntityKebabMenu';
 import { EntityDetailView } from '../session/shared/EntityDetailView';
+import { EntityDetailRail } from '../session/shared/EntityDetailRail';
 import { SlideOverPanel } from '../session/SlideOverPanel';
 import { loadCharactersByOwner, saveCharacter, deleteCharacter } from '../../../services/supabase/charactersService';
 import {
@@ -113,11 +114,10 @@ function filterEntries(all: CatalogEntry[], filter: EntityFilter): CatalogEntry[
 type DetailContext = { entityType: 'character' | 'npc' | 'monster'; id: string };
 
 interface MyCharactersPageProps {
-  // La vista dettaglio a pagina intera e' pilotata da App.tsx (stato
-  // rightSidebarContext), non da uno stato locale qui: la rail
-  // Scheda/Immagine/Token deve montare nello slot rightSidebar di AppShell,
-  // fuori dalla portata di un componente annidato dentro <main>. Vedi il
-  // commento su RightSidebarContext in App.tsx.
+  // Lo stato del pannello dettaglio e' sollevato in App.tsx (rightSidebarContext)
+  // solo perche' deve sopravvivere al cambio di tab GM; il rendering pero'
+  // resta tutto qui (overlay fixed + rail), cosi' non tocca la larghezza
+  // flex di <main> in AppShell. Vedi il commento su RightSidebarContext in App.tsx.
   detailContext: DetailContext | null;
   onOpenDetail: (entityType: DetailContext['entityType'], id: string) => void;
   onCloseDetail: () => void;
@@ -1037,6 +1037,16 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         </div>
       )}
     </SlideOverPanel>
+
+    {/* fixed, non un sibling flex di <main>: se montata in AppShell come
+        rightSidebar (come in una versione precedente), la comparsa/scomparsa
+        di questa rail restringe/riespande <main> e fa ricentrare la griglia
+        (mx-auto) sotto di essa - esattamente lo "scatto" da evitare. */}
+    {detailContext && (
+      <div className="fixed top-12 bottom-0 right-0 z-[900]">
+        <EntityDetailRail />
+      </div>
+    )}
     </>
   );
 }
