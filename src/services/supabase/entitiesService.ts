@@ -278,14 +278,14 @@ export async function loadNPCs(campaignId: string): Promise<NPC[]> {
   return (data || []).map(toCamelCase);
 }
 
-export async function saveNPC(campaignId: string, npc: NPC): Promise<void> {
+export async function saveNPC(campaignId: string | null, npc: NPC): Promise<void> {
   if (shouldUseLocalMode()) {
-  await saveLocalModeEntity<NPC>(campaignId, 'npcs', { ...npc, campaignId });
+  await saveLocalModeEntity<NPC>(campaignId ?? 'unassigned', 'npcs', { ...npc, campaignId });
     return;
   }
 
   if (!supabase) {
-    saveLocalEntity<NPC>(campaignId, 'npcs', { ...npc, campaignId });
+    saveLocalEntity<NPC>(campaignId ?? 'unassigned', 'npcs', { ...npc, campaignId });
     return;
   }
 

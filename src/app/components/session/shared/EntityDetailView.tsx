@@ -16,6 +16,11 @@ import { VIAGGI_PER_STILE, calculateAmbiti, NOTABLE_CITIZENS, LATER_SENTINEL } f
 import { loadNPCs } from '../../../../services/supabase/entitiesService';
 import { loadCharacters } from '../../../../services/supabase/charactersService';
 
+// Stesse opzioni di NPCManager.tsx (DIFFICULTY_OPTIONS) - duplicate qui
+// perche' NPCManager non espone un modulo condiviso per questo array; se in
+// futuro anche i Mostri diventano editabili qui, vale la pena estrarlo.
+const DIFFICULTY_OPTIONS = ['', 'Base', 'Critico', 'Estremo', 'Impossibile', 'Non euclideo'] as const;
+
 const ABILITA_PER_AMBITO: Record<string, string[]> = {
   Fisico: ['Muscoli', 'Sport', 'Acrobatica', 'Resistenza', 'Freddezza'],
   Scuola: ['Cultura', 'Tecnologia', 'Studio', 'Pronto Soccorso', 'Scienze'],
@@ -403,9 +408,23 @@ export function EntityDetailView({
                 )}
               </div>
             ) : entityType === 'npc' ? (
-              <div className="min-w-0 flex-1">
-                <h3 className="text-xl font-semibold text-[var(--dash-text-strong)]">{entity.name}</h3>
-                <p className="text-sm text-[var(--dash-muted)]">{entity.role}</p>
+              <div className="min-w-0 flex-1 space-y-1">
+                <input
+                  type="text"
+                  value={entity.name}
+                  onChange={(e) => onUpdate({ ...entity, name: e.target.value })}
+                  disabled={!canEdit}
+                  placeholder="Nome del PNG"
+                  className="w-full rounded-lg border border-transparent bg-transparent px-1 text-xl font-semibold text-[var(--dash-text-strong)] outline-none transition-colors hover:border-[var(--dash-border-soft)] focus:border-[var(--dash-accent)] disabled:cursor-not-allowed"
+                />
+                <input
+                  type="text"
+                  value={entity.role ?? ''}
+                  onChange={(e) => onUpdate({ ...entity, role: e.target.value })}
+                  disabled={!canEdit}
+                  placeholder="Ruolo"
+                  className="w-full rounded-lg border border-transparent bg-transparent px-1 text-sm text-[var(--dash-muted)] outline-none transition-colors hover:border-[var(--dash-border-soft)] focus:border-[var(--dash-accent)] disabled:cursor-not-allowed"
+                />
               </div>
             ) : (
               <h3 className="min-w-0 flex-1 text-xl font-semibold text-[var(--dash-text-strong)]">{entity.name}</h3>
@@ -864,43 +883,71 @@ export function EntityDetailView({
 
           {entityType === 'npc' && tabs.currentTab === 'summary' && (
             <div className="space-y-3 text-sm">
-              {entity.description && (
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
-                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Descrizione</div>
-                  <p className="text-[var(--dash-text)]">{entity.description}</p>
-                </div>
-              )}
-              {entity.personality && (
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
-                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Personalità</div>
-                  <p className="text-[var(--dash-text)]">{entity.personality}</p>
-                </div>
-              )}
-              {canEdit && entity.secrets && (
+              <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Descrizione</div>
+                <textarea
+                  value={entity.description ?? ''}
+                  onChange={(e) => onUpdate({ ...entity, description: e.target.value })}
+                  placeholder="Descrivi questo PNG..."
+                  rows={3}
+                  className="w-full resize-none rounded-lg border border-transparent bg-transparent text-[var(--dash-text)] outline-none transition-colors hover:border-[var(--dash-border-soft)] focus:border-[var(--dash-accent)] disabled:cursor-not-allowed"
+                />
+              </div>
+              <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Personalità</div>
+                <textarea
+                  value={entity.personality ?? ''}
+                  onChange={(e) => onUpdate({ ...entity, personality: e.target.value })}
+                  placeholder="Tratti di personalità..."
+                  rows={3}
+                  className="w-full resize-none rounded-lg border border-transparent bg-transparent text-[var(--dash-text)] outline-none transition-colors hover:border-[var(--dash-border-soft)] focus:border-[var(--dash-accent)] disabled:cursor-not-allowed"
+                />
+              </div>
+              {canEdit && (
                 <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
                   <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Segreti (solo GM)</div>
-                  <p className="text-[var(--dash-text)]">{entity.secrets}</p>
+                  <textarea
+                    value={entity.secrets ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, secrets: e.target.value })}
+                    placeholder="Informazioni riservate al GM..."
+                    rows={3}
+                    className="w-full resize-none rounded-lg border border-transparent bg-transparent text-[var(--dash-text)] outline-none transition-colors hover:border-[var(--dash-border-soft)] focus:border-[var(--dash-accent)] disabled:cursor-not-allowed"
+                  />
                 </div>
               )}
-              {(entity.attacco || entity.difesa) && (
-                <div className="grid grid-cols-2 gap-3">
-                  {entity.attacco && (
-                    <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
-                      <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Attacco</div>
-                      <div className="mt-1 text-sm font-semibold text-[var(--dash-text-strong)]">{entity.attacco}</div>
-                    </div>
-                  )}
-                  {entity.difesa && (
-                    <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
-                      <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Difesa</div>
-                      <div className="mt-1 text-sm font-semibold text-[var(--dash-text-strong)]">{entity.difesa}</div>
-                    </div>
-                  )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
+                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Attacco</div>
+                  <select
+                    value={entity.attacco ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, attacco: e.target.value })}
+                    className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                  >
+                    {DIFFICULTY_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option || 'Non definito'}</option>
+                    ))}
+                  </select>
                 </div>
-              )}
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
+                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Difesa</div>
+                  <select
+                    value={entity.difesa ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, difesa: e.target.value })}
+                    className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                  >
+                    {DIFFICULTY_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option || 'Non definita'}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
           )}
 
+          {/* TODO: Mostri ancora di sola lettura qui (a differenza dei PNG,
+              resi editabili sopra) - stesso pattern da applicare quando ci si
+              arriva in una sessione futura: nome/tipo nell'header + name/
+              description/personality/secrets/attacco/difesa qui sotto. */}
           {entityType === 'monster' && tabs.currentTab === 'summary' && (
             <div className="space-y-3 text-sm">
               {entity.description && (

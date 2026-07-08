@@ -27,6 +27,7 @@ import {
 import type { Character } from '../../../types/character';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/paletteColors';
+import { generateUUID } from '../../../lib/uuid';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 const INVITE_OPTION_VALUE = '__invite__';
@@ -452,6 +453,11 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [isLoadingNpcs, setIsLoadingNpcs] = useState(true);
   const [npcFilter, setNpcFilter] = useState<EntityFilter>('all');
   const [npcSort, setNpcSort] = useState<SortMode>('recent');
+  // Bozza di un nuovo PNG aperta da "+ Nuovo PNG": resta solo qui, non entra
+  // in npcs ne' viene scritta su Supabase, finche' il nome resta vuoto (vedi
+  // handleNpcDetailUpdate/handleCloseDetail sotto). Cosi' chiudere l'overlay
+  // senza aver scritto un nome non lascia righe orfane sul DB.
+  const [draftNpc, setDraftNpc] = useState<NPC | null>(null);
 
   // ============= Mostri =============
 
@@ -521,6 +527,66 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
       setMonsters(prev => prev.map(m => (m.id === updated.id ? (updated as Monster) : m)));
       saveMonster(updated.campaignId ?? '', updated as Monster).catch(err => console.error('Errore salvataggio mostro:', err));
     }
+  };
+
+  const createEmptyNpcDraft = (): NPC => ({
+    id: generateUUID(),
+    campaignId: null,
+    environmentId: null,
+    adventureId: null,
+    name: '',
+    role: '',
+    description: '',
+    personality: '',
+    secrets: '',
+    location: '',
+    portraitImageUrl: '',
+    portraitCroppedImageUrl: '',
+    portraitCrop: { centerX: 0.5, centerY: 0.5, zoom: 1 },
+    mapLocationId: null,
+    customLocationName: '',
+    freschezza: null,
+    maxFreschezza: null,
+    caselleFrischezzaCruciali: [],
+    attacco: '',
+    difesa: '',
+    tratti: [],
+    trattiPersonalizzati: [],
+    azioniSpeciali: [],
+    azioniSpecialiPersonalizzate: [],
+    puntoDebole: '',
+    ownerProfileId: user?.id,
+  });
+
+  const handleOpenNewNpc = () => {
+    const draft = createEmptyNpcDraft();
+    setDraftNpc(draft);
+    onOpenDetail('npc', draft.id);
+  };
+
+  // Finche' la bozza non ha un nome resta solo qui (nessuna scrittura su
+  // Supabase). Alla prima modifica con nome non vuoto viene "promossa":
+  // entra in npcs e si salva - da quel momento le modifiche successive
+  // passano dal normale persistEntity() (id gia' presente in npcs).
+  const handleNpcDetailUpdate = (updated: NPC) => {
+    if (draftNpc && updated.id === draftNpc.id) {
+      if (!updated.name.trim()) {
+        setDraftNpc(updated);
+        return;
+      }
+      setDraftNpc(null);
+      setNpcs(prev => [...prev, updated]);
+      saveNPC(updated.campaignId ?? null, updated).catch(err => console.error('Errore salvataggio PNG:', err));
+      return;
+    }
+    persistEntity('npc', updated);
+  };
+
+  // Chiude l'overlay e scarta un'eventuale bozza PNG mai promossa (mai
+  // scritta su Supabase, quindi niente da ripulire lato server).
+  const handleCloseDetail = () => {
+    setDraftNpc(null);
+    onCloseDetail();
   };
 
   const removeEntity = (entry: CatalogEntry) => {
@@ -808,9 +874,12 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   // SessionCharactersPanel.tsx.
   const detailData: (OwnedCharacter | NPC | Monster) | null =
     detailContext?.entityType === 'character' ? characters.find(c => c.id === detailContext.id) ?? null :
-    detailContext?.entityType === 'npc' ? npcs.find(n => n.id === detailContext.id) ?? null :
+    detailContext?.entityType === 'npc'
+      ? npcs.find(n => n.id === detailContext.id) ?? (draftNpc?.id === detailContext.id ? draftNpc : null) :
     detailContext?.entityType === 'monster' ? monsters.find(m => m.id === detailContext.id) ?? null :
     null;
+
+  const isViewingUnsavedNpcDraft = detailContext?.entityType === 'npc' && draftNpc?.id === detailContext.id;
 
   return (
     <>
@@ -837,6 +906,13 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
           <button type="button" onClick={() => { setEditingCharacter(null); setShowWizard(true); }}
             className="group inline-flex items-center gap-2 rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--dash-text-strong)] shadow-lg shadow-black/20 transition-colors hover:bg-[var(--dash-accent-2)]">
             <Plus className="h-4 w-4 group-hover:animate-[plusPulse_0.75s_ease-in-out_infinite]" /> Nuovo personaggio
+          </button>
+        )}
+
+        {activeTab === 'npcs' && (
+          <button type="button" onClick={handleOpenNewNpc}
+            className="group inline-flex items-center gap-2 rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--dash-text-strong)] shadow-lg shadow-black/20 transition-colors hover:bg-[var(--dash-accent-2)]">
+            <Plus className="h-4 w-4 group-hover:animate-[plusPulse_0.75s_ease-in-out_infinite]" /> Nuovo PNG
           </button>
         )}
       </div>
@@ -1028,13 +1104,13 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
       )}
     </div>
 
-    <SlideOverPanel isOpen={!!detailContext} onClose={onCloseDetail} rightOffset={CHARACTERS_RAIL_WIDTH} widthClassName="w-full max-w-6xl">
+    <SlideOverPanel isOpen={!!detailContext} onClose={handleCloseDetail} rightOffset={CHARACTERS_RAIL_WIDTH} widthClassName="w-full max-w-6xl">
       {detailContext && detailData && (
         <div className="flex h-full select-none">
           <div className="w-32 shrink-0 overflow-y-auto p-4">
             <button
               type="button"
-              onClick={onCloseDetail}
+              onClick={handleCloseDetail}
               className="inline-flex items-center gap-2 text-sm text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -1042,11 +1118,17 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-5">
+            {isViewingUnsavedNpcDraft && (
+              <div className="mb-4 rounded-lg border border-[var(--dash-accent)] bg-[var(--dash-panel)] px-3 py-2 text-xs text-[var(--dash-text)]">
+                Bozza non salvata — verrà salvata automaticamente non appena inserisci un nome.
+              </div>
+            )}
             <EntityDetailView
               entityType={detailContext.entityType}
               entity={detailData}
               onUpdate={(updated) => {
                 if (detailContext.entityType === 'character') persistCharacter(updated.id, updated);
+                else if (detailContext.entityType === 'npc') handleNpcDetailUpdate(updated);
                 else persistEntity(detailContext.entityType, updated);
               }}
               canEdit
