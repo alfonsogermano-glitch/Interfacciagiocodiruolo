@@ -1027,37 +1027,41 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
       )}
     </div>
 
-    <SlideOverPanel isOpen={!!detailContext} onClose={onCloseDetail} rightOffset={CHARACTERS_RAIL_WIDTH}>
+    <SlideOverPanel isOpen={!!detailContext} onClose={onCloseDetail} rightOffset={CHARACTERS_RAIL_WIDTH} widthClassName="w-full max-w-6xl">
       {detailContext && detailData && (
-        <div className="h-full overflow-y-auto p-5">
-          <button
-            type="button"
-            onClick={onCloseDetail}
-            className="mb-4 inline-flex items-center gap-2 text-sm text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Torna ai {tabLabel(activeTab)}
-          </button>
-          <EntityDetailView
-            entityType={detailContext.entityType}
-            entity={detailData}
-            onUpdate={(updated) => {
-              if (detailContext.entityType === 'character') persistCharacter(updated.id, updated);
-              else persistEntity(detailContext.entityType, updated);
-            }}
-            canEdit
-            campaignId={detailData.campaignId ?? null}
-            accessToken={session?.access_token}
-            isHSC={isHSC}
-            draggable={false}
-            showOwnerRow={false}
-            showRail={false}
-            linkableCharacters={
-              detailContext.entityType === 'character'
-                ? characters.filter(c => c.id !== detailContext.id && c.campaignId === null).map(c => ({ id: c.id, name: c.name }))
-                : []
-            }
-          />
+        <div className="flex h-full select-none">
+          <div className="w-32 shrink-0 overflow-y-auto border-r border-[var(--dash-border-soft)] p-4">
+            <button
+              type="button"
+              onClick={onCloseDetail}
+              className="inline-flex items-center gap-2 text-sm text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Torna ai {tabLabel(activeTab)}
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-5">
+            <EntityDetailView
+              entityType={detailContext.entityType}
+              entity={detailData}
+              onUpdate={(updated) => {
+                if (detailContext.entityType === 'character') persistCharacter(updated.id, updated);
+                else persistEntity(detailContext.entityType, updated);
+              }}
+              canEdit
+              campaignId={detailData.campaignId ?? null}
+              accessToken={session?.access_token}
+              isHSC={isHSC}
+              draggable={false}
+              showOwnerRow={false}
+              showRail={false}
+              linkableCharacters={
+                detailContext.entityType === 'character'
+                  ? characters.filter(c => c.id !== detailContext.id && c.campaignId === null).map(c => ({ id: c.id, name: c.name }))
+                  : []
+              }
+            />
+          </div>
         </div>
       )}
     </SlideOverPanel>

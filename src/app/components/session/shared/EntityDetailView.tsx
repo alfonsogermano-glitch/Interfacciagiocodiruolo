@@ -800,7 +800,7 @@ export function EntityDetailView({
                   </select>
                 ) : (
                   <div className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2 text-xs text-[var(--dash-text)]">
-                    Il Tutore verrà deciso in un secondo momento.
+                    Il Tutore verrà deciso tra i PNG della Campagna.
                   </div>
                 )}
               </div>
@@ -855,7 +855,7 @@ export function EntityDetailView({
                   </select>
                 ) : (
                   <div className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2 text-xs text-[var(--dash-text)]">
-                    Il Tipo Speciale verrà deciso in un secondo momento.
+                    Il Tipo Speciale verrà deciso tra i PNG della Campagna.
                   </div>
                 )}
               </div>
