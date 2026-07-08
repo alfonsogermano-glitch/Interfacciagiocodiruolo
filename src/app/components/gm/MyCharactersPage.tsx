@@ -1030,7 +1030,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     <SlideOverPanel isOpen={!!detailContext} onClose={onCloseDetail} rightOffset={CHARACTERS_RAIL_WIDTH} widthClassName="w-full max-w-6xl">
       {detailContext && detailData && (
         <div className="flex h-full select-none">
-          <div className="w-32 shrink-0 overflow-y-auto border-r border-[var(--dash-border-soft)] p-4">
+          <div className="w-32 shrink-0 overflow-y-auto p-4">
             <button
               type="button"
               onClick={onCloseDetail}
