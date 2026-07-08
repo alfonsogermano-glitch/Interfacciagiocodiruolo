@@ -186,6 +186,22 @@ export function EntityDetailView({
     setPendingOrigin({ style: nextStyle, viaggio: nextViaggio });
   };
 
+  // Il dialog di conferma deve nominare solo il campo che cambia davvero:
+  // il pulsante Viaggio lascia lo Stile invariato (solo Viaggio cambia), il
+  // pulsante Stile riassegna sempre anche il primo Viaggio della nuova pool
+  // (VIAGGI_PER_STILE[st][0], nessun valore in comune tra pool di stili
+  // diversi: cambiano quindi sempre entrambi).
+  const pendingStyleChanged = !!pendingOrigin && pendingOrigin.style !== entity?.style;
+  const pendingViaggioChanged = !!pendingOrigin && pendingOrigin.viaggio !== entity?.viaggio;
+  const pendingOriginFieldLabel =
+    pendingStyleChanged && pendingViaggioChanged ? 'Stile/Viaggio' : pendingStyleChanged ? 'Stile' : 'Viaggio';
+  const pendingOriginValueLabel =
+    pendingStyleChanged && pendingViaggioChanged
+      ? `${pendingOrigin?.style} · ${pendingOrigin?.viaggio}`
+      : pendingStyleChanged
+        ? pendingOrigin?.style
+        : pendingOrigin?.viaggio;
+
   const legameSelectValue = entity?.linkedCharacterId
     ? entity.linkedCharacterId
     : entity?.legame === 'Da definire in seguito'
@@ -710,9 +726,9 @@ export function EntityDetailView({
 
               {pendingOrigin && (
                 <ConfirmDialog
-                  title="Confermare il cambio di Stile/Viaggio?"
-                  message={`Stai per cambiare Stile/Viaggio in "${pendingOrigin.style} · ${pendingOrigin.viaggio}". Gli Ambiti verranno ricalcolati automaticamente. Le Abilità nella tab "Riepilogo" NON vengono ricalcolate automaticamente: dopo questa modifica i bonus derivati dal vecchio Stile/Viaggio potrebbero non essere più corretti e dovrai rivederle e sistemarle a mano. Se i Tratti selezionati non sono compatibili con la nuova scelta, verranno azzerati e dovrai riselezionarli.`}
-                  confirmLabel="Ho capito, cambia Stile/Viaggio"
+                  title={`Confermare il cambio di ${pendingOriginFieldLabel}?`}
+                  message={`Stai per cambiare ${pendingOriginFieldLabel} in "${pendingOriginValueLabel}". Gli Ambiti verranno ricalcolati automaticamente. Le Abilità nella tab "Riepilogo" NON vengono ricalcolate automaticamente: dopo questa modifica i bonus derivati dal vecchio ${pendingOriginFieldLabel} potrebbero non essere più corretti e dovrai rivederle e sistemarle a mano. Se i Tratti selezionati non sono compatibili con la nuova scelta, verranno azzerati e dovrai riselezionarli.`}
+                  confirmLabel={`Ho capito, cambia ${pendingOriginFieldLabel}`}
                   cancelLabel="Annulla"
                   danger={false}
                   onConfirm={() => {
