@@ -11,6 +11,7 @@ import { CharacterCreationWizard } from './CharacterCreationWizard';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { EntityCard } from '../session/shared/EntityCard';
 import { EntityKebabMenu } from '../session/shared/EntityKebabMenu';
+import { EntityFilterToolbar, type SortMode, type ViewMode } from '../session/shared/EntityFilterToolbar';
 import { EntityDetailView } from '../session/shared/EntityDetailView';
 import { EntityDetailRail } from '../session/shared/EntityDetailRail';
 import { SlideOverPanel } from '../session/SlideOverPanel';
@@ -35,7 +36,6 @@ const INVITE_OPTION_VALUE = '__invite__';
 type OwnedCharacter = Character & { player: string; notes: string; ownerProfileId: string; campaignId: string | null };
 type CatalogEntry = { kind: 'npc'; entity: NPC } | { kind: 'monster'; entity: Monster };
 type EntityFilter = 'all' | 'assigned' | 'unassigned';
-type SortMode = 'recent' | 'oldest' | 'name' | 'name-desc';
 type ActiveTab = 'characters' | 'npcs' | 'monsters';
 
 // 3 colonne fisse dentro un contenitore centrato: max-width = 3 card ideali (portrait 140px +
@@ -79,7 +79,7 @@ const entityKebabButtonClass =
 const photoCornerButtonClass =
   'flex h-7 w-7 items-center justify-center rounded-full border border-white/25 bg-black/50 text-white transition-colors hover:border-[var(--dash-accent-2)]';
 
-function sortByNameOrDate<T extends { name: string; createdAt?: string }>(items: T[], mode: SortMode): T[] {
+function sortByNameOrDate<T extends { name: string; createdAt?: string; updatedAt?: string }>(items: T[], mode: SortMode): T[] {
   const copy = [...items];
   if (mode === 'name') {
     copy.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'it', { sensitivity: 'base' }));
@@ -87,6 +87,8 @@ function sortByNameOrDate<T extends { name: string; createdAt?: string }>(items:
     copy.sort((a, b) => (b.name || '').localeCompare(a.name || '', 'it', { sensitivity: 'base' }));
   } else if (mode === 'oldest') {
     copy.sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
+  } else if (mode === 'updated') {
+    copy.sort((a, b) => new Date(b.updatedAt ?? b.createdAt ?? 0).getTime() - new Date(a.updatedAt ?? a.createdAt ?? 0).getTime());
   } else {
     copy.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
   }
@@ -101,6 +103,8 @@ function sortEntries(items: CatalogEntry[], mode: SortMode): CatalogEntry[] {
     copy.sort((a, b) => (b.entity.name || '').localeCompare(a.entity.name || '', 'it', { sensitivity: 'base' }));
   } else if (mode === 'oldest') {
     copy.sort((a, b) => new Date(a.entity.createdAt ?? 0).getTime() - new Date(b.entity.createdAt ?? 0).getTime());
+  } else if (mode === 'updated') {
+    copy.sort((a, b) => new Date(b.entity.updatedAt ?? b.entity.createdAt ?? 0).getTime() - new Date(a.entity.updatedAt ?? a.entity.createdAt ?? 0).getTime());
   } else {
     copy.sort((a, b) => new Date(b.entity.createdAt ?? 0).getTime() - new Date(a.entity.createdAt ?? 0).getTime());
   }
@@ -111,6 +115,29 @@ function filterEntries(all: CatalogEntry[], filter: EntityFilter): CatalogEntry[
   if (filter === 'assigned') return all.filter(e => e.entity.campaignId);
   if (filter === 'unassigned') return all.filter(e => !e.entity.campaignId);
   return all;
+}
+
+// Ricerca client-side sui dati gia' caricati, stesso pattern semplice
+// (.filter()/.some()) gia' usato in MonstersManager.tsx, adattato ai campi
+// rilevanti per ciascun tipo di scheda.
+function searchCharacters(items: OwnedCharacter[], query: string): OwnedCharacter[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return items;
+  return items.filter(char =>
+    [char.name, char.style, char.viaggio, char.description]
+      .filter(Boolean)
+      .some(value => String(value).toLowerCase().includes(q))
+  );
+}
+
+function searchEntries(items: CatalogEntry[], query: string): CatalogEntry[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return items;
+  return items.filter(({ entity }) =>
+    [entity.name, entity.description, entity.attacco, entity.difesa]
+      .filter(Boolean)
+      .some(value => String(value).toLowerCase().includes(q))
+  );
 }
 
 type DetailContext = { entityType: 'character' | 'npc' | 'monster'; id: string };
@@ -152,6 +179,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
 
   const [charFilter, setCharFilter] = useState<EntityFilter>('all');
   const [charSort, setCharSort] = useState<SortMode>('recent');
+  const [charSearch, setCharSearch] = useState('');
+  const [charViewMode, setCharViewMode] = useState<ViewMode>('grid');
 
   const saveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const loadSeqRef = useRef(0);
@@ -314,9 +343,9 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const assignedCharacters = characters.filter(c => c.campaignId);
   const unassignedCharacters = characters.filter(c => !c.campaignId);
   const charFilterPool = charFilter === 'assigned' ? assignedCharacters : charFilter === 'unassigned' ? unassignedCharacters : characters;
-  const filteredCharacters = sortByNameOrDate(charFilterPool, charSort);
+  const filteredCharacters = sortByNameOrDate(searchCharacters(charFilterPool, charSearch), charSort);
 
-  const renderCharacterCard = (char: OwnedCharacter) => {
+  const renderCharacterCard = (char: OwnedCharacter, variant: ViewMode = 'grid') => {
     const isPending = pendingCharacterId === char.id;
     const isInviteMode = inviteModeFor === char.id;
     const error = assignErrors[char.id];
@@ -328,6 +357,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     return (
       <EntityCard
         key={char.id}
+        variant={variant}
         name={char.name}
         subtitle={styleViaggio}
         secondaryText={char.description}
@@ -453,6 +483,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [isLoadingNpcs, setIsLoadingNpcs] = useState(true);
   const [npcFilter, setNpcFilter] = useState<EntityFilter>('all');
   const [npcSort, setNpcSort] = useState<SortMode>('recent');
+  const [npcSearch, setNpcSearch] = useState('');
+  const [npcViewMode, setNpcViewMode] = useState<ViewMode>('grid');
   // Bozza di un nuovo PNG aperta da "+ Nuovo PNG": resta solo qui, non entra
   // in npcs ne' viene scritta su Supabase, finche' il nome resta vuoto (vedi
   // handleNpcDetailUpdate/handleCloseDetail sotto). Cosi' chiudere l'overlay
@@ -465,6 +497,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [isLoadingMonsters, setIsLoadingMonsters] = useState(true);
   const [monsterFilter, setMonsterFilter] = useState<EntityFilter>('all');
   const [monsterSort, setMonsterSort] = useState<SortMode>('recent');
+  const [monsterSearch, setMonsterSearch] = useState('');
+  const [monsterViewMode, setMonsterViewMode] = useState<ViewMode>('grid');
 
   // ============= Azioni condivise PNG/Mostri =============
 
@@ -694,7 +728,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     }
   };
 
-  const renderEntityCard = (entry: CatalogEntry) => {
+  const renderEntityCard = (entry: CatalogEntry, variant: ViewMode = 'grid') => {
     const { entity, kind } = entry;
     const name = entityName(entry);
     const typeLabel = kind === 'npc' ? (entity as NPC).role || 'PNG' : 'Mostro';
@@ -709,6 +743,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     return (
       <EntityCard
         key={`${kind}-${entity.id}`}
+        variant={variant}
         name={name}
         subtitle={typeLabel}
         photoUrl={photoUrl}
@@ -794,29 +829,30 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     setFilter: (f: EntityFilter) => void;
     sort: SortMode;
     setSort: (s: SortMode) => void;
+    search: string;
+    setSearch: (s: string) => void;
+    viewMode: ViewMode;
+    setViewMode: (v: ViewMode) => void;
     isLoading: boolean;
     labelSingular: string; // "PNG" / "mostro"
     labelPluralLower: string; // "PNG" / "mostri"
   }) => {
-    const { entries, filter, setFilter, sort, setSort, isLoading, labelSingular, labelPluralLower } = params;
+    const { entries, filter, setFilter, sort, setSort, search, setSearch, viewMode, setViewMode, isLoading, labelSingular, labelPluralLower } = params;
     const assigned = entries.filter(e => e.entity.campaignId);
     const unassigned = entries.filter(e => !e.entity.campaignId);
-    const filtered = sortEntries(filterEntries(entries, filter), sort);
+    const filtered = sortEntries(searchEntries(filterEntries(entries, filter), search), sort);
 
     return (
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={sort}
-            onChange={e => setSort(e.target.value as SortMode)}
-            className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-1.5 text-xs text-[var(--dash-text)]"
-          >
-            <option value="recent">Ordina: Più recenti</option>
-            <option value="oldest">Ordina: Meno recenti</option>
-            <option value="name">Ordina: Nome (A-Z)</option>
-            <option value="name-desc">Ordina: Nome (Z-A)</option>
-          </select>
-
+        <EntityFilterToolbar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder={`Cerca ${labelPluralLower}...`}
+          sort={sort}
+          onSortChange={setSort}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+        >
           <button type="button" onClick={() => setFilter('all')} className={pillClass(filter === 'all')}>
             Tutti <span className="opacity-70">({entries.length})</span>
           </button>
@@ -829,7 +865,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
           <button type="button" className={pillClass(false, true)} disabled title={`In arrivo: filtro per ${labelPluralLower} richiedibili dai giocatori`}>
             Richiedibile
           </button>
-        </div>
+        </EntityFilterToolbar>
 
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[var(--dash-muted)]" /></div>
@@ -838,12 +874,20 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             <p className="text-sm text-[var(--dash-muted)]">
               {entries.length === 0
                 ? `Non hai ancora creato nessun ${labelSingular}.`
-                : filter === 'assigned'
-                  ? `Nessun ${labelSingular} in campagna con questo filtro.`
-                  : filter === 'unassigned'
-                    ? `Nessun ${labelSingular} scollegato da una campagna.`
-                    : `Nessun ${labelSingular} trovato.`}
+                : search.trim()
+                  ? `Nessun ${labelSingular} trovato per "${search.trim()}".`
+                  : filter === 'assigned'
+                    ? `Nessun ${labelSingular} in campagna con questo filtro.`
+                    : filter === 'unassigned'
+                      ? `Nessun ${labelSingular} scollegato da una campagna.`
+                      : `Nessun ${labelSingular} trovato.`}
             </p>
+          </div>
+        ) : viewMode === 'list' ? (
+          <div className={GRID_CONTAINER_CLASS}>
+            <div className="space-y-2">
+              {filtered.map(entry => renderEntityCard(entry, 'list'))}
+            </div>
           </div>
         ) : (
           <div className={GRID_CONTAINER_CLASS}>
@@ -919,18 +963,15 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
 
       {activeTab === 'characters' && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={charSort}
-              onChange={e => setCharSort(e.target.value as SortMode)}
-              className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-1.5 text-xs text-[var(--dash-text)]"
-            >
-              <option value="recent">Ordina: Più recenti</option>
-              <option value="oldest">Ordina: Meno recenti</option>
-              <option value="name">Ordina: Nome (A-Z)</option>
-              <option value="name-desc">Ordina: Nome (Z-A)</option>
-            </select>
-
+          <EntityFilterToolbar
+            search={charSearch}
+            onSearchChange={setCharSearch}
+            searchPlaceholder="Cerca personaggi..."
+            sort={charSort}
+            onSortChange={setCharSort}
+            viewMode={charViewMode}
+            onViewModeChange={setCharViewMode}
+          >
             <button type="button" onClick={() => setCharFilter('all')} className={pillClass(charFilter === 'all')}>
               Tutti <span className="opacity-70">({characters.length})</span>
             </button>
@@ -943,7 +984,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             <button type="button" className={pillClass(false, true)} disabled title="In arrivo: filtro per personaggi richiedibili dagli altri giocatori">
               Richiedibile
             </button>
-          </div>
+          </EntityFilterToolbar>
 
           {isLoading ? (
             <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[var(--dash-muted)]" /></div>
@@ -952,12 +993,20 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
               <p className="text-sm text-[var(--dash-muted)]">
                 {characters.length === 0
                   ? 'Non hai ancora creato nessun personaggio.'
-                  : charFilter === 'assigned'
-                    ? 'Nessun personaggio in campagna con questo filtro.'
-                    : charFilter === 'unassigned'
-                      ? 'Nessun personaggio scollegato da una campagna.'
-                      : 'Nessun personaggio trovato.'}
+                  : charSearch.trim()
+                    ? `Nessun personaggio trovato per "${charSearch.trim()}".`
+                    : charFilter === 'assigned'
+                      ? 'Nessun personaggio in campagna con questo filtro.'
+                      : charFilter === 'unassigned'
+                        ? 'Nessun personaggio scollegato da una campagna.'
+                        : 'Nessun personaggio trovato.'}
               </p>
+            </div>
+          ) : charViewMode === 'list' ? (
+            <div className={GRID_CONTAINER_CLASS}>
+              <div className="space-y-2">
+                {filteredCharacters.map(char => renderCharacterCard(char, 'list'))}
+              </div>
             </div>
           ) : (
             <div className={GRID_CONTAINER_CLASS}>
@@ -981,6 +1030,10 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         setFilter: setNpcFilter,
         sort: npcSort,
         setSort: setNpcSort,
+        search: npcSearch,
+        setSearch: setNpcSearch,
+        viewMode: npcViewMode,
+        setViewMode: setNpcViewMode,
         isLoading: isLoadingNpcs,
         labelSingular: 'PNG',
         labelPluralLower: 'PNG',
@@ -992,6 +1045,10 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         setFilter: setMonsterFilter,
         sort: monsterSort,
         setSort: setMonsterSort,
+        search: monsterSearch,
+        setSearch: setMonsterSearch,
+        viewMode: monsterViewMode,
+        setViewMode: setMonsterViewMode,
         isLoading: isLoadingMonsters,
         labelSingular: 'mostro',
         labelPluralLower: 'mostri',

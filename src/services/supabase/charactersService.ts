@@ -70,6 +70,7 @@ function mapRowToCharacter(row: any) {
     ownerAvatarUrl: row.owner_avatar_url ?? null,
     campaignId: row.campaign_id,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
     player: row.sheet_data?.player || '',
     notes: row.sheet_data?.notes || '',
     description: row.sheet_data?.description || '',

@@ -257,6 +257,7 @@ export interface NPC {
   visibleToPlayers?: boolean;
   tabOrder?: string[];
   createdAt?: string;
+  updatedAt?: string;
   ownerProfileId?: string;
 }
 
