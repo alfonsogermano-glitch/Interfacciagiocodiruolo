@@ -11,7 +11,6 @@ import {
   Image,
   Users,
 } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 
 interface GmSectionSidebarProps {
   activeTab: string;
@@ -49,29 +48,25 @@ function SectionButton({
   onClick: () => void;
 }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={onClick}
-          aria-label={label}
-          className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
-            active
-              ? 'bg-[var(--dash-accent)] text-white'
-              : 'text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]'
-          }`}
-        >
-          <Icon className="h-5 w-5" />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side="left">{label}</TooltipContent>
-    </Tooltip>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className={`flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2 text-center text-[11px] transition-colors ${
+        active
+          ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
+          : 'text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]'
+      }`}
+    >
+      <Icon className="h-[18px] w-[18px]" />
+      {label}
+    </button>
   );
 }
 
 export function GmSectionSidebar({ activeTab, onChangeTab }: GmSectionSidebarProps) {
   return (
-    <aside className="flex h-full w-16 shrink-0 flex-col items-center gap-2 overflow-y-auto border-l border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
+    <aside className="flex h-full w-20 shrink-0 flex-col items-center gap-1 overflow-y-auto border-l border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
       {PRIMARY_SECTIONS.map(section => (
         <SectionButton
           key={section.id}

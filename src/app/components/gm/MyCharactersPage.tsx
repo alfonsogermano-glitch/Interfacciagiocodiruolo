@@ -45,7 +45,8 @@ const GRID_CLASS = 'grid grid-cols-3 gap-4';
 // Deve combaciare con la larghezza reale di EntityDetailRail (w-20 = 5rem),
 // che qui (standalone, non in sessione) fa da rail destra ancorata al bordo
 // schermo mentre il pannello dettaglio e' aperto. Vedi SESSION_SIDEBAR_WIDTH
-// in SlideOverPanel.tsx per l'equivalente lato sessione (w-16 = 4rem).
+// in SlideOverPanel.tsx per l'equivalente lato sessione (anch'essa w-20 = 5rem,
+// stesso sistema unico di rail contestuale).
 const CHARACTERS_RAIL_WIDTH = '5rem';
 
 function withPlaceholders<T>(items: T[]): (T | null)[] {

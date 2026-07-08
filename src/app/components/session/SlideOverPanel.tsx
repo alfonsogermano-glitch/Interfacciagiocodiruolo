@@ -7,8 +7,8 @@ function getCurrentPaletteColors() {
   return palette && PALETTE_COLORS[palette] ? PALETTE_COLORS[palette] : DEFAULT_PALETTE_COLORS;
 }
 
-// Deve combaciare con la larghezza reale della barra icone (w-16 = 4rem)
-const SESSION_SIDEBAR_WIDTH = '4rem';
+// Deve combaciare con la larghezza reale della barra icone (w-20 = 5rem)
+const SESSION_SIDEBAR_WIDTH = '5rem';
 
 interface SlideOverPanelProps {
   isOpen: boolean;
@@ -16,7 +16,7 @@ interface SlideOverPanelProps {
   children: React.ReactNode;
   widthClassName?: string;
   // scostamento da destra, per lasciare spazio a una rail stretta ancorata al
-  // bordo schermo (di default quella icone di sessione, w-16 = 4rem)
+  // bordo schermo (di default quella icone di sessione, w-20 = 5rem)
   rightOffset?: string;
 }
 

@@ -13,17 +13,11 @@ export function EntityDetailRail() {
         <FileText className="h-[18px] w-[18px]" />
         Scheda
       </div>
-      <div
-        className="flex w-full cursor-default flex-col items-center gap-1 rounded-lg px-1 py-2 text-center text-[11px] text-[var(--dash-muted)] opacity-50"
-        title="In arrivo"
-      >
+      <div className="flex w-full cursor-default flex-col items-center gap-1 rounded-lg px-1 py-2 text-center text-[11px] text-[var(--dash-muted)] opacity-40">
         <ImageIcon className="h-[18px] w-[18px]" />
         Immagine
       </div>
-      <div
-        className="flex w-full cursor-default flex-col items-center gap-1 rounded-lg px-1 py-2 text-center text-[11px] text-[var(--dash-muted)] opacity-50"
-        title="In arrivo"
-      >
+      <div className="flex w-full cursor-default flex-col items-center gap-1 rounded-lg px-1 py-2 text-center text-[11px] text-[var(--dash-muted)] opacity-40">
         <Circle className="h-[18px] w-[18px]" />
         Token
       </div>

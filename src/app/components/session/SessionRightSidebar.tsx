@@ -22,23 +22,24 @@ export function SessionRightSidebar() {
 
   return (
     <>
-      <aside className="relative z-[950] flex h-full w-16 shrink-0 flex-col items-center gap-2 border-l border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
+      <aside className="relative z-[950] flex h-full w-20 shrink-0 flex-col items-center gap-1 border-l border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
         {ICONS.map(({ id, label, icon: Icon, enabled }) => (
           <button
             key={id}
             type="button"
             disabled={!enabled}
             onClick={() => enabled && togglePanel(id)}
-            title={enabled ? label : `${label} (in arrivo)`}
-            className={`flex h-11 w-11 flex-col items-center justify-center gap-0.5 rounded-lg transition-colors ${
+            aria-label={label}
+            className={`flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2 text-center text-[11px] transition-colors ${
               openPanel === id
                 ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
                 : enabled
-                  ? 'text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]'
+                  ? 'text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]'
                   : 'text-[var(--dash-muted)] opacity-40 cursor-not-allowed'
             }`}
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-[18px] w-[18px]" />
+            {label}
           </button>
         ))}
       </aside>
