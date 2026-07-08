@@ -14,15 +14,15 @@ export function AppShell({ settings, leftSidebar, rightSidebar, topbar, children
   return (
     <div
       data-dashboard-palette={settings.palette}
-      className="flex h-screen overflow-hidden bg-[var(--dash-bg)] text-[var(--dash-text)]"
+      className="flex h-screen flex-col overflow-hidden bg-[var(--dash-bg)] text-[var(--dash-text)]"
     >
       <TooltipColorsProvider palette={settings.palette}>
-        {leftSidebar}
-        <main className="flex flex-1 flex-col overflow-y-auto bg-[var(--dash-bg)]">
-          {topbar}
-          {children}
-        </main>
-        {rightSidebar}
+        {topbar}
+        <div className="flex flex-1 overflow-hidden">
+          {leftSidebar}
+          <main className="flex-1 overflow-y-auto bg-[var(--dash-bg)]">{children}</main>
+          {rightSidebar}
+        </div>
       </TooltipColorsProvider>
     </div>
   );
