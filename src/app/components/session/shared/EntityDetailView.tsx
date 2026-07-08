@@ -145,7 +145,7 @@ export function EntityDetailView({
   const [originsWarning, setOriginsWarning] = useState<string | null>(null);
   const [tutoreInputTypeOverride, setTutoreInputTypeOverride] = useState<'custom' | 'notable' | null>(null);
   const [tipoSpecialeInputTypeOverride, setTipoSpecialeInputTypeOverride] = useState<'custom' | 'notable' | null>(null);
-  const [pendingOrigin, setPendingOrigin] = useState<{ style: Stile; viaggio: Viaggio } | null>(null);
+  const [pendingOrigin, setPendingOrigin] = useState<{ style: Stile; viaggio: Viaggio; triggeredBy: 'style' | 'viaggio' } | null>(null);
 
   // Le tab modalita' custom/notable sono scelte di presentazione locali (non
   // dati salvati): vanno azzerate quando si passa a un'altra entita', altrimenti
@@ -181,26 +181,19 @@ export function EntityDetailView({
     onUpdate({ ...entity, style: nextStyle, viaggio: nextViaggio, ambiti: nextAmbiti, tratti: nextTratti });
   };
 
-  const requestOriginChange = (nextStyle: Stile, nextViaggio: Viaggio) => {
+  const requestOriginChange = (nextStyle: Stile, nextViaggio: Viaggio, triggeredBy: 'style' | 'viaggio') => {
     if (nextStyle === entity.style && nextViaggio === entity.viaggio) return;
-    setPendingOrigin({ style: nextStyle, viaggio: nextViaggio });
+    setPendingOrigin({ style: nextStyle, viaggio: nextViaggio, triggeredBy });
   };
 
-  // Il dialog di conferma deve nominare solo il campo che cambia davvero:
-  // il pulsante Viaggio lascia lo Stile invariato (solo Viaggio cambia), il
-  // pulsante Stile riassegna sempre anche il primo Viaggio della nuova pool
-  // (VIAGGI_PER_STILE[st][0], nessun valore in comune tra pool di stili
-  // diversi: cambiano quindi sempre entrambi).
-  const pendingStyleChanged = !!pendingOrigin && pendingOrigin.style !== entity?.style;
-  const pendingViaggioChanged = !!pendingOrigin && pendingOrigin.viaggio !== entity?.viaggio;
-  const pendingOriginFieldLabel =
-    pendingStyleChanged && pendingViaggioChanged ? 'Stile/Viaggio' : pendingStyleChanged ? 'Stile' : 'Viaggio';
-  const pendingOriginValueLabel =
-    pendingStyleChanged && pendingViaggioChanged
-      ? `${pendingOrigin?.style} · ${pendingOrigin?.viaggio}`
-      : pendingStyleChanged
-        ? pendingOrigin?.style
-        : pendingOrigin?.viaggio;
+  // Il dialog di conferma nomina il campo in base al controllo che l'utente
+  // ha effettivamente cliccato (triggeredBy), non al confronto dei valori
+  // grezzi: il pulsante Stile riassegna sempre anche il primo Viaggio della
+  // nuova pool (VIAGGI_PER_STILE[st][0], nessun valore in comune tra pool di
+  // stili diversi), quindi un confronto per valore risulterebbe quasi sempre
+  // "entrambi cambiati" anche quando l'utente ha interagito solo con Stile.
+  const pendingOriginFieldLabel = pendingOrigin?.triggeredBy === 'style' ? 'Stile' : 'Viaggio';
+  const pendingOriginValueLabel = pendingOrigin?.triggeredBy === 'style' ? pendingOrigin?.style : pendingOrigin?.viaggio;
 
   const legameSelectValue = entity?.linkedCharacterId
     ? entity.linkedCharacterId
@@ -540,7 +533,7 @@ export function EntityDetailView({
                       <button
                         key={st}
                         type="button"
-                        onClick={() => requestOriginChange(st, VIAGGI_PER_STILE[st][0])}
+                        onClick={() => requestOriginChange(st, VIAGGI_PER_STILE[st][0], 'style')}
                         className={originToggleClass(entity.style === st)}
                       >
                         {st}
@@ -556,7 +549,7 @@ export function EntityDetailView({
                       <button
                         key={v}
                         type="button"
-                        onClick={() => requestOriginChange(entity.style, v)}
+                        onClick={() => requestOriginChange(entity.style, v, 'viaggio')}
                         className={originToggleClass(entity.viaggio === v)}
                       >
                         {v}
