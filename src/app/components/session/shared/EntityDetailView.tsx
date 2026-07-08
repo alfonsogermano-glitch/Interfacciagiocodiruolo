@@ -953,7 +953,7 @@ export function EntityDetailView({
                 </div>
               )}
 
-              {isHSC && (
+              {!!campaignId && isHSC && (
                 <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
                   <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Freschezza massima</div>
                   <div className="flex items-center gap-2">
@@ -989,7 +989,7 @@ export function EntityDetailView({
                 </div>
               )}
 
-              {isHSC && (entity.maxFreschezza ?? 0) > 0 && (
+              {!!campaignId && isHSC && (entity.maxFreschezza ?? 0) > 0 && (
                 <FreschezzaBoxesEditor
                   current={entity.freschezza ?? entity.maxFreschezza ?? 0}
                   max={entity.maxFreschezza ?? 0}
@@ -998,7 +998,7 @@ export function EntityDetailView({
                 />
               )}
 
-              {isHSC && (
+              {!!campaignId && isHSC && (
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
                     <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Attacco</div>
@@ -1027,7 +1027,7 @@ export function EntityDetailView({
                 </div>
               )}
 
-              {isHSC && (
+              {!!campaignId && isHSC && (
                 <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
                   <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Punto debole</div>
                   <textarea
@@ -1040,7 +1040,7 @@ export function EntityDetailView({
                 </div>
               )}
 
-              {isD20 && (
+              {!!campaignId && isD20 && (
                 <D20StatBlock
                   stats={entity.d20Stats ?? DEFAULT_D20_STATS}
                   isPlayerCharacter={false}
