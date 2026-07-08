@@ -6,6 +6,7 @@ import {
   loadTauriEntities,
   saveTauriEntity
 } from '../storage/tauriJsonEntityStorage';
+import type { D20Stats } from '../../app/components/ruleset/D20StatBlock';
 
 /**
  * Servizio completo per gestire TUTTE le entità del gioco
@@ -247,6 +248,7 @@ export interface NPC {
   azioniSpecialiPersonalizzate?: string[];
 
   puntoDebole?: string;
+  d20Stats?: D20Stats;
 
   imageUrl?: string;
   tags?: string[];

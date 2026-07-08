@@ -9,12 +9,17 @@ import { DraggablePortrait } from './DraggablePortrait';
 import { EntityTabBar } from './EntityTabBar';
 import { EntityDetailRail } from './EntityDetailRail';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
+import { FreschezzaBoxesEditor } from '../../shared/FreschezzaBoxesEditor';
+import { D20StatBlock, DEFAULT_D20_STATS } from '../../ruleset/D20StatBlock';
 import { useEntityTabs, type EntityTabsEntityType } from './useEntityTabs';
+import { useRuleset } from '../../../campaigns/RulesetContext';
 import type { Stile, Viaggio, Trait } from '../../../../types/character';
+import type { Adventure } from '../../../../types/adventure';
 import { STYLE_TRAITS, JOURNEY_TRAITS } from '../../../../data/traits';
 import { VIAGGI_PER_STILE, calculateAmbiti, NOTABLE_CITIZENS, LATER_SENTINEL } from '../../../../data/characterCalculations';
-import { loadNPCs } from '../../../../services/supabase/entitiesService';
+import { loadNPCs, loadAdventures } from '../../../../services/supabase/entitiesService';
 import { loadCharacters } from '../../../../services/supabase/charactersService';
+import { loadEnvironmentReferences, type EntityReference } from '../../../../services/campaign/entityReferenceService';
 
 // Stesse opzioni di NPCManager.tsx (DIFFICULTY_OPTIONS) - duplicate qui
 // perche' NPCManager non espone un modulo condiviso per questo array; se in
@@ -156,6 +161,14 @@ export function EntityDetailView({
   const [pendingOrigin, setPendingOrigin] = useState<{ style: Stile; viaggio: Viaggio; triggeredBy: 'style' | 'viaggio' } | null>(null);
   const [campaignNpcs, setCampaignNpcs] = useState<Array<{ id: string; name: string; visibleToPlayers?: boolean }>>([]);
   const [campaignCharacters, setCampaignCharacters] = useState<Array<{ id: string; name: string }>>([]);
+  const [campaignAdventures, setCampaignAdventures] = useState<Adventure[]>([]);
+  const [campaignEnvironments, setCampaignEnvironments] = useState<EntityReference[]>([]);
+
+  // Stessa determinazione di ruleset gia' usata in NPCManager.tsx
+  // (const isD20 = isDnD5e || isPathfinder), per applicare le identiche
+  // condizioni di visibilita' ai campi PNG specifici del sistema d20.
+  const { isDnD5e, isPathfinder } = useRuleset();
+  const isD20 = isDnD5e || isPathfinder;
 
   // Le tab modalita' custom/notable sono scelte di presentazione locali (non
   // dati salvati): vanno azzerate quando si passa a un'altra entita', altrimenti
@@ -201,6 +214,29 @@ export function EntityDetailView({
     (async () => {
       const characters = await loadCharacters(campaignId);
       if (!cancelled) setCampaignCharacters(characters);
+    })();
+    return () => { cancelled = true; };
+  }, [campaignId, entityType]);
+
+  // Pool "Ambito narrativo"/"Luogo" per i PNG, stesso concetto di
+  // NPCManager.tsx (adventureId/environmentId) ma qui il PNG potrebbe non
+  // avere ancora una campagna: senza campaignId questi campi non hanno senso
+  // (nessuna pool da cui scegliere) e restano nascosti, vedi sotto.
+  useEffect(() => {
+    if (!campaignId || entityType !== 'npc') {
+      setCampaignAdventures([]);
+      setCampaignEnvironments([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const [adventures, environments] = await Promise.all([
+        loadAdventures(campaignId),
+        loadEnvironmentReferences(campaignId),
+      ]);
+      if (cancelled) return;
+      setCampaignAdventures(adventures);
+      setCampaignEnvironments(environments);
     })();
     return () => { cancelled = true; };
   }, [campaignId, entityType]);
@@ -883,6 +919,136 @@ export function EntityDetailView({
 
           {entityType === 'npc' && tabs.currentTab === 'summary' && (
             <div className="space-y-3 text-sm">
+              {!!campaignId && (
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Ambito narrativo</div>
+                  <select
+                    value={entity.adventureId ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, adventureId: e.target.value || null })}
+                    className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1.5 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                  >
+                    <option value="">Tutta la campagna</option>
+                    {campaignAdventures.map((adventure) => (
+                      <option key={adventure.id} value={adventure.id}>{adventure.title}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {!!campaignId && (
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Luogo</div>
+                  <select
+                    value={entity.environmentId ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, environmentId: e.target.value || null })}
+                    className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1.5 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                  >
+                    <option value="">Nessun luogo</option>
+                    {campaignEnvironments
+                      .filter((environment) => !entity.adventureId || environment.adventureId == null || environment.adventureId === entity.adventureId)
+                      .map((environment) => (
+                        <option key={environment.id} value={environment.id}>{environment.name}</option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              {isHSC && (
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                  <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Freschezza massima</div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextMax = Math.max(0, (entity.maxFreschezza ?? 0) - 1);
+                        onUpdate({
+                          ...entity,
+                          maxFreschezza: nextMax,
+                          freschezza: nextMax,
+                          caselleFrischezzaCruciali: (entity.caselleFrischezzaCruciali ?? []).filter((box: number) => box <= nextMax),
+                        });
+                      }}
+                      className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-text-strong)] hover:bg-[var(--dash-surface-2)]"
+                    >
+                      −
+                    </button>
+                    <div className="flex h-8 w-14 items-center justify-center rounded border border-[var(--dash-border)] bg-[var(--dash-input)] text-center text-sm text-[var(--dash-text)]">
+                      {entity.maxFreschezza ?? 0}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextMax = (entity.maxFreschezza ?? 0) + 1;
+                        onUpdate({ ...entity, maxFreschezza: nextMax, freschezza: nextMax });
+                      }}
+                      className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)] hover:bg-[var(--dash-accent-2)]"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {isHSC && (entity.maxFreschezza ?? 0) > 0 && (
+                <FreschezzaBoxesEditor
+                  current={entity.freschezza ?? entity.maxFreschezza ?? 0}
+                  max={entity.maxFreschezza ?? 0}
+                  crucialBoxes={entity.caselleFrischezzaCruciali ?? []}
+                  onUpdate={({ current, crucialBoxes }) => onUpdate({ ...entity, freschezza: current, caselleFrischezzaCruciali: crucialBoxes })}
+                />
+              )}
+
+              {isHSC && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
+                    <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Attacco</div>
+                    <select
+                      value={entity.attacco ?? ''}
+                      onChange={(e) => onUpdate({ ...entity, attacco: e.target.value })}
+                      className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                    >
+                      {DIFFICULTY_OPTIONS.map((option) => (
+                        <option key={option} value={option}>{option || 'Non definito'}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
+                    <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Difesa</div>
+                    <select
+                      value={entity.difesa ?? ''}
+                      onChange={(e) => onUpdate({ ...entity, difesa: e.target.value })}
+                      className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                    >
+                      {DIFFICULTY_OPTIONS.map((option) => (
+                        <option key={option} value={option}>{option || 'Non definita'}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {isHSC && (
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Punto debole</div>
+                  <textarea
+                    value={entity.puntoDebole ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, puntoDebole: e.target.value })}
+                    placeholder="Punto debole"
+                    rows={2}
+                    className="w-full resize-none rounded-lg border border-transparent bg-transparent text-[var(--dash-text)] outline-none transition-colors hover:border-[var(--dash-border-soft)] focus:border-[var(--dash-accent)] disabled:cursor-not-allowed"
+                  />
+                </div>
+              )}
+
+              {isD20 && (
+                <D20StatBlock
+                  stats={entity.d20Stats ?? DEFAULT_D20_STATS}
+                  isPlayerCharacter={false}
+                  isEditing={canEdit}
+                  onChange={(patch) => onUpdate({ ...entity, d20Stats: { ...(entity.d20Stats ?? DEFAULT_D20_STATS), ...patch } })}
+                />
+              )}
+
               <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
                 <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Descrizione</div>
                 <textarea
@@ -915,31 +1081,15 @@ export function EntityDetailView({
                   />
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
-                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Attacco</div>
-                  <select
-                    value={entity.attacco ?? ''}
-                    onChange={(e) => onUpdate({ ...entity, attacco: e.target.value })}
-                    className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
-                  >
-                    {DIFFICULTY_OPTIONS.map((option) => (
-                      <option key={option} value={option}>{option || 'Non definito'}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
-                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Difesa</div>
-                  <select
-                    value={entity.difesa ?? ''}
-                    onChange={(e) => onUpdate({ ...entity, difesa: e.target.value })}
-                    className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
-                  >
-                    {DIFFICULTY_OPTIONS.map((option) => (
-                      <option key={option} value={option}>{option || 'Non definita'}</option>
-                    ))}
-                  </select>
-                </div>
+              <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Posizione</div>
+                <input
+                  type="text"
+                  value={entity.location ?? ''}
+                  onChange={(e) => onUpdate({ ...entity, location: e.target.value })}
+                  placeholder="Dove si trova ora..."
+                  className="w-full rounded-lg border border-transparent bg-transparent text-[var(--dash-text)] outline-none transition-colors hover:border-[var(--dash-border-soft)] focus:border-[var(--dash-accent)] disabled:cursor-not-allowed"
+                />
               </div>
             </div>
           )}
