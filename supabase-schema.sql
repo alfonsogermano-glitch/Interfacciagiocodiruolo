@@ -282,6 +282,41 @@ CREATE TRIGGER update_equipment_catalog_updated_at BEFORE UPDATE ON equipment_ca
 CREATE TRIGGER update_character_equipment_updated_at BEFORE UPDATE ON character_equipment
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- =====================================================
+-- TRIGGER per bloccare Stile/Viaggio/Legame/Tutore/Tipo Speciale/Tratti
+-- ("Origini") quando il personaggio e' gia' assegnato a una campagna.
+-- Il client disabilita gia' la tab (fieldset disabled in
+-- EntityDetailView.tsx quando campaign_id e' valorizzato); questo trigger
+-- e' la garanzia lato DB, dato che saveCharacter() scrive via client
+-- Supabase direttamente, senza un endpoint server intermedio da cui far
+-- passare un controllo applicativo. Confronta OLD vs NEW campo per campo
+-- (non l'intero sheet_data, che contiene anche campi sempre scrivibili in
+-- sessione come condizioni/follia/freschezza/equipaggiamento).
+-- =====================================================
+CREATE OR REPLACE FUNCTION lock_characters_origins_in_campaign()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.campaign_id IS NOT NULL THEN
+    IF NEW.style IS DISTINCT FROM OLD.style
+       OR NEW.viaggio IS DISTINCT FROM OLD.viaggio
+       OR NEW.sheet_data->'legame' IS DISTINCT FROM OLD.sheet_data->'legame'
+       OR NEW.sheet_data->'linkedCharacterId' IS DISTINCT FROM OLD.sheet_data->'linkedCharacterId'
+       OR NEW.sheet_data->'legameDescription' IS DISTINCT FROM OLD.sheet_data->'legameDescription'
+       OR NEW.sheet_data->'tutore' IS DISTINCT FROM OLD.sheet_data->'tutore'
+       OR NEW.sheet_data->'tipoSpeciale' IS DISTINCT FROM OLD.sheet_data->'tipoSpeciale'
+       OR NEW.sheet_data->'tratti' IS DISTINCT FROM OLD.sheet_data->'tratti'
+    THEN
+      RAISE EXCEPTION 'ORIGINI_LOCKED: impossibile modificare Stile, Viaggio, Legame, Tutore, Tipo Speciale o Tratti: il personaggio è già assegnato a una campagna.';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER characters_lock_origins_in_campaign
+  BEFORE UPDATE ON characters
+  FOR EACH ROW EXECUTE FUNCTION lock_characters_origins_in_campaign();
+
 CREATE TRIGGER update_npcs_updated_at BEFORE UPDATE ON npcs
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 

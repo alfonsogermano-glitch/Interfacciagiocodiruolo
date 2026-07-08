@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react';
-import { User, Brain, Heart, Star, Ghost, Skull, ChevronDown, ChevronRight } from 'lucide-react';
+import { useState, useEffect, type ReactNode } from 'react';
+import { User, Brain, Heart, Star, Ghost, Skull, Lock } from 'lucide-react';
 import { FrischezzaTracker } from '../../FrischezzaTracker';
 import { FoliaSpiral } from '../../FoliaSpiral';
 import { ConditionsPanel } from '../../ConditionsPanel';
@@ -9,6 +9,9 @@ import { DraggablePortrait } from './DraggablePortrait';
 import { EntityTabBar } from './EntityTabBar';
 import { EntityDetailRail } from './EntityDetailRail';
 import { useEntityTabs, type EntityTabsEntityType } from './useEntityTabs';
+import type { Stile, Viaggio, Trait } from '../../../../types/character';
+import { STYLE_TRAITS, JOURNEY_TRAITS } from '../../../../data/traits';
+import { VIAGGI_PER_STILE, calculateAmbiti, NOTABLE_CITIZENS } from '../../../../data/characterCalculations';
 
 const ABILITA_PER_AMBITO: Record<string, string[]> = {
   Fisico: ['Muscoli', 'Sport', 'Acrobatica', 'Resistenza', 'Freddezza'],
@@ -21,7 +24,21 @@ const CHARACTER_BASE_TABS = [
   { id: 'summary', label: 'Riepilogo' },
   { id: 'conditions', label: 'Condizioni & Follia' },
   { id: 'equipment', label: 'Equipaggiamento' },
+  { id: 'origins', label: 'Origini' },
 ] as const;
+
+// Un tratto salvato e' compatibile con lo Stile/Viaggio corrente solo se
+// proviene dalle rispettive pool (STYLE_TRAITS/JOURNEY_TRAITS): tratti[0] e'
+// sempre il tratto di Stile, tratti[1..2] i tratti di Viaggio - stessa
+// convenzione di CharacterCreationWizard.tsx.
+function tratiCompatibiliConOrigine(tratti: Trait[], style: Stile, viaggio: Viaggio): boolean {
+  if (!tratti || tratti.length === 0) return true;
+  const styleNames = new Set(STYLE_TRAITS[style].map(t => t.name));
+  const journeyNames = new Set(JOURNEY_TRAITS[viaggio].map(t => t.name));
+  const [styleTrait, ...journeyTraits] = tratti;
+  if (styleTrait && !styleNames.has(styleTrait.name)) return false;
+  return journeyTraits.every(t => journeyNames.has(t.name));
+}
 
 // Per ora PNG e Mostri hanno solo la tab "Riepilogo": altre eventuali tab
 // base verranno aggiunte in seguito.
@@ -101,6 +118,11 @@ interface EntityDetailViewProps {
    *  schermo) invece che inline qui dentro. Default true per non cambiare
    *  nulla nell'uso esistente in SessionCharactersPanel.tsx. */
   showRail?: boolean;
+  /** Pool per il selettore "Legame" nella tab Origini: altri personaggi
+   *  posseduti dall'utente non ancora assegnati a una campagna. Vuota (e
+   *  quindi selettore di fatto inutilizzabile) nei contesti dove la tab e'
+   *  comunque sempre bloccata, es. in sessione (campaignId sempre valorizzato). */
+  linkableCharacters?: Array<{ id: string; name: string }>;
 }
 
 export function EntityDetailView({
@@ -116,9 +138,96 @@ export function EntityDetailView({
   headerAction,
   showOwnerRow = true,
   showRail = true,
+  linkableCharacters = [],
 }: EntityDetailViewProps) {
   const [expandedAmbito, setExpandedAmbito] = useState<string | null>(null);
-  const [relationsOpen, setRelationsOpen] = useState(false);
+  const [originsWarning, setOriginsWarning] = useState<string | null>(null);
+  const [tutoreInputTypeOverride, setTutoreInputTypeOverride] = useState<'custom' | 'notable' | null>(null);
+  const [tipoSpecialeInputTypeOverride, setTipoSpecialeInputTypeOverride] = useState<'custom' | 'notable' | null>(null);
+
+  // Le tab modalita' custom/notable sono scelte di presentazione locali (non
+  // dati salvati): vanno azzerate quando si passa a un'altra entita', altrimenti
+  // resterebbero "incollate" alla modalita' scelta per l'entita' precedente.
+  useEffect(() => {
+    setOriginsWarning(null);
+    setTutoreInputTypeOverride(null);
+    setTipoSpecialeInputTypeOverride(null);
+  }, [entity?.id]);
+
+  const isOriginsLocked = !canEdit || !!campaignId;
+
+  const applyOriginChange = (nextStyle: Stile, nextViaggio: Viaggio) => {
+    const nextAmbiti = calculateAmbiti(nextStyle, nextViaggio);
+    const currentTratti: Trait[] = entity.tratti ?? [];
+    const staysCompatible = tratiCompatibiliConOrigine(currentTratti, nextStyle, nextViaggio);
+    const nextTratti = staysCompatible ? currentTratti : [];
+
+    setOriginsWarning(
+      !staysCompatible && currentTratti.length > 0
+        ? 'I tratti selezionati non erano più compatibili con il nuovo Stile/Viaggio e sono stati azzerati: selezionane di nuovi qui sotto. Controlla anche le Abilità in "Riepilogo": i bonus derivati da Stile/Viaggio potrebbero non essere più coerenti e vanno rivisti manualmente.'
+        : null
+    );
+
+    onUpdate({ ...entity, style: nextStyle, viaggio: nextViaggio, ambiti: nextAmbiti, tratti: nextTratti });
+  };
+
+  const legameSelectValue = entity?.linkedCharacterId
+    ? entity.linkedCharacterId
+    : entity?.legame === 'Da definire in seguito'
+      ? 'LATER'
+      : '';
+
+  const handleLegameSelectChange = (value: string) => {
+    if (value === 'LATER') {
+      onUpdate({ ...entity, legame: 'Da definire in seguito', linkedCharacterId: undefined, legameDescription: undefined });
+    } else if (value === '') {
+      onUpdate({ ...entity, legame: '', linkedCharacterId: undefined, legameDescription: undefined });
+    } else {
+      onUpdate({
+        ...entity,
+        legame: 'Legame con personaggio',
+        linkedCharacterId: value,
+        legameDescription: entity.linkedCharacterId === value ? entity.legameDescription : '',
+      });
+    }
+  };
+
+  const tutoreInputType = tutoreInputTypeOverride ?? (entity?.tutore && NOTABLE_CITIZENS.includes(entity.tutore) ? 'notable' : 'custom');
+  const tipoSpecialeInputType = tipoSpecialeInputTypeOverride ?? (entity?.tipoSpeciale && NOTABLE_CITIZENS.includes(entity.tipoSpeciale) ? 'notable' : 'custom');
+
+  const currentStyleTrait: Trait | null = entity?.tratti?.[0] ?? null;
+  const currentJourneyTraits: Trait[] = entity?.tratti?.slice(1, 3) ?? [];
+
+  const selectStyleTrait = (trait: Trait) => {
+    onUpdate({ ...entity, tratti: [trait, ...currentJourneyTraits] });
+  };
+
+  const toggleJourneyTrait = (trait: Trait) => {
+    const exists = currentJourneyTraits.some(t => t.name === trait.name);
+    let nextJourney: Trait[];
+    if (exists) {
+      nextJourney = currentJourneyTraits.filter(t => t.name !== trait.name);
+    } else if (currentJourneyTraits.length < 2) {
+      nextJourney = [...currentJourneyTraits, trait];
+    } else {
+      return;
+    }
+    onUpdate({ ...entity, tratti: currentStyleTrait ? [currentStyleTrait, ...nextJourney] : nextJourney });
+  };
+
+  const originToggleClass = (active: boolean) =>
+    `rounded-md border px-3 py-2 text-sm transition-colors ${
+      active
+        ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)] text-[var(--dash-text-strong)]'
+        : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] text-[var(--dash-muted)]'
+    }`;
+
+  const traitOptionClass = (active: boolean) =>
+    `w-full rounded-xl border p-3 text-left transition-colors ${
+      active
+        ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)]'
+        : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] hover:bg-[var(--dash-surface-2)]'
+    }`;
 
   const baseTabs = entityType === 'character' ? CHARACTER_BASE_TABS : NPC_MONSTER_BASE_TABS;
 
@@ -226,7 +335,7 @@ export function EntityDetailView({
           )}
         </div>
 
-        <EntityTabBar canEdit={canEdit} tabs={tabs} />
+        <EntityTabBar canEdit={canEdit} tabs={tabs} lockedTabId={campaignId ? 'origins' : null} />
 
         <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-90' : ''}>
           {entityType === 'character' && tabs.currentTab === 'summary' && isHSC && (
@@ -355,23 +464,6 @@ export function EntityDetailView({
                   />
                 </div>
               </div>
-
-              <div className="rounded-xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
-                <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Tratti</div>
-                {entity.tratti.length > 0 ? (
-                  <div className="space-y-2">
-                    {entity.tratti.map((trait: any, idx: number) => (
-                      <div key={idx} className="rounded-lg border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-2 text-sm">
-                        <div className="font-medium text-[var(--dash-text-strong)]">{trait.name}</div>
-                        {trait.description && <div className="text-xs text-[var(--dash-text)]">{trait.description}</div>}
-                        {trait.benefit && <div className="mt-1 text-xs text-[var(--dash-accent-2)]">{trait.benefit}</div>}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-sm text-[var(--dash-muted)]">Nessun tratto.</div>
-                )}
-              </div>
             </div>
           )}
 
@@ -391,6 +483,215 @@ export function EntityDetailView({
           {entityType === 'character' && tabs.currentTab === 'equipment' && (
             <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
               <LegacyEquipmentPanel equipment={entity.equipment} onUpdate={(equipment) => onUpdate({ ...entity, equipment })} />
+            </div>
+          )}
+
+          {entityType === 'character' && tabs.currentTab === 'origins' && (
+            <div className="space-y-4">
+              {!!campaignId && (
+                <div className="flex items-center gap-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-xs text-[var(--dash-muted)]">
+                  <Lock className="h-3.5 w-3.5 shrink-0" />
+                  Il personaggio è assegnato a una campagna: Origini è di sola lettura. Rimuovilo dalla campagna per modificarla.
+                </div>
+              )}
+
+              {originsWarning && (
+                <div className="rounded-lg border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-3 py-2 text-xs text-[var(--dash-danger-text)]">
+                  {originsWarning}
+                </div>
+              )}
+
+              <fieldset disabled={isOriginsLocked} className={isOriginsLocked ? 'space-y-4 opacity-90' : 'space-y-4'}>
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
+                  <div className="mb-3 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Stile</div>
+                  <div className="flex flex-wrap gap-2">
+                    {(Object.keys(VIAGGI_PER_STILE) as Stile[]).map((st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => applyOriginChange(st, VIAGGI_PER_STILE[st][0])}
+                        className={originToggleClass(entity.style === st)}
+                      >
+                        {st}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
+                  <div className="mb-3 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Viaggio</div>
+                  <div className="flex flex-wrap gap-2">
+                    {VIAGGI_PER_STILE[entity.style as Stile].map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => applyOriginChange(entity.style, v)}
+                        className={originToggleClass(entity.viaggio === v)}
+                      >
+                        {v}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
+                  <div className="mb-3 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Legame</div>
+                  <label className="mb-1.5 block text-[11px] uppercase tracking-[0.08em] text-[var(--dash-muted)]">
+                    Personaggio collegato
+                  </label>
+                  <select
+                    value={legameSelectValue}
+                    onChange={(e) => handleLegameSelectChange(e.target.value)}
+                    className="mb-3 w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                  >
+                    <option value="">— Nessuno / testo libero —</option>
+                    <option value="LATER">Da definire in seguito</option>
+                    {linkableCharacters.filter(c => c.id !== entity.id).map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+
+                  {entity.linkedCharacterId ? (
+                    <>
+                      <label className="mb-1.5 block text-[11px] uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+                        Descrizione del legame
+                      </label>
+                      <input
+                        type="text"
+                        value={entity.legameDescription ?? ''}
+                        onChange={(e) => onUpdate({ ...entity, legameDescription: e.target.value, legame: 'Legame con personaggio' })}
+                        placeholder="Es. Fratello maggiore, migliore amica, rivale..."
+                        className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                      />
+                    </>
+                  ) : entity.legame === 'Da definire in seguito' ? (
+                    <div className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2 text-xs text-[var(--dash-text)]">
+                      Questo legame verrà gestito in un secondo momento.
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={entity.legame ?? ''}
+                      onChange={(e) => onUpdate({ ...entity, legame: e.target.value })}
+                      placeholder="Descrivi liberamente il legame, oppure seleziona un personaggio sopra"
+                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                    />
+                  )}
+
+                  {linkableCharacters.length === 0 && (
+                    <p className="mt-2 text-[11px] text-[var(--dash-muted)]">
+                      Nessun altro personaggio disponibile: solo tuoi personaggi non ancora assegnati a una campagna possono essere collegati qui.
+                    </p>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
+                  <div className="mb-3 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Tutore</div>
+                  <div className="mb-3 flex gap-2">
+                    <button type="button" onClick={() => setTutoreInputTypeOverride('custom')} className={originToggleClass(tutoreInputType === 'custom')}>
+                      Inserimento libero
+                    </button>
+                    <button type="button" onClick={() => setTutoreInputTypeOverride('notable')} className={originToggleClass(tutoreInputType === 'notable')}>
+                      Abitanti degni di nota
+                    </button>
+                  </div>
+                  {tutoreInputType === 'custom' ? (
+                    <input
+                      type="text"
+                      value={entity.tutore ?? ''}
+                      onChange={(e) => onUpdate({ ...entity, tutore: e.target.value })}
+                      placeholder="Es. Professor Armitage"
+                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                    />
+                  ) : (
+                    <select
+                      value={entity.tutore ?? ''}
+                      onChange={(e) => onUpdate({ ...entity, tutore: e.target.value })}
+                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                    >
+                      <option value="">Seleziona un abitante</option>
+                      {NOTABLE_CITIZENS.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
+                  <div className="mb-3 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Tipo Speciale</div>
+                  <div className="mb-3 flex gap-2">
+                    <button type="button" onClick={() => setTipoSpecialeInputTypeOverride('custom')} className={originToggleClass(tipoSpecialeInputType === 'custom')}>
+                      Inserimento libero
+                    </button>
+                    <button type="button" onClick={() => setTipoSpecialeInputTypeOverride('notable')} className={originToggleClass(tipoSpecialeInputType === 'notable')}>
+                      Abitanti degni di nota
+                    </button>
+                  </div>
+                  {tipoSpecialeInputType === 'custom' ? (
+                    <input
+                      type="text"
+                      value={entity.tipoSpeciale ?? ''}
+                      onChange={(e) => onUpdate({ ...entity, tipoSpeciale: e.target.value })}
+                      placeholder="Es. Abigail Prinn"
+                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                    />
+                  ) : (
+                    <select
+                      value={entity.tipoSpeciale ?? ''}
+                      onChange={(e) => onUpdate({ ...entity, tipoSpeciale: e.target.value })}
+                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                    >
+                      <option value="">Seleziona un cittadino</option>
+                      {NOTABLE_CITIZENS.filter((c) => c !== entity.tutore).map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
+                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Tratti</div>
+                  <p className="mb-3 text-[11px] text-[var(--dash-muted)]">Seleziona 1 tratto di Stile e 2 tratti di Viaggio.</p>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                      <div className="mb-2 text-[11px] uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Tratto di Stile</div>
+                      <div className="space-y-2">
+                        {STYLE_TRAITS[entity.style as Stile].map((trait) => (
+                          <button
+                            key={trait.name}
+                            type="button"
+                            onClick={() => selectStyleTrait(trait)}
+                            className={traitOptionClass(currentStyleTrait?.name === trait.name)}
+                          >
+                            <div className="font-medium text-[var(--dash-text-strong)]">{trait.name}</div>
+                            <div className="text-xs text-[var(--dash-text)]">{trait.description}</div>
+                            <div className="mt-1 text-xs text-[var(--dash-accent-2)]">{trait.benefit}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mb-2 text-[11px] uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+                        Tratti di Viaggio · {currentJourneyTraits.length} / 2
+                      </div>
+                      <div className="space-y-2">
+                        {JOURNEY_TRAITS[entity.viaggio as Viaggio].map((trait) => (
+                          <button
+                            key={trait.name}
+                            type="button"
+                            onClick={() => toggleJourneyTrait(trait)}
+                            className={traitOptionClass(currentJourneyTraits.some(t => t.name === trait.name))}
+                          >
+                            <div className="font-medium text-[var(--dash-text-strong)]">{trait.name}</div>
+                            <div className="text-xs text-[var(--dash-text)]">{trait.description}</div>
+                            <div className="mt-1 text-xs text-[var(--dash-accent-2)]">{trait.benefit}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </fieldset>
             </div>
           )}
 
@@ -471,37 +772,6 @@ export function EntityDetailView({
             ) : null
           )}
         </fieldset>
-
-        {entityType === 'character' && (
-          <div className="mt-5 border-t border-[var(--dash-border-soft)] pt-4">
-            <button
-              type="button"
-              onClick={() => setRelationsOpen(o => !o)}
-              className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-[0.08em] text-[var(--dash-accent-2)]"
-            >
-              Relazioni e riferimenti
-              {relationsOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            </button>
-            {relationsOpen && (
-              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
-                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Legame</div>
-                  <div className="text-base font-medium text-[var(--dash-text-strong)]">{entity.legame || 'Nessuno'}</div>
-                  <div className="mt-2 text-xs leading-relaxed text-[var(--dash-text)]">
-                    {entity.legameDescription || 'Nessuna descrizione aggiuntiva.'}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
-                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Tutore</div>
-                  <div className="text-base font-medium text-[var(--dash-text-strong)]">{entity.tutore || 'Nessuno'}</div>
-                  <div className="mt-2 text-xs leading-relaxed text-[var(--dash-text)]">
-                    Figura adulta o riferimento speciale del personaggio.
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {showRail && <EntityDetailRail />}

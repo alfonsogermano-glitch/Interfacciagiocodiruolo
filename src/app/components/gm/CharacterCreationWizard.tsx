@@ -10,6 +10,15 @@
     RISORSE_VEICOLI
   } from '../../../data/equipmentData';
   import { generateUUID } from '../../../lib/uuid';
+  import type { AmbitoType } from '../../../data/characterCalculations';
+  import {
+    VIAGGI_PER_STILE,
+    calculateAmbiti,
+    STILE_ABILITA,
+    VIAGGIO_ABILITA,
+    getAbilitaBaseValue as getAbilitaBaseValuePure,
+    NOTABLE_CITIZENS
+  } from '../../../data/characterCalculations';
   
   interface CharacterCreationWizardProps {
     onClose: () => void;
@@ -17,82 +26,6 @@
     existingCharacters: Array<{ id: string; name: string }>;
     initialCharacter?: (Character & { player: string; notes: string }) | null;
   }
-  
-  // Definizione dei Viaggi per ogni Stile
-  const VIAGGI_PER_STILE: Record<Stile, Viaggio[]> = {
-    Jock: ['Campione', 'Bullo', 'Fratello maggiore'],
-    Cheerleader: ['Stronza suprema', "Fidanzata d'America", 'Sbandata'],
-    Nerd: ['Primo della classe', 'Smanettone', 'Sapientino'],
-    Goth: ['Occultista', 'Metallaro', 'Emo'],
-    'Self-made': ['Ex-promessa', 'Lavoratore', 'Espulso'],
-    Rebel: ['Teppista', 'Attivista', 'Skater'],
-    Gangsta: ['Delinquente', 'Genio del ghetto', 'Ladruncolo'],
-    "Daddy's kid": ['Party animal', 'Nato per vincere', 'Rampollo della malavita']
-  };
-  
-  // Bonus Ambito per ogni Stile
-  type AmbitoType = 'Fisico' | 'Scuola' | 'Carisma' | 'Strada';
-  
-  const STILE_AMBITO_BONUS: Record<Stile, AmbitoType> = {
-    Jock: 'Fisico',
-    Cheerleader: 'Carisma',
-    Nerd: 'Scuola',
-    Goth: 'Strada',
-    'Self-made': 'Carisma',
-    Rebel: 'Fisico',
-    Gangsta: 'Strada',
-    "Daddy's kid": 'Scuola'
-  };
-  
-  const VIAGGIO_AMBITO_BONUS: Record<Viaggio, AmbitoType> = {
-    // Jock
-    'Campione': 'Carisma',
-    'Bullo': 'Strada',
-    'Fratello maggiore': 'Scuola',
-    // Cheerleader
-    'Stronza suprema': 'Fisico',
-    "Fidanzata d'America": 'Scuola',
-    'Sbandata': 'Strada',
-    // Nerd
-    'Primo della classe': 'Fisico',
-    'Smanettone': 'Strada',
-    'Sapientino': 'Carisma',
-    // Goth
-    'Occultista': 'Scuola',
-    'Metallaro': 'Fisico',
-    'Emo': 'Carisma',
-    // Self-made
-    'Ex-promessa': 'Fisico',
-    'Lavoratore': 'Strada',
-    'Espulso': 'Scuola',
-    // Rebel
-    'Teppista': 'Strada',
-    'Attivista': 'Scuola',
-    'Skater': 'Carisma',
-    // Gangsta
-    'Delinquente': 'Fisico',
-    'Genio del ghetto': 'Scuola',
-    'Ladruncolo': 'Carisma',
-    // Daddy's kid
-    'Party animal': 'Carisma',
-    'Nato per vincere': 'Fisico',
-    'Rampollo della malavita': 'Strada'
-  };
-  
-  // Calcola gli ambiti basandosi su stile e viaggio
-  const calculateAmbiti = (style: Stile, viaggio: Viaggio): { Fisico: number; Scuola: number; Carisma: number; Strada: number } => {
-    const ambiti = { Fisico: 1, Scuola: 1, Carisma: 1, Strada: 1 };
-  
-    // Aggiungi bonus dello Stile
-    const styleBonus = STILE_AMBITO_BONUS[style];
-    ambiti[styleBonus] = Math.min(2, ambiti[styleBonus] + 1);
-  
-    // Aggiungi bonus del Viaggio
-    const viaggioBonus = VIAGGIO_AMBITO_BONUS[viaggio];
-    ambiti[viaggioBonus] = Math.min(2, ambiti[viaggioBonus] + 1);
-  
-    return ambiti;
-  };
   
   // Descrizioni degli Ambiti
   const AMBITO_DESCRIPTIONS: Record<AmbitoType, string> = {
@@ -138,46 +71,6 @@
     Strada: ['Furtività', 'Mira', 'Sopravvivenza', 'Crimine', 'Allerta']
   };
   
-  // Abilità che ricevono +1 da ogni Stile (10 punti totali)
-  const STILE_ABILITA: Record<Stile, Abilita[]> = {
-    'Jock': ['Muscoli', 'Sport', 'Acrobatica', 'Resistenza', 'Freddezza', 'Pronto Soccorso', 'Esibirsi', 'Fascino', 'Leadership', 'Sopravvivenza'],
-    'Cheerleader': ['Sport', 'Acrobatica', 'Freddezza', 'Cultura', 'Studio', 'Esibirsi', 'Parlantina', 'Fascino', 'Intuito', 'Mira'],
-    'Nerd': ['Cultura', 'Tecnologia', 'Studio', 'Pronto Soccorso', 'Scienze', 'Intuito', 'Furtività', 'Mira', 'Sopravvivenza', 'Allerta'],
-    'Goth': ['Resistenza', 'Cultura', 'Tecnologia', 'Studio', 'Scienze', 'Esibirsi', 'Fascino', 'Intuito', 'Furtività', 'Crimine'],
-    'Self-made': ['Muscoli', 'Acrobatica', 'Resistenza', 'Tecnologia', 'Pronto Soccorso', 'Scienze', 'Intuito', 'Mira', 'Crimine', 'Allerta'],
-    'Rebel': ['Acrobatica', 'Freddezza', 'Pronto Soccorso', 'Esibirsi', 'Parlantina', 'Leadership', 'Furtività', 'Sopravvivenza', 'Crimine', 'Allerta'],
-    'Gangsta': ['Muscoli', 'Sport', 'Resistenza', 'Freddezza', 'Parlantina', 'Intuito', 'Furtività', 'Sopravvivenza', 'Crimine', 'Allerta'],
-    "Daddy's kid": ['Muscoli', 'Sport', 'Cultura', 'Studio', 'Tecnologia', 'Scienze', 'Parlantina', 'Fascino', 'Leadership', 'Mira']
-  };
-  
-  // Abilità che ricevono +1 da ogni Viaggio (10 punti totali)
-  const VIAGGIO_ABILITA: Record<Viaggio, Abilita[]> = {
-    'Campione': ['Muscoli', 'Sport', 'Resistenza', 'Freddezza', 'Pronto Soccorso', 'Esibirsi', 'Fascino', 'Leadership', 'Mira', 'Sopravvivenza'],
-    'Bullo': ['Muscoli', 'Sport', 'Resistenza', 'Pronto Soccorso', 'Esibirsi', 'Parlantina', 'Intuito', 'Furtività', 'Crimine', 'Allerta'],
-    'Fratello maggiore': ['Sport', 'Cultura', 'Tecnologia', 'Studio', 'Scienze', 'Parlantina', 'Fascino', 'Leadership', 'Sopravvivenza', 'Allerta'],
-    'Stronza suprema': ['Sport', 'Acrobatica', 'Resistenza', 'Freddezza', 'Esibirsi', 'Parlantina', 'Fascino', 'Intuito', 'Mira', 'Allerta'],
-    "Fidanzata d'America": ['Sport', 'Acrobatica', 'Cultura', 'Studio', 'Pronto Soccorso', 'Scienze', 'Esibirsi', 'Fascino', 'Leadership', 'Sopravvivenza'],
-    'Sbandata': ['Muscoli', 'Tecnologia', 'Pronto Soccorso', 'Parlantina', 'Intuito', 'Leadership', 'Furtività', 'Mira', 'Crimine', 'Allerta'],
-    'Primo della classe': ['Sport', 'Acrobatica', 'Cultura', 'Studio', 'Scienze', 'Fascino', 'Leadership', 'Furtività', 'Mira', 'Sopravvivenza'],
-    'Smanettone': ['Freddezza', 'Cultura', 'Tecnologia', 'Scienze', 'Intuito', 'Furtività', 'Mira', 'Sopravvivenza', 'Crimine', 'Allerta'],
-    'Sapientino': ['Resistenza', 'Cultura', 'Tecnologia', 'Studio', 'Pronto Soccorso', 'Scienze', 'Esibirsi', 'Parlantina', 'Intuito', 'Allerta'],
-    'Occultista': ['Freddezza', 'Cultura', 'Studio', 'Pronto Soccorso', 'Scienze', 'Intuito', 'Furtività', 'Mira', 'Sopravvivenza', 'Crimine'],
-    'Metallaro': ['Muscoli', 'Sport', 'Acrobatica', 'Tecnologia', 'Esibirsi', 'Parlantina', 'Fascino', 'Leadership', 'Crimine', 'Allerta'],
-    'Emo': ['Resistenza', 'Freddezza', 'Cultura', 'Tecnologia', 'Studio', 'Scienze', 'Esibirsi', 'Fascino', 'Intuito', 'Mira'],
-    'Ex-promessa': ['Sport', 'Acrobatica', 'Freddezza', 'Pronto Soccorso', 'Esibirsi', 'Fascino', 'Intuito', 'Leadership', 'Mira', 'Allerta'],
-    'Lavoratore': ['Muscoli', 'Freddezza', 'Tecnologia', 'Parlantina', 'Fascino', 'Leadership', 'Mira', 'Sopravvivenza', 'Crimine', 'Allerta'],
-    'Espulso': ['Resistenza', 'Cultura', 'Tecnologia', 'Studio', 'Scienze', 'Parlantina', 'Fascino', 'Intuito', 'Furtività', 'Sopravvivenza'],
-    'Teppista': ['Sport', 'Acrobatica', 'Freddezza', 'Tecnologia', 'Parlantina', 'Intuito', 'Furtività', 'Mira', 'Crimine', 'Allerta'],
-    'Attivista': ['Muscoli', 'Resistenza', 'Cultura', 'Studio', 'Pronto Soccorso', 'Scienze', 'Esibirsi', 'Fascino', 'Leadership', 'Sopravvivenza'],
-    'Skater': ['Sport', 'Acrobatica', 'Freddezza', 'Tecnologia', 'Pronto Soccorso', 'Esibirsi', 'Fascino', 'Furtività', 'Mira', 'Allerta'],
-    'Delinquente': ['Muscoli', 'Acrobatica', 'Resistenza', 'Pronto Soccorso', 'Fascino', 'Leadership', 'Furtività', 'Sopravvivenza', 'Crimine', 'Allerta'],
-    'Genio del ghetto': ['Freddezza', 'Cultura', 'Tecnologia', 'Studio', 'Pronto Soccorso', 'Scienze', 'Esibirsi', 'Parlantina', 'Intuito', 'Mira'],
-    'Ladruncolo': ['Sport', 'Acrobatica', 'Freddezza', 'Parlantina', 'Fascino', 'Intuito', 'Furtività', 'Mira', 'Crimine', 'Allerta'],
-    'Party animal': ['Acrobatica', 'Resistenza', 'Pronto Soccorso', 'Scienze', 'Esibirsi', 'Parlantina', 'Fascino', 'Intuito', 'Sopravvivenza', 'Crimine'],
-    'Nato per vincere': ['Muscoli', 'Sport', 'Resistenza', 'Freddezza', 'Cultura', 'Studio', 'Esibirsi', 'Parlantina', 'Fascino', 'Mira'],
-    'Rampollo della malavita': ['Muscoli', 'Freddezza', 'Cultura', 'Tecnologia', 'Intuito', 'Leadership', 'Furtività', 'Mira', 'Crimine', 'Allerta']
-  };
-  
   // Equipaggiamento iniziale per ogni Stile
   type StartingEquipment = {
     inTasca: string[];
@@ -218,42 +111,6 @@
       aCasa: ['Racchetta da Tennis', 'Mazza da Golf']
     }
   };
-  
-  // Cittadini degni di nota di Innsmouth
-  const NOTABLE_CITIZENS = [
-    'Abigail Prinn (albergatrice)',
-    'Alonzo Typer (coach)',
-    'Antonis Martinius Frostwick (traduttore)',
-    'Arthur Duthoo (senzatetto)',
-    'Asenath Waite (giornalista)',
-    'Audrey Davis (negoziante)',
-    'Beatrix Pillar (poliziotta)',
-    'Aldo Ambrosian (poliziotto)',
-    'Christopher Thomas Lazer (guardiano del faro)',
-    'Daniel Upton (preside)',
-    'Dorcas Frye (sfasciacarrozze)',
-    'Francis Guts (poeta)',
-    'Francis Wayland Thurston (sindaco)',
-    'Henry Akeley (gestore del videostore)',
-    'Henry Armitage (bibliotecario)',
-    'Jack Ferguson (presidente del cineforum)',
-    'Joe Masurevich (pescatore)',
-    'Johannes Vanderhoff (reverendo)',
-    'Joseph Curwen (becchino)',
-    'Keziah Mason (direttrice del diner)',
-    'Lavinia Watheley (boss della malavita)',
-    'Luke Zars (autista)',
-    'Marceline Bedard (estetista)',
-    'Marshall Andrews (medico)',
-    'Martin Bergermann (sensei)',
-    'Obed Marsh (imprenditore)',
-    'Richard Coates (professore di inglese)',
-    'Richard Upton Pickman (artista)',
-    'Swami Chandraputra (gestore della ruota panoramica)',
-    'Thomas Malone (capitano di polizia)',
-    'Woody Plunders (antiquario)',
-    'Zadok Allen (ubriacone)',
-  ];
   
   const STYLE_DESCRIPTIONS: Record<Stile, string> = {
     Jock: 'Atletico, competitivo, impulsivo. Vive il corpo e la pressione del gruppo.',
@@ -517,21 +374,8 @@
     }, [tutore, tipoSpeciale, tipoSpecialeInputType]);
   
     // Calcola il valore base di un'abilità: 1 + bonus Stile + bonus Viaggio
-    const getAbilitaBaseValue = (abilita: Abilita): number => {
-      let base = 1;
-  
-      // +1 se l'abilità è nella lista dello Stile
-      if (STILE_ABILITA[style]?.includes(abilita)) {
-        base += 1;
-      }
-  
-      // +1 se l'abilità è nella lista del Viaggio
-      if (VIAGGIO_ABILITA[viaggio]?.includes(abilita)) {
-        base += 1;
-      }
-  
-      return base;
-    };
+    // (delega alla versione pura condivisa con la tab "Origini")
+    const getAbilitaBaseValue = (abilita: Abilita): number => getAbilitaBaseValuePure(style, viaggio, abilita);
   
     // Calcola il valore totale di un'abilità (base + bonus)
     const getAbilitaTotalValue = (abilita: Abilita): number => {

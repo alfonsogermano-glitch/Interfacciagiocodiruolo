@@ -154,6 +154,12 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const saveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const loadSeqRef = useRef(0);
 
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    window.setTimeout(() => setToastMessage(null), 4000);
+  };
+
   const allCampaignOptions = [
     ...campaigns.map(c => ({ id: c.id, name: c.name, suffix: '(tua campagna)' })),
     ...joinedCampaigns.map(c => ({ id: c.id, name: c.name, suffix: '(partecipi)' })),
@@ -239,6 +245,19 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         await saveCharacter(updatedChar.campaignId, updatedChar, user?.id ?? '');
       } catch (error) {
         console.error('Errore salvataggio personaggio su Supabase:', error);
+        // Il trigger characters_lock_origins_in_campaign rifiuta lato DB le
+        // modifiche a Stile/Viaggio/Legame/Tutore/Tipo Speciale/Tratti quando
+        // il personaggio e' gia' in campagna: il fieldset disabled della tab
+        // "Origini" dovrebbe gia' impedirlo, quindi qui e' un caso limite
+        // (race condition con un'assegnazione concorrente, o un bypass) -
+        // avvisiamo l'utente invece di lasciare l'update ottimistico
+        // (gia' applicato in setCharacters sopra) silenziosamente disallineato
+        // dal DB, e ricarichiamo per tornare allo stato reale.
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes('ORIGINI_LOCKED')) {
+          showToast('Non è stato possibile salvare: il personaggio è già in una campagna, la scheda "Origini" è di sola lettura. Le modifiche non salvate sono state annullate.');
+          await load();
+        }
       }
     }, 150);
   }, [user?.id]);
@@ -1033,6 +1052,11 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             draggable={false}
             showOwnerRow={false}
             showRail={false}
+            linkableCharacters={
+              detailContext.entityType === 'character'
+                ? characters.filter(c => c.id !== detailContext.id && c.campaignId === null).map(c => ({ id: c.id, name: c.name }))
+                : []
+            }
           />
         </div>
       )}
@@ -1045,6 +1069,12 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     {detailContext && (
       <div className="fixed top-12 bottom-0 right-0 z-[900]">
         <EntityDetailRail />
+      </div>
+    )}
+
+    {toastMessage && (
+      <div className="fixed bottom-6 right-6 z-[1200] max-w-sm rounded-xl border border-[var(--dash-danger-border)] bg-[var(--dash-panel)] px-4 py-3 text-sm text-[var(--dash-text-strong)] shadow-2xl">
+        {toastMessage}
       </div>
     )}
     </>

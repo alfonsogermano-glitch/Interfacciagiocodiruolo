@@ -1,13 +1,16 @@
-import { MoreVertical, Plus, Pencil, EyeOff, Eye, Trash2 } from 'lucide-react';
+import { MoreVertical, Plus, Pencil, EyeOff, Eye, Trash2, Lock } from 'lucide-react';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import type { UseEntityTabsResult } from './useEntityTabs';
 
 interface EntityTabBarProps {
   canEdit: boolean;
   tabs: UseEntityTabsResult;
+  /** Id di una tab base da marcare con un'icona lucchetto (es. "origins"
+   *  quando il personaggio è già in una campagna). */
+  lockedTabId?: string | null;
 }
 
-export function EntityTabBar({ canEdit, tabs }: EntityTabBarProps) {
+export function EntityTabBar({ canEdit, tabs, lockedTabId = null }: EntityTabBarProps) {
   const {
     orderedTabs,
     currentTab,
@@ -74,6 +77,7 @@ export function EntityTabBar({ canEdit, tabs }: EntityTabBarProps) {
                   } ${tab.hidden ? 'opacity-50' : ''} ${tab.isCustom && canEdit ? 'pr-7' : ''}`}
                 >
                   {tab.hidden && <EyeOff className="h-3 w-3" />}
+                  {tab.id === lockedTabId && <Lock className="h-3 w-3" />}
                   {tab.label}
                 </button>
               )}
