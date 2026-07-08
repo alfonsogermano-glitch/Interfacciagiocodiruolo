@@ -40,10 +40,21 @@ type CatalogEntry = { kind: 'npc'; entity: NPC } | { kind: 'monster'; entity: Mo
 type EntityFilter = 'all' | 'assigned' | 'unassigned';
 type ActiveTab = 'characters' | 'npcs' | 'monsters';
 
-// 3 colonne fisse dentro un contenitore centrato: max-width = 3 card ideali (portrait 140px +
-// testo, misurato nel browser) + 2 gap-4 tra le colonne. Vedi indagine in PR per il conto esatto.
-const GRID_CONTAINER_CLASS = 'mx-auto w-full max-w-[1142px]';
-const GRID_CLASS = 'grid grid-cols-3 gap-4';
+// Occupa tutta la larghezza di <main>, nessun contenitore centrato: con
+// filtri/paginazione/vista lista-o-griglia ormai a disposizione non ha piu'
+// senso limitare artificialmente lo spazio orizzontale. Usato anche per la
+// barra di paginazione, cosi' resta allineata alla griglia/lista sopra.
+const GRID_CONTAINER_CLASS = 'w-full';
+// auto-fill invece di un numero di colonne fisso: le card mantengono la
+// loro larghezza naturale (minmax) e le colonne vuote restano vuote invece
+// di stirare le card esistenti a riempire la riga - stesso effetto dei
+// vecchi segnaposto di withPlaceholders, ma nativo del grid e senza il
+// numero di colonne bloccato a 3.
+const GRID_CLASS = 'grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(300px,1fr))]';
+// Solo per la vista lista: le righe orizzontali diventano poco leggibili
+// (spazio vuoto eccessivo tra gli elementi) su schermi molto larghi, a
+// differenza della griglia che lo spazio extra lo riempie con altre card.
+const LIST_CONTAINER_CLASS = 'mx-auto w-full max-w-[1400px]';
 
 // Deve combaciare con la larghezza reale di EntityDetailRail (w-20 = 5rem),
 // che qui (standalone, non in sessione) fa da rail destra ancorata al bordo
@@ -51,12 +62,6 @@ const GRID_CLASS = 'grid grid-cols-3 gap-4';
 // in SlideOverPanel.tsx per l'equivalente lato sessione (anch'essa w-20 = 5rem,
 // stesso sistema unico di rail contestuale).
 const CHARACTERS_RAIL_WIDTH = '5rem';
-
-function withPlaceholders<T>(items: T[]): (T | null)[] {
-  const remainder = items.length % 3;
-  const placeholderCount = remainder === 0 ? 0 : 3 - remainder;
-  return [...items, ...Array<null>(placeholderCount).fill(null)];
-}
 
 function getCurrentPaletteColors() {
   const el = document.querySelector('[data-dashboard-palette]');
@@ -1037,7 +1042,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         ) : (
           <>
             {viewMode === 'list' ? (
-              <div className={GRID_CONTAINER_CLASS}>
+              <div className={LIST_CONTAINER_CLASS}>
                 <div className="space-y-2">
                   {paged.map(entry => renderEntityCard(entry, 'list'))}
                 </div>
@@ -1045,13 +1050,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             ) : (
               <div className={GRID_CONTAINER_CLASS}>
                 <div className={GRID_CLASS}>
-                  {withPlaceholders(paged).map((entry, index) =>
-                    entry ? (
-                      renderEntityCard(entry)
-                    ) : (
-                      <div key={`placeholder-${index}`} className="invisible pointer-events-none" aria-hidden="true" />
-                    )
-                  )}
+                  {paged.map(entry => renderEntityCard(entry))}
                 </div>
               </div>
             )}
@@ -1217,7 +1216,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
           ) : (
             <>
               {charViewMode === 'list' ? (
-                <div className={GRID_CONTAINER_CLASS}>
+                <div className={LIST_CONTAINER_CLASS}>
                   <div className="space-y-2">
                     {pagedCharacters.map(char => renderCharacterCard(char, 'list'))}
                   </div>
@@ -1225,13 +1224,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
               ) : (
                 <div className={GRID_CONTAINER_CLASS}>
                   <div className={GRID_CLASS}>
-                    {withPlaceholders(pagedCharacters).map((char, index) =>
-                      char ? (
-                        renderCharacterCard(char)
-                      ) : (
-                        <div key={`placeholder-${index}`} className="invisible pointer-events-none" aria-hidden="true" />
-                      )
-                    )}
+                    {pagedCharacters.map(char => renderCharacterCard(char))}
                   </div>
                 </div>
               )}
