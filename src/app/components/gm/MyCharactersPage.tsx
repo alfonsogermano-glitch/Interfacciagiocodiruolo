@@ -794,7 +794,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
 
   return (
     <>
-    <div className="space-y-6 select-none">
+    <div className={`space-y-6 select-none ${detailContext ? 'pointer-events-none' : ''}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1">
           {(['characters', 'npcs', 'monsters'] as const).map(tab => (
@@ -1017,7 +1017,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             className="mb-4 inline-flex items-center gap-2 text-sm text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
           >
             <ArrowLeft className="h-4 w-4" />
-            Indietro a {tabLabel(activeTab)}
+            Torna ai {tabLabel(activeTab)}
           </button>
           <EntityDetailView
             entityType={detailContext.entityType}
