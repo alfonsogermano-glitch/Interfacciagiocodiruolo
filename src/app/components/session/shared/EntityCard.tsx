@@ -49,14 +49,14 @@ export function EntityCard({ name, subtitle, secondaryText, photoUrl, onClick, h
           )}
         </div>
 
-        <div className="flex min-w-0 flex-1 items-center gap-4">
-          <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-1 items-center justify-between gap-4">
+          <div className="min-w-0 max-w-xs shrink-0">
             <h3 className="truncate font-serif text-sm font-semibold text-[var(--dash-text-strong)]">{name || 'Senza nome'}</h3>
             {subtitle && <p className="truncate text-xs text-[var(--dash-muted)]">{subtitle}</p>}
           </div>
 
           {secondaryText && (
-            <p className="hidden max-w-[240px] shrink-0 truncate text-xs text-[var(--dash-muted)] lg:block">{secondaryText}</p>
+            <p className="hidden min-w-0 max-w-md flex-1 truncate text-xs text-[var(--dash-muted)] lg:block">{secondaryText}</p>
           )}
 
           {children && (

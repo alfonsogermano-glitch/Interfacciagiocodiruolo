@@ -51,10 +51,11 @@ const GRID_CONTAINER_CLASS = 'w-full';
 // vecchi segnaposto di withPlaceholders, ma nativo del grid e senza il
 // numero di colonne bloccato a 3.
 const GRID_CLASS = 'grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(300px,1fr))]';
-// Solo per la vista lista: le righe orizzontali diventano poco leggibili
-// (spazio vuoto eccessivo tra gli elementi) su schermi molto larghi, a
-// differenza della griglia che lo spazio extra lo riempie con altre card.
-const LIST_CONTAINER_CLASS = 'mx-auto w-full max-w-[1400px]';
+// Stessa larghezza piena di GRID_CONTAINER_CLASS - un cap qui ricreava
+// esattamente i margini laterali vuoti che avevamo tolto dalla griglia.
+// L'eventuale spazio vuoto interno a una riga va risolto nella
+// distribuzione interna di EntityCard (variant "list"), non qui.
+const LIST_CONTAINER_CLASS = 'w-full';
 
 // Deve combaciare con la larghezza reale di EntityDetailRail (w-20 = 5rem),
 // che qui (standalone, non in sessione) fa da rail destra ancorata al bordo
