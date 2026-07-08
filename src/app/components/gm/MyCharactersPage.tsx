@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Plus, Loader2, Pencil, Trash2, KeyRound, MoreVertical,
-  Copy, UserMinus, Search, Eye, EyeOff, MapPin, ArrowLeft
+  Copy, UserMinus, Search, Eye, EyeOff, MapPin, ArrowLeft, Sparkles
 } from 'lucide-react';
 import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
@@ -12,12 +12,13 @@ import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { EntityCard } from '../session/shared/EntityCard';
 import { EntityKebabMenu } from '../session/shared/EntityKebabMenu';
 import { EntityFilterToolbar, type SortMode, type ViewMode } from '../session/shared/EntityFilterToolbar';
+import { EntityPagination, paginateItems } from '../session/shared/EntityPagination';
 import { EntityDetailView } from '../session/shared/EntityDetailView';
 import { EntityDetailRail } from '../session/shared/EntityDetailRail';
 import { SlideOverPanel } from '../session/SlideOverPanel';
 import { loadCharactersByOwner, saveCharacter, deleteCharacter } from '../../../services/supabase/charactersService';
 import {
-  loadNPCsByOwner, loadMonstersByOwner,
+  loadNPCsByOwner, loadMonstersByOwner, loadAdventures,
   assignNPCToCampaign, assignMonsterToCampaign,
   unassignNPCFromCampaign, unassignMonsterFromCampaign,
   copyNPCToCampaign, copyMonsterToCampaign,
@@ -26,6 +27,7 @@ import {
   type NPC, type Monster
 } from '../../../services/supabase/entitiesService';
 import type { Character } from '../../../types/character';
+import type { Adventure } from '../../../types/adventure';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/paletteColors';
 import { generateUUID } from '../../../lib/uuid';
@@ -111,10 +113,18 @@ function sortEntries(items: CatalogEntry[], mode: SortMode): CatalogEntry[] {
   return copy;
 }
 
-function filterEntries(all: CatalogEntry[], filter: EntityFilter): CatalogEntry[] {
-  if (filter === 'assigned') return all.filter(e => e.entity.campaignId);
-  if (filter === 'unassigned') return all.filter(e => !e.entity.campaignId);
-  return all;
+function filterEntries(
+  all: CatalogEntry[],
+  filter: EntityFilter,
+  campaignFilterId: string,
+  adventureFilterId: string
+): CatalogEntry[] {
+  let result = all;
+  if (filter === 'assigned') result = result.filter(e => e.entity.campaignId);
+  if (filter === 'unassigned') result = result.filter(e => !e.entity.campaignId);
+  if (campaignFilterId) result = result.filter(e => e.entity.campaignId === campaignFilterId);
+  if (adventureFilterId) result = result.filter(e => e.entity.adventureId === adventureFilterId);
+  return result;
 }
 
 // Ricerca client-side sui dati gia' caricati, stesso pattern semplice
@@ -181,6 +191,10 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [charSort, setCharSort] = useState<SortMode>('recent');
   const [charSearch, setCharSearch] = useState('');
   const [charViewMode, setCharViewMode] = useState<ViewMode>('grid');
+  const [charFiltersOpen, setCharFiltersOpen] = useState(false);
+  const [charCampaignFilter, setCharCampaignFilter] = useState('');
+  const [charPage, setCharPage] = useState(1);
+  const [charPageSize, setCharPageSize] = useState<number>(12);
 
   const saveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const loadSeqRef = useRef(0);
@@ -342,8 +356,16 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
 
   const assignedCharacters = characters.filter(c => c.campaignId);
   const unassignedCharacters = characters.filter(c => !c.campaignId);
-  const charFilterPool = charFilter === 'assigned' ? assignedCharacters : charFilter === 'unassigned' ? unassignedCharacters : characters;
+  const charFilterPool = (charFilter === 'assigned' ? assignedCharacters : charFilter === 'unassigned' ? unassignedCharacters : characters)
+    .filter(c => !charCampaignFilter || c.campaignId === charCampaignFilter);
   const filteredCharacters = sortByNameOrDate(searchCharacters(charFilterPool, charSearch), charSort);
+  const {
+    pageItems: pagedCharacters,
+    totalPages: charTotalPages,
+    safePage: charSafePage,
+    startIndex: charStartIndex,
+    endIndex: charEndIndex,
+  } = paginateItems(filteredCharacters, charPage, charPageSize);
 
   const renderCharacterCard = (char: OwnedCharacter, variant: ViewMode = 'grid') => {
     const isPending = pendingCharacterId === char.id;
@@ -485,6 +507,12 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [npcSort, setNpcSort] = useState<SortMode>('recent');
   const [npcSearch, setNpcSearch] = useState('');
   const [npcViewMode, setNpcViewMode] = useState<ViewMode>('grid');
+  const [npcFiltersOpen, setNpcFiltersOpen] = useState(false);
+  const [npcCampaignFilter, setNpcCampaignFilter] = useState('');
+  const [npcAdventureFilter, setNpcAdventureFilter] = useState('');
+  const [npcFilterAdventures, setNpcFilterAdventures] = useState<Adventure[]>([]);
+  const [npcPage, setNpcPage] = useState(1);
+  const [npcPageSize, setNpcPageSize] = useState<number>(12);
   // Bozza di un nuovo PNG aperta da "+ Nuovo PNG": resta solo qui, non entra
   // in npcs ne' viene scritta su Supabase, finche' il nome resta vuoto (vedi
   // handleNpcDetailUpdate/handleCloseDetail sotto). Cosi' chiudere l'overlay
@@ -499,6 +527,12 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [monsterSort, setMonsterSort] = useState<SortMode>('recent');
   const [monsterSearch, setMonsterSearch] = useState('');
   const [monsterViewMode, setMonsterViewMode] = useState<ViewMode>('grid');
+  const [monsterFiltersOpen, setMonsterFiltersOpen] = useState(false);
+  const [monsterCampaignFilter, setMonsterCampaignFilter] = useState('');
+  const [monsterAdventureFilter, setMonsterAdventureFilter] = useState('');
+  const [monsterFilterAdventures, setMonsterFilterAdventures] = useState<Adventure[]>([]);
+  const [monsterPage, setMonsterPage] = useState(1);
+  const [monsterPageSize, setMonsterPageSize] = useState<number>(12);
 
   // ============= Azioni condivise PNG/Mostri =============
 
@@ -533,6 +567,46 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
 
   useEffect(() => { void loadNpcs(); }, [user?.id]);
   useEffect(() => { void loadMonstersList(); }, [user?.id]);
+
+  // Le avventure sono sempre scoped a una singola campagna (loadAdventures
+  // richiede un campaignId) - il filtro Avventura del pannello Filtri ha
+  // senso solo quando e' gia' selezionata una campagna specifica, quindi
+  // ricarichiamo la lista ogni volta che cambia quella scelta e la
+  // svuotiamo (con l'eventuale filtro attivo) quando torna su "tutte".
+  useEffect(() => {
+    if (!npcCampaignFilter) {
+      setNpcFilterAdventures([]);
+      setNpcAdventureFilter('');
+      return;
+    }
+    let cancelled = false;
+    loadAdventures(npcCampaignFilter).then(list => {
+      if (!cancelled) setNpcFilterAdventures(list);
+    });
+    setNpcAdventureFilter('');
+    return () => { cancelled = true; };
+  }, [npcCampaignFilter]);
+
+  useEffect(() => {
+    if (!monsterCampaignFilter) {
+      setMonsterFilterAdventures([]);
+      setMonsterAdventureFilter('');
+      return;
+    }
+    let cancelled = false;
+    loadAdventures(monsterCampaignFilter).then(list => {
+      if (!cancelled) setMonsterFilterAdventures(list);
+    });
+    setMonsterAdventureFilter('');
+    return () => { cancelled = true; };
+  }, [monsterCampaignFilter]);
+
+  // Torna a pagina 1 ogni volta che ricerca/filtri/ordinamento cambiano,
+  // stesso comportamento di MonstersManager.tsx (altrimenti si potrebbe
+  // restare su una pagina che i nuovi risultati non hanno piu').
+  useEffect(() => { setCharPage(1); }, [charSearch, charFilter, charCampaignFilter, charSort, charPageSize]);
+  useEffect(() => { setNpcPage(1); }, [npcSearch, npcFilter, npcCampaignFilter, npcAdventureFilter, npcSort, npcPageSize]);
+  useEffect(() => { setMonsterPage(1); }, [monsterSearch, monsterFilter, monsterCampaignFilter, monsterAdventureFilter, monsterSort, monsterPageSize]);
 
   const entityName = (entry: CatalogEntry) =>
     entry.entity.name?.trim() || (entry.kind === 'npc' ? 'PNG senza nome' : 'Mostro senza nome');
@@ -836,11 +910,27 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     isLoading: boolean;
     labelSingular: string; // "PNG" / "mostro"
     labelPluralLower: string; // "PNG" / "mostri"
+    campaignFilter: string;
+    setCampaignFilter: (id: string) => void;
+    adventureFilter: string;
+    setAdventureFilter: (id: string) => void;
+    filterAdventures: Adventure[];
+    filtersOpen: boolean;
+    setFiltersOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
+    page: number;
+    setPage: (p: number) => void;
+    pageSize: number;
+    setPageSize: (s: number) => void;
   }) => {
-    const { entries, filter, setFilter, sort, setSort, search, setSearch, viewMode, setViewMode, isLoading, labelSingular, labelPluralLower } = params;
+    const {
+      entries, filter, setFilter, sort, setSort, search, setSearch, viewMode, setViewMode, isLoading, labelSingular, labelPluralLower,
+      campaignFilter, setCampaignFilter, adventureFilter, setAdventureFilter, filterAdventures,
+      filtersOpen, setFiltersOpen, page, setPage, pageSize, setPageSize,
+    } = params;
     const assigned = entries.filter(e => e.entity.campaignId);
     const unassigned = entries.filter(e => !e.entity.campaignId);
-    const filtered = sortEntries(searchEntries(filterEntries(entries, filter), search), sort);
+    const filtered = sortEntries(searchEntries(filterEntries(entries, filter, campaignFilter, adventureFilter), search), sort);
+    const { pageItems: paged, totalPages, safePage, startIndex, endIndex } = paginateItems(filtered, page, pageSize);
 
     return (
       <div className="space-y-4">
@@ -852,14 +942,75 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
           onSortChange={setSort}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
+          filtersOpen={filtersOpen}
+          onToggleFilters={() => setFiltersOpen(v => !v)}
+          filtersPanel={
+            <div className="grid gap-3 lg:grid-cols-3">
+              <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Campagna</div>
+                <select
+                  value={campaignFilter}
+                  onChange={e => setCampaignFilter(e.target.value)}
+                  className="mt-2 w-full rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)]"
+                >
+                  <option value="">Tutte le campagne</option>
+                  {campaigns.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Avventura</div>
+                <select
+                  value={adventureFilter}
+                  onChange={e => setAdventureFilter(e.target.value)}
+                  disabled={!campaignFilter}
+                  className="mt-2 w-full rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)] disabled:opacity-50"
+                >
+                  <option value="">Tutte le avventure</option>
+                  {filterAdventures.map(a => (
+                    <option key={a.id} value={a.id}>{a.title}</option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs text-[var(--dash-muted)]">
+                  {campaignFilter ? 'Solo le avventure della campagna selezionata sopra.' : 'Seleziona prima una campagna: le avventure sono sempre legate a una singola campagna.'}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Parole chiave</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {['Boss', 'Occulti', 'Umanoidi'].map(label => (
+                    <button
+                      key={label}
+                      type="button"
+                      className="group relative rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-2 text-xs text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text-strong)]"
+                    >
+                      {label}
+                      <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] px-3 py-1.5 text-xs text-[var(--dash-text-strong)] shadow-xl group-hover:block">
+                        In arrivo: richiede l'assegnazione tag ai {labelPluralLower}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-[var(--dash-muted)]">
+                  Questi filtri diventeranno operativi quando aggiungeremo l'assegnazione tag alla scheda.
+                </p>
+              </div>
+            </div>
+          }
         >
           <button type="button" onClick={() => setFilter('all')} className={pillClass(filter === 'all')}>
+            <Sparkles className="h-3 w-3" />
             Tutti <span className="opacity-70">({entries.length})</span>
           </button>
           <button type="button" onClick={() => setFilter('assigned')} className={pillClass(filter === 'assigned')}>
+            <Sparkles className="h-3 w-3" />
             In campagna <span className="opacity-70">({assigned.length})</span>
           </button>
           <button type="button" onClick={() => setFilter('unassigned')} className={pillClass(filter === 'unassigned')}>
+            <Sparkles className="h-3 w-3" />
             Non in campagna <span className="opacity-70">({unassigned.length})</span>
           </button>
           <button type="button" className={pillClass(false, true)} disabled title={`In arrivo: filtro per ${labelPluralLower} richiedibili dai giocatori`}>
@@ -883,24 +1034,42 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                       : `Nessun ${labelSingular} trovato.`}
             </p>
           </div>
-        ) : viewMode === 'list' ? (
-          <div className={GRID_CONTAINER_CLASS}>
-            <div className="space-y-2">
-              {filtered.map(entry => renderEntityCard(entry, 'list'))}
-            </div>
-          </div>
         ) : (
-          <div className={GRID_CONTAINER_CLASS}>
-            <div className={GRID_CLASS}>
-              {withPlaceholders(filtered).map((entry, index) =>
-                entry ? (
-                  renderEntityCard(entry)
-                ) : (
-                  <div key={`placeholder-${index}`} className="invisible pointer-events-none" aria-hidden="true" />
-                )
-              )}
+          <>
+            {viewMode === 'list' ? (
+              <div className={GRID_CONTAINER_CLASS}>
+                <div className="space-y-2">
+                  {paged.map(entry => renderEntityCard(entry, 'list'))}
+                </div>
+              </div>
+            ) : (
+              <div className={GRID_CONTAINER_CLASS}>
+                <div className={GRID_CLASS}>
+                  {withPlaceholders(paged).map((entry, index) =>
+                    entry ? (
+                      renderEntityCard(entry)
+                    ) : (
+                      <div key={`placeholder-${index}`} className="invisible pointer-events-none" aria-hidden="true" />
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className={GRID_CONTAINER_CLASS}>
+              <EntityPagination
+                page={safePage}
+                onPageChange={setPage}
+                pageSize={pageSize}
+                onPageSizeChange={setPageSize}
+                totalPages={totalPages}
+                startIndex={startIndex}
+                endIndex={endIndex}
+                totalItems={filtered.length}
+                itemLabelPlural={labelPluralLower}
+              />
             </div>
-          </div>
+          </>
         )}
       </div>
     );
@@ -971,14 +1140,57 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             onSortChange={setCharSort}
             viewMode={charViewMode}
             onViewModeChange={setCharViewMode}
+            filtersOpen={charFiltersOpen}
+            onToggleFilters={() => setCharFiltersOpen(v => !v)}
+            filtersPanel={
+              <div className="grid gap-3 lg:grid-cols-3">
+                <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                  <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Campagna</div>
+                  <select
+                    value={charCampaignFilter}
+                    onChange={e => setCharCampaignFilter(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)]"
+                  >
+                    <option value="">Tutte le campagne</option>
+                    {allCampaignOptions.map(c => (
+                      <option key={c.id} value={c.id}>{c.name} {c.suffix}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3 lg:col-span-2">
+                  <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Parole chiave</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {['Boss', 'Occulti', 'Umanoidi'].map(label => (
+                      <button
+                        key={label}
+                        type="button"
+                        className="group relative rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-2 text-xs text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text-strong)]"
+                      >
+                        {label}
+                        <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] px-3 py-1.5 text-xs text-[var(--dash-text-strong)] shadow-xl group-hover:block">
+                          In arrivo: richiede l'assegnazione tag ai personaggi
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-[var(--dash-muted)]">
+                    Questi filtri diventeranno operativi quando aggiungeremo l'assegnazione tag alla scheda personaggio.
+                  </p>
+                </div>
+              </div>
+            }
           >
             <button type="button" onClick={() => setCharFilter('all')} className={pillClass(charFilter === 'all')}>
+              <Sparkles className="h-3 w-3" />
               Tutti <span className="opacity-70">({characters.length})</span>
             </button>
             <button type="button" onClick={() => setCharFilter('assigned')} className={pillClass(charFilter === 'assigned')}>
+              <Sparkles className="h-3 w-3" />
               In campagna <span className="opacity-70">({assignedCharacters.length})</span>
             </button>
             <button type="button" onClick={() => setCharFilter('unassigned')} className={pillClass(charFilter === 'unassigned')}>
+              <Sparkles className="h-3 w-3" />
               Non in campagna <span className="opacity-70">({unassignedCharacters.length})</span>
             </button>
             <button type="button" className={pillClass(false, true)} disabled title="In arrivo: filtro per personaggi richiedibili dagli altri giocatori">
@@ -1002,24 +1214,42 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                         : 'Nessun personaggio trovato.'}
               </p>
             </div>
-          ) : charViewMode === 'list' ? (
-            <div className={GRID_CONTAINER_CLASS}>
-              <div className="space-y-2">
-                {filteredCharacters.map(char => renderCharacterCard(char, 'list'))}
-              </div>
-            </div>
           ) : (
-            <div className={GRID_CONTAINER_CLASS}>
-              <div className={GRID_CLASS}>
-                {withPlaceholders(filteredCharacters).map((char, index) =>
-                  char ? (
-                    renderCharacterCard(char)
-                  ) : (
-                    <div key={`placeholder-${index}`} className="invisible pointer-events-none" aria-hidden="true" />
-                  )
-                )}
+            <>
+              {charViewMode === 'list' ? (
+                <div className={GRID_CONTAINER_CLASS}>
+                  <div className="space-y-2">
+                    {pagedCharacters.map(char => renderCharacterCard(char, 'list'))}
+                  </div>
+                </div>
+              ) : (
+                <div className={GRID_CONTAINER_CLASS}>
+                  <div className={GRID_CLASS}>
+                    {withPlaceholders(pagedCharacters).map((char, index) =>
+                      char ? (
+                        renderCharacterCard(char)
+                      ) : (
+                        <div key={`placeholder-${index}`} className="invisible pointer-events-none" aria-hidden="true" />
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className={GRID_CONTAINER_CLASS}>
+                <EntityPagination
+                  page={charSafePage}
+                  onPageChange={setCharPage}
+                  pageSize={charPageSize}
+                  onPageSizeChange={setCharPageSize}
+                  totalPages={charTotalPages}
+                  startIndex={charStartIndex}
+                  endIndex={charEndIndex}
+                  totalItems={filteredCharacters.length}
+                  itemLabelPlural="personaggi"
+                />
               </div>
-            </div>
+            </>
           )}
         </div>
       )}
@@ -1037,6 +1267,17 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         isLoading: isLoadingNpcs,
         labelSingular: 'PNG',
         labelPluralLower: 'PNG',
+        campaignFilter: npcCampaignFilter,
+        setCampaignFilter: setNpcCampaignFilter,
+        adventureFilter: npcAdventureFilter,
+        setAdventureFilter: setNpcAdventureFilter,
+        filterAdventures: npcFilterAdventures,
+        filtersOpen: npcFiltersOpen,
+        setFiltersOpen: setNpcFiltersOpen,
+        page: npcPage,
+        setPage: setNpcPage,
+        pageSize: npcPageSize,
+        setPageSize: setNpcPageSize,
       })}
 
       {activeTab === 'monsters' && renderEntityTab({
@@ -1052,6 +1293,17 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         isLoading: isLoadingMonsters,
         labelSingular: 'mostro',
         labelPluralLower: 'mostri',
+        campaignFilter: monsterCampaignFilter,
+        setCampaignFilter: setMonsterCampaignFilter,
+        adventureFilter: monsterAdventureFilter,
+        setAdventureFilter: setMonsterAdventureFilter,
+        filterAdventures: monsterFilterAdventures,
+        filtersOpen: monsterFiltersOpen,
+        setFiltersOpen: setMonsterFiltersOpen,
+        page: monsterPage,
+        setPage: setMonsterPage,
+        pageSize: monsterPageSize,
+        setPageSize: setMonsterPageSize,
       })}
 
       {showWizard && (
