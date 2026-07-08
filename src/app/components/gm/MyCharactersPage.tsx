@@ -12,6 +12,7 @@ import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { EntityCard } from '../session/shared/EntityCard';
 import { EntityKebabMenu } from '../session/shared/EntityKebabMenu';
 import { EntityDetailView } from '../session/shared/EntityDetailView';
+import { SlideOverPanel } from '../session/SlideOverPanel';
 import { loadCharactersByOwner, saveCharacter, deleteCharacter } from '../../../services/supabase/charactersService';
 import {
   loadNPCsByOwner, loadMonstersByOwner,
@@ -39,6 +40,12 @@ type ActiveTab = 'characters' | 'npcs' | 'monsters';
 // testo, misurato nel browser) + 2 gap-4 tra le colonne. Vedi indagine in PR per il conto esatto.
 const GRID_CONTAINER_CLASS = 'mx-auto w-full max-w-[1142px]';
 const GRID_CLASS = 'grid grid-cols-3 gap-4';
+
+// Deve combaciare con la larghezza reale di EntityDetailRail (w-20 = 5rem),
+// che qui (standalone, non in sessione) fa da rail destra ancorata al bordo
+// schermo mentre il pannello dettaglio e' aperto. Vedi SESSION_SIDEBAR_WIDTH
+// in SlideOverPanel.tsx per l'equivalente lato sessione (w-16 = 4rem).
+const CHARACTERS_RAIL_WIDTH = '5rem';
 
 function withPlaceholders<T>(items: T[]): (T | null)[] {
   const remainder = items.length % 3;
@@ -786,16 +793,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     null;
 
   return (
-    <div className="relative overflow-hidden">
-      {/* Griglia e vista dettaglio come due pannelli di uno stesso binario che
-          scorre con translateX - vera navigazione dentro il tab "characters",
-          non un overlay: la rail Scheda/Immagine/Token vive fuori da qui, nel
-          rightSidebar di AppShell (vedi detailContext/onOpenDetail/onCloseDetail). */}
-      <div
-        className="flex transition-transform duration-300 ease-out"
-        style={{ width: '200%', transform: detailContext ? 'translateX(-50%)' : 'translateX(0%)' }}
-      >
-      <div className="w-1/2 shrink-0 space-y-6 select-none">
+    <>
+    <div className="space-y-6 select-none">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1">
           {(['characters', 'npcs', 'monsters'] as const).map(tab => (
@@ -1007,38 +1006,37 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
           </div>
         </div>
       )}
-      </div>
-
-      <div className="w-1/2 shrink-0 px-1">
-        {detailContext && detailData && (
-          <>
-            <button
-              type="button"
-              onClick={onCloseDetail}
-              className="mb-4 inline-flex items-center gap-2 text-sm text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Indietro a {tabLabel(activeTab)}
-            </button>
-            <EntityDetailView
-              entityType={detailContext.entityType}
-              entity={detailData}
-              onUpdate={(updated) => {
-                if (detailContext.entityType === 'character') persistCharacter(updated.id, updated);
-                else persistEntity(detailContext.entityType, updated);
-              }}
-              canEdit
-              campaignId={detailData.campaignId ?? null}
-              accessToken={session?.access_token}
-              isHSC={isHSC}
-              draggable={false}
-              showOwnerRow={false}
-              showRail={false}
-            />
-          </>
-        )}
-      </div>
-      </div>
     </div>
+
+    <SlideOverPanel isOpen={!!detailContext} onClose={onCloseDetail} rightOffset={CHARACTERS_RAIL_WIDTH}>
+      {detailContext && detailData && (
+        <div className="h-full overflow-y-auto p-5">
+          <button
+            type="button"
+            onClick={onCloseDetail}
+            className="mb-4 inline-flex items-center gap-2 text-sm text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Indietro a {tabLabel(activeTab)}
+          </button>
+          <EntityDetailView
+            entityType={detailContext.entityType}
+            entity={detailData}
+            onUpdate={(updated) => {
+              if (detailContext.entityType === 'character') persistCharacter(updated.id, updated);
+              else persistEntity(detailContext.entityType, updated);
+            }}
+            canEdit
+            campaignId={detailData.campaignId ?? null}
+            accessToken={session?.access_token}
+            isHSC={isHSC}
+            draggable={false}
+            showOwnerRow={false}
+            showRail={false}
+          />
+        </div>
+      )}
+    </SlideOverPanel>
+    </>
   );
 }

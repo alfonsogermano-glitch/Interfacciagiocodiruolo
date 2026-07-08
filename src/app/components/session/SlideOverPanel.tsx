@@ -15,9 +15,18 @@ interface SlideOverPanelProps {
   onClose: () => void;
   children: React.ReactNode;
   widthClassName?: string;
+  // scostamento da destra, per lasciare spazio a una rail stretta ancorata al
+  // bordo schermo (di default quella icone di sessione, w-16 = 4rem)
+  rightOffset?: string;
 }
 
-export function SlideOverPanel({ isOpen, onClose, children, widthClassName = 'w-full max-w-5xl' }: SlideOverPanelProps) {
+export function SlideOverPanel({
+  isOpen,
+  onClose,
+  children,
+  widthClassName = 'w-full max-w-5xl',
+  rightOffset = SESSION_SIDEBAR_WIDTH,
+}: SlideOverPanelProps) {
   const colors = getCurrentPaletteColors();
 
   useEffect(() => {
@@ -33,13 +42,13 @@ export function SlideOverPanel({ isOpen, onClose, children, widthClassName = 'w-
     <div
       className={`fixed top-12 bottom-0 z-[900] flex flex-col shadow-2xl transition-transform duration-300 ease-out ${widthClassName}`}
       style={{
-        right: SESSION_SIDEBAR_WIDTH,
+        right: rightOffset,
         width: undefined,
         backgroundColor: `${colors.panel}ee`,
         borderLeft: `1px solid ${colors.border}`,
         backdropFilter: 'blur(6px)',
         pointerEvents: isOpen ? 'auto' : 'none',
-        transform: isOpen ? 'translateX(0)' : 'translateX(calc(100% + 4rem))',
+        transform: isOpen ? 'translateX(0)' : `translateX(calc(100% + ${rightOffset}))`,
       }}
     >
       <div className="flex-1 overflow-hidden">
