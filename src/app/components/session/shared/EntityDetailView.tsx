@@ -20,10 +20,16 @@ import { VIAGGI_PER_STILE, calculateAmbiti, NOTABLE_CITIZENS, LATER_SENTINEL } f
 import { loadNPCs, loadAdventures } from '../../../../services/supabase/entitiesService';
 import { loadCharacters } from '../../../../services/supabase/charactersService';
 import { loadEnvironmentReferences, type EntityReference } from '../../../../services/campaign/entityReferenceService';
+import { FreschezzaMaxEditor, FreschezzaBoxesEditor as MonsterFreschezzaBoxesEditor } from '../../gm/monsters/MonsterFreschezzaComponents';
+import { CatalogSelectionBlock, CustomEntriesEditor } from '../../gm/monsters/MonsterCatalogComponents';
+import { TERRIFYING_TRAIT_ID, FOLLIA_DIFFICULTY_OPTIONS } from '../../gm/monsters/monstersTypes';
+import { getMonsterCriticalBoxes, clampMonsterAudacia, normalizeTiroFollia, generateId as generateMonsterEntryId, calculateAudaciaGainFromFreshnessChange } from '../../gm/monsters/monstersUtils';
+import { MONSTER_TRAITS_CATALOG } from '../../../../data/monsterTraitsCatalog';
+import { MONSTER_SPECIAL_ACTIONS_CATALOG } from '../../../../data/monsterSpecialActionsCatalog';
 
-// Stesse opzioni di NPCManager.tsx (DIFFICULTY_OPTIONS) - duplicate qui
-// perche' NPCManager non espone un modulo condiviso per questo array; se in
-// futuro anche i Mostri diventano editabili qui, vale la pena estrarlo.
+// Stesse opzioni di NPCManager.tsx/MonstersManager.tsx (DIFFICULTY_OPTIONS) -
+// duplicate qui perche' nessuno dei due espone un modulo condiviso per
+// questo array; usata sia per Attacco/Difesa dei PNG che dei Mostri.
 const DIFFICULTY_OPTIONS = ['', 'Base', 'Critico', 'Estremo', 'Impossibile', 'Non euclideo'] as const;
 
 const ABILITA_PER_AMBITO: Record<string, string[]> = {
@@ -218,12 +224,13 @@ export function EntityDetailView({
     return () => { cancelled = true; };
   }, [campaignId, entityType]);
 
-  // Pool "Ambito narrativo"/"Luogo" per i PNG, stesso concetto di
-  // NPCManager.tsx (adventureId/environmentId) ma qui il PNG potrebbe non
-  // avere ancora una campagna: senza campaignId questi campi non hanno senso
-  // (nessuna pool da cui scegliere) e restano nascosti, vedi sotto.
+  // Pool "Ambito narrativo"/"Luogo" per PNG e Mostri, stesso concetto di
+  // NPCManager.tsx/MonstersManager.tsx (adventureId/environmentId) ma qui
+  // l'entita' potrebbe non avere ancora una campagna: senza campaignId questi
+  // campi non hanno senso (nessuna pool da cui scegliere) e restano nascosti,
+  // vedi sotto.
   useEffect(() => {
-    if (!campaignId || entityType !== 'npc') {
+    if (!campaignId || (entityType !== 'npc' && entityType !== 'monster')) {
       setCampaignAdventures([]);
       setCampaignEnvironments([]);
       return;
@@ -463,7 +470,16 @@ export function EntityDetailView({
                 />
               </div>
             ) : (
-              <h3 className="min-w-0 flex-1 text-xl font-semibold text-[var(--dash-text-strong)]">{entity.name}</h3>
+              <div className="min-w-0 flex-1">
+                <input
+                  type="text"
+                  value={entity.name}
+                  onChange={(e) => onUpdate({ ...entity, name: e.target.value })}
+                  disabled={!canEdit}
+                  placeholder="Nome del Mostro"
+                  className="w-full rounded-lg border border-transparent bg-transparent px-1 text-xl font-semibold text-[var(--dash-text-strong)] outline-none transition-colors hover:border-[var(--dash-border-soft)] focus:border-[var(--dash-accent)] disabled:cursor-not-allowed"
+                />
+              </div>
             )}
 
             {headerAction}
@@ -1094,32 +1110,224 @@ export function EntityDetailView({
             </div>
           )}
 
-          {/* TODO: Mostri ancora di sola lettura qui (a differenza dei PNG,
-              resi editabili sopra) - stesso pattern da applicare quando ci si
-              arriva in una sessione futura: nome/tipo nell'header + name/
-              description/personality/secrets/attacco/difesa qui sotto. */}
           {entityType === 'monster' && tabs.currentTab === 'summary' && (
             <div className="space-y-3 text-sm">
-              {entity.description && (
+              {!!campaignId && (
                 <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
-                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Descrizione</div>
-                  <p className="text-[var(--dash-text)]">{entity.description}</p>
+                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Ambito narrativo</div>
+                  <select
+                    value={entity.adventureId ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, adventureId: e.target.value || null, environmentId: null })}
+                    className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1.5 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                  >
+                    <option value="">Tutta la campagna</option>
+                    {campaignAdventures.map((adventure) => (
+                      <option key={adventure.id} value={adventure.id}>{adventure.title}</option>
+                    ))}
+                  </select>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
-                {entity.attacco && (
-                  <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
-                    <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Attacco</div>
-                    <div className="mt-1 text-sm font-semibold text-[var(--dash-text-strong)]">{entity.attacco}</div>
-                  </div>
-                )}
-                {entity.difesa && (
-                  <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
-                    <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Difesa</div>
-                    <div className="mt-1 text-sm font-semibold text-[var(--dash-text-strong)]">{entity.difesa}</div>
-                  </div>
-                )}
+
+              {!!campaignId && (
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Luogo</div>
+                  <select
+                    value={entity.environmentId ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, environmentId: e.target.value || null })}
+                    className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1.5 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                  >
+                    <option value="">Nessun luogo</option>
+                    {campaignEnvironments
+                      .filter((environment) => !entity.adventureId || environment.adventureId == null || environment.adventureId === entity.adventureId)
+                      .map((environment) => (
+                        <option key={environment.id} value={environment.id}>{environment.name}</option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Descrizione</div>
+                <textarea
+                  value={entity.description ?? ''}
+                  onChange={(e) => onUpdate({ ...entity, description: e.target.value })}
+                  placeholder="Descrivi questo mostro..."
+                  rows={3}
+                  className="w-full resize-none rounded-lg border border-transparent bg-transparent text-[var(--dash-text)] outline-none transition-colors hover:border-[var(--dash-border-soft)] focus:border-[var(--dash-accent)] disabled:cursor-not-allowed"
+                />
               </div>
+
+              <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                <div className="mb-2 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Freschezza massima</div>
+                <FreschezzaMaxEditor monster={entity} onUpdate={onUpdate} />
+              </div>
+
+              {(entity.maxFreschezza ?? 0) > 0 && (
+                <MonsterFreschezzaBoxesEditor
+                  current={entity.freschezza ?? 0}
+                  max={entity.maxFreschezza ?? 0}
+                  criticalBoxes={getMonsterCriticalBoxes(entity)}
+                  hasCriticalBoxes={(entity.maxFreschezza ?? 0) > 0}
+                  allowCriticalEditing
+                  allowFreshnessEditing
+                  onUpdate={({ current, criticalBoxes }) => {
+                    const nextMonster = { ...entity, caselleFreschezzaCritiche: criticalBoxes };
+                    const audaciaGain = calculateAudaciaGainFromFreshnessChange(nextMonster, entity.freschezza ?? 0, current);
+                    onUpdate({
+                      ...nextMonster,
+                      freschezza: current,
+                      audacia: clampMonsterAudacia(nextMonster, (nextMonster.audacia ?? 0) + audaciaGain),
+                    });
+                  }}
+                />
+              )}
+
+              <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Audacia</div>
+                  <span className="text-sm font-semibold text-[var(--dash-text-strong)]">{entity.audacia ?? 0}</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onUpdate({ ...entity, audacia: clampMonsterAudacia(entity, (entity.audacia ?? 0) - 1) })}
+                    className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-3 py-1.5 text-sm text-[var(--dash-text-strong)] hover:bg-[var(--dash-surface-2)]"
+                  >
+                    −1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onUpdate({ ...entity, audacia: clampMonsterAudacia(entity, (entity.audacia ?? 0) + 1) })}
+                    className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-3 py-1.5 text-sm text-[var(--dash-text-strong)] hover:bg-[var(--dash-surface-2)]"
+                  >
+                    +1
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
+                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Attacco</div>
+                  <select
+                    value={entity.attacco ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, attacco: e.target.value })}
+                    className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                  >
+                    {DIFFICULTY_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option || 'Non definito'}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2">
+                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Difesa</div>
+                  <select
+                    value={entity.difesa ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, difesa: e.target.value })}
+                    className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                  >
+                    {DIFFICULTY_OPTIONS.map((option) => (
+                      <option key={option} value={option}>{option || 'Non definita'}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Punto debole</div>
+                <textarea
+                  value={entity.puntoDebole ?? ''}
+                  onChange={(e) => onUpdate({ ...entity, puntoDebole: e.target.value })}
+                  placeholder="Punto debole"
+                  rows={2}
+                  className="w-full resize-none rounded-lg border border-transparent bg-transparent text-[var(--dash-text)] outline-none transition-colors hover:border-[var(--dash-border-soft)] focus:border-[var(--dash-accent)] disabled:cursor-not-allowed"
+                />
+              </div>
+
+              <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Note GM</div>
+                <textarea
+                  value={entity.notes ?? ''}
+                  onChange={(e) => onUpdate({ ...entity, notes: e.target.value })}
+                  placeholder="Note GM"
+                  rows={2}
+                  className="w-full resize-none rounded-lg border border-transparent bg-transparent text-[var(--dash-text)] outline-none transition-colors hover:border-[var(--dash-border-soft)] focus:border-[var(--dash-accent)] disabled:cursor-not-allowed"
+                />
+              </div>
+
+              <CatalogSelectionBlock
+                title="Tratti"
+                items={MONSTER_TRAITS_CATALOG}
+                selectedIds={entity.traitIds ?? []}
+                onToggle={(traitId) => {
+                  // CatalogSelectionBlock usa <div role="button">, non un
+                  // controllo form nativo: <fieldset disabled> non lo disabilita
+                  // da solo, serve il guard esplicito qui.
+                  if (!canEdit) return;
+                  const currentTraitIds: string[] = entity.traitIds ?? [];
+                  const isRemoving = currentTraitIds.includes(traitId);
+                  const nextTraitIds = isRemoving
+                    ? currentTraitIds.filter((id: string) => id !== traitId)
+                    : [...currentTraitIds, traitId];
+                  const nextMonster = { ...entity, traitIds: nextTraitIds };
+                  onUpdate({
+                    ...nextMonster,
+                    tiroFollia:
+                      traitId === TERRIFYING_TRAIT_ID
+                        ? isRemoving
+                          ? null
+                          : normalizeTiroFollia(nextMonster) ?? 'Base'
+                        : entity.tiroFollia,
+                  });
+                }}
+                extraContent={(item, selected) =>
+                  item.id === TERRIFYING_TRAIT_ID && selected ? (
+                    <select
+                      value={entity.tiroFollia ?? 'Base'}
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={(event) => {
+                        event.stopPropagation();
+                        onUpdate({ ...entity, tiroFollia: event.target.value });
+                      }}
+                      className="mt-3 h-8 w-full max-w-[220px] rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 text-xs font-medium text-[var(--dash-text)] outline-none transition-colors focus:border-[var(--dash-accent)]"
+                      aria-label="Difficoltà Tiro Follia"
+                    >
+                      {FOLLIA_DIFFICULTY_OPTIONS.map((option) => (
+                        <option key={option} value={option}>Tiro Follia {option}</option>
+                      ))}
+                    </select>
+                  ) : null
+                }
+              />
+
+              <CustomEntriesEditor
+                title="Tratti personalizzati"
+                items={entity.customTraits ?? []}
+                onAdd={() => onUpdate({ ...entity, customTraits: [...(entity.customTraits ?? []), { id: generateMonsterEntryId('trait'), name: '', description: '' }] })}
+                onUpdate={(id, patch) => onUpdate({ ...entity, customTraits: (entity.customTraits ?? []).map((item: any) => (item.id === id ? { ...item, ...patch } : item)) })}
+                onRemove={(id) => onUpdate({ ...entity, customTraits: (entity.customTraits ?? []).filter((item: any) => item.id !== id) })}
+              />
+
+              <CatalogSelectionBlock
+                title="Azioni speciali"
+                items={MONSTER_SPECIAL_ACTIONS_CATALOG}
+                selectedIds={entity.specialActionIds ?? []}
+                onToggle={(actionId) => {
+                  if (!canEdit) return;
+                  const currentActionIds: string[] = entity.specialActionIds ?? [];
+                  const nextActionIds = currentActionIds.includes(actionId)
+                    ? currentActionIds.filter((id: string) => id !== actionId)
+                    : [...currentActionIds, actionId];
+                  onUpdate({ ...entity, specialActionIds: nextActionIds });
+                }}
+              />
+
+              <CustomEntriesEditor
+                title="Azioni speciali personalizzate"
+                items={entity.customSpecialActions ?? []}
+                onAdd={() => onUpdate({ ...entity, customSpecialActions: [...(entity.customSpecialActions ?? []), { id: generateMonsterEntryId('action'), name: '', description: '' }] })}
+                onUpdate={(id, patch) => onUpdate({ ...entity, customSpecialActions: (entity.customSpecialActions ?? []).map((item: any) => (item.id === id ? { ...item, ...patch } : item)) })}
+                onRemove={(id) => onUpdate({ ...entity, customSpecialActions: (entity.customSpecialActions ?? []).filter((item: any) => item.id !== id) })}
+              />
             </div>
           )}
 
