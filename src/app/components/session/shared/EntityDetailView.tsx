@@ -764,7 +764,7 @@ export function EntityDetailView({
                       PNG della campagna
                     </button>
                   )}
-                  <button type="button" onClick={() => onUpdate({ ...entity, tutore: LATER_SENTINEL })} className={originToggleClass(tutoreInputType === 'later')}>
+                  <button type="button" onClick={() => { setTutoreInputTypeOverride('later'); onUpdate({ ...entity, tutore: LATER_SENTINEL }); }} className={originToggleClass(tutoreInputType === 'later')}>
                     Seleziona in seguito
                   </button>
                 </div>
@@ -819,7 +819,7 @@ export function EntityDetailView({
                       PNG della campagna
                     </button>
                   )}
-                  <button type="button" onClick={() => onUpdate({ ...entity, tipoSpeciale: LATER_SENTINEL })} className={originToggleClass(tipoSpecialeInputType === 'later')}>
+                  <button type="button" onClick={() => { setTipoSpecialeInputTypeOverride('later'); onUpdate({ ...entity, tipoSpeciale: LATER_SENTINEL }); }} className={originToggleClass(tipoSpecialeInputType === 'later')}>
                     Seleziona in seguito
                   </button>
                 </div>
