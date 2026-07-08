@@ -8,6 +8,7 @@ import { EquipmentPanel as LegacyEquipmentPanel } from '../../EquipmentPanel';
 import { DraggablePortrait } from './DraggablePortrait';
 import { EntityTabBar } from './EntityTabBar';
 import { EntityDetailRail } from './EntityDetailRail';
+import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { useEntityTabs, type EntityTabsEntityType } from './useEntityTabs';
 import type { Stile, Viaggio, Trait } from '../../../../types/character';
 import { STYLE_TRAITS, JOURNEY_TRAITS } from '../../../../data/traits';
@@ -144,6 +145,7 @@ export function EntityDetailView({
   const [originsWarning, setOriginsWarning] = useState<string | null>(null);
   const [tutoreInputTypeOverride, setTutoreInputTypeOverride] = useState<'custom' | 'notable' | null>(null);
   const [tipoSpecialeInputTypeOverride, setTipoSpecialeInputTypeOverride] = useState<'custom' | 'notable' | null>(null);
+  const [pendingOrigin, setPendingOrigin] = useState<{ style: Stile; viaggio: Viaggio } | null>(null);
 
   // Le tab modalita' custom/notable sono scelte di presentazione locali (non
   // dati salvati): vanno azzerate quando si passa a un'altra entita', altrimenti
@@ -152,10 +154,18 @@ export function EntityDetailView({
     setOriginsWarning(null);
     setTutoreInputTypeOverride(null);
     setTipoSpecialeInputTypeOverride(null);
+    setPendingOrigin(null);
   }, [entity?.id]);
 
   const isOriginsLocked = !canEdit || !!campaignId;
 
+  // Il cambio effettivo (ricalcolo ambiti + eventuale reset tratti) avviene
+  // solo dopo la conferma esplicita nel dialog sotto: le Abilità in
+  // "Riepilogo" non vengono ricalcolate (i punti bonus assegnati in
+  // creazione non sono persistiti separatamente, vedi characterCalculations.ts),
+  // quindi ogni cambio le rende potenzialmente incoerenti - l'utente deve
+  // vederlo e confermarlo attivamente, non solo leggerlo in un banner
+  // ignorabile dopo il fatto.
   const applyOriginChange = (nextStyle: Stile, nextViaggio: Viaggio) => {
     const nextAmbiti = calculateAmbiti(nextStyle, nextViaggio);
     const currentTratti: Trait[] = entity.tratti ?? [];
@@ -164,11 +174,16 @@ export function EntityDetailView({
 
     setOriginsWarning(
       !staysCompatible && currentTratti.length > 0
-        ? 'I tratti selezionati non erano più compatibili con il nuovo Stile/Viaggio e sono stati azzerati: selezionane di nuovi qui sotto. Controlla anche le Abilità in "Riepilogo": i bonus derivati da Stile/Viaggio potrebbero non essere più coerenti e vanno rivisti manualmente.'
+        ? 'I tratti selezionati non erano più compatibili con il nuovo Stile/Viaggio e sono stati azzerati: selezionane di nuovi qui sotto.'
         : null
     );
 
     onUpdate({ ...entity, style: nextStyle, viaggio: nextViaggio, ambiti: nextAmbiti, tratti: nextTratti });
+  };
+
+  const requestOriginChange = (nextStyle: Stile, nextViaggio: Viaggio) => {
+    if (nextStyle === entity.style && nextViaggio === entity.viaggio) return;
+    setPendingOrigin({ style: nextStyle, viaggio: nextViaggio });
   };
 
   const legameSelectValue = entity?.linkedCharacterId
@@ -509,7 +524,7 @@ export function EntityDetailView({
                       <button
                         key={st}
                         type="button"
-                        onClick={() => applyOriginChange(st, VIAGGI_PER_STILE[st][0])}
+                        onClick={() => requestOriginChange(st, VIAGGI_PER_STILE[st][0])}
                         className={originToggleClass(entity.style === st)}
                       >
                         {st}
@@ -525,7 +540,7 @@ export function EntityDetailView({
                       <button
                         key={v}
                         type="button"
-                        onClick={() => applyOriginChange(entity.style, v)}
+                        onClick={() => requestOriginChange(entity.style, v)}
                         className={originToggleClass(entity.viaggio === v)}
                       >
                         {v}
@@ -692,6 +707,21 @@ export function EntityDetailView({
                   </div>
                 </div>
               </fieldset>
+
+              {pendingOrigin && (
+                <ConfirmDialog
+                  title="Confermare il cambio di Stile/Viaggio?"
+                  message={`Stai per cambiare Stile/Viaggio in "${pendingOrigin.style} · ${pendingOrigin.viaggio}". Gli Ambiti verranno ricalcolati automaticamente. Le Abilità nella tab "Riepilogo" NON vengono ricalcolate automaticamente: dopo questa modifica i bonus derivati dal vecchio Stile/Viaggio potrebbero non essere più corretti e dovrai rivederle e sistemarle a mano. Se i Tratti selezionati non sono compatibili con la nuova scelta, verranno azzerati e dovrai riselezionarli.`}
+                  confirmLabel="Ho capito, cambia Stile/Viaggio"
+                  cancelLabel="Annulla"
+                  danger={false}
+                  onConfirm={() => {
+                    applyOriginChange(pendingOrigin.style, pendingOrigin.viaggio);
+                    setPendingOrigin(null);
+                  }}
+                  onCancel={() => setPendingOrigin(null)}
+                />
+              )}
             </div>
           )}
 
