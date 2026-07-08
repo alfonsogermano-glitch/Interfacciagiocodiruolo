@@ -17,7 +17,8 @@
     STILE_ABILITA,
     VIAGGIO_ABILITA,
     getAbilitaBaseValue as getAbilitaBaseValuePure,
-    NOTABLE_CITIZENS
+    NOTABLE_CITIZENS,
+    LATER_SENTINEL
   } from '../../../data/characterCalculations';
   
   interface CharacterCreationWizardProps {
@@ -167,10 +168,12 @@
   
     // Step 3: Tutore e Legame
     const [tutore, setTutore] = useState(initialCharacter?.tutore ?? '');
-    const [tutoreInputType, setTutoreInputType] = useState<'custom' | 'notable'>(
-    initialCharacter?.tutore && NOTABLE_CITIZENS.includes(initialCharacter.tutore)
-      ? 'notable'
-      : 'custom'
+    const [tutoreInputType, setTutoreInputType] = useState<'custom' | 'notable' | 'later'>(
+    initialCharacter?.tutore === LATER_SENTINEL
+      ? 'later'
+      : initialCharacter?.tutore && NOTABLE_CITIZENS.includes(initialCharacter.tutore)
+        ? 'notable'
+        : 'custom'
     );
     const [legame, setLegame] = useState(() => {
     if (initialCharacter?.legameDescription) {
@@ -208,10 +211,12 @@
     const [tipoSpeciale, setTipoSpeciale] = useState(
     (initialCharacter as (Character & { player: string; notes: string; tipoSpeciale?: string }) | null)?.tipoSpeciale ?? ''
     );
-    const [tipoSpecialeInputType, setTipoSpecialeInputType] = useState<'custom' | 'notable'>(
-    tipoSpeciale && NOTABLE_CITIZENS.includes(tipoSpeciale)
-      ? 'notable'
-      : 'custom'
+    const [tipoSpecialeInputType, setTipoSpecialeInputType] = useState<'custom' | 'notable' | 'later'>(
+    tipoSpeciale === LATER_SENTINEL
+      ? 'later'
+      : tipoSpeciale && NOTABLE_CITIZENS.includes(tipoSpeciale)
+        ? 'notable'
+        : 'custom'
     );
   
     // Step 5: Ambiti e Abilità
@@ -886,10 +891,13 @@ const equipment: Equipment[] = [
               Tutore *
             </div>
   
-            <div className="mb-4 flex gap-2">
+            <div className="mb-4 flex flex-wrap gap-2">
               <button
     type="button"
-    onClick={() => setTutoreInputType('custom')}
+    onClick={() => {
+      setTutoreInputType('custom');
+      if (tutoreInputType === 'later') setTutore('');
+    }}
     className={`rounded-md px-3 py-2 text-sm border ${
       tutoreInputType === 'custom'
         ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)] text-[var(--dash-text-strong)]'
@@ -900,7 +908,10 @@ const equipment: Equipment[] = [
   </button>
               <button
     type="button"
-    onClick={() => setTutoreInputType('notable')}
+    onClick={() => {
+      setTutoreInputType('notable');
+      if (tutoreInputType === 'later') setTutore('');
+    }}
     className={`rounded-md px-3 py-2 text-sm border ${
       tutoreInputType === 'notable'
         ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)] text-[var(--dash-text-strong)]'
@@ -909,8 +920,22 @@ const equipment: Equipment[] = [
   >
     Abitanti degni di nota
   </button>
+              <button
+    type="button"
+    onClick={() => {
+      setTutoreInputType('later');
+      setTutore(LATER_SENTINEL);
+    }}
+    className={`rounded-md px-3 py-2 text-sm border ${
+      tutoreInputType === 'later'
+        ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)] text-[var(--dash-text-strong)]'
+        : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] text-[var(--dash-muted)]'
+    }`}
+  >
+    Seleziona in seguito
+  </button>
             </div>
-  
+
             {tutoreInputType === 'custom' ? (
               <input
                 type="text"
@@ -919,7 +944,7 @@ const equipment: Equipment[] = [
                 placeholder="Es. Professor Armitage"
                 className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[var(--dash-muted)] outline-none focus:border-[var(--dash-accent)]"
               />
-            ) : (
+            ) : tutoreInputType === 'notable' ? (
               <select
     value={tutore}
     onChange={(e) => setTutore(e.target.value)}
@@ -932,6 +957,10 @@ const equipment: Equipment[] = [
       </option>
     ))}
   </select>
+            ) : (
+              <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] p-4 text-sm text-[var(--dash-text)]">
+                Il Tutore verrà deciso in un secondo momento, dopo la creazione di tutti gli altri Personaggi.
+              </div>
             )}
           </div>
         </div>
@@ -1007,12 +1036,12 @@ const equipment: Equipment[] = [
       </div>
   
       <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
-        <div className="mb-4 flex gap-2">
+        <div className="mb-4 flex flex-wrap gap-2">
           <button
     type="button"
     onClick={() => {
       setTipoSpecialeInputType('custom');
-      
+      if (tipoSpecialeInputType === 'later') setTipoSpeciale('');
     }}
     className={`rounded-md px-3 py-2 text-sm border ${
       tipoSpecialeInputType === 'custom'
@@ -1026,7 +1055,7 @@ const equipment: Equipment[] = [
     type="button"
     onClick={() => {
       setTipoSpecialeInputType('notable');
-      
+      if (tipoSpecialeInputType === 'later') setTipoSpeciale('');
     }}
     className={`rounded-md px-3 py-2 text-sm border ${
       tipoSpecialeInputType === 'notable'
@@ -1036,8 +1065,22 @@ const equipment: Equipment[] = [
   >
     Abitanti degni di nota
   </button>
+          <button
+    type="button"
+    onClick={() => {
+      setTipoSpecialeInputType('later');
+      setTipoSpeciale(LATER_SENTINEL);
+    }}
+    className={`rounded-md px-3 py-2 text-sm border ${
+      tipoSpecialeInputType === 'later'
+        ? 'border-[var(--dash-accent)] bg-[var(--dash-surface)] text-[var(--dash-text-strong)]'
+        : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] text-[var(--dash-muted)]'
+    }`}
+  >
+    Seleziona in seguito
+  </button>
         </div>
-  
+
         {tipoSpecialeInputType === 'custom' ? (
           <div>
             <label className="mb-2 block text-sm uppercase tracking-[0.08em] text-[var(--dash-muted)]">
@@ -1051,7 +1094,7 @@ const equipment: Equipment[] = [
               className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-[var(--dash-text-strong)] placeholder-[var(--dash-muted)] outline-none focus:border-[var(--dash-accent)]"
             />
           </div>
-        ) : (
+        ) : tipoSpecialeInputType === 'notable' ? (
           <div>
             <label className="mb-2 block text-sm uppercase tracking-[0.08em] text-[var(--dash-muted)]">
               Cittadino di riferimento *
@@ -1069,11 +1112,15 @@ const equipment: Equipment[] = [
               ))}
             </select>
           </div>
+        ) : (
+          <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] p-4 text-sm text-[var(--dash-text)]">
+            Il Tipo Speciale verrà deciso in un secondo momento, dopo la creazione di tutti gli altri Personaggi.
+          </div>
         )}
       </div>
     </div>
   )}
-  
+
           {step === 5 && (
     <div className="mx-auto max-w-6xl space-y-6">
       <div>

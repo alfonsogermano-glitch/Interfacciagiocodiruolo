@@ -6,6 +6,11 @@ import type { Stile, Viaggio, Abilita } from '../types/character';
 
 export type AmbitoType = 'Fisico' | 'Scuola' | 'Carisma' | 'Strada';
 
+// Sentinella condivisa per "questo campo verrà deciso più avanti" (Legame,
+// Tutore, Tipo Speciale): un valore testuale letterale nel campo stesso, non
+// un flag separato - deve combaciare esattamente ovunque venga confrontato.
+export const LATER_SENTINEL = 'Da definire in seguito';
+
 // Definizione dei Viaggi per ogni Stile
 export const VIAGGI_PER_STILE: Record<Stile, Viaggio[]> = {
   Jock: ['Campione', 'Bullo', 'Fratello maggiore'],

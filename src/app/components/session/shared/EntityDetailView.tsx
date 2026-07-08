@@ -12,7 +12,9 @@ import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { useEntityTabs, type EntityTabsEntityType } from './useEntityTabs';
 import type { Stile, Viaggio, Trait } from '../../../../types/character';
 import { STYLE_TRAITS, JOURNEY_TRAITS } from '../../../../data/traits';
-import { VIAGGI_PER_STILE, calculateAmbiti, NOTABLE_CITIZENS } from '../../../../data/characterCalculations';
+import { VIAGGI_PER_STILE, calculateAmbiti, NOTABLE_CITIZENS, LATER_SENTINEL } from '../../../../data/characterCalculations';
+import { loadNPCs } from '../../../../services/supabase/entitiesService';
+import { loadCharacters } from '../../../../services/supabase/charactersService';
 
 const ABILITA_PER_AMBITO: Record<string, string[]> = {
   Fisico: ['Muscoli', 'Sport', 'Acrobatica', 'Resistenza', 'Freddezza'],
@@ -26,6 +28,7 @@ const CHARACTER_BASE_TABS = [
   { id: 'conditions', label: 'Condizioni & Follia' },
   { id: 'equipment', label: 'Equipaggiamento' },
   { id: 'origins', label: 'Origini' },
+  { id: 'storia', label: 'Storia' },
 ] as const;
 
 // Un tratto salvato e' compatibile con lo Stile/Viaggio corrente solo se
@@ -143,9 +146,11 @@ export function EntityDetailView({
 }: EntityDetailViewProps) {
   const [expandedAmbito, setExpandedAmbito] = useState<string | null>(null);
   const [originsWarning, setOriginsWarning] = useState<string | null>(null);
-  const [tutoreInputTypeOverride, setTutoreInputTypeOverride] = useState<'custom' | 'notable' | null>(null);
-  const [tipoSpecialeInputTypeOverride, setTipoSpecialeInputTypeOverride] = useState<'custom' | 'notable' | null>(null);
+  const [tutoreInputTypeOverride, setTutoreInputTypeOverride] = useState<'custom' | 'notable' | 'later' | 'npc' | null>(null);
+  const [tipoSpecialeInputTypeOverride, setTipoSpecialeInputTypeOverride] = useState<'custom' | 'notable' | 'later' | 'npc' | null>(null);
   const [pendingOrigin, setPendingOrigin] = useState<{ style: Stile; viaggio: Viaggio; triggeredBy: 'style' | 'viaggio' } | null>(null);
+  const [campaignNpcs, setCampaignNpcs] = useState<Array<{ id: string; name: string; visibleToPlayers?: boolean }>>([]);
+  const [campaignCharacters, setCampaignCharacters] = useState<Array<{ id: string; name: string }>>([]);
 
   // Le tab modalita' custom/notable sono scelte di presentazione locali (non
   // dati salvati): vanno azzerate quando si passa a un'altra entita', altrimenti
@@ -156,6 +161,46 @@ export function EntityDetailView({
     setTipoSpecialeInputTypeOverride(null);
     setPendingOrigin(null);
   }, [entity?.id]);
+
+  // Pool "PNG della campagna" per Tutore/Tipo Speciale nella tab Storia,
+  // visibile solo quando il personaggio e' assegnato a una campagna. Stesso
+  // filtro per visibleToPlayers gia' usato in SessionCharactersPanel.tsx per
+  // mostrare ai giocatori solo i PNG resi disponibili dal GM.
+  useEffect(() => {
+    if (!campaignId || entityType !== 'character') {
+      setCampaignNpcs([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const npcs = await loadNPCs(campaignId);
+      if (!cancelled) setCampaignNpcs(npcs.filter(n => n.visibleToPlayers));
+    })();
+    return () => { cancelled = true; };
+  }, [campaignId, entityType]);
+
+  // Pool "altri PG" per il selettore Legame nella tab Storia: quando il
+  // personaggio e' in una campagna, la pool sensata sono gli altri PG della
+  // STESSA campagna (loadCharacters(campaignId), auto-fetchata qui - stesso
+  // pattern di campaignNpcs sopra), non piu' "miei personaggi non assegnati"
+  // (che una volta assegnati sarebbe quasi sempre vuota/irrilevante). La prop
+  // linkableCharacters (calcolata dal chiamante, che sa chi e' l'utente
+  // corrente) resta l'unica fonte possibile quando non c'e' ancora una
+  // campagna, dato che EntityDetailView non sa chi e' l'utente.
+  useEffect(() => {
+    if (!campaignId || entityType !== 'character') {
+      setCampaignCharacters([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const characters = await loadCharacters(campaignId);
+      if (!cancelled) setCampaignCharacters(characters);
+    })();
+    return () => { cancelled = true; };
+  }, [campaignId, entityType]);
+
+  const legamePool = (campaignId ? campaignCharacters : linkableCharacters).filter(c => c.id !== entity?.id);
 
   const isOriginsLocked = !canEdit || !!campaignId;
 
@@ -197,13 +242,13 @@ export function EntityDetailView({
 
   const legameSelectValue = entity?.linkedCharacterId
     ? entity.linkedCharacterId
-    : entity?.legame === 'Da definire in seguito'
+    : entity?.legame === LATER_SENTINEL
       ? 'LATER'
       : '';
 
   const handleLegameSelectChange = (value: string) => {
     if (value === 'LATER') {
-      onUpdate({ ...entity, legame: 'Da definire in seguito', linkedCharacterId: undefined, legameDescription: undefined });
+      onUpdate({ ...entity, legame: LATER_SENTINEL, linkedCharacterId: undefined, legameDescription: undefined });
     } else if (value === '') {
       onUpdate({ ...entity, legame: '', linkedCharacterId: undefined, legameDescription: undefined });
     } else {
@@ -216,8 +261,27 @@ export function EntityDetailView({
     }
   };
 
-  const tutoreInputType = tutoreInputTypeOverride ?? (entity?.tutore && NOTABLE_CITIZENS.includes(entity.tutore) ? 'notable' : 'custom');
-  const tipoSpecialeInputType = tipoSpecialeInputTypeOverride ?? (entity?.tipoSpeciale && NOTABLE_CITIZENS.includes(entity.tipoSpeciale) ? 'notable' : 'custom');
+  const campaignNpcNames = new Set(campaignNpcs.map(n => n.name));
+
+  const tutoreInputType =
+    tutoreInputTypeOverride ??
+    (entity?.tutore === LATER_SENTINEL
+      ? 'later'
+      : entity?.tutore && campaignNpcNames.has(entity.tutore)
+        ? 'npc'
+        : entity?.tutore && NOTABLE_CITIZENS.includes(entity.tutore)
+          ? 'notable'
+          : 'custom');
+
+  const tipoSpecialeInputType =
+    tipoSpecialeInputTypeOverride ??
+    (entity?.tipoSpeciale === LATER_SENTINEL
+      ? 'later'
+      : entity?.tipoSpeciale && campaignNpcNames.has(entity.tipoSpeciale)
+        ? 'npc'
+        : entity?.tipoSpeciale && NOTABLE_CITIZENS.includes(entity.tipoSpeciale)
+          ? 'notable'
+          : 'custom');
 
   const currentStyleTrait: Trait | null = entity?.tratti?.[0] ?? null;
   const currentJourneyTraits: Trait[] = entity?.tratti?.slice(1, 3) ?? [];
@@ -559,121 +623,6 @@ export function EntityDetailView({
                 </div>
 
                 <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
-                  <div className="mb-3 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Legame</div>
-                  <label className="mb-1.5 block text-[11px] uppercase tracking-[0.08em] text-[var(--dash-muted)]">
-                    Personaggio collegato
-                  </label>
-                  <select
-                    value={legameSelectValue}
-                    onChange={(e) => handleLegameSelectChange(e.target.value)}
-                    className="mb-3 w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
-                  >
-                    <option value="">— Nessuno / testo libero —</option>
-                    <option value="LATER">Da definire in seguito</option>
-                    {linkableCharacters.filter(c => c.id !== entity.id).map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-
-                  {entity.linkedCharacterId ? (
-                    <>
-                      <label className="mb-1.5 block text-[11px] uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
-                        Descrizione del legame
-                      </label>
-                      <input
-                        type="text"
-                        value={entity.legameDescription ?? ''}
-                        onChange={(e) => onUpdate({ ...entity, legameDescription: e.target.value, legame: 'Legame con personaggio' })}
-                        placeholder="Es. Fratello maggiore, migliore amica, rivale..."
-                        className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
-                      />
-                    </>
-                  ) : entity.legame === 'Da definire in seguito' ? (
-                    <div className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2 text-xs text-[var(--dash-text)]">
-                      Questo legame verrà gestito in un secondo momento.
-                    </div>
-                  ) : (
-                    <input
-                      type="text"
-                      value={entity.legame ?? ''}
-                      onChange={(e) => onUpdate({ ...entity, legame: e.target.value })}
-                      placeholder="Descrivi liberamente il legame, oppure seleziona un personaggio sopra"
-                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
-                    />
-                  )}
-
-                  {linkableCharacters.length === 0 && (
-                    <p className="mt-2 text-[11px] text-[var(--dash-muted)]">
-                      Nessun altro personaggio disponibile: solo tuoi personaggi non ancora assegnati a una campagna possono essere collegati qui.
-                    </p>
-                  )}
-                </div>
-
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
-                  <div className="mb-3 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Tutore</div>
-                  <div className="mb-3 flex gap-2">
-                    <button type="button" onClick={() => setTutoreInputTypeOverride('custom')} className={originToggleClass(tutoreInputType === 'custom')}>
-                      Inserimento libero
-                    </button>
-                    <button type="button" onClick={() => setTutoreInputTypeOverride('notable')} className={originToggleClass(tutoreInputType === 'notable')}>
-                      Abitanti degni di nota
-                    </button>
-                  </div>
-                  {tutoreInputType === 'custom' ? (
-                    <input
-                      type="text"
-                      value={entity.tutore ?? ''}
-                      onChange={(e) => onUpdate({ ...entity, tutore: e.target.value })}
-                      placeholder="Es. Professor Armitage"
-                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
-                    />
-                  ) : (
-                    <select
-                      value={entity.tutore ?? ''}
-                      onChange={(e) => onUpdate({ ...entity, tutore: e.target.value })}
-                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
-                    >
-                      <option value="">Seleziona un abitante</option>
-                      {NOTABLE_CITIZENS.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
-                  <div className="mb-3 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Tipo Speciale</div>
-                  <div className="mb-3 flex gap-2">
-                    <button type="button" onClick={() => setTipoSpecialeInputTypeOverride('custom')} className={originToggleClass(tipoSpecialeInputType === 'custom')}>
-                      Inserimento libero
-                    </button>
-                    <button type="button" onClick={() => setTipoSpecialeInputTypeOverride('notable')} className={originToggleClass(tipoSpecialeInputType === 'notable')}>
-                      Abitanti degni di nota
-                    </button>
-                  </div>
-                  {tipoSpecialeInputType === 'custom' ? (
-                    <input
-                      type="text"
-                      value={entity.tipoSpeciale ?? ''}
-                      onChange={(e) => onUpdate({ ...entity, tipoSpeciale: e.target.value })}
-                      placeholder="Es. Abigail Prinn"
-                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
-                    />
-                  ) : (
-                    <select
-                      value={entity.tipoSpeciale ?? ''}
-                      onChange={(e) => onUpdate({ ...entity, tipoSpeciale: e.target.value })}
-                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
-                    >
-                      <option value="">Seleziona un cittadino</option>
-                      {NOTABLE_CITIZENS.filter((c) => c !== entity.tutore).map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
                   <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Tratti</div>
                   <p className="mb-3 text-[11px] text-[var(--dash-muted)]">Seleziona 1 tratto di Stile e 2 tratti di Viaggio.</p>
                   <div className="grid gap-3 md:grid-cols-2">
@@ -731,6 +680,185 @@ export function EntityDetailView({
                   onCancel={() => setPendingOrigin(null)}
                 />
               )}
+            </div>
+          )}
+
+          {entityType === 'character' && tabs.currentTab === 'storia' && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
+                <div className="mb-3 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Storia</div>
+                <textarea
+                  value={entity.notes ?? ''}
+                  onChange={(e) => onUpdate({ ...entity, notes: e.target.value })}
+                  placeholder="Scrivi qui il background, dettagli importanti, relazioni, paure, motivazioni..."
+                  rows={8}
+                  className="w-full resize-none rounded-xl border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-sm text-[var(--dash-text-strong)] placeholder-[var(--dash-muted)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
+                />
+              </div>
+
+              <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
+                <div className="mb-3 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Legame</div>
+                <label className="mb-1.5 block text-[11px] uppercase tracking-[0.08em] text-[var(--dash-muted)]">
+                  Personaggio collegato
+                </label>
+                <select
+                  value={legameSelectValue}
+                  onChange={(e) => handleLegameSelectChange(e.target.value)}
+                  className="mb-3 w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  <option value="">— Nessuno / testo libero —</option>
+                  <option value="LATER">Da definire in seguito</option>
+                  {legamePool.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+
+                {entity.linkedCharacterId ? (
+                  <>
+                    <label className="mb-1.5 block text-[11px] uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+                      Descrizione del legame
+                    </label>
+                    <input
+                      type="text"
+                      value={entity.legameDescription ?? ''}
+                      onChange={(e) => onUpdate({ ...entity, legameDescription: e.target.value, legame: 'Legame con personaggio' })}
+                      placeholder="Es. Fratello maggiore, migliore amica, rivale..."
+                      className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
+                    />
+                  </>
+                ) : entity.legame === LATER_SENTINEL ? (
+                  <div className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2 text-xs text-[var(--dash-text)]">
+                    Questo legame verrà gestito in un secondo momento.
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    value={entity.legame ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, legame: e.target.value })}
+                    placeholder="Descrivi liberamente il legame, oppure seleziona un personaggio sopra"
+                    className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
+                  />
+                )}
+
+                {legamePool.length === 0 && (
+                  <p className="mt-2 text-[11px] text-[var(--dash-muted)]">
+                    {campaignId
+                      ? 'Nessun altro PG in questa campagna a cui collegarsi.'
+                      : 'Nessun altro personaggio disponibile: solo tuoi personaggi non ancora assegnati a una campagna possono essere collegati qui.'}
+                    {' '}Il Legame resta comunque sempre concettualmente tra Personaggi giocanti, mai verso PNG.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
+                <div className="mb-3 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Tutore</div>
+                <div className="mb-3 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => { setTutoreInputTypeOverride('custom'); if (tutoreInputType === 'later') onUpdate({ ...entity, tutore: '' }); }} className={originToggleClass(tutoreInputType === 'custom')}>
+                    Inserimento libero
+                  </button>
+                  <button type="button" onClick={() => { setTutoreInputTypeOverride('notable'); if (tutoreInputType === 'later') onUpdate({ ...entity, tutore: '' }); }} className={originToggleClass(tutoreInputType === 'notable')}>
+                    Abitanti degni di nota
+                  </button>
+                  {campaignId && (
+                    <button type="button" onClick={() => { setTutoreInputTypeOverride('npc'); if (tutoreInputType === 'later') onUpdate({ ...entity, tutore: '' }); }} className={originToggleClass(tutoreInputType === 'npc')}>
+                      PNG della campagna
+                    </button>
+                  )}
+                  <button type="button" onClick={() => onUpdate({ ...entity, tutore: LATER_SENTINEL })} className={originToggleClass(tutoreInputType === 'later')}>
+                    Seleziona in seguito
+                  </button>
+                </div>
+                {tutoreInputType === 'custom' ? (
+                  <input
+                    type="text"
+                    value={entity.tutore ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, tutore: e.target.value })}
+                    placeholder="Es. Professor Armitage"
+                    className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
+                  />
+                ) : tutoreInputType === 'notable' ? (
+                  <select
+                    value={entity.tutore ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, tutore: e.target.value })}
+                    className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    <option value="">Seleziona un abitante</option>
+                    {NOTABLE_CITIZENS.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                ) : tutoreInputType === 'npc' ? (
+                  <select
+                    value={entity.tutore ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, tutore: e.target.value })}
+                    className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    <option value="">Seleziona un PNG</option>
+                    {campaignNpcs.map((npc) => (
+                      <option key={npc.id} value={npc.name}>{npc.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2 text-xs text-[var(--dash-text)]">
+                    Il Tutore verrà deciso in un secondo momento.
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
+                <div className="mb-3 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Tipo Speciale</div>
+                <div className="mb-3 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => { setTipoSpecialeInputTypeOverride('custom'); if (tipoSpecialeInputType === 'later') onUpdate({ ...entity, tipoSpeciale: '' }); }} className={originToggleClass(tipoSpecialeInputType === 'custom')}>
+                    Inserimento libero
+                  </button>
+                  <button type="button" onClick={() => { setTipoSpecialeInputTypeOverride('notable'); if (tipoSpecialeInputType === 'later') onUpdate({ ...entity, tipoSpeciale: '' }); }} className={originToggleClass(tipoSpecialeInputType === 'notable')}>
+                    Abitanti degni di nota
+                  </button>
+                  {campaignId && (
+                    <button type="button" onClick={() => { setTipoSpecialeInputTypeOverride('npc'); if (tipoSpecialeInputType === 'later') onUpdate({ ...entity, tipoSpeciale: '' }); }} className={originToggleClass(tipoSpecialeInputType === 'npc')}>
+                      PNG della campagna
+                    </button>
+                  )}
+                  <button type="button" onClick={() => onUpdate({ ...entity, tipoSpeciale: LATER_SENTINEL })} className={originToggleClass(tipoSpecialeInputType === 'later')}>
+                    Seleziona in seguito
+                  </button>
+                </div>
+                {tipoSpecialeInputType === 'custom' ? (
+                  <input
+                    type="text"
+                    value={entity.tipoSpeciale ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, tipoSpeciale: e.target.value })}
+                    placeholder="Es. Abigail Prinn"
+                    className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
+                  />
+                ) : tipoSpecialeInputType === 'notable' ? (
+                  <select
+                    value={entity.tipoSpeciale ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, tipoSpeciale: e.target.value })}
+                    className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    <option value="">Seleziona un cittadino</option>
+                    {NOTABLE_CITIZENS.filter((c) => c !== entity.tutore).map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                ) : tipoSpecialeInputType === 'npc' ? (
+                  <select
+                    value={entity.tipoSpeciale ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, tipoSpeciale: e.target.value })}
+                    className="w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    <option value="">Seleziona un PNG</option>
+                    {campaignNpcs.filter(n => n.name !== entity.tutore).map((npc) => (
+                      <option key={npc.id} value={npc.name}>{npc.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2 text-xs text-[var(--dash-text)]">
+                    Il Tipo Speciale verrà deciso in un secondo momento.
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
