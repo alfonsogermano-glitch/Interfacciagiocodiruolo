@@ -87,8 +87,11 @@ export const TOKEN_SHAPE_SPECS: Record<TokenBorderStyle, TokenShapeRenderSpec> =
   hexagon: { geometry: { kind: 'path', d: pointsToPathD(regularPolygonPoints(6, 0.46, 0)) }, strokeWidth: 0.05 },
   'hexagon-pointed': { geometry: { kind: 'path', d: pointsToPathD(regularPolygonPoints(6, 0.46, 30)) }, strokeWidth: 0.05 },
 
-  'starburst-thin': { geometry: { kind: 'path', d: pointsToPathD(starPoints(8, 0.47, 0.20, -90)) }, strokeWidth: 0.03 },
-  'starburst-thick': { geometry: { kind: 'path', d: pointsToPathD(starPoints(8, 0.47, 0.20, -90)) }, strokeWidth: 0.08 },
+  // "Sole/ingranaggio a denti fitti" (riferimento QuestPortal), non una
+  // stella a 8 punte larghe: 18 punte, rapporto raggio interno/esterno
+  // 0.80 (0.368/0.46) - denti corti e stretti invece di punte lunghe.
+  'starburst-thin': { geometry: { kind: 'path', d: pointsToPathD(starPoints(18, 0.46, 0.368, -90)) }, strokeWidth: 0.03 },
+  'starburst-thick': { geometry: { kind: 'path', d: pointsToPathD(starPoints(18, 0.46, 0.368, -90)) }, strokeWidth: 0.08 },
   scalloped: { geometry: { kind: 'path', d: scallopedPathD(12, 0.42) }, strokeWidth: 0.04 },
 
   square: { geometry: { kind: 'rect', size: SQUARE_SIZE, cornerRadius: SQUARE_CORNER_RADIUS }, strokeWidth: 0.05 },
