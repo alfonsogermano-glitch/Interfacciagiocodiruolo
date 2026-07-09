@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   Copy,
@@ -19,11 +19,9 @@ import { RULESETS, type Campaign, type CampaignCreateInput, type RulesetId } fro
 import { RulesetPickerDialog } from '../campaigns/RulesetPickerDialog';
 import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
 import { RulesetTag } from '../components/shared/RulesetTag';
-import { CharacterSheetModal } from '../components/character/CharacterSheetModal';
-import { getCharactersByOwner } from '../../services/characters/characterService';
 import { saveCharacter as saveCharacterToSupabase, loadCharactersByOwner } from '../../services/supabase/charactersService';
 import type { DashboardPalette } from '../../services/settings/dashboardSettings';
-import type { Character, CharacterSummary } from '../../types/character';
+import type { Character } from '../../types/character';
 
 function formatCreatedAt(value: string): string | null {
   const date = new Date(value);
@@ -63,28 +61,6 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
   }, [scrollTarget, onScrollHandled]);
 
   // ─── Personaggi ────────────────────────────────────────────────────────────
-  const [characters, setCharacters] = useState<CharacterSummary[]>([]);
-  const [isLoadingCharacters, setIsLoadingCharacters] = useState(true);
-  const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
-
-  const loadCharacters = useCallback(async () => {
-    if (!user) return;
-
-    setIsLoadingCharacters(true);
-    try {
-      const list = await getCharactersByOwner(user.id);
-      setCharacters(list);
-    } catch (error) {
-      console.error('Errore caricamento dei tuoi personaggi:', error);
-    } finally {
-      setIsLoadingCharacters(false);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    void loadCharacters();
-  }, [loadCharacters]);
-
   // Creazione PG: prima si scelge il regolamento, poi si apre il wizard
   const [showRulesetPicker, setShowRulesetPicker] = useState(false);
   const [characterWizardRuleset, setCharacterWizardRuleset] = useState<RulesetId | null>(null);
@@ -105,7 +81,6 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
       console.error('Errore salvataggio personaggio:', error);
     } finally {
       setCharacterWizardRuleset(null);
-      await loadCharacters();
     }
   };
 
@@ -160,7 +135,6 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
   }, [user?.id]);
 
   const focusInviteCodeInput = () => {
-    setSelectedCharacterId(null);
     window.setTimeout(() => {
       inviteCodeInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       inviteCodeInputRef.current?.focus();
@@ -476,15 +450,6 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
             />
           </div>
         </div>
-      )}
-
-      {/* ─── Modale: scheda personaggio ────────────────────────────────────── */}
-      {selectedCharacterId && (
-        <CharacterSheetModal
-          characterId={selectedCharacterId}
-          onClose={() => setSelectedCharacterId(null)}
-          onJoinSession={focusInviteCodeInput}
-        />
       )}
     </div>
   );
