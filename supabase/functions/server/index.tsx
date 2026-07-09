@@ -1043,7 +1043,11 @@ app.put("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c)
     return c.json({ error: "Il personaggio non appartiene a questa campagna" }, 400);
   }
 
-  const { sheetData, name, style, viaggio, portraitUrl, backgroundUrl } = await c.req.json();
+  const {
+    sheetData, name, style, viaggio, portraitUrl, backgroundUrl,
+    portraitImageUrl, portraitCroppedImageUrl, portraitCrop,
+    tokenColor, tokenBackgroundColor, tokenBorderStyle,
+  } = await c.req.json();
 
   const { error: updateError } = await admin
     .from("characters")
@@ -1053,6 +1057,12 @@ app.put("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c)
       viaggio,
       portrait_url: portraitUrl ?? null,
       background_url: backgroundUrl ?? null,
+      portrait_image_url: portraitImageUrl ?? null,
+      portrait_cropped_image_url: portraitCroppedImageUrl ?? null,
+      portrait_crop: portraitCrop ?? null,
+      token_color: tokenColor ?? null,
+      token_background_color: tokenBackgroundColor ?? null,
+      token_border_style: tokenBorderStyle ?? null,
       sheet_data: sheetData,
     })
     .eq("id", characterId);

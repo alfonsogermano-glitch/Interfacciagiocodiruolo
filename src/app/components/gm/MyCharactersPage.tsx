@@ -17,7 +17,7 @@ import { EntityKebabMenu } from '../session/shared/EntityKebabMenu';
 import { EntityFilterToolbar, type SortMode, type ViewMode } from '../session/shared/EntityFilterToolbar';
 import { EntityPagination, paginateItems } from '../session/shared/EntityPagination';
 import { EntityDetailView } from '../session/shared/EntityDetailView';
-import { EntityDetailRail } from '../session/shared/EntityDetailRail';
+import { EntityDetailRail, type EntityDetailRailSection } from '../session/shared/EntityDetailRail';
 import { SlideOverPanel } from '../session/SlideOverPanel';
 import { loadCharactersByOwner, saveCharacter, deleteCharacter } from '../../../services/supabase/charactersService';
 import {
@@ -229,6 +229,12 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     setToastMessage(message);
     window.setTimeout(() => setToastMessage(null), 4000);
   };
+
+  // EntityDetailRail e' montata qui separatamente da EntityDetailView
+  // (rightSidebar fisso, vedi sotto) invece che al suo interno: la sezione
+  // attiva va sollevata qui per essere condivisa da entrambe le istanze.
+  const [railSection, setRailSection] = useState<EntityDetailRailSection>('scheda');
+  useEffect(() => { setRailSection('scheda'); }, [detailContext?.id]);
 
   const allCampaignOptions = [
     ...campaigns.map(c => ({ id: c.id, name: c.name, ruleset: c.ruleset, suffix: '(tua campagna)' })),
@@ -1585,6 +1591,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
               draggable={false}
               showOwnerRow={false}
               showRail={false}
+              activeSection={railSection}
+              onActiveSectionChange={setRailSection}
               isDraft={isViewingUnsavedNpcDraft || isViewingUnsavedMonsterDraft}
               linkableCharacters={
                 detailContext.entityType === 'character'
@@ -1603,7 +1611,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         (mx-auto) sotto di essa - esattamente lo "scatto" da evitare. */}
     {detailContext && (
       <div className="fixed top-12 bottom-0 right-0 z-[900]">
-        <EntityDetailRail />
+        <EntityDetailRail activeSection={railSection} onSectionChange={setRailSection} />
       </div>
     )}
 

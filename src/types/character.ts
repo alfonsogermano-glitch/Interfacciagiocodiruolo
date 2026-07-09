@@ -1,6 +1,7 @@
 // Tipi per High School Cthulhu
 
 import type { EquipmentLocation, EquipmentType } from './equipment';
+import type { TokenBorderStyle } from './tokenStyle';
 
 export type Ambito = 'Fisico' | 'Scuola' | 'Carisma' | 'Strada';
 
@@ -164,6 +165,13 @@ export interface Character {
   coverScale?: number;
 
   portraitCrop?: PortraitCrop;
+
+  // Token mappa (Token Studio) - dedicati, separati dal cerchio portrait
+  // sopra: il token sulla mappa e il cerchio nella scheda sono
+  // personalizzabili in modo indipendente.
+  tokenColor?: string | null;
+  tokenBackgroundColor?: string | null;
+  tokenBorderStyle?: TokenBorderStyle | null;
 
   // Tutore
   tutore: string;

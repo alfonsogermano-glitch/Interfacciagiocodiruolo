@@ -7,7 +7,9 @@ import { TurbePanel } from '../../TurbePanel';
 import { EquipmentPanel as LegacyEquipmentPanel } from '../../EquipmentPanel';
 import { DraggablePortrait } from './DraggablePortrait';
 import { EntityTabBar } from './EntityTabBar';
-import { EntityDetailRail } from './EntityDetailRail';
+import { EntityDetailRail, type EntityDetailRailSection } from './EntityDetailRail';
+import { TokenStyleEditor } from '../../shared/TokenStyleEditor';
+import type { ImageCrop } from '../../gm/monsters/monstersTypes';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { FreschezzaBoxesEditor } from '../../shared/FreschezzaBoxesEditor';
 import { D20StatBlock, DEFAULT_D20_STATS } from '../../ruleset/D20StatBlock';
@@ -151,6 +153,14 @@ interface EntityDetailViewProps {
    *  quindi selettore di fatto inutilizzabile) nei contesti dove la tab e'
    *  comunque sempre bloccata, es. in sessione (campaignId sempre valorizzato). */
   linkableCharacters?: Array<{ id: string; name: string }>;
+  /** Sezione attiva della rail (Scheda/Token). Controllata dal chiamante
+   *  quando la rail e' renderizzata altrove (MyCharactersPage, che monta
+   *  EntityDetailRail separatamente in rightSidebar): senza queste due prop
+   *  il click su "Token" li' non avrebbe modo di raggiungere questa vista.
+   *  Se omesse, il componente gestisce la sezione da solo (SessionCharactersPanel,
+   *  dove la rail e' interna, vedi showRail sopra). */
+  activeSection?: EntityDetailRailSection;
+  onActiveSectionChange?: (section: EntityDetailRailSection) => void;
 }
 
 export function EntityDetailView({
@@ -168,7 +178,12 @@ export function EntityDetailView({
   showRail = true,
   linkableCharacters = [],
   isDraft = false,
+  activeSection: controlledActiveSection,
+  onActiveSectionChange,
 }: EntityDetailViewProps) {
+  const [internalActiveSection, setInternalActiveSection] = useState<EntityDetailRailSection>('scheda');
+  const activeSection = controlledActiveSection ?? internalActiveSection;
+  const setActiveSection = onActiveSectionChange ?? setInternalActiveSection;
   const [expandedAmbito, setExpandedAmbito] = useState<string | null>(null);
   const [originsWarning, setOriginsWarning] = useState<string | null>(null);
   const [tutoreInputTypeOverride, setTutoreInputTypeOverride] = useState<'custom' | 'notable' | 'later' | 'npc' | null>(null);
@@ -411,6 +426,14 @@ export function EntityDetailView({
     entityType === 'monster' ? entity.portraitImageUrl : entity.portraitCroppedImageUrl || entity.portraitImageUrl;
   const portraitSize = entityType === 'character' ? 116 : 56;
 
+  // Crop da riusare nell'anteprima del token: quello reale del Mostro (pan/
+  // zoom gia' impostato nel tab Avatar), identita' per PG/PNG la cui
+  // immagine e' gia' il risultato finale di un ritaglio fatto a monte
+  // (react-easy-crop in ImageCropUploadModal, non un crop live riapplicabile
+  // - vedi indagine sul Token Studio).
+  const tokenPreviewCrop: ImageCrop =
+    entityType === 'monster' ? entity.portraitCrop ?? { x: 0, y: 0, scale: 1 } : { x: 0, y: 0, scale: 1 };
+
   return (
     <>
     {tabs.draggedTabId && <div className="fixed inset-0 z-[9999] cursor-grabbing" />}
@@ -510,6 +533,8 @@ export function EntityDetailView({
           )}
         </div>
 
+        {activeSection === 'scheda' && (
+        <>
         <EntityTabBar canEdit={canEdit} tabs={tabs} lockedTabId={campaignId ? 'origins' : null} />
 
         <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-90' : ''}>
@@ -1360,9 +1385,25 @@ export function EntityDetailView({
             ) : null
           )}
         </fieldset>
+        </>
+        )}
+
+        {activeSection === 'token' && (
+          <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-90' : ''}>
+            <TokenStyleEditor
+              name={entity.name}
+              portraitImageUrl={portraitUrl}
+              crop={tokenPreviewCrop}
+              tokenColor={entity.tokenColor}
+              tokenBackgroundColor={entity.tokenBackgroundColor}
+              tokenBorderStyle={entity.tokenBorderStyle}
+              onChange={patch => onUpdate({ ...entity, ...patch })}
+            />
+          </fieldset>
+        )}
       </div>
 
-      {showRail && <EntityDetailRail />}
+      {showRail && <EntityDetailRail activeSection={activeSection} onSectionChange={setActiveSection} />}
     </div>
     </>
   );
