@@ -1535,6 +1535,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
               draggable={false}
               showOwnerRow={false}
               showRail={false}
+              isDraft={isViewingUnsavedNpcDraft || isViewingUnsavedMonsterDraft}
               linkableCharacters={
                 detailContext.entityType === 'character'
                   ? characters.filter(c => c.id !== detailContext.id && c.campaignId === null).map(c => ({ id: c.id, name: c.name }))

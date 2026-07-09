@@ -130,6 +130,13 @@ interface EntityDetailViewProps {
   draggable: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   headerAction?: ReactNode;
+  /** true per una bozza locale mai salvata su Supabase (es. "+ Nuovo PNG"/
+   *  "+ Nuovo Mostro" prima che venga compilato un nome): disattiva le tab
+   *  personalizzate (useEntityTabs), che altrimenti interrogherebbero un
+   *  endpoint per un'entità/campagna che non esiste ancora, producendo
+   *  errori 403/404 in console. Default false per non toccare gli usi
+   *  esistenti (entità sempre reali, es. SessionCharactersPanel.tsx). */
+  isDraft?: boolean;
   /** Riga proprietario (avatar + nome), solo per i PG. Nascosta quando il
    *  "proprietario" coincide sempre col viewer (es. MyCharactersPage), dove
    *  sarebbe informazione ridondante. */
@@ -160,6 +167,7 @@ export function EntityDetailView({
   showOwnerRow = true,
   showRail = true,
   linkableCharacters = [],
+  isDraft = false,
 }: EntityDetailViewProps) {
   const [expandedAmbito, setExpandedAmbito] = useState<string | null>(null);
   const [originsWarning, setOriginsWarning] = useState<string | null>(null);
@@ -370,7 +378,10 @@ export function EntityDetailView({
 
   const tabs = useEntityTabs({
     entityType,
-    entityId: entity?.id ?? null,
+    // null finche' e' una bozza mai salvata: riusa il guard "!entityId" gia'
+    // presente in useEntityTabs per non interrogare un endpoint riferito a
+    // un'entita'/campagna che non esiste ancora (vedi isDraft sopra).
+    entityId: isDraft ? null : (entity?.id ?? null),
     campaignId,
     accessToken,
     canEdit,
