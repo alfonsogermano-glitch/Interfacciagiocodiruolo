@@ -5,6 +5,7 @@ import { MONSTER_SPECIAL_ACTIONS_CATALOG } from '../../../../data/monsterSpecial
 import { createLocalStorageAdapter } from '../../../../services/storage/localStorageAdapter';
 import { generateUUID } from '../../../../lib/uuid';
 import type { Monster, Difficulty, EnvironmentSummary } from './monstersTypes';
+import type { RulesetId } from '../../../campaigns/campaignTypes';
 import { DEFAULT_CROP, DEFAULT_PORTRAIT_BORDER_COLOR, MONSTERS_STORAGE_KEY } from './monstersConstants';
 
 export function readStoredEnvironmentSummaries(campaignId = ''): EnvironmentSummary[] {
@@ -50,12 +51,13 @@ export function generateId(prefix = 'monster'): string {
   return generateUUID();
 }
 
-export function createEmptyMonster(campaignId = '', ownerProfileId?: string): Monster {
+export function createEmptyMonster(campaignId = '', ownerProfileId?: string, ruleset?: RulesetId): Monster {
   const now = new Date().toISOString();
 
   return {
     id: generateId(),
     campaignId,
+    ruleset,
     ownerProfileId,
     createdAt: now,
     updatedAt: now,

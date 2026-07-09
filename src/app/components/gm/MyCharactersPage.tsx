@@ -29,6 +29,7 @@ import {
   saveNPC, saveMonster,
   type NPC, type Monster
 } from '../../../services/supabase/entitiesService';
+import { createEmptyMonster } from './monsters/monstersUtils';
 import type { Character } from '../../../types/character';
 import type { Adventure } from '../../../types/adventure';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
@@ -563,6 +564,12 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [monsterFilterAdventures, setMonsterFilterAdventures] = useState<Adventure[]>([]);
   const [monsterPage, setMonsterPage] = useState(1);
   const [monsterPageSize, setMonsterPageSize] = useState<number>(12);
+  const [showMonsterRulesetPicker, setShowMonsterRulesetPicker] = useState(false);
+  // Bozza di un nuovo Mostro aperta da "+ Nuovo Mostro": stesso pattern di
+  // draftNpc sopra - resta solo qui, non entra in monsters ne' viene
+  // scritta su Supabase, finche' il nome resta vuoto (vedi
+  // handleMonsterDetailUpdate/handleCloseDetail sotto).
+  const [draftMonster, setDraftMonster] = useState<Monster | null>(null);
 
   // ============= Azioni condivise PNG/Mostri =============
 
@@ -721,10 +728,36 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     persistEntity('npc', updated);
   };
 
-  // Chiude l'overlay e scarta un'eventuale bozza PNG mai promossa (mai
-  // scritta su Supabase, quindi niente da ripulire lato server).
+  const handleOpenNewMonster = (ruleset: RulesetId) => {
+    const draft = createEmptyMonster('', user?.id, ruleset);
+    setDraftMonster(draft);
+    onOpenDetail('monster', draft.id);
+  };
+
+  // Stessa logica di promozione di handleNpcDetailUpdate: finche' il nome
+  // resta vuoto la bozza aggiorna solo lo stato locale, alla prima modifica
+  // con nome non vuoto entra in monsters e si salva. Il draft ha sempre
+  // campaignId stringa ('' se non assegnato, mai null/undefined), quindi
+  // saveMonster() non richiede alcun fallback qui.
+  const handleMonsterDetailUpdate = (updated: Monster) => {
+    if (draftMonster && updated.id === draftMonster.id) {
+      if (!updated.name.trim()) {
+        setDraftMonster(updated);
+        return;
+      }
+      setDraftMonster(null);
+      setMonsters(prev => [...prev, updated]);
+      saveMonster(updated.campaignId, updated).catch(err => console.error('Errore salvataggio mostro:', err));
+      return;
+    }
+    persistEntity('monster', updated);
+  };
+
+  // Chiude l'overlay e scarta un'eventuale bozza PNG/Mostro mai promossa
+  // (mai scritta su Supabase, quindi niente da ripulire lato server).
   const handleCloseDetail = () => {
     setDraftNpc(null);
+    setDraftMonster(null);
     onCloseDetail();
   };
 
@@ -1117,10 +1150,12 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     detailContext?.entityType === 'character' ? characters.find(c => c.id === detailContext.id) ?? null :
     detailContext?.entityType === 'npc'
       ? npcs.find(n => n.id === detailContext.id) ?? (draftNpc?.id === detailContext.id ? draftNpc : null) :
-    detailContext?.entityType === 'monster' ? monsters.find(m => m.id === detailContext.id) ?? null :
+    detailContext?.entityType === 'monster'
+      ? monsters.find(m => m.id === detailContext.id) ?? (draftMonster?.id === detailContext.id ? draftMonster : null) :
     null;
 
   const isViewingUnsavedNpcDraft = detailContext?.entityType === 'npc' && draftNpc?.id === detailContext.id;
+  const isViewingUnsavedMonsterDraft = detailContext?.entityType === 'monster' && draftMonster?.id === detailContext.id;
 
   return (
     <>
@@ -1154,6 +1189,13 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
           <button type="button" onClick={() => setShowNpcRulesetPicker(true)}
             className="group inline-flex items-center gap-2 rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--dash-text-strong)] shadow-lg shadow-black/20 transition-colors hover:bg-[var(--dash-accent-2)]">
             <Plus className="h-4 w-4 group-hover:animate-[plusPulse_0.75s_ease-in-out_infinite]" /> Nuovo PNG
+          </button>
+        )}
+
+        {activeTab === 'monsters' && (
+          <button type="button" onClick={() => setShowMonsterRulesetPicker(true)}
+            className="group inline-flex items-center gap-2 rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--dash-text-strong)] shadow-lg shadow-black/20 transition-colors hover:bg-[var(--dash-accent-2)]">
+            <Plus className="h-4 w-4 group-hover:animate-[plusPulse_0.75s_ease-in-out_infinite]" /> Nuovo Mostro
           </button>
         )}
       </div>
@@ -1343,6 +1385,14 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         />
       )}
 
+      {showMonsterRulesetPicker && (
+        <RulesetPickerDialog
+          title="Nuovo Mostro"
+          onChoose={rulesetId => { setShowMonsterRulesetPicker(false); handleOpenNewMonster(rulesetId); }}
+          onClose={() => setShowMonsterRulesetPicker(false)}
+        />
+      )}
+
       {showWizard && (
         <CharacterCreationWizard
           onClose={() => { setShowWizard(false); setEditingCharacter(null); setNewCharacterRuleset(null); }}
@@ -1464,7 +1514,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-5">
-            {isViewingUnsavedNpcDraft && (
+            {(isViewingUnsavedNpcDraft || isViewingUnsavedMonsterDraft) && (
               <div className="mb-4 rounded-lg border border-[var(--dash-accent)] bg-[var(--dash-panel)] px-3 py-2 text-xs text-[var(--dash-text)]">
                 Bozza non salvata — verrà salvata automaticamente non appena inserisci un nome.
               </div>
@@ -1475,6 +1525,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
               onUpdate={(updated) => {
                 if (detailContext.entityType === 'character') persistCharacter(updated.id, updated);
                 else if (detailContext.entityType === 'npc') handleNpcDetailUpdate(updated);
+                else if (detailContext.entityType === 'monster') handleMonsterDetailUpdate(updated);
                 else persistEntity(detailContext.entityType, updated);
               }}
               canEdit

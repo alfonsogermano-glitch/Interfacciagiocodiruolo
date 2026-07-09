@@ -1,4 +1,5 @@
 import type { D20Stats } from '../../ruleset/D20StatBlock';
+import type { RulesetId } from '../../../campaigns/campaignTypes';
 
 export type Difficulty =
   | 'Base'
@@ -56,6 +57,7 @@ export type EnvironmentSummary = {
 };
 
 export interface Monster extends BaseCampaignEntity {
+  ruleset?: RulesetId | null;
   baseMonsterId?: string | null;
   adventureId?: string | null;
   environmentId?: string | null;
