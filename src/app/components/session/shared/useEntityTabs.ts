@@ -52,6 +52,14 @@ export function useEntityTabs({
   const baseTabIds = baseTabs.map(t => t.id);
   const defaultTabId = baseTabIds[0] ?? '';
 
+  // Mostri usano '' (non null) come convenzione per "nessuna campagna" (a
+  // differenza di PG/PNG) - normalizzato qui solo per costruire l'URL delle
+  // note, cosi' entrambi finiscono su .../campaigns/null/notes, che il
+  // server gestisce correttamente (la stringa vuota produce invece
+  // .../campaigns//notes, doppio slash che non instrada e torna 404).
+  // Non cambia la convenzione di Monster altrove: solo qui, prima della fetch.
+  const notesCampaignId = campaignId === '' ? null : campaignId;
+
   const [customTabs, setCustomTabs] = useState<EntityCustomTab[]>([]);
   const [tabOrder, setTabOrder] = useState<string[]>(baseTabIds);
   const [currentTab, setCurrentTab] = useState<string>(defaultTabId);
@@ -77,7 +85,7 @@ export function useEntityTabs({
     (async () => {
       try {
         const res = await fetch(
-          `${SERVER_BASE}/campaigns/${campaignId}/notes?entityType=${entityType}&entityId=${entityId}`,
+          `${SERVER_BASE}/campaigns/${notesCampaignId}/notes?entityType=${entityType}&entityId=${entityId}`,
           { headers: { Authorization: `Bearer ${accessToken ?? ''}` } }
         );
         const data = await res.json();
@@ -250,7 +258,7 @@ export function useEntityTabs({
   const handleAddCustomTab = async () => {
     if (!entityId) return;
     try {
-      const res = await fetch(`${SERVER_BASE}/campaigns/${campaignId}/notes`, {
+      const res = await fetch(`${SERVER_BASE}/campaigns/${notesCampaignId}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken ?? ''}` },
         body: JSON.stringify({ entityType, entityId, tabName: 'Nuova tab' }),
