@@ -68,23 +68,16 @@ export function DraggablePortrait({
         }
         onDragStart?.(e);
       }}
-      className={`group relative shrink-0 ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      className={`group relative shrink-0 overflow-hidden rounded-md border-2 border-[var(--dash-accent)] bg-[var(--dash-input)] ${
+        draggable ? 'cursor-grab active:cursor-grabbing' : ''
+      }`}
       style={{ width: size, height: size }}
     >
-      <TokenShapePreview
-        clipId={`${clipIdBase}-main`}
-        name={name}
-        portraitImageUrl={url}
-        fallbackContent={!url ? fallbackIcon : undefined}
-        crop={IDENTITY_CROP}
-        color={color}
-        backgroundColor={backgroundColor}
-        geometry={geometry}
-        strokeWidth={strokeWidth}
-        borderVisible={borderVisible}
-        borderLabel={tokenBorderLabel}
-        style={{ width: size, height: size }}
-      />
+      {url ? (
+        <img src={url} alt={name} className="h-full w-full object-cover" draggable={false} />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center">{fallbackIcon}</div>
+      )}
       {draggable && (
         <div
           className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100"
