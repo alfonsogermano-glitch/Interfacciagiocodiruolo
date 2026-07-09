@@ -83,6 +83,21 @@ export const VISIBLE_RULESETS = Object.values(RULESETS).filter(
   rs => rs.id !== 'dnd5e' && rs.id !== 'pathfinder'
 );
 
+/**
+ * Un'entità senza ruleset proprio (dato storico non ancora migrato, o mai
+ * assegnata a una campagna) è compatibile con qualunque campagna: se ha già
+ * una campagna sorgente nota, quel ruleset sostituisce il campo mancante
+ * (deducibile con certezza), altrimenti è un jolly.
+ */
+export function isRulesetCompatible(
+  entityRuleset: RulesetId | null | undefined,
+  sourceCampaignRuleset: RulesetId | null | undefined,
+  targetRuleset: RulesetId
+): boolean {
+  const effective = entityRuleset ?? sourceCampaignRuleset ?? null;
+  return effective === null || effective === targetRuleset;
+}
+
 export interface Campaign {
   id: string;
   name: string;

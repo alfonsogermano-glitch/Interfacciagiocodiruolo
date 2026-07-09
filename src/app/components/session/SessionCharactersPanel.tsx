@@ -18,12 +18,14 @@ import {
 import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useRuleset } from '../../campaigns/RulesetContext';
+import { isRulesetCompatible, type RulesetId } from '../../campaigns/campaignTypes';
 import { EntityKebabMenu } from './shared/EntityKebabMenu';
 import { EntityDetailView } from './shared/EntityDetailView';
 
 interface PlayerCharacter extends Character {
   player: string;
   notes: string;
+  ruleset?: RulesetId | null;
 }
 
 type EntityKind = 'pg' | 'png' | 'mostro';
@@ -215,10 +217,6 @@ export function SessionCharactersPanel() {
     setCharacters(prev => prev.map(c => (c.id === id ? updatedChar : c)));
     persistCharacter(id, updatedChar);
   };
-
-  const compatibleCampaigns = (isOwner ? ownedCampaigns : joinedCampaigns).filter(
-    (c) => c.id !== activeCampaignId && c.ruleset === activeCampaign?.ruleset
-  );
 
   const handleConfirmCopy = async () => {
     if (!selected || !copyTargetId || !user) return;
@@ -430,6 +428,12 @@ export function SessionCharactersPanel() {
   const selectedMonster = selected?.kind === 'mostro' ? monsters.find(m => m.id === selected.id) ?? null : null;
   const isMine = selectedChar ? (selectedChar as any).ownerProfileId === user?.id : false;
   const canEdit = isMine || isOwner;
+
+  const selectedEntityRuleset: RulesetId | null | undefined =
+    selectedChar?.ruleset ?? selectedNpc?.ruleset ?? selectedMonster?.ruleset;
+  const compatibleCampaigns = (isOwner ? ownedCampaigns : joinedCampaigns).filter(
+    (c) => c.id !== activeCampaignId && isRulesetCompatible(selectedEntityRuleset, activeCampaign?.ruleset, c.ruleset)
+  );
 
   // I giocatori (non GM) non vedono affatto in lista i PNG/Mostri non resi visibili
   const visibleNpcs = isOwner ? npcs : npcs.filter(n => n.visibleToPlayers);

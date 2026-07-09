@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
-  CheckCircle2,
   Copy,
   DoorOpen,
   KeyRound,
@@ -16,7 +15,8 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from '../campaigns/CampaignContext';
 import { CampaignForm } from '../campaigns/CampaignSelector';
-import { RULESETS, VISIBLE_RULESETS, type Campaign, type CampaignCreateInput, type RulesetId } from '../campaigns/campaignTypes';
+import { RULESETS, type Campaign, type CampaignCreateInput, type RulesetId } from '../campaigns/campaignTypes';
+import { RulesetPickerDialog } from '../campaigns/RulesetPickerDialog';
 import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
 import { RulesetTag } from '../components/shared/RulesetTag';
 import { CharacterSheetModal } from '../components/character/CharacterSheetModal';
@@ -433,53 +433,10 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
 
       {/* ─── Modale: scegli regolamento per nuovo PG ──────────────────────── */}
       {showRulesetPicker && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-surface)] p-6 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--dash-muted)]">Nuovo personaggio</p>
-                <h3 className="text-lg font-semibold tracking-wide text-[var(--dash-text-strong)]">Scegli il regolamento</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowRulesetPicker(false)}
-                className="rounded-lg p-1.5 text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="grid gap-2 sm:grid-cols-2">
-              {VISIBLE_RULESETS.map(rs => (
-                <button
-                  key={rs.id}
-                  type="button"
-                  onClick={() => chooseRulesetForNewCharacter(rs.id)}
-                  className="group flex items-start gap-3 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-[0_6px_20px_var(--dash-card-shadow)]"
-                  style={{ borderColor: undefined }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = `${rs.color}88`; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = ''; }}
-                >
-                  <span
-                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-                    style={{ backgroundColor: `${rs.color}1a`, color: rs.color }}
-                  >
-                    {RULESET_ICONS[rs.id]}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium text-[var(--dash-text-strong)]">
-                      {rs.name}
-                    </span>
-                    <span className="mt-0.5 block text-xs text-[var(--dash-muted)] line-clamp-2">
-                      {rs.description}
-                    </span>
-                  </span>
-                  <CheckCircle2 className="ml-auto mt-0.5 h-4 w-4 shrink-0 text-[var(--dash-muted)] opacity-0 transition-opacity group-hover:opacity-100" />
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        <RulesetPickerDialog
+          onChoose={chooseRulesetForNewCharacter}
+          onClose={() => setShowRulesetPicker(false)}
+        />
       )}
 
       {/* ─── Wizard creazione personaggio ─────────────────────────────────── */}

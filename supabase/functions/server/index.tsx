@@ -455,7 +455,7 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
 
     const { data: character, error: charError } = await admin
       .from("characters")
-      .select("id, campaign_id, owner_profile_id")
+      .select("id, campaign_id, owner_profile_id, ruleset")
       .eq("id", characterId)
       .single();
 
@@ -473,6 +473,7 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
 
     const oldCampaignId: string | null = character.campaign_id;
     let targetCampaignId: string | null = null;
+    let targetCampaignRuleset: string | null = null;
 
     if (inviteCode) {
       const normalizedCode = String(inviteCode).trim().toUpperCase();
@@ -483,12 +484,22 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
       if (membership.ownerId === userId) {
         return c.json({ error: "Sei già il master di questa campagna" }, 400);
       }
-      const ownerCampaigns = await kv.get(campaignsKey(membership.ownerId)) ?? [];
+      const ownerCampaigns: Campaign[] = await kv.get(campaignsKey(membership.ownerId)) ?? [];
       const campaign = ownerCampaigns.find((cmp) => cmp.id === membership.campaignId);
       if (!campaign) {
         return c.json({ error: "Campagna non trovata" }, 404);
       }
       targetCampaignId = membership.campaignId;
+      targetCampaignRuleset = campaign.ruleset ?? null;
+
+      // Validazione compatibilita' ruleset PRIMA di iscrivere il giocatore
+      // alla campagna: un'entita' senza ruleset (dato storico) e' un jolly
+      // compatibile con tutto (stessa logica di isRulesetCompatible in
+      // src/app/campaigns/campaignTypes.ts, duplicata qui perche' questa
+      // edge function Deno non puo' importare da src/).
+      if (character.ruleset && targetCampaignRuleset && character.ruleset !== targetCampaignRuleset) {
+        return c.json({ error: "Ruleset incompatibile con questa campagna" }, 400);
+      }
 
       const members = await kv.get(campaignMembersKey(targetCampaignId)) ?? [];
       if (!members.some((m) => m.profileId === userId)) {
@@ -505,19 +516,35 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
         await kv.set(playerCampaignsKey(userId), playerCampaigns);
       }
     } else if (campaignId) {
-      const myCampaigns = await kv.get(campaignsKey(userId)) ?? [];
-      const myJoined = await kv.get(playerCampaignsKey(userId)) ?? [];
-      const isOwned = myCampaigns.some((cmp) => cmp.id === campaignId);
-      const isJoined = myJoined.some((pc) => pc.campaignId === campaignId);
-      if (!isOwned && !isJoined) {
+      const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+      const myJoined: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
+      const ownedMatch = myCampaigns.find((cmp) => cmp.id === campaignId);
+      const joinedMatch = myJoined.find((pc) => pc.campaignId === campaignId);
+      if (!ownedMatch && !joinedMatch) {
         return c.json({ error: "Non hai accesso a questa campagna" }, 403);
       }
       targetCampaignId = campaignId;
+      if (ownedMatch) {
+        targetCampaignRuleset = ownedMatch.ruleset ?? null;
+      } else if (joinedMatch) {
+        const ownerCampaigns: Campaign[] = await kv.get(campaignsKey(joinedMatch.ownerId)) ?? [];
+        targetCampaignRuleset = ownerCampaigns.find((cmp) => cmp.id === campaignId)?.ruleset ?? null;
+      }
+
+      if (character.ruleset && targetCampaignRuleset && character.ruleset !== targetCampaignRuleset) {
+        return c.json({ error: "Ruleset incompatibile con questa campagna" }, 400);
+      }
     }
 
     const { error: updateError } = await admin
       .from("characters")
-      .update({ campaign_id: targetCampaignId })
+      .update({
+        campaign_id: targetCampaignId,
+        // Se il personaggio non aveva ancora un ruleset (dato storico), lo
+        // eredita ora dalla campagna a cui viene assegnato invece di
+        // restare NULL.
+        ...(targetCampaignId && targetCampaignRuleset && !character.ruleset ? { ruleset: targetCampaignRuleset } : {})
+      })
       .eq("id", characterId);
     if (updateError) {
       console.log("Errore update campaign_id:", updateError);
@@ -581,11 +608,23 @@ app.post("/make-server-771c5bfd/characters/:id/copy-to-campaign", async (c) => {
       return c.json({ error: "Non hai i permessi per copiare questo personaggio" }, 403);
     }
 
-    const isGmOfTargetCampaign = myCampaigns.some((camp) => camp.id === campaignId);
-    const myJoined = await kv.get(playerCampaignsKey(userId)) ?? [];
-    const isMemberOfTarget = myJoined.some((pc) => pc.campaignId === campaignId);
-    if (!isGmOfTargetCampaign && !isMemberOfTarget) {
+    const targetOwnedCampaign = myCampaigns.find((camp) => camp.id === campaignId);
+    const myJoined: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
+    const targetJoinedMembership = myJoined.find((pc) => pc.campaignId === campaignId);
+    if (!targetOwnedCampaign && !targetJoinedMembership) {
       return c.json({ error: "Non hai accesso alla campagna di destinazione" }, 403);
+    }
+
+    // Validazione compatibilita' ruleset (stessa logica di isRulesetCompatible
+    // in src/app/campaigns/campaignTypes.ts, duplicata qui perche' questa
+    // edge function Deno non puo' importare da src/).
+    let targetCampaignRuleset: string | null = targetOwnedCampaign?.ruleset ?? null;
+    if (!targetCampaignRuleset && targetJoinedMembership) {
+      const ownerCampaigns: Campaign[] = await kv.get(campaignsKey(targetJoinedMembership.ownerId)) ?? [];
+      targetCampaignRuleset = ownerCampaigns.find((cmp) => cmp.id === campaignId)?.ruleset ?? null;
+    }
+    if (original.ruleset && targetCampaignRuleset && original.ruleset !== targetCampaignRuleset) {
+      return c.json({ error: "Ruleset incompatibile con questa campagna" }, 400);
     }
 
     const { id, created_at, updated_at, ...rest } = original;
@@ -594,6 +633,7 @@ app.post("/make-server-771c5bfd/characters/:id/copy-to-campaign", async (c) => {
       .insert({
         ...rest,
         campaign_id: campaignId,
+        ruleset: original.ruleset ?? targetCampaignRuleset,
       })
       .select("*")
       .single();

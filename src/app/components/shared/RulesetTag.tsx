@@ -1,7 +1,7 @@
 import { Skull, Swords, Castle, Sparkles, FileText, BookOpen } from 'lucide-react';
 import { RULESETS, type RulesetId } from '../../campaigns/campaignTypes';
 
-const RULESET_ICONS: Record<RulesetId, React.ReactNode> = {
+export const RULESET_ICONS: Record<RulesetId, React.ReactNode> = {
   hsc: <Skull className="h-3.5 w-3.5" />,
   dnd5e: <Swords className="h-3.5 w-3.5" />,
   pathfinder: <Castle className="h-3.5 w-3.5" />,

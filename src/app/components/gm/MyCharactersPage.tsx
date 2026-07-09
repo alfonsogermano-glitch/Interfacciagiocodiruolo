@@ -7,6 +7,9 @@ import {
 import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useRuleset } from '../../campaigns/RulesetContext';
+import { isRulesetCompatible, type RulesetId } from '../../campaigns/campaignTypes';
+import { RulesetPickerDialog } from '../../campaigns/RulesetPickerDialog';
+import { RulesetTag } from '../shared/RulesetTag';
 import { CharacterCreationWizard } from './CharacterCreationWizard';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { EntityCard } from '../session/shared/EntityCard';
@@ -35,7 +38,7 @@ import { generateUUID } from '../../../lib/uuid';
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 const INVITE_OPTION_VALUE = '__invite__';
 
-type OwnedCharacter = Character & { player: string; notes: string; ownerProfileId: string; campaignId: string | null };
+type OwnedCharacter = Character & { player: string; notes: string; ownerProfileId: string; campaignId: string | null; ruleset: RulesetId | null };
 type CatalogEntry = { kind: 'npc'; entity: NPC } | { kind: 'monster'; entity: Monster };
 type EntityFilter = 'all' | 'assigned' | 'unassigned';
 type ActiveTab = 'characters' | 'npcs' | 'monsters';
@@ -181,6 +184,12 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [isLoading, setIsLoading] = useState(true);
   const [showWizard, setShowWizard] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<OwnedCharacter | null>(null);
+  // Creazione PG: prima si sceglie il regolamento (stesso picker di
+  // HomeScreen.tsx), poi si apre il wizard. In modifica (editingCharacter
+  // gia' impostato) il picker resta saltato: il ruleset esistente si
+  // preserva da solo, vedi handleAdd.
+  const [showCharacterRulesetPicker, setShowCharacterRulesetPicker] = useState(false);
+  const [newCharacterRuleset, setNewCharacterRuleset] = useState<RulesetId | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -212,9 +221,20 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   };
 
   const allCampaignOptions = [
-    ...campaigns.map(c => ({ id: c.id, name: c.name, suffix: '(tua campagna)' })),
-    ...joinedCampaigns.map(c => ({ id: c.id, name: c.name, suffix: '(partecipi)' })),
+    ...campaigns.map(c => ({ id: c.id, name: c.name, ruleset: c.ruleset, suffix: '(tua campagna)' })),
+    ...joinedCampaigns.map(c => ({ id: c.id, name: c.name, ruleset: c.ruleset, suffix: '(partecipi)' })),
   ];
+
+  // Ruleset "effettivo" di un'entita' per i confronti di compatibilita':
+  // quello dell'entita' se noto, altrimenti quello della campagna a cui e'
+  // gia' assegnata (dato transitorio non ancora backfillato), vedi
+  // isRulesetCompatible in campaignTypes.ts.
+  const rulesetCompatibleCampaignOptions = (entityRuleset: RulesetId | null | undefined, sourceCampaignId: string | null) => {
+    const sourceCampaign = sourceCampaignId
+      ? [...campaigns, ...joinedCampaigns].find(c => c.id === sourceCampaignId)
+      : undefined;
+    return allCampaignOptions.filter(c => isRulesetCompatible(entityRuleset, sourceCampaign?.ruleset, c.ruleset));
+  };
 
   const campaignInfoFor = (campaignId: string | null) => {
     if (!campaignId) return null;
@@ -268,9 +288,11 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
 
   const handleAdd = async (character: Character & { player: string; notes: string }) => {
     if (!user?.id) return;
-    await saveCharacter(editingCharacter?.campaignId ?? null, character, user.id);
+    const ruleset = editingCharacter ? (editingCharacter.ruleset ?? undefined) : (newCharacterRuleset ?? undefined);
+    await saveCharacter(editingCharacter?.campaignId ?? null, character, user.id, ruleset);
     setShowWizard(false);
     setEditingCharacter(null);
+    setNewCharacterRuleset(null);
     await load();
   };
 
@@ -293,7 +315,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     }
     saveTimersRef.current[id] = setTimeout(async () => {
       try {
-        await saveCharacter(updatedChar.campaignId, updatedChar, user?.id ?? '');
+        await saveCharacter(updatedChar.campaignId, updatedChar, user?.id ?? '', updatedChar.ruleset ?? undefined);
       } catch (error) {
         console.error('Errore salvataggio personaggio su Supabase:', error);
         // Il trigger characters_lock_origins_in_campaign rifiuta lato DB le
@@ -388,6 +410,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         variant={variant}
         name={char.name}
         subtitle={styleViaggio}
+        badge={<RulesetTag rulesetId={char.ruleset ?? 'hsc'} />}
         secondaryText={char.description}
         photoUrl={char.portraitCroppedImageUrl || char.portraitImageUrl || user?.avatarUrl}
         onClick={() => onOpenDetail('character', char.id)}
@@ -489,7 +512,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                   className="w-full rounded-lg border border-[#3a3a3a] bg-[#181818] px-2 py-1 text-xs"
                 >
                   <option value="">— Nessuna campagna —</option>
-                  {allCampaignOptions.map(c => (
+                  {rulesetCompatibleCampaignOptions(char.ruleset, char.campaignId).map(c => (
                     <option key={c.id} value={c.id}>{c.name} {c.suffix}</option>
                   ))}
                   <option value={INVITE_OPTION_VALUE}>+ Usa un codice invito...</option>
@@ -509,6 +532,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
 
   const [npcs, setNpcs] = useState<NPC[]>([]);
   const [isLoadingNpcs, setIsLoadingNpcs] = useState(true);
+  const [showNpcRulesetPicker, setShowNpcRulesetPicker] = useState(false);
   const [npcFilter, setNpcFilter] = useState<EntityFilter>('all');
   const [npcSort, setNpcSort] = useState<SortMode>('recent');
   const [npcSearch, setNpcSearch] = useState('');
@@ -643,9 +667,10 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     }
   };
 
-  const createEmptyNpcDraft = (): NPC => ({
+  const createEmptyNpcDraft = (ruleset: RulesetId): NPC => ({
     id: generateUUID(),
     campaignId: null,
+    ruleset,
     environmentId: null,
     adventureId: null,
     name: '',
@@ -672,8 +697,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     ownerProfileId: user?.id,
   });
 
-  const handleOpenNewNpc = () => {
-    const draft = createEmptyNpcDraft();
+  const handleOpenNewNpc = (ruleset: RulesetId) => {
+    const draft = createEmptyNpcDraft(ruleset);
     setDraftNpc(draft);
     onOpenDetail('npc', draft.id);
   };
@@ -713,17 +738,19 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
 
   const handleAssignEntity = async (entry: CatalogEntry, targetCampaignId: string) => {
     if (!targetCampaignId) return;
+    const targetCampaign = campaigns.find(c => c.id === targetCampaignId);
+    if (!targetCampaign) return;
     setEntityAssigningId(entry.entity.id);
     setEntityAssignErrors(prev => ({ ...prev, [entry.entity.id]: '' }));
 
     try {
       if (entry.kind === 'npc') {
-        await assignNPCToCampaign(entry.entity.id, targetCampaignId);
+        await assignNPCToCampaign(entry.entity.id, entry.entity.ruleset, targetCampaign);
       } else {
-        await assignMonsterToCampaign(entry.entity.id, targetCampaignId);
+        await assignMonsterToCampaign(entry.entity.id, entry.entity.ruleset, targetCampaign);
       }
 
-      applyEntityUpdate(entry, e => ({ ...e, campaignId: targetCampaignId }));
+      applyEntityUpdate(entry, e => ({ ...e, campaignId: targetCampaignId, ruleset: e.ruleset ?? targetCampaign.ruleset }));
     } catch (err) {
       setEntityAssignErrors(prev => ({ ...prev, [entry.entity.id]: err instanceof Error ? err.message : String(err) }));
     } finally {
@@ -786,7 +813,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const compatibleCopyCampaigns = (entry: CatalogEntry | null) => {
     if (!entry) return [];
     const sourceCampaign = campaigns.find(c => c.id === entry.entity.campaignId);
-    return campaigns.filter(c => c.id !== entry.entity.campaignId && (!sourceCampaign || c.ruleset === sourceCampaign.ruleset));
+    return campaigns.filter(c => c.id !== entry.entity.campaignId && isRulesetCompatible(entry.entity.ruleset, sourceCampaign?.ruleset, c.ruleset));
   };
 
   const handleConfirmCopyEntity = async () => {
@@ -826,6 +853,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         variant={variant}
         name={name}
         subtitle={typeLabel}
+        badge={<RulesetTag rulesetId={entity.ruleset ?? 'hsc'} />}
         photoUrl={photoUrl}
         hiddenBadge={!entity.visibleToPlayers}
         onClick={() => onOpenDetail(kind, entity.id)}
@@ -885,7 +913,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
               className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1.5 text-xs text-[var(--dash-text)] disabled:opacity-50"
             >
               <option value="">Assegna a...</option>
-              {campaigns.map(c => (
+              {campaigns.filter(c => isRulesetCompatible(entity.ruleset, null, c.ruleset)).map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
@@ -1116,14 +1144,14 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         </div>
 
         {activeTab === 'characters' && (
-          <button type="button" onClick={() => { setEditingCharacter(null); setShowWizard(true); }}
+          <button type="button" onClick={() => { setEditingCharacter(null); setShowCharacterRulesetPicker(true); }}
             className="group inline-flex items-center gap-2 rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--dash-text-strong)] shadow-lg shadow-black/20 transition-colors hover:bg-[var(--dash-accent-2)]">
             <Plus className="h-4 w-4 group-hover:animate-[plusPulse_0.75s_ease-in-out_infinite]" /> Nuovo personaggio
           </button>
         )}
 
         {activeTab === 'npcs' && (
-          <button type="button" onClick={handleOpenNewNpc}
+          <button type="button" onClick={() => setShowNpcRulesetPicker(true)}
             className="group inline-flex items-center gap-2 rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--dash-text-strong)] shadow-lg shadow-black/20 transition-colors hover:bg-[var(--dash-accent-2)]">
             <Plus className="h-4 w-4 group-hover:animate-[plusPulse_0.75s_ease-in-out_infinite]" /> Nuovo PNG
           </button>
@@ -1300,9 +1328,24 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         setPageSize: setMonsterPageSize,
       })}
 
+      {showCharacterRulesetPicker && (
+        <RulesetPickerDialog
+          onChoose={rulesetId => { setNewCharacterRuleset(rulesetId); setShowCharacterRulesetPicker(false); setShowWizard(true); }}
+          onClose={() => setShowCharacterRulesetPicker(false)}
+        />
+      )}
+
+      {showNpcRulesetPicker && (
+        <RulesetPickerDialog
+          title="Nuovo PNG"
+          onChoose={rulesetId => { setShowNpcRulesetPicker(false); handleOpenNewNpc(rulesetId); }}
+          onClose={() => setShowNpcRulesetPicker(false)}
+        />
+      )}
+
       {showWizard && (
         <CharacterCreationWizard
-          onClose={() => { setShowWizard(false); setEditingCharacter(null); }}
+          onClose={() => { setShowWizard(false); setEditingCharacter(null); setNewCharacterRuleset(null); }}
           onAdd={handleAdd}
           existingCharacters={characters.filter(c => c.id !== editingCharacter?.id).map(c => ({ id: c.id, name: c.name }))}
           initialCharacter={editingCharacter}

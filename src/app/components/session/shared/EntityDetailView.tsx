@@ -13,6 +13,7 @@ import { FreschezzaBoxesEditor } from '../../shared/FreschezzaBoxesEditor';
 import { D20StatBlock, DEFAULT_D20_STATS } from '../../ruleset/D20StatBlock';
 import { useEntityTabs, type EntityTabsEntityType } from './useEntityTabs';
 import { useRuleset } from '../../../campaigns/RulesetContext';
+import { RulesetTag } from '../../shared/RulesetTag';
 import type { Stile, Viaggio, Trait } from '../../../../types/character';
 import type { Adventure } from '../../../../types/adventure';
 import { STYLE_TRAITS, JOURNEY_TRAITS } from '../../../../data/traits';
@@ -483,6 +484,10 @@ export function EntityDetailView({
             )}
 
             {headerAction}
+          </div>
+
+          <div className="mb-4">
+            <RulesetTag rulesetId={entity.ruleset ?? 'hsc'} />
           </div>
 
           {!canEdit && (

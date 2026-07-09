@@ -13,6 +13,7 @@ import { createIndexedDbAdapter } from '../storage/indexedDbAdapter';
 type StoredCharacter = Character & {
   id: string;
   campaignId?: string | null;
+  ruleset?: RulesetId | null;
   player: string;
   notes: string;
 };
@@ -69,6 +70,7 @@ function mapRowToCharacter(row: any) {
     ownerDisplayName: row.owner_display_name ?? null,
     ownerAvatarUrl: row.owner_avatar_url ?? null,
     campaignId: row.campaign_id,
+    ruleset: row.ruleset ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     player: row.sheet_data?.player || '',
@@ -110,7 +112,7 @@ export { mapRowToCharacter };
 /**
  * Carica tutti i personaggi di una campagna
  */
-export async function loadCharacters(campaignId: string): Promise<(Character & {player: string; notes: string; ownerProfileId: string})[]> {
+export async function loadCharacters(campaignId: string): Promise<(Character & {player: string; notes: string; ownerProfileId: string; ruleset: RulesetId | null})[]> {
   if (shouldUseLocalMode()) {
     return loadLocalCharacters(campaignId);
   }
@@ -152,7 +154,6 @@ export async function saveCharacter(
     player: character.player,
     notes: character.notes,
     description: character.description,
-    ruleset: ruleset ?? undefined,
     ambiti: character.ambiti,
     abilita: character.abilita,
     freschezza: character.freschezza,
@@ -187,6 +188,7 @@ export async function saveCharacter(
       id: character.id,
       campaign_id: campaignId,
       owner_profile_id: ownerProfileId,
+      ruleset: ruleset ?? null,
       name: character.name,
       style: character.style,
       viaggio: character.viaggio,
@@ -222,7 +224,7 @@ export async function loadCharactersViaServer(
   campaignId: string,
   serverBase: string,
   accessToken: string
-): Promise<(Character & {player: string; notes: string; ownerProfileId: string})[]> {
+): Promise<(Character & {player: string; notes: string; ownerProfileId: string; ruleset: RulesetId | null})[]> {
   const res = await fetch(`${serverBase}/campaigns/${campaignId}/characters`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -232,7 +234,7 @@ export async function loadCharactersViaServer(
   return (rows || []).map(mapRowToCharacter);
 }
 
-export async function loadCharactersByOwner(ownerProfileId: string): Promise<(Character & {player: string; notes: string; ownerProfileId: string; campaignId: string | null})[]> {
+export async function loadCharactersByOwner(ownerProfileId: string): Promise<(Character & {player: string; notes: string; ownerProfileId: string; campaignId: string | null; ruleset: RulesetId | null})[]> {
   if (shouldUseLocalMode()) return [];
   if (!supabase) return [];
 
@@ -266,14 +268,12 @@ export async function saveCharacterAsGm(
   characterId: string,
   character: Character & { player: string; notes: string },
   serverBase: string,
-  accessToken: string,
-  ruleset?: RulesetId
+  accessToken: string
 ): Promise<void> {
   const sheetData = {
     player: character.player,
     notes: character.notes,
     description: character.description,
-    ruleset: ruleset ?? undefined,
     ambiti: character.ambiti,
     abilita: character.abilita,
     freschezza: character.freschezza,

@@ -9,6 +9,8 @@ interface EntityCardProps {
   photoUrl?: string | null;
   onClick?: () => void;
   hiddenBadge?: boolean;
+  /** Badge extra accanto al subtitle (es. RulesetTag). */
+  badge?: ReactNode;
   cornerAction?: ReactNode;
   children?: ReactNode;
   // 'list' e' una riga orizzontale compatta (portrait piu' piccolo, testo su
@@ -18,7 +20,7 @@ interface EntityCardProps {
   variant?: 'grid' | 'list';
 }
 
-export function EntityCard({ name, subtitle, secondaryText, photoUrl, onClick, hiddenBadge, cornerAction, children, variant = 'grid' }: EntityCardProps) {
+export function EntityCard({ name, subtitle, secondaryText, photoUrl, onClick, hiddenBadge, badge, cornerAction, children, variant = 'grid' }: EntityCardProps) {
   if (variant === 'list') {
     return (
       <div
@@ -53,6 +55,7 @@ export function EntityCard({ name, subtitle, secondaryText, photoUrl, onClick, h
           <div className="min-w-0 max-w-xs shrink-0">
             <h3 className="truncate font-serif text-sm font-semibold text-[var(--dash-text-strong)]">{name || 'Senza nome'}</h3>
             {subtitle && <p className="truncate text-xs text-[var(--dash-muted)]">{subtitle}</p>}
+            {badge && <div className="mt-1">{badge}</div>}
           </div>
 
           {secondaryText && (
@@ -114,6 +117,7 @@ export function EntityCard({ name, subtitle, secondaryText, photoUrl, onClick, h
       <div className="flex min-w-0 flex-1 flex-col pt-1.5">
         <h3 className="truncate font-serif text-base font-semibold text-[var(--dash-text-strong)]">{name || 'Senza nome'}</h3>
         {subtitle && <p className="truncate text-sm text-[var(--dash-muted)]">{subtitle}</p>}
+        {badge && <div className="mt-1">{badge}</div>}
         {secondaryText && (
           <p className="mt-1 line-clamp-2 text-xs text-[var(--dash-muted)]">{secondaryText}</p>
         )}

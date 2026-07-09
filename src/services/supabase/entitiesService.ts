@@ -7,6 +7,7 @@ import {
   saveTauriEntity
 } from '../storage/tauriJsonEntityStorage';
 import type { D20Stats } from '../../app/components/ruleset/D20StatBlock';
+import { isRulesetCompatible, type RulesetId } from '../../app/campaigns/campaignTypes';
 
 /**
  * Servizio completo per gestire TUTTE le entità del gioco
@@ -213,6 +214,7 @@ export { toCamelCase };
 export interface NPC {
   id: string;
   campaignId?: string | null;
+  ruleset?: RulesetId | null;
   environmentId?: string | null;
   adventureId?: string | null;
 
@@ -356,12 +358,21 @@ export async function unassignNPCFromCampaign(npcId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function assignNPCToCampaign(npcId: string, campaignId: string): Promise<void> {
+export async function assignNPCToCampaign(
+  npcId: string,
+  entityRuleset: RulesetId | null | undefined,
+  targetCampaign: { id: string; ruleset: RulesetId }
+): Promise<void> {
   if (!supabase) throw new Error('Supabase non configurato');
+  if (!isRulesetCompatible(entityRuleset, null, targetCampaign.ruleset)) {
+    throw new Error('Ruleset incompatibile con questa campagna');
+  }
 
+  // Se il PNG non aveva ancora un ruleset (dato storico), lo eredita ora
+  // dalla campagna a cui viene assegnato invece di restare NULL.
   const { error } = await supabase
     .from('npcs')
-    .update({ campaign_id: campaignId })
+    .update({ campaign_id: targetCampaign.id, ruleset: entityRuleset ?? targetCampaign.ruleset })
     .eq('id', npcId);
 
   if (error) throw error;
@@ -408,6 +419,7 @@ export async function copyNPCToCampaign(npcId: string, targetCampaignId: string,
 export interface Monster {
   id: string;
   campaignId: string;
+  ruleset?: RulesetId | null;
   baseMonsterId?: string | null;
   adventureId?: string | null;
   environmentId?: string | null;
@@ -674,12 +686,21 @@ export async function unassignMonsterFromCampaign(monsterId: string): Promise<vo
   if (error) throw error;
 }
 
-export async function assignMonsterToCampaign(monsterId: string, campaignId: string): Promise<void> {
+export async function assignMonsterToCampaign(
+  monsterId: string,
+  entityRuleset: RulesetId | null | undefined,
+  targetCampaign: { id: string; ruleset: RulesetId }
+): Promise<void> {
   if (!supabase) throw new Error('Supabase non configurato');
+  if (!isRulesetCompatible(entityRuleset, null, targetCampaign.ruleset)) {
+    throw new Error('Ruleset incompatibile con questa campagna');
+  }
 
+  // Se il mostro non aveva ancora un ruleset (dato storico), lo eredita ora
+  // dalla campagna a cui viene assegnato invece di restare NULL.
   const { error } = await supabase
     .from('monsters')
-    .update({ campaign_id: campaignId })
+    .update({ campaign_id: targetCampaign.id, ruleset: entityRuleset ?? targetCampaign.ruleset })
     .eq('id', monsterId);
 
   if (error) throw error;
