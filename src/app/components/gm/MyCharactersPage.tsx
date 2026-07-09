@@ -7,7 +7,7 @@ import {
 import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useRuleset } from '../../campaigns/RulesetContext';
-import { isRulesetCompatible, type RulesetId } from '../../campaigns/campaignTypes';
+import { isRulesetCompatible, VISIBLE_RULESETS, type RulesetId } from '../../campaigns/campaignTypes';
 import { RulesetPickerDialog } from '../../campaigns/RulesetPickerDialog';
 import { RulesetTag } from '../shared/RulesetTag';
 import { CharacterCreationWizard } from './CharacterCreationWizard';
@@ -127,13 +127,21 @@ function filterEntries(
   all: CatalogEntry[],
   filter: EntityFilter,
   campaignFilterId: string,
-  adventureFilterId: string
+  adventureFilterId: string,
+  rulesetFilterId: string
 ): CatalogEntry[] {
   let result = all;
   if (filter === 'assigned') result = result.filter(e => e.entity.campaignId);
   if (filter === 'unassigned') result = result.filter(e => !e.entity.campaignId);
   if (campaignFilterId) result = result.filter(e => e.entity.campaignId === campaignFilterId);
   if (adventureFilterId) result = result.filter(e => e.entity.adventureId === adventureFilterId);
+  // Confronto diretto (non isRulesetCompatible, che tratta ruleset null come
+  // "jolly" per la validazione di assegnazione): qui, quando l'utente sceglie
+  // un set di regole specifico, un'entita' senza ruleset confermato (dato
+  // legacy non ancora backfillato) va esclusa - non e' verificato che
+  // appartenga a quel set. "Tutti i set di regole" (stringa vuota) non
+  // filtra affatto, quindi le entita' null restano visibili in quel caso.
+  if (rulesetFilterId) result = result.filter(e => e.entity.ruleset === rulesetFilterId);
   return result;
 }
 
@@ -209,6 +217,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [charViewMode, setCharViewMode] = useState<ViewMode>('grid');
   const [charFiltersOpen, setCharFiltersOpen] = useState(false);
   const [charCampaignFilter, setCharCampaignFilter] = useState('');
+  const [charRulesetFilter, setCharRulesetFilter] = useState('');
   const [charPage, setCharPage] = useState(1);
   const [charPageSize, setCharPageSize] = useState<number>(12);
 
@@ -386,7 +395,11 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const assignedCharacters = characters.filter(c => c.campaignId);
   const unassignedCharacters = characters.filter(c => !c.campaignId);
   const charFilterPool = (charFilter === 'assigned' ? assignedCharacters : charFilter === 'unassigned' ? unassignedCharacters : characters)
-    .filter(c => !charCampaignFilter || c.campaignId === charCampaignFilter);
+    .filter(c => !charCampaignFilter || c.campaignId === charCampaignFilter)
+    // Confronto diretto, non isRulesetCompatible: qui un PG senza ruleset
+    // confermato va escluso quando si filtra per un set specifico, vedi
+    // stessa nota in filterEntries() per PNG/Mostri.
+    .filter(c => !charRulesetFilter || c.ruleset === charRulesetFilter);
   const filteredCharacters = sortByNameOrDate(searchCharacters(charFilterPool, charSearch), charSort);
   const {
     pageItems: pagedCharacters,
@@ -541,6 +554,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [npcFiltersOpen, setNpcFiltersOpen] = useState(false);
   const [npcCampaignFilter, setNpcCampaignFilter] = useState('');
   const [npcAdventureFilter, setNpcAdventureFilter] = useState('');
+  const [npcRulesetFilter, setNpcRulesetFilter] = useState('');
   const [npcFilterAdventures, setNpcFilterAdventures] = useState<Adventure[]>([]);
   const [npcPage, setNpcPage] = useState(1);
   const [npcPageSize, setNpcPageSize] = useState<number>(12);
@@ -561,6 +575,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [monsterFiltersOpen, setMonsterFiltersOpen] = useState(false);
   const [monsterCampaignFilter, setMonsterCampaignFilter] = useState('');
   const [monsterAdventureFilter, setMonsterAdventureFilter] = useState('');
+  const [monsterRulesetFilter, setMonsterRulesetFilter] = useState('');
   const [monsterFilterAdventures, setMonsterFilterAdventures] = useState<Adventure[]>([]);
   const [monsterPage, setMonsterPage] = useState(1);
   const [monsterPageSize, setMonsterPageSize] = useState<number>(12);
@@ -641,9 +656,9 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   // Torna a pagina 1 ogni volta che ricerca/filtri/ordinamento cambiano,
   // stesso comportamento di MonstersManager.tsx (altrimenti si potrebbe
   // restare su una pagina che i nuovi risultati non hanno piu').
-  useEffect(() => { setCharPage(1); }, [charSearch, charFilter, charCampaignFilter, charSort, charPageSize]);
-  useEffect(() => { setNpcPage(1); }, [npcSearch, npcFilter, npcCampaignFilter, npcAdventureFilter, npcSort, npcPageSize]);
-  useEffect(() => { setMonsterPage(1); }, [monsterSearch, monsterFilter, monsterCampaignFilter, monsterAdventureFilter, monsterSort, monsterPageSize]);
+  useEffect(() => { setCharPage(1); }, [charSearch, charFilter, charCampaignFilter, charRulesetFilter, charSort, charPageSize]);
+  useEffect(() => { setNpcPage(1); }, [npcSearch, npcFilter, npcCampaignFilter, npcAdventureFilter, npcRulesetFilter, npcSort, npcPageSize]);
+  useEffect(() => { setMonsterPage(1); }, [monsterSearch, monsterFilter, monsterCampaignFilter, monsterAdventureFilter, monsterRulesetFilter, monsterSort, monsterPageSize]);
 
   const entityName = (entry: CatalogEntry) =>
     entry.entity.name?.trim() || (entry.kind === 'npc' ? 'PNG senza nome' : 'Mostro senza nome');
@@ -982,6 +997,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     adventureFilter: string;
     setAdventureFilter: (id: string) => void;
     filterAdventures: Adventure[];
+    rulesetFilter: string;
+    setRulesetFilter: (id: string) => void;
     filtersOpen: boolean;
     setFiltersOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
     page: number;
@@ -992,11 +1009,12 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     const {
       entries, filter, setFilter, sort, setSort, search, setSearch, viewMode, setViewMode, isLoading, labelSingular, labelPluralLower,
       campaignFilter, setCampaignFilter, adventureFilter, setAdventureFilter, filterAdventures,
+      rulesetFilter, setRulesetFilter,
       filtersOpen, setFiltersOpen, page, setPage, pageSize, setPageSize,
     } = params;
     const assigned = entries.filter(e => e.entity.campaignId);
     const unassigned = entries.filter(e => !e.entity.campaignId);
-    const filtered = sortEntries(searchEntries(filterEntries(entries, filter, campaignFilter, adventureFilter), search), sort);
+    const filtered = sortEntries(searchEntries(filterEntries(entries, filter, campaignFilter, adventureFilter, rulesetFilter), search), sort);
     const { pageItems: paged, totalPages, safePage, startIndex, endIndex } = paginateItems(filtered, page, pageSize);
 
     return (
@@ -1012,7 +1030,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
           filtersOpen={filtersOpen}
           onToggleFilters={() => setFiltersOpen(v => !v)}
           filtersPanel={
-            <div className="grid gap-3 lg:grid-cols-3">
+            <div className="grid gap-3 lg:grid-cols-4">
               <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
                 <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Campagna</div>
                 <select
@@ -1043,6 +1061,20 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                 <p className="mt-2 text-xs text-[var(--dash-muted)]">
                   {campaignFilter ? 'Solo le avventure della campagna selezionata sopra.' : 'Seleziona prima una campagna: le avventure sono sempre legate a una singola campagna.'}
                 </p>
+              </div>
+
+              <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Set di regole</div>
+                <select
+                  value={rulesetFilter}
+                  onChange={e => setRulesetFilter(e.target.value)}
+                  className="mt-2 w-full rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)]"
+                >
+                  <option value="">Tutti i set di regole</option>
+                  {VISIBLE_RULESETS.map(rs => (
+                    <option key={rs.id} value={rs.id}>{rs.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
@@ -1213,7 +1245,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             filtersOpen={charFiltersOpen}
             onToggleFilters={() => setCharFiltersOpen(v => !v)}
             filtersPanel={
-              <div className="grid gap-3 lg:grid-cols-3">
+              <div className="grid gap-3 lg:grid-cols-4">
                 <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
                   <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Campagna</div>
                   <select
@@ -1224,6 +1256,20 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                     <option value="">Tutte le campagne</option>
                     {allCampaignOptions.map(c => (
                       <option key={c.id} value={c.id}>{c.name} {c.suffix}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+                  <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Set di regole</div>
+                  <select
+                    value={charRulesetFilter}
+                    onChange={e => setCharRulesetFilter(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)]"
+                  >
+                    <option value="">Tutti i set di regole</option>
+                    {VISIBLE_RULESETS.map(rs => (
+                      <option key={rs.id} value={rs.id}>{rs.name}</option>
                     ))}
                   </select>
                 </div>
@@ -1336,6 +1382,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         adventureFilter: npcAdventureFilter,
         setAdventureFilter: setNpcAdventureFilter,
         filterAdventures: npcFilterAdventures,
+        rulesetFilter: npcRulesetFilter,
+        setRulesetFilter: setNpcRulesetFilter,
         filtersOpen: npcFiltersOpen,
         setFiltersOpen: setNpcFiltersOpen,
         page: npcPage,
@@ -1362,6 +1410,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         adventureFilter: monsterAdventureFilter,
         setAdventureFilter: setMonsterAdventureFilter,
         filterAdventures: monsterFilterAdventures,
+        rulesetFilter: monsterRulesetFilter,
+        setRulesetFilter: setMonsterRulesetFilter,
         filtersOpen: monsterFiltersOpen,
         setFiltersOpen: setMonsterFiltersOpen,
         page: monsterPage,
