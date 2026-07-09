@@ -4,10 +4,14 @@ import {
   DEFAULT_TOKEN_COLOR,
   DEFAULT_TOKEN_BACKGROUND_COLOR,
   DEFAULT_TOKEN_BORDER_STYLE,
+  DEFAULT_TOKEN_BORDER_THICKNESS,
+  DEFAULT_TOKEN_BORDER_VISIBLE,
   TOKEN_BORDER_STYLE_OPTIONS,
+  TOKEN_BORDER_THICKNESS_OPTIONS,
   type TokenBorderStyle,
+  type TokenBorderThickness,
 } from '../../../types/tokenStyle';
-import { TOKEN_SHAPE_SPECS, type TokenShapeGeometry, type TokenShapeRenderSpec } from './tokenShapes';
+import { TOKEN_SHAPE_SPECS, getTokenStrokeWidth, type TokenShapeGeometry } from './tokenShapes';
 
 interface TokenStyleEditorProps {
   name: string;
@@ -20,10 +24,16 @@ interface TokenStyleEditorProps {
   tokenColor?: string | null;
   tokenBackgroundColor?: string | null;
   tokenBorderStyle?: TokenBorderStyle | null;
+  tokenBorderThickness?: TokenBorderThickness | null;
+  tokenBorderLabel?: string | null;
+  tokenBorderVisible?: boolean | null;
   onChange: (patch: {
     tokenColor?: string;
     tokenBackgroundColor?: string;
     tokenBorderStyle?: TokenBorderStyle;
+    tokenBorderThickness?: TokenBorderThickness;
+    tokenBorderLabel?: string;
+    tokenBorderVisible?: boolean;
   }) => void;
 }
 
@@ -57,7 +67,10 @@ function TokenShapePreview({
   crop,
   color,
   backgroundColor,
-  spec,
+  geometry,
+  strokeWidth,
+  borderVisible,
+  borderLabel,
   sizeClassName,
 }: {
   clipId: string;
@@ -66,15 +79,20 @@ function TokenShapePreview({
   crop: ImageCrop;
   color: string;
   backgroundColor: string;
-  spec: TokenShapeRenderSpec;
+  geometry: TokenShapeGeometry;
+  strokeWidth: number;
+  borderVisible: boolean;
+  borderLabel?: string | null;
   sizeClassName: string;
 }) {
+  const tooltip = borderLabel?.trim() ? borderLabel.trim() : undefined;
+
   return (
-    <div className={`relative ${sizeClassName}`}>
+    <div className={`relative ${sizeClassName}`} title={tooltip}>
       <svg viewBox="0 0 1 1" className="absolute inset-0 h-full w-full overflow-visible" aria-hidden="true">
         <defs>
           <clipPath id={clipId} clipPathUnits="objectBoundingBox">
-            {renderShapeSvgChild(spec.geometry, {})}
+            {renderShapeSvgChild(geometry, {})}
           </clipPath>
         </defs>
       </svg>
@@ -94,32 +112,15 @@ function TokenShapePreview({
         ) : null}
       </div>
 
-      <svg viewBox="0 0 1 1" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden="true">
-        {renderShapeSvgChild(spec.geometry, {
-          fill: 'none',
-          stroke: color,
-          strokeWidth: spec.strokeWidth,
-          vectorEffect: 'non-scaling-stroke' as any,
-        })}
-        {spec.innerFrameInset != null &&
-          spec.geometry.kind === 'rect' &&
-          (() => {
-            const insetSize = spec.geometry.size - spec.innerFrameInset! * 2;
-            const half = insetSize / 2;
-            return (
-              <rect
-                x={0.5 - half}
-                y={0.5 - half}
-                width={insetSize}
-                height={insetSize}
-                rx={Math.max(0, spec.geometry.cornerRadius - spec.innerFrameInset! / 2)}
-                fill="none"
-                stroke={color}
-                strokeWidth={spec.strokeWidth * 0.6}
-              />
-            );
-          })()}
-      </svg>
+      {borderVisible && (
+        <svg viewBox="0 0 1 1" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden="true">
+          {renderShapeSvgChild(geometry, {
+            fill: 'none',
+            stroke: color,
+            strokeWidth,
+          })}
+        </svg>
+      )}
     </div>
   );
 }
@@ -131,6 +132,9 @@ export function TokenStyleEditor({
   tokenColor,
   tokenBackgroundColor,
   tokenBorderStyle,
+  tokenBorderThickness,
+  tokenBorderLabel,
+  tokenBorderVisible,
   onChange,
 }: TokenStyleEditorProps) {
   // useId() include ':' (es. ":r1:"), non valido in un riferimento CSS
@@ -140,7 +144,11 @@ export function TokenStyleEditor({
   const color = tokenColor ?? DEFAULT_TOKEN_COLOR;
   const backgroundColor = tokenBackgroundColor ?? DEFAULT_TOKEN_BACKGROUND_COLOR;
   const activeStyle = tokenBorderStyle ?? DEFAULT_TOKEN_BORDER_STYLE;
-  const activeSpec = TOKEN_SHAPE_SPECS[activeStyle];
+  const activeThickness = tokenBorderThickness ?? DEFAULT_TOKEN_BORDER_THICKNESS;
+  const activeLabel = tokenBorderLabel ?? '';
+  const activeVisible = tokenBorderVisible ?? DEFAULT_TOKEN_BORDER_VISIBLE;
+  const activeGeometry = TOKEN_SHAPE_SPECS[activeStyle].geometry;
+  const activeStrokeWidth = getTokenStrokeWidth(activeStyle, activeThickness);
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
@@ -160,7 +168,10 @@ export function TokenStyleEditor({
             crop={crop}
             color={color}
             backgroundColor={backgroundColor}
-            spec={activeSpec}
+            geometry={activeGeometry}
+            strokeWidth={activeStrokeWidth}
+            borderVisible={activeVisible}
+            borderLabel={activeLabel}
             sizeClassName="h-56 w-56"
           />
         </div>
@@ -196,34 +207,79 @@ export function TokenStyleEditor({
         </div>
 
         <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
-          <h4 className="mb-3 text-sm font-semibold uppercase tracking-[0.12em] text-[var(--dash-accent-2)]">
-            Forma bordo
-          </h4>
+          <div className="mb-3 flex items-center justify-between">
+            <h4 className="text-sm font-semibold uppercase tracking-[0.12em] text-[var(--dash-accent-2)]">
+              Forma bordo
+            </h4>
+            <label className="flex items-center gap-2 text-xs text-[var(--dash-muted)]">
+              <input
+                type="checkbox"
+                checked={activeVisible}
+                onChange={event => onChange({ tokenBorderVisible: event.target.checked })}
+                className="h-3.5 w-3.5 cursor-pointer accent-[var(--dash-accent)]"
+              />
+              Visibile
+            </label>
+          </div>
           <div className="grid grid-cols-4 gap-2">
-            {TOKEN_BORDER_STYLE_OPTIONS.map(option => (
+            {TOKEN_BORDER_STYLE_OPTIONS.map(option => {
+              const selected = activeStyle === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => onChange({ tokenBorderStyle: option.id })}
+                  title={option.label}
+                  aria-label={option.label}
+                  aria-pressed={selected}
+                  className={`flex items-center justify-center rounded-lg border p-2 transition-colors ${
+                    selected
+                      ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
+                      : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] hover:border-[var(--dash-accent)]/60'
+                  }`}
+                >
+                  <svg viewBox="0 0 1 1" className="h-10 w-10 overflow-visible">
+                    {renderShapeSvgChild(TOKEN_SHAPE_SPECS[option.id].geometry, {
+                      fill: 'none',
+                      stroke: selected ? 'var(--dash-accent)' : 'var(--dash-text-strong)',
+                      strokeWidth: TOKEN_SHAPE_SPECS[option.id].strokeWidth,
+                    })}
+                  </svg>
+                </button>
+              );
+            })}
+          </div>
+
+          <h5 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--dash-muted)]">
+            Spessore bordo
+          </h5>
+          <div className="grid grid-cols-3 gap-2">
+            {TOKEN_BORDER_THICKNESS_OPTIONS.map(option => (
               <button
                 key={option.id}
                 type="button"
-                onClick={() => onChange({ tokenBorderStyle: option.id })}
-                title={option.label}
-                aria-label={option.label}
-                aria-pressed={activeStyle === option.id}
-                className={`flex items-center justify-center rounded-lg border p-2 transition-colors ${
-                  activeStyle === option.id
-                    ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
-                    : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] hover:border-[var(--dash-accent)]/60'
+                onClick={() => onChange({ tokenBorderThickness: option.id })}
+                aria-pressed={activeThickness === option.id}
+                className={`rounded-lg border px-2 py-1.5 text-xs transition-colors ${
+                  activeThickness === option.id
+                    ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)] text-[var(--dash-text-strong)]'
+                    : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-muted)] hover:border-[var(--dash-accent)]/60'
                 }`}
               >
-                <svg viewBox="0 0 1 1" className="h-8 w-8 overflow-visible">
-                  {renderShapeSvgChild(TOKEN_SHAPE_SPECS[option.id].geometry, {
-                    fill: backgroundColor,
-                    stroke: color,
-                    strokeWidth: TOKEN_SHAPE_SPECS[option.id].strokeWidth,
-                    vectorEffect: 'non-scaling-stroke' as any,
-                  })}
-                </svg>
+                {option.label}
               </button>
             ))}
+          </div>
+
+          <div className="mt-4">
+            <label className="mb-1 block text-xs text-[var(--dash-muted)]">Nota facoltativa (tooltip al passaggio del mouse)</label>
+            <input
+              type="text"
+              value={activeLabel}
+              onChange={event => onChange({ tokenBorderLabel: event.target.value })}
+              placeholder="Es. Ferito, PNG alleato..."
+              className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-3 py-1.5 text-sm text-[var(--dash-text)]"
+            />
           </div>
         </div>
 
@@ -234,6 +290,9 @@ export function TokenStyleEditor({
               tokenColor: DEFAULT_TOKEN_COLOR,
               tokenBackgroundColor: DEFAULT_TOKEN_BACKGROUND_COLOR,
               tokenBorderStyle: DEFAULT_TOKEN_BORDER_STYLE,
+              tokenBorderThickness: DEFAULT_TOKEN_BORDER_THICKNESS,
+              tokenBorderLabel: '',
+              tokenBorderVisible: DEFAULT_TOKEN_BORDER_VISIBLE,
             })
           }
           className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-3 py-1.5 text-xs text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"

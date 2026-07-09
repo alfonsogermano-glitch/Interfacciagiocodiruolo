@@ -1397,6 +1397,9 @@ export function EntityDetailView({
               tokenColor={entity.tokenColor}
               tokenBackgroundColor={entity.tokenBackgroundColor}
               tokenBorderStyle={entity.tokenBorderStyle}
+              tokenBorderThickness={entity.tokenBorderThickness}
+              tokenBorderLabel={entity.tokenBorderLabel}
+              tokenBorderVisible={entity.tokenBorderVisible}
               onChange={patch => onUpdate({ ...entity, ...patch })}
             />
           </fieldset>

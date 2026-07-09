@@ -8,7 +8,7 @@ import {
 } from '../storage/tauriJsonEntityStorage';
 import type { D20Stats } from '../../app/components/ruleset/D20StatBlock';
 import { isRulesetCompatible, type RulesetId } from '../../app/campaigns/campaignTypes';
-import type { TokenBorderStyle } from '../../types/tokenStyle';
+import type { TokenBorderStyle, TokenBorderThickness } from '../../types/tokenStyle';
 
 /**
  * Servizio completo per gestire TUTTE le entità del gioco
@@ -219,6 +219,9 @@ export interface NPC {
   tokenColor?: string | null;
   tokenBackgroundColor?: string | null;
   tokenBorderStyle?: TokenBorderStyle | null;
+  tokenBorderThickness?: TokenBorderThickness | null;
+  tokenBorderLabel?: string | null;
+  tokenBorderVisible?: boolean | null;
   environmentId?: string | null;
   adventureId?: string | null;
 
@@ -427,6 +430,9 @@ export interface Monster {
   tokenColor?: string | null;
   tokenBackgroundColor?: string | null;
   tokenBorderStyle?: TokenBorderStyle | null;
+  tokenBorderThickness?: TokenBorderThickness | null;
+  tokenBorderLabel?: string | null;
+  tokenBorderVisible?: boolean | null;
   baseMonsterId?: string | null;
   adventureId?: string | null;
   environmentId?: string | null;

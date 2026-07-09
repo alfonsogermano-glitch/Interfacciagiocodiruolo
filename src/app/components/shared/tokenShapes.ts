@@ -1,4 +1,4 @@
-import type { TokenBorderStyle } from '../../../types/tokenStyle';
+import type { TokenBorderStyle, TokenBorderThickness } from '../../../types/tokenStyle';
 
 // Geometria delle 12 forme del Token Studio, CSS/SVG puro - nessun asset
 // caricato, nessuna dipendenza dal sistema Asset Grafici legacy
@@ -20,10 +20,9 @@ export type TokenShapeGeometry =
 
 export interface TokenShapeRenderSpec {
   geometry: TokenShapeGeometry;
-  /** Spessore del contorno, in unita' normalizzate 0-1. */
+  /** Spessore del contorno a spessore "medium", in unita' normalizzate 0-1
+   *  - il controllo "Spessore bordo" lo scala via getTokenStrokeWidth(). */
   strokeWidth: number;
-  /** square-frame: disegna un secondo rettangolo interno (effetto cornice/passe-partout). */
-  innerFrameInset?: number;
 }
 
 function toFixed(n: number): string {
@@ -82,23 +81,29 @@ const SQUARE_SIZE = 0.8;
 const SQUARE_CORNER_RADIUS = 0.06;
 
 export const TOKEN_SHAPE_SPECS: Record<TokenBorderStyle, TokenShapeRenderSpec> = {
-  'circle-filled': { geometry: { kind: 'circle', radius: CIRCLE_RADIUS }, strokeWidth: 0.14 },
-  'circle-thin': { geometry: { kind: 'circle', radius: CIRCLE_RADIUS }, strokeWidth: 0.03 },
-  'circle-thick': { geometry: { kind: 'circle', radius: CIRCLE_RADIUS }, strokeWidth: 0.08 },
+  'circle-filled': { geometry: { kind: 'circle', radius: CIRCLE_RADIUS }, strokeWidth: 0.07 },
 
   octagon: { geometry: { kind: 'path', d: pointsToPathD(regularPolygonPoints(8, 0.45, 22.5)) }, strokeWidth: 0.05 },
   hexagon: { geometry: { kind: 'path', d: pointsToPathD(regularPolygonPoints(6, 0.46, 0)) }, strokeWidth: 0.05 },
   'hexagon-pointed': { geometry: { kind: 'path', d: pointsToPathD(regularPolygonPoints(6, 0.46, 30)) }, strokeWidth: 0.05 },
 
-  'starburst-thin': { geometry: { kind: 'path', d: pointsToPathD(starPoints(8, 0.46, 0.30, -90)) }, strokeWidth: 0.03 },
-  'starburst-thick': { geometry: { kind: 'path', d: pointsToPathD(starPoints(8, 0.46, 0.30, -90)) }, strokeWidth: 0.08 },
+  'starburst-thin': { geometry: { kind: 'path', d: pointsToPathD(starPoints(8, 0.47, 0.20, -90)) }, strokeWidth: 0.03 },
+  'starburst-thick': { geometry: { kind: 'path', d: pointsToPathD(starPoints(8, 0.47, 0.20, -90)) }, strokeWidth: 0.08 },
   scalloped: { geometry: { kind: 'path', d: scallopedPathD(12, 0.42) }, strokeWidth: 0.04 },
 
   square: { geometry: { kind: 'rect', size: SQUARE_SIZE, cornerRadius: SQUARE_CORNER_RADIUS }, strokeWidth: 0.05 },
-  'square-thick': { geometry: { kind: 'rect', size: SQUARE_SIZE, cornerRadius: SQUARE_CORNER_RADIUS }, strokeWidth: 0.10 },
-  'square-frame': {
-    geometry: { kind: 'rect', size: SQUARE_SIZE, cornerRadius: SQUARE_CORNER_RADIUS },
-    strokeWidth: 0.04,
-    innerFrameInset: 0.09,
-  },
 };
+
+/** Moltiplicatore applicato allo strokeWidth "medium" di ciascuna forma -
+ *  cosi' il controllo "Spessore bordo" resta ortogonale alla forma pur
+ *  rispettando le proporzioni gia' calibrate per ogni geometria (es. una
+ *  stella a punte sottili non deve ispessirsi quanto un ottagono). */
+const THICKNESS_MULTIPLIER: Record<TokenBorderThickness, number> = {
+  thin: 0.5,
+  medium: 1,
+  thick: 1.8,
+};
+
+export function getTokenStrokeWidth(style: TokenBorderStyle, thickness: TokenBorderThickness): number {
+  return TOKEN_SHAPE_SPECS[style].strokeWidth * THICKNESS_MULTIPLIER[thickness];
+}

@@ -74,6 +74,9 @@ function mapRowToCharacter(row: any) {
     tokenColor: row.token_color ?? null,
     tokenBackgroundColor: row.token_background_color ?? null,
     tokenBorderStyle: row.token_border_style ?? null,
+    tokenBorderThickness: row.token_border_thickness ?? null,
+    tokenBorderLabel: row.token_border_label ?? null,
+    tokenBorderVisible: row.token_border_visible ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     player: row.sheet_data?.player || '',
@@ -201,6 +204,9 @@ export async function saveCharacter(
       token_color: character.tokenColor ?? null,
       token_background_color: character.tokenBackgroundColor ?? null,
       token_border_style: character.tokenBorderStyle ?? null,
+      token_border_thickness: character.tokenBorderThickness ?? null,
+      token_border_label: character.tokenBorderLabel ?? null,
+      token_border_visible: character.tokenBorderVisible ?? null,
       sheet_data: sheetData
     });
 
@@ -319,6 +325,9 @@ export async function saveCharacterAsGm(
       tokenColor: character.tokenColor ?? null,
       tokenBackgroundColor: character.tokenBackgroundColor ?? null,
       tokenBorderStyle: character.tokenBorderStyle ?? null,
+      tokenBorderThickness: character.tokenBorderThickness ?? null,
+      tokenBorderLabel: character.tokenBorderLabel ?? null,
+      tokenBorderVisible: character.tokenBorderVisible ?? null,
       sheetData,
     }),
   });

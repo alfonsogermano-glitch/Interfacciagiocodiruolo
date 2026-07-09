@@ -1,7 +1,7 @@
 // Tipi per High School Cthulhu
 
 import type { EquipmentLocation, EquipmentType } from './equipment';
-import type { TokenBorderStyle } from './tokenStyle';
+import type { TokenBorderStyle, TokenBorderThickness } from './tokenStyle';
 
 export type Ambito = 'Fisico' | 'Scuola' | 'Carisma' | 'Strada';
 
@@ -172,6 +172,9 @@ export interface Character {
   tokenColor?: string | null;
   tokenBackgroundColor?: string | null;
   tokenBorderStyle?: TokenBorderStyle | null;
+  tokenBorderThickness?: TokenBorderThickness | null;
+  tokenBorderLabel?: string | null;
+  tokenBorderVisible?: boolean | null;
 
   // Tutore
   tutore: string;

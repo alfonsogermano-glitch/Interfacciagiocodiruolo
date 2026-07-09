@@ -1047,6 +1047,7 @@ app.put("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c)
     sheetData, name, style, viaggio, portraitUrl, backgroundUrl,
     portraitImageUrl, portraitCroppedImageUrl, portraitCrop,
     tokenColor, tokenBackgroundColor, tokenBorderStyle,
+    tokenBorderThickness, tokenBorderLabel, tokenBorderVisible,
   } = await c.req.json();
 
   const { error: updateError } = await admin
@@ -1063,6 +1064,9 @@ app.put("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c)
       token_color: tokenColor ?? null,
       token_background_color: tokenBackgroundColor ?? null,
       token_border_style: tokenBorderStyle ?? null,
+      token_border_thickness: tokenBorderThickness ?? null,
+      token_border_label: tokenBorderLabel ?? null,
+      token_border_visible: tokenBorderVisible ?? null,
       sheet_data: sheetData,
     })
     .eq("id", characterId);
