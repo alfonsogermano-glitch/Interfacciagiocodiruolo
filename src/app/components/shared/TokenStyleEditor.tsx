@@ -152,7 +152,7 @@ export function TokenStyleEditor({
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-      <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
+      <div className="flex flex-col rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
         <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-[var(--dash-text-strong)]">
           Token mappa
         </h3>
@@ -160,7 +160,7 @@ export function TokenStyleEditor({
           Colore, sfondo e forma del token usato sulla mappa - indipendenti dal cerchio portrait della scheda.
         </p>
 
-        <div className="mt-6 flex justify-center">
+        <div className="mt-6 flex flex-1 items-center justify-center">
           <TokenShapePreview
             clipId={`${clipIdBase}-preview`}
             name={name}
