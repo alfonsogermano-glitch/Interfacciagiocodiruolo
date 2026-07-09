@@ -90,8 +90,13 @@ export const TOKEN_SHAPE_SPECS: Record<TokenBorderStyle, TokenShapeRenderSpec> =
   // "Sole/ingranaggio a denti fitti" (riferimento QuestPortal), non una
   // stella a 8 punte larghe: 18 punte, rapporto raggio interno/esterno
   // 0.80 (0.368/0.46) - denti corti e stretti invece di punte lunghe.
-  'starburst-thin': { geometry: { kind: 'path', d: pointsToPathD(starPoints(18, 0.46, 0.368, -90)) }, strokeWidth: 0.03 },
-  'starburst-thick': { geometry: { kind: 'path', d: pointsToPathD(starPoints(18, 0.46, 0.368, -90)) }, strokeWidth: 0.08 },
+  // v3: starburst-thin/starburst-thick consolidate in un'unica forma, lo
+  // spessore e' ora il controllo ortogonale "Spessore bordo" (stesso
+  // trattamento gia' applicato a circle-filled e square).
+  starburst: { geometry: { kind: 'path', d: pointsToPathD(starPoints(18, 0.46, 0.368, -90)) }, strokeWidth: 0.04 },
+  // Decagono (10 lati): quasi un cerchio sfaccettato, distinto
+  // dall'ottagono (8 lati) sia nel numero di lati sia nella rotazione.
+  decagon: { geometry: { kind: 'path', d: pointsToPathD(regularPolygonPoints(10, 0.45, 18)) }, strokeWidth: 0.045 },
   scalloped: { geometry: { kind: 'path', d: scallopedPathD(12, 0.42) }, strokeWidth: 0.04 },
 
   square: { geometry: { kind: 'rect', size: SQUARE_SIZE, cornerRadius: SQUARE_CORNER_RADIUS }, strokeWidth: 0.05 },

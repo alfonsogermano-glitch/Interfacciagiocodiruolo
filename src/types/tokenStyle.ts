@@ -12,13 +12,17 @@
 // controllo "Spessore bordo" ortogonale alla forma (vedi
 // TokenBorderThickness sotto) - erano variazioni di solo strokeWidth sulla
 // stessa geometria, ora coperte dal controllo dedicato.
+// v3: stesso trattamento per starburst-thin/starburst-thick, consolidate in
+// 'starburst' (sole/ingranaggio a denti fitti, 18 punte/ratio 0.80). Aggiunto
+// 'decagon' (poligono a molti lati, quasi un cerchio sfaccettato) nello slot
+// lasciato libero - forma di riferimento QuestPortal prima mancante.
 export type TokenBorderStyle =
   | 'circle-filled'
   | 'octagon'
   | 'hexagon'
   | 'hexagon-pointed'
-  | 'starburst-thin'
-  | 'starburst-thick'
+  | 'starburst'
+  | 'decagon'
   | 'scalloped'
   | 'square';
 
@@ -32,8 +36,8 @@ export const TOKEN_BORDER_STYLE_OPTIONS: TokenBorderStyleOption[] = [
   { id: 'octagon', label: 'Ottagono' },
   { id: 'hexagon', label: 'Esagono' },
   { id: 'hexagon-pointed', label: 'Esagono a punta' },
-  { id: 'starburst-thin', label: 'Stella sottile' },
-  { id: 'starburst-thick', label: 'Stella spessa' },
+  { id: 'starburst', label: 'Sole/Ingranaggio' },
+  { id: 'decagon', label: 'Decagono' },
   { id: 'scalloped', label: 'Smerlato' },
   { id: 'square', label: 'Quadrato' },
 ];
