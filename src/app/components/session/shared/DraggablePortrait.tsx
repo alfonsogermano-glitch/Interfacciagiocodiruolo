@@ -63,7 +63,7 @@ export function DraggablePortrait({
     <div
       draggable={draggable}
       onDragStart={(e) => {
-        if (url && dragGhostRef.current) {
+        if (dragGhostRef.current) {
           e.dataTransfer.setDragImage(dragGhostRef.current, TOKEN_SIZE / 2, TOKEN_SIZE / 2);
         }
         onDragStart?.(e);
@@ -108,12 +108,13 @@ export function DraggablePortrait({
           <EyeOff className="h-3 w-3 text-white" />
         </div>
       )}
-      {url && draggable && createPortal(
+      {draggable && createPortal(
         <div ref={dragGhostRef} style={{ position: 'fixed', left: -9999, top: -9999 }}>
           <TokenShapePreview
             clipId={`${clipIdBase}-dragimage`}
             name={name}
             portraitImageUrl={url}
+            fallbackContent={!url ? fallbackIcon : undefined}
             crop={IDENTITY_CROP}
             color={color}
             backgroundColor={backgroundColor}
