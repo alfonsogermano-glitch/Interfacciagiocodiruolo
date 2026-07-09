@@ -11,7 +11,8 @@ import {
   type TokenBorderStyle,
   type TokenBorderThickness,
 } from '../../../types/tokenStyle';
-import { TOKEN_SHAPE_SPECS, getTokenStrokeWidth, type TokenShapeGeometry } from './tokenShapes';
+import { TOKEN_SHAPE_SPECS, getTokenStrokeWidth } from './tokenShapes';
+import { renderShapeSvgChild, TokenShapePreview } from './TokenShapePreview';
 
 interface TokenStyleEditorProps {
   name: string;
@@ -35,94 +36,6 @@ interface TokenStyleEditorProps {
     tokenBorderLabel?: string;
     tokenBorderVisible?: boolean;
   }) => void;
-}
-
-function renderShapeSvgChild(geometry: TokenShapeGeometry, extraProps: React.SVGProps<SVGElement>) {
-  if (geometry.kind === 'circle') {
-    return <circle cx={0.5} cy={0.5} r={geometry.radius} {...(extraProps as React.SVGProps<SVGCircleElement>)} />;
-  }
-  if (geometry.kind === 'rect') {
-    const half = geometry.size / 2;
-    return (
-      <rect
-        x={0.5 - half}
-        y={0.5 - half}
-        width={geometry.size}
-        height={geometry.size}
-        rx={geometry.cornerRadius}
-        {...(extraProps as React.SVGProps<SVGRectElement>)}
-      />
-    );
-  }
-  return <path d={geometry.d} {...(extraProps as React.SVGProps<SVGPathElement>)} />;
-}
-
-/** Anteprima del token: stessa geometria usata sia per il contorno visibile
- *  (fill/stroke SVG) sia per ritagliare il ritratto (clip-path sull'<img>,
- *  objectBoundingBox cosi' si riscala da solo a qualunque dimensione). */
-function TokenShapePreview({
-  clipId,
-  name,
-  portraitImageUrl,
-  crop,
-  color,
-  backgroundColor,
-  geometry,
-  strokeWidth,
-  borderVisible,
-  borderLabel,
-  sizeClassName,
-}: {
-  clipId: string;
-  name: string;
-  portraitImageUrl?: string | null;
-  crop: ImageCrop;
-  color: string;
-  backgroundColor: string;
-  geometry: TokenShapeGeometry;
-  strokeWidth: number;
-  borderVisible: boolean;
-  borderLabel?: string | null;
-  sizeClassName: string;
-}) {
-  const tooltip = borderLabel?.trim() ? borderLabel.trim() : undefined;
-
-  return (
-    <div className={`relative ${sizeClassName}`} title={tooltip}>
-      <svg viewBox="0 0 1 1" className="absolute inset-0 h-full w-full overflow-visible" aria-hidden="true">
-        <defs>
-          <clipPath id={clipId} clipPathUnits="objectBoundingBox">
-            {renderShapeSvgChild(geometry, {})}
-          </clipPath>
-        </defs>
-      </svg>
-
-      <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `url(#${clipId})`, backgroundColor }}>
-        {portraitImageUrl ? (
-          <img
-            src={portraitImageUrl}
-            alt={`Token di ${name}`}
-            draggable={false}
-            className="h-full w-full select-none object-cover"
-            style={{
-              transform: `translate(${crop.x}px, ${crop.y}px) scale(${crop.scale})`,
-              transformOrigin: 'center center',
-            }}
-          />
-        ) : null}
-      </div>
-
-      {borderVisible && (
-        <svg viewBox="0 0 1 1" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden="true">
-          {renderShapeSvgChild(geometry, {
-            fill: 'none',
-            stroke: color,
-            strokeWidth,
-          })}
-        </svg>
-      )}
-    </div>
-  );
 }
 
 export function TokenStyleEditor({

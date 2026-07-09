@@ -433,6 +433,12 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         badge={<RulesetTag rulesetId={char.ruleset ?? 'hsc'} />}
         secondaryText={char.description}
         photoUrl={char.portraitCroppedImageUrl || char.portraitImageUrl || user?.avatarUrl}
+        tokenColor={char.tokenColor}
+        tokenBackgroundColor={char.tokenBackgroundColor}
+        tokenBorderStyle={char.tokenBorderStyle}
+        tokenBorderThickness={char.tokenBorderThickness}
+        tokenBorderVisible={char.tokenBorderVisible}
+        tokenBorderLabel={char.tokenBorderLabel}
         onClick={() => onOpenDetail('character', char.id)}
         cornerAction={
           <button
@@ -910,6 +916,12 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         badge={<RulesetTag rulesetId={entity.ruleset ?? 'hsc'} />}
         photoUrl={photoUrl}
         hiddenBadge={!entity.visibleToPlayers}
+        tokenColor={entity.tokenColor}
+        tokenBackgroundColor={entity.tokenBackgroundColor}
+        tokenBorderStyle={entity.tokenBorderStyle}
+        tokenBorderThickness={entity.tokenBorderThickness}
+        tokenBorderVisible={entity.tokenBorderVisible}
+        tokenBorderLabel={entity.tokenBorderLabel}
         onClick={() => onOpenDetail(kind, entity.id)}
         cornerAction={
           isUnassigned ? undefined : (

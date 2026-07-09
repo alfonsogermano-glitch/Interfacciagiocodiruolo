@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { EyeOff } from 'lucide-react';
 import { DraggablePortrait } from './DraggablePortrait';
+import type { TokenBorderStyle, TokenBorderThickness } from '../../../../types/tokenStyle';
 
 interface EntityCardProps {
   name: string;
@@ -18,9 +19,32 @@ interface EntityCardProps {
   // funzionalita' (badge/menu/children), solo riorganizzate. Default 'grid'
   // per non toccare nessuno degli usi esistenti.
   variant?: 'grid' | 'list';
+  tokenColor?: string | null;
+  tokenBackgroundColor?: string | null;
+  tokenBorderStyle?: TokenBorderStyle | null;
+  tokenBorderThickness?: TokenBorderThickness | null;
+  tokenBorderVisible?: boolean | null;
+  tokenBorderLabel?: string | null;
 }
 
-export function EntityCard({ name, subtitle, secondaryText, photoUrl, onClick, hiddenBadge, badge, cornerAction, children, variant = 'grid' }: EntityCardProps) {
+export function EntityCard({
+  name,
+  subtitle,
+  secondaryText,
+  photoUrl,
+  onClick,
+  hiddenBadge,
+  badge,
+  cornerAction,
+  children,
+  variant = 'grid',
+  tokenColor,
+  tokenBackgroundColor,
+  tokenBorderStyle,
+  tokenBorderThickness,
+  tokenBorderVisible,
+  tokenBorderLabel,
+}: EntityCardProps) {
   if (variant === 'list') {
     return (
       <div
@@ -32,6 +56,7 @@ export function EntityCard({ name, subtitle, secondaryText, photoUrl, onClick, h
         <div className="relative shrink-0">
           <DraggablePortrait
             url={photoUrl ?? undefined}
+            name={name}
             fallbackIcon={
               <img
                 src="/icon-source-1024.png"
@@ -42,6 +67,12 @@ export function EntityCard({ name, subtitle, secondaryText, photoUrl, onClick, h
             }
             size={56}
             draggable={false}
+            tokenColor={tokenColor}
+            tokenBackgroundColor={tokenBackgroundColor}
+            tokenBorderStyle={tokenBorderStyle}
+            tokenBorderThickness={tokenBorderThickness}
+            tokenBorderVisible={tokenBorderVisible}
+            tokenBorderLabel={tokenBorderLabel}
           />
 
           {hiddenBadge && (
@@ -88,6 +119,7 @@ export function EntityCard({ name, subtitle, secondaryText, photoUrl, onClick, h
       <div className="relative shrink-0">
         <DraggablePortrait
           url={photoUrl ?? undefined}
+          name={name}
           fallbackIcon={
             <img
               src="/icon-source-1024.png"
@@ -98,6 +130,12 @@ export function EntityCard({ name, subtitle, secondaryText, photoUrl, onClick, h
           }
           size={140}
           draggable={false}
+          tokenColor={tokenColor}
+          tokenBackgroundColor={tokenBackgroundColor}
+          tokenBorderStyle={tokenBorderStyle}
+          tokenBorderThickness={tokenBorderThickness}
+          tokenBorderVisible={tokenBorderVisible}
+          tokenBorderLabel={tokenBorderLabel}
         />
 
         {hiddenBadge && (

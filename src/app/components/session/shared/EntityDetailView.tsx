@@ -443,11 +443,18 @@ export function EntityDetailView({
           <div className="mb-4 flex items-start gap-4">
             <DraggablePortrait
               url={portraitUrl}
+              name={entity.name}
               fallbackIcon={fallbackIcon}
               size={portraitSize}
               draggable={draggable}
               onDragStart={onDragStart}
               hiddenFromPlayers={entityType !== 'character' ? !entity.visibleToPlayers : undefined}
+              tokenColor={entity.tokenColor}
+              tokenBackgroundColor={entity.tokenBackgroundColor}
+              tokenBorderStyle={entity.tokenBorderStyle}
+              tokenBorderThickness={entity.tokenBorderThickness}
+              tokenBorderVisible={entity.tokenBorderVisible}
+              tokenBorderLabel={entity.tokenBorderLabel}
             />
 
             {entityType === 'character' ? (
