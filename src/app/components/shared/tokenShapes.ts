@@ -104,6 +104,22 @@ const THICKNESS_MULTIPLIER: Record<TokenBorderThickness, number> = {
   thick: 1.8,
 };
 
+/**
+ * TOKEN_SHAPE_SPECS.strokeWidth e' tarato per restare leggibile nell'icona
+ * piccola del selettore forme (~40px): a quella scala serve un valore
+ * relativamente alto (0.05-0.08) solo per superare la soglia di un pixel
+ * visibile. La stessa geometria pero' serve anche l'anteprima grande
+ * (~224px, oltre 5x piu' grande) - riusare li' lo stesso valore relativo
+ * produce un bordo sproporzionato (bug corretto qui: prima della rimozione
+ * di vector-effect="non-scaling-stroke" questo passava inosservato perche'
+ * lo stroke non scalava affatto, quindi i valori non erano mai stati
+ * ritarati per il comportamento "scalabile" corretto). PREVIEW_STROKE_SCALE
+ * riporta lo spessore dell'anteprima a una proporzione sensata, mantenendo
+ * intatti sia i valori usati per l'icona sia i rapporti relativi tra le
+ * forme e tra Sottile/Medio/Spesso.
+ */
+const PREVIEW_STROKE_SCALE = 0.4;
+
 export function getTokenStrokeWidth(style: TokenBorderStyle, thickness: TokenBorderThickness): number {
-  return TOKEN_SHAPE_SPECS[style].strokeWidth * THICKNESS_MULTIPLIER[thickness];
+  return TOKEN_SHAPE_SPECS[style].strokeWidth * PREVIEW_STROKE_SCALE * THICKNESS_MULTIPLIER[thickness];
 }
