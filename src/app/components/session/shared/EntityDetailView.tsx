@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react';
-import { User, Brain, Heart, Star, Ghost, Skull, Lock } from 'lucide-react';
+import { User, Brain, Heart, Star, Ghost, Skull, Lock, AlertTriangle } from 'lucide-react';
 import { FrischezzaTracker } from '../../FrischezzaTracker';
 import { FoliaSpiral } from '../../FoliaSpiral';
 import { ConditionsPanel } from '../../ConditionsPanel';
@@ -358,6 +358,26 @@ export function EntityDetailView({
   const currentStyleTrait: Trait | null = entity?.tratti?.[0] ?? null;
   const currentJourneyTraits: Trait[] = entity?.tratti?.slice(1, 3) ?? [];
 
+  // Un campo "Seleziona in seguito" (LATER_SENTINEL) resta incompleto: e' un
+  // rimando esplicito, non un'informazione reale - va comunque segnalato.
+  const styleTraitIncomplete = !currentStyleTrait;
+  const journeyTraitsIncomplete = currentJourneyTraits.length < 2;
+  const originsIncomplete = styleTraitIncomplete || journeyTraitsIncomplete;
+
+  const legameIncomplete = !entity?.legame || entity.legame === LATER_SENTINEL;
+  const tutoreIncomplete = !entity?.tutore || entity.tutore === LATER_SENTINEL;
+  const tipoSpecialeIncomplete = !entity?.tipoSpeciale || entity.tipoSpeciale === LATER_SENTINEL;
+  // Storia (notes) e' facoltativa fin dal wizard (Passaggio 6): esclusa di proposito.
+  const storiaIncomplete = legameIncomplete || tutoreIncomplete || tipoSpecialeIncomplete;
+
+  const tabIndicators: Record<string, { locked?: boolean; warning?: boolean }> =
+    entityType === 'character'
+      ? {
+          origins: { locked: !!campaignId, warning: originsIncomplete },
+          storia: { warning: storiaIncomplete },
+        }
+      : {};
+
   const selectStyleTrait = (trait: Trait) => {
     onUpdate({ ...entity, tratti: [trait, ...currentJourneyTraits] });
   };
@@ -542,7 +562,7 @@ export function EntityDetailView({
 
         {activeSection === 'scheda' && (
         <>
-        <EntityTabBar canEdit={canEdit} tabs={tabs} lockedTabId={campaignId ? 'origins' : null} />
+        <EntityTabBar canEdit={canEdit} tabs={tabs} tabIndicators={tabIndicators} />
 
         <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-90' : ''}>
           {entityType === 'character' && tabs.currentTab === 'summary' && isHSC && (
@@ -746,7 +766,10 @@ export function EntityDetailView({
                   <p className="mb-3 text-[11px] text-[var(--dash-muted)]">Seleziona 1 tratto di Stile e 2 tratti di Viaggio.</p>
                   <div className="grid gap-3 md:grid-cols-2">
                     <div>
-                      <div className="mb-2 text-[11px] uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Tratto di Stile</div>
+                      <div className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+                        <span>Tratto di Stile · {currentStyleTrait ? 1 : 0}/1</span>
+                        {styleTraitIncomplete && <AlertTriangle className="h-3 w-3 shrink-0 text-[var(--dash-danger-text)]" />}
+                      </div>
                       <div className="space-y-2">
                         {STYLE_TRAITS[entity.style as Stile].map((trait) => (
                           <button
@@ -763,8 +786,9 @@ export function EntityDetailView({
                       </div>
                     </div>
                     <div>
-                      <div className="mb-2 text-[11px] uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
-                        Tratti di Viaggio · {currentJourneyTraits.length} / 2
+                      <div className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+                        <span>Tratti di Viaggio · {currentJourneyTraits.length} / 2</span>
+                        {journeyTraitsIncomplete && <AlertTriangle className="h-3 w-3 shrink-0 text-[var(--dash-danger-text)]" />}
                       </div>
                       <div className="space-y-2">
                         {JOURNEY_TRAITS[entity.viaggio as Viaggio].map((trait) => (
@@ -816,7 +840,10 @@ export function EntityDetailView({
               </div>
 
               <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
-                <div className="mb-3 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Legame</div>
+                <div className="mb-3 flex items-center gap-1.5 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+                  <span>Legame</span>
+                  {legameIncomplete && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[var(--dash-danger-text)]" />}
+                </div>
                 <label className="mb-1.5 block text-[11px] uppercase tracking-[0.08em] text-[var(--dash-muted)]">
                   Personaggio collegato
                 </label>
@@ -870,7 +897,10 @@ export function EntityDetailView({
               </div>
 
               <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
-                <div className="mb-3 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Tutore</div>
+                <div className="mb-3 flex items-center gap-1.5 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+                  <span>Tutore</span>
+                  {tutoreIncomplete && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[var(--dash-danger-text)]" />}
+                </div>
                 <div className="mb-3 flex flex-wrap gap-2">
                   <button type="button" onClick={() => { setTutoreInputTypeOverride('custom'); if (tutoreInputType === 'later') onUpdate({ ...entity, tutore: '' }); }} className={originToggleClass(tutoreInputType === 'custom')}>
                     Inserimento libero
@@ -925,7 +955,10 @@ export function EntityDetailView({
               </div>
 
               <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
-                <div className="mb-3 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Tipo Speciale</div>
+                <div className="mb-3 flex items-center gap-1.5 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+                  <span>Tipo Speciale</span>
+                  {tipoSpecialeIncomplete && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[var(--dash-danger-text)]" />}
+                </div>
                 <div className="mb-3 flex flex-wrap gap-2">
                   <button type="button" onClick={() => { setTipoSpecialeInputTypeOverride('custom'); if (tipoSpecialeInputType === 'later') onUpdate({ ...entity, tipoSpeciale: '' }); }} className={originToggleClass(tipoSpecialeInputType === 'custom')}>
                     Inserimento libero

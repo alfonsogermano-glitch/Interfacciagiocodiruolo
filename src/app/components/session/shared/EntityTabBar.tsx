@@ -1,16 +1,17 @@
-import { MoreVertical, Plus, Pencil, EyeOff, Eye, Trash2, Lock } from 'lucide-react';
+import { MoreVertical, Plus, Pencil, EyeOff, Eye, Trash2, Lock, AlertTriangle } from 'lucide-react';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import type { UseEntityTabsResult } from './useEntityTabs';
 
 interface EntityTabBarProps {
   canEdit: boolean;
   tabs: UseEntityTabsResult;
-  /** Id di una tab base da marcare con un'icona lucchetto (es. "origins"
-   *  quando il personaggio è già in una campagna). */
-  lockedTabId?: string | null;
+  /** Icone di stato per tab base, per id (es. "origins": lucchetto quando il
+   *  personaggio è già in una campagna, punto esclamativo quando manca un
+   *  campo obbligatorio). Le due icone coesistono se entrambe vere. */
+  tabIndicators?: Record<string, { locked?: boolean; warning?: boolean }>;
 }
 
-export function EntityTabBar({ canEdit, tabs, lockedTabId = null }: EntityTabBarProps) {
+export function EntityTabBar({ canEdit, tabs, tabIndicators = {} }: EntityTabBarProps) {
   const {
     orderedTabs,
     currentTab,
@@ -77,7 +78,10 @@ export function EntityTabBar({ canEdit, tabs, lockedTabId = null }: EntityTabBar
                   } ${tab.hidden ? 'opacity-50' : ''} ${tab.isCustom && canEdit ? 'pr-7' : ''}`}
                 >
                   {tab.hidden && <EyeOff className="h-3 w-3" />}
-                  {tab.id === lockedTabId && <Lock className="h-3 w-3" />}
+                  {tabIndicators[tab.id]?.locked && <Lock className="h-3 w-3" />}
+                  {tabIndicators[tab.id]?.warning && (
+                    <AlertTriangle className="h-3 w-3 text-[var(--dash-danger-text)]" />
+                  )}
                   {tab.label}
                 </button>
               )}
