@@ -1,5 +1,6 @@
 import { isSupabaseConfigured, supabase } from '../../lib/supabaseClient';
 import type { ImageCrop } from '../../app/components/gm/monsters/monstersTypes';
+import { PORTRAIT_EDITOR_BOX_SIZE } from '../../app/components/gm/monsters/monstersConstants';
 
 /**
  * Carica un file (o Blob, es. un export canvas) su Supabase Storage e
@@ -38,10 +39,6 @@ export async function uploadImageToStorage(params: {
 }
 
 const BAKE_SIZE = 512;
-// Stesso box di riferimento su cui lavora l'editor live (PortraitCropFrame:
-// h-52 w-52 = 208px) - il crop {x,y,scale} e' espresso in pixel di
-// quel box, va riproporzionato alla risoluzione di export.
-const EDITOR_BOX_SIZE = 208;
 
 /**
  * "Cuoce" in un JPEG quadrato il risultato del crop live {x,y,scale},
@@ -75,11 +72,15 @@ export async function bakePortraitCrop(params: {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas non disponibile');
 
-  // "object-fit: contain" dentro il box editor, poi scala su BAKE_SIZE.
-  const containScale = Math.min(BAKE_SIZE / image.width, BAKE_SIZE / image.height);
-  const drawWidth = image.width * containScale;
-  const drawHeight = image.height * containScale;
-  const ratio = BAKE_SIZE / EDITOR_BOX_SIZE;
+  // object-cover, stessa formula di clampCropToBox in PortraitCropEditor.tsx
+  // (Math.max, non Math.min = object-contain: erano rimaste disallineate
+  // dopo il fix del traboccamento, causando un "cotto" con inquadratura
+  // diversa da quella vista nel live editor). PORTRAIT_EDITOR_BOX_SIZE e'
+  // la stessa costante condivisa, non piu' un valore duplicato qui.
+  const coverScale = Math.max(BAKE_SIZE / image.naturalWidth, BAKE_SIZE / image.naturalHeight);
+  const drawWidth = image.naturalWidth * coverScale;
+  const drawHeight = image.naturalHeight * coverScale;
+  const ratio = BAKE_SIZE / PORTRAIT_EDITOR_BOX_SIZE;
 
   ctx.save();
   ctx.translate(BAKE_SIZE / 2 + crop.x * ratio, BAKE_SIZE / 2 + crop.y * ratio);

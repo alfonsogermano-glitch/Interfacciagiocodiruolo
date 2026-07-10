@@ -1,17 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ImageCrop } from '../gm/monsters/monstersTypes';
-import { DEFAULT_PORTRAIT_BORDER_COLOR } from '../gm/monsters/monstersConstants';
+import { DEFAULT_PORTRAIT_BORDER_COLOR, PORTRAIT_EDITOR_BOX_SIZE } from '../gm/monsters/monstersConstants';
 
 // Estratti da monsters/MonsterImageComponents.tsx: gia' scritti su props
 // primitive pure (nessun riferimento al tipo Monster), quindi riusabili
 // as-is per il tab "Immagine" condiviso di PG/PNG/Mostri in
 // EntityDetailView.tsx. Stessa tecnica gia' usata per TokenShapePreview.
 
-// Diametro del cerchio visibile: inset-10% del box h-52 w-52 (208px) su cui
-// PortraitCropFrame lavora - stesso riferimento gia' usato altrove in
-// questo file per riproporzionare gli offset cornice (frameOffsetRatio in
-// PortraitImage, ora spostato a Monster/monsters/MonsterImageComponents).
-const PORTRAIT_BOX_SIZE = 166;
 const MIN_PORTRAIT_SCALE = 1;
 const MAX_PORTRAIT_SCALE = 2.5;
 
@@ -31,7 +26,7 @@ function clampCropToBox(
   crop: ImageCrop,
   naturalWidth: number,
   naturalHeight: number,
-  boxSize: number = PORTRAIT_BOX_SIZE
+  boxSize: number = PORTRAIT_EDITOR_BOX_SIZE
 ): ImageCrop {
   const scale = Math.min(MAX_PORTRAIT_SCALE, Math.max(MIN_PORTRAIT_SCALE, crop.scale));
 
@@ -200,9 +195,9 @@ export function PortraitCropFrame({
     const initialY = displayCrop.y;
     const width = naturalSize?.width ?? 0;
     const height = naturalSize?.height ?? 0;
-    const coverScale = width && height ? Math.max(PORTRAIT_BOX_SIZE / width, PORTRAIT_BOX_SIZE / height) : 0;
-    const maxX = width && height ? Math.max(0, (width * coverScale * displayCrop.scale - PORTRAIT_BOX_SIZE) / 2) : 0;
-    const maxY = width && height ? Math.max(0, (height * coverScale * displayCrop.scale - PORTRAIT_BOX_SIZE) / 2) : 0;
+    const coverScale = width && height ? Math.max(PORTRAIT_EDITOR_BOX_SIZE / width, PORTRAIT_EDITOR_BOX_SIZE / height) : 0;
+    const maxX = width && height ? Math.max(0, (width * coverScale * displayCrop.scale - PORTRAIT_EDITOR_BOX_SIZE) / 2) : 0;
+    const maxY = width && height ? Math.max(0, (height * coverScale * displayCrop.scale - PORTRAIT_EDITOR_BOX_SIZE) / 2) : 0;
 
     // Clampato dentro handlePointerMove stesso, non solo al rilascio: cosi'
     // il drag non mostra mai il vuoto nemmeno per un istante mentre l'utente
