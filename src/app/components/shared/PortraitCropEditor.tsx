@@ -7,6 +7,56 @@ import { DEFAULT_PORTRAIT_BORDER_COLOR } from '../gm/monsters/monstersConstants'
 // as-is per il tab "Immagine" condiviso di PG/PNG/Mostri in
 // EntityDetailView.tsx. Stessa tecnica gia' usata per TokenShapePreview.
 
+// Diametro del cerchio visibile: inset-10% del box h-52 w-52 (208px) su cui
+// PortraitCropFrame lavora - stesso riferimento gia' usato altrove in
+// questo file per riproporzionare gli offset cornice (frameOffsetRatio in
+// PortraitImage, ora spostato a Monster/monsters/MonsterImageComponents).
+const PORTRAIT_BOX_SIZE = 166;
+const MIN_PORTRAIT_SCALE = 1;
+const MAX_PORTRAIT_SCALE = 2.5;
+
+/**
+ * Vincola pan/zoom cosi' che l'immagine copra sempre per intero il box
+ * (object-cover), mai un bordo vuoto: stessa garanzia che ImageCropUploadModal
+ * ottiene "gratis" da react-easy-crop (restrictPosition di default), qui
+ * ricostruita a mano perche' il modello {x,y,scale} e il rendering CSS
+ * live sono diversi. Applicata come funzione derivata ad ogni render (non
+ * solo sull'evento che genera un nuovo valore): questo e' anche cio' che
+ * rende "auto-guarente" un crop legacy o fuori limite gia' salvato - non
+ * serve una migrazione a parte, si corregge da solo alla prossima apertura
+ * dell'editor (stessa logica di normalizeImageCrop per la vecchia forma
+ * {centerX,centerY,zoom}).
+ */
+function clampCropToBox(
+  crop: ImageCrop,
+  naturalWidth: number,
+  naturalHeight: number,
+  boxSize: number = PORTRAIT_BOX_SIZE
+): ImageCrop {
+  const scale = Math.min(MAX_PORTRAIT_SCALE, Math.max(MIN_PORTRAIT_SCALE, crop.scale));
+
+  if (!naturalWidth || !naturalHeight) {
+    // Dimensioni non ancora note (immagine non caricata): il pan non e'
+    // ancora clampabile con certezza, ma lo scale minimo resta comunque
+    // valido da applicare subito.
+    return { x: crop.x, y: crop.y, scale };
+  }
+
+  // object-cover: il fattore che fa si' che il lato piu' corto combaci col
+  // box, lasciando l'altro lato in eccesso (quello che il pan puo' rivelare).
+  const coverScale = Math.max(boxSize / naturalWidth, boxSize / naturalHeight);
+  const displayWidth = naturalWidth * coverScale * scale;
+  const displayHeight = naturalHeight * coverScale * scale;
+  const maxX = Math.max(0, (displayWidth - boxSize) / 2);
+  const maxY = Math.max(0, (displayHeight - boxSize) / 2);
+
+  return {
+    x: Math.min(maxX, Math.max(-maxX, crop.x)),
+    y: Math.min(maxY, Math.max(-maxY, crop.y)),
+    scale
+  };
+}
+
 export function ImageEditor({
   title,
   imageUrl,
@@ -100,6 +150,19 @@ export function PortraitCropFrame({
 }) {
   const portraitRef = useRef<HTMLDivElement | null>(null);
   const [isDraggingPortrait, setIsDraggingPortrait] = useState(false);
+  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
+
+  // Dimensioni naturali legate a un'immagine specifica: se cambia (nuovo
+  // upload), vanno ricalcolate, non riusate da quella precedente.
+  useEffect(() => {
+    setNaturalSize(null);
+  }, [imageUrl]);
+
+  // Crop sempre vincolato al box, derivato ad ogni render invece che
+  // scritto una tantum: garantisce che non si veda MAI un bordo vuoto,
+  // anche per un valore gia' salvato fuori dai limiti (vecchio scale <1,
+  // pan eccessivo...) - si "auto-corregge" alla prossima apertura.
+  const displayCrop = clampCropToBox(crop, naturalSize?.width ?? 0, naturalSize?.height ?? 0);
 
   useEffect(() => {
     const element = portraitRef.current;
@@ -110,7 +173,8 @@ export function PortraitCropFrame({
       event.stopPropagation();
 
       const delta = event.deltaY > 0 ? -0.01 : 0.01;
-      onScaleChange(crop.scale + delta);
+      const nextScale = Math.min(MAX_PORTRAIT_SCALE, Math.max(MIN_PORTRAIT_SCALE, displayCrop.scale + delta));
+      onScaleChange(nextScale);
     };
 
     element.addEventListener('wheel', handleWheel, { passive: false });
@@ -118,7 +182,7 @@ export function PortraitCropFrame({
     return () => {
       element.removeEventListener('wheel', handleWheel);
     };
-  }, [crop.scale, isEditing, onScaleChange]);
+  }, [displayCrop.scale, isEditing, onScaleChange]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!isEditing || !onCropChange) return;
@@ -129,13 +193,24 @@ export function PortraitCropFrame({
 
     const startX = event.clientX;
     const startY = event.clientY;
-    const initialX = crop.x;
-    const initialY = crop.y;
+    const initialX = displayCrop.x;
+    const initialY = displayCrop.y;
+    const width = naturalSize?.width ?? 0;
+    const height = naturalSize?.height ?? 0;
+    const coverScale = width && height ? Math.max(PORTRAIT_BOX_SIZE / width, PORTRAIT_BOX_SIZE / height) : 0;
+    const maxX = width && height ? Math.max(0, (width * coverScale * displayCrop.scale - PORTRAIT_BOX_SIZE) / 2) : 0;
+    const maxY = width && height ? Math.max(0, (height * coverScale * displayCrop.scale - PORTRAIT_BOX_SIZE) / 2) : 0;
 
+    // Clampato dentro handlePointerMove stesso, non solo al rilascio: cosi'
+    // il drag non mostra mai il vuoto nemmeno per un istante mentre l'utente
+    // trascina oltre il limite - si ferma esattamente al bordo, "snap"
+    // continuo invece che a scatti dopo il fatto.
     const handlePointerMove = (moveEvent: PointerEvent) => {
+      const rawX = initialX + moveEvent.clientX - startX;
+      const rawY = initialY + moveEvent.clientY - startY;
       onCropChange({
-        x: initialX + moveEvent.clientX - startX,
-        y: initialY + moveEvent.clientY - startY
+        x: Math.min(maxX, Math.max(-maxX, rawX)),
+        y: Math.min(maxY, Math.max(-maxY, rawY))
       });
     };
 
@@ -226,11 +301,17 @@ export function PortraitCropFrame({
               src={imageUrl}
               alt={`Portrait di ${name}`}
               draggable={false}
-              className="h-full w-full select-none object-contain"
+              onLoad={event =>
+                setNaturalSize({
+                  width: event.currentTarget.naturalWidth,
+                  height: event.currentTarget.naturalHeight
+                })
+              }
+              className="h-full w-full select-none object-cover"
               style={{
                 transform: `
-                  translate(${crop.x}px, ${crop.y}px)
-                  scale(${crop.scale})
+                  translate(${displayCrop.x}px, ${displayCrop.y}px)
+                  scale(${displayCrop.scale})
                   rotate(${portraitRotationDegrees}deg)
                 `,
                 transformOrigin: 'center center'
@@ -263,15 +344,15 @@ export function PortraitCropFrame({
       <div className="-mt-7">
         <div className="mb-2 flex items-center justify-between text-xs text-[var(--dash-muted)]">
           <span>Zoom portrait</span>
-          <span>{Math.round(crop.scale * 100)}%</span>
+          <span>{Math.round(displayCrop.scale * 100)}%</span>
         </div>
 
         <input
           type="range"
-          min={0.5}
-          max={2.5}
+          min={MIN_PORTRAIT_SCALE}
+          max={MAX_PORTRAIT_SCALE}
           step={0.01}
-          value={crop.scale}
+          value={displayCrop.scale}
           onChange={e => onScaleChange?.(Number(e.target.value))}
           className="w-full accent-[var(--dash-accent)]"
         />
