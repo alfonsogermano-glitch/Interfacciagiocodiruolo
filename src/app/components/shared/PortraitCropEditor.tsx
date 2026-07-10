@@ -36,10 +36,13 @@ function clampCropToBox(
   const scale = Math.min(MAX_PORTRAIT_SCALE, Math.max(MIN_PORTRAIT_SCALE, crop.scale));
 
   if (!naturalWidth || !naturalHeight) {
-    // Dimensioni non ancora note (immagine non caricata): il pan non e'
-    // ancora clampabile con certezza, ma lo scale minimo resta comunque
-    // valido da applicare subito.
-    return { x: crop.x, y: crop.y, scale };
+    // Dimensioni non ancora note (onLoad non ancora scattato): un pan
+    // gia' salvato non e' verificabile senza le dimensioni reali, quindi
+    // NON va propagato as-is (produrrebbe un bordo scoperto per il breve
+    // istante fino al load, per qualunque entita' con un pan non-zero
+    // gia' salvato) - identita', sicura per costruzione con object-cover
+    // a x:0,y:0 qualunque siano le proporzioni dell'immagine.
+    return { x: 0, y: 0, scale };
   }
 
   // object-cover: il fattore che fa si' che il lato piu' corto combaci col
