@@ -31,6 +31,28 @@ export type ImageCrop = {
   scale: number;
 };
 
+// PG/PNG creati prima dell'introduzione del tab "Immagine" condiviso hanno
+// portraitCrop ancora nella vecchia forma {centerX,centerY,zoom} (mai
+// realmente pilotata - vedi indagine), rimasta cosi' in DB finche' l'utente
+// non tocca i controlli di crop per quell'entita'. Letta come ImageCrop
+// darebbe x/y/scale undefined -> NaN nelle trasformazioni CSS e nel bake
+// canvas (che silenziosamente disegna all'origine invece che al centro).
+// Qui si tratta qualunque valore senza x/y/scale finiti come "nessun crop
+// impostato", identita' - stessa convenzione gia' usata per il caso
+// "mai pilotato".
+export function normalizeImageCrop(crop: unknown): ImageCrop {
+  if (
+    crop &&
+    typeof crop === 'object' &&
+    Number.isFinite((crop as Partial<ImageCrop>).x) &&
+    Number.isFinite((crop as Partial<ImageCrop>).y) &&
+    Number.isFinite((crop as Partial<ImageCrop>).scale)
+  ) {
+    return crop as ImageCrop;
+  }
+  return { x: 0, y: 0, scale: 1 };
+}
+
 export type VisualAsset = {
   id: string;
   name: string;

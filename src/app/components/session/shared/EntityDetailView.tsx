@@ -10,7 +10,7 @@ import { EntityTabBar } from './EntityTabBar';
 import { EntityDetailRail, type EntityDetailRailSection } from './EntityDetailRail';
 import { TokenStyleEditor } from '../../shared/TokenStyleEditor';
 import { EntityImageTab } from './EntityImageTab';
-import type { ImageCrop } from '../../gm/monsters/monstersTypes';
+import { normalizeImageCrop, type ImageCrop } from '../../gm/monsters/monstersTypes';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { FreschezzaBoxesEditor } from '../../shared/FreschezzaBoxesEditor';
 import { D20StatBlock, DEFAULT_D20_STATS } from '../../ruleset/D20StatBlock';
@@ -450,8 +450,11 @@ export function EntityDetailView({
   // Crop da riusare nell'anteprima del token: ora e' lo stesso modello
   // {x,y,scale} per tutti e tre i tipi (vedi tab "Immagine"), quindi si
   // legge sempre il crop reale dell'entita' invece di forzare l'identita'
-  // per PG/PNG come prima del tab "Immagine" condiviso.
-  const tokenPreviewCrop: ImageCrop = entity?.portraitCrop ?? { x: 0, y: 0, scale: 1 };
+  // per PG/PNG come prima del tab "Immagine" condiviso. normalizeImageCrop
+  // gestisce le entita' create prima di questo cambio, il cui portraitCrop
+  // e' ancora nella vecchia forma {centerX,centerY,zoom}.
+  const normalizedPortraitCrop: ImageCrop = normalizeImageCrop(entity?.portraitCrop);
+  const tokenPreviewCrop: ImageCrop = normalizedPortraitCrop;
 
   const portraitBucket =
     entityType === 'character' ? 'character-portraits' : entityType === 'npc' ? 'npc-images' : 'monster-images';
@@ -1436,7 +1439,7 @@ export function EntityDetailView({
             entityName={entity.name}
             bucket={portraitBucket}
             imageUrl={entity.portraitImageUrl}
-            crop={entity.portraitCrop}
+            crop={normalizedPortraitCrop}
             rotationDegrees={entity.portraitRotationDegrees}
             canEdit={canEdit}
             onImageUrlChange={url => onUpdate({ ...entity, portraitImageUrl: url })}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ImageCrop } from '../../gm/monsters/monstersTypes';
+import { normalizeImageCrop, type ImageCrop } from '../../gm/monsters/monstersTypes';
 import { ImageEditor, PortraitCropFrame } from '../../shared/PortraitCropEditor';
 import { uploadImageToStorage, bakePortraitCrop } from '../../../../services/supabase/storageService';
 
@@ -43,7 +43,11 @@ export function EntityImageTab({
    *  tipo Monster non ha un campo portraitCroppedImageUrl da scrivere. */
   onCroppedImageUrlChange?: (url: string) => void;
 }) {
-  const resolvedCrop = crop ?? IDENTITY_CROP;
+  // normalizeImageCrop copre anche il caso "crop nella vecchia forma
+  // {centerX,centerY,zoom}" per entita' create prima del tab "Immagine"
+  // condiviso - qui come difesa aggiuntiva, oltre a quella gia' fatta dal
+  // chiamante in EntityDetailView.tsx.
+  const resolvedCrop = normalizeImageCrop(crop);
   const resolvedRotation = rotationDegrees ?? 0;
   const bakeEnabled = Boolean(onCroppedImageUrlChange);
 
