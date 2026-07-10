@@ -100,12 +100,9 @@ function mapRowToCharacter(row: any) {
     legameDescription: row.sheet_data?.legameDescription,
     coverImageUrl: row.sheet_data?.coverImageUrl,
     portraitImageUrl: row.portrait_image_url ?? undefined,
-    portraitCroppedImageUrl: row.portrait_cropped_image_url ?? undefined,
     coverPositionX: row.sheet_data?.coverPositionX,
     coverPositionY: row.sheet_data?.coverPositionY,
     coverScale: row.sheet_data?.coverScale,
-    portraitCrop: row.portrait_crop ?? undefined,
-    portraitRotationDegrees: row.sheet_data?.portraitRotationDegrees ?? 0,
     tutore: row.sheet_data?.tutore || '',
     tratti: row.sheet_data?.tratti || [],
     tabOrder: row.sheet_data?.tabOrder || [],
@@ -183,8 +180,7 @@ export async function saveCharacter(
     tratti: character.tratti,
     tabOrder: (character as any).tabOrder || [],
     equipment: character.equipment,
-    tipoSpeciale: character.tipoSpeciale,
-    portraitRotationDegrees: character.portraitRotationDegrees ?? 0
+    tipoSpeciale: character.tipoSpeciale
   };
 
   const { error } = await supabase
@@ -201,8 +197,6 @@ export async function saveCharacter(
       portrait_url: character.portraitImageUrl || null,
       background_url: character.coverImageUrl || null,
       portrait_image_url: character.portraitImageUrl ?? null,
-      portrait_cropped_image_url: character.portraitCroppedImageUrl ?? null,
-      portrait_crop: character.portraitCrop ?? null,
       token_color: character.tokenColor ?? null,
       token_background_color: character.tokenBackgroundColor ?? null,
       token_border_style: character.tokenBorderStyle ?? null,
@@ -309,8 +303,7 @@ export async function saveCharacterAsGm(
     tutore: character.tutore,
     tratti: character.tratti,
     equipment: character.equipment,
-    tipoSpeciale: character.tipoSpeciale,
-    portraitRotationDegrees: character.portraitRotationDegrees ?? 0
+    tipoSpeciale: character.tipoSpeciale
   };
 
   const res = await fetch(`${serverBase}/campaigns/${campaignId}/characters/${characterId}`, {
@@ -323,8 +316,6 @@ export async function saveCharacterAsGm(
       portraitUrl: character.portraitImageUrl || null,
       backgroundUrl: character.coverImageUrl || null,
       portraitImageUrl: character.portraitImageUrl ?? null,
-      portraitCroppedImageUrl: character.portraitCroppedImageUrl ?? null,
-      portraitCrop: character.portraitCrop ?? null,
       tokenColor: character.tokenColor ?? null,
       tokenBackgroundColor: character.tokenBackgroundColor ?? null,
       tokenBorderStyle: character.tokenBorderStyle ?? null,

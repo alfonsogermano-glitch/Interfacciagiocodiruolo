@@ -1,184 +1,72 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { normalizeImageCrop, type ImageCrop } from '../../gm/monsters/monstersTypes';
-import { ImageEditor, PortraitCropFrame } from '../../shared/PortraitCropEditor';
-import { uploadImageToStorage, bakePortraitCrop } from '../../../../services/supabase/storageService';
-
-const IDENTITY_CROP: ImageCrop = { x: 0, y: 0, scale: 1 };
-const BAKE_DEBOUNCE_MS = 500;
+import { useState } from 'react';
+import { ImageCropUploadModal } from '../../shared/ImageCropUploadModal';
+import { useAuth } from '../../../auth/AuthContext';
 
 /**
- * Tab "Immagine" condiviso da PG/PNG/Mostri in EntityDetailView.tsx: upload
- * + pan/zoom live (stesso sistema gia' in uso per i Mostri, generalizzato
- * in shared/PortraitCropEditor.tsx), con bake automatico in
- * portraitCroppedImageUrl per i consumer che si aspettano un'immagine gia'
- * pronta (card, liste...). Il bake e' debounced e viene comunque
- * eseguito (flush) alla chiusura/cambio tab, per non perdere l'ultimo
- * aggiustamento non ancora "cotto".
+ * Tab "Immagine" condiviso da PG/PNG/Mostri in EntityDetailView.tsx: stesso
+ * componente di upload+crop gia' usato con successo per l'avatar utente e
+ * il logo campagna (react-easy-crop, ritaglio distruttivo con
+ * restrictPosition di default - mai un bordo vuoto, per costruzione).
+ * L'output e' un'unica publicUrl gia' ritagliata, scritta su
+ * portraitImageUrl: nessun bake separato, nessun crop live da mantenere in
+ * sincronia tra editor/header/token.
  */
 export function EntityImageTab({
   entityId,
   entityName,
   bucket,
   imageUrl,
-  crop,
-  rotationDegrees,
   canEdit,
   onImageUrlChange,
-  onCropChange,
-  onRotationDegreesChange,
-  onCroppedImageUrlChange,
 }: {
   entityId: string;
   entityName: string;
   bucket: string;
   imageUrl?: string | null;
-  crop?: ImageCrop | null;
-  rotationDegrees?: number | null;
   canEdit: boolean;
   onImageUrlChange: (url: string) => void;
-  onCropChange: (crop: ImageCrop) => void;
-  onRotationDegreesChange: (degrees: number) => void;
-  /** Omesso per i Mostri: il loro crop live e' gia' applicato ad ogni
-   *  rendering (PortraitImage...), non serve una copia "cotta" - e il
-   *  tipo Monster non ha un campo portraitCroppedImageUrl da scrivere. */
-  onCroppedImageUrlChange?: (url: string) => void;
 }) {
-  // normalizeImageCrop copre anche il caso "crop nella vecchia forma
-  // {centerX,centerY,zoom}" per entita' create prima del tab "Immagine"
-  // condiviso - qui come difesa aggiuntiva, oltre a quella gia' fatta dal
-  // chiamante in EntityDetailView.tsx.
-  const resolvedCrop = normalizeImageCrop(crop);
-  const resolvedRotation = rotationDegrees ?? 0;
-  const bakeEnabled = Boolean(onCroppedImageUrlChange);
-
-  const [isUploading, setIsUploading] = useState(false);
-  const [isBaking, setIsBaking] = useState(false);
-
-  const pendingBakeRef = useRef<{ crop: ImageCrop; rotationDegrees: number; imageUrl: string } | null>(null);
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const runBake = useCallback(async (snapshot: { crop: ImageCrop; rotationDegrees: number; imageUrl: string }) => {
-    if (!snapshot.imageUrl || !onCroppedImageUrlChange) return;
-    setIsBaking(true);
-    try {
-      const url = await bakePortraitCrop({
-        imageUrl: snapshot.imageUrl,
-        crop: snapshot.crop,
-        rotationDegrees: snapshot.rotationDegrees,
-        bucket,
-        path: `${entityId}/portrait-cropped.jpg`,
-      });
-      onCroppedImageUrlChange(url);
-    } catch (err) {
-      console.error('Errore nella generazione dell\'anteprima ritagliata:', err);
-    } finally {
-      setIsBaking(false);
-    }
-  }, [bucket, entityId, onCroppedImageUrlChange]);
-
-  // L'effect di flush all'unmount ha deps [] (deve scattare solo alla vera
-  // chiusura, non ad ogni modifica) quindi altrimenti chiuderebbe su un
-  // runBake "vecchio" del primo render. Il ref tiene sempre l'ultima
-  // versione (con l'ultimo onCroppedImageUrlChange/entity aggiornati).
-  const runBakeRef = useRef(runBake);
-  runBakeRef.current = runBake;
-
-  // Debounce: ogni modifica al crop/rotazione riprogramma il bake.
-  useEffect(() => {
-    if (!bakeEnabled || !imageUrl) return undefined;
-    pendingBakeRef.current = { crop: resolvedCrop, rotationDegrees: resolvedRotation, imageUrl };
-    debounceTimerRef.current = setTimeout(() => {
-      debounceTimerRef.current = null;
-      const toBake = pendingBakeRef.current;
-      pendingBakeRef.current = null;
-      if (toBake) runBakeRef.current(toBake);
-    }, BAKE_DEBOUNCE_MS);
-
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedCrop.x, resolvedCrop.y, resolvedCrop.scale, resolvedRotation, imageUrl]);
-
-  // Flush all'unmount (cambio tab della rail, chiusura pannello): se il
-  // debounce non e' ancora scattato, esegue subito il bake pendente
-  // invece di scartare in silenzio l'ultimo aggiustamento.
-  useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
-      }
-      if (pendingBakeRef.current) {
-        const toBake = pendingBakeRef.current;
-        pendingBakeRef.current = null;
-        runBakeRef.current(toBake);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      alert('Seleziona un file immagine valido.');
-      return;
-    }
-
-    setIsUploading(true);
-    try {
-      const ext = file.name.split('.').pop() ?? 'png';
-      const path = `${entityId}/portrait-${Date.now()}.${ext}`;
-      const url = await uploadImageToStorage({ file, bucket, path });
-      onImageUrlChange(url);
-    } catch (err) {
-      console.error('Errore upload immagine:', err);
-      alert('Caricamento non riuscito. Riprova.');
-    } finally {
-      setIsUploading(false);
-    }
-  };
+  const { user } = useAuth();
+  const [showCropModal, setShowCropModal] = useState(false);
+  // Scoped per utente (non per entita'): le policy RLS gia' in uso sui
+  // bucket immagine (es. monster-images, verificata) richiedono che il
+  // primo segmento del path sia auth.uid() - (storage.foldername(name))[1]
+  // = auth.uid()::text. Un path scoped per entita' le viola per
+  // costruzione, indipendentemente da chi e' loggato (bug scoperto
+  // sull'upload Mostro attraverso questo stesso tab).
+  const storagePath = `${user?.id ?? 'unknown'}/${entityId}-portrait-${Date.now()}.jpg`;
 
   return (
     <fieldset disabled={!canEdit} className={!canEdit ? 'space-y-4 opacity-90' : 'space-y-4'}>
-      <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
-        <ImageEditor
-          title="Immagine"
-          imageUrl={imageUrl ?? ''}
-          onUrlChange={onImageUrlChange}
-          onFileChange={handleFileChange}
-          isUploading={isUploading}
-        />
+      <div className="flex flex-col items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setShowCropModal(true)}
+          className="relative flex h-40 w-40 items-center justify-center overflow-hidden rounded-full border-2 border-[var(--dash-accent)] bg-[var(--dash-input)]"
+        >
+          {imageUrl ? (
+            <img src={imageUrl} alt={`Immagine di ${entityName}`} className="h-full w-full object-cover" />
+          ) : (
+            <div className="text-center text-sm text-[var(--dash-muted)]">Nessuna immagine</div>
+          )}
+        </button>
+        <p className="text-center text-xs text-[var(--dash-muted)]">Clicca per scegliere/ritagliare</p>
       </div>
 
-      {imageUrl ? (
-        <PortraitCropFrame
-          imageUrl={imageUrl}
-          name={entityName}
-          crop={resolvedCrop}
-          portraitRotationDegrees={resolvedRotation}
-          isEditing={canEdit}
-          onCropChange={patch => onCropChange({ ...resolvedCrop, ...patch })}
-          onScaleChange={scale => onCropChange({ ...resolvedCrop, scale })}
-          onRotateImageDegrees={delta => onRotationDegreesChange(resolvedRotation + delta)}
-          onReset={() => {
-            onCropChange(IDENTITY_CROP);
-            onRotationDegreesChange(0);
+      {showCropModal && (
+        <ImageCropUploadModal
+          bucket={bucket}
+          storagePath={storagePath}
+          cropShape="round"
+          aspect={1}
+          uploadLabel={`Seleziona l'immagine di ${entityName}`}
+          onUploaded={url => {
+            onImageUrlChange(url);
+            setShowCropModal(false);
           }}
+          onRemove={imageUrl ? () => { onImageUrlChange(''); setShowCropModal(false); } : undefined}
+          onClose={() => setShowCropModal(false)}
         />
-      ) : (
-        <p className="text-center text-xs text-[var(--dash-muted)]">
-          Carica un'immagine per regolare inquadratura e zoom.
-        </p>
-      )}
-
-      {isBaking && (
-        <p className="text-center text-xs text-[var(--dash-muted)]">Salvataggio anteprima…</p>
       )}
     </fieldset>
   );

@@ -2,7 +2,6 @@
 
 import type { EquipmentLocation, EquipmentType } from './equipment';
 import type { TokenBorderStyle, TokenBorderThickness } from './tokenStyle';
-import type { ImageCrop } from '../app/components/gm/monsters/monstersTypes';
 
 export type Ambito = 'Fisico' | 'Scuola' | 'Carisma' | 'Strada';
 
@@ -152,21 +151,14 @@ export interface Character {
   legameDescription?: string;
 
   coverImageUrl?: string;
+  // Gia' il risultato finale del ritaglio (ImageCropUploadModal nel tab
+  // "Immagine"): nessun campo separato per una versione "grezza" vs
+  // "cotta", nessun crop {x,y,scale} da mantenere in sincronia altrove.
   portraitImageUrl?: string;
-  portraitCroppedImageUrl?: string;
 
   coverPositionX?: number;
   coverPositionY?: number;
   coverScale?: number;
-
-  // Stesso modello {x,y,scale} di Mostro (vedi monstersTypes.ts ImageCrop):
-  // sostituisce la vecchia forma {centerX,centerY,zoom} mai realmente
-  // applicata a un rendering, ora e' la sorgente di verita' del tab
-  // "Immagine" (pan/zoom live). portraitCroppedImageUrl sopra resta una
-  // cache "cotta" derivata automaticamente da questo crop, per i
-  // consumer che si aspettano un'immagine gia' pronta.
-  portraitCrop?: ImageCrop;
-  portraitRotationDegrees?: number;
 
   // Token mappa (Token Studio) - dedicati, separati dal cerchio portrait
   // sopra: il token sulla mappa e il cerchio nella scheda sono
@@ -234,14 +226,10 @@ export interface CharacterSheetData {
 
   coverImageUrl?: string;
   portraitImageUrl?: string;
-  portraitCroppedImageUrl?: string;
 
   coverPositionX?: number;
   coverPositionY?: number;
   coverScale?: number;
-
-  portraitCrop?: ImageCrop;
-  portraitRotationDegrees?: number;
 
   tutore?: string;
   tratti?: Trait[];

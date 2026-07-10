@@ -638,14 +638,7 @@ const showToast = (message: string) => {
 </div>
    <div className="absolute left-5 top-5 z-10 flex items-center gap-4">
 <div className="relative h-24 w-24 overflow-hidden rounded-full border-2 border-[var(--dash-accent)] bg-[var(--dash-input)] shadow-lg">
-  {char.portraitCroppedImageUrl ? (
-    <img
-      src={char.portraitCroppedImageUrl}
-      alt={`Ritratto di ${char.name}`}
-      className="h-full w-full object-cover select-none"
-      draggable={false}
-    />
-  ) : char.portraitImageUrl ? (
+  {char.portraitImageUrl ? (
     <img
       src={char.portraitImageUrl}
       alt={`Ritratto di ${char.name}`}

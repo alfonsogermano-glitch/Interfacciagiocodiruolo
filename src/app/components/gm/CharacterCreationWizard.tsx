@@ -270,20 +270,11 @@
   const [storia, setStoria] = useState(initialCharacter?.notes ?? '');
   const [coverImageUrl, setCoverImageUrl] = useState(initialCharacter?.coverImageUrl ?? '');
   const [portraitImageUrl, setPortraitImageUrl] = useState(initialCharacter?.portraitImageUrl ?? '');
-  const [portraitCroppedImageUrl, setPortraitCroppedImageUrl] = useState(
-    initialCharacter?.portraitCroppedImageUrl ?? ''
-  );
-  
+
   const [coverPositionX, setCoverPositionX] = useState(initialCharacter?.coverPositionX ?? 0);
   const [coverPositionY, setCoverPositionY] = useState(initialCharacter?.coverPositionY ?? 0);
   const [coverScale, setCoverScale] = useState(initialCharacter?.coverScale ?? 1);
-  
-  // Mai realmente pilotato da questo wizard (nessun editor pan/zoom qui):
-  // il ritaglio vero si fa nel tab "Immagine" dopo la creazione. Qui si
-  // preserva solo un eventuale crop gia' impostato in modifica, o
-  // l'identita' per un personaggio nuovo.
-  const [portraitCrop] = useState(() => initialCharacter?.portraitCrop ?? { x: 0, y: 0, scale: 1 });
-  
+
   const [showPortraitCrop, setShowPortraitCrop] = useState(false);
   const [showCoverCrop, setShowCoverCrop] = useState(false);
 
@@ -584,8 +575,6 @@ const equipment: Equipment[] = [
         abilitaFinali[abilita] = getAbilitaTotalValue(abilita);
       });
   
-      const finalPortraitCroppedImageUrl: string | undefined = portraitCroppedImageUrl || undefined;
-
       const character: Character & { player: string; notes: string } = {
         id: initialCharacter?.id ?? generateUUID(),
         name: name.trim(),
@@ -627,8 +616,6 @@ const equipment: Equipment[] = [
         notes: storia.trim(),
         coverImageUrl: coverImageUrl.trim() || undefined,
         portraitImageUrl: portraitImageUrl.trim() || undefined,
-        portraitCroppedImageUrl: finalPortraitCroppedImageUrl,
-        portraitCrop,
         coverPositionX: coverImageUrl ? coverPositionX : undefined,
         coverPositionY: coverImageUrl ? coverPositionY : undefined,
         coverScale: coverImageUrl ? coverScale : undefined,
@@ -1295,9 +1282,9 @@ const equipment: Equipment[] = [
           onClick={() => setShowPortraitCrop(true)}
           className="relative flex h-40 w-40 items-center justify-center overflow-hidden rounded-full border-2 border-[var(--dash-accent)] bg-[var(--dash-input)]"
         >
-          {portraitCroppedImageUrl || portraitImageUrl ? (
+          {portraitImageUrl ? (
             <img
-              src={portraitCroppedImageUrl || portraitImageUrl}
+              src={portraitImageUrl}
               alt="Anteprima portrait"
               className="h-full w-full object-cover"
             />
@@ -1316,7 +1303,6 @@ const equipment: Equipment[] = [
           aspect={1}
           uploadLabel="Seleziona il ritratto del personaggio"
           onUploaded={(url) => {
-            setPortraitCroppedImageUrl(url);
             setPortraitImageUrl(url);
             setShowPortraitCrop(false);
           }}

@@ -439,7 +439,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         subtitle={styleViaggio}
         badge={<RulesetTag rulesetId={char.ruleset ?? 'hsc'} />}
         secondaryText={char.description}
-        photoUrl={char.portraitCroppedImageUrl || char.portraitImageUrl || user?.avatarUrl}
+        photoUrl={char.portraitImageUrl || user?.avatarUrl}
         tokenColor={char.tokenColor}
         tokenBackgroundColor={char.tokenBackgroundColor}
         tokenBorderStyle={char.tokenBorderStyle}
@@ -721,9 +721,6 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     secrets: '',
     location: '',
     portraitImageUrl: '',
-    portraitCroppedImageUrl: '',
-    portraitCrop: { x: 0, y: 0, scale: 1 },
-    portraitRotationDegrees: 0,
     mapLocationId: null,
     customLocationName: '',
     freschezza: null,
@@ -909,7 +906,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     const typeLabel = kind === 'npc' ? (entity as NPC).role || 'PNG' : 'Mostro';
     const campaignName = entityCampaignName(entity.campaignId);
     const photoUrl = kind === 'npc'
-      ? (entity as NPC).portraitCroppedImageUrl || (entity as NPC).portraitImageUrl
+      ? (entity as NPC).portraitImageUrl
       : (entity as Monster).portraitImageUrl;
     const isUnassigned = !entity.campaignId;
     const assignError = entityAssignErrors[entity.id];

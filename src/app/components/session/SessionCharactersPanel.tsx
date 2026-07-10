@@ -496,7 +496,7 @@ export function SessionCharactersPanel() {
           <div className="space-y-1 px-2 pb-2">
             {characters.map(c => renderListItem({
               kind: 'pg', id: c.id, name: c.name, subtitle: (c as any).ownerDisplayName || c.player || c.style,
-              portraitUrl: c.portraitCroppedImageUrl || c.portraitImageUrl,
+              portraitUrl: c.portraitImageUrl,
               ownerProfileId: (c as any).ownerProfileId,
             }))}
             {characters.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun personaggio.</div>}
@@ -508,7 +508,7 @@ export function SessionCharactersPanel() {
           <div className="space-y-1 px-2 pb-2">
             {visibleNpcs.map(n => renderListItem({
               kind: 'png', id: n.id, name: n.name, subtitle: n.role || 'PNG',
-              portraitUrl: n.portraitCroppedImageUrl || n.portraitImageUrl,
+              portraitUrl: n.portraitImageUrl,
               hiddenFromPlayers: !n.visibleToPlayers,
             }))}
             {visibleNpcs.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun PNG.</div>}

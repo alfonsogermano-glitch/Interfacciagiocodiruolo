@@ -10,7 +10,7 @@ import { EntityTabBar } from './EntityTabBar';
 import { EntityDetailRail, type EntityDetailRailSection } from './EntityDetailRail';
 import { TokenStyleEditor } from '../../shared/TokenStyleEditor';
 import { EntityImageTab } from './EntityImageTab';
-import { normalizeImageCrop, type ImageCrop } from '../../gm/monsters/monstersTypes';
+import type { ImageCrop } from '../../gm/monsters/monstersTypes';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { FreschezzaBoxesEditor } from '../../shared/FreschezzaBoxesEditor';
 import { D20StatBlock, DEFAULT_D20_STATS } from '../../ruleset/D20StatBlock';
@@ -443,25 +443,17 @@ export function EntityDetailView({
       <Skull className="h-6 w-6 text-[var(--dash-accent-2)]" />
     );
 
-  // Sempre l'immagine grezza, mai portraitCroppedImageUrl: questa view e'
-  // per definizione quella in cui l'entita' e' correntemente in editing
-  // (e' lo stesso schermo del tab "Immagine"), quindi header e anteprima
-  // Token Studio applicano il crop live (sotto) invece di aspettare il
-  // bake asincrono - stessa fonte di verita' istantanea dell'editor,
-  // niente ritardo. portraitCroppedImageUrl resta solo per i consumer
-  // fuori da questo schermo (card, liste) che non fanno rendering live
-  // del crop. Fallback al bake solo se manca proprio l'immagine grezza
-  // (caso limite, non dovrebbe capitare in pratica).
-  const portraitUrl = entity.portraitImageUrl || entity.portraitCroppedImageUrl;
+  const portraitUrl = entity.portraitImageUrl;
   const portraitSize = entityType === 'character' ? 116 : 56;
 
-  // Stesso modello {x,y,scale} per tutti e tre i tipi (vedi tab
-  // "Immagine"): si legge sempre il crop reale dell'entita'.
-  // normalizeImageCrop gestisce le entita' create prima di questo cambio,
-  // il cui portraitCrop e' ancora nella vecchia forma
-  // {centerX,centerY,zoom}.
-  const normalizedPortraitCrop: ImageCrop = normalizeImageCrop(entity?.portraitCrop);
-  const tokenPreviewCrop: ImageCrop = normalizedPortraitCrop;
+  // Crop da riusare nell'anteprima del token: quello reale del Mostro (pan/
+  // zoom impostato nel suo tab Avatar in MonstersManager.tsx, sistema
+  // indipendente da questo, mai toccato), identita' per PG/PNG la cui
+  // immagine e' gia' il risultato finale di un ritaglio fatto a monte
+  // (ImageCropUploadModal nel tab "Immagine", react-easy-crop - non un
+  // crop live riapplicabile).
+  const tokenPreviewCrop: ImageCrop =
+    entityType === 'monster' ? entity.portraitCrop ?? { x: 0, y: 0, scale: 1 } : { x: 0, y: 0, scale: 1 };
 
   const portraitBucket =
     entityType === 'character' ? 'character-portraits' : entityType === 'npc' ? 'npc-images' : 'monster-images';
@@ -475,7 +467,6 @@ export function EntityDetailView({
           <div className="mb-4 flex items-start gap-4">
             <DraggablePortrait
               url={portraitUrl}
-              crop={normalizedPortraitCrop}
               name={entity.name}
               fallbackIcon={fallbackIcon}
               size={portraitSize}
@@ -1447,18 +1438,8 @@ export function EntityDetailView({
             entityName={entity.name}
             bucket={portraitBucket}
             imageUrl={entity.portraitImageUrl}
-            crop={normalizedPortraitCrop}
-            rotationDegrees={entity.portraitRotationDegrees}
             canEdit={canEdit}
             onImageUrlChange={url => onUpdate({ ...entity, portraitImageUrl: url })}
-            onCropChange={crop => onUpdate({ ...entity, portraitCrop: crop })}
-            onRotationDegreesChange={degrees => onUpdate({ ...entity, portraitRotationDegrees: degrees })}
-            // Il Mostro non ha portraitCroppedImageUrl: il suo crop live e'
-            // gia' applicato ad ogni rendering, non serve una copia "cotta"
-            // (vedi nota su EntityImageTab.tsx).
-            onCroppedImageUrlChange={
-              entityType === 'monster' ? undefined : url => onUpdate({ ...entity, portraitCroppedImageUrl: url })
-            }
           />
         )}
 

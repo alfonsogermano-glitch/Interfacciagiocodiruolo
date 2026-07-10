@@ -1,59 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ImageCrop } from '../gm/monsters/monstersTypes';
-import { DEFAULT_PORTRAIT_BORDER_COLOR, PORTRAIT_EDITOR_BOX_SIZE } from '../gm/monsters/monstersConstants';
+import {
+  DEFAULT_PORTRAIT_BORDER_COLOR,
+  PORTRAIT_EDITOR_BOX_SIZE,
+  MIN_PORTRAIT_SCALE,
+  MAX_PORTRAIT_SCALE,
+  clampCropToBox
+} from '../gm/monsters/monstersConstants';
 
 // Estratti da monsters/MonsterImageComponents.tsx: gia' scritti su props
-// primitive pure (nessun riferimento al tipo Monster), quindi riusabili
-// as-is per il tab "Immagine" condiviso di PG/PNG/Mostri in
-// EntityDetailView.tsx. Stessa tecnica gia' usata per TokenShapePreview.
-
-const MIN_PORTRAIT_SCALE = 1;
-const MAX_PORTRAIT_SCALE = 2.5;
-
-/**
- * Vincola pan/zoom cosi' che l'immagine copra sempre per intero il box
- * (object-cover), mai un bordo vuoto: stessa garanzia che ImageCropUploadModal
- * ottiene "gratis" da react-easy-crop (restrictPosition di default), qui
- * ricostruita a mano perche' il modello {x,y,scale} e il rendering CSS
- * live sono diversi. Applicata come funzione derivata ad ogni render (non
- * solo sull'evento che genera un nuovo valore): questo e' anche cio' che
- * rende "auto-guarente" un crop legacy o fuori limite gia' salvato - non
- * serve una migrazione a parte, si corregge da solo alla prossima apertura
- * dell'editor (stessa logica di normalizeImageCrop per la vecchia forma
- * {centerX,centerY,zoom}).
- */
-function clampCropToBox(
-  crop: ImageCrop,
-  naturalWidth: number,
-  naturalHeight: number,
-  boxSize: number = PORTRAIT_EDITOR_BOX_SIZE
-): ImageCrop {
-  const scale = Math.min(MAX_PORTRAIT_SCALE, Math.max(MIN_PORTRAIT_SCALE, crop.scale));
-
-  if (!naturalWidth || !naturalHeight) {
-    // Dimensioni non ancora note (onLoad non ancora scattato): un pan
-    // gia' salvato non e' verificabile senza le dimensioni reali, quindi
-    // NON va propagato as-is (produrrebbe un bordo scoperto per il breve
-    // istante fino al load, per qualunque entita' con un pan non-zero
-    // gia' salvato) - identita', sicura per costruzione con object-cover
-    // a x:0,y:0 qualunque siano le proporzioni dell'immagine.
-    return { x: 0, y: 0, scale };
-  }
-
-  // object-cover: il fattore che fa si' che il lato piu' corto combaci col
-  // box, lasciando l'altro lato in eccesso (quello che il pan puo' rivelare).
-  const coverScale = Math.max(boxSize / naturalWidth, boxSize / naturalHeight);
-  const displayWidth = naturalWidth * coverScale * scale;
-  const displayHeight = naturalHeight * coverScale * scale;
-  const maxX = Math.max(0, (displayWidth - boxSize) / 2);
-  const maxY = Math.max(0, (displayHeight - boxSize) / 2);
-
-  return {
-    x: Math.min(maxX, Math.max(-maxX, crop.x)),
-    y: Math.min(maxY, Math.max(-maxY, crop.y)),
-    scale
-  };
-}
+// primitive pure (nessun riferimento al tipo Monster). Oggi l'unico
+// consumer e' il tab "Avatar" dei Mostri in MonstersManager.tsx - PG/PNG
+// usano invece ImageCropUploadModal (ritaglio distruttivo, react-easy-crop)
+// nel tab "Immagine" di EntityDetailView.tsx, senza crop live da gestire.
+//
+// clampCropToBox vive in monstersConstants.ts.
 
 export function ImageEditor({
   title,
