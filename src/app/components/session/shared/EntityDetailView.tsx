@@ -443,16 +443,23 @@ export function EntityDetailView({
       <Skull className="h-6 w-6 text-[var(--dash-accent-2)]" />
     );
 
-  const portraitUrl =
-    entityType === 'monster' ? entity.portraitImageUrl : entity.portraitCroppedImageUrl || entity.portraitImageUrl;
+  // Sempre l'immagine grezza, mai portraitCroppedImageUrl: questa view e'
+  // per definizione quella in cui l'entita' e' correntemente in editing
+  // (e' lo stesso schermo del tab "Immagine"), quindi header e anteprima
+  // Token Studio applicano il crop live (sotto) invece di aspettare il
+  // bake asincrono - stessa fonte di verita' istantanea dell'editor,
+  // niente ritardo. portraitCroppedImageUrl resta solo per i consumer
+  // fuori da questo schermo (card, liste) che non fanno rendering live
+  // del crop. Fallback al bake solo se manca proprio l'immagine grezza
+  // (caso limite, non dovrebbe capitare in pratica).
+  const portraitUrl = entity.portraitImageUrl || entity.portraitCroppedImageUrl;
   const portraitSize = entityType === 'character' ? 116 : 56;
 
-  // Crop da riusare nell'anteprima del token: ora e' lo stesso modello
-  // {x,y,scale} per tutti e tre i tipi (vedi tab "Immagine"), quindi si
-  // legge sempre il crop reale dell'entita' invece di forzare l'identita'
-  // per PG/PNG come prima del tab "Immagine" condiviso. normalizeImageCrop
-  // gestisce le entita' create prima di questo cambio, il cui portraitCrop
-  // e' ancora nella vecchia forma {centerX,centerY,zoom}.
+  // Stesso modello {x,y,scale} per tutti e tre i tipi (vedi tab
+  // "Immagine"): si legge sempre il crop reale dell'entita'.
+  // normalizeImageCrop gestisce le entita' create prima di questo cambio,
+  // il cui portraitCrop e' ancora nella vecchia forma
+  // {centerX,centerY,zoom}.
   const normalizedPortraitCrop: ImageCrop = normalizeImageCrop(entity?.portraitCrop);
   const tokenPreviewCrop: ImageCrop = normalizedPortraitCrop;
 
@@ -468,6 +475,7 @@ export function EntityDetailView({
           <div className="mb-4 flex items-start gap-4">
             <DraggablePortrait
               url={portraitUrl}
+              crop={normalizedPortraitCrop}
               name={entity.name}
               fallbackIcon={fallbackIcon}
               size={portraitSize}

@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { EyeOff } from 'lucide-react';
 import { TokenShapePreview } from '../../shared/TokenShapePreview';
 import { TOKEN_SHAPE_SPECS, getTokenStrokeWidth } from '../../shared/tokenShapes';
+import { PORTRAIT_EDITOR_BOX_SIZE } from '../../gm/monsters/monstersConstants';
+import type { ImageCrop } from '../../gm/monsters/monstersTypes';
 import {
   DEFAULT_TOKEN_COLOR,
   DEFAULT_TOKEN_BACKGROUND_COLOR,
@@ -31,6 +33,7 @@ export function DraggablePortrait({
   tokenBorderThickness,
   tokenBorderVisible,
   tokenBorderLabel,
+  crop,
 }: {
   url?: string;
   /** Nome dell'entita', solo per il testo alternativo dell'immagine. */
@@ -47,6 +50,13 @@ export function DraggablePortrait({
   tokenBorderThickness?: TokenBorderThickness | null;
   tokenBorderVisible?: boolean | null;
   tokenBorderLabel?: string | null;
+  /** Crop live (pan/zoom) da applicare al posto della semplice object-cover
+   *  statica - passato solo da EntityDetailView.tsx per l'entita'
+   *  correntemente in editing, cosi' l'header riflette istantaneamente
+   *  quanto mostrato nel tab "Immagine" invece di aspettare il bake
+   *  asincrono (portraitCroppedImageUrl). Se assente, comportamento
+   *  identico a prima (object-cover statico) per tutti gli altri usi. */
+  crop?: ImageCrop | null;
 }) {
   const dragGhostRef = useRef<HTMLDivElement | null>(null);
   const clipIdBase = useId().replace(/:/g, '');
@@ -58,6 +68,12 @@ export function DraggablePortrait({
   const borderVisible = tokenBorderVisible ?? DEFAULT_TOKEN_BORDER_VISIBLE;
   const geometry = TOKEN_SHAPE_SPECS[style].geometry;
   const strokeWidth = getTokenStrokeWidth(style, thickness);
+
+  // crop.x/y sono espressi in pixel del box di riferimento dell'editor
+  // (PORTRAIT_EDITOR_BOX_SIZE, 166px): riproporzionati qui alla dimensione
+  // reale di questa istanza, stessa tecnica gia' usata per PortraitImage
+  // dei Mostri nelle varie taglie di anteprima.
+  const cropRatio = size / PORTRAIT_EDITOR_BOX_SIZE;
 
   return (
     <div
@@ -74,7 +90,20 @@ export function DraggablePortrait({
       style={{ width: size, height: size }}
     >
       {url ? (
-        <img src={url} alt={name} className="h-full w-full object-cover" draggable={false} />
+        <img
+          src={url}
+          alt={name}
+          className="h-full w-full object-cover"
+          draggable={false}
+          style={
+            crop
+              ? {
+                  transform: `translate(${crop.x * cropRatio}px, ${crop.y * cropRatio}px) scale(${crop.scale})`,
+                  transformOrigin: 'center center'
+                }
+              : undefined
+          }
+        />
       ) : (
         <div className="flex h-full w-full items-center justify-center">{fallbackIcon}</div>
       )}
