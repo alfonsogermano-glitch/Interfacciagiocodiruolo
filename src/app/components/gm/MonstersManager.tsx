@@ -56,7 +56,7 @@ import {
   mergeEnvironmentReferencesWithStoredDetails,
   readStoredEnvironmentSummaries
 } from './monsters/monstersUtils';
-import { PortraitImage, ImageEditor, MonsterPortraitFrame, FrameTransformStepper, MonsterCoverFrame } from './monsters/MonsterImageComponents';
+import { PortraitImage, ImageEditor, PortraitCropFrame, FrameTransformStepper, MonsterCoverFrame } from './monsters/MonsterImageComponents';
 import { FreschezzaMaxEditor, FreschezzaBoxesEditor } from './monsters/MonsterFreschezzaComponents';
 import { CatalogSelectionBlock, CustomEntriesEditor, Badge, Info, InfoBlock, TagsBlock } from './monsters/MonsterCatalogComponents';
 import { isSupabaseConfigured, supabase } from '../../../lib/supabaseClient';
@@ -1804,7 +1804,7 @@ const rotateCoverImageDegrees = (delta: number) => {
 </div>
 
     {currentMonster.portraitImageUrl && (
-      <MonsterPortraitFrame
+      <PortraitCropFrame
       imageUrl={currentMonster.portraitImageUrl}
       name={currentMonster.name}
       crop={currentMonster.portraitCrop ?? DEFAULT_CROP}

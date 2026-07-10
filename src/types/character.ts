@@ -2,6 +2,7 @@
 
 import type { EquipmentLocation, EquipmentType } from './equipment';
 import type { TokenBorderStyle, TokenBorderThickness } from './tokenStyle';
+import type { ImageCrop } from '../app/components/gm/monsters/monstersTypes';
 
 export type Ambito = 'Fisico' | 'Scuola' | 'Carisma' | 'Strada';
 
@@ -104,12 +105,6 @@ export interface Trait {
   benefit: string;
 }
 
-export interface PortraitCrop {
-  centerX: number;
-  centerY: number;
-  zoom: number;
-}
-
 export interface Character {
   id: string;
   name: string;
@@ -164,7 +159,14 @@ export interface Character {
   coverPositionY?: number;
   coverScale?: number;
 
-  portraitCrop?: PortraitCrop;
+  // Stesso modello {x,y,scale} di Mostro (vedi monstersTypes.ts ImageCrop):
+  // sostituisce la vecchia forma {centerX,centerY,zoom} mai realmente
+  // applicata a un rendering, ora e' la sorgente di verita' del tab
+  // "Immagine" (pan/zoom live). portraitCroppedImageUrl sopra resta una
+  // cache "cotta" derivata automaticamente da questo crop, per i
+  // consumer che si aspettano un'immagine gia' pronta.
+  portraitCrop?: ImageCrop;
+  portraitRotationDegrees?: number;
 
   // Token mappa (Token Studio) - dedicati, separati dal cerchio portrait
   // sopra: il token sulla mappa e il cerchio nella scheda sono
@@ -238,7 +240,8 @@ export interface CharacterSheetData {
   coverPositionY?: number;
   coverScale?: number;
 
-  portraitCrop?: PortraitCrop;
+  portraitCrop?: ImageCrop;
+  portraitRotationDegrees?: number;
 
   tutore?: string;
   tratti?: Trait[];

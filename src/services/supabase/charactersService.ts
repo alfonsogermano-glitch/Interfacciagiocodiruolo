@@ -105,6 +105,7 @@ function mapRowToCharacter(row: any) {
     coverPositionY: row.sheet_data?.coverPositionY,
     coverScale: row.sheet_data?.coverScale,
     portraitCrop: row.portrait_crop ?? undefined,
+    portraitRotationDegrees: row.sheet_data?.portraitRotationDegrees ?? 0,
     tutore: row.sheet_data?.tutore || '',
     tratti: row.sheet_data?.tratti || [],
     tabOrder: row.sheet_data?.tabOrder || [],
@@ -182,7 +183,8 @@ export async function saveCharacter(
     tratti: character.tratti,
     tabOrder: (character as any).tabOrder || [],
     equipment: character.equipment,
-    tipoSpeciale: character.tipoSpeciale
+    tipoSpeciale: character.tipoSpeciale,
+    portraitRotationDegrees: character.portraitRotationDegrees ?? 0
   };
 
   const { error } = await supabase
@@ -307,7 +309,8 @@ export async function saveCharacterAsGm(
     tutore: character.tutore,
     tratti: character.tratti,
     equipment: character.equipment,
-    tipoSpeciale: character.tipoSpeciale
+    tipoSpeciale: character.tipoSpeciale,
+    portraitRotationDegrees: character.portraitRotationDegrees ?? 0
   };
 
   const res = await fetch(`${serverBase}/campaigns/${campaignId}/characters/${characterId}`, {

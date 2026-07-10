@@ -9,6 +9,7 @@ import {
 import type { D20Stats } from '../../app/components/ruleset/D20StatBlock';
 import { isRulesetCompatible, type RulesetId } from '../../app/campaigns/campaignTypes';
 import type { TokenBorderStyle, TokenBorderThickness } from '../../types/tokenStyle';
+import type { ImageCrop } from '../../app/components/gm/monsters/monstersTypes';
 
 /**
  * Servizio completo per gestire TUTTE le entità del gioco
@@ -234,11 +235,9 @@ export interface NPC {
 
   portraitImageUrl?: string;
   portraitCroppedImageUrl?: string;
-  portraitCrop?: {
-    centerX: number;
-    centerY: number;
-    zoom: number;
-  };
+  // Stesso modello {x,y,scale} di Mostro: vedi nota in types/character.ts.
+  portraitCrop?: ImageCrop;
+  portraitRotationDegrees?: number;
 
   mapLocationId?: string | null;
   customLocationName?: string;

@@ -11,6 +11,7 @@ import { useRuleset } from '../../campaigns/RulesetContext';
 import { RulesetBadge } from '../../campaigns/RulesetGate';
 import { D20StatBlock, D20StatSummary, DEFAULT_D20_STATS, type D20Stats } from '../ruleset/D20StatBlock';
 import { FreschezzaBoxesEditor } from '../shared/FreschezzaBoxesEditor';
+import type { ImageCrop } from './monsters/monstersTypes';
 
 type EnvironmentSummary = {
   id: string;
@@ -34,11 +35,8 @@ interface NPC {
 
   portraitImageUrl?: string;
   portraitCroppedImageUrl?: string;
-  portraitCrop?: {
-    centerX: number;
-    centerY: number;
-    zoom: number;
-  };
+  portraitCrop?: ImageCrop;
+  portraitRotationDegrees?: number;
 
   mapLocationId?: string | null;
   customLocationName?: string;
@@ -245,7 +243,8 @@ export function NPCManager({
     location: '',
     portraitImageUrl: '',
     portraitCroppedImageUrl: '',
-    portraitCrop: { centerX: 0.5, centerY: 0.5, zoom: 1 },
+    portraitCrop: { x: 0, y: 0, scale: 1 },
+    portraitRotationDegrees: 0,
     mapLocationId: null,
     customLocationName: '',
     freschezza: null,

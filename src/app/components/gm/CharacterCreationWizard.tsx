@@ -278,11 +278,11 @@
   const [coverPositionY, setCoverPositionY] = useState(initialCharacter?.coverPositionY ?? 0);
   const [coverScale, setCoverScale] = useState(initialCharacter?.coverScale ?? 1);
   
-  const [portraitCrop, setPortraitCrop] = useState(() => ({
-  centerX: initialCharacter?.portraitCrop?.centerX ?? 0.5,
-  centerY: initialCharacter?.portraitCrop?.centerY ?? 0.5,
-  zoom: initialCharacter?.portraitCrop?.zoom ?? 1
-  }));
+  // Mai realmente pilotato da questo wizard (nessun editor pan/zoom qui):
+  // il ritaglio vero si fa nel tab "Immagine" dopo la creazione. Qui si
+  // preserva solo un eventuale crop gia' impostato in modifica, o
+  // l'identita' per un personaggio nuovo.
+  const [portraitCrop] = useState(() => initialCharacter?.portraitCrop ?? { x: 0, y: 0, scale: 1 });
   
   const [showPortraitCrop, setShowPortraitCrop] = useState(false);
   const [showCoverCrop, setShowCoverCrop] = useState(false);

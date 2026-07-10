@@ -1,13 +1,13 @@
 import { FileText, Image as ImageIcon, Circle } from 'lucide-react';
 
-export type EntityDetailRailSection = 'scheda' | 'token';
+export type EntityDetailRailSection = 'scheda' | 'immagine' | 'token';
 
 // Rail verticale "Scheda/Immagine/Token" per EntityDetailView. Estratta in un
 // componente a se' perche' deve poter comparire in due punti diversi:
 // - inline dentro EntityDetailView (uso in SessionCharactersPanel.tsx)
 // - nello slot rightSidebar di AppShell, ancorata al bordo schermo (uso da
 //   MyCharactersPage.tsx tramite il rightSidebarContext sollevato in App.tsx)
-// "Scheda" e ora anche "Token" sono funzionanti; "Immagine" resta segnaposto.
+// Tutte e tre le sezioni sono funzionanti.
 export function EntityDetailRail({
   activeSection = 'scheda',
   onSectionChange,
@@ -29,10 +29,18 @@ export function EntityDetailRail({
         <FileText className="h-[18px] w-[18px]" />
         Scheda
       </button>
-      <div className="flex w-full cursor-default flex-col items-center gap-1 rounded-lg px-1 py-2 text-center text-[11px] text-[var(--dash-muted)] opacity-40">
+      <button
+        type="button"
+        onClick={() => onSectionChange?.('immagine')}
+        className={`flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2 text-center text-[11px] transition-colors ${
+          activeSection === 'immagine'
+            ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
+            : 'text-[var(--dash-muted)] hover:text-[var(--dash-text)]'
+        }`}
+      >
         <ImageIcon className="h-[18px] w-[18px]" />
         Immagine
-      </div>
+      </button>
       <button
         type="button"
         onClick={() => onSectionChange?.('token')}
