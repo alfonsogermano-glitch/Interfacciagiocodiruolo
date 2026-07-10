@@ -10,7 +10,7 @@ interface EntityCardProps {
   photoUrl?: string | null;
   onClick?: () => void;
   hiddenBadge?: boolean;
-  /** Badge extra accanto al subtitle (es. RulesetTag). */
+  /** Badge extra dopo la descrizione, accanto alla campagna (es. RulesetTag). */
   badge?: ReactNode;
   cornerAction?: ReactNode;
   children?: ReactNode;
@@ -86,16 +86,20 @@ export function EntityCard({
           <div className="min-w-0 max-w-xs shrink-0">
             <h3 className="truncate font-serif text-sm font-semibold text-[var(--dash-text-strong)]">{name || 'Senza nome'}</h3>
             {subtitle && <p className="truncate text-xs text-[var(--dash-muted)]">{subtitle}</p>}
-            {badge && <div className="mt-1">{badge}</div>}
           </div>
 
           {secondaryText && (
             <p className="hidden min-w-0 max-w-md flex-1 truncate text-xs text-[var(--dash-muted)] lg:block">{secondaryText}</p>
           )}
 
-          {children && (
-            <div onClick={(e) => e.stopPropagation()} className="shrink-0">
-              {children}
+          {(badge || children) && (
+            <div className="flex shrink-0 items-center gap-2">
+              {badge}
+              {children && (
+                <div onClick={(e) => e.stopPropagation()}>
+                  {children}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -155,13 +159,17 @@ export function EntityCard({
       <div className="flex min-w-0 flex-1 flex-col pt-1.5">
         <h3 className="truncate font-serif text-base font-semibold text-[var(--dash-text-strong)]">{name || 'Senza nome'}</h3>
         {subtitle && <p className="truncate text-sm text-[var(--dash-muted)]">{subtitle}</p>}
-        {badge && <div className="mt-1">{badge}</div>}
         {secondaryText && (
           <p className="mt-1 line-clamp-2 text-xs text-[var(--dash-muted)]">{secondaryText}</p>
         )}
-        {children && (
-          <div onClick={e => e.stopPropagation()} className="mt-auto pt-2">
-            {children}
+        {(badge || children) && (
+          <div className="mt-auto flex flex-col gap-1.5 pt-2">
+            {badge}
+            {children && (
+              <div onClick={e => e.stopPropagation()}>
+                {children}
+              </div>
+            )}
           </div>
         )}
       </div>
