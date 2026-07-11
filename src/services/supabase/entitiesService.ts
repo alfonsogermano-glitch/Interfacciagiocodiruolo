@@ -232,9 +232,16 @@ export interface NPC {
   secrets: string;
   location: string;
 
-  // Gia' il risultato finale del ritaglio (ImageCropUploadModal nel tab
-  // "Immagine"): nessun campo separato per crop/rotazione da mantenere.
+  // Risultato finale del ritaglio (ImageCropCore nel tab "Immagine").
   portraitImageUrl?: string;
+  // Foto intera pre-ritaglio (ridimensionata): riapre l'editor da qui
+  // invece che dall'ultimo quadrato salvato. Assente per dati precedenti
+  // a questo campo - fallback su portraitImageUrl.
+  portraitSourceImageUrl?: string;
+  // Ultima area di ritaglio confermata (percentuali, formato nativo di
+  // react-easy-crop: {x, y, width, height}) - riporta il cropper alla
+  // stessa posizione/zoom invece che a centro/zoom di default.
+  portraitCropArea?: { x: number; y: number; width: number; height: number } | null;
 
   mapLocationId?: string | null;
   customLocationName?: string;
@@ -439,6 +446,14 @@ export interface Monster {
   description: string;
 
   portraitImageUrl?: string;
+  // Foto intera pre-ritaglio (ridimensionata): riapre l'editor da qui
+  // invece che dall'ultimo quadrato salvato. Assente per dati precedenti
+  // a questo campo - fallback su portraitImageUrl.
+  portraitSourceImageUrl?: string;
+  // Ultima area di ritaglio confermata (percentuali, formato nativo di
+  // react-easy-crop: {x, y, width, height}) - riporta il cropper alla
+  // stessa posizione/zoom invece che a centro/zoom di default.
+  portraitCropArea?: { x: number; y: number; width: number; height: number } | null;
   coverImageUrl?: string;
 
   portraitCrop?: {

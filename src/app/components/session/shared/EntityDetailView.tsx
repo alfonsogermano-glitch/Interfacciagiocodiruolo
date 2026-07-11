@@ -1438,8 +1438,10 @@ export function EntityDetailView({
             entityName={entity.name}
             bucket={portraitBucket}
             imageUrl={entity.portraitImageUrl}
+            sourceImageUrl={entity.portraitSourceImageUrl}
+            cropArea={entity.portraitCropArea}
             canEdit={canEdit}
-            onImageUrlChange={url => onUpdate({ ...entity, portraitImageUrl: url })}
+            onPortraitChange={patch => onUpdate({ ...entity, ...patch })}
           />
         )}
 

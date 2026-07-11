@@ -151,10 +151,18 @@ export interface Character {
   legameDescription?: string;
 
   coverImageUrl?: string;
-  // Gia' il risultato finale del ritaglio (ImageCropUploadModal nel tab
-  // "Immagine"): nessun campo separato per una versione "grezza" vs
-  // "cotta", nessun crop {x,y,scale} da mantenere in sincronia altrove.
+  // Risultato finale del ritaglio (ImageCropCore nel tab "Immagine"),
+  // mostrato in card/griglia/token. Nessun crop {x,y,scale} da mantenere
+  // in sincronia altrove.
   portraitImageUrl?: string;
+  // Foto intera pre-ritaglio (ridimensionata, non il file grezzo): riapre
+  // l'editor da qui invece che dall'ultimo quadrato salvato. Assente per
+  // dati precedenti a questo campo - fallback su portraitImageUrl.
+  portraitSourceImageUrl?: string;
+  // Ultima area di ritaglio confermata (percentuali, formato nativo di
+  // react-easy-crop: {x, y, width, height}) - riporta il cropper alla
+  // stessa posizione/zoom invece che a centro/zoom di default.
+  portraitCropArea?: { x: number; y: number; width: number; height: number } | null;
 
   coverPositionX?: number;
   coverPositionY?: number;
@@ -226,6 +234,8 @@ export interface CharacterSheetData {
 
   coverImageUrl?: string;
   portraitImageUrl?: string;
+  portraitSourceImageUrl?: string;
+  portraitCropArea?: { x: number; y: number; width: number; height: number } | null;
 
   coverPositionX?: number;
   coverPositionY?: number;

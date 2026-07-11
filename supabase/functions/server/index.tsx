@@ -1045,7 +1045,7 @@ app.put("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c)
 
   const {
     sheetData, name, style, viaggio, portraitUrl, backgroundUrl,
-    portraitImageUrl, portraitCroppedImageUrl, portraitCrop,
+    portraitImageUrl, portraitSourceImageUrl, portraitCropArea,
     tokenColor, tokenBackgroundColor, tokenBorderStyle,
     tokenBorderThickness, tokenBorderLabel, tokenBorderVisible,
   } = await c.req.json();
@@ -1059,8 +1059,8 @@ app.put("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c)
       portrait_url: portraitUrl ?? null,
       background_url: backgroundUrl ?? null,
       portrait_image_url: portraitImageUrl ?? null,
-      portrait_cropped_image_url: portraitCroppedImageUrl ?? null,
-      portrait_crop: portraitCrop ?? null,
+      portrait_source_image_url: portraitSourceImageUrl ?? null,
+      portrait_crop_area: portraitCropArea ?? null,
       token_color: tokenColor ?? null,
       token_background_color: tokenBackgroundColor ?? null,
       token_border_style: tokenBorderStyle ?? null,
