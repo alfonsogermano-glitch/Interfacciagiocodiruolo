@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Loader2, Upload, RotateCcw, Trash2 } from 'lucide-react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { supabase } from '../../auth/AuthContext';
+import { CIRCLE_RADIUS } from './tokenShapes';
 
 export interface ImageCropCoreProps {
   bucket: string;
@@ -299,7 +300,11 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
               <div
                 style={{
                   position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                  width: cropSize.width, height: cropSize.height, borderRadius: '50%',
+                  // Diametro = 2*CIRCLE_RADIUS del quadrato di ritaglio, non il
+                  // quadrato pieno: deve rispecchiare esattamente il cerchio
+                  // circle-filled del Token Studio (tokenShapes.ts), che lascia
+                  // margine per lo strokeWidth del bordo - non bordo a bordo.
+                  width: cropSize.width * (CIRCLE_RADIUS * 2), height: cropSize.height * (CIRCLE_RADIUS * 2), borderRadius: '50%',
                   border: '2px dashed rgba(255,255,255,0.65)', pointerEvents: 'none',
                 }}
               />

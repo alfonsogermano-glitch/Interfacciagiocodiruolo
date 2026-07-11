@@ -76,7 +76,11 @@ function scallopedPathD(bumps: number, radius: number, cx = 0.5, cy = 0.5): stri
   return `${d}Z`;
 }
 
-const CIRCLE_RADIUS = 0.44;
+// Esportato: riusato da ImageCropCore per dimensionare il cerchio-guida
+// durante il ritaglio, cosi' promette esattamente cio' che il token
+// circle-filled mostrera' davvero (nessuna costante duplicata da tenere
+// in sincronia a mano).
+export const CIRCLE_RADIUS = 0.44;
 const SQUARE_SIZE = 0.8;
 const SQUARE_CORNER_RADIUS = 0.06;
 
