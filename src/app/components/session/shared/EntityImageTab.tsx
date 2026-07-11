@@ -42,7 +42,7 @@ export function EntityImageTab({
         <button
           type="button"
           onClick={() => setShowCropModal(true)}
-          className="relative flex h-40 w-40 items-center justify-center overflow-hidden rounded-full border-2 border-[var(--dash-accent)] bg-[var(--dash-input)]"
+          className="relative flex h-40 w-40 items-center justify-center overflow-hidden rounded-md border-2 border-[var(--dash-accent)] bg-[var(--dash-input)]"
         >
           {imageUrl ? (
             <img src={imageUrl} alt={`Immagine di ${entityName}`} className="h-full w-full object-cover" />
@@ -57,8 +57,9 @@ export function EntityImageTab({
         <ImageCropUploadModal
           bucket={bucket}
           storagePath={storagePath}
-          cropShape="round"
+          cropShape="rect"
           aspect={1}
+          showCircleGuide
           uploadLabel={`Seleziona l'immagine di ${entityName}`}
           existingImageUrl={imageUrl ?? undefined}
           onUploaded={url => {

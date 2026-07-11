@@ -10,6 +10,10 @@ interface ImageCropUploadModalProps {
   aspect?: number;
   uploadLabel?: string;
   existingImageUrl?: string;
+  /** Guida visiva non interattiva: cerchio inscritto nel riquadro di ritaglio
+   *  (che resta quadrato), per allineare il soggetto anche per il Token -
+   *  non influisce sul crop salvato. */
+  showCircleGuide?: boolean;
   onUploaded: (publicUrl: string) => void;
   onRemove?: () => void;
   onClose: () => void;
@@ -38,13 +42,14 @@ async function getCroppedBlob(imageSrc: string, area: Area): Promise<Blob> {
   });
 }
 
-export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', aspect = 1, uploadLabel, existingImageUrl, onUploaded, onRemove, onClose }: ImageCropUploadModalProps) {
+export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', aspect = 1, uploadLabel, existingImageUrl, showCircleGuide, onUploaded, onRemove, onClose }: ImageCropUploadModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cropAreaRef = useRef<HTMLDivElement | null>(null);
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(existingImageUrl ?? null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [cropSize, setCropSize] = useState<{ width: number; height: number } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -175,7 +180,17 @@ export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', 
                 image={rawImageSrc} crop={crop} zoom={zoom} aspect={aspect} cropShape={cropShape} showGrid={false}
                 zoomWithScroll={false}
                 onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={onCropComplete}
+                onCropSizeChange={setCropSize}
               />
+              {showCircleGuide && cropSize && (
+                <div
+                  style={{
+                    position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                    width: cropSize.width, height: cropSize.height, borderRadius: '50%',
+                    border: '2px dashed rgba(255,255,255,0.65)', pointerEvents: 'none',
+                  }}
+                />
+              )}
             </div>
             <input type="range" min={ZOOM_MIN} max={ZOOM_MAX} step={0.05} value={zoom}
               onChange={e => setZoom(Number(e.target.value))}
