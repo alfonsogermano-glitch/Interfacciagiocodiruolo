@@ -439,7 +439,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         subtitle={styleViaggio}
         badge={<RulesetTag rulesetId={char.ruleset ?? 'hsc'} />}
         secondaryText={char.description}
-        photoUrl={char.portraitImageUrl || user?.avatarUrl}
+        photoUrl={char.portraitImageUrl}
         tokenColor={char.tokenColor}
         tokenBackgroundColor={char.tokenBackgroundColor}
         tokenBorderStyle={char.tokenBorderStyle}
