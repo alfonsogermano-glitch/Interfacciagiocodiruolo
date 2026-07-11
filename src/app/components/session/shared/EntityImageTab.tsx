@@ -60,6 +60,7 @@ export function EntityImageTab({
           cropShape="round"
           aspect={1}
           uploadLabel={`Seleziona l'immagine di ${entityName}`}
+          existingImageUrl={imageUrl ?? undefined}
           onUploaded={url => {
             onImageUrlChange(url);
             setShowCropModal(false);

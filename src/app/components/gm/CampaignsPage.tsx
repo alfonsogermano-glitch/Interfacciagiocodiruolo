@@ -409,6 +409,7 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
           cropShape="rect"
           aspect={1}
           uploadLabel="Seleziona l'immagine del Logo Campagna"
+          existingImageUrl={ownedCampaigns.find(c => c.id === logoUploadFor)?.logoUrl ?? undefined}
           onUploaded={(url) => handleLogoUploaded(logoUploadFor, url)}
           onRemove={ownedCampaigns.find(c => c.id === logoUploadFor)?.logoUrl ? () => handleLogoRemoved(logoUploadFor) : undefined}
           onClose={() => setLogoUploadFor(null)}

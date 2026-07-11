@@ -9,6 +9,7 @@ interface ImageCropUploadModalProps {
   cropShape?: 'round' | 'rect';
   aspect?: number;
   uploadLabel?: string;
+  existingImageUrl?: string;
   onUploaded: (publicUrl: string) => void;
   onRemove?: () => void;
   onClose: () => void;
@@ -37,10 +38,10 @@ async function getCroppedBlob(imageSrc: string, area: Area): Promise<Blob> {
   });
 }
 
-export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', aspect = 1, uploadLabel, onUploaded, onRemove, onClose }: ImageCropUploadModalProps) {
+export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', aspect = 1, uploadLabel, existingImageUrl, onUploaded, onRemove, onClose }: ImageCropUploadModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cropAreaRef = useRef<HTMLDivElement | null>(null);
-  const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
+  const [rawImageSrc, setRawImageSrc] = useState<string | null>(existingImageUrl ?? null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
@@ -66,6 +67,20 @@ export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', 
     setRawImageSrc(URL.createObjectURL(file));
     setCrop({ x: 0, y: 0 });
     setZoom(1);
+  };
+
+  const handleCancelCrop = () => {
+    if (existingImageUrl) {
+      if (rawImageSrc !== existingImageUrl) {
+        setRawImageSrc(existingImageUrl);
+        setCrop({ x: 0, y: 0 });
+        setZoom(1);
+      } else {
+        onClose();
+      }
+      return;
+    }
+    setRawImageSrc(null);
   };
 
   useEffect(() => {
@@ -129,6 +144,8 @@ export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', 
           {rawImageSrc ? 'Ritaglia immagine' : (uploadLabel ?? 'Carica immagine')}
         </h2>
 
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
+
         {!rawImageSrc ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '1.5rem 0' }}>
             <button type="button" onClick={() => fileInputRef.current?.click()}
@@ -145,7 +162,6 @@ export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', 
                 <Trash2 size={14} /> Elimina logo
               </button>
             )}
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
             {error && <p style={{ color: 'var(--dash-danger-text)', fontSize: '0.8rem' }}>{error}</p>}
           </div>
         ) : (
@@ -165,10 +181,29 @@ export function ImageCropUploadModal({ bucket, storagePath, cropShape = 'rect', 
               onChange={e => setZoom(Number(e.target.value))}
               style={{ width: '100%', marginTop: '1.25rem', accentColor: 'var(--dash-accent)' }} />
 
+            <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.75rem' }}>
+              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                         padding: '0.5rem', borderRadius: 999, backgroundColor: 'transparent',
+                         border: '1px solid var(--dash-border)', color: 'var(--dash-muted)', fontSize: '0.8rem',
+                         cursor: isUploading ? 'not-allowed' : 'pointer' }}>
+                <Upload size={13} /> Carica nuova immagine
+              </button>
+              {onRemove && (
+                <button type="button" onClick={onRemove} disabled={isUploading}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                           padding: '0.5rem 0.9rem', borderRadius: 999, backgroundColor: 'transparent',
+                           border: '1px solid var(--dash-danger-border)', color: 'var(--dash-danger-text)', fontSize: '0.8rem',
+                           cursor: isUploading ? 'not-allowed' : 'pointer' }}>
+                  <Trash2 size={13} /> Elimina
+                </button>
+              )}
+            </div>
+
             {error && <p style={{ color: 'var(--dash-danger-text)', fontSize: '0.8rem', marginTop: '0.6rem' }}>{error}</p>}
 
             <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1.25rem' }}>
-              <button type="button" onClick={() => setRawImageSrc(null)} disabled={isUploading}
+              <button type="button" onClick={handleCancelCrop} disabled={isUploading}
                 style={{ flex: 1, padding: '0.6rem', borderRadius: 999, backgroundColor: 'transparent',
                          border: '1px solid var(--dash-border)', color: 'var(--dash-muted)', fontSize: '0.875rem', cursor: 'pointer' }}>
                 Annulla
