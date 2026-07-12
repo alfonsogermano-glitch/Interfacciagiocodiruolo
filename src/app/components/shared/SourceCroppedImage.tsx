@@ -66,6 +66,7 @@ export function SourceCroppedImage({
   className = '',
   style,
   draggable = false,
+  loading,
 }: {
   sourceUrl: string;
   cropArea: CropAreaPercent;
@@ -73,10 +74,11 @@ export function SourceCroppedImage({
   className?: string;
   style?: CSSProperties;
   draggable?: boolean;
+  loading?: 'lazy' | 'eager';
 }) {
   return (
     <div className={`relative overflow-hidden ${className}`} style={style}>
-      <img src={sourceUrl} alt={alt} draggable={draggable} className="select-none" style={getCropRectStyle(cropArea)} />
+      <img src={sourceUrl} alt={alt} draggable={draggable} loading={loading} className="select-none" style={getCropRectStyle(cropArea)} />
     </div>
   );
 }

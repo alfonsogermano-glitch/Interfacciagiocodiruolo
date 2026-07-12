@@ -59,6 +59,7 @@ import {
 import { PortraitImage, ImageEditor, PortraitCropFrame, FrameTransformStepper, MonsterCoverFrame } from './monsters/MonsterImageComponents';
 import { FreschezzaMaxEditor, FreschezzaBoxesEditor } from './monsters/MonsterFreschezzaComponents';
 import { CatalogSelectionBlock, CustomEntriesEditor, Badge, Info, InfoBlock, TagsBlock } from './monsters/MonsterCatalogComponents';
+import { EntityPortraitImage } from '../shared/EntityPortraitImage';
 import { isSupabaseConfigured, supabase } from '../../../lib/supabaseClient';
 import { generateUUID } from '../../../lib/uuid';
 import { useAuth } from '../../auth/AuthContext';
@@ -1213,6 +1214,13 @@ const rotateCoverImageDegrees = (delta: number) => {
                 isEditing && editingMonster?.id === monster.id
                   ? editingMonster
                   : monster;
+              // coverImageUrl (illustrazione 16:9, MonsterCoverFrame - fuori
+              // dall'ambito della raccolta immagini) ha sempre priorita' su
+              // portraitImageUrl, come oggi: sourceImageUrl/cropArea del
+              // portrait valgono solo quando non c'e' una cover a coprirli.
+              const displayVisualUrl = displayMonster.coverImageUrl || displayMonster.portraitImageUrl;
+              const displayPortraitSourceUrl = displayMonster.coverImageUrl ? undefined : displayMonster.portraitSourceImageUrl;
+              const displayPortraitCropArea = displayMonster.coverImageUrl ? undefined : displayMonster.portraitCropArea;
 
               return (
               <div
@@ -1234,11 +1242,13 @@ const rotateCoverImageDegrees = (delta: number) => {
               >
                 <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(8,8,12,0.99)_0%,rgba(8,8,12,0.94)_58%,rgba(8,8,12,0.78)_100%)]" />
                 <div className="pointer-events-none absolute inset-y-0 right-0 w-[46%] opacity-[0.06]">
-                  {displayMonster.coverImageUrl || displayMonster.portraitImageUrl ? (
-                    <img
-                      src={displayMonster.coverImageUrl || displayMonster.portraitImageUrl}
+                  {displayVisualUrl || (displayPortraitSourceUrl && displayPortraitCropArea) ? (
+                    <EntityPortraitImage
+                      portraitImageUrl={displayVisualUrl}
+                      portraitSourceImageUrl={displayPortraitSourceUrl}
+                      portraitCropArea={displayPortraitCropArea}
                       alt=""
-                      className="h-full w-full object-cover"
+                      style={{ width: '100%', height: '100%' }}
                       loading="lazy"
                     />
                   ) : (
@@ -1248,11 +1258,13 @@ const rotateCoverImageDegrees = (delta: number) => {
 
                 <div className="relative flex h-[156px]">
                   <div className="relative h-full w-[154px] shrink-0 overflow-hidden bg-black/30">
-                    {displayMonster.coverImageUrl || displayMonster.portraitImageUrl ? (
-                      <img
-                        src={displayMonster.coverImageUrl || displayMonster.portraitImageUrl}
+                    {displayVisualUrl || (displayPortraitSourceUrl && displayPortraitCropArea) ? (
+                      <EntityPortraitImage
+                        portraitImageUrl={displayVisualUrl}
+                        portraitSourceImageUrl={displayPortraitSourceUrl}
+                        portraitCropArea={displayPortraitCropArea}
                         alt={displayMonster.name}
-                        className="h-full w-full object-cover"
+                        style={{ width: '100%', height: '100%' }}
                         loading="lazy"
                       />
                     ) : (
@@ -1422,11 +1434,13 @@ const rotateCoverImageDegrees = (delta: number) => {
           <HorrorCard className="overflow-hidden rounded-[2rem] border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] shadow-2xl shadow-black/30">
             <div className="relative overflow-hidden">
               <div className="absolute inset-0 opacity-25">
-                {currentMonster.coverImageUrl || currentMonster.portraitImageUrl ? (
-                  <img
-                    src={currentMonster.coverImageUrl || currentMonster.portraitImageUrl}
+                {currentMonster.coverImageUrl || currentMonster.portraitImageUrl || (!currentMonster.coverImageUrl && currentMonster.portraitSourceImageUrl && currentMonster.portraitCropArea) ? (
+                  <EntityPortraitImage
+                    portraitImageUrl={currentMonster.coverImageUrl || currentMonster.portraitImageUrl}
+                    portraitSourceImageUrl={currentMonster.coverImageUrl ? undefined : currentMonster.portraitSourceImageUrl}
+                    portraitCropArea={currentMonster.coverImageUrl ? undefined : currentMonster.portraitCropArea}
                     alt=""
-                    className="h-full w-full object-cover"
+                    style={{ width: '100%', height: '100%' }}
                   />
                 ) : (
                   <div className="h-full w-full bg-[radial-gradient(circle_at_top,var(--dash-accent),transparent_35%),linear-gradient(135deg,var(--dash-surface),var(--dash-panel))]" />
@@ -1902,11 +1916,13 @@ const rotateCoverImageDegrees = (delta: number) => {
           className="relative flex h-56 w-56 items-center justify-center overflow-hidden rounded-full border-4 bg-[var(--dash-input)] shadow-2xl shadow-black/30"
           style={{ borderColor: currentMonster.portraitBorderColor ?? DEFAULT_PORTRAIT_BORDER_COLOR }}
         >
-          {currentMonster.portraitImageUrl ? (
-            <img
-              src={currentMonster.portraitImageUrl}
+          {currentMonster.portraitImageUrl || (currentMonster.portraitSourceImageUrl && currentMonster.portraitCropArea) ? (
+            <EntityPortraitImage
+              portraitImageUrl={currentMonster.portraitImageUrl}
+              portraitSourceImageUrl={currentMonster.portraitSourceImageUrl}
+              portraitCropArea={currentMonster.portraitCropArea}
               alt={currentMonster.name}
-              className="h-full w-full object-cover"
+              style={{ width: '100%', height: '100%' }}
             />
           ) : (
             <User className="h-20 w-20 text-[var(--dash-muted)]" />

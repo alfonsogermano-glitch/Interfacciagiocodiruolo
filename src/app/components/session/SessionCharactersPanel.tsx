@@ -21,6 +21,8 @@ import { useRuleset } from '../../campaigns/RulesetContext';
 import { isRulesetCompatible, type RulesetId } from '../../campaigns/campaignTypes';
 import { EntityKebabMenu } from './shared/EntityKebabMenu';
 import { EntityDetailView } from './shared/EntityDetailView';
+import { EntityPortraitImage } from '../shared/EntityPortraitImage';
+import type { CropAreaPercent } from '../shared/SourceCroppedImage';
 
 interface PlayerCharacter extends Character {
   player: string;
@@ -35,6 +37,11 @@ interface ListEntry {
   name: string;
   subtitle: string;
   portraitUrl?: string;
+  /** Sorgente+crop percentuale del registro immagini condiviso (Fase 1) -
+   *  quando presenti insieme, hanno priorita' su portraitUrl (vedi
+   *  EntityPortraitImage). Assenti = comportamento invariato. */
+  portraitSourceUrl?: string | null;
+  portraitCropArea?: CropAreaPercent | null;
   ownerProfileId?: string | null;
   hiddenFromPlayers?: boolean;
 }
@@ -467,8 +474,15 @@ export function SessionCharactersPanel() {
           canDragEntity(entry.kind, entry.ownerProfileId) ? 'cursor-grab active:cursor-grabbing' : ''
         }`}
       >
-        {entry.portraitUrl ? (
-          <img src={entry.portraitUrl} alt={entry.name} className="h-full w-full object-cover" draggable={false} />
+        {entry.portraitUrl || (entry.portraitSourceUrl && entry.portraitCropArea) ? (
+          <EntityPortraitImage
+            portraitImageUrl={entry.portraitUrl}
+            portraitSourceImageUrl={entry.portraitSourceUrl}
+            portraitCropArea={entry.portraitCropArea}
+            alt={entry.name}
+            style={{ width: '100%', height: '100%' }}
+            draggable={false}
+          />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
             {entry.kind === 'png' ? <Ghost className="h-4 w-4 text-[var(--dash-accent-2)]" /> : entry.kind === 'mostro' ? <Skull className="h-4 w-4 text-[var(--dash-accent-2)]" /> : <User className="h-4 w-4 text-[var(--dash-accent-2)]" />}
@@ -497,6 +511,8 @@ export function SessionCharactersPanel() {
             {characters.map(c => renderListItem({
               kind: 'pg', id: c.id, name: c.name, subtitle: (c as any).ownerDisplayName || c.player || c.style,
               portraitUrl: c.portraitImageUrl,
+              portraitSourceUrl: c.portraitSourceImageUrl,
+              portraitCropArea: c.portraitCropArea,
               ownerProfileId: (c as any).ownerProfileId,
             }))}
             {characters.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun personaggio.</div>}
@@ -509,6 +525,8 @@ export function SessionCharactersPanel() {
             {visibleNpcs.map(n => renderListItem({
               kind: 'png', id: n.id, name: n.name, subtitle: n.role || 'PNG',
               portraitUrl: n.portraitImageUrl,
+              portraitSourceUrl: n.portraitSourceImageUrl,
+              portraitCropArea: n.portraitCropArea,
               hiddenFromPlayers: !n.visibleToPlayers,
             }))}
             {visibleNpcs.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun PNG.</div>}
@@ -521,6 +539,8 @@ export function SessionCharactersPanel() {
             {visibleMonsters.map(m => renderListItem({
               kind: 'mostro', id: m.id, name: m.name, subtitle: 'Mostro',
               portraitUrl: m.portraitImageUrl,
+              portraitSourceUrl: m.portraitSourceImageUrl,
+              portraitCropArea: m.portraitCropArea,
               hiddenFromPlayers: !m.visibleToPlayers,
             }))}
             {visibleMonsters.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun mostro.</div>}

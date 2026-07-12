@@ -7,6 +7,7 @@ import { ConditionsPanel } from '../ConditionsPanel';
 import { TurbePanel } from '../TurbePanel';
 import { EquipmentPanel as LegacyEquipmentPanel } from '../EquipmentPanel';
 import { CharacterCreationWizard } from './CharacterCreationWizard';
+import { EntityPortraitImage } from '../shared/EntityPortraitImage';
 import type { Character } from '../../../types/character';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
 import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, deleteCharacter as deleteCharacterFromSupabase, deleteCharacterAsGm, mapRowToCharacter } from '../../../services/supabase/charactersService';
@@ -638,11 +639,13 @@ const showToast = (message: string) => {
 </div>
    <div className="absolute left-5 top-5 z-10 flex items-center gap-4">
 <div className="relative h-24 w-24 overflow-hidden rounded-full border-2 border-[var(--dash-accent)] bg-[var(--dash-input)] shadow-lg">
-  {char.portraitImageUrl ? (
-    <img
-      src={char.portraitImageUrl}
+  {char.portraitImageUrl || (char.portraitSourceImageUrl && char.portraitCropArea) ? (
+    <EntityPortraitImage
+      portraitImageUrl={char.portraitImageUrl}
+      portraitSourceImageUrl={char.portraitSourceImageUrl}
+      portraitCropArea={char.portraitCropArea}
       alt={`Ritratto di ${char.name}`}
-      className="h-full w-full object-cover select-none"
+      style={{ width: '100%', height: '100%' }}
       draggable={false}
     />
   ) : (

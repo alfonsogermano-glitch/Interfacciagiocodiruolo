@@ -29,6 +29,7 @@ export function EntityPortraitImage({
   className = '',
   style,
   draggable = false,
+  loading,
 }: {
   portraitImageUrl?: string | null;
   portraitSourceImageUrl?: string | null;
@@ -45,6 +46,7 @@ export function EntityPortraitImage({
   className?: string;
   style?: CSSProperties;
   draggable?: boolean;
+  loading?: 'lazy' | 'eager';
 }) {
   if (portraitSourceImageUrl && portraitCropArea) {
     return (
@@ -55,6 +57,7 @@ export function EntityPortraitImage({
         className={className}
         style={style}
         draggable={draggable}
+        loading={loading}
       />
     );
   }
@@ -66,6 +69,7 @@ export function EntityPortraitImage({
       src={portraitImageUrl}
       alt={alt}
       draggable={draggable}
+      loading={loading}
       className={`object-cover ${className}`}
       style={{
         ...style,
