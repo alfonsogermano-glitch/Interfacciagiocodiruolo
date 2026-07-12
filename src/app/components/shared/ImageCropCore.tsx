@@ -2,7 +2,6 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Loader2, Upload, RotateCcw, Trash2 } from 'lucide-react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { supabase } from '../../auth/AuthContext';
-import { CIRCLE_RADIUS } from './tokenShapes';
 
 export interface ImageCropCoreProps {
   bucket: string;
@@ -15,10 +14,11 @@ export interface ImageCropCoreProps {
    *  react-easy-crop) - se presente, il cropper riparte da li' invece che
    *  da centro/zoom di default quando l'editor (ri)monta. */
   existingCropArea?: Area;
-  /** Guida visiva non interattiva: cerchio inscritto nel riquadro di ritaglio
-   *  (che resta quadrato), per allineare il soggetto anche per il Token -
-   *  non influisce sul crop salvato. */
-  showCircleGuide?: boolean;
+  /** Guida visiva non interattiva: contorno del quadrato di ritaglio (che
+   *  resta comunque quadrato) - la cattura usa sempre l'intero quadrato,
+   *  indipendentemente dalla forma del Token scelta in seguito (vedi
+   *  tokenShapes.ts); non influisce sul crop salvato. */
+  showCropGuide?: boolean;
   /** Se true, oltre al ritaglio quadrato viene caricata anche una versione
    *  ridimensionata del file originale scelto (solo quando si sceglie un
    *  file nuovo, mai per un semplice re-crop) - per un ritaglio non
@@ -97,7 +97,7 @@ function deriveSourceStoragePath(path: string): string {
   return path.replace(/(\.[^./]+)$/, '-source$1');
 }
 
-export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect = 1, uploadLabel, existingImageUrl, existingCropArea, showCircleGuide, preserveSource, onUploaded, onRemove, onClose }: ImageCropCoreProps) {
+export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect = 1, uploadLabel, existingImageUrl, existingCropArea, showCropGuide, preserveSource, onUploaded, onRemove, onClose }: ImageCropCoreProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cropAreaRef = useRef<HTMLDivElement | null>(null);
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(existingImageUrl ?? null);
@@ -296,15 +296,15 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
               onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={onCropComplete}
               onCropSizeChange={setCropSize}
             />
-            {showCircleGuide && cropSize && (
+            {showCropGuide && cropSize && (
               <div
                 style={{
                   position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                  // Diametro = 2*CIRCLE_RADIUS del quadrato di ritaglio, non il
-                  // quadrato pieno: deve rispecchiare esattamente il cerchio
-                  // circle-filled del Token Studio (tokenShapes.ts), che lascia
-                  // margine per lo strokeWidth del bordo - non bordo a bordo.
-                  width: cropSize.width * (CIRCLE_RADIUS * 2), height: cropSize.height * (CIRCLE_RADIUS * 2), borderRadius: '50%',
+                  // Contorno del quadrato di ritaglio pieno (edge-to-edge): la
+                  // cattura usa sempre l'intero quadrato, la forma finale del
+                  // Token (cerchio, ottagono, ...) ritaglia solo in fase di
+                  // rendering (TokenShapePreview), non qui.
+                  width: cropSize.width, height: cropSize.height,
                   border: '2px dashed rgba(255,255,255,0.65)', pointerEvents: 'none',
                 }}
               />

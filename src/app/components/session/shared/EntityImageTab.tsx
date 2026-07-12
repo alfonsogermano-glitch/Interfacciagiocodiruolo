@@ -60,7 +60,7 @@ export function EntityImageTab({
         storagePath={storagePath}
         cropShape="rect"
         aspect={1}
-        showCircleGuide
+        showCropGuide
         preserveSource
         uploadLabel={`Seleziona l'immagine di ${entityName}`}
         existingImageUrl={sourceImageUrl ?? imageUrl ?? undefined}
