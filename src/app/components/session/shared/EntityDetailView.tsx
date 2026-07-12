@@ -444,6 +444,8 @@ export function EntityDetailView({
     );
 
   const portraitUrl = entity.portraitImageUrl;
+  const portraitSourceUrl = entity.portraitSourceImageUrl;
+  const portraitCropArea = entity.portraitCropArea;
   const portraitSize = entityType === 'character' ? 116 : 56;
 
   // Crop da riusare nell'anteprima del token: quello reale del Mostro (pan/
@@ -467,6 +469,8 @@ export function EntityDetailView({
           <div className="mb-4 flex items-start gap-4">
             <DraggablePortrait
               url={portraitUrl}
+              sourceImageUrl={portraitSourceUrl}
+              cropArea={portraitCropArea}
               name={entity.name}
               fallbackIcon={fallbackIcon}
               size={portraitSize}
@@ -1452,6 +1456,8 @@ export function EntityDetailView({
             <TokenStyleEditor
               name={entity.name}
               portraitImageUrl={portraitUrl}
+              portraitSourceImageUrl={portraitSourceUrl}
+              portraitCropArea={portraitCropArea}
               crop={tokenPreviewCrop}
               tokenColor={entity.tokenColor}
               tokenBackgroundColor={entity.tokenBackgroundColor}

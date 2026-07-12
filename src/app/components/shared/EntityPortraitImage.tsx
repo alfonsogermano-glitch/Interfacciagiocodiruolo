@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import { SourceCroppedImage, type CropAreaPercent } from './SourceCroppedImage';
+import type { ImageCrop } from '../gm/monsters/monstersTypes';
 
 /**
  * Unico punto di decisione "come mostro il portrait di un'entita'":
@@ -23,6 +24,7 @@ export function EntityPortraitImage({
   portraitImageUrl,
   portraitSourceImageUrl,
   portraitCropArea,
+  legacyCrop,
   alt = '',
   className = '',
   style,
@@ -31,6 +33,14 @@ export function EntityPortraitImage({
   portraitImageUrl?: string | null;
   portraitSourceImageUrl?: string | null;
   portraitCropArea?: CropAreaPercent | null;
+  /** Transform live translate/scale del vecchio sistema di crop Mostro
+   *  (tab "Avatar", portraitCrop - vedi monstersTypes.ts/MonsterImageComponents.tsx),
+   *  fuori dall'ambito della raccolta immagini condivisa. Applicato SOLO nel
+   *  ramo di fallback (portraitImageUrl) - il ramo sorgente+crop percentuale
+   *  lo ignora per costruzione: sono due sistemi di crop indipendenti che
+   *  non si combinano, portraitCropArea gia' definisce da solo cosa
+   *  mostrare. Assente per PG/PNG, che non hanno mai avuto questo crop live. */
+  legacyCrop?: ImageCrop;
   alt?: string;
   className?: string;
   style?: CSSProperties;
@@ -57,7 +67,13 @@ export function EntityPortraitImage({
       alt={alt}
       draggable={draggable}
       className={`object-cover ${className}`}
-      style={style}
+      style={{
+        ...style,
+        ...(legacyCrop ? {
+          transform: `translate(${legacyCrop.x}px, ${legacyCrop.y}px) scale(${legacyCrop.scale})`,
+          transformOrigin: 'center center',
+        } : {}),
+      }}
     />
   );
 }

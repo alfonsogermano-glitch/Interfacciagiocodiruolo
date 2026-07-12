@@ -2,6 +2,8 @@ import { useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { EyeOff } from 'lucide-react';
 import { TokenShapePreview } from '../../shared/TokenShapePreview';
+import { EntityPortraitImage } from '../../shared/EntityPortraitImage';
+import type { CropAreaPercent } from '../../shared/SourceCroppedImage';
 import { TOKEN_SHAPE_SPECS, getTokenStrokeWidth } from '../../shared/tokenShapes';
 import {
   DEFAULT_TOKEN_COLOR,
@@ -18,6 +20,8 @@ const IDENTITY_CROP = { x: 0, y: 0, scale: 1 };
 
 export function DraggablePortrait({
   url,
+  sourceImageUrl,
+  cropArea,
   name = '',
   fallbackIcon,
   size = 56,
@@ -33,6 +37,11 @@ export function DraggablePortrait({
   tokenBorderLabel,
 }: {
   url?: string;
+  /** Sorgente+crop percentuale del registro immagini condiviso (Fase 1) -
+   *  quando presenti insieme, hanno priorita' su url (vedi
+   *  EntityPortraitImage). Assenti = comportamento invariato. */
+  sourceImageUrl?: string | null;
+  cropArea?: CropAreaPercent | null;
   /** Nome dell'entita', solo per il testo alternativo dell'immagine. */
   name?: string;
   fallbackIcon: React.ReactNode;
@@ -73,8 +82,15 @@ export function DraggablePortrait({
       }`}
       style={{ width: size, height: size }}
     >
-      {url ? (
-        <img src={url} alt={name} className="h-full w-full object-cover" draggable={false} />
+      {url || (sourceImageUrl && cropArea) ? (
+        <EntityPortraitImage
+          portraitImageUrl={url}
+          portraitSourceImageUrl={sourceImageUrl}
+          portraitCropArea={cropArea}
+          alt={name}
+          style={{ width: '100%', height: '100%' }}
+          draggable={false}
+        />
       ) : (
         <div className="flex h-full w-full items-center justify-center">{fallbackIcon}</div>
       )}
@@ -87,6 +103,8 @@ export function DraggablePortrait({
             clipId={`${clipIdBase}-hover`}
             name={name}
             portraitImageUrl={url}
+            portraitSourceImageUrl={sourceImageUrl}
+            portraitCropArea={cropArea}
             fallbackContent={!url ? fallbackIcon : undefined}
             crop={IDENTITY_CROP}
             color={color}
@@ -114,6 +132,8 @@ export function DraggablePortrait({
             clipId={`${clipIdBase}-dragimage`}
             name={name}
             portraitImageUrl={url}
+            portraitSourceImageUrl={sourceImageUrl}
+            portraitCropArea={cropArea}
             fallbackContent={!url ? fallbackIcon : undefined}
             crop={IDENTITY_CROP}
             color={color}

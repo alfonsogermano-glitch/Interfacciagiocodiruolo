@@ -440,6 +440,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         badge={<RulesetTag rulesetId={char.ruleset ?? 'hsc'} />}
         secondaryText={char.description}
         photoUrl={char.portraitImageUrl}
+        photoSourceUrl={char.portraitSourceImageUrl}
+        photoCropArea={char.portraitCropArea}
         tokenColor={char.tokenColor}
         tokenBackgroundColor={char.tokenBackgroundColor}
         tokenBorderStyle={char.tokenBorderStyle}
@@ -908,6 +910,12 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     const photoUrl = kind === 'npc'
       ? (entity as NPC).portraitImageUrl
       : (entity as Monster).portraitImageUrl;
+    const photoSourceUrl = kind === 'npc'
+      ? (entity as NPC).portraitSourceImageUrl
+      : (entity as Monster).portraitSourceImageUrl;
+    const photoCropArea = kind === 'npc'
+      ? (entity as NPC).portraitCropArea
+      : (entity as Monster).portraitCropArea;
     const isUnassigned = !entity.campaignId;
     const assignError = entityAssignErrors[entity.id];
     const isAssigning = entityAssigningId === entity.id;
@@ -920,6 +928,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         subtitle={typeLabel}
         badge={<RulesetTag rulesetId={entity.ruleset ?? 'hsc'} />}
         photoUrl={photoUrl}
+        photoSourceUrl={photoSourceUrl}
+        photoCropArea={photoCropArea}
         hiddenBadge={!entity.visibleToPlayers}
         tokenColor={entity.tokenColor}
         tokenBackgroundColor={entity.tokenBackgroundColor}

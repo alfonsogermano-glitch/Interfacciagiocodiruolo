@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import type { ImageCrop } from '../gm/monsters/monstersTypes';
 import { MARGIN_SCALE, type TokenShapeGeometry } from './tokenShapes';
+import { EntityPortraitImage } from './EntityPortraitImage';
+import type { CropAreaPercent } from './SourceCroppedImage';
 
 /** Renderizza la geometria di una forma token come figlio SVG (circle/rect/
  *  path), riusata sia per il contorno visibile sia per il clip-path -
@@ -38,6 +40,8 @@ export function TokenShapePreview({
   clipId,
   name,
   portraitImageUrl,
+  portraitSourceImageUrl,
+  portraitCropArea,
   fallbackContent,
   crop,
   color,
@@ -52,8 +56,19 @@ export function TokenShapePreview({
   clipId: string;
   name: string;
   portraitImageUrl?: string | null;
+  /** Sorgente+crop percentuale del registro immagini condiviso (Fase 1) -
+   *  quando presenti insieme, hanno priorita' su portraitImageUrl (vedi
+   *  EntityPortraitImage). Assenti = comportamento invariato. */
+  portraitSourceImageUrl?: string | null;
+  portraitCropArea?: CropAreaPercent | null;
   /** Mostrato al centro della forma quando non c'e' un'immagine ritratto. */
   fallbackContent?: ReactNode;
+  /** Transform live translate/scale del vecchio sistema di crop Mostro
+   *  (tab "Avatar", portraitCrop - vedi monstersTypes.ts): applicato solo
+   *  quando si mostra portraitImageUrl come fallback, mai insieme a
+   *  portraitSourceImageUrl+portraitCropArea (sono due sistemi indipendenti
+   *  che non si combinano - vedi EntityPortraitImage). Identita' {x:0,y:0,
+   *  scale:1} per PG/PNG, che non hanno mai avuto questo crop live. */
   crop: ImageCrop;
   color: string;
   backgroundColor: string;
@@ -82,16 +97,15 @@ export function TokenShapePreview({
           viene da qui, non piu' da un raggio di forma ridotto in partenza. */}
       <div className="absolute inset-0" style={{ transform: `scale(${MARGIN_SCALE})`, transformOrigin: 'center center' }}>
         <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `url(#${clipId})`, backgroundColor }}>
-          {portraitImageUrl ? (
-            <img
-              src={portraitImageUrl}
+          {portraitImageUrl || (portraitSourceImageUrl && portraitCropArea) ? (
+            <EntityPortraitImage
+              portraitImageUrl={portraitImageUrl}
+              portraitSourceImageUrl={portraitSourceImageUrl}
+              portraitCropArea={portraitCropArea}
+              legacyCrop={crop}
               alt={`Token di ${name}`}
+              style={{ width: '100%', height: '100%' }}
               draggable={false}
-              className="h-full w-full select-none object-cover"
-              style={{
-                transform: `translate(${crop.x}px, ${crop.y}px) scale(${crop.scale})`,
-                transformOrigin: 'center center',
-              }}
             />
           ) : fallbackContent ? (
             <div className="flex h-full w-full items-center justify-center">{fallbackContent}</div>

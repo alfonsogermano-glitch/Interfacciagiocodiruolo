@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { EyeOff } from 'lucide-react';
 import { DraggablePortrait } from './DraggablePortrait';
+import type { CropAreaPercent } from '../../shared/SourceCroppedImage';
 import type { TokenBorderStyle, TokenBorderThickness } from '../../../../types/tokenStyle';
 
 interface EntityCardProps {
@@ -8,6 +9,11 @@ interface EntityCardProps {
   subtitle?: string;
   secondaryText?: string;
   photoUrl?: string | null;
+  /** Sorgente+crop percentuale del registro immagini condiviso (Fase 1) -
+   *  quando presenti insieme, hanno priorita' su photoUrl (vedi
+   *  EntityPortraitImage). Assenti = comportamento invariato. */
+  photoSourceUrl?: string | null;
+  photoCropArea?: CropAreaPercent | null;
   onClick?: () => void;
   hiddenBadge?: boolean;
   /** Badge extra dopo la descrizione, accanto alla campagna (es. RulesetTag). */
@@ -32,6 +38,8 @@ export function EntityCard({
   subtitle,
   secondaryText,
   photoUrl,
+  photoSourceUrl,
+  photoCropArea,
   onClick,
   hiddenBadge,
   badge,
@@ -56,6 +64,8 @@ export function EntityCard({
         <div className="relative shrink-0">
           <DraggablePortrait
             url={photoUrl ?? undefined}
+            sourceImageUrl={photoSourceUrl}
+            cropArea={photoCropArea}
             name={name}
             fallbackIcon={
               <img

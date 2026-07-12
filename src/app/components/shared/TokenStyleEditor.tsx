@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import type { ImageCrop } from '../gm/monsters/monstersTypes';
+import type { CropAreaPercent } from './SourceCroppedImage';
 import {
   DEFAULT_TOKEN_COLOR,
   DEFAULT_TOKEN_BACKGROUND_COLOR,
@@ -17,10 +18,20 @@ import { renderShapeSvgChild, TokenShapePreview } from './TokenShapePreview';
 interface TokenStyleEditorProps {
   name: string;
   portraitImageUrl?: string | null;
+  /** Sorgente+crop percentuale del registro immagini condiviso (Fase 1) -
+   *  quando presenti insieme, hanno priorita' su portraitImageUrl/crop (vedi
+   *  EntityPortraitImage): l'entita' potrebbe aver gia' usato il tab
+   *  "Immagine" (non distruttivo) anche se e' un Mostro con un crop live
+   *  legacy nel tab "Avatar" - il tab "Immagine" e' la fonte piu' recente e
+   *  ha precedenza. Assenti = comportamento invariato. */
+  portraitSourceImageUrl?: string | null;
+  portraitCropArea?: CropAreaPercent | null;
   /** Crop dell'immagine da riusare nell'anteprima: quello reale del Mostro
    *  (pan/zoom gia' impostato nel tab Avatar) o un crop identita'
    *  {x:0,y:0,scale:1} per PG/PNG, la cui immagine e' gia' il risultato
-   *  finale di un ritaglio fatto a monte (vedi nota in EntityDetailView). */
+   *  finale di un ritaglio fatto a monte (vedi nota in EntityDetailView).
+   *  Usato solo quando portraitSourceImageUrl/portraitCropArea sono assenti
+   *  (vedi legacyCrop in EntityPortraitImage). */
   crop: ImageCrop;
   tokenColor?: string | null;
   tokenBackgroundColor?: string | null;
@@ -41,6 +52,8 @@ interface TokenStyleEditorProps {
 export function TokenStyleEditor({
   name,
   portraitImageUrl,
+  portraitSourceImageUrl,
+  portraitCropArea,
   crop,
   tokenColor,
   tokenBackgroundColor,
@@ -78,6 +91,8 @@ export function TokenStyleEditor({
             clipId={`${clipIdBase}-preview`}
             name={name}
             portraitImageUrl={portraitImageUrl}
+            portraitSourceImageUrl={portraitSourceImageUrl}
+            portraitCropArea={portraitCropArea}
             crop={crop}
             color={color}
             backgroundColor={backgroundColor}
