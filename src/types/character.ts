@@ -163,6 +163,12 @@ export interface Character {
   // react-easy-crop: {x, y, width, height}) - riporta il cropper alla
   // stessa posizione/zoom invece che a centro/zoom di default.
   portraitCropArea?: { x: number; y: number; width: number; height: number } | null;
+  // Asset condiviso della raccolta immagini (image_assets) da cui questo
+  // personaggio segue la foto sorgente - vedi imageAssetsService.ts.
+  // Assente = immagine di proprieta' esclusiva, comportamento invariato
+  // (fase di solo schema/scrittura: il rendering non lo usa ancora, vedi
+  // Fase 2).
+  portraitAssetId?: string | null;
 
   coverPositionX?: number;
   coverPositionY?: number;

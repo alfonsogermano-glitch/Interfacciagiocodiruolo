@@ -3,6 +3,7 @@ import { ImageCropCore } from '../../shared/ImageCropCore';
 import { useAuth } from '../../../auth/AuthContext';
 import { TOKEN_SHAPE_SPECS } from '../../shared/tokenShapes';
 import { DEFAULT_TOKEN_BORDER_STYLE, type TokenBorderStyle } from '../../../../types/tokenStyle';
+import { saveImageAssetSource } from '../../../../services/supabase/imageAssetsService';
 
 /**
  * Tab "Immagine" condiviso da PG/PNG/Mostri in EntityDetailView.tsx: monta
@@ -35,6 +36,7 @@ export function EntityImageTab({
   sourceImageUrl,
   cropArea,
   tokenBorderStyle,
+  portraitAssetId,
   canEdit,
   onPortraitChange,
 }: {
@@ -48,8 +50,14 @@ export function EntityImageTab({
    *  ne mostra il contorno reale, cosi' l'inquadratura scelta corrisponde a
    *  quella che la forma finale mostrera' davvero. */
   tokenBorderStyle?: TokenBorderStyle | null;
+  /** Asset condiviso della raccolta immagini gia' collegato a questa
+   *  entita' (assente = immagine di proprieta' esclusiva). Quando una
+   *  nuova foto sorgente viene confermata, se presente aggiorna quella
+   *  riga in place (riferimento vivo: propaga a tutte le entita' che la
+   *  condividono), altrimenti ne crea una nuova - vedi imageAssetsService.ts. */
+  portraitAssetId?: string | null;
   canEdit: boolean;
-  onPortraitChange: (patch: { portraitImageUrl?: string; portraitSourceImageUrl?: string; portraitCropArea?: Area | null }) => void;
+  onPortraitChange: (patch: { portraitImageUrl?: string; portraitSourceImageUrl?: string; portraitCropArea?: Area | null; portraitAssetId?: string }) => void;
 }) {
   const { user } = useAuth();
   // Scoped per utente (non per entita'): le policy RLS gia' in uso sui
@@ -72,11 +80,27 @@ export function EntityImageTab({
         uploadLabel={`Seleziona l'immagine di ${entityName}`}
         existingImageUrl={sourceImageUrl ?? imageUrl ?? undefined}
         existingCropArea={cropArea ?? undefined}
-        onUploaded={(url, extra) => onPortraitChange({
-          portraitImageUrl: url,
-          ...(extra?.sourceUrl !== undefined ? { portraitSourceImageUrl: extra.sourceUrl } : {}),
-          portraitCropArea: extra?.cropArea ?? null,
-        })}
+        onUploaded={async (url, extra) => {
+          // extra.sourceUrl e' presente solo quando e' stato scelto un file
+          // nuovo (non un semplice re-crop della sorgente esistente) - solo
+          // in quel caso la foto sorgente e' davvero cambiata e va
+          // propagata alla raccolta immagini condivisa.
+          let assetId: string | undefined;
+          if (extra?.sourceUrl !== undefined && user?.id) {
+            assetId = (await saveImageAssetSource({
+              existingAssetId: portraitAssetId ?? null,
+              ownerProfileId: user.id,
+              sourceImageUrl: extra.sourceUrl,
+            })) ?? undefined;
+          }
+
+          onPortraitChange({
+            portraitImageUrl: url,
+            ...(extra?.sourceUrl !== undefined ? { portraitSourceImageUrl: extra.sourceUrl } : {}),
+            portraitCropArea: extra?.cropArea ?? null,
+            ...(assetId ? { portraitAssetId: assetId } : {}),
+          });
+        }}
         onRemove={imageUrl ? () => onPortraitChange({ portraitImageUrl: '', portraitSourceImageUrl: '', portraitCropArea: null }) : undefined}
       />
     </fieldset>

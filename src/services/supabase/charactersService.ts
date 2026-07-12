@@ -102,6 +102,7 @@ function mapRowToCharacter(row: any) {
     portraitImageUrl: row.portrait_image_url ?? undefined,
     portraitSourceImageUrl: row.portrait_source_image_url ?? undefined,
     portraitCropArea: row.portrait_crop_area ?? undefined,
+    portraitAssetId: row.portrait_asset_id ?? undefined,
     coverPositionX: row.sheet_data?.coverPositionX,
     coverPositionY: row.sheet_data?.coverPositionY,
     coverScale: row.sheet_data?.coverScale,
@@ -185,32 +186,48 @@ export async function saveCharacter(
     tipoSpeciale: character.tipoSpeciale
   };
 
-  const { error } = await supabase
-    .from('characters')
-    .upsert({
-      id: character.id,
-      campaign_id: campaignId,
-      owner_profile_id: ownerProfileId,
-      ruleset: ruleset ?? null,
-      name: character.name,
-      style: character.style,
-      viaggio: character.viaggio,
-      status: 'active',
-      portrait_url: character.portraitImageUrl || null,
-      background_url: character.coverImageUrl || null,
-      portrait_image_url: character.portraitImageUrl ?? null,
-      portrait_source_image_url: character.portraitSourceImageUrl ?? null,
-      portrait_crop_area: character.portraitCropArea ?? null,
-      token_color: character.tokenColor ?? null,
-      token_background_color: character.tokenBackgroundColor ?? null,
-      token_border_style: character.tokenBorderStyle ?? null,
-      token_border_thickness: character.tokenBorderThickness ?? null,
-      token_border_label: character.tokenBorderLabel ?? null,
-      token_border_visible: character.tokenBorderVisible ?? null,
-      sheet_data: sheetData
-    });
+  const dbData = {
+    id: character.id,
+    campaign_id: campaignId,
+    owner_profile_id: ownerProfileId,
+    ruleset: ruleset ?? null,
+    name: character.name,
+    style: character.style,
+    viaggio: character.viaggio,
+    status: 'active',
+    portrait_url: character.portraitImageUrl || null,
+    background_url: character.coverImageUrl || null,
+    portrait_image_url: character.portraitImageUrl ?? null,
+    portrait_source_image_url: character.portraitSourceImageUrl ?? null,
+    portrait_crop_area: character.portraitCropArea ?? null,
+    portrait_asset_id: character.portraitAssetId ?? null,
+    token_color: character.tokenColor ?? null,
+    token_background_color: character.tokenBackgroundColor ?? null,
+    token_border_style: character.tokenBorderStyle ?? null,
+    token_border_thickness: character.tokenBorderThickness ?? null,
+    token_border_label: character.tokenBorderLabel ?? null,
+    token_border_visible: character.tokenBorderVisible ?? null,
+    sheet_data: sheetData
+  };
 
-  if (error) throw error;
+  const { error } = await supabase.from('characters').upsert(dbData);
+
+  if (error) {
+    // Se la colonna e' troppo recente (migrazione supabase-add-image-assets.sql
+    // non ancora eseguita), ritenta senza - stesso trattamento gia' riservato
+    // alle colonne nuove di monsters in entitiesService.ts (saveMonster).
+    if (error.code === 'PGRST204' && error.message.includes("'portrait_asset_id'")) {
+      console.warn('Colonna portrait_asset_id non trovata in Supabase. Salvo il personaggio senza collegamento alla raccolta immagini - esegui supabase-add-image-assets.sql per renderlo persistente.', error);
+
+      const { portrait_asset_id, ...dataWithoutAsset } = dbData;
+      const { error: retryError } = await supabase.from('characters').upsert(dataWithoutAsset);
+
+      if (retryError) throw retryError;
+      return;
+    }
+
+    throw error;
+  }
 }
 
 /**

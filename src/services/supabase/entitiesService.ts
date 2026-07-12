@@ -242,6 +242,11 @@ export interface NPC {
   // react-easy-crop: {x, y, width, height}) - riporta il cropper alla
   // stessa posizione/zoom invece che a centro/zoom di default.
   portraitCropArea?: { x: number; y: number; width: number; height: number } | null;
+  // Asset condiviso della raccolta immagini (image_assets) da cui questa
+  // entita' segue la foto sorgente - vedi imageAssetsService.ts. Assente =
+  // immagine di proprieta' esclusiva, comportamento invariato (fase di
+  // solo schema/scrittura: il rendering non lo usa ancora, vedi Fase 2).
+  portraitAssetId?: string | null;
 
   mapLocationId?: string | null;
   customLocationName?: string;
@@ -314,6 +319,24 @@ export async function saveNPC(campaignId: string | null, npc: NPC): Promise<void
     .upsert(dbData);
 
   if (error) {
+    // Colonna troppo recente (migrazione supabase-add-image-assets.sql non
+    // ancora eseguita): ritenta senza, stesso trattamento gia' riservato
+    // alle colonne nuove di monsters (vedi saveMonster piu' sotto).
+    if (error.code === 'PGRST204' && error.message.includes("'portrait_asset_id'")) {
+      console.warn('Colonna portrait_asset_id non trovata in Supabase. Salvo il PNG senza collegamento alla raccolta immagini - esegui supabase-add-image-assets.sql per renderlo persistente.', error);
+
+      const { portrait_asset_id, ...dataWithoutAsset } = dbData;
+      const { error: retryError } = await supabase
+        .from('npcs')
+        .upsert(dataWithoutAsset);
+
+      if (retryError) {
+        console.error('Errore salvataggio NPC (retry senza portrait_asset_id):', retryError, dataWithoutAsset);
+        throw retryError;
+      }
+      return;
+    }
+
     // Se fallisce per foreign key constraint (environment_id non esiste)
     // Ritenta salvando senza environment_id
     if (error.code === '23503' && error.message.includes('environment_id')) {
@@ -454,6 +477,11 @@ export interface Monster {
   // react-easy-crop: {x, y, width, height}) - riporta il cropper alla
   // stessa posizione/zoom invece che a centro/zoom di default.
   portraitCropArea?: { x: number; y: number; width: number; height: number } | null;
+  // Asset condiviso della raccolta immagini (image_assets) da cui questa
+  // entita' segue la foto sorgente - vedi imageAssetsService.ts. Assente =
+  // immagine di proprieta' esclusiva, comportamento invariato (fase di
+  // solo schema/scrittura: il rendering non lo usa ancora, vedi Fase 2).
+  portraitAssetId?: string | null;
   coverImageUrl?: string;
 
   portraitCrop?: {
@@ -594,6 +622,7 @@ function stripMonsterNewColumns(dbData: any): any {
     cover_frame_offset_y,
     cover_frame_scale_x,
     cover_frame_scale_y,
+    portrait_asset_id,
     ...rest
   } = dbData;
 
@@ -641,7 +670,8 @@ export async function saveMonster(campaignId: string, monster: Monster): Promise
         error.message.includes("'cover_frame_offset_x'") ||
         error.message.includes("'cover_frame_offset_y'") ||
         error.message.includes("'cover_frame_scale_x'") ||
-        error.message.includes("'cover_frame_scale_y'"))
+        error.message.includes("'cover_frame_scale_y'") ||
+        error.message.includes("'portrait_asset_id'"))
     ) {
       console.warn(
         'Colonne nuove mostro non trovate in Supabase. Salvo temporaneamente il mostro senza i nuovi campi. Esegui la migrazione SQL per rendere persistenti Audacia/Caselle Critiche/Tiro Follia/trasformazioni cornici.',
