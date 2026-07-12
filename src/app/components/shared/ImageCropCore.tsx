@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Loader2, Upload, RotateCcw, Trash2 } from 'lucide-react';
+import { Loader2, Upload, RotateCcw, Trash2, Images } from 'lucide-react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { supabase } from '../../auth/AuthContext';
 import { renderShapeSvgChild } from './TokenShapePreview';
@@ -32,6 +32,12 @@ export interface ImageCropCoreProps {
    *  logo campagna e cover/portrait della creation wizard: comportamento
    *  invariato, solo il ritaglio viene caricato e mostrato. */
   preserveSource?: boolean;
+  /** Presente = mostra il pulsante "Raccolta immagini", che al click chiama
+   *  questa callback (apertura del picker demandata al chiamante, che
+   *  conosce l'owner/l'entita' - ImageCropCore resta generico, usato anche
+   *  per avatar utente/logo campagna dove la raccolta non ha senso).
+   *  Assente = pulsante non mostrato, comportamento invariato. */
+  onPickFromCollection?: () => void;
   /** Chiamata una sola volta per conferma, con tutti i dati di quella
    *  conferma - cosi' chi la consuma puo' fare un solo merge/onUpdate
    *  invece di piu' chiamate separate che rischiano di sovrascriversi a
@@ -102,7 +108,7 @@ function deriveSourceStoragePath(path: string): string {
   return path.replace(/(\.[^./]+)$/, '-source$1');
 }
 
-export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect = 1, uploadLabel, existingImageUrl, existingCropArea, cropGuideGeometry, preserveSource, onUploaded, onRemove, onClose }: ImageCropCoreProps) {
+export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect = 1, uploadLabel, existingImageUrl, existingCropArea, cropGuideGeometry, preserveSource, onPickFromCollection, onUploaded, onRemove, onClose }: ImageCropCoreProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cropAreaRef = useRef<HTMLDivElement | null>(null);
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(existingImageUrl ?? null);
@@ -277,6 +283,14 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
                      color: 'var(--dash-accent)', fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer' }}>
             <Upload size={16} /> Scegli immagine
           </button>
+          {onPickFromCollection && (
+            <button type="button" onClick={onPickFromCollection}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.1rem',
+                       borderRadius: 999, backgroundColor: 'transparent', border: '1px solid var(--dash-border)',
+                       color: 'var(--dash-muted)', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
+              <Images size={15} /> Raccolta immagini
+            </button>
+          )}
           {onRemove && (
             <button type="button" onClick={onRemove}
               style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.1rem',
@@ -330,6 +344,15 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
                        cursor: isUploading ? 'not-allowed' : 'pointer' }}>
               <Upload size={13} /> Carica nuova immagine
             </button>
+            {onPickFromCollection && (
+              <button type="button" onClick={onPickFromCollection} disabled={isUploading}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                         padding: '0.5rem', borderRadius: 999, backgroundColor: 'transparent',
+                         border: '1px solid var(--dash-border)', color: 'var(--dash-muted)', fontSize: '0.8rem',
+                         cursor: isUploading ? 'not-allowed' : 'pointer' }}>
+                <Images size={13} /> Raccolta immagini
+              </button>
+            )}
             {onRemove && (
               <button type="button" onClick={onRemove} disabled={isUploading}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',

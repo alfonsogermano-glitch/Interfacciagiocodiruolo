@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabaseClient';
+import type { CropAreaPercent } from '../../app/components/shared/SourceCroppedImage';
 
 /**
  * Registro condiviso "Raccolta immagini": un asset per foto sorgente
@@ -15,6 +16,13 @@ export interface ImageAsset {
   createdAt?: string;
   updatedAt?: string;
 }
+
+/** Crop "intero quadrato, centrato" - usato per le miniature della
+ *  raccolta (che mostrano la sorgente cosi' com'e', non il crop di
+ *  nessuna entita' specifica) e come fallback quando nessuna entita'
+ *  propria referenzia ancora l'asset scelto (vedi
+ *  findReferenceCropAreaForAsset). */
+export const DEFAULT_ASSET_CROP_AREA: CropAreaPercent = { x: 0, y: 0, width: 100, height: 100 };
 
 function mapRowToImageAsset(row: any): ImageAsset {
   return {
@@ -93,4 +101,39 @@ export async function saveImageAssetSource(params: {
   }
 
   return data.id;
+}
+
+/**
+ * Cerca un'entita' propria (characters/npcs/monsters, in quest'ordine) che
+ * referenzia gia' l'asset scelto, per riusarne il crop come punto di
+ * partenza - il crop e' per-design per-entita' (Fase 1: entita' diverse
+ * possono inquadrare la stessa sorgente in modo diverso, es. Token Studio
+ * con forme diverse), quindi non e' salvato sulla riga image_assets stessa
+ * e va cercato al momento della selezione nel picker. Ritorna il primo
+ * trovato, o null se nessuna entita' lo referenzia ancora (primo utilizzo -
+ * il chiamante ripiega su DEFAULT_ASSET_CROP_AREA).
+ */
+export async function findReferenceCropAreaForAsset(assetId: string): Promise<CropAreaPercent | null> {
+  if (!supabase) return null;
+
+  const tables = ['characters', 'npcs', 'monsters'] as const;
+  for (const table of tables) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('portrait_crop_area')
+      .eq('portrait_asset_id', assetId)
+      .not('portrait_crop_area', 'is', null)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error(`Errore ricerca crop di riferimento su ${table}:`, error);
+      continue;
+    }
+    if (data?.portrait_crop_area) {
+      return data.portrait_crop_area as CropAreaPercent;
+    }
+  }
+
+  return null;
 }
