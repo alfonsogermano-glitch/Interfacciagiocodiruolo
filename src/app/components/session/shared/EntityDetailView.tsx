@@ -1440,6 +1440,7 @@ export function EntityDetailView({
             imageUrl={entity.portraitImageUrl}
             sourceImageUrl={entity.portraitSourceImageUrl}
             cropArea={entity.portraitCropArea}
+            tokenBorderStyle={entity.tokenBorderStyle}
             canEdit={canEdit}
             onPortraitChange={patch => onUpdate({ ...entity, ...patch })}
           />

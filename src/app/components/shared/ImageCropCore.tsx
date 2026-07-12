@@ -2,6 +2,8 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Loader2, Upload, RotateCcw, Trash2 } from 'lucide-react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { supabase } from '../../auth/AuthContext';
+import { renderShapeSvgChild } from './TokenShapePreview';
+import type { TokenShapeGeometry } from './tokenShapes';
 
 export interface ImageCropCoreProps {
   bucket: string;
@@ -14,11 +16,14 @@ export interface ImageCropCoreProps {
    *  react-easy-crop) - se presente, il cropper riparte da li' invece che
    *  da centro/zoom di default quando l'editor (ri)monta. */
   existingCropArea?: Area;
-  /** Guida visiva non interattiva: contorno del quadrato di ritaglio (che
-   *  resta comunque quadrato) - la cattura usa sempre l'intero quadrato,
-   *  indipendentemente dalla forma del Token scelta in seguito (vedi
-   *  tokenShapes.ts); non influisce sul crop salvato. */
-  showCropGuide?: boolean;
+  /** Guida visiva non interattiva: contorno reale della forma Token scelta
+   *  (tokenShapes.ts, gia' tarata al proprio massimo edge-to-edge) - la
+   *  cattura resta sempre il quadrato intero, questa e' solo un aiuto per
+   *  centrare il soggetto dentro l'area che la forma finale mostrera'
+   *  davvero. Assente = nessuna guida (avatar utente, logo campagna, dove
+   *  non c'e' una forma Token da anticipare). Non influisce sul crop
+   *  salvato. */
+  cropGuideGeometry?: TokenShapeGeometry;
   /** Se true, oltre al ritaglio quadrato viene caricata anche una versione
    *  ridimensionata del file originale scelto (solo quando si sceglie un
    *  file nuovo, mai per un semplice re-crop) - per un ritaglio non
@@ -97,7 +102,7 @@ function deriveSourceStoragePath(path: string): string {
   return path.replace(/(\.[^./]+)$/, '-source$1');
 }
 
-export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect = 1, uploadLabel, existingImageUrl, existingCropArea, showCropGuide, preserveSource, onUploaded, onRemove, onClose }: ImageCropCoreProps) {
+export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect = 1, uploadLabel, existingImageUrl, existingCropArea, cropGuideGeometry, preserveSource, onUploaded, onRemove, onClose }: ImageCropCoreProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cropAreaRef = useRef<HTMLDivElement | null>(null);
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(existingImageUrl ?? null);
@@ -296,18 +301,21 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
               onCropChange={setCrop} onZoomChange={setZoom} onCropComplete={onCropComplete}
               onCropSizeChange={setCropSize}
             />
-            {showCropGuide && cropSize && (
-              <div
+            {cropGuideGeometry && cropSize && (
+              <svg
+                viewBox="0 0 1 1"
                 style={{
                   position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                  // Contorno del quadrato di ritaglio pieno (edge-to-edge): la
-                  // cattura usa sempre l'intero quadrato, la forma finale del
-                  // Token (cerchio, ottagono, ...) ritaglia solo in fase di
-                  // rendering (TokenShapePreview), non qui.
-                  width: cropSize.width, height: cropSize.height,
-                  border: '2px dashed rgba(255,255,255,0.65)', pointerEvents: 'none',
+                  width: cropSize.width, height: cropSize.height, pointerEvents: 'none',
                 }}
-              />
+              >
+                {renderShapeSvgChild(cropGuideGeometry, {
+                  fill: 'none',
+                  stroke: 'rgba(255,255,255,0.65)',
+                  strokeWidth: 0.007,
+                  strokeDasharray: '0.02 0.015',
+                })}
+              </svg>
             )}
           </div>
           <input type="range" min={ZOOM_MIN} max={ZOOM_MAX} step={0.05} value={zoom}

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { ImageCrop } from '../gm/monsters/monstersTypes';
-import type { TokenShapeGeometry } from './tokenShapes';
+import { MARGIN_SCALE, type TokenShapeGeometry } from './tokenShapes';
 
 /** Renderizza la geometria di una forma token come figlio SVG (circle/rect/
  *  path), riusata sia per il contorno visibile sia per il clip-path -
@@ -76,32 +76,38 @@ export function TokenShapePreview({
         </defs>
       </svg>
 
-      <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `url(#${clipId})`, backgroundColor }}>
-        {portraitImageUrl ? (
-          <img
-            src={portraitImageUrl}
-            alt={`Token di ${name}`}
-            draggable={false}
-            className="h-full w-full select-none object-cover"
-            style={{
-              transform: `translate(${crop.x}px, ${crop.y}px) scale(${crop.scale})`,
-              transformOrigin: 'center center',
-            }}
-          />
-        ) : fallbackContent ? (
-          <div className="flex h-full w-full items-center justify-center">{fallbackContent}</div>
-        ) : null}
-      </div>
+      {/* Gruppo immagine ritagliata + bordo, scalato uniformemente insieme:
+          la geometria delle forme (tokenShapes.ts) e' tarata al massimo
+          edge-to-edge, lo spazio visivo tra token adiacenti sulla mappa
+          viene da qui, non piu' da un raggio di forma ridotto in partenza. */}
+      <div className="absolute inset-0" style={{ transform: `scale(${MARGIN_SCALE})`, transformOrigin: 'center center' }}>
+        <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `url(#${clipId})`, backgroundColor }}>
+          {portraitImageUrl ? (
+            <img
+              src={portraitImageUrl}
+              alt={`Token di ${name}`}
+              draggable={false}
+              className="h-full w-full select-none object-cover"
+              style={{
+                transform: `translate(${crop.x}px, ${crop.y}px) scale(${crop.scale})`,
+                transformOrigin: 'center center',
+              }}
+            />
+          ) : fallbackContent ? (
+            <div className="flex h-full w-full items-center justify-center">{fallbackContent}</div>
+          ) : null}
+        </div>
 
-      {borderVisible && (
-        <svg viewBox="0 0 1 1" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden="true">
-          {renderShapeSvgChild(geometry, {
-            fill: 'none',
-            stroke: color,
-            strokeWidth,
-          })}
-        </svg>
-      )}
+        {borderVisible && (
+          <svg viewBox="0 0 1 1" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden="true">
+            {renderShapeSvgChild(geometry, {
+              fill: 'none',
+              stroke: color,
+              strokeWidth,
+            })}
+          </svg>
+        )}
+      </div>
     </div>
   );
 }

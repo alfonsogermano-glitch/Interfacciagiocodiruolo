@@ -1,6 +1,8 @@
 import type { Area } from 'react-easy-crop';
 import { ImageCropCore } from '../../shared/ImageCropCore';
 import { useAuth } from '../../../auth/AuthContext';
+import { TOKEN_SHAPE_SPECS } from '../../shared/tokenShapes';
+import { DEFAULT_TOKEN_BORDER_STYLE, type TokenBorderStyle } from '../../../../types/tokenStyle';
 
 /**
  * Tab "Immagine" condiviso da PG/PNG/Mostri in EntityDetailView.tsx: monta
@@ -32,6 +34,7 @@ export function EntityImageTab({
   imageUrl,
   sourceImageUrl,
   cropArea,
+  tokenBorderStyle,
   canEdit,
   onPortraitChange,
 }: {
@@ -41,6 +44,10 @@ export function EntityImageTab({
   imageUrl?: string | null;
   sourceImageUrl?: string | null;
   cropArea?: Area | null;
+  /** Forma Token dell'entita' (tab "Token"): la guida di ritaglio qui sotto
+   *  ne mostra il contorno reale, cosi' l'inquadratura scelta corrisponde a
+   *  quella che la forma finale mostrera' davvero. */
+  tokenBorderStyle?: TokenBorderStyle | null;
   canEdit: boolean;
   onPortraitChange: (patch: { portraitImageUrl?: string; portraitSourceImageUrl?: string; portraitCropArea?: Area | null }) => void;
 }) {
@@ -60,7 +67,7 @@ export function EntityImageTab({
         storagePath={storagePath}
         cropShape="rect"
         aspect={1}
-        showCropGuide
+        cropGuideGeometry={TOKEN_SHAPE_SPECS[tokenBorderStyle ?? DEFAULT_TOKEN_BORDER_STYLE].geometry}
         preserveSource
         uploadLabel={`Seleziona l'immagine di ${entityName}`}
         existingImageUrl={sourceImageUrl ?? imageUrl ?? undefined}
