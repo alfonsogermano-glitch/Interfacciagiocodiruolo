@@ -126,4 +126,10 @@ export interface MonstersManagerProps {
   storageRefreshKey?: number;
   navigationTarget?: NavigationTarget | null;
   onNavigate?: (target: NavigationTarget) => void;
+  // Preselezione Avventura in arrivo dalla gerarchia Campagna->Avventure di
+  // LeftSidebar.tsx (vedi PendingAdventureFilter in App.tsx) - stessa forma
+  // duplicata localmente qui, stessa convenzione gia' in uso per
+  // NavigationTarget sopra.
+  pendingAdventureFilter?: { campaignId: string; adventureId: string } | null;
+  onClearPendingAdventureFilter?: () => void;
 }

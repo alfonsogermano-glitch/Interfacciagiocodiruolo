@@ -2,6 +2,8 @@ import { useRef, useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Home, Users, Scroll } from 'lucide-react';
 import type { Campaign } from '../campaigns/campaignTypes';
+import type { Adventure } from '../../types/adventure';
+import { loadAdventures } from '../../services/supabase/entitiesService';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 
 interface LeftSidebarProps {
@@ -13,6 +15,7 @@ interface LeftSidebarProps {
   campaigns: Campaign[];
   activeCampaignId?: string | null;
   onSelectCampaign: (campaign: Campaign) => void;
+  onSelectAdventure: (campaign: Campaign, adventure: Adventure) => void;
 }
 
 function SidebarButton({
@@ -103,7 +106,35 @@ export function LeftSidebar({
   campaigns,
   activeCampaignId,
   onSelectCampaign,
+  onSelectAdventure,
 }: LeftSidebarProps) {
+  // Avventure per campagna, per la gerarchia Campagna -> Avventure nella
+  // rail (fonte Supabase canonica via loadAdventures, la stessa gia' usata
+  // da AdventureManager.tsx - non l'hack via localStorage di NPCManager.tsx).
+  // Keyed sugli id (non sull'array campaigns direttamente, che ha una nuova
+  // identita' a ogni update del contesto anche a contenuto invariato).
+  const [adventuresByCampaign, setAdventuresByCampaign] = useState<Map<string, Adventure[]>>(new Map());
+  const campaignIdsKey = campaigns.map(c => c.id).join(',');
+
+  useEffect(() => {
+    if (campaigns.length === 0) {
+      setAdventuresByCampaign(new Map());
+      return;
+    }
+
+    let cancelled = false;
+    Promise.all(campaigns.map(c => loadAdventures(c.id).then(list => [c.id, list] as const)))
+      .then(pairs => {
+        if (cancelled) return;
+        setAdventuresByCampaign(new Map(pairs));
+      })
+      .catch(error => {
+        console.error('Errore caricamento avventure per la sidebar:', error);
+      });
+
+    return () => { cancelled = true; };
+  }, [campaignIdsKey]);
+
   return (
     <aside className="flex h-full w-[100px] shrink-0 flex-col items-center gap-1 border-r border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
       <div className="mb-3 flex flex-col items-center gap-1">
@@ -126,46 +157,72 @@ export function LeftSidebar({
         {campaigns.length === 0 ? (
           <div className="py-2 text-center text-[10px] text-[var(--dash-muted)]">Nessuna campagna creata</div>
         ) : (
-          campaigns.map(campaign => (
-            <Tooltip key={campaign.id}>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => onSelectCampaign(campaign)}
-                  className={`flex flex-col items-center justify-center gap-1 overflow-hidden rounded-lg border transition-colors ${
-                    campaign.logoUrl ? 'p-0' : 'px-1.5 py-2'
-                  } ${
-                    campaign.id === activeCampaignId
-                      ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
-                      : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)]/60 hover:bg-[var(--dash-surface-2)]'
-                  }`}
-                  style={{ width: '100%', aspectRatio: '1 / 1' }}
-                >
-                  {campaign.logoUrl ? (
-                    <img src={campaign.logoUrl} alt={campaign.name} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full w-full flex-col">
-                      <div className="flex flex-1 items-center justify-center overflow-hidden p-0.5">
-                        <img
-                          src="/icon-source-1024.png"
-                          alt=""
-                          className="h-full w-full object-contain"
-                          style={{ filter: 'invert(1)', opacity: 0.9 }}
-                        />
-                      </div>
-                      <div
-                        className="w-full shrink-0"
-                        style={{ backgroundColor: 'var(--dash-panel)' }}
-                      >
-                        <MarqueeName name={campaign.name} />
-                      </div>
-                    </div>
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right">{campaign.name}</TooltipContent>
-            </Tooltip>
-          ))
+          campaigns.map(campaign => {
+            const campaignAdventures = adventuresByCampaign.get(campaign.id) ?? [];
+
+            return (
+              <div key={campaign.id} className="flex flex-col gap-0.5">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => onSelectCampaign(campaign)}
+                      className={`flex flex-col items-center justify-center gap-1 overflow-hidden rounded-lg border transition-colors ${
+                        campaign.logoUrl ? 'p-0' : 'px-1.5 py-2'
+                      } ${
+                        campaign.id === activeCampaignId
+                          ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
+                          : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)]/60 hover:bg-[var(--dash-surface-2)]'
+                      }`}
+                      style={{ width: '100%', aspectRatio: '1 / 1' }}
+                    >
+                      {campaign.logoUrl ? (
+                        <img src={campaign.logoUrl} alt={campaign.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full flex-col">
+                          <div className="flex flex-1 items-center justify-center overflow-hidden p-0.5">
+                            <img
+                              src="/icon-source-1024.png"
+                              alt=""
+                              className="h-full w-full object-contain"
+                              style={{ filter: 'invert(1)', opacity: 0.9 }}
+                            />
+                          </div>
+                          <div
+                            className="w-full shrink-0"
+                            style={{ backgroundColor: 'var(--dash-panel)' }}
+                          >
+                            <MarqueeName name={campaign.name} />
+                          </div>
+                        </div>
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">{campaign.name}</TooltipContent>
+                </Tooltip>
+
+                {campaignAdventures.length > 0 && (
+                  <div className="flex flex-col gap-0.5 pl-2">
+                    {campaignAdventures.map(adventure => (
+                      <Tooltip key={adventure.id}>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={() => onSelectAdventure(campaign, adventure)}
+                            className="flex items-center gap-1 overflow-hidden rounded px-1 py-0.5 text-left text-[9px] leading-tight text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
+                          >
+                            <span className="shrink-0">└─</span>
+                            <span className="truncate">{adventure.title}</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">{adventure.title}</TooltipContent>
+                      </Tooltip>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
     </aside>

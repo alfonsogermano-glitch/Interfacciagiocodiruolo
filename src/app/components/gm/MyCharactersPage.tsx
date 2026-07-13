@@ -186,9 +186,17 @@ interface MyCharactersPageProps {
   detailContext: DetailContext | null;
   onOpenDetail: (entityType: DetailContext['entityType'], id: string) => void;
   onCloseDetail: () => void;
+  // Preselezione Avventura in arrivo dalla gerarchia Campagna->Avventure di
+  // LeftSidebar.tsx (vedi PendingAdventureFilter in App.tsx) - stessa forma
+  // duplicata localmente qui, stessa convenzione gia' in uso per
+  // NavigationTarget in App.tsx/NPCManager.tsx/monstersTypes.ts. Un'Avventura
+  // non e' specifica di PNG o Mostri, quindi precompila entrambi i filtri a
+  // cascata senza forzare quale sotto-tab e' attivo (vedi effect dedicato).
+  pendingAdventureFilter?: { campaignId: string; adventureId: string } | null;
+  onClearPendingAdventureFilter?: () => void;
 }
 
-export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }: MyCharactersPageProps) {
+export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail, pendingAdventureFilter = null, onClearPendingAdventureFilter }: MyCharactersPageProps) {
   const { user, session } = useAuth();
   const { campaigns, joinedCampaigns, refreshCampaigns, refreshJoinedCampaigns } = useCampaign();
   const { isHSC } = useRuleset();
@@ -644,11 +652,24 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   useEffect(() => { void loadNpcs(); }, [user?.id]);
   useEffect(() => { void loadMonstersList(); }, [user?.id]);
 
+  // Marcano una campagna appena impostata dall'effect di preselezione qui
+  // sotto (arrivata da pendingAdventureFilter), per far saltare una volta
+  // sola il reset del filtro avventura nei due effect "a cascata" che
+  // seguono - un ref e non la prop pendingAdventureFilter stessa perche'
+  // quella viene ripulita (onClearPendingAdventureFilter) nello stesso
+  // effect/batch React che imposta anche i filtri campagna, quindi al
+  // momento in cui i due effect a cascata la leggerebbero sarebbe gia'
+  // tornata null - il ref invece resta valido attraverso quel batch.
+  const pendingAdventureCampaignRef = useRef<{ npc: string | null; monster: string | null }>({ npc: null, monster: null });
+
   // Le avventure sono sempre scoped a una singola campagna (loadAdventures
   // richiede un campaignId) - il filtro Avventura del pannello Filtri ha
   // senso solo quando e' gia' selezionata una campagna specifica, quindi
   // ricarichiamo la lista ogni volta che cambia quella scelta e la
-  // svuotiamo (con l'eventuale filtro attivo) quando torna su "tutte".
+  // svuotiamo (con l'eventuale filtro attivo) quando torna su "tutte",
+  // tranne quando il cambio campagna e' dovuto a una preselezione in arrivo
+  // dalla sidebar: in quel caso il filtro avventura e' gia' stato impostato
+  // correttamente da quell'effect e non va azzerato.
   useEffect(() => {
     if (!npcCampaignFilter) {
       setNpcFilterAdventures([]);
@@ -659,7 +680,11 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     loadAdventures(npcCampaignFilter).then(list => {
       if (!cancelled) setNpcFilterAdventures(list);
     });
-    setNpcAdventureFilter('');
+    if (pendingAdventureCampaignRef.current.npc === npcCampaignFilter) {
+      pendingAdventureCampaignRef.current.npc = null;
+    } else {
+      setNpcAdventureFilter('');
+    }
     return () => { cancelled = true; };
   }, [npcCampaignFilter]);
 
@@ -673,9 +698,38 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     loadAdventures(monsterCampaignFilter).then(list => {
       if (!cancelled) setMonsterFilterAdventures(list);
     });
-    setMonsterAdventureFilter('');
+    if (pendingAdventureCampaignRef.current.monster === monsterCampaignFilter) {
+      pendingAdventureCampaignRef.current.monster = null;
+    } else {
+      setMonsterAdventureFilter('');
+    }
     return () => { cancelled = true; };
   }, [monsterCampaignFilter]);
+
+  // Applica la preselezione Avventura in arrivo dalla gerarchia
+  // Campagna->Avventure di LeftSidebar.tsx: un'Avventura non e' specifica di
+  // PNG o Mostri, quindi precompila entrambe le coppie campagna+avventura
+  // (qualunque sotto-tab l'utente apra dopo trova gia' il filtro giusto)
+  // senza forzare activeTab, e apre i pannelli filtri cosi' il motivo del
+  // filtro resta visibile invece di sembrare una lista improvvisamente vuota.
+  useEffect(() => {
+    if (!pendingAdventureFilter) return;
+
+    pendingAdventureCampaignRef.current = {
+      npc: pendingAdventureFilter.campaignId,
+      monster: pendingAdventureFilter.campaignId,
+    };
+
+    setNpcCampaignFilter(pendingAdventureFilter.campaignId);
+    setNpcAdventureFilter(pendingAdventureFilter.adventureId);
+    setNpcFiltersOpen(true);
+
+    setMonsterCampaignFilter(pendingAdventureFilter.campaignId);
+    setMonsterAdventureFilter(pendingAdventureFilter.adventureId);
+    setMonsterFiltersOpen(true);
+
+    onClearPendingAdventureFilter?.();
+  }, [pendingAdventureFilter]);
 
   // Torna a pagina 1 ogni volta che ricerca/filtri/ordinamento cambiano,
   // stesso comportamento di MonstersManager.tsx (altrimenti si potrebbe
