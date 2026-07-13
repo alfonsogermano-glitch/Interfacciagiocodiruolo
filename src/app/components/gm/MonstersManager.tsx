@@ -72,9 +72,7 @@ import { D20StatBlock, DEFAULT_D20_STATS, type D20Stats } from '../ruleset/D20St
 export function MonstersManager({
   storageRefreshKey = 0,
   navigationTarget = null,
-  onNavigate,
-  pendingAdventureFilter = null,
-  onClearPendingAdventureFilter
+  onNavigate
 }: MonstersManagerProps) {
   const { activeCampaignId, activeCampaign } = useCampaign();
   const { user } = useAuth();
@@ -359,17 +357,6 @@ useEffect(() => {
     setIsEditing(false);
   }, [navigationTarget, monsters, setSelectedMonster]);
 
-  useEffect(() => {
-    if (!pendingAdventureFilter) return;
-    if (pendingAdventureFilter.campaignId !== activeCampaignId) return;
-
-    setNarrativeFilter(pendingAdventureFilter.adventureId);
-    // Il select "Avventura" vive dentro il pannello "Filtri avanzati": senza
-    // aprirlo la lista si filtrerebbe silenziosamente, senza che l'utente
-    // veda perche'.
-    setIsAdvancedFiltersOpen(true);
-    onClearPendingAdventureFilter?.();
-  }, [pendingAdventureFilter, activeCampaignId]);
 
   const currentMonster = isEditing ? editingMonster : selectedMonster;
 

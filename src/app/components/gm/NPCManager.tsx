@@ -79,20 +79,11 @@ interface NavigationTarget {
 interface NPCManagerProps {
   storageRefreshKey?: number;
   navigationTarget?: NavigationTarget | null;
-  // Preselezione Avventura in arrivo dalla gerarchia Campagna->Avventure di
-  // LeftSidebar.tsx (vedi PendingAdventureFilter in App.tsx) - stessa forma
-  // duplicata localmente qui, stessa convenzione gia' in uso per
-  // NavigationTarget sopra (nessun import condiviso per questi tipi di stato
-  // sollevato in questo codebase).
-  pendingAdventureFilter?: { campaignId: string; adventureId: string } | null;
-  onClearPendingAdventureFilter?: () => void;
 }
 
 export function NPCManager({
   storageRefreshKey = 0,
-  navigationTarget = null,
-  pendingAdventureFilter = null,
-  onClearPendingAdventureFilter
+  navigationTarget = null
 }: NPCManagerProps) {
   const { activeCampaignId, activeCampaign } = useCampaign();
   const { user } = useAuth();
@@ -360,18 +351,6 @@ export function NPCManager({
     setIsCreating(false);
     setIsEditing(false);
   }, [navigationTarget, npcs]);
-
-  useEffect(() => {
-    if (!pendingAdventureFilter) return;
-    if (pendingAdventureFilter.campaignId !== activeCampaignId) return;
-
-    setSelectedAdventureFilterId(pendingAdventureFilter.adventureId);
-    // La checkbox "usa avventura attiva" avrebbe altrimenti priorita' sulla
-    // select e la preselezione sparirebbe subito - pura priorita' UI locale,
-    // non tocca isActive/ACTIVE_ADVENTURE_STORAGE_KEY.
-    setUseActiveAdventureFilter(false);
-    onClearPendingAdventureFilter?.();
-  }, [pendingAdventureFilter, activeCampaignId]);
 
   const currentNPC = isCreating ? draftNPC : selectedNPC;
 

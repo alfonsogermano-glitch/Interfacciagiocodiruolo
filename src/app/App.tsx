@@ -7,7 +7,6 @@ import { SetNewPasswordModal } from './landing/SetNewPasswordModal';
 import { CampaignProvider, useCampaign } from './campaigns/CampaignContext';
 import { CampaignHome } from './campaigns/CampaignHome';
 import type { Campaign } from './campaigns/campaignTypes';
-import type { Adventure } from '../types/adventure';
 import { RulesetProvider } from './campaigns/RulesetContext';
 import { HomeScreen } from './home/HomeScreen';
 import { AppShell } from './layout/AppShell';
@@ -51,19 +50,6 @@ type NavigationTarget = {
   entityType?: string;
 };
 
-// Preselezione dell'Avventura scelta nella gerarchia Campagna->Avventure di
-// LeftSidebar.tsx - stesso pattern di stato sollevato di NavigationTarget
-// sopra, ma sorella (non un suo campo extra): NavigationTarget significa
-// "apri questa entita'", questo significa "precompila questo filtro" - una
-// semantica diversa, non tab-scoped come tabId. A differenza di
-// NavigationTarget (mai azzerato), va consumata una volta sola e ripulita da
-// chi la applica (vedi onClearPendingAdventureFilter), altrimenti si
-// ripresenterebbe a ogni visita successiva del tab.
-type PendingAdventureFilter = {
-  campaignId: string;
-  adventureId: string;
-};
-
 // Contesto di cio' che va mostrato nello slot rightSidebar di AppShell,
 // sollevato qui perche' quello slot vive come flex-sibling di <main> (vedi
 // AppShell.tsx), fuori dalla portata di uno stato locale dentro le pagine
@@ -87,11 +73,9 @@ interface DashboardProps {
   onEnterCampaign: (campaign: Campaign) => void;
   rightSidebarContext: RightSidebarContext | null;
   onChangeRightSidebarContext: (context: RightSidebarContext | null) => void;
-  pendingAdventureFilter: PendingAdventureFilter | null;
-  onClearPendingAdventureFilter: () => void;
 }
 
-function Dashboard({ activeTab, navigationTarget, onNavigate, onEnterCampaign, rightSidebarContext, onChangeRightSidebarContext, pendingAdventureFilter, onClearPendingAdventureFilter }: DashboardProps) {
+function Dashboard({ activeTab, navigationTarget, onNavigate, onEnterCampaign, rightSidebarContext, onChangeRightSidebarContext }: DashboardProps) {
   const { activeCampaignId, campaigns, isLoading: campaignsLoading } = useCampaign();
 
   return (
@@ -109,17 +93,11 @@ function Dashboard({ activeTab, navigationTarget, onNavigate, onEnterCampaign, r
           detailContext={rightSidebarContext?.kind === 'characters-detail' ? rightSidebarContext : null}
           onOpenDetail={(entityType, id) => onChangeRightSidebarContext({ kind: 'characters-detail', entityType, id })}
           onCloseDetail={() => onChangeRightSidebarContext(null)}
-          pendingAdventureFilter={pendingAdventureFilter}
-          onClearPendingAdventureFilter={onClearPendingAdventureFilter}
         />
       )}
       {activeTab === 'campaigns' && <CampaignsPage onNavigate={onNavigate} onEnterCampaign={onEnterCampaign} />}
       {activeTab === 'npcs' && (
-        <NPCManager
-          navigationTarget={navigationTarget}
-          pendingAdventureFilter={pendingAdventureFilter}
-          onClearPendingAdventureFilter={onClearPendingAdventureFilter}
-        />
+        <NPCManager navigationTarget={navigationTarget} />
       )}
       {activeTab === 'map' && <GameMap />}
 
@@ -138,8 +116,6 @@ function Dashboard({ activeTab, navigationTarget, onNavigate, onEnterCampaign, r
         <MonstersManager
           navigationTarget={navigationTarget}
           onNavigate={onNavigate}
-          pendingAdventureFilter={pendingAdventureFilter}
-          onClearPendingAdventureFilter={onClearPendingAdventureFilter}
         />
       )}
       {activeTab === 'combat' && <CombatTracker />}
@@ -184,7 +160,6 @@ function AuthGate() {
   });
 
   const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | null>(null);
-  const [pendingAdventureFilter, setPendingAdventureFilter] = useState<PendingAdventureFilter | null>(null);
   const [homeScrollTarget, setHomeScrollTarget] = useState<'characters' | 'campaigns' | null>(null);
   const [rightSidebarContext, setRightSidebarContext] = useState<RightSidebarContext | null>(null);
 
@@ -294,11 +269,6 @@ function AuthGate() {
     }
   };
 
-  const selectCampaignAdventure = (campaign: Campaign, adventure: Adventure) => {
-    setPendingAdventureFilter({ campaignId: campaign.id, adventureId: adventure.id });
-    goToDashboard(campaign);
-  };
-
   const goToManagement = () => {
     changeActiveGmTab('map');
     localStorage.setItem(VIEW_LS_KEY, 'dashboard');
@@ -353,7 +323,6 @@ function AuthGate() {
             campaigns={campaigns}
             activeCampaignId={activeCampaign?.id}
             onSelectCampaign={(campaign) => goToDashboard(campaign)}
-            onSelectAdventure={selectCampaignAdventure}
           />
         }
         rightSidebar={
@@ -394,8 +363,6 @@ function AuthGate() {
             onEnterCampaign={goToDashboard}
             rightSidebarContext={rightSidebarContext}
             onChangeRightSidebarContext={setRightSidebarContext}
-            pendingAdventureFilter={pendingAdventureFilter}
-            onClearPendingAdventureFilter={() => setPendingAdventureFilter(null)}
           />
         )}
       </AppShell>
