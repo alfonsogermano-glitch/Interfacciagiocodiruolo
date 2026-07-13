@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Images, Loader2, X } from 'lucide-react';
 import { SourceCroppedImage } from './SourceCroppedImage';
-import { loadImageAssetsByOwner, DEFAULT_ASSET_CROP_AREA, type ImageAsset } from '../../../services/supabase/imageAssetsService';
+import type { CropAreaPercent } from './SourceCroppedImage';
+import {
+  loadImageAssetsByOwner,
+  findReferenceCropAreasForAssets,
+  DEFAULT_ASSET_CROP_AREA,
+  type ImageAsset,
+} from '../../../services/supabase/imageAssetsService';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/paletteColors';
 
 function getCurrentPaletteColors() {
@@ -14,12 +20,17 @@ function getCurrentPaletteColors() {
  * Modale "scegli dalla raccolta": griglia delle foto sorgente gia'
  * caricate dall'utente (loadImageAssetsByOwner), una per riga di
  * image_assets - attraverso tutte le sue entita'/campagne. Ogni miniatura
- * mostra la sorgente intera (DEFAULT_ASSET_CROP_AREA, non il crop di
- * nessuna entita' specifica - e' solo un'anteprima della foto). La
- * selezione del crop di partenza (copiato da un'altra entita' che gia'
- * referenzia l'asset, o il default) e' decisa dal chiamante dopo
- * onSelect, non qui - questo componente si limita a mostrare/scegliere
- * l'asset.
+ * mostra il crop gia' in uso da un'entita' propria che referenzia
+ * quell'asset (findReferenceCropAreasForAssets, batch: 3 query totali
+ * indipendentemente da quanti asset ci sono in griglia, non N), non la
+ * sorgente intera - un crop "immagine intera" forzato dentro il riquadro
+ * quadrato della griglia deformerebbe le sorgenti non quadrate (width%/
+ * height% del crop applicati in modo indipendente, vedi
+ * SourceCroppedImage). Fallback a DEFAULT_ASSET_CROP_AREA solo per gli
+ * asset non ancora referenziati da nessuna entita' propria (caso limite:
+ * un asset deve gia' essere referenziato da qualcosa per esistere). La
+ * selezione del crop di partenza per l'entita' che riusa l'asset e'
+ * decisa dal chiamante dopo onSelect, non qui.
  */
 export function ImageAssetPicker({
   ownerProfileId,
@@ -32,16 +43,19 @@ export function ImageAssetPicker({
 }) {
   const [assets, setAssets] = useState<ImageAsset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [referenceCropAreas, setReferenceCropAreas] = useState<Map<string, CropAreaPercent>>(new Map());
   const colors = getCurrentPaletteColors();
 
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
-    loadImageAssetsByOwner(ownerProfileId).then(items => {
-      if (!cancelled) {
-        setAssets(items);
-        setIsLoading(false);
-      }
+    loadImageAssetsByOwner(ownerProfileId).then(async items => {
+      if (cancelled) return;
+      const cropAreas = await findReferenceCropAreasForAssets(items.map(item => item.id));
+      if (cancelled) return;
+      setAssets(items);
+      setReferenceCropAreas(cropAreas);
+      setIsLoading(false);
     });
     return () => {
       cancelled = true;
@@ -90,7 +104,12 @@ export function ImageAssetPicker({
                   style={{ border: `1px solid ${colors.border}` }}
                   className="aspect-square overflow-hidden rounded-xl transition-colors hover:border-[var(--dash-accent)]"
                 >
-                  <SourceCroppedImage sourceUrl={asset.sourceImageUrl} cropArea={DEFAULT_ASSET_CROP_AREA} style={{ width: '100%', height: '100%' }} alt="" />
+                  <SourceCroppedImage
+                    sourceUrl={asset.sourceImageUrl}
+                    cropArea={referenceCropAreas.get(asset.id) ?? DEFAULT_ASSET_CROP_AREA}
+                    style={{ width: '100%', height: '100%' }}
+                    alt=""
+                  />
                 </button>
               ))}
             </div>

@@ -137,3 +137,44 @@ export async function findReferenceCropAreaForAsset(assetId: string): Promise<Cr
 
   return null;
 }
+
+/**
+ * Come findReferenceCropAreaForAsset, ma per piu' asset in un colpo solo -
+ * usata dalla griglia di ImageAssetPicker, dove interrogare un asset alla
+ * volta (N asset -> fino a 3N query, una per tabella) scalerebbe male.
+ * Stessa priorita' characters->npcs->monsters e stesso criterio "primo
+ * trovato": una tabella viene interrogata solo per gli assetId ancora senza
+ * crop (filtrati via via), quindi restano al massimo 3 query totali
+ * indipendentemente da N. Assenti dalla mappa risultato gli asset non
+ * ancora referenziati da nessuna entita' propria (il chiamante ripiega su
+ * DEFAULT_ASSET_CROP_AREA).
+ */
+export async function findReferenceCropAreasForAssets(assetIds: string[]): Promise<Map<string, CropAreaPercent>> {
+  const result = new Map<string, CropAreaPercent>();
+  if (!supabase || assetIds.length === 0) return result;
+
+  const tables = ['characters', 'npcs', 'monsters'] as const;
+  for (const table of tables) {
+    const remaining = assetIds.filter(id => !result.has(id));
+    if (remaining.length === 0) break;
+
+    const { data, error } = await supabase
+      .from(table)
+      .select('portrait_asset_id, portrait_crop_area')
+      .in('portrait_asset_id', remaining)
+      .not('portrait_crop_area', 'is', null);
+
+    if (error) {
+      console.error(`Errore ricerca crop di riferimento su ${table}:`, error);
+      continue;
+    }
+
+    for (const row of data || []) {
+      if (row.portrait_asset_id && row.portrait_crop_area && !result.has(row.portrait_asset_id)) {
+        result.set(row.portrait_asset_id, row.portrait_crop_area as CropAreaPercent);
+      }
+    }
+  }
+
+  return result;
+}
