@@ -103,6 +103,7 @@ function mapRowToCharacter(row: any) {
     portraitSourceImageUrl: row.portrait_source_image_url ?? undefined,
     portraitCropArea: row.portrait_crop_area ?? undefined,
     portraitAssetId: row.portrait_asset_id ?? undefined,
+    adventureId: row.adventure_id ?? null,
     coverPositionX: row.sheet_data?.coverPositionX,
     coverPositionY: row.sheet_data?.coverPositionY,
     coverScale: row.sheet_data?.coverScale,
@@ -201,6 +202,7 @@ export async function saveCharacter(
     portrait_source_image_url: character.portraitSourceImageUrl ?? null,
     portrait_crop_area: character.portraitCropArea ?? null,
     portrait_asset_id: character.portraitAssetId ?? null,
+    adventure_id: character.adventureId ?? null,
     token_color: character.tokenColor ?? null,
     token_background_color: character.tokenBackgroundColor ?? null,
     token_border_style: character.tokenBorderStyle ?? null,
@@ -221,6 +223,18 @@ export async function saveCharacter(
 
       const { portrait_asset_id, ...dataWithoutAsset } = dbData;
       const { error: retryError } = await supabase.from('characters').upsert(dataWithoutAsset);
+
+      if (retryError) throw retryError;
+      return;
+    }
+
+    // Stesso trattamento di portrait_asset_id sopra, per la migrazione
+    // supabase-add-character-adventure.sql non ancora eseguita.
+    if (error.code === 'PGRST204' && error.message.includes("'adventure_id'")) {
+      console.warn('Colonna adventure_id non trovata in Supabase. Salvo il personaggio senza avventura assegnata - esegui supabase-add-character-adventure.sql per renderlo persistente.', error);
+
+      const { adventure_id, ...dataWithoutAdventure } = dbData;
+      const { error: retryError } = await supabase.from('characters').upsert(dataWithoutAdventure);
 
       if (retryError) throw retryError;
       return;

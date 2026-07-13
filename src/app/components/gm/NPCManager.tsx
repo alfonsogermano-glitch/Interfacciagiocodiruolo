@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Ghost, Plus, Edit2, Trash2, Lock, Save, X } from 'lucide-react';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
 import { loadEnvironmentReferences } from '../../../services/campaign/entityReferenceService';
+import { formatCampaignAdventureLabel } from '../../../services/campaign/campaignAdventureLabel';
 import type { Adventure } from '../../../types/adventure';
 import { loadNPCs, saveNPC as saveNPCToSupabase, deleteNPC as deleteNPCFromSupabase } from '../../../services/supabase/entitiesService';
 import { generateUUID } from '../../../lib/uuid';
@@ -84,7 +85,7 @@ export function NPCManager({
   storageRefreshKey = 0,
   navigationTarget = null
 }: NPCManagerProps) {
-  const { activeCampaignId } = useCampaign();
+  const { activeCampaignId, activeCampaign } = useCampaign();
   const { user } = useAuth();
   const { isHSC, isDnD5e, isPathfinder } = useRuleset();
   const isD20 = isDnD5e || isPathfinder;
@@ -353,6 +354,17 @@ export function NPCManager({
 
   const currentNPC = isCreating ? draftNPC : selectedNPC;
 
+  // Stesso formato di getMonsterCampaignAdventureText in MonstersManager.tsx
+  // (formatCampaignAdventureLabel): "Nome Campagna" o "Nome Campagna - Nome
+  // Avventura", mai piu' il solo placeholder 'Tutta la campagna' che c'era qui.
+  const getNpcCampaignAdventureText = (npc: NPC): string => {
+    const adventureTitle = npc.adventureId
+      ? adventures.find(adventure => adventure.id === npc.adventureId)?.title ?? 'Avventura non trovata'
+      : null;
+
+    return formatCampaignAdventureLabel(activeCampaign?.name, adventureTitle);
+  };
+
   const activeAdventureTitle =
     adventures.find(adventure => adventure.id === activeAdventureId)?.title ?? null;
 
@@ -521,9 +533,7 @@ export function NPCManager({
 
                 <div className="mt-2 flex flex-wrap gap-2">
                   <span className="rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2 py-0.5 text-[11px] text-[var(--dash-text)]">
-                    {npc.adventureId
-                      ? adventures.find(adventure => adventure.id === npc.adventureId)?.title ?? 'Avventura'
-                      : 'Tutta la campagna'}
+                    {getNpcCampaignAdventureText(npc)}
                   </span>
                   {npc.environmentId && (
   <span className="rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2 py-0.5 text-[11px] text-[var(--dash-text)]">
@@ -847,9 +857,7 @@ export function NPCManager({
                 <div>
                   <h3 className="mb-2 text-[var(--dash-text)]">Ambito narrativo</h3>
                   <p className="text-[var(--dash-muted)]">
-                    {currentNPC.adventureId
-                      ? adventures.find(adventure => adventure.id === currentNPC.adventureId)?.title ?? 'Avventura non trovata'
-                      : 'Tutta la campagna'}
+                    {getNpcCampaignAdventureText(currentNPC)}
                   </p>
                 </div>
 

@@ -20,6 +20,7 @@ import {
   List
 } from 'lucide-react';
 import { loadAdventureReferences, loadEnvironmentReferences } from '../../../services/campaign/entityReferenceService';
+import { formatCampaignAdventureLabel } from '../../../services/campaign/campaignAdventureLabel';
 import { MONSTER_BASE_CATALOG } from '../../../data/monsterBaseCatalog';
 import { MONSTER_TRAITS_CATALOG } from '../../../data/monsterTraitsCatalog';
 import { MONSTER_SPECIAL_ACTIONS_CATALOG } from '../../../data/monsterSpecialActionsCatalog';
@@ -73,7 +74,7 @@ export function MonstersManager({
   navigationTarget = null,
   onNavigate
 }: MonstersManagerProps) {
-  const { activeCampaignId } = useCampaign();
+  const { activeCampaignId, activeCampaign } = useCampaign();
   const { user } = useAuth();
 
   const {
@@ -467,12 +468,11 @@ const sortedEnvironmentOptions = environments
   );
 
 const getMonsterCampaignAdventureText = (monster: Monster): string => {
-  const campaignName = 'Tutta la campagna';
-  const adventureName = monster.adventureId
+  const adventureTitle = monster.adventureId
     ? adventures.find(adventure => adventure.id === monster.adventureId)?.title ?? 'Avventura non trovata'
-    : '';
+    : null;
 
-  return [campaignName, adventureName].filter(Boolean).join(', ');
+  return formatCampaignAdventureLabel(activeCampaign?.name, adventureTitle);
 };
 
 
@@ -2278,11 +2278,7 @@ const rotateCoverImageDegrees = (delta: number) => {
                     <div className="grid gap-3 md:grid-cols-3">
                       <Info
                         label="Ambito"
-                        value={
-                          currentMonster.adventureId
-                            ? adventures.find(adventure => adventure.id === currentMonster.adventureId)?.title ?? 'Avventura non trovata'
-                            : 'Tutta la campagna'
-                        }
+                        value={getMonsterCampaignAdventureText(currentMonster)}
                       />
 
                       <Info

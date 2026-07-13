@@ -170,6 +170,12 @@ export interface Character {
   // Fase 2).
   portraitAssetId?: string | null;
 
+  // Avventura della campagna a cui il personaggio e' assegnato (stesso
+  // concetto di NPC.adventureId/Monster.adventureId) - assente = "tutta la
+  // campagna", nessuna avventura specifica. Ha senso solo quando campaignId
+  // e' valorizzato (l'avventura appartiene sempre a una singola campagna).
+  adventureId?: string | null;
+
   coverPositionX?: number;
   coverPositionY?: number;
   coverScale?: number;

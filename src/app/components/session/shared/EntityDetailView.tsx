@@ -249,13 +249,14 @@ export function EntityDetailView({
     return () => { cancelled = true; };
   }, [campaignId, entityType]);
 
-  // Pool "Ambito narrativo"/"Luogo" per PNG e Mostri, stesso concetto di
-  // NPCManager.tsx/MonstersManager.tsx (adventureId/environmentId) ma qui
-  // l'entita' potrebbe non avere ancora una campagna: senza campaignId questi
-  // campi non hanno senso (nessuna pool da cui scegliere) e restano nascosti,
+  // Pool "Ambito narrativo"/"Luogo" per PNG e Mostri, "Avventura" per PG
+  // (stesso concetto di NPCManager.tsx/MonstersManager.tsx, adventureId/
+  // environmentId - i PG non hanno Luogo, solo Avventura) ma qui l'entita'
+  // potrebbe non avere ancora una campagna: senza campaignId questi campi
+  // non hanno senso (nessuna pool da cui scegliere) e restano nascosti,
   // vedi sotto.
   useEffect(() => {
-    if (!campaignId || (entityType !== 'npc' && entityType !== 'monster')) {
+    if (!campaignId || (entityType !== 'npc' && entityType !== 'monster' && entityType !== 'character')) {
       setCampaignAdventures([]);
       setCampaignEnvironments([]);
       return;
@@ -846,6 +847,22 @@ export function EntityDetailView({
                   className="w-full resize-none rounded-xl border border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-3 text-sm text-[var(--dash-text-strong)] placeholder-[var(--dash-muted)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
                 />
               </div>
+
+              {!!campaignId && (
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
+                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Ambito narrativo</div>
+                  <select
+                    value={entity.adventureId ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, adventureId: e.target.value || null })}
+                    className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1.5 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                  >
+                    <option value="">Tutta la campagna</option>
+                    {campaignAdventures.map((adventure) => (
+                      <option key={adventure.id} value={adventure.id}>{adventure.title}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
                 <div className="mb-3 flex items-center gap-1.5 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">

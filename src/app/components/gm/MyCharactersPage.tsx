@@ -11,6 +11,7 @@ import { isRulesetCompatible, VISIBLE_RULESETS, type RulesetId } from '../../cam
 import { RulesetPickerDialog } from '../../campaigns/RulesetPickerDialog';
 import { RulesetTag } from '../shared/RulesetTag';
 import { CharacterCreationWizard } from './CharacterCreationWizard';
+import { formatCampaignAdventureLabel } from '../../../services/campaign/campaignAdventureLabel';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { EntityCard } from '../session/shared/EntityCard';
 import { EntityKebabMenu } from '../session/shared/EntityKebabMenu';
@@ -475,7 +476,9 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         <div className="flex items-center gap-1.5 truncate text-[11px] text-[var(--dash-accent-2)]">
           <MapPin className="h-3 w-3 shrink-0" />
           <span className="truncate">
-            {campaignInfo?.name ?? 'Nessuna campagna'}
+            {char.campaignId
+              ? formatCampaignAdventureLabel(campaignInfo?.name, char.adventureId ? adventureTitlesById.get(char.adventureId) : null)
+              : 'Nessuna campagna'}
             {char.campaignId ? ` · GM ${gmOnlineFor[char.campaignId] ? 'online' : 'offline'}` : ''}
           </span>
         </div>
@@ -688,6 +691,43 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     if (!campaignId) return 'Non in campagna';
     return campaigns.find(c => c.id === campaignId)?.name ?? 'Campagna sconosciuta';
   };
+
+  // Titoli avventura per il badge "Nome Campagna - Nome Avventura" sulle
+  // card di questa pagina (stesso formato di MonstersManager.tsx/
+  // NPCManager.tsx, vedi formatCampaignAdventureLabel) - qui pero' PG/PNG/
+  // Mostri possono appartenere a campagne diverse (non una sola campagna
+  // attiva come nei tab GM), quindi carica le avventure di ogni campagna
+  // effettivamente coinvolta invece di usare una sola lista scoped.
+  const [adventureTitlesById, setAdventureTitlesById] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    const campaignIds = new Set<string>();
+    for (const c of characters) {
+      if (c.campaignId && c.adventureId) campaignIds.add(c.campaignId);
+    }
+    for (const npc of npcs) {
+      if (npc.campaignId && npc.adventureId) campaignIds.add(npc.campaignId);
+    }
+    for (const monster of monsters) {
+      if (monster.campaignId && monster.adventureId) campaignIds.add(monster.campaignId);
+    }
+
+    if (campaignIds.size === 0) {
+      setAdventureTitlesById(new Map());
+      return;
+    }
+
+    let cancelled = false;
+    Promise.all([...campaignIds].map(id => loadAdventures(id))).then(lists => {
+      if (cancelled) return;
+      const next = new Map<string, string>();
+      for (const list of lists) {
+        for (const adventure of list) next.set(adventure.id, adventure.title);
+      }
+      setAdventureTitlesById(next);
+    });
+    return () => { cancelled = true; };
+  }, [characters, npcs, monsters]);
 
   // applica un aggiornamento locale ottimistico sullo stato giusto (npcs o monsters) in base al kind
   const applyEntityUpdate = (entry: CatalogEntry, updater: (entity: NPC | Monster) => NPC | Monster) => {
@@ -1004,7 +1044,9 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         ) : (
           <div className="flex items-center gap-1.5 truncate text-[11px] text-[var(--dash-accent-2)]">
             <MapPin className="h-3 w-3 shrink-0" />
-            <span className="truncate">{campaignName}</span>
+            <span className="truncate">
+              {formatCampaignAdventureLabel(campaignName, entity.adventureId ? adventureTitlesById.get(entity.adventureId) : null)}
+            </span>
           </div>
         )}
       </EntityCard>
