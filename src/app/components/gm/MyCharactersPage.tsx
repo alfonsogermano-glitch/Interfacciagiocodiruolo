@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Plus, Loader2, Pencil, Trash2, KeyRound, MoreVertical,
@@ -153,6 +153,36 @@ function filterEntries(
   return result;
 }
 
+// Opzioni del select gerarchico Campagna/Avventura dei pannelli Filtri
+// avanzati (PG/PNG/Mostri): ogni campagna e' un'opzione selezionabile a se',
+// con le sue avventure subito sotto come opzioni indentate "└─" - flatMap
+// (non un <optgroup>, la cui label non e' selezionabile: qui la campagna
+// stessa deve restare un'opzione cliccabile).
+function buildCampaignAdventureOptions(
+  campaignList: { id: string; name: string; suffix?: string }[],
+  adventuresByCampaignId: Map<string, Adventure[]>
+) {
+  return campaignList.flatMap(c => {
+    const adventures = adventuresByCampaignId.get(c.id) ?? [];
+    return [
+      <option key={c.id} value={c.id}>{c.name}{c.suffix ? ` ${c.suffix}` : ''}</option>,
+      ...adventures.map(a => (
+        <option key={`${c.id}::${a.id}`} value={`${c.id}::${a.id}`}>{`  └─ ${a.title}`}</option>
+      )),
+    ];
+  });
+}
+
+// Decodifica il valore composito "campaignId::adventureId" del select
+// gerarchico sopra - solo di presentazione: campaignFilter/adventureFilter
+// restano le due uniche fonti di verita' del filtro, questa funzione le
+// deriva dal valore scelto, non introduce un terzo stato da tenere
+// sincronizzato.
+function decodeCampaignAdventureValue(raw: string): { campaignId: string; adventureId: string } {
+  const [campaignId = '', adventureId = ''] = raw.split('::');
+  return { campaignId, adventureId };
+}
+
 // Ricerca client-side sui dati gia' caricati, stesso pattern semplice
 // (.filter()/.some()) gia' usato in MonstersManager.tsx, adattato ai campi
 // rilevanti per ciascun tipo di scheda.
@@ -225,6 +255,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [charViewMode, setCharViewMode] = useState<ViewMode>('grid');
   const [charFiltersOpen, setCharFiltersOpen] = useState(false);
   const [charCampaignFilter, setCharCampaignFilter] = useState('');
+  const [charAdventureFilter, setCharAdventureFilter] = useState('');
   const [charRulesetFilter, setCharRulesetFilter] = useState('');
   const [charPage, setCharPage] = useState(1);
   const [charPageSize, setCharPageSize] = useState<number>(12);
@@ -410,6 +441,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const unassignedCharacters = characters.filter(c => !c.campaignId);
   const charFilterPool = (charFilter === 'assigned' ? assignedCharacters : charFilter === 'unassigned' ? unassignedCharacters : characters)
     .filter(c => !charCampaignFilter || c.campaignId === charCampaignFilter)
+    .filter(c => !charAdventureFilter || c.adventureId === charAdventureFilter)
     // Confronto diretto, non isRulesetCompatible: qui un PG senza ruleset
     // confermato va escluso quando si filtra per un set specifico, vedi
     // stessa nota in filterEntries() per PNG/Mostri.
@@ -579,7 +611,6 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [npcCampaignFilter, setNpcCampaignFilter] = useState('');
   const [npcAdventureFilter, setNpcAdventureFilter] = useState('');
   const [npcRulesetFilter, setNpcRulesetFilter] = useState('');
-  const [npcFilterAdventures, setNpcFilterAdventures] = useState<Adventure[]>([]);
   const [npcPage, setNpcPage] = useState(1);
   const [npcPageSize, setNpcPageSize] = useState<number>(12);
   // Bozza di un nuovo PNG aperta da "+ Nuovo PNG": resta solo qui, non entra
@@ -600,7 +631,6 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [monsterCampaignFilter, setMonsterCampaignFilter] = useState('');
   const [monsterAdventureFilter, setMonsterAdventureFilter] = useState('');
   const [monsterRulesetFilter, setMonsterRulesetFilter] = useState('');
-  const [monsterFilterAdventures, setMonsterFilterAdventures] = useState<Adventure[]>([]);
   const [monsterPage, setMonsterPage] = useState(1);
   const [monsterPageSize, setMonsterPageSize] = useState<number>(12);
   const [showMonsterRulesetPicker, setShowMonsterRulesetPicker] = useState(false);
@@ -644,43 +674,10 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   useEffect(() => { void loadNpcs(); }, [user?.id]);
   useEffect(() => { void loadMonstersList(); }, [user?.id]);
 
-  // Le avventure sono sempre scoped a una singola campagna (loadAdventures
-  // richiede un campaignId) - il filtro Avventura del pannello Filtri ha
-  // senso solo quando e' gia' selezionata una campagna specifica, quindi
-  // ricarichiamo la lista ogni volta che cambia quella scelta e la
-  // svuotiamo (con l'eventuale filtro attivo) quando torna su "tutte".
-  useEffect(() => {
-    if (!npcCampaignFilter) {
-      setNpcFilterAdventures([]);
-      setNpcAdventureFilter('');
-      return;
-    }
-    let cancelled = false;
-    loadAdventures(npcCampaignFilter).then(list => {
-      if (!cancelled) setNpcFilterAdventures(list);
-    });
-    setNpcAdventureFilter('');
-    return () => { cancelled = true; };
-  }, [npcCampaignFilter]);
-
-  useEffect(() => {
-    if (!monsterCampaignFilter) {
-      setMonsterFilterAdventures([]);
-      setMonsterAdventureFilter('');
-      return;
-    }
-    let cancelled = false;
-    loadAdventures(monsterCampaignFilter).then(list => {
-      if (!cancelled) setMonsterFilterAdventures(list);
-    });
-    setMonsterAdventureFilter('');
-    return () => { cancelled = true; };
-  }, [monsterCampaignFilter]);
-
   // Torna a pagina 1 ogni volta che ricerca/filtri/ordinamento cambiano,
   // stesso comportamento di MonstersManager.tsx (altrimenti si potrebbe
   // restare su una pagina che i nuovi risultati non hanno piu').
-  useEffect(() => { setCharPage(1); }, [charSearch, charFilter, charCampaignFilter, charRulesetFilter, charSort, charPageSize]);
+  useEffect(() => { setCharPage(1); }, [charSearch, charFilter, charCampaignFilter, charAdventureFilter, charRulesetFilter, charSort, charPageSize]);
   useEffect(() => { setNpcPage(1); }, [npcSearch, npcFilter, npcCampaignFilter, npcAdventureFilter, npcRulesetFilter, npcSort, npcPageSize]);
   useEffect(() => { setMonsterPage(1); }, [monsterSearch, monsterFilter, monsterCampaignFilter, monsterAdventureFilter, monsterRulesetFilter, monsterSort, monsterPageSize]);
 
@@ -692,42 +689,48 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     return campaigns.find(c => c.id === campaignId)?.name ?? 'Campagna sconosciuta';
   };
 
-  // Titoli avventura per il badge "Nome Campagna - Nome Avventura" sulle
-  // card di questa pagina (stesso formato di MonstersManager.tsx/
-  // NPCManager.tsx, vedi formatCampaignAdventureLabel) - qui pero' PG/PNG/
-  // Mostri possono appartenere a campagne diverse (non una sola campagna
-  // attiva come nei tab GM), quindi carica le avventure di ogni campagna
-  // effettivamente coinvolta invece di usare una sola lista scoped.
-  const [adventureTitlesById, setAdventureTitlesById] = useState<Map<string, string>>(new Map());
+  // Avventure per campagna, fonte unica sia per i badge "Nome Campagna -
+  // Nome Avventura" (adventureTitlesById sotto) sia per popolare il select
+  // gerarchico Campagna/Avventura dei pannelli Filtri (PG/PNG/Mostri) - a
+  // differenza del vecchio fetch-per-badge (limitato alle sole campagne che
+  // avevano gia' un'entita' con avventura assegnata), qui serve la lista
+  // completa di ogni campagna, dato che il select deve mostrare tutte le
+  // avventure subito, non solo dopo aver scelto una campagna. campaigns e'
+  // owned, joinedCampaigns e' partecipate (PG puo' appartenere a entrambe,
+  // PNG/Mostri solo a owned - fetchare l'unione e' un superset innocuo).
+  const [adventuresByCampaignId, setAdventuresByCampaignId] = useState<Map<string, Adventure[]>>(new Map());
+  const allCampaignIdsKey = [...campaigns, ...joinedCampaigns].map(c => c.id).join(',');
 
   useEffect(() => {
-    const campaignIds = new Set<string>();
-    for (const c of characters) {
-      if (c.campaignId && c.adventureId) campaignIds.add(c.campaignId);
-    }
-    for (const npc of npcs) {
-      if (npc.campaignId && npc.adventureId) campaignIds.add(npc.campaignId);
-    }
-    for (const monster of monsters) {
-      if (monster.campaignId && monster.adventureId) campaignIds.add(monster.campaignId);
-    }
-
-    if (campaignIds.size === 0) {
-      setAdventureTitlesById(new Map());
+    const ids = Array.from(new Set([...campaigns, ...joinedCampaigns].map(c => c.id)));
+    if (ids.length === 0) {
+      setAdventuresByCampaignId(new Map());
       return;
     }
 
     let cancelled = false;
-    Promise.all([...campaignIds].map(id => loadAdventures(id))).then(lists => {
-      if (cancelled) return;
-      const next = new Map<string, string>();
-      for (const list of lists) {
-        for (const adventure of list) next.set(adventure.id, adventure.title);
-      }
-      setAdventureTitlesById(next);
-    });
+    Promise.all(ids.map(id => loadAdventures(id).then(list => [id, list] as const)))
+      .then(pairs => {
+        if (cancelled) return;
+        setAdventuresByCampaignId(new Map(pairs));
+      })
+      .catch(error => {
+        console.error('Errore caricamento avventure per i filtri:', error);
+      });
     return () => { cancelled = true; };
-  }, [characters, npcs, monsters]);
+  }, [allCampaignIdsKey]);
+
+  // Titoli avventura per il badge "Nome Campagna - Nome Avventura" sulle
+  // card di questa pagina (stesso formato di MonstersManager.tsx/
+  // NPCManager.tsx, vedi formatCampaignAdventureLabel) - derivato dalla
+  // mappa sopra invece di un fetch proprio.
+  const adventureTitlesById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const list of adventuresByCampaignId.values()) {
+      for (const adventure of list) map.set(adventure.id, adventure.title);
+    }
+    return map;
+  }, [adventuresByCampaignId]);
 
   // applica un aggiornamento locale ottimistico sullo stato giusto (npcs o monsters) in base al kind
   const applyEntityUpdate = (entry: CatalogEntry, updater: (entity: NPC | Monster) => NPC | Monster) => {
@@ -1071,7 +1074,6 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     setCampaignFilter: (id: string) => void;
     adventureFilter: string;
     setAdventureFilter: (id: string) => void;
-    filterAdventures: Adventure[];
     rulesetFilter: string;
     setRulesetFilter: (id: string) => void;
     filtersOpen: boolean;
@@ -1083,7 +1085,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   }) => {
     const {
       entries, filter, setFilter, sort, setSort, search, setSearch, viewMode, setViewMode, isLoading, labelSingular, labelPluralLower,
-      campaignFilter, setCampaignFilter, adventureFilter, setAdventureFilter, filterAdventures,
+      campaignFilter, setCampaignFilter, adventureFilter, setAdventureFilter,
       rulesetFilter, setRulesetFilter,
       filtersOpen, setFiltersOpen, page, setPage, pageSize, setPageSize,
     } = params;
@@ -1107,35 +1109,19 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
           filtersPanel={
             <div className="grid gap-3 lg:grid-cols-4">
               <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
-                <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Campagna</div>
+                <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Campagna / Avventura</div>
                 <select
-                  value={campaignFilter}
-                  onChange={e => setCampaignFilter(e.target.value)}
+                  value={adventureFilter ? `${campaignFilter}::${adventureFilter}` : campaignFilter}
+                  onChange={e => {
+                    const { campaignId, adventureId } = decodeCampaignAdventureValue(e.target.value);
+                    setCampaignFilter(campaignId);
+                    setAdventureFilter(adventureId);
+                  }}
                   className="mt-2 w-full rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)]"
                 >
                   <option value="">Tutte le campagne</option>
-                  {campaigns.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
+                  {buildCampaignAdventureOptions(campaigns, adventuresByCampaignId)}
                 </select>
-              </div>
-
-              <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
-                <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Avventura</div>
-                <select
-                  value={adventureFilter}
-                  onChange={e => setAdventureFilter(e.target.value)}
-                  disabled={!campaignFilter}
-                  className="mt-2 w-full rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)] disabled:opacity-50"
-                >
-                  <option value="">Tutte le avventure</option>
-                  {filterAdventures.map(a => (
-                    <option key={a.id} value={a.id}>{a.title}</option>
-                  ))}
-                </select>
-                <p className="mt-2 text-xs text-[var(--dash-muted)]">
-                  {campaignFilter ? 'Solo le avventure della campagna selezionata sopra.' : 'Seleziona prima una campagna: le avventure sono sempre legate a una singola campagna.'}
-                </p>
               </div>
 
               <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
@@ -1152,7 +1138,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                 </select>
               </div>
 
-              <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+              <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3 lg:col-span-2">
                 <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Parole chiave</div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {['Boss', 'Occulti', 'Umanoidi'].map(label => (
@@ -1322,16 +1308,18 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             filtersPanel={
               <div className="grid gap-3 lg:grid-cols-4">
                 <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
-                  <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Campagna</div>
+                  <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Campagna / Avventura</div>
                   <select
-                    value={charCampaignFilter}
-                    onChange={e => setCharCampaignFilter(e.target.value)}
+                    value={charAdventureFilter ? `${charCampaignFilter}::${charAdventureFilter}` : charCampaignFilter}
+                    onChange={e => {
+                      const { campaignId, adventureId } = decodeCampaignAdventureValue(e.target.value);
+                      setCharCampaignFilter(campaignId);
+                      setCharAdventureFilter(adventureId);
+                    }}
                     className="mt-2 w-full rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)]"
                   >
                     <option value="">Tutte le campagne</option>
-                    {allCampaignOptions.map(c => (
-                      <option key={c.id} value={c.id}>{c.name} {c.suffix}</option>
-                    ))}
+                    {buildCampaignAdventureOptions(allCampaignOptions, adventuresByCampaignId)}
                   </select>
                 </div>
 
@@ -1456,7 +1444,6 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         setCampaignFilter: setNpcCampaignFilter,
         adventureFilter: npcAdventureFilter,
         setAdventureFilter: setNpcAdventureFilter,
-        filterAdventures: npcFilterAdventures,
         rulesetFilter: npcRulesetFilter,
         setRulesetFilter: setNpcRulesetFilter,
         filtersOpen: npcFiltersOpen,
@@ -1484,7 +1471,6 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         setCampaignFilter: setMonsterCampaignFilter,
         adventureFilter: monsterAdventureFilter,
         setAdventureFilter: setMonsterAdventureFilter,
-        filterAdventures: monsterFilterAdventures,
         rulesetFilter: monsterRulesetFilter,
         setRulesetFilter: setMonsterRulesetFilter,
         filtersOpen: monsterFiltersOpen,
