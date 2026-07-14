@@ -206,7 +206,20 @@ export function normalizeMonster(monster: Partial<Monster> & { id?: string; name
     description: monster.description ?? '',
 
     portraitImageUrl: monster.portraitImageUrl ?? '',
+    // Campi gestiti solo da EntityDetailView (nessuna UI in MonstersManager):
+    // attraversano invariati il ciclo load/save, nessun default inventato qui
+    // (i default di visualizzazione vivono in TokenStyleEditor/EntityImageTab).
+    portraitSourceImageUrl: monster.portraitSourceImageUrl,
+    portraitCropArea: monster.portraitCropArea ?? null,
+    portraitAssetId: monster.portraitAssetId ?? null,
     coverImageUrl: monster.coverImageUrl ?? '',
+
+    tokenColor: monster.tokenColor ?? null,
+    tokenBackgroundColor: monster.tokenBackgroundColor ?? null,
+    tokenBorderStyle: monster.tokenBorderStyle ?? null,
+    tokenBorderThickness: monster.tokenBorderThickness ?? null,
+    tokenBorderLabel: monster.tokenBorderLabel ?? null,
+    tokenBorderVisible: monster.tokenBorderVisible ?? null,
 
     portraitCrop: monster.portraitCrop ?? DEFAULT_CROP,
     portraitFrameAssetId: monster.portraitFrameAssetId ?? null,

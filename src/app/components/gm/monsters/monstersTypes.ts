@@ -1,5 +1,6 @@
 import type { D20Stats } from '../../ruleset/D20StatBlock';
 import type { RulesetId } from '../../../campaigns/campaignTypes';
+import type { TokenBorderStyle, TokenBorderThickness } from '../../../../types/tokenStyle';
 
 export type Difficulty =
   | 'Base'
@@ -69,7 +70,24 @@ export interface Monster extends BaseCampaignEntity {
   description: string;
 
   portraitImageUrl?: string;
+  // Foto intera pre-ritaglio (ridimensionata) e ultima area di ritaglio
+  // confermata (formato react-easy-crop) usate dal tab "Immagine" di
+  // EntityDetailView - sistema indipendente dal portraitCrop legacy sotto,
+  // vedi entitiesService.ts/character.ts per lo stesso campo su NPC/PG.
+  portraitSourceImageUrl?: string;
+  portraitCropArea?: { x: number; y: number; width: number; height: number } | null;
+  // Asset condiviso della raccolta immagini (image_assets), vedi imageAssetsService.ts.
+  portraitAssetId?: string | null;
   coverImageUrl?: string;
+
+  // Token Studio: stile del token mappa, indipendente dal "Cerchio portrait"
+  // (portraitBorderColor/Visible/Label sotto) - vedi types/tokenStyle.ts.
+  tokenColor?: string | null;
+  tokenBackgroundColor?: string | null;
+  tokenBorderStyle?: TokenBorderStyle | null;
+  tokenBorderThickness?: TokenBorderThickness | null;
+  tokenBorderLabel?: string | null;
+  tokenBorderVisible?: boolean | null;
 
   portraitCrop?: ImageCrop;
   portraitFrameAssetId?: string | null;
