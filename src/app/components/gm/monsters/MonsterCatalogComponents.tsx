@@ -252,32 +252,53 @@ export function CustomEntriesEditor({
       </div>
 
       <div className="space-y-3">
-        {items.map(item => (
-          <div key={item.id} className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] p-3">
-            <input
-              type="text"
-              value={item.name}
-              onChange={e => onUpdate(item.id, { name: e.target.value })}
-              placeholder="Nome"
-              className="mb-2 w-full rounded border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)]"
-            />
+        {items.map(item => {
+          const incomplete = isIncompleteEntry(item);
 
-            <textarea
-              value={item.description}
-              onChange={e => onUpdate(item.id, { description: e.target.value })}
-              placeholder="Descrizione"
-              className="h-20 w-full resize-none rounded border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)]"
-            />
-
-            <button
-              type="button"
-              onClick={() => onRemove(item.id)}
-              className="mt-2 text-xs text-[#d8b4b4] hover:text-[#f3dede]"
+          return (
+            <div
+              key={item.id}
+              className={`rounded-lg border p-3 ${
+                incomplete
+                  ? 'border-[#d8837e] bg-[var(--dash-surface-2)]'
+                  : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)]'
+              }`}
             >
-              Rimuovi
-            </button>
-          </div>
-        ))}
+              <input
+                type="text"
+                value={item.name}
+                onChange={e => onUpdate(item.id, { name: e.target.value })}
+                placeholder="Nome"
+                className={`mb-2 w-full rounded border bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)] ${
+                  incomplete ? 'border-[#d8837e]' : 'border-[var(--dash-border)]'
+                }`}
+              />
+
+              <textarea
+                value={item.description}
+                onChange={e => onUpdate(item.id, { description: e.target.value })}
+                placeholder="Descrizione"
+                className={`h-20 w-full resize-none rounded border bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)] ${
+                  incomplete ? 'border-[#d8837e]' : 'border-[var(--dash-border)]'
+                }`}
+              />
+
+              {incomplete && (
+                <p className="mt-2 text-xs text-[#d8837e]">
+                  Compila anche {item.name.trim() ? 'la descrizione' : 'il nome'}, oppure svuota entrambi.
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={() => onRemove(item.id)}
+                className="mt-2 text-xs text-[#d8b4b4] hover:text-[#f3dede]"
+              >
+                Rimuovi
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

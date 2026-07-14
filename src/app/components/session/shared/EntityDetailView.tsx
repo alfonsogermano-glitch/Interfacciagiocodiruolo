@@ -27,7 +27,7 @@ import { loadEnvironmentReferences, type EntityReference } from '../../../../ser
 import { FreschezzaMaxEditor, FreschezzaBoxesEditor as MonsterFreschezzaBoxesEditor } from '../../gm/monsters/MonsterFreschezzaComponents';
 import { CatalogSelectionBlock, CustomEntriesEditor } from '../../gm/monsters/MonsterCatalogComponents';
 import { TERRIFYING_TRAIT_ID, FOLLIA_DIFFICULTY_OPTIONS } from '../../gm/monsters/monstersTypes';
-import { getMonsterCriticalBoxes, clampMonsterAudacia, normalizeTiroFollia, generateId as generateMonsterEntryId, calculateAudaciaGainFromFreshnessChange } from '../../gm/monsters/monstersUtils';
+import { getMonsterCriticalBoxes, clampMonsterAudacia, normalizeTiroFollia, generateId as generateMonsterEntryId, calculateAudaciaGainFromFreshnessChange, monsterHasSpecialActions } from '../../gm/monsters/monstersUtils';
 import { MONSTER_TRAITS_CATALOG } from '../../../../data/monsterTraitsCatalog';
 import { MONSTER_SPECIAL_ACTIONS_CATALOG } from '../../../../data/monsterSpecialActionsCatalog';
 
@@ -162,6 +162,11 @@ interface EntityDetailViewProps {
    *  dove la rail e' interna, vedi showRail sopra). */
   activeSection?: EntityDetailRailSection;
   onActiveSectionChange?: (section: EntityDetailRailSection) => void;
+  /** Azione extra mostrata accanto ai pulsanti ±1 Audacia, solo per Mostri
+   *  (es. "Spendi 1 Audacia" - stessa posizione visiva che aveva nel vecchio
+   *  MonstersManager.tsx). Assente = nessun pulsante extra, comportamento
+   *  invariato per i chiamanti esistenti. */
+  monsterAudaciaExtraAction?: ReactNode;
 }
 
 export function EntityDetailView({
@@ -181,6 +186,7 @@ export function EntityDetailView({
   isDraft = false,
   activeSection: controlledActiveSection,
   onActiveSectionChange,
+  monsterAudaciaExtraAction,
 }: EntityDetailViewProps) {
   const [internalActiveSection, setInternalActiveSection] = useState<EntityDetailRailSection>('scheda');
   const activeSection = controlledActiveSection ?? internalActiveSection;
@@ -249,14 +255,15 @@ export function EntityDetailView({
     return () => { cancelled = true; };
   }, [campaignId, entityType]);
 
-  // Pool "Ambito narrativo"/"Luogo" per PNG e Mostri, "Avventura" per PG
-  // (stesso concetto di NPCManager.tsx/MonstersManager.tsx, adventureId/
-  // environmentId - i PG non hanno Luogo, solo Avventura) ma qui l'entita'
-  // potrebbe non avere ancora una campagna: senza campaignId questi campi
-  // non hanno senso (nessuna pool da cui scegliere) e restano nascosti,
-  // vedi sotto.
+  // Pool "Ambito narrativo"/"Luogo" per PNG e Mostri, stesso concetto di
+  // NPCManager.tsx/MonstersManager.tsx (adventureId/environmentId) ma qui
+  // l'entita' potrebbe non avere ancora una campagna: senza campaignId questi
+  // campi non hanno senso (nessuna pool da cui scegliere) e restano nascosti,
+  // vedi sotto. I PG non hanno un concetto di Avventura (a differenza di
+  // PNG/Mostri, un PG non viene posizionato dal GM in un'avventura
+  // specifica), quindi restano esclusi qui.
   useEffect(() => {
-    if (!campaignId || (entityType !== 'npc' && entityType !== 'monster' && entityType !== 'character')) {
+    if (!campaignId || (entityType !== 'npc' && entityType !== 'monster')) {
       setCampaignAdventures([]);
       setCampaignEnvironments([]);
       return;
@@ -848,22 +855,6 @@ export function EntityDetailView({
                 />
               </div>
 
-              {!!campaignId && (
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
-                  <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Ambito narrativo</div>
-                  <select
-                    value={entity.adventureId ?? ''}
-                    onChange={(e) => onUpdate({ ...entity, adventureId: e.target.value || null })}
-                    className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1.5 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
-                  >
-                    <option value="">Tutta la campagna</option>
-                    {campaignAdventures.map((adventure) => (
-                      <option key={adventure.id} value={adventure.id}>{adventure.title}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
               <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
                 <div className="mb-3 flex items-center gap-1.5 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
                   <span>Legame</span>
@@ -1309,6 +1300,7 @@ export function EntityDetailView({
                     +1
                   </button>
                 </div>
+                {monsterAudaciaExtraAction}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1348,6 +1340,15 @@ export function EntityDetailView({
                   className="w-full resize-none rounded-lg border border-transparent bg-transparent text-[var(--dash-text)] outline-none transition-colors hover:border-[var(--dash-border-soft)] focus:border-[var(--dash-accent)] disabled:cursor-not-allowed"
                 />
               </div>
+
+              {!!campaignId && isD20 && (
+                <D20StatBlock
+                  stats={entity.d20Stats ?? DEFAULT_D20_STATS}
+                  isPlayerCharacter={false}
+                  isEditing={canEdit}
+                  onChange={(patch) => onUpdate({ ...entity, d20Stats: { ...(entity.d20Stats ?? DEFAULT_D20_STATS), ...patch } })}
+                />
+              )}
 
               <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
                 <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Note GM</div>
@@ -1423,7 +1424,16 @@ export function EntityDetailView({
                   const nextActionIds = currentActionIds.includes(actionId)
                     ? currentActionIds.filter((id: string) => id !== actionId)
                     : [...currentActionIds, actionId];
-                  onUpdate({ ...entity, specialActionIds: nextActionIds });
+                  const nextMonster = { ...entity, specialActionIds: nextActionIds };
+                  // Se il mostro non ha piu' nessuna azione speciale (ne' di
+                  // catalogo ne' personalizzata), azzera Audacia/caselle
+                  // critiche - stessa logica di toggleSpecialAction nel
+                  // vecchio MonstersManager.tsx.
+                  onUpdate({
+                    ...nextMonster,
+                    audacia: monsterHasSpecialActions(nextMonster) ? clampMonsterAudacia(nextMonster, nextMonster.audacia) : 0,
+                    caselleFreschezzaCritiche: monsterHasSpecialActions(nextMonster) ? getMonsterCriticalBoxes(nextMonster) : []
+                  });
                 }}
               />
 
@@ -1432,7 +1442,17 @@ export function EntityDetailView({
                 items={entity.customSpecialActions ?? []}
                 onAdd={() => onUpdate({ ...entity, customSpecialActions: [...(entity.customSpecialActions ?? []), { id: generateMonsterEntryId('action'), name: '', description: '' }] })}
                 onUpdate={(id, patch) => onUpdate({ ...entity, customSpecialActions: (entity.customSpecialActions ?? []).map((item: any) => (item.id === id ? { ...item, ...patch } : item)) })}
-                onRemove={(id) => onUpdate({ ...entity, customSpecialActions: (entity.customSpecialActions ?? []).filter((item: any) => item.id !== id) })}
+                onRemove={(id) => {
+                  const nextMonster = { ...entity, customSpecialActions: (entity.customSpecialActions ?? []).filter((item: any) => item.id !== id) };
+                  // Stesso azzeramento di removeCustomSpecialAction nel
+                  // vecchio MonstersManager.tsx - solo la rimozione (non
+                  // l'aggiunta/modifica) puo' portare a "zero azioni speciali".
+                  onUpdate({
+                    ...nextMonster,
+                    audacia: monsterHasSpecialActions(nextMonster) ? clampMonsterAudacia(nextMonster, nextMonster.audacia) : 0,
+                    caselleFreschezzaCritiche: monsterHasSpecialActions(nextMonster) ? getMonsterCriticalBoxes(nextMonster) : []
+                  });
+                }}
               />
             </div>
           )}

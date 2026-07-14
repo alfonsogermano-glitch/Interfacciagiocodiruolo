@@ -247,11 +247,7 @@ export function normalizeMonster(monster: Partial<Monster> & { id?: string; name
     freschezza: monster.freschezza ?? 0,
     maxFreschezza: monster.maxFreschezza ?? null,
     audacia: Math.max(0, monster.audacia ?? 0),
-    caselleFreschezzaCritiche: Array.isArray(monster.caselleFreschezzaCritiche) && monster.caselleFreschezzaCritiche.length > 0
-      ? monster.caselleFreschezzaCritiche
-      : MONSTER_BASE_CATALOG.find(item => item.id === monster.baseMonsterId)?.caselleFreschezzaCritiche ??
-        MONSTER_BASE_CATALOG.find(item => item.name === monster.name)?.caselleFreschezzaCritiche ??
-        [],
+    caselleFreschezzaCritiche: getMonsterCriticalBoxes(monster),
 
     attacco: monster.attacco ?? '',
     difesa: monster.difesa ?? '',
@@ -350,8 +346,15 @@ export function clampMonsterAudacia(monster: Monster, value: number): number {
   return Math.max(0, value);
 }
 
-export function getMonsterCriticalBoxes(monster: Monster): number[] {
-  if (Array.isArray(monster.caselleFreschezzaCritiche) && monster.caselleFreschezzaCritiche.length > 0) {
+export function getMonsterCriticalBoxes(
+  monster: { caselleFreschezzaCritiche?: number[]; baseMonsterId?: string | null; name?: string }
+): number[] {
+  // Array presente (anche vuoto) = valore gia' deciso esplicitamente (dal GM,
+  // o da un ricalcolo come l'azzeramento quando non ci sono piu' azioni
+  // speciali) - va rispettato cosi' com'e'. Il fallback al catalogo sotto
+  // serve solo ai dati legacy dove il campo manca del tutto (undefined) -
+  // stesso segnale gia' usato da monsterHasSpecialActions per specialActionIds.
+  if (Array.isArray(monster.caselleFreschezzaCritiche)) {
     return monster.caselleFreschezzaCritiche;
   }
 

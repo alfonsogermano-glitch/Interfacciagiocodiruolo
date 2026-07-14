@@ -195,25 +195,26 @@ export function NPCsManager({ navigationTarget = null }: NPCsManagerProps) {
     setSelectedNpcId(id);
   };
 
-  // Finche' la bozza non ha un nome resta solo in stato locale (nessuna
-  // scrittura su Supabase). Alla prima modifica con nome non vuoto viene
-  // "promossa": entra in npcs e si salva - stesso pattern di
-  // MyCharactersPage.tsx (handleNpcDetailUpdate), qui scoped alla campagna
-  // attiva invece che al proprietario.
+  // La bozza resta solo in stato locale finche' non si preme "Crea PNG"
+  // esplicitamente (handleConfirmCreateNpc) - nessuna promozione automatica
+  // al primo carattere digitato nel nome.
   const handleNpcUpdate = (updated: NPC) => {
     if (draftNpc && updated.id === draftNpc.id) {
-      if (!updated.name.trim()) {
-        setDraftNpc(updated);
-        return;
-      }
-      setDraftNpc(null);
-      setNpcs(prev => [...prev, updated]);
-      saveNPC(activeCampaignId, updated).catch(err => console.error('Errore salvataggio PNG:', err));
+      setDraftNpc(updated);
       return;
     }
 
     setNpcs(prev => prev.map(npc => (npc.id === updated.id ? updated : npc)));
     saveNPC(activeCampaignId, updated).catch(err => console.error('Errore salvataggio PNG:', err));
+  };
+
+  const handleConfirmCreateNpc = () => {
+    if (!draftNpc || !draftNpc.name.trim()) return;
+
+    setDraftNpc(null);
+    setNpcs(prev => [...prev, draftNpc]);
+    setSelectedNpcId(draftNpc.id);
+    saveNPC(activeCampaignId, draftNpc).catch(err => console.error('Errore salvataggio PNG:', err));
   };
 
   const handleConfirmDelete = async () => {
@@ -370,9 +371,17 @@ export function NPCsManager({ navigationTarget = null }: NPCsManagerProps) {
       <div className="lg:col-span-2">
         {selectedNpc ? (
           <>
-            {isViewingDraft && !selectedNpc.name.trim() && (
-              <div className="mb-4 rounded-lg border border-[var(--dash-accent)] bg-[var(--dash-panel)] px-3 py-2 text-xs text-[var(--dash-text)]">
-                Bozza non salvata — verrà salvata automaticamente non appena inserisci un nome.
+            {isViewingDraft && (
+              <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-[var(--dash-accent)] bg-[var(--dash-panel)] px-3 py-2 text-xs text-[var(--dash-text)]">
+                <span>Bozza non salvata — premi "Crea PNG" per salvarla.</span>
+                <button
+                  type="button"
+                  onClick={handleConfirmCreateNpc}
+                  disabled={!selectedNpc.name.trim()}
+                  className="shrink-0 rounded-md border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-3 py-1.5 text-xs font-semibold text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-accent-2)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Crea PNG
+                </button>
               </div>
             )}
             <EntityDetailView

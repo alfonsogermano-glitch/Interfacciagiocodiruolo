@@ -255,7 +255,6 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [charViewMode, setCharViewMode] = useState<ViewMode>('grid');
   const [charFiltersOpen, setCharFiltersOpen] = useState(false);
   const [charCampaignFilter, setCharCampaignFilter] = useState('');
-  const [charAdventureFilter, setCharAdventureFilter] = useState('');
   const [charRulesetFilter, setCharRulesetFilter] = useState('');
   const [charPage, setCharPage] = useState(1);
   const [charPageSize, setCharPageSize] = useState<number>(12);
@@ -441,7 +440,6 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const unassignedCharacters = characters.filter(c => !c.campaignId);
   const charFilterPool = (charFilter === 'assigned' ? assignedCharacters : charFilter === 'unassigned' ? unassignedCharacters : characters)
     .filter(c => !charCampaignFilter || c.campaignId === charCampaignFilter)
-    .filter(c => !charAdventureFilter || c.adventureId === charAdventureFilter)
     // Confronto diretto, non isRulesetCompatible: qui un PG senza ruleset
     // confermato va escluso quando si filtra per un set specifico, vedi
     // stessa nota in filterEntries() per PNG/Mostri.
@@ -508,9 +506,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         <div className="flex items-center gap-1.5 truncate text-[11px] text-[var(--dash-accent-2)]">
           <MapPin className="h-3 w-3 shrink-0" />
           <span className="truncate">
-            {char.campaignId
-              ? formatCampaignAdventureLabel(campaignInfo?.name, char.adventureId ? adventureTitlesById.get(char.adventureId) : null)
-              : 'Nessuna campagna'}
+            {campaignInfo?.name ?? 'Nessuna campagna'}
             {char.campaignId ? ` · GM ${gmOnlineFor[char.campaignId] ? 'online' : 'offline'}` : ''}
           </span>
         </div>
@@ -677,7 +673,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   // Torna a pagina 1 ogni volta che ricerca/filtri/ordinamento cambiano,
   // stesso comportamento di MonstersManager.tsx (altrimenti si potrebbe
   // restare su una pagina che i nuovi risultati non hanno piu').
-  useEffect(() => { setCharPage(1); }, [charSearch, charFilter, charCampaignFilter, charAdventureFilter, charRulesetFilter, charSort, charPageSize]);
+  useEffect(() => { setCharPage(1); }, [charSearch, charFilter, charCampaignFilter, charRulesetFilter, charSort, charPageSize]);
   useEffect(() => { setNpcPage(1); }, [npcSearch, npcFilter, npcCampaignFilter, npcAdventureFilter, npcRulesetFilter, npcSort, npcPageSize]);
   useEffect(() => { setMonsterPage(1); }, [monsterSearch, monsterFilter, monsterCampaignFilter, monsterAdventureFilter, monsterRulesetFilter, monsterSort, monsterPageSize]);
 
@@ -787,22 +783,23 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     onOpenDetail('npc', draft.id);
   };
 
-  // Finche' la bozza non ha un nome resta solo qui (nessuna scrittura su
-  // Supabase). Alla prima modifica con nome non vuoto viene "promossa":
-  // entra in npcs e si salva - da quel momento le modifiche successive
-  // passano dal normale persistEntity() (id gia' presente in npcs).
+  // La bozza resta solo qui (nessuna scrittura su Supabase) finche' non si
+  // preme "Crea PNG" esplicitamente (handleConfirmCreateNpc) - nessuna
+  // promozione automatica al primo carattere digitato nel nome.
   const handleNpcDetailUpdate = (updated: NPC) => {
     if (draftNpc && updated.id === draftNpc.id) {
-      if (!updated.name.trim()) {
-        setDraftNpc(updated);
-        return;
-      }
-      setDraftNpc(null);
-      setNpcs(prev => [...prev, updated]);
-      saveNPC(updated.campaignId ?? null, updated).catch(err => console.error('Errore salvataggio PNG:', err));
+      setDraftNpc(updated);
       return;
     }
     persistEntity('npc', updated);
+  };
+
+  const handleConfirmCreateNpc = () => {
+    if (!draftNpc || !draftNpc.name.trim()) return;
+
+    setDraftNpc(null);
+    setNpcs(prev => [...prev, draftNpc]);
+    saveNPC(draftNpc.campaignId ?? null, draftNpc).catch(err => console.error('Errore salvataggio PNG:', err));
   };
 
   const handleOpenNewMonster = (ruleset: RulesetId) => {
@@ -811,23 +808,25 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     onOpenDetail('monster', draft.id);
   };
 
-  // Stessa logica di promozione di handleNpcDetailUpdate: finche' il nome
-  // resta vuoto la bozza aggiorna solo lo stato locale, alla prima modifica
-  // con nome non vuoto entra in monsters e si salva. Il draft ha sempre
-  // campaignId stringa ('' se non assegnato, mai null/undefined), quindi
-  // saveMonster() non richiede alcun fallback qui.
+  // Stessa logica di handleNpcDetailUpdate: la bozza resta solo in stato
+  // locale finche' non si preme "Crea Mostro" esplicitamente
+  // (handleConfirmCreateMonster). Il draft ha sempre campaignId stringa
+  // ('' se non assegnato, mai null/undefined), quindi saveMonster() non
+  // richiede alcun fallback qui.
   const handleMonsterDetailUpdate = (updated: Monster) => {
     if (draftMonster && updated.id === draftMonster.id) {
-      if (!updated.name.trim()) {
-        setDraftMonster(updated);
-        return;
-      }
-      setDraftMonster(null);
-      setMonsters(prev => [...prev, updated]);
-      saveMonster(updated.campaignId, updated).catch(err => console.error('Errore salvataggio mostro:', err));
+      setDraftMonster(updated);
       return;
     }
     persistEntity('monster', updated);
+  };
+
+  const handleConfirmCreateMonster = () => {
+    if (!draftMonster || !draftMonster.name.trim()) return;
+
+    setDraftMonster(null);
+    setMonsters(prev => [...prev, draftMonster]);
+    saveMonster(draftMonster.campaignId, draftMonster).catch(err => console.error('Errore salvataggio mostro:', err));
   };
 
   // Chiude l'overlay e scarta un'eventuale bozza PNG/Mostro mai promossa
@@ -1308,18 +1307,16 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             filtersPanel={
               <div className="grid gap-3 lg:grid-cols-4">
                 <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
-                  <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Campagna / Avventura</div>
+                  <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Campagna</div>
                   <select
-                    value={charAdventureFilter ? `${charCampaignFilter}::${charAdventureFilter}` : charCampaignFilter}
-                    onChange={e => {
-                      const { campaignId, adventureId } = decodeCampaignAdventureValue(e.target.value);
-                      setCharCampaignFilter(campaignId);
-                      setCharAdventureFilter(adventureId);
-                    }}
+                    value={charCampaignFilter}
+                    onChange={e => setCharCampaignFilter(e.target.value)}
                     className="mt-2 w-full rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)]"
                   >
                     <option value="">Tutte le campagne</option>
-                    {buildCampaignAdventureOptions(allCampaignOptions, adventuresByCampaignId)}
+                    {allCampaignOptions.map(c => (
+                      <option key={c.id} value={c.id}>{c.name} {c.suffix}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -1626,8 +1623,16 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
           </div>
           <div className="flex-1 overflow-y-auto p-5">
             {(isViewingUnsavedNpcDraft || isViewingUnsavedMonsterDraft) && (
-              <div className="mb-4 rounded-lg border border-[var(--dash-accent)] bg-[var(--dash-panel)] px-3 py-2 text-xs text-[var(--dash-text)]">
-                Bozza non salvata — verrà salvata automaticamente non appena inserisci un nome.
+              <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-[var(--dash-accent)] bg-[var(--dash-panel)] px-3 py-2 text-xs text-[var(--dash-text)]">
+                <span>Bozza non salvata — premi "Crea {isViewingUnsavedNpcDraft ? 'PNG' : 'Mostro'}" per salvarla.</span>
+                <button
+                  type="button"
+                  onClick={() => (isViewingUnsavedNpcDraft ? handleConfirmCreateNpc() : handleConfirmCreateMonster())}
+                  disabled={!detailData.name.trim()}
+                  className="shrink-0 rounded-md border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-3 py-1.5 text-xs font-semibold text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-accent-2)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Crea {isViewingUnsavedNpcDraft ? 'PNG' : 'Mostro'}
+                </button>
               </div>
             )}
             <EntityDetailView
