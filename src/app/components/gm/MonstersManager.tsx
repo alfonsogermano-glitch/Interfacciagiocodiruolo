@@ -332,7 +332,6 @@ useEffect(() => {
   const [archiveSortMode, setArchiveSortMode] = useState<'name-asc' | 'name-desc' | 'recent' | 'updated'>('name-asc');
   const [archiveViewMode, setArchiveViewMode] = useState<'grid' | 'list'>('grid');
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
-  const [advancedCampaignFilter, setAdvancedCampaignFilter] = useState<'all' | 'current' | 'none'>('all');
   const handledNavigationTargetRef = useRef<string | null>(null);
   const [monsterToDelete, setMonsterToDelete] = useState<Monster | null>(null);
 
@@ -516,7 +515,7 @@ const handleLinkedEntityNavigate = (target: NavigationTarget) => {
 
 useEffect(() => {
   setArchivePage(1);
-}, [monsterSearch, archiveQuickFilter, narrativeFilter, archivePageSize, archiveSortMode, advancedCampaignFilter]);
+}, [monsterSearch, archiveQuickFilter, narrativeFilter, archivePageSize, archiveSortMode]);
 
   const updateMonster = (updatedMonster: Monster) => {
   const monsterWithTimestamp = {
@@ -1097,24 +1096,7 @@ const rotateCoverImageDegrees = (delta: number) => {
               Filtri avanzati
             </div>
 
-            <div className="grid gap-3 lg:grid-cols-3">
-              <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
-                <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Campagna</div>
-
-                <select
-                  value={advancedCampaignFilter === 'none' ? 'all' : advancedCampaignFilter}
-                  onChange={event => setAdvancedCampaignFilter(event.target.value as typeof advancedCampaignFilter)}
-                  className="mt-2 w-full rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)]"
-                >
-                  <option value="all">Tutte le Campagne</option>
-                  <option value="current">Tutta la campagna</option>
-                </select>
-
-                <p className="mt-2 text-xs text-[var(--dash-muted)]">
-                  In futuro qui comparirà la lista dei nomi delle campagne create.
-                </p>
-              </div>
-
+            <div className="grid gap-3 lg:grid-cols-2">
               <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
                 <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Avventura</div>
 
