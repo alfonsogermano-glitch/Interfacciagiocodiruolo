@@ -22,7 +22,7 @@ import { AdventureManager } from './components/gm/AdventureManager';
 import { PlayerCharacters } from './components/gm/PlayerCharacters';
 import { MyCharactersPage } from './components/gm/MyCharactersPage';
 import { CampaignsPage } from './components/gm/CampaignsPage';
-import { NPCManager } from './components/gm/NPCManager';
+import { NPCsManager } from './components/gm/NPCsManager';
 import { EnvironmentManager } from './components/gm/EnvironmentManager';
 import { CluesManager } from './components/gm/CluesManager';
 import { SituationsManager } from './components/gm/SituationsManager';
@@ -97,7 +97,7 @@ function Dashboard({ activeTab, navigationTarget, onNavigate, onEnterCampaign, r
       )}
       {activeTab === 'campaigns' && <CampaignsPage onNavigate={onNavigate} onEnterCampaign={onEnterCampaign} />}
       {activeTab === 'npcs' && (
-        <NPCManager navigationTarget={navigationTarget} />
+        <NPCsManager navigationTarget={navigationTarget} />
       )}
       {activeTab === 'map' && <GameMap />}
 
