@@ -40,7 +40,11 @@ const DB_NAME = 'high-school-cthulhu-settings';
 const DB_VERSION = 1;
 const STORE_NAME = 'settings';
 
-let cachedDashboardSettings: DashboardSettings = readSettingsSynchronously();
+// Al modulo appena caricato l'utente non e' ancora noto (l'autenticazione si
+// risolve in modo asincrono, vedi App.tsx) - snapshot iniziale sempre sotto
+// la chiave "anonymous", corretto a momenti dal bootstrap asincrono non
+// appena l'utente reale e' noto.
+let cachedDashboardSettings: DashboardSettings = readSettingsSynchronously(null);
 
 function normalizeDashboardSettings(value: unknown): DashboardSettings {
   if (!value || typeof value !== 'object') {
@@ -83,16 +87,40 @@ function normalizeDashboardSettings(value: unknown): DashboardSettings {
   };
 }
 
-function readSettingsSynchronously(): DashboardSettings {
+// hsc_dashboard_settings:<ownerProfileId> (o :anonymous se non autenticato) -
+// prima dello scoping era una chiave fissa unica per browser: due account
+// diversi sullo stesso browser si vedevano a vicenda le preferenze
+// nell'unica finestra tra il logout dell'uno e il login dell'altro senza
+// pulire i dati del sito. Stesso schema per localStorage e IndexedDB.
+function buildScopedSettingsKey(ownerProfileId: string | null): string {
+  return `${DASHBOARD_SETTINGS_KEY}:${ownerProfileId ?? 'anonymous'}`;
+}
+
+function readSettingsSynchronously(ownerProfileId: string | null): DashboardSettings {
   if (typeof window === 'undefined') {
     return DEFAULT_DASHBOARD_SETTINGS;
   }
 
-  try {
-    const rawLocalStorage = window.localStorage.getItem(DASHBOARD_SETTINGS_KEY);
+  const scopedKey = buildScopedSettingsKey(ownerProfileId);
 
-    if (rawLocalStorage) {
-      return normalizeDashboardSettings(JSON.parse(rawLocalStorage));
+  try {
+    const rawScoped = window.localStorage.getItem(scopedKey);
+
+    if (rawScoped) {
+      return normalizeDashboardSettings(JSON.parse(rawScoped));
+    }
+
+    // Migrazione una tantum: chi usava l'app prima dello scoping per utente
+    // ha le proprie preferenze sotto la vecchia chiave fissa. Le adotta e le
+    // riscrive subito sotto la chiave scoped - le letture successive
+    // trovano gia' tutto li', la vecchia chiave resta (innocua) ma non
+    // viene piu' letta ne' scritta da qui in poi.
+    const rawLegacy = window.localStorage.getItem(DASHBOARD_SETTINGS_KEY);
+
+    if (rawLegacy) {
+      const migrated = normalizeDashboardSettings(JSON.parse(rawLegacy));
+      saveToLocalStorage(migrated, ownerProfileId);
+      return migrated;
     }
   } catch (error) {
     console.error('Errore lettura sincrona impostazioni dashboard:', error);
@@ -101,14 +129,14 @@ function readSettingsSynchronously(): DashboardSettings {
   return DEFAULT_DASHBOARD_SETTINGS;
 }
 
-function saveToLocalStorage(settings: DashboardSettings): void {
+function saveToLocalStorage(settings: DashboardSettings, ownerProfileId: string | null): void {
   if (typeof window === 'undefined') {
     return;
   }
 
   try {
     window.localStorage.setItem(
-      DASHBOARD_SETTINGS_KEY,
+      buildScopedSettingsKey(ownerProfileId),
       JSON.stringify(settings)
     );
   } catch (error) {
@@ -138,17 +166,11 @@ function openSettingsDatabase(): Promise<IDBDatabase> {
   });
 }
 
-async function readFromIndexedDb(): Promise<DashboardSettings | null> {
-  if (typeof window === 'undefined' || !window.indexedDB) {
-    return null;
-  }
-
-  const db = await openSettingsDatabase();
-
-  return new Promise((resolve, reject) => {
+function readIndexedDbKey(key: string): Promise<DashboardSettings | null> {
+  return openSettingsDatabase().then(db => new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, 'readonly');
     const store = transaction.objectStore(STORE_NAME);
-    const request = store.get(DASHBOARD_SETTINGS_KEY);
+    const request = store.get(key);
 
     request.onsuccess = () => {
       db.close();
@@ -159,21 +181,45 @@ async function readFromIndexedDb(): Promise<DashboardSettings | null> {
       db.close();
       reject(request.error);
     };
-  });
+  }));
 }
 
-async function saveToIndexedDb(settings: DashboardSettings): Promise<void> {
+async function readFromIndexedDb(ownerProfileId: string | null): Promise<DashboardSettings | null> {
+  if (typeof window === 'undefined' || !window.indexedDB) {
+    return null;
+  }
+
+  const scoped = await readIndexedDbKey(buildScopedSettingsKey(ownerProfileId));
+
+  if (scoped) {
+    return scoped;
+  }
+
+  // Stessa migrazione una tantum di readSettingsSynchronously, qui per
+  // IndexedDB: se non c'e' ancora nulla sotto la chiave scoped ma la
+  // vecchia chiave fissa ha dati, li adotta e li riscrive subito scoped.
+  const legacy = await readIndexedDbKey(DASHBOARD_SETTINGS_KEY);
+
+  if (legacy) {
+    await saveToIndexedDb(legacy, ownerProfileId);
+  }
+
+  return legacy;
+}
+
+async function saveToIndexedDb(settings: DashboardSettings, ownerProfileId: string | null): Promise<void> {
   if (typeof window === 'undefined' || !window.indexedDB) {
     return;
   }
 
   const db = await openSettingsDatabase();
+  const scopedKey = buildScopedSettingsKey(ownerProfileId);
 
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(STORE_NAME, 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
 
-    store.put(settings, DASHBOARD_SETTINGS_KEY);
+    store.put(settings, scopedKey);
 
     transaction.oncomplete = () => {
       db.close();
@@ -250,10 +296,10 @@ export async function loadDashboardSettings(ownerProfileId: string | null): Prom
 
     if (supabaseSettings) {
       cachedDashboardSettings = supabaseSettings;
-      saveToLocalStorage(cachedDashboardSettings);
+      saveToLocalStorage(cachedDashboardSettings, ownerProfileId);
 
       try {
-        await saveToIndexedDb(cachedDashboardSettings);
+        await saveToIndexedDb(cachedDashboardSettings, ownerProfileId);
       } catch (indexedDbError) {
         console.error('Errore copia impostazioni Supabase in IndexedDB:', indexedDbError);
       }
@@ -277,10 +323,10 @@ export async function loadDashboardSettings(ownerProfileId: string | null): Prom
 
       if (tauriSettings) {
         cachedDashboardSettings = normalizeDashboardSettings(tauriSettings);
-        saveToLocalStorage(cachedDashboardSettings);
+        saveToLocalStorage(cachedDashboardSettings, ownerProfileId);
 
         try {
-          await saveToIndexedDb(cachedDashboardSettings);
+          await saveToIndexedDb(cachedDashboardSettings, ownerProfileId);
         } catch (indexedDbError) {
           console.error('Errore copia impostazioni Tauri in IndexedDB:', indexedDbError);
         }
@@ -298,11 +344,11 @@ export async function loadDashboardSettings(ownerProfileId: string | null): Prom
 
   // 3. IndexedDB.
   try {
-    const indexedDbSettings = await readFromIndexedDb();
+    const indexedDbSettings = await readFromIndexedDb(ownerProfileId);
 
     if (indexedDbSettings) {
       cachedDashboardSettings = indexedDbSettings;
-      saveToLocalStorage(cachedDashboardSettings);
+      saveToLocalStorage(cachedDashboardSettings, ownerProfileId);
 
       void saveToSupabase(cachedDashboardSettings, ownerProfileId).catch(error => {
         console.error('Errore copia impostazioni IndexedDB in Supabase:', error);
@@ -315,11 +361,11 @@ export async function loadDashboardSettings(ownerProfileId: string | null): Prom
   }
 
   // 4. localStorage.
-  const localStorageSettings = readSettingsSynchronously();
+  const localStorageSettings = readSettingsSynchronously(ownerProfileId);
   cachedDashboardSettings = localStorageSettings;
 
   try {
-    await saveToIndexedDb(cachedDashboardSettings);
+    await saveToIndexedDb(cachedDashboardSettings, ownerProfileId);
   } catch (error) {
     console.error('Errore copia impostazioni localStorage in IndexedDB:', error);
   }
@@ -333,8 +379,8 @@ export async function loadDashboardSettings(ownerProfileId: string | null): Prom
 
 export async function saveDashboardSettings(settings: DashboardSettings, ownerProfileId: string | null): Promise<void> {
   cachedDashboardSettings = normalizeDashboardSettings(settings);
-  saveToLocalStorage(cachedDashboardSettings);
-  void saveToIndexedDb(cachedDashboardSettings);
+  saveToLocalStorage(cachedDashboardSettings, ownerProfileId);
+  void saveToIndexedDb(cachedDashboardSettings, ownerProfileId);
   try {
     await saveToSupabase(cachedDashboardSettings, ownerProfileId);
   } catch (error) {
