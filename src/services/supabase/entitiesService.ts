@@ -385,7 +385,7 @@ export async function unassignNPCFromCampaign(npcId: string): Promise<void> {
 
   const { error } = await supabase
     .from('npcs')
-    .update({ campaign_id: null })
+    .update({ campaign_id: null, adventure_id: null })
     .eq('id', npcId);
 
   if (error) throw error;
@@ -405,7 +405,7 @@ export async function assignNPCToCampaign(
   // dalla campagna a cui viene assegnato invece di restare NULL.
   const { error } = await supabase
     .from('npcs')
-    .update({ campaign_id: targetCampaign.id, ruleset: entityRuleset ?? targetCampaign.ruleset })
+    .update({ campaign_id: targetCampaign.id, adventure_id: null, ruleset: entityRuleset ?? targetCampaign.ruleset })
     .eq('id', npcId);
 
   if (error) throw error;
@@ -439,7 +439,7 @@ export async function copyNPCToCampaign(npcId: string, targetCampaignId: string,
 
   if (fetchError || !original) throw fetchError ?? new Error('PNG non trovato');
 
-  const { id, created_at, updated_at, owner_profile_id, ...rest } = original as any;
+  const { id, created_at, updated_at, owner_profile_id, adventure_id, environment_id, ...rest } = original as any;
   const { error } = await supabase
     .from('npcs')
     .insert({ ...rest, campaign_id: targetCampaignId, owner_profile_id: ownerProfileId });
@@ -734,7 +734,7 @@ export async function unassignMonsterFromCampaign(monsterId: string): Promise<vo
 
   const { error } = await supabase
     .from('monsters')
-    .update({ campaign_id: null })
+    .update({ campaign_id: null, adventure_id: null })
     .eq('id', monsterId);
 
   if (error) throw error;
@@ -754,7 +754,7 @@ export async function assignMonsterToCampaign(
   // dalla campagna a cui viene assegnato invece di restare NULL.
   const { error } = await supabase
     .from('monsters')
-    .update({ campaign_id: targetCampaign.id, ruleset: entityRuleset ?? targetCampaign.ruleset })
+    .update({ campaign_id: targetCampaign.id, adventure_id: null, ruleset: entityRuleset ?? targetCampaign.ruleset })
     .eq('id', monsterId);
 
   if (error) throw error;
@@ -788,7 +788,7 @@ export async function copyMonsterToCampaign(monsterId: string, targetCampaignId:
 
   if (fetchError || !original) throw fetchError ?? new Error('Mostro non trovato');
 
-  const { id, created_at, updated_at, owner_profile_id, ...rest } = original as any;
+  const { id, created_at, updated_at, owner_profile_id, adventure_id, environment_id, ...rest } = original as any;
   const { error } = await supabase
     .from('monsters')
     .insert({ ...rest, campaign_id: targetCampaignId, owner_profile_id: ownerProfileId });
