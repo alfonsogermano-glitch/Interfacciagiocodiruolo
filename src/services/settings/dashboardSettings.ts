@@ -187,8 +187,11 @@ async function saveToIndexedDb(settings: DashboardSettings): Promise<void> {
   });
 }
 
-async function loadFromSupabase(): Promise<DashboardSettings | null> {
-  if (!supabase) {
+async function loadFromSupabase(ownerProfileId: string | null): Promise<DashboardSettings | null> {
+  // Senza un utente autenticato non c'e' nulla da scoped-are: si resta sui
+  // fallback locali (Tauri/IndexedDB/localStorage) piu' sotto, esattamente
+  // come oggi prima che l'autenticazione sia risolta.
+  if (!supabase || !ownerProfileId) {
     return null;
   }
 
@@ -196,6 +199,7 @@ async function loadFromSupabase(): Promise<DashboardSettings | null> {
     .from('dashboard_settings')
     .select('value')
     .eq('key', SUPABASE_SETTINGS_KEY)
+    .eq('owner_profile_id', ownerProfileId)
     .maybeSingle();
 
   if (error) {
@@ -206,8 +210,8 @@ async function loadFromSupabase(): Promise<DashboardSettings | null> {
   return data?.value ? normalizeDashboardSettings(data.value) : null;
 }
 
-async function saveToSupabase(settings: DashboardSettings): Promise<void> {
-  if (!supabase) {
+async function saveToSupabase(settings: DashboardSettings, ownerProfileId: string | null): Promise<void> {
+  if (!supabase || !ownerProfileId) {
     return;
   }
 
@@ -216,10 +220,11 @@ async function saveToSupabase(settings: DashboardSettings): Promise<void> {
     .upsert(
       {
         key: SUPABASE_SETTINGS_KEY,
+        owner_profile_id: ownerProfileId,
         value: settings,
         updated_at: new Date().toISOString()
       },
-      { onConflict: 'key' }
+      { onConflict: 'key,owner_profile_id' }
     );
 
   if (error) {
@@ -233,7 +238,7 @@ export function readDashboardSettings(): DashboardSettings {
   return cachedDashboardSettings;
 }
 
-export async function loadDashboardSettings(): Promise<DashboardSettings> {
+export async function loadDashboardSettings(ownerProfileId: string | null): Promise<DashboardSettings> {
   if (typeof window === 'undefined') {
     cachedDashboardSettings = DEFAULT_DASHBOARD_SETTINGS;
     return cachedDashboardSettings;
@@ -241,7 +246,7 @@ export async function loadDashboardSettings(): Promise<DashboardSettings> {
 
   // 1. Cloud Supabase: fonte più stabile dentro Figma Make.
   try {
-    const supabaseSettings = await loadFromSupabase();
+    const supabaseSettings = await loadFromSupabase(ownerProfileId);
 
     if (supabaseSettings) {
       cachedDashboardSettings = supabaseSettings;
@@ -280,7 +285,7 @@ export async function loadDashboardSettings(): Promise<DashboardSettings> {
           console.error('Errore copia impostazioni Tauri in IndexedDB:', indexedDbError);
         }
 
-        void saveToSupabase(cachedDashboardSettings).catch(error => {
+        void saveToSupabase(cachedDashboardSettings, ownerProfileId).catch(error => {
           console.error('Errore copia impostazioni Tauri in Supabase:', error);
         });
 
@@ -299,7 +304,7 @@ export async function loadDashboardSettings(): Promise<DashboardSettings> {
       cachedDashboardSettings = indexedDbSettings;
       saveToLocalStorage(cachedDashboardSettings);
 
-      void saveToSupabase(cachedDashboardSettings).catch(error => {
+      void saveToSupabase(cachedDashboardSettings, ownerProfileId).catch(error => {
         console.error('Errore copia impostazioni IndexedDB in Supabase:', error);
       });
 
@@ -319,19 +324,19 @@ export async function loadDashboardSettings(): Promise<DashboardSettings> {
     console.error('Errore copia impostazioni localStorage in IndexedDB:', error);
   }
 
-  void saveToSupabase(cachedDashboardSettings).catch(error => {
+  void saveToSupabase(cachedDashboardSettings, ownerProfileId).catch(error => {
     console.error('Errore copia impostazioni localStorage in Supabase:', error);
   });
 
   return cachedDashboardSettings;
 }
 
-export async function saveDashboardSettings(settings: DashboardSettings): Promise<void> {
+export async function saveDashboardSettings(settings: DashboardSettings, ownerProfileId: string | null): Promise<void> {
   cachedDashboardSettings = normalizeDashboardSettings(settings);
   saveToLocalStorage(cachedDashboardSettings);
   void saveToIndexedDb(cachedDashboardSettings);
   try {
-    await saveToSupabase(cachedDashboardSettings);
+    await saveToSupabase(cachedDashboardSettings, ownerProfileId);
   } catch (error) {
     console.error('Errore salvataggio impostazioni su Supabase:', error);
     // non blocchiamo l'utente, il dato è già in localStorage

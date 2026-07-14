@@ -174,11 +174,18 @@ function AuthGate() {
     useState<DashboardSettings>(() => dashboardSettings);
 
   useEffect(() => {
+    // Attende che l'autenticazione sia risolta prima di bootstrappare: senza
+    // questa guardia l'effetto partiva subito al mount (dipendenze [])
+    // passando ownerProfileId nullo anche per un utente gia' loggato,
+    // trattandolo come anonimo per il primissimo caricamento.
+    if (isLoading) return;
+
     let cancelled = false;
+    const ownerProfileId = user?.id ?? null;
 
     async function bootstrapDashboard() {
       try {
-        const loadedSettings = await loadDashboardSettings();
+        const loadedSettings = await loadDashboardSettings(ownerProfileId);
 
         if (!cancelled) {
           setDashboardSettings(loadedSettings);
@@ -205,7 +212,7 @@ function AuthGate() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isLoading, user]);
 
   const changeActiveGmTab = (tabId: string) => {
     setActiveGmTab(tabId);
@@ -233,7 +240,7 @@ function AuthGate() {
         ...patch
       };
 
-      saveDashboardSettings(nextSettings);
+      saveDashboardSettings(nextSettings, user?.id ?? null);
 
       return nextSettings;
     });
@@ -253,7 +260,7 @@ function AuthGate() {
   const saveSettingsAndClose = async () => {
     updateDashboardSettings(draftDashboardSettings);
     setDashboardSettings(draftDashboardSettings);
-    await saveDashboardSettings(draftDashboardSettings);
+    await saveDashboardSettings(draftDashboardSettings, user?.id ?? null);
     setIsSettingsOpen(false);
   };
 
