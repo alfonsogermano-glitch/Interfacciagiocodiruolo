@@ -80,8 +80,7 @@ export interface Monster extends BaseCampaignEntity {
   portraitAssetId?: string | null;
   coverImageUrl?: string;
 
-  // Token Studio: stile del token mappa, indipendente dal "Cerchio portrait"
-  // (portraitBorderColor/Visible/Label sotto) - vedi types/tokenStyle.ts.
+  // Token Studio: stile del token mappa - vedi types/tokenStyle.ts.
   tokenColor?: string | null;
   tokenBackgroundColor?: string | null;
   tokenBorderStyle?: TokenBorderStyle | null;
@@ -96,9 +95,6 @@ export interface Monster extends BaseCampaignEntity {
   portraitFrameOffsetY?: number;
   portraitFrameScaleX?: number;
   portraitFrameScaleY?: number;
-  portraitBorderColor?: string;
-  portraitBorderVisible?: boolean;
-  portraitBorderLabel?: string;
   portraitRotationDegrees?: number;
 
   coverImageScale?: number;

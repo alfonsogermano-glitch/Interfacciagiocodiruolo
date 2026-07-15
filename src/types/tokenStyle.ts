@@ -1,7 +1,4 @@
-// Token Studio: stile del token mappa per PG/PNG/Mostri. Campi dedicati e
-// separati da portraitBorderColor/Visible/Label ("Cerchio portrait"): il
-// token sulla mappa e il cerchio portrait nella scheda sono personalizzabili
-// in modo indipendente, non condividono piu' lo stesso colore.
+// Token Studio: stile del token mappa per PG/PNG/Mostri.
 //
 // Stesso pattern di RulesetId (campaignTypes.ts): union di stringhe
 // validata solo lato applicativo, colonna DB TEXT libera senza enum/CHECK

@@ -18,4 +18,3 @@ export const NO_FRAME_VALUE = '__none__';
 export const PORTRAIT_FRAME_SCALE = 1.38;
 
 export const DEFAULT_CROP: ImageCrop = { x: 0, y: 0, scale: 1 };
-export const DEFAULT_PORTRAIT_BORDER_COLOR = '#f5a623';

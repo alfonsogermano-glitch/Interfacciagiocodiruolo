@@ -3,7 +3,7 @@ import { useAuth } from '../../../auth/AuthContext';
 import { isSupabaseConfigured, supabase } from '../../../../lib/supabaseClient';
 import { generateUUID } from '../../../../lib/uuid';
 import type { Monster, ImageCrop } from './monstersTypes';
-import { DEFAULT_CROP, DEFAULT_PORTRAIT_BORDER_COLOR, NO_FRAME_VALUE } from './monstersConstants';
+import { DEFAULT_CROP, NO_FRAME_VALUE } from './monstersConstants';
 import { FrameTransformStepper, ImageEditor, PortraitCropFrame } from '../../shared/PortraitCropEditor';
 import {
   loadVisualAssetsByTypes,
@@ -60,14 +60,16 @@ function FrameAssetSelect({
   );
 }
 
-// Porta la cornice/cerchio portrait + l'intero sistema cover del vecchio tab
+// Porta la cornice portrait + l'intero sistema cover del vecchio tab
 // "Avatar" (MonstersManager.tsx, rimosso in Fase 2) dentro il tab "Immagine"
 // di EntityDetailView.tsx - Fase 3 della migrazione. Esclude deliberatamente
 // il crop live della foto portrait (portraitCrop/portraitRotationDegrees):
 // confliggerebbe col nuovo ritaglio non distruttivo di EntityImageTab.tsx,
 // che tratta portraitImageUrl come risultato gia' ritagliato. Cornice
-// overlay, cerchio portrait e cover invece non hanno alcun sistema
-// concorrente, portati con parita' completa.
+// overlay e cover invece non hanno alcun sistema concorrente, portati con
+// parita' completa. Il "Cerchio portrait" che viveva qui accanto e' stato
+// rimosso in Fase 4 (zero consumer reali fuori dalla propria anteprima di
+// editing - vedi Token Studio per lo stesso bisogno, gia' servito altrove).
 export function MonsterImageExtras({
   monster,
   campaignId,
@@ -157,10 +159,7 @@ export function MonsterImageExtras({
       portraitFrameOffsetX: 0,
       portraitFrameOffsetY: 0,
       portraitFrameScaleX: 1,
-      portraitFrameScaleY: 1,
-      portraitBorderColor: DEFAULT_PORTRAIT_BORDER_COLOR,
-      portraitBorderVisible: true,
-      portraitBorderLabel: ''
+      portraitFrameScaleY: 1
     });
   };
 
@@ -265,9 +264,6 @@ export function MonsterImageExtras({
           frameOffsetY={monster.portraitFrameOffsetY ?? 0}
           frameScaleX={monster.portraitFrameScaleX ?? 1}
           frameScaleY={monster.portraitFrameScaleY ?? 1}
-          portraitBorderColor={monster.portraitBorderColor ?? DEFAULT_PORTRAIT_BORDER_COLOR}
-          portraitBorderVisible={monster.portraitBorderVisible ?? true}
-          portraitBorderLabel={monster.portraitBorderLabel ?? ''}
           onRotateFrameDegrees={rotatePortraitFrameDegrees}
           onFrameTransformChange={patch => onUpdate({ ...monster, ...patch })}
           onResetFrameTransform={() =>
@@ -283,60 +279,6 @@ export function MonsterImageExtras({
           onReset={resetPortraitFrame}
         />
       )}
-
-      <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-medium text-[var(--dash-text-strong)]">Cerchio portrait</div>
-            <p className="mt-1 text-xs text-[var(--dash-muted)]">
-              Colore personale del bordo portrait, utile per gruppi, condizioni o bonus/malus.
-            </p>
-          </div>
-
-          <label className="flex items-center gap-2 text-xs text-[var(--dash-muted)]">
-            <input
-              type="checkbox"
-              checked={monster.portraitBorderVisible ?? true}
-              onChange={event => onUpdate({ ...monster, portraitBorderVisible: event.target.checked })}
-              className="h-4 w-4 accent-[var(--dash-accent)]"
-            />
-            Visibile
-          </label>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-[auto_1fr]">
-          <input
-            type="color"
-            value={monster.portraitBorderColor ?? DEFAULT_PORTRAIT_BORDER_COLOR}
-            onChange={event => onUpdate({ ...monster, portraitBorderColor: event.target.value })}
-            className="h-10 w-14 cursor-pointer rounded border border-[var(--dash-border-soft)] bg-transparent p-1"
-            aria-label="Colore cerchio portrait"
-          />
-
-          <input
-            type="text"
-            value={monster.portraitBorderLabel ?? ''}
-            onChange={event => onUpdate({ ...monster, portraitBorderLabel: event.target.value })}
-            placeholder="Nota facoltativa, es. Gruppo A, Malus, Stordito"
-            className="rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)] placeholder-[var(--dash-muted)]"
-          />
-        </div>
-
-        <button
-          type="button"
-          onClick={() =>
-            onUpdate({
-              ...monster,
-              portraitBorderColor: DEFAULT_PORTRAIT_BORDER_COLOR,
-              portraitBorderVisible: true,
-              portraitBorderLabel: ''
-            })
-          }
-          className="mt-3 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-3 py-1.5 text-xs text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
-        >
-          Reset cerchio portrait
-        </button>
-      </div>
 
       <div className="border-t border-[var(--dash-border-soft)] pt-6">
         <ImageEditor

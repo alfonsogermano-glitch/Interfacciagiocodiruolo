@@ -495,9 +495,6 @@ export interface Monster {
   portraitFrameOffsetY?: number;
   portraitFrameScaleX?: number;
   portraitFrameScaleY?: number;
-  portraitBorderColor?: string;
-  portraitBorderVisible?: boolean;
-  portraitBorderLabel?: string;
   portraitRotationDegrees?: number;
 
   coverImageScale?: number;
@@ -615,9 +612,6 @@ function stripMonsterNewColumns(dbData: any): any {
     portrait_frame_offset_y,
     portrait_frame_scale_x,
     portrait_frame_scale_y,
-    portrait_border_color,
-    portrait_border_visible,
-    portrait_border_label,
     cover_frame_offset_x,
     cover_frame_offset_y,
     cover_frame_scale_x,
@@ -664,9 +658,6 @@ export async function saveMonster(campaignId: string, monster: Monster): Promise
         error.message.includes("'portrait_frame_offset_y'") ||
         error.message.includes("'portrait_frame_scale_x'") ||
         error.message.includes("'portrait_frame_scale_y'") ||
-        error.message.includes("'portrait_border_color'") ||
-        error.message.includes("'portrait_border_visible'") ||
-        error.message.includes("'portrait_border_label'") ||
         error.message.includes("'cover_frame_offset_x'") ||
         error.message.includes("'cover_frame_offset_y'") ||
         error.message.includes("'cover_frame_scale_x'") ||

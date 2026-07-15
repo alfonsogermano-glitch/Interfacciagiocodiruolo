@@ -6,7 +6,7 @@ import { createLocalStorageAdapter } from '../../../../services/storage/localSto
 import { generateUUID } from '../../../../lib/uuid';
 import type { Monster, Difficulty, EnvironmentSummary } from './monstersTypes';
 import type { RulesetId } from '../../../campaigns/campaignTypes';
-import { DEFAULT_CROP, DEFAULT_PORTRAIT_BORDER_COLOR, MONSTERS_STORAGE_KEY } from './monstersConstants';
+import { DEFAULT_CROP, MONSTERS_STORAGE_KEY } from './monstersConstants';
 
 export function readStoredEnvironmentSummaries(campaignId = ''): EnvironmentSummary[] {
   if (typeof window === 'undefined') return [];
@@ -81,9 +81,6 @@ export function createEmptyMonster(campaignId = '', ownerProfileId?: string, rul
     portraitFrameOffsetY: 0,
     portraitFrameScaleX: 1,
     portraitFrameScaleY: 1,
-    portraitBorderColor: DEFAULT_PORTRAIT_BORDER_COLOR,
-    portraitBorderVisible: true,
-    portraitBorderLabel: '',
     portraitRotationDegrees: 0,
 
     coverImageScale: 1,
@@ -150,9 +147,6 @@ export function createMonsterFromBase(baseId: string, campaignId = '', ownerProf
     portraitFrameOffsetY: 0,
     portraitFrameScaleX: 1,
     portraitFrameScaleY: 1,
-    portraitBorderColor: DEFAULT_PORTRAIT_BORDER_COLOR,
-    portraitBorderVisible: true,
-    portraitBorderLabel: '',
     portraitRotationDegrees: 0,
     coverRotationDegrees: 0,
 
@@ -228,9 +222,6 @@ export function normalizeMonster(monster: Partial<Monster> & { id?: string; name
     portraitFrameOffsetY: monster.portraitFrameOffsetY ?? 0,
     portraitFrameScaleX: monster.portraitFrameScaleX ?? 1,
     portraitFrameScaleY: monster.portraitFrameScaleY ?? 1,
-    portraitBorderColor: monster.portraitBorderColor ?? DEFAULT_PORTRAIT_BORDER_COLOR,
-    portraitBorderVisible: monster.portraitBorderVisible ?? true,
-    portraitBorderLabel: monster.portraitBorderLabel ?? '',
     portraitRotationDegrees: monster.portraitRotationDegrees ?? 0,
     coverRotationDegrees: monster.coverRotationDegrees ?? 0,
 

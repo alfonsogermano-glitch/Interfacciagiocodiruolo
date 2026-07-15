@@ -1,5 +1,3 @@
-import { DEFAULT_PORTRAIT_BORDER_COLOR } from '../gm/monsters/monstersConstants';
-
 // ImageEditor e FrameTransformStepper: props primitive pure, nessun
 // riferimento al tipo Monster. PortraitCropFrame invece era in origine
 // (Avatar tab dei Mostri, MonstersManager.tsx, rimosso in Fase 2 della
@@ -8,9 +6,12 @@ import { DEFAULT_PORTRAIT_BORDER_COLOR } from '../gm/monsters/monstersConstants'
 // overlay di cornice+cerchio indipendente. Fase 3 di quella migrazione ha
 // tolto la parte di crop live (confliggeva col nuovo ritaglio non
 // distruttivo di EntityImageTab.tsx, che tratta portraitImageUrl come
-// risultato già ritagliato, non foto grezza) e ha lasciato solo la parte
-// di overlay cornice+cerchio, qui sotto - portraitImageUrl viene mostrato
-// cosi' com'e', senza alcuna trasformazione aggiuntiva.
+// risultato già ritagliato, non foto grezza) e ha lasciato solo l'overlay
+// di cornice, qui sotto - portraitImageUrl viene mostrato cosi' com'e',
+// senza alcuna trasformazione aggiuntiva. Il "Cerchio portrait" (bordo
+// colorato) che viveva qui e' stato rimosso in Fase 4: zero consumer reali
+// fuori dalla propria anteprima di editing, mai raggiungeva alcuna card o
+// header (a differenza del Token Studio, che serve lo stesso bisogno).
 
 export function ImageEditor({
   title,
@@ -62,9 +63,6 @@ export function PortraitCropFrame({
   frameOffsetY = 0,
   frameScaleX = 1,
   frameScaleY = 1,
-  portraitBorderColor = DEFAULT_PORTRAIT_BORDER_COLOR,
-  portraitBorderVisible = true,
-  portraitBorderLabel = '',
   onRotateFrameDegrees,
   onFrameTransformChange,
   onResetFrameTransform,
@@ -78,9 +76,6 @@ export function PortraitCropFrame({
   frameOffsetY?: number;
   frameScaleX?: number;
   frameScaleY?: number;
-  portraitBorderColor?: string;
-  portraitBorderVisible?: boolean;
-  portraitBorderLabel?: string;
   onRotateFrameDegrees?: (delta: number) => void;
   onFrameTransformChange?: (patch: {
     portraitFrameOffsetX?: number;
@@ -141,15 +136,6 @@ export function PortraitCropFrame({
               className="h-full w-full select-none object-cover"
             />
           </div>
-          {portraitBorderVisible && (
-            <div
-              className="pointer-events-none absolute inset-[10%] z-[15] rounded-full border-4 shadow-[0_0_0_1px_rgba(0,0,0,0.45),0_0_18px_rgba(245,166,35,0.16)]"
-              style={{ borderColor: portraitBorderColor }}
-              title={portraitBorderLabel.trim() || 'Linea massima portrait'}
-              aria-hidden="true"
-            />
-          )}
-
           {frameImageUrl && (
             <img
               src={frameImageUrl}
