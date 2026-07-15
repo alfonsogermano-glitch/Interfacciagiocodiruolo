@@ -2,6 +2,7 @@
 
 import type { EquipmentLocation, EquipmentType } from './equipment';
 import type { TokenBorderStyle, TokenBorderThickness } from './tokenStyle';
+import type { ImageCrop } from './imageCrop';
 
 export type Ambito = 'Fisico' | 'Scuola' | 'Carisma' | 'Strada';
 
@@ -170,18 +171,31 @@ export interface Character {
   // Fase 2).
   portraitAssetId?: string | null;
 
-  // Avventura della campagna a cui il personaggio e' assegnato (stesso
-  // concetto di NPC.adventureId/Monster.adventureId) - assente = "tutta la
-  // campagna", nessuna avventura specifica. Ha senso solo quando campaignId
-  // e' valorizzato (l'avventura appartiene sempre a una singola campagna).
-  adventureId?: string | null;
+  // Cornice portrait, cover 16:9 e cornice cover - stessa struttura di
+  // Monster (monstersTypes.ts), colonne dedicate promosse da sheet_data
+  // (vedi charactersService.ts). coverPositionX/Y/coverScale (mai avuti
+  // effetto visivo, nessuna UI li applicava come transform) sono stati
+  // sostituiti da coverCrop qui sotto.
+  portraitFrameAssetId?: string | null;
+  portraitFrameRotationDegrees?: number;
+  portraitFrameOffsetX?: number;
+  portraitFrameOffsetY?: number;
+  portraitFrameScaleX?: number;
+  portraitFrameScaleY?: number;
 
-  coverPositionX?: number;
-  coverPositionY?: number;
-  coverScale?: number;
+  coverImageScale?: number;
+  coverCrop?: ImageCrop;
+  coverRotationDegrees?: number;
+  frameRotation?: 0 | 90;
+  frameRotationDegrees?: number;
+  coverFrameOffsetX?: number;
+  coverFrameOffsetY?: number;
+  coverFrameScaleX?: number;
+  coverFrameScaleY?: number;
+  coverFrameAssetId?: string | null;
 
-  // Token mappa (Token Studio) - dedicati, separati dal cerchio portrait
-  // sopra: il token sulla mappa e il cerchio nella scheda sono
+  // Token mappa (Token Studio) - dedicati, separati dalla cornice portrait
+  // sopra: il token sulla mappa e il ritratto nella scheda sono
   // personalizzabili in modo indipendente.
   tokenColor?: string | null;
   tokenBackgroundColor?: string | null;
@@ -248,10 +262,6 @@ export interface CharacterSheetData {
   portraitImageUrl?: string;
   portraitSourceImageUrl?: string;
   portraitCropArea?: { x: number; y: number; width: number; height: number } | null;
-
-  coverPositionX?: number;
-  coverPositionY?: number;
-  coverScale?: number;
 
   tutore?: string;
   tratti?: Trait[];

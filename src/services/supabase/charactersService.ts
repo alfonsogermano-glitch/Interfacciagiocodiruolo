@@ -98,15 +98,32 @@ function mapRowToCharacter(row: any) {
     legame: row.sheet_data?.legame || '',
     linkedCharacterId: row.sheet_data?.linkedCharacterId,
     legameDescription: row.sheet_data?.legameDescription,
-    coverImageUrl: row.sheet_data?.coverImageUrl,
     portraitImageUrl: row.portrait_image_url ?? undefined,
     portraitSourceImageUrl: row.portrait_source_image_url ?? undefined,
     portraitCropArea: row.portrait_crop_area ?? undefined,
     portraitAssetId: row.portrait_asset_id ?? undefined,
-    adventureId: row.adventure_id ?? null,
-    coverPositionX: row.sheet_data?.coverPositionX,
-    coverPositionY: row.sheet_data?.coverPositionY,
-    coverScale: row.sheet_data?.coverScale,
+    // Cornice portrait, cover 16:9 e cornice cover - colonne dedicate
+    // (promosse da sheet_data, vedi supabase-add-character-npc-image-extras.sql).
+    // coverImageUrl era prima in sheet_data (e specchiato nell'ormai-morta
+    // background_url, mai letta): letto qui dalla nuova colonna dedicata,
+    // gia' backfillata dalla migrazione.
+    portraitFrameAssetId: row.portrait_frame_asset_id ?? null,
+    portraitFrameRotationDegrees: row.portrait_frame_rotation_degrees ?? 0,
+    portraitFrameOffsetX: row.portrait_frame_offset_x ?? 0,
+    portraitFrameOffsetY: row.portrait_frame_offset_y ?? 0,
+    portraitFrameScaleX: row.portrait_frame_scale_x ?? 1,
+    portraitFrameScaleY: row.portrait_frame_scale_y ?? 1,
+    coverImageUrl: row.cover_image_url ?? undefined,
+    coverImageScale: row.cover_image_scale ?? 1,
+    coverCrop: row.cover_crop ?? undefined,
+    coverRotationDegrees: row.cover_rotation_degrees ?? 0,
+    frameRotation: row.frame_rotation ?? 0,
+    frameRotationDegrees: row.frame_rotation_degrees ?? 0,
+    coverFrameOffsetX: row.cover_frame_offset_x ?? 0,
+    coverFrameOffsetY: row.cover_frame_offset_y ?? 0,
+    coverFrameScaleX: row.cover_frame_scale_x ?? 1,
+    coverFrameScaleY: row.cover_frame_scale_y ?? 1,
+    coverFrameAssetId: row.cover_frame_asset_id ?? null,
     tutore: row.sheet_data?.tutore || '',
     tratti: row.sheet_data?.tratti || [],
     tabOrder: row.sheet_data?.tabOrder || [],
@@ -176,10 +193,6 @@ export async function saveCharacter(
     legame: character.legame,
     linkedCharacterId: character.linkedCharacterId,
     legameDescription: character.legameDescription,
-    coverImageUrl: character.coverImageUrl,
-    coverPositionX: character.coverPositionX,
-    coverPositionY: character.coverPositionY,
-    coverScale: character.coverScale,
     tutore: character.tutore,
     tratti: character.tratti,
     tabOrder: (character as any).tabOrder || [],
@@ -197,12 +210,31 @@ export async function saveCharacter(
     viaggio: character.viaggio,
     status: 'active',
     portrait_url: character.portraitImageUrl || null,
-    background_url: character.coverImageUrl || null,
     portrait_image_url: character.portraitImageUrl ?? null,
     portrait_source_image_url: character.portraitSourceImageUrl ?? null,
     portrait_crop_area: character.portraitCropArea ?? null,
     portrait_asset_id: character.portraitAssetId ?? null,
-    adventure_id: character.adventureId ?? null,
+    // Cornice portrait, cover 16:9 e cornice cover - colonne dedicate,
+    // stessa struttura di monsters. coverImageUrl era prima specchiato
+    // sulla colonna background_url (mai letta da nessun mapper): quella
+    // scrittura e' stata rimossa, cover_image_url e' l'unica fonte ora.
+    portrait_frame_asset_id: character.portraitFrameAssetId ?? null,
+    portrait_frame_rotation_degrees: character.portraitFrameRotationDegrees ?? 0,
+    portrait_frame_offset_x: character.portraitFrameOffsetX ?? 0,
+    portrait_frame_offset_y: character.portraitFrameOffsetY ?? 0,
+    portrait_frame_scale_x: character.portraitFrameScaleX ?? 1,
+    portrait_frame_scale_y: character.portraitFrameScaleY ?? 1,
+    cover_image_url: character.coverImageUrl || null,
+    cover_image_scale: character.coverImageScale ?? 1,
+    cover_crop: character.coverCrop ?? null,
+    cover_rotation_degrees: character.coverRotationDegrees ?? 0,
+    frame_rotation: character.frameRotation ?? 0,
+    frame_rotation_degrees: character.frameRotationDegrees ?? 0,
+    cover_frame_offset_x: character.coverFrameOffsetX ?? 0,
+    cover_frame_offset_y: character.coverFrameOffsetY ?? 0,
+    cover_frame_scale_x: character.coverFrameScaleX ?? 1,
+    cover_frame_scale_y: character.coverFrameScaleY ?? 1,
+    cover_frame_asset_id: character.coverFrameAssetId ?? null,
     token_color: character.tokenColor ?? null,
     token_background_color: character.tokenBackgroundColor ?? null,
     token_border_style: character.tokenBorderStyle ?? null,
@@ -215,26 +247,54 @@ export async function saveCharacter(
   const { error } = await supabase.from('characters').upsert(dbData);
 
   if (error) {
-    // Se la colonna e' troppo recente (migrazione supabase-add-image-assets.sql
-    // non ancora eseguita), ritenta senza - stesso trattamento gia' riservato
-    // alle colonne nuove di monsters in entitiesService.ts (saveMonster).
-    if (error.code === 'PGRST204' && error.message.includes("'portrait_asset_id'")) {
-      console.warn('Colonna portrait_asset_id non trovata in Supabase. Salvo il personaggio senza collegamento alla raccolta immagini - esegui supabase-add-image-assets.sql per renderlo persistente.', error);
+    // Se una colonna e' troppo recente (migrazione non ancora eseguita),
+    // ritenta senza - stesso trattamento gia' riservato alle colonne nuove
+    // di monsters/npcs in entitiesService.ts.
+    if (
+      error.code === 'PGRST204' &&
+      (error.message.includes("'portrait_asset_id'") ||
+        error.message.includes("'portrait_frame_asset_id'") ||
+        error.message.includes("'portrait_frame_rotation_degrees'") ||
+        error.message.includes("'portrait_frame_offset_x'") ||
+        error.message.includes("'portrait_frame_offset_y'") ||
+        error.message.includes("'portrait_frame_scale_x'") ||
+        error.message.includes("'portrait_frame_scale_y'") ||
+        error.message.includes("'cover_image_url'") ||
+        error.message.includes("'cover_image_scale'") ||
+        error.message.includes("'cover_crop'") ||
+        error.message.includes("'cover_rotation_degrees'") ||
+        error.message.includes("'frame_rotation'") ||
+        error.message.includes("'frame_rotation_degrees'") ||
+        error.message.includes("'cover_frame_offset_x'") ||
+        error.message.includes("'cover_frame_offset_y'") ||
+        error.message.includes("'cover_frame_scale_x'") ||
+        error.message.includes("'cover_frame_scale_y'") ||
+        error.message.includes("'cover_frame_asset_id'"))
+    ) {
+      console.warn('Colonne nuove personaggio (raccolta immagini o cornice+cover) non trovate in Supabase. Salvo temporaneamente senza i nuovi campi - esegui la migrazione SQL per renderli persistenti.', error);
 
-      const { portrait_asset_id, ...dataWithoutAsset } = dbData;
-      const { error: retryError } = await supabase.from('characters').upsert(dataWithoutAsset);
-
-      if (retryError) throw retryError;
-      return;
-    }
-
-    // Stesso trattamento di portrait_asset_id sopra, per la migrazione
-    // supabase-add-character-adventure.sql non ancora eseguita.
-    if (error.code === 'PGRST204' && error.message.includes("'adventure_id'")) {
-      console.warn('Colonna adventure_id non trovata in Supabase. Salvo il personaggio senza avventura assegnata - esegui supabase-add-character-adventure.sql per renderlo persistente.', error);
-
-      const { adventure_id, ...dataWithoutAdventure } = dbData;
-      const { error: retryError } = await supabase.from('characters').upsert(dataWithoutAdventure);
+      const {
+        portrait_asset_id,
+        portrait_frame_asset_id,
+        portrait_frame_rotation_degrees,
+        portrait_frame_offset_x,
+        portrait_frame_offset_y,
+        portrait_frame_scale_x,
+        portrait_frame_scale_y,
+        cover_image_url,
+        cover_image_scale,
+        cover_crop,
+        cover_rotation_degrees,
+        frame_rotation,
+        frame_rotation_degrees,
+        cover_frame_offset_x,
+        cover_frame_offset_y,
+        cover_frame_scale_x,
+        cover_frame_scale_y,
+        cover_frame_asset_id,
+        ...dataWithoutNewColumns
+      } = dbData;
+      const { error: retryError } = await supabase.from('characters').upsert(dataWithoutNewColumns);
 
       if (retryError) throw retryError;
       return;
@@ -331,10 +391,6 @@ export async function saveCharacterAsGm(
     legame: character.legame,
     linkedCharacterId: character.linkedCharacterId,
     legameDescription: character.legameDescription,
-    coverImageUrl: character.coverImageUrl,
-    coverPositionX: character.coverPositionX,
-    coverPositionY: character.coverPositionY,
-    coverScale: character.coverScale,
     tutore: character.tutore,
     tratti: character.tratti,
     equipment: character.equipment,
@@ -349,10 +405,26 @@ export async function saveCharacterAsGm(
       style: character.style,
       viaggio: character.viaggio,
       portraitUrl: character.portraitImageUrl || null,
-      backgroundUrl: character.coverImageUrl || null,
       portraitImageUrl: character.portraitImageUrl ?? null,
       portraitSourceImageUrl: character.portraitSourceImageUrl ?? null,
       portraitCropArea: character.portraitCropArea ?? null,
+      portraitFrameAssetId: character.portraitFrameAssetId ?? null,
+      portraitFrameRotationDegrees: character.portraitFrameRotationDegrees ?? 0,
+      portraitFrameOffsetX: character.portraitFrameOffsetX ?? 0,
+      portraitFrameOffsetY: character.portraitFrameOffsetY ?? 0,
+      portraitFrameScaleX: character.portraitFrameScaleX ?? 1,
+      portraitFrameScaleY: character.portraitFrameScaleY ?? 1,
+      coverImageUrl: character.coverImageUrl || null,
+      coverImageScale: character.coverImageScale ?? 1,
+      coverCrop: character.coverCrop ?? null,
+      coverRotationDegrees: character.coverRotationDegrees ?? 0,
+      frameRotation: character.frameRotation ?? 0,
+      frameRotationDegrees: character.frameRotationDegrees ?? 0,
+      coverFrameOffsetX: character.coverFrameOffsetX ?? 0,
+      coverFrameOffsetY: character.coverFrameOffsetY ?? 0,
+      coverFrameScaleX: character.coverFrameScaleX ?? 1,
+      coverFrameScaleY: character.coverFrameScaleY ?? 1,
+      coverFrameAssetId: character.coverFrameAssetId ?? null,
       tokenColor: character.tokenColor ?? null,
       tokenBackgroundColor: character.tokenBackgroundColor ?? null,
       tokenBorderStyle: character.tokenBorderStyle ?? null,
