@@ -1,97 +1,401 @@
 import { useEffect, useRef, useState } from 'react';
+import { useAuth } from '../../../auth/AuthContext';
+import { isSupabaseConfigured, supabase } from '../../../../lib/supabaseClient';
+import { generateUUID } from '../../../../lib/uuid';
 import type { Monster, ImageCrop } from './monstersTypes';
-import { DEFAULT_CROP, DEFAULT_PORTRAIT_BORDER_COLOR } from './monstersConstants';
-import { FrameTransformStepper } from '../../shared/PortraitCropEditor';
+import { DEFAULT_CROP, DEFAULT_PORTRAIT_BORDER_COLOR, NO_FRAME_VALUE } from './monstersConstants';
+import { FrameTransformStepper, ImageEditor, PortraitCropFrame } from '../../shared/PortraitCropEditor';
+import {
+  loadVisualAssetsByTypes,
+  VISUAL_ASSETS_CHANGED_EVENT,
+  type VisualAsset
+} from '../../../../services/storage/visualAssetsStorage';
 
 // ImageEditor e PortraitCropFrame (ex MonsterPortraitFrame) sono stati
 // estratti in shared/PortraitCropEditor.tsx per essere riusati dal tab
-// "Immagine" di PG/PNG/Mostri in EntityDetailView.tsx - qui restano solo
-// PortraitImage e MonsterCoverFrame, entrambi cablati al tipo Monster
-// (o non ancora generalizzati, come MonsterCoverFrame che riguarda la
-// cover 16:9, fuori dall'ambito del tab "Immagine").
+// "Immagine" di PG/PNG/Mostri in EntityDetailView.tsx - qui restano
+// MonsterImageExtras e MonsterCoverFrame, cablati al tipo Monster (quest'ultimo
+// non ancora generalizzato: riguarda la cover 16:9, fuori dall'ambito del tab
+// "Immagine").
 export { ImageEditor, PortraitCropFrame } from '../../shared/PortraitCropEditor';
 
-export function PortraitImage({
+// Select generica cornice (portrait/cover condividono la stessa struttura,
+// solo il tipo di asset filtrato cambia) - "" = Default, NO_FRAME_VALUE =
+// Nessuna cornice, altrimenti l'id di un asset specifico. Mai componentizzata
+// nel vecchio MonstersManager.tsx (era JSX duplicato due volte).
+function FrameAssetSelect({
+  label,
+  value,
+  assets,
+  defaultHint,
+  onChange
+}: {
+  label: string;
+  value: string | null | undefined;
+  assets: VisualAsset[];
+  defaultHint: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <label className="mb-2 block text-sm text-[var(--dash-text)]">{label}</label>
+
+      <select
+        value={value === NO_FRAME_VALUE ? NO_FRAME_VALUE : value ?? ''}
+        onChange={e => onChange(e.target.value)}
+        className="w-full rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text)]"
+      >
+        <option value="">Default</option>
+        <option value={NO_FRAME_VALUE}>Nessuna cornice</option>
+
+        {assets.map(asset => (
+          <option key={asset.id} value={asset.id}>
+            {asset.name}
+          </option>
+        ))}
+      </select>
+
+      <p className="mt-2 text-xs text-[var(--dash-muted)]">{defaultHint}</p>
+    </div>
+  );
+}
+
+// Porta la cornice/cerchio portrait + l'intero sistema cover del vecchio tab
+// "Avatar" (MonstersManager.tsx, rimosso in Fase 2) dentro il tab "Immagine"
+// di EntityDetailView.tsx - Fase 3 della migrazione. Esclude deliberatamente
+// il crop live della foto portrait (portraitCrop/portraitRotationDegrees):
+// confliggerebbe col nuovo ritaglio non distruttivo di EntityImageTab.tsx,
+// che tratta portraitImageUrl come risultato gia' ritagliato. Cornice
+// overlay, cerchio portrait e cover invece non hanno alcun sistema
+// concorrente, portati con parita' completa.
+export function MonsterImageExtras({
   monster,
-  size = 'medium',
-  frameImageUrl
+  campaignId,
+  onUpdate
 }: {
   monster: Monster;
-  size?: 'small' | 'medium' | 'large';
-  frameImageUrl?: string;
+  campaignId: string;
+  onUpdate: (monster: Monster) => void;
 }) {
-  const crop = monster.portraitCrop ?? DEFAULT_CROP;
-  const sizeClass =
-    size === 'small'
-      ? 'h-12 w-12'
-      : size === 'large'
-        ? 'h-24 w-24'
-        : 'h-16 w-16';
+  const { user } = useAuth();
+  const [visualAssets, setVisualAssets] = useState<VisualAsset[]>([]);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
 
-  const positionRatio =
-    size === 'small'
-      ? 0.25
-      : size === 'large'
-        ? 0.5
-        : 0.35;
+  // Fetch lazy: solo mentre questo componente e' montato, cioe' solo
+  // quando il tab Immagine e' aperto su un Mostro - a differenza del
+  // vecchio MonstersManager.tsx che la caricava incondizionatamente al
+  // mount dell'intero manager.
+  useEffect(() => {
+    if (!campaignId) return;
 
-  // I controlli di "Regola portrait" lavorano sul token grande h-52 (~208px).
-  // Lista e scheda hanno token più piccoli: gli offset della cornice vanno scalati,
-  // altrimenti la cornice sembra non seguire la regolazione.
-  const frameOffsetRatio =
-    size === 'small'
-      ? 48 / 208
-      : size === 'large'
-        ? 96 / 208
-        : 64 / 208;
+    let cancelled = false;
 
-  const frameOffsetX = (monster.portraitFrameOffsetX ?? 0) * frameOffsetRatio;
-  const frameOffsetY = (monster.portraitFrameOffsetY ?? 0) * frameOffsetRatio;
-  const frameScaleX = monster.portraitFrameScaleX ?? 1;
-  const frameScaleY = monster.portraitFrameScaleY ?? 1;
-  const portraitBorderVisible = monster.portraitBorderVisible ?? true;
-  const portraitBorderColor = monster.portraitBorderColor ?? DEFAULT_PORTRAIT_BORDER_COLOR;
+    const loadFrameAssets = async () => {
+      try {
+        const assets = await loadVisualAssetsByTypes(
+          campaignId,
+          ['monster-frame-default', 'monster-frame', 'monster-portrait-frame-default', 'monster-portrait-frame'],
+          { preferPersistentCache: true }
+        );
+
+        if (!cancelled) setVisualAssets(assets);
+      } catch (error) {
+        console.error('Errore caricamento cornici mostro:', error);
+
+        if (!cancelled) setVisualAssets([]);
+      }
+    };
+
+    void loadFrameAssets();
+
+    const handleVisualAssetsChanged = () => {
+      void loadFrameAssets();
+    };
+
+    window.addEventListener(VISUAL_ASSETS_CHANGED_EVENT, handleVisualAssetsChanged);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(VISUAL_ASSETS_CHANGED_EVENT, handleVisualAssetsChanged);
+    };
+  }, [campaignId]);
+
+  const defaultMonsterFrameAsset =
+    visualAssets.find(asset => asset.type === 'monster-frame-default') ??
+    visualAssets.find(asset => asset.name === 'Cornice Foto Mostro Default') ??
+    visualAssets.find(asset => asset.name === 'Cornice Foto Estesa Mostro Default') ??
+    visualAssets.find(asset => asset.type === 'monster-frame');
+
+  const defaultPortraitFrameAsset =
+    visualAssets.find(asset => asset.type === 'monster-portrait-frame-default') ??
+    visualAssets.find(asset => asset.name === 'Cornice Portrait Mostro Default') ??
+    visualAssets.find(asset => asset.type === 'monster-portrait-frame');
+
+  const getPortraitFrameImageUrl = (): string | undefined => {
+    if (monster.portraitFrameAssetId === NO_FRAME_VALUE) return undefined;
+
+    return visualAssets.find(asset => asset.id === monster.portraitFrameAssetId)?.imageDataUrl ??
+      defaultPortraitFrameAsset?.imageDataUrl;
+  };
+
+  const getCoverFrameImageUrl = (): string | undefined => {
+    if (monster.coverFrameAssetId === NO_FRAME_VALUE) return undefined;
+
+    return visualAssets.find(asset => asset.id === monster.coverFrameAssetId)?.imageDataUrl ??
+      defaultMonsterFrameAsset?.imageDataUrl;
+  };
+
+  const rotatePortraitFrameDegrees = (delta: number) => {
+    const current = monster.portraitFrameRotationDegrees ?? 0;
+    onUpdate({ ...monster, portraitFrameRotationDegrees: (current + delta + 360) % 360 });
+  };
+
+  const resetPortraitFrame = () => {
+    onUpdate({
+      ...monster,
+      portraitFrameRotationDegrees: 0,
+      portraitFrameOffsetX: 0,
+      portraitFrameOffsetY: 0,
+      portraitFrameScaleX: 1,
+      portraitFrameScaleY: 1,
+      portraitBorderColor: DEFAULT_PORTRAIT_BORDER_COLOR,
+      portraitBorderVisible: true,
+      portraitBorderLabel: ''
+    });
+  };
+
+  const updateCoverScale = (scale: number) => {
+    onUpdate({ ...monster, coverImageScale: Math.max(0.5, Math.min(1.6, scale)) });
+  };
+
+  const updateCoverCrop = (patch: Partial<ImageCrop>) => {
+    onUpdate({ ...monster, coverCrop: { ...(monster.coverCrop ?? DEFAULT_CROP), ...patch } });
+  };
+
+  const rotateCoverImageDegrees = (delta: number) => {
+    const current = monster.coverRotationDegrees ?? 0;
+    onUpdate({ ...monster, coverRotationDegrees: (current + delta + 360) % 360 });
+  };
+
+  const toggleFrameRotation = () => {
+    onUpdate({ ...monster, frameRotation: monster.frameRotation === 90 ? 0 : 90 });
+  };
+
+  const rotateFrameDegrees = (delta: number) => {
+    const current = monster.frameRotationDegrees ?? 0;
+    onUpdate({ ...monster, frameRotationDegrees: (current + delta + 360) % 360 });
+  };
+
+  const resetCoverImageAndFrame = () => {
+    onUpdate({
+      ...monster,
+      coverCrop: DEFAULT_CROP,
+      coverImageScale: 1,
+      coverRotationDegrees: 0,
+      frameRotation: 0,
+      frameRotationDegrees: 0
+    });
+  };
+
+  const handleCoverFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Seleziona un file immagine valido.');
+      return;
+    }
+
+    const readAsBase64 = () => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = typeof reader.result === 'string' ? reader.result : '';
+        onUpdate({ ...monster, coverImageUrl: result });
+      };
+      reader.readAsDataURL(file);
+    };
+
+    if (isSupabaseConfigured && supabase && user) {
+      setIsUploadingCover(true);
+      try {
+        const ext = file.name.split('.').pop() ?? 'png';
+        const filePath = `${user.id}/${monster.id || generateUUID()}-cover-${Date.now()}.${ext}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('monster-images')
+          .upload(filePath, file, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('monster-images')
+          .getPublicUrl(filePath);
+
+        onUpdate({ ...monster, coverImageUrl: publicUrl });
+      } catch (err) {
+        console.error('Errore upload immagine cover su Storage:', err);
+        readAsBase64();
+      } finally {
+        setIsUploadingCover(false);
+      }
+    } else {
+      readAsBase64();
+    }
+  };
 
   return (
-    <div className={`relative shrink-0 ${sizeClass}`}>
-      <div className="absolute inset-[10%] overflow-hidden rounded-full bg-[var(--dash-panel)]">
-        {monster.portraitImageUrl ? (
-          <img
-            src={monster.portraitImageUrl}
-            alt={monster.name}
-            className="h-full w-full object-contain"
-            style={{
-              transform: `translate(${crop.x * positionRatio}px, ${crop.y * positionRatio}px) rotate(${monster.portraitRotationDegrees ?? 0}deg) scale(${crop.scale})`,
-              transformOrigin: 'center center'
-            }}
+    <div className="mt-6 space-y-6">
+      <FrameAssetSelect
+        label="Cornice portrait"
+        value={monster.portraitFrameAssetId}
+        assets={visualAssets.filter(asset => asset.type === 'monster-portrait-frame')}
+        defaultHint="Default = prima Cornice Portrait Mostro caricata negli Asset Grafici."
+        onChange={value =>
+          onUpdate({ ...monster, portraitFrameAssetId: value === NO_FRAME_VALUE ? NO_FRAME_VALUE : (value || null) })
+        }
+      />
+
+      {monster.portraitImageUrl && (
+        <PortraitCropFrame
+          imageUrl={monster.portraitImageUrl}
+          name={monster.name}
+          frameImageUrl={getPortraitFrameImageUrl()}
+          frameRotationDegrees={monster.portraitFrameRotationDegrees ?? 0}
+          frameOffsetX={monster.portraitFrameOffsetX ?? 0}
+          frameOffsetY={monster.portraitFrameOffsetY ?? 0}
+          frameScaleX={monster.portraitFrameScaleX ?? 1}
+          frameScaleY={monster.portraitFrameScaleY ?? 1}
+          portraitBorderColor={monster.portraitBorderColor ?? DEFAULT_PORTRAIT_BORDER_COLOR}
+          portraitBorderVisible={monster.portraitBorderVisible ?? true}
+          portraitBorderLabel={monster.portraitBorderLabel ?? ''}
+          onRotateFrameDegrees={rotatePortraitFrameDegrees}
+          onFrameTransformChange={patch => onUpdate({ ...monster, ...patch })}
+          onResetFrameTransform={() =>
+            onUpdate({
+              ...monster,
+              portraitFrameOffsetX: 0,
+              portraitFrameOffsetY: 0,
+              portraitFrameScaleX: 1,
+              portraitFrameScaleY: 1,
+              portraitFrameRotationDegrees: 0
+            })
+          }
+          onReset={resetPortraitFrame}
+        />
+      )}
+
+      <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium text-[var(--dash-text-strong)]">Cerchio portrait</div>
+            <p className="mt-1 text-xs text-[var(--dash-muted)]">
+              Colore personale del bordo portrait, utile per gruppi, condizioni o bonus/malus.
+            </p>
+          </div>
+
+          <label className="flex items-center gap-2 text-xs text-[var(--dash-muted)]">
+            <input
+              type="checkbox"
+              checked={monster.portraitBorderVisible ?? true}
+              onChange={event => onUpdate({ ...monster, portraitBorderVisible: event.target.checked })}
+              className="h-4 w-4 accent-[var(--dash-accent)]"
+            />
+            Visibile
+          </label>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-[auto_1fr]">
+          <input
+            type="color"
+            value={monster.portraitBorderColor ?? DEFAULT_PORTRAIT_BORDER_COLOR}
+            onChange={event => onUpdate({ ...monster, portraitBorderColor: event.target.value })}
+            className="h-10 w-14 cursor-pointer rounded border border-[var(--dash-border-soft)] bg-transparent p-1"
+            aria-label="Colore cerchio portrait"
           />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-xs text-[var(--dash-muted)]">
-            ?
+
+          <input
+            type="text"
+            value={monster.portraitBorderLabel ?? ''}
+            onChange={event => onUpdate({ ...monster, portraitBorderLabel: event.target.value })}
+            placeholder="Nota facoltativa, es. Gruppo A, Malus, Stordito"
+            className="rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)] placeholder-[var(--dash-muted)]"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            onUpdate({
+              ...monster,
+              portraitBorderColor: DEFAULT_PORTRAIT_BORDER_COLOR,
+              portraitBorderVisible: true,
+              portraitBorderLabel: ''
+            })
+          }
+          className="mt-3 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-3 py-1.5 text-xs text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
+        >
+          Reset cerchio portrait
+        </button>
+      </div>
+
+      <div className="border-t border-[var(--dash-border-soft)] pt-6">
+        <ImageEditor
+          title="Immagine mostro"
+          imageUrl={monster.coverImageUrl ?? ''}
+          onUrlChange={value => onUpdate({ ...monster, coverImageUrl: value })}
+          onFileChange={handleCoverFileUpload}
+          isUploading={isUploadingCover}
+        />
+
+        <div className="mt-4">
+          <FrameAssetSelect
+            label="Cornice foto mostro"
+            value={monster.coverFrameAssetId}
+            assets={visualAssets.filter(asset => asset.type === 'monster-frame')}
+            defaultHint="Default = Cornice Foto Mostro Default caricata negli Asset Grafici."
+            onChange={value =>
+              onUpdate({ ...monster, coverFrameAssetId: value === NO_FRAME_VALUE ? NO_FRAME_VALUE : (value || null) })
+            }
+          />
+        </div>
+
+        {monster.coverImageUrl && (
+          <div className="mt-4">
+            <MonsterCoverFrame
+              imageUrl={monster.coverImageUrl}
+              name={monster.name}
+              scale={monster.coverImageScale ?? 1}
+              crop={monster.coverCrop ?? DEFAULT_CROP}
+              frameImageUrl={getCoverFrameImageUrl()}
+              frameRotation={monster.frameRotation ?? 0}
+              frameRotationDegrees={monster.frameRotationDegrees ?? 0}
+              frameOffsetX={monster.coverFrameOffsetX ?? 0}
+              frameOffsetY={monster.coverFrameOffsetY ?? 0}
+              frameScaleX={monster.coverFrameScaleX ?? 1}
+              frameScaleY={monster.coverFrameScaleY ?? 1}
+              coverRotationDegrees={monster.coverRotationDegrees ?? 0}
+              isEditing
+              onCropChange={updateCoverCrop}
+              onScaleChange={updateCoverScale}
+              onToggleFrameRotation={toggleFrameRotation}
+              onRotateFrameDegrees={rotateFrameDegrees}
+              onFrameTransformChange={patch => onUpdate({ ...monster, ...patch })}
+              onResetFrameTransform={() =>
+                onUpdate({
+                  ...monster,
+                  coverFrameOffsetX: 0,
+                  coverFrameOffsetY: 0,
+                  coverFrameScaleX: 1,
+                  coverFrameScaleY: 1,
+                  frameRotationDegrees: 0
+                })
+              }
+              onRotateImageDegrees={rotateCoverImageDegrees}
+              onReset={resetCoverImageAndFrame}
+            />
           </div>
         )}
       </div>
-
-      {portraitBorderVisible && (
-        <div
-          className="pointer-events-none absolute inset-[10%] z-[15] rounded-full border-2 shadow-[0_0_0_1px_rgba(0,0,0,0.45)]"
-          style={{ borderColor: portraitBorderColor }}
-          aria-hidden="true"
-          title={monster.portraitBorderLabel?.trim() || 'Linea massima portrait'}
-        />
-      )}
-
-      {frameImageUrl && (
-        <img
-          src={frameImageUrl}
-          alt=""
-          className="pointer-events-none absolute inset-0 z-20 h-full w-full object-contain"
-          style={{
-            transform: `translate(${frameOffsetX}px, ${frameOffsetY}px) rotate(${monster.portraitFrameRotationDegrees ?? 0}deg) scale(${frameScaleX}, ${frameScaleY})`,
-            transformOrigin: 'center center'
-          }}
-        />
-      )}
     </div>
   );
 }

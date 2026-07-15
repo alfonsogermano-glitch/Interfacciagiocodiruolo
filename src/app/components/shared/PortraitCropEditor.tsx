@@ -1,20 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
-import type { ImageCrop } from '../gm/monsters/monstersTypes';
-import {
-  DEFAULT_PORTRAIT_BORDER_COLOR,
-  PORTRAIT_EDITOR_BOX_SIZE,
-  MIN_PORTRAIT_SCALE,
-  MAX_PORTRAIT_SCALE,
-  clampCropToBox
-} from '../gm/monsters/monstersConstants';
+import { DEFAULT_PORTRAIT_BORDER_COLOR } from '../gm/monsters/monstersConstants';
 
-// Estratti da monsters/MonsterImageComponents.tsx: gia' scritti su props
-// primitive pure (nessun riferimento al tipo Monster). Oggi l'unico
-// consumer e' il tab "Avatar" dei Mostri in MonstersManager.tsx - PG/PNG
-// usano invece ImageCropUploadModal (ritaglio distruttivo, react-easy-crop)
-// nel tab "Immagine" di EntityDetailView.tsx, senza crop live da gestire.
-//
-// clampCropToBox vive in monstersConstants.ts.
+// ImageEditor e FrameTransformStepper: props primitive pure, nessun
+// riferimento al tipo Monster. PortraitCropFrame invece era in origine
+// (Avatar tab dei Mostri, MonstersManager.tsx, rimosso in Fase 2 della
+// migrazione EntityDetailView) un editor di crop LIVE della foto stessa
+// (pan/zoom/rotazione via {x,y,scale} + portraitRotationDegrees) più un
+// overlay di cornice+cerchio indipendente. Fase 3 di quella migrazione ha
+// tolto la parte di crop live (confliggeva col nuovo ritaglio non
+// distruttivo di EntityImageTab.tsx, che tratta portraitImageUrl come
+// risultato già ritagliato, non foto grezza) e ha lasciato solo la parte
+// di overlay cornice+cerchio, qui sotto - portraitImageUrl viene mostrato
+// cosi' com'e', senza alcuna trasformazione aggiuntiva.
 
 export function ImageEditor({
   title,
@@ -60,7 +56,6 @@ export function ImageEditor({
 export function PortraitCropFrame({
   imageUrl,
   name,
-  crop,
   frameImageUrl,
   frameRotationDegrees,
   frameOffsetX = 0,
@@ -70,19 +65,13 @@ export function PortraitCropFrame({
   portraitBorderColor = DEFAULT_PORTRAIT_BORDER_COLOR,
   portraitBorderVisible = true,
   portraitBorderLabel = '',
-  portraitRotationDegrees,
-  isEditing,
-  onCropChange,
-  onScaleChange,
   onRotateFrameDegrees,
-  onRotateImageDegrees,
   onFrameTransformChange,
   onResetFrameTransform,
   onReset
 }: {
   imageUrl: string;
   name: string;
-  crop: ImageCrop;
   frameImageUrl?: string;
   frameRotationDegrees?: number;
   frameOffsetX?: number;
@@ -92,12 +81,7 @@ export function PortraitCropFrame({
   portraitBorderColor?: string;
   portraitBorderVisible?: boolean;
   portraitBorderLabel?: string;
-  portraitRotationDegrees: number;
-  isEditing: boolean;
-  onCropChange?: (patch: Partial<ImageCrop>) => void;
-  onScaleChange?: (scale: number) => void;
   onRotateFrameDegrees?: (delta: number) => void;
-  onRotateImageDegrees?: (delta: number) => void;
   onFrameTransformChange?: (patch: {
     portraitFrameOffsetX?: number;
     portraitFrameOffsetY?: number;
@@ -107,89 +91,10 @@ export function PortraitCropFrame({
   onResetFrameTransform?: () => void;
   onReset?: () => void;
 }) {
-  const portraitRef = useRef<HTMLDivElement | null>(null);
-  const [isDraggingPortrait, setIsDraggingPortrait] = useState(false);
-  const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
-
-  // Dimensioni naturali legate a un'immagine specifica: se cambia (nuovo
-  // upload), vanno ricalcolate, non riusate da quella precedente.
-  useEffect(() => {
-    setNaturalSize(null);
-  }, [imageUrl]);
-
-  // Crop sempre vincolato al box, derivato ad ogni render invece che
-  // scritto una tantum: garantisce che non si veda MAI un bordo vuoto,
-  // anche per un valore gia' salvato fuori dai limiti (vecchio scale <1,
-  // pan eccessivo...) - si "auto-corregge" alla prossima apertura.
-  const displayCrop = clampCropToBox(crop, naturalSize?.width ?? 0, naturalSize?.height ?? 0);
-
-  useEffect(() => {
-    const element = portraitRef.current;
-    if (!element || !isEditing || !onScaleChange) return;
-
-    const handleWheel = (event: WheelEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      const delta = event.deltaY > 0 ? -0.01 : 0.01;
-      const nextScale = Math.min(MAX_PORTRAIT_SCALE, Math.max(MIN_PORTRAIT_SCALE, displayCrop.scale + delta));
-      onScaleChange(nextScale);
-    };
-
-    element.addEventListener('wheel', handleWheel, { passive: false });
-
-    return () => {
-      element.removeEventListener('wheel', handleWheel);
-    };
-  }, [displayCrop.scale, isEditing, onScaleChange]);
-
-  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!isEditing || !onCropChange) return;
-
-    event.preventDefault();
-    setIsDraggingPortrait(true);
-    document.body.classList.add('hsc-is-dragging-portrait');
-
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const initialX = displayCrop.x;
-    const initialY = displayCrop.y;
-    const width = naturalSize?.width ?? 0;
-    const height = naturalSize?.height ?? 0;
-    const coverScale = width && height ? Math.max(PORTRAIT_EDITOR_BOX_SIZE / width, PORTRAIT_EDITOR_BOX_SIZE / height) : 0;
-    const maxX = width && height ? Math.max(0, (width * coverScale * displayCrop.scale - PORTRAIT_EDITOR_BOX_SIZE) / 2) : 0;
-    const maxY = width && height ? Math.max(0, (height * coverScale * displayCrop.scale - PORTRAIT_EDITOR_BOX_SIZE) / 2) : 0;
-
-    // Clampato dentro handlePointerMove stesso, non solo al rilascio: cosi'
-    // il drag non mostra mai il vuoto nemmeno per un istante mentre l'utente
-    // trascina oltre il limite - si ferma esattamente al bordo, "snap"
-    // continuo invece che a scatti dopo il fatto.
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      const rawX = initialX + moveEvent.clientX - startX;
-      const rawY = initialY + moveEvent.clientY - startY;
-      onCropChange({
-        x: Math.min(maxX, Math.max(-maxX, rawX)),
-        y: Math.min(maxY, Math.max(-maxY, rawY))
-      });
-    };
-
-    const handlePointerUp = () => {
-      setIsDraggingPortrait(false);
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', handlePointerUp);
-      document.body.classList.remove('hsc-is-dragging-portrait');
-    };
-
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', handlePointerUp);
-  };
-
   return (
     <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="text-[var(--dash-text)]">Regola portrait</h3>
+        <h3 className="text-[var(--dash-text)]">Cornice portrait</h3>
 
         <button
           type="button"
@@ -200,17 +105,8 @@ export function PortraitCropFrame({
         </button>
       </div>
 
-      <div className="mb-3 flex flex-wrap justify-center gap-2">
-        <button
-          type="button"
-          onClick={() => onRotateImageDegrees?.(-5)}
-          className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
-          title="Ruota immagine a sinistra"
-        >
-          ↺ Img
-        </button>
-
-        {frameImageUrl && (
+      {frameImageUrl && (
+        <div className="mb-3 flex flex-wrap justify-center gap-2">
           <button
             type="button"
             onClick={() => onRotateFrameDegrees?.(-5)}
@@ -219,15 +115,11 @@ export function PortraitCropFrame({
           >
             ↺ Cornice
           </button>
-        )}
 
-        {frameImageUrl && (
           <div className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2 text-sm text-[var(--dash-muted)]">
             Cornice portrait
           </div>
-        )}
 
-        {frameImageUrl && (
           <button
             type="button"
             onClick={() => onRotateFrameDegrees?.(5)}
@@ -236,45 +128,17 @@ export function PortraitCropFrame({
           >
             Cornice ↻
           </button>
-        )}
-
-        <button
-          type="button"
-          onClick={() => onRotateImageDegrees?.(5)}
-          className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
-          title="Ruota immagine a destra"
-        >
-          Img ↻
-        </button>
-      </div>
+        </div>
+      )}
 
       <div className="flex justify-center">
-        <div
-          ref={portraitRef}
-          onPointerDown={handlePointerDown}
-          className={`relative h-52 w-52 bg-transparent ${isEditing ? (isDraggingPortrait ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
-          style={{ cursor: isEditing ? (isDraggingPortrait ? 'grabbing' : 'grab') : 'default' }}
-        >
+        <div className="relative h-52 w-52 bg-transparent">
           <div className="absolute inset-[10%] z-10 overflow-hidden rounded-full bg-[var(--dash-panel)]">
             <img
               src={imageUrl}
               alt={`Portrait di ${name}`}
               draggable={false}
-              onLoad={event =>
-                setNaturalSize({
-                  width: event.currentTarget.naturalWidth,
-                  height: event.currentTarget.naturalHeight
-                })
-              }
               className="h-full w-full select-none object-cover"
-              style={{
-                transform: `
-                  translate(${displayCrop.x}px, ${displayCrop.y}px)
-                  scale(${displayCrop.scale})
-                  rotate(${portraitRotationDegrees}deg)
-                `,
-                transformOrigin: 'center center'
-              }}
             />
           </div>
           {portraitBorderVisible && (
@@ -298,23 +162,6 @@ export function PortraitCropFrame({
             />
           )}
         </div>
-      </div>
-
-      <div className="-mt-7">
-        <div className="mb-2 flex items-center justify-between text-xs text-[var(--dash-muted)]">
-          <span>Zoom portrait</span>
-          <span>{Math.round(displayCrop.scale * 100)}%</span>
-        </div>
-
-        <input
-          type="range"
-          min={MIN_PORTRAIT_SCALE}
-          max={MAX_PORTRAIT_SCALE}
-          step={0.01}
-          value={displayCrop.scale}
-          onChange={e => onScaleChange?.(Number(e.target.value))}
-          className="w-full accent-[var(--dash-accent)]"
-        />
       </div>
 
       {frameImageUrl && (
@@ -381,10 +228,6 @@ export function PortraitCropFrame({
           </div>
         </div>
       )}
-
-      <p className="mt-2 text-center text-xs text-[var(--dash-muted)]">
-        Trascina il portrait per spostarlo. Usa la rotellina o lo slider per zoomare.
-      </p>
     </div>
   );
 }
