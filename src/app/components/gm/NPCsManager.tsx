@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Ghost, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
@@ -104,6 +104,7 @@ export function NPCsManager({ navigationTarget = null }: NPCsManagerProps) {
   const [draftNpc, setDraftNpc] = useState<NPC | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<NPC | null>(null);
   const [menuColors] = useState(() => getCurrentPaletteColors());
+  const handledNavigationTargetRef = useRef<string | null>(null);
 
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortMode>('recent');
@@ -158,9 +159,13 @@ export function NPCsManager({ navigationTarget = null }: NPCsManagerProps) {
     if (navigationTarget.entityType !== 'npc') return;
     if (!navigationTarget.entityId) return;
 
+    const navigationKey = `${navigationTarget.tabId}:${navigationTarget.entityType}:${navigationTarget.entityId}`;
+    if (handledNavigationTargetRef.current === navigationKey) return;
+
     const target = npcs.find(npc => npc.id === navigationTarget.entityId);
     if (!target) return;
 
+    handledNavigationTargetRef.current = navigationKey;
     setDraftNpc(null);
     setSelectedNpcId(target.id);
   }, [navigationTarget, npcs]);
