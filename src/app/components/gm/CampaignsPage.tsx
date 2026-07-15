@@ -24,11 +24,25 @@ interface OverviewCampaign {
   logoUrl?: string;
   sessionActive?: boolean;
   memberCount: number;
+  memberNames: string[];
   characters: { id: string; name: string }[];
   isOwned: boolean;
 }
 
 type SortOption = 'name-asc' | 'name-desc' | 'date-asc' | 'date-desc';
+
+// Primi 2 nomi per esteso, poi "+N altri" - spazio limitato del badge sulla
+// card (icona + testo su una riga). Fallback sul conteggio quando i nomi
+// non sono disponibili (es. profilo senza display_name).
+function formatMemberNames(memberNames: string[], memberCount: number): string {
+  if (memberNames.length === 0) {
+    return `${memberCount} ${memberCount === 1 ? 'giocatore' : 'giocatori'}`;
+  }
+
+  const shown = memberNames.slice(0, 2);
+  const remaining = memberNames.length - shown.length;
+  return remaining > 0 ? `${shown.join(', ')}, +${remaining} ${remaining === 1 ? 'altro' : 'altri'}` : shown.join(', ');
+}
 
 interface CampaignsPageProps {
   onNavigate: (target: { tabId: string; entityId?: string; entityType?: string }) => void;
@@ -87,23 +101,31 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
       if (loadSeqRef.current !== mySeq) return;
       setOwnedCampaigns((ownedData ?? []).map((c: any) => ({ ...c, isOwned: true })));
 
-      // Arricchisce ciascuna campagna partecipata con i personaggi attivi;
-      // /members nega sempre l'accesso ai non-owner, quindi memberCount
-      // è stimato dal numero di personaggi, unico dato disponibile a un member
+      // Arricchisce ciascuna campagna partecipata con i personaggi attivi e i
+      // nomi dei membri; /members (dati completi) nega l'accesso ai
+      // non-owner, ma /member-names (solo profileId+displayName, endpoint
+      // dedicato) e' apertO anche ai membri - copre anche chi non ha ancora
+      // un PG, che characters.length da solo non potrebbe mostrare.
       const enriched = await Promise.all(
         joinedCampaigns.map(async (jc) => {
           try {
-            const charsRes = await fetch(`${SERVER_BASE}/campaigns/${jc.id}/characters`, { headers: { Authorization: `Bearer ${accessToken}` } });
+            const [charsRes, memberNamesRes] = await Promise.all([
+              fetch(`${SERVER_BASE}/campaigns/${jc.id}/characters`, { headers: { Authorization: `Bearer ${accessToken}` } }),
+              fetch(`${SERVER_BASE}/campaigns/${jc.id}/member-names`, { headers: { Authorization: `Bearer ${accessToken}` } }),
+            ]);
             const charsData = charsRes.ok ? await charsRes.json() : { characters: [] };
+            const memberNamesData = memberNamesRes.ok ? await memberNamesRes.json() : { memberNames: [] };
             const characters = (charsData.characters ?? []).map((ch: any) => ({ id: ch.id, name: ch.name }));
+            const memberNames = memberNamesData.memberNames ?? [];
             return {
               ...jc,
               isOwned: false,
-              memberCount: characters.length,
+              memberCount: memberNames.length || characters.length,
+              memberNames,
               characters,
             } as OverviewCampaign;
           } catch {
-            return { ...jc, isOwned: false, memberCount: 0, characters: [] } as OverviewCampaign;
+            return { ...jc, isOwned: false, memberCount: 0, memberNames: [], characters: [] } as OverviewCampaign;
           }
         })
       );
@@ -344,8 +366,8 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
                 )}
 
                 <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--dash-text)]">
-                  <span className="flex items-center gap-1">
-                    <Users className="h-3.5 w-3.5" /> {campaign.memberCount} {campaign.memberCount === 1 ? 'giocatore' : 'giocatori'}
+                  <span className="flex items-center gap-1" title={campaign.memberNames.join(', ')}>
+                    <Users className="h-3.5 w-3.5 shrink-0" /> {formatMemberNames(campaign.memberNames, campaign.memberCount)}
                   </span>
                   {campaign.characters.length > 0 && (
                     <span className="flex flex-wrap items-center gap-1 text-[var(--dash-muted)]">

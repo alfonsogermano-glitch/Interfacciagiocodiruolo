@@ -919,9 +919,34 @@ app.get("/make-server-771c5bfd/campaigns/overview", async (c) => {
         .select("id, name")
         .eq("campaign_id", camp.id)
         .eq("status", "active");
+
+      // Nomi dei membri (non solo il conteggio) per la card in CampaignsPage.tsx -
+      // stesso pattern di join su profiles gia' usato in
+      // GET /campaigns/:id/characters piu' sotto, qui applicato ai profileId
+      // dei membri invece che ai proprietari dei personaggi (copre anche i
+      // membri senza alcun PG, che altrimenti non comparirebbero da nessuna
+      // parte sulla card).
+      const memberProfileIds = Array.from(
+        new Set(members.map((m: any) => m.profileId).filter(Boolean))
+      );
+      let memberDisplayNameById: Record<string, string> = {};
+      if (memberProfileIds.length > 0) {
+        const { data: profiles } = await admin
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", memberProfileIds);
+        memberDisplayNameById = Object.fromEntries(
+          (profiles ?? []).map((p: any) => [p.id, p.display_name])
+        );
+      }
+      const memberNames = members
+        .map((m: any) => memberDisplayNameById[m.profileId])
+        .filter(Boolean);
+
       return {
         ...camp,
         memberCount: members.length,
+        memberNames,
         characters: (chars ?? []).map((ch: any) => ({ id: ch.id, name: ch.name })),
       };
     })
@@ -951,6 +976,60 @@ app.get("/make-server-771c5bfd/campaigns/:id/members", async (c) => {
     return c.json({ members });
   } catch (err) {
     console.log("Errore GET campaigns/:id/members:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+// ─── Campaigns: Member names (proprietario o membro - solo nomi, per la card) ─
+//
+// Endpoint volutamente minimo e separato da /members sopra (owner-only,
+// dati completi per la futura pagina di gestione campagna): qui un membro
+// puo' leggere solo profileId+displayName di se stesso e degli altri
+// membri, nessun altro dato (ruolo, data di ingresso, ecc.) - copre anche
+// i membri senza alcun PG, che /campaigns/:id/characters non può vedere.
+app.get("/make-server-771c5bfd/campaigns/:id/member-names", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const campaignId = c.req.param("id");
+    const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const isOwner = myCampaigns.some((camp) => camp.id === campaignId);
+
+    if (!isOwner) {
+      const myJoined = await kv.get(playerCampaignsKey(userId)) ?? [];
+      const isMember = myJoined.some((pc) => pc.campaignId === campaignId);
+      if (!isMember) {
+        return c.json({ error: "Non hai accesso a questa campagna" }, 403);
+      }
+    }
+
+    const members = await kv.get(campaignMembersKey(campaignId)) ?? [];
+    const profileIds = Array.from(
+      new Set(members.map((m: any) => m.profileId).filter(Boolean))
+    );
+
+    let displayNameById: Record<string, string> = {};
+    if (profileIds.length > 0) {
+      const admin = getAdminClient();
+      const { data: profiles } = await admin
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", profileIds);
+      displayNameById = Object.fromEntries(
+        (profiles ?? []).map((p: any) => [p.id, p.display_name])
+      );
+    }
+
+    const memberNames = members
+      .map((m: any) => displayNameById[m.profileId])
+      .filter(Boolean);
+
+    return c.json({ memberNames });
+  } catch (err) {
+    console.log("Errore GET campaigns/:id/member-names:", err);
     return c.json({ error: `Errore interno: ${err}` }, 500);
   }
 });
