@@ -142,21 +142,29 @@ function AuthGate() {
   const { user, isLoading, signOut, isPasswordRecovery, clearPasswordRecovery } = useAuth();
   const { setActiveCampaign, activeCampaign, campaigns } = useCampaign();
 
+  // sessionStorage (non localStorage): la vista corrente deve sopravvivere
+  // a un refresh (F5, stessa scheda) ma NON a una chiusura completa del
+  // browser/scheda - a quel punto si riparte da "Panoramica", anche se il
+  // token Supabase resta valido e non serve rifare login (gestito a parte,
+  // non da questa chiave). Bug storico: era localStorage, quindi
+  // sopravviveva indefinitamente - il commit originale che l'ha introdotta
+  // (24d1621) intendeva solo "il refresh non deve perdere la vista", non
+  // "per sempre a prescindere dalla sessione del browser".
   const [view, setView] = useState<'home' | 'campaign-home' | 'dashboard'>(
-    () => (localStorage.getItem(VIEW_LS_KEY) === 'dashboard' ? 'dashboard' : 'home')
+    () => (sessionStorage.getItem(VIEW_LS_KEY) === 'dashboard' ? 'dashboard' : 'home')
   );
 
   useEffect(() => {
     if (!user && !isLoading) {
       setView('home');
-      localStorage.setItem(VIEW_LS_KEY, 'home');
+      sessionStorage.setItem(VIEW_LS_KEY, 'home');
     }
   }, [user, isLoading]);
 
   const [activeGmTab, setActiveGmTab] = useState(() => {
     if (typeof window === 'undefined') return 'phases';
 
-    return window.localStorage.getItem(ACTIVE_TAB_LS_KEY) ?? 'phases';
+    return window.sessionStorage.getItem(ACTIVE_TAB_LS_KEY) ?? 'phases';
   });
 
   const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | null>(null);
@@ -222,7 +230,7 @@ function AuthGate() {
     setRightSidebarContext(null);
 
     try {
-      window.localStorage.setItem(ACTIVE_TAB_LS_KEY, tabId);
+      window.sessionStorage.setItem(ACTIVE_TAB_LS_KEY, tabId);
     } catch (error) {
       console.error('Errore nel salvataggio del tab attivo:', error);
     }
@@ -268,23 +276,23 @@ function AuthGate() {
     setRightSidebarContext(null);
     if (campaign) {
       setActiveCampaign(campaign);
-      localStorage.setItem(VIEW_LS_KEY, 'campaign-home');
+      sessionStorage.setItem(VIEW_LS_KEY, 'campaign-home');
       setView('campaign-home');
     } else {
-      localStorage.setItem(VIEW_LS_KEY, 'dashboard');
+      sessionStorage.setItem(VIEW_LS_KEY, 'dashboard');
       setView('dashboard');
     }
   };
 
   const goToManagement = () => {
     changeActiveGmTab('map');
-    localStorage.setItem(VIEW_LS_KEY, 'dashboard');
+    sessionStorage.setItem(VIEW_LS_KEY, 'dashboard');
     setView('dashboard');
   };
 
   const goToHome = () => {
     setRightSidebarContext(null);
-    localStorage.setItem(VIEW_LS_KEY, 'home');
+    sessionStorage.setItem(VIEW_LS_KEY, 'home');
     setView('home');
   };
 
