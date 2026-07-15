@@ -7,12 +7,17 @@ import { createIndexedDbAdapter } from './indexedDbAdapter';
 import type { StorageAdapter } from './storageAdapter';
 import { tauriSqliteVisualAssetsStorage } from './tauriSqliteVisualAssetsStorage';
 
+// Catalogo cornici condiviso tra PG/PNG/Mostri (Fase 5 della migrazione
+// EntityDetailView, generalizzazione a PG/PNG di cio' che prima era
+// esclusivo dei Mostri) - un solo namespace, nessun tipo per-entita'.
+// I vecchi valori monster-portrait-frame(-default)/monster-frame(-default)
+// e npc-frame (mai avuto alcun consumer) sono stati rinominati con
+// supabase-rename-visual-asset-frame-types.sql.
 export type VisualAssetType =
-  | 'monster-portrait-frame-default'
-  | 'monster-frame-default'
-  | 'monster-portrait-frame'
-  | 'monster-frame'
-  | 'npc-frame'
+  | 'portrait-frame-default'
+  | 'frame-default'
+  | 'portrait-frame'
+  | 'frame'
   | 'ui-decoration'
   | 'item-image'
   | 'other';

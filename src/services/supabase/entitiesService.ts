@@ -9,6 +9,7 @@ import {
 import type { D20Stats } from '../../app/components/ruleset/D20StatBlock';
 import { isRulesetCompatible, type RulesetId } from '../../app/campaigns/campaignTypes';
 import type { TokenBorderStyle, TokenBorderThickness } from '../../types/tokenStyle';
+import type { ImageCrop } from '../../types/imageCrop';
 
 /**
  * Servizio completo per gestire TUTTE le entità del gioco
@@ -248,6 +249,28 @@ export interface NPC {
   // solo schema/scrittura: il rendering non lo usa ancora, vedi Fase 2).
   portraitAssetId?: string | null;
 
+  // Cornice portrait, cover 16:9 e cornice cover - stessa struttura di
+  // Monster (monstersTypes.ts). NPC parte da zero (nessun campo legacy da
+  // conciliare, a differenza di Character).
+  portraitFrameAssetId?: string | null;
+  portraitFrameRotationDegrees?: number;
+  portraitFrameOffsetX?: number;
+  portraitFrameOffsetY?: number;
+  portraitFrameScaleX?: number;
+  portraitFrameScaleY?: number;
+
+  coverImageUrl?: string;
+  coverImageScale?: number;
+  coverCrop?: ImageCrop;
+  coverRotationDegrees?: number;
+  frameRotation?: 0 | 90;
+  frameRotationDegrees?: number;
+  coverFrameOffsetX?: number;
+  coverFrameOffsetY?: number;
+  coverFrameScaleX?: number;
+  coverFrameScaleY?: number;
+  coverFrameAssetId?: string | null;
+
   mapLocationId?: string | null;
   customLocationName?: string;
 
@@ -319,19 +342,61 @@ export async function saveNPC(campaignId: string | null, npc: NPC): Promise<void
     .upsert(dbData);
 
   if (error) {
-    // Colonna troppo recente (migrazione supabase-add-image-assets.sql non
-    // ancora eseguita): ritenta senza, stesso trattamento gia' riservato
-    // alle colonne nuove di monsters (vedi saveMonster piu' sotto).
-    if (error.code === 'PGRST204' && error.message.includes("'portrait_asset_id'")) {
-      console.warn('Colonna portrait_asset_id non trovata in Supabase. Salvo il PNG senza collegamento alla raccolta immagini - esegui supabase-add-image-assets.sql per renderlo persistente.', error);
+    // Se le colonne nuove (cornice+cover, allineate a monsters) non sono
+    // ancora state create in Supabase, salva comunque il PNG senza
+    // bloccare tutta la dashboard - stesso trattamento gia' riservato alle
+    // colonne nuove di monsters (vedi stripMonsterNewColumns/saveMonster
+    // piu' sotto).
+    if (
+      error.code === 'PGRST204' &&
+      (error.message.includes("'portrait_asset_id'") ||
+        error.message.includes("'portrait_frame_asset_id'") ||
+        error.message.includes("'portrait_frame_rotation_degrees'") ||
+        error.message.includes("'portrait_frame_offset_x'") ||
+        error.message.includes("'portrait_frame_offset_y'") ||
+        error.message.includes("'portrait_frame_scale_x'") ||
+        error.message.includes("'portrait_frame_scale_y'") ||
+        error.message.includes("'cover_image_url'") ||
+        error.message.includes("'cover_image_scale'") ||
+        error.message.includes("'cover_crop'") ||
+        error.message.includes("'cover_rotation_degrees'") ||
+        error.message.includes("'frame_rotation'") ||
+        error.message.includes("'frame_rotation_degrees'") ||
+        error.message.includes("'cover_frame_offset_x'") ||
+        error.message.includes("'cover_frame_offset_y'") ||
+        error.message.includes("'cover_frame_scale_x'") ||
+        error.message.includes("'cover_frame_scale_y'") ||
+        error.message.includes("'cover_frame_asset_id'"))
+    ) {
+      console.warn('Colonne nuove PNG (cornice+cover) non trovate in Supabase. Salvo temporaneamente il PNG senza i nuovi campi - esegui supabase-add-character-npc-image-extras.sql per renderli persistenti.', error);
 
-      const { portrait_asset_id, ...dataWithoutAsset } = dbData;
+      const {
+        portrait_asset_id,
+        portrait_frame_asset_id,
+        portrait_frame_rotation_degrees,
+        portrait_frame_offset_x,
+        portrait_frame_offset_y,
+        portrait_frame_scale_x,
+        portrait_frame_scale_y,
+        cover_image_url,
+        cover_image_scale,
+        cover_crop,
+        cover_rotation_degrees,
+        frame_rotation,
+        frame_rotation_degrees,
+        cover_frame_offset_x,
+        cover_frame_offset_y,
+        cover_frame_scale_x,
+        cover_frame_scale_y,
+        cover_frame_asset_id,
+        ...dataWithoutNewColumns
+      } = dbData;
       const { error: retryError } = await supabase
         .from('npcs')
-        .upsert(dataWithoutAsset);
+        .upsert(dataWithoutNewColumns);
 
       if (retryError) {
-        console.error('Errore salvataggio NPC (retry senza portrait_asset_id):', retryError, dataWithoutAsset);
+        console.error('Errore salvataggio NPC (retry senza colonne nuove):', retryError, dataWithoutNewColumns);
         throw retryError;
       }
       return;

@@ -1,5 +1,7 @@
 import { CAMPAIGN_STORAGE_KEYS } from '../../../../services/campaign/campaignStorageKeys';
-import type { Difficulty, ImageCrop } from './monstersTypes';
+import type { Difficulty } from './monstersTypes';
+
+export { NO_FRAME_VALUE, DEFAULT_CROP } from '../../../../types/imageCrop';
 
 export const MONSTERS_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.monsters;
 export const ADVENTURES_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.adventures;
@@ -14,7 +16,4 @@ export const DIFFICULTY_OPTIONS: Difficulty[] = [
   'Non euclideo'
 ];
 
-export const NO_FRAME_VALUE = '__none__';
 export const PORTRAIT_FRAME_SCALE = 1.38;
-
-export const DEFAULT_CROP: ImageCrop = { x: 0, y: 0, scale: 1 };

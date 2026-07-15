@@ -271,10 +271,6 @@
   const [coverImageUrl, setCoverImageUrl] = useState(initialCharacter?.coverImageUrl ?? '');
   const [portraitImageUrl, setPortraitImageUrl] = useState(initialCharacter?.portraitImageUrl ?? '');
 
-  const [coverPositionX, setCoverPositionX] = useState(initialCharacter?.coverPositionX ?? 0);
-  const [coverPositionY, setCoverPositionY] = useState(initialCharacter?.coverPositionY ?? 0);
-  const [coverScale, setCoverScale] = useState(initialCharacter?.coverScale ?? 1);
-
   const [showPortraitCrop, setShowPortraitCrop] = useState(false);
   const [showCoverCrop, setShowCoverCrop] = useState(false);
 
@@ -616,10 +612,7 @@ const equipment: Equipment[] = [
         notes: storia.trim(),
         coverImageUrl: coverImageUrl.trim() || undefined,
         portraitImageUrl: portraitImageUrl.trim() || undefined,
-        coverPositionX: coverImageUrl ? coverPositionX : undefined,
-        coverPositionY: coverImageUrl ? coverPositionY : undefined,
-        coverScale: coverImageUrl ? coverScale : undefined,
-        
+
       };
   
       onAdd(character);
@@ -1250,9 +1243,6 @@ const equipment: Equipment[] = [
           uploadLabel="Seleziona lo sfondo del personaggio"
           onUploaded={(url) => {
             setCoverImageUrl(url);
-            setCoverPositionX(0);
-            setCoverPositionY(0);
-            setCoverScale(1);
             setShowCoverCrop(false);
           }}
           onClose={() => setShowCoverCrop(false)}

@@ -12,12 +12,13 @@ import {
   type VisualAssetType
 } from '../../../services/storage/visualAssetsStorage';
 
+// Catalogo condiviso tra PG/PNG/Mostri (Fase 5) - un GM carica una
+// cornice una volta sola e la usa indistintamente su tutte le entita'.
 const ASSET_TYPE_OPTIONS: Array<{ value: VisualAssetType; label: string }> = [
-  { value: 'monster-portrait-frame-default', label: 'Cornice Portrait Mostro Default' },
-  { value: 'monster-frame-default', label: 'Cornice Foto Mostro Default' },
-  { value: 'monster-portrait-frame', label: 'Cornice Portrait Mostro' },
-  { value: 'monster-frame', label: 'Cornice Foto Mostro' },
-  { value: 'npc-frame', label: 'Cornice PNG' },
+  { value: 'portrait-frame-default', label: 'Cornice Portrait Default' },
+  { value: 'frame-default', label: 'Cornice Foto Default' },
+  { value: 'portrait-frame', label: 'Cornice Portrait' },
+  { value: 'frame', label: 'Cornice Foto' },
   { value: 'ui-decoration', label: 'Decorazione interfaccia' },
   { value: 'item-image', label: 'Immagine Oggetto' },
   { value: 'other', label: 'Altro' }
@@ -68,7 +69,7 @@ export function VisualAssetsManager({
 }: VisualAssetsManagerProps) {
   const [assets, setAssets] = useState<VisualAsset[]>([]);
   const [assetName, setAssetName] = useState('');
-  const [assetType, setAssetType] = useState<VisualAssetType>('monster-frame');
+  const [assetType, setAssetType] = useState<VisualAssetType>('frame');
   const [assetToDelete, setAssetToDelete] = useState<VisualAsset | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);

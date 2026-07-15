@@ -26,7 +26,7 @@ import { loadCharacters } from '../../../../services/supabase/charactersService'
 import { loadEnvironmentReferences, type EntityReference } from '../../../../services/campaign/entityReferenceService';
 import { FreschezzaMaxEditor, FreschezzaBoxesEditor as MonsterFreschezzaBoxesEditor } from '../../gm/monsters/MonsterFreschezzaComponents';
 import { CatalogSelectionBlock, CustomEntriesEditor } from '../../gm/monsters/MonsterCatalogComponents';
-import { MonsterImageExtras } from '../../gm/monsters/MonsterImageComponents';
+import { EntityImageExtras } from './EntityImageExtras';
 import { TERRIFYING_TRAIT_ID, FOLLIA_DIFFICULTY_OPTIONS } from '../../gm/monsters/monstersTypes';
 import { getMonsterCriticalBoxes, clampMonsterAudacia, normalizeTiroFollia, generateId as generateMonsterEntryId, calculateAudaciaGainFromFreshnessChange, monsterHasSpecialActions } from '../../gm/monsters/monstersUtils';
 import { MONSTER_TRAITS_CATALOG } from '../../../../data/monsterTraitsCatalog';
@@ -1489,11 +1489,13 @@ export function EntityDetailView({
               onPortraitChange={patch => onUpdate({ ...entity, ...patch })}
             />
 
-            {entityType === 'monster' && campaignId && (
+            {(entityType === 'monster' || entityType === 'character' || entityType === 'npc') && campaignId && (
               <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-90' : ''}>
-                <MonsterImageExtras
-                  monster={entity}
+                <EntityImageExtras
+                  entity={entity}
                   campaignId={campaignId}
+                  entityType={entityType}
+                  storageBucket={portraitBucket}
                   onUpdate={onUpdate}
                 />
               </fieldset>
