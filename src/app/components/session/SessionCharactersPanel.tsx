@@ -69,7 +69,17 @@ function SectionHeader({ title, count, isOpen, onToggle }: { title: string; coun
   );
 }
 
-export function SessionCharactersPanel() {
+interface SessionCharactersPanelProps {
+  // requestId incrementale: garantisce che l'effect sotto si riattivi anche
+  // se si richiede due volte di seguito la stessa entita' (kind+id identici
+  // non farebbero altrimenti scattare le dipendenze). Usato da CampaignHome.tsx
+  // (via App.tsx/SessionRightSidebar.tsx) per aprire questo stesso pannello
+  // - non uno nuovo - con l'entita' cliccata gia' selezionata invece del
+  // primo personaggio di default.
+  initialSelection?: { kind: EntityKind; id: string; requestId: number } | null;
+}
+
+export function SessionCharactersPanel({ initialSelection = null }: SessionCharactersPanelProps) {
   const { user, session } = useAuth();
   const { activeCampaignId, activeCampaign } = useCampaign();
   const { campaigns: ownedCampaigns, joinedCampaigns } = useCampaign();
@@ -112,9 +122,6 @@ export function SessionCharactersPanel() {
       setCharacters(sortByName(loadedChars));
       setNpcs(sortByName(loadedNpcs));
       setMonsters(sortByName(loadedMonsters));
-      if (!selected && loadedChars[0]) {
-        setSelected({ kind: 'pg', id: loadedChars[0].id });
-      }
     } catch (error) {
       console.error('Errore caricamento scheda unificata:', error);
     } finally {
@@ -123,6 +130,28 @@ export function SessionCharactersPanel() {
   }, [activeCampaignId, session?.access_token]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Default "primo personaggio" - separato da loadData apposta: loadData e'
+  // una useCallback con deps [activeCampaignId, session?.access_token], la
+  // sua closure non "vede" mai un selected aggiornato dopo il mount (non e'
+  // nelle sue dipendenze), quindi un controllo li' dentro sovrascriverebbe
+  // sempre qualunque selezione impostata nel frattempo da initialSelection
+  // sotto (bug osservato: si apriva sempre il primo personaggio). Qui invece
+  // l'effect e' ricreato ad ogni render, quindi legge sempre il "selected"
+  // corrente - si applica solo se non c'e' gia' una selezione (di default o
+  // da initialSelection).
+  useEffect(() => {
+    if (selected || !characters[0]) return;
+    setSelected({ kind: 'pg', id: characters[0].id });
+  }, [characters]);
+
+  // Sovrascrive la selezione (di default o corrente) con quella richiesta
+  // dall'esterno - vince sia sul default "primo personaggio" sopra sia su
+  // una selezione gia' in corso se il pannello era gia' aperto.
+  useEffect(() => {
+    if (!initialSelection) return;
+    setSelected({ kind: initialSelection.kind, id: initialSelection.id });
+  }, [initialSelection?.requestId]);
 
   useEffect(() => {
     if (!activeCampaignId) return;

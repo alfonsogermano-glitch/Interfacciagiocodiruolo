@@ -1020,22 +1020,30 @@ app.get("/make-server-771c5bfd/campaigns/:id/member-names", async (c) => {
     );
 
     let displayNameById: Record<string, string> = {};
+    let avatarUrlById: Record<string, string> = {};
     if (profileIds.length > 0) {
       const admin = getAdminClient();
       const { data: profiles } = await admin
         .from("profiles")
-        .select("id, display_name")
+        .select("id, display_name, avatar_url")
         .in("id", profileIds);
       displayNameById = Object.fromEntries(
         (profiles ?? []).map((p: any) => [p.id, p.display_name])
+      );
+      avatarUrlById = Object.fromEntries(
+        (profiles ?? []).map((p: any) => [p.id, p.avatar_url])
       );
     }
 
     const memberList = members
       .filter((m: any) => m.profileId)
-      .map((m: any) => ({ profileId: m.profileId, displayName: displayNameById[m.profileId] ?? null }));
+      .map((m: any) => ({ profileId: m.profileId, displayName: displayNameById[m.profileId] ?? null, joinedAt: m.joinedAt ?? null }));
 
-    return c.json({ members: memberList, ownerDisplayName: displayNameById[ownerId] ?? null });
+    return c.json({
+      members: memberList,
+      ownerDisplayName: displayNameById[ownerId] ?? null,
+      ownerAvatarUrl: avatarUrlById[ownerId] ?? null,
+    });
   } catch (err) {
     console.log("Errore GET campaigns/:id/member-names:", err);
     return c.json({ error: `Errore interno: ${err}` }, 500);

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MessageSquare, FileText, StickyNote, Dices } from 'lucide-react';
 import { SlideOverPanel } from './SlideOverPanel';
 import { SessionCharactersPanel } from './SessionCharactersPanel';
 import { SessionNotesPanel } from './SessionNotesPanel';
+import type { SessionEntityOpenRequest } from '../../campaigns/CampaignHome';
 
 type SessionPanelId = 'chat' | 'characters' | 'notes' | 'dice';
 
@@ -13,12 +14,24 @@ const ICONS: { id: SessionPanelId; label: string; icon: typeof FileText; enabled
   { id: 'dice', label: 'Dadi', icon: Dices, enabled: false },
 ];
 
-export function SessionRightSidebar() {
+interface SessionRightSidebarProps {
+  // Comando esterno (da CampaignHome.tsx via App.tsx) per aprire il
+  // pannello "Schede" con un'entita' specifica gia' selezionata - stesso
+  // pannello che si apre premendo l'icona, non uno nuovo.
+  openCharacterRequest?: SessionEntityOpenRequest | null;
+}
+
+export function SessionRightSidebar({ openCharacterRequest = null }: SessionRightSidebarProps) {
   const [openPanel, setOpenPanel] = useState<SessionPanelId | null>(null);
 
   const togglePanel = (id: SessionPanelId) => {
     setOpenPanel(prev => (prev === id ? null : id));
   };
+
+  useEffect(() => {
+    if (!openCharacterRequest) return;
+    setOpenPanel('characters');
+  }, [openCharacterRequest?.requestId]);
 
   return (
     <>
@@ -48,7 +61,7 @@ export function SessionRightSidebar() {
         isOpen={openPanel !== null}
         onClose={() => setOpenPanel(null)}
       >
-        {openPanel === 'characters' && <SessionCharactersPanel />}
+        {openPanel === 'characters' && <SessionCharactersPanel initialSelection={openCharacterRequest} />}
         {openPanel === 'notes' && <SessionNotesPanel />}
       </SlideOverPanel>
     </>

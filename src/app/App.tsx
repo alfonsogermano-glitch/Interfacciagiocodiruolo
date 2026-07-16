@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './auth/AuthContext';
+import { PresenceProvider } from './presence/PresenceContext';
 import LandingPage from './landing/LandingPage';
 import { PrivacyPolicy } from './legal/PrivacyPolicy';
 import { DeleteData } from './legal/DeleteData';
 import { SetNewPasswordModal } from './landing/SetNewPasswordModal';
 import { CampaignProvider, useCampaign } from './campaigns/CampaignContext';
-import { CampaignHome } from './campaigns/CampaignHome';
+import { CampaignHome, type SessionEntityOpenRequest } from './campaigns/CampaignHome';
 import type { Campaign } from './campaigns/campaignTypes';
 import { RulesetProvider } from './campaigns/RulesetContext';
 import { HomeScreen } from './home/HomeScreen';
@@ -170,6 +171,19 @@ function AuthGate() {
   const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | null>(null);
   const [homeScrollTarget, setHomeScrollTarget] = useState<'characters' | 'campaigns' | null>(null);
   const [rightSidebarContext, setRightSidebarContext] = useState<RightSidebarContext | null>(null);
+
+  // Comando "apri Schede con questa entita' selezionata" da CampaignHome.tsx
+  // verso SessionRightSidebar.tsx - sollevato qui perche' sono due slot
+  // diversi di AppShell (children vs rightSidebar), nessun antenato comune
+  // piu' vicino. requestId incrementale: garantisce che l'effect in
+  // SessionRightSidebar si riattivi anche ri-cliccando la stessa entita'.
+  const [sessionEntityRequestSeq, setSessionEntityRequestSeq] = useState(0);
+  const [sessionEntityOpenRequest, setSessionEntityOpenRequest] = useState<SessionEntityOpenRequest | null>(null);
+  const openSessionEntity = (kind: SessionEntityOpenRequest['kind'], id: string) => {
+    const requestId = sessionEntityRequestSeq + 1;
+    setSessionEntityRequestSeq(requestId);
+    setSessionEntityOpenRequest({ kind, id, requestId });
+  };
 
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>(
     () => readDashboardSettings()
@@ -349,7 +363,7 @@ function AuthGate() {
           view === 'dashboard' && !['characters', 'campaigns'].includes(activeGmTab) ? (
             <GmSectionSidebar activeTab={activeGmTab} onChangeTab={changeActiveGmTab} />
           ) : view === 'campaign-home' ? (
-            <SessionRightSidebar />
+            <SessionRightSidebar openCharacterRequest={sessionEntityOpenRequest} />
           ) : null
         }
         topbar={
@@ -369,7 +383,7 @@ function AuthGate() {
             palette={dashboardSettings.palette}
           />
         ) : view === 'campaign-home' ? (
-          <CampaignHome onGoToManagement={goToManagement} />
+          <CampaignHome onGoToManagement={goToManagement} onOpenSessionEntity={openSessionEntity} />
         ) : (
           <Dashboard
             activeTab={activeGmTab}
@@ -408,11 +422,13 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <CampaignProvider>
-        <RulesetProvider>
-          <AuthGate />
-        </RulesetProvider>
-      </CampaignProvider>
+      <PresenceProvider>
+        <CampaignProvider>
+          <RulesetProvider>
+            <AuthGate />
+          </RulesetProvider>
+        </CampaignProvider>
+      </PresenceProvider>
     </AuthProvider>
   );
 }

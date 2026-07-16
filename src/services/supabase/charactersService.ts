@@ -160,6 +160,33 @@ export async function loadCharacters(campaignId: string): Promise<(Character & {
 }
 
 /**
+ * Copia un personaggio in un'altra campagna (stesso proprietario) - stesso
+ * pattern di copyNPCToCampaign/copyMonsterToCampaign in entitiesService.ts.
+ */
+export async function copyCharacterToCampaign(
+  characterId: string,
+  targetCampaignId: string,
+  ownerProfileId: string
+): Promise<void> {
+  if (!supabase) throw new Error('Supabase non configurato');
+
+  const { data: original, error: fetchError } = await supabase
+    .from('characters')
+    .select('*')
+    .eq('id', characterId)
+    .single();
+
+  if (fetchError || !original) throw fetchError ?? new Error('Personaggio non trovato');
+
+  const { id, created_at, updated_at, owner_profile_id, campaign_id, status, ...rest } = original as any;
+  const { error } = await supabase
+    .from('characters')
+    .insert({ ...rest, campaign_id: targetCampaignId, owner_profile_id: ownerProfileId, status: 'active' });
+
+  if (error) throw error;
+}
+
+/**
  * Salva un personaggio (create o update)
  */
 export async function saveCharacter(

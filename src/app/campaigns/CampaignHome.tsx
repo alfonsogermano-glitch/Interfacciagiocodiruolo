@@ -1,34 +1,80 @@
 import { useState, useEffect, useRef } from 'react';
-import { Play, Square, Settings, Loader2, AlertTriangle, Users } from 'lucide-react';
+import {
+  Play, Square, Loader2, AlertTriangle, Users, Ghost, Skull,
+  KeyRound, Check, MoreVertical, Pencil, Copy, UserCog, FileDown, Trash2, UserMinus,
+  LayoutGrid, Package,
+} from 'lucide-react';
 import { useAuth, supabase } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
-import { loadCharactersByOwner } from '../../services/supabase/charactersService';
+import { loadCharactersByOwner, copyCharacterToCampaign } from '../../services/supabase/charactersService';
+import { loadNPCs, loadMonsters, type NPC, type Monster } from '../../services/supabase/entitiesService';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { RulesetTag } from '../components/shared/RulesetTag';
 import { EntityCard } from '../components/session/shared/EntityCard';
+import { CampaignForm } from './CampaignSelector';
+import { isRulesetCompatible, type CampaignCreateInput, type RulesetId } from './campaignTypes';
+import type { TokenBorderStyle, TokenBorderThickness } from '../../types/tokenStyle';
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
+} from '../components/ui/dropdown-menu';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 const AUTO_CLOSE_AFTER_MS = 60 * 60 * 1000; // 1 ora
 
+// Stessa forma del "selected" interno di SessionCharactersPanel.tsx - usata
+// per chiedere l'apertura del pannello "Schede" (SessionRightSidebar, gia'
+// montata come rightSidebar di AppShell nella vista campagna) con
+// un'entita' specifica pre-selezionata, invece di costruire un pannello
+// dedicato qui.
+export type SessionEntityOpenRequest = { kind: 'pg' | 'png' | 'mostro'; id: string; requestId: number };
+
 interface CampaignHomeProps {
   onGoToManagement: () => void;
+  onOpenSessionEntity: (kind: 'pg' | 'png' | 'mostro', id: string) => void;
 }
 
 type PlayerCharacterSummary = {
   id: string;
   name: string;
+  ownerProfileId: string;
+  ruleset: RulesetId | null;
+  createdAt: string | null;
   portraitUrl: string | null;
+  portraitSourceUrl: string | null;
+  portraitCropArea: { x: number; y: number; width: number; height: number } | null;
+  styleViaggio: string;
+  description: string;
+  ownerAvatarUrl: string | null;
+  tokenColor: string | null;
+  tokenBackgroundColor: string | null;
+  tokenBorderStyle: TokenBorderStyle | null;
+  tokenBorderThickness: TokenBorderThickness | null;
+  tokenBorderVisible: boolean | null;
+  tokenBorderLabel: string | null;
 };
 
 type PlayerRow = {
   profileId: string;
   displayName: string | null;
+  joinedAt: string | null;
   characters: PlayerCharacterSummary[];
 };
 
-export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
+type QuickFilter = 'all' | 'pg' | 'premades' | 'npc' | 'monster';
+
+// Stesso helper di pillClass() in MyCharactersPage.tsx - riuso lo stile
+// (non l'implementazione, e' una funzione locale non esportata li' anche).
+function pillClass(active: boolean) {
+  return `inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors ${
+    active
+      ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
+      : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-muted)] hover:text-[var(--dash-text)]'
+  }`;
+}
+
+export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: CampaignHomeProps) {
   const { user, session } = useAuth();
-  const { activeCampaign, refreshCampaigns, refreshJoinedCampaigns } = useCampaign();
+  const { activeCampaign, campaigns, refreshCampaigns, refreshJoinedCampaigns, updateCampaign, deleteCampaign, generateInviteCode } = useCampaign();
 
   const [isToggling, setIsToggling] = useState(false);
   const [gmOnline, setGmOnline] = useState(false);
@@ -40,8 +86,34 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   const [autoClosedNotice, setAutoClosedNotice] = useState(false);
   const autoCloseCheckedRef = useRef(false);
   const [gmDisplayName, setGmDisplayName] = useState<string | null>(null);
+  const [gmAvatarUrl, setGmAvatarUrl] = useState<string | null>(null);
   const [playerRows, setPlayerRows] = useState<PlayerRow[]>([]);
   const [playersLoaded, setPlayersLoaded] = useState(false);
+  const [npcs, setNpcs] = useState<NPC[]>([]);
+  const [npcsLoaded, setNpcsLoaded] = useState(false);
+  const [monsters, setMonsters] = useState<Monster[]>([]);
+  const [monstersLoaded, setMonstersLoaded] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [activeQuickFilter, setActiveQuickFilter] = useState<QuickFilter>('all');
+  const [copyDialogChar, setCopyDialogChar] = useState<PlayerCharacterSummary | null>(null);
+  const [copyTargetCampaignId, setCopyTargetCampaignId] = useState<string | null>(null);
+  const [isCopyingChar, setIsCopyingChar] = useState(false);
+  const [copyCharError, setCopyCharError] = useState<string | null>(null);
+  const [removeCharTarget, setRemoveCharTarget] = useState<PlayerCharacterSummary | null>(null);
+  const [isRemovingChar, setIsRemovingChar] = useState(false);
+  const [removeCharError, setRemoveCharError] = useState<string | null>(null);
+  const [removePlayerTarget, setRemovePlayerTarget] = useState<PlayerRow | null>(null);
+  const [isRemovingPlayer, setIsRemovingPlayer] = useState(false);
+  const [removePlayerError, setRemovePlayerError] = useState<string | null>(null);
+  // Bump per forzare un refetch di PG/PNG/Mostri dopo copia/rimozione dal
+  // menu delle card - stesso trucco di channelGeneration piu' sotto.
+  const [playersReloadToken, setPlayersReloadToken] = useState(0);
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const lookupSeqRef = useRef(0);
@@ -139,7 +211,7 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
         // dal fatto che possieda un PG - va escluso qui, all'ingresso
         // dell'unione, cosi' non puo' ricomparire ne' come membro ne' come
         // "orfano" piu' sotto, qualunque sia la provenienza del suo profileId.
-        const members: { profileId: string; displayName: string | null }[] = (memberNamesData.members ?? [])
+        const members: { profileId: string; displayName: string | null; joinedAt: string | null }[] = (memberNamesData.members ?? [])
           .filter((m: any) => m.profileId !== activeCampaign.ownerId);
 
         const charsByOwner = new Map<string, PlayerCharacterSummary[]>();
@@ -147,7 +219,26 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
           const ownerId = ch.owner_profile_id;
           if (!ownerId) continue;
           const list = charsByOwner.get(ownerId) ?? [];
-          list.push({ id: ch.id, name: ch.name, portraitUrl: ch.portrait_image_url ?? null });
+          list.push({
+            id: ch.id,
+            name: ch.name,
+            ownerProfileId: ownerId,
+            ruleset: ch.ruleset ?? null,
+            createdAt: ch.created_at ?? null,
+            portraitUrl: ch.portrait_image_url ?? null,
+            portraitSourceUrl: ch.portrait_source_image_url ?? null,
+            portraitCropArea: ch.portrait_crop_area ?? null,
+            // stesso formato di MyCharactersPage.tsx:463 ({style} · {viaggio})
+            styleViaggio: [ch.style, ch.viaggio].filter(Boolean).join(' · ') || 'Personaggio',
+            description: ch.sheet_data?.description ?? '',
+            ownerAvatarUrl: ch.owner_avatar_url ?? null,
+            tokenColor: ch.token_color ?? null,
+            tokenBackgroundColor: ch.token_background_color ?? null,
+            tokenBorderStyle: ch.token_border_style ?? null,
+            tokenBorderThickness: ch.token_border_thickness ?? null,
+            tokenBorderVisible: ch.token_border_visible ?? null,
+            tokenBorderLabel: ch.token_border_label ?? null,
+          });
           charsByOwner.set(ownerId, list);
         }
 
@@ -159,10 +250,11 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
         );
 
         setPlayerRows([
-          ...members.map((m) => ({ profileId: m.profileId, displayName: m.displayName, characters: charsByOwner.get(m.profileId) ?? [] })),
-          ...orphanOwnerIds.map((id) => ({ profileId: id, displayName: null, characters: charsByOwner.get(id) ?? [] })),
+          ...members.map((m) => ({ profileId: m.profileId, displayName: m.displayName, joinedAt: m.joinedAt, characters: charsByOwner.get(m.profileId) ?? [] })),
+          ...orphanOwnerIds.map((id) => ({ profileId: id, displayName: null, joinedAt: null, characters: charsByOwner.get(id) ?? [] })),
         ]);
         setGmDisplayName(memberNamesData.ownerDisplayName ?? null);
+        setGmAvatarUrl(memberNamesData.ownerAvatarUrl ?? null);
       } catch (err) {
         console.error('Errore nel caricamento della sezione Players:', err);
       } finally {
@@ -173,7 +265,64 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
     return () => {
       cancelled = true;
     };
-  }, [activeCampaign?.id, activeCampaign?.ownerId, session]);
+  }, [activeCampaign?.id, activeCampaign?.ownerId, session, playersReloadToken]);
+
+  // Sezione "NPCs": solo per il GM - i PNG nascosti ai giocatori non devono
+  // arrivare al browser di un giocatore (nemmeno solo per essere filtrati
+  // client-side, come accade altrove in SessionCharactersPanel.tsx).
+  useEffect(() => {
+    if (!isOwner || !activeCampaign?.id) {
+      setNpcs([]);
+      setNpcsLoaded(false);
+      return;
+    }
+    let cancelled = false;
+    setNpcsLoaded(false);
+
+    loadNPCs(activeCampaign.id)
+      .then((loaded) => {
+        if (cancelled) return;
+        setNpcs(loaded);
+      })
+      .catch((err) => {
+        console.error('Errore nel caricamento dei PNG:', err);
+      })
+      .finally(() => {
+        if (!cancelled) setNpcsLoaded(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwner, activeCampaign?.id]);
+
+  // Sezione "Mostri": stessa regola di sicurezza degli NPC - solo per il GM,
+  // Monster ha lo stesso campo visibleToPlayers di NPC (entitiesService.ts).
+  useEffect(() => {
+    if (!isOwner || !activeCampaign?.id) {
+      setMonsters([]);
+      setMonstersLoaded(false);
+      return;
+    }
+    let cancelled = false;
+    setMonstersLoaded(false);
+
+    loadMonsters(activeCampaign.id)
+      .then((loaded) => {
+        if (cancelled) return;
+        setMonsters(loaded);
+      })
+      .catch((err) => {
+        console.error('Errore nel caricamento dei mostri:', err);
+      })
+      .finally(() => {
+        if (!cancelled) setMonstersLoaded(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwner, activeCampaign?.id]);
 
   useEffect(() => {
     if (!activeCampaign?.id || !characterLookupDone) return;
@@ -259,72 +408,633 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
     }
   };
 
-  return (
-    <div className="flex h-full flex-col items-center gap-6 overflow-y-auto p-8 text-center select-none">
-      <div className="relative h-24 w-24 overflow-hidden rounded-2xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)]">
-        {activeCampaign?.logoUrl ? (
-          <img src={activeCampaign.logoUrl} alt={activeCampaign.name} className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center p-4">
-            <img src="/icon-source-1024.png" alt="" className="h-full w-full object-contain opacity-80" style={{ filter: 'invert(1)' }} />
-          </div>
-        )}
-      </div>
+  const handleInvitePlayers = async () => {
+    if (!activeCampaign) return;
+    if (!activeCampaign.inviteCode) {
+      // Caso raro: campagne create prima dell'introduzione del codice
+      // invito. Lo genera ora - il campo si popola al prossimo render,
+      // un secondo click copia il codice appena creato.
+      await generateInviteCode(activeCampaign.id);
+      await refreshCampaigns();
+      return;
+    }
+    await navigator.clipboard.writeText(activeCampaign.inviteCode);
+    setInviteCopied(true);
+    setTimeout(() => setInviteCopied(false), 1500);
+  };
 
-      <div>
-        <h1 className="text-2xl font-semibold text-[var(--dash-text-strong)]">{activeCampaign?.name ?? 'Campagna'}</h1>
-        {activeCampaign?.description && (
-          <p className="mt-1 max-w-md text-sm text-[var(--dash-muted)]">{activeCampaign.description}</p>
-        )}
-        {activeCampaign && (
-          <div className="mt-2 flex flex-wrap items-center justify-center gap-2 text-xs text-[var(--dash-muted)]">
-            <RulesetTag rulesetId={activeCampaign.ruleset} />
-            <span>
-              Creata il {new Date(activeCampaign.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </span>
-          </div>
-        )}
+  const handleEditCampaign = async (data: CampaignCreateInput) => {
+    if (!activeCampaign) return;
+    setIsSubmittingEdit(true);
+    setEditError(null);
+    try {
+      await updateCampaign(activeCampaign.id, data);
+      setShowEditForm(false);
+    } catch (err) {
+      setEditError(String(err));
+    } finally {
+      setIsSubmittingEdit(false);
+    }
+  };
+
+  const handleDeleteCampaign = async () => {
+    if (!activeCampaign) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteCampaign(activeCampaign.id);
+      setConfirmDeleteOpen(false);
+    } catch (err) {
+      setDeleteError(String(err));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const compatibleCopyTargets = (char: PlayerCharacterSummary | null) => {
+    if (!char || !activeCampaign) return [];
+    return campaigns.filter(
+      (c) => c.id !== activeCampaign.id && isRulesetCompatible(char.ruleset, activeCampaign.ruleset, c.ruleset)
+    );
+  };
+
+  const handleConfirmCopyCharacter = async () => {
+    if (!copyDialogChar || !copyTargetCampaignId) return;
+    setIsCopyingChar(true);
+    setCopyCharError(null);
+    try {
+      await copyCharacterToCampaign(copyDialogChar.id, copyTargetCampaignId, copyDialogChar.ownerProfileId);
+      setCopyDialogChar(null);
+      setCopyTargetCampaignId(null);
+    } catch (err) {
+      setCopyCharError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsCopyingChar(false);
+    }
+  };
+
+  const handleConfirmRemoveCharacter = async () => {
+    if (!removeCharTarget || !session) return;
+    setIsRemovingChar(true);
+    setRemoveCharError(null);
+    try {
+      const accessToken = session.access_token;
+      const res = await fetch(`${SERVER_BASE}/characters/${removeCharTarget.id}/assign-campaign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ campaignId: null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Errore durante la rimozione');
+      setRemoveCharTarget(null);
+      setPlayersReloadToken((t) => t + 1);
+    } catch (err) {
+      setRemoveCharError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsRemovingChar(false);
+    }
+  };
+
+  const handleConfirmRemovePlayer = async () => {
+    if (!removePlayerTarget || !activeCampaign || !session) return;
+    setIsRemovingPlayer(true);
+    setRemovePlayerError(null);
+    try {
+      const accessToken = session.access_token;
+      const res = await fetch(`${SERVER_BASE}/campaigns/${activeCampaign.id}/remove-player`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ playerProfileId: removePlayerTarget.profileId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Errore durante la rimozione del giocatore');
+      setRemovePlayerTarget(null);
+      setPlayersReloadToken((t) => t + 1);
+    } catch (err) {
+      setRemovePlayerError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsRemovingPlayer(false);
+    }
+  };
+
+  const gmInitial = (gmDisplayName ?? 'G').trim().charAt(0).toUpperCase() || 'G';
+
+  return (
+    <div className="flex h-full flex-col gap-6 overflow-y-auto p-8 text-left select-none">
+      <div className="flex items-center gap-4">
+        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)]">
+          {activeCampaign?.logoUrl ? (
+            <img src={activeCampaign.logoUrl} alt={activeCampaign.name} className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center p-3">
+              <img src="/icon-source-1024.png" alt="" className="h-full w-full object-contain opacity-80" style={{ filter: 'invert(1)' }} />
+            </div>
+          )}
+        </div>
+
+        <div>
+          <h1 className="text-2xl font-semibold text-[var(--dash-text-strong)]">{activeCampaign?.name ?? 'Campagna'}</h1>
+          {activeCampaign?.description && (
+            <p className="mt-1 max-w-md text-sm text-[var(--dash-muted)]">{activeCampaign.description}</p>
+          )}
+          {activeCampaign && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--dash-muted)]">
+              <RulesetTag rulesetId={activeCampaign.ruleset} />
+              <span>
+                Creata il {new Date(activeCampaign.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {playersLoaded && (
-        <div className="w-full max-w-2xl text-left">
-          <h2 className="mb-3 flex items-center justify-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
-            <Users className="h-4 w-4" /> Players
-          </h2>
-          <div className="flex flex-col gap-2">
-            <EntityCard
-              variant="list"
-              name={gmDisplayName ?? 'Game Master'}
-              badge={
-                <span className="inline-flex items-center rounded-full border border-[var(--dash-accent)] bg-[var(--dash-accent)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--dash-accent-2)]">
+        <div className="grid w-full grid-cols-1 gap-6 md:grid-cols-[320px_1fr]">
+          {/* Colonna 1: card GM compatta (non il riquadro verticale con
+              portrait grande) - niente "truncate" sul nome, il testo va a
+              capo se serve invece di tagliarsi a un carattere come nelle
+              versioni precedenti confinate in una colonna troppo stretta.
+              320px (allargata da 240px) per contenere comodamente sulla
+              stessa riga i due pulsanti compatti + il trigger del menu a
+              tre puntini, senza comprimerli o mandarli a capo. */}
+          <div className="flex flex-col gap-3">
+            {isOwner && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleToggleSession}
+                  disabled={isToggling}
+                  className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
+                    sessionActive
+                      ? 'border-red-800 bg-red-900/40 text-red-200 hover:bg-red-900/60'
+                      : 'border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)] hover:bg-[var(--dash-accent-2)]'
+                  }`}
+                >
+                  {isToggling ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : sessionActive ? (
+                    <Square className="h-3.5 w-3.5" />
+                  ) : (
+                    <Play className="h-3.5 w-3.5" />
+                  )}
+                  {sessionActive ? 'Termina' : 'Avvia sessione'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleInvitePlayers}
+                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-xs font-semibold text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
+                >
+                  {inviteCopied ? <Check className="h-3.5 w-3.5" /> : <KeyRound className="h-3.5 w-3.5" />}
+                  {inviteCopied ? 'Copiato!' : 'Invita giocatori'}
+                </button>
+
+                {activeCampaign && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex shrink-0 items-center justify-center rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
+                        aria-label="Menu campagna"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="w-64 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-text)]"
+                    >
+                      <DropdownMenuItem
+                        onSelect={() => setShowEditForm(true)}
+                        className="text-[var(--dash-text)] focus:bg-[var(--dash-surface-2)] focus:text-[var(--dash-text-strong)]"
+                      >
+                        <Pencil className="h-4 w-4" /> Impostazioni Campagna
+                      </DropdownMenuItem>
+                      <DropdownMenuItem disabled className="text-[var(--dash-text)]">
+                        <Copy className="h-4 w-4" /> Duplica Campagna
+                        <span className="ml-auto text-[10px] text-[var(--dash-muted)]">Prossimamente</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem disabled className="text-[var(--dash-text)]">
+                        <UserCog className="h-4 w-4" /> Seleziona nuovo Game Master
+                        <span className="ml-auto text-[10px] text-[var(--dash-muted)]">Prossimamente</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem disabled className="text-[var(--dash-text)]">
+                        <FileDown className="h-4 w-4" /> Esporta le note
+                        <span className="ml-auto text-[10px] text-[var(--dash-muted)]">Prossimamente</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator className="bg-[var(--dash-border-soft)]" />
+                      <DropdownMenuItem
+                        onSelect={() => setConfirmDeleteOpen(true)}
+                        className="text-[var(--dash-danger-text)] focus:bg-[var(--dash-danger-bg)] focus:text-[var(--dash-danger-text)]"
+                      >
+                        <Trash2 className="h-4 w-4" /> Cancella campagna
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator className="bg-[var(--dash-border-soft)]" />
+                      <div className="px-2 py-1.5 text-xs text-[var(--dash-muted)]">
+                        Creata da {gmDisplayName ?? 'Game Master'} il{' '}
+                        {new Date(activeCampaign.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </div>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center gap-3 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-3">
+              {gmAvatarUrl ? (
+                <img
+                  src={gmAvatarUrl}
+                  alt=""
+                  className="h-12 w-12 shrink-0 rounded-full object-cover"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+              ) : (
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--dash-accent)] text-sm font-semibold text-[var(--dash-text-strong)]">
+                  {gmInitial}
+                </span>
+              )}
+              <div className="min-w-0">
+                <div className="break-words text-sm font-medium text-[var(--dash-text-strong)]">{gmDisplayName ?? 'Game Master'}</div>
+                <span className="mt-1 inline-flex items-center rounded-full border border-[var(--dash-accent)] bg-[var(--dash-accent)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--dash-accent-2)]">
                   GM
                 </span>
-              }
-            />
-            {playerRows.map((row) =>
-              row.characters.length > 0 ? (
-                row.characters.map((ch) => (
-                  <EntityCard
-                    key={ch.id}
-                    variant="list"
-                    name={ch.name}
-                    secondaryText={`Proprietario: ${row.displayName ?? 'Sconosciuto'}`}
-                    photoUrl={ch.portraitUrl}
-                  />
-                ))
-              ) : (
-                <EntityCard
-                  key={row.profileId}
-                  variant="list"
-                  name={row.displayName ?? 'Giocatore'}
-                  badge={
-                    <span className="inline-flex items-center rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-2 py-0.5 text-[10px] font-medium text-[var(--dash-muted)]">
-                      Nessun personaggio
-                    </span>
-                  }
-                />
-              )
+              </div>
+            </div>
+          </div>
+
+          {/* Colonne 2+3: la riga di pillole sta sulla stessa altezza della
+              riga pulsanti di colonna 1 (flex-col gap-3 su entrambe le
+              colonne, stesso gap), non sopra l'intera pagina - allineamento
+              orizzontale tra i due gruppi di controlli, non solo verticale
+              tra le colonne. flex-wrap sulle pillole: su schermi stretti
+              vanno a capo in modo naturale invece di traboccare o
+              accavallarsi ai pulsanti di colonna 1 (colonne indipendenti). */}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setActiveQuickFilter('all')} className={pillClass(activeQuickFilter === 'all')}>
+                <LayoutGrid className="h-3.5 w-3.5" /> Tutti
+              </button>
+              <button type="button" onClick={() => setActiveQuickFilter('pg')} className={pillClass(activeQuickFilter === 'pg')}>
+                <Users className="h-3.5 w-3.5" /> Personaggi
+              </button>
+              <button type="button" onClick={() => setActiveQuickFilter('premades')} className={pillClass(activeQuickFilter === 'premades')}>
+                <Package className="h-3.5 w-3.5" /> Preconfezionati
+              </button>
+              <button type="button" onClick={() => setActiveQuickFilter('npc')} className={pillClass(activeQuickFilter === 'npc')}>
+                <Ghost className="h-3.5 w-3.5" /> PNG
+              </button>
+              <button type="button" onClick={() => setActiveQuickFilter('monster')} className={pillClass(activeQuickFilter === 'monster')}>
+                <Skull className="h-3.5 w-3.5" /> Mostri
+              </button>
+            </div>
+
+          {/* sempre esattamente 2 card per riga (grid-cols-2, non auto-fill)
+              - le due colonne 1fr si espandono per riempire tutto lo spazio
+              a destra della colonna 1, non restano piccole. minmax(200px,1fr)
+              invece del semplice 1fr: stesso numero di colonne garantito, ma
+              con un minimo protetto che evita la stessa classe di bug di
+              troncamento vista finora se lo schermo e' stretto. */}
+          <div className="grid grid-cols-[repeat(2,minmax(200px,1fr))] content-start gap-4">
+            {(activeQuickFilter === 'all' || activeQuickFilter === 'pg') && (
+              <>
+                <h2 className="col-span-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
+                  <Users className="h-4 w-4" /> Personaggi
+                </h2>
+                {playerRows.map((row) =>
+                  row.characters.length > 0 ? (
+                    row.characters.map((ch) => (
+                      <EntityCard
+                        key={ch.id}
+                        variant="grid"
+                        name={ch.name}
+                        subtitle={ch.styleViaggio}
+                        secondaryText={ch.description}
+                        onClick={() => onOpenSessionEntity('pg', ch.id)}
+                        photoUrl={ch.portraitUrl}
+                        photoSourceUrl={ch.portraitSourceUrl}
+                        photoCropArea={ch.portraitCropArea}
+                        tokenColor={ch.tokenColor}
+                        tokenBackgroundColor={ch.tokenBackgroundColor}
+                        tokenBorderStyle={ch.tokenBorderStyle}
+                        tokenBorderThickness={ch.tokenBorderThickness}
+                        tokenBorderVisible={ch.tokenBorderVisible}
+                        tokenBorderLabel={ch.tokenBorderLabel}
+                        cornerAction={
+                          isOwner ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button
+                                  type="button"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="rounded-lg bg-black/40 p-1 text-white/80 transition-colors hover:bg-black/60 hover:text-white"
+                                  aria-label="Menu personaggio"
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent
+                                align="end"
+                                className="w-64 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-text)]"
+                              >
+                                <DropdownMenuItem
+                                  onSelect={() => setCopyDialogChar(ch)}
+                                  className="text-[var(--dash-text)] focus:bg-[var(--dash-surface-2)] focus:text-[var(--dash-text-strong)]"
+                                >
+                                  <Copy className="h-4 w-4" /> Copia in un'altra campagna
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onSelect={() => setRemoveCharTarget(ch)}
+                                  className="text-[var(--dash-danger-text)] focus:bg-[var(--dash-danger-bg)] focus:text-[var(--dash-danger-text)]"
+                                >
+                                  <Trash2 className="h-4 w-4" /> Rimuovi il Personaggio
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onSelect={() => setRemovePlayerTarget(row)}
+                                  className="text-[var(--dash-danger-text)] focus:bg-[var(--dash-danger-bg)] focus:text-[var(--dash-danger-text)]"
+                                >
+                                  <UserMinus className="h-4 w-4" /> Rimuovi il giocatore
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator className="bg-[var(--dash-border-soft)]" />
+                                <div className="px-2 py-1.5 text-xs text-[var(--dash-muted)]">
+                                  {ch.createdAt && (
+                                    <div>Creato il {new Date(ch.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                                  )}
+                                  {row.joinedAt && (
+                                    <div>Unito alla campagna il {new Date(row.joinedAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                                  )}
+                                </div>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : undefined
+                        }
+                      >
+                        <div className="flex items-center gap-1.5 truncate text-[11px] text-[var(--dash-accent-2)]">
+                          {ch.ownerAvatarUrl ? (
+                            <img src={ch.ownerAvatarUrl} alt="" className="h-4 w-4 shrink-0 rounded-full object-cover" />
+                          ) : (
+                            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[var(--dash-accent)] text-[8px] font-semibold text-[var(--dash-text-strong)]">
+                              {(row.displayName ?? '?').trim().charAt(0).toUpperCase() || '?'}
+                            </span>
+                          )}
+                          <span className="truncate">{row.displayName ?? 'Sconosciuto'}</span>
+                        </div>
+                      </EntityCard>
+                    ))
+                  ) : (
+                    <EntityCard
+                      key={row.profileId}
+                      variant="grid"
+                      name={row.displayName ?? 'Giocatore'}
+                      badge={
+                        <span className="inline-flex items-center rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-2 py-0.5 text-[10px] font-medium text-[var(--dash-muted)]">
+                          Nessun personaggio
+                        </span>
+                      }
+                    />
+                  )
+                )}
+              </>
             )}
+
+            {activeQuickFilter === 'premades' && (
+              <div className="col-span-2 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-5 py-8 text-center">
+                <Package className="mx-auto mb-3 h-10 w-10 text-[var(--dash-muted)]" />
+                <div className="text-xs uppercase tracking-[0.16em] text-[var(--dash-accent-2)]">Funzionalità in arrivo</div>
+              </div>
+            )}
+
+            {(activeQuickFilter === 'all' || activeQuickFilter === 'npc') && isOwner && npcsLoaded && npcs.length > 0 && (
+              <>
+                <h2 className="col-span-2 mt-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
+                  <Ghost className="h-4 w-4" /> PNG
+                </h2>
+                {npcs.map((npc) => (
+                  <EntityCard
+                    key={npc.id}
+                    variant="grid"
+                    name={npc.name || 'PNG senza nome'}
+                    subtitle={npc.role || 'PNG'}
+                    onClick={() => onOpenSessionEntity('png', npc.id)}
+                    photoUrl={npc.portraitImageUrl}
+                    photoSourceUrl={npc.portraitSourceImageUrl}
+                    photoCropArea={npc.portraitCropArea}
+                    tokenColor={npc.tokenColor}
+                    tokenBackgroundColor={npc.tokenBackgroundColor}
+                    tokenBorderStyle={npc.tokenBorderStyle}
+                    tokenBorderThickness={npc.tokenBorderThickness}
+                    tokenBorderVisible={npc.tokenBorderVisible}
+                    tokenBorderLabel={npc.tokenBorderLabel}
+                    hiddenBadge={!npc.visibleToPlayers}
+                  />
+                ))}
+              </>
+            )}
+
+            {(activeQuickFilter === 'all' || activeQuickFilter === 'monster') && isOwner && monstersLoaded && monsters.length > 0 && (
+              <>
+                <h2 className="col-span-2 mt-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
+                  <Skull className="h-4 w-4" /> Mostri
+                </h2>
+                {monsters.map((monster) => (
+                  <EntityCard
+                    key={monster.id}
+                    variant="grid"
+                    name={monster.name || 'Mostro senza nome'}
+                    onClick={() => onOpenSessionEntity('mostro', monster.id)}
+                    photoUrl={monster.portraitImageUrl}
+                    photoSourceUrl={monster.portraitSourceImageUrl}
+                    photoCropArea={monster.portraitCropArea}
+                    tokenColor={monster.tokenColor}
+                    tokenBackgroundColor={monster.tokenBackgroundColor}
+                    tokenBorderStyle={monster.tokenBorderStyle}
+                    tokenBorderThickness={monster.tokenBorderThickness}
+                    tokenBorderVisible={monster.tokenBorderVisible}
+                    tokenBorderLabel={monster.tokenBorderLabel}
+                    hiddenBadge={!monster.visibleToPlayers}
+                  />
+                ))}
+              </>
+            )}
+          </div>
+          </div>
+        </div>
+      )}
+
+      {copyDialogChar && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-sm rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-surface)] p-6 shadow-2xl">
+            <h3 className="mb-1 text-lg font-semibold text-[var(--dash-text-strong)]">Copia in un'altra campagna</h3>
+            <p className="mb-4 text-sm text-[var(--dash-muted)]">
+              "{copyDialogChar.name}" verrà copiato (l'originale resta qui) nella campagna scelta, con lo stesso proprietario.
+            </p>
+            {copyCharError && (
+              <div className="mb-3 rounded-lg border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-3 py-2 text-sm text-[var(--dash-danger-text)]">
+                {copyCharError}
+              </div>
+            )}
+            {compatibleCopyTargets(copyDialogChar).length === 0 ? (
+              <p className="mb-4 text-sm text-[var(--dash-muted)]">Nessun'altra tua campagna compatibile per ruleset.</p>
+            ) : (
+              <div className="mb-4 flex flex-col gap-1.5">
+                {compatibleCopyTargets(copyDialogChar).map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCopyTargetCampaignId(c.id)}
+                    className={`rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
+                      copyTargetCampaignId === c.id
+                        ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/15 text-[var(--dash-text-strong)]'
+                        : 'border-[var(--dash-border-soft)] bg-[var(--dash-panel)] text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]'
+                    }`}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setCopyDialogChar(null); setCopyTargetCampaignId(null); setCopyCharError(null); }}
+                disabled={isCopyingChar}
+                className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)]"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCopyCharacter}
+                disabled={!copyTargetCampaignId || isCopyingChar}
+                className="inline-flex items-center gap-2 rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-4 py-2 text-sm font-semibold text-[var(--dash-text-strong)] disabled:opacity-50"
+              >
+                {isCopyingChar && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Copia
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {removeCharTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-sm rounded-2xl border border-[var(--dash-danger-border)] bg-[var(--dash-surface)] p-6 shadow-2xl">
+            <h3 className="mb-2 font-semibold text-[var(--dash-text-strong)]">Rimuovere il personaggio dalla campagna?</h3>
+            <p className="mb-3 text-sm text-[var(--dash-muted)]">
+              "{removeCharTarget.name}" non verrà eliminato: resterà nel database del giocatore, semplicemente non farà più parte di questa campagna.
+            </p>
+            {removeCharError && (
+              <div className="mb-3 rounded-lg border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-3 py-2 text-sm text-[var(--dash-danger-text)]">
+                {removeCharError}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setRemoveCharTarget(null)}
+                disabled={isRemovingChar}
+                className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)]"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRemoveCharacter}
+                disabled={isRemovingChar}
+                className="inline-flex items-center gap-2 rounded-xl border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-4 py-2 text-sm font-semibold text-[var(--dash-danger-text)] hover:bg-[var(--dash-danger-border)]"
+              >
+                {isRemovingChar && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Rimuovi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {removePlayerTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-sm rounded-2xl border border-[var(--dash-danger-border)] bg-[var(--dash-surface)] p-6 shadow-2xl">
+            <h3 className="mb-2 font-semibold text-[var(--dash-text-strong)]">Rimuovere il giocatore dalla campagna?</h3>
+            <p className="mb-3 text-sm text-[var(--dash-muted)]">
+              {removePlayerTarget.displayName ?? 'Il giocatore'} e tutti i suoi personaggi verranno rimossi da questa campagna. L'account e i personaggi restano intatti, semplicemente non parteciperanno più qui.
+            </p>
+            {removePlayerError && (
+              <div className="mb-3 rounded-lg border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-3 py-2 text-sm text-[var(--dash-danger-text)]">
+                {removePlayerError}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setRemovePlayerTarget(null)}
+                disabled={isRemovingPlayer}
+                className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)]"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRemovePlayer}
+                disabled={isRemovingPlayer}
+                className="inline-flex items-center gap-2 rounded-xl border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-4 py-2 text-sm font-semibold text-[var(--dash-danger-text)] hover:bg-[var(--dash-danger-border)]"
+              >
+                {isRemovingPlayer && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Rimuovi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditForm && activeCampaign && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-surface)] p-6 shadow-2xl">
+            <h3 className="mb-4 text-lg font-semibold text-[var(--dash-text-strong)]">Impostazioni Campagna</h3>
+            {editError && (
+              <div className="mb-4 rounded-lg border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-3 py-2 text-sm text-[var(--dash-danger-text)]">
+                {editError}
+              </div>
+            )}
+            <CampaignForm
+              initial={activeCampaign}
+              onSave={handleEditCampaign}
+              onCancel={() => { setShowEditForm(false); setEditError(null); }}
+              isSubmitting={isSubmittingEdit}
+            />
+          </div>
+        </div>
+      )}
+
+      {confirmDeleteOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-sm rounded-2xl border border-[var(--dash-danger-border)] bg-[var(--dash-surface)] p-6 shadow-2xl">
+            <h3 className="mb-2 font-semibold text-[var(--dash-text-strong)]">Elimina campagna</h3>
+            <p className="mb-3 text-sm text-[var(--dash-muted)]">
+              Questa azione è irreversibile. Tutti i dati della campagna nel server saranno eliminati.
+            </p>
+            {deleteError && (
+              <div className="mb-3 rounded-lg border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-3 py-2 text-sm text-[var(--dash-danger-text)]">
+                {deleteError}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteOpen(false)}
+                disabled={isDeleting}
+                className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)]"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteCampaign}
+                disabled={isDeleting}
+                className="inline-flex items-center gap-2 rounded-xl border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-4 py-2 text-sm font-semibold text-[var(--dash-danger-text)] hover:bg-[var(--dash-danger-border)]"
+              >
+                {isDeleting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Elimina
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -336,39 +1046,8 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
         </div>
       )}
 
-      {isOwner ? (
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          <button
-            type="button"
-            onClick={handleToggleSession}
-            disabled={isToggling}
-            className={`inline-flex items-center gap-2 rounded-2xl border px-6 py-3 text-sm font-semibold shadow-lg transition-colors ${
-              sessionActive
-                ? 'border-red-800 bg-red-900/40 text-red-200 hover:bg-red-900/60'
-                : 'border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)] hover:bg-[var(--dash-accent-2)]'
-            }`}
-          >
-            {isToggling ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : sessionActive ? (
-              <Square className="h-4 w-4" />
-            ) : (
-              <Play className="h-4 w-4" />
-            )}
-            {sessionActive ? 'Termina sessione' : 'Avvia sessione di gioco'}
-          </button>
-
-          <button
-            type="button"
-            onClick={onGoToManagement}
-            className="inline-flex items-center gap-2 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-6 py-3 text-sm font-semibold text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
-          >
-            <Settings className="h-4 w-4" />
-            Vai alla gestione
-          </button>
-        </div>
-      ) : (
-        <div className="flex flex-col items-center gap-3">
+      {!isOwner && (
+        <div className="flex flex-col items-center gap-3 text-center">
           {!sessionActive ? (
             <p className="text-sm text-[var(--dash-muted)]">
               In attesa che il Game Master avvii la sessione di gioco...
