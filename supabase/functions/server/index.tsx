@@ -650,13 +650,23 @@ app.post("/make-server-771c5bfd/characters/:id/copy-to-campaign", async (c) => {
   }
 });
 
-// Verifica se l'utente può leggere/scrivere le note di una data entità
+// Verifica se l'utente può leggere/scrivere le note di una data entità.
+// mode='read' consente anche l'accesso di sola lettura di un membro campagna
+// (usato oggi solo dal ramo 'campaign': le note di campagna sono scritte solo
+// dal GM ma lette da tutti i membri, stesso principio delle tab "Segrete" a
+// livello di singola tab per PG/PNG/Mostri).
 async function canAccessEntityNotes(
-  admin: any, userId: string, campaignId: string | null, entityType: string, entityId: string
+  admin: any, userId: string, campaignId: string | null, entityType: string, entityId: string,
+  mode: 'read' | 'write' = 'write'
 ): Promise<boolean> {
   const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
   const isGm = !!campaignId && myCampaigns.some((camp) => camp.id === campaignId);
   if (isGm) return true;
+  if (entityType === 'campaign') {
+    if (mode !== 'read') return false;
+    const myJoined: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
+    return myJoined.some((pc) => pc.campaignId === campaignId);
+  }
   if (entityType === 'character') {
     const { data: character } = await admin
       .from('characters')
@@ -703,7 +713,7 @@ app.get("/make-server-771c5bfd/campaigns/:campaignId/notes", async (c) => {
     if (!entityType || !entityId) return c.json({ error: "entityType e entityId obbligatori" }, 400);
 
     const admin = getAdminClient();
-    const allowed = await canAccessEntityNotes(admin, userId, campaignId, entityType, entityId);
+    const allowed = await canAccessEntityNotes(admin, userId, campaignId, entityType, entityId, 'read');
     if (!allowed) return c.json({ error: "Non hai accesso alle note di questa scheda" }, 403);
 
     let query = admin
@@ -736,7 +746,7 @@ app.post("/make-server-771c5bfd/campaigns/:campaignId/notes", async (c) => {
     if (!entityType || !entityId || !tabName) return c.json({ error: "Campi obbligatori mancanti" }, 400);
 
     const admin = getAdminClient();
-    const allowed = await canAccessEntityNotes(admin, userId, campaignId, entityType, entityId);
+    const allowed = await canAccessEntityNotes(admin, userId, campaignId, entityType, entityId, 'write');
     if (!allowed) return c.json({ error: "Non hai accesso alle note di questa scheda" }, 403);
 
     const { count } = await admin
@@ -777,7 +787,7 @@ app.put("/make-server-771c5bfd/notes/:noteId", async (c) => {
       .single();
     if (fetchError || !existing) return c.json({ error: "Tab non trovata" }, 404);
 
-    const allowed = await canAccessEntityNotes(admin, userId, existing.campaign_id, existing.entity_type, existing.entity_id);
+    const allowed = await canAccessEntityNotes(admin, userId, existing.campaign_id, existing.entity_type, existing.entity_id, 'write');
     if (!allowed) return c.json({ error: "Non hai accesso a questa tab" }, 403);
 
     const patch: any = { updated_at: new Date().toISOString() };
@@ -817,7 +827,7 @@ app.delete("/make-server-771c5bfd/notes/:noteId", async (c) => {
       .single();
     if (fetchError || !existing) return c.json({ error: "Tab non trovata" }, 404);
 
-    const allowed = await canAccessEntityNotes(admin, userId, existing.campaign_id, existing.entity_type, existing.entity_id);
+    const allowed = await canAccessEntityNotes(admin, userId, existing.campaign_id, existing.entity_type, existing.entity_id, 'write');
     if (!allowed) return c.json({ error: "Non hai accesso a questa tab" }, 403);
 
     const { error } = await admin.from('entity_notes').delete().eq('id', noteId);

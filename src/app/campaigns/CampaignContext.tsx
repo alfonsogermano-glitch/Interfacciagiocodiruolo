@@ -16,7 +16,7 @@ type CampaignContextValue = {
   isLoading: boolean;
   setActiveCampaign: (campaign: Campaign) => void;
   createCampaign: (input: CampaignCreateInput) => Promise<Campaign>;
-  updateCampaign: (id: string, patch: Partial<CampaignCreateInput>) => Promise<void>;
+  updateCampaign: (id: string, patch: Partial<CampaignCreateInput> & { tabOrder?: string[] }) => Promise<void>;
   deleteCampaign: (id: string) => Promise<void>;
   refreshCampaigns: () => Promise<void>;
   refreshJoinedCampaigns: () => Promise<void>;
@@ -230,7 +230,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     return created;
   }, [accessToken]);
 
-  const updateCampaign = useCallback(async (id: string, patch: Partial<CampaignCreateInput>) => {
+  const updateCampaign = useCallback(async (id: string, patch: Partial<CampaignCreateInput> & { tabOrder?: string[] }) => {
     const res = await fetch(`${SERVER_BASE}/campaigns/${id}`, {
       method: 'PUT',
       headers: buildHeaders(accessToken),

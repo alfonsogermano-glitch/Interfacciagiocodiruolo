@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { User, Ghost, Skull, Plus, Trash2, Loader2, StickyNote } from 'lucide-react';
+import { User, Ghost, Skull, BookOpen, Plus, Trash2, Loader2, StickyNote } from 'lucide-react';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { loadCharacters, loadCharactersViaServer } from '../../../services/supabase/charactersService';
 import { loadNPCs, loadMonsters } from '../../../services/supabase/entitiesService';
 import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
+import { CampaignNotesPanel } from './shared/CampaignNotesPanel';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
-type EntityKind = 'character' | 'npc' | 'monster';
+type EntityKind = 'character' | 'npc' | 'monster' | 'campaign';
 interface EntityOption {
   kind: EntityKind;
   id: string;
@@ -24,7 +25,7 @@ interface NoteTab {
 
 export function SessionNotesPanel() {
   const { user, session } = useAuth();
-  const { activeCampaignId, activeCampaign } = useCampaign();
+  const { activeCampaignId, activeCampaign, updateCampaign } = useCampaign();
 
   const [characters, setCharacters] = useState<any[]>([]);
   const [npcs, setNpcs] = useState<any[]>([]);
@@ -99,7 +100,9 @@ export function SessionNotesPanel() {
   }, [activeCampaignId, session?.access_token]);
 
   useEffect(() => {
-    if (!selectedEntity) return;
+    // Le note di campagna sono gestite a parte da CampaignNotesPanel (via
+    // useEntityTabs, con proprio fetch/sync), niente da caricare qui.
+    if (!selectedEntity || selectedEntity.kind === 'campaign') return;
     loadNotesFor(selectedEntity);
   }, [selectedEntity, loadNotesFor]);
 
@@ -196,6 +199,7 @@ export function SessionNotesPanel() {
   };
 
   const entityOptions: EntityOption[] = [
+    { kind: 'campaign' as const, id: activeCampaignId, name: 'Note di campagna' },
     ...characters.filter(c => canViewEntity('character', (c as any).ownerProfileId)).map(c => ({ kind: 'character' as const, id: c.id, name: c.name, ownerProfileId: (c as any).ownerProfileId })),
     ...(isOwner ? npcs.map(n => ({ kind: 'npc' as const, id: n.id, name: n.name })) : []),
     ...(isOwner ? monsters.map(m => ({ kind: 'monster' as const, id: m.id, name: m.name })) : []),
@@ -226,7 +230,7 @@ export function SessionNotesPanel() {
                     : 'text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]/50'
                 }`}
               >
-                {entity.kind === 'npc' ? <Ghost className="h-4 w-4 shrink-0" /> : entity.kind === 'monster' ? <Skull className="h-4 w-4 shrink-0" /> : <User className="h-4 w-4 shrink-0" />}
+                {entity.kind === 'campaign' ? <BookOpen className="h-4 w-4 shrink-0" /> : entity.kind === 'npc' ? <Ghost className="h-4 w-4 shrink-0" /> : entity.kind === 'monster' ? <Skull className="h-4 w-4 shrink-0" /> : <User className="h-4 w-4 shrink-0" />}
                 <span className="truncate">{entity.name}</span>
               </button>
             ))}
@@ -238,6 +242,16 @@ export function SessionNotesPanel() {
         {!selectedEntity ? (
           <div className="flex h-full items-center justify-center text-sm text-[var(--dash-muted)]">
             Seleziona una scheda per vedere le sue note
+          </div>
+        ) : selectedEntity.kind === 'campaign' ? (
+          <div className="flex-1 overflow-auto p-4">
+            <CampaignNotesPanel
+              campaignId={selectedEntity.id}
+              accessToken={session?.access_token}
+              canEdit={isOwner}
+              savedTabOrder={activeCampaign?.tabOrder}
+              onPersistTabOrder={(order) => updateCampaign(selectedEntity.id, { tabOrder: order })}
+            />
           </div>
         ) : (
           <>

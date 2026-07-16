@@ -111,6 +111,7 @@ export interface Campaign {
   logoUrl?: string;
   sessionActive?: boolean;
   sessionActivatedAt?: string;
+  tabOrder?: string[];
 }
 
 // id opzionale: usato dalla migrazione per preservare il legacy campaign ID

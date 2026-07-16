@@ -11,6 +11,7 @@ import { loadNPCs, loadMonsters, type NPC, type Monster } from '../../services/s
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { RulesetTag } from '../components/shared/RulesetTag';
 import { EntityCard } from '../components/session/shared/EntityCard';
+import { CampaignNotesPanel } from '../components/session/shared/CampaignNotesPanel';
 import { CampaignForm } from './CampaignSelector';
 import { isRulesetCompatible, type CampaignCreateInput, type RulesetId } from './campaignTypes';
 import type { TokenBorderStyle, TokenBorderThickness } from '../../types/tokenStyle';
@@ -659,6 +660,17 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                   GM
                 </span>
               </div>
+            </div>
+
+            <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4">
+              <h3 className="mb-3 text-sm font-semibold text-[var(--dash-text-strong)]">Note di campagna</h3>
+              <CampaignNotesPanel
+                campaignId={activeCampaign.id}
+                accessToken={session?.access_token}
+                canEdit={isOwner}
+                savedTabOrder={activeCampaign.tabOrder}
+                onPersistTabOrder={(order) => updateCampaign(activeCampaign.id, { tabOrder: order })}
+              />
             </div>
           </div>
 

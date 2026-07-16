@@ -6,7 +6,7 @@ const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-7
 
 const DRAG_THRESHOLD_PX = 6;
 
-export type EntityTabsEntityType = 'character' | 'npc' | 'monster';
+export type EntityTabsEntityType = 'character' | 'npc' | 'monster' | 'campaign';
 
 export interface EntityBaseTab {
   id: string;
