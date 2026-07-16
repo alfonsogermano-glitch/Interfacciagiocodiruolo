@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Play, Square, Settings, Loader2, AlertTriangle } from 'lucide-react';
+import { Play, Square, Settings, Loader2, AlertTriangle, Users } from 'lucide-react';
 import { useAuth, supabase } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
 import { loadCharactersByOwner } from '../../services/supabase/charactersService';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { RulesetTag } from '../components/shared/RulesetTag';
+import { EntityCard } from '../components/session/shared/EntityCard';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 const AUTO_CLOSE_AFTER_MS = 60 * 60 * 1000; // 1 ora
@@ -11,6 +13,18 @@ const AUTO_CLOSE_AFTER_MS = 60 * 60 * 1000; // 1 ora
 interface CampaignHomeProps {
   onGoToManagement: () => void;
 }
+
+type PlayerCharacterSummary = {
+  id: string;
+  name: string;
+  portraitUrl: string | null;
+};
+
+type PlayerRow = {
+  profileId: string;
+  displayName: string | null;
+  characters: PlayerCharacterSummary[];
+};
 
 export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   const { user, session } = useAuth();
@@ -25,6 +39,9 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   const [channelGeneration, setChannelGeneration] = useState(0);
   const [autoClosedNotice, setAutoClosedNotice] = useState(false);
   const autoCloseCheckedRef = useRef(false);
+  const [gmDisplayName, setGmDisplayName] = useState<string | null>(null);
+  const [playerRows, setPlayerRows] = useState<PlayerRow[]>([]);
+  const [playersLoaded, setPlayersLoaded] = useState(false);
 
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const lookupSeqRef = useRef(0);
@@ -94,6 +111,69 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
         console.error('Errore nel caricamento dei personaggi:', err);
       });
   }, [isOwner, user?.id, activeCampaign?.id]);
+
+  // Sezione "Players": combina /characters (PG gia' arricchiti con
+  // owner_display_name/owner_avatar_url lato server) e /member-names
+  // (roster completo dei membri, incluso chi non ha ancora un PG). Il GM
+  // non e' mai tra i membri (si unisce solo chi fa "join"), quindi il suo
+  // nome arriva separato come ownerDisplayName.
+  useEffect(() => {
+    if (!activeCampaign?.id || !session) return;
+    let cancelled = false;
+    setPlayersLoaded(false);
+
+    (async () => {
+      try {
+        const accessToken = session.access_token;
+        const [charsRes, memberNamesRes] = await Promise.all([
+          fetch(`${SERVER_BASE}/campaigns/${activeCampaign.id}/characters`, { headers: { Authorization: `Bearer ${accessToken}` } }),
+          fetch(`${SERVER_BASE}/campaigns/${activeCampaign.id}/member-names`, { headers: { Authorization: `Bearer ${accessToken}` } }),
+        ]);
+        if (cancelled) return;
+        const charsData = charsRes.ok ? await charsRes.json() : { characters: [] };
+        const memberNamesData = memberNamesRes.ok ? await memberNamesRes.json() : { members: [], ownerDisplayName: null };
+        if (cancelled) return;
+
+        const characters = charsData.characters ?? [];
+        // Il GM ha gia' la propria riga dedicata (badge "GM") indipendentemente
+        // dal fatto che possieda un PG - va escluso qui, all'ingresso
+        // dell'unione, cosi' non puo' ricomparire ne' come membro ne' come
+        // "orfano" piu' sotto, qualunque sia la provenienza del suo profileId.
+        const members: { profileId: string; displayName: string | null }[] = (memberNamesData.members ?? [])
+          .filter((m: any) => m.profileId !== activeCampaign.ownerId);
+
+        const charsByOwner = new Map<string, PlayerCharacterSummary[]>();
+        for (const ch of characters) {
+          const ownerId = ch.owner_profile_id;
+          if (!ownerId) continue;
+          const list = charsByOwner.get(ownerId) ?? [];
+          list.push({ id: ch.id, name: ch.name, portraitUrl: ch.portrait_image_url ?? null });
+          charsByOwner.set(ownerId, list);
+        }
+
+        // Unione tra membri noti e proprietari di PG non (piu') tra i membri
+        // (es. rimosso dalla campagna ma PG non riassegnato) - nessun PG va perso.
+        const knownIds = new Set(members.map((m) => m.profileId));
+        const orphanOwnerIds = Array.from(charsByOwner.keys()).filter(
+          (id) => id !== activeCampaign.ownerId && !knownIds.has(id)
+        );
+
+        setPlayerRows([
+          ...members.map((m) => ({ profileId: m.profileId, displayName: m.displayName, characters: charsByOwner.get(m.profileId) ?? [] })),
+          ...orphanOwnerIds.map((id) => ({ profileId: id, displayName: null, characters: charsByOwner.get(id) ?? [] })),
+        ]);
+        setGmDisplayName(memberNamesData.ownerDisplayName ?? null);
+      } catch (err) {
+        console.error('Errore nel caricamento della sezione Players:', err);
+      } finally {
+        if (!cancelled) setPlayersLoaded(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCampaign?.id, activeCampaign?.ownerId, session]);
 
   useEffect(() => {
     if (!activeCampaign?.id || !characterLookupDone) return;
@@ -180,7 +260,7 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
   };
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-6 p-8 text-center select-none">
+    <div className="flex h-full flex-col items-center gap-6 overflow-y-auto p-8 text-center select-none">
       <div className="relative h-24 w-24 overflow-hidden rounded-2xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)]">
         {activeCampaign?.logoUrl ? (
           <img src={activeCampaign.logoUrl} alt={activeCampaign.name} className="h-full w-full object-cover" />
@@ -196,7 +276,58 @@ export function CampaignHome({ onGoToManagement }: CampaignHomeProps) {
         {activeCampaign?.description && (
           <p className="mt-1 max-w-md text-sm text-[var(--dash-muted)]">{activeCampaign.description}</p>
         )}
+        {activeCampaign && (
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-2 text-xs text-[var(--dash-muted)]">
+            <RulesetTag rulesetId={activeCampaign.ruleset} />
+            <span>
+              Creata il {new Date(activeCampaign.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </span>
+          </div>
+        )}
       </div>
+
+      {playersLoaded && (
+        <div className="w-full max-w-2xl text-left">
+          <h2 className="mb-3 flex items-center justify-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
+            <Users className="h-4 w-4" /> Players
+          </h2>
+          <div className="flex flex-col gap-2">
+            <EntityCard
+              variant="list"
+              name={gmDisplayName ?? 'Game Master'}
+              badge={
+                <span className="inline-flex items-center rounded-full border border-[var(--dash-accent)] bg-[var(--dash-accent)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--dash-accent-2)]">
+                  GM
+                </span>
+              }
+            />
+            {playerRows.map((row) =>
+              row.characters.length > 0 ? (
+                row.characters.map((ch) => (
+                  <EntityCard
+                    key={ch.id}
+                    variant="list"
+                    name={ch.name}
+                    secondaryText={`Proprietario: ${row.displayName ?? 'Sconosciuto'}`}
+                    photoUrl={ch.portraitUrl}
+                  />
+                ))
+              ) : (
+                <EntityCard
+                  key={row.profileId}
+                  variant="list"
+                  name={row.displayName ?? 'Giocatore'}
+                  badge={
+                    <span className="inline-flex items-center rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-2 py-0.5 text-[10px] font-medium text-[var(--dash-muted)]">
+                      Nessun personaggio
+                    </span>
+                  }
+                />
+              )
+            )}
+          </div>
+        </div>
+      )}
 
       {autoClosedNotice && (
         <div className="flex items-center gap-2 rounded-xl border border-amber-800 bg-amber-900/30 px-4 py-2 text-sm text-amber-200">

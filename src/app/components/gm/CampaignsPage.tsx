@@ -103,9 +103,10 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
 
       // Arricchisce ciascuna campagna partecipata con i personaggi attivi e i
       // nomi dei membri; /members (dati completi) nega l'accesso ai
-      // non-owner, ma /member-names (solo profileId+displayName, endpoint
-      // dedicato) e' apertO anche ai membri - copre anche chi non ha ancora
-      // un PG, che characters.length da solo non potrebbe mostrare.
+      // non-owner, ma /member-names (profileId+displayName, endpoint
+      // dedicato) e' aperto anche ai membri - copre anche chi non ha ancora
+      // un PG, che characters.length da solo non potrebbe mostrare. Qui
+      // servono solo i displayName per il badge della card.
       const enriched = await Promise.all(
         joinedCampaigns.map(async (jc) => {
           try {
@@ -114,9 +115,11 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
               fetch(`${SERVER_BASE}/campaigns/${jc.id}/member-names`, { headers: { Authorization: `Bearer ${accessToken}` } }),
             ]);
             const charsData = charsRes.ok ? await charsRes.json() : { characters: [] };
-            const memberNamesData = memberNamesRes.ok ? await memberNamesRes.json() : { memberNames: [] };
+            const memberNamesData = memberNamesRes.ok ? await memberNamesRes.json() : { members: [] };
             const characters = (charsData.characters ?? []).map((ch: any) => ({ id: ch.id, name: ch.name }));
-            const memberNames = memberNamesData.memberNames ?? [];
+            const memberNames = (memberNamesData.members ?? [])
+              .map((m: any) => m.displayName)
+              .filter(Boolean);
             return {
               ...jc,
               isOwned: false,

@@ -980,13 +980,17 @@ app.get("/make-server-771c5bfd/campaigns/:id/members", async (c) => {
   }
 });
 
-// ─── Campaigns: Member names (proprietario o membro - solo nomi, per la card) ─
+// ─── Campaigns: Member names (proprietario o membro - solo nomi, per la card
+// e per la sezione Players di CampaignHome) ─
 //
 // Endpoint volutamente minimo e separato da /members sopra (owner-only,
 // dati completi per la futura pagina di gestione campagna): qui un membro
 // puo' leggere solo profileId+displayName di se stesso e degli altri
 // membri, nessun altro dato (ruolo, data di ingresso, ecc.) - copre anche
 // i membri senza alcun PG, che /campaigns/:id/characters non può vedere.
+// Il GM (owner) non e' mai in campaign_members (si unisce solo chi fa
+// "join", non chi crea la campagna), quindi il suo nome va risolto a parte
+// e restituito come campo separato, non dentro "members".
 app.get("/make-server-771c5bfd/campaigns/:id/member-names", async (c) => {
   try {
     const token = c.req.header("Authorization")?.split(" ")[1];
@@ -998,17 +1002,21 @@ app.get("/make-server-771c5bfd/campaigns/:id/member-names", async (c) => {
     const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
     const isOwner = myCampaigns.some((camp) => camp.id === campaignId);
 
-    if (!isOwner) {
-      const myJoined = await kv.get(playerCampaignsKey(userId)) ?? [];
-      const isMember = myJoined.some((pc) => pc.campaignId === campaignId);
-      if (!isMember) {
+    let ownerId: string;
+    if (isOwner) {
+      ownerId = userId;
+    } else {
+      const myJoined: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
+      const membership = myJoined.find((pc) => pc.campaignId === campaignId);
+      if (!membership) {
         return c.json({ error: "Non hai accesso a questa campagna" }, 403);
       }
+      ownerId = membership.ownerId;
     }
 
     const members = await kv.get(campaignMembersKey(campaignId)) ?? [];
     const profileIds = Array.from(
-      new Set(members.map((m: any) => m.profileId).filter(Boolean))
+      new Set([...members.map((m: any) => m.profileId), ownerId].filter(Boolean))
     );
 
     let displayNameById: Record<string, string> = {};
@@ -1023,11 +1031,11 @@ app.get("/make-server-771c5bfd/campaigns/:id/member-names", async (c) => {
       );
     }
 
-    const memberNames = members
-      .map((m: any) => displayNameById[m.profileId])
-      .filter(Boolean);
+    const memberList = members
+      .filter((m: any) => m.profileId)
+      .map((m: any) => ({ profileId: m.profileId, displayName: displayNameById[m.profileId] ?? null }));
 
-    return c.json({ memberNames });
+    return c.json({ members: memberList, ownerDisplayName: displayNameById[ownerId] ?? null });
   } catch (err) {
     console.log("Errore GET campaigns/:id/member-names:", err);
     return c.json({ error: `Errore interno: ${err}` }, 500);
