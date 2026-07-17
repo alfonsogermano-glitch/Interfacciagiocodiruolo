@@ -179,21 +179,34 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   // Trova il proprio personaggio in questa campagna (solo per i giocatori)
   useEffect(() => {
     const mySeq = ++lookupSeqRef.current;
+    // DEBUG TEMPORANEO - secondo giro di diagnosi 2026-07-20, verifica
+    // mirata se questo effect si ri-esegue nella finestra di ~3ms in cui
+    // il canale campaign:{id} si chiude dopo members_change.
+    console.log('[DEBUG lookup] effect RI-ESEGUITO', {
+      t: new Date().toISOString(), mySeq, isOwner, userId: user?.id, activeCampaignId: activeCampaign?.id,
+    });
 
     if (isOwner) {
+      console.log('[DEBUG lookup] setOwnCharacterId(null) + setCharacterLookupDone(true) [ramo isOwner]', { t: new Date().toISOString(), mySeq });
       setOwnCharacterId(null);
       setCharacterLookupDone(true);
       return;
     }
     if (!user?.id || !activeCampaign?.id) {
+      console.log('[DEBUG lookup] setCharacterLookupDone(false) [ramo user/campaign mancante]', { t: new Date().toISOString(), mySeq });
       setCharacterLookupDone(false);
       return;
     }
+    console.log('[DEBUG lookup] setCharacterLookupDone(false) [pre-fetch]', { t: new Date().toISOString(), mySeq });
     setCharacterLookupDone(false);
     loadCharactersByOwner(user.id)
       .then(chars => {
-        if (lookupSeqRef.current !== mySeq) return;
+        if (lookupSeqRef.current !== mySeq) {
+          console.log('[DEBUG lookup] fetch completato ma SCARTATO (sequenza superata)', { t: new Date().toISOString(), mySeq, currentSeq: lookupSeqRef.current });
+          return;
+        }
         const mine = chars.find(c => c.campaignId === activeCampaign.id);
+        console.log('[DEBUG lookup] setOwnCharacterId + setCharacterLookupDone(true) [post-fetch]', { t: new Date().toISOString(), mySeq, ownCharacterId: mine?.id ?? null });
         setOwnCharacterId(mine?.id ?? null);
         setCharacterLookupDone(true);
       })
