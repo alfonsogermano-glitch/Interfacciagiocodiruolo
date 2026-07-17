@@ -1,5 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { supabase, useAuth } from '../auth/AuthContext';
+import { createContext, useContext, useState } from 'react';
 
 type PresenceContextValue = {
   onlineProfileIds: Set<string>;
@@ -8,64 +7,18 @@ type PresenceContextValue = {
 
 const PresenceContext = createContext<PresenceContextValue | null>(null);
 
-// Presenza globale ("loggato su Hollow Gate ora", non "dentro questa
-// campagna") - canale Realtime condiviso da tutti gli utenti (non uno per
-// utente: Presence e' pensato per N tracker su un canale, non N canali da
-// osservare), stesso pattern gia' usato 8 volte nel codice per
-// campaign:{id} (vedi es. MyCharactersPage.tsx), solo con scope globale
-// invece che per-campagna. Cleanup al logout gia' gratis: signOut() in
-// AuthContext.tsx chiama supabase.removeAllChannels() prima di
-// supabase.auth.signOut(), nessuna logica dedicata necessaria qui.
+// Presenza globale ("loggato su Hollow Gate ora") - DISATTIVATA. Il canale
+// online:all (ex presence:global) non si è mai sottoscritto con successo
+// (CHANNEL_ERROR persistente, causa mai confermata) e non ha alcun
+// consumer di useOnlinePresence() nel resto del codice. Tenerlo attivo
+// aveva un costo reale: il rejoin automatico della libreria falliva in
+// loop indefinito su ogni pagina per ogni utente collegato (trovato
+// durante l'indagine sul mancato aggiornamento realtime di CampaignHome,
+// 2026-07-19 - non risultato esserne la causa diretta, ma comunque rumore
+// senza beneficio). Nessun tentativo di connessione finché non si
+// riprende in mano la feature.
 export function PresenceProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
-  const [onlineProfileIds, setOnlineProfileIds] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (!user) {
-      setOnlineProfileIds(new Set());
-      return;
-    }
-
-    let cancelled = false;
-    let ch: ReturnType<typeof supabase.channel> | null = null;
-
-    (async () => {
-      // Necessario per l'autorizzazione sui canali privati (stesso
-      // requisito gia' documentato in PlayerCharacters.tsx/useEntityTabs.ts
-      // per campaign:{id}) - senza questa chiamata il subscribe fallisce
-      // con CHANNEL_ERROR anche con le policy RLS su realtime.messages
-      // gia' presenti.
-      await supabase.realtime.setAuth();
-      if (cancelled) return;
-
-      const channel = supabase
-        .channel('online:all', { config: { private: true } })
-        .on('presence', { event: 'sync' }, () => {
-          const state = channel.presenceState();
-          const ids = new Set<string>();
-          Object.values(state).forEach((presences: any) => {
-            presences.forEach((p: any) => {
-              if (p.profileId) ids.add(p.profileId);
-            });
-          });
-          setOnlineProfileIds(ids);
-          console.log('[online:all debug]', Array.from(ids));
-        })
-        .subscribe(async (status) => {
-          console.log('[online:all debug] subscribe status', status);
-          if (status === 'SUBSCRIBED' && !cancelled) {
-            await channel.track({ profileId: user.id, online_at: new Date().toISOString() });
-          }
-        });
-
-      ch = channel;
-    })();
-
-    return () => {
-      cancelled = true;
-      if (ch) supabase.removeChannel(ch);
-    };
-  }, [user?.id]);
+  const [onlineProfileIds] = useState<Set<string>>(new Set());
 
   return (
     <PresenceContext.Provider value={{

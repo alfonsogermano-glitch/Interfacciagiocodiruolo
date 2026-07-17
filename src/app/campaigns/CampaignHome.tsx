@@ -346,48 +346,88 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     if (!activeCampaign?.id || !characterLookupDone) return;
     setChannelReady(false);
 
-    const ch = supabase
-      .channel(`campaign:${activeCampaign.id}`, { config: { private: true } })
-      .on('presence', { event: 'sync' }, () => {
-        const state = ch.presenceState();
-        const online = Object.values(state).some((presences: any) =>
-          presences.some((p: any) => p.role === 'gm')
-        );
-        setGmOnline(online);
-      })
-      .on('broadcast', { event: 'session_change' }, (msg) => {
-        const active = msg?.payload?.active;
-        if (typeof active === 'boolean') {
-          setLocalSessionActive(active);
-        }
-      })
-      .on('broadcast', { event: 'members_change' }, () => {
-        // DEBUG TEMPORANEO - da rimuovere dopo aver individuato la causa del
-        // mancato aggiornamento della griglia GM su scollegamento PG.
-        console.log('[DEBUG realtime] members_change RICEVUTO su campaign:' + activeCampaign.id + ', refetch Players in corso');
-        setPlayersReloadToken((t) => t + 1);
-      })
-      .subscribe((status, err) => {
-        // DEBUG TEMPORANEO
-        console.log('[DEBUG realtime] campaign:' + activeCampaign.id + ' subscribe status:', status, err ?? '');
-        if (status === 'SUBSCRIBED') {
-          setTimeout(async () => {
-            if (isOwner) {
-              await ch.track({ role: 'gm', online_at: new Date().toISOString() });
-            } else if (ownCharacterId) {
-              await ch.track({ role: 'player', characterId: ownCharacterId, online_at: new Date().toISOString() });
-            }
-            setChannelReady(true);
-          }, 0);
-        }
-      });
+    let isActive = true;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let retryCount = 0;
+    let hasScheduledRetry = false;
+    const MAX_RETRIES = 5;
 
-    channelRef.current = ch;
+    // Stesso pattern di retry di PlayerCharacters.tsx/NotificationsContext.tsx,
+    // con una correzione: la' la variabile "settled" resta true anche dopo un
+    // SUBSCRIBED riuscito, quindi se il canale muore PIU' TARDI (non al primo
+    // tentativo) il guard "if (settled) return" blocca il retry - verificato
+    // dal vivo con uno script di prova, causa esatta del bug segnalato oggi
+    // (canale sano per un po', poi CLOSED senza mai più riprovare). Qui
+    // "hasScheduledRetry" si azzera ad ogni SUBSCRIBED, cosi' una morte
+    // successiva pianifica comunque un nuovo tentativo.
+    const subscribeChannel = async () => {
+      if (!isActive) return;
+      await supabase.realtime.setAuth();
+      if (!isActive) return;
+
+      const ch = supabase
+        .channel(`campaign:${activeCampaign.id}`, { config: { private: true } })
+        .on('presence', { event: 'sync' }, () => {
+          const state = ch.presenceState();
+          const online = Object.values(state).some((presences: any) =>
+            presences.some((p: any) => p.role === 'gm')
+          );
+          setGmOnline(online);
+        })
+        .on('broadcast', { event: 'session_change' }, (msg) => {
+          const active = msg?.payload?.active;
+          if (typeof active === 'boolean') {
+            setLocalSessionActive(active);
+          }
+        })
+        .on('broadcast', { event: 'members_change' }, () => {
+          setPlayersReloadToken((t) => t + 1);
+        })
+        .subscribe((status) => {
+          if (!isActive) return;
+
+          if (status === 'SUBSCRIBED') {
+            retryCount = 0;
+            hasScheduledRetry = false;
+            setTimeout(async () => {
+              if (isOwner) {
+                await ch.track({ role: 'gm', online_at: new Date().toISOString() });
+              } else if (ownCharacterId) {
+                await ch.track({ role: 'player', characterId: ownCharacterId, online_at: new Date().toISOString() });
+              }
+              setChannelReady(true);
+            }, 0);
+            return;
+          }
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            setChannelReady(false);
+            if (hasScheduledRetry) return;
+            hasScheduledRetry = true;
+            if (channelRef.current === ch) channelRef.current = null;
+            (async () => {
+              try {
+                await supabase.removeChannel(ch);
+              } catch { /* ignora */ }
+              if (retryCount >= MAX_RETRIES) return;
+              retryCount += 1;
+              retryTimeout = setTimeout(() => { if (isActive) subscribeChannel(); }, 1000);
+            })();
+          }
+        });
+
+      channelRef.current = ch;
+    };
+
+    subscribeChannel();
 
     return () => {
-      if (isOwner || ownCharacterId) ch.untrack();
-      supabase.removeChannel(ch);
-      channelRef.current = null;
+      isActive = false;
+      if (retryTimeout) clearTimeout(retryTimeout);
+      if (channelRef.current) {
+        if (isOwner || ownCharacterId) channelRef.current.untrack();
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
       setChannelReady(false);
     };
   }, [activeCampaign?.id, isOwner, ownCharacterId, characterLookupDone, channelGeneration]);
