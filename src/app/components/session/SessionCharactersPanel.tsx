@@ -164,14 +164,6 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
 
     if (data.operation === 'DELETE') {
       const deletedId = data.old_record?.id;
-      // DEBUG TEMPORANEO - quarto giro di diagnosi 2026-07-21: verifica se
-      // lo scollegamento ("Nessuna campagna") genera davvero un evento
-      // DELETE, dato che lato server è implementato come update campaign_id
-      // -> null sulla riga esistente, non come cancellazione della riga.
-      console.log('[DEBUG SessionCharactersPanel] ramo DELETE', {
-        t: new Date().toISOString(), table, deletedId, oldRecordId: data.old_record?.id,
-        currentCharacterIds: characters.map(c => c.id),
-      });
       if (!deletedId) return;
       if (table === 'characters') {
         setCharacters(prev => prev.filter(c => c.id !== deletedId));
@@ -196,21 +188,27 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
 
     if (table === 'characters') {
       const mapped = mapRowToCharacter(row) as PlayerCharacter;
-      // DEBUG TEMPORANEO - quarto giro di diagnosi 2026-07-21
-      console.log('[DEBUG SessionCharactersPanel] ramo UPDATE/INSERT characters', {
-        t: new Date().toISOString(), operation: data.operation, rowId: row.id,
-        rowCampaignId: row.campaign_id, activeCampaignId, mappedCampaignId: (mapped as any).campaignId,
-      });
-      setCharacters(prev => {
-        const exists = prev.some(c => c.id === mapped.id);
-        return exists
-          ? prev.map(c => (c.id === mapped.id ? {
-              ...mapped,
-              ownerDisplayName: (c as any).ownerDisplayName,
-              ownerAvatarUrl: (c as any).ownerAvatarUrl,
-            } : c))
-          : [...prev, mapped];
-      });
+      // Un UPDATE con campaign_id diverso dalla campagna corrente significa
+      // che il PG è stato scollegato/spostato altrove (assign-campaign non
+      // cancella mai la riga, aggiorna solo campaign_id) - va tolto da
+      // questa lista, non aggiornato in place. Bug reale trovato il
+      // 2026-07-21: senza questo controllo il PG restava visibile qui
+      // anche dopo lo scollegamento, con dati "aggiornati" ma campaign_id
+      // ormai diverso, perché nessun codice controllava mai questo campo.
+      if ((row as any).campaign_id !== activeCampaignId) {
+        setCharacters(prev => prev.filter(c => c.id !== mapped.id));
+      } else {
+        setCharacters(prev => {
+          const exists = prev.some(c => c.id === mapped.id);
+          return exists
+            ? prev.map(c => (c.id === mapped.id ? {
+                ...mapped,
+                ownerDisplayName: (c as any).ownerDisplayName,
+                ownerAvatarUrl: (c as any).ownerAvatarUrl,
+              } : c))
+            : [...prev, mapped];
+        });
+      }
     } else if (table === 'npcs') {
       const mapped = toCamelCase(row);
       setNpcs(prev => {
