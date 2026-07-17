@@ -105,7 +105,7 @@ export function LeftSidebar({
   onSelectCampaign,
 }: LeftSidebarProps) {
   return (
-    <aside className="flex h-full w-[100px] shrink-0 flex-col items-center gap-1 border-r border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
+    <aside className="relative z-[940] flex h-full w-[100px] shrink-0 flex-col items-center gap-1 border-r border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
       <div className="mb-3 flex flex-col items-center gap-1">
         <img
           src="/hollowgate-logo.png"
