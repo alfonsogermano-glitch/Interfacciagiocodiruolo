@@ -21,15 +21,17 @@ export function AppShell({ settings, leftSidebar, rightSidebar, topbar, children
     <div
       ref={setPaletteNode}
       data-dashboard-palette={settings.palette}
-      className="flex h-screen flex-col overflow-hidden bg-[var(--dash-bg)] text-[var(--dash-text)]"
+      className="flex h-screen overflow-hidden bg-[var(--dash-bg)] text-[var(--dash-text)]"
     >
       <PortalContainerContext.Provider value={paletteNode}>
         <TooltipColorsProvider palette={settings.palette}>
-          {topbar}
-          <div className="flex flex-1 overflow-hidden">
-            {leftSidebar}
-            <main className="flex-1 overflow-y-auto bg-[var(--dash-bg)]">{children}</main>
-            {rightSidebar}
+          {leftSidebar}
+          <div className="flex flex-1 flex-col overflow-hidden">
+            {topbar}
+            <div className="flex flex-1 overflow-hidden">
+              <main className="flex-1 overflow-y-auto bg-[var(--dash-bg)]">{children}</main>
+              {rightSidebar}
+            </div>
           </div>
         </TooltipColorsProvider>
       </PortalContainerContext.Provider>
