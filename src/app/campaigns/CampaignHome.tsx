@@ -381,9 +381,13 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
           }
         })
         .on('broadcast', { event: 'members_change' }, () => {
+          // DEBUG TEMPORANEO - secondo giro di diagnosi 2026-07-20
+          console.log('[DEBUG realtime] members_change RICEVUTO su campaign:' + activeCampaign.id + ' @ ' + new Date().toISOString());
           setPlayersReloadToken((t) => t + 1);
         })
         .subscribe((status) => {
+          // DEBUG TEMPORANEO
+          console.log('[DEBUG realtime] campaign:' + activeCampaign.id + ' subscribe status:', status, '@', new Date().toISOString());
           if (!isActive) return;
 
           if (status === 'SUBSCRIBED') {
