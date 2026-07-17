@@ -112,6 +112,16 @@ async function isDisplayNameTaken(admin: ReturnType<typeof getAdminClient>, name
 // il canale: usa il fallback HTTP di realtime-js pensato per l'invio
 // server-side). Se il broadcast fallisce non è fatale: la riga esiste
 // comunque e il client la vede al prossimo GET /notifications.
+//
+// { config: { private: true } } è OBBLIGATORIO qui, non solo lato client:
+// realtime-js include private:this.private nel body del POST REST di
+// fallback (RealtimeChannel.send, ramo "canPush() === false"). Senza
+// questa config il canale server-side ha private=false di default e il
+// messaggio viene pubblicato come broadcast pubblico - il client, che
+// sottoscrive lo stesso topic in modalità privata (config.private=true),
+// non lo riceve mai. send() inoltre non lancia mai su fallimento REST
+// (ritorna la stringa 'error'), quindi va controllato esplicitamente:
+// verificato dal vivo con script E2E, non solo per lettura del sorgente.
 async function createNotification(
   admin: ReturnType<typeof getAdminClient>,
   recipientProfileId: string,
@@ -126,8 +136,12 @@ async function createNotification(
   if (error) throw error;
 
   try {
-    await admin.channel(`profile:${recipientProfileId}`)
+    const result = await admin
+      .channel(`profile:${recipientProfileId}`, { config: { private: true } })
       .send({ type: "broadcast", event: "notification", payload: { notification: row } });
+    if (result !== "ok") {
+      console.log("Broadcast notifica non consegnato (riga comunque creata):", result);
+    }
   } catch (err) {
     console.log("Errore broadcast notifica (riga comunque creata):", err);
   }
