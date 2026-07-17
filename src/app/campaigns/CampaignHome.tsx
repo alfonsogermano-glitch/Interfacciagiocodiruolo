@@ -4,8 +4,9 @@ import {
   KeyRound, Check, MoreVertical, Pencil, Copy, UserCog, FileDown, Trash2, UserMinus,
   LayoutGrid, Package,
 } from 'lucide-react';
-import { useAuth, supabase } from '../auth/AuthContext';
+import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
+import { useCampaignChannel } from '../../services/realtime/campaignChannel';
 import { loadCharactersByOwner, copyCharacterToCampaign } from '../../services/supabase/charactersService';
 import { loadNPCs, loadMonsters, type NPC, type Monster } from '../../services/supabase/entitiesService';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
@@ -96,10 +97,8 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   const [isToggling, setIsToggling] = useState(false);
   const [gmOnline, setGmOnline] = useState(false);
   const [localSessionActive, setLocalSessionActive] = useState<boolean | null>(null);
-  const [channelReady, setChannelReady] = useState(false);
   const [ownCharacterId, setOwnCharacterId] = useState<string | null>(null);
   const [characterLookupDone, setCharacterLookupDone] = useState(false);
-  const [channelGeneration, setChannelGeneration] = useState(0);
   const [autoClosedNotice, setAutoClosedNotice] = useState(false);
   const autoCloseCheckedRef = useRef(false);
   const [gmDisplayName, setGmDisplayName] = useState<string | null>(null);
@@ -130,10 +129,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   const [isRemovingPlayer, setIsRemovingPlayer] = useState(false);
   const [removePlayerError, setRemovePlayerError] = useState<string | null>(null);
   // Bump per forzare un refetch di PG/PNG/Mostri dopo copia/rimozione dal
-  // menu delle card - stesso trucco di channelGeneration piu' sotto.
+  // menu delle card, o dopo un evento members_change dal canale condiviso.
   const [playersReloadToken, setPlayersReloadToken] = useState(0);
 
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const lookupSeqRef = useRef(0);
   const isOwner = activeCampaign?.ownerId === user?.id;
   const sessionActive = localSessionActive ?? !!activeCampaign?.sessionActive;
@@ -179,34 +177,21 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   // Trova il proprio personaggio in questa campagna (solo per i giocatori)
   useEffect(() => {
     const mySeq = ++lookupSeqRef.current;
-    // DEBUG TEMPORANEO - secondo giro di diagnosi 2026-07-20, verifica
-    // mirata se questo effect si ri-esegue nella finestra di ~3ms in cui
-    // il canale campaign:{id} si chiude dopo members_change.
-    console.log('[DEBUG lookup] effect RI-ESEGUITO', {
-      t: new Date().toISOString(), mySeq, isOwner, userId: user?.id, activeCampaignId: activeCampaign?.id,
-    });
 
     if (isOwner) {
-      console.log('[DEBUG lookup] setOwnCharacterId(null) + setCharacterLookupDone(true) [ramo isOwner]', { t: new Date().toISOString(), mySeq });
       setOwnCharacterId(null);
       setCharacterLookupDone(true);
       return;
     }
     if (!user?.id || !activeCampaign?.id) {
-      console.log('[DEBUG lookup] setCharacterLookupDone(false) [ramo user/campaign mancante]', { t: new Date().toISOString(), mySeq });
       setCharacterLookupDone(false);
       return;
     }
-    console.log('[DEBUG lookup] setCharacterLookupDone(false) [pre-fetch]', { t: new Date().toISOString(), mySeq });
     setCharacterLookupDone(false);
     loadCharactersByOwner(user.id)
       .then(chars => {
-        if (lookupSeqRef.current !== mySeq) {
-          console.log('[DEBUG lookup] fetch completato ma SCARTATO (sequenza superata)', { t: new Date().toISOString(), mySeq, currentSeq: lookupSeqRef.current });
-          return;
-        }
+        if (lookupSeqRef.current !== mySeq) return;
         const mine = chars.find(c => c.campaignId === activeCampaign.id);
-        console.log('[DEBUG lookup] setOwnCharacterId + setCharacterLookupDone(true) [post-fetch]', { t: new Date().toISOString(), mySeq, ownCharacterId: mine?.id ?? null });
         setOwnCharacterId(mine?.id ?? null);
         setCharacterLookupDone(true);
       })
@@ -221,6 +206,11 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   // non e' mai tra i membri (si unisce solo chi fa "join"), quindi il suo
   // nome arriva separato come ownerDisplayName.
   useEffect(() => {
+    // DEBUG TEMPORANEO - terzo giro di diagnosi 2026-07-20/21: verifica se
+    // questo effect si ri-esegue davvero quando playersReloadToken cambia.
+    console.log('[DEBUG CampaignHome] fetch Players effect RI-ESEGUITO', {
+      t: new Date().toISOString(), playersReloadToken, activeCampaignId: activeCampaign?.id, hasSession: !!session,
+    });
     if (!activeCampaign?.id || !session) return;
     let cancelled = false;
     setPlayersLoaded(false);
@@ -355,110 +345,51 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     };
   }, [isOwner, activeCampaign?.id]);
 
-  useEffect(() => {
-    if (!activeCampaign?.id || !characterLookupDone) return;
-    setChannelReady(false);
-
-    let isActive = true;
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-    let retryCount = 0;
-    let hasScheduledRetry = false;
-    const MAX_RETRIES = 5;
-
-    // Stesso pattern di retry di PlayerCharacters.tsx/NotificationsContext.tsx,
-    // con una correzione: la' la variabile "settled" resta true anche dopo un
-    // SUBSCRIBED riuscito, quindi se il canale muore PIU' TARDI (non al primo
-    // tentativo) il guard "if (settled) return" blocca il retry - verificato
-    // dal vivo con uno script di prova, causa esatta del bug segnalato oggi
-    // (canale sano per un po', poi CLOSED senza mai più riprovare). Qui
-    // "hasScheduledRetry" si azzera ad ogni SUBSCRIBED, cosi' una morte
-    // successiva pianifica comunque un nuovo tentativo.
-    const subscribeChannel = async () => {
-      if (!isActive) return;
-      await supabase.realtime.setAuth();
-      if (!isActive) return;
-
-      const ch = supabase
-        .channel(`campaign:${activeCampaign.id}`, { config: { private: true } })
-        .on('presence', { event: 'sync' }, () => {
-          const state = ch.presenceState();
-          const online = Object.values(state).some((presences: any) =>
-            presences.some((p: any) => p.role === 'gm')
-          );
-          setGmOnline(online);
-        })
-        .on('broadcast', { event: 'session_change' }, (msg) => {
-          const active = msg?.payload?.active;
-          if (typeof active === 'boolean') {
-            setLocalSessionActive(active);
-          }
-        })
-        .on('broadcast', { event: 'members_change' }, () => {
-          // DEBUG TEMPORANEO - secondo giro di diagnosi 2026-07-20
-          console.log('[DEBUG realtime] members_change RICEVUTO su campaign:' + activeCampaign.id + ' @ ' + new Date().toISOString());
-          setPlayersReloadToken((t) => t + 1);
-        })
-        .subscribe((status) => {
-          // DEBUG TEMPORANEO
-          console.log('[DEBUG realtime] campaign:' + activeCampaign.id + ' subscribe status:', status, '@', new Date().toISOString());
-          if (!isActive) return;
-
-          if (status === 'SUBSCRIBED') {
-            retryCount = 0;
-            hasScheduledRetry = false;
-            setTimeout(async () => {
-              if (isOwner) {
-                await ch.track({ role: 'gm', online_at: new Date().toISOString() });
-              } else if (ownCharacterId) {
-                await ch.track({ role: 'player', characterId: ownCharacterId, online_at: new Date().toISOString() });
-              }
-              setChannelReady(true);
-            }, 0);
-            return;
-          }
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            setChannelReady(false);
-            if (hasScheduledRetry) return;
-            hasScheduledRetry = true;
-            if (channelRef.current === ch) channelRef.current = null;
-            (async () => {
-              try {
-                await supabase.removeChannel(ch);
-              } catch { /* ignora */ }
-              if (retryCount >= MAX_RETRIES) return;
-              retryCount += 1;
-              retryTimeout = setTimeout(() => { if (isActive) subscribeChannel(); }, 1000);
-            })();
-          }
+  // Canale campaign:{id} condiviso (src/services/realtime/campaignChannel.ts):
+  // CampaignHome non è l'unico consumer di questo topic (SessionCharactersPanel,
+  // SessionNotesPanel e useEntityTabs lo usano anche loro quando montati
+  // insieme, dentro SessionRightSidebar) - prima di questo hook ciascuno apriva
+  // il proprio supabase.channel() per lo stesso topic in modo scoordinato,
+  // causando collisioni reali (canale chiuso da sotto i piedi di un altro
+  // consumer, errore "cannot add X callbacks... after subscribe()" - bug
+  // trovato e diagnosticato dal vivo il 2026-07-20). Qui un solo punto
+  // possiede davvero il canale, con un solo retry condiviso.
+  const { isReady: channelReady, track, untrack, send } = useCampaignChannel(activeCampaign?.id ?? null, {
+    onBroadcast: {
+      session_change: (msg) => {
+        const active = msg?.payload?.active;
+        if (typeof active === 'boolean') {
+          setLocalSessionActive(active);
+        }
+      },
+      members_change: () => {
+        // DEBUG TEMPORANEO - terzo giro di diagnosi 2026-07-20/21
+        console.log('[DEBUG CampaignHome] members_change handler CHIAMATO, sto per bump playersReloadToken', { t: new Date().toISOString() });
+        setPlayersReloadToken((t) => {
+          console.log('[DEBUG CampaignHome] setPlayersReloadToken updater eseguito', { t: new Date().toISOString(), prev: t, next: t + 1 });
+          return t + 1;
         });
-
-      channelRef.current = ch;
-    };
-
-    subscribeChannel();
-
-    return () => {
-      isActive = false;
-      if (retryTimeout) clearTimeout(retryTimeout);
-      if (channelRef.current) {
-        if (isOwner || ownCharacterId) channelRef.current.untrack();
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
-      setChannelReady(false);
-    };
-  }, [activeCampaign?.id, isOwner, ownCharacterId, characterLookupDone, channelGeneration]);
+      },
+    },
+    onPresenceSync: (state) => {
+      const online = Object.values(state).some((presences: any) =>
+        presences.some((p: any) => p.role === 'gm')
+      );
+      setGmOnline(online);
+    },
+  });
 
   useEffect(() => {
-    if (isOwner) return;
-    if (!sessionActive || gmOnline) return;
-
-    const timer = setTimeout(() => {
-      setChannelGeneration(g => g + 1);
-    }, 6000);
-
-    return () => clearTimeout(timer);
-  }, [isOwner, sessionActive, gmOnline]);
+    if (!channelReady || !characterLookupDone) return;
+    if (isOwner) {
+      void track({ role: 'gm', online_at: new Date().toISOString() });
+    } else if (ownCharacterId) {
+      void track({ role: 'player', characterId: ownCharacterId, online_at: new Date().toISOString() });
+    }
+    return () => {
+      if (isOwner || ownCharacterId) void untrack();
+    };
+  }, [channelReady, characterLookupDone, isOwner, ownCharacterId, track, untrack]);
 
   const handleToggleSession = async () => {
     if (!activeCampaign?.id) return;
@@ -475,9 +406,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       setLocalSessionActive(nextActive);
       setAutoClosedNotice(false);
 
-      if (channelRef.current && channelReady) {
+      if (channelReady) {
         try {
-          await channelRef.current.send({ type: 'broadcast', event: 'session_change', payload: { active: nextActive } });
+          await send('session_change', { active: nextActive });
         } catch (err) {
           console.error('Errore invio broadcast session_change:', err);
         }
