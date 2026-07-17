@@ -148,6 +148,28 @@ async function createNotification(
   return row;
 }
 
+// Avvisa chi ha CampaignHome.tsx aperto su questa campagna che il roster
+// membri è cambiato (join, accept invito, rimozione), cosi' la sezione
+// Players/PG si aggiorna senza reload. { config: { private: true } }
+// obbligatorio qui: senza, il messaggio parte pubblico mentre il client
+// sottoscrive lo stesso topic in modalità privata e non lo riceve mai
+// (stesso bug già trovato e corretto per il canale profile:{userId}).
+async function broadcastCampaignMembersChange(
+  admin: ReturnType<typeof getAdminClient>,
+  campaignId: string,
+): Promise<void> {
+  try {
+    const result = await admin
+      .channel(`campaign:${campaignId}`, { config: { private: true } })
+      .send({ type: "broadcast", event: "members_change", payload: {} });
+    if (result !== "ok") {
+      console.log("Broadcast members_change non consegnato:", result);
+    }
+  } catch (err) {
+    console.log("Errore broadcast members_change:", err);
+  }
+}
+
 // Aggiunge un giocatore a una campagna: mirror KV + tabella Postgres reale.
 // Estratta qui perché usata da /campaigns/join, /characters/:id/assign-campaign
 // e ora anche dall'accept di un invito per nome (supabase/functions/server -
@@ -172,6 +194,7 @@ async function addPlayerToCampaign(
     playerCampaigns.push({ campaignId, ownerId });
     await kv.set(playerCampaignsKey(profileId), playerCampaigns);
   }
+  await broadcastCampaignMembersChange(admin, campaignId);
 }
 
 // ─── Health ─────────────────────────────────────────────────────────────────
@@ -1188,6 +1211,8 @@ app.post("/make-server-771c5bfd/campaigns/:id/remove-player", async (c) => {
     await admin.from('campaign_members').delete()
       .eq('campaign_id', campaignId)
       .eq('profile_id', playerProfileId);
+
+    await broadcastCampaignMembersChange(admin, campaignId);
 
     return c.json({ success: true });
   } catch (err) {

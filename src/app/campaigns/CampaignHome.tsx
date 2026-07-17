@@ -361,6 +361,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
           setLocalSessionActive(active);
         }
       })
+      .on('broadcast', { event: 'members_change' }, () => {
+        setPlayersReloadToken((t) => t + 1);
+      })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           setTimeout(async () => {
