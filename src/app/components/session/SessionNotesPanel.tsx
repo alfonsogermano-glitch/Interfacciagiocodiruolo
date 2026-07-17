@@ -3,9 +3,10 @@ import { User, Ghost, Skull, BookOpen, Plus, Trash2, Loader2, StickyNote } from 
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { loadCharacters, loadCharactersViaServer } from '../../../services/supabase/charactersService';
 import { loadNPCs, loadMonsters } from '../../../services/supabase/entitiesService';
-import { useAuth, supabase } from '../../auth/AuthContext';
+import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { CampaignNotesPanel } from './shared/CampaignNotesPanel';
+import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
@@ -106,39 +107,26 @@ export function SessionNotesPanel() {
     loadNotesFor(selectedEntity);
   }, [selectedEntity, loadNotesFor]);
 
-  // Sincronizzazione in tempo reale: un annuncio leggero fa ricaricare le
-  // note a chiunque stia guardando la stessa entità in quel momento
-  useEffect(() => {
-    if (!activeCampaignId) return;
-    const ch = supabase
-      .channel(`campaign:${activeCampaignId}`, { config: { private: true } })
-      .on('broadcast', { event: 'notes_change' }, (msg: any) => {
+  // Canale campaign:{id} condiviso (src/services/realtime/campaignChannel.ts)
+  // - vedi il commento gemello in CampaignHome.tsx per il perché. announceChange
+  // usa lo stesso canale condiviso per inviare (send), invece di aprirne uno
+  // proprio usa-e-getta come faceva prima - più semplice e senza il rischio
+  // di collisione di topic che aveva questo pattern.
+  const { send: sendOnCampaignChannel } = useCampaignChannel(activeCampaignId, {
+    onBroadcast: {
+      notes_change: (msg: any) => {
         const payload = msg?.payload ?? {};
         if (selectedEntity && payload.entityType === selectedEntity.kind && payload.entityId === selectedEntity.id) {
           loadNotesFor(selectedEntity);
         }
-      })
-      .subscribe();
-    return () => { try { supabase.removeChannel(ch); } catch {} };
-  }, [activeCampaignId, selectedEntity, loadNotesFor]);
+      },
+    },
+  });
 
   const announceChange = async () => {
     if (!selectedEntity) return;
     try {
-      const ch = supabase.channel(`campaign:${activeCampaignId}`, { config: { private: true } });
-      await new Promise<void>((resolve) => {
-        let settled = false;
-        const done = () => { if (!settled) { settled = true; supabase.removeChannel(ch); resolve(); } };
-        setTimeout(done, 2000);
-        ch.subscribe(async (status) => {
-          if (status === 'SUBSCRIBED' && !settled) {
-            await ch.send({ type: 'broadcast', event: 'notes_change', payload: { entityType: selectedEntity.kind, entityId: selectedEntity.id } });
-            settled = true;
-            supabase.removeChannel(ch);
-            resolve();
-          }
-        });
-      });
+      await sendOnCampaignChannel('notes_change', { entityType: selectedEntity.kind, entityId: selectedEntity.id });
     } catch (err) {
       console.error('Errore annuncio modifica note:', err);
     }

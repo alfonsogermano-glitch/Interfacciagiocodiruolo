@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { projectId } from '/utils/supabase/info';
-import { supabase } from '../../../auth/AuthContext';
+import { useCampaignChannel } from '../../../../services/realtime/campaignChannel';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
@@ -105,55 +105,43 @@ export function useEntityTabs({
 
   // Realtime: propaga creazione/modifica/eliminazione di tab fatte da altri
   // client (es. il GM) verso chiunque stia guardando la stessa entità.
-  // Riusa lo stesso canale campaign:{campaignId} già usato per
-  // characters/npcs/monsters (stessa convenzione: un topic per campagna),
-  // filtrando qui per tabella e per entity_type/entity_id.
-  useEffect(() => {
-    if (!campaignId || !entityId) return;
-    let currentChannel: ReturnType<typeof supabase.channel> | null = null;
+  // Canale campaign:{campaignId} condiviso (src/services/realtime/campaignChannel.ts,
+  // vedi il commento gemello in CampaignHome.tsx per il perché) - filtra qui
+  // per tabella e per entity_type/entity_id, esattamente come prima.
+  const matchesThisEntity = (record: any) =>
+    !!record && record.entity_type === entityType && record.entity_id === entityId;
 
-    const matchesThisEntity = (record: any) =>
-      !!record && record.entity_type === entityType && record.entity_id === entityId;
+  const handleEntityNotesBroadcast = (msg: any) => {
+    const data = msg?.payload ?? {};
+    if (data.table !== 'entity_notes') return;
 
-    const handleBroadcast = (msg: any) => {
-      const data = msg?.payload ?? {};
-      if (data.table !== 'entity_notes') return;
+    if (data.operation === 'DELETE') {
+      if (!matchesThisEntity(data.old_record)) return;
+      const deletedId = data.old_record?.id;
+      if (!deletedId) return;
+      setCustomTabs(prev => prev.filter(t => t.id !== deletedId));
+      return;
+    }
 
-      if (data.operation === 'DELETE') {
-        if (!matchesThisEntity(data.old_record)) return;
-        const deletedId = data.old_record?.id;
-        if (!deletedId) return;
-        setCustomTabs(prev => prev.filter(t => t.id !== deletedId));
-        return;
-      }
+    const row = data.record;
+    if (!matchesThisEntity(row)) return;
+    const lastLocalEdit = recentLocalEditRef.current[row.id];
+    if (lastLocalEdit && Date.now() - lastLocalEdit < 1200) return;
 
-      const row = data.record;
-      if (!matchesThisEntity(row)) return;
-      const lastLocalEdit = recentLocalEditRef.current[row.id];
-      if (lastLocalEdit && Date.now() - lastLocalEdit < 1200) return;
+    const mapped: EntityCustomTab = { ...row, hidden: row.hidden ?? false };
+    setCustomTabs(prev => {
+      const exists = prev.some(t => t.id === mapped.id);
+      return exists ? prev.map(t => (t.id === mapped.id ? mapped : t)) : [...prev, mapped];
+    });
+  };
 
-      const mapped: EntityCustomTab = { ...row, hidden: row.hidden ?? false };
-      setCustomTabs(prev => {
-        const exists = prev.some(t => t.id === mapped.id);
-        return exists ? prev.map(t => (t.id === mapped.id ? mapped : t)) : [...prev, mapped];
-      });
-    };
-
-    (async () => {
-      await supabase.realtime.setAuth();
-      const ch = supabase
-        .channel(`campaign:${campaignId}`, { config: { private: true } })
-        .on('broadcast', { event: 'INSERT' }, handleBroadcast)
-        .on('broadcast', { event: 'UPDATE' }, handleBroadcast)
-        .on('broadcast', { event: 'DELETE' }, handleBroadcast)
-        .subscribe();
-      currentChannel = ch;
-    })();
-
-    return () => {
-      if (currentChannel) { try { supabase.removeChannel(currentChannel); } catch {} }
-    };
-  }, [campaignId, entityId, entityType]);
+  useCampaignChannel(entityId ? campaignId : null, {
+    onBroadcast: {
+      INSERT: handleEntityNotesBroadcast,
+      UPDATE: handleEntityNotesBroadcast,
+      DELETE: handleEntityNotesBroadcast,
+    },
+  });
 
   // Riconcilia tabOrder ogni volta che cambiano entità o tab custom:
   // parte dall'ordine salvato (o da quello base), scarta id non più esistenti,

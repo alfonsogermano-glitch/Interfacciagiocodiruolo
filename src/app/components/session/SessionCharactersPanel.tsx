@@ -15,8 +15,9 @@ import {
   copyNPCToCampaign, copyMonsterToCampaign,
   toCamelCase,
 } from '../../../services/supabase/entitiesService';
-import { useAuth, supabase } from '../../auth/AuthContext';
+import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
+import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
 import { useRuleset } from '../../campaigns/RulesetContext';
 import { isRulesetCompatible, type RulesetId } from '../../campaigns/campaignTypes';
 import { EntityKebabMenu } from './shared/EntityKebabMenu';
@@ -153,96 +154,76 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     setSelected({ kind: initialSelection.kind, id: initialSelection.id });
   }, [initialSelection?.requestId]);
 
-  useEffect(() => {
-    if (!activeCampaignId) return;
-    let currentChannel: ReturnType<typeof supabase.channel> | null = null;
-    // DEBUG TEMPORANEO - secondo giro di diagnosi 2026-07-20, verifica se
-    // questo effect (dipendenza [activeCampaignId]) si ri-esegue/pulisce
-    // nella stessa finestra in cui il canale campaign:{id} di CampaignHome.tsx
-    // si chiude inaspettatamente dopo members_change.
-    console.log('[DEBUG session-chars] effect AVVIATO', { t: new Date().toISOString(), activeCampaignId });
+  // Canale campaign:{id} condiviso (src/services/realtime/campaignChannel.ts)
+  // - vedi il commento gemello in CampaignHome.tsx per il perché: questo
+  // componente non possiede più un proprio canale, si registra su quello
+  // condiviso insieme a CampaignHome/SessionNotesPanel/useEntityTabs.
+  const handleBroadcast = (msg: any) => {
+    const data = msg?.payload ?? {};
+    const table = data.table;
 
-    const handleBroadcast = (msg: any) => {
-      const data = msg?.payload ?? {};
-      const table = data.table;
-
-      if (data.operation === 'DELETE') {
-        const deletedId = data.old_record?.id;
-        if (!deletedId) return;
-        if (table === 'characters') {
-          setCharacters(prev => prev.filter(c => c.id !== deletedId));
-        } else if (table === 'npcs') {
-          setNpcs(prev => prev.filter(n => n.id !== deletedId));
-        } else if (table === 'monsters') {
-          setMonsters(prev => prev.filter(m => m.id !== deletedId));
-        } else if (table === 'entity_notes') {
-          // Gestito dentro useEntityTabs (sottoscrizione dedicata), non qui.
-        } else {
-          console.warn('[handleBroadcast] tabella non gestita:', table);
-        }
-        return;
-      }
-
-      const row = data.record;
-      if (!row) return;
-      const lastLocalEdit = recentLocalEditRef.current[row.id];
-      if (lastLocalEdit && Date.now() - lastLocalEdit < 1200) {
-        return;
-      }
-
+    if (data.operation === 'DELETE') {
+      const deletedId = data.old_record?.id;
+      if (!deletedId) return;
       if (table === 'characters') {
-        const mapped = mapRowToCharacter(row) as PlayerCharacter;
-        setCharacters(prev => {
-          const exists = prev.some(c => c.id === mapped.id);
-          return exists
-            ? prev.map(c => (c.id === mapped.id ? {
-                ...mapped,
-                ownerDisplayName: (c as any).ownerDisplayName,
-                ownerAvatarUrl: (c as any).ownerAvatarUrl,
-              } : c))
-            : [...prev, mapped];
-        });
+        setCharacters(prev => prev.filter(c => c.id !== deletedId));
       } else if (table === 'npcs') {
-        const mapped = toCamelCase(row);
-        setNpcs(prev => {
-          const exists = prev.some(n => n.id === mapped.id);
-          return exists ? prev.map(n => (n.id === mapped.id ? mapped : n)) : [...prev, mapped];
-        });
+        setNpcs(prev => prev.filter(n => n.id !== deletedId));
       } else if (table === 'monsters') {
-        const mapped = toCamelCase(row);
-        setMonsters(prev => {
-          const exists = prev.some(m => m.id === mapped.id);
-          return exists ? prev.map(m => (m.id === mapped.id ? mapped : m)) : [...prev, mapped];
-        });
+        setMonsters(prev => prev.filter(m => m.id !== deletedId));
       } else if (table === 'entity_notes') {
         // Gestito dentro useEntityTabs (sottoscrizione dedicata), non qui.
       } else {
         console.warn('[handleBroadcast] tabella non gestita:', table);
       }
-    };
+      return;
+    }
 
-    (async () => {
-      await supabase.realtime.setAuth();
-      // DEBUG TEMPORANEO
-      console.log('[DEBUG session-chars] PRIMA di supabase.channel() (dopo setAuth)', { t: new Date().toISOString(), activeCampaignId });
-      const ch = supabase
-        .channel(`campaign:${activeCampaignId}`, { config: { private: true } })
-        .on('broadcast', { event: 'INSERT' }, handleBroadcast)
-        .on('broadcast', { event: 'UPDATE' }, handleBroadcast)
-        .on('broadcast', { event: 'DELETE' }, handleBroadcast)
-        .subscribe((status) => {
-          // DEBUG TEMPORANEO
-          console.log('[DEBUG session-chars] subscribe status:', status, '@', new Date().toISOString());
-        });
-      currentChannel = ch;
-    })();
+    const row = data.record;
+    if (!row) return;
+    const lastLocalEdit = recentLocalEditRef.current[row.id];
+    if (lastLocalEdit && Date.now() - lastLocalEdit < 1200) {
+      return;
+    }
 
-    return () => {
-      // DEBUG TEMPORANEO
-      console.log('[DEBUG session-chars] CLEANUP invocato (effect si smonta/ri-esegue)', { t: new Date().toISOString(), activeCampaignId, hadChannel: !!currentChannel });
-      if (currentChannel) { try { supabase.removeChannel(currentChannel); } catch {} }
-    };
-  }, [activeCampaignId]);
+    if (table === 'characters') {
+      const mapped = mapRowToCharacter(row) as PlayerCharacter;
+      setCharacters(prev => {
+        const exists = prev.some(c => c.id === mapped.id);
+        return exists
+          ? prev.map(c => (c.id === mapped.id ? {
+              ...mapped,
+              ownerDisplayName: (c as any).ownerDisplayName,
+              ownerAvatarUrl: (c as any).ownerAvatarUrl,
+            } : c))
+          : [...prev, mapped];
+      });
+    } else if (table === 'npcs') {
+      const mapped = toCamelCase(row);
+      setNpcs(prev => {
+        const exists = prev.some(n => n.id === mapped.id);
+        return exists ? prev.map(n => (n.id === mapped.id ? mapped : n)) : [...prev, mapped];
+      });
+    } else if (table === 'monsters') {
+      const mapped = toCamelCase(row);
+      setMonsters(prev => {
+        const exists = prev.some(m => m.id === mapped.id);
+        return exists ? prev.map(m => (m.id === mapped.id ? mapped : m)) : [...prev, mapped];
+      });
+    } else if (table === 'entity_notes') {
+      // Gestito dentro useEntityTabs (sottoscrizione dedicata), non qui.
+    } else {
+      console.warn('[handleBroadcast] tabella non gestita:', table);
+    }
+  };
+
+  useCampaignChannel(activeCampaignId, {
+    onBroadcast: {
+      INSERT: handleBroadcast,
+      UPDATE: handleBroadcast,
+      DELETE: handleBroadcast,
+    },
+  });
 
   const persistCharacter = useCallback((id: string, updatedChar: PlayerCharacter) => {
     recentLocalEditRef.current[id] = Date.now();
