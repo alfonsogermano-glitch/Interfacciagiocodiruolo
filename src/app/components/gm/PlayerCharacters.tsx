@@ -145,7 +145,13 @@ export function PlayerCharacters({
       if (!isActive) return;
       await supabase.realtime.setAuth(); // necessario per l'autorizzazione sui canali privati
 
-      let settled = false;
+      // hasScheduledRetry si azzera ad ogni SUBSCRIBED riuscito (a differenza
+      // del precedente "settled", che restava true per sempre dopo il primo
+      // aggancio e bloccava il retry se il canale moriva più tardi durante la
+      // sessione - bug reale, trovato e corretto in CampaignHome.tsx il
+      // 2026-07-19, stesso difetto qui perché questo file era la fonte del
+      // pattern copiato altrove).
+      let hasScheduledRetry = false;
       const ch = supabase
         .channel(`campaign:${activeCampaignId}`, { config: { private: true } })
         .on('broadcast', { event: 'INSERT' }, handleBroadcast)
@@ -156,12 +162,12 @@ export function PlayerCharacters({
 
           if (status === 'SUBSCRIBED') {
             retryCount = 0;
-            settled = true;
+            hasScheduledRetry = false;
             return;
           }
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            if (settled) return;
-            settled = true;
+            if (hasScheduledRetry) return;
+            hasScheduledRetry = true;
             if (currentChannel === ch) currentChannel = null;
             (async () => {
               try {

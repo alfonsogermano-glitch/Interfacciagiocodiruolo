@@ -93,7 +93,12 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       if (!isActive) return;
       await supabase.realtime.setAuth();
 
-      let settled = false;
+      // hasScheduledRetry si azzera ad ogni SUBSCRIBED riuscito (a differenza
+      // del precedente "settled", che restava true per sempre dopo il primo
+      // aggancio e bloccava il retry se il canale moriva più tardi durante la
+      // sessione - stesso bug trovato e corretto in CampaignHome.tsx il
+      // 2026-07-19, propagato qui perché copiato dallo stesso pattern).
+      let hasScheduledRetry = false;
       const ch = supabase
         .channel(`profile:${userId}`, { config: { private: true } })
         .on('broadcast', { event: 'notification' }, handleBroadcast)
@@ -102,12 +107,12 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
           if (status === 'SUBSCRIBED') {
             retryCount = 0;
-            settled = true;
+            hasScheduledRetry = false;
             return;
           }
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            if (settled) return;
-            settled = true;
+            if (hasScheduledRetry) return;
+            hasScheduledRetry = true;
             if (currentChannel === ch) currentChannel = null;
             (async () => {
               try {
