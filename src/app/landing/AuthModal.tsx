@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Eye, EyeOff, Loader2, X } from 'lucide-react';
 import { useAuth, supabase } from '../auth/AuthContext';
+import { normalizeDisplayName, validateDisplayName } from '../../lib/validateDisplayName';
 
 type Mode = 'signin' | 'signup';
 
@@ -131,6 +132,14 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       setErrorMessage('La password deve avere almeno 6 caratteri.');
       return;
     }
+    const normalizedName = normalizeDisplayName(displayName);
+    if (mode === 'signup' && normalizedName) {
+      const nameError = validateDisplayName(normalizedName);
+      if (nameError) {
+        setErrorMessage(nameError);
+        return;
+      }
+    }
     setIsSubmitting(true);
 
     submitTimeoutRef.current = setTimeout(() => {
@@ -141,7 +150,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     try {
       const result = mode === 'signin'
         ? await signIn(email, password)
-        : await signUp(email, password, displayName || undefined);
+        : await signUp(email, password, normalizedName || undefined);
       if (result.error) setErrorMessage(translateError(result.error));
     } finally {
       if (submitTimeoutRef.current) {

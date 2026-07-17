@@ -5,6 +5,7 @@ import { SupabaseDebug } from './SupabaseDebug';
 import { useAuth, supabase } from '../auth/AuthContext';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import type { DashboardSettings } from '../../services/settings/dashboardSettings';
+import { normalizeDisplayName, validateDisplayName } from '../../lib/validateDisplayName';
 
 interface SettingsModalProps {
   draft: DashboardSettings;
@@ -113,6 +114,16 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
   const handleSaveProfile = async () => {
     if (!user) return;
     setProfileError(null);
+
+    const trimmedName = normalizeDisplayName(displayName);
+    if (trimmedName) {
+      const nameError = validateDisplayName(trimmedName);
+      if (nameError) {
+        setProfileError(nameError);
+        return;
+      }
+    }
+
     setIsSavingProfile(true);
     try {
       let avatarUrl = user.avatarUrl ?? null;
@@ -125,12 +136,17 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
         const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
         avatarUrl = publicUrl;
       }
-      const trimmedName = displayName.trim();
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ display_name: trimmedName || user.displayName, avatar_url: avatarUrl, updated_at: new Date().toISOString() })
         .eq('id', user.id);
-      if (updateError) throw updateError;
+      if (updateError) {
+        if (updateError.code === '23505') {
+          setProfileError('Questo nome è già in uso, scegline un altro.');
+          return;
+        }
+        throw updateError;
+      }
       await refreshUser();
       onCancel();
     } catch (err) {

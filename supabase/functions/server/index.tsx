@@ -70,6 +70,37 @@ async function generateUniqueInviteCode(): Promise<string> {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
 }
 
+// Stesse regole di src/lib/validateDisplayName.ts, duplicate qui perché
+// l'edge function gira su Deno e non condivide il bundle con il client.
+const DISPLAY_NAME_MIN = 2;
+const DISPLAY_NAME_MAX = 32;
+const DISPLAY_NAME_PATTERN = /^[\p{L}\p{N} _.'-]+$/u;
+
+function normalizeDisplayName(raw: string): string {
+  return raw.trim().replace(/\s+/g, " ");
+}
+
+function validateDisplayName(raw: string): string | null {
+  const name = normalizeDisplayName(raw);
+  if (name.length < DISPLAY_NAME_MIN) return `Il nome deve avere almeno ${DISPLAY_NAME_MIN} caratteri.`;
+  if (name.length > DISPLAY_NAME_MAX) return `Il nome non può superare i ${DISPLAY_NAME_MAX} caratteri.`;
+  if (!DISPLAY_NAME_PATTERN.test(name)) {
+    return "Il nome può contenere solo lettere, numeri, spazi e - _ . '";
+  }
+  return null;
+}
+
+async function isDisplayNameTaken(admin: ReturnType<typeof getAdminClient>, name: string): Promise<boolean> {
+  // Escape dei caratteri jolly di ILIKE (% e _) per un confronto case-insensitive esatto
+  const escaped = name.replace(/[%_]/g, (ch) => `\\${ch}`);
+  const { data } = await admin
+    .from("profiles")
+    .select("id")
+    .ilike("display_name", escaped)
+    .maybeSingle();
+  return !!data;
+}
+
 // ─── Health ─────────────────────────────────────────────────────────────────
 
 app.get("/make-server-771c5bfd/health", (c) => {
@@ -86,15 +117,46 @@ app.post("/make-server-771c5bfd/auth/signup", async (c) => {
       return c.json({ error: "Email e password sono obbligatori" }, 400);
     }
 
-    const { data, error } = await getAdminClient().auth.admin.createUser({
+    const admin = getAdminClient();
+    const trimmedInput = typeof displayName === "string" ? normalizeDisplayName(displayName) : "";
+    let finalDisplayName: string;
+
+    if (trimmedInput) {
+      // Nome scelto esplicitamente dall'utente: validato e deve essere libero,
+      // altrimenti l'utente sceglie di persona un nome diverso.
+      const nameError = validateDisplayName(trimmedInput);
+      if (nameError) return c.json({ error: nameError }, 400);
+
+      if (await isDisplayNameTaken(admin, trimmedInput)) {
+        return c.json({ error: "Questo nome è già in uso, scegline un altro." }, 409);
+      }
+      finalDisplayName = trimmedInput;
+    } else {
+      // Nome non scelto dall'utente (campo opzionale lasciato vuoto): fallback
+      // dalla email, con suffisso numerico se il default risulta già occupato -
+      // qui si risolve automaticamente invece di far fallire la registrazione
+      // per un nome che l'utente non ha scelto.
+      const base = email.split("@")[0];
+      finalDisplayName = base;
+      for (let attempt = 0; attempt < 20 && (await isDisplayNameTaken(admin, finalDisplayName)); attempt++) {
+        finalDisplayName = `${base}${Math.floor(1000 + Math.random() * 9000)}`;
+      }
+    }
+
+    const { data, error } = await admin.auth.admin.createUser({
       email,
       password,
-      user_metadata: { display_name: displayName ?? email.split("@")[0] },
+      user_metadata: { display_name: finalDisplayName },
       email_confirm: true,
     });
 
     if (error) {
       console.log("Errore signup:", error.message);
+      // Fallback anti race-condition: se due signup concorrenti passano
+      // entrambi il pre-check, l'indice unico su profiles lo intercetta qui.
+      if (error.message?.includes("profiles_display_name_unique_ci")) {
+        return c.json({ error: "Questo nome è già in uso, scegline un altro." }, 409);
+      }
       return c.json({ error: error.message }, 400);
     }
 

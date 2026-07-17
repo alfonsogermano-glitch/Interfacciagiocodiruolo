@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Eye, EyeOff, Loader2, Skull } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
+import { normalizeDisplayName, validateDisplayName } from '../../../lib/validateDisplayName';
 
 type Mode = 'signin' | 'signup';
 
@@ -34,7 +35,15 @@ export function LoginPage({ onGoBack }: LoginPageProps) {
           setErrorMessage('La password deve avere almeno 6 caratteri.');
           return;
         }
-        result = await signUp(email, password, displayName || undefined);
+        const normalizedName = normalizeDisplayName(displayName);
+        if (normalizedName) {
+          const nameError = validateDisplayName(normalizedName);
+          if (nameError) {
+            setErrorMessage(nameError);
+            return;
+          }
+        }
+        result = await signUp(email, password, normalizedName || undefined);
       }
 
       if (result.error) {
