@@ -6,6 +6,7 @@ import { PrivacyPolicy } from './legal/PrivacyPolicy';
 import { DeleteData } from './legal/DeleteData';
 import { SetNewPasswordModal } from './landing/SetNewPasswordModal';
 import { CampaignProvider, useCampaign } from './campaigns/CampaignContext';
+import { NotificationsProvider } from './notifications/NotificationsContext';
 import { CampaignHome, type SessionEntityOpenRequest } from './campaigns/CampaignHome';
 import type { Campaign } from './campaigns/campaignTypes';
 import { RulesetProvider } from './campaigns/RulesetContext';
@@ -424,9 +425,11 @@ export default function App() {
     <AuthProvider>
       <PresenceProvider>
         <CampaignProvider>
-          <RulesetProvider>
-            <AuthGate />
-          </RulesetProvider>
+          <NotificationsProvider>
+            <RulesetProvider>
+              <AuthGate />
+            </RulesetProvider>
+          </NotificationsProvider>
         </CampaignProvider>
       </PresenceProvider>
     </AuthProvider>

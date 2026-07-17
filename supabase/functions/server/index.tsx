@@ -90,15 +90,74 @@ function validateDisplayName(raw: string): string | null {
   return null;
 }
 
-async function isDisplayNameTaken(admin: ReturnType<typeof getAdminClient>, name: string): Promise<boolean> {
+async function findProfileByDisplayName(
+  admin: ReturnType<typeof getAdminClient>, name: string
+): Promise<{ id: string; display_name: string } | null> {
   // Escape dei caratteri jolly di ILIKE (% e _) per un confronto case-insensitive esatto
   const escaped = name.replace(/[%_]/g, (ch) => `\\${ch}`);
   const { data } = await admin
     .from("profiles")
-    .select("id")
+    .select("id, display_name")
     .ilike("display_name", escaped)
     .maybeSingle();
-  return !!data;
+  return data ?? null;
+}
+
+async function isDisplayNameTaken(admin: ReturnType<typeof getAdminClient>, name: string): Promise<boolean> {
+  return !!(await findProfileByDisplayName(admin, name));
+}
+
+// Inserisce una notifica per il destinatario e prova a inviarla via
+// Broadcast sul canale profile:{recipientProfileId} (senza mai sottoscrivere
+// il canale: usa il fallback HTTP di realtime-js pensato per l'invio
+// server-side). Se il broadcast fallisce non è fatale: la riga esiste
+// comunque e il client la vede al prossimo GET /notifications.
+async function createNotification(
+  admin: ReturnType<typeof getAdminClient>,
+  recipientProfileId: string,
+  type: string,
+  data: Record<string, unknown>,
+): Promise<any> {
+  const { data: row, error } = await admin
+    .from("notifications")
+    .insert({ recipient_profile_id: recipientProfileId, type, data })
+    .select("*")
+    .single();
+  if (error) throw error;
+
+  try {
+    await admin.channel(`profile:${recipientProfileId}`)
+      .send({ type: "broadcast", event: "notification", payload: { notification: row } });
+  } catch (err) {
+    console.log("Errore broadcast notifica (riga comunque creata):", err);
+  }
+  return row;
+}
+
+// Aggiunge un giocatore a una campagna: mirror KV + tabella Postgres reale.
+// Estratta qui perché usata da /campaigns/join, /characters/:id/assign-campaign
+// e ora anche dall'accept di un invito per nome (supabase/functions/server -
+// prima era duplicata due volte inline, una terza copia non conveniva più).
+async function addPlayerToCampaign(
+  admin: ReturnType<typeof getAdminClient>,
+  campaignId: string,
+  ownerId: string,
+  profileId: string,
+): Promise<void> {
+  const members = await kv.get(campaignMembersKey(campaignId)) ?? [];
+  if (!members.some((m: any) => m.profileId === profileId)) {
+    members.push({ profileId, role: "player", joinedAt: new Date().toISOString() });
+    await kv.set(campaignMembersKey(campaignId), members);
+  }
+  await admin.from('campaign_members').upsert(
+    { campaign_id: campaignId, profile_id: profileId, role: 'player' },
+    { onConflict: 'campaign_id,profile_id' }
+  );
+  const playerCampaigns = await kv.get(playerCampaignsKey(profileId)) ?? [];
+  if (!playerCampaigns.some((pc: any) => pc.campaignId === campaignId)) {
+    playerCampaigns.push({ campaignId, ownerId });
+    await kv.set(playerCampaignsKey(profileId), playerCampaigns);
+  }
 }
 
 // ─── Health ─────────────────────────────────────────────────────────────────
@@ -379,6 +438,66 @@ app.post("/make-server-771c5bfd/campaigns/:id/invite-code", async (c) => {
   }
 });
 
+// ─── Campaigns: Invite by exact display name ───────────────────────────────
+
+app.post("/make-server-771c5bfd/campaigns/:id/invite-by-name", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const campaignId = c.req.param("id");
+    const { displayName } = await c.req.json();
+    const trimmedName = typeof displayName === "string" ? normalizeDisplayName(displayName) : "";
+    if (!trimmedName) return c.json({ error: "Il nome è obbligatorio" }, 400);
+
+    const campaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const campaign = campaigns.find((cmp) => cmp.id === campaignId);
+    if (!campaign) {
+      return c.json({ error: "Campagna non trovata o non sei il proprietario" }, 404);
+    }
+
+    const admin = getAdminClient();
+    const found = await findProfileByDisplayName(admin, trimmedName);
+    if (!found) return c.json({ error: "Nessun utente trovato con questo nome" }, 404);
+    if (found.id === userId) return c.json({ error: "Non puoi invitare te stesso" }, 400);
+
+    const members = await kv.get(campaignMembersKey(campaignId)) ?? [];
+    if (members.some((m: any) => m.profileId === found.id)) {
+      return c.json({ error: "Questo utente è già un membro della campagna" }, 409);
+    }
+
+    const { data: pending } = await admin
+      .from("notifications")
+      .select("id")
+      .eq("recipient_profile_id", found.id)
+      .eq("type", "campaign_invite")
+      .contains("data", { campaignId, status: "pending" })
+      .maybeSingle();
+    if (pending) return c.json({ error: "Invito già inviato, in attesa di risposta" }, 409);
+
+    const { data: inviterProfile } = await admin
+      .from("profiles")
+      .select("display_name")
+      .eq("id", userId)
+      .single();
+
+    await createNotification(admin, found.id, "campaign_invite", {
+      campaignId,
+      campaignName: campaign.name,
+      inviterProfileId: userId,
+      inviterDisplayName: inviterProfile?.display_name ?? "Un Game Master",
+      status: "pending",
+    });
+
+    return c.json({ success: true }, 201);
+  } catch (err) {
+    console.log("Errore POST campaigns/:id/invite-by-name:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
 // ─── Report Bug ─────────────────────────────────────────────────────────────
 
 app.post("/make-server-771c5bfd/report-bug", async (c) => {
@@ -480,22 +599,7 @@ app.post("/make-server-771c5bfd/campaigns/join", async (c) => {
       return c.json({ error: "Campagna non trovata" }, 404);
     }
 
-    const members: { profileId: string; role: string; joinedAt: string }[] =
-      await kv.get(campaignMembersKey(membership.campaignId)) ?? [];
-    if (!members.some((m) => m.profileId === userId)) {
-      members.push({ profileId: userId, role: "player", joinedAt: new Date().toISOString() });
-      await kv.set(campaignMembersKey(membership.campaignId), members);
-    }
-    await getAdminClient().from('campaign_members').upsert(
-      { campaign_id: membership.campaignId, profile_id: userId, role: 'player' },
-      { onConflict: 'campaign_id,profile_id' }
-    );
-
-    const playerCampaigns: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
-    if (!playerCampaigns.some((pc) => pc.campaignId === membership.campaignId)) {
-      playerCampaigns.push({ campaignId: membership.campaignId, ownerId: membership.ownerId });
-      await kv.set(playerCampaignsKey(userId), playerCampaigns);
-    }
+    await addPlayerToCampaign(getAdminClient(), membership.campaignId, membership.ownerId, userId);
 
     return c.json({ campaign });
   } catch (err) {
@@ -563,20 +667,7 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
         return c.json({ error: "Ruleset incompatibile con questa campagna" }, 400);
       }
 
-      const members = await kv.get(campaignMembersKey(targetCampaignId)) ?? [];
-      if (!members.some((m) => m.profileId === userId)) {
-        members.push({ profileId: userId, role: "player", joinedAt: new Date().toISOString() });
-        await kv.set(campaignMembersKey(targetCampaignId), members);
-      }
-      await getAdminClient().from('campaign_members').upsert(
-        { campaign_id: targetCampaignId, profile_id: userId, role: 'player' },
-        { onConflict: 'campaign_id,profile_id' }
-      );
-      const playerCampaigns = await kv.get(playerCampaignsKey(userId)) ?? [];
-      if (!playerCampaigns.some((pc) => pc.campaignId === targetCampaignId)) {
-        playerCampaigns.push({ campaignId: targetCampaignId, ownerId: membership.ownerId });
-        await kv.set(playerCampaignsKey(userId), playerCampaigns);
-      }
+      await addPlayerToCampaign(admin, targetCampaignId, membership.ownerId, userId);
     } else if (campaignId) {
       const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
       const myJoined: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
@@ -897,6 +988,151 @@ app.delete("/make-server-771c5bfd/notes/:noteId", async (c) => {
     return c.json({ success: true });
   } catch (err) {
     console.log("Errore DELETE notes:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+// ─── Notifiche ──────────────────────────────────────────────────────────────
+
+app.get("/make-server-771c5bfd/notifications", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const admin = getAdminClient();
+    const { data, error } = await admin
+      .from("notifications")
+      .select("*")
+      .eq("recipient_profile_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (error) return c.json({ error: "Errore lettura notifiche" }, 500);
+    return c.json({ notifications: data ?? [] });
+  } catch (err) {
+    console.log("Errore GET notifications:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.post("/make-server-771c5bfd/notifications/:id/read", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const notificationId = c.req.param("id");
+    const admin = getAdminClient();
+    const { data: existing, error: fetchError } = await admin
+      .from("notifications")
+      .select("recipient_profile_id")
+      .eq("id", notificationId)
+      .single();
+    if (fetchError || !existing) return c.json({ error: "Notifica non trovata" }, 404);
+    if (existing.recipient_profile_id !== userId) {
+      return c.json({ error: "Non hai accesso a questa notifica" }, 403);
+    }
+
+    const { data, error } = await admin
+      .from("notifications")
+      .update({ read: true })
+      .eq("id", notificationId)
+      .select("*")
+      .single();
+    if (error) return c.json({ error: "Errore aggiornamento notifica" }, 500);
+    return c.json({ notification: data });
+  } catch (err) {
+    console.log("Errore POST notifications/:id/read:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.post("/make-server-771c5bfd/notifications/read-all", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const admin = getAdminClient();
+    const { error } = await admin
+      .from("notifications")
+      .update({ read: true })
+      .eq("recipient_profile_id", userId)
+      .eq("read", false);
+    if (error) return c.json({ error: "Errore aggiornamento notifiche" }, 500);
+    return c.json({ success: true });
+  } catch (err) {
+    console.log("Errore POST notifications/read-all:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.post("/make-server-771c5bfd/notifications/:id/respond", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const notificationId = c.req.param("id");
+    const { action } = await c.req.json();
+    if (action !== "accept" && action !== "decline") {
+      return c.json({ error: "Azione non valida" }, 400);
+    }
+
+    const admin = getAdminClient();
+    const { data: existing, error: fetchError } = await admin
+      .from("notifications")
+      .select("*")
+      .eq("id", notificationId)
+      .single();
+    if (fetchError || !existing) return c.json({ error: "Notifica non trovata" }, 404);
+    if (existing.recipient_profile_id !== userId) {
+      return c.json({ error: "Non hai accesso a questa notifica" }, 403);
+    }
+    if (existing.type !== "campaign_invite") {
+      return c.json({ error: "Tipo di notifica non gestito da questo endpoint" }, 400);
+    }
+    if (existing.data?.status !== "pending") {
+      return c.json({ error: "Invito già gestito" }, 409);
+    }
+
+    if (action === "decline") {
+      const { data, error } = await admin
+        .from("notifications")
+        .update({ read: true, data: { ...existing.data, status: "declined" } })
+        .eq("id", notificationId)
+        .select("*")
+        .single();
+      if (error) return c.json({ error: "Errore aggiornamento notifica" }, 500);
+      return c.json({ success: true, notification: data });
+    }
+
+    // accept
+    const campaignId = existing.data.campaignId as string;
+    const inviterProfileId = existing.data.inviterProfileId as string;
+    const ownerCampaigns: Campaign[] = await kv.get(campaignsKey(inviterProfileId)) ?? [];
+    const campaign = ownerCampaigns.find((cmp) => cmp.id === campaignId);
+    if (!campaign) {
+      return c.json({ error: "Campagna non trovata" }, 404);
+    }
+
+    await addPlayerToCampaign(admin, campaignId, inviterProfileId, userId);
+
+    const { data, error } = await admin
+      .from("notifications")
+      .update({ read: true, data: { ...existing.data, status: "accepted" } })
+      .eq("id", notificationId)
+      .select("*")
+      .single();
+    if (error) return c.json({ error: "Errore aggiornamento notifica" }, 500);
+    return c.json({ success: true, campaignId, notification: data });
+  } catch (err) {
+    console.log("Errore POST notifications/:id/respond:", err);
     return c.json({ error: `Errore interno: ${err}` }, 500);
   }
 });

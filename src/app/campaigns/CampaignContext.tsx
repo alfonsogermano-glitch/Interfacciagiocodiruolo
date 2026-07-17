@@ -22,6 +22,7 @@ type CampaignContextValue = {
   refreshJoinedCampaigns: () => Promise<void>;
   joinCampaignByCode: (code: string) => Promise<Campaign>;
   generateInviteCode: (campaignId: string) => Promise<void>;
+  inviteByName: (campaignId: string, displayName: string) => Promise<void>;
 };
 
 const CampaignContext = createContext<CampaignContextValue | null>(null);
@@ -121,6 +122,19 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     });
 
     return joined;
+  }, [accessToken]);
+
+  const inviteByName = useCallback(async (campaignId: string, displayName: string): Promise<void> => {
+    const res = await fetch(`${SERVER_BASE}/campaigns/${campaignId}/invite-by-name`, {
+      method: 'POST',
+      headers: buildHeaders(accessToken),
+      body: JSON.stringify({ displayName }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error ?? 'Errore durante l\'invito');
+    }
   }, [accessToken]);
 
   // Carica campagne al mount e quando cambia sessione
@@ -282,6 +296,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     refreshJoinedCampaigns: fetchJoinedCampaigns,
     joinCampaignByCode,
     generateInviteCode,
+    inviteByName,
   }), [
     campaigns,
     joinedCampaigns,
@@ -296,6 +311,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     fetchJoinedCampaigns,
     joinCampaignByCode,
     generateInviteCode,
+    inviteByName,
   ]);
 
   return (

@@ -13,6 +13,7 @@ import { RulesetTag } from '../components/shared/RulesetTag';
 import { EntityCard } from '../components/session/shared/EntityCard';
 import { CampaignNotesPanel } from '../components/session/shared/CampaignNotesPanel';
 import { CampaignForm } from './CampaignSelector';
+import { InviteByNameModal } from './InviteByNameModal';
 import { isRulesetCompatible, type CampaignCreateInput, type RulesetId } from './campaignTypes';
 import type { TokenBorderStyle, TokenBorderThickness } from '../../types/tokenStyle';
 import {
@@ -73,6 +74,21 @@ function pillClass(active: boolean) {
   }`;
 }
 
+// Titolo+icona della riga affiancata alle pillole: riflette sempre la
+// sezione corrente (non solo "Personaggi", il caso di default) cosi' le
+// pillole restano cliccabili con un'intestazione coerente in ogni filtro.
+function quickFilterHeading(filter: QuickFilter): { icon: typeof Users; label: string } {
+  switch (filter) {
+    case 'premades': return { icon: Package, label: 'Precompilati' };
+    case 'npc': return { icon: Ghost, label: 'PNG' };
+    case 'monster': return { icon: Skull, label: 'Mostri' };
+    case 'pg':
+    case 'all':
+    default:
+      return { icon: Users, label: 'Personaggi' };
+  }
+}
+
 export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: CampaignHomeProps) {
   const { user, session } = useAuth();
   const { activeCampaign, campaigns, refreshCampaigns, refreshJoinedCampaigns, updateCampaign, deleteCampaign, generateInviteCode } = useCampaign();
@@ -95,6 +111,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   const [monsters, setMonsters] = useState<Monster[]>([]);
   const [monstersLoaded, setMonstersLoaded] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [showInviteByNameModal, setShowInviteByNameModal] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -519,6 +536,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   };
 
   const gmInitial = (gmDisplayName ?? 'G').trim().charAt(0).toUpperCase() || 'G';
+  const { icon: QuickFilterIcon, label: quickFilterLabel } = quickFilterHeading(activeQuickFilter);
 
   return (
     <div className="flex h-full flex-col gap-6 overflow-y-auto p-8 text-left select-none">
@@ -559,13 +577,15 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
               stessa riga i due pulsanti compatti + il trigger del menu a
               tre puntini, senza comprimerli o mandarli a capo. */}
           <div className="flex flex-col gap-3">
+            {/* Riga controlli separata dalla card GM (non al suo interno),
+                alla stessa altezza di titolo+pillole in colonna 2. */}
             {isOwner && (
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={handleToggleSession}
                   disabled={isToggling}
-                  className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
+                  className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${
                     sessionActive
                       ? 'border-red-800 bg-red-900/40 text-red-200 hover:bg-red-900/60'
                       : 'border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)] hover:bg-[var(--dash-accent-2)]'
@@ -581,14 +601,34 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                   {sessionActive ? 'Termina' : 'Avvia sessione'}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleInvitePlayers}
-                  className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-xs font-semibold text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
-                >
-                  {inviteCopied ? <Check className="h-3.5 w-3.5" /> : <KeyRound className="h-3.5 w-3.5" />}
-                  {inviteCopied ? 'Copiato!' : 'Invita giocatori'}
-                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-1.5 text-xs font-semibold text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
+                    >
+                      {inviteCopied ? <Check className="h-3.5 w-3.5" /> : <KeyRound className="h-3.5 w-3.5" />}
+                      {inviteCopied ? 'Copiato!' : 'Invita giocatori'}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="start"
+                    className="w-56 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-text)]"
+                  >
+                    <DropdownMenuItem
+                      onSelect={handleInvitePlayers}
+                      className="text-[var(--dash-text)] focus:bg-[var(--dash-surface-2)] focus:text-[var(--dash-text-strong)]"
+                    >
+                      <KeyRound className="h-4 w-4" /> Copia codice invito
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => setShowInviteByNameModal(true)}
+                      className="text-[var(--dash-text)] focus:bg-[var(--dash-surface-2)] focus:text-[var(--dash-text-strong)]"
+                    >
+                      <Users className="h-4 w-4" /> Invita per nome…
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
                 {activeCampaign && (
                   <DropdownMenu>
@@ -646,17 +686,17 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                 <img
                   src={gmAvatarUrl}
                   alt=""
-                  className="h-12 w-12 shrink-0 rounded-full object-cover"
+                  className="h-9 w-9 shrink-0 rounded-full object-cover"
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
               ) : (
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--dash-accent)] text-sm font-semibold text-[var(--dash-text-strong)]">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--dash-accent)] text-sm font-semibold text-[var(--dash-text-strong)]">
                   {gmInitial}
                 </span>
               )}
-              <div className="min-w-0">
-                <div className="break-words text-sm font-medium text-[var(--dash-text-strong)]">{gmDisplayName ?? 'Game Master'}</div>
-                <span className="mt-1 inline-flex items-center rounded-full border border-[var(--dash-accent)] bg-[var(--dash-accent)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--dash-accent-2)]">
+              <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                <span className="break-words text-sm font-medium text-[var(--dash-text-strong)]">{gmDisplayName ?? 'Game Master'}</span>
+                <span className="inline-flex shrink-0 items-center rounded-full border border-[var(--dash-accent)] bg-[var(--dash-accent)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--dash-accent-2)]">
                   GM
                 </span>
               </div>
@@ -674,30 +714,34 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
             </div>
           </div>
 
-          {/* Colonne 2+3: la riga di pillole sta sulla stessa altezza della
-              riga pulsanti di colonna 1 (flex-col gap-3 su entrambe le
-              colonne, stesso gap), non sopra l'intera pagina - allineamento
-              orizzontale tra i due gruppi di controlli, non solo verticale
-              tra le colonne. flex-wrap sulle pillole: su schermi stretti
-              vanno a capo in modo naturale invece di traboccare o
-              accavallarsi ai pulsanti di colonna 1 (colonne indipendenti). */}
+          {/* Colonne 2+3: titolo della sezione corrente + pillole sulla
+              stessa riga (non piu' una riga di pillole separata sopra),
+              alla stessa quota della card GM di colonna 1 - entrambe sono
+              il primo figlio della rispettiva colonna, nessuno spaziatore
+              necessario. flex-wrap sulle pillole: su schermi stretti vanno
+              a capo in modo naturale. */}
           <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => setActiveQuickFilter('all')} className={pillClass(activeQuickFilter === 'all')}>
-                <LayoutGrid className="h-3.5 w-3.5" /> Tutti
-              </button>
-              <button type="button" onClick={() => setActiveQuickFilter('pg')} className={pillClass(activeQuickFilter === 'pg')}>
-                <Users className="h-3.5 w-3.5" /> Personaggi
-              </button>
-              <button type="button" onClick={() => setActiveQuickFilter('premades')} className={pillClass(activeQuickFilter === 'premades')}>
-                <Package className="h-3.5 w-3.5" /> Preconfezionati
-              </button>
-              <button type="button" onClick={() => setActiveQuickFilter('npc')} className={pillClass(activeQuickFilter === 'npc')}>
-                <Ghost className="h-3.5 w-3.5" /> PNG
-              </button>
-              <button type="button" onClick={() => setActiveQuickFilter('monster')} className={pillClass(activeQuickFilter === 'monster')}>
-                <Skull className="h-3.5 w-3.5" /> Mostri
-              </button>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
+                <QuickFilterIcon className="h-4 w-4" /> {quickFilterLabel}
+              </h2>
+              <div className="flex flex-wrap justify-end gap-2">
+                <button type="button" onClick={() => setActiveQuickFilter('all')} className={pillClass(activeQuickFilter === 'all')}>
+                  <LayoutGrid className="h-3.5 w-3.5" /> Tutti
+                </button>
+                <button type="button" onClick={() => setActiveQuickFilter('pg')} className={pillClass(activeQuickFilter === 'pg')}>
+                  <Users className="h-3.5 w-3.5" /> Personaggi
+                </button>
+                <button type="button" onClick={() => setActiveQuickFilter('premades')} className={pillClass(activeQuickFilter === 'premades')}>
+                  <Package className="h-3.5 w-3.5" /> Precompilati
+                </button>
+                <button type="button" onClick={() => setActiveQuickFilter('npc')} className={pillClass(activeQuickFilter === 'npc')}>
+                  <Ghost className="h-3.5 w-3.5" /> PNG
+                </button>
+                <button type="button" onClick={() => setActiveQuickFilter('monster')} className={pillClass(activeQuickFilter === 'monster')}>
+                  <Skull className="h-3.5 w-3.5" /> Mostri
+                </button>
+              </div>
             </div>
 
           {/* sempre esattamente 2 card per riga (grid-cols-2, non auto-fill)
@@ -709,9 +753,6 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
           <div className="grid grid-cols-[repeat(2,minmax(200px,1fr))] content-start gap-4">
             {(activeQuickFilter === 'all' || activeQuickFilter === 'pg') && (
               <>
-                <h2 className="col-span-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
-                  <Users className="h-4 w-4" /> Personaggi
-                </h2>
                 {playerRows.map((row) =>
                   row.characters.length > 0 ? (
                     row.characters.map((ch) => (
@@ -817,9 +858,13 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
 
             {(activeQuickFilter === 'all' || activeQuickFilter === 'npc') && isOwner && npcsLoaded && npcs.length > 0 && (
               <>
-                <h2 className="col-span-2 mt-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
-                  <Ghost className="h-4 w-4" /> PNG
-                </h2>
+                {/* solo in 'all': con filtro 'npc' il titolo e' gia' nella
+                    riga affiancata alle pillole sopra, non va duplicato qui */}
+                {activeQuickFilter === 'all' && (
+                  <h2 className="col-span-2 mt-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
+                    <Ghost className="h-4 w-4" /> PNG
+                  </h2>
+                )}
                 {npcs.map((npc) => (
                   <EntityCard
                     key={npc.id}
@@ -844,9 +889,11 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
 
             {(activeQuickFilter === 'all' || activeQuickFilter === 'monster') && isOwner && monstersLoaded && monsters.length > 0 && (
               <>
-                <h2 className="col-span-2 mt-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
-                  <Skull className="h-4 w-4" /> Mostri
-                </h2>
+                {activeQuickFilter === 'all' && (
+                  <h2 className="col-span-2 mt-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
+                    <Skull className="h-4 w-4" /> Mostri
+                  </h2>
+                )}
                 {monsters.map((monster) => (
                   <EntityCard
                     key={monster.id}
@@ -995,6 +1042,13 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
             </div>
           </div>
         </div>
+      )}
+
+      {showInviteByNameModal && activeCampaign && (
+        <InviteByNameModal
+          campaignId={activeCampaign.id}
+          onClose={() => setShowInviteByNameModal(false)}
+        />
       )}
 
       {showEditForm && activeCampaign && (
