@@ -156,6 +156,11 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
   useEffect(() => {
     if (!activeCampaignId) return;
     let currentChannel: ReturnType<typeof supabase.channel> | null = null;
+    // DEBUG TEMPORANEO - secondo giro di diagnosi 2026-07-20, verifica se
+    // questo effect (dipendenza [activeCampaignId]) si ri-esegue/pulisce
+    // nella stessa finestra in cui il canale campaign:{id} di CampaignHome.tsx
+    // si chiude inaspettatamente dopo members_change.
+    console.log('[DEBUG session-chars] effect AVVIATO', { t: new Date().toISOString(), activeCampaignId });
 
     const handleBroadcast = (msg: any) => {
       const data = msg?.payload ?? {};
@@ -218,16 +223,23 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
 
     (async () => {
       await supabase.realtime.setAuth();
+      // DEBUG TEMPORANEO
+      console.log('[DEBUG session-chars] PRIMA di supabase.channel() (dopo setAuth)', { t: new Date().toISOString(), activeCampaignId });
       const ch = supabase
         .channel(`campaign:${activeCampaignId}`, { config: { private: true } })
         .on('broadcast', { event: 'INSERT' }, handleBroadcast)
         .on('broadcast', { event: 'UPDATE' }, handleBroadcast)
         .on('broadcast', { event: 'DELETE' }, handleBroadcast)
-        .subscribe();
+        .subscribe((status) => {
+          // DEBUG TEMPORANEO
+          console.log('[DEBUG session-chars] subscribe status:', status, '@', new Date().toISOString());
+        });
       currentChannel = ch;
     })();
 
     return () => {
+      // DEBUG TEMPORANEO
+      console.log('[DEBUG session-chars] CLEANUP invocato (effect si smonta/ri-esegue)', { t: new Date().toISOString(), activeCampaignId, hadChannel: !!currentChannel });
       if (currentChannel) { try { supabase.removeChannel(currentChannel); } catch {} }
     };
   }, [activeCampaignId]);
