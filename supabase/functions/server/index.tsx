@@ -741,6 +741,14 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
       return c.json({ error: "Errore aggiornamento personaggio" }, 500);
     }
 
+    // Ramo campaignId (nessun inviteCode): il giocatore era già membro, qui
+    // cambia solo quale PG è assegnato. addPlayerToCampaign (ramo inviteCode
+    // sopra) ha già il suo broadcast - qui serve esplicitamente perché questo
+    // ramo non passa da addPlayerToCampaign.
+    if (!inviteCode && targetCampaignId) {
+      await broadcastCampaignMembersChange(admin, targetCampaignId);
+    }
+
     if (oldCampaignId && oldCampaignId !== targetCampaignId) {
       const { data: remaining } = await admin
         .from("characters")
@@ -759,6 +767,11 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
 
         const oldPlayerCampaigns = await kv.get(playerCampaignsKey(userId)) ?? [];
         await kv.set(playerCampaignsKey(userId), oldPlayerCampaigns.filter((pc) => pc.campaignId !== oldCampaignId));
+
+        // "Leave" implicito: l'ultimo PG attivo del giocatore ha lasciato la
+        // vecchia campagna, quindi non è più membro - il GM lì (se ha
+        // CampaignHome aperto) deve vederlo sparire dalla griglia.
+        await broadcastCampaignMembersChange(admin, oldCampaignId);
       }
     }
 
