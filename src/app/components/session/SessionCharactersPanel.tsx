@@ -161,13 +161,6 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
   const handleBroadcast = (msg: any) => {
     const data = msg?.payload ?? {};
     const table = data.table;
-    // DEBUG TEMPORANEO - terzo giro di diagnosi 2026-07-21: verifica
-    // mirata se questo specifico handler (SessionCharactersPanel) viene
-    // invocato e con quale payload, dato che CampaignHome si aggiorna
-    // correttamente mentre questo pannello risulta fermo.
-    console.log('[DEBUG SessionCharactersPanel] handleBroadcast CHIAMATO', {
-      t: new Date().toISOString(), table, operation: data.operation, recordId: data.record?.id ?? data.old_record?.id,
-    });
 
     if (data.operation === 'DELETE') {
       const deletedId = data.old_record?.id;
@@ -197,18 +190,13 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
       const mapped = mapRowToCharacter(row) as PlayerCharacter;
       setCharacters(prev => {
         const exists = prev.some(c => c.id === mapped.id);
-        const next = exists
+        return exists
           ? prev.map(c => (c.id === mapped.id ? {
               ...mapped,
               ownerDisplayName: (c as any).ownerDisplayName,
               ownerAvatarUrl: (c as any).ownerAvatarUrl,
             } : c))
           : [...prev, mapped];
-        // DEBUG TEMPORANEO
-        console.log('[DEBUG SessionCharactersPanel] setCharacters updater eseguito', {
-          t: new Date().toISOString(), prevLength: prev.length, nextLength: next.length, mappedId: mapped.id, exists,
-        });
-        return next;
       });
     } else if (table === 'npcs') {
       const mapped = toCamelCase(row);

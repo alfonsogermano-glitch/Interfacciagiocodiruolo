@@ -206,11 +206,6 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   // non e' mai tra i membri (si unisce solo chi fa "join"), quindi il suo
   // nome arriva separato come ownerDisplayName.
   useEffect(() => {
-    // DEBUG TEMPORANEO - terzo giro di diagnosi 2026-07-20/21: verifica se
-    // questo effect si ri-esegue davvero quando playersReloadToken cambia.
-    console.log('[DEBUG CampaignHome] fetch Players effect RI-ESEGUITO', {
-      t: new Date().toISOString(), playersReloadToken, activeCampaignId: activeCampaign?.id, hasSession: !!session,
-    });
     if (!activeCampaign?.id || !session) return;
     let cancelled = false;
     setPlayersLoaded(false);
@@ -363,12 +358,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
         }
       },
       members_change: () => {
-        // DEBUG TEMPORANEO - terzo giro di diagnosi 2026-07-20/21
-        console.log('[DEBUG CampaignHome] members_change handler CHIAMATO, sto per bump playersReloadToken', { t: new Date().toISOString() });
-        setPlayersReloadToken((t) => {
-          console.log('[DEBUG CampaignHome] setPlayersReloadToken updater eseguito', { t: new Date().toISOString(), prev: t, next: t + 1 });
-          return t + 1;
-        });
+        setPlayersReloadToken((t) => t + 1);
       },
     },
     onPresenceSync: (state) => {

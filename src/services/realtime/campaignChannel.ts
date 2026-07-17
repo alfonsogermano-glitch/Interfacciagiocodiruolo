@@ -45,7 +45,23 @@ const MAX_RETRIES = 5;
 
 function setReady(entry: ChannelEntry, ready: boolean) {
   entry.isReady = ready;
-  entry.readyListeners.forEach((cb) => cb(ready));
+  safeForEach(entry.readyListeners, ready, 'ready');
+}
+
+// Un registro condiviso da più consumer indipendenti non deve mai lasciare
+// che un'eccezione in UN callback interrompa la consegna dell'evento agli
+// altri - un bug (o anche solo un errore transitorio) in un singolo
+// consumer non deve poter silenziosamente "spegnere" gli aggiornamenti per
+// tutti gli altri. Principio generale, non una toppa per un bug specifico:
+// ogni invocazione di un listener passa da qui, isolata individualmente.
+function safeForEach<T>(listeners: Set<(arg: T) => void> | undefined, arg: T, label: string) {
+  listeners?.forEach((cb) => {
+    try {
+      cb(arg);
+    } catch (err) {
+      console.error(`[campaignChannel] errore in un listener "${label}" (isolato, non ha bloccato gli altri):`, err);
+    }
+  });
 }
 
 function createEntry(topic: string): ChannelEntry {
@@ -76,18 +92,12 @@ function createEntry(topic: string): ChannelEntry {
     let builder = supabase.channel(topic, { config: { private: true } });
     for (const event of KNOWN_BROADCAST_EVENTS) {
       builder = builder.on('broadcast', { event }, (msg: any) => {
-        // DEBUG TEMPORANEO - terzo giro di diagnosi 2026-07-20/21: verifica
-        // se il dispatcher inoltra davvero l'evento ai listener registrati.
-        const listeners = entry.broadcastListeners.get(event);
-        console.log('[DEBUG campaignChannel] dispatch', {
-          t: new Date().toISOString(), topic, event, listenerCount: listeners?.size ?? 0,
-        });
-        listeners?.forEach((cb) => cb(msg));
+        safeForEach(entry.broadcastListeners.get(event), msg, `broadcast:${event}`);
       });
     }
     builder = builder.on('presence', { event: 'sync' }, () => {
       const state = entry.channel?.presenceState() ?? {};
-      entry.presenceListeners.forEach((cb) => cb(state));
+      safeForEach(entry.presenceListeners, state, 'presence:sync');
     });
 
     const ch = builder.subscribe((status: string) => {
@@ -180,25 +190,13 @@ export function useRealtimeChannel(topic: string | null | undefined, options: Us
     const unregisterFns: Array<() => void> = [];
 
     for (const event of KNOWN_BROADCAST_EVENTS) {
-      const handler: BroadcastHandler = (msg) => {
-        // DEBUG TEMPORANEO
-        console.log('[DEBUG campaignChannel] handler wrapper invocato', {
-          t: new Date().toISOString(), topic, event, hasCallback: !!optionsRef.current.onBroadcast?.[event],
-        });
-        optionsRef.current.onBroadcast?.[event]?.(msg);
-      };
+      const handler: BroadcastHandler = (msg) => { optionsRef.current.onBroadcast?.[event]?.(msg); };
       const set = entry.broadcastListeners.get(event)!;
       set.add(handler);
-      // DEBUG TEMPORANEO
-      console.log('[DEBUG campaignChannel] listener REGISTRATO', { t: new Date().toISOString(), topic, event, listenerCountAfter: set.size });
-      unregisterFns.push(() => {
-        set.delete(handler);
-        // DEBUG TEMPORANEO
-        console.log('[DEBUG campaignChannel] listener DEREGISTRATO', { t: new Date().toISOString(), topic, event, listenerCountAfter: set.size });
-      });
+      unregisterFns.push(() => set.delete(handler));
     }
 
-    const presenceHandler: PresenceHandler = () => { optionsRef.current.onPresenceSync?.(); };
+    const presenceHandler: PresenceHandler = (state) => { optionsRef.current.onPresenceSync?.(state); };
     entry.presenceListeners.add(presenceHandler);
     unregisterFns.push(() => entry.presenceListeners.delete(presenceHandler));
 
