@@ -362,9 +362,14 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
         }
       })
       .on('broadcast', { event: 'members_change' }, () => {
+        // DEBUG TEMPORANEO - da rimuovere dopo aver individuato la causa del
+        // mancato aggiornamento della griglia GM su scollegamento PG.
+        console.log('[DEBUG realtime] members_change RICEVUTO su campaign:' + activeCampaign.id + ', refetch Players in corso');
         setPlayersReloadToken((t) => t + 1);
       })
-      .subscribe((status) => {
+      .subscribe((status, err) => {
+        // DEBUG TEMPORANEO
+        console.log('[DEBUG realtime] campaign:' + activeCampaign.id + ' subscribe status:', status, err ?? '');
         if (status === 'SUBSCRIBED') {
           setTimeout(async () => {
             if (isOwner) {
