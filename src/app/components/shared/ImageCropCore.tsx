@@ -49,6 +49,29 @@ export interface ImageCropCoreProps {
    *  nasconde quando non c'e' nulla da annullare (immagine esistente non
    *  ancora modificata) invece di chiudere un modal inesistente. */
   onClose?: () => void;
+  /** Assente (default) = comportamento invariato, salvataggio solo al click
+   *  su "Conferma" (logo campagna, cover campagna, wizard creazione PG -
+   *  crop distruttivo puro, nessun campo separato per un Annulla-revert,
+   *  non toccare). Presente = ogni drag/zoom che si assesta (onCropComplete)
+   *  pianifica un salvataggio automatico dopo questo numero di millisecondi
+   *  (azzerrato e riprogrammato a ogni nuovo assestamento, cosi' un drag
+   *  continuo produce un solo salvataggio alla pausa finale, non uno per
+   *  pixel - stesso principio del debounce gia' in uso per il testo delle
+   *  tab custom, vedi useEntityTabs.ts). Il pulsante "Conferma" si nasconde
+   *  (diventato superfluo); un salvataggio pendente alla chiusura del
+   *  componente (unmount) viene eseguito subito invece di perdere l'ultima
+   *  modifica. Usato oggi solo da EntityImageTab.tsx (ritaglio PG/PNG/Mostri). */
+  autosaveDebounceMs?: number;
+  /** Rilevante solo insieme ad autosaveDebounceMs: "Annulla" con autosave
+   *  attivo non ha piu' un semplice stato locale da scartare (il crop
+   *  potrebbe gia' essere stato salvato automaticamente) - questa callback
+   *  chiede al chiamante di riportare l'entita' ai valori precedenti
+   *  l'apertura dell'editor. Il ripristino visivo locale (posizione crop,
+   *  immagine) segue da solo quando il chiamante fa arrivare le prop
+   *  existingImageUrl/existingCropArea aggiornate (stesso effect gia'
+   *  esistente per un cambiamento esterno), nessuna azione locale aggiuntiva
+   *  necessaria qui. */
+  onCancelAutosaved?: () => void;
 }
 
 const ZOOM_MIN = 1;
@@ -108,9 +131,23 @@ function deriveSourceStoragePath(path: string): string {
   return path.replace(/(\.[^./]+)$/, '-source$1');
 }
 
-export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect = 1, uploadLabel, existingImageUrl, existingCropArea, cropGuideGeometry, preserveSource, onPickFromCollection, onUploaded, onRemove, onClose }: ImageCropCoreProps) {
+export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect = 1, uploadLabel, existingImageUrl, existingCropArea, cropGuideGeometry, preserveSource, onPickFromCollection, onUploaded, onRemove, onClose, autosaveDebounceMs, onCancelAutosaved }: ImageCropCoreProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cropAreaRef = useRef<HTMLDivElement | null>(null);
+  // Timer del debounce autosave - un solo salvataggio alla pausa, non uno
+  // per pixel. handleConfirmRef punta sempre alla versione piu' recente di
+  // handleConfirm (assegnato a ogni render, sotto): il timer puo' scattare
+  // molti render dopo essere stato programmato, non deve richiamare una
+  // chiusura ormai vecchia su rawImageSrc/croppedAreaPixels.
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleConfirmRef = useRef<() => Promise<void>>(async () => {});
+  // Forza un remount del <Cropper> quando existingImageUrl/existingCropArea
+  // cambiano (vedi effect sotto) - necessario perche' initialCroppedAreaPercentages
+  // viene letto da react-easy-crop solo al mount, non ad ogni cambio prop.
+  // Innocuo per l'eco della nostra stessa autosave (la posizione coincide
+  // gia' con quella visibile, nessuno scatto visivo) ed e' cio' che fa
+  // scattare visivamente indietro il crop dopo un Annulla con autosave.
+  const [cropperInstanceKey, setCropperInstanceKey] = useState(0);
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(existingImageUrl ?? null);
   // File grezzo scelto dall'utente, non ancora confermato - serve a
   // handleConfirm per sapere se caricare anche una sorgente nuova (solo
@@ -133,6 +170,27 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
   const onCropComplete = useCallback((area: Area, areaPixels: Area) => {
     setCroppedArea(area);
     setCroppedAreaPixels(areaPixels);
+    if (autosaveDebounceMs) {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = setTimeout(() => {
+        autosaveTimerRef.current = null;
+        void handleConfirmRef.current();
+      }, autosaveDebounceMs);
+    }
+  }, [autosaveDebounceMs]);
+
+  // Un salvataggio autosave pendente non deve perdersi se il componente si
+  // smonta prima che il debounce scatti (es. si chiude la scheda dettaglio
+  // subito dopo l'ultimo aggiustamento) - lo eseguiamo subito invece di
+  // scartare l'ultima modifica.
+  useEffect(() => {
+    return () => {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+        void handleConfirmRef.current();
+      }
+    };
   }, []);
 
   // Il componente resta montato tra un salvataggio e l'altro (uso inline,
@@ -144,6 +202,7 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
     setRawImageSrc(existingImageUrl ?? null);
     setSelectedFile(null);
     setCropAreaForRestore(existingCropArea);
+    setCropperInstanceKey(k => k + 1);
   }, [existingImageUrl, existingCropArea]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -167,9 +226,26 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
   // Senza onClose (uso inline, nessun overlay da chiudere) non c'e' nulla
   // da "annullare" quando si sta gia' guardando l'immagine esistente
   // invariata - il pulsante Annulla si nasconde in quello stato specifico.
-  const hasNothingToCancel = !!existingImageUrl && rawImageSrc === existingImageUrl && !onClose;
+  // Con autosave attivo il crop puo' essere gia' stato salvato anche se
+  // rawImageSrc non e' mai cambiato (un semplice re-crop non tocca la
+  // sorgente) - "nulla da annullare" non e' piu' un'ipotesi valida, "Annulla"
+  // resta sempre disponibile (un click quando non c'e' nulla da ripristinare
+  // e' innocuo: onCancelAutosaved riapplica gli stessi valori).
+  const hasNothingToCancel = !autosaveDebounceMs && !!existingImageUrl && rawImageSrc === existingImageUrl && !onClose;
 
   const handleCancelCrop = () => {
+    if (autosaveDebounceMs) {
+      if (autosaveTimerRef.current) {
+        clearTimeout(autosaveTimerRef.current);
+        autosaveTimerRef.current = null;
+      }
+      // Nessun reset locale manuale qui: il ripristino visivo arriva da
+      // solo quando il chiamante fa ripiombare existingImageUrl/
+      // existingCropArea ai valori precedenti l'apertura (effect sopra),
+      // che e' anche l'unico posto che conosce il vero valore originale.
+      onCancelAutosaved?.();
+      return;
+    }
     if (existingImageUrl) {
       if (rawImageSrc !== existingImageUrl) {
         setRawImageSrc(existingImageUrl);
@@ -265,6 +341,11 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
       setIsUploading(false);
     }
   };
+  // Aggiornato a ogni render: il timer del debounce autosave puo' scattare
+  // molti render dopo essere stato programmato (vedi onCropComplete sopra),
+  // deve sempre invocare la versione piu' recente di handleConfirm, non
+  // quella catturata al momento della programmazione.
+  handleConfirmRef.current = handleConfirm;
 
   return (
     <>
@@ -309,6 +390,7 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
                       borderRadius: 12, overflow: 'hidden', touchAction: 'none' }}
           >
             <Cropper
+              key={cropperInstanceKey}
               image={rawImageSrc} crop={crop} zoom={zoom} aspect={aspect} cropShape={cropShape} showGrid={false}
               zoomWithScroll={false}
               initialCroppedAreaPercentages={cropAreaForRestore}
@@ -335,6 +417,13 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
           <input type="range" min={ZOOM_MIN} max={ZOOM_MAX} step={0.05} value={zoom}
             onChange={e => setZoom(Number(e.target.value))}
             style={{ width: '100%', marginTop: '1.25rem', accentColor: 'var(--dash-accent)' }} />
+
+          {autosaveDebounceMs && isUploading && (
+            <p style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.5rem',
+                        fontSize: '0.75rem', color: 'var(--dash-muted)' }}>
+              <Loader2 size={12} className="animate-spin" /> Salvataggio...
+            </p>
+          )}
 
           <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.75rem' }}>
             <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}
@@ -381,14 +470,16 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
                        border: '1px solid var(--dash-border)', color: 'var(--dash-muted)', cursor: isUploading ? 'not-allowed' : 'pointer' }}>
               <RotateCcw size={15} />
             </button>
-            <button type="button" onClick={handleConfirm} disabled={isUploading}
-              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                       padding: '0.6rem', borderRadius: 999, backgroundColor: 'transparent',
-                       border: '1.5px solid var(--dash-accent)', color: 'var(--dash-accent)', fontWeight: 600,
-                       fontSize: '0.875rem', cursor: isUploading ? 'not-allowed' : 'pointer', opacity: isUploading ? 0.6 : 1 }}>
-              {isUploading && <Loader2 size={14} className="animate-spin" />}
-              {isUploading ? 'Caricamento...' : 'Conferma'}
-            </button>
+            {!autosaveDebounceMs && (
+              <button type="button" onClick={handleConfirm} disabled={isUploading}
+                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                         padding: '0.6rem', borderRadius: 999, backgroundColor: 'transparent',
+                         border: '1.5px solid var(--dash-accent)', color: 'var(--dash-accent)', fontWeight: 600,
+                         fontSize: '0.875rem', cursor: isUploading ? 'not-allowed' : 'pointer', opacity: isUploading ? 0.6 : 1 }}>
+                {isUploading && <Loader2 size={14} className="animate-spin" />}
+                {isUploading ? 'Caricamento...' : 'Conferma'}
+              </button>
+            )}
           </div>
         </>
       )}

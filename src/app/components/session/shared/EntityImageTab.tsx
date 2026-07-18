@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Area } from 'react-easy-crop';
 import { ImageCropCore } from '../../shared/ImageCropCore';
 import { ImageAssetPicker } from '../../shared/ImageAssetPicker';
@@ -34,6 +34,13 @@ import {
  * campi cambiati in quella azione, cosi' EntityDetailView fa un solo
  * onUpdate({...entity, ...patch}) invece di piu' chiamate che spreaderebbero
  * tutte dalla stessa "entity" catturata al click, sovrascrivendosi a vicenda.
+ *
+ * Salvataggio automatico (autosaveDebounceMs), non piu' legato a un click
+ * esplicito su "Conferma": un pulsante facile da non notare/premere
+ * lasciava il ritaglio senza alcun effetto reale, scoperto verificando che
+ * il DB restava sempre al crop di default. onCancelAutosaved riporta
+ * l'entita' allo snapshot catturato all'apertura di questa sessione
+ * (originalPortraitRef sotto), non al solo stato locale.
  */
 export function EntityImageTab({
   entityId,
@@ -73,7 +80,24 @@ export function EntityImageTab({
   // = auth.uid()::text. Un path scoped per entita' le viola per
   // costruzione, indipendentemente da chi e' loggato (bug scoperto
   // sull'upload Mostro attraverso questo stesso tab).
-  const storagePath = `${user?.id ?? 'unknown'}/${entityId}-portrait-${Date.now()}.jpg`;
+  // useRef invece di un const semplice: con l'autosave a debounce sotto,
+  // piu' commit avvengono nella stessa sessione di editing (una pausa nel
+  // drag alla volta) - un path che si rigenera a ogni render (Date.now())
+  // farebbe finire ogni commit su un file diverso invece di sovrascrivere
+  // (upsert:true) lo stesso, moltiplicando i file orfani in Storage.
+  const storagePath = useRef(`${user?.id ?? 'unknown'}/${entityId}-portrait-${Date.now()}.jpg`).current;
+
+  // Snapshot dei campi immagine dell'entita' catturato una sola volta
+  // all'apertura di questa sessione di editing (mai piu' aggiornato dopo,
+  // a differenza delle prop imageUrl/sourceImageUrl/cropArea che riflettono
+  // via via ogni autosave) - serve solo per "Annulla": riportare l'entita'
+  // a come'era prima di aprire l'editor, non all'ultimo autosave.
+  const originalPortraitRef = useRef({
+    portraitImageUrl: imageUrl ?? undefined,
+    portraitSourceImageUrl: sourceImageUrl ?? undefined,
+    portraitCropArea: cropArea ?? null,
+    portraitAssetId: portraitAssetId ?? undefined,
+  });
 
   const [showPicker, setShowPicker] = useState(false);
   // Asset scelto dalla raccolta, non ancora confermato: diventa il nuovo
@@ -154,6 +178,11 @@ export function EntityImageTab({
           setPickedAsset(null);
           onPortraitChange({ portraitImageUrl: '', portraitSourceImageUrl: '', portraitCropArea: null });
         } : undefined}
+        autosaveDebounceMs={500}
+        onCancelAutosaved={() => {
+          setPickedAsset(null);
+          onPortraitChange(originalPortraitRef.current);
+        }}
       />
       {showPicker && user?.id && (
         <ImageAssetPicker ownerProfileId={user.id} onSelect={handlePickAsset} onClose={() => setShowPicker(false)} />
