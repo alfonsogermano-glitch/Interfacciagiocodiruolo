@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { ImageCropUploadModal } from '../components/shared/ImageCropUploadModal';
 import { ImageAssetPicker } from '../components/shared/ImageAssetPicker';
 import { CampaignBannerDisplay } from '../components/shared/CampaignBannerDisplay';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import type { ImageAsset } from '../../services/supabase/imageAssetsService';
 import type { Campaign } from './campaignTypes';
 
@@ -62,14 +63,18 @@ export function CampaignCoverEditor({
       )}
 
       {canEdit && (
-        <button
-          type="button"
-          onClick={() => setShowEditor(true)}
-          title="Modifica immagine di copertina"
-          className="absolute right-3 top-3 z-30 flex h-8 w-8 items-center justify-center rounded-full border border-[var(--dash-border-soft)] bg-black/50 text-white backdrop-blur-sm transition-colors hover:bg-black/70"
-        >
-          <Pencil size={15} />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => setShowEditor(true)}
+              className="absolute right-3 top-3 z-30 flex h-8 w-8 items-center justify-center rounded-full border border-[var(--dash-border-soft)] bg-black/50 text-white backdrop-blur-sm transition-colors hover:bg-black/70"
+            >
+              <Pencil size={15} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Modifica immagine di copertina</TooltipContent>
+        </Tooltip>
       )}
 
       {showEditor && (
