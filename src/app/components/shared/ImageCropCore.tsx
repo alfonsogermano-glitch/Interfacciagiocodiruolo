@@ -418,18 +418,6 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
             onChange={e => setZoom(Number(e.target.value))}
             style={{ width: '100%', marginTop: '1.25rem', accentColor: 'var(--dash-accent)' }} />
 
-          {autosaveDebounceMs && (
-            // Sempre nel flusso (mai aggiunto/rimosso), solo invisibile
-            // quando non serve: visibility invece di un rendering
-            // condizionale, cosi' lo spazio resta riservato e i pulsanti
-            // sotto non saltano ogni volta che l'autosave scatta/finisce.
-            <p style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.5rem',
-                        fontSize: '0.75rem', color: 'var(--dash-muted)',
-                        visibility: isUploading ? 'visible' : 'hidden' }}>
-              <Loader2 size={12} className="animate-spin" /> Salvataggio...
-            </p>
-          )}
-
           <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.75rem' }}>
             <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}
               style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
