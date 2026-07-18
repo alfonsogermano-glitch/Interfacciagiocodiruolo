@@ -27,6 +27,7 @@ type CampaignContextValue = {
   setActiveCampaign: (campaign: Campaign) => void;
   createCampaign: (input: CampaignCreateInput) => Promise<Campaign>;
   updateCampaign: (id: string, patch: CampaignUpdatePatch) => Promise<void>;
+  getCampaignEntityCounts: (id: string) => Promise<{ characters: number; npcs: number; monsters: number } | null>;
   deleteCampaign: (id: string) => Promise<void>;
   refreshCampaigns: () => Promise<void>;
   refreshJoinedCampaigns: () => Promise<void>;
@@ -271,6 +272,22 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     });
   }, [accessToken]);
 
+  // Usato dal form "Impostazioni Campagna" per disabilitare il selettore
+  // ruleset quando la campagna non e' vuota - fail-open su errore (torna
+  // null, il form si comporta come se non sapesse nulla): il vero blocco
+  // e' la guardia server-side in updateCampaign/PUT, questa e' solo UX.
+  const getCampaignEntityCounts = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`${SERVER_BASE}/campaigns/${id}/entity-counts`, {
+        headers: buildHeaders(accessToken),
+      });
+      if (!res.ok) return null;
+      return await res.json() as { characters: number; npcs: number; monsters: number };
+    } catch {
+      return null;
+    }
+  }, [accessToken]);
+
   const deleteCampaign = useCallback(async (id: string) => {
     const res = await fetch(`${SERVER_BASE}/campaigns/${id}`, {
       method: 'DELETE',
@@ -301,6 +318,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     setActiveCampaign,
     createCampaign,
     updateCampaign,
+    getCampaignEntityCounts,
     deleteCampaign,
     refreshCampaigns: fetchCampaigns,
     refreshJoinedCampaigns: fetchJoinedCampaigns,
@@ -316,6 +334,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     setActiveCampaign,
     createCampaign,
     updateCampaign,
+    getCampaignEntityCounts,
     deleteCampaign,
     fetchCampaigns,
     fetchJoinedCampaigns,

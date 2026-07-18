@@ -34,6 +34,29 @@ async function getUserIdFromToken(token: string): Promise<string | null> {
   return user.id;
 }
 
+// Usato sia dalla guardia sul cambio ruleset (PUT /campaigns/:id) sia
+// dall'endpoint GET .../entity-counts sotto, cosi' la UI puo' disabilitare
+// il selettore ruleset senza duplicare la query. Solo conteggi (head: true),
+// nessuna riga scaricata. Stesso filtro status:"active" gia' usato in
+// GET /campaigns/:id/characters per le characters (soft-delete); npcs e
+// monsters non hanno quel concetto, nessun filtro extra li'.
+async function getCampaignEntityCounts(campaignId: string) {
+  const admin = getAdminClient();
+  const [chars, npcs, monsters] = await Promise.all([
+    admin.from("characters").select("id", { count: "exact", head: true })
+      .eq("campaign_id", campaignId).eq("status", "active"),
+    admin.from("npcs").select("id", { count: "exact", head: true })
+      .eq("campaign_id", campaignId),
+    admin.from("monsters").select("id", { count: "exact", head: true })
+      .eq("campaign_id", campaignId),
+  ]);
+  return {
+    characters: chars.count ?? 0,
+    npcs: npcs.count ?? 0,
+    monsters: monsters.count ?? 0,
+  };
+}
+
 function campaignsKey(userId: string) {
   return `campaigns:${userId}`;
 }
@@ -361,6 +384,21 @@ app.put("/make-server-771c5bfd/campaigns/:id", async (c) => {
       return c.json({ error: "Campagna non trovata" }, 404);
     }
 
+    // Blocco reale (non solo un avviso in UI): un cambio di ruleset lascia
+    // orfani i campi specifici del vecchio sistema su PG/PNG/Mostri gia'
+    // assegnati (es. Audacia/Prodigi/Follia di HSC), che spariscono dalla
+    // UI senza alcun avviso al GM. Controllato qui, non solo lato client,
+    // perche' la PUT fa un merge generico senza altre validazioni - questo
+    // e' l'unico punto che nessun client puo' aggirare.
+    if (patch.ruleset && patch.ruleset !== campaigns[index].ruleset) {
+      const counts = await getCampaignEntityCounts(campaignId);
+      if (counts.characters + counts.npcs + counts.monsters > 0) {
+        return c.json({
+          error: "Non puoi cambiare il set di regole di una campagna che contiene già personaggi, PNG o mostri.",
+        }, 409);
+      }
+    }
+
     const updated = {
       ...campaigns[index],
       ...patch,
@@ -375,6 +413,34 @@ app.put("/make-server-771c5bfd/campaigns/:id", async (c) => {
     return c.json({ campaign: updated });
   } catch (err) {
     console.log("Errore PUT campaign:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+// ─── Campaigns: Entity counts (solo per il proprietario) ────────────────────
+// Usato dal form "Impostazioni Campagna" per disabilitare il selettore
+// ruleset quando la campagna non e' vuota - il vero blocco resta comunque
+// la guardia sopra nella PUT, questo endpoint serve solo a evitare il
+// tentativo lato UI.
+app.get("/make-server-771c5bfd/campaigns/:id/entity-counts", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const campaignId = c.req.param("id");
+    const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const owns = myCampaigns.some((camp) => camp.id === campaignId);
+    if (!owns) {
+      return c.json({ error: "Campagna non trovata o non sei il proprietario" }, 404);
+    }
+
+    const counts = await getCampaignEntityCounts(campaignId);
+    return c.json(counts);
+  } catch (err) {
+    console.log("Errore GET campaigns/:id/entity-counts:", err);
     return c.json({ error: `Errore interno: ${err}` }, 500);
   }
 });

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Plus,
   BookOpen,
@@ -39,9 +39,28 @@ export function CampaignForm({
   onCancel: () => void;
   isSubmitting: boolean;
 }) {
+  const { getCampaignEntityCounts } = useCampaign();
   const [name, setName] = useState(initial?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [ruleset, setRuleset] = useState<RulesetId>(initial?.ruleset ?? 'hsc');
+
+  // Solo in modalita' edit (initial.id presente): il selettore ruleset resta
+  // libero in creazione. Il blocco vero e' server-side (PUT /campaigns/:id,
+  // vedi indagine di oggi sui dati orfani HSC/D20 dopo un cambio ruleset) -
+  // qui serve solo a prevenire il tentativo, quindi fail-open (null) se la
+  // fetch fallisce: nessun blocco lato client in quel caso.
+  const [entityCounts, setEntityCounts] = useState<{ characters: number; npcs: number; monsters: number } | null>(null);
+  useEffect(() => {
+    if (!initial?.id) return;
+    let cancelled = false;
+    getCampaignEntityCounts(initial.id).then(counts => {
+      if (!cancelled) setEntityCounts(counts);
+    });
+    return () => { cancelled = true; };
+  }, [initial?.id, getCampaignEntityCounts]);
+
+  const totalEntities = entityCounts ? entityCounts.characters + entityCounts.npcs + entityCounts.monsters : 0;
+  const rulesetLocked = !!initial?.id && totalEntities > 0;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,13 +96,24 @@ export function CampaignForm({
 
       <div>
         <label className="mb-2 block text-sm text-[var(--dash-text)]">Regolamento</label>
+        {rulesetLocked && (
+          <p className="mb-2 text-xs text-[var(--dash-muted)]">
+            Il set di regole non può essere cambiato: questa campagna contiene già{' '}
+            {[
+              entityCounts!.characters > 0 ? `${entityCounts!.characters} personaggi` : null,
+              entityCounts!.npcs > 0 ? `${entityCounts!.npcs} PNG` : null,
+              entityCounts!.monsters > 0 ? `${entityCounts!.monsters} mostri` : null,
+            ].filter(Boolean).join(', ')}.
+          </p>
+        )}
         <div className="grid gap-2 sm:grid-cols-2">
           {VISIBLE_RULESETS.map(rs => (
             <button
               key={rs.id}
               type="button"
+              disabled={rulesetLocked}
               onClick={() => setRuleset(rs.id)}
-              className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-colors ${
+              className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                 ruleset === rs.id
                   ? 'border-[var(--dash-accent)] bg-[var(--dash-panel)] ring-1 ring-[var(--dash-accent)]/40'
                   : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] hover:border-[var(--dash-accent)]/50'
