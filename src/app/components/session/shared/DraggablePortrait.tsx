@@ -77,7 +77,7 @@ export function DraggablePortrait({
         }
         onDragStart?.(e);
       }}
-      className={`group relative shrink-0 overflow-hidden rounded-md border-2 border-[var(--dash-accent)] bg-[var(--dash-input)] ${
+      className={`group relative shrink-0 overflow-hidden rounded-2xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] shadow-lg ${
         draggable ? 'cursor-grab active:cursor-grabbing' : ''
       }`}
       style={{ width: size, height: size }}
