@@ -12,23 +12,21 @@ export const RULESET_ICONS: Record<RulesetId, React.ReactNode> = {
 
 export function RulesetTag({
   rulesetId,
-  variant,
 }: {
   rulesetId: RulesetId;
-  /** Assente/default = stile invariato (colore specifico per ruleset,
-   *  pensato per lo sfondo pannello/superficie standard dell'app - usato
-   *  altrove, non toccare). "onDark" sostituisce lo stile con testo chiaro
-   *  + sfondo semi-trasparente scuro, ignorando il colore del ruleset:
-   *  serve per i contesti in cui il badge sta sopra una foto (es. il banner
-   *  di CampaignHome), dove un colore scuro specifico per ruleset avrebbe
-   *  scarso contrasto. */
-  variant?: 'onDark';
 }) {
   const ruleset = RULESETS[rulesetId] ?? RULESETS.custom;
-  const style =
-    variant === 'onDark'
-      ? { borderColor: 'rgba(255,255,255,0.3)', backgroundColor: 'rgba(0,0,0,0.35)', color: '#fff' }
-      : { borderColor: `${ruleset.color}55`, backgroundColor: `${ruleset.color}1a`, color: ruleset.color };
+  // Sfondo neutro scuro quasi opaco (non a tinta del ruleset.color, che a
+  // opacità piena farebbe sparire il testo/bordo dello stesso colore) -
+  // stile unico indipendente dal contesto: leggibile sia sui pannelli
+  // neutri dell'app (CampaignsPage, MyCharactersPage, EntityDetailView) sia
+  // sopra una foto di copertina (banner di CampaignHome, card Panoramica),
+  // dove una tinta leggera si mescolava con l'immagine sottostante.
+  const style = {
+    borderColor: `${ruleset.color}55`,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    color: ruleset.color,
+  };
 
   return (
     <span

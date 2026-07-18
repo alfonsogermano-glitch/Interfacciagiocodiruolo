@@ -15,19 +15,14 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from '../campaigns/CampaignContext';
 import { CampaignForm } from '../campaigns/CampaignSelector';
-import { RULESETS, type Campaign, type CampaignCreateInput, type RulesetId } from '../campaigns/campaignTypes';
+import { type Campaign, type CampaignCreateInput, type RulesetId } from '../campaigns/campaignTypes';
 import { RulesetPickerDialog } from '../campaigns/RulesetPickerDialog';
 import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
-import { RulesetTag } from '../components/shared/RulesetTag';
+import { CampaignBannerDisplay } from '../components/shared/CampaignBannerDisplay';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { saveCharacter as saveCharacterToSupabase, loadCharactersByOwner } from '../../services/supabase/charactersService';
 import type { DashboardPalette } from '../../services/settings/dashboardSettings';
 import type { Character } from '../../types/character';
-
-function formatCreatedAt(value: string): string | null {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' });
-}
 
 interface HomeScreenProps {
   onEnterCampaign: (campaign: Campaign) => void;
@@ -264,65 +259,54 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
               );
             }
 
-            const ruleset = RULESETS[mostRecentCampaign.ruleset] ?? RULESETS.custom;
-
             return (
               <button
                 type="button"
                 onClick={() => onEnterCampaign(mostRecentCampaign)}
-                className="w-full group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4 pt-5 text-left transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
+                className="w-full group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-left transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
               >
-                <span
-                  className="absolute inset-x-0 top-0 h-1"
-                  style={{ backgroundColor: ruleset.color }}
+                <CampaignBannerDisplay
+                  campaign={mostRecentCampaign}
+                  size="compact"
+                  extraRow={
+                    mostRecentCampaign.inviteCode ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={e => { e.stopPropagation(); copyInviteCode(mostRecentCampaign); }}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); copyInviteCode(mostRecentCampaign); } }}
+                            className="inline-flex w-fit items-center gap-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 py-1 text-xs text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
+                          >
+                            <KeyRound className="h-3.5 w-3.5" />
+                            <span className="font-mono tracking-[0.2em]">{mostRecentCampaign.inviteCode}</span>
+                            {copiedCampaignId === mostRecentCampaign.id ? (
+                              <Check className="h-3.5 w-3.5 text-[var(--dash-accent)]" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>Copia codice invito</TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); handleGenerateInviteCode(mostRecentCampaign.id); }}
+                        disabled={isGeneratingInviteCode}
+                        className="inline-flex w-fit items-center gap-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 py-1 text-xs text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isGeneratingInviteCode ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <KeyRound className="h-3.5 w-3.5" />
+                        )}
+                        <span>{isGeneratingInviteCode ? 'Generazione...' : 'Genera codice invito'}</span>
+                      </button>
+                    )
+                  }
                 />
-
-                <div className="mb-2">
-                  <RulesetTag rulesetId={mostRecentCampaign.ruleset} />
-                </div>
-                <h3 className="text-base font-semibold tracking-wide text-[var(--dash-text-strong)]">{mostRecentCampaign.name}</h3>
-                {mostRecentCampaign.description && (
-                  <p className="mt-1 line-clamp-2 text-xs text-[var(--dash-muted)]">{mostRecentCampaign.description}</p>
-                )}
-
-                {formatCreatedAt(mostRecentCampaign.createdAt) && (
-                  <p className="mt-2 text-xs text-[var(--dash-muted)]">
-                    Creata il {formatCreatedAt(mostRecentCampaign.createdAt)}
-                  </p>
-                )}
-
-                {mostRecentCampaign.inviteCode ? (
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={e => { e.stopPropagation(); copyInviteCode(mostRecentCampaign); }}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); copyInviteCode(mostRecentCampaign); } }}
-                    title="Copia codice invito"
-                    className="mt-3 inline-flex w-fit items-center gap-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 py-1 text-xs text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
-                  >
-                    <KeyRound className="h-3.5 w-3.5" />
-                    <span className="font-mono tracking-[0.2em]">{mostRecentCampaign.inviteCode}</span>
-                    {copiedCampaignId === mostRecentCampaign.id ? (
-                      <Check className="h-3.5 w-3.5 text-[var(--dash-accent)]" />
-                    ) : (
-                      <Copy className="h-3.5 w-3.5" />
-                    )}
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={e => { e.stopPropagation(); handleGenerateInviteCode(mostRecentCampaign.id); }}
-                    disabled={isGeneratingInviteCode}
-                    className="mt-3 inline-flex w-fit items-center gap-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 py-1 text-xs text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isGeneratingInviteCode ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <KeyRound className="h-3.5 w-3.5" />
-                    )}
-                    <span>{isGeneratingInviteCode ? 'Generazione...' : 'Genera codice invito'}</span>
-                  </button>
-                )}
               </button>
             );
           })()}
@@ -374,27 +358,16 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {joinedCampaigns.map(campaign => {
-                const ruleset = RULESETS[campaign.ruleset] ?? RULESETS.custom;
                 const myCharacterHere = myCharacters.find(c => c.campaignId === campaign.id);
                 return (
                   <button
                     key={campaign.id}
                     type="button"
                     onClick={() => onEnterCampaign(campaign)}
-                    className="group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4 pt-5 text-left transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
+                    className="group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-left transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
                   >
-                    <span
-                      className="absolute inset-x-0 top-0 h-1"
-                      style={{ backgroundColor: ruleset.color }}
-                    />
-                    <div className="mb-2">
-                      <RulesetTag rulesetId={campaign.ruleset} />
-                    </div>
-                    <h3 className="text-base font-semibold tracking-wide text-[var(--dash-text-strong)]">{campaign.name}</h3>
-                    {campaign.description && (
-                      <p className="mt-1 line-clamp-2 text-xs text-[var(--dash-muted)]">{campaign.description}</p>
-                    )}
-                    <p className="mt-2 text-xs text-[var(--dash-accent-2)]">
+                    <CampaignBannerDisplay campaign={campaign} size="compact" />
+                    <p className="p-4 text-xs text-[var(--dash-accent-2)]">
                       {myCharacterHere ? `Stai giocando come: ${myCharacterHere.name}` : 'Nessun personaggio assegnato'}
                     </p>
                   </button>
