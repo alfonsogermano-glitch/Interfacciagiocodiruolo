@@ -25,6 +25,7 @@ export function DraggablePortrait({
   name = '',
   fallbackIcon,
   size = 56,
+  chrome = 'framed',
   draggable,
   onDragStart,
   hiddenFromPlayers = false,
@@ -46,6 +47,14 @@ export function DraggablePortrait({
   name?: string;
   fallbackIcon: React.ReactNode;
   size?: number;
+  /** "framed" (default) = riquadro quadrato size×size con bordo/raggio/
+   *  ombra/sfondo propri, comportamento invariato (EntityDetailView.tsx,
+   *  vista lista di EntityCard.tsx). "flush" = niente chrome propria,
+   *  larghezza fissa (size) ma altezza 100% del genitore - pensato per
+   *  colonne che devono riempire per intero uno spazio dedicato (variant
+   *  grid di EntityCard.tsx): il ritaglio agli angoli arriva dal
+   *  contenitore (rounded+overflow-hidden), non da qui. */
+  chrome?: 'framed' | 'flush';
   draggable: boolean;
   onDragStart?: (e: React.DragEvent) => void;
   hiddenFromPlayers?: boolean;
@@ -57,6 +66,7 @@ export function DraggablePortrait({
   tokenBorderVisible?: boolean | null;
   tokenBorderLabel?: string | null;
 }) {
+  const isFlush = chrome === 'flush';
   const dragGhostRef = useRef<HTMLDivElement | null>(null);
   const clipIdBase = useId().replace(/:/g, '');
 
@@ -77,10 +87,10 @@ export function DraggablePortrait({
         }
         onDragStart?.(e);
       }}
-      className={`group relative shrink-0 overflow-hidden rounded-2xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] shadow-lg ${
-        draggable ? 'cursor-grab active:cursor-grabbing' : ''
-      }`}
-      style={{ width: size, height: size }}
+      className={`group relative shrink-0 overflow-hidden ${
+        isFlush ? '' : 'rounded-2xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] shadow-lg'
+      } ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      style={isFlush ? { width: size, height: '100%' } : { width: size, height: size }}
     >
       {url || (sourceImageUrl && cropArea) ? (
         <EntityPortraitImage

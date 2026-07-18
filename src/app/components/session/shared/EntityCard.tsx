@@ -126,7 +126,7 @@ export function EntityCard({
   return (
     <div
       onClick={onClick}
-      className={`relative flex items-stretch gap-3 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-2.5 pr-9 transition-colors hover:border-[var(--dash-accent)] ${
+      className={`relative flex items-stretch overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] transition-colors hover:border-[var(--dash-accent)] ${
         onClick ? 'cursor-pointer' : ''
       }`}
     >
@@ -143,6 +143,7 @@ export function EntityCard({
             />
           }
           size={140}
+          chrome="flush"
           draggable={false}
           tokenColor={tokenColor}
           tokenBackgroundColor={tokenBackgroundColor}
@@ -166,7 +167,7 @@ export function EntityCard({
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col pt-1.5">
+      <div className="flex min-w-0 flex-1 flex-col p-2.5 pr-9">
         <h3 className="truncate font-serif text-base font-semibold text-[var(--dash-text-strong)]">{name || 'Senza nome'}</h3>
         {subtitle && <p className="truncate text-sm text-[var(--dash-muted)]">{subtitle}</p>}
         {secondaryText && (
