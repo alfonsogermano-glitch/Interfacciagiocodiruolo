@@ -138,7 +138,15 @@ export function EntityCard({
             <img
               src="/icon-source-1024.png"
               alt=""
-              className="h-full w-full object-contain"
+              // Percentuale fissa del lato piu' corto del box (non h-full
+              // w-full come nella variant list, dove il box e' sempre
+              // quadrato): il box flush ha altezza variabile (segue quella
+              // della card), un'icona che riempie il lato corto rimane
+              // proporzionata qualunque sia la forma del box, invece di
+              // sembrare "piccola e sperduta" con margini vuoti asimmetrici
+              // quando il box e' molto piu' largo che alto (card PNG/Mostri
+              // senza secondaryText, quindi piu' basse di quelle PG).
+              className="h-[55%] w-[55%] object-contain"
               style={{ filter: 'invert(1)', opacity: 0.9 }}
             />
           }
