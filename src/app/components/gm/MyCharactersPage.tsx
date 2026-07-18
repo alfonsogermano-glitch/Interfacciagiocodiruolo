@@ -55,14 +55,14 @@ const GRID_CONTAINER_CLASS = 'w-full';
 // di stirare le card esistenti a riempire la riga - stesso effetto dei
 // vecchi segnaposto di withPlaceholders, ma nativo del grid e senza il
 // numero di colonne bloccato a 3.
-// Tetto di 4 colonne senza reintrodurre un max-width sul contenitore
+// Tetto di 3 colonne senza reintrodurre un max-width sul contenitore
 // (tecnica "RAM": il minimo della minmax e' il piu' grande tra 300px e
-// (100% - 3 gap da gap-4/1rem) / 4 colonne). Sotto quella soglia il max()
-// resta 300px e la griglia si comporta come prima (1-2-3-4 colonne in base
-// allo spazio); oltre, il minimo cresce insieme alla larghezza cosi' le 4
-// colonne restano sempre esattamente 4, mai di piu', su schermi larghi.
+// (100% - 2 gap da gap-4/1rem) / 3 colonne). Sotto quella soglia il max()
+// resta 300px e la griglia si comporta come prima (1-2-3 colonne in base
+// allo spazio); oltre, il minimo cresce insieme alla larghezza cosi' le 3
+// colonne restano sempre esattamente 3, mai di piu', su schermi larghi.
 const GRID_CLASS =
-  'grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(max(300px,calc((100%_-_3rem)/4)),1fr))]';
+  'grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(max(300px,calc((100%_-_2rem)/3)),1fr))]';
 // Stessa larghezza piena di GRID_CONTAINER_CLASS - un cap qui ricreava
 // esattamente i margini laterali vuoti che avevamo tolto dalla griglia.
 // L'eventuale spazio vuoto interno a una riga va risolto nella
@@ -1232,7 +1232,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const monsterEntries = monsters.map((entity): CatalogEntry => ({ kind: 'monster', entity }));
 
   const tabLabel = (tab: ActiveTab) =>
-    tab === 'characters' ? 'Personaggi giocanti' : tab === 'npcs' ? 'PNG' : 'Mostri';
+    tab === 'characters' ? 'Personaggi' : tab === 'npcs' ? 'PNG' : 'Mostri';
 
   // Derivato dalle liste live (non uno snapshot statico), cosi' la vista
   // rapida resta coerente con eventuali aggiornamenti nel frattempo -
