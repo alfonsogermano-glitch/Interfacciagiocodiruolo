@@ -109,7 +109,7 @@ export function TopBar({ activeSection, onLogout, onOpenSettings, onReportBug }:
   const searchPlaceholder = (activeSection && SEARCH_PLACEHOLDERS[activeSection]) || 'Cerca...';
 
   return (
-    <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b border-[var(--dash-border)] bg-[var(--dash-surface)] px-4">
+    <header className="sticky top-0 z-[1000] flex h-12 shrink-0 items-center gap-2 border-b border-[var(--dash-border)] bg-[var(--dash-surface)] px-4">
       <div className="flex-1" />
 
       {/* Search */}

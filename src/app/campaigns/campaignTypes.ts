@@ -109,6 +109,11 @@ export interface Campaign {
   updatedAt: string;
   lastOpenedAt?: string;
   logoUrl?: string;
+  /** Banner header di CampaignHome - risultato già ritagliato (3:1) da
+   *  ImageCropCore, non un'immagine grezza + metadati di crop separati:
+   *  stesso comportamento del logo campagna (nessun preserveSource), un
+   *  nuovo ritaglio sostituisce semplicemente il file precedente. */
+  coverImageUrl?: string;
   sessionActive?: boolean;
   sessionActivatedAt?: string;
   tabOrder?: string[];

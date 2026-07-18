@@ -8,6 +8,16 @@ const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-7
 const ACTIVE_CAMPAIGN_LS_KEY = 'hsc-active-campaign-id';
 const CAMPAIGNS_CACHE_LS_KEY = 'hsc-campaigns-cache';
 
+// PUT /campaigns/:id fa un merge generico del body (nessuna whitelist lato
+// server, vedi index.tsx): questo tipo esiste solo per dare un minimo di
+// struttura ai campi che i chiamanti effettivamente passano, non riflette
+// un vincolo del backend.
+type CampaignUpdatePatch = Partial<CampaignCreateInput> & {
+  tabOrder?: string[];
+  logoUrl?: string | null;
+  coverImageUrl?: string | null;
+};
+
 type CampaignContextValue = {
   campaigns: Campaign[];
   joinedCampaigns: Campaign[];
@@ -16,7 +26,7 @@ type CampaignContextValue = {
   isLoading: boolean;
   setActiveCampaign: (campaign: Campaign) => void;
   createCampaign: (input: CampaignCreateInput) => Promise<Campaign>;
-  updateCampaign: (id: string, patch: Partial<CampaignCreateInput> & { tabOrder?: string[] }) => Promise<void>;
+  updateCampaign: (id: string, patch: CampaignUpdatePatch) => Promise<void>;
   deleteCampaign: (id: string) => Promise<void>;
   refreshCampaigns: () => Promise<void>;
   refreshJoinedCampaigns: () => Promise<void>;
@@ -244,7 +254,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     return created;
   }, [accessToken]);
 
-  const updateCampaign = useCallback(async (id: string, patch: Partial<CampaignCreateInput> & { tabOrder?: string[] }) => {
+  const updateCampaign = useCallback(async (id: string, patch: CampaignUpdatePatch) => {
     const res = await fetch(`${SERVER_BASE}/campaigns/${id}`, {
       method: 'PUT',
       headers: buildHeaders(accessToken),

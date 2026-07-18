@@ -45,9 +45,29 @@ function Tooltip({
 }
 
 function TooltipTrigger({
+  onClick,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
+  return (
+    <TooltipPrimitive.Trigger
+      data-slot="tooltip-trigger"
+      onClick={event => {
+        onClick?.(event);
+        // Radix tiene il tooltip visibile finche' il trigger ha il focus
+        // (necessario per l'accessibilita' da tastiera) - ma cliccare un
+        // <button>/<span> gli da' focus nativo nella maggior parte dei
+        // browser (tutti tranne Safari su macOS), quindi il tooltip resta
+        // visibile anche dopo che il mouse se n'e' andato, finche' il focus
+        // non si sposta altrove. Comportamento noto/documentato di Radix
+        // Tooltip quando il trigger e' anche un elemento cliccabile, non un
+        // bug applicativo - fix centralizzato qui (non ripetuto in ogni
+        // componente che usa TooltipTrigger) cosi' copre automaticamente
+        // anche gli usi futuri.
+        (event.currentTarget as HTMLElement | null)?.blur?.();
+      }}
+      {...props}
+    />
+  );
 }
 
 function TooltipContent({

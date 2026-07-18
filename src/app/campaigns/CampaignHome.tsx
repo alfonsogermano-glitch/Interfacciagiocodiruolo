@@ -10,10 +10,10 @@ import { useCampaignChannel } from '../../services/realtime/campaignChannel';
 import { loadCharactersByOwner, copyCharacterToCampaign } from '../../services/supabase/charactersService';
 import { loadNPCs, loadMonsters, type NPC, type Monster } from '../../services/supabase/entitiesService';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
-import { RulesetTag } from '../components/shared/RulesetTag';
 import { EntityCard } from '../components/session/shared/EntityCard';
 import { CampaignNotesPanel } from '../components/session/shared/CampaignNotesPanel';
 import { CampaignForm } from './CampaignSelector';
+import { CampaignCoverEditor, type CampaignCoverPatch } from './CampaignCoverEditor';
 import { InviteByNameModal } from './InviteByNameModal';
 import { isRulesetCompatible, type CampaignCreateInput, type RulesetId } from './campaignTypes';
 import type { TokenBorderStyle, TokenBorderThickness } from '../../types/tokenStyle';
@@ -524,49 +524,46 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   const gmInitial = (gmDisplayName ?? 'G').trim().charAt(0).toUpperCase() || 'G';
   const { icon: QuickFilterIcon, label: quickFilterLabel } = quickFilterHeading(activeQuickFilter);
 
+  const handleCoverUpdate = (patch: CampaignCoverPatch) => {
+    if (!activeCampaign) return;
+    void updateCampaign(activeCampaign.id, patch);
+  };
+
   return (
-    <div className="flex h-full flex-col gap-6 overflow-y-auto p-8 text-left select-none">
-      <div className="flex items-center gap-4">
-        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)]">
-          {activeCampaign?.logoUrl ? (
-            <img src={activeCampaign.logoUrl} alt={activeCampaign.name} className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center p-3">
-              <img src="/icon-source-1024.png" alt="" className="h-full w-full object-contain opacity-80" style={{ filter: 'invert(1)' }} />
-            </div>
-          )}
-        </div>
+    <div className="flex h-full flex-col overflow-y-auto text-left select-none">
+      <div className="relative">
+        {activeCampaign ? (
+          <CampaignCoverEditor campaign={activeCampaign} canEdit={isOwner} onUpdate={handleCoverUpdate} />
+        ) : (
+          <div className="h-60 w-full shrink-0 bg-[var(--dash-panel)]" />
+        )}
 
-        <div>
-          <h1 className="text-2xl font-semibold text-[var(--dash-text-strong)]">{activeCampaign?.name ?? 'Campagna'}</h1>
-          {activeCampaign?.description && (
-            <p className="mt-1 max-w-md text-sm text-[var(--dash-muted)]">{activeCampaign.description}</p>
-          )}
-          {activeCampaign && (
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--dash-muted)]">
-              <RulesetTag rulesetId={activeCampaign.ruleset} />
-              <span>
-                Creata il {new Date(activeCampaign.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
+        {/* Riga pulsanti sessione + pillole quick-filter sovrapposta al
+            banner, non sotto - stessa griglia 320px/1fr E stesso gap-6 della
+            sezione contenuti qui sotto (md:grid-cols-[320px_1fr]) cosi' le
+            due righe restano allineate sia verticalmente sia orizzontalmente
+            (un gap-3 qui, diverso dal gap-6 sotto, aveva spostato di 12px la
+            colonna 2 - da qui il disallineamento del titolo "Personaggi"
+            rispetto a "PNG"/"Mostri" piu' sotto nella griglia delle card).
+            absolute (non contribuisce all'altezza del contenitore relative,
+            che resta quella del solo banner) - z-40, sopra tutto cio' che
+            c'e' nel banner (max z-30 li' dentro).
 
-      {playersLoaded && (
-        <div className="grid w-full grid-cols-1 gap-6 md:grid-cols-[320px_1fr]">
-          {/* Colonna 1: card GM compatta (non il riquadro verticale con
-              portrait grande) - niente "truncate" sul nome, il testo va a
-              capo se serve invece di tagliarsi a un carattere come nelle
-              versioni precedenti confinate in una colonna troppo stretta.
-              320px (allargata da 240px) per contenere comodamente sulla
-              stessa riga i due pulsanti compatti + il trigger del menu a
-              tre puntini, senza comprimerli o mandarli a capo. */}
-          <div className="flex flex-col gap-3">
-            {/* Riga controlli separata dalla card GM (non al suo interno),
-                alla stessa altezza di titolo+pillole in colonna 2. */}
-            {isOwner && (
-              <div className="flex gap-2">
+            bottom-2 (non top-[88%]): un ancoraggio percentuale dall'alto è
+            una frazione dell'altezza REALE del contenitore, che pero' non è
+            costante - h-60 fisso (240px) senza immagine, aspect-[3.8/1]
+            variabile con la larghezza pagina (es. ~368px) con immagine. Lo
+            stesso 88% produceva quindi un residuo diverso in pixel tra il
+            fondo della riga e il fondo del banner nei due casi, e il pt-4
+            del contenuto sotto si sommava sopra un residuo già diverso -
+            da qui la distanza incoerente segnalata. Un ancoraggio fisso dal
+            basso rende quel residuo costante indipendentemente dall'altezza
+            del contenitore, in entrambi i rami. */}
+        {playersLoaded && (
+          <div className="absolute inset-x-0 bottom-2 z-40 grid grid-cols-1 gap-6 px-8 md:grid-cols-[320px_1fr]">
+            <div className="flex flex-col gap-3">
+              {isOwner && (
+                <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={handleToggleSession}
@@ -666,7 +663,53 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                 )}
               </div>
             )}
+            </div>
 
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
+                <QuickFilterIcon className="h-4 w-4" /> {quickFilterLabel}
+              </h2>
+              <div className="flex flex-wrap justify-end gap-2">
+                <button type="button" onClick={() => setActiveQuickFilter('all')} className={pillClass(activeQuickFilter === 'all')}>
+                  <LayoutGrid className="h-3.5 w-3.5" /> Tutti
+                </button>
+                <button type="button" onClick={() => setActiveQuickFilter('pg')} className={pillClass(activeQuickFilter === 'pg')}>
+                  <Users className="h-3.5 w-3.5" /> Personaggi
+                </button>
+                <button type="button" onClick={() => setActiveQuickFilter('premades')} className={pillClass(activeQuickFilter === 'premades')}>
+                  <Package className="h-3.5 w-3.5" /> Precompilati
+                </button>
+                <button type="button" onClick={() => setActiveQuickFilter('npc')} className={pillClass(activeQuickFilter === 'npc')}>
+                  <Ghost className="h-3.5 w-3.5" /> PNG
+                </button>
+                <button type="button" onClick={() => setActiveQuickFilter('monster')} className={pillClass(activeQuickFilter === 'monster')}>
+                  <Skull className="h-3.5 w-3.5" /> Mostri
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* pt-4: spazio tra la fine del banner/riga pulsanti overlay
+          (top-[88%] li' sopra) e l'inizio di questa griglia - "Personaggi"
+          (prime card, subito qui sotto) non ha un header in griglia con
+          margine proprio come "PNG"/"Mostri" (mt-2 + gap-4 interno,
+          invariato) piu' sotto. pt-12, pt-8, pt-6, pt-4 e pt-2 (round
+          precedenti) lasciavano ancora una fascia vuota eccessiva sotto la
+          riga pulsanti - pt-1 e' meno del valore originale del contenitore
+          (pt-6), a compensare lo spazio gia' presente sotto la riga
+          overlay del banner (ora bottom-2, altezza-indipendente). */}
+      <div className="flex flex-1 flex-col gap-6 p-8 pt-1">
+      {playersLoaded && (
+        <div className="grid w-full grid-cols-1 gap-6 md:grid-cols-[320px_1fr]">
+          {/* Colonna 1: card GM compatta (non il riquadro verticale con
+              portrait grande) - niente "truncate" sul nome, il testo va a
+              capo se serve invece di tagliarsi a un carattere come nelle
+              versioni precedenti confinate in una colonna troppo stretta.
+              La riga pulsanti sessione che stava qui è ora sovrapposta al
+              banner qui sopra (stessa griglia 320px/1fr), non più qui. */}
+          <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-3">
               {gmAvatarUrl ? (
                 <img
@@ -700,35 +743,10 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
             </div>
           </div>
 
-          {/* Colonne 2+3: titolo della sezione corrente + pillole sulla
-              stessa riga (non piu' una riga di pillole separata sopra),
-              alla stessa quota della card GM di colonna 1 - entrambe sono
-              il primo figlio della rispettiva colonna, nessuno spaziatore
-              necessario. flex-wrap sulle pillole: su schermi stretti vanno
-              a capo in modo naturale. */}
+          {/* Colonna 2+3: la riga titolo+pillole che stava qui è ora
+              sovrapposta al banner qui sopra (stessa griglia 320px/1fr),
+              non più qui - resta solo la griglia delle card. */}
           <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
-                <QuickFilterIcon className="h-4 w-4" /> {quickFilterLabel}
-              </h2>
-              <div className="flex flex-wrap justify-end gap-2">
-                <button type="button" onClick={() => setActiveQuickFilter('all')} className={pillClass(activeQuickFilter === 'all')}>
-                  <LayoutGrid className="h-3.5 w-3.5" /> Tutti
-                </button>
-                <button type="button" onClick={() => setActiveQuickFilter('pg')} className={pillClass(activeQuickFilter === 'pg')}>
-                  <Users className="h-3.5 w-3.5" /> Personaggi
-                </button>
-                <button type="button" onClick={() => setActiveQuickFilter('premades')} className={pillClass(activeQuickFilter === 'premades')}>
-                  <Package className="h-3.5 w-3.5" /> Precompilati
-                </button>
-                <button type="button" onClick={() => setActiveQuickFilter('npc')} className={pillClass(activeQuickFilter === 'npc')}>
-                  <Ghost className="h-3.5 w-3.5" /> PNG
-                </button>
-                <button type="button" onClick={() => setActiveQuickFilter('monster')} className={pillClass(activeQuickFilter === 'monster')}>
-                  <Skull className="h-3.5 w-3.5" /> Mostri
-                </button>
-              </div>
-            </div>
 
           {/* sempre esattamente 2 card per riga (grid-cols-2, non auto-fill)
               - le due colonne 1fr si espandono per riempire tutto lo spazio
@@ -1115,6 +1133,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }
