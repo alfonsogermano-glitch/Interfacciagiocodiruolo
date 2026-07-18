@@ -141,12 +141,18 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
   // chiusura ormai vecchia su rawImageSrc/croppedAreaPixels.
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleConfirmRef = useRef<() => Promise<void>>(async () => {});
+  // Distingue "existingImageUrl/existingCropArea sono cambiate perche' ho
+  // appena salvato io" da "sono cambiate per un motivo esterno vero (Annulla,
+  // o un aggiornamento arrivato da altrove)" - senza questo, l'eco della
+  // nostra stessa autosave (le prop che rispecchiano cio' che abbiamo appena
+  // caricato) faceva scattare un remount del Cropper a ogni salvataggio
+  // riuscito, percepito come lampeggio durante l'uso normale.
+  const isSelfCommitRef = useRef(false);
   // Forza un remount del <Cropper> quando existingImageUrl/existingCropArea
-  // cambiano (vedi effect sotto) - necessario perche' initialCroppedAreaPercentages
-  // viene letto da react-easy-crop solo al mount, non ad ogni cambio prop.
-  // Innocuo per l'eco della nostra stessa autosave (la posizione coincide
-  // gia' con quella visibile, nessuno scatto visivo) ed e' cio' che fa
-  // scattare visivamente indietro il crop dopo un Annulla con autosave.
+  // cambiano per un motivo esterno vero (vedi effect sotto) - necessario
+  // perche' initialCroppedAreaPercentages viene letto da react-easy-crop
+  // solo al mount, non ad ogni cambio prop: e' cio' che fa scattare
+  // visivamente indietro il crop dopo un Annulla con autosave.
   const [cropperInstanceKey, setCropperInstanceKey] = useState(0);
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(existingImageUrl ?? null);
   // File grezzo scelto dall'utente, non ancora confermato - serve a
@@ -199,6 +205,13 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
   // genitore riceve un existingImageUrl aggiornato dall'esterno (es. dopo
   // Elimina, gestito altrove nel genitore).
   useEffect(() => {
+    if (isSelfCommitRef.current) {
+      // Eco della nostra stessa autosave/conferma: le prop rispecchiano
+      // esattamente cio' che abbiamo appena caricato, nessun resync o
+      // remount necessario (il Cropper mostra gia' la posizione corretta).
+      isSelfCommitRef.current = false;
+      return;
+    }
     setRawImageSrc(existingImageUrl ?? null);
     setSelectedFile(null);
     setCropAreaForRestore(existingCropArea);
@@ -305,6 +318,13 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
         const { data: { publicUrl: sourcePublicUrl } } = supabase.storage.from(bucket).getPublicUrl(sourcePath);
         uploadedSourceUrl = `${sourcePublicUrl}?t=${Date.now()}`;
       }
+
+      // Marcato prima di chiamare onUploaded (che fa risalire il nuovo
+      // valore fino a existingImageUrl/existingCropArea passando dal
+      // chiamante): quando quelle prop cambieranno di conseguenza, l'effect
+      // sopra sapra' che e' un'eco della nostra stessa conferma, non un
+      // cambiamento esterno da resincronizzare/rimontare.
+      isSelfCommitRef.current = true;
 
       // Un'unica chiamata con tutto l'esito di questa conferma: chi
       // consuma puo' fare un solo merge invece di piu' chiamate separate
