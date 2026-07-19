@@ -7,7 +7,7 @@ import { isRulesetCompatible } from '../campaigns/campaignTypes';
 import { JoinCampaignCharacterDialog, type JoinCampaignCharacterOption } from '../components/session/shared/JoinCampaignCharacterDialog';
 import {
   loadCharactersByOwner, assignCharacterToCampaign,
-  claimCharacter, loadAvailableCharactersInCampaigns,
+  claimCharacter, loadAvailableCharactersForInvite,
 } from '../../services/supabase/charactersService';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import {
@@ -83,8 +83,8 @@ function NotificationRowItem({ notification }: { notification: NotificationRow }
   // "Accetta" non chiama piu' respondToInvite direttamente al click sul
   // bottone: prima verifica che esista almeno un PG proprio compatibile per
   // ruleset O un precompilato disponibile in quella campagna
-  // (loadAvailableCharactersInCampaigns, scoped alla sola campagna
-  // dell'invito), altrimenti blocca del tutto (nessuna accettazione, stesso
+  // (loadAvailableCharactersForInvite - non e' ancora membro a questo punto,
+  // vedi endpoint server dedicato), altrimenti blocca del tutto (nessuna accettazione, stesso
   // principio gia' applicato al codice invito in HomeScreen.tsx). Il
   // ruleset della campagna viaggia gia' dentro la notifica (campaignRuleset,
   // scritto da /campaigns/:id/invite-by-name) - nessuna chiamata di rete in
@@ -113,9 +113,10 @@ function NotificationRowItem({ notification }: { notification: NotificationRow }
     setIsResponding(true);
     try {
       const campaignId = notification.data.campaignId as string;
+      const accessToken = session?.access_token ?? publicAnonKey;
       const [myCharacters, availableCharacters] = await Promise.all([
         loadCharactersByOwner(user.id),
-        loadAvailableCharactersInCampaigns([campaignId]),
+        loadAvailableCharactersForInvite(campaignId, null, SERVER_BASE, accessToken),
       ]);
       const ownCharacters = myCharacters.filter(c => isRulesetCompatible(c.ruleset, null, campaignRuleset));
 

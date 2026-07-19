@@ -23,7 +23,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/toolti
 import { JoinCampaignCharacterDialog, type JoinCampaignCharacterOption } from '../components/session/shared/JoinCampaignCharacterDialog';
 import {
   saveCharacter as saveCharacterToSupabase, loadCharactersByOwner,
-  assignCharacterToCampaign, claimCharacter, loadAvailableCharactersInCampaigns,
+  assignCharacterToCampaign, claimCharacter, loadAvailableCharactersForInvite,
 } from '../../services/supabase/charactersService';
 import type { DashboardPalette } from '../../services/settings/dashboardSettings';
 import type { Character } from '../../types/character';
@@ -126,8 +126,10 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
   // Due passaggi, non uno: prima si risolve il codice in {campaignName,
   // ruleset} SENZA unirsi (previewInviteCode, nessun effetto collaterale),
   // si incrocia col ruleset dei propri PG e con i precompilati disponibili
-  // nella campagna target (loadAvailableCharactersInCampaigns, scoped alla
-  // sola campagna risolta) - se nessuna delle due liste ha qualcosa la join
+  // nella campagna target (loadAvailableCharactersForInvite - non e' ancora
+  // membro a questo punto, la RLS di characters bloccherebbe una lettura
+  // diretta del client, per questo passa da un endpoint server) - se
+  // nessuna delle due liste ha qualcosa la join
   // non parte affatto (nessuna eccezione "crea un PG al volo"); solo se c'e'
   // almeno un'opzione si passa alla scelta.
   //
@@ -175,7 +177,8 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
     try {
       const preview = await previewInviteCode(code);
       const ownCharacters = myCharacters.filter(c => isRulesetCompatible(c.ruleset, null, preview.ruleset));
-      const availableCharacters = await loadAvailableCharactersInCampaigns([preview.campaignId]);
+      const accessToken = session?.access_token ?? publicAnonKey;
+      const availableCharacters = await loadAvailableCharactersForInvite(preview.campaignId, code, SERVER_BASE, accessToken);
 
       if (ownCharacters.length === 0 && availableCharacters.length === 0) {
         setJoinError(

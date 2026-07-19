@@ -480,6 +480,17 @@ export async function setCharacterAvailableForPlayers(
 // Elenco dei PG "disponibili" (available_for_players = true) nelle campagne
 // indicate - usata lato giocatore in MyCharactersPage.tsx per mostrare i
 // precompilati richiedibili nelle proprie campagne (owned + joined).
+//
+// Query diretta del client, quindi soggetta alla RLS di characters
+// (characters_select_own_or_member) - funziona qui SOLO perche' il
+// chiamante e' gia' owner/membro di ogni campagna passata (altrimenti la
+// RLS filtra silenziosamente le righe di un altro proprietario senza
+// errore, un array vuoto anche se i dati esistono). Per un giocatore che
+// NON e' ancora membro (prima di un join, es. HomeScreen.tsx/TopBar.tsx)
+// usa invece loadAvailableCharactersForInvite qui sotto, che passa da un
+// endpoint server con client admin - bug reale scoperto e corretto il
+// 2026-07-22, vedi commento su /campaigns/:id/available-characters in
+// supabase/functions/server/index.tsx.
 export async function loadAvailableCharactersInCampaigns(
   campaignIds: string[]
 ): Promise<ReturnType<typeof mapRowToCharacter>[]> {
@@ -498,6 +509,32 @@ export async function loadAvailableCharactersInCampaigns(
   }
 
   return (data || []).map(mapRowToCharacter);
+}
+
+// Come sopra, ma per un giocatore che NON e' ancora membro della campagna -
+// passa da /campaigns/:id/available-characters (client admin lato server,
+// bypassa la RLS che altrimenti filtrerebbe silenziosamente i PG del GM).
+// `code` opzionale: se il chiamante ha un codice invito in mano
+// (HomeScreen.tsx) autorizza senza bisogno di membership; se assente
+// (TopBar.tsx, invito per nome) l'endpoint si affida a una notifica di
+// invito pendente per lo stesso utente/campagna come prova di legittimita'.
+export async function loadAvailableCharactersForInvite(
+  campaignId: string,
+  code: string | null,
+  serverBase: string,
+  accessToken: string
+): Promise<ReturnType<typeof mapRowToCharacter>[]> {
+  const url = new URL(`${serverBase}/campaigns/${campaignId}/available-characters`);
+  if (code) url.searchParams.set('code', code);
+
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? 'Errore caricamento personaggi disponibili');
+
+  return (data.characters ?? []).map(mapRowToCharacter);
 }
 
 // Il giocatore richiede un PG "disponibile" - wrappa /characters/:id/claim,

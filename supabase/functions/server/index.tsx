@@ -757,6 +757,81 @@ app.get("/make-server-771c5bfd/campaigns/invite-preview", async (c) => {
   }
 });
 
+// PG "disponibili" (available_for_players=true) di una campagna - letto con
+// client admin, non con select diretta del client come faceva prima
+// loadAvailableCharactersInCampaigns: la RLS di characters
+// (characters_select_own_or_member) filtra silenziosamente le righe di un
+// proprietario diverso finche' il richiedente non e' gia' membro - ma chi
+// chiama questo endpoint (HomeScreen.tsx/TopBar.tsx) non lo e' ancora per
+// definizione, sta decidendo se unirsi. Autorizzato se gia' membro (per
+// simmetria/riuso futuro), oppure se possiede un codice invito valido per
+// QUESTA campagna, oppure se ha una notifica di invito per nome ancora
+// pendente su questa campagna - nessuna delle due richiede membership
+// preesistente, a differenza di /campaigns/:id/characters sopra (che per
+// questo non e' riusabile qui).
+app.get("/make-server-771c5bfd/campaigns/:id/available-characters", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const campaignId = c.req.param("id");
+    const admin = getAdminClient();
+
+    let authorized = false;
+
+    const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    if (myCampaigns.some((cmp) => cmp.id === campaignId)) {
+      authorized = true;
+    } else {
+      const myJoined = await kv.get(playerCampaignsKey(userId)) ?? [];
+      if (myJoined.some((pc: any) => pc.campaignId === campaignId)) authorized = true;
+    }
+
+    if (!authorized) {
+      const rawCode = c.req.query("code");
+      if (rawCode) {
+        const normalizedCode = String(rawCode).trim().toUpperCase();
+        const membership: CampaignMembership | null = await kv.get(inviteCodeKey(normalizedCode));
+        if (membership && membership.campaignId === campaignId) authorized = true;
+      }
+    }
+
+    if (!authorized) {
+      const { data: pending } = await admin
+        .from("notifications")
+        .select("id")
+        .eq("recipient_profile_id", userId)
+        .eq("type", "campaign_invite")
+        .contains("data", { campaignId, status: "pending" })
+        .maybeSingle();
+      if (pending) authorized = true;
+    }
+
+    if (!authorized) {
+      return c.json({ error: "Non hai accesso a questa campagna" }, 403);
+    }
+
+    const { data, error } = await admin
+      .from("characters")
+      .select("*")
+      .eq("campaign_id", campaignId)
+      .eq("available_for_players", true)
+      .eq("status", "active");
+
+    if (error) {
+      console.log("Errore lettura personaggi disponibili:", error);
+      return c.json({ error: "Errore lettura personaggi disponibili" }, 500);
+    }
+
+    return c.json({ characters: data ?? [] });
+  } catch (err) {
+    console.log("Errore GET campaigns/:id/available-characters:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
 app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
   try {
     const token = c.req.header("Authorization")?.split(" ")[1];
