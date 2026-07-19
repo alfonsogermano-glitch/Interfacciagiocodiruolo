@@ -514,6 +514,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
       await Promise.all([load(), loadAvailable(), refreshCampaigns(), refreshJoinedCampaigns()]);
     } catch (err) {
       console.error('Errore rilascio personaggio:', err);
+      showToast(err instanceof Error ? err.message : String(err));
     } finally {
       setReleaseConfirmChar(null);
     }

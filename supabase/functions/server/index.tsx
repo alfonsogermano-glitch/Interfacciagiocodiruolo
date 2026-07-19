@@ -989,7 +989,7 @@ app.post("/make-server-771c5bfd/characters/:id/claim", async (c) => {
 
     const { data: character, error: charError } = await admin
       .from("characters")
-      .select("id, campaign_id, owner_profile_id, available_for_players, status")
+      .select("id, campaign_id, owner_profile_id, available_for_players, status, original_owner_profile_id")
       .eq("id", characterId)
       .single();
 
@@ -1028,9 +1028,20 @@ app.post("/make-server-771c5bfd/characters/:id/claim", async (c) => {
     // frattempo un altro giocatore lo ha gia' richiesto, questa condizione
     // non trova piu' righe e data torna vuoto - race condition coperta senza
     // bisogno di una transazione esplicita.
+    // original_owner_profile_id si valorizza una volta sola: a questo punto
+    // character.owner_profile_id e' per costruzione il GM (un PG e'
+    // claimabile solo se available_for_players=true, raggiungibile solo
+    // quando il PG e' del GM) - sui claim successivi (dopo un release e un
+    // nuovo claim) il campo resta quello impostato la prima volta, mai
+    // sovrascritto, cosi' "Rilascia" sa sempre a chi tornare anche se
+    // campaign_id viene azzerato in futuro (vedi /release sotto).
+    const claimUpdate: Record<string, string | boolean> = { owner_profile_id: userId, available_for_players: false };
+    if (!character.original_owner_profile_id) {
+      claimUpdate.original_owner_profile_id = character.owner_profile_id;
+    }
     const { data: updated, error: updateError } = await admin
       .from("characters")
-      .update({ owner_profile_id: userId, available_for_players: false })
+      .update(claimUpdate)
       .eq("id", characterId)
       .eq("available_for_players", true)
       .select("id")
@@ -1074,7 +1085,7 @@ app.post("/make-server-771c5bfd/characters/:id/release", async (c) => {
 
     const { data: character, error: charError } = await admin
       .from("characters")
-      .select("id, campaign_id, owner_profile_id, claimable_origin")
+      .select("id, campaign_id, owner_profile_id, claimable_origin, original_owner_profile_id")
       .eq("id", characterId)
       .single();
 
@@ -1087,22 +1098,21 @@ app.post("/make-server-771c5bfd/characters/:id/release", async (c) => {
     if (!character.claimable_origin) {
       return c.json({ error: "Questo personaggio non può essere rilasciato" }, 400);
     }
-    if (!character.campaign_id) {
-      return c.json({ error: "Questo personaggio non appartiene a una campagna" }, 400);
-    }
-
-    const { data: campaignRow, error: campaignError } = await admin
-      .from("campaigns")
-      .select("owner_profile_id")
-      .eq("id", character.campaign_id)
-      .single();
-    if (campaignError || !campaignRow) {
-      return c.json({ error: "Campagna non trovata" }, 404);
+    // original_owner_profile_id (valorizzato al claim, mai piu' toccato) e'
+    // la sola fonte per "chi era il GM" - a differenza del vecchio
+    // meccanismo (derivarlo da campaign_id -> campaigns.owner_profile_id),
+    // funziona anche se il PG ha lasciato la campagna (rimozione volontaria
+    // o da parte del GM azzerano campaign_id ma non questo campo). Un PG
+    // claimato prima dell'introduzione di questo campo lo avra' per sempre
+    // null: caso limite residuo, segnalato esplicitamente invece di un
+    // errore generico.
+    if (!character.original_owner_profile_id) {
+      return c.json({ error: "Impossibile determinare il proprietario originale: questo personaggio è stato richiesto prima dell'introduzione di questa funzionalità. Contatta il GM per un trasferimento manuale." }, 400);
     }
 
     const { data: updated, error: updateError } = await admin
       .from("characters")
-      .update({ owner_profile_id: campaignRow.owner_profile_id, available_for_players: true })
+      .update({ owner_profile_id: character.original_owner_profile_id, available_for_players: true })
       .eq("id", characterId)
       .eq("owner_profile_id", userId)
       .select("id")
@@ -1116,33 +1126,40 @@ app.post("/make-server-771c5bfd/characters/:id/release", async (c) => {
       return c.json({ error: "Questo personaggio non è più tuo" }, 409);
     }
 
-    // "Leave" implicito: se questo era l'ultimo PG attivo del giocatore in
-    // questa campagna, non ne e' piu' membro - stesso blocco di
-    // assign-campaign sopra, stessa ragione.
-    const { data: remaining } = await admin
-      .from("characters")
-      .select("id")
-      .eq("campaign_id", character.campaign_id)
-      .eq("owner_profile_id", userId)
-      .eq("status", "active")
-      .neq("id", characterId);
+    // Il resto (leave implicito + broadcast) ha senso solo se il PG e'
+    // ancora assegnato a una campagna - se campaign_id e' null (PG rilasciato
+    // dopo essere stato rimosso dalla campagna) non c'e' membership da cui
+    // uscire ne' un canale su cui notificare un GM che, in questo momento,
+    // non ha una campagna con questo PG dentro.
+    if (character.campaign_id) {
+      // "Leave" implicito: se questo era l'ultimo PG attivo del giocatore in
+      // questa campagna, non ne e' piu' membro - stesso blocco di
+      // assign-campaign sopra, stessa ragione.
+      const { data: remaining } = await admin
+        .from("characters")
+        .select("id")
+        .eq("campaign_id", character.campaign_id)
+        .eq("owner_profile_id", userId)
+        .eq("status", "active")
+        .neq("id", characterId);
 
-    if (!remaining || remaining.length === 0) {
-      const members = await kv.get(campaignMembersKey(character.campaign_id)) ?? [];
-      await kv.set(campaignMembersKey(character.campaign_id), members.filter((m) => m.profileId !== userId));
-      await admin.from('campaign_members').delete()
-        .eq('campaign_id', character.campaign_id)
-        .eq('profile_id', userId);
+      if (!remaining || remaining.length === 0) {
+        const members = await kv.get(campaignMembersKey(character.campaign_id)) ?? [];
+        await kv.set(campaignMembersKey(character.campaign_id), members.filter((m) => m.profileId !== userId));
+        await admin.from('campaign_members').delete()
+          .eq('campaign_id', character.campaign_id)
+          .eq('profile_id', userId);
 
-      const playerCampaigns = await kv.get(playerCampaignsKey(userId)) ?? [];
-      await kv.set(playerCampaignsKey(userId), playerCampaigns.filter((pc) => pc.campaignId !== character.campaign_id));
+        const playerCampaigns = await kv.get(playerCampaignsKey(userId)) ?? [];
+        await kv.set(playerCampaignsKey(userId), playerCampaigns.filter((pc) => pc.campaignId !== character.campaign_id));
+      }
+
+      // Incondizionato (non solo nel ramo "leave" sopra): il PG e' tornato al
+      // GM ed e' di nuovo disponibile anche se il giocatore resta membro
+      // (ha ancora un altro PG attivo li') - la composizione visibile della
+      // campagna e' comunque cambiata, il GM deve vederlo senza ricaricare.
+      await broadcastCampaignMembersChange(admin, character.campaign_id);
     }
-
-    // Incondizionato (non solo nel ramo "leave" sopra): il PG e' tornato al
-    // GM ed e' di nuovo disponibile anche se il giocatore resta membro
-    // (ha ancora un altro PG attivo li') - la composizione visibile della
-    // campagna e' comunque cambiata, il GM deve vederlo senza ricaricare.
-    await broadcastCampaignMembersChange(admin, character.campaign_id);
 
     return c.json({ success: true });
   } catch (err) {
