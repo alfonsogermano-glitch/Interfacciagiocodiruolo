@@ -146,7 +146,7 @@ export function EntityCard({
               // sembrare "piccola e sperduta" con margini vuoti asimmetrici
               // quando il box e' molto piu' largo che alto (card PNG/Mostri
               // senza secondaryText, quindi piu' basse di quelle PG).
-              className="h-[55%] w-[55%] object-contain"
+              className="h-[75%] w-[75%] object-contain"
               style={{ filter: 'invert(1)', opacity: 0.9 }}
             />
           }
