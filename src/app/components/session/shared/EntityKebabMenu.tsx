@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreVertical } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 
 export interface EntityKebabMenuItem {
   key: string;
@@ -16,8 +17,8 @@ export interface EntityKebabMenuItem {
    *  resta comunque un singolo <button>, pensato per il caso disabled in
    *  cui il controllo stesso non è cliccabile. */
   trailing?: React.ReactNode;
-  /** Title nativo sulla riga - stesso pattern gia' usato dalla pillola
-   *  filtro "Richiedibile" (title="In arrivo..."), nessun tooltip custom. */
+  /** Tooltip stilizzato (componente condiviso Tooltip/TooltipTrigger/
+   *  TooltipContent, palette-aware) - non un title= nativo. */
   tooltip?: string;
 }
 
@@ -85,20 +86,37 @@ export function EntityKebabMenu({
           }}
           className={`z-[1000] ${menuWidthClassName} rounded-xl p-1.5 shadow-2xl`}
         >
-          {items.map(item => (
-            <button
-              key={item.key}
-              type="button"
-              disabled={item.disabled}
-              title={item.tooltip}
-              onClick={() => { if (item.disabled) return; item.onClick(); setOpen(false); }}
-              style={{ color: item.danger ? undefined : colors.text }}
-              className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-opacity hover:opacity-75 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:opacity-50 ${item.danger ? 'text-red-300' : ''}`}
-            >
-              {item.icon} {item.label}
-              {item.trailing && <span className="ml-auto">{item.trailing}</span>}
-            </button>
-          ))}
+          {items.map(item => {
+            // aria-disabled invece di disabled nativo: un <button disabled>
+            // non emette eventi pointer/focus, quindi il TooltipTrigger di
+            // Radix (che si basa su questi) non si attiverebbe mai al
+            // passaggio del mouse - stesso motivo per cui qui il click va
+            // ignorato in JS (item.disabled ? return) invece che dall'attributo.
+            const button = (
+              <button
+                key={item.key}
+                type="button"
+                aria-disabled={item.disabled}
+                onClick={() => { if (item.disabled) return; item.onClick(); setOpen(false); }}
+                style={{ color: item.danger ? undefined : colors.text }}
+                className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-opacity ${
+                  item.disabled ? 'cursor-not-allowed opacity-50' : 'hover:opacity-75'
+                } ${item.danger ? 'text-red-300' : ''}`}
+              >
+                {item.icon} {item.label}
+                {item.trailing && <span className="ml-auto">{item.trailing}</span>}
+              </button>
+            );
+
+            if (!item.tooltip) return button;
+
+            return (
+              <Tooltip key={item.key}>
+                <TooltipTrigger asChild>{button}</TooltipTrigger>
+                <TooltipContent side="left">{item.tooltip}</TooltipContent>
+              </Tooltip>
+            );
+          })}
           {footer}
         </div>,
         document.body
