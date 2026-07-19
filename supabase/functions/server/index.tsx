@@ -993,14 +993,76 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
   }
 });
 
+// GM marca/smarca un proprio PG come "disponibile per i giocatori"
+// ("Precompilati"). Passa dal server (non piu' scrittura diretta del client
+// come in origine) per due motivi, non solo uno: 1) e' l'unica azione
+// rimasta in tutto l'app che cambia stato visibile ad altri senza poter
+// chiamare broadcastCampaignMembersChange, quindi nessun realtime per chi
+// ha MyCharactersPage.tsx aperta finche' non ricarica; 2) la RLS che
+// autorizzava lo scrivere diretto controllava solo owner_profile_id, non
+// "sei il GM della campagna di questo PG" - un giocatore che ha claimato un
+// precompilato ne e' owner_profile_id, quindi poteva (bypassando la UI, che
+// nasconde solo la voce di menu) riattivarne la disponibilita' e farselo
+// reclamare da un altro giocatore. Qui il controllo e' reale, non solo lato
+// client.
+app.post("/make-server-771c5bfd/characters/:id/availability", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const characterId = c.req.param("id");
+    const { available } = await c.req.json();
+    const admin = getAdminClient();
+
+    const { data: character, error: charError } = await admin
+      .from("characters")
+      .select("id, campaign_id")
+      .eq("id", characterId)
+      .single();
+    if (charError || !character) return c.json({ error: "Personaggio non trovato" }, 404);
+    if (!character.campaign_id) {
+      return c.json({ error: "Questo personaggio non appartiene a una campagna" }, 400);
+    }
+
+    const { data: campaignRow, error: campaignError } = await admin
+      .from("campaigns")
+      .select("owner_profile_id")
+      .eq("id", character.campaign_id)
+      .single();
+    if (campaignError || !campaignRow) return c.json({ error: "Campagna non trovata" }, 404);
+    if (campaignRow.owner_profile_id !== userId) {
+      return c.json({ error: "Non hai i permessi su questo personaggio" }, 403);
+    }
+
+    const patch: Record<string, boolean> = { available_for_players: !!available };
+    if (available) patch.claimable_origin = true;
+
+    const { error: updateError } = await admin
+      .from("characters")
+      .update(patch)
+      .eq("id", characterId);
+    if (updateError) {
+      console.log("Errore update disponibilità personaggio:", updateError);
+      return c.json({ error: "Errore aggiornamento disponibilità" }, 500);
+    }
+
+    await broadcastCampaignMembersChange(admin, character.campaign_id);
+
+    return c.json({ success: true });
+  } catch (err) {
+    console.log("Errore POST characters/:id/availability:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
 // "Precompilati": il giocatore richiede un PG che il GM ha marcato
-// available_for_players=true (setCharacterAvailableForPlayers lato client,
-// diretto, non passa da qui - qui serve invece il client admin perche' il
-// chiamante NON e' ancora il proprietario della riga, le RLS bloccherebbero
-// un update diretto). Il vincolo "un solo PG attivo per campagna" e'
-// applicato SOLO qui, non in assign-campaign sopra (vedi commento nel piano/
-// memoria di progetto: assign-campaign e' un percorso ad alto traffico gia'
-// delicato, non va esteso ora per un vincolo mai esistito finora).
+// available_for_players=true (endpoint sopra). Il vincolo "un solo PG
+// attivo per campagna" e' applicato SOLO qui, non in assign-campaign sopra
+// (vedi commento nel piano/memoria di progetto: assign-campaign e' un
+// percorso ad alto traffico gia' delicato, non va esteso ora per un
+// vincolo mai esistito finora).
 app.post("/make-server-771c5bfd/characters/:id/claim", async (c) => {
   try {
     const token = c.req.header("Authorization")?.split(" ")[1];

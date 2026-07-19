@@ -492,7 +492,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
       ? { ...c, availableForPlayers: nextAvailable, claimableOrigin: nextAvailable ? true : c.claimableOrigin }
       : c)));
     try {
-      await setCharacterAvailableForPlayers(char.id, nextAvailable);
+      const accessToken = session?.access_token ?? publicAnonKey;
+      await setCharacterAvailableForPlayers(char.id, nextAvailable, SERVER_BASE, accessToken);
     } catch (err) {
       console.error('Errore aggiornamento disponibilità personaggio:', err);
       setCharacters(prev => prev.map(c => (c.id === char.id ? char : c)));

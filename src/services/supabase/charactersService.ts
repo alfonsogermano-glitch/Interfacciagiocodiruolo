@@ -457,24 +457,30 @@ export async function unassignCharacterFromCampaign(
   await assignCharacterToCampaign(characterId, serverBase, accessToken, { campaignId: null });
 }
 
-// Marca/smarca un PG come "disponibile per i giocatori" ("Precompilati") - a
-// differenza di assignCharacterToCampaign non passa dal server: chi la
-// chiama possiede gia' il PG (auth.uid() = owner_profile_id), le RLS
-// permettono l'update diretto via client. claimable_origin si accende una
-// volta sola e non si spegne mai piu' (distingue un PG nato precompilato,
-// che mostrera' "Rilascia" da giocatore, da uno creato da zero). Non passa
-// da saveCharacter di proposito: quella funzione elenca le colonne a mano e
-// non tocca questi due campi, quindi un update qui non rischia di essere
-// silenziosamente sovrascritto dal prossimo autosave generico.
+// Marca/smarca un PG come "disponibile per i giocatori" ("Precompilati") -
+// passa dal server (POST /characters/:id/availability), non piu' una
+// scrittura diretta del client: e' l'unica azione che cambia uno stato
+// visibile ad altri capace di farlo senza notificare via
+// broadcastCampaignMembersChange, e la RLS che autorizzava lo scrivere
+// diretto controllava solo owner_profile_id, non "sei il GM della campagna"
+// (un giocatore che ha claimato un precompilato ne e' owner_profile_id) -
+// vedi commento sull'endpoint in supabase/functions/server/index.tsx.
+// claimable_origin si accende una volta sola e non si spegne mai piu'
+// (distingue un PG nato precompilato, che mostrera' "Rilascia" da
+// giocatore, da uno creato da zero) - logica invariata, ora lato server.
 export async function setCharacterAvailableForPlayers(
   characterId: string,
-  available: boolean
+  available: boolean,
+  serverBase: string,
+  accessToken: string
 ): Promise<void> {
-  if (!supabase) throw new Error('Supabase non configurato');
-  const patch: Record<string, boolean> = { available_for_players: available };
-  if (available) patch.claimable_origin = true;
-  const { error } = await supabase.from('characters').update(patch).eq('id', characterId);
-  if (error) throw error;
+  const res = await fetch(`${serverBase}/characters/${characterId}/availability`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ available }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? 'Errore aggiornamento disponibilità personaggio');
 }
 
 // Elenco dei PG "disponibili" (available_for_players = true) nelle campagne
