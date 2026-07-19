@@ -455,7 +455,7 @@ export function EntityDetailView({
   const portraitUrl = entity.portraitImageUrl;
   const portraitSourceUrl = entity.portraitSourceImageUrl;
   const portraitCropArea = entity.portraitCropArea;
-  const portraitSize = entityType === 'character' ? 116 : 56;
+  const portraitSize = 116;
 
   // Crop da riusare nell'anteprima del token: quello reale del Mostro (pan/
   // zoom impostato nel suo tab Avatar in MonstersManager.tsx, sistema
