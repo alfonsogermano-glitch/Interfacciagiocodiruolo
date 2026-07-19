@@ -958,7 +958,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
               {
                 key: 'copy',
                 icon: <Copy className="h-4 w-4" />,
-                label: "Copia in un'altra campagna",
+                label: isUnassigned ? 'Copia in una campagna' : "Copia in un'altra campagna",
                 onClick: () => {
                   setMenuColors(getCurrentPaletteColors());
                   setCopyDialogEntry(entry);
