@@ -8,7 +8,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
 import { useCampaignChannel } from '../../services/realtime/campaignChannel';
 import {
-  loadCharactersByOwner, copyCharacterToCampaign, unassignCharacterFromCampaign,
+  loadCharactersByOwner, copyCharacterToCampaign,
   duplicateCharacter, deleteCharacter, setCharacterAvailableForPlayers, releaseCharacter,
   saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, deleteCharacterAsGm, mapRowToCharacter,
 } from '../../services/supabase/charactersService';
@@ -161,9 +161,6 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   const [copyTargetCampaignId, setCopyTargetCampaignId] = useState<string | null>(null);
   const [isCopyingChar, setIsCopyingChar] = useState(false);
   const [copyCharError, setCopyCharError] = useState<string | null>(null);
-  const [removeCharTarget, setRemoveCharTarget] = useState<PlayerCharacterSummary | null>(null);
-  const [isRemovingChar, setIsRemovingChar] = useState(false);
-  const [removeCharError, setRemoveCharError] = useState<string | null>(null);
   const [removePlayerTarget, setRemovePlayerTarget] = useState<PlayerRow | null>(null);
   const [isRemovingPlayer, setIsRemovingPlayer] = useState(false);
   const [removePlayerError, setRemovePlayerError] = useState<string | null>(null);
@@ -561,21 +558,6 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     }
   };
 
-  const handleConfirmRemoveCharacter = async () => {
-    if (!removeCharTarget || !session) return;
-    setIsRemovingChar(true);
-    setRemoveCharError(null);
-    try {
-      await unassignCharacterFromCampaign(removeCharTarget.id, SERVER_BASE, session.access_token);
-      setRemoveCharTarget(null);
-      setPlayersReloadToken((t) => t + 1);
-    } catch (err) {
-      setRemoveCharError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setIsRemovingChar(false);
-    }
-  };
-
   const handleConfirmRemovePlayer = async () => {
     if (!removePlayerTarget || !activeCampaign || !session) return;
     setIsRemovingPlayer(true);
@@ -822,13 +804,6 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       onClick: () => setCopyDialogChar(ch),
     });
 
-    items.push({
-      key: 'unassign',
-      icon: <UserMinus className="h-4 w-4" />,
-      label: 'Rimuovi dalla campagna',
-      onClick: () => setRemoveCharTarget(ch),
-    });
-
     if (!isOwner && isSelfOwned && ch.claimableOrigin && ch.originalOwnerProfileId != null && ch.ownerProfileId !== ch.originalOwnerProfileId) {
       items.push({
         key: 'release',
@@ -838,19 +813,31 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       });
     }
 
-    items.push({
-      key: 'delete',
-      icon: <Trash2 className="h-4 w-4" />,
-      label: 'Elimina',
-      onClick: () => setDeleteCharTarget(ch),
-      danger: true,
-    });
+    // "Elimina" solo su un PG che possiedi davvero (il GM sul proprio
+    // precompilato, o il giocatore sul proprio PG) - mai al GM su un PG di
+    // un giocatore: non e' suo, non deve poterlo eliminare (ne' con
+    // deleteCharacter ne' con deleteCharacterAsGm). "Rimuovi giocatore" sotto
+    // resta lo strumento corretto per il GM su un PG altrui.
+    if (isSelfOwned) {
+      items.push({
+        key: 'delete',
+        icon: <Trash2 className="h-4 w-4" />,
+        label: 'Elimina',
+        onClick: () => setDeleteCharTarget(ch),
+        danger: true,
+      });
+    }
 
+    // Fusa con la vecchia "Rimuovi dalla campagna" (scoped al solo PG
+    // cliccato): handleConfirmRemovePlayer rimuove gia' tutti i PG del
+    // giocatore in questa campagna piu' la membership, un sovrainsieme
+    // corretto - il dialog esistente e' gia' chiaro su questa ampiezza,
+    // nessuna voce separata "scoped a un solo PG" serve piu'.
     if (isOwner && row) {
       items.push({
         key: 'remove-player',
         icon: <UserMinus className="h-4 w-4" />,
-        label: 'Rimuovi il giocatore',
+        label: 'Rimuovi giocatore',
         onClick: () => setRemovePlayerTarget(row),
         danger: true,
       });
@@ -1152,7 +1139,17 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                               buttonClassName={photoCornerButtonClass}
                               items={buildCharacterMenuItems(ch, row)}
                               footer={
-                                <div className="px-2 py-1.5 text-xs text-[var(--dash-muted)]">
+                                // style inline su menuColors.text (non una
+                                // variabile CSS globale, indipendente dal
+                                // sistema di colori hardcoded per palette di
+                                // EntityKebabMenu) - stesso pattern del testo
+                                // secondario nel dialog "Copia in un'altra
+                                // campagna" qui sotto. text-[var(--dash-muted)]
+                                // funzionava nel vecchio DropdownMenu bespoke
+                                // (sfondo anch'esso da variabile CSS) ma non
+                                // garantisce contrasto contro colors.panel,
+                                // che e' un colore fisso per palette.
+                                <div className="px-2 py-1.5 text-xs" style={{ color: menuColors.text, opacity: 0.7 }}>
                                   {ch.createdAt && (
                                     <div>Creato il {new Date(ch.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
                                   )}
@@ -1370,40 +1367,6 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
         </div>
       )}
 
-      {removeCharTarget && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-sm rounded-2xl border border-[var(--dash-danger-border)] bg-[var(--dash-surface)] p-6 shadow-2xl">
-            <h3 className="mb-2 font-semibold text-[var(--dash-text-strong)]">Rimuovere il personaggio dalla campagna?</h3>
-            <p className="mb-3 text-sm text-[var(--dash-muted)]">
-              "{removeCharTarget.name}" non verrà eliminato: resterà nel database del giocatore, semplicemente non farà più parte di questa campagna.
-            </p>
-            {removeCharError && (
-              <div className="mb-3 rounded-lg border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-3 py-2 text-sm text-[var(--dash-danger-text)]">
-                {removeCharError}
-              </div>
-            )}
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setRemoveCharTarget(null)}
-                disabled={isRemovingChar}
-                className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)]"
-              >
-                Annulla
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmRemoveCharacter}
-                disabled={isRemovingChar}
-                className="inline-flex items-center gap-2 rounded-xl border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-4 py-2 text-sm font-semibold text-[var(--dash-danger-text)] hover:bg-[var(--dash-danger-border)]"
-              >
-                {isRemovingChar && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Rimuovi
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {removePlayerTarget && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4">
