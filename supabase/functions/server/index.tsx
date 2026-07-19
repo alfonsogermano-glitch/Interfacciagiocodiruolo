@@ -1018,7 +1018,7 @@ app.post("/make-server-771c5bfd/characters/:id/availability", async (c) => {
 
     const { data: character, error: charError } = await admin
       .from("characters")
-      .select("id, campaign_id")
+      .select("id, campaign_id, owner_profile_id")
       .eq("id", characterId)
       .single();
     if (charError || !character) return c.json({ error: "Personaggio non trovato" }, 404);
@@ -1034,6 +1034,15 @@ app.post("/make-server-771c5bfd/characters/:id/availability", async (c) => {
     if (campaignError || !campaignRow) return c.json({ error: "Campagna non trovata" }, 404);
     if (campaignRow.owner_profile_id !== userId) {
       return c.json({ error: "Non hai i permessi su questo personaggio" }, 403);
+    }
+    // Non basta essere il GM della campagna: il PG deve anche essere
+    // ancora del GM stesso (un GM che chiama questo endpoint su un PG gia'
+    // posseduto da un giocatore potrebbe altrimenti marcarlo disponibile e
+    // farlo reclamare da un altro giocatore senza consenso - stessa classe
+    // di bug chiusa lato client il 2026-07-22, qui e' il controllo server
+    // reale che mancava).
+    if (character.owner_profile_id !== campaignRow.owner_profile_id) {
+      return c.json({ error: "Puoi rendere disponibili solo i tuoi personaggi" }, 403);
     }
 
     const patch: Record<string, boolean> = { available_for_players: !!available };

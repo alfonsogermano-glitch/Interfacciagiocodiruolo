@@ -1,16 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Play, Square, Loader2, AlertTriangle, Users, Ghost, Skull,
-  KeyRound, Check, MoreVertical, Pencil, Copy, UserCog, FileDown, Trash2, UserMinus,
+  KeyRound, Check, MoreVertical, Pencil, Copy, CopyPlus, UserCog, FileDown, Trash2, UserMinus, Undo2,
   LayoutGrid, Package,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
 import { useCampaignChannel } from '../../services/realtime/campaignChannel';
-import { loadCharactersByOwner, copyCharacterToCampaign, unassignCharacterFromCampaign } from '../../services/supabase/charactersService';
-import { loadNPCs, loadMonsters, type NPC, type Monster } from '../../services/supabase/entitiesService';
+import {
+  loadCharactersByOwner, copyCharacterToCampaign, unassignCharacterFromCampaign,
+  duplicateCharacter, deleteCharacter, setCharacterAvailableForPlayers, releaseCharacter,
+  saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, deleteCharacterAsGm, mapRowToCharacter,
+} from '../../services/supabase/charactersService';
+import {
+  loadNPCs, loadMonsters, type NPC, type Monster,
+  duplicateNPC, deleteNPC, unassignNPCFromCampaign, copyNPCToCampaign,
+  duplicateMonster, deleteMonster, unassignMonsterFromCampaign, copyMonsterToCampaign,
+} from '../../services/supabase/entitiesService';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { EntityCard } from '../components/session/shared/EntityCard';
+import { EntityKebabMenu, type EntityKebabMenuItem } from '../components/session/shared/EntityKebabMenu';
 import { CampaignNotesPanel } from '../components/session/shared/CampaignNotesPanel';
 import { CampaignForm } from './CampaignSelector';
 import { CampaignCoverEditor, type CampaignCoverPatch } from './CampaignCoverEditor';
@@ -20,6 +29,23 @@ import type { TokenBorderStyle, TokenBorderThickness } from '../../types/tokenSt
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
 } from '../components/ui/dropdown-menu';
+import { ConfirmDialog } from '../components/shared/ConfirmDialog';
+import { Switch } from '../components/ui/switch';
+import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
+import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../components/ui/paletteColors';
+import type { Character } from '../../types/character';
+
+// Stessa funzione di MyCharactersPage.tsx (non condivisa in un modulo a
+// parte: e' un one-liner che legge il DOM, non vale la pena un import
+// incrociato tra le due pagine per questo).
+function getCurrentPaletteColors() {
+  const el = document.querySelector('[data-dashboard-palette]');
+  const palette = el?.getAttribute('data-dashboard-palette') as PaletteId | null;
+  return palette && PALETTE_COLORS[palette] ? PALETTE_COLORS[palette] : DEFAULT_PALETTE_COLORS;
+}
+
+const photoCornerButtonClass =
+  'rounded-lg bg-black/40 p-1 text-white/80 transition-colors hover:bg-black/60 hover:text-white';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 const AUTO_CLOSE_AFTER_MS = 60 * 60 * 1000; // 1 ora
@@ -54,6 +80,14 @@ type PlayerCharacterSummary = {
   tokenBorderThickness: TokenBorderThickness | null;
   tokenBorderVisible: boolean | null;
   tokenBorderLabel: string | null;
+  // Servono per le condizioni del menu ⋮ (Disponibile per i giocatori,
+  // Rilascia al GM) - gia' presenti nella risposta grezza di
+  // GET /campaigns/:id/characters (select("*") lato server), qui solo
+  // mappati per la prima volta.
+  campaignId: string | null;
+  claimableOrigin: boolean;
+  originalOwnerProfileId: string | null;
+  availableForPlayers: boolean;
 };
 
 type PlayerRow = {
@@ -92,7 +126,7 @@ function quickFilterHeading(filter: QuickFilter): { icon: typeof Users; label: s
 
 export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: CampaignHomeProps) {
   const { user, session } = useAuth();
-  const { activeCampaign, campaigns, refreshCampaigns, refreshJoinedCampaigns, updateCampaign, deleteCampaign, generateInviteCode } = useCampaign();
+  const { activeCampaign, campaigns, joinedCampaigns, refreshCampaigns, refreshJoinedCampaigns, updateCampaign, deleteCampaign, generateInviteCode } = useCampaign();
 
   const [isToggling, setIsToggling] = useState(false);
   const [gmOnline, setGmOnline] = useState(false);
@@ -136,6 +170,31 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   // Bump per forzare un refetch di PG/PNG/Mostri dopo copia/rimozione dal
   // menu delle card, o dopo un evento members_change dal canale condiviso.
   const [playersReloadToken, setPlayersReloadToken] = useState(0);
+  // Righe grezze (select("*") originale) dietro a playerRows/availablePremades -
+  // PlayerCharacterSummary e' troppo leggero per precompilare il wizard di
+  // modifica (mancano ambiti/abilita/equipaggiamento/etc.), quindi "Modifica"
+  // pesca da qui e mappa con mapRowToCharacter solo quando serve davvero.
+  const [charactersRaw, setCharactersRaw] = useState<any[]>([]);
+
+  // ─── Menu ⋮ condiviso (EntityKebabMenu) sulle card PG/precompilati/PNG/Mostri ───
+  const [menuColors, setMenuColors] = useState(() => getCurrentPaletteColors());
+  const [editingCharacter, setEditingCharacter] = useState<ReturnType<typeof mapRowToCharacter> | null>(null);
+  const [deleteCharTarget, setDeleteCharTarget] = useState<PlayerCharacterSummary | null>(null);
+  const [isDeletingChar, setIsDeletingChar] = useState(false);
+  const [releaseCharTarget, setReleaseCharTarget] = useState<PlayerCharacterSummary | null>(null);
+  const [isReleasingChar, setIsReleasingChar] = useState(false);
+  // Elimina/Rimuovi/Copia per PNG e Mostri - tagged union invece di 6 stati
+  // separati (uno per azione x tipo): stessa forma per entrambi i tipi,
+  // nessuna differenza di comportamento tra i due se non la funzione service
+  // da chiamare.
+  const [deleteEntityTarget, setDeleteEntityTarget] = useState<{ kind: 'npc' | 'monster'; id: string; name: string } | null>(null);
+  const [isDeletingEntity, setIsDeletingEntity] = useState(false);
+  const [unassignEntityTarget, setUnassignEntityTarget] = useState<{ kind: 'npc' | 'monster'; id: string; name: string } | null>(null);
+  const [isUnassigningEntity, setIsUnassigningEntity] = useState(false);
+  const [copyEntityDialog, setCopyEntityDialog] = useState<{ kind: 'npc' | 'monster'; id: string; name: string; ruleset: RulesetId | null } | null>(null);
+  const [copyEntityTargetId, setCopyEntityTargetId] = useState<string | null>(null);
+  const [isCopyingEntity, setIsCopyingEntity] = useState(false);
+  const [copyEntityError, setCopyEntityError] = useState<string | null>(null);
 
   const lookupSeqRef = useRef(0);
   const isOwner = activeCampaign?.ownerId === user?.id;
@@ -228,6 +287,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
         if (cancelled) return;
 
         const characters = charsData.characters ?? [];
+        setCharactersRaw(characters);
         // Il GM ha gia' la propria riga dedicata (badge "GM") indipendentemente
         // dal fatto che possieda un PG - va escluso qui, all'ingresso
         // dell'unione, cosi' non puo' ricomparire ne' come membro ne' come
@@ -254,6 +314,10 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
           tokenBorderThickness: ch.token_border_thickness ?? null,
           tokenBorderVisible: ch.token_border_visible ?? null,
           tokenBorderLabel: ch.token_border_label ?? null,
+          campaignId: ch.campaign_id ?? null,
+          claimableOrigin: ch.claimable_origin ?? false,
+          originalOwnerProfileId: ch.original_owner_profile_id ?? null,
+          availableForPlayers: ch.available_for_players ?? false,
         });
 
         const charsByOwner = new Map<string, PlayerCharacterSummary[]>();
@@ -471,9 +535,15 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
 
   const compatibleCopyTargets = (char: PlayerCharacterSummary | null) => {
     if (!char || !activeCampaign) return [];
-    return campaigns.filter(
-      (c) => c.id !== activeCampaign.id && isRulesetCompatible(char.ruleset, activeCampaign.ruleset, c.ruleset)
-    );
+    // campagne possedute + a cui si partecipa: chi copia non e' sempre il
+    // GM (un giocatore che copia il proprio PG usera' tipicamente una
+    // campagna a cui partecipa, non una che possiede).
+    const ids = new Set<string>();
+    return [...campaigns, ...joinedCampaigns].filter((c) => {
+      if (ids.has(c.id) || c.id === activeCampaign.id) return false;
+      ids.add(c.id);
+      return isRulesetCompatible(char.ruleset, activeCampaign.ruleset, c.ruleset);
+    });
   };
 
   const handleConfirmCopyCharacter = async () => {
@@ -526,6 +596,298 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     } finally {
       setIsRemovingPlayer(false);
     }
+  };
+
+  // ─── Menu ⋮ PG/precompilati: handler condivisi tra playerRows e availablePremades ───
+
+  // Duplica crea sempre una riga nuova posseduta da chi clicca (mai
+  // l'originale) - sicuro indipendentemente da chi possiede il PG di
+  // partenza, nessun branch isMine necessario qui (a differenza di
+  // Modifica/Elimina sotto).
+  const handleDuplicateCharacterCard = async (id: string) => {
+    if (!user?.id) return;
+    try {
+      await duplicateCharacter(id, user.id);
+      setPlayersReloadToken((t) => t + 1);
+    } catch (err) {
+      console.error('Errore duplicazione personaggio:', err);
+    }
+  };
+
+  // "Modifica" pesca la riga grezza (non la summary, troppo leggera per
+  // precompilare il wizard) e la mappa con mapRowToCharacter.
+  const handleOpenEditCharacter = (id: string) => {
+    const raw = charactersRaw.find((r) => r.id === id);
+    if (!raw) return;
+    setEditingCharacter(mapRowToCharacter(raw));
+  };
+
+  // Stesso pattern isMine di PlayerCharacters.tsx (persistCharacter): il
+  // wizard salva sempre con ownerProfileId potenzialmente diverso da chi
+  // sta modificando - se il GM sta modificando il PG di un giocatore serve
+  // passare da saveCharacterAsGm (server, preserva la proprieta'), non da
+  // saveCharacter diretto (sposterebbe la proprieta' al GM).
+  const handleSaveEditedCharacter = async (character: Character & { player: string; notes: string }) => {
+    if (!activeCampaign || !session || !user?.id) return;
+    const ownerProfileId = (editingCharacter as any)?.ownerProfileId as string | undefined;
+    const isMine = !ownerProfileId || ownerProfileId === user.id;
+    try {
+      if (isMine) {
+        await saveCharacterToSupabase(activeCampaign.id, character, user.id);
+      } else {
+        await saveCharacterAsGm(activeCampaign.id, character.id, character, SERVER_BASE, session.access_token);
+      }
+      setEditingCharacter(null);
+      setPlayersReloadToken((t) => t + 1);
+    } catch (err) {
+      console.error('Errore salvataggio personaggio:', err);
+    }
+  };
+
+  const handleConfirmDeleteCharacter = async () => {
+    if (!deleteCharTarget || !activeCampaign || !session) return;
+    setIsDeletingChar(true);
+    try {
+      const isMine = deleteCharTarget.ownerProfileId === user?.id;
+      if (isMine) {
+        await deleteCharacter(deleteCharTarget.id);
+      } else {
+        await deleteCharacterAsGm(activeCampaign.id, deleteCharTarget.id, SERVER_BASE, session.access_token);
+      }
+      setDeleteCharTarget(null);
+      setPlayersReloadToken((t) => t + 1);
+    } catch (err) {
+      console.error('Errore eliminazione personaggio:', err);
+    } finally {
+      setIsDeletingChar(false);
+    }
+  };
+
+  // Sempre self-service: la voce non viene mai offerta al GM (vedi
+  // costruzione degli item piu' sotto), solo al giocatore che possiede
+  // attualmente il PG.
+  const handleConfirmReleaseCharacter = async () => {
+    if (!releaseCharTarget) return;
+    setIsReleasingChar(true);
+    try {
+      const accessToken = session?.access_token ?? publicAnonKey;
+      await releaseCharacter(releaseCharTarget.id, SERVER_BASE, accessToken);
+      setReleaseCharTarget(null);
+      setPlayersReloadToken((t) => t + 1);
+    } catch (err) {
+      console.error('Errore rilascio personaggio:', err);
+    } finally {
+      setIsReleasingChar(false);
+    }
+  };
+
+  // Toggle "Disponibile per i giocatori" - solo sui precompilati del GM,
+  // update ottimistico locale (stesso schema di MyCharactersPage.tsx),
+  // rollback su errore.
+  const handleToggleCharacterAvailable = async (ch: PlayerCharacterSummary) => {
+    const nextAvailable = !ch.availableForPlayers;
+    setAvailablePremades((prev) => prev.map((c) => (c.id === ch.id ? { ...c, availableForPlayers: nextAvailable } : c)));
+    try {
+      const accessToken = session?.access_token ?? publicAnonKey;
+      await setCharacterAvailableForPlayers(ch.id, nextAvailable, SERVER_BASE, accessToken);
+      if (!nextAvailable) setPlayersReloadToken((t) => t + 1);
+    } catch (err) {
+      console.error('Errore aggiornamento disponibilità personaggio:', err);
+      setAvailablePremades((prev) => prev.map((c) => (c.id === ch.id ? ch : c)));
+    }
+  };
+
+  // ─── Menu ⋮ PNG/Mostri (sempre del GM, nessun branch isMine) ───
+
+  const handleDuplicateEntityCard = async (kind: 'npc' | 'monster', id: string) => {
+    try {
+      if (kind === 'npc') {
+        const duplicated = await duplicateNPC(id);
+        setNpcs((prev) => [...prev, duplicated]);
+      } else {
+        const duplicated = await duplicateMonster(id);
+        setMonsters((prev) => [...prev, duplicated]);
+      }
+    } catch (err) {
+      console.error('Errore duplicazione:', err);
+    }
+  };
+
+  const compatibleCopyEntityTargets = () => {
+    if (!copyEntityDialog || !activeCampaign) return [];
+    const ids = new Set<string>();
+    return [...campaigns, ...joinedCampaigns].filter((c) => {
+      if (ids.has(c.id) || c.id === activeCampaign.id) return false;
+      ids.add(c.id);
+      return isRulesetCompatible(copyEntityDialog.ruleset, activeCampaign.ruleset, c.ruleset);
+    });
+  };
+
+  const handleConfirmCopyEntity = async () => {
+    if (!copyEntityDialog || !copyEntityTargetId || !user?.id) return;
+    setIsCopyingEntity(true);
+    setCopyEntityError(null);
+    try {
+      if (copyEntityDialog.kind === 'npc') {
+        await copyNPCToCampaign(copyEntityDialog.id, copyEntityTargetId, user.id);
+      } else {
+        await copyMonsterToCampaign(copyEntityDialog.id, copyEntityTargetId, user.id);
+      }
+      setCopyEntityDialog(null);
+      setCopyEntityTargetId(null);
+    } catch (err) {
+      setCopyEntityError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsCopyingEntity(false);
+    }
+  };
+
+  const handleConfirmUnassignEntity = async () => {
+    if (!unassignEntityTarget) return;
+    setIsUnassigningEntity(true);
+    try {
+      if (unassignEntityTarget.kind === 'npc') {
+        await unassignNPCFromCampaign(unassignEntityTarget.id);
+        setNpcs((prev) => prev.filter((n) => n.id !== unassignEntityTarget.id));
+      } else {
+        await unassignMonsterFromCampaign(unassignEntityTarget.id);
+        setMonsters((prev) => prev.filter((m) => m.id !== unassignEntityTarget.id));
+      }
+      setUnassignEntityTarget(null);
+    } catch (err) {
+      console.error('Errore rimozione dalla campagna:', err);
+    } finally {
+      setIsUnassigningEntity(false);
+    }
+  };
+
+  const handleConfirmDeleteEntity = async () => {
+    if (!deleteEntityTarget) return;
+    setIsDeletingEntity(true);
+    try {
+      if (deleteEntityTarget.kind === 'npc') {
+        await deleteNPC(deleteEntityTarget.id);
+        setNpcs((prev) => prev.filter((n) => n.id !== deleteEntityTarget.id));
+      } else {
+        await deleteMonster(deleteEntityTarget.id);
+        setMonsters((prev) => prev.filter((m) => m.id !== deleteEntityTarget.id));
+      }
+      setDeleteEntityTarget(null);
+    } catch (err) {
+      console.error('Errore eliminazione:', err);
+    } finally {
+      setIsDeletingEntity(false);
+    }
+  };
+
+  // Costruisce le voci del menu ⋮ di un PG - condivisa tra playerRows (di un
+  // giocatore, row valorizzato) e availablePremades (del GM, row assente).
+  // Chiamata solo quando il menu e' comunque visibile (isOwner || isSelfOwned,
+  // vedi cornerAction sulle card), quindi Modifica/Duplica/Copia/Rimuovi/
+  // Elimina sono sempre incluse - cambiano solo Disponibile per i giocatori
+  // (solo GM sul proprio precompilato) e Rilascia al GM (solo il giocatore
+  // proprietario, mai il GM) e Rimuovi il giocatore (solo su playerRows).
+  const buildCharacterMenuItems = (ch: PlayerCharacterSummary, row: PlayerRow | null) => {
+    const isSelfOwned = ch.ownerProfileId === user?.id;
+    const items: EntityKebabMenuItem[] = [
+      {
+        key: 'edit',
+        icon: <Pencil className="h-4 w-4" />,
+        label: 'Modifica',
+        onClick: () => handleOpenEditCharacter(ch.id),
+      },
+      {
+        key: 'duplicate',
+        icon: <CopyPlus className="h-4 w-4" />,
+        label: 'Duplica',
+        onClick: () => handleDuplicateCharacterCard(ch.id),
+      },
+    ];
+
+    if (isOwner && isSelfOwned) {
+      items.push({
+        key: 'available-for-players',
+        icon: <UserCog className="h-4 w-4" />,
+        label: 'Disponibile per i giocatori',
+        onClick: () => handleToggleCharacterAvailable(ch),
+        keepOpenAfterClick: true,
+        trailing: <Switch checked={ch.availableForPlayers} className="pointer-events-none" />,
+      });
+    }
+
+    items.push({
+      key: 'copy',
+      icon: <Copy className="h-4 w-4" />,
+      label: "Copia in un'altra campagna",
+      onClick: () => setCopyDialogChar(ch),
+    });
+
+    items.push({
+      key: 'unassign',
+      icon: <UserMinus className="h-4 w-4" />,
+      label: 'Rimuovi dalla campagna',
+      onClick: () => setRemoveCharTarget(ch),
+    });
+
+    if (!isOwner && isSelfOwned && ch.claimableOrigin && ch.originalOwnerProfileId != null && ch.ownerProfileId !== ch.originalOwnerProfileId) {
+      items.push({
+        key: 'release',
+        icon: <Undo2 className="h-4 w-4" />,
+        label: 'Rilascia al GM',
+        onClick: () => setReleaseCharTarget(ch),
+      });
+    }
+
+    items.push({
+      key: 'delete',
+      icon: <Trash2 className="h-4 w-4" />,
+      label: 'Elimina',
+      onClick: () => setDeleteCharTarget(ch),
+      danger: true,
+    });
+
+    if (isOwner && row) {
+      items.push({
+        key: 'remove-player',
+        icon: <UserMinus className="h-4 w-4" />,
+        label: 'Rimuovi il giocatore',
+        onClick: () => setRemovePlayerTarget(row),
+        danger: true,
+      });
+    }
+
+    return items;
+  };
+
+  const buildEntityMenuItems = (kind: 'npc' | 'monster', entity: NPC | Monster) => {
+    const items: EntityKebabMenuItem[] = [
+      {
+        key: 'duplicate',
+        icon: <CopyPlus className="h-4 w-4" />,
+        label: 'Duplica',
+        onClick: () => handleDuplicateEntityCard(kind, entity.id),
+      },
+      {
+        key: 'copy',
+        icon: <Copy className="h-4 w-4" />,
+        label: "Copia in un'altra campagna",
+        onClick: () => setCopyEntityDialog({ kind, id: entity.id, name: entity.name || '', ruleset: entity.ruleset ?? null }),
+      },
+      {
+        key: 'unassign',
+        icon: <UserMinus className="h-4 w-4" />,
+        label: 'Rimuovi dalla campagna',
+        onClick: () => setUnassignEntityTarget({ kind, id: entity.id, name: entity.name || '' }),
+      },
+      {
+        key: 'delete',
+        icon: <Trash2 className="h-4 w-4" />,
+        label: 'Elimina',
+        onClick: () => setDeleteEntityTarget({ kind, id: entity.id, name: entity.name || '' }),
+        danger: true,
+      },
+    ];
+    return items;
   };
 
   const gmInitial = (gmDisplayName ?? 'G').trim().charAt(0).toUpperCase() || 'G';
@@ -784,41 +1146,12 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                         tokenBorderVisible={ch.tokenBorderVisible}
                         tokenBorderLabel={ch.tokenBorderLabel}
                         cornerAction={
-                          isOwner ? (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <button
-                                  type="button"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="rounded-lg bg-black/40 p-1 text-white/80 transition-colors hover:bg-black/60 hover:text-white"
-                                  aria-label="Menu personaggio"
-                                >
-                                  <MoreVertical className="h-4 w-4" />
-                                </button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent
-                                align="end"
-                                className="w-64 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-text)]"
-                              >
-                                <DropdownMenuItem
-                                  onSelect={() => setCopyDialogChar(ch)}
-                                  className="text-[var(--dash-text)] focus:bg-[var(--dash-surface-2)] focus:text-[var(--dash-text-strong)]"
-                                >
-                                  <Copy className="h-4 w-4" /> Copia in un'altra campagna
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onSelect={() => setRemoveCharTarget(ch)}
-                                  className="text-[var(--dash-danger-text)] focus:bg-[var(--dash-danger-bg)] focus:text-[var(--dash-danger-text)]"
-                                >
-                                  <Trash2 className="h-4 w-4" /> Rimuovi il Personaggio
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onSelect={() => setRemovePlayerTarget(row)}
-                                  className="text-[var(--dash-danger-text)] focus:bg-[var(--dash-danger-bg)] focus:text-[var(--dash-danger-text)]"
-                                >
-                                  <UserMinus className="h-4 w-4" /> Rimuovi il giocatore
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator className="bg-[var(--dash-border-soft)]" />
+                          isOwner || ch.ownerProfileId === user?.id ? (
+                            <EntityKebabMenu
+                              colors={menuColors}
+                              buttonClassName={photoCornerButtonClass}
+                              items={buildCharacterMenuItems(ch, row)}
+                              footer={
                                 <div className="px-2 py-1.5 text-xs text-[var(--dash-muted)]">
                                   {ch.createdAt && (
                                     <div>Creato il {new Date(ch.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
@@ -827,8 +1160,8 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                                     <div>Unito alla campagna il {new Date(row.joinedAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
                                   )}
                                 </div>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                              }
+                            />
                           ) : undefined
                         }
                       >
@@ -887,6 +1220,15 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                     tokenBorderThickness={ch.tokenBorderThickness}
                     tokenBorderVisible={ch.tokenBorderVisible}
                     tokenBorderLabel={ch.tokenBorderLabel}
+                    cornerAction={
+                      isOwner ? (
+                        <EntityKebabMenu
+                          colors={menuColors}
+                          buttonClassName={photoCornerButtonClass}
+                          items={buildCharacterMenuItems(ch, null)}
+                        />
+                      ) : undefined
+                    }
                   />
                 ))
               )
@@ -918,6 +1260,15 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                     tokenBorderVisible={npc.tokenBorderVisible}
                     tokenBorderLabel={npc.tokenBorderLabel}
                     hiddenBadge={!npc.visibleToPlayers}
+                    cornerAction={
+                      isOwner ? (
+                        <EntityKebabMenu
+                          colors={menuColors}
+                          buttonClassName={photoCornerButtonClass}
+                          items={buildEntityMenuItems('npc', npc)}
+                        />
+                      ) : undefined
+                    }
                   />
                 ))}
               </>
@@ -946,6 +1297,15 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                     tokenBorderVisible={monster.tokenBorderVisible}
                     tokenBorderLabel={monster.tokenBorderLabel}
                     hiddenBadge={!monster.visibleToPlayers}
+                    cornerAction={
+                      isOwner ? (
+                        <EntityKebabMenu
+                          colors={menuColors}
+                          buttonClassName={photoCornerButtonClass}
+                          items={buildEntityMenuItems('monster', monster)}
+                        />
+                      ) : undefined
+                    }
                   />
                 ))}
               </>
@@ -1078,6 +1438,111 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
             </div>
           </div>
         </div>
+      )}
+
+      {editingCharacter && (
+        <CharacterCreationWizard
+          onClose={() => setEditingCharacter(null)}
+          onAdd={handleSaveEditedCharacter}
+          existingCharacters={charactersRaw.filter((r) => r.id !== editingCharacter.id).map((r) => ({ id: r.id, name: r.name }))}
+          initialCharacter={editingCharacter}
+        />
+      )}
+
+      {deleteCharTarget && (
+        <ConfirmDialog
+          title="Eliminare questo personaggio?"
+          message={`"${deleteCharTarget.name}" e tutti i suoi dati verranno eliminati definitivamente. Questa azione non è reversibile.`}
+          confirmLabel="Elimina"
+          onConfirm={handleConfirmDeleteCharacter}
+          onCancel={() => setDeleteCharTarget(null)}
+        />
+      )}
+
+      {releaseCharTarget && (
+        <ConfirmDialog
+          title="Rilasciare questo personaggio?"
+          message={`"${releaseCharTarget.name}" tornerà al GM e sarà di nuovo disponibile per altri giocatori. Tutte le statistiche e le tab restano intatte.`}
+          confirmLabel="Rilascia"
+          danger={false}
+          onConfirm={handleConfirmReleaseCharacter}
+          onCancel={() => setReleaseCharTarget(null)}
+        />
+      )}
+
+      {copyEntityDialog && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-sm rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-surface)] p-6 shadow-2xl">
+            <h3 className="mb-1 text-lg font-semibold text-[var(--dash-text-strong)]">Copia in un'altra campagna</h3>
+            <p className="mb-4 text-sm text-[var(--dash-muted)]">
+              "{copyEntityDialog.name}" verrà copiato (l'originale resta qui) nella campagna scelta.
+            </p>
+            {copyEntityError && (
+              <div className="mb-3 rounded-lg border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-3 py-2 text-sm text-[var(--dash-danger-text)]">
+                {copyEntityError}
+              </div>
+            )}
+            {compatibleCopyEntityTargets().length === 0 ? (
+              <p className="mb-4 text-sm text-[var(--dash-muted)]">Nessun'altra tua campagna compatibile per ruleset.</p>
+            ) : (
+              <div className="mb-4 flex flex-col gap-1.5">
+                {compatibleCopyEntityTargets().map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCopyEntityTargetId(c.id)}
+                    className={`rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
+                      copyEntityTargetId === c.id
+                        ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/15 text-[var(--dash-text-strong)]'
+                        : 'border-[var(--dash-border-soft)] bg-[var(--dash-panel)] text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]'
+                    }`}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setCopyEntityDialog(null); setCopyEntityTargetId(null); setCopyEntityError(null); }}
+                disabled={isCopyingEntity}
+                className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)]"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCopyEntity}
+                disabled={!copyEntityTargetId || isCopyingEntity}
+                className="inline-flex items-center gap-2 rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-4 py-2 text-sm font-semibold text-[var(--dash-text-strong)] disabled:opacity-50"
+              >
+                {isCopyingEntity && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Copia
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {unassignEntityTarget && (
+        <ConfirmDialog
+          title="Rimuovere dalla campagna?"
+          message={`"${unassignEntityTarget.name}" non verrà eliminato: resterà nel database, semplicemente non farà più parte di questa campagna.`}
+          confirmLabel="Rimuovi"
+          onConfirm={handleConfirmUnassignEntity}
+          onCancel={() => setUnassignEntityTarget(null)}
+        />
+      )}
+
+      {deleteEntityTarget && (
+        <ConfirmDialog
+          title="Eliminare definitivamente?"
+          message={`"${deleteEntityTarget.name}" verrà eliminato definitivamente. Questa azione non è reversibile.`}
+          confirmLabel="Elimina"
+          onConfirm={handleConfirmDeleteEntity}
+          onCancel={() => setDeleteEntityTarget(null)}
+        />
       )}
 
       {showInviteByNameModal && activeCampaign && (
