@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Check,
   Copy,
@@ -13,16 +13,20 @@ import {
   Zap,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
-import { useCampaign } from '../campaigns/CampaignContext';
+import { useCampaign, type InvitePreview } from '../campaigns/CampaignContext';
 import { CampaignForm } from '../campaigns/CampaignSelector';
-import { type Campaign, type CampaignCreateInput, type RulesetId } from '../campaigns/campaignTypes';
+import { type Campaign, type CampaignCreateInput, type RulesetId, isRulesetCompatible } from '../campaigns/campaignTypes';
 import { RulesetPickerDialog } from '../campaigns/RulesetPickerDialog';
 import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
 import { CampaignBannerDisplay } from '../components/shared/CampaignBannerDisplay';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
-import { saveCharacter as saveCharacterToSupabase, loadCharactersByOwner } from '../../services/supabase/charactersService';
+import { JoinCampaignCharacterDialog } from '../components/session/shared/JoinCampaignCharacterDialog';
+import { saveCharacter as saveCharacterToSupabase, loadCharactersByOwner, assignCharacterToCampaign } from '../../services/supabase/charactersService';
 import type { DashboardPalette } from '../../services/settings/dashboardSettings';
 import type { Character } from '../../types/character';
+import { projectId, publicAnonKey } from '/utils/supabase/info';
+
+const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
 interface HomeScreenProps {
   onEnterCampaign: (campaign: Campaign) => void;
@@ -32,17 +36,15 @@ interface HomeScreenProps {
 }
 
 export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, palette }: HomeScreenProps) {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const {
     campaigns,
-    joinedCampaigns,
     isLoading: campaignsLoading,
     createCampaign,
-    joinCampaignByCode,
+    previewInviteCode,
+    refreshJoinedCampaigns,
     generateInviteCode,
   } = useCampaign();
-
-  const allCampaigns = useMemo(() => [...campaigns, ...joinedCampaigns], [campaigns, joinedCampaigns]);
 
   const charactersSectionRef = useRef<HTMLDivElement | null>(null);
   const campaignsSectionRef = useRef<HTMLDivElement | null>(null);
@@ -116,38 +118,79 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
     window.setTimeout(() => setCopiedCampaignId(null), 1800);
   };
 
-  // ─── Sessioni a cui partecipo (Player) ─────────────────────────────────────
+  // ─── Unisciti a campagna (Player) ──────────────────────────────────────────
+  // Due passaggi, non uno: prima si risolve il codice in {campaignName,
+  // ruleset} SENZA unirsi (previewInviteCode, nessun effetto collaterale),
+  // si incrocia col ruleset dei propri PG - se nessuno e' compatibile la
+  // join non parte affatto (nessuna eccezione "crea un PG al volo"); solo
+  // se c'e' almeno un PG compatibile si passa alla scelta, che completa la
+  // join riusando assignCharacterToCampaign con {inviteCode} (stessa identica
+  // funzione/endpoint gia' usati dal terzo flusso in MyCharactersPage.tsx,
+  // che valida di nuovo la compatibilita' lato server - nessuna duplicazione
+  // di logica di join, solo dell'anteprima).
+  const [showJoinCodeStep, setShowJoinCodeStep] = useState(false);
   const [inviteCodeInput, setInviteCodeInput] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
-  const [joinSuccess, setJoinSuccess] = useState<string | null>(null);
   const [myCharacters, setMyCharacters] = useState<Awaited<ReturnType<typeof loadCharactersByOwner>>>([]);
-  const inviteCodeInputRef = useRef<HTMLInputElement | null>(null);
+  const [pendingJoin, setPendingJoin] = useState<{ code: string; preview: InvitePreview } | null>(null);
 
   useEffect(() => {
     if (!user?.id) return;
     loadCharactersByOwner(user.id).then(setMyCharacters);
   }, [user?.id]);
 
-  const focusInviteCodeInput = () => {
-    window.setTimeout(() => {
-      inviteCodeInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      inviteCodeInputRef.current?.focus();
-    }, 100);
+  const openJoinFlow = () => {
+    setInviteCodeInput('');
+    setJoinError(null);
+    setShowJoinCodeStep(true);
   };
 
-  const handleJoinSubmit = async (e: React.FormEvent) => {
+  const handlePreviewCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteCodeInput.trim()) return;
+    const code = inviteCodeInput.trim();
+    if (!code) return;
 
     setIsJoining(true);
     setJoinError(null);
-    setJoinSuccess(null);
 
     try {
-      const joined = await joinCampaignByCode(inviteCodeInput.trim());
-      setJoinSuccess(`Ti sei unito a "${joined.name}".`);
-      setInviteCodeInput('');
+      const preview = await previewInviteCode(code);
+      const compatibleCharacters = myCharacters.filter(c => isRulesetCompatible(c.ruleset, null, preview.ruleset));
+
+      if (compatibleCharacters.length === 0) {
+        setJoinError(
+          `Nessuno dei tuoi personaggi è compatibile con il regolamento di "${preview.campaignName}". ` +
+          'Crea o richiedi un personaggio compatibile, poi riprova.'
+        );
+        return;
+      }
+
+      setPendingJoin({ code, preview });
+      setShowJoinCodeStep(false);
+    } catch (err) {
+      setJoinError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  const compatibleCharactersForPendingJoin = pendingJoin
+    ? myCharacters.filter(c => isRulesetCompatible(c.ruleset, null, pendingJoin.preview.ruleset))
+    : [];
+
+  const handleSelectCharacterForJoin = async (characterId: string) => {
+    if (!pendingJoin) return;
+    setIsJoining(true);
+    setJoinError(null);
+
+    try {
+      const accessToken = session?.access_token ?? publicAnonKey;
+      await assignCharacterToCampaign(characterId, SERVER_BASE, accessToken, { inviteCode: pendingJoin.code });
+      const freshJoined = await refreshJoinedCampaigns();
+      const entered = freshJoined.find(c => c.id === pendingJoin.preview.campaignId);
+      setPendingJoin(null);
+      if (entered) onEnterCampaign(entered);
     } catch (err) {
       setJoinError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -218,7 +261,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
 
             <button
               type="button"
-              onClick={focusInviteCodeInput}
+              onClick={openJoinFlow}
               className="group relative overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-gradient-to-br from-emerald-600 to-teal-950 p-6 text-left text-white shadow-lg transition-all hover:-translate-y-1 hover:shadow-2xl"
             >
               <DoorOpen className="mb-4 h-9 w-9" />
@@ -312,70 +355,6 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
           })()}
         </section>
 
-        {/* ─── Sezione 3: Sessioni a cui partecipo ──────────────────────────── */}
-        <section>
-          <div className="mb-5">
-            <div className="flex items-center gap-2.5">
-              <DoorOpen className="h-5 w-5 text-[var(--dash-accent)]" />
-              <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Sessioni a cui partecipo</h2>
-            </div>
-          </div>
-
-          <form onSubmit={handleJoinSubmit} className="mb-5 flex flex-col gap-3 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4 sm:flex-row sm:items-start">
-            <div className="flex-1">
-              <label className="mb-1.5 block text-xs uppercase tracking-[0.2em] text-[var(--dash-muted)]">
-                Codice invito
-              </label>
-              <input
-                ref={inviteCodeInputRef}
-                type="text"
-                value={inviteCodeInput}
-                onChange={e => setInviteCodeInput(e.target.value.toUpperCase())}
-                placeholder="es. AB12CD"
-                maxLength={12}
-                className="w-full rounded-xl border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-2.5 text-sm uppercase tracking-[0.25em] text-[var(--dash-text)] placeholder-[var(--dash-muted)] outline-none transition-shadow focus:border-[var(--dash-accent)] focus:shadow-[0_0_0_3px_var(--dash-card-shadow)]"
-              />
-              {joinError && <p className="mt-1.5 text-xs text-[var(--dash-danger-text)]">{joinError}</p>}
-              {joinSuccess && <p className="mt-1.5 text-xs text-[var(--dash-accent-2)]">{joinSuccess}</p>}
-            </div>
-            <button
-              type="submit"
-              disabled={isJoining || !inviteCodeInput.trim()}
-              className="flex items-center justify-center gap-2 rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--dash-text-strong)] shadow-[0_0_20px_var(--dash-card-shadow)] transition-all hover:bg-[var(--dash-accent-2)] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none sm:mt-[22px]"
-            >
-              {isJoining && <Loader2 className="h-4 w-4 animate-spin" />}
-              Unisciti
-            </button>
-          </form>
-
-          {joinedCampaigns.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
-              <DoorOpen className="h-10 w-10 text-[var(--dash-muted)]" />
-              <p className="text-sm text-[var(--dash-muted)]">
-                Non partecipi ancora a nessuna sessione come giocatore. Inserisci un codice invito per unirti a una campagna.
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {joinedCampaigns.map(campaign => {
-                const myCharacterHere = myCharacters.find(c => c.campaignId === campaign.id);
-                return (
-                  <button
-                    key={campaign.id}
-                    type="button"
-                    onClick={() => onEnterCampaign(campaign)}
-                    className="group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-left transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
-                  >
-                    <CampaignBannerDisplay campaign={campaign} size="compact" />
-                    <p className="p-4 text-xs text-[var(--dash-accent-2)]">
-                      {myCharacterHere ? `Stai giocando come: ${myCharacterHere.name}` : 'Nessun personaggio assegnato'}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </section>
       </main>
 
       {/* ─── Modale: scegli regolamento per nuovo PG ──────────────────────── */}
@@ -423,6 +402,61 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
             />
           </div>
         </div>
+      )}
+
+      {/* ─── Modale: unisciti a campagna, passo 1 (codice invito) ─────────── */}
+      {showJoinCodeStep && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-surface)] p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold tracking-wide text-[var(--dash-text-strong)]">Unisciti a una campagna</h3>
+              <button
+                type="button"
+                onClick={() => setShowJoinCodeStep(false)}
+                className="rounded-lg p-1.5 text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handlePreviewCode}>
+              <label className="mb-1.5 block text-xs uppercase tracking-[0.2em] text-[var(--dash-muted)]">
+                Codice invito
+              </label>
+              <input
+                type="text"
+                autoFocus
+                value={inviteCodeInput}
+                onChange={e => setInviteCodeInput(e.target.value.toUpperCase())}
+                placeholder="es. AB12CD"
+                maxLength={12}
+                className="w-full rounded-xl border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-2.5 text-sm uppercase tracking-[0.25em] text-[var(--dash-text)] placeholder-[var(--dash-muted)] outline-none transition-shadow focus:border-[var(--dash-accent)] focus:shadow-[0_0_0_3px_var(--dash-card-shadow)]"
+              />
+              {joinError && <p className="mt-1.5 text-xs text-[var(--dash-danger-text)]">{joinError}</p>}
+
+              <button
+                type="submit"
+                disabled={isJoining || !inviteCodeInput.trim()}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--dash-text-strong)] shadow-[0_0_20px_var(--dash-card-shadow)] transition-all hover:bg-[var(--dash-accent-2)] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+              >
+                {isJoining && <Loader2 className="h-4 w-4 animate-spin" />}
+                Continua
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Modale: unisciti a campagna, passo 2 (scegli il PG) ──────────── */}
+      {pendingJoin && (
+        <JoinCampaignCharacterDialog
+          campaignName={pendingJoin.preview.campaignName}
+          characters={compatibleCharactersForPendingJoin.map(c => ({ id: c.id, name: c.name, ruleset: c.ruleset }))}
+          isPending={isJoining}
+          error={joinError}
+          onSelectCharacter={handleSelectCharacterForJoin}
+          onClose={() => setPendingJoin(null)}
+        />
       )}
     </div>
   );

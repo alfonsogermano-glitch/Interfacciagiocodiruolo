@@ -30,11 +30,17 @@ type CampaignContextValue = {
   getCampaignEntityCounts: (id: string) => Promise<{ characters: number; npcs: number; monsters: number } | null>;
   deleteCampaign: (id: string) => Promise<void>;
   refreshCampaigns: () => Promise<void>;
-  refreshJoinedCampaigns: () => Promise<void>;
+  refreshJoinedCampaigns: () => Promise<Campaign[]>;
   joinCampaignByCode: (code: string) => Promise<Campaign>;
+  previewInviteCode: (code: string) => Promise<InvitePreview>;
   generateInviteCode: (campaignId: string) => Promise<void>;
   inviteByName: (campaignId: string, displayName: string) => Promise<void>;
 };
+
+// Risoluzione di un codice invito SENZA effetti collaterali (nessuna join) -
+// usata per sapere il ruleset della campagna prima di far scegliere un
+// personaggio compatibile (vedi HomeScreen.tsx/TopBar.tsx).
+export type InvitePreview = { campaignId: string; campaignName: string; ruleset: RulesetId | null };
 
 const CampaignContext = createContext<CampaignContextValue | null>(null);
 
@@ -94,8 +100,14 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     }
   }, [session?.access_token]);
 
-  const fetchJoinedCampaigns = useCallback(async () => {
-    if (!session?.access_token) return;
+  // Ritorna la lista appena scaricata (non solo void) - serve a chi ha
+  // appena completato una join (es. HomeScreen.tsx) per trovare la
+  // campagna a cui e' appena entrato senza affidarsi al valore di
+  // joinedCampaigns catturato nella closure del proprio handler, che
+  // resterebbe quello di prima del refresh finche' questo componente non
+  // si ri-renderizza.
+  const fetchJoinedCampaigns = useCallback(async (): Promise<Campaign[]> => {
+    if (!session?.access_token) return [];
 
     try {
       const res = await fetch(`${SERVER_BASE}/campaigns/joined`, {
@@ -104,13 +116,16 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
 
       if (!res.ok) {
         console.log('Errore fetch campagne a cui partecipo:', await res.text());
-        return;
+        return [];
       }
 
       const { campaigns: fetched } = await res.json();
-      setJoinedCampaigns(fetched ?? []);
+      const list: Campaign[] = fetched ?? [];
+      setJoinedCampaigns(list);
+      return list;
     } catch (err) {
       console.log('Errore di rete fetch campagne a cui partecipo:', err);
+      return [];
     }
   }, [session?.access_token]);
 
@@ -133,6 +148,19 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     });
 
     return joined;
+  }, [accessToken]);
+
+  const previewInviteCode = useCallback(async (code: string): Promise<InvitePreview> => {
+    const res = await fetch(`${SERVER_BASE}/campaigns/invite-preview?code=${encodeURIComponent(code)}`, {
+      headers: buildHeaders(accessToken),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error ?? 'Errore durante la verifica del codice invito');
+    }
+
+    return data as InvitePreview;
   }, [accessToken]);
 
   const inviteByName = useCallback(async (campaignId: string, displayName: string): Promise<void> => {
@@ -323,6 +351,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     refreshCampaigns: fetchCampaigns,
     refreshJoinedCampaigns: fetchJoinedCampaigns,
     joinCampaignByCode,
+    previewInviteCode,
     generateInviteCode,
     inviteByName,
   }), [
@@ -339,6 +368,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     fetchCampaigns,
     fetchJoinedCampaigns,
     joinCampaignByCode,
+    previewInviteCode,
     generateInviteCode,
     inviteByName,
   ]);

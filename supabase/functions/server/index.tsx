@@ -589,6 +589,10 @@ app.post("/make-server-771c5bfd/campaigns/:id/invite-by-name", async (c) => {
     await createNotification(admin, found.id, "campaign_invite", {
       campaignId,
       campaignName: campaign.name,
+      // Il client ne ha bisogno per proporre solo PG compatibili PRIMA di
+      // accettare (vedi TopBar.tsx) - scritto qui perche' 'campaign' e' gia'
+      // in scope, evita un'altra chiamata di rete solo per il ruleset.
+      campaignRuleset: campaign.ruleset ?? null,
       inviterProfileId: userId,
       inviterDisplayName: inviterProfile?.display_name ?? "Un Game Master",
       status: "pending",
@@ -707,6 +711,48 @@ app.post("/make-server-771c5bfd/campaigns/join", async (c) => {
     return c.json({ campaign });
   } catch (err) {
     console.log("Errore POST campaigns/join:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+// Risolve un codice invito in {campaignId, campaignName, ruleset} SENZA
+// alcun effetto collaterale (nessuna addPlayerToCampaign) - usato dal
+// client per sapere il ruleset della campagna PRIMA di completare la join,
+// cosi' puo' far scegliere un personaggio compatibile o bloccare del tutto
+// se non ce n'e' nessuno, invece di unirsi e basta come fa /campaigns/join
+// sopra. Stessa identica validazione di /campaigns/join, solo senza la
+// chiamata finale ad addPlayerToCampaign.
+app.get("/make-server-771c5bfd/campaigns/invite-preview", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const normalizedCode = String(c.req.query("code") ?? "").trim().toUpperCase();
+    if (!normalizedCode) {
+      return c.json({ error: "Il codice invito è obbligatorio" }, 400);
+    }
+
+    const membership: CampaignMembership | null = await kv.get(inviteCodeKey(normalizedCode));
+    if (!membership) {
+      return c.json({ error: "Codice invito non valido" }, 404);
+    }
+
+    if (membership.ownerId === userId) {
+      return c.json({ error: "Sei già il master di questa campagna" }, 400);
+    }
+
+    const ownerCampaigns: Campaign[] = await kv.get(campaignsKey(membership.ownerId)) ?? [];
+    const campaign = ownerCampaigns.find((cmp) => cmp.id === membership.campaignId);
+    if (!campaign) {
+      return c.json({ error: "Campagna non trovata" }, 404);
+    }
+
+    return c.json({ campaignId: campaign.id, campaignName: campaign.name, ruleset: campaign.ruleset ?? null });
+  } catch (err) {
+    console.log("Errore GET campaigns/invite-preview:", err);
     return c.json({ error: `Errore interno: ${err}` }, 500);
   }
 });

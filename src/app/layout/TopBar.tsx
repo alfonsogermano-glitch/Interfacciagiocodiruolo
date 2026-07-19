@@ -3,11 +3,17 @@ import { Bell, Bug, Check, ChevronDown, LogOut, Newspaper, Search, Settings, Use
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications, type NotificationRow } from '../notifications/NotificationsContext';
 import { useCampaign } from '../campaigns/CampaignContext';
+import { isRulesetCompatible } from '../campaigns/campaignTypes';
+import { JoinCampaignCharacterDialog } from '../components/session/shared/JoinCampaignCharacterDialog';
+import { loadCharactersByOwner, assignCharacterToCampaign } from '../../services/supabase/charactersService';
+import { projectId, publicAnonKey } from '/utils/supabase/info';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
 } from '../components/ui/dropdown-menu';
+
+const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
 interface TopBarProps {
   activeSection?: string | null;
@@ -38,10 +44,16 @@ function formatNotificationTime(iso: string): string {
 }
 
 function NotificationRowItem({ notification }: { notification: NotificationRow }) {
+  const { user, session } = useAuth();
   const { markAsRead, respondToInvite } = useNotifications();
   const { refreshJoinedCampaigns } = useCampaign();
   const [isResponding, setIsResponding] = useState(false);
   const [respondError, setRespondError] = useState<string | null>(null);
+  // Personaggi compatibili trovati per QUESTO invito, popolata al click su
+  // "Accetta" - non null significa "mostra il dialog di scelta PG" (spazio
+  // troppo stretto per gestirlo inline in questa riga di dropdown, vedi
+  // JoinCampaignCharacterDialog condiviso con HomeScreen.tsx).
+  const [compatibleCharacters, setCompatibleCharacters] = useState<{ id: string; name: string; ruleset: any }[] | null>(null);
 
   const meta = NOTIFICATION_LABELS[notification.type];
   const Icon = meta?.icon ?? Bell;
@@ -49,12 +61,63 @@ function NotificationRowItem({ notification }: { notification: NotificationRow }
 
   const isPendingInvite = notification.type === 'campaign_invite' && notification.data?.status === 'pending';
 
-  const handleRespond = async (action: 'accept' | 'decline') => {
+  const handleDecline = async () => {
     setIsResponding(true);
     setRespondError(null);
     try {
-      await respondToInvite(notification.id, action);
-      if (action === 'accept') await refreshJoinedCampaigns();
+      await respondToInvite(notification.id, 'decline');
+    } catch (err) {
+      setRespondError(err instanceof Error ? err.message : 'Errore durante la risposta.');
+    } finally {
+      setIsResponding(false);
+    }
+  };
+
+  // "Accetta" non chiama piu' respondToInvite direttamente: prima verifica
+  // che esista almeno un PG compatibile per ruleset con la campagna,
+  // altrimenti blocca del tutto (nessuna accettazione), stesso principio
+  // gia' applicato al codice invito in HomeScreen.tsx. Il ruleset della
+  // campagna viaggia gia' dentro la notifica (campaignRuleset, scritto da
+  // /campaigns/:id/invite-by-name) - nessuna chiamata di rete in piu' solo
+  // per saperlo.
+  const handleAcceptClick = async () => {
+    if (!user?.id) return;
+    setRespondError(null);
+
+    const campaignRuleset = notification.data?.campaignRuleset ?? null;
+    if (!campaignRuleset) {
+      setRespondError('Impossibile verificare la compatibilità di questo invito. Chiedi al GM di inviarlo di nuovo.');
+      return;
+    }
+
+    setIsResponding(true);
+    try {
+      const myCharacters = await loadCharactersByOwner(user.id);
+      const compatible = myCharacters.filter(c => isRulesetCompatible(c.ruleset, null, campaignRuleset));
+      if (compatible.length === 0) {
+        setRespondError(
+          `Nessuno dei tuoi personaggi è compatibile con il regolamento di "${notification.data?.campaignName ?? 'questa campagna'}". ` +
+          'Crea o richiedi un personaggio compatibile, poi riprova.'
+        );
+        return;
+      }
+      setCompatibleCharacters(compatible.map(c => ({ id: c.id, name: c.name, ruleset: c.ruleset })));
+    } catch (err) {
+      setRespondError(err instanceof Error ? err.message : 'Errore durante la verifica dei personaggi.');
+    } finally {
+      setIsResponding(false);
+    }
+  };
+
+  const handleSelectCharacterForInvite = async (characterId: string) => {
+    setIsResponding(true);
+    setRespondError(null);
+    try {
+      await respondToInvite(notification.id, 'accept');
+      const accessToken = session?.access_token ?? publicAnonKey;
+      await assignCharacterToCampaign(characterId, SERVER_BASE, accessToken, { campaignId: notification.data.campaignId });
+      await refreshJoinedCampaigns();
+      setCompatibleCharacters(null);
     } catch (err) {
       setRespondError(err instanceof Error ? err.message : 'Errore durante la risposta.');
     } finally {
@@ -78,7 +141,7 @@ function NotificationRowItem({ notification }: { notification: NotificationRow }
             <button
               type="button"
               disabled={isResponding}
-              onClick={(e) => { e.stopPropagation(); void handleRespond('accept'); }}
+              onClick={(e) => { e.stopPropagation(); void handleAcceptClick(); }}
               className="inline-flex items-center gap-1 rounded-lg border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-2.5 py-1 text-xs font-semibold text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-accent-2)] disabled:opacity-60"
             >
               <Check className="h-3.5 w-3.5" /> Accetta
@@ -86,7 +149,7 @@ function NotificationRowItem({ notification }: { notification: NotificationRow }
             <button
               type="button"
               disabled={isResponding}
-              onClick={(e) => { e.stopPropagation(); void handleRespond('decline'); }}
+              onClick={(e) => { e.stopPropagation(); void handleDecline(); }}
               className="inline-flex items-center gap-1 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 py-1 text-xs text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text)] disabled:opacity-60"
             >
               <X className="h-3.5 w-3.5" /> Rifiuta
@@ -95,6 +158,17 @@ function NotificationRowItem({ notification }: { notification: NotificationRow }
         )}
         {respondError && <p className="mt-1 text-[11px] text-[var(--dash-danger-text)]">{respondError}</p>}
       </div>
+
+      {compatibleCharacters && (
+        <JoinCampaignCharacterDialog
+          campaignName={notification.data?.campaignName ?? 'questa campagna'}
+          characters={compatibleCharacters}
+          isPending={isResponding}
+          error={respondError}
+          onSelectCharacter={(id) => { void handleSelectCharacterForInvite(id); }}
+          onClose={() => setCompatibleCharacters(null)}
+        />
+      )}
     </div>
   );
 }
