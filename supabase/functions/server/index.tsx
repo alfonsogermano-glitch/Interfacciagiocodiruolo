@@ -1044,6 +1044,12 @@ app.post("/make-server-771c5bfd/characters/:id/claim", async (c) => {
       return c.json({ error: "Questo personaggio è stato appena richiesto da un altro giocatore" }, 409);
     }
 
+    // La composizione visibile della campagna e' cambiata (un PG del GM e'
+    // diventato del giocatore) - il GM con CampaignHome.tsx aperta deve
+    // vederlo senza dover ricaricare, stesso canale/evento gia' usato per
+    // ogni altro caso che cambia chi possiede un PG in una campagna.
+    await broadcastCampaignMembersChange(admin, character.campaign_id);
+
     return c.json({ success: true, campaignId: character.campaign_id });
   } catch (err) {
     console.log("Errore POST characters/:id/claim:", err);
@@ -1130,9 +1136,13 @@ app.post("/make-server-771c5bfd/characters/:id/release", async (c) => {
 
       const playerCampaigns = await kv.get(playerCampaignsKey(userId)) ?? [];
       await kv.set(playerCampaignsKey(userId), playerCampaigns.filter((pc) => pc.campaignId !== character.campaign_id));
-
-      await broadcastCampaignMembersChange(admin, character.campaign_id);
     }
+
+    // Incondizionato (non solo nel ramo "leave" sopra): il PG e' tornato al
+    // GM ed e' di nuovo disponibile anche se il giocatore resta membro
+    // (ha ancora un altro PG attivo li') - la composizione visibile della
+    // campagna e' comunque cambiata, il GM deve vederlo senza ricaricare.
+    await broadcastCampaignMembersChange(admin, character.campaign_id);
 
     return c.json({ success: true });
   } catch (err) {
