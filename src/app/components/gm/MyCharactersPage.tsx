@@ -13,6 +13,7 @@ import { CharacterCreationWizard } from './CharacterCreationWizard';
 import { formatCampaignAdventureLabel } from '../../../services/campaign/campaignAdventureLabel';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Switch } from '../ui/switch';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { EntityCard } from '../session/shared/EntityCard';
 import { EntityKebabMenu } from '../session/shared/EntityKebabMenu';
 import { CampaignAssignDialog } from '../session/shared/CampaignAssignDialog';
@@ -1146,9 +1147,14 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             <Sparkles className="h-3 w-3" />
             Non in campagna <span className="opacity-70">({unassigned.length})</span>
           </button>
-          <button type="button" className={pillClass(false, true)} disabled title={`In arrivo: filtro per ${labelPluralLower} richiedibili dai giocatori`}>
-            Richiedibile
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className={pillClass(false, true)} aria-disabled>
+                Richiedibile
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{`In arrivo: filtro per ${labelPluralLower} richiedibili dai giocatori`}</TooltipContent>
+          </Tooltip>
         </EntityFilterToolbar>
 
         {isLoading ? (
@@ -1343,9 +1349,14 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
               <Sparkles className="h-3 w-3" />
               Non in campagna <span className="opacity-70">({unassignedCharacters.length})</span>
             </button>
-            <button type="button" className={pillClass(false, true)} disabled title="In arrivo: filtro per personaggi richiedibili dagli altri giocatori">
-              Richiedibile
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className={pillClass(false, true)} aria-disabled>
+                  Richiedibile
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>In arrivo: filtro per personaggi richiedibili dagli altri giocatori</TooltipContent>
+            </Tooltip>
           </EntityFilterToolbar>
 
           {isLoading ? (
