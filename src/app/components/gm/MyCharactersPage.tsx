@@ -658,8 +658,20 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
               // Solo sui PG nati precompilati (mai su uno creato da zero dal
               // giocatore stesso): claimableOrigin resta true per sempre una
               // volta acceso, anche dopo che availableForPlayers e' tornato
-              // false alla richiesta.
-              ...(char.claimableOrigin ? [{
+              // false alla richiesta. Non basta pero' da solo: char e' sempre
+              // posseduto dall'utente corrente in questa lista
+              // (loadCharactersByOwner) - senza il confronto con
+              // originalOwnerProfileId, il GM che riprende un PG con
+              // "Rilascia" (owner_profile_id torna a coincidere col GM) lo
+              // rivede sulla propria card perche' claimableOrigin resta true
+              // per sempre - bug trovato il 2026-07-19. Il controllo
+              // originalOwnerProfileId != null e' necessario a parte: un PG
+              // marcato disponibile ma mai ancora richiesto da nessuno ha
+              // originalOwnerProfileId ancora null (si valorizza solo al
+              // claim) e owner_profile_id = il GM stesso - senza questo
+              // guard "GM_id !== null" sarebbe vero e mostrerebbe Rilascia
+              // anche li', stesso problema del caso sopra.
+              ...(char.claimableOrigin && char.originalOwnerProfileId != null && char.ownerProfileId !== char.originalOwnerProfileId ? [{
                 key: 'release',
                 icon: <Undo2 className="h-4 w-4" />,
                 label: 'Rilascia al GM',

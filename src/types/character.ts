@@ -214,6 +214,13 @@ export interface Character {
   // sovrascritte a ogni autosave - vanno tramite funzioni dedicate.
   availableForPlayers?: boolean;
   claimableOrigin?: boolean;
+  // Valorizzato una volta sola al momento del claim (mai piu' toccato, vedi
+  // /characters/:id/claim), sopravvive anche se il PG lascia la campagna -
+  // serve a distinguere "sono il giocatore che ha claimato questo PG" da
+  // "sono il GM che l'ha appena ripreso con Rilascia" (claimableOrigin da
+  // solo non basta: resta true per sempre anche dopo che la proprieta' e'
+  // tornata al GM originale, bug trovato il 2026-07-19).
+  originalOwnerProfileId?: string | null;
 
   // Tutore
   tutore: string;

@@ -79,6 +79,7 @@ function mapRowToCharacter(row: any) {
     tokenBorderVisible: row.token_border_visible ?? null,
     availableForPlayers: row.available_for_players ?? false,
     claimableOrigin: row.claimable_origin ?? false,
+    originalOwnerProfileId: row.original_owner_profile_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     player: row.sheet_data?.player || '',
