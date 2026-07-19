@@ -187,6 +187,39 @@ export async function copyCharacterToCampaign(
 }
 
 /**
+ * Duplica un personaggio nella STESSA campagna (copia 1:1) - a differenza di
+ * copyCharacterToCampaign qui sopra, campaign_id/owner_profile_id/status
+ * restano quelli originali (nessun trasferimento in corso, e' una copia
+ * esatta), solo il nome cambia. Ritorna la nuova riga mappata (a differenza
+ * delle copy*ToCampaign che tornano void) perche' il chiamante deve sapere
+ * il nuovo id per duplicare anche le entity_notes subito dopo.
+ */
+export async function duplicateCharacter(
+  characterId: string,
+  ownerProfileId: string
+): Promise<ReturnType<typeof mapRowToCharacter>> {
+  if (!supabase) throw new Error('Supabase non configurato');
+
+  const { data: original, error: fetchError } = await supabase
+    .from('characters')
+    .select('*')
+    .eq('id', characterId)
+    .single();
+
+  if (fetchError || !original) throw fetchError ?? new Error('Personaggio non trovato');
+
+  const { id, created_at, updated_at, ...rest } = original as any;
+  const { data: inserted, error } = await supabase
+    .from('characters')
+    .insert({ ...rest, owner_profile_id: ownerProfileId, name: `Copia di ${original.name}` })
+    .select('*')
+    .single();
+
+  if (error || !inserted) throw error ?? new Error('Errore duplicazione personaggio');
+  return mapRowToCharacter(inserted);
+}
+
+/**
  * Salva un personaggio (create o update)
  */
 export async function saveCharacter(

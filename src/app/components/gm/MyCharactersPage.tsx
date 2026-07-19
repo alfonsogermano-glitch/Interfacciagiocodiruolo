@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Plus, Loader2, Pencil, Trash2,
-  Copy, UserPlus, UserMinus, Search, Eye, EyeOff, MapPin, ArrowLeft, Sparkles
+  Copy, CopyPlus, UserPlus, UserMinus, Search, Eye, EyeOff, MapPin, ArrowLeft, Sparkles
 } from 'lucide-react';
 import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
@@ -23,16 +23,19 @@ import { SlideOverPanel } from '../session/SlideOverPanel';
 import {
   loadCharactersByOwner, saveCharacter, deleteCharacter,
   assignCharacterToCampaign, unassignCharacterFromCampaign,
+  duplicateCharacter,
 } from '../../../services/supabase/charactersService';
 import {
   loadNPCsByOwner, loadMonstersByOwner, loadAdventures,
   assignNPCToCampaign, assignMonsterToCampaign,
   unassignNPCFromCampaign, unassignMonsterFromCampaign,
   copyNPCToCampaign, copyMonsterToCampaign,
+  duplicateNPC, duplicateMonster,
   deleteNPC, deleteMonster,
   saveNPC, saveMonster,
   type NPC, type Monster
 } from '../../../services/supabase/entitiesService';
+import { duplicateEntityNotes } from '../../../services/supabase/entityNotesService';
 import { createEmptyMonster } from './monsters/monstersUtils';
 import type { Character } from '../../../types/character';
 import type { Adventure } from '../../../types/adventure';
@@ -417,6 +420,26 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     }
   };
 
+  // Copia 1:1 nella stessa campagna (tab personalizzate comprese), a
+  // differenza di "Copia in un'altra campagna" - vedi duplicateCharacter/
+  // duplicateEntityNotes. Non e' un'azione distruttiva, nessuna conferma:
+  // parte subito al click, col toast gia' in uso in questa pagina come
+  // unico feedback (la copia delle tab e' N+1 richieste, non istantanea).
+  const handleDuplicateCharacter = async (char: OwnedCharacter) => {
+    if (!user?.id) return;
+    showToast('Duplicazione in corso...');
+    try {
+      const duplicated = await duplicateCharacter(char.id, user.id);
+      setCharacters(prev => [...prev, duplicated as OwnedCharacter]);
+      const accessToken = session?.access_token ?? publicAnonKey;
+      await duplicateEntityNotes('character', char.id, duplicated.id, duplicated.campaignId, SERVER_BASE, accessToken);
+      showToast(`"${duplicated.name}" duplicato con successo`);
+    } catch (err) {
+      console.error('Errore duplicazione personaggio:', err);
+      showToast(`Duplicazione non riuscita: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
   const assignedCharacters = characters.filter(c => c.campaignId);
   const unassignedCharacters = characters.filter(c => !c.campaignId);
   const charFilterPool = (charFilter === 'assigned' ? assignedCharacters : charFilter === 'unassigned' ? unassignedCharacters : characters)
@@ -468,6 +491,12 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                 icon: <Pencil className="h-4 w-4" />,
                 label: 'Modifica',
                 onClick: () => { setEditingCharacter(char); setShowWizard(true); },
+              },
+              {
+                key: 'duplicate',
+                icon: <CopyPlus className="h-4 w-4" />,
+                label: 'Duplica',
+                onClick: () => handleDuplicateCharacter(char),
               },
               {
                 key: 'assign-toggle',
@@ -779,6 +808,31 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     }
   };
 
+  // Copia 1:1 nella stessa campagna (tab comprese) - stessa logica di
+  // handleDuplicateCharacter sopra, vedi duplicateNPC/duplicateMonster/
+  // duplicateEntityNotes. Nessuna conferma, toast come unico feedback.
+  const handleDuplicateEntity = async (entry: CatalogEntry) => {
+    showToast('Duplicazione in corso...');
+    try {
+      const duplicated = entry.kind === 'npc'
+        ? await duplicateNPC(entry.entity.id)
+        : await duplicateMonster(entry.entity.id);
+
+      if (entry.kind === 'npc') {
+        setNpcs(prev => [...prev, duplicated as NPC]);
+      } else {
+        setMonsters(prev => [...prev, duplicated as Monster]);
+      }
+
+      const accessToken = session?.access_token ?? publicAnonKey;
+      await duplicateEntityNotes(entry.kind, entry.entity.id, duplicated.id, duplicated.campaignId ?? null, SERVER_BASE, accessToken);
+      showToast(`"${duplicated.name}" duplicato con successo`);
+    } catch (err) {
+      console.error('Errore duplicazione entita\':', err);
+      showToast(`Duplicazione non riuscita: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
   const handleToggleEntityVisibility = async (entry: CatalogEntry) => {
     const nextVisible = !entry.entity.visibleToPlayers;
     const updated = { ...entry.entity, visibleToPlayers: nextVisible };
@@ -895,6 +949,12 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             colors={menuColors}
             buttonClassName={photoCornerButtonClass}
             items={[
+              {
+                key: 'duplicate',
+                icon: <CopyPlus className="h-4 w-4" />,
+                label: 'Duplica',
+                onClick: () => handleDuplicateEntity(entry),
+              },
               // Copia/Richiedibile/Visibilita' hanno senso solo per un'entita'
               // gia' in una campagna - un'entita' non assegnata le nasconde,
               // stesso comportamento di prima quando l'intero menu era assente.

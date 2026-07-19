@@ -512,6 +512,36 @@ export async function copyNPCToCampaign(npcId: string, targetCampaignId: string,
   if (error) throw error;
 }
 
+/**
+ * Duplica un PNG nella STESSA campagna (copia 1:1) - a differenza di
+ * copyNPCToCampaign qui sopra, campaign_id/adventure_id/environment_id
+ * restano quelli originali (restano validi, e' la stessa campagna), solo
+ * il nome cambia. Ritorna la nuova riga mappata (a differenza di
+ * copyNPCToCampaign che torna void) perche' il chiamante deve sapere il
+ * nuovo id per duplicare anche le entity_notes subito dopo.
+ */
+export async function duplicateNPC(npcId: string): Promise<NPC> {
+  if (!supabase) throw new Error('Supabase non configurato');
+
+  const { data: original, error: fetchError } = await supabase
+    .from('npcs')
+    .select('*')
+    .eq('id', npcId)
+    .single();
+
+  if (fetchError || !original) throw fetchError ?? new Error('PNG non trovato');
+
+  const { id, created_at, updated_at, ...rest } = original as any;
+  const { data: inserted, error } = await supabase
+    .from('npcs')
+    .insert({ ...rest, name: `Copia di ${original.name}` })
+    .select('*')
+    .single();
+
+  if (error || !inserted) throw error ?? new Error('Errore duplicazione PNG');
+  return toCamelCase(inserted);
+}
+
 // ============= MOSTRI =============
 
 export interface Monster {
@@ -850,6 +880,34 @@ export async function copyMonsterToCampaign(monsterId: string, targetCampaignId:
     .insert({ ...rest, campaign_id: targetCampaignId, owner_profile_id: ownerProfileId });
 
   if (error) throw error;
+}
+
+/**
+ * Duplica un mostro nella STESSA campagna (copia 1:1) - stessa logica di
+ * duplicateNPC qui sopra: campaign_id/adventure_id/environment_id restano
+ * quelli originali, solo il nome cambia. Ritorna la nuova riga mappata per
+ * poter duplicare anche le entity_notes subito dopo.
+ */
+export async function duplicateMonster(monsterId: string): Promise<Monster> {
+  if (!supabase) throw new Error('Supabase non configurato');
+
+  const { data: original, error: fetchError } = await supabase
+    .from('monsters')
+    .select('*')
+    .eq('id', monsterId)
+    .single();
+
+  if (fetchError || !original) throw fetchError ?? new Error('Mostro non trovato');
+
+  const { id, created_at, updated_at, ...rest } = original as any;
+  const { data: inserted, error } = await supabase
+    .from('monsters')
+    .insert({ ...rest, name: `Copia di ${original.name}` })
+    .select('*')
+    .single();
+
+  if (error || !inserted) throw error ?? new Error('Errore duplicazione mostro');
+  return toCamelCase(inserted);
 }
 
 // ============= AMBIENTI =============
