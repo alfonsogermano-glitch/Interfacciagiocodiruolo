@@ -20,8 +20,11 @@ import { RulesetPickerDialog } from '../campaigns/RulesetPickerDialog';
 import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
 import { CampaignBannerDisplay } from '../components/shared/CampaignBannerDisplay';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
-import { JoinCampaignCharacterDialog } from '../components/session/shared/JoinCampaignCharacterDialog';
-import { saveCharacter as saveCharacterToSupabase, loadCharactersByOwner, assignCharacterToCampaign } from '../../services/supabase/charactersService';
+import { JoinCampaignCharacterDialog, type JoinCampaignCharacterOption } from '../components/session/shared/JoinCampaignCharacterDialog';
+import {
+  saveCharacter as saveCharacterToSupabase, loadCharactersByOwner,
+  assignCharacterToCampaign, claimCharacter, loadAvailableCharactersInCampaigns,
+} from '../../services/supabase/charactersService';
 import type { DashboardPalette } from '../../services/settings/dashboardSettings';
 import type { Character } from '../../types/character';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
@@ -42,6 +45,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
     isLoading: campaignsLoading,
     createCampaign,
     previewInviteCode,
+    joinCampaignByCode,
     refreshJoinedCampaigns,
     generateInviteCode,
   } = useCampaign();
@@ -121,19 +125,33 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
   // ─── Unisciti a campagna (Player) ──────────────────────────────────────────
   // Due passaggi, non uno: prima si risolve il codice in {campaignName,
   // ruleset} SENZA unirsi (previewInviteCode, nessun effetto collaterale),
-  // si incrocia col ruleset dei propri PG - se nessuno e' compatibile la
-  // join non parte affatto (nessuna eccezione "crea un PG al volo"); solo
-  // se c'e' almeno un PG compatibile si passa alla scelta, che completa la
-  // join riusando assignCharacterToCampaign con {inviteCode} (stessa identica
-  // funzione/endpoint gia' usati dal terzo flusso in MyCharactersPage.tsx,
-  // che valida di nuovo la compatibilita' lato server - nessuna duplicazione
-  // di logica di join, solo dell'anteprima).
+  // si incrocia col ruleset dei propri PG e con i precompilati disponibili
+  // nella campagna target (loadAvailableCharactersInCampaigns, scoped alla
+  // sola campagna risolta) - se nessuna delle due liste ha qualcosa la join
+  // non parte affatto (nessuna eccezione "crea un PG al volo"); solo se c'e'
+  // almeno un'opzione si passa alla scelta.
+  //
+  // Le due scelte completano la join in modo diverso: un PG proprio passa
+  // da assignCharacterToCampaign con {inviteCode} (chiamata singola atomica,
+  // gestisce membership+assegnazione insieme - stessa identica funzione/
+  // endpoint del terzo flusso in MyCharactersPage.tsx). Un PG precompilato
+  // richiede prima la membership vera e propria (joinCampaignByCode, non
+  // solo l'anteprima) e poi claimCharacter - due chiamate perche' claim
+  // richiede membership preesistente e non la crea da solo; joinCampaignByCode
+  // e' pero' idempotente (addPlayerToCampaign non duplica un membro gia'
+  // presente), quindi sicura da ripetere se claimCharacter fallisse e
+  // l'utente riprovasse con un altro personaggio.
   const [showJoinCodeStep, setShowJoinCodeStep] = useState(false);
   const [inviteCodeInput, setInviteCodeInput] = useState('');
   const [isJoining, setIsJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [myCharacters, setMyCharacters] = useState<Awaited<ReturnType<typeof loadCharactersByOwner>>>([]);
-  const [pendingJoin, setPendingJoin] = useState<{ code: string; preview: InvitePreview } | null>(null);
+  const [pendingJoin, setPendingJoin] = useState<{
+    code: string;
+    preview: InvitePreview;
+    ownCharacters: JoinCampaignCharacterOption[];
+    availableCharacters: JoinCampaignCharacterOption[];
+  } | null>(null);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -156,17 +174,23 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
 
     try {
       const preview = await previewInviteCode(code);
-      const compatibleCharacters = myCharacters.filter(c => isRulesetCompatible(c.ruleset, null, preview.ruleset));
+      const ownCharacters = myCharacters.filter(c => isRulesetCompatible(c.ruleset, null, preview.ruleset));
+      const availableCharacters = await loadAvailableCharactersInCampaigns([preview.campaignId]);
 
-      if (compatibleCharacters.length === 0) {
+      if (ownCharacters.length === 0 && availableCharacters.length === 0) {
         setJoinError(
-          `Nessuno dei tuoi personaggi è compatibile con il regolamento di "${preview.campaignName}". ` +
+          `Nessuno dei tuoi personaggi è compatibile con il regolamento di "${preview.campaignName}" e non ci sono personaggi precompilati disponibili. ` +
           'Crea o richiedi un personaggio compatibile, poi riprova.'
         );
         return;
       }
 
-      setPendingJoin({ code, preview });
+      setPendingJoin({
+        code,
+        preview,
+        ownCharacters,
+        availableCharacters: availableCharacters.map(c => ({ id: c.id, name: c.name, ruleset: c.ruleset })),
+      });
       setShowJoinCodeStep(false);
     } catch (err) {
       setJoinError(err instanceof Error ? err.message : String(err));
@@ -175,11 +199,14 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
     }
   };
 
-  const compatibleCharactersForPendingJoin = pendingJoin
-    ? myCharacters.filter(c => isRulesetCompatible(c.ruleset, null, pendingJoin.preview.ruleset))
-    : [];
+  const finishJoinAndEnter = async () => {
+    const freshJoined = await refreshJoinedCampaigns();
+    const entered = freshJoined.find(c => c.id === pendingJoin?.preview.campaignId);
+    setPendingJoin(null);
+    if (entered) onEnterCampaign(entered);
+  };
 
-  const handleSelectCharacterForJoin = async (characterId: string) => {
+  const handleSelectOwnCharacterForJoin = async (characterId: string) => {
     if (!pendingJoin) return;
     setIsJoining(true);
     setJoinError(null);
@@ -187,10 +214,24 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
     try {
       const accessToken = session?.access_token ?? publicAnonKey;
       await assignCharacterToCampaign(characterId, SERVER_BASE, accessToken, { inviteCode: pendingJoin.code });
-      const freshJoined = await refreshJoinedCampaigns();
-      const entered = freshJoined.find(c => c.id === pendingJoin.preview.campaignId);
-      setPendingJoin(null);
-      if (entered) onEnterCampaign(entered);
+      await finishJoinAndEnter();
+    } catch (err) {
+      setJoinError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  const handleSelectAvailableCharacterForJoin = async (characterId: string) => {
+    if (!pendingJoin) return;
+    setIsJoining(true);
+    setJoinError(null);
+
+    try {
+      const accessToken = session?.access_token ?? publicAnonKey;
+      await joinCampaignByCode(pendingJoin.code);
+      await claimCharacter(characterId, SERVER_BASE, accessToken);
+      await finishJoinAndEnter();
     } catch (err) {
       setJoinError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -451,10 +492,12 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
       {pendingJoin && (
         <JoinCampaignCharacterDialog
           campaignName={pendingJoin.preview.campaignName}
-          characters={compatibleCharactersForPendingJoin.map(c => ({ id: c.id, name: c.name, ruleset: c.ruleset }))}
+          ownCharacters={pendingJoin.ownCharacters.map(c => ({ id: c.id, name: c.name, ruleset: c.ruleset }))}
+          availableCharacters={pendingJoin.availableCharacters}
           isPending={isJoining}
           error={joinError}
-          onSelectCharacter={handleSelectCharacterForJoin}
+          onSelectOwnCharacter={handleSelectOwnCharacterForJoin}
+          onSelectAvailableCharacter={handleSelectAvailableCharacterForJoin}
           onClose={() => setPendingJoin(null)}
         />
       )}

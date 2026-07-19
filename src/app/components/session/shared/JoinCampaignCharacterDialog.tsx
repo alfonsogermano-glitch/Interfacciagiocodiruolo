@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { User, Loader2 } from 'lucide-react';
+import { User, Sparkles, Loader2 } from 'lucide-react';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../../ui/paletteColors';
 import type { RulesetId } from '../../../campaigns/campaignTypes';
 
@@ -17,10 +17,17 @@ export interface JoinCampaignCharacterOption {
 
 interface JoinCampaignCharacterDialogProps {
   campaignName: string;
-  characters: JoinCampaignCharacterOption[];
+  // I propri PG compatibili per ruleset - selezionarne uno assegna quel PG
+  // alla campagna (assignCharacterToCampaign).
+  ownCharacters: JoinCampaignCharacterOption[];
+  // PG del GM marcati "disponibili" ("Precompilati") in questa campagna -
+  // selezionarne uno lo richiede (claimCharacter), un'azione diversa sotto,
+  // per questo sono due liste/callback separate e non una unica mescolata.
+  availableCharacters: JoinCampaignCharacterOption[];
   isPending?: boolean;
   error?: string | null;
-  onSelectCharacter: (characterId: string) => void;
+  onSelectOwnCharacter: (characterId: string) => void;
+  onSelectAvailableCharacter: (characterId: string) => void;
   onClose: () => void;
 }
 
@@ -37,12 +44,40 @@ interface JoinCampaignCharacterDialogProps {
 // containing block e "intrappola" un discendente position:fixed dentro i
 // suoi bordi invece di coprire tutto il viewport. Il portale bypassa
 // il problema indipendentemente da dove il componente viene montato.
+function CharacterRow({
+  char,
+  disabled,
+  onSelect,
+  colors,
+}: {
+  char: JoinCampaignCharacterOption;
+  disabled: boolean;
+  onSelect: (id: string) => void;
+  colors: { text: string; border: string };
+}) {
+  return (
+    <button
+      key={char.id}
+      type="button"
+      disabled={disabled}
+      onClick={() => onSelect(char.id)}
+      style={{ color: colors.text, borderColor: colors.border }}
+      className="flex w-full cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition-all hover:opacity-75 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <User className="h-3.5 w-3.5 shrink-0" style={{ opacity: 0.7 }} />
+      <span className="truncate">{char.name}</span>
+    </button>
+  );
+}
+
 export function JoinCampaignCharacterDialog({
   campaignName,
-  characters,
+  ownCharacters,
+  availableCharacters,
   isPending = false,
   error,
-  onSelectCharacter,
+  onSelectOwnCharacter,
+  onSelectAvailableCharacter,
   onClose,
 }: JoinCampaignCharacterDialogProps) {
   const colors = getCurrentPaletteColors();
@@ -57,24 +92,36 @@ export function JoinCampaignCharacterDialog({
         <h3 className="mb-1 text-base font-semibold" style={{ color: colors.text }}>Scegli il personaggio</h3>
         <p className="mb-4 truncate text-sm" style={{ color: colors.text, opacity: 0.7 }}>{campaignName}</p>
 
-        <div className="mb-2 max-h-64 space-y-1 overflow-y-auto">
-          {characters.map(char => (
-            <button
-              key={char.id}
-              type="button"
-              disabled={isPending}
-              onClick={() => onSelectCharacter(char.id)}
-              style={{ color: colors.text, borderColor: colors.border }}
-              className="flex w-full cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition-all hover:opacity-75 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <User className="h-3.5 w-3.5 shrink-0" style={{ opacity: 0.7 }} />
-              <span className="truncate">{char.name}</span>
-            </button>
-          ))}
+        <div className="max-h-80 space-y-4 overflow-y-auto">
+          {ownCharacters.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-xs uppercase tracking-[0.08em]" style={{ color: colors.text, opacity: 0.6 }}>
+                I tuoi personaggi
+              </p>
+              <div className="space-y-1">
+                {ownCharacters.map(char => (
+                  <CharacterRow key={char.id} char={char} disabled={isPending} onSelect={onSelectOwnCharacter} colors={colors} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {availableCharacters.length > 0 && (
+            <div>
+              <p className="mb-1.5 flex items-center gap-1.5 text-xs uppercase tracking-[0.08em]" style={{ color: colors.text, opacity: 0.6 }}>
+                <Sparkles className="h-3 w-3" /> PG disponibili da richiedere
+              </p>
+              <div className="space-y-1">
+                {availableCharacters.map(char => (
+                  <CharacterRow key={char.id} char={char} disabled={isPending} onSelect={onSelectAvailableCharacter} colors={colors} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {isPending && <Loader2 className="mb-2 h-4 w-4 animate-spin" style={{ color: colors.text }} />}
-        {error && <p className="mb-2 text-xs text-red-300">{error}</p>}
+        {isPending && <Loader2 className="mb-2 mt-2 h-4 w-4 animate-spin" style={{ color: colors.text }} />}
+        {error && <p className="mb-2 mt-2 text-xs text-red-300">{error}</p>}
 
         <div className="mt-4 flex justify-end">
           <button
