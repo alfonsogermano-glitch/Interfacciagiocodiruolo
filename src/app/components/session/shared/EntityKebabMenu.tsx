@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreVertical } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
@@ -43,6 +43,18 @@ interface EntityKebabMenuProps {
   menuWidthPx?: number;
 }
 
+// Al massimo un EntityKebabMenu aperto alla volta in tutta l'app - variabile
+// di modulo (non React state) perche' coordina istanze diverse senza un
+// Context/Provider che richiederebbe toccare i punti che gia' usano questo
+// componente (MyCharactersPage.tsx, SessionCharactersPanel.tsx,
+// NPCsManager.tsx, MonstersManager.tsx). Ogni istanza si registra come
+// "attiva" quando si apre e si deregistra quando si chiude/smonta; aprirne
+// una nuova chiude prima quella precedente - senza questo, il click sul
+// trigger di un menu chiama stopPropagation() e impedisce al listener
+// "chiudi al click fuori" di un altro menu gia' aperto di accorgersene,
+// lasciandoli aperti entrambi (bug trovato il 2026-07-19).
+let activeMenuClose: (() => void) | null = null;
+
 export function EntityKebabMenu({
   items,
   colors,
@@ -54,14 +66,20 @@ export function EntityKebabMenu({
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const close = useCallback(() => setOpen(false), []);
 
-  // Chiude il menu al click fuori
+  // Chiude il menu al click fuori + (de)registrazione come menu attivo nel
+  // singleton sopra - stessa dipendenza [open] di prima, ora fa anche da
+  // coordinazione multi-istanza.
   useEffect(() => {
     if (!open) return;
-    const close = () => setOpen(false);
+    activeMenuClose = close;
     document.addEventListener('click', close);
-    return () => document.removeEventListener('click', close);
-  }, [open]);
+    return () => {
+      document.removeEventListener('click', close);
+      if (activeMenuClose === close) activeMenuClose = null;
+    };
+  }, [open, close]);
 
   return (
     <div className="relative shrink-0">
@@ -70,7 +88,9 @@ export function EntityKebabMenu({
         ref={buttonRef}
         onClick={(e) => {
           e.stopPropagation();
-          if (open) { setOpen(false); return; }
+          if (open) { close(); return; }
+          // Chiude qualunque altro menu gia' aperto prima di aprire questo.
+          if (activeMenuClose) activeMenuClose();
           const rect = buttonRef.current?.getBoundingClientRect();
           if (rect) setPosition({ top: rect.bottom + 4, left: rect.right - menuWidthPx });
           setOpen(true);
