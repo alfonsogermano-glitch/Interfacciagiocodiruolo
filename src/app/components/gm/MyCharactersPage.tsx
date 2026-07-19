@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Plus, Loader2, Pencil, Trash2,
-  Copy, CopyPlus, UserPlus, UserMinus, UserCog, Undo2, Search, Eye, EyeOff, MapPin, ArrowLeft, Sparkles
+  Copy, CopyPlus, UserPlus, UserMinus, UserCog, Undo2, Search, Eye, EyeOff, MapPin, ArrowLeft, Sparkles,
+  DoorOpen, X,
 } from 'lucide-react';
+import { useJoinByCodeFlow } from '../../../hooks/useJoinByCodeFlow';
+import { JoinCampaignCharacterDialog } from '../session/shared/JoinCampaignCharacterDialog';
 import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useRuleset } from '../../campaigns/RulesetContext';
@@ -410,6 +413,22 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [user?.id]);
+
+  // Secondo punto d'ingresso per "unisciti con un codice invito" - stesso
+  // flusso di HomeScreen.tsx (bottone "Unisciti a sessione"), estratto in
+  // useJoinByCodeFlow proprio perche' serviva anche qui. characters e' gia'
+  // la lista di PG posseduti di questa pagina, nessuna fetch aggiuntiva.
+  // onJoined non naviga via (a differenza di HomeScreen.tsx): restiamo su
+  // "Personaggi", ci limitiamo a rinfrescare le liste sul posto -
+  // refreshJoinedCampaigns() non va richiamato di nuovo, l'ha gia' fatto
+  // l'hook internamente per determinare la campagna appena unita.
+  const {
+    showJoinCodeStep, inviteCodeInput, setInviteCodeInput, isJoining: isJoiningByCode, joinError: joinByCodeError, pendingJoin,
+    openJoinFlow, closeJoinCodeStep, closePendingJoin,
+    handlePreviewCode, handleSelectOwnCharacterForJoin, handleSelectAvailableCharacterForJoin,
+  } = useJoinByCodeFlow(characters, () => {
+    void Promise.all([load(), loadAvailable(), refreshCampaigns()]);
+  });
 
   const handleAdd = async (character: Character & { player: string; notes: string }) => {
     if (!user?.id) return;
@@ -1467,10 +1486,16 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         </div>
 
         {activeTab === 'characters' && (
-          <button type="button" onClick={() => { setEditingCharacter(null); setShowCharacterRulesetPicker(true); }}
-            className="group inline-flex items-center gap-2 rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--dash-text-strong)] shadow-lg shadow-black/20 transition-colors hover:bg-[var(--dash-accent-2)]">
-            <Plus className="h-4 w-4 group-hover:animate-[plusPulse_0.75s_ease-in-out_infinite]" /> Nuovo personaggio
-          </button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={openJoinFlow}
+              className="inline-flex items-center gap-2 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-4 py-2.5 text-sm font-medium text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text-strong)]">
+              <DoorOpen className="h-4 w-4" /> Hai un codice invito?
+            </button>
+            <button type="button" onClick={() => { setEditingCharacter(null); setShowCharacterRulesetPicker(true); }}
+              className="group inline-flex items-center gap-2 rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--dash-text-strong)] shadow-lg shadow-black/20 transition-colors hover:bg-[var(--dash-accent-2)]">
+              <Plus className="h-4 w-4 group-hover:animate-[plusPulse_0.75s_ease-in-out_infinite]" /> Nuovo personaggio
+            </button>
+          </div>
         )}
 
         {activeTab === 'npcs' && (
@@ -1865,6 +1890,63 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
           danger={false}
           onConfirm={handleConfirmReleaseCharacter}
           onCancel={() => setReleaseConfirmChar(null)}
+        />
+      )}
+
+      {/* ─── Modale: unisciti a campagna, passo 1 (codice invito) ─────────── */}
+      {showJoinCodeStep && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-surface)] p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold tracking-wide text-[var(--dash-text-strong)]">Unisciti a una campagna</h3>
+              <button
+                type="button"
+                onClick={closeJoinCodeStep}
+                className="rounded-lg p-1.5 text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handlePreviewCode}>
+              <label className="mb-1.5 block text-xs uppercase tracking-[0.2em] text-[var(--dash-muted)]">
+                Codice invito
+              </label>
+              <input
+                type="text"
+                autoFocus
+                value={inviteCodeInput}
+                onChange={e => setInviteCodeInput(e.target.value.toUpperCase())}
+                placeholder="es. AB12CD"
+                maxLength={12}
+                className="w-full rounded-xl border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-4 py-2.5 text-sm uppercase tracking-[0.25em] text-[var(--dash-text)] placeholder-[var(--dash-muted)] outline-none transition-shadow focus:border-[var(--dash-accent)] focus:shadow-[0_0_0_3px_var(--dash-card-shadow)]"
+              />
+              {joinByCodeError && <p className="mt-1.5 text-xs text-[var(--dash-danger-text)]">{joinByCodeError}</p>}
+
+              <button
+                type="submit"
+                disabled={isJoiningByCode || !inviteCodeInput.trim()}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-5 py-2.5 text-sm font-semibold text-[var(--dash-text-strong)] shadow-[0_0_20px_var(--dash-card-shadow)] transition-all hover:bg-[var(--dash-accent-2)] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+              >
+                {isJoiningByCode && <Loader2 className="h-4 w-4 animate-spin" />}
+                Continua
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Modale: unisciti a campagna, passo 2 (scegli il PG) ──────────── */}
+      {pendingJoin && (
+        <JoinCampaignCharacterDialog
+          campaignName={pendingJoin.preview.campaignName}
+          ownCharacters={pendingJoin.ownCharacters.map(c => ({ id: c.id, name: c.name, ruleset: c.ruleset }))}
+          availableCharacters={pendingJoin.availableCharacters}
+          isPending={isJoiningByCode}
+          error={joinByCodeError}
+          onSelectOwnCharacter={handleSelectOwnCharacterForJoin}
+          onSelectAvailableCharacter={handleSelectAvailableCharacterForJoin}
+          onClose={closePendingJoin}
         />
       )}
     </div>
