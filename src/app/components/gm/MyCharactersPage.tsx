@@ -344,8 +344,18 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   };
   useEffect(() => { void loadAvailable(); }, [myAndJoinedCampaignIdsKey]);
 
+  // Scope campagne proprie+partecipate (stesso myAndJoinedCampaignIdsKey di
+  // loadAvailable sopra), non solo quelle dove possiedo gia' un personaggio
+  // (characters.map(c => c.campaignId), come faceva questo effetto prima) -
+  // quello scope escludeva sia le mie campagne dove non ho piu' PG propri
+  // (es. l'ultimo appena richiesto da un giocatore) sia le campagne a cui
+  // partecipo ma dove non ho ancora nessun PG assegnato. members_change
+  // (broadcast gia' inviato da claim/release/assign-campaign) ricarica
+  // entrambe le liste di questa pagina - prima nessuno lo ascoltava qui,
+  // a differenza di CampaignHome.tsx, da cui il reload manuale necessario
+  // dopo un claim/release segnalato il 2026-07-22.
   useEffect(() => {
-    const campaignIds = Array.from(new Set(characters.map(c => c.campaignId).filter(Boolean))) as string[];
+    const campaignIds = Array.from(new Set([...campaigns, ...joinedCampaigns].map(c => c.id)));
     const channels: Record<string, ReturnType<typeof supabase.channel>> = {};
 
     campaignIds.forEach((campaignId) => {
@@ -358,6 +368,10 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
           );
           setGmOnlineFor(prev => ({ ...prev, [campaignId]: isGmOnline }));
         })
+        .on('broadcast', { event: 'members_change' }, () => {
+          void load();
+          void loadAvailable();
+        })
         .subscribe();
       channels[campaignId] = ch;
     });
@@ -365,7 +379,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     return () => {
       Object.values(channels).forEach((ch) => supabase.removeChannel(ch));
     };
-  }, [characters.map(c => c.campaignId).join(',')]);
+  }, [myAndJoinedCampaignIdsKey]);
 
   const handleAdd = async (character: Character & { player: string; notes: string }) => {
     if (!user?.id) return;
@@ -583,26 +597,30 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                 label: 'Duplica',
                 onClick: () => handleDuplicateCharacter(char),
               },
-              // "Precompilati": disponibile solo per un PG di cui si e'
-              // gia' proprietari (sempre vero qui, questa pagina mostra solo
-              // i propri PG) - il controllo resta comunque per coprire una
-              // finestra transitoria di race (stato ottimistico non ancora
-              // riconciliato con una richiesta concorrente di un giocatore).
-              {
+              // "Precompilati": solo il GM proprietario della campagna a cui
+              // questo PG appartiene puo' marcarlo disponibile - NON basta
+              // "sono il proprietario del personaggio" (qui e' sempre vero,
+              // loadCharactersByOwner mostra solo i propri PG): un giocatore
+              // che ha richiesto un precompilato possiede anche lui il PG,
+              // senza essere il GM di quella campagna. Senza questo
+              // controllo un giocatore potrebbe riattivare la disponibilita'
+              // di un PG gia' suo, permettendo a un altro giocatore di
+              // richiederlo di nuovo mentre e' gia' posseduto - bug reale
+              // trovato e corretto il 2026-07-22. Un PG non ancora assegnato
+              // non ha una campagna di cui verificare il GM, quindi la voce
+              // resta nascosta anche in quel caso.
+              ...(char.campaignId && campaigns.some(c => c.id === char.campaignId) ? [{
                 key: 'available-for-players',
                 icon: <UserCog className="h-4 w-4" />,
                 label: 'Disponibile per i giocatori',
                 onClick: () => handleToggleCharacterAvailable(char),
-                disabled: char.ownerProfileId !== user?.id,
-                tooltip: char.ownerProfileId !== user?.id ? 'Questo personaggio ha già un giocatore' : undefined,
-                trailing: (
-                  <Switch
-                    checked={!!char.availableForPlayers}
-                    disabled={char.ownerProfileId !== user?.id}
-                    className="pointer-events-none"
-                  />
-                ),
-              },
+                // Il menu resta aperto dopo il click: e' un toggle, non
+                // un'azione one-shot come Modifica/Duplica - l'utente si
+                // aspetta di vedere lo switch cambiare stato, non il menu
+                // sparire subito.
+                keepOpenAfterClick: true,
+                trailing: <Switch checked={!!char.availableForPlayers} className="pointer-events-none" />,
+              }] : []),
               {
                 key: 'assign-toggle',
                 icon: isUnassigned ? <UserPlus className="h-4 w-4" /> : <UserMinus className="h-4 w-4" />,

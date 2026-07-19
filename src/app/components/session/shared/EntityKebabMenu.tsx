@@ -20,6 +20,12 @@ export interface EntityKebabMenuItem {
   /** Tooltip stilizzato (componente condiviso Tooltip/TooltipTrigger/
    *  TooltipContent, palette-aware) - non un title= nativo. */
   tooltip?: string;
+  /** Non chiude il menu dopo il click - per voci a comportamento toggle
+   *  (es. uno Switch in trailing) dove l'utente si aspetta di vedere il
+   *  cambio di stato invece che il menu sparire subito, o di poter
+   *  ripetere l'azione senza riaprire il menu. Default false (comportamento
+   *  invariato per tutte le altre voci: chiudi dopo il click). */
+  keepOpenAfterClick?: boolean;
 }
 
 interface EntityKebabMenuColors {
@@ -97,7 +103,7 @@ export function EntityKebabMenu({
                 key={item.key}
                 type="button"
                 aria-disabled={item.disabled}
-                onClick={() => { if (item.disabled) return; item.onClick(); setOpen(false); }}
+                onClick={() => { if (item.disabled) return; item.onClick(); if (!item.keepOpenAfterClick) setOpen(false); }}
                 style={{ color: item.danger ? undefined : colors.text }}
                 className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-opacity ${
                   item.disabled ? 'cursor-not-allowed opacity-50' : 'hover:opacity-75'
