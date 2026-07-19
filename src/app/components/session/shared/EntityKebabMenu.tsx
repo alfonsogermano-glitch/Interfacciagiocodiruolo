@@ -8,6 +8,17 @@ export interface EntityKebabMenuItem {
   label: string;
   onClick: () => void;
   danger?: boolean;
+  /** Riga non interattiva (stile attenuato, click ignorato) - usata per
+   *  predisposizioni non ancora attive (es. "Richiedibile" in
+   *  MyCharactersPage.tsx), non per stati di caricamento transitori. */
+  disabled?: boolean;
+  /** Controllo allineato a destra della label (es. uno Switch) - la riga
+   *  resta comunque un singolo <button>, pensato per il caso disabled in
+   *  cui il controllo stesso non è cliccabile. */
+  trailing?: React.ReactNode;
+  /** Title nativo sulla riga - stesso pattern gia' usato dalla pillola
+   *  filtro "Richiedibile" (title="In arrivo..."), nessun tooltip custom. */
+  tooltip?: string;
 }
 
 interface EntityKebabMenuColors {
@@ -78,11 +89,14 @@ export function EntityKebabMenu({
             <button
               key={item.key}
               type="button"
-              onClick={() => { item.onClick(); setOpen(false); }}
+              disabled={item.disabled}
+              title={item.tooltip}
+              onClick={() => { if (item.disabled) return; item.onClick(); setOpen(false); }}
               style={{ color: item.danger ? undefined : colors.text }}
-              className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-opacity hover:opacity-75 ${item.danger ? 'text-red-300' : ''}`}
+              className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-opacity hover:opacity-75 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:opacity-50 ${item.danger ? 'text-red-300' : ''}`}
             >
               {item.icon} {item.label}
+              {item.trailing && <span className="ml-auto">{item.trailing}</span>}
             </button>
           ))}
           {footer}

@@ -12,6 +12,7 @@ import { RulesetTag } from '../shared/RulesetTag';
 import { CharacterCreationWizard } from './CharacterCreationWizard';
 import { formatCampaignAdventureLabel } from '../../../services/campaign/campaignAdventureLabel';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
+import { Switch } from '../ui/switch';
 import { EntityCard } from '../session/shared/EntityCard';
 import { EntityKebabMenu } from '../session/shared/EntityKebabMenu';
 import { CampaignAssignDialog } from '../session/shared/CampaignAssignDialog';
@@ -979,12 +980,33 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                 onClick: () => setDeleteEntry(entry),
                 danger: true,
               },
-              {
+              // Solo PNG (non Mostri): predisposizione UI per "il giocatore
+              // puo' richiedere questo PNG come proprio PG" - disabilitato per
+              // QUALSIASI ruleset per ora (oggi comunque sempre HSC). Per
+              // sbloccarlo per un ruleset diverso da HSC servono, in questo
+              // ordine: (1) decidere cosa succede alle statistiche dell'NPC
+              // nella conversione a PG - characters e npcs hanno modelli di
+              // stats incompatibili, ambiti/abilita/follia/audacia del PG non
+              // hanno equivalente sull'NPC (indagine completa nella memoria di
+              // progetto "Richiedibile PNG-to-PG feature");
+              // (2) un endpoint server che trasferisca owner_profile_id - le
+              // RLS attuali legano le scritture a auth.uid() = owner_profile_id,
+              // un client diretto non puo' auto-assegnarsi la proprieta',
+              // stesso vincolo gia' risolto per /characters/:id/assign-campaign;
+              // (3) una query cross-owner ("PNG requestable nelle campagne a cui
+              // partecipo") per mostrarli qui lato giocatore, che oggi carica
+              // solo le entita' di proprieta' dell'utente (loadNPCsByOwner);
+              // (4) solo all'ultimo passo, sostituire `disabled: true` sotto con
+              // un controllo dinamico sul ruleset dell'entita'.
+              ...(kind === 'npc' ? [{
                 key: 'requestable',
                 icon: <Search className="h-4 w-4" />,
                 label: 'Richiedibile',
                 onClick: () => {},
-              },
+                disabled: true,
+                tooltip: 'Non disponibile per questo set di regole',
+                trailing: <Switch checked={false} disabled className="pointer-events-none" />,
+              }] : []),
               {
                 key: 'toggle-visibility',
                 icon: entity.visibleToPlayers ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />,

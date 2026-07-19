@@ -295,6 +295,12 @@ export interface NPC {
   notes?: string;
 
   visibleToPlayers?: boolean;
+  // Predisposizione per "Richiedibile" (il giocatore potra' richiedere
+  // questo PNG come proprio PG) - colonna aggiunta da
+  // supabase-add-npc-requestable.sql, ma il toggle in UI resta sempre
+  // disabilitato/false per ora (vedi commento sulla voce menu
+  // 'requestable' in MyCharactersPage.tsx per cosa serve per sbloccarla).
+  requestable?: boolean;
   tabOrder?: string[];
   createdAt?: string;
   updatedAt?: string;
