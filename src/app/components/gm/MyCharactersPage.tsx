@@ -955,10 +955,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                 label: 'Duplica',
                 onClick: () => handleDuplicateEntity(entry),
               },
-              // Copia/Richiedibile/Visibilita' hanno senso solo per un'entita'
-              // gia' in una campagna - un'entita' non assegnata le nasconde,
-              // stesso comportamento di prima quando l'intero menu era assente.
-              ...(isUnassigned ? [] : [{
+              {
                 key: 'copy',
                 icon: <Copy className="h-4 w-4" />,
                 label: "Copia in un'altra campagna",
@@ -968,7 +965,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                   setCopyTargetId(null);
                   setCopyError(null);
                 },
-              }]),
+              },
               {
                 key: 'assign-toggle',
                 icon: isUnassigned ? <UserPlus className="h-4 w-4" /> : <UserMinus className="h-4 w-4" />,
@@ -982,17 +979,18 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                 onClick: () => setDeleteEntry(entry),
                 danger: true,
               },
-              ...(isUnassigned ? [] : [{
+              {
                 key: 'requestable',
                 icon: <Search className="h-4 w-4" />,
                 label: 'Richiedibile',
                 onClick: () => {},
-              }, {
+              },
+              {
                 key: 'toggle-visibility',
                 icon: entity.visibleToPlayers ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />,
                 label: entity.visibleToPlayers ? 'Rendi invisibile ai giocatori' : 'Rendi visibile ai giocatori',
                 onClick: () => handleToggleEntityVisibility(entry),
-              }]),
+              },
             ]}
           />
         }
