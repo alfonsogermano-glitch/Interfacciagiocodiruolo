@@ -105,6 +105,11 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   const [gmAvatarUrl, setGmAvatarUrl] = useState<string | null>(null);
   const [playerRows, setPlayerRows] = useState<PlayerRow[]>([]);
   const [playersLoaded, setPlayersLoaded] = useState(false);
+  // "Precompilati": PG del GM (available_for_players=true) - esclusi di
+  // proposito da playerRows sopra (quello raggruppa solo per membro non-GM,
+  // vedi il filtro su activeCampaign.ownerId piu' sotto), quindi vanno tenuti
+  // a parte qui dalla stessa risposta /campaigns/:id/characters.
+  const [availablePremades, setAvailablePremades] = useState<PlayerCharacterSummary[]>([]);
   const [npcs, setNpcs] = useState<NPC[]>([]);
   const [npcsLoaded, setNpcsLoaded] = useState(false);
   const [monsters, setMonsters] = useState<Monster[]>([]);
@@ -230,31 +235,33 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
         const members: { profileId: string; displayName: string | null; joinedAt: string | null }[] = (memberNamesData.members ?? [])
           .filter((m: any) => m.profileId !== activeCampaign.ownerId);
 
+        const toCharacterSummary = (ch: any): PlayerCharacterSummary => ({
+          id: ch.id,
+          name: ch.name,
+          ownerProfileId: ch.owner_profile_id,
+          ruleset: ch.ruleset ?? null,
+          createdAt: ch.created_at ?? null,
+          portraitUrl: ch.portrait_image_url ?? null,
+          portraitSourceUrl: ch.portrait_source_image_url ?? null,
+          portraitCropArea: ch.portrait_crop_area ?? null,
+          // stesso formato di MyCharactersPage.tsx:463 ({style} · {viaggio})
+          styleViaggio: [ch.style, ch.viaggio].filter(Boolean).join(' · ') || 'Personaggio',
+          description: ch.sheet_data?.description ?? '',
+          ownerAvatarUrl: ch.owner_avatar_url ?? null,
+          tokenColor: ch.token_color ?? null,
+          tokenBackgroundColor: ch.token_background_color ?? null,
+          tokenBorderStyle: ch.token_border_style ?? null,
+          tokenBorderThickness: ch.token_border_thickness ?? null,
+          tokenBorderVisible: ch.token_border_visible ?? null,
+          tokenBorderLabel: ch.token_border_label ?? null,
+        });
+
         const charsByOwner = new Map<string, PlayerCharacterSummary[]>();
         for (const ch of characters) {
           const ownerId = ch.owner_profile_id;
           if (!ownerId) continue;
           const list = charsByOwner.get(ownerId) ?? [];
-          list.push({
-            id: ch.id,
-            name: ch.name,
-            ownerProfileId: ownerId,
-            ruleset: ch.ruleset ?? null,
-            createdAt: ch.created_at ?? null,
-            portraitUrl: ch.portrait_image_url ?? null,
-            portraitSourceUrl: ch.portrait_source_image_url ?? null,
-            portraitCropArea: ch.portrait_crop_area ?? null,
-            // stesso formato di MyCharactersPage.tsx:463 ({style} · {viaggio})
-            styleViaggio: [ch.style, ch.viaggio].filter(Boolean).join(' · ') || 'Personaggio',
-            description: ch.sheet_data?.description ?? '',
-            ownerAvatarUrl: ch.owner_avatar_url ?? null,
-            tokenColor: ch.token_color ?? null,
-            tokenBackgroundColor: ch.token_background_color ?? null,
-            tokenBorderStyle: ch.token_border_style ?? null,
-            tokenBorderThickness: ch.token_border_thickness ?? null,
-            tokenBorderVisible: ch.token_border_visible ?? null,
-            tokenBorderLabel: ch.token_border_label ?? null,
-          });
+          list.push(toCharacterSummary(ch));
           charsByOwner.set(ownerId, list);
         }
 
@@ -269,6 +276,13 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
           ...members.map((m) => ({ profileId: m.profileId, displayName: m.displayName, joinedAt: m.joinedAt, characters: charsByOwner.get(m.profileId) ?? [] })),
           ...orphanOwnerIds.map((id) => ({ profileId: id, displayName: null, joinedAt: null, characters: charsByOwner.get(id) ?? [] })),
         ]);
+        // PG del GM (owner_profile_id = GM) marcati disponibili - esclusi di
+        // proposito da playerRows sopra, che raggruppa solo per membro non-GM.
+        setAvailablePremades(
+          characters
+            .filter((ch: any) => ch.owner_profile_id === activeCampaign.ownerId && ch.available_for_players)
+            .map(toCharacterSummary)
+        );
         setGmDisplayName(memberNamesData.ownerDisplayName ?? null);
         setGmAvatarUrl(memberNamesData.ownerAvatarUrl ?? null);
       } catch (err) {
@@ -847,10 +861,35 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
             )}
 
             {activeQuickFilter === 'premades' && (
-              <div className="col-span-2 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-5 py-8 text-center">
-                <Package className="mx-auto mb-3 h-10 w-10 text-[var(--dash-muted)]" />
-                <div className="text-xs uppercase tracking-[0.16em] text-[var(--dash-accent-2)]">Funzionalità in arrivo</div>
-              </div>
+              availablePremades.length === 0 ? (
+                <div className="col-span-2 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-5 py-8 text-center">
+                  <Package className="mx-auto mb-3 h-10 w-10 text-[var(--dash-muted)]" />
+                  <div className="text-xs uppercase tracking-[0.16em] text-[var(--dash-accent-2)]">Nessun personaggio precompilato disponibile</div>
+                  <p className="mt-2 text-xs text-[var(--dash-muted)]">
+                    Marca un PG come "Disponibile per i giocatori" dal menu ⋮ in Personaggi per farlo comparire qui.
+                  </p>
+                </div>
+              ) : (
+                availablePremades.map((ch) => (
+                  <EntityCard
+                    key={ch.id}
+                    variant="grid"
+                    name={ch.name}
+                    subtitle={ch.styleViaggio}
+                    secondaryText={ch.description}
+                    onClick={() => onOpenSessionEntity('pg', ch.id)}
+                    photoUrl={ch.portraitUrl}
+                    photoSourceUrl={ch.portraitSourceUrl}
+                    photoCropArea={ch.portraitCropArea}
+                    tokenColor={ch.tokenColor}
+                    tokenBackgroundColor={ch.tokenBackgroundColor}
+                    tokenBorderStyle={ch.tokenBorderStyle}
+                    tokenBorderThickness={ch.tokenBorderThickness}
+                    tokenBorderVisible={ch.tokenBorderVisible}
+                    tokenBorderLabel={ch.tokenBorderLabel}
+                  />
+                ))
+              )
             )}
 
             {(activeQuickFilter === 'all' || activeQuickFilter === 'npc') && isOwner && npcsLoaded && npcs.length > 0 && (

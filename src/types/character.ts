@@ -204,6 +204,17 @@ export interface Character {
   tokenBorderLabel?: string | null;
   tokenBorderVisible?: boolean | null;
 
+  // "Precompilati": PG creato normalmente dal GM, marcabile come disponibile
+  // per i giocatori di una campagna ("Richiedi"/"Rilascia" in MyCharactersPage.tsx).
+  // claimableOrigin si accende la prima volta che availableForPlayers viene
+  // impostato true e non si spegne mai piu' - distingue un PG nato
+  // precompilato (mostra "Rilascia" quando richiesto) da uno creato da zero
+  // da un giocatore (non lo mostra mai). Colonne dedicate, mai incluse nel
+  // payload generico di saveCharacter (charactersService.ts) per non essere
+  // sovrascritte a ogni autosave - vanno tramite funzioni dedicate.
+  availableForPlayers?: boolean;
+  claimableOrigin?: boolean;
+
   // Tutore
   tutore: string;
 

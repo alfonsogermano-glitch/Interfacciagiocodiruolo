@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Plus, Loader2, Pencil, Trash2,
-  Copy, CopyPlus, UserPlus, UserMinus, Search, Eye, EyeOff, MapPin, ArrowLeft, Sparkles
+  Copy, CopyPlus, UserPlus, UserMinus, UserCog, Undo2, Search, Eye, EyeOff, MapPin, ArrowLeft, Sparkles
 } from 'lucide-react';
 import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
@@ -25,7 +25,8 @@ import { SlideOverPanel } from '../session/SlideOverPanel';
 import {
   loadCharactersByOwner, saveCharacter, deleteCharacter,
   assignCharacterToCampaign, unassignCharacterFromCampaign,
-  duplicateCharacter,
+  duplicateCharacter, setCharacterAvailableForPlayers,
+  loadAvailableCharactersInCampaigns, claimCharacter, releaseCharacter,
 } from '../../../services/supabase/charactersService';
 import {
   loadNPCsByOwner, loadMonstersByOwner, loadAdventures,
@@ -256,6 +257,14 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [assignDialogChar, setAssignDialogChar] = useState<OwnedCharacter | null>(null);
   const [unassignConfirmChar, setUnassignConfirmChar] = useState<OwnedCharacter | null>(null);
 
+  // "Precompilati" - PG di altri (il GM) marcati disponibili nelle campagne
+  // proprie/partecipate, richiedibili da qui. Lista separata da `characters`
+  // sopra (quella resta strettamente "i miei PG", loadCharactersByOwner) -
+  // finche' non viene richiesto, un precompilato non e' ancora mio.
+  const [availableCharacters, setAvailableCharacters] = useState<OwnedCharacter[]>([]);
+  const [pendingClaimId, setPendingClaimId] = useState<string | null>(null);
+  const [releaseConfirmChar, setReleaseConfirmChar] = useState<OwnedCharacter | null>(null);
+
   const [charFilter, setCharFilter] = useState<EntityFilter>('all');
   const [charSort, setCharSort] = useState<SortMode>('recent');
   const [charSearch, setCharSearch] = useState('');
@@ -317,6 +326,23 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   };
 
   useEffect(() => { void load(); }, [user?.id]);
+
+  // Precompilati disponibili nelle campagne proprie/partecipate - stessa
+  // union owned+joined gia' usata per allCampaignOptions sopra. Ricaricata
+  // quando cambia l'insieme di campagne, non ad ogni render (stesso pattern
+  // di allCampaignIdsKey/adventuresByCampaignId piu' sotto in questo file).
+  const myAndJoinedCampaignIdsKey = [...campaigns, ...joinedCampaigns].map(c => c.id).join(',');
+  const loadAvailable = async () => {
+    const ids = Array.from(new Set([...campaigns, ...joinedCampaigns].map(c => c.id)));
+    const data = await loadAvailableCharactersInCampaigns(ids);
+    // Esclude i propri PG (un GM che marca disponibile un proprio precompilato
+    // lo vedrebbe altrimenti anche qui, con un "Richiedi" ridondante su
+    // qualcosa che possiede gia' - available_for_players=true implica sempre
+    // owner_profile_id=GM della campagna, quindi questo filtro esclude solo
+    // il caso "sono io il GM di questa campagna").
+    setAvailableCharacters((data as OwnedCharacter[]).filter(c => c.ownerProfileId !== user?.id));
+  };
+  useEffect(() => { void loadAvailable(); }, [myAndJoinedCampaignIdsKey]);
 
   useEffect(() => {
     const campaignIds = Array.from(new Set(characters.map(c => c.campaignId).filter(Boolean))) as string[];
@@ -422,6 +448,63 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     }
   };
 
+  // Marca/smarca un PG come "disponibile per i giocatori" ("Precompilati") -
+  // update ottimistico + rollback su errore, stesso schema di
+  // handleToggleEntityVisibility per PNG/Mostri piu' sotto in questo file.
+  // Non passa da persistCharacter/saveCharacter di proposito (vedi
+  // charactersService.ts): quella pipeline non tocca questi due campi.
+  const handleToggleCharacterAvailable = async (char: OwnedCharacter) => {
+    const nextAvailable = !char.availableForPlayers;
+    setCharacters(prev => prev.map(c => (c.id === char.id
+      ? { ...c, availableForPlayers: nextAvailable, claimableOrigin: nextAvailable ? true : c.claimableOrigin }
+      : c)));
+    try {
+      await setCharacterAvailableForPlayers(char.id, nextAvailable);
+    } catch (err) {
+      console.error('Errore aggiornamento disponibilità personaggio:', err);
+      setCharacters(prev => prev.map(c => (c.id === char.id ? char : c)));
+    }
+  };
+
+  // Il giocatore richiede un precompilato disponibile - vedi
+  // /characters/:id/claim (permessi, vincolo un-solo-PG-per-campagna, race
+  // condition gestiti lato server). Nessuna conferma: e' l'azione stessa che
+  // il giocatore sta cercando facendo click su "Richiedi", non serve
+  // ridondarla con un dialog.
+  const handleClaimCharacter = async (char: OwnedCharacter) => {
+    if (!user?.id) return;
+    setPendingClaimId(char.id);
+    showToast('Richiesta in corso...');
+    try {
+      const accessToken = session?.access_token ?? publicAnonKey;
+      await claimCharacter(char.id, SERVER_BASE, accessToken);
+      setAvailableCharacters(prev => prev.filter(c => c.id !== char.id));
+      await Promise.all([load(), refreshCampaigns(), refreshJoinedCampaigns()]);
+      showToast(`"${char.name}" è ora tuo`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPendingClaimId(null);
+    }
+  };
+
+  // Il giocatore restituisce al GM un precompilato che aveva richiesto -
+  // vedi /characters/:id/release. Con conferma (a differenza di "Richiedi"):
+  // qui si rinuncia a un personaggio che si sta giocando, non e' un'azione
+  // da far partire con un solo click.
+  const handleConfirmReleaseCharacter = async () => {
+    if (!releaseConfirmChar) return;
+    try {
+      const accessToken = session?.access_token ?? publicAnonKey;
+      await releaseCharacter(releaseConfirmChar.id, SERVER_BASE, accessToken);
+      await Promise.all([load(), loadAvailable(), refreshCampaigns(), refreshJoinedCampaigns()]);
+    } catch (err) {
+      console.error('Errore rilascio personaggio:', err);
+    } finally {
+      setReleaseConfirmChar(null);
+    }
+  };
+
   // Copia 1:1 nella stessa campagna (tab personalizzate comprese), a
   // differenza di "Copia in un'altra campagna" - vedi duplicateCharacter/
   // duplicateEntityNotes. Non e' un'azione distruttiva, nessuna conferma:
@@ -500,6 +583,26 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                 label: 'Duplica',
                 onClick: () => handleDuplicateCharacter(char),
               },
+              // "Precompilati": disponibile solo per un PG di cui si e'
+              // gia' proprietari (sempre vero qui, questa pagina mostra solo
+              // i propri PG) - il controllo resta comunque per coprire una
+              // finestra transitoria di race (stato ottimistico non ancora
+              // riconciliato con una richiesta concorrente di un giocatore).
+              {
+                key: 'available-for-players',
+                icon: <UserCog className="h-4 w-4" />,
+                label: 'Disponibile per i giocatori',
+                onClick: () => handleToggleCharacterAvailable(char),
+                disabled: char.ownerProfileId !== user?.id,
+                tooltip: char.ownerProfileId !== user?.id ? 'Questo personaggio ha già un giocatore' : undefined,
+                trailing: (
+                  <Switch
+                    checked={!!char.availableForPlayers}
+                    disabled={char.ownerProfileId !== user?.id}
+                    className="pointer-events-none"
+                  />
+                ),
+              },
               {
                 key: 'assign-toggle',
                 icon: isUnassigned ? <UserPlus className="h-4 w-4" /> : <UserMinus className="h-4 w-4" />,
@@ -513,6 +616,16 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                   }
                 },
               },
+              // Solo sui PG nati precompilati (mai su uno creato da zero dal
+              // giocatore stesso): claimableOrigin resta true per sempre una
+              // volta acceso, anche dopo che availableForPlayers e' tornato
+              // false alla richiesta.
+              ...(char.claimableOrigin ? [{
+                key: 'release',
+                icon: <Undo2 className="h-4 w-4" />,
+                label: 'Rilascia al GM',
+                onClick: () => setReleaseConfirmChar(char),
+              }] : []),
               {
                 key: 'delete',
                 icon: <Trash2 className="h-4 w-4" />,
@@ -532,6 +645,47 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
           </span>
         </div>
       </EntityCard>
+    );
+  };
+
+  // "Precompilati" richiedibili - card semplificata (nessun menu ⋮, il PG
+  // non e' ancora mio: solo il bottone "Richiedi"). Niente drill-down alla
+  // scheda completa in questa prima versione: EntityDetailView qui passa
+  // sempre canEdit=true (mai reso dinamico), aprirla su un PG non ancora
+  // posseduto richiederebbe prima quella modifica - nome/ritratto/sottotitolo
+  // sulla card bastano per decidere se richiederlo.
+  const renderAvailableCharacterCard = (char: OwnedCharacter) => {
+    const styleViaggio = [char.style, char.viaggio].filter(Boolean).join(' · ') || 'Personaggio';
+    const isPending = pendingClaimId === char.id;
+    return (
+      <EntityCard
+        key={char.id}
+        variant="grid"
+        name={char.name}
+        subtitle={styleViaggio}
+        badge={<RulesetTag rulesetId={char.ruleset ?? 'hsc'} />}
+        secondaryText={char.description}
+        photoUrl={char.portraitImageUrl}
+        photoSourceUrl={char.portraitSourceImageUrl}
+        photoCropArea={char.portraitCropArea}
+        tokenColor={char.tokenColor}
+        tokenBackgroundColor={char.tokenBackgroundColor}
+        tokenBorderStyle={char.tokenBorderStyle}
+        tokenBorderThickness={char.tokenBorderThickness}
+        tokenBorderVisible={char.tokenBorderVisible}
+        tokenBorderLabel={char.tokenBorderLabel}
+        cornerAction={
+          <button
+            type="button"
+            onClick={() => handleClaimCharacter(char)}
+            disabled={isPending}
+            className="flex items-center gap-1.5 rounded-lg border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-3 py-1.5 text-xs font-semibold text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-accent-2)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
+            Richiedi
+          </button>
+        }
+      />
     );
   };
 
@@ -1359,6 +1513,17 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             </Tooltip>
           </EntityFilterToolbar>
 
+          {availableCharacters.length > 0 && (
+            <div className={`${GRID_CONTAINER_CLASS} mb-4`}>
+              <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
+                <UserPlus className="h-4 w-4" /> PG disponibili da richiedere
+              </h2>
+              <div className={GRID_CLASS}>
+                {availableCharacters.map(char => renderAvailableCharacterCard(char))}
+              </div>
+            </div>
+          )}
+
           {isLoading ? (
             <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[var(--dash-muted)]" /></div>
           ) : filteredCharacters.length === 0 ? (
@@ -1627,6 +1792,17 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
           danger={false}
           onConfirm={handleConfirmUnassignCharacter}
           onCancel={() => setUnassignConfirmChar(null)}
+        />
+      )}
+
+      {releaseConfirmChar && (
+        <ConfirmDialog
+          title="Rilasciare questo personaggio?"
+          message={`"${releaseConfirmChar.name}" tornerà al GM e sarà di nuovo disponibile per altri giocatori. Tutte le statistiche e le tab restano intatte.`}
+          confirmLabel="Rilascia"
+          danger={false}
+          onConfirm={handleConfirmReleaseCharacter}
+          onCancel={() => setReleaseConfirmChar(null)}
         />
       )}
     </div>

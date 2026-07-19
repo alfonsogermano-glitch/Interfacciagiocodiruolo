@@ -77,6 +77,8 @@ function mapRowToCharacter(row: any) {
     tokenBorderThickness: row.token_border_thickness ?? null,
     tokenBorderLabel: row.token_border_label ?? null,
     tokenBorderVisible: row.token_border_visible ?? null,
+    availableForPlayers: row.available_for_players ?? false,
+    claimableOrigin: row.claimable_origin ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     player: row.sheet_data?.player || '',
@@ -453,6 +455,83 @@ export async function unassignCharacterFromCampaign(
   accessToken: string
 ): Promise<void> {
   await assignCharacterToCampaign(characterId, serverBase, accessToken, { campaignId: null });
+}
+
+// Marca/smarca un PG come "disponibile per i giocatori" ("Precompilati") - a
+// differenza di assignCharacterToCampaign non passa dal server: chi la
+// chiama possiede gia' il PG (auth.uid() = owner_profile_id), le RLS
+// permettono l'update diretto via client. claimable_origin si accende una
+// volta sola e non si spegne mai piu' (distingue un PG nato precompilato,
+// che mostrera' "Rilascia" da giocatore, da uno creato da zero). Non passa
+// da saveCharacter di proposito: quella funzione elenca le colonne a mano e
+// non tocca questi due campi, quindi un update qui non rischia di essere
+// silenziosamente sovrascritto dal prossimo autosave generico.
+export async function setCharacterAvailableForPlayers(
+  characterId: string,
+  available: boolean
+): Promise<void> {
+  if (!supabase) throw new Error('Supabase non configurato');
+  const patch: Record<string, boolean> = { available_for_players: available };
+  if (available) patch.claimable_origin = true;
+  const { error } = await supabase.from('characters').update(patch).eq('id', characterId);
+  if (error) throw error;
+}
+
+// Elenco dei PG "disponibili" (available_for_players = true) nelle campagne
+// indicate - usata lato giocatore in MyCharactersPage.tsx per mostrare i
+// precompilati richiedibili nelle proprie campagne (owned + joined).
+export async function loadAvailableCharactersInCampaigns(
+  campaignIds: string[]
+): Promise<ReturnType<typeof mapRowToCharacter>[]> {
+  if (!supabase || campaignIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('characters')
+    .select('*')
+    .in('campaign_id', campaignIds)
+    .eq('available_for_players', true)
+    .eq('status', 'active');
+
+  if (error) {
+    console.error('Errore caricamento personaggi disponibili:', error);
+    return [];
+  }
+
+  return (data || []).map(mapRowToCharacter);
+}
+
+// Il giocatore richiede un PG "disponibile" - wrappa /characters/:id/claim,
+// che gestisce permessi (deve essere membro della campagna), il vincolo "un
+// solo PG attivo per campagna" e la race condition di due richieste
+// concorrenti sullo stesso PG (aggiornamento atomico lato server).
+export async function claimCharacter(
+  characterId: string,
+  serverBase: string,
+  accessToken: string
+): Promise<{ campaignId: string | null }> {
+  const res = await fetch(`${serverBase}/characters/${characterId}/claim`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? 'Errore durante la richiesta');
+  return data;
+}
+
+// Il giocatore restituisce al GM un PG precompilato che aveva richiesto -
+// wrappa /characters/:id/release, che verifica che il chiamante sia
+// l'attuale proprietario e riporta owner_profile_id al GM della campagna.
+export async function releaseCharacter(
+  characterId: string,
+  serverBase: string,
+  accessToken: string
+): Promise<void> {
+  const res = await fetch(`${serverBase}/characters/${characterId}/release`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? 'Errore durante il rilascio');
 }
 
 export async function saveCharacterAsGm(

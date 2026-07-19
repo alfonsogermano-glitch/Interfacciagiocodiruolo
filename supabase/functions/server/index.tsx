@@ -848,6 +848,178 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
   }
 });
 
+// "Precompilati": il giocatore richiede un PG che il GM ha marcato
+// available_for_players=true (setCharacterAvailableForPlayers lato client,
+// diretto, non passa da qui - qui serve invece il client admin perche' il
+// chiamante NON e' ancora il proprietario della riga, le RLS bloccherebbero
+// un update diretto). Il vincolo "un solo PG attivo per campagna" e'
+// applicato SOLO qui, non in assign-campaign sopra (vedi commento nel piano/
+// memoria di progetto: assign-campaign e' un percorso ad alto traffico gia'
+// delicato, non va esteso ora per un vincolo mai esistito finora).
+app.post("/make-server-771c5bfd/characters/:id/claim", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const characterId = c.req.param("id");
+    const admin = getAdminClient();
+
+    const { data: character, error: charError } = await admin
+      .from("characters")
+      .select("id, campaign_id, owner_profile_id, available_for_players, status")
+      .eq("id", characterId)
+      .single();
+
+    if (charError || !character) {
+      return c.json({ error: "Personaggio non trovato" }, 404);
+    }
+    if (!character.available_for_players) {
+      return c.json({ error: "Questo personaggio non è più disponibile" }, 400);
+    }
+    if (!character.campaign_id) {
+      return c.json({ error: "Questo personaggio non appartiene a una campagna" }, 400);
+    }
+
+    const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const myJoined: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
+    const hasAccess = myCampaigns.some((cmp) => cmp.id === character.campaign_id)
+      || myJoined.some((pc) => pc.campaignId === character.campaign_id);
+    if (!hasAccess) {
+      return c.json({ error: "Non hai accesso a questa campagna" }, 403);
+    }
+
+    // Un solo PG attivo per giocatore per campagna - bloccato con un errore
+    // esplicito, nessuno scollegamento automatico del PG esistente (l'utente
+    // deve rilasciarlo/scollegarlo lui stesso prima di richiederne un altro).
+    const { data: existingActive } = await admin
+      .from("characters")
+      .select("id")
+      .eq("campaign_id", character.campaign_id)
+      .eq("owner_profile_id", userId)
+      .eq("status", "active");
+    if (existingActive && existingActive.length > 0) {
+      return c.json({ error: "Hai già un personaggio in questa campagna" }, 409);
+    }
+
+    // Update atomico condizionato su available_for_players=true: se nel
+    // frattempo un altro giocatore lo ha gia' richiesto, questa condizione
+    // non trova piu' righe e data torna vuoto - race condition coperta senza
+    // bisogno di una transazione esplicita.
+    const { data: updated, error: updateError } = await admin
+      .from("characters")
+      .update({ owner_profile_id: userId, available_for_players: false })
+      .eq("id", characterId)
+      .eq("available_for_players", true)
+      .select("id")
+      .maybeSingle();
+
+    if (updateError) {
+      console.log("Errore update claim personaggio:", updateError);
+      return c.json({ error: "Errore durante la richiesta" }, 500);
+    }
+    if (!updated) {
+      return c.json({ error: "Questo personaggio è stato appena richiesto da un altro giocatore" }, 409);
+    }
+
+    return c.json({ success: true, campaignId: character.campaign_id });
+  } catch (err) {
+    console.log("Errore POST characters/:id/claim:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+// Il giocatore restituisce al GM un PG precompilato che aveva richiesto:
+// nessuna cancellazione, solo owner_profile_id che torna al GM della
+// campagna e available_for_players che torna true. Stesso "leave implicito"
+// gia' visto in assign-campaign se questo era l'ultimo PG attivo del
+// giocatore in quella campagna.
+app.post("/make-server-771c5bfd/characters/:id/release", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const characterId = c.req.param("id");
+    const admin = getAdminClient();
+
+    const { data: character, error: charError } = await admin
+      .from("characters")
+      .select("id, campaign_id, owner_profile_id, claimable_origin")
+      .eq("id", characterId)
+      .single();
+
+    if (charError || !character) {
+      return c.json({ error: "Personaggio non trovato" }, 404);
+    }
+    if (character.owner_profile_id !== userId) {
+      return c.json({ error: "Non hai i permessi su questo personaggio" }, 403);
+    }
+    if (!character.claimable_origin) {
+      return c.json({ error: "Questo personaggio non può essere rilasciato" }, 400);
+    }
+    if (!character.campaign_id) {
+      return c.json({ error: "Questo personaggio non appartiene a una campagna" }, 400);
+    }
+
+    const { data: campaignRow, error: campaignError } = await admin
+      .from("campaigns")
+      .select("owner_profile_id")
+      .eq("id", character.campaign_id)
+      .single();
+    if (campaignError || !campaignRow) {
+      return c.json({ error: "Campagna non trovata" }, 404);
+    }
+
+    const { data: updated, error: updateError } = await admin
+      .from("characters")
+      .update({ owner_profile_id: campaignRow.owner_profile_id, available_for_players: true })
+      .eq("id", characterId)
+      .eq("owner_profile_id", userId)
+      .select("id")
+      .maybeSingle();
+
+    if (updateError) {
+      console.log("Errore update rilascio personaggio:", updateError);
+      return c.json({ error: "Errore durante il rilascio" }, 500);
+    }
+    if (!updated) {
+      return c.json({ error: "Questo personaggio non è più tuo" }, 409);
+    }
+
+    // "Leave" implicito: se questo era l'ultimo PG attivo del giocatore in
+    // questa campagna, non ne e' piu' membro - stesso blocco di
+    // assign-campaign sopra, stessa ragione.
+    const { data: remaining } = await admin
+      .from("characters")
+      .select("id")
+      .eq("campaign_id", character.campaign_id)
+      .eq("owner_profile_id", userId)
+      .eq("status", "active")
+      .neq("id", characterId);
+
+    if (!remaining || remaining.length === 0) {
+      const members = await kv.get(campaignMembersKey(character.campaign_id)) ?? [];
+      await kv.set(campaignMembersKey(character.campaign_id), members.filter((m) => m.profileId !== userId));
+      await admin.from('campaign_members').delete()
+        .eq('campaign_id', character.campaign_id)
+        .eq('profile_id', userId);
+
+      const playerCampaigns = await kv.get(playerCampaignsKey(userId)) ?? [];
+      await kv.set(playerCampaignsKey(userId), playerCampaigns.filter((pc) => pc.campaignId !== character.campaign_id));
+
+      await broadcastCampaignMembersChange(admin, character.campaign_id);
+    }
+
+    return c.json({ success: true });
+  } catch (err) {
+    console.log("Errore POST characters/:id/release:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
 app.post("/make-server-771c5bfd/characters/:id/copy-to-campaign", async (c) => {
   try {
     const token = c.req.header("Authorization")?.split(" ")[1];
