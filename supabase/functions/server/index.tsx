@@ -193,6 +193,30 @@ async function broadcastCampaignMembersChange(
   }
 }
 
+// Come broadcastCampaignMembersChange, ma per quando un cambio di proprietà
+// di un personaggio non ha (più) una campagna nota su cui appoggiarsi - vedi
+// /characters/:id/release: se campaign_id è già null (PG rimosso dalla
+// campagna prima del rilascio), non esiste un canale campaign:{id} valido
+// su cui notificare. Riusa lo stesso canale privato profile:{userId} già
+// usato da createNotification per le notifiche vere e proprie, ma con un
+// evento leggero dedicato (nessuna riga in "notifications", solo un ping di
+// refresh per chi ha MyCharactersPage.tsx aperta).
+async function broadcastCharacterOwnerChange(
+  admin: ReturnType<typeof getAdminClient>,
+  profileId: string,
+): Promise<void> {
+  try {
+    const result = await admin
+      .channel(`profile:${profileId}`, { config: { private: true } })
+      .send({ type: "broadcast", event: "character_owner_change", payload: {} });
+    if (result !== "ok") {
+      console.log("Broadcast character_owner_change non consegnato:", result);
+    }
+  } catch (err) {
+    console.log("Errore broadcast character_owner_change:", err);
+  }
+}
+
 // Aggiunge un giocatore a una campagna: mirror KV + tabella Postgres reale.
 // Estratta qui perché usata da /campaigns/join, /characters/:id/assign-campaign
 // e ora anche dall'accept di un invito per nome (supabase/functions/server -
@@ -1159,6 +1183,13 @@ app.post("/make-server-771c5bfd/characters/:id/release", async (c) => {
       // (ha ancora un altro PG attivo li') - la composizione visibile della
       // campagna e' comunque cambiata, il GM deve vederlo senza ricaricare.
       await broadcastCampaignMembersChange(admin, character.campaign_id);
+    } else {
+      // Nessuna campagna nota per questo PG (rimosso prima del rilascio) -
+      // niente canale campaign:{id} su cui notificare. original_owner_profile_id
+      // e' garantito non-null a questo punto (controllato sopra) ed e' il GM
+      // che ha appena riottenuto il PG: lo notifichiamo sul suo canale
+      // personale cosi' MyCharactersPage.tsx si aggiorna senza reload.
+      await broadcastCharacterOwnerChange(admin, character.original_owner_profile_id);
     }
 
     return c.json({ success: true });

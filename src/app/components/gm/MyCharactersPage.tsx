@@ -381,6 +381,25 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     };
   }, [myAndJoinedCampaignIdsKey]);
 
+  // Canale personale profile:{user.id} - copre il caso in cui un PG torna al
+  // GM senza che ci sia (più) una campagna nota da cui è passato (release
+  // chiamato dopo che il PG e' stato rimosso dalla campagna): in quel caso
+  // il server non ha un canale campaign:{id} valido su cui notificare e usa
+  // questo invece (broadcastCharacterOwnerChange in index.tsx). Nessun
+  // retry qui, come l'effetto per-campagna sopra - non e' un canale che deve
+  // restare vivo a lungo, un refresh al prossimo mount basta.
+  useEffect(() => {
+    if (!user?.id) return;
+    const ch = supabase
+      .channel(`profile:${user.id}`, { config: { private: true } })
+      .on('broadcast', { event: 'character_owner_change' }, () => {
+        void load();
+        void loadAvailable();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [user?.id]);
+
   const handleAdd = async (character: Character & { player: string; notes: string }) => {
     if (!user?.id) return;
     const ruleset = editingCharacter ? (editingCharacter.ruleset ?? undefined) : (newCharacterRuleset ?? undefined);
