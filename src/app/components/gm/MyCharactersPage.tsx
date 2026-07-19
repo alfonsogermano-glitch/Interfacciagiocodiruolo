@@ -237,6 +237,14 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
 
   const [characters, setCharacters] = useState<OwnedCharacter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // Distingue il primissimo caricamento (dove lo spinner a piena griglia ha
+  // senso, non c'e' ancora nulla da mostrare) da ogni refresh successivo di
+  // load() - claim/release/toggle disponibilita'/broadcast members_change
+  // lo richiamano tutti, e senza questa distinzione ognuno di questi
+  // smontava l'intera griglia (isLoading torna true), perdendo lo stato
+  // locale dei componenti figli (es. un EntityKebabMenu aperto si chiudeva)
+  // anche quando i dati non cambiavano affatto - bug trovato il 2026-07-19.
+  const [hasLoadedCharactersOnce, setHasLoadedCharactersOnce] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<OwnedCharacter | null>(null);
   // Creazione PG: prima si sceglie il regolamento (stesso picker di
@@ -321,7 +329,10 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
       if (loadSeqRef.current !== mySeq) return;
       setCharacters(data);
     } finally {
-      if (loadSeqRef.current === mySeq) setIsLoading(false);
+      if (loadSeqRef.current === mySeq) {
+        setIsLoading(false);
+        setHasLoadedCharactersOnce(true);
+      }
     }
   };
 
@@ -1575,7 +1586,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             </div>
           )}
 
-          {isLoading ? (
+          {isLoading && !hasLoadedCharactersOnce ? (
             <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[var(--dash-muted)]" /></div>
           ) : filteredCharacters.length === 0 ? (
             <div className={`${GRID_CONTAINER_CLASS} rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center`}>
