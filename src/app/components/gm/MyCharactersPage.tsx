@@ -1153,7 +1153,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                 Richiedibile
               </button>
             </TooltipTrigger>
-            <TooltipContent>{`In arrivo: filtro per ${labelPluralLower} richiedibili dai giocatori`}</TooltipContent>
+            <TooltipContent>Non disponibile per questo set di regole</TooltipContent>
           </Tooltip>
         </EntityFilterToolbar>
 
@@ -1355,7 +1355,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                   Richiedibile
                 </button>
               </TooltipTrigger>
-              <TooltipContent>In arrivo: filtro per personaggi richiedibili dagli altri giocatori</TooltipContent>
+              <TooltipContent>Non disponibile per questo set di regole</TooltipContent>
             </Tooltip>
           </EntityFilterToolbar>
 
