@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { createPortal } from 'react-dom';
 import {
-  Plus, Loader2, Pencil, Trash2, KeyRound, MoreVertical,
-  Copy, UserMinus, Search, Eye, EyeOff, MapPin, ArrowLeft, Sparkles
+  Plus, Loader2, Pencil, Trash2,
+  Copy, UserPlus, UserMinus, Search, Eye, EyeOff, MapPin, ArrowLeft, Sparkles
 } from 'lucide-react';
 import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
@@ -15,12 +14,16 @@ import { formatCampaignAdventureLabel } from '../../../services/campaign/campaig
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { EntityCard } from '../session/shared/EntityCard';
 import { EntityKebabMenu } from '../session/shared/EntityKebabMenu';
+import { CampaignAssignDialog } from '../session/shared/CampaignAssignDialog';
 import { EntityFilterToolbar, type SortMode, type ViewMode } from '../session/shared/EntityFilterToolbar';
 import { EntityPagination, paginateItems } from '../session/shared/EntityPagination';
 import { EntityDetailView } from '../session/shared/EntityDetailView';
 import { EntityDetailRail, type EntityDetailRailSection } from '../session/shared/EntityDetailRail';
 import { SlideOverPanel } from '../session/SlideOverPanel';
-import { loadCharactersByOwner, saveCharacter, deleteCharacter } from '../../../services/supabase/charactersService';
+import {
+  loadCharactersByOwner, saveCharacter, deleteCharacter,
+  assignCharacterToCampaign, unassignCharacterFromCampaign,
+} from '../../../services/supabase/charactersService';
 import {
   loadNPCsByOwner, loadMonstersByOwner, loadAdventures,
   assignNPCToCampaign, assignMonsterToCampaign,
@@ -38,7 +41,6 @@ import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/pa
 import { generateUUID } from '../../../lib/uuid';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
-const INVITE_OPTION_VALUE = '__invite__';
 
 type OwnedCharacter = Character & { player: string; notes: string; ownerProfileId: string; campaignId: string | null; ruleset: RulesetId | null };
 type CatalogEntry = { kind: 'npc'; entity: NPC } | { kind: 'monster'; entity: Monster };
@@ -238,16 +240,16 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [showCharacterRulesetPicker, setShowCharacterRulesetPicker] = useState(false);
   const [newCharacterRuleset, setNewCharacterRuleset] = useState<RulesetId | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-  const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [menuColors, setMenuColors] = useState(() => getCurrentPaletteColors());
-  const menuButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  const [inviteModeFor, setInviteModeFor] = useState<string | null>(null);
-  const [inviteCodeDraft, setInviteCodeDraft] = useState('');
   const [pendingCharacterId, setPendingCharacterId] = useState<string | null>(null);
   const [assignErrors, setAssignErrors] = useState<Record<string, string>>({});
   const [gmOnlineFor, setGmOnlineFor] = useState<Record<string, boolean>>({});
+  // Assegna/rimuovi campagna PG - stesso menu ⋮ e stessa mini-finestra
+  // condivisa (CampaignAssignDialog) di PNG/Mostri, vedi assignDialogEntry/
+  // unassignEntry piu' sotto nella sezione "Azioni condivise PNG/Mostri".
+  const [assignDialogChar, setAssignDialogChar] = useState<OwnedCharacter | null>(null);
+  const [unassignConfirmChar, setUnassignConfirmChar] = useState<OwnedCharacter | null>(null);
 
   const [charFilter, setCharFilter] = useState<EntityFilter>('all');
   const [charSort, setCharSort] = useState<SortMode>('recent');
@@ -334,12 +336,6 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     };
   }, [characters.map(c => c.campaignId).join(',')]);
 
-  useEffect(() => {
-    const closeMenu = () => setOpenMenuFor(null);
-    window.addEventListener('click', closeMenu);
-    return () => window.removeEventListener('click', closeMenu);
-  }, []);
-
   const handleAdd = async (character: Character & { player: string; notes: string }) => {
     if (!user?.id) return;
     const ruleset = editingCharacter ? (editingCharacter.ruleset ?? undefined) : (newCharacterRuleset ?? undefined);
@@ -351,7 +347,6 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   };
 
   const requestDelete = (id: string) => {
-    setOpenMenuFor(null);
     setDeleteTargetId(id);
   };
 
@@ -389,30 +384,19 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     }, 150);
   }, [user?.id]);
 
-  const callAssignEndpoint = async (characterId: string, body: { campaignId?: string | null; inviteCode?: string }) => {
+  // Assegna/riassegna un PG a una campagna (o si unisce con un codice invito) -
+  // wrappa /characters/:id/assign-campaign, che a differenza dell'update
+  // diretto usato per PNG/Mostri gestisce anche permessi, compatibilita'
+  // ruleset, iscrizione a campaign_members e il "leave" implicito dalla
+  // vecchia campagna (vedi charactersService.ts).
+  const handleAssignCharacter = async (characterId: string, body: { campaignId: string | null } | { inviteCode: string }) => {
     const accessToken = session?.access_token ?? publicAnonKey;
-    const res = await fetch(`${SERVER_BASE}/characters/${characterId}/assign-campaign`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error ?? 'Errore durante l\'operazione');
-    return data;
-  };
-
-  const handleSelectChange = async (characterId: string, value: string) => {
-    setAssignErrors(prev => ({ ...prev, [characterId]: '' }));
-    if (value === INVITE_OPTION_VALUE) {
-      setInviteModeFor(characterId);
-      setInviteCodeDraft('');
-      return;
-    }
     setPendingCharacterId(characterId);
+    setAssignErrors(prev => ({ ...prev, [characterId]: '' }));
     try {
-      await callAssignEndpoint(characterId, { campaignId: value || null });
+      await assignCharacterToCampaign(characterId, SERVER_BASE, accessToken, body);
       await Promise.all([load(), refreshCampaigns(), refreshJoinedCampaigns()]);
-      setOpenMenuFor(null);
+      setAssignDialogChar(null);
     } catch (err) {
       setAssignErrors(prev => ({ ...prev, [characterId]: err instanceof Error ? err.message : String(err) }));
     } finally {
@@ -420,19 +404,16 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     }
   };
 
-  const handleConfirmInvite = async (characterId: string) => {
-    if (!inviteCodeDraft.trim()) return;
-    setPendingCharacterId(characterId);
-    setAssignErrors(prev => ({ ...prev, [characterId]: '' }));
+  const handleConfirmUnassignCharacter = async () => {
+    if (!unassignConfirmChar) return;
+    const accessToken = session?.access_token ?? publicAnonKey;
     try {
-      await callAssignEndpoint(characterId, { inviteCode: inviteCodeDraft.trim() });
-      setInviteModeFor(null);
-      setInviteCodeDraft('');
+      await unassignCharacterFromCampaign(unassignConfirmChar.id, SERVER_BASE, accessToken);
       await Promise.all([load(), refreshCampaigns(), refreshJoinedCampaigns()]);
     } catch (err) {
-      setAssignErrors(prev => ({ ...prev, [characterId]: err instanceof Error ? err.message : String(err) }));
+      console.error('Errore rimozione PG dalla campagna:', err);
     } finally {
-      setPendingCharacterId(null);
+      setUnassignConfirmChar(null);
     }
   };
 
@@ -454,11 +435,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   } = paginateItems(filteredCharacters, charPage, charPageSize);
 
   const renderCharacterCard = (char: OwnedCharacter, variant: ViewMode = 'grid') => {
-    const isPending = pendingCharacterId === char.id;
-    const isInviteMode = inviteModeFor === char.id;
-    const error = assignErrors[char.id];
-    const isMenuOpen = openMenuFor === char.id;
     const campaignInfo = campaignInfoFor(char.campaignId);
+    const isUnassigned = !char.campaignId;
     // stesso formato di SessionCharactersPanel.tsx:673-675 ({style} · {viaggio})
     const styleViaggio = [char.style, char.viaggio].filter(Boolean).join(' · ') || 'Personaggio';
 
@@ -481,26 +459,38 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         tokenBorderLabel={char.tokenBorderLabel}
         onClick={() => onOpenDetail('character', char.id)}
         cornerAction={
-          <button
-            type="button"
-            ref={(el) => { menuButtonRefs.current[char.id] = el; }}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (isMenuOpen) {
-                setOpenMenuFor(null);
-                return;
-              }
-              const rect = menuButtonRefs.current[char.id]?.getBoundingClientRect();
-              if (rect) {
-                setMenuPosition({ top: rect.bottom + 4, left: rect.right - 224 });
-              }
-              setMenuColors(getCurrentPaletteColors());
-              setOpenMenuFor(char.id);
-            }}
-            className={photoCornerButtonClass}
-          >
-            <MoreVertical className="h-4 w-4" />
-          </button>
+          <EntityKebabMenu
+            colors={menuColors}
+            buttonClassName={photoCornerButtonClass}
+            items={[
+              {
+                key: 'edit',
+                icon: <Pencil className="h-4 w-4" />,
+                label: 'Modifica',
+                onClick: () => { setEditingCharacter(char); setShowWizard(true); },
+              },
+              {
+                key: 'assign-toggle',
+                icon: isUnassigned ? <UserPlus className="h-4 w-4" /> : <UserMinus className="h-4 w-4" />,
+                label: isUnassigned ? 'Assegna alla campagna' : 'Rimuovi dalla campagna',
+                onClick: () => {
+                  if (isUnassigned) {
+                    setAssignErrors(prev => ({ ...prev, [char.id]: '' }));
+                    setAssignDialogChar(char);
+                  } else {
+                    setUnassignConfirmChar(char);
+                  }
+                },
+              },
+              {
+                key: 'delete',
+                icon: <Trash2 className="h-4 w-4" />,
+                label: 'Elimina',
+                onClick: () => requestDelete(char.id),
+                danger: true,
+              },
+            ]}
+          />
         }
       >
         <div className="flex items-center gap-1.5 truncate text-[11px] text-[var(--dash-accent-2)]">
@@ -510,86 +500,6 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             {char.campaignId ? ` · GM ${gmOnlineFor[char.campaignId] ? 'online' : 'offline'}` : ''}
           </span>
         </div>
-
-        {isMenuOpen && menuPosition && createPortal(
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              position: 'fixed',
-              top: menuPosition.top,
-              left: menuPosition.left,
-              backgroundColor: menuColors.panel,
-              border: `1px solid ${menuColors.border}`,
-              borderRadius: '0.75rem',
-              padding: '0.375rem',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
-            }}
-            className="z-[1000] w-56"
-          >
-            <button
-              type="button"
-              onClick={() => { setEditingCharacter(char); setShowWizard(true); setOpenMenuFor(null); }}
-              style={{ color: menuColors.text }}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-[#1a1a1a]"
-            >
-              <Pencil className="h-4 w-4" /> Modifica
-            </button>
-            <button
-              type="button"
-              onClick={() => requestDelete(char.id)}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[#f1d3d3] hover:bg-[#231313]"
-            >
-              <Trash2 className="h-4 w-4" /> Elimina
-            </button>
-            <div className="my-1 border-t border-[#4a4a4a]" />
-            <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.08em] text-[#8d877f]">
-              Assegna a campagna
-            </div>
-            {isInviteMode ? (
-              <div className="flex flex-col gap-1.5 px-3 pb-2">
-                <input
-                  type="text"
-                  value={inviteCodeDraft}
-                  onChange={e => setInviteCodeDraft(e.target.value.toUpperCase())}
-                  placeholder="Codice invito"
-                  disabled={isPending}
-                  style={{ color: menuColors.text }}
-                  className="w-full rounded-lg border border-[#3a3a3a] bg-[#181818] px-2 py-1 text-xs uppercase tracking-[0.15em]"
-                />
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => handleConfirmInvite(char.id)} disabled={isPending || !inviteCodeDraft.trim()}
-                    className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-[#8a8176] px-2 py-1 text-xs text-[#8a8176] disabled:opacity-50">
-                    {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <KeyRound className="h-3 w-3" />}
-                    Conferma
-                  </button>
-                  <button type="button" onClick={() => { setInviteModeFor(null); setInviteCodeDraft(''); }} disabled={isPending}
-                    className="rounded-lg px-2 py-1 text-xs text-[#8d877f] hover:text-[#d8d2ca]">
-                    Annulla
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="px-3 pb-2">
-                <select
-                  value={char.campaignId ?? ''}
-                  onChange={e => handleSelectChange(char.id, e.target.value)}
-                  disabled={isPending}
-                  style={{ color: menuColors.text }}
-                  className="w-full rounded-lg border border-[#3a3a3a] bg-[#181818] px-2 py-1 text-xs"
-                >
-                  <option value="">— Nessuna campagna —</option>
-                  {rulesetCompatibleCampaignOptions(char.ruleset, char.campaignId).map(c => (
-                    <option key={c.id} value={c.id}>{c.name} {c.suffix}</option>
-                  ))}
-                  <option value={INVITE_OPTION_VALUE}>+ Usa un codice invito...</option>
-                </select>
-                {isPending && <Loader2 className="mt-1 h-3.5 w-3.5 animate-spin text-[#8d877f]" />}
-              </div>
-            )}
-            {error && <p className="px-3 pb-2 text-xs text-[#f1d3d3]">{error}</p>}
-          </div>,
-          document.body
-        )}
       </EntityCard>
     );
   };
@@ -644,6 +554,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [copyTargetId, setCopyTargetId] = useState<string | null>(null);
   const [isCopying, setIsCopying] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
+  const [assignDialogEntry, setAssignDialogEntry] = useState<CatalogEntry | null>(null);
   const [unassignEntry, setUnassignEntry] = useState<CatalogEntry | null>(null);
   const [deleteEntry, setDeleteEntry] = useState<CatalogEntry | null>(null);
 
@@ -860,6 +771,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
       }
 
       applyEntityUpdate(entry, e => ({ ...e, campaignId: targetCampaignId, ruleset: e.ruleset ?? targetCampaign.ruleset }));
+      setAssignDialogEntry(null);
     } catch (err) {
       setEntityAssignErrors(prev => ({ ...prev, [entry.entity.id]: err instanceof Error ? err.message : String(err) }));
     } finally {
@@ -959,8 +871,6 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
       ? (entity as NPC).portraitCropArea
       : (entity as Monster).portraitCropArea;
     const isUnassigned = !entity.campaignId;
-    const assignError = entityAssignErrors[entity.id];
-    const isAssigning = entityAssigningId === entity.id;
 
     return (
       <EntityCard
@@ -981,76 +891,60 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         tokenBorderLabel={entity.tokenBorderLabel}
         onClick={() => onOpenDetail(kind, entity.id)}
         cornerAction={
-          isUnassigned ? undefined : (
-            <EntityKebabMenu
-              colors={menuColors}
-              buttonClassName={photoCornerButtonClass}
-              items={[
-                {
-                  key: 'copy',
-                  icon: <Copy className="h-4 w-4" />,
-                  label: "Copia in un'altra campagna",
-                  onClick: () => {
-                    setMenuColors(getCurrentPaletteColors());
-                    setCopyDialogEntry(entry);
-                    setCopyTargetId(null);
-                    setCopyError(null);
-                  },
+          <EntityKebabMenu
+            colors={menuColors}
+            buttonClassName={photoCornerButtonClass}
+            items={[
+              // Copia/Richiedibile/Visibilita' hanno senso solo per un'entita'
+              // gia' in una campagna - un'entita' non assegnata le nasconde,
+              // stesso comportamento di prima quando l'intero menu era assente.
+              ...(isUnassigned ? [] : [{
+                key: 'copy',
+                icon: <Copy className="h-4 w-4" />,
+                label: "Copia in un'altra campagna",
+                onClick: () => {
+                  setMenuColors(getCurrentPaletteColors());
+                  setCopyDialogEntry(entry);
+                  setCopyTargetId(null);
+                  setCopyError(null);
                 },
-                {
-                  key: 'unassign',
-                  icon: <UserMinus className="h-4 w-4" />,
-                  label: 'Rimuovi dalla campagna',
-                  onClick: () => setUnassignEntry(entry),
-                },
-                {
-                  key: 'delete',
-                  icon: <Trash2 className="h-4 w-4" />,
-                  label: 'Elimina definitivamente',
-                  onClick: () => setDeleteEntry(entry),
-                  danger: true,
-                },
-                {
-                  key: 'requestable',
-                  icon: <Search className="h-4 w-4" />,
-                  label: 'Richiedibile',
-                  onClick: () => {},
-                },
-                {
-                  key: 'toggle-visibility',
-                  icon: entity.visibleToPlayers ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />,
-                  label: entity.visibleToPlayers ? 'Rendi invisibile ai giocatori' : 'Rendi visibile ai giocatori',
-                  onClick: () => handleToggleEntityVisibility(entry),
-                },
-              ]}
-            />
-          )
+              }]),
+              {
+                key: 'assign-toggle',
+                icon: isUnassigned ? <UserPlus className="h-4 w-4" /> : <UserMinus className="h-4 w-4" />,
+                label: isUnassigned ? 'Assegna alla campagna' : 'Rimuovi dalla campagna',
+                onClick: () => (isUnassigned ? setAssignDialogEntry(entry) : setUnassignEntry(entry)),
+              },
+              {
+                key: 'delete',
+                icon: <Trash2 className="h-4 w-4" />,
+                label: 'Elimina definitivamente',
+                onClick: () => setDeleteEntry(entry),
+                danger: true,
+              },
+              ...(isUnassigned ? [] : [{
+                key: 'requestable',
+                icon: <Search className="h-4 w-4" />,
+                label: 'Richiedibile',
+                onClick: () => {},
+              }, {
+                key: 'toggle-visibility',
+                icon: entity.visibleToPlayers ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />,
+                label: entity.visibleToPlayers ? 'Rendi invisibile ai giocatori' : 'Rendi visibile ai giocatori',
+                onClick: () => handleToggleEntityVisibility(entry),
+              }]),
+            ]}
+          />
         }
       >
-        {isUnassigned ? (
-          <div className="space-y-1">
-            <select
-              value=""
-              onChange={e => handleAssignEntity(entry, e.target.value)}
-              disabled={isAssigning}
-              className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1.5 text-xs text-[var(--dash-text)] disabled:opacity-50"
-            >
-              <option value="">Assegna a...</option>
-              {campaigns.filter(c => isRulesetCompatible(entity.ruleset, null, c.ruleset)).map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            {isAssigning && <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--dash-muted)]" />}
-            {assignError && <p className="text-[11px] text-red-300">{assignError}</p>}
-          </div>
-        ) : (
-          <div className="flex items-center gap-1.5 truncate text-[11px] text-[var(--dash-accent-2)]">
-            <MapPin className="h-3 w-3 shrink-0" />
-            <span className="truncate">
-              {formatCampaignAdventureLabel(campaignName, entity.adventureId ? adventureTitlesById.get(entity.adventureId) : null)}
-            </span>
-          </div>
-        )}
+        <div className="flex items-center gap-1.5 truncate text-[11px] text-[var(--dash-accent-2)]">
+          <MapPin className="h-3 w-3 shrink-0" />
+          <span className="truncate">
+            {isUnassigned
+              ? 'Nessuna campagna'
+              : formatCampaignAdventureLabel(campaignName, entity.adventureId ? adventureTitlesById.get(entity.adventureId) : null)}
+          </span>
+        </div>
       </EntityCard>
     );
   };
@@ -1605,6 +1499,43 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             </div>
           </div>
         </div>
+      )}
+
+      {assignDialogEntry && (
+        <CampaignAssignDialog
+          entityName={entityName(assignDialogEntry)}
+          campaigns={campaigns
+            .filter(c => isRulesetCompatible(assignDialogEntry.entity.ruleset, null, c.ruleset))
+            .map(c => ({ id: c.id, name: c.name }))}
+          isPending={entityAssigningId === assignDialogEntry.entity.id}
+          error={entityAssignErrors[assignDialogEntry.entity.id]}
+          onSelectCampaign={(campaignId) => handleAssignEntity(assignDialogEntry, campaignId)}
+          onClose={() => setAssignDialogEntry(null)}
+        />
+      )}
+
+      {assignDialogChar && (
+        <CampaignAssignDialog
+          entityName={assignDialogChar.name}
+          campaigns={rulesetCompatibleCampaignOptions(assignDialogChar.ruleset, assignDialogChar.campaignId)}
+          showInviteCode
+          isPending={pendingCharacterId === assignDialogChar.id}
+          error={assignErrors[assignDialogChar.id]}
+          onSelectCampaign={(campaignId) => handleAssignCharacter(assignDialogChar.id, { campaignId })}
+          onConfirmInviteCode={(code) => handleAssignCharacter(assignDialogChar.id, { inviteCode: code })}
+          onClose={() => setAssignDialogChar(null)}
+        />
+      )}
+
+      {unassignConfirmChar && (
+        <ConfirmDialog
+          title="Rimuovere il personaggio dalla campagna?"
+          message={`"${unassignConfirmChar.name}" non verrà eliminato: resterà nel tuo database, semplicemente non farà più parte di questa campagna.`}
+          confirmLabel="Rimuovi"
+          danger={false}
+          onConfirm={handleConfirmUnassignCharacter}
+          onCancel={() => setUnassignConfirmChar(null)}
+        />
       )}
     </div>
 

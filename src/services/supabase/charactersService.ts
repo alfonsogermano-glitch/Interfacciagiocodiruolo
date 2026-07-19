@@ -393,6 +393,35 @@ export async function updateCharacterCampaign(characterId: string, campaignId: s
   if (error) throw error;
 }
 
+// Wrappa /characters/:id/assign-campaign (supabase/functions/server/index.tsx) -
+// a differenza di updateCharacterCampaign qui sopra, l'endpoint gestisce anche
+// permessi, compatibilita' ruleset, iscrizione/rimozione da campaign_members
+// (KV + Postgres) e il broadcast realtime che tiene sincronizzato il roster
+// del GM: va sempre usato per PG con campagna, mai un update diretto via client.
+export async function assignCharacterToCampaign(
+  characterId: string,
+  serverBase: string,
+  accessToken: string,
+  body: { campaignId: string | null } | { inviteCode: string }
+): Promise<{ campaignId: string | null }> {
+  const res = await fetch(`${serverBase}/characters/${characterId}/assign-campaign`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? 'Errore durante l\'operazione');
+  return data;
+}
+
+export async function unassignCharacterFromCampaign(
+  characterId: string,
+  serverBase: string,
+  accessToken: string
+): Promise<void> {
+  await assignCharacterToCampaign(characterId, serverBase, accessToken, { campaignId: null });
+}
+
 export async function saveCharacterAsGm(
   campaignId: string,
   characterId: string,

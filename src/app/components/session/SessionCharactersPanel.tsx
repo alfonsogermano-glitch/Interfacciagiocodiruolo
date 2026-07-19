@@ -6,7 +6,7 @@ import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/paletteColors';
 import { projectId } from '/utils/supabase/info';
 import type { Character } from '../../../types/character';
-import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, mapRowToCharacter } from '../../../services/supabase/charactersService';
+import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, mapRowToCharacter, unassignCharacterFromCampaign } from '../../../services/supabase/charactersService';
 import {
   loadNPCs, loadMonsters,
   saveNPC, saveMonster,
@@ -291,13 +291,7 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     setActionError(null);
     try {
       const accessToken = session?.access_token ?? '';
-      const res = await fetch(`${SERVER_BASE}/characters/${selectedChar.id}/assign-campaign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ campaignId: null }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Errore durante la rimozione');
+      await unassignCharacterFromCampaign(selectedChar.id, SERVER_BASE, accessToken);
       setConfirmRemoveChar(false);
       setSelected(null);
       await loadData();

@@ -7,7 +7,7 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
 import { useCampaignChannel } from '../../services/realtime/campaignChannel';
-import { loadCharactersByOwner, copyCharacterToCampaign } from '../../services/supabase/charactersService';
+import { loadCharactersByOwner, copyCharacterToCampaign, unassignCharacterFromCampaign } from '../../services/supabase/charactersService';
 import { loadNPCs, loadMonsters, type NPC, type Monster } from '../../services/supabase/entitiesService';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { EntityCard } from '../components/session/shared/EntityCard';
@@ -482,14 +482,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     setIsRemovingChar(true);
     setRemoveCharError(null);
     try {
-      const accessToken = session.access_token;
-      const res = await fetch(`${SERVER_BASE}/characters/${removeCharTarget.id}/assign-campaign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ campaignId: null }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Errore durante la rimozione');
+      await unassignCharacterFromCampaign(removeCharTarget.id, SERVER_BASE, session.access_token);
       setRemoveCharTarget(null);
       setPlayersReloadToken((t) => t + 1);
     } catch (err) {
