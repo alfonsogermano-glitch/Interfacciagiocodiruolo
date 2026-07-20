@@ -8,7 +8,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
 import { useCampaignChannel } from '../../services/realtime/campaignChannel';
 import {
-  loadCharactersByOwner, copyCharacterToCampaign,
+  loadCharactersByOwner, copyCharacterToCampaign, unassignCharacterFromCampaign,
   duplicateCharacter, deleteCharacter, setCharacterAvailableForPlayers, releaseCharacter,
   saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, deleteCharacterAsGm, mapRowToCharacter,
 } from '../../services/supabase/charactersService';
@@ -180,6 +180,11 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   const [isDeletingChar, setIsDeletingChar] = useState(false);
   const [releaseCharTarget, setReleaseCharTarget] = useState<PlayerCharacterSummary | null>(null);
   const [isReleasingChar, setIsReleasingChar] = useState(false);
+  // Rimuove solo questo PG dalla campagna (il giocatore resta membro con
+  // eventuali altri suoi PG) - distinta da removePlayerTarget piu' sotto,
+  // che rimuove tutti i PG del giocatore piu' la membership. Solo GM (isOwner).
+  const [unassignCharTarget, setUnassignCharTarget] = useState<PlayerCharacterSummary | null>(null);
+  const [isUnassigningChar, setIsUnassigningChar] = useState(false);
   // Elimina/Rimuovi/Copia per PNG e Mostri - tagged union invece di 6 stati
   // separati (uno per azione x tipo): stessa forma per entrambi i tipi,
   // nessuna differenza di comportamento tra i due se non la funzione service
@@ -663,6 +668,20 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     }
   };
 
+  const handleConfirmUnassignCharacter = async () => {
+    if (!unassignCharTarget || !session) return;
+    setIsUnassigningChar(true);
+    try {
+      await unassignCharacterFromCampaign(unassignCharTarget.id, SERVER_BASE, session.access_token);
+      setUnassignCharTarget(null);
+      setPlayersReloadToken((t) => t + 1);
+    } catch (err) {
+      console.error('Errore rimozione personaggio dalla campagna:', err);
+    } finally {
+      setIsUnassigningChar(false);
+    }
+  };
+
   // Toggle "Disponibile per i giocatori" - solo sui precompilati del GM,
   // update ottimistico locale (stesso schema di MyCharactersPage.tsx),
   // rollback su errore.
@@ -828,15 +847,24 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       });
     }
 
-    // Fusa con la vecchia "Rimuovi dalla campagna" (scoped al solo PG
-    // cliccato): handleConfirmRemovePlayer rimuove gia' tutti i PG del
-    // giocatore in questa campagna piu' la membership, un sovrainsieme
-    // corretto - il dialog esistente e' gia' chiaro su questa ampiezza,
-    // nessuna voce separata "scoped a un solo PG" serve piu'.
+    // Due ampiezze distinte, entrambe solo GM (mai al giocatore proprietario):
+    // "Rimuovi dalla campagna" tocca solo questo PG (il giocatore resta
+    // membro con eventuali altri suoi PG); "Rimuovi giocatore" e' il
+    // sovrainsieme che rimuove tutti i PG del giocatore in questa campagna
+    // piu' la membership.
+    if (isOwner) {
+      items.push({
+        key: 'unassign',
+        icon: <UserMinus className="h-4 w-4" />,
+        label: 'Rimuovi dalla campagna',
+        onClick: () => setUnassignCharTarget(ch),
+      });
+    }
+
     if (isOwner && row) {
       items.push({
         key: 'remove-player',
-        icon: <UserMinus className="h-4 w-4" />,
+        icon: <Users className="h-4 w-4" />,
         label: 'Rimuovi giocatore',
         onClick: () => setRemovePlayerTarget(row),
         danger: true,
@@ -1430,6 +1458,17 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
           danger={false}
           onConfirm={handleConfirmReleaseCharacter}
           onCancel={() => setReleaseCharTarget(null)}
+        />
+      )}
+
+      {unassignCharTarget && (
+        <ConfirmDialog
+          title="Rimuovere il personaggio dalla campagna?"
+          message={`"${unassignCharTarget.name}" non verrà eliminato: resterà nel database del giocatore, semplicemente non farà più parte di questa campagna.`}
+          confirmLabel="Rimuovi"
+          danger={false}
+          onConfirm={handleConfirmUnassignCharacter}
+          onCancel={() => setUnassignCharTarget(null)}
         />
       )}
 
