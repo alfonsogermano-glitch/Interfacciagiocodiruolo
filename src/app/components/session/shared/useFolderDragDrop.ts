@@ -6,12 +6,15 @@ export type FolderDragKind = 'folder' | 'card';
 
 // Sentinella per "fuori da qualunque cartella" (area delle card sciolte),
 // distinta da un vero id di cartella - stessa idea di 'END' in
-// useEntityTabs.ts per "fine della lista" invece di un id di tab.
+// useEntityTabs.ts per "fine della lista" invece di un id di tab. Usata sia
+// per le card (torna senza cartella) sia, da Fase 4, per le cartelle stesse
+// (torna cartella radice, parentFolderId null).
 export const UNFILED_DROP_ID = 'UNFILED' as const;
 
 export type FolderDropTarget =
   | { type: 'reorder-folder'; beforeFolderId: string | null } // null = in coda
   | { type: 'into-folder'; folderId: string }
+  | { type: 'nest-into-folder'; folderId: string }
   | { type: 'unfiled' };
 
 interface DraggedItem {
@@ -23,7 +26,10 @@ interface DraggedItem {
  * Riordina un array spostando `id` prima di `beforeId` (null = in coda).
  * Nessuna mutazione dell'array originale. Funzione pura, nessuna dipendenza
  * da DOM/React - riusata sia dall'hook sotto sia da una verifica manuale
- * isolata (vedi nota nel piano Fase 0).
+ * isolata (vedi nota nel piano Fase 0). Da Fase 4, il chiamante la invoca
+ * solo sul sottoinsieme dei fratelli (stesso parentFolderId) del nodo
+ * spostato - l'hook stesso non conosce le relazioni di parentela (vedi
+ * onReorderFolders sotto).
  */
 export function reorderIds(ids: string[], movedId: string, beforeId: string | null): string[] {
   const next = ids.filter((id) => id !== movedId);
@@ -42,11 +48,14 @@ export function reorderIds(ids: string[], movedId: string, beforeId: string | nu
  * useEntityTabs.ts (data-tab-id + rect.left+width/2), generalizzato a due
  * attributi:
  * - data-folder-id="<id>": riga/chip di una cartella - drop di una card =
- *   'into-folder', drop di un'altra cartella = 'reorder-folder' prima di
- *   questa.
+ *   'into-folder', drop di un'altra cartella = 'nest-into-folder' (Fase 4:
+ *   la cartella trascinata diventa figlia di questa), drop tra due cartelle
+ *   (non sopra il rect di nessuna) = 'reorder-folder' prima della piu'
+ *   vicina.
  * - data-folder-id="UNFILED": zona delle card sciolte (fuori da ogni
- *   cartella) - drop di una card qui = 'unfiled', ignorato per il drag di
- *   una cartella (le cartelle non possono "smontarsi").
+ *   cartella) - drop di una card qui = 'unfiled' (torna senza cartella);
+ *   drop di una cartella qui (Fase 4) = 'unfiled' anche per lei (torna
+ *   cartella radice, parentFolderId null).
  *
  * Verticale (clientY) perche' entrambe le superfici target (lista laterale
  * di SessionCharactersPanel.tsx, riga cartelle in cima alla griglia di
@@ -68,6 +77,7 @@ export function resolveFolderDropTarget(
   container: HTMLElement,
   draggedKind: FolderDragKind,
   entityType: string,
+  draggedId?: string,
 ): FolderDropTarget | null {
   const els = Array.from(container.querySelectorAll<HTMLElement>('[data-folder-id]'))
     .filter((el) => el.dataset.folderEntityType === entityType);
@@ -95,8 +105,13 @@ export function resolveFolderDropTarget(
     return null; // fuori da qualunque target riconosciuto: nessun'azione al rilascio
   }
 
-  // draggedKind === 'folder': solo riordino tra cartelle, mai 'into-folder'
-  // (una cartella non puo' entrare in un'altra - nessuna gerarchia richiesta).
+  // draggedKind === 'folder': sopra un'altra cartella (non se stessa) = la
+  // annida come figlia; sopra la zona sciolte = la rende radice; altrimenti
+  // riordino tra fratelli (il trigger DB blocca comunque cicli/profondita'/
+  // tipo incoerente lato server - vedi supabase-add-nested-folders.sql,
+  // questo e' solo il segnale di intento lato client).
+  if (overFolderId && overFolderId !== draggedId) return { type: 'nest-into-folder', folderId: overFolderId };
+  if (overUnfiled) return { type: 'unfiled' };
   return { type: 'reorder-folder', beforeFolderId };
 }
 
@@ -109,10 +124,23 @@ export interface UseFolderDragDropParams {
    *  piu' istanze possono condividere lo stesso containerRef senza
    *  contaminarsi a vicenda (vedi resolveFolderDropTarget sopra). */
   entityType: string;
-  /** Ordine attuale degli id di cartella al primo livello. */
+  /** Ordine attuale dei SOLI fratelli (stesso parentFolderId) del nodo che
+   *  si sta eventualmente riordinando - non piu' l'intero elenco piatto
+   *  della sezione (Fase 0): con l'annidamento (Fase 4) l'hook non conosce
+   *  le relazioni di parentela, quindi non puo' calcolare da solo chi sono
+   *  i fratelli. Il chiamante ricalcola questo array ad ogni render in base
+   *  al nodo attualmente trascinato (vedi onReorderFolders sotto). */
   folderIds: string[];
-  onReorderFolders: (order: string[]) => void;
+  /** Riordino tra fratelli: grezzo (id trascinato, id davanti a cui va
+   *  inserito) invece di un array gia' calcolato - il chiamante conosce le
+   *  relazioni di parentela (folder.parentFolderId), l'hook no. Il
+   *  chiamante trova i fratelli del nodo trascinato e chiama reorderIds su
+   *  quel sottoinsieme. */
+  onReorderFolders: (draggedId: string, beforeId: string | null) => void;
   onMoveCard: (cardId: string, folderId: string | null) => void;
+  /** Annidamento/promozione di una cartella: newParentFolderId = id di
+   *  un'altra cartella (diventa figlia) o null (diventa/torna radice). */
+  onNestFolder: (folderId: string, newParentFolderId: string | null) => void;
   /** Container DOM condiviso con altre istanze di questo hook (es. le 4
    *  sezioni di CampaignHome.tsx, che vivono nello stesso grid flat - vedi
    *  il commento sul markup unico in CampaignHome.tsx). Se omesso, l'hook
@@ -128,8 +156,8 @@ export interface UseFolderDragDropParams {
  * card/cartella verrebbe rubato), stesso schema pointerdown-locale +
  * pointermove/pointerup globali sulla window.
  *
- * Il consumer (CampaignHome.tsx / SessionCharactersPanel.tsx in Fase 2/3)
- * deve:
+ * Il consumer (CampaignHome.tsx / SessionCharactersPanel.tsx in Fase 2/3,
+ * esteso in Fase 5 per l'annidamento) deve:
  * - passare un ref al container che avvolge cartelle+card a
  *   `containerRef` sotto;
  * - marcare ogni riga/chip di cartella con `data-folder-id={folder.id}`
@@ -139,12 +167,13 @@ export interface UseFolderDragDropParams {
  * - chiamare `handlePointerDown(e, { kind: 'folder', id })` sull'header di
  *   una cartella trascinabile, o `handlePointerDown(e, { kind: 'card', id })`
  *   su una card;
- * - usare `draggedItem`/`dropTarget` solo per lo stile (evidenziare il
- *   target attivo durante il drag), la logica di persistenza e' gia'
- *   applicata automaticamente al pointerup.
+ * - usare `draggedItem`/`dropTarget`/`pointerPosition` solo per lo stile
+ *   (evidenziare il target attivo, disegnare un ghost che segue il
+ *   puntatore), la logica di persistenza e' gia' applicata automaticamente
+ *   al pointerup.
  *
  * Nessuna chiamata di rete qui dentro (a differenza di useEntityTabs.ts, che
- * fa il proprio fetch): la persistenza passa dai due callback, cosi' questo
+ * fa il proprio fetch): la persistenza passa dai tre callback, cosi' questo
  * hook resta verificabile in isolamento (reorderIds/resolveFolderDropTarget
  * sono pure) senza dover mockare fetch/SERVER_BASE.
  */
@@ -154,10 +183,17 @@ export function useFolderDragDrop({
   folderIds,
   onReorderFolders,
   onMoveCard,
+  onNestFolder,
   containerRef: externalContainerRef,
 }: UseFolderDragDropParams) {
   const [draggedItem, setDraggedItem] = useState<DraggedItem | null>(null);
   const [dropTarget, setDropTarget] = useState<FolderDropTarget | null>(null);
+  // Posizione del puntatore durante il drag - solo dato grezzo, nessun
+  // rendering qui dentro: il consumer decide se/come disegnare un ghost
+  // (portal, stile, contenuto) a partire da questa posizione, stesso
+  // principio di "l'hook e' solo meccanica" gia' seguito per
+  // draggedItem/dropTarget.
+  const [pointerPosition, setPointerPosition] = useState<{ x: number; y: number } | null>(null);
   const ownContainerRef = useRef<HTMLDivElement | null>(null);
   const containerRef = externalContainerRef ?? ownContainerRef;
   const dropTargetRef = useRef<FolderDropTarget | null>(null);
@@ -173,9 +209,10 @@ export function useFolderDragDrop({
   useEffect(() => {
     const handleMove = (e: PointerEvent) => {
       if (draggedItem) {
+        setPointerPosition({ x: e.clientX, y: e.clientY });
         const container = containerRef.current;
         if (!container) return;
-        const target = resolveFolderDropTarget(e.clientY, container, draggedItem.kind, entityType);
+        const target = resolveFolderDropTarget(e.clientY, container, draggedItem.kind, entityType, draggedItem.id);
         dropTargetRef.current = target;
         setDropTarget(target);
         return;
@@ -187,6 +224,7 @@ export function useFolderDragDrop({
       const dy = e.clientY - start.y;
       if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD_PX) {
         setDraggedItem(start.item);
+        setPointerPosition({ x: e.clientX, y: e.clientY });
       }
     };
 
@@ -196,8 +234,12 @@ export function useFolderDragDrop({
         if (target) {
           if (draggedItem.kind === 'folder' && target.type === 'reorder-folder') {
             if (target.beforeFolderId !== draggedItem.id) {
-              onReorderFolders(reorderIds(folderIds, draggedItem.id, target.beforeFolderId));
+              onReorderFolders(draggedItem.id, target.beforeFolderId);
             }
+          } else if (draggedItem.kind === 'folder' && target.type === 'nest-into-folder') {
+            onNestFolder(draggedItem.id, target.folderId);
+          } else if (draggedItem.kind === 'folder' && target.type === 'unfiled') {
+            onNestFolder(draggedItem.id, null);
           } else if (draggedItem.kind === 'card' && target.type === 'into-folder') {
             onMoveCard(draggedItem.id, target.folderId);
           } else if (draggedItem.kind === 'card' && target.type === 'unfiled') {
@@ -206,6 +248,7 @@ export function useFolderDragDrop({
         }
         setDraggedItem(null);
         setDropTarget(null);
+        setPointerPosition(null);
         dropTargetRef.current = null;
       }
       pointerStartRef.current = null;
@@ -224,6 +267,7 @@ export function useFolderDragDrop({
     containerRef,
     draggedItem,
     dropTarget,
+    pointerPosition,
     handlePointerDown,
   };
 }

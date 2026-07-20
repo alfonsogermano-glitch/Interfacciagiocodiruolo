@@ -1659,26 +1659,43 @@ app.post("/make-server-771c5bfd/campaigns/:campaignId/folders", async (c) => {
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
     const campaignId = c.req.param("campaignId");
-    const { entityType, name } = await c.req.json();
+    const { entityType, name, parentFolderId } = await c.req.json();
     if (!entityType || !name) return c.json({ error: "Campi obbligatori mancanti" }, 400);
 
     const admin = getAdminClient();
     const allowed = await canAccessFolders(admin, userId, campaignId, 'write');
     if (!allowed) return c.json({ error: "Non hai accesso alle cartelle di questa campagna" }, 403);
 
-    const { count } = await admin
+    // La position iniziale va contata solo tra i fratelli (stesso genitore,
+    // incluso il caso radice) - non tra tutte le cartelle di questo
+    // entity_type nella campagna, altrimenti una nuova sotto-cartella
+    // erediterebbe una posizione calcolata sul totale sbagliato.
+    let countQuery = admin
       .from('folders')
       .select('*', { count: 'exact', head: true })
       .eq('campaign_id', campaignId)
       .eq('entity_type', entityType);
+    countQuery = parentFolderId ? countQuery.eq('parent_folder_id', parentFolderId) : countQuery.is('parent_folder_id', null);
+    const { count } = await countQuery;
 
     const { data, error } = await admin
       .from('folders')
-      .insert({ campaign_id: campaignId, entity_type: entityType, name, position: count ?? 0 })
+      .insert({
+        campaign_id: campaignId,
+        entity_type: entityType,
+        name,
+        position: count ?? 0,
+        parent_folder_id: parentFolderId ?? null,
+      })
       .select('*')
       .single();
 
-    if (error) return c.json({ error: "Errore creazione cartella" }, 500);
+    // 400 (non 500): un errore qui e' quasi sempre il trigger
+    // check_folder_hierarchy (supabase-add-nested-folders.sql) che rifiuta
+    // parentFolderId per tipo/campagna incoerente, ciclo o profondita' oltre
+    // 5 livelli - errore di input del client, non un guasto del server.
+    // error.message porta il testo della RAISE EXCEPTION del trigger.
+    if (error) return c.json({ error: error.message ?? "Cartella genitore non valida" }, 400);
     return c.json({ folder: data });
   } catch (err) {
     console.log("Errore POST folders:", err);
@@ -1694,7 +1711,11 @@ app.put("/make-server-771c5bfd/folders/:folderId", async (c) => {
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
     const folderId = c.req.param("folderId");
-    const { name, position } = await c.req.json();
+    // parentFolderId distinto da "assente": null e' un valore esplicito
+    // valido ("diventa cartella radice"), va applicato solo se la chiave e'
+    // davvero presente nel body (undefined = non toccare), a differenza di
+    // name/position dove "non una stringa/non un numero" basta come guardia.
+    const { name, position, parentFolderId } = await c.req.json();
 
     const admin = getAdminClient();
     const { data: existing, error: fetchError } = await admin
@@ -1710,6 +1731,7 @@ app.put("/make-server-771c5bfd/folders/:folderId", async (c) => {
     const patch: any = { updated_at: new Date().toISOString() };
     if (typeof name === 'string') patch.name = name;
     if (typeof position === 'number') patch.position = position;
+    if (parentFolderId !== undefined) patch.parent_folder_id = parentFolderId;
 
     const { data, error } = await admin
       .from('folders')
@@ -1718,7 +1740,10 @@ app.put("/make-server-771c5bfd/folders/:folderId", async (c) => {
       .select('*')
       .single();
 
-    if (error) return c.json({ error: "Errore aggiornamento cartella" }, 500);
+    // 400 (non 500): vedi il commento gemello nella POST sopra - un errore
+    // qui e' quasi sempre il trigger check_folder_hierarchy che rifiuta il
+    // nuovo parentFolderId (ciclo, profondita', tipo/campagna incoerente).
+    if (error) return c.json({ error: error.message ?? "Errore aggiornamento cartella" }, 400);
     return c.json({ folder: data });
   } catch (err) {
     console.log("Errore PUT folders:", err);

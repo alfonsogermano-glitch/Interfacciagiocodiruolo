@@ -12,6 +12,10 @@ export interface Folder {
   entityType: FolderEntityType;
   name: string;
   position: number;
+  // null = cartella radice. Vedi supabase-add-nested-folders.sql per il
+  // trigger che garantisce coerenza di tipo/campagna con la cartella
+  // genitore, assenza di cicli e limite di profondita' (5 livelli).
+  parentFolderId: string | null;
 }
 
 function mapFolder(row: any): Folder {
@@ -21,6 +25,7 @@ function mapFolder(row: any): Folder {
     entityType: row.entity_type,
     name: row.name,
     position: row.position,
+    parentFolderId: row.parent_folder_id ?? null,
   };
 }
 
@@ -44,12 +49,13 @@ export async function createFolder(
   entityType: FolderEntityType,
   name: string,
   serverBase: string,
-  accessToken: string
+  accessToken: string,
+  parentFolderId?: string | null,
 ): Promise<Folder> {
   const res = await fetch(`${serverBase}/campaigns/${campaignId}/folders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-    body: JSON.stringify({ entityType, name }),
+    body: JSON.stringify({ entityType, name, parentFolderId: parentFolderId ?? null }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error ?? 'Errore creazione cartella');
@@ -84,6 +90,26 @@ export async function reorderFolder(
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error ?? 'Errore riordino cartella');
+}
+
+// Annida una cartella dentro un'altra (parentFolderId) o la promuove a
+// radice (null) - usata dal drop "nest-into-folder"/"unfiled" di una
+// cartella (Fase 5). Il trigger check_folder_hierarchy lato DB rifiuta
+// cicli, profondita' oltre 5 livelli o tipo/campagna incoerente - l'errore
+// arriva qui come 400 con il testo della RAISE EXCEPTION (vedi il server).
+export async function setFolderParent(
+  folderId: string,
+  parentFolderId: string | null,
+  serverBase: string,
+  accessToken: string
+): Promise<void> {
+  const res = await fetch(`${serverBase}/folders/${folderId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ parentFolderId }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? 'Errore spostamento cartella');
 }
 
 export async function deleteFolder(

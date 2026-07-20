@@ -32,10 +32,10 @@ import {
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { Switch } from '../components/ui/switch';
 import {
-  loadFolders, createFolder, renameFolder, reorderFolder, deleteFolder, setCharacterFolder,
+  loadFolders, createFolder, renameFolder, reorderFolder, deleteFolder, setCharacterFolder, setFolderParent,
   type Folder, type FolderEntityType,
 } from '../../services/supabase/foldersService';
-import { useFolderDragDrop, UNFILED_DROP_ID } from '../components/session/shared/useFolderDragDrop';
+import { useFolderDragDrop, UNFILED_DROP_ID, reorderIds } from '../components/session/shared/useFolderDragDrop';
 import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../components/ui/paletteColors';
 import type { Character } from '../../types/character';
@@ -1009,23 +1009,61 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     }
   };
 
+  // Riordina solo tra i fratelli del nodo trascinato (stesso parentFolderId,
+  // incluso il caso radice/null) - non l'intero elenco piatto come nella
+  // versione Fase 2: da Fase 4 l'hook non calcola piu' da solo l'array
+  // riordinato (non conosce le relazioni di parentela), passa solo
+  // (draggedId, beforeId) grezzi - il chiamante trova i fratelli e chiama
+  // reorderIds su quel sottoinsieme.
   const handleReorderFolders = async (
     folders: Folder[],
-    newOrderIds: string[],
+    draggedId: string,
+    beforeId: string | null,
     setFolders: React.Dispatch<React.SetStateAction<Folder[]>>,
   ) => {
     if (!session) return;
+    const dragged = folders.find((f) => f.id === draggedId);
+    if (!dragged) return;
+    const siblingIds = folders.filter((f) => f.parentFolderId === dragged.parentFolderId).map((f) => f.id);
+    const reorderedSiblingIds = reorderIds(siblingIds, draggedId, beforeId);
+    const positionById = new Map(reorderedSiblingIds.map((id, idx) => [id, idx]));
     const byId = new Map(folders.map((f) => [f.id, f]));
-    const reordered = newOrderIds.map((id, idx) => ({ ...(byId.get(id) as Folder), position: idx }));
-    setFolders(reordered);
+
+    setFolders((prev) => prev.map((f) => (positionById.has(f.id) ? { ...f, position: positionById.get(f.id)! } : f)));
+
     await Promise.all(
-      reordered.map((f) => {
-        const original = byId.get(f.id);
-        if (original && original.position === f.position) return null;
-        return reorderFolder(f.id, f.position, SERVER_BASE, session.access_token)
+      reorderedSiblingIds.map((id) => {
+        const original = byId.get(id);
+        const newPosition = positionById.get(id)!;
+        if (original && original.position === newPosition) return null;
+        return reorderFolder(id, newPosition, SERVER_BASE, session.access_token)
           .catch((err) => console.error('Errore riordino cartella:', err));
       })
     );
+  };
+
+  // Annida una cartella dentro un'altra o la promuove a radice (null) -
+  // update ottimistico + rollback su errore, stesso schema di
+  // handleMoveNpcFolder poco sotto. Il trigger check_folder_hierarchy lato
+  // DB e' l'unica vera difesa contro cicli/profondita'/tipo incoerente -
+  // qui si assume il caso comune (spostamento valido) e si ripristina solo
+  // se il server rifiuta.
+  const handleNestFolder = async (
+    folders: Folder[],
+    folderId: string,
+    newParentFolderId: string | null,
+    setFolders: React.Dispatch<React.SetStateAction<Folder[]>>,
+  ) => {
+    if (!session) return;
+    const original = folders.find((f) => f.id === folderId);
+    if (!original) return;
+    setFolders((prev) => prev.map((f) => (f.id === folderId ? { ...f, parentFolderId: newParentFolderId } : f)));
+    try {
+      await setFolderParent(folderId, newParentFolderId, SERVER_BASE, session.access_token);
+    } catch (err) {
+      console.error('Errore spostamento cartella:', err);
+      setFolders((prev) => prev.map((f) => (f.id === folderId ? original : f)));
+    }
   };
 
   const handleConfirmDeleteFolder = async () => {
@@ -1121,32 +1159,36 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     canEdit: isOwner,
     entityType: 'character',
     folderIds: charFolders.map((f) => f.id),
-    onReorderFolders: (order) => handleReorderFolders(charFolders, order, setCharFolders),
+    onReorderFolders: (draggedId, beforeId) => handleReorderFolders(charFolders, draggedId, beforeId, setCharFolders),
     onMoveCard: handleMoveCharacterFolder,
+    onNestFolder: (folderId, newParentFolderId) => handleNestFolder(charFolders, folderId, newParentFolderId, setCharFolders),
     containerRef: foldersContainerRef,
   });
   const premadeFolderDnd = useFolderDragDrop({
     canEdit: isOwner,
     entityType: 'premade',
     folderIds: premadeFolders.map((f) => f.id),
-    onReorderFolders: (order) => handleReorderFolders(premadeFolders, order, setPremadeFolders),
+    onReorderFolders: (draggedId, beforeId) => handleReorderFolders(premadeFolders, draggedId, beforeId, setPremadeFolders),
     onMoveCard: handleMoveCharacterFolder,
+    onNestFolder: (folderId, newParentFolderId) => handleNestFolder(premadeFolders, folderId, newParentFolderId, setPremadeFolders),
     containerRef: foldersContainerRef,
   });
   const npcFolderDnd = useFolderDragDrop({
     canEdit: isOwner,
     entityType: 'npc',
     folderIds: npcFolders.map((f) => f.id),
-    onReorderFolders: (order) => handleReorderFolders(npcFolders, order, setNpcFolders),
+    onReorderFolders: (draggedId, beforeId) => handleReorderFolders(npcFolders, draggedId, beforeId, setNpcFolders),
     onMoveCard: handleMoveNpcFolder,
+    onNestFolder: (folderId, newParentFolderId) => handleNestFolder(npcFolders, folderId, newParentFolderId, setNpcFolders),
     containerRef: foldersContainerRef,
   });
   const monsterFolderDnd = useFolderDragDrop({
     canEdit: isOwner,
     entityType: 'monster',
     folderIds: monsterFolders.map((f) => f.id),
-    onReorderFolders: (order) => handleReorderFolders(monsterFolders, order, setMonsterFolders),
+    onReorderFolders: (draggedId, beforeId) => handleReorderFolders(monsterFolders, draggedId, beforeId, setMonsterFolders),
     onMoveCard: handleMoveMonsterFolder,
+    onNestFolder: (folderId, newParentFolderId) => handleNestFolder(monsterFolders, folderId, newParentFolderId, setMonsterFolders),
     containerRef: foldersContainerRef,
   });
 
