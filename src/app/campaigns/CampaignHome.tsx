@@ -287,12 +287,22 @@ function DragGhost({
   if (!dnd.draggedItem || !dnd.pointerPosition) return null;
   const label = getLabel(dnd.draggedItem.id);
   if (!label) return null;
+  // Colori inline (non classi Tailwind var(--dash-*)): stesso pattern gia'
+  // collaudato in EntityKebabMenu.tsx per i portal su document.body - le
+  // variabili CSS --dash-* sono scoped a [data-dashboard-palette] (vedi
+  // AppShell.tsx), un elemento fratello di document.body, non antenato, non
+  // ci arrivano per cascata (stesso bug gia' visto col menu ⋮ invisibile,
+  // vedi portal-container.tsx).
+  const colors = getCurrentPaletteColors();
   return createPortal(
     <div
-      style={{ position: 'fixed', left: dnd.pointerPosition.x + 14, top: dnd.pointerPosition.y + 14, zIndex: 2000 }}
-      className="pointer-events-none flex max-w-[220px] items-center gap-1.5 rounded-lg border border-[var(--dash-accent)] bg-[var(--dash-surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--dash-text-strong)] opacity-90 shadow-2xl"
+      style={{
+        position: 'fixed', left: dnd.pointerPosition.x + 14, top: dnd.pointerPosition.y + 14, zIndex: 2000,
+        backgroundColor: colors.panel, border: `1px solid ${colors.border}`, color: colors.text,
+      }}
+      className="pointer-events-none flex max-w-[220px] items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium opacity-90 shadow-2xl"
     >
-      {dnd.draggedItem.kind === 'folder' && <FolderIcon className="h-3.5 w-3.5 shrink-0 text-[var(--dash-accent-2)]" />}
+      {dnd.draggedItem.kind === 'folder' && <FolderIcon className="h-3.5 w-3.5 shrink-0" />}
       <span className="truncate">{label}</span>
     </div>,
     document.body
@@ -324,11 +334,15 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   const [monsters, setMonsters] = useState<Monster[]>([]);
   const [monstersLoaded, setMonstersLoaded] = useState(false);
 
-  // ─── Cartelle (sistema di organizzazione PG/Precompilati/PNG/Mostri) ───
-  // Un array per sezione (namespace 'character'/'premade'/'npc'/'monster' -
-  // vedi supabase-add-folders.sql), mai mescolati tra loro: una cartella non
+  // ─── Cartelle (sistema di organizzazione Precompilati/PNG/Mostri) ───
+  // Un array per sezione (namespace 'premade'/'npc'/'monster' - vedi
+  // supabase-add-folders.sql), mai mescolati tra loro: una cartella non
   // compare mai in una sezione diversa da quella in cui e' stata creata.
-  const [charFolders, setCharFolders] = useState<Folder[]>([]);
+  // 'character' rimosso dalla UI (i PG normali sono tornati al
+  // comportamento pre-cartelle) ma resta un entity_type valido nello
+  // schema/tipo - eventuali cartelle 'character' create durante i test
+  // restano nel DB, orfane e senza piu' UI, innocue (nessun trigger le
+  // tocca finche' nessuno aggiorna quelle righe).
   const [premadeFolders, setPremadeFolders] = useState<Folder[]>([]);
   const [npcFolders, setNpcFolders] = useState<Folder[]>([]);
   const [monsterFolders, setMonsterFolders] = useState<Folder[]>([]);
@@ -613,14 +627,14 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     };
   }, [isOwner, activeCampaign?.id]);
 
-  // Cartelle: 'character'/'premade' caricate per chiunque veda la sezione
-  // Personaggi/Precompilati (GM e giocatori, sola lettura per questi ultimi -
-  // canAccessFolders lato server ammette anche i membri in lettura), 'npc'/
-  // 'monster' solo per il GM, stessa regola di sicurezza delle sezioni PNG/
-  // Mostri sopra (mai richieste per un giocatore).
+  // Cartelle: 'premade' caricate per chiunque veda la sezione Precompilati
+  // (GM e giocatori, sola lettura per questi ultimi - canAccessFolders lato
+  // server ammette anche i membri in lettura), 'npc'/'monster' solo per il
+  // GM, stessa regola di sicurezza delle sezioni PNG/Mostri sopra (mai
+  // richieste per un giocatore). 'character' non piu' caricato: i PG
+  // normali sono tornati al comportamento pre-cartelle.
   useEffect(() => {
     if (!activeCampaign?.id || !session) {
-      setCharFolders([]);
       setPremadeFolders([]);
       setNpcFolders([]);
       setMonsterFolders([]);
@@ -635,7 +649,6 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
         .then((loaded) => { if (!cancelled) setter(loaded); })
         .catch((err) => console.error(`Errore caricamento cartelle ${entityType}:`, err));
 
-    load('character', setCharFolders);
     load('premade', setPremadeFolders);
     if (isOwner) {
       load('npc', setNpcFolders);
@@ -1124,11 +1137,11 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       await deleteFolder(deleteFolderTarget.id, SERVER_BASE, session.access_token);
       const clearFolder = <T extends { id: string; folderId?: string | null }>(list: T[]) =>
         list.map((item) => (item.folderId === deleteFolderTarget.id ? { ...item, folderId: null } : item));
+      // Nessun case 'character': la sezione Personaggi non crea piu'
+      // cartelle di quel tipo, questo target non e' piu' raggiungibile da
+      // questa UI (eventuali cartelle 'character' residue dai test restano
+      // nel DB, senza piu' un percorso per eliminarle da qui).
       switch (deleteFolderTarget.entityType) {
-        case 'character':
-          setCharFolders((prev) => prev.filter((f) => f.id !== deleteFolderTarget.id));
-          setPlayerRows((prev) => prev.map((row) => ({ ...row, characters: clearFolder(row.characters) })));
-          break;
         case 'premade':
           setPremadeFolders((prev) => prev.filter((f) => f.id !== deleteFolderTarget.id));
           setAvailablePremades((prev) => clearFolder(prev));
@@ -1171,7 +1184,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       const current = playerRows.flatMap((row) => row.characters).find((c) => c.id === characterId)
         ?? availablePremades.find((c) => c.id === characterId);
       if (current?.folderId === folderId) {
-        const targetFolder = [...charFolders, ...premadeFolders].find((f) => f.id === folderId);
+        const targetFolder = premadeFolders.find((f) => f.id === folderId);
         resolvedFolderId = targetFolder?.parentFolderId ?? null;
       }
     }
@@ -1224,21 +1237,13 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     }
   };
 
-  // Le 4 sezioni condividono lo stesso containerRef (un solo grid flat, vedi
-  // il commento sul markup piu' sotto) - ogni istanza filtra i propri target
-  // di drop tramite entityType, senza contaminarsi a vicenda pur osservando
-  // tutte lo stesso DOM (vedi il commento su resolveFolderDropTarget in
-  // useFolderDragDrop.ts).
+  // Le 3 sezioni con cartelle (Precompilati/PNG/Mostri - Personaggi tornato
+  // al comportamento pre-cartelle) condividono lo stesso containerRef (un
+  // solo grid flat, vedi il commento sul markup piu' sotto) - ogni istanza
+  // filtra i propri target di drop tramite entityType, senza contaminarsi a
+  // vicenda pur osservando tutte lo stesso DOM (vedi il commento su
+  // resolveFolderDropTarget in useFolderDragDrop.ts).
   const foldersContainerRef = useRef<HTMLDivElement | null>(null);
-  const charFolderDnd = useFolderDragDrop({
-    canEdit: isOwner,
-    entityType: 'character',
-    folderIds: charFolders.map((f) => f.id),
-    onReorderFolders: (draggedId, beforeId) => handleReorderFolders(charFolders, draggedId, beforeId, setCharFolders),
-    onMoveCard: handleMoveCharacterFolder,
-    onNestFolder: (folderId, newParentFolderId) => handleNestFolder(charFolders, folderId, newParentFolderId, setCharFolders),
-    containerRef: foldersContainerRef,
-  });
   const premadeFolderDnd = useFolderDragDrop({
     canEdit: isOwner,
     entityType: 'premade',
@@ -1560,8 +1565,6 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   // cerca prima tra le cartelle della sezione (drag di kind 'folder'), poi
   // tra le card (drag di kind 'card'): stesso spazio di id passato
   // all'hook, non serve sapere qui il kind per scegliere dove cercare.
-  const charFolderLabel = (id: string) => charFolders.find((f) => f.id === id)?.name
-    ?? playerRows.flatMap((row) => row.characters).find((c) => c.id === id)?.name ?? null;
   const premadeFolderLabel = (id: string) => premadeFolders.find((f) => f.id === id)?.name
     ?? availablePremades.find((c) => c.id === id)?.name ?? null;
   const npcFolderLabel = (id: string) => npcFolders.find((f) => f.id === id)?.name
@@ -1584,7 +1587,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     entityType: FolderEntityType,
     folders: Folder[],
     setFolders: React.Dispatch<React.SetStateAction<Folder[]>>,
-    dnd: typeof charFolderDnd,
+    dnd: typeof premadeFolderDnd,
     items: T[],
     renderCard: (item: T) => React.ReactNode,
   ) {
@@ -1619,7 +1622,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
           {open && folderItems.map((it) => (
             <div
               key={it.id}
-              className={dnd.draggedItem?.kind === 'card' && dnd.draggedItem.id === it.id ? 'opacity-40' : ''}
+              className={`${isOwner ? 'cursor-grab active:cursor-grabbing' : ''} ${
+                dnd.draggedItem?.kind === 'card' && dnd.draggedItem.id === it.id ? 'opacity-40' : ''
+              }`}
               onPointerDown={(e) => dnd.handlePointerDown(e, { kind: 'card', id: it.id })}
             >
               {renderCard(it)}
@@ -1867,25 +1872,17 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
               con un minimo protetto che evita la stessa classe di bug di
               troncamento vista finora se lo schermo e' stretto. */}
           <div ref={foldersContainerRef} className="grid grid-cols-[repeat(2,minmax(200px,1fr))] content-start gap-4">
+            {/* Personaggi: tornato al comportamento pre-cartelle (nessuna
+                cartella, nessuna icona "crea cartella", card sciolte come
+                nella Fase 2 originale) - un eventuale folder_id residuo su
+                un PG (da test interni) e' ignorato qui, non causa errori:
+                il PG compare comunque nella lista piatta, il campo resta
+                semplicemente inutilizzato per questa sezione. */}
             {(activeQuickFilter === 'all' || activeQuickFilter === 'pg') && (
               <>
-                <FolderSectionHeader icon={Users} label="Personaggi" isOwner={isOwner} onCreateFolder={() => handleCreateFolder('character', setCharFolders)} />
-                {renderFolderedSection(
-                  'character', charFolders, setCharFolders, charFolderDnd,
-                  playerRows.flatMap((row) => row.characters.map((ch) => ({ ...ch, row }))),
-                  (item) => renderCharacterCard(item, item.row),
-                )}
                 {playerRows.map((row) =>
                   row.characters.length > 0 ? (
-                    row.characters.filter((ch) => !ch.folderId).map((ch) => (
-                      <div
-                        key={ch.id}
-                        className={charFolderDnd.draggedItem?.kind === 'card' && charFolderDnd.draggedItem.id === ch.id ? 'opacity-40' : ''}
-                        onPointerDown={(e) => charFolderDnd.handlePointerDown(e, { kind: 'card', id: ch.id })}
-                      >
-                        {renderCharacterCard(ch, row)}
-                      </div>
-                    ))
+                    row.characters.map((ch) => renderCharacterCard(ch, row))
                   ) : (
                     <EntityCard
                       key={row.profileId}
@@ -1918,7 +1915,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                   availablePremades.filter((ch) => !ch.folderId).map((ch) => (
                     <div
                       key={ch.id}
-                      className={premadeFolderDnd.draggedItem?.kind === 'card' && premadeFolderDnd.draggedItem.id === ch.id ? 'opacity-40' : ''}
+                      className={`${isOwner ? 'cursor-grab active:cursor-grabbing' : ''} ${
+                        premadeFolderDnd.draggedItem?.kind === 'card' && premadeFolderDnd.draggedItem.id === ch.id ? 'opacity-40' : ''
+                      }`}
                       onPointerDown={(e) => premadeFolderDnd.handlePointerDown(e, { kind: 'card', id: ch.id })}
                     >
                       {renderPremadeCard(ch)}
@@ -1935,7 +1934,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                 {npcs.filter((npc) => !npc.folderId).map((npc) => (
                   <div
                     key={npc.id}
-                    className={npcFolderDnd.draggedItem?.kind === 'card' && npcFolderDnd.draggedItem.id === npc.id ? 'opacity-40' : ''}
+                    className={`${isOwner ? 'cursor-grab active:cursor-grabbing' : ''} ${
+                      npcFolderDnd.draggedItem?.kind === 'card' && npcFolderDnd.draggedItem.id === npc.id ? 'opacity-40' : ''
+                    }`}
                     onPointerDown={(e) => npcFolderDnd.handlePointerDown(e, { kind: 'card', id: npc.id })}
                   >
                     {renderNpcCard(npc)}
@@ -1951,7 +1952,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                 {monsters.filter((monster) => !monster.folderId).map((monster) => (
                   <div
                     key={monster.id}
-                    className={monsterFolderDnd.draggedItem?.kind === 'card' && monsterFolderDnd.draggedItem.id === monster.id ? 'opacity-40' : ''}
+                    className={`${isOwner ? 'cursor-grab active:cursor-grabbing' : ''} ${
+                      monsterFolderDnd.draggedItem?.kind === 'card' && monsterFolderDnd.draggedItem.id === monster.id ? 'opacity-40' : ''
+                    }`}
                     onPointerDown={(e) => monsterFolderDnd.handlePointerDown(e, { kind: 'card', id: monster.id })}
                   >
                     {renderMonsterCard(monster)}
@@ -1964,7 +1967,6 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
         </div>
       )}
 
-      <DragGhost dnd={charFolderDnd} getLabel={charFolderLabel} />
       <DragGhost dnd={premadeFolderDnd} getLabel={premadeFolderLabel} />
       <DragGhost dnd={npcFolderDnd} getLabel={npcFolderLabel} />
       <DragGhost dnd={monsterFolderDnd} getLabel={monsterFolderLabel} />
