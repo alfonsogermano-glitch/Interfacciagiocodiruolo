@@ -1346,6 +1346,31 @@ app.post("/make-server-771c5bfd/characters/:id/copy-to-campaign", async (c) => {
 // (usato oggi solo dal ramo 'campaign': le note di campagna sono scritte solo
 // dal GM ma lette da tutti i membri, stesso principio delle tab "Segrete" a
 // livello di singola tab per PG/PNG/Mostri).
+// Cartelle: sempre scoped a una campagna (a differenza delle note, che
+// possono vivere anche senza campagna per un'entita' di catalogo) - GM
+// (proprietario campagna) scrive, chiunque sia membro legge. Stessa forma
+// delle policy RLS in supabase-add-folders.sql, cosi' un client che bypassa
+// questo controllo applicativo trova comunque lo stesso limite a livello DB.
+async function canAccessFolders(
+  admin: any, userId: string, campaignId: string, mode: 'read' | 'write'
+): Promise<boolean> {
+  const { data: campaign } = await admin
+    .from('campaigns')
+    .select('owner_profile_id')
+    .eq('id', campaignId)
+    .single();
+  if (campaign?.owner_profile_id === userId) return true;
+  if (mode !== 'read') return false;
+
+  const { data: membership } = await admin
+    .from('campaign_members')
+    .select('campaign_id')
+    .eq('campaign_id', campaignId)
+    .eq('profile_id', userId)
+    .maybeSingle();
+  return !!membership;
+}
+
 async function canAccessEntityNotes(
   admin: any, userId: string, campaignId: string | null, entityType: string, entityId: string,
   mode: 'read' | 'write' = 'write'
@@ -1526,6 +1551,147 @@ app.delete("/make-server-771c5bfd/notes/:noteId", async (c) => {
     return c.json({ success: true });
   } catch (err) {
     console.log("Errore DELETE notes:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+// ─── Cartelle (folders) ─────────────────────────────────────────────────────
+// Mirror di /notes sopra: stessa forma di route (GET/POST scoped a
+// campaignId, PUT/DELETE scoped all'id della risorsa), ma piu' semplice -
+// niente distinzione per visibilita' o proprietario dell'entita' singola,
+// solo GM-scrive/membro-legge (vedi canAccessFolders sopra).
+
+app.get("/make-server-771c5bfd/campaigns/:campaignId/folders", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const campaignId = c.req.param("campaignId");
+    const entityType = c.req.query("entityType");
+    if (!entityType) return c.json({ error: "entityType obbligatorio" }, 400);
+
+    const admin = getAdminClient();
+    const allowed = await canAccessFolders(admin, userId, campaignId, 'read');
+    if (!allowed) return c.json({ error: "Non hai accesso alle cartelle di questa campagna" }, 403);
+
+    const { data, error } = await admin
+      .from('folders')
+      .select('*')
+      .eq('campaign_id', campaignId)
+      .eq('entity_type', entityType)
+      .order('position', { ascending: true });
+
+    if (error) return c.json({ error: "Errore lettura cartelle" }, 500);
+    return c.json({ folders: data ?? [] });
+  } catch (err) {
+    console.log("Errore GET folders:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.post("/make-server-771c5bfd/campaigns/:campaignId/folders", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const campaignId = c.req.param("campaignId");
+    const { entityType, name } = await c.req.json();
+    if (!entityType || !name) return c.json({ error: "Campi obbligatori mancanti" }, 400);
+
+    const admin = getAdminClient();
+    const allowed = await canAccessFolders(admin, userId, campaignId, 'write');
+    if (!allowed) return c.json({ error: "Non hai accesso alle cartelle di questa campagna" }, 403);
+
+    const { count } = await admin
+      .from('folders')
+      .select('*', { count: 'exact', head: true })
+      .eq('campaign_id', campaignId)
+      .eq('entity_type', entityType);
+
+    const { data, error } = await admin
+      .from('folders')
+      .insert({ campaign_id: campaignId, entity_type: entityType, name, position: count ?? 0 })
+      .select('*')
+      .single();
+
+    if (error) return c.json({ error: "Errore creazione cartella" }, 500);
+    return c.json({ folder: data });
+  } catch (err) {
+    console.log("Errore POST folders:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.put("/make-server-771c5bfd/folders/:folderId", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const folderId = c.req.param("folderId");
+    const { name, position } = await c.req.json();
+
+    const admin = getAdminClient();
+    const { data: existing, error: fetchError } = await admin
+      .from('folders')
+      .select('*')
+      .eq('id', folderId)
+      .single();
+    if (fetchError || !existing) return c.json({ error: "Cartella non trovata" }, 404);
+
+    const allowed = await canAccessFolders(admin, userId, existing.campaign_id, 'write');
+    if (!allowed) return c.json({ error: "Non hai accesso a questa cartella" }, 403);
+
+    const patch: any = { updated_at: new Date().toISOString() };
+    if (typeof name === 'string') patch.name = name;
+    if (typeof position === 'number') patch.position = position;
+
+    const { data, error } = await admin
+      .from('folders')
+      .update(patch)
+      .eq('id', folderId)
+      .select('*')
+      .single();
+
+    if (error) return c.json({ error: "Errore aggiornamento cartella" }, 500);
+    return c.json({ folder: data });
+  } catch (err) {
+    console.log("Errore PUT folders:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.delete("/make-server-771c5bfd/folders/:folderId", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const folderId = c.req.param("folderId");
+    const admin = getAdminClient();
+    const { data: existing, error: fetchError } = await admin
+      .from('folders')
+      .select('*')
+      .eq('id', folderId)
+      .single();
+    if (fetchError || !existing) return c.json({ error: "Cartella non trovata" }, 404);
+
+    const allowed = await canAccessFolders(admin, userId, existing.campaign_id, 'write');
+    if (!allowed) return c.json({ error: "Non hai accesso a questa cartella" }, 403);
+
+    // Le card dentro restano solo orfane (folder_id -> null via ON DELETE SET
+    // NULL sulla FK), mai cancellate insieme alla cartella.
+    const { error } = await admin.from('folders').delete().eq('id', folderId);
+    if (error) return c.json({ error: "Errore eliminazione cartella" }, 500);
+    return c.json({ success: true });
+  } catch (err) {
+    console.log("Errore DELETE folders:", err);
     return c.json({ error: `Errore interno: ${err}` }, 500);
   }
 });
