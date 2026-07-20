@@ -1291,6 +1291,13 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                           colors={menuColors}
                           buttonClassName={photoCornerButtonClass}
                           items={buildEntityMenuItems('npc', npc)}
+                          footer={
+                            <div className="px-2 py-1.5 text-xs" style={{ color: menuColors.text, opacity: 0.7 }}>
+                              {npc.createdAt && (
+                                <div>Creato il {new Date(npc.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                              )}
+                            </div>
+                          }
                         />
                       ) : undefined
                     }
@@ -1328,6 +1335,13 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                           colors={menuColors}
                           buttonClassName={photoCornerButtonClass}
                           items={buildEntityMenuItems('monster', monster)}
+                          footer={
+                            <div className="px-2 py-1.5 text-xs" style={{ color: menuColors.text, opacity: 0.7 }}>
+                              {monster.createdAt && (
+                                <div>Creato il {new Date(monster.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                              )}
+                            </div>
+                          }
                         />
                       ) : undefined
                     }

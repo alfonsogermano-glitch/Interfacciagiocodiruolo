@@ -715,6 +715,13 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                 danger: true,
               },
             ]}
+            footer={
+              <div className="px-2 py-1.5 text-xs" style={{ color: menuColors.text, opacity: 0.7 }}>
+                {char.createdAt && (
+                  <div>Creato il {new Date(char.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                )}
+              </div>
+            }
           />
         }
       >
@@ -1250,6 +1257,13 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                 onClick: () => handleToggleEntityVisibility(entry),
               },
             ]}
+            footer={
+              <div className="px-2 py-1.5 text-xs" style={{ color: menuColors.text, opacity: 0.7 }}>
+                {entity.createdAt && (
+                  <div>Creato il {new Date(entity.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                )}
+              </div>
+            }
           />
         }
       >
