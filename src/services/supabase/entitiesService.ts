@@ -305,6 +305,7 @@ export interface NPC {
   createdAt?: string;
   updatedAt?: string;
   ownerProfileId?: string;
+  folderId?: string | null;
 }
 
 export async function loadNPCs(campaignId: string): Promise<NPC[]> {
@@ -647,6 +648,7 @@ export interface Monster {
   visibleToPlayers?: boolean;
   tabOrder?: string[];
   ownerProfileId?: string;
+  folderId?: string | null;
 
   // Legacy fields from DB
   baseType?: string;

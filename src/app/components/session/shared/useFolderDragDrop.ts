@@ -52,13 +52,25 @@ export function reorderIds(ids: string[], movedId: string, beforeId: string | nu
  * di SessionCharactersPanel.tsx, riga cartelle in cima alla griglia di
  * CampaignHome.tsx) dispongono le cartelle in un'unica colonna/riga - non
  * serve un algoritmo di prossimita' 2D per il caso d'uso reale.
+ *
+ * entityType filtra gli elementi candidati a quelli con lo stesso
+ * data-folder-entity-type: in CampaignHome.tsx tutte e 4 le sezioni
+ * (Personaggi/Precompilati/PNG/Mostri) condividono lo stesso container DOM
+ * (un'unica griglia flat, vedi il commento sul markup in CampaignHome.tsx),
+ * quindi senza questo filtro trascinare un PG risolverebbe anche le
+ * cartelle PNG/Mostri visibili nello stesso momento (filtro 'all') come
+ * target validi - il trigger DB bloccherebbe comunque l'assegnazione, ma
+ * solo dopo il drop, con un errore silente invece che ignorando il target
+ * sbagliato durante il drag stesso.
  */
 export function resolveFolderDropTarget(
   clientY: number,
   container: HTMLElement,
   draggedKind: FolderDragKind,
+  entityType: string,
 ): FolderDropTarget | null {
-  const els = Array.from(container.querySelectorAll<HTMLElement>('[data-folder-id]'));
+  const els = Array.from(container.querySelectorAll<HTMLElement>('[data-folder-id]'))
+    .filter((el) => el.dataset.folderEntityType === entityType);
 
   let beforeFolderId: string | null = null;
   let overUnfiled = false;
@@ -91,10 +103,22 @@ export function resolveFolderDropTarget(
 export interface UseFolderDragDropParams {
   /** Disabilita interamente drag/drop (es. giocatore non-GM: sola vista). */
   canEdit: boolean;
+  /** Sezione a cui questa istanza appartiene (es. 'character'/'premade'/
+   *  'npc'/'monster') - filtra i target di drop allo stesso valore passato
+   *  in data-folder-entity-type sugli elementi di questa sezione, cosi'
+   *  piu' istanze possono condividere lo stesso containerRef senza
+   *  contaminarsi a vicenda (vedi resolveFolderDropTarget sopra). */
+  entityType: string;
   /** Ordine attuale degli id di cartella al primo livello. */
   folderIds: string[];
   onReorderFolders: (order: string[]) => void;
   onMoveCard: (cardId: string, folderId: string | null) => void;
+  /** Container DOM condiviso con altre istanze di questo hook (es. le 4
+   *  sezioni di CampaignHome.tsx, che vivono nello stesso grid flat - vedi
+   *  il commento sul markup unico in CampaignHome.tsx). Se omesso, l'hook
+   *  ne crea uno proprio (comportamento originale, un'istanza indipendente
+   *  con il proprio containerRef). */
+  containerRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 /**
@@ -108,8 +132,10 @@ export interface UseFolderDragDropParams {
  * deve:
  * - passare un ref al container che avvolge cartelle+card a
  *   `containerRef` sotto;
- * - marcare ogni riga/chip di cartella con `data-folder-id={folder.id}`,
- *   e la zona delle card sciolte con `data-folder-id="UNFILED"`;
+ * - marcare ogni riga/chip di cartella con `data-folder-id={folder.id}`
+ *   e `data-folder-entity-type={entityType}` (lo stesso valore passato qui
+ *   sotto), e la zona delle card sciolte con `data-folder-id="UNFILED"` +
+ *   lo stesso `data-folder-entity-type`;
  * - chiamare `handlePointerDown(e, { kind: 'folder', id })` sull'header di
  *   una cartella trascinabile, o `handlePointerDown(e, { kind: 'card', id })`
  *   su una card;
@@ -124,13 +150,16 @@ export interface UseFolderDragDropParams {
  */
 export function useFolderDragDrop({
   canEdit,
+  entityType,
   folderIds,
   onReorderFolders,
   onMoveCard,
+  containerRef: externalContainerRef,
 }: UseFolderDragDropParams) {
   const [draggedItem, setDraggedItem] = useState<DraggedItem | null>(null);
   const [dropTarget, setDropTarget] = useState<FolderDropTarget | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const ownContainerRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = externalContainerRef ?? ownContainerRef;
   const dropTargetRef = useRef<FolderDropTarget | null>(null);
   const pointerStartRef = useRef<{ x: number; y: number; item: DraggedItem } | null>(null);
 
@@ -146,7 +175,7 @@ export function useFolderDragDrop({
       if (draggedItem) {
         const container = containerRef.current;
         if (!container) return;
-        const target = resolveFolderDropTarget(e.clientY, container, draggedItem.kind);
+        const target = resolveFolderDropTarget(e.clientY, container, draggedItem.kind, entityType);
         dropTargetRef.current = target;
         setDropTarget(target);
         return;
@@ -189,7 +218,7 @@ export function useFolderDragDrop({
       window.removeEventListener('pointerup', handleUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draggedItem, folderIds]);
+  }, [draggedItem, folderIds, entityType]);
 
   return {
     containerRef,

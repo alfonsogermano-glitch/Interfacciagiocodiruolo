@@ -1066,6 +1066,66 @@ app.post("/make-server-771c5bfd/characters/:id/availability", async (c) => {
   }
 });
 
+// Assegna/rimuove un PG da una cartella (sistema cartelle in
+// CampaignHome.tsx) - mirror stretto di /availability sopra, stessa
+// autorizzazione (GM proprietario della campagna), ma SENZA il vincolo
+// aggiuntivo "il PG deve essere del GM stesso": qui e' l'opposto, il GM deve
+// poter organizzare in cartelle anche i PG posseduti da altri giocatori.
+// Update a colonna singola di proposito - PUT /campaigns/:id/characters/:id
+// piu' sopra (saveCharacterAsGm) fa un update integrale con default
+// hardcoded (?? 0, ?? null) sui campi non passati esplicitamente e
+// distruggerebbe cornice/token/sheet_data se richiamato con solo folderId.
+// Il vincolo di tipo/campagna (un mostro non in una cartella PNG, un PG non
+// in una cartella di un'altra campagna) e' applicato dal trigger DB
+// check_character_folder_type (supabase-add-folders.sql), non qui - un
+// folderId non valido torna semplicemente un errore Postgres in updateError.
+app.post("/make-server-771c5bfd/characters/:id/folder", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const characterId = c.req.param("id");
+    const { folderId } = await c.req.json();
+    const admin = getAdminClient();
+
+    const { data: character, error: charError } = await admin
+      .from("characters")
+      .select("id, campaign_id")
+      .eq("id", characterId)
+      .single();
+    if (charError || !character) return c.json({ error: "Personaggio non trovato" }, 404);
+    if (!character.campaign_id) {
+      return c.json({ error: "Questo personaggio non appartiene a una campagna" }, 400);
+    }
+
+    const { data: campaignRow, error: campaignError } = await admin
+      .from("campaigns")
+      .select("owner_profile_id")
+      .eq("id", character.campaign_id)
+      .single();
+    if (campaignError || !campaignRow) return c.json({ error: "Campagna non trovata" }, 404);
+    if (campaignRow.owner_profile_id !== userId) {
+      return c.json({ error: "Non hai i permessi su questo personaggio" }, 403);
+    }
+
+    const { error: updateError } = await admin
+      .from("characters")
+      .update({ folder_id: folderId ?? null })
+      .eq("id", characterId);
+    if (updateError) {
+      console.log("Errore update cartella personaggio:", updateError);
+      return c.json({ error: "Cartella non valida per questo personaggio" }, 400);
+    }
+
+    return c.json({ success: true });
+  } catch (err) {
+    console.log("Errore POST characters/:id/folder:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
 // "Precompilati": il giocatore richiede un PG che il GM ha marcato
 // available_for_players=true (endpoint sopra). Il vincolo "un solo PG
 // attivo per campagna" e' applicato SOLO qui, non in assign-campaign sopra

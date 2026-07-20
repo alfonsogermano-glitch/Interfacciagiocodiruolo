@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import {
   Play, Square, Loader2, AlertTriangle, Users, Ghost, Skull,
   KeyRound, Check, MoreVertical, Pencil, Copy, CopyPlus, UserCog, FileDown, Trash2, UserMinus, Undo2,
-  LayoutGrid, Package,
+  LayoutGrid, Package, Folder as FolderIcon, FolderPlus, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
@@ -13,7 +13,7 @@ import {
   saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, deleteCharacterAsGm, mapRowToCharacter,
 } from '../../services/supabase/charactersService';
 import {
-  loadNPCs, loadMonsters, type NPC, type Monster,
+  loadNPCs, loadMonsters, saveNPC, saveMonster, type NPC, type Monster,
   duplicateNPC, deleteNPC, unassignNPCFromCampaign, copyNPCToCampaign,
   duplicateMonster, deleteMonster, unassignMonsterFromCampaign, copyMonsterToCampaign,
 } from '../../services/supabase/entitiesService';
@@ -31,6 +31,11 @@ import {
 } from '../components/ui/dropdown-menu';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { Switch } from '../components/ui/switch';
+import {
+  loadFolders, createFolder, renameFolder, reorderFolder, deleteFolder, setCharacterFolder,
+  type Folder, type FolderEntityType,
+} from '../../services/supabase/foldersService';
+import { useFolderDragDrop, UNFILED_DROP_ID } from '../components/session/shared/useFolderDragDrop';
 import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../components/ui/paletteColors';
 import type { Character } from '../../types/character';
@@ -88,6 +93,7 @@ type PlayerCharacterSummary = {
   claimableOrigin: boolean;
   originalOwnerProfileId: string | null;
   availableForPlayers: boolean;
+  folderId: string | null;
 };
 
 type PlayerRow = {
@@ -124,6 +130,138 @@ function quickFilterHeading(filter: QuickFilter): { icon: typeof Users; label: s
   }
 }
 
+// Riga in cima a ciascuna delle 4 sezioni della griglia: icona+etichetta
+// (era gia' presente per PNG/Mostri come <h2 col-span-2>, ma solo quando
+// activeQuickFilter === 'all' - qui invece sempre visibile e uniformata
+// anche a Personaggi/Precompilati, che prima non avevano alcuna
+// intestazione) + pulsante "Nuova cartella", solo GM (le cartelle sono
+// gestite solo dal GM, visibili identiche a tutti - vedi piano Fase 2).
+function FolderSectionHeader({
+  icon: Icon, label, isOwner, onCreateFolder,
+}: {
+  icon: typeof Users;
+  label: string;
+  isOwner: boolean;
+  onCreateFolder: () => void;
+}) {
+  return (
+    <div className="col-span-2 flex items-center justify-between gap-2">
+      <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
+        <Icon className="h-4 w-4" /> {label}
+      </h2>
+      {isOwner && (
+        <button
+          type="button"
+          onClick={onCreateFolder}
+          className="flex items-center gap-1.5 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2.5 py-1 text-xs font-medium text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
+        >
+          <FolderPlus className="h-3.5 w-3.5" /> Nuova cartella
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Header di una singola cartella (collassata: solo la riga; espansa: le sue
+// card seguono subito dopo, renderizzate dal chiamante). data-folder-id +
+// data-folder-entity-type sono gli hook per useFolderDragDrop - vedi il
+// commento su resolveFolderDropTarget in useFolderDragDrop.ts per il perche'
+// serve anche l'entity-type (le 4 sezioni condividono lo stesso containerRef).
+// Rinomina inline al click sul nome: stesso pattern di renamingTabId/
+// renameDraft in useEntityTabs.ts (autoFocus, Enter conferma, Escape annulla,
+// blur conferma).
+function FolderRow({
+  folder, isOpen, onToggle, count, canEdit, isRenaming, renameDraft, onRenameDraftChange,
+  onStartRename, onCommitRename, onCancelRename, onRequestDelete, onPointerDown, isDropActive,
+}: {
+  folder: Folder;
+  isOpen: boolean;
+  onToggle: () => void;
+  count: number;
+  canEdit: boolean;
+  isRenaming: boolean;
+  renameDraft: string;
+  onRenameDraftChange: (v: string) => void;
+  onStartRename: () => void;
+  onCommitRename: () => void;
+  onCancelRename: () => void;
+  onRequestDelete: () => void;
+  onPointerDown: (e: React.PointerEvent) => void;
+  isDropActive: boolean;
+}) {
+  return (
+    <div
+      data-folder-id={folder.id}
+      data-folder-entity-type={folder.entityType}
+      onPointerDown={canEdit ? onPointerDown : undefined}
+      className={`group col-span-2 flex items-center justify-between gap-2 rounded-xl border px-3 py-2 transition-colors ${
+        isDropActive
+          ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/10'
+          : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)]'
+      } ${canEdit ? 'cursor-grab active:cursor-grabbing' : ''}`}
+    >
+      <button type="button" onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+        {isOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-[var(--dash-muted)]" /> : <ChevronRight className="h-4 w-4 shrink-0 text-[var(--dash-muted)]" />}
+        <FolderIcon className="h-4 w-4 shrink-0 text-[var(--dash-accent-2)]" />
+        {isRenaming ? (
+          <input
+            type="text"
+            autoFocus
+            data-no-drag
+            value={renameDraft}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => onRenameDraftChange(e.target.value)}
+            onBlur={onCommitRename}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onCommitRename();
+              if (e.key === 'Escape') onCancelRename();
+            }}
+            className="w-40 rounded-md border border-[var(--dash-accent)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text)]"
+          />
+        ) : (
+          <span
+            className="truncate text-sm font-medium text-[var(--dash-text-strong)]"
+            onClick={canEdit ? (e) => { e.stopPropagation(); onStartRename(); } : undefined}
+          >
+            {folder.name}
+          </span>
+        )}
+        <span className="shrink-0 text-xs text-[var(--dash-muted)]">({count})</span>
+      </button>
+      {canEdit && !isRenaming && (
+        <button
+          type="button"
+          data-no-drag
+          onClick={(e) => { e.stopPropagation(); onRequestDelete(); }}
+          className="shrink-0 rounded p-1 text-[var(--dash-muted)] opacity-0 transition-opacity hover:text-[var(--dash-danger-text)] group-hover:opacity-100"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Striscia "Senza cartella": bersaglio esplicito per togliere una card da
+// una cartella (invece di rendere tutta l'area sparsa delle card sciolte un
+// hit-target implicito, che avrebbe richiesto di avvolgerle in un unico div
+// e romperebbe il flusso a griglia condiviso - vedi piano Fase 2). Mostrata
+// solo se la sezione ha almeno una cartella: con zero cartelle tutte le card
+// sono gia' banalmente "sciolte", nessun'etichetta serve.
+function UnfiledDropZone({ entityType, isDropActive }: { entityType: FolderEntityType; isDropActive: boolean }) {
+  return (
+    <div
+      data-folder-id={UNFILED_DROP_ID}
+      data-folder-entity-type={entityType}
+      className={`col-span-2 rounded-lg border border-dashed px-3 py-1.5 text-[11px] uppercase tracking-wide transition-colors ${
+        isDropActive ? 'border-[var(--dash-accent)] text-[var(--dash-accent-2)]' : 'border-[var(--dash-border-soft)] text-[var(--dash-muted)]'
+      }`}
+    >
+      Senza cartella
+    </div>
+  );
+}
+
 export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: CampaignHomeProps) {
   const { user, session } = useAuth();
   const { activeCampaign, campaigns, joinedCampaigns, refreshCampaigns, refreshJoinedCampaigns, updateCampaign, deleteCampaign, generateInviteCode } = useCampaign();
@@ -148,6 +286,23 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   const [npcsLoaded, setNpcsLoaded] = useState(false);
   const [monsters, setMonsters] = useState<Monster[]>([]);
   const [monstersLoaded, setMonstersLoaded] = useState(false);
+
+  // ─── Cartelle (sistema di organizzazione PG/Precompilati/PNG/Mostri) ───
+  // Un array per sezione (namespace 'character'/'premade'/'npc'/'monster' -
+  // vedi supabase-add-folders.sql), mai mescolati tra loro: una cartella non
+  // compare mai in una sezione diversa da quella in cui e' stata creata.
+  const [charFolders, setCharFolders] = useState<Folder[]>([]);
+  const [premadeFolders, setPremadeFolders] = useState<Folder[]>([]);
+  const [npcFolders, setNpcFolders] = useState<Folder[]>([]);
+  const [monsterFolders, setMonsterFolders] = useState<Folder[]>([]);
+  // Aperte di default (true) al primo avvistamento di un id - condiviso tra
+  // le 4 sezioni, le chiavi (id di cartella) sono UUID quindi non collidono.
+  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+  const [renameFolderDraft, setRenameFolderDraft] = useState('');
+  const [deleteFolderTarget, setDeleteFolderTarget] = useState<Folder | null>(null);
+  const [isDeletingFolder, setIsDeletingFolder] = useState(false);
+
   const [inviteCopied, setInviteCopied] = useState(false);
   const [showInviteByNameModal, setShowInviteByNameModal] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
@@ -320,6 +475,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
           claimableOrigin: ch.claimable_origin ?? false,
           originalOwnerProfileId: ch.original_owner_profile_id ?? null,
           availableForPlayers: ch.available_for_players ?? false,
+          folderId: ch.folder_id ?? null,
         });
 
         const charsByOwner = new Map<string, PlayerCharacterSummary[]>();
@@ -419,6 +575,43 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       cancelled = true;
     };
   }, [isOwner, activeCampaign?.id]);
+
+  // Cartelle: 'character'/'premade' caricate per chiunque veda la sezione
+  // Personaggi/Precompilati (GM e giocatori, sola lettura per questi ultimi -
+  // canAccessFolders lato server ammette anche i membri in lettura), 'npc'/
+  // 'monster' solo per il GM, stessa regola di sicurezza delle sezioni PNG/
+  // Mostri sopra (mai richieste per un giocatore).
+  useEffect(() => {
+    if (!activeCampaign?.id || !session) {
+      setCharFolders([]);
+      setPremadeFolders([]);
+      setNpcFolders([]);
+      setMonsterFolders([]);
+      return;
+    }
+    let cancelled = false;
+    const accessToken = session.access_token;
+    const campaignId = activeCampaign.id;
+
+    const load = (entityType: FolderEntityType, setter: (f: Folder[]) => void) =>
+      loadFolders(campaignId, entityType, SERVER_BASE, accessToken)
+        .then((loaded) => { if (!cancelled) setter(loaded); })
+        .catch((err) => console.error(`Errore caricamento cartelle ${entityType}:`, err));
+
+    load('character', setCharFolders);
+    load('premade', setPremadeFolders);
+    if (isOwner) {
+      load('npc', setNpcFolders);
+      load('monster', setMonsterFolders);
+    } else {
+      setNpcFolders([]);
+      setMonsterFolders([]);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCampaign?.id, session, isOwner]);
 
   // Canale campaign:{id} condiviso (src/services/realtime/campaignChannel.ts):
   // CampaignHome non è l'unico consumer di questo topic (SessionCharactersPanel,
@@ -781,6 +974,185 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     }
   };
 
+  // ─── Cartelle: azioni condivise dalle 4 sezioni ───
+  // Un'unica implementazione parametrizzata su entityType/folders/setFolders
+  // invece di 4 copie quasi identiche - solo la persistenza finale (quale
+  // servizio chiamare) cambia da sezione a sezione, e resta nei rispettivi
+  // onMoveCard passati a ciascuna istanza di useFolderDragDrop piu' sotto.
+
+  const handleCreateFolder = async (entityType: FolderEntityType, setFolders: React.Dispatch<React.SetStateAction<Folder[]>>) => {
+    if (!activeCampaign || !session) return;
+    try {
+      const folder = await createFolder(activeCampaign.id, entityType, 'Nuova cartella', SERVER_BASE, session.access_token);
+      setFolders((prev) => [...prev, folder]);
+      setOpenFolders((prev) => ({ ...prev, [folder.id]: true }));
+      // Entra subito in rinomina, stesso pattern di handleAddCustomTab in
+      // useEntityTabs.ts: crea e passa direttamente al nome invece di
+      // lasciare "Nuova cartella" come placeholder da rinominare dopo.
+      setRenamingFolderId(folder.id);
+      setRenameFolderDraft('Nuova cartella');
+    } catch (err) {
+      console.error('Errore creazione cartella:', err);
+    }
+  };
+
+  const handleCommitFolderRename = async (folder: Folder, setFolders: React.Dispatch<React.SetStateAction<Folder[]>>) => {
+    const name = renameFolderDraft.trim();
+    setRenamingFolderId(null);
+    if (!name || name === folder.name || !session) return;
+    setFolders((prev) => prev.map((f) => (f.id === folder.id ? { ...f, name } : f)));
+    try {
+      await renameFolder(folder.id, name, SERVER_BASE, session.access_token);
+    } catch (err) {
+      console.error('Errore rinomina cartella:', err);
+      setFolders((prev) => prev.map((f) => (f.id === folder.id ? folder : f)));
+    }
+  };
+
+  const handleReorderFolders = async (
+    folders: Folder[],
+    newOrderIds: string[],
+    setFolders: React.Dispatch<React.SetStateAction<Folder[]>>,
+  ) => {
+    if (!session) return;
+    const byId = new Map(folders.map((f) => [f.id, f]));
+    const reordered = newOrderIds.map((id, idx) => ({ ...(byId.get(id) as Folder), position: idx }));
+    setFolders(reordered);
+    await Promise.all(
+      reordered.map((f) => {
+        const original = byId.get(f.id);
+        if (original && original.position === f.position) return null;
+        return reorderFolder(f.id, f.position, SERVER_BASE, session.access_token)
+          .catch((err) => console.error('Errore riordino cartella:', err));
+      })
+    );
+  };
+
+  const handleConfirmDeleteFolder = async () => {
+    if (!deleteFolderTarget || !session) return;
+    setIsDeletingFolder(true);
+    try {
+      await deleteFolder(deleteFolderTarget.id, SERVER_BASE, session.access_token);
+      const clearFolder = <T extends { id: string; folderId?: string | null }>(list: T[]) =>
+        list.map((item) => (item.folderId === deleteFolderTarget.id ? { ...item, folderId: null } : item));
+      switch (deleteFolderTarget.entityType) {
+        case 'character':
+          setCharFolders((prev) => prev.filter((f) => f.id !== deleteFolderTarget.id));
+          setPlayerRows((prev) => prev.map((row) => ({ ...row, characters: clearFolder(row.characters) })));
+          break;
+        case 'premade':
+          setPremadeFolders((prev) => prev.filter((f) => f.id !== deleteFolderTarget.id));
+          setAvailablePremades((prev) => clearFolder(prev));
+          break;
+        case 'npc':
+          setNpcFolders((prev) => prev.filter((f) => f.id !== deleteFolderTarget.id));
+          setNpcs((prev) => clearFolder(prev));
+          break;
+        case 'monster':
+          setMonsterFolders((prev) => prev.filter((f) => f.id !== deleteFolderTarget.id));
+          setMonsters((prev) => clearFolder(prev));
+          break;
+      }
+      setDeleteFolderTarget(null);
+    } catch (err) {
+      console.error('Errore eliminazione cartella:', err);
+    } finally {
+      setIsDeletingFolder(false);
+    }
+  };
+
+  // PG/Precompilati: endpoint stretto dedicato (POST /characters/:id/folder)
+  // - PUT /campaigns/:id/characters/:id (saveCharacterAsGm) fa un update
+  // integrale con default hardcoded sui campi non passati e distruggerebbe
+  // cornice/token/sheet_data se richiamato con solo folderId (vedi commento
+  // sul server). Aggiorna playerRows/availablePremades via bump del token di
+  // reload esistente invece di un update ottimistico locale: il PG spostato
+  // potrebbe non essere nell'array giusto (es. draggato da Precompilati a
+  // Personaggi non e' un caso reale oggi, ma un refetch resta piu' semplice
+  // e sicuro di due update ottimistici paralleli su due liste diverse).
+  const handleMoveCharacterFolder = async (characterId: string, folderId: string | null) => {
+    if (!session) return;
+    try {
+      await setCharacterFolder(characterId, folderId, SERVER_BASE, session.access_token);
+      setPlayersReloadToken((t) => t + 1);
+    } catch (err) {
+      console.error('Errore assegnazione cartella personaggio:', err);
+    }
+  };
+
+  // PNG/Mostri: gia' owned per intero dal GM, nessun rischio di scrivere su
+  // un PG altrui - update ottimistico + rollback su errore, stesso schema di
+  // handleToggleCharacterAvailable poco sotto. saveNPC/saveMonster fanno un
+  // round-trip sull'oggetto intero (non un update parziale), quindi passare
+  // lo spread completo con solo folderId cambiato e' sicuro.
+  const handleMoveNpcFolder = async (npcId: string, folderId: string | null) => {
+    const npc = npcs.find((n) => n.id === npcId);
+    if (!npc || !activeCampaign) return;
+    const updated = { ...npc, folderId };
+    setNpcs((prev) => prev.map((n) => (n.id === npcId ? updated : n)));
+    try {
+      await saveNPC(activeCampaign.id, updated);
+    } catch (err) {
+      console.error('Errore assegnazione cartella PNG:', err);
+      setNpcs((prev) => prev.map((n) => (n.id === npcId ? npc : n)));
+    }
+  };
+
+  const handleMoveMonsterFolder = async (monsterId: string, folderId: string | null) => {
+    const monster = monsters.find((m) => m.id === monsterId);
+    if (!monster || !activeCampaign) return;
+    const updated = { ...monster, folderId };
+    setMonsters((prev) => prev.map((m) => (m.id === monsterId ? updated : m)));
+    try {
+      await saveMonster(activeCampaign.id, updated);
+    } catch (err) {
+      console.error('Errore assegnazione cartella mostro:', err);
+      setMonsters((prev) => prev.map((m) => (m.id === monsterId ? monster : m)));
+    }
+  };
+
+  // Le 4 sezioni condividono lo stesso containerRef (un solo grid flat, vedi
+  // il commento sul markup piu' sotto) - ogni istanza filtra i propri target
+  // di drop tramite entityType, senza contaminarsi a vicenda pur osservando
+  // tutte lo stesso DOM (vedi il commento su resolveFolderDropTarget in
+  // useFolderDragDrop.ts).
+  const foldersContainerRef = useRef<HTMLDivElement | null>(null);
+  const charFolderDnd = useFolderDragDrop({
+    canEdit: isOwner,
+    entityType: 'character',
+    folderIds: charFolders.map((f) => f.id),
+    onReorderFolders: (order) => handleReorderFolders(charFolders, order, setCharFolders),
+    onMoveCard: handleMoveCharacterFolder,
+    containerRef: foldersContainerRef,
+  });
+  const premadeFolderDnd = useFolderDragDrop({
+    canEdit: isOwner,
+    entityType: 'premade',
+    folderIds: premadeFolders.map((f) => f.id),
+    onReorderFolders: (order) => handleReorderFolders(premadeFolders, order, setPremadeFolders),
+    onMoveCard: handleMoveCharacterFolder,
+    containerRef: foldersContainerRef,
+  });
+  const npcFolderDnd = useFolderDragDrop({
+    canEdit: isOwner,
+    entityType: 'npc',
+    folderIds: npcFolders.map((f) => f.id),
+    onReorderFolders: (order) => handleReorderFolders(npcFolders, order, setNpcFolders),
+    onMoveCard: handleMoveNpcFolder,
+    containerRef: foldersContainerRef,
+  });
+  const monsterFolderDnd = useFolderDragDrop({
+    canEdit: isOwner,
+    entityType: 'monster',
+    folderIds: monsterFolders.map((f) => f.id),
+    onReorderFolders: (order) => handleReorderFolders(monsterFolders, order, setMonsterFolders),
+    onMoveCard: handleMoveMonsterFolder,
+    containerRef: foldersContainerRef,
+  });
+
+  const isFolderOpen = (folderId: string) => openFolders[folderId] ?? true;
+  const toggleFolderOpen = (folderId: string) => setOpenFolders((prev) => ({ ...prev, [folderId]: !isFolderOpen(folderId) }));
+
   // Costruisce le voci del menu ⋮ di un PG - condivisa tra playerRows (di un
   // giocatore, row valorizzato) e availablePremades (del GM, row assente).
   // Chiamata solo quando il menu e' comunque visibile (isOwner || isSelfOwned,
@@ -912,6 +1284,212 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     if (!activeCampaign) return;
     void updateCampaign(activeCampaign.id, patch);
   };
+
+  // ─── Render delle card, estratti in funzioni riusabili tra il loop dentro
+  // una cartella e quello delle card sciolte (renderFolderedSection sotto) -
+  // stesso identico JSX gia' in uso prima dell'introduzione delle cartelle,
+  // solo spostato da inline a funzione per essere chiamato da due punti.
+  const renderCharacterCard = (ch: PlayerCharacterSummary, row: PlayerRow) => (
+    <EntityCard
+      key={ch.id}
+      variant="grid"
+      name={ch.name}
+      subtitle={ch.styleViaggio}
+      secondaryText={ch.description}
+      onClick={() => onOpenSessionEntity('pg', ch.id)}
+      photoUrl={ch.portraitUrl}
+      photoSourceUrl={ch.portraitSourceUrl}
+      photoCropArea={ch.portraitCropArea}
+      tokenColor={ch.tokenColor}
+      tokenBackgroundColor={ch.tokenBackgroundColor}
+      tokenBorderStyle={ch.tokenBorderStyle}
+      tokenBorderThickness={ch.tokenBorderThickness}
+      tokenBorderVisible={ch.tokenBorderVisible}
+      tokenBorderLabel={ch.tokenBorderLabel}
+      cornerAction={
+        isOwner || ch.ownerProfileId === user?.id ? (
+          <EntityKebabMenu
+            colors={menuColors}
+            buttonClassName={photoCornerButtonClass}
+            items={buildCharacterMenuItems(ch, row)}
+            footer={
+              <div className="px-2 py-1.5 text-xs" style={{ color: menuColors.text, opacity: 0.7 }}>
+                {ch.createdAt && (
+                  <div>Creato il {new Date(ch.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                )}
+                {row.joinedAt && (
+                  <div>Unito alla campagna il {new Date(row.joinedAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                )}
+              </div>
+            }
+          />
+        ) : undefined
+      }
+    >
+      <div className="flex items-center gap-1.5 truncate text-[11px] text-[var(--dash-accent-2)]">
+        {ch.ownerAvatarUrl ? (
+          <img src={ch.ownerAvatarUrl} alt="" className="h-4 w-4 shrink-0 rounded-full object-cover" />
+        ) : (
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[var(--dash-accent)] text-[8px] font-semibold text-[var(--dash-text-strong)]">
+            {(row.displayName ?? '?').trim().charAt(0).toUpperCase() || '?'}
+          </span>
+        )}
+        <span className="truncate">{row.displayName ?? 'Sconosciuto'}</span>
+      </div>
+    </EntityCard>
+  );
+
+  const renderPremadeCard = (ch: PlayerCharacterSummary) => (
+    <EntityCard
+      key={ch.id}
+      variant="grid"
+      name={ch.name}
+      subtitle={ch.styleViaggio}
+      secondaryText={ch.description}
+      onClick={() => onOpenSessionEntity('pg', ch.id)}
+      photoUrl={ch.portraitUrl}
+      photoSourceUrl={ch.portraitSourceUrl}
+      photoCropArea={ch.portraitCropArea}
+      tokenColor={ch.tokenColor}
+      tokenBackgroundColor={ch.tokenBackgroundColor}
+      tokenBorderStyle={ch.tokenBorderStyle}
+      tokenBorderThickness={ch.tokenBorderThickness}
+      tokenBorderVisible={ch.tokenBorderVisible}
+      tokenBorderLabel={ch.tokenBorderLabel}
+      cornerAction={
+        isOwner ? (
+          <EntityKebabMenu
+            colors={menuColors}
+            buttonClassName={photoCornerButtonClass}
+            items={buildCharacterMenuItems(ch, null)}
+          />
+        ) : undefined
+      }
+    />
+  );
+
+  const renderNpcCard = (npc: NPC) => (
+    <EntityCard
+      key={npc.id}
+      variant="grid"
+      name={npc.name || 'PNG senza nome'}
+      subtitle={npc.role || 'PNG'}
+      onClick={() => onOpenSessionEntity('png', npc.id)}
+      photoUrl={npc.portraitImageUrl}
+      photoSourceUrl={npc.portraitSourceImageUrl}
+      photoCropArea={npc.portraitCropArea}
+      tokenColor={npc.tokenColor}
+      tokenBackgroundColor={npc.tokenBackgroundColor}
+      tokenBorderStyle={npc.tokenBorderStyle}
+      tokenBorderThickness={npc.tokenBorderThickness}
+      tokenBorderVisible={npc.tokenBorderVisible}
+      tokenBorderLabel={npc.tokenBorderLabel}
+      hiddenBadge={!npc.visibleToPlayers}
+      cornerAction={
+        isOwner ? (
+          <EntityKebabMenu
+            colors={menuColors}
+            buttonClassName={photoCornerButtonClass}
+            items={buildEntityMenuItems('npc', npc)}
+            footer={
+              <div className="px-2 py-1.5 text-xs" style={{ color: menuColors.text, opacity: 0.7 }}>
+                {npc.createdAt && (
+                  <div>Creato il {new Date(npc.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                )}
+              </div>
+            }
+          />
+        ) : undefined
+      }
+    />
+  );
+
+  const renderMonsterCard = (monster: Monster) => (
+    <EntityCard
+      key={monster.id}
+      variant="grid"
+      name={monster.name || 'Mostro senza nome'}
+      onClick={() => onOpenSessionEntity('mostro', monster.id)}
+      photoUrl={monster.portraitImageUrl}
+      photoSourceUrl={monster.portraitSourceImageUrl}
+      photoCropArea={monster.portraitCropArea}
+      tokenColor={monster.tokenColor}
+      tokenBackgroundColor={monster.tokenBackgroundColor}
+      tokenBorderStyle={monster.tokenBorderStyle}
+      tokenBorderThickness={monster.tokenBorderThickness}
+      tokenBorderVisible={monster.tokenBorderVisible}
+      tokenBorderLabel={monster.tokenBorderLabel}
+      hiddenBadge={!monster.visibleToPlayers}
+      cornerAction={
+        isOwner ? (
+          <EntityKebabMenu
+            colors={menuColors}
+            buttonClassName={photoCornerButtonClass}
+            items={buildEntityMenuItems('monster', monster)}
+            footer={
+              <div className="px-2 py-1.5 text-xs" style={{ color: menuColors.text, opacity: 0.7 }}>
+                {monster.createdAt && (
+                  <div>Creato il {new Date(monster.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                )}
+              </div>
+            }
+          />
+        ) : undefined
+      }
+    />
+  );
+
+  // Cartelle di una sezione (righe espandibili + le card al loro interno,
+  // se aperte) seguite dalla striscia "Senza cartella" - la stessa struttura
+  // per tutte e 4 le sezioni, solo folders/setFolders/dnd/items/renderCard
+  // cambiano. Le card sciolte (fuori da ogni cartella) restano fuori da
+  // questa funzione: ogni sezione le renderizza a modo suo subito dopo,
+  // riusando lo stesso renderCard passato qui.
+  function renderFolderedSection<T extends { id: string; folderId?: string | null }>(
+    entityType: FolderEntityType,
+    folders: Folder[],
+    setFolders: React.Dispatch<React.SetStateAction<Folder[]>>,
+    dnd: typeof charFolderDnd,
+    items: T[],
+    renderCard: (item: T) => React.ReactNode,
+  ) {
+    return (
+      <>
+        {[...folders].sort((a, b) => a.position - b.position).map((folder) => {
+          const folderItems = items.filter((it) => it.folderId === folder.id);
+          const open = isFolderOpen(folder.id);
+          return (
+            <Fragment key={folder.id}>
+              <FolderRow
+                folder={folder}
+                isOpen={open}
+                onToggle={() => toggleFolderOpen(folder.id)}
+                count={folderItems.length}
+                canEdit={isOwner}
+                isRenaming={renamingFolderId === folder.id}
+                renameDraft={renameFolderDraft}
+                onRenameDraftChange={setRenameFolderDraft}
+                onStartRename={() => { setRenamingFolderId(folder.id); setRenameFolderDraft(folder.name); }}
+                onCommitRename={() => handleCommitFolderRename(folder, setFolders)}
+                onCancelRename={() => setRenamingFolderId(null)}
+                onRequestDelete={() => setDeleteFolderTarget(folder)}
+                onPointerDown={(e) => dnd.handlePointerDown(e, { kind: 'folder', id: folder.id })}
+                isDropActive={dnd.dropTarget?.type === 'into-folder' && dnd.dropTarget.folderId === folder.id}
+              />
+              {open && folderItems.map((it) => (
+                <div key={it.id} className="contents" onPointerDown={(e) => dnd.handlePointerDown(e, { kind: 'card', id: it.id })}>
+                  {renderCard(it)}
+                </div>
+              ))}
+            </Fragment>
+          );
+        })}
+        {folders.length > 0 && (
+          <UnfiledDropZone entityType={entityType} isDropActive={dnd.dropTarget?.type === 'unfiled'} />
+        )}
+      </>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col overflow-y-auto text-left select-none">
@@ -1138,69 +1716,21 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
               invece del semplice 1fr: stesso numero di colonne garantito, ma
               con un minimo protetto che evita la stessa classe di bug di
               troncamento vista finora se lo schermo e' stretto. */}
-          <div className="grid grid-cols-[repeat(2,minmax(200px,1fr))] content-start gap-4">
+          <div ref={foldersContainerRef} className="grid grid-cols-[repeat(2,minmax(200px,1fr))] content-start gap-4">
             {(activeQuickFilter === 'all' || activeQuickFilter === 'pg') && (
               <>
+                <FolderSectionHeader icon={Users} label="Personaggi" isOwner={isOwner} onCreateFolder={() => handleCreateFolder('character', setCharFolders)} />
+                {renderFolderedSection(
+                  'character', charFolders, setCharFolders, charFolderDnd,
+                  playerRows.flatMap((row) => row.characters.map((ch) => ({ ...ch, row }))),
+                  (item) => renderCharacterCard(item, item.row),
+                )}
                 {playerRows.map((row) =>
                   row.characters.length > 0 ? (
-                    row.characters.map((ch) => (
-                      <EntityCard
-                        key={ch.id}
-                        variant="grid"
-                        name={ch.name}
-                        subtitle={ch.styleViaggio}
-                        secondaryText={ch.description}
-                        onClick={() => onOpenSessionEntity('pg', ch.id)}
-                        photoUrl={ch.portraitUrl}
-                        photoSourceUrl={ch.portraitSourceUrl}
-                        photoCropArea={ch.portraitCropArea}
-                        tokenColor={ch.tokenColor}
-                        tokenBackgroundColor={ch.tokenBackgroundColor}
-                        tokenBorderStyle={ch.tokenBorderStyle}
-                        tokenBorderThickness={ch.tokenBorderThickness}
-                        tokenBorderVisible={ch.tokenBorderVisible}
-                        tokenBorderLabel={ch.tokenBorderLabel}
-                        cornerAction={
-                          isOwner || ch.ownerProfileId === user?.id ? (
-                            <EntityKebabMenu
-                              colors={menuColors}
-                              buttonClassName={photoCornerButtonClass}
-                              items={buildCharacterMenuItems(ch, row)}
-                              footer={
-                                // style inline su menuColors.text (non una
-                                // variabile CSS globale, indipendente dal
-                                // sistema di colori hardcoded per palette di
-                                // EntityKebabMenu) - stesso pattern del testo
-                                // secondario nel dialog "Copia in un'altra
-                                // campagna" qui sotto. text-[var(--dash-muted)]
-                                // funzionava nel vecchio DropdownMenu bespoke
-                                // (sfondo anch'esso da variabile CSS) ma non
-                                // garantisce contrasto contro colors.panel,
-                                // che e' un colore fisso per palette.
-                                <div className="px-2 py-1.5 text-xs" style={{ color: menuColors.text, opacity: 0.7 }}>
-                                  {ch.createdAt && (
-                                    <div>Creato il {new Date(ch.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-                                  )}
-                                  {row.joinedAt && (
-                                    <div>Unito alla campagna il {new Date(row.joinedAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-                                  )}
-                                </div>
-                              }
-                            />
-                          ) : undefined
-                        }
-                      >
-                        <div className="flex items-center gap-1.5 truncate text-[11px] text-[var(--dash-accent-2)]">
-                          {ch.ownerAvatarUrl ? (
-                            <img src={ch.ownerAvatarUrl} alt="" className="h-4 w-4 shrink-0 rounded-full object-cover" />
-                          ) : (
-                            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[var(--dash-accent)] text-[8px] font-semibold text-[var(--dash-text-strong)]">
-                              {(row.displayName ?? '?').trim().charAt(0).toUpperCase() || '?'}
-                            </span>
-                          )}
-                          <span className="truncate">{row.displayName ?? 'Sconosciuto'}</span>
-                        </div>
-                      </EntityCard>
+                    row.characters.filter((ch) => !ch.folderId).map((ch) => (
+                      <div key={ch.id} className="contents" onPointerDown={(e) => charFolderDnd.handlePointerDown(e, { kind: 'card', id: ch.id })}>
+                        {renderCharacterCard(ch, row)}
+                      </div>
                     ))
                   ) : (
                     <EntityCard
@@ -1219,133 +1749,47 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
             )}
 
             {activeQuickFilter === 'premades' && (
-              availablePremades.length === 0 ? (
-                <div className="col-span-2 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-5 py-8 text-center">
-                  <Package className="mx-auto mb-3 h-10 w-10 text-[var(--dash-muted)]" />
-                  <div className="text-xs uppercase tracking-[0.16em] text-[var(--dash-accent-2)]">Nessun personaggio precompilato disponibile</div>
-                  <p className="mt-2 text-xs text-[var(--dash-muted)]">
-                    Marca un PG come "Disponibile per i giocatori" dal menu ⋮ in Personaggi per farlo comparire qui.
-                  </p>
-                </div>
-              ) : (
-                availablePremades.map((ch) => (
-                  <EntityCard
-                    key={ch.id}
-                    variant="grid"
-                    name={ch.name}
-                    subtitle={ch.styleViaggio}
-                    secondaryText={ch.description}
-                    onClick={() => onOpenSessionEntity('pg', ch.id)}
-                    photoUrl={ch.portraitUrl}
-                    photoSourceUrl={ch.portraitSourceUrl}
-                    photoCropArea={ch.portraitCropArea}
-                    tokenColor={ch.tokenColor}
-                    tokenBackgroundColor={ch.tokenBackgroundColor}
-                    tokenBorderStyle={ch.tokenBorderStyle}
-                    tokenBorderThickness={ch.tokenBorderThickness}
-                    tokenBorderVisible={ch.tokenBorderVisible}
-                    tokenBorderLabel={ch.tokenBorderLabel}
-                    cornerAction={
-                      isOwner ? (
-                        <EntityKebabMenu
-                          colors={menuColors}
-                          buttonClassName={photoCornerButtonClass}
-                          items={buildCharacterMenuItems(ch, null)}
-                        />
-                      ) : undefined
-                    }
-                  />
-                ))
-              )
+              <>
+                <FolderSectionHeader icon={Package} label="Precompilati" isOwner={isOwner} onCreateFolder={() => handleCreateFolder('premade', setPremadeFolders)} />
+                {renderFolderedSection('premade', premadeFolders, setPremadeFolders, premadeFolderDnd, availablePremades, renderPremadeCard)}
+                {availablePremades.length === 0 ? (
+                  <div className="col-span-2 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-5 py-8 text-center">
+                    <Package className="mx-auto mb-3 h-10 w-10 text-[var(--dash-muted)]" />
+                    <div className="text-xs uppercase tracking-[0.16em] text-[var(--dash-accent-2)]">Nessun personaggio precompilato disponibile</div>
+                    <p className="mt-2 text-xs text-[var(--dash-muted)]">
+                      Marca un PG come "Disponibile per i giocatori" dal menu ⋮ in Personaggi per farlo comparire qui.
+                    </p>
+                  </div>
+                ) : (
+                  availablePremades.filter((ch) => !ch.folderId).map((ch) => (
+                    <div key={ch.id} className="contents" onPointerDown={(e) => premadeFolderDnd.handlePointerDown(e, { kind: 'card', id: ch.id })}>
+                      {renderPremadeCard(ch)}
+                    </div>
+                  ))
+                )}
+              </>
             )}
 
             {(activeQuickFilter === 'all' || activeQuickFilter === 'npc') && isOwner && npcsLoaded && npcs.length > 0 && (
               <>
-                {/* solo in 'all': con filtro 'npc' il titolo e' gia' nella
-                    riga affiancata alle pillole sopra, non va duplicato qui */}
-                {activeQuickFilter === 'all' && (
-                  <h2 className="col-span-2 mt-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
-                    <Ghost className="h-4 w-4" /> PNG
-                  </h2>
-                )}
-                {npcs.map((npc) => (
-                  <EntityCard
-                    key={npc.id}
-                    variant="grid"
-                    name={npc.name || 'PNG senza nome'}
-                    subtitle={npc.role || 'PNG'}
-                    onClick={() => onOpenSessionEntity('png', npc.id)}
-                    photoUrl={npc.portraitImageUrl}
-                    photoSourceUrl={npc.portraitSourceImageUrl}
-                    photoCropArea={npc.portraitCropArea}
-                    tokenColor={npc.tokenColor}
-                    tokenBackgroundColor={npc.tokenBackgroundColor}
-                    tokenBorderStyle={npc.tokenBorderStyle}
-                    tokenBorderThickness={npc.tokenBorderThickness}
-                    tokenBorderVisible={npc.tokenBorderVisible}
-                    tokenBorderLabel={npc.tokenBorderLabel}
-                    hiddenBadge={!npc.visibleToPlayers}
-                    cornerAction={
-                      isOwner ? (
-                        <EntityKebabMenu
-                          colors={menuColors}
-                          buttonClassName={photoCornerButtonClass}
-                          items={buildEntityMenuItems('npc', npc)}
-                          footer={
-                            <div className="px-2 py-1.5 text-xs" style={{ color: menuColors.text, opacity: 0.7 }}>
-                              {npc.createdAt && (
-                                <div>Creato il {new Date(npc.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-                              )}
-                            </div>
-                          }
-                        />
-                      ) : undefined
-                    }
-                  />
+                <FolderSectionHeader icon={Ghost} label="PNG" isOwner={isOwner} onCreateFolder={() => handleCreateFolder('npc', setNpcFolders)} />
+                {renderFolderedSection('npc', npcFolders, setNpcFolders, npcFolderDnd, npcs, renderNpcCard)}
+                {npcs.filter((npc) => !npc.folderId).map((npc) => (
+                  <div key={npc.id} className="contents" onPointerDown={(e) => npcFolderDnd.handlePointerDown(e, { kind: 'card', id: npc.id })}>
+                    {renderNpcCard(npc)}
+                  </div>
                 ))}
               </>
             )}
 
             {(activeQuickFilter === 'all' || activeQuickFilter === 'monster') && isOwner && monstersLoaded && monsters.length > 0 && (
               <>
-                {activeQuickFilter === 'all' && (
-                  <h2 className="col-span-2 mt-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
-                    <Skull className="h-4 w-4" /> Mostri
-                  </h2>
-                )}
-                {monsters.map((monster) => (
-                  <EntityCard
-                    key={monster.id}
-                    variant="grid"
-                    name={monster.name || 'Mostro senza nome'}
-                    onClick={() => onOpenSessionEntity('mostro', monster.id)}
-                    photoUrl={monster.portraitImageUrl}
-                    photoSourceUrl={monster.portraitSourceImageUrl}
-                    photoCropArea={monster.portraitCropArea}
-                    tokenColor={monster.tokenColor}
-                    tokenBackgroundColor={monster.tokenBackgroundColor}
-                    tokenBorderStyle={monster.tokenBorderStyle}
-                    tokenBorderThickness={monster.tokenBorderThickness}
-                    tokenBorderVisible={monster.tokenBorderVisible}
-                    tokenBorderLabel={monster.tokenBorderLabel}
-                    hiddenBadge={!monster.visibleToPlayers}
-                    cornerAction={
-                      isOwner ? (
-                        <EntityKebabMenu
-                          colors={menuColors}
-                          buttonClassName={photoCornerButtonClass}
-                          items={buildEntityMenuItems('monster', monster)}
-                          footer={
-                            <div className="px-2 py-1.5 text-xs" style={{ color: menuColors.text, opacity: 0.7 }}>
-                              {monster.createdAt && (
-                                <div>Creato il {new Date(monster.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-                              )}
-                            </div>
-                          }
-                        />
-                      ) : undefined
-                    }
-                  />
+                <FolderSectionHeader icon={Skull} label="Mostri" isOwner={isOwner} onCreateFolder={() => handleCreateFolder('monster', setMonsterFolders)} />
+                {renderFolderedSection('monster', monsterFolders, setMonsterFolders, monsterFolderDnd, monsters, renderMonsterCard)}
+                {monsters.filter((monster) => !monster.folderId).map((monster) => (
+                  <div key={monster.id} className="contents" onPointerDown={(e) => monsterFolderDnd.handlePointerDown(e, { kind: 'card', id: monster.id })}>
+                    {renderMonsterCard(monster)}
+                  </div>
                 ))}
               </>
             )}
@@ -1483,6 +1927,16 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
           danger={false}
           onConfirm={handleConfirmUnassignCharacter}
           onCancel={() => setUnassignCharTarget(null)}
+        />
+      )}
+
+      {deleteFolderTarget && (
+        <ConfirmDialog
+          title="Eliminare questa cartella?"
+          message={`"${deleteFolderTarget.name}" verrà eliminata. Le card al suo interno non vengono eliminate: torneranno semplicemente senza cartella.`}
+          confirmLabel="Elimina"
+          onConfirm={handleConfirmDeleteFolder}
+          onCancel={() => setDeleteFolderTarget(null)}
         />
       )}
 
