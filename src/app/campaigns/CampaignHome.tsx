@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Play, Square, Loader2, AlertTriangle, Users, Ghost, Skull,
   KeyRound, Check, MoreVertical, Pencil, Copy, CopyPlus, UserCog, FileDown, Trash2, UserMinus, Undo2,
-  LayoutGrid, Package, Folder as FolderIcon, FolderPlus, ChevronDown, ChevronRight,
+  LayoutGrid, Package, Folder as FolderIcon, FolderPlus, ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
@@ -36,6 +36,7 @@ import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { Switch } from '../components/ui/switch';
 import {
   loadFolders, createFolder, renameFolder, reorderFolder, deleteFolder, setCharacterFolder, setFolderParent,
+  getFolderDepth, isValidFolderNestTarget, MAX_FOLDER_DEPTH,
   type Folder, type FolderEntityType,
 } from '../../services/supabase/foldersService';
 import { useFolderDragDrop, UNFILED_DROP_ID, reorderIds } from '../components/session/shared/useFolderDragDrop';
@@ -140,12 +141,16 @@ function quickFilterHeading(filter: QuickFilter): { icon: typeof Users; label: s
 // intestazione) + pulsante "Nuova cartella", solo GM (le cartelle sono
 // gestite solo dal GM, visibili identiche a tutti - vedi piano Fase 2).
 function FolderSectionHeader({
-  icon: Icon, label, isOwner, onCreateFolder,
+  icon: Icon, label, isOwner, onCreateFolder, disabledReason,
 }: {
   icon: typeof Users;
   label: string;
   isOwner: boolean;
   onCreateFolder: () => void;
+  /** null = pulsante attivo; stringa = disabilitato, mostrata nel tooltip
+   *  al posto di "Nuova cartella" (limite di annidamento, vedi
+   *  MAX_FOLDER_DEPTH in foldersService.ts). */
+  disabledReason: string | null;
 }) {
   return (
     <div className="col-span-2 flex items-center justify-between gap-2">
@@ -158,21 +163,25 @@ function FolderSectionHeader({
             <button
               type="button"
               onClick={onCreateFolder}
+              disabled={disabledReason !== null}
               aria-label="Nuova cartella"
-              className="flex items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
+              className={`flex items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors ${
+                disabledReason !== null ? 'cursor-not-allowed opacity-40' : 'hover:text-[var(--dash-text-strong)]'
+              }`}
             >
               <FolderPlus className="h-3.5 w-3.5" />
             </button>
           </TooltipTrigger>
-          <TooltipContent side="left">Nuova cartella</TooltipContent>
+          <TooltipContent side="left">{disabledReason ?? 'Nuova cartella'}</TooltipContent>
         </Tooltip>
       )}
     </div>
   );
 }
 
-// Header di una singola cartella (collassata: solo la riga; espansa: le sue
-// card seguono subito dopo, renderizzate dal chiamante). data-folder-id +
+// Riga di una singola cartella (drill-down: click = entra dentro, il
+// contenuto della cartella sostituisce la vista invece di espandersi sotto -
+// vedi FolderBreadcrumb per la navigazione di ritorno). data-folder-id +
 // data-folder-entity-type sono gli hook per useFolderDragDrop - vedi il
 // commento su resolveFolderDropTarget in useFolderDragDrop.ts per il perche'
 // serve anche l'entity-type (le 4 sezioni condividono lo stesso containerRef).
@@ -180,16 +189,13 @@ function FolderSectionHeader({
 // renameDraft in useEntityTabs.ts (autoFocus, Enter conferma, Escape annulla,
 // blur conferma).
 function FolderRow({
-  folder, depth, isOpen, onToggle, count, canEdit, isRenaming, renameDraft, onRenameDraftChange,
-  onStartRename, onCommitRename, onCancelRename, onRequestDelete, onPointerDown, isDropActive, isDimmed,
+  folder, onEnter, count, canEdit, isRenaming, renameDraft, onRenameDraftChange,
+  onStartRename, onCommitRename, onCancelRename, onRequestDelete, onPointerDown, dropState, isDimmed,
 }: {
   folder: Folder;
-  /** Livello di annidamento (0 = radice) - controlla l'indentazione
-   *  progressiva, max 5 livelli (0..4) coerente col limite applicato anche
-   *  lato DB (supabase-add-nested-folders.sql). */
-  depth: number;
-  isOpen: boolean;
-  onToggle: () => void;
+  /** Naviga dentro la cartella (drill-down) - visibile/utilizzabile anche
+   *  da chi non puo' modificare (sola lettura puo' comunque sfogliare). */
+  onEnter: () => void;
   count: number;
   canEdit: boolean;
   isRenaming: boolean;
@@ -200,7 +206,12 @@ function FolderRow({
   onCancelRename: () => void;
   onRequestDelete: () => void;
   onPointerDown: (e: React.PointerEvent) => void;
-  isDropActive: boolean;
+  /** 'valid'/'invalid' solo mentre e' il bersaglio di un drag di CARTELLA in
+   *  corso (vedi isValidFolderNestTarget in foldersService.ts) - un drag di
+   *  CARD e' sempre 'valid' quando e' sopra questa riga (le card non hanno
+   *  vincoli di profondita'/ciclo). 'none' se questa riga non e' il
+   *  bersaglio corrente. */
+  dropState: 'none' | 'valid' | 'invalid';
   /** Attenuata mentre e' proprio questa cartella a essere trascinata -
    *  stesso valore (opacity-40) gia' usato per le tab in EntityTabBar.tsx. */
   isDimmed: boolean;
@@ -210,15 +221,15 @@ function FolderRow({
       data-folder-id={folder.id}
       data-folder-entity-type={folder.entityType}
       onPointerDown={canEdit ? onPointerDown : undefined}
-      style={{ marginLeft: depth * 20 }}
       className={`group col-span-2 flex items-center justify-between gap-2 rounded-xl border px-3 py-2 transition-colors ${
-        isDropActive
+        dropState === 'valid'
           ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/10'
+          : dropState === 'invalid'
+          ? 'border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)]'
           : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)]'
       } ${canEdit ? 'cursor-grab active:cursor-grabbing' : ''} ${isDimmed ? 'opacity-40' : ''}`}
     >
-      <button type="button" onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-        {isOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-[var(--dash-muted)]" /> : <ChevronRight className="h-4 w-4 shrink-0 text-[var(--dash-muted)]" />}
+      <button type="button" onClick={onEnter} className="flex min-w-0 flex-1 items-center gap-2 text-left">
         <FolderIcon className="h-4 w-4 shrink-0 text-[var(--dash-accent-2)]" />
         {isRenaming ? (
           <input
@@ -255,8 +266,27 @@ function FolderRow({
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       )}
+      <ChevronRight className="h-4 w-4 shrink-0 text-[var(--dash-muted)]" />
     </div>
   );
+}
+
+// Calcola se questa riga cartella e' il bersaglio corrente di un drag e,
+// se lo e', se il drop sarebbe valido - usata sia per lo stile (verde/rosso
+// durante il drag) sia, con la stessa funzione isValidFolderNestTarget, come
+// guardia finale prima di inviare la richiesta in handleNestFolder: un solo
+// punto di verita' chiamato in due momenti diversi del ciclo di vita del drag.
+function computeFolderRowDropState(
+  dnd: { draggedItem: { kind: 'folder' | 'card'; id: string } | null; dropTarget: { type: string; folderId?: string } | null },
+  folder: Folder,
+  foldersById: Map<string, Folder>,
+): 'none' | 'valid' | 'invalid' {
+  const target = dnd.dropTarget;
+  if (!target || (target.type !== 'into-folder' && target.type !== 'nest-into-folder') || target.folderId !== folder.id) {
+    return 'none';
+  }
+  if (dnd.draggedItem?.kind !== 'folder') return 'valid'; // card: nessun vincolo di profondita'/ciclo
+  return isValidFolderNestTarget(dnd.draggedItem.id, folder.id, foldersById) ? 'valid' : 'invalid';
 }
 
 // Striscia "Senza cartella": bersaglio esplicito per togliere una card da
@@ -275,6 +305,60 @@ function UnfiledDropZone({ entityType, isDropActive }: { entityType: FolderEntit
       }`}
     >
       Senza cartella
+    </div>
+  );
+}
+
+// Catena radice→corrente (esclusa la radice, rappresentata dall'etichetta
+// di sezione nel breadcrumb) per il drill-down - si ferma anche su un id
+// stantio (es. cartella cancellata altrove) invece di andare in loop o
+// lanciare, il breadcrumb si tronca semplicemente li'.
+function getFolderPath(folderId: string | null, foldersById: Map<string, Folder>): Folder[] {
+  const path: Folder[] = [];
+  let current = folderId;
+  const seen = new Set<string>();
+  while (current && !seen.has(current)) {
+    const folder = foldersById.get(current);
+    if (!folder) break;
+    path.unshift(folder);
+    seen.add(current);
+    current = folder.parentFolderId;
+  }
+  return path;
+}
+
+// Percorso di navigazione del drill-down - non lo shadcn ui/breadcrumb.tsx
+// (mai usato altrove in questo file, usa classi generiche text-muted-
+// foreground/text-foreground invece delle var(--dash-*) di palette usate
+// ovunque qui) - stesso idioma "div a mano con var(--dash-*)" del resto del
+// file. Nascosto alla radice (path vuoto), ridondante con l'etichetta di
+// FolderSectionHeader.
+function FolderBreadcrumb({
+  sectionLabel, path, onNavigate,
+}: {
+  sectionLabel: string;
+  path: Folder[];
+  onNavigate: (folderId: string | null) => void;
+}) {
+  return (
+    <div className="col-span-2 flex flex-wrap items-center gap-1 text-xs text-[var(--dash-muted)]">
+      <button type="button" onClick={() => onNavigate(null)} className="transition-colors hover:text-[var(--dash-text-strong)]">
+        {sectionLabel}
+      </button>
+      {path.map((folder, idx) => (
+        <Fragment key={folder.id}>
+          <ChevronRight className="h-3 w-3 shrink-0" />
+          <button
+            type="button"
+            onClick={() => onNavigate(folder.id)}
+            className={`truncate transition-colors ${
+              idx === path.length - 1 ? 'font-semibold text-[var(--dash-text-strong)]' : 'hover:text-[var(--dash-text-strong)]'
+            }`}
+          >
+            {folder.name}
+          </button>
+        </Fragment>
+      ))}
     </div>
   );
 }
@@ -380,9 +464,14 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   const [premadeFolders, setPremadeFolders] = useState<Folder[]>([]);
   const [npcFolders, setNpcFolders] = useState<Folder[]>([]);
   const [monsterFolders, setMonsterFolders] = useState<Folder[]>([]);
-  // Aperte di default (true) al primo avvistamento di un id - condiviso tra
-  // le 4 sezioni, le chiavi (id di cartella) sono UUID quindi non collidono.
-  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
+  // "Dove sono" per sezione (drill-down: sostituisce il vecchio
+  // espandi/collassa ad albero) - null = radice della sezione. 3 variabili
+  // indipendenti, stesso motivo di premadeFolders/npcFolders/monsterFolders
+  // sopra: mai un unico Record condiviso, sezioni diverse non devono potersi
+  // confondere concettualmente anche se qui non collidono comunque (id UUID).
+  const [premadeCurrentFolderId, setPremadeCurrentFolderId] = useState<string | null>(null);
+  const [npcCurrentFolderId, setNpcCurrentFolderId] = useState<string | null>(null);
+  const [monsterCurrentFolderId, setMonsterCurrentFolderId] = useState<string | null>(null);
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
   const [renameFolderDraft, setRenameFolderDraft] = useState('');
   const [deleteFolderTarget, setDeleteFolderTarget] = useState<Folder | null>(null);
@@ -668,6 +757,11 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   // richieste per un giocatore). 'character' non piu' caricato: i PG
   // normali sono tornati al comportamento pre-cartelle.
   useEffect(() => {
+    // Cambio campagna (o logout) riporta ogni sezione alla radice - restare
+    // "drillati" dentro un id di una campagna precedente non avrebbe senso.
+    setPremadeCurrentFolderId(null);
+    setNpcCurrentFolderId(null);
+    setMonsterCurrentFolderId(null);
     if (!activeCampaign?.id || !session) {
       setPremadeFolders([]);
       setNpcFolders([]);
@@ -1064,12 +1158,15 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   // servizio chiamare) cambia da sezione a sezione, e resta nei rispettivi
   // onMoveCard passati a ciascuna istanza di useFolderDragDrop piu' sotto.
 
-  const handleCreateFolder = async (entityType: FolderEntityType, setFolders: React.Dispatch<React.SetStateAction<Folder[]>>) => {
+  const handleCreateFolder = async (
+    entityType: FolderEntityType,
+    setFolders: React.Dispatch<React.SetStateAction<Folder[]>>,
+    parentFolderId: string | null,
+  ) => {
     if (!activeCampaign || !session) return;
     try {
-      const folder = await createFolder(activeCampaign.id, entityType, 'Nuova cartella', SERVER_BASE, session.access_token);
+      const folder = await createFolder(activeCampaign.id, entityType, 'Nuova cartella', SERVER_BASE, session.access_token, parentFolderId);
       setFolders((prev) => [...prev, folder]);
-      setOpenFolders((prev) => ({ ...prev, [folder.id]: true }));
       // Entra subito in rinomina, stesso pattern di handleAddCustomTab in
       // useEntityTabs.ts: crea e passa direttamente al nome invece di
       // lasciare "Nuova cartella" come placeholder da rinominare dopo.
@@ -1155,6 +1252,15 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       const currentParent = folders.find((f) => f.id === newParentFolderId);
       resolvedParentId = currentParent?.parentFolderId ?? null;
     }
+    // Stessa validazione usata per il colore verde/rosso durante il drag
+    // (computeFolderRowDropState/isValidFolderNestTarget) - guardiano finale
+    // prima della richiesta: se il bersaglio risolto violerebbe ciclo/
+    // profondita', il trigger DB lo rifiuterebbe comunque, quindi non si
+    // tenta nemmeno l'update ottimistico.
+    if (resolvedParentId !== null) {
+      const foldersById = new Map(folders.map((f) => [f.id, f]));
+      if (!isValidFolderNestTarget(folderId, resolvedParentId, foldersById)) return;
+    }
     setFolders((prev) => prev.map((f) => (f.id === folderId ? { ...f, parentFolderId: resolvedParentId } : f)));
     try {
       await setFolderParent(folderId, resolvedParentId, SERVER_BASE, session.access_token);
@@ -1171,21 +1277,28 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       await deleteFolder(deleteFolderTarget.id, SERVER_BASE, session.access_token);
       const clearFolder = <T extends { id: string; folderId?: string | null }>(list: T[]) =>
         list.map((item) => (item.folderId === deleteFolderTarget.id ? { ...item, folderId: null } : item));
+      // Il DB orfanizza automaticamente le sotto-cartelle dirette (parent_
+      // folder_id ... on delete set null, supabase-add-nested-folders.sql)
+      // ma lo stato client no - senza questo, restavano invisibili (il loro
+      // parentFolderId punta a un id ormai rimosso dall'array locale, finche'
+      // non arriva un reload completo).
+      const reparentOrphans = (list: Folder[]) =>
+        list.map((f) => (f.parentFolderId === deleteFolderTarget.id ? { ...f, parentFolderId: null } : f));
       // Nessun case 'character': la sezione Personaggi non crea piu'
       // cartelle di quel tipo, questo target non e' piu' raggiungibile da
       // questa UI (eventuali cartelle 'character' residue dai test restano
       // nel DB, senza piu' un percorso per eliminarle da qui).
       switch (deleteFolderTarget.entityType) {
         case 'premade':
-          setPremadeFolders((prev) => prev.filter((f) => f.id !== deleteFolderTarget.id));
+          setPremadeFolders((prev) => reparentOrphans(prev.filter((f) => f.id !== deleteFolderTarget.id)));
           setAvailablePremades((prev) => clearFolder(prev));
           break;
         case 'npc':
-          setNpcFolders((prev) => prev.filter((f) => f.id !== deleteFolderTarget.id));
+          setNpcFolders((prev) => reparentOrphans(prev.filter((f) => f.id !== deleteFolderTarget.id)));
           setNpcs((prev) => clearFolder(prev));
           break;
         case 'monster':
-          setMonsterFolders((prev) => prev.filter((f) => f.id !== deleteFolderTarget.id));
+          setMonsterFolders((prev) => reparentOrphans(prev.filter((f) => f.id !== deleteFolderTarget.id)));
           setMonsters((prev) => clearFolder(prev));
           break;
       }
@@ -1305,9 +1418,6 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     onNestFolder: (folderId, newParentFolderId) => handleNestFolder(monsterFolders, folderId, newParentFolderId, setMonsterFolders),
     containerRef: foldersContainerRef,
   });
-
-  const isFolderOpen = (folderId: string) => openFolders[folderId] ?? true;
-  const toggleFolderOpen = (folderId: string) => setOpenFolders((prev) => ({ ...prev, [folderId]: !isFolderOpen(folderId) }));
 
   // Costruisce le voci del menu ⋮ di un PG - condivisa tra playerRows (di un
   // giocatore, row valorizzato) e availablePremades (del GM, row assente).
@@ -1435,6 +1545,26 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
 
   const gmInitial = (gmDisplayName ?? 'G').trim().charAt(0).toUpperCase() || 'G';
   const { icon: QuickFilterIcon, label: quickFilterLabel } = quickFilterHeading(activeQuickFilter);
+
+  // Lookup per id + percorso radice→corrente per sezione, usati da
+  // FolderRow/FolderBreadcrumb/renderFolderedSection e dal calcolo del
+  // limite di annidamento sotto - ricalcolati ad ogni render (gli array di
+  // cartelle sono piccoli, nessuna necessita' di memoizzazione qui).
+  const premadeFoldersById = new Map(premadeFolders.map((f) => [f.id, f]));
+  const npcFoldersById = new Map(npcFolders.map((f) => [f.id, f]));
+  const monsterFoldersById = new Map(monsterFolders.map((f) => [f.id, f]));
+  const premadeFolderPath = getFolderPath(premadeCurrentFolderId, premadeFoldersById);
+  const npcFolderPath = getFolderPath(npcCurrentFolderId, npcFoldersById);
+  const monsterFolderPath = getFolderPath(monsterCurrentFolderId, monsterFoldersById);
+  const premadeCreateDisabledReason =
+    getFolderDepth(premadeCurrentFolderId, premadeFoldersById) >= MAX_FOLDER_DEPTH
+      ? 'Limite di 5 livelli di annidamento raggiunto' : null;
+  const npcCreateDisabledReason =
+    getFolderDepth(npcCurrentFolderId, npcFoldersById) >= MAX_FOLDER_DEPTH
+      ? 'Limite di 5 livelli di annidamento raggiunto' : null;
+  const monsterCreateDisabledReason =
+    getFolderDepth(monsterCurrentFolderId, monsterFoldersById) >= MAX_FOLDER_DEPTH
+      ? 'Limite di 5 livelli di annidamento raggiunto' : null;
 
   const handleCoverUpdate = (patch: CampaignCoverPatch) => {
     if (!activeCampaign) return;
@@ -1649,17 +1779,26 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     />
   );
 
-  // Cartelle di una sezione (righe espandibili + le card al loro interno,
-  // se aperte) seguite dalla striscia "Senza cartella" - la stessa struttura
-  // per tutte e 4 le sezioni, solo folders/setFolders/dnd/items/renderCard
-  // cambiano. Le card sciolte (fuori da ogni cartella) restano fuori da
-  // questa funzione: ogni sezione le renderizza a modo suo subito dopo,
-  // riusando lo stesso renderCard passato qui.
-  // Ricorsiva da Fase 5 (annidamento fino a 5 livelli, vedi
-  // supabase-add-nested-folders.sql): per ogni cartella radice, renderNode
-  // disegna prima l'header, poi (se aperta) le sue sotto-cartelle dirette
-  // (ricorsivamente, stesso ordinamento per position) e infine le sue card
-  // dirette - lo stesso ordine "cartelle poi contenuto" a ogni livello.
+  // Conteggio totale (ricorsivo: sotto-cartelle+card annidate incluse) da
+  // mostrare sulla riga di una cartella - con la vista drill-down che
+  // nasconde il contenuto finche' non ci si entra, un "(0)" su una cartella
+  // che in realta' contiene nipoti sarebbe fuorviante.
+  function countFolderItemsRecursive(
+    folderId: string,
+    folders: Folder[],
+    items: { folderId?: string | null }[],
+  ): number {
+    const direct = items.filter((it) => it.folderId === folderId).length;
+    const childFolders = folders.filter((f) => f.parentFolderId === folderId);
+    return direct + childFolders.reduce((sum, child) => sum + countFolderItemsRecursive(child.id, folders, items), 0);
+  }
+
+  // Un solo livello alla volta (drill-down, vedi FolderBreadcrumb per la
+  // navigazione) - solo le sotto-cartelle dirette e le card dirette di
+  // nav.currentFolderId, mai l'intero sottoalbero. Le card sciolte (senza
+  // cartella) sono assorbite qui: prima erano un blocco duplicato dopo ogni
+  // chiamata in ciascuna delle 3 sezioni, ora sono semplicemente le
+  // directItems quando si e' alla radice (currentFolderId === null).
   function renderFolderedSection<T extends { id: string; folderId?: string | null }>(
     entityType: FolderEntityType,
     folders: Folder[],
@@ -1667,19 +1806,22 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     dnd: typeof premadeFolderDnd,
     items: T[],
     renderCard: (item: T) => React.ReactNode,
+    nav: { currentFolderId: string | null; setCurrentFolderId: (id: string | null) => void; foldersById: Map<string, Folder> },
   ) {
-    const renderNode = (folder: Folder, depth: number): React.ReactNode => {
-      const childFolders = folders.filter((f) => f.parentFolderId === folder.id).sort((a, b) => a.position - b.position);
-      const folderItems = items.filter((it) => it.folderId === folder.id);
-      const open = isFolderOpen(folder.id);
-      return (
-        <Fragment key={folder.id}>
+    const { currentFolderId, foldersById } = nav;
+    const childFolders = folders
+      .filter((f) => f.parentFolderId === currentFolderId)
+      .sort((a, b) => a.position - b.position);
+    const directItems = items.filter((it) => (it.folderId ?? null) === currentFolderId);
+
+    return (
+      <>
+        {childFolders.map((folder) => (
           <FolderRow
+            key={folder.id}
             folder={folder}
-            depth={depth}
-            isOpen={open}
-            onToggle={() => toggleFolderOpen(folder.id)}
-            count={folderItems.length}
+            onEnter={() => nav.setCurrentFolderId(folder.id)}
+            count={countFolderItemsRecursive(folder.id, folders, items)}
             canEdit={isOwner}
             isRenaming={renamingFolderId === folder.id}
             renameDraft={renameFolderDraft}
@@ -1689,34 +1831,22 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
             onCancelRename={() => setRenamingFolderId(null)}
             onRequestDelete={() => setDeleteFolderTarget(folder)}
             onPointerDown={(e) => dnd.handlePointerDown(e, { kind: 'folder', id: folder.id })}
-            isDropActive={
-              (dnd.dropTarget?.type === 'into-folder' || dnd.dropTarget?.type === 'nest-into-folder') &&
-              dnd.dropTarget.folderId === folder.id
-            }
+            dropState={computeFolderRowDropState(dnd, folder, foldersById)}
             isDimmed={dnd.draggedItem?.kind === 'folder' && dnd.draggedItem.id === folder.id}
           />
-          {open && childFolders.map((child) => renderNode(child, depth + 1))}
-          {open && folderItems.map((it) => (
-            <div
-              key={it.id}
-              className={`${isOwner ? 'cursor-grab active:cursor-grabbing' : ''} ${
-                dnd.draggedItem?.kind === 'card' && dnd.draggedItem.id === it.id ? 'opacity-40' : ''
-              }`}
-              onPointerDown={(e) => dnd.handlePointerDown(e, { kind: 'card', id: it.id })}
-            >
-              {renderCard(it)}
-            </div>
-          ))}
-        </Fragment>
-      );
-    };
-
-    const rootFolders = folders.filter((f) => f.parentFolderId === null).sort((a, b) => a.position - b.position);
-
-    return (
-      <>
-        {rootFolders.map((folder) => renderNode(folder, 0))}
-        {folders.length > 0 && (
+        ))}
+        {directItems.map((it) => (
+          <div
+            key={it.id}
+            className={`${isOwner ? 'cursor-grab active:cursor-grabbing' : ''} ${
+              dnd.draggedItem?.kind === 'card' && dnd.draggedItem.id === it.id ? 'opacity-40' : ''
+            }`}
+            onPointerDown={(e) => dnd.handlePointerDown(e, { kind: 'card', id: it.id })}
+          >
+            {renderCard(it)}
+          </div>
+        ))}
+        {currentFolderId === null && childFolders.length > 0 && (
           <UnfiledDropZone entityType={entityType} isDropActive={dnd.dropTarget?.type === 'unfiled'} />
         )}
       </>
@@ -1978,9 +2108,18 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
 
             {activeQuickFilter === 'premades' && (
               <>
-                <FolderSectionHeader icon={Package} label="Precompilati" isOwner={isOwner} onCreateFolder={() => handleCreateFolder('premade', setPremadeFolders)} />
-                {renderFolderedSection('premade', premadeFolders, setPremadeFolders, premadeFolderDnd, availablePremades, renderPremadeCard)}
-                {availablePremades.length === 0 ? (
+                <FolderSectionHeader
+                  icon={Package} label="Precompilati" isOwner={isOwner}
+                  onCreateFolder={() => handleCreateFolder('premade', setPremadeFolders, premadeCurrentFolderId)}
+                  disabledReason={premadeCreateDisabledReason}
+                />
+                {premadeFolderPath.length > 0 && (
+                  <FolderBreadcrumb sectionLabel="Precompilati" path={premadeFolderPath} onNavigate={setPremadeCurrentFolderId} />
+                )}
+                {renderFolderedSection('premade', premadeFolders, setPremadeFolders, premadeFolderDnd, availablePremades, renderPremadeCard, {
+                  currentFolderId: premadeCurrentFolderId, setCurrentFolderId: setPremadeCurrentFolderId, foldersById: premadeFoldersById,
+                })}
+                {availablePremades.length === 0 && (
                   <div className="col-span-2 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-5 py-8 text-center">
                     <Package className="mx-auto mb-3 h-10 w-10 text-[var(--dash-muted)]" />
                     <div className="text-xs uppercase tracking-[0.16em] text-[var(--dash-accent-2)]">Nessun personaggio precompilato disponibile</div>
@@ -1988,55 +2127,39 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                       Marca un PG come "Disponibile per i giocatori" dal menu ⋮ in Personaggi per farlo comparire qui.
                     </p>
                   </div>
-                ) : (
-                  availablePremades.filter((ch) => !ch.folderId).map((ch) => (
-                    <div
-                      key={ch.id}
-                      className={`${isOwner ? 'cursor-grab active:cursor-grabbing' : ''} ${
-                        premadeFolderDnd.draggedItem?.kind === 'card' && premadeFolderDnd.draggedItem.id === ch.id ? 'opacity-40' : ''
-                      }`}
-                      onPointerDown={(e) => premadeFolderDnd.handlePointerDown(e, { kind: 'card', id: ch.id })}
-                    >
-                      {renderPremadeCard(ch)}
-                    </div>
-                  ))
                 )}
               </>
             )}
 
             {(activeQuickFilter === 'all' || activeQuickFilter === 'npc') && isOwner && npcsLoaded && npcs.length > 0 && (
               <>
-                <FolderSectionHeader icon={Ghost} label="PNG" isOwner={isOwner} onCreateFolder={() => handleCreateFolder('npc', setNpcFolders)} />
-                {renderFolderedSection('npc', npcFolders, setNpcFolders, npcFolderDnd, npcs, renderNpcCard)}
-                {npcs.filter((npc) => !npc.folderId).map((npc) => (
-                  <div
-                    key={npc.id}
-                    className={`${isOwner ? 'cursor-grab active:cursor-grabbing' : ''} ${
-                      npcFolderDnd.draggedItem?.kind === 'card' && npcFolderDnd.draggedItem.id === npc.id ? 'opacity-40' : ''
-                    }`}
-                    onPointerDown={(e) => npcFolderDnd.handlePointerDown(e, { kind: 'card', id: npc.id })}
-                  >
-                    {renderNpcCard(npc)}
-                  </div>
-                ))}
+                <FolderSectionHeader
+                  icon={Ghost} label="PNG" isOwner={isOwner}
+                  onCreateFolder={() => handleCreateFolder('npc', setNpcFolders, npcCurrentFolderId)}
+                  disabledReason={npcCreateDisabledReason}
+                />
+                {npcFolderPath.length > 0 && (
+                  <FolderBreadcrumb sectionLabel="PNG" path={npcFolderPath} onNavigate={setNpcCurrentFolderId} />
+                )}
+                {renderFolderedSection('npc', npcFolders, setNpcFolders, npcFolderDnd, npcs, renderNpcCard, {
+                  currentFolderId: npcCurrentFolderId, setCurrentFolderId: setNpcCurrentFolderId, foldersById: npcFoldersById,
+                })}
               </>
             )}
 
             {(activeQuickFilter === 'all' || activeQuickFilter === 'monster') && isOwner && monstersLoaded && monsters.length > 0 && (
               <>
-                <FolderSectionHeader icon={Skull} label="Mostri" isOwner={isOwner} onCreateFolder={() => handleCreateFolder('monster', setMonsterFolders)} />
-                {renderFolderedSection('monster', monsterFolders, setMonsterFolders, monsterFolderDnd, monsters, renderMonsterCard)}
-                {monsters.filter((monster) => !monster.folderId).map((monster) => (
-                  <div
-                    key={monster.id}
-                    className={`${isOwner ? 'cursor-grab active:cursor-grabbing' : ''} ${
-                      monsterFolderDnd.draggedItem?.kind === 'card' && monsterFolderDnd.draggedItem.id === monster.id ? 'opacity-40' : ''
-                    }`}
-                    onPointerDown={(e) => monsterFolderDnd.handlePointerDown(e, { kind: 'card', id: monster.id })}
-                  >
-                    {renderMonsterCard(monster)}
-                  </div>
-                ))}
+                <FolderSectionHeader
+                  icon={Skull} label="Mostri" isOwner={isOwner}
+                  onCreateFolder={() => handleCreateFolder('monster', setMonsterFolders, monsterCurrentFolderId)}
+                  disabledReason={monsterCreateDisabledReason}
+                />
+                {monsterFolderPath.length > 0 && (
+                  <FolderBreadcrumb sectionLabel="Mostri" path={monsterFolderPath} onNavigate={setMonsterCurrentFolderId} />
+                )}
+                {renderFolderedSection('monster', monsterFolders, setMonsterFolders, monsterFolderDnd, monsters, renderMonsterCard, {
+                  currentFolderId: monsterCurrentFolderId, setCurrentFolderId: setMonsterCurrentFolderId, foldersById: monsterFoldersById,
+                })}
               </>
             )}
           </div>

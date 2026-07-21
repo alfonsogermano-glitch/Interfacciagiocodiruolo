@@ -18,6 +18,50 @@ export interface Folder {
   parentFolderId: string | null;
 }
 
+export const MAX_FOLDER_DEPTH = 5;
+
+// Stessa convenzione di conteggio del trigger check_folder_hierarchy
+// (supabase-add-nested-folders.sql): la cartella stessa conta come
+// profondita' 1, +1 per ogni passo verso la radice. null = profondita' 0.
+export function getFolderDepth(folderId: string | null, foldersById: Map<string, Folder>): number {
+  let depth = 0;
+  let current = folderId;
+  const seen = new Set<string>();
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    depth += 1;
+    current = foldersById.get(current)?.parentFolderId ?? null;
+  }
+  return depth;
+}
+
+function wouldCreateFolderCycle(draggedFolderId: string, targetFolderId: string, foldersById: Map<string, Folder>): boolean {
+  let current: string | null = targetFolderId;
+  const seen = new Set<string>();
+  while (current && !seen.has(current)) {
+    if (current === draggedFolderId) return true;
+    seen.add(current);
+    current = foldersById.get(current)?.parentFolderId ?? null;
+  }
+  return false;
+}
+
+// Replica esatta di quanto verifica il trigger DB per un singolo
+// spostamento folder-into-folder: SOLO la profondita' risultante della
+// cartella trascinata dopo il move, NON una verifica ricorsiva dei suoi
+// discendenti (il trigger non la fa nemmeno lui - vedi
+// supabase-add-nested-folders.sql righe 56-66). Tenere questo scope
+// invariato: espanderlo lato client farebbe disaccordare client e server.
+export function isValidFolderNestTarget(
+  draggedFolderId: string,
+  targetFolderId: string,
+  foldersById: Map<string, Folder>,
+): boolean {
+  if (draggedFolderId === targetFolderId) return false;
+  if (wouldCreateFolderCycle(draggedFolderId, targetFolderId, foldersById)) return false;
+  return getFolderDepth(targetFolderId, foldersById) + 1 <= MAX_FOLDER_DEPTH;
+}
+
 function mapFolder(row: any): Folder {
   return {
     id: row.id,
