@@ -23,6 +23,7 @@ import { EntityCard } from '../components/session/shared/EntityCard';
 import { EntityKebabMenu, type EntityKebabMenuItem } from '../components/session/shared/EntityKebabMenu';
 import { CampaignNotesPanel } from '../components/session/shared/CampaignNotesPanel';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
+import { usePortalContainer } from '../components/ui/portal-container';
 import { CampaignForm } from './CampaignSelector';
 import { CampaignCoverEditor, type CampaignCoverPatch } from './CampaignCoverEditor';
 import { InviteByNameModal } from './InviteByNameModal';
@@ -283,36 +284,62 @@ function UnfiledDropZone({ entityType, isDropActive }: { entityType: FolderEntit
 // riposizionato manualmente a ogni pointermove invece di affidarsi a
 // dataTransfer.setDragImage (API nativa, non applicabile al drag
 // pointer-based usato qui - vedi indagine sul feedback visivo di drag).
-// Riceve solo dati grezzi dall'hook (draggedItem/pointerPosition) e decide
-// da solo cosa disegnare - l'hook resta "solo meccanica".
-function DragGhost({
-  dnd, getLabel,
+// Riceve solo dati grezzi dall'hook (draggedItem/pointerPosition) piu'
+// folders/items del chiamante e decide da solo cosa disegnare - l'hook
+// resta "solo meccanica", questo componente resta agnostico rispetto alla
+// forma di T (stesso principio di renderCard in renderFolderedSection).
+//
+// Portato su usePortalContainer() (il nodo [data-dashboard-palette] di
+// AppShell.tsx) invece che su document.body: cosi' le classi Tailwind
+// var(--dash-*) usate da EntityCard arrivano per cascata e non serve piu'
+// l'hack dei colori inline usato qui prima di riusare EntityCard (stesso
+// bug gia' diagnosticato per il menu ⋮ invisibile, vedi portal-container.tsx
+// - stesso hook gia' usato da EntityTabBar.tsx per il suo menu portato).
+function DragGhost<T extends { id: string }>({
+  dnd, folders, items, renderCard,
 }: {
   dnd: ReturnType<typeof useFolderDragDrop>;
-  getLabel: (id: string) => string | null;
+  folders: Folder[];
+  items: T[];
+  renderCard: (item: T) => React.ReactNode;
 }) {
+  const portalContainer = usePortalContainer();
   if (!dnd.draggedItem || !dnd.pointerPosition) return null;
-  const label = getLabel(dnd.draggedItem.id);
-  if (!label) return null;
-  // Colori inline (non classi Tailwind var(--dash-*)): stesso pattern gia'
-  // collaudato in EntityKebabMenu.tsx per i portal su document.body - le
-  // variabili CSS --dash-* sono scoped a [data-dashboard-palette] (vedi
-  // AppShell.tsx), un elemento fratello di document.body, non antenato, non
-  // ci arrivano per cascata (stesso bug gia' visto col menu ⋮ invisibile,
-  // vedi portal-container.tsx).
-  const colors = getCurrentPaletteColors();
+
+  const content = dnd.draggedItem.kind === 'folder' ? (() => {
+    const folder = folders.find((f) => f.id === dnd.draggedItem!.id);
+    if (!folder) return null;
+    return (
+      <div className="flex max-w-[220px] items-center gap-1.5 rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] px-2.5 py-1.5 text-xs font-medium text-[var(--dash-text)] opacity-90 shadow-2xl">
+        <FolderIcon className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">{folder.name}</span>
+      </div>
+    );
+  })() : (() => {
+    const item = items.find((it) => it.id === dnd.draggedItem!.id);
+    if (!item) return null;
+    // Card completa in miniatura, non la sola etichetta - il box foto di
+    // EntityCard (variant grid) e' a larghezza fissa (140px) indipendente
+    // dal contenitore, quindi per restringere il ghost si scala l'intera
+    // card invece di dargli una larghezza piccola (altrimenti la foto
+    // dominerebbe lo spazio, sproporzionata rispetto al testo).
+    return (
+      <div className="w-[280px] origin-top-left scale-[0.65] overflow-hidden rounded-2xl opacity-80 shadow-2xl">
+        {renderCard(item)}
+      </div>
+    );
+  })();
+
+  if (!content) return null;
+
   return createPortal(
     <div
-      style={{
-        position: 'fixed', left: dnd.pointerPosition.x + 14, top: dnd.pointerPosition.y + 14, zIndex: 2000,
-        backgroundColor: colors.panel, border: `1px solid ${colors.border}`, color: colors.text,
-      }}
-      className="pointer-events-none flex max-w-[220px] items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium opacity-90 shadow-2xl"
+      style={{ position: 'fixed', left: dnd.pointerPosition.x + 14, top: dnd.pointerPosition.y + 14, zIndex: 2000 }}
+      className="pointer-events-none"
     >
-      {dnd.draggedItem.kind === 'folder' && <FolderIcon className="h-3.5 w-3.5 shrink-0" />}
-      <span className="truncate">{label}</span>
+      {content}
     </div>,
-    document.body
+    portalContainer ?? document.body
   );
 }
 
@@ -1568,16 +1595,59 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     />
   );
 
-  // Lookup del nome da mostrare nel ghost (DragGhost) dato l'id trascinato -
-  // cerca prima tra le cartelle della sezione (drag di kind 'folder'), poi
-  // tra le card (drag di kind 'card'): stesso spazio di id passato
-  // all'hook, non serve sapere qui il kind per scegliere dove cercare.
-  const premadeFolderLabel = (id: string) => premadeFolders.find((f) => f.id === id)?.name
-    ?? availablePremades.find((c) => c.id === id)?.name ?? null;
-  const npcFolderLabel = (id: string) => npcFolders.find((f) => f.id === id)?.name
-    ?? npcs.find((n) => n.id === id)?.name ?? null;
-  const monsterFolderLabel = (id: string) => monsterFolders.find((f) => f.id === id)?.name
-    ?? monsters.find((m) => m.id === id)?.name ?? null;
+  // Card minimali per il ghost di drag (DragGhost) - solo foto/nome/
+  // sottotitolo, niente cornerAction/badge/footer: in un ghost non
+  // cliccabile (pointer-events:none sull'antenato) il menu ⋮ non avrebbe
+  // senso ed e' solo rumore visivo.
+  const renderPremadeGhostCard = (ch: PlayerCharacterSummary) => (
+    <EntityCard
+      variant="grid"
+      name={ch.name}
+      subtitle={ch.styleViaggio}
+      photoUrl={ch.portraitUrl}
+      photoSourceUrl={ch.portraitSourceUrl}
+      photoCropArea={ch.portraitCropArea}
+      tokenColor={ch.tokenColor}
+      tokenBackgroundColor={ch.tokenBackgroundColor}
+      tokenBorderStyle={ch.tokenBorderStyle}
+      tokenBorderThickness={ch.tokenBorderThickness}
+      tokenBorderVisible={ch.tokenBorderVisible}
+      tokenBorderLabel={ch.tokenBorderLabel}
+    />
+  );
+
+  const renderNpcGhostCard = (npc: NPC) => (
+    <EntityCard
+      variant="grid"
+      name={npc.name || 'PNG senza nome'}
+      subtitle={npc.role || 'PNG'}
+      photoUrl={npc.portraitImageUrl}
+      photoSourceUrl={npc.portraitSourceImageUrl}
+      photoCropArea={npc.portraitCropArea}
+      tokenColor={npc.tokenColor}
+      tokenBackgroundColor={npc.tokenBackgroundColor}
+      tokenBorderStyle={npc.tokenBorderStyle}
+      tokenBorderThickness={npc.tokenBorderThickness}
+      tokenBorderVisible={npc.tokenBorderVisible}
+      tokenBorderLabel={npc.tokenBorderLabel}
+    />
+  );
+
+  const renderMonsterGhostCard = (monster: Monster) => (
+    <EntityCard
+      variant="grid"
+      name={monster.name || 'Mostro senza nome'}
+      photoUrl={monster.portraitImageUrl}
+      photoSourceUrl={monster.portraitSourceImageUrl}
+      photoCropArea={monster.portraitCropArea}
+      tokenColor={monster.tokenColor}
+      tokenBackgroundColor={monster.tokenBackgroundColor}
+      tokenBorderStyle={monster.tokenBorderStyle}
+      tokenBorderThickness={monster.tokenBorderThickness}
+      tokenBorderVisible={monster.tokenBorderVisible}
+      tokenBorderLabel={monster.tokenBorderLabel}
+    />
+  );
 
   // Cartelle di una sezione (righe espandibili + le card al loro interno,
   // se aperte) seguite dalla striscia "Senza cartella" - la stessa struttura
@@ -1974,9 +2044,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
         </div>
       )}
 
-      <DragGhost dnd={premadeFolderDnd} getLabel={premadeFolderLabel} />
-      <DragGhost dnd={npcFolderDnd} getLabel={npcFolderLabel} />
-      <DragGhost dnd={monsterFolderDnd} getLabel={monsterFolderLabel} />
+      <DragGhost dnd={premadeFolderDnd} folders={premadeFolders} items={availablePremades} renderCard={renderPremadeGhostCard} />
+      <DragGhost dnd={npcFolderDnd} folders={npcFolders} items={npcs} renderCard={renderNpcGhostCard} />
+      <DragGhost dnd={monsterFolderDnd} folders={monsterFolders} items={monsters} renderCard={renderMonsterGhostCard} />
 
       {copyDialogChar && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4">
