@@ -1781,6 +1781,106 @@ app.delete("/make-server-771c5bfd/folders/:folderId", async (c) => {
   }
 });
 
+// Route distinta (non un query-param sulla DELETE sopra) apposta: un'azione
+// distruttiva e irreversibile su piu' tabelle non deve poter scattare per un
+// flag dimenticato/sbagliato. Cancella davvero la cartella E tutto il suo
+// sottoalbero (sotto-cartelle + card dentro, ricorsivamente) - a differenza
+// della DELETE semplice sopra, che orfanizza soltanto.
+//
+// L'insieme dei discendenti viene risolto qui, al momento dell'esecuzione,
+// non riusa un conteggio gia' mostrato al client in precedenza (evita un
+// TOCTOU se nel frattempo qualcosa e' cambiato) - stessa camminata su
+// parent_folder_id gia' usata lato client (getFolderDepth/
+// countFolderContentsRecursive in CampaignHome.tsx), applicata qui alla
+// stessa lista piatta che GET /folders restituisce (nessuna CTE ricorsiva
+// SQL da scrivere/mantenere).
+app.delete("/make-server-771c5bfd/folders/:folderId/cascade", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const folderId = c.req.param("folderId");
+    const admin = getAdminClient();
+    const { data: existing, error: fetchError } = await admin
+      .from('folders')
+      .select('*')
+      .eq('id', folderId)
+      .single();
+    if (fetchError || !existing) return c.json({ error: "Cartella non trovata" }, 404);
+
+    const allowed = await canAccessFolders(admin, userId, existing.campaign_id, 'write');
+    if (!allowed) return c.json({ error: "Non hai accesso a questa cartella" }, 403);
+
+    const { data: siblings, error: siblingsError } = await admin
+      .from('folders')
+      .select('id, parent_folder_id')
+      .eq('campaign_id', existing.campaign_id)
+      .eq('entity_type', existing.entity_type);
+    if (siblingsError) return c.json({ error: "Errore lettura sottoalbero cartelle" }, 500);
+
+    // BFS a partire dalla cartella target: {target, ...discendenti a ogni
+    // livello}. childrenByParent precalcolato per non rifare una scan
+    // lineare di siblings ad ogni passo (irrilevante a questa scala, ma
+    // stesso stile "niente query ripetute" del resto del file).
+    const childrenByParent = new Map<string, string[]>();
+    for (const f of siblings ?? []) {
+      const parentId = f.parent_folder_id;
+      if (!parentId) continue;
+      const list = childrenByParent.get(parentId) ?? [];
+      list.push(f.id);
+      childrenByParent.set(parentId, list);
+    }
+    const descendantIds: string[] = [folderId];
+    let cursor = 0;
+    while (cursor < descendantIds.length) {
+      const current = descendantIds[cursor++];
+      for (const childId of childrenByParent.get(current) ?? []) {
+        if (!descendantIds.includes(childId)) descendantIds.push(childId);
+      }
+    }
+
+    const tableByEntityType: Record<string, string> = {
+      premade: 'characters',
+      character: 'characters',
+      npc: 'npcs',
+      monster: 'monsters',
+    };
+    const contentTable = tableByEntityType[existing.entity_type];
+    if (!contentTable) return c.json({ error: "Tipo di cartella sconosciuto" }, 400);
+
+    let contentDeleteQuery = admin.from(contentTable).delete().in('folder_id', descendantIds);
+    if (existing.entity_type === 'premade') {
+      // Difesa in profondita': availablePremades (cio' che compare in una
+      // cartella Precompilati) e' gia' filtrato lato client a
+      // owner_profile_id === owner della campagna - un PG davvero reclamato
+      // da un giocatore cambia proprietario e sparisce da quella vista,
+      // quindi non dovrebbe mai finire in descendantIds. Questo filtro e'
+      // una seconda barriera contro un id stantio, non un cambio di
+      // comportamento atteso.
+      const { data: campaignRow } = await admin
+        .from('campaigns')
+        .select('owner_profile_id')
+        .eq('id', existing.campaign_id)
+        .single();
+      if (campaignRow?.owner_profile_id) {
+        contentDeleteQuery = contentDeleteQuery.eq('owner_profile_id', campaignRow.owner_profile_id);
+      }
+    }
+    const { error: contentError } = await contentDeleteQuery;
+    if (contentError) return c.json({ error: "Errore eliminazione contenuto cartella" }, 500);
+
+    const { error: foldersError } = await admin.from('folders').delete().in('id', descendantIds);
+    if (foldersError) return c.json({ error: "Errore eliminazione sottoalbero cartelle" }, 500);
+
+    return c.json({ success: true, deletedFolderIds: descendantIds });
+  } catch (err) {
+    console.log("Errore DELETE folders/cascade:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
 // ─── Notifiche ──────────────────────────────────────────────────────────────
 
 app.get("/make-server-771c5bfd/notifications", async (c) => {

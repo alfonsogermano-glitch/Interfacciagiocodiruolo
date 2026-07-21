@@ -169,6 +169,25 @@ export async function deleteFolder(
   if (!res.ok) throw new Error(data.error ?? 'Errore eliminazione cartella');
 }
 
+// Elimina la cartella E tutto il suo sottoalbero (sotto-cartelle + card
+// dentro, ricorsivamente) - route distinta da deleteFolder sopra (che
+// orfanizza soltanto), vedi il commento sulla route lato server per il
+// perche' non e' un semplice flag. Il chiamante manda solo l'id radice: la
+// risoluzione dei discendenti avviene lato server al momento dell'esecuzione,
+// non lato client in anticipo.
+export async function deleteFolderCascade(
+  folderId: string,
+  serverBase: string,
+  accessToken: string
+): Promise<void> {
+  const res = await fetch(`${serverBase}/folders/${folderId}/cascade`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? 'Errore eliminazione cartella e contenuto');
+}
+
 // PG/Precompilati: unassignCharacterFromCampaign-style, ma stretto sulla sola
 // colonna folder_id - vedi POST /characters/:id/folder lato server per il
 // perche' non si puo' riusare l'update integrale di saveCharacterAsGm.

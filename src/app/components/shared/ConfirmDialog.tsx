@@ -13,6 +13,10 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   cancelLabel?: string;
   danger?: boolean;
+  /** Contenuto opzionale tra il testo e i pulsanti (es. una checkbox per
+   *  un'opzione distruttiva aggiuntiva) - undefined di default, quindi
+   *  nessun impatto sugli usi esistenti che non lo passano. */
+  extraContent?: React.ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -23,6 +27,7 @@ export function ConfirmDialog({
   confirmLabel = 'Conferma',
   cancelLabel = 'Annulla',
   danger = true,
+  extraContent,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -48,6 +53,7 @@ export function ConfirmDialog({
         <p className="mb-5 text-sm leading-relaxed" style={{ color: colors.text, opacity: 0.85 }}>
           {message}
         </p>
+        {extraContent && <div className="mb-5">{extraContent}</div>}
         <div className="flex justify-end gap-2">
           <button
             type="button"

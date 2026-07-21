@@ -35,7 +35,7 @@ import {
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { Switch } from '../components/ui/switch';
 import {
-  loadFolders, createFolder, renameFolder, reorderFolder, deleteFolder, setCharacterFolder, setFolderParent,
+  loadFolders, createFolder, renameFolder, reorderFolder, deleteFolder, deleteFolderCascade, setCharacterFolder, setFolderParent,
   getFolderDepth, isValidFolderNestTarget, MAX_FOLDER_DEPTH,
   type Folder, type FolderEntityType,
 } from '../../services/supabase/foldersService';
@@ -476,6 +476,10 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   const [renameFolderDraft, setRenameFolderDraft] = useState('');
   const [deleteFolderTarget, setDeleteFolderTarget] = useState<Folder | null>(null);
   const [isDeletingFolder, setIsDeletingFolder] = useState(false);
+  // Deselezionata di default ogni volta che si apre il dialog: comportamento
+  // invariato (solo unlink, vedi handleConfirmDeleteFolder) a meno che il GM
+  // non la spunti esplicitamente per l'eliminazione a cascata.
+  const [deleteFolderCascadeContent, setDeleteFolderCascadeContent] = useState(false);
 
   const [inviteCopied, setInviteCopied] = useState(false);
   const [showInviteByNameModal, setShowInviteByNameModal] = useState(false);
@@ -1271,36 +1275,62 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   };
 
   const handleConfirmDeleteFolder = async () => {
-    if (!deleteFolderTarget || !session) return;
+    if (!deleteFolderTarget || !session || !activeCampaign) return;
     setIsDeletingFolder(true);
     try {
-      await deleteFolder(deleteFolderTarget.id, SERVER_BASE, session.access_token);
-      const clearFolder = <T extends { id: string; folderId?: string | null }>(list: T[]) =>
-        list.map((item) => (item.folderId === deleteFolderTarget.id ? { ...item, folderId: null } : item));
-      // Il DB orfanizza automaticamente le sotto-cartelle dirette (parent_
-      // folder_id ... on delete set null, supabase-add-nested-folders.sql)
-      // ma lo stato client no - senza questo, restavano invisibili (il loro
-      // parentFolderId punta a un id ormai rimosso dall'array locale, finche'
-      // non arriva un reload completo).
-      const reparentOrphans = (list: Folder[]) =>
-        list.map((f) => (f.parentFolderId === deleteFolderTarget.id ? { ...f, parentFolderId: null } : f));
-      // Nessun case 'character': la sezione Personaggi non crea piu'
-      // cartelle di quel tipo, questo target non e' piu' raggiungibile da
-      // questa UI (eventuali cartelle 'character' residue dai test restano
-      // nel DB, senza piu' un percorso per eliminarle da qui).
-      switch (deleteFolderTarget.entityType) {
-        case 'premade':
-          setPremadeFolders((prev) => reparentOrphans(prev.filter((f) => f.id !== deleteFolderTarget.id)));
-          setAvailablePremades((prev) => clearFolder(prev));
-          break;
-        case 'npc':
-          setNpcFolders((prev) => reparentOrphans(prev.filter((f) => f.id !== deleteFolderTarget.id)));
-          setNpcs((prev) => clearFolder(prev));
-          break;
-        case 'monster':
-          setMonsterFolders((prev) => reparentOrphans(prev.filter((f) => f.id !== deleteFolderTarget.id)));
-          setMonsters((prev) => clearFolder(prev));
-          break;
+      if (deleteFolderCascadeContent) {
+        // Eliminazione a cascata: tocca piu' tabelle sul server in un colpo
+        // solo (vedi deleteFolderCascade/route dedicata) - per un'operazione
+        // distruttiva multi-tabella e' piu' semplice e piu' sicuro ricaricare
+        // la sezione da zero che ricostruire a mano quali righe locali
+        // rimuovere (a differenza del ramo non-cascade sotto, dove
+        // l'aggiornamento locale mirato resta appropriato).
+        await deleteFolderCascade(deleteFolderTarget.id, SERVER_BASE, session.access_token);
+        const accessToken = session.access_token;
+        const campaignId = activeCampaign.id;
+        switch (deleteFolderTarget.entityType) {
+          case 'premade':
+            setPremadeFolders(await loadFolders(campaignId, 'premade', SERVER_BASE, accessToken));
+            setPlayersReloadToken((t) => t + 1);
+            break;
+          case 'npc':
+            setNpcFolders(await loadFolders(campaignId, 'npc', SERVER_BASE, accessToken));
+            setNpcs(await loadNPCs(campaignId));
+            break;
+          case 'monster':
+            setMonsterFolders(await loadFolders(campaignId, 'monster', SERVER_BASE, accessToken));
+            setMonsters(await loadMonsters(campaignId));
+            break;
+        }
+      } else {
+        await deleteFolder(deleteFolderTarget.id, SERVER_BASE, session.access_token);
+        const clearFolder = <T extends { id: string; folderId?: string | null }>(list: T[]) =>
+          list.map((item) => (item.folderId === deleteFolderTarget.id ? { ...item, folderId: null } : item));
+        // Il DB orfanizza automaticamente le sotto-cartelle dirette (parent_
+        // folder_id ... on delete set null, supabase-add-nested-folders.sql)
+        // ma lo stato client no - senza questo, restavano invisibili (il loro
+        // parentFolderId punta a un id ormai rimosso dall'array locale, finche'
+        // non arriva un reload completo).
+        const reparentOrphans = (list: Folder[]) =>
+          list.map((f) => (f.parentFolderId === deleteFolderTarget.id ? { ...f, parentFolderId: null } : f));
+        // Nessun case 'character': la sezione Personaggi non crea piu'
+        // cartelle di quel tipo, questo target non e' piu' raggiungibile da
+        // questa UI (eventuali cartelle 'character' residue dai test restano
+        // nel DB, senza piu' un percorso per eliminarle da qui).
+        switch (deleteFolderTarget.entityType) {
+          case 'premade':
+            setPremadeFolders((prev) => reparentOrphans(prev.filter((f) => f.id !== deleteFolderTarget.id)));
+            setAvailablePremades((prev) => clearFolder(prev));
+            break;
+          case 'npc':
+            setNpcFolders((prev) => reparentOrphans(prev.filter((f) => f.id !== deleteFolderTarget.id)));
+            setNpcs((prev) => clearFolder(prev));
+            break;
+          case 'monster':
+            setMonsterFolders((prev) => reparentOrphans(prev.filter((f) => f.id !== deleteFolderTarget.id)));
+            setMonsters((prev) => clearFolder(prev));
+            break;
+        }
       }
       setDeleteFolderTarget(null);
     } catch (err) {
@@ -1566,6 +1596,33 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     getFolderDepth(monsterCurrentFolderId, monsterFoldersById) >= MAX_FOLDER_DEPTH
       ? 'Limite di 5 livelli di annidamento raggiunto' : null;
 
+  // Conteggio del contenuto della cartella da eliminare, per il checkbox di
+  // eliminazione a cascata nel dialog sotto - null se la cartella e' vuota
+  // (in quel caso il checkbox non ha senso, vedi extraContent piu' sotto).
+  const deleteFolderContents = (() => {
+    if (!deleteFolderTarget) return null;
+    let counts: { itemCount: number; folderCount: number };
+    let itemLabel: string;
+    switch (deleteFolderTarget.entityType) {
+      case 'premade':
+        counts = countFolderContentsRecursive(deleteFolderTarget.id, premadeFolders, availablePremades);
+        itemLabel = 'Precompilati';
+        break;
+      case 'npc':
+        counts = countFolderContentsRecursive(deleteFolderTarget.id, npcFolders, npcs);
+        itemLabel = 'PNG';
+        break;
+      case 'monster':
+        counts = countFolderContentsRecursive(deleteFolderTarget.id, monsterFolders, monsters);
+        itemLabel = 'Mostri';
+        break;
+      default:
+        return null;
+    }
+    if (counts.itemCount + counts.folderCount === 0) return null;
+    return { ...counts, itemLabel };
+  })();
+
   const handleCoverUpdate = (patch: CampaignCoverPatch) => {
     if (!activeCampaign) return;
     void updateCampaign(activeCampaign.id, patch);
@@ -1779,18 +1836,23 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     />
   );
 
-  // Conteggio totale (ricorsivo: sotto-cartelle+card annidate incluse) da
-  // mostrare sulla riga di una cartella - con la vista drill-down che
-  // nasconde il contenuto finche' non ci si entra, un "(0)" su una cartella
-  // che in realta' contiene nipoti sarebbe fuorviante.
-  function countFolderItemsRecursive(
+  // Conteggio ricorsivo (sotto-cartelle+card annidate incluse), scomposto
+  // per tipo - usato sia per il badge "(n)" sulla riga cartella (solo
+  // itemCount, con la vista drill-down che nasconde il contenuto finche' non
+  // ci si entra un "(0)" su una cartella che in realta' contiene nipoti
+  // sarebbe fuorviante) sia per il messaggio di eliminazione a cascata
+  // (entrambi i conteggi, per un avviso tipo "3 PNG e 2 sotto-cartelle").
+  function countFolderContentsRecursive(
     folderId: string,
     folders: Folder[],
     items: { folderId?: string | null }[],
-  ): number {
-    const direct = items.filter((it) => it.folderId === folderId).length;
+  ): { itemCount: number; folderCount: number } {
+    const directItems = items.filter((it) => it.folderId === folderId).length;
     const childFolders = folders.filter((f) => f.parentFolderId === folderId);
-    return direct + childFolders.reduce((sum, child) => sum + countFolderItemsRecursive(child.id, folders, items), 0);
+    return childFolders.reduce((acc, child) => {
+      const sub = countFolderContentsRecursive(child.id, folders, items);
+      return { itemCount: acc.itemCount + sub.itemCount, folderCount: acc.folderCount + sub.folderCount + 1 };
+    }, { itemCount: directItems, folderCount: 0 });
   }
 
   // Un solo livello alla volta (drill-down, vedi FolderBreadcrumb per la
@@ -1821,7 +1883,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
             key={folder.id}
             folder={folder}
             onEnter={() => nav.setCurrentFolderId(folder.id)}
-            count={countFolderItemsRecursive(folder.id, folders, items)}
+            count={countFolderContentsRecursive(folder.id, folders, items).itemCount}
             canEdit={isOwner}
             isRenaming={renamingFolderId === folder.id}
             renameDraft={renameFolderDraft}
@@ -1829,7 +1891,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
             onStartRename={() => { setRenamingFolderId(folder.id); setRenameFolderDraft(folder.name); }}
             onCommitRename={() => handleCommitFolderRename(folder, setFolders)}
             onCancelRename={() => setRenamingFolderId(null)}
-            onRequestDelete={() => setDeleteFolderTarget(folder)}
+            onRequestDelete={() => { setDeleteFolderTarget(folder); setDeleteFolderCascadeContent(false); }}
             onPointerDown={(e) => dnd.handlePointerDown(e, { kind: 'folder', id: folder.id })}
             dropState={computeFolderRowDropState(dnd, folder, foldersById)}
             isDimmed={dnd.draggedItem?.kind === 'folder' && dnd.draggedItem.id === folder.id}
@@ -2306,8 +2368,27 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       {deleteFolderTarget && (
         <ConfirmDialog
           title="Eliminare questa cartella?"
-          message={`"${deleteFolderTarget.name}" verrà eliminata. Le card al suo interno non vengono eliminate: torneranno semplicemente senza cartella.`}
-          confirmLabel="Elimina"
+          message={
+            deleteFolderCascadeContent
+              ? `"${deleteFolderTarget.name}" e tutto il suo contenuto verranno eliminati definitivamente. Questa azione non è reversibile.`
+              : `"${deleteFolderTarget.name}" verrà eliminata. Le card al suo interno non vengono eliminate: torneranno semplicemente senza cartella.`
+          }
+          confirmLabel={deleteFolderCascadeContent ? 'Elimina tutto' : 'Elimina'}
+          extraContent={deleteFolderContents && (
+            <label className="flex items-start gap-2 text-sm text-[var(--dash-text)]">
+              <input
+                type="checkbox"
+                checked={deleteFolderCascadeContent}
+                onChange={(e) => setDeleteFolderCascadeContent(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                Elimina anche il contenuto: {deleteFolderContents.itemCount} {deleteFolderContents.itemLabel}
+                {deleteFolderContents.folderCount > 0 && ` e ${deleteFolderContents.folderCount} sotto-cartell${deleteFolderContents.folderCount === 1 ? 'a' : 'e'}`}
+                {' '}verranno eliminati definitivamente.
+              </span>
+            </label>
+          )}
           onConfirm={handleConfirmDeleteFolder}
           onCancel={() => setDeleteFolderTarget(null)}
         />
