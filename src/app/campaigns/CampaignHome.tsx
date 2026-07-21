@@ -22,6 +22,7 @@ import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { EntityCard } from '../components/session/shared/EntityCard';
 import { EntityKebabMenu, type EntityKebabMenuItem } from '../components/session/shared/EntityKebabMenu';
 import { CampaignNotesPanel } from '../components/session/shared/CampaignNotesPanel';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { CampaignForm } from './CampaignSelector';
 import { CampaignCoverEditor, type CampaignCoverPatch } from './CampaignCoverEditor';
 import { InviteByNameModal } from './InviteByNameModal';
@@ -151,13 +152,19 @@ function FolderSectionHeader({
         <Icon className="h-4 w-4" /> {label}
       </h2>
       {isOwner && (
-        <button
-          type="button"
-          onClick={onCreateFolder}
-          className="flex items-center gap-1.5 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2.5 py-1 text-xs font-medium text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
-        >
-          <FolderPlus className="h-3.5 w-3.5" /> Nuova cartella
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={onCreateFolder}
+              aria-label="Nuova cartella"
+              className="flex items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
+            >
+              <FolderPlus className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="left">Nuova cartella</TooltipContent>
+        </Tooltip>
       )}
     </div>
   );
