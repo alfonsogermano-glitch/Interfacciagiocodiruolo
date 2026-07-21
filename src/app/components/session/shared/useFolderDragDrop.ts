@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 
 const DRAG_THRESHOLD_PX = 6;
 
+function suppressClickAfterDrag(e: MouseEvent) {
+  e.stopPropagation();
+  e.preventDefault();
+}
+
 export type FolderDragKind = 'folder' | 'card';
 
 // Sentinella per "fuori da qualunque cartella" (area delle card sciolte),
@@ -230,6 +235,16 @@ export function useFolderDragDrop({
 
     const handleUp = () => {
       if (draggedItem) {
+        // Il browser genera comunque un evento click nativo dopo il
+        // pointerup, sull'elemento sotto il cursore al rilascio -
+        // indipendentemente dal movimento avvenuto nel mezzo (anche se il
+        // rilascio ricade di nuovo sopra la card di partenza). Senza questo,
+        // un vero drag apriva comunque la scheda di dettaglio tramite
+        // l'onClick di EntityCard. Listener in fase di cattura (prima che
+        // l'evento raggiunga il target e risalga fino all'onClick delegato
+        // di React) rimosso al primo utilizzo: sopprime solo quel singolo
+        // click fantasma, non un click successivo genuino dell'utente.
+        window.addEventListener('click', suppressClickAfterDrag, { capture: true, once: true });
         const target = dropTargetRef.current;
         if (target) {
           if (draggedItem.kind === 'folder' && target.type === 'reorder-folder') {
