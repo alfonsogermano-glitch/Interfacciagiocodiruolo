@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Play, Square, Loader2, AlertTriangle, Users, Ghost, Skull,
   KeyRound, Check, MoreVertical, Pencil, Copy, CopyPlus, UserCog, FileDown, Trash2, UserMinus, Undo2,
-  LayoutGrid, Package, FolderPlus, FolderTree, ChevronRight,
+  LayoutGrid, Package, FolderPlus, ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
@@ -38,7 +38,7 @@ import { getFolderIconComponent } from '../components/shared/folderIconCatalog';
 import { Switch } from '../components/ui/switch';
 import {
   loadFolders, createFolder, renameFolder, reorderFolder, deleteFolder, deleteFolderCascade, setCharacterFolder, setFolderParent, setFolderIcon,
-  getFolderDepth, isValidFolderNestTarget, MAX_FOLDER_DEPTH,
+  getFolderDepth, getDescendantFolders, isValidFolderNestTarget, MAX_FOLDER_DEPTH,
   type Folder, type FolderEntityType,
 } from '../../services/supabase/foldersService';
 import { useFolderDragDrop, UNFILED_DROP_ID, reorderIds, type FolderDropTarget } from '../components/session/shared/useFolderDragDrop';
@@ -183,8 +183,12 @@ function FolderSectionHeader({
 // Rinomina inline al click sul nome: stesso pattern di renamingTabId/
 // renameDraft in useEntityTabs.ts (autoFocus, Enter conferma, Escape annulla,
 // blur conferma).
+// Quante scorciatoie a discendenti mostrare prima di "+N altre" (righe 2
+// wrap ragionevoli anche con parecchi discendenti) - vedi FolderRow sotto.
+const MAX_VISIBLE_DESCENDANT_SHORTCUTS = 10;
+
 function FolderRow({
-  folder, onEnter, count, subfolderCount, canEdit, isRenaming, renameDraft, onRenameDraftChange,
+  folder, onEnter, count, descendantFolders, onNavigateTo, canEdit, isRenaming, renameDraft, onRenameDraftChange,
   onStartRename, onCommitRename, onCancelRename, onRequestDelete, onOpenIconPicker, onPointerDown, dropState, isDimmed,
 }: {
   folder: Folder;
@@ -192,11 +196,16 @@ function FolderRow({
    *  da chi non puo' modificare (sola lettura puo' comunque sfogliare). */
   onEnter: () => void;
   count: number;
-  /** Conteggio ricorsivo delle sole sotto-cartelle (a qualunque profondita'),
-   *  gia' calcolato da countFolderContentsRecursive insieme a count ma
-   *  prima scartato qui - 0 = nessun'icona, per non appesantire la riga
-   *  delle cartelle-foglia (la maggioranza). */
-  subfolderCount: number;
+  /** Tutti i discendenti (a qualunque profondita', pre-order) - vedi
+   *  getDescendantFolders in foldersService.ts. Riga di scorciatoie sotto
+   *  al nome, assente se vuoto (cartella senza sotto-cartelle, la
+   *  maggioranza). */
+  descendantFolders: Folder[];
+  /** Salta direttamente a un discendente (stesso setCurrentFolderId gia'
+   *  usato da onEnter per il drill-down normale) - il breadcrumb si
+   *  ricostruisce da solo al render successivo (getFolderPath non
+   *  distingue un salto diretto da una navigazione sequenziale). */
+  onNavigateTo: (folderId: string) => void;
   canEdit: boolean;
   isRenaming: boolean;
   renameDraft: string;
@@ -219,12 +228,19 @@ function FolderRow({
    *  stesso valore (opacity-40) gia' usato per le tab in EntityTabBar.tsx. */
   isDimmed: boolean;
 }) {
+  // Solo UI, transitorio - nessun altro consumer ne ha bisogno, non serve
+  // sollevarlo al genitore (si azzera comunque quando questa riga smonta,
+  // es. dopo un salto che cambia la vista corrente).
+  const [expanded, setExpanded] = useState(false);
+  const visibleDescendants = expanded ? descendantFolders : descendantFolders.slice(0, MAX_VISIBLE_DESCENDANT_SHORTCUTS);
+  const hiddenCount = descendantFolders.length - visibleDescendants.length;
+
   return (
     <div
       data-folder-id={folder.id}
       data-folder-entity-type={folder.entityType}
       onPointerDown={canEdit ? onPointerDown : undefined}
-      className={`group col-span-2 flex items-center justify-between gap-2 rounded-xl border px-3 py-2 transition-colors ${
+      className={`group col-span-2 flex flex-col gap-1 rounded-xl border px-3 py-2 transition-colors ${
         dropState === 'valid'
           ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/10'
           : dropState === 'invalid'
@@ -232,75 +248,109 @@ function FolderRow({
           : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)]'
       } ${canEdit ? 'cursor-grab active:cursor-grabbing' : ''} ${isDimmed ? 'opacity-40' : ''}`}
     >
-      <button type="button" onClick={onEnter} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-        {(() => {
-          const Icon = getFolderIconComponent(folder.icon);
-          // <span>, non <button>: siamo gia' dentro il <button onEnter>
-          // sopra (un <button> annidato non e' HTML valido) - stesso schema
-          // gia' usato dal nome poco sotto per il rinomina-al-click.
-          return canEdit ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span
-                  data-no-drag
-                  onClick={(e) => { e.stopPropagation(); onOpenIconPicker(); }}
-                  className="shrink-0 rounded p-0.5 text-[var(--dash-accent-2)] transition-colors hover:bg-[var(--dash-surface-2)]"
-                >
-                  <Icon className="h-4 w-4" />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top">Cambia icona</TooltipContent>
-            </Tooltip>
+      <div className="flex items-center justify-between gap-2">
+        <button type="button" onClick={onEnter} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+          {(() => {
+            const Icon = getFolderIconComponent(folder.icon);
+            // <span>, non <button>: siamo gia' dentro il <button onEnter>
+            // sopra (un <button> annidato non e' HTML valido) - stesso schema
+            // gia' usato dal nome poco sotto per il rinomina-al-click.
+            return canEdit ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    data-no-drag
+                    onClick={(e) => { e.stopPropagation(); onOpenIconPicker(); }}
+                    className="shrink-0 rounded p-0.5 text-[var(--dash-accent-2)] transition-colors hover:bg-[var(--dash-surface-2)]"
+                  >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">Cambia icona</TooltipContent>
+              </Tooltip>
+            ) : (
+              <Icon className="h-4 w-4 shrink-0 text-[var(--dash-accent-2)]" />
+            );
+          })()}
+          {isRenaming ? (
+            <input
+              type="text"
+              autoFocus
+              data-no-drag
+              value={renameDraft}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => onRenameDraftChange(e.target.value)}
+              onBlur={onCommitRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onCommitRename();
+                if (e.key === 'Escape') onCancelRename();
+              }}
+              className="w-40 rounded-md border border-[var(--dash-accent)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text)]"
+            />
           ) : (
-            <Icon className="h-4 w-4 shrink-0 text-[var(--dash-accent-2)]" />
-          );
-        })()}
-        {isRenaming ? (
-          <input
-            type="text"
-            autoFocus
-            data-no-drag
-            value={renameDraft}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => onRenameDraftChange(e.target.value)}
-            onBlur={onCommitRename}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') onCommitRename();
-              if (e.key === 'Escape') onCancelRename();
-            }}
-            className="w-40 rounded-md border border-[var(--dash-accent)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text)]"
-          />
-        ) : (
-          <span
-            className="truncate text-sm font-medium text-[var(--dash-text-strong)]"
-            onClick={canEdit ? (e) => { e.stopPropagation(); onStartRename(); } : undefined}
-          >
-            {folder.name}
-          </span>
-        )}
-        <span className="shrink-0 text-xs text-[var(--dash-muted)]">({count})</span>
-        {subfolderCount > 0 && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <FolderTree className="h-3 w-3 shrink-0 text-[var(--dash-muted)]" />
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              {subfolderCount === 1 ? 'Contiene 1 sotto-cartella' : `Contiene ${subfolderCount} sotto-cartelle`}
-            </TooltipContent>
-          </Tooltip>
-        )}
-      </button>
-      {canEdit && !isRenaming && (
-        <button
-          type="button"
-          data-no-drag
-          onClick={(e) => { e.stopPropagation(); onRequestDelete(); }}
-          className="shrink-0 rounded p-1 text-[var(--dash-muted)] opacity-0 transition-opacity hover:text-[var(--dash-danger-text)] group-hover:opacity-100"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
+            <span
+              className="truncate text-sm font-medium text-[var(--dash-text-strong)]"
+              onClick={canEdit ? (e) => { e.stopPropagation(); onStartRename(); } : undefined}
+            >
+              {folder.name}
+            </span>
+          )}
+          <span className="shrink-0 text-xs text-[var(--dash-muted)]">({count})</span>
         </button>
+        {canEdit && !isRenaming && (
+          <button
+            type="button"
+            data-no-drag
+            onClick={(e) => { e.stopPropagation(); onRequestDelete(); }}
+            className="shrink-0 rounded p-1 text-[var(--dash-muted)] opacity-0 transition-opacity hover:text-[var(--dash-danger-text)] group-hover:opacity-100"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+        <ChevronRight className="h-4 w-4 shrink-0 text-[var(--dash-muted)]" />
+      </div>
+      {descendantFolders.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1 pl-6">
+          {visibleDescendants.map((d) => {
+            const DescIcon = getFolderIconComponent(d.icon);
+            return (
+              <Tooltip key={d.id}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    data-no-drag
+                    onClick={(e) => { e.stopPropagation(); onNavigateTo(d.id); }}
+                    className="rounded p-1 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-accent-2)]"
+                  >
+                    <DescIcon className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top">{d.name}</TooltipContent>
+              </Tooltip>
+            );
+          })}
+          {hiddenCount > 0 && (
+            <button
+              type="button"
+              data-no-drag
+              onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
+              className="text-[11px] text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
+            >
+              +{hiddenCount} altre
+            </button>
+          )}
+          {expanded && descendantFolders.length > MAX_VISIBLE_DESCENDANT_SHORTCUTS && (
+            <button
+              type="button"
+              data-no-drag
+              onClick={(e) => { e.stopPropagation(); setExpanded(false); }}
+              className="text-[11px] text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
+            >
+              Mostra meno
+            </button>
+          )}
+        </div>
       )}
-      <ChevronRight className="h-4 w-4 shrink-0 text-[var(--dash-muted)]" />
     </div>
   );
 }
@@ -2034,13 +2084,15 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       <>
         {childFolders.map((folder) => {
           const counts = countFolderContentsRecursive(folder.id, folders, items);
+          const descendantFolders = getDescendantFolders(folder.id, folders);
           return (
           <FolderRow
             key={folder.id}
             folder={folder}
             onEnter={() => nav.setCurrentFolderId(folder.id)}
             count={counts.itemCount}
-            subfolderCount={counts.folderCount}
+            descendantFolders={descendantFolders}
+            onNavigateTo={(id) => nav.setCurrentFolderId(id)}
             canEdit={isOwner}
             isRenaming={renamingFolderId === folder.id}
             renameDraft={renameFolderDraft}

@@ -39,6 +39,20 @@ export function getFolderDepth(folderId: string | null, foldersById: Map<string,
   return depth;
 }
 
+// Tutti i discendenti (a qualunque profondita'), non solo i figli diretti -
+// usata per le scorciatoie di navigazione su FolderRow. Pre-order
+// depth-first, ordinato per position a ogni livello (stesso criterio gia'
+// usato per childFolders in renderFolderedSection): una cartella e' seguita
+// subito dai suoi figli, ordine di lettura gerarchica invece che
+// alfabetico piatto. Nessuna protezione da cicli: la gerarchia e' gia'
+// garantita aciclica dal trigger check_folder_hierarchy lato DB.
+export function getDescendantFolders(folderId: string, folders: Folder[]): Folder[] {
+  const children = folders
+    .filter((f) => f.parentFolderId === folderId)
+    .sort((a, b) => a.position - b.position);
+  return children.flatMap((child) => [child, ...getDescendantFolders(child.id, folders)]);
+}
+
 function wouldCreateFolderCycle(draggedFolderId: string, targetFolderId: string, foldersById: Map<string, Folder>): boolean {
   let current: string | null = targetFolderId;
   const seen = new Set<string>();
