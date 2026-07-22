@@ -140,7 +140,13 @@ function FolderSectionHeader({
   disabledReason?: string | null;
 }) {
   return (
-    <div className="col-span-2 flex items-center justify-between gap-2">
+    // min-h-8 (32px, l'altezza con pulsante): senza, la riga sarebbe alta
+    // solo 20px (il testo) quando il pulsante non compare (non-owner, o
+    // sezioni come Personaggi che non ne hanno mai uno) - un salto di 8px
+    // ogni volta che si passa da una vista all'altra. Altezza fissa qui +
+    // stesso spaziatore costante in colonna 1 (vedi activeSectionHeaderSpacerClass)
+    // elimina il salto invece di ammorbidirlo con una transizione.
+    <div className="col-span-2 flex min-h-8 items-center justify-between gap-2">
       <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
         <Icon className="h-4 w-4" /> {label}
       </h2>
@@ -1571,19 +1577,20 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
 
   // Colonna 1 (GM/Note) non ha equivalente di FolderSectionHeader: ogni
   // sezione della griglia di colonna 2 ha ora sempre un header in cima
-  // (Personaggi/'all' incluso, icona+etichetta senza pulsante) tranne
-  // quando PNG/Mostri non hanno nulla da mostrare (npcSectionVisible/
+  // (Personaggi/'all' incluso, icona+etichetta senza pulsante) tranne quando
+  // PNG/Mostri non hanno nulla da mostrare (npcSectionVisible/
   // monsterSectionVisible false, il blocco non renderizza nulla) - la card
-  // GM partirebbe altrimenti piu' in alto della prima card reale.
-  // Spaziatore compensa esattamente quell'offset - altezza header (28px con
-  // pulsante "Nuova cartella" da GM, 20px senza) + gap-4 della griglia
-  // (16px) - gap-3 di questa colonna (12px, aggiunto automaticamente dopo lo
-  // spaziatore) = 32px / 24px.
+  // GM partirebbe altrimenti piu' in alto della prima card reale. Spaziatore
+  // compensa esattamente quell'offset - altezza header, ora fissa a 32px
+  // (min-h-8 in FolderSectionHeader) sia con pulsante "Nuova cartella" sia
+  // senza, cosi' non scatta piu' passando da una sezione all'altra - + gap-4
+  // della griglia (16px) - gap-3 di questa colonna (12px, aggiunto
+  // automaticamente dopo lo spaziatore) = 32px, sempre uguale quando l'header
+  // e' presente.
   const activeSectionHeaderSpacerClass = (() => {
     if (activeQuickFilter === 'npc') return npcSectionVisible ? 'h-8' : null;
     if (activeQuickFilter === 'monster') return monsterSectionVisible ? 'h-8' : null;
-    if (activeQuickFilter === 'premades') return isOwner ? 'h-8' : 'h-6';
-    return 'h-6'; // 'all' / 'pg' -> header "Personaggi", mai bottone
+    return 'h-8'; // premades / all / pg -> header sempre presente, altezza fissa uniforme
   })();
 
   // Lookup per id + percorso radice→corrente per sezione, usati da
