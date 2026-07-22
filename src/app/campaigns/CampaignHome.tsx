@@ -244,6 +244,15 @@ function FolderRow({
       data-folder-id={folder.id}
       data-folder-entity-type={folder.entityType}
       onPointerDown={canEdit ? onPointerDown : undefined}
+      // onEnter sull'intero contenitore (non solo sulla riga 1): con la
+      // riga 2 delle scorciatoie ai discendenti, un click nella meta'
+      // inferiore della cartella non apriva piu' nulla, perche' onEnter era
+      // agganciato solo al <button> della riga 1. Ogni bersaglio piu'
+      // specifico (icona -> cambia icona, nome -> rinomina, elimina,
+      // icone/"+N altre" delle scorciatoie) ferma la risalita con
+      // stopPropagation - vedi i rispettivi onClick sotto - cosi' resta
+      // distinto invece di aprire anche la cartella.
+      onClick={onEnter}
       className={`group col-span-2 flex flex-col gap-1 rounded-xl border px-3 py-2 transition-colors ${
         dropState === 'valid'
           ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/10'
@@ -253,12 +262,9 @@ function FolderRow({
       } ${isDimmed ? 'cursor-grabbing opacity-40' : ''}`}
     >
       <div className="flex items-center justify-between gap-2">
-        <button type="button" onClick={onEnter} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+        <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
           {(() => {
             const Icon = getFolderIconComponent(folder.icon);
-            // <span>, non <button>: siamo gia' dentro il <button onEnter>
-            // sopra (un <button> annidato non e' HTML valido) - stesso schema
-            // gia' usato dal nome poco sotto per il rinomina-al-click.
             return canEdit ? (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -300,7 +306,7 @@ function FolderRow({
             </span>
           )}
           <span className="shrink-0 text-xs text-[var(--dash-muted)]">({count})</span>
-        </button>
+        </div>
         {canEdit && !isRenaming && (
           <button
             type="button"
