@@ -246,7 +246,7 @@ function FolderRow({
           : dropState === 'invalid'
           ? 'border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)]'
           : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)]'
-      } ${canEdit ? 'cursor-grab active:cursor-grabbing' : ''} ${isDimmed ? 'opacity-40' : ''}`}
+      } ${canEdit ? 'active:cursor-grabbing' : ''} ${isDimmed ? 'opacity-40' : ''}`}
     >
       <div className="flex items-center justify-between gap-2">
         <button type="button" onClick={onEnter} className="flex min-w-0 flex-1 items-center gap-2 text-left">
@@ -2111,7 +2111,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
         {directItems.map((it) => (
           <div
             key={it.id}
-            className={`${isOwner ? 'cursor-grab active:cursor-grabbing' : ''} ${
+            className={`${isOwner ? 'active:cursor-grabbing' : ''} ${
               dnd.draggedItem?.kind === 'card' && dnd.draggedItem.id === it.id ? 'opacity-40' : ''
             }`}
             onPointerDown={(e) => dnd.handlePointerDown(e, { kind: 'card', id: it.id })}
