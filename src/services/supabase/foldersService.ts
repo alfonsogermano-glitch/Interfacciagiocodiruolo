@@ -53,6 +53,24 @@ export function getDescendantFolders(folderId: string, folders: Folder[]): Folde
   return children.flatMap((child) => [child, ...getDescendantFolders(child.id, folders)]);
 }
 
+// Catena radice→corrente (esclusa la radice, rappresentata dall'etichetta
+// di sezione nel breadcrumb) per il drill-down - si ferma anche su un id
+// stantio (es. cartella cancellata altrove) invece di andare in loop o
+// lanciare, il breadcrumb si tronca semplicemente li'.
+export function getFolderPath(folderId: string | null, foldersById: Map<string, Folder>): Folder[] {
+  const path: Folder[] = [];
+  let current = folderId;
+  const seen = new Set<string>();
+  while (current && !seen.has(current)) {
+    const folder = foldersById.get(current);
+    if (!folder) break;
+    path.unshift(folder);
+    seen.add(current);
+    current = folder.parentFolderId;
+  }
+  return path;
+}
+
 function wouldCreateFolderCycle(draggedFolderId: string, targetFolderId: string, foldersById: Map<string, Folder>): boolean {
   let current: string | null = targetFolderId;
   const seen = new Set<string>();
