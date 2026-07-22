@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Play, Square, Loader2, AlertTriangle, Users, Ghost, Skull,
   KeyRound, Check, MoreVertical, Pencil, Copy, CopyPlus, UserCog, FileDown, Trash2, UserMinus, Undo2,
-  LayoutGrid, Package, Folder as FolderIcon, FolderPlus, ChevronRight,
+  LayoutGrid, Package, Folder as FolderIcon, FolderPlus, FolderTree, ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
@@ -182,7 +182,7 @@ function FolderSectionHeader({
 // renameDraft in useEntityTabs.ts (autoFocus, Enter conferma, Escape annulla,
 // blur conferma).
 function FolderRow({
-  folder, onEnter, count, canEdit, isRenaming, renameDraft, onRenameDraftChange,
+  folder, onEnter, count, subfolderCount, canEdit, isRenaming, renameDraft, onRenameDraftChange,
   onStartRename, onCommitRename, onCancelRename, onRequestDelete, onPointerDown, dropState, isDimmed,
 }: {
   folder: Folder;
@@ -190,6 +190,11 @@ function FolderRow({
    *  da chi non puo' modificare (sola lettura puo' comunque sfogliare). */
   onEnter: () => void;
   count: number;
+  /** Conteggio ricorsivo delle sole sotto-cartelle (a qualunque profondita'),
+   *  gia' calcolato da countFolderContentsRecursive insieme a count ma
+   *  prima scartato qui - 0 = nessun'icona, per non appesantire la riga
+   *  delle cartelle-foglia (la maggioranza). */
+  subfolderCount: number;
   canEdit: boolean;
   isRenaming: boolean;
   renameDraft: string;
@@ -248,6 +253,16 @@ function FolderRow({
           </span>
         )}
         <span className="shrink-0 text-xs text-[var(--dash-muted)]">({count})</span>
+        {subfolderCount > 0 && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <FolderTree className="h-3 w-3 shrink-0 text-[var(--dash-muted)]" />
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              {subfolderCount === 1 ? 'Contiene 1 sotto-cartella' : `Contiene ${subfolderCount} sotto-cartelle`}
+            </TooltipContent>
+          </Tooltip>
+        )}
       </button>
       {canEdit && !isRenaming && (
         <button
@@ -282,33 +297,25 @@ function computeFolderRowDropState(
   return isValidFolderNestTarget(dnd.draggedItem.id, folder.id, foldersById) ? 'valid' : 'invalid';
 }
 
-// Striscia bersaglio esplicito per togliere una card da una cartella
-// (invece di rendere tutta l'area sparsa delle card sciolte un hit-target
-// implicito, che avrebbe richiesto di avvolgerle in un unico div e
-// romperebbe il flusso a griglia condiviso - vedi piano Fase 2).
-// Generalizzata (Fase 7) per servire due casi con lo stesso markup:
-// - alla radice (dropFolderId=UNFILED_DROP_ID, mostrata solo se la sezione
-//   ha almeno una cartella - con zero cartelle tutte le card sono gia'
-//   banalmente "sciolte", nessun'etichetta serve);
-// - dentro una cartella (dropFolderId=currentFolderId, sempre mostrata li'
-//   qualunque sia il contenuto): i gestori onMoveCard/onNestFolder
-//   riconoscono da soli "stai rilasciando sulla cartella in cui gia' sei"
-//   e promuovono al genitore invece di fare un no-op (stessa logica gia'
-//   presente in handleMove*Folder/handleNestFolder) - risolve anche il caso
-//   peggiore del bug originale, una cartella annidata senza sotto-cartelle
-//   proprie, dove prima non esisteva alcun bersaglio di drop.
-function FolderDropZone({
-  entityType, dropFolderId, label, isDropActive,
-}: { entityType: FolderEntityType; dropFolderId: string; label: string; isDropActive: boolean }) {
+// Striscia "Senza cartella": bersaglio esplicito per togliere una card da
+// una cartella (invece di rendere tutta l'area sparsa delle card sciolte un
+// hit-target implicito, che avrebbe richiesto di avvolgerle in un unico div
+// e romperebbe il flusso a griglia condiviso - vedi piano Fase 2). Mostrata
+// solo se la sezione ha almeno una cartella: con zero cartelle tutte le card
+// sono gia' banalmente "sciolte", nessun'etichetta serve.
+// (Fase 7 aveva aggiunto una zona gemella dentro le cartelle stesse
+// ("Rimuovi da questa cartella") - rimossa: il drag sul breadcrumb copre la
+// stessa necessita' in modo piu' naturale, senza un elemento dedicato in piu'.)
+function UnfiledDropZone({ entityType, isDropActive }: { entityType: FolderEntityType; isDropActive: boolean }) {
   return (
     <div
-      data-folder-id={dropFolderId}
+      data-folder-id={UNFILED_DROP_ID}
       data-folder-entity-type={entityType}
       className={`col-span-2 rounded-lg border border-dashed px-3 py-1.5 text-[11px] uppercase tracking-wide transition-colors ${
         isDropActive ? 'border-[var(--dash-accent)] text-[var(--dash-accent-2)]' : 'border-[var(--dash-border-soft)] text-[var(--dash-muted)]'
       }`}
     >
-      {label}
+      Senza cartella
     </div>
   );
 }
@@ -348,12 +355,14 @@ function isBreadcrumbDropActive(dropTarget: FolderDropTarget | null, folderId: s
 // ovunque qui) - stesso idioma "div a mano con var(--dash-*)" del resto del
 // file. Nascosto alla radice (path vuoto), ridondante con l'etichetta di
 // FolderSectionHeader.
-// Da Fase 7 anche bersaglio di drop (per saltare direttamente a un
-// antenato non immediato, senza dover risalire di un livello alla volta) -
-// tranne l'ultimo segmento (la cartella corrente, in grassetto): quella
-// stessa identica azione ("risali di un livello") e' gia' coperta dalla
-// FolderDropZone dedicata mostrata sotto, due bersagli per la stessa
-// identica azione sarebbero ridondanti.
+// Da Fase 7 anche bersaglio di drop (unico modo per portare una card/
+// cartella fuori da una cartella annidata, non c'e' piu' una zona dedicata
+// separata - vedi Fase 8) - tranne l'ultimo segmento (la cartella corrente,
+// in grassetto): rilasciare li' sarebbe un no-op visibile (sei gia' dentro
+// quella cartella). "Risali di un livello" resta comunque sempre
+// raggiungibile in un solo gesto: il penultimo segmento (o la radice, se
+// si e' annidati un solo livello) e' per costruzione il genitore diretto
+// della cartella corrente.
 function FolderBreadcrumb({
   sectionLabel, path, entityType, dropTarget, onNavigate,
 }: {
@@ -365,23 +374,26 @@ function FolderBreadcrumb({
 }) {
   return (
     <div className="col-span-2 flex flex-wrap items-center gap-1 text-xs text-[var(--dash-muted)]">
-      <button
-        type="button"
-        onClick={() => onNavigate(null)}
-        data-folder-id={UNFILED_DROP_ID}
-        data-folder-entity-type={entityType}
-        data-folder-breadcrumb="true"
-        className={`transition-colors ${
-          isBreadcrumbDropActive(dropTarget, UNFILED_DROP_ID) ? 'text-[var(--dash-accent-2)]' : 'hover:text-[var(--dash-text-strong)]'
-        }`}
-      >
-        {sectionLabel}
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={() => onNavigate(null)}
+            data-folder-id={UNFILED_DROP_ID}
+            data-folder-entity-type={entityType}
+            data-folder-breadcrumb="true"
+            className={`transition-colors ${
+              isBreadcrumbDropActive(dropTarget, UNFILED_DROP_ID) ? 'text-[var(--dash-accent-2)]' : 'hover:text-[var(--dash-text-strong)]'
+            }`}
+          >
+            {sectionLabel}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Sposta qui</TooltipContent>
+      </Tooltip>
       {path.map((folder, idx) => {
         const isCurrent = idx === path.length - 1;
-        return (
-        <Fragment key={folder.id}>
-          <ChevronRight className="h-3 w-3 shrink-0" />
+        const button = (
           <button
             type="button"
             onClick={() => onNavigate(folder.id)}
@@ -400,7 +412,17 @@ function FolderBreadcrumb({
           >
             {folder.name}
           </button>
-        </Fragment>
+        );
+        return (
+          <Fragment key={folder.id}>
+            <ChevronRight className="h-3 w-3 shrink-0" />
+            {isCurrent ? button : (
+              <Tooltip>
+                <TooltipTrigger asChild>{button}</TooltipTrigger>
+                <TooltipContent side="bottom">Sposta qui</TooltipContent>
+              </Tooltip>
+            )}
+          </Fragment>
         );
       })}
     </div>
@@ -1961,12 +1983,15 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
 
     return (
       <>
-        {childFolders.map((folder) => (
+        {childFolders.map((folder) => {
+          const counts = countFolderContentsRecursive(folder.id, folders, items);
+          return (
           <FolderRow
             key={folder.id}
             folder={folder}
             onEnter={() => nav.setCurrentFolderId(folder.id)}
-            count={countFolderContentsRecursive(folder.id, folders, items).itemCount}
+            count={counts.itemCount}
+            subfolderCount={counts.folderCount}
             canEdit={isOwner}
             isRenaming={renamingFolderId === folder.id}
             renameDraft={renameFolderDraft}
@@ -1979,7 +2004,8 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
             dropState={computeFolderRowDropState(dnd, folder, foldersById)}
             isDimmed={dnd.draggedItem?.kind === 'folder' && dnd.draggedItem.id === folder.id}
           />
-        ))}
+          );
+        })}
         {directItems.map((it) => (
           <div
             key={it.id}
@@ -1991,19 +2017,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
             {renderCard(it)}
           </div>
         ))}
-        {currentFolderId === null
-          ? childFolders.length > 0 && (
-              <FolderDropZone
-                entityType={entityType} dropFolderId={UNFILED_DROP_ID} label="Senza cartella"
-                isDropActive={dnd.dropTarget?.type === 'unfiled'}
-              />
-            )
-          : (
-              <FolderDropZone
-                entityType={entityType} dropFolderId={currentFolderId} label="Rimuovi da questa cartella"
-                isDropActive={dnd.dropTarget?.type === 'into-folder' && dnd.dropTarget.folderId === currentFolderId}
-              />
-            )}
+        {currentFolderId === null && childFolders.length > 0 && (
+          <UnfiledDropZone entityType={entityType} isDropActive={dnd.dropTarget?.type === 'unfiled'} />
+        )}
       </>
     );
   }
