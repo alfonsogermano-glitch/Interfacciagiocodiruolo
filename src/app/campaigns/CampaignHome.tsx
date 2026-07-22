@@ -119,21 +119,6 @@ function pillClass(active: boolean) {
   }`;
 }
 
-// Titolo+icona della riga affiancata alle pillole: riflette sempre la
-// sezione corrente (non solo "Personaggi", il caso di default) cosi' le
-// pillole restano cliccabili con un'intestazione coerente in ogni filtro.
-function quickFilterHeading(filter: QuickFilter): { icon: typeof Users; label: string } {
-  switch (filter) {
-    case 'premades': return { icon: Package, label: 'Precompilati' };
-    case 'npc': return { icon: Ghost, label: 'PNG' };
-    case 'monster': return { icon: Skull, label: 'Mostri' };
-    case 'pg':
-    case 'all':
-    default:
-      return { icon: Users, label: 'Personaggi' };
-  }
-}
-
 // Riga in cima a ciascuna delle 4 sezioni della griglia: icona+etichetta
 // (era gia' presente per PNG/Mostri come <h2 col-span-2>, ma solo quando
 // activeQuickFilter === 'all' - qui invece sempre visibile e uniformata
@@ -1574,7 +1559,18 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   };
 
   const gmInitial = (gmDisplayName ?? 'G').trim().charAt(0).toUpperCase() || 'G';
-  const { icon: QuickFilterIcon, label: quickFilterLabel } = quickFilterHeading(activeQuickFilter);
+  // Colonna 1 (GM/Note) non ha equivalente di FolderSectionHeader: quando
+  // la sezione attiva mostra quell'header in cima alla griglia di colonna 2
+  // (Precompilati sempre, PNG/Mostri solo per il GM - Personaggi/'all' non
+  // lo mostrano mai, vedi il blocco Personaggi piu' sotto che e' sempre il
+  // primo di quei due filtri) la card GM partirebbe piu' in alto della
+  // prima card reale. Spaziatore compensa esattamente quell'offset -
+  // altezza header (28px con pulsante "Nuova cartella" da GM, 20px senza)
+  // + gap-4 della griglia (16px) - gap-3 di questa colonna (12px, aggiunto
+  // automaticamente dopo lo spaziatore) = 32px / 24px.
+  const showsFolderHeaderAtTop =
+    activeQuickFilter === 'premades' ||
+    ((activeQuickFilter === 'npc' || activeQuickFilter === 'monster') && isOwner);
 
   // Lookup per id + percorso radice→corrente per sezione, usati da
   // FolderRow/FolderBreadcrumb/renderFolderedSection e dal calcolo del
@@ -2051,27 +2047,22 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
             )}
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
-                <QuickFilterIcon className="h-4 w-4" /> {quickFilterLabel}
-              </h2>
-              <div className="flex flex-wrap justify-end gap-2">
-                <button type="button" onClick={() => setActiveQuickFilter('all')} className={pillClass(activeQuickFilter === 'all')}>
-                  <LayoutGrid className="h-3.5 w-3.5" /> Tutti
-                </button>
-                <button type="button" onClick={() => setActiveQuickFilter('pg')} className={pillClass(activeQuickFilter === 'pg')}>
-                  <Users className="h-3.5 w-3.5" /> Personaggi
-                </button>
-                <button type="button" onClick={() => setActiveQuickFilter('premades')} className={pillClass(activeQuickFilter === 'premades')}>
-                  <Package className="h-3.5 w-3.5" /> Precompilati
-                </button>
-                <button type="button" onClick={() => setActiveQuickFilter('npc')} className={pillClass(activeQuickFilter === 'npc')}>
-                  <Ghost className="h-3.5 w-3.5" /> PNG
-                </button>
-                <button type="button" onClick={() => setActiveQuickFilter('monster')} className={pillClass(activeQuickFilter === 'monster')}>
-                  <Skull className="h-3.5 w-3.5" /> Mostri
-                </button>
-              </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => setActiveQuickFilter('all')} className={pillClass(activeQuickFilter === 'all')}>
+                <LayoutGrid className="h-3.5 w-3.5" /> Tutti
+              </button>
+              <button type="button" onClick={() => setActiveQuickFilter('pg')} className={pillClass(activeQuickFilter === 'pg')}>
+                <Users className="h-3.5 w-3.5" /> Personaggi
+              </button>
+              <button type="button" onClick={() => setActiveQuickFilter('premades')} className={pillClass(activeQuickFilter === 'premades')}>
+                <Package className="h-3.5 w-3.5" /> Precompilati
+              </button>
+              <button type="button" onClick={() => setActiveQuickFilter('npc')} className={pillClass(activeQuickFilter === 'npc')}>
+                <Ghost className="h-3.5 w-3.5" /> PNG
+              </button>
+              <button type="button" onClick={() => setActiveQuickFilter('monster')} className={pillClass(activeQuickFilter === 'monster')}>
+                <Skull className="h-3.5 w-3.5" /> Mostri
+              </button>
             </div>
           </div>
         )}
@@ -2096,6 +2087,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
               La riga pulsanti sessione che stava qui è ora sovrapposta al
               banner qui sopra (stessa griglia 320px/1fr), non più qui. */}
           <div className="flex flex-col gap-3">
+            {showsFolderHeaderAtTop && (
+              <div className={isOwner ? 'h-8' : 'h-6'} />
+            )}
             <div className="flex items-center gap-3 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-3">
               {gmAvatarUrl ? (
                 <img
