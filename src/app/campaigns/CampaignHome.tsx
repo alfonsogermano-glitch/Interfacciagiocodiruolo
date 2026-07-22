@@ -224,8 +224,12 @@ function FolderRow({
    *  vincoli di profondita'/ciclo). 'none' se questa riga non e' il
    *  bersaglio corrente. */
   dropState: 'none' | 'valid' | 'invalid';
-  /** Attenuata mentre e' proprio questa cartella a essere trascinata -
-   *  stesso valore (opacity-40) gia' usato per le tab in EntityTabBar.tsx. */
+  /** Vero mentre e' proprio questa cartella a essere trascinata (valorizzato
+   *  solo dopo la soglia di movimento DRAG_THRESHOLD_PX, non al semplice
+   *  mousedown) - guida sia l'attenuazione (opacity-40, stesso valore gia'
+   *  usato per le tab in EntityTabBar.tsx) sia il cursore "grabbing": legato
+   *  allo stato reale del drag invece di :active (che scattava anche per un
+   *  click semplice, prima ancora di sapere se sarebbe diventato un drag). */
   isDimmed: boolean;
 }) {
   // Solo UI, transitorio - nessun altro consumer ne ha bisogno, non serve
@@ -246,7 +250,7 @@ function FolderRow({
           : dropState === 'invalid'
           ? 'border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)]'
           : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)]'
-      } ${canEdit ? 'active:cursor-grabbing' : ''} ${isDimmed ? 'opacity-40' : ''}`}
+      } ${isDimmed ? 'cursor-grabbing opacity-40' : ''}`}
     >
       <div className="flex items-center justify-between gap-2">
         <button type="button" onClick={onEnter} className="flex min-w-0 flex-1 items-center gap-2 text-left">
@@ -2111,9 +2115,16 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
         {directItems.map((it) => (
           <div
             key={it.id}
-            className={`${isOwner ? 'active:cursor-grabbing' : ''} ${
-              dnd.draggedItem?.kind === 'card' && dnd.draggedItem.id === it.id ? 'opacity-40' : ''
-            }`}
+            // cursor-grabbing legato allo stato reale del drag
+            // (dnd.draggedItem, valorizzato solo dopo la soglia di
+            // movimento DRAG_THRESHOLD_PX) invece di active:cursor-grabbing
+            // (:active scattava anche per un click semplice, prima ancora
+            // che diventasse un vero drag) - implica gia' isOwner, l'unico
+            // che puo' far valorizzare draggedItem (handlePointerDown esce
+            // subito se !canEdit).
+            className={
+              dnd.draggedItem?.kind === 'card' && dnd.draggedItem.id === it.id ? 'cursor-grabbing opacity-40' : ''
+            }
             onPointerDown={(e) => dnd.handlePointerDown(e, { kind: 'card', id: it.id })}
           >
             {renderCard(it)}
