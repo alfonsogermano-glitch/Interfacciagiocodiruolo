@@ -1711,11 +1711,12 @@ app.put("/make-server-771c5bfd/folders/:folderId", async (c) => {
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
     const folderId = c.req.param("folderId");
-    // parentFolderId distinto da "assente": null e' un valore esplicito
-    // valido ("diventa cartella radice"), va applicato solo se la chiave e'
-    // davvero presente nel body (undefined = non toccare), a differenza di
-    // name/position dove "non una stringa/non un numero" basta come guardia.
-    const { name, position, parentFolderId } = await c.req.json();
+    // parentFolderId/icon distinti da "assente": null e' un valore esplicito
+    // valido ("diventa cartella radice" / "torna all'icona predefinita"),
+    // va applicato solo se la chiave e' davvero presente nel body (undefined
+    // = non toccare), a differenza di name/position dove "non una stringa/
+    // non un numero" basta come guardia.
+    const { name, position, parentFolderId, icon } = await c.req.json();
 
     const admin = getAdminClient();
     const { data: existing, error: fetchError } = await admin
@@ -1732,6 +1733,7 @@ app.put("/make-server-771c5bfd/folders/:folderId", async (c) => {
     if (typeof name === 'string') patch.name = name;
     if (typeof position === 'number') patch.position = position;
     if (parentFolderId !== undefined) patch.parent_folder_id = parentFolderId;
+    if (icon !== undefined) patch.icon = icon;
 
     const { data, error } = await admin
       .from('folders')

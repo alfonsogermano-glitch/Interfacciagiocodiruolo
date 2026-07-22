@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Play, Square, Loader2, AlertTriangle, Users, Ghost, Skull,
   KeyRound, Check, MoreVertical, Pencil, Copy, CopyPlus, UserCog, FileDown, Trash2, UserMinus, Undo2,
-  LayoutGrid, Package, Folder as FolderIcon, FolderPlus, FolderTree, ChevronRight,
+  LayoutGrid, Package, FolderPlus, FolderTree, ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
@@ -33,9 +33,11 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
 } from '../components/ui/dropdown-menu';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
+import { FolderIconPicker } from '../components/shared/FolderIconPicker';
+import { getFolderIconComponent } from '../components/shared/folderIconCatalog';
 import { Switch } from '../components/ui/switch';
 import {
-  loadFolders, createFolder, renameFolder, reorderFolder, deleteFolder, deleteFolderCascade, setCharacterFolder, setFolderParent,
+  loadFolders, createFolder, renameFolder, reorderFolder, deleteFolder, deleteFolderCascade, setCharacterFolder, setFolderParent, setFolderIcon,
   getFolderDepth, isValidFolderNestTarget, MAX_FOLDER_DEPTH,
   type Folder, type FolderEntityType,
 } from '../../services/supabase/foldersService';
@@ -183,7 +185,7 @@ function FolderSectionHeader({
 // blur conferma).
 function FolderRow({
   folder, onEnter, count, subfolderCount, canEdit, isRenaming, renameDraft, onRenameDraftChange,
-  onStartRename, onCommitRename, onCancelRename, onRequestDelete, onPointerDown, dropState, isDimmed,
+  onStartRename, onCommitRename, onCancelRename, onRequestDelete, onOpenIconPicker, onPointerDown, dropState, isDimmed,
 }: {
   folder: Folder;
   /** Naviga dentro la cartella (drill-down) - visibile/utilizzabile anche
@@ -203,6 +205,9 @@ function FolderRow({
   onCommitRename: () => void;
   onCancelRename: () => void;
   onRequestDelete: () => void;
+  /** Apre FolderIconPicker per questa cartella - assente/non chiamato se
+   *  !canEdit (icona non cliccabile per chi non puo' modificare). */
+  onOpenIconPicker: () => void;
   onPointerDown: (e: React.PointerEvent) => void;
   /** 'valid'/'invalid' solo mentre e' il bersaglio di un drag di CARTELLA in
    *  corso (vedi isValidFolderNestTarget in foldersService.ts) - un drag di
@@ -228,7 +233,28 @@ function FolderRow({
       } ${canEdit ? 'cursor-grab active:cursor-grabbing' : ''} ${isDimmed ? 'opacity-40' : ''}`}
     >
       <button type="button" onClick={onEnter} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-        <FolderIcon className="h-4 w-4 shrink-0 text-[var(--dash-accent-2)]" />
+        {(() => {
+          const Icon = getFolderIconComponent(folder.icon);
+          // <span>, non <button>: siamo gia' dentro il <button onEnter>
+          // sopra (un <button> annidato non e' HTML valido) - stesso schema
+          // gia' usato dal nome poco sotto per il rinomina-al-click.
+          return canEdit ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  data-no-drag
+                  onClick={(e) => { e.stopPropagation(); onOpenIconPicker(); }}
+                  className="shrink-0 rounded p-0.5 text-[var(--dash-accent-2)] transition-colors hover:bg-[var(--dash-surface-2)]"
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">Cambia icona</TooltipContent>
+            </Tooltip>
+          ) : (
+            <Icon className="h-4 w-4 shrink-0 text-[var(--dash-accent-2)]" />
+          );
+        })()}
         {isRenaming ? (
           <input
             type="text"
@@ -459,9 +485,10 @@ function DragGhost<T extends { id: string }>({
   const content = dnd.draggedItem.kind === 'folder' ? (() => {
     const folder = folders.find((f) => f.id === dnd.draggedItem!.id);
     if (!folder) return null;
+    const Icon = getFolderIconComponent(folder.icon);
     return (
       <div className="flex max-w-[220px] items-center gap-1.5 rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] px-2.5 py-1.5 text-xs font-medium text-[var(--dash-text)] opacity-90 shadow-2xl">
-        <FolderIcon className="h-3.5 w-3.5 shrink-0" />
+        <Icon className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate">{folder.name}</span>
       </div>
     );
@@ -546,6 +573,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   // invariato (solo unlink, vedi handleConfirmDeleteFolder) a meno che il GM
   // non la spunti esplicitamente per l'eliminazione a cascata.
   const [deleteFolderCascadeContent, setDeleteFolderCascadeContent] = useState(false);
+  // setFolders catturato insieme alla cartella al momento dell'apertura
+  // (onOpenIconPicker in FolderRow) - vedi handleSelectFolderIcon.
+  const [iconPickerTarget, setIconPickerTarget] = useState<{ folder: Folder; setFolders: React.Dispatch<React.SetStateAction<Folder[]>> } | null>(null);
 
   const [inviteCopied, setInviteCopied] = useState(false);
   const [showInviteByNameModal, setShowInviteByNameModal] = useState(false);
@@ -1275,6 +1305,25 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     }
   };
 
+  // Stesso schema di handleCommitFolderRename - update ottimistico, chiama
+  // il service, rollback su errore. setFolders catturato direttamente nella
+  // chiusura al momento dell'apertura (onOpenIconPicker in FolderRow), non
+  // risolto con uno switch su entityType al commit - stesso stile gia'
+  // usato per onCommitRename qui sopra.
+  const handleSelectFolderIcon = async (iconId: string | null) => {
+    const target = iconPickerTarget;
+    setIconPickerTarget(null);
+    if (!target || !session) return;
+    const { folder, setFolders } = target;
+    setFolders((prev) => prev.map((f) => (f.id === folder.id ? { ...f, icon: iconId } : f)));
+    try {
+      await setFolderIcon(folder.id, iconId, SERVER_BASE, session.access_token);
+    } catch (err) {
+      console.error('Errore impostazione icona cartella:', err);
+      setFolders((prev) => prev.map((f) => (f.id === folder.id ? folder : f)));
+    }
+  };
+
   // Riordina solo tra i fratelli del nodo trascinato (stesso parentFolderId,
   // incluso il caso radice/null) - non l'intero elenco piatto come nella
   // versione Fase 2: da Fase 4 l'hook non calcola piu' da solo l'array
@@ -2000,6 +2049,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
             onCommitRename={() => handleCommitFolderRename(folder, setFolders)}
             onCancelRename={() => setRenamingFolderId(null)}
             onRequestDelete={() => { setDeleteFolderTarget(folder); setDeleteFolderCascadeContent(false); }}
+            onOpenIconPicker={() => setIconPickerTarget({ folder, setFolders })}
             onPointerDown={(e) => dnd.handlePointerDown(e, { kind: 'folder', id: folder.id })}
             dropState={computeFolderRowDropState(dnd, folder, foldersById)}
             isDimmed={dnd.draggedItem?.kind === 'folder' && dnd.draggedItem.id === folder.id}
@@ -2507,6 +2557,14 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
           danger={false}
           onConfirm={handleConfirmUnassignCharacter}
           onCancel={() => setUnassignCharTarget(null)}
+        />
+      )}
+
+      {iconPickerTarget && (
+        <FolderIconPicker
+          selectedIconId={iconPickerTarget.folder.icon}
+          onSelect={handleSelectFolderIcon}
+          onClose={() => setIconPickerTarget(null)}
         />
       )}
 

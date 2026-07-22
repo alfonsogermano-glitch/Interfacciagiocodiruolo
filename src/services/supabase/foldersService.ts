@@ -16,6 +16,10 @@ export interface Folder {
   // trigger che garantisce coerenza di tipo/campagna con la cartella
   // genitore, assenza di cicli e limite di profondita' (5 livelli).
   parentFolderId: string | null;
+  // null = icona predefinita (Folder) - id da folderIconCatalog.ts, non
+  // validato qui: getFolderIconComponent ricade sul default per un id
+  // sconosciuto/rimosso dal set curato, invece di rompere il render.
+  icon: string | null;
 }
 
 export const MAX_FOLDER_DEPTH = 5;
@@ -70,6 +74,7 @@ function mapFolder(row: any): Folder {
     name: row.name,
     position: row.position,
     parentFolderId: row.parent_folder_id ?? null,
+    icon: row.icon ?? null,
   };
 }
 
@@ -154,6 +159,24 @@ export async function setFolderParent(
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error ?? 'Errore spostamento cartella');
+}
+
+// Icona personalizzata (folderIconCatalog.ts) - null = torna all'icona
+// predefinita. Stesso endpoint PUT condiviso di renameFolder/reorderFolder/
+// setFolderParent, solo un altro sottoinsieme di campi nel body.
+export async function setFolderIcon(
+  folderId: string,
+  icon: string | null,
+  serverBase: string,
+  accessToken: string
+): Promise<void> {
+  const res = await fetch(`${serverBase}/folders/${folderId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ icon }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? 'Errore impostazione icona cartella');
 }
 
 export async function deleteFolder(
