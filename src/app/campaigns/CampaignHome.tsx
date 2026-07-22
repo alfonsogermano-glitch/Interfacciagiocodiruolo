@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import {
   Play, Square, Loader2, AlertTriangle, Users, Ghost, Skull,
   KeyRound, Check, MoreVertical, Pencil, Copy, CopyPlus, UserCog, FileDown, Trash2, UserMinus, Undo2,
@@ -33,17 +33,13 @@ import {
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { FolderIconPicker } from '../components/shared/FolderIconPicker';
 import { FolderSectionHeader } from '../components/shared/FolderSectionHeader';
-import { FolderRow } from '../components/shared/FolderRow';
 import { FolderBreadcrumb } from '../components/shared/FolderBreadcrumb';
-import { UnfiledDropZone } from '../components/shared/UnfiledDropZone';
-import { DragGhost } from '../components/shared/DragGhost';
+import { useFolderSection } from '../components/shared/useFolderSection';
 import { Switch } from '../components/ui/switch';
 import {
-  loadFolders, createFolder, renameFolder, reorderFolder, deleteFolder, deleteFolderCascade, setCharacterFolder, setFolderParent, setFolderIcon,
-  getFolderDepth, getDescendantFolders, getFolderPath, isValidFolderNestTarget, MAX_FOLDER_DEPTH,
+  setCharacterFolder,
   type Folder, type FolderEntityType,
 } from '../../services/supabase/foldersService';
-import { useFolderDragDrop, reorderIds } from '../components/session/shared/useFolderDragDrop';
 import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../components/ui/paletteColors';
 import type { Character } from '../../types/character';
@@ -123,24 +119,6 @@ function pillClass(active: boolean) {
   }`;
 }
 
-// Calcola se questa riga cartella e' il bersaglio corrente di un drag e,
-// se lo e', se il drop sarebbe valido - usata sia per lo stile (verde/rosso
-// durante il drag) sia, con la stessa funzione isValidFolderNestTarget, come
-// guardia finale prima di inviare la richiesta in handleNestFolder: un solo
-// punto di verita' chiamato in due momenti diversi del ciclo di vita del drag.
-function computeFolderRowDropState(
-  dnd: { draggedItem: { kind: 'folder' | 'card'; id: string } | null; dropTarget: { type: string; folderId?: string } | null },
-  folder: Folder,
-  foldersById: Map<string, Folder>,
-): 'none' | 'valid' | 'invalid' {
-  const target = dnd.dropTarget;
-  if (!target || (target.type !== 'into-folder' && target.type !== 'nest-into-folder') || target.folderId !== folder.id) {
-    return 'none';
-  }
-  if (dnd.draggedItem?.kind !== 'folder') return 'valid'; // card: nessun vincolo di profondita'/ciclo
-  return isValidFolderNestTarget(dnd.draggedItem.id, folder.id, foldersById) ? 'valid' : 'invalid';
-}
-
 export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: CampaignHomeProps) {
   const { user, session } = useAuth();
   const { activeCampaign, campaigns, joinedCampaigns, refreshCampaigns, refreshJoinedCampaigns, updateCampaign, deleteCampaign, generateInviteCode } = useCampaign();
@@ -167,36 +145,11 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   const [monstersLoaded, setMonstersLoaded] = useState(false);
 
   // ─── Cartelle (sistema di organizzazione Precompilati/PNG/Mostri) ───
-  // Un array per sezione (namespace 'premade'/'npc'/'monster' - vedi
-  // supabase-add-folders.sql), mai mescolati tra loro: una cartella non
-  // compare mai in una sezione diversa da quella in cui e' stata creata.
-  // 'character' rimosso dalla UI (i PG normali sono tornati al
-  // comportamento pre-cartelle) ma resta un entity_type valido nello
-  // schema/tipo - eventuali cartelle 'character' create durante i test
-  // restano nel DB, orfane e senza piu' UI, innocue (nessun trigger le
-  // tocca finche' nessuno aggiorna quelle righe).
-  const [premadeFolders, setPremadeFolders] = useState<Folder[]>([]);
-  const [npcFolders, setNpcFolders] = useState<Folder[]>([]);
-  const [monsterFolders, setMonsterFolders] = useState<Folder[]>([]);
-  // "Dove sono" per sezione (drill-down: sostituisce il vecchio
-  // espandi/collassa ad albero) - null = radice della sezione. 3 variabili
-  // indipendenti, stesso motivo di premadeFolders/npcFolders/monsterFolders
-  // sopra: mai un unico Record condiviso, sezioni diverse non devono potersi
-  // confondere concettualmente anche se qui non collidono comunque (id UUID).
-  const [premadeCurrentFolderId, setPremadeCurrentFolderId] = useState<string | null>(null);
-  const [npcCurrentFolderId, setNpcCurrentFolderId] = useState<string | null>(null);
-  const [monsterCurrentFolderId, setMonsterCurrentFolderId] = useState<string | null>(null);
-  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
-  const [renameFolderDraft, setRenameFolderDraft] = useState('');
-  const [deleteFolderTarget, setDeleteFolderTarget] = useState<Folder | null>(null);
-  const [isDeletingFolder, setIsDeletingFolder] = useState(false);
-  // Deselezionata di default ogni volta che si apre il dialog: comportamento
-  // invariato (solo unlink, vedi handleConfirmDeleteFolder) a meno che il GM
-  // non la spunti esplicitamente per l'eliminazione a cascata.
-  const [deleteFolderCascadeContent, setDeleteFolderCascadeContent] = useState(false);
-  // setFolders catturato insieme alla cartella al momento dell'apertura
-  // (onOpenIconPicker in FolderRow) - vedi handleSelectFolderIcon.
-  const [iconPickerTarget, setIconPickerTarget] = useState<{ folder: Folder; setFolders: React.Dispatch<React.SetStateAction<Folder[]>> } | null>(null);
+  // Stato/navigazione/rinomina/eliminazione/icona per ciascuna delle 3
+  // sezioni sono interamente incapsulati in useFolderSection (Fase 2) - vedi
+  // le 3 chiamate piu' sotto, dopo foldersContainerRef. 'character' non ha
+  // piu' una sezione qui (i PG normali sono tornati al comportamento
+  // pre-cartelle).
 
   const [inviteCopied, setInviteCopied] = useState(false);
   const [showInviteByNameModal, setShowInviteByNameModal] = useState(false);
@@ -479,53 +432,11 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     };
   }, [isOwner, activeCampaign?.id]);
 
-  // Cartelle: 'premade' caricate per chiunque veda la sezione Precompilati
-  // (GM e giocatori, sola lettura per questi ultimi - canAccessFolders lato
-  // server ammette anche i membri in lettura), 'npc'/'monster' solo per il
-  // GM, stessa regola di sicurezza delle sezioni PNG/Mostri sopra (mai
-  // richieste per un giocatore). 'character' non piu' caricato: i PG
-  // normali sono tornati al comportamento pre-cartelle.
-  useEffect(() => {
-    // Cambio campagna (o logout) riporta ogni sezione alla radice - restare
-    // "drillati" dentro un id di una campagna precedente non avrebbe senso.
-    setPremadeCurrentFolderId(null);
-    setNpcCurrentFolderId(null);
-    setMonsterCurrentFolderId(null);
-    if (!activeCampaign?.id || !session) {
-      setPremadeFolders([]);
-      setNpcFolders([]);
-      setMonsterFolders([]);
-      return;
-    }
-    let cancelled = false;
-    const accessToken = session.access_token;
-    const campaignId = activeCampaign.id;
-
-    const load = (entityType: FolderEntityType, setter: (f: Folder[]) => void) =>
-      loadFolders(campaignId, entityType, SERVER_BASE, accessToken)
-        .then((loaded) => { if (!cancelled) setter(loaded); })
-        .catch((err) => console.error(`Errore caricamento cartelle ${entityType}:`, err));
-
-    load('premade', setPremadeFolders);
-    if (isOwner) {
-      load('npc', setNpcFolders);
-      load('monster', setMonsterFolders);
-    } else {
-      setNpcFolders([]);
-      setMonsterFolders([]);
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  // session?.user?.id, non session intero: stesso motivo del blocco Players
-  // qui sopra - un nuovo riferimento di sessione (senza un vero cambio di
-  // utente) ad ogni ritorno in foreground della tab faceva scattare
-  // setPremadeCurrentFolderId(null)/setNpcCurrentFolderId(null)/
-  // setMonsterCurrentFolderId(null) qui sopra, riportando bruscamente alla
-  // radice qualunque drill-down aperto senza che campagna o utente fossero
-  // davvero cambiati.
-  }, [activeCampaign?.id, session?.user?.id, isOwner]);
+  // Caricamento/reset delle 3 sezioni con cartelle spostato dentro
+  // useFolderSection (Fase 2, vedi le 3 chiamate dopo foldersContainerRef) -
+  // ciascuna istanza gestisce da sola il proprio effetto, stesso identico
+  // comportamento (sessionKey invece di session intero, vedi il commento sul
+  // parametro dell'hook).
 
   // Canale campaign:{id} condiviso (src/services/realtime/campaignChannel.ts):
   // CampaignHome non è l'unico consumer di questo topic (SessionCharactersPanel,
@@ -888,208 +799,12 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     }
   };
 
-  // ─── Cartelle: azioni condivise dalle 4 sezioni ───
-  // Un'unica implementazione parametrizzata su entityType/folders/setFolders
-  // invece di 4 copie quasi identiche - solo la persistenza finale (quale
-  // servizio chiamare) cambia da sezione a sezione, e resta nei rispettivi
-  // onMoveCard passati a ciascuna istanza di useFolderDragDrop piu' sotto.
-
-  const handleCreateFolder = async (
-    entityType: FolderEntityType,
-    setFolders: React.Dispatch<React.SetStateAction<Folder[]>>,
-    parentFolderId: string | null,
-  ) => {
-    if (!activeCampaign || !session) return;
-    try {
-      const folder = await createFolder(activeCampaign.id, entityType, 'Nuova cartella', SERVER_BASE, session.access_token, parentFolderId);
-      setFolders((prev) => [...prev, folder]);
-      // Entra subito in rinomina, stesso pattern di handleAddCustomTab in
-      // useEntityTabs.ts: crea e passa direttamente al nome invece di
-      // lasciare "Nuova cartella" come placeholder da rinominare dopo.
-      setRenamingFolderId(folder.id);
-      setRenameFolderDraft('Nuova cartella');
-    } catch (err) {
-      console.error('Errore creazione cartella:', err);
-    }
-  };
-
-  const handleCommitFolderRename = async (folder: Folder, setFolders: React.Dispatch<React.SetStateAction<Folder[]>>) => {
-    const name = renameFolderDraft.trim();
-    setRenamingFolderId(null);
-    if (!name || name === folder.name || !session) return;
-    setFolders((prev) => prev.map((f) => (f.id === folder.id ? { ...f, name } : f)));
-    try {
-      await renameFolder(folder.id, name, SERVER_BASE, session.access_token);
-    } catch (err) {
-      console.error('Errore rinomina cartella:', err);
-      setFolders((prev) => prev.map((f) => (f.id === folder.id ? folder : f)));
-    }
-  };
-
-  // Stesso schema di handleCommitFolderRename - update ottimistico, chiama
-  // il service, rollback su errore. setFolders catturato direttamente nella
-  // chiusura al momento dell'apertura (onOpenIconPicker in FolderRow), non
-  // risolto con uno switch su entityType al commit - stesso stile gia'
-  // usato per onCommitRename qui sopra.
-  const handleSelectFolderIcon = async (iconId: string | null) => {
-    const target = iconPickerTarget;
-    setIconPickerTarget(null);
-    if (!target || !session) return;
-    const { folder, setFolders } = target;
-    setFolders((prev) => prev.map((f) => (f.id === folder.id ? { ...f, icon: iconId } : f)));
-    try {
-      await setFolderIcon(folder.id, iconId, SERVER_BASE, session.access_token);
-    } catch (err) {
-      console.error('Errore impostazione icona cartella:', err);
-      setFolders((prev) => prev.map((f) => (f.id === folder.id ? folder : f)));
-    }
-  };
-
-  // Riordina solo tra i fratelli del nodo trascinato (stesso parentFolderId,
-  // incluso il caso radice/null) - non l'intero elenco piatto come nella
-  // versione Fase 2: da Fase 4 l'hook non calcola piu' da solo l'array
-  // riordinato (non conosce le relazioni di parentela), passa solo
-  // (draggedId, beforeId) grezzi - il chiamante trova i fratelli e chiama
-  // reorderIds su quel sottoinsieme.
-  const handleReorderFolders = async (
-    folders: Folder[],
-    draggedId: string,
-    beforeId: string | null,
-    setFolders: React.Dispatch<React.SetStateAction<Folder[]>>,
-  ) => {
-    if (!session) return;
-    const dragged = folders.find((f) => f.id === draggedId);
-    if (!dragged) return;
-    const siblingIds = folders.filter((f) => f.parentFolderId === dragged.parentFolderId).map((f) => f.id);
-    const reorderedSiblingIds = reorderIds(siblingIds, draggedId, beforeId);
-    const positionById = new Map(reorderedSiblingIds.map((id, idx) => [id, idx]));
-    const byId = new Map(folders.map((f) => [f.id, f]));
-
-    setFolders((prev) => prev.map((f) => (positionById.has(f.id) ? { ...f, position: positionById.get(f.id)! } : f)));
-
-    await Promise.all(
-      reorderedSiblingIds.map((id) => {
-        const original = byId.get(id);
-        const newPosition = positionById.get(id)!;
-        if (original && original.position === newPosition) return null;
-        return reorderFolder(id, newPosition, SERVER_BASE, session.access_token)
-          .catch((err) => console.error('Errore riordino cartella:', err));
-      })
-    );
-  };
-
-  // Annida una cartella dentro un'altra o la promuove a radice (null) -
-  // update ottimistico + rollback su errore, stesso schema di
-  // handleMoveNpcFolder poco sotto. Il trigger check_folder_hierarchy lato
-  // DB e' l'unica vera difesa contro cicli/profondita'/tipo incoerente -
-  // qui si assume il caso comune (spostamento valido) e si ripristina solo
-  // se il server rifiuta.
-  // "Sposta di un livello": se si rilascia una cartella esattamente sopra
-  // l'header della cartella che gia' la contiene (newParentFolderId coincide
-  // col parentFolderId attuale), non e' un no-op - si promuove al genitore
-  // DI QUEL genitore (un livello piu' in alto), altrimenti trascinare una
-  // sotto-cartella sul proprio genitore non avrebbe mai alcun effetto
-  // visibile. Se il genitore era gia' una radice (parentFolderId null),
-  // "un livello piu' in alto" coincide con "diventa radice" (stesso
-  // risultato del drop sulla striscia "Senza cartella") - comportamento
-  // coerente, non un secondo no-op silenzioso.
-  const handleNestFolder = async (
-    folders: Folder[],
-    folderId: string,
-    newParentFolderId: string | null,
-    setFolders: React.Dispatch<React.SetStateAction<Folder[]>>,
-  ) => {
-    if (!session) return;
-    const original = folders.find((f) => f.id === folderId);
-    if (!original) return;
-    let resolvedParentId = newParentFolderId;
-    if (newParentFolderId !== null && newParentFolderId === original.parentFolderId) {
-      const currentParent = folders.find((f) => f.id === newParentFolderId);
-      resolvedParentId = currentParent?.parentFolderId ?? null;
-    }
-    // Stessa validazione usata per il colore verde/rosso durante il drag
-    // (computeFolderRowDropState/isValidFolderNestTarget) - guardiano finale
-    // prima della richiesta: se il bersaglio risolto violerebbe ciclo/
-    // profondita', il trigger DB lo rifiuterebbe comunque, quindi non si
-    // tenta nemmeno l'update ottimistico.
-    if (resolvedParentId !== null) {
-      const foldersById = new Map(folders.map((f) => [f.id, f]));
-      if (!isValidFolderNestTarget(folderId, resolvedParentId, foldersById)) return;
-    }
-    setFolders((prev) => prev.map((f) => (f.id === folderId ? { ...f, parentFolderId: resolvedParentId } : f)));
-    try {
-      await setFolderParent(folderId, resolvedParentId, SERVER_BASE, session.access_token);
-    } catch (err) {
-      console.error('Errore spostamento cartella:', err);
-      setFolders((prev) => prev.map((f) => (f.id === folderId ? original : f)));
-    }
-  };
-
-  const handleConfirmDeleteFolder = async () => {
-    if (!deleteFolderTarget || !session || !activeCampaign) return;
-    setIsDeletingFolder(true);
-    try {
-      if (deleteFolderCascadeContent) {
-        // Eliminazione a cascata: tocca piu' tabelle sul server in un colpo
-        // solo (vedi deleteFolderCascade/route dedicata) - per un'operazione
-        // distruttiva multi-tabella e' piu' semplice e piu' sicuro ricaricare
-        // la sezione da zero che ricostruire a mano quali righe locali
-        // rimuovere (a differenza del ramo non-cascade sotto, dove
-        // l'aggiornamento locale mirato resta appropriato).
-        await deleteFolderCascade(deleteFolderTarget.id, SERVER_BASE, session.access_token);
-        const accessToken = session.access_token;
-        const campaignId = activeCampaign.id;
-        switch (deleteFolderTarget.entityType) {
-          case 'premade':
-            setPremadeFolders(await loadFolders(campaignId, 'premade', SERVER_BASE, accessToken));
-            setPlayersReloadToken((t) => t + 1);
-            break;
-          case 'npc':
-            setNpcFolders(await loadFolders(campaignId, 'npc', SERVER_BASE, accessToken));
-            setNpcs(await loadNPCs(campaignId));
-            break;
-          case 'monster':
-            setMonsterFolders(await loadFolders(campaignId, 'monster', SERVER_BASE, accessToken));
-            setMonsters(await loadMonsters(campaignId));
-            break;
-        }
-      } else {
-        await deleteFolder(deleteFolderTarget.id, SERVER_BASE, session.access_token);
-        const clearFolder = <T extends { id: string; folderId?: string | null }>(list: T[]) =>
-          list.map((item) => (item.folderId === deleteFolderTarget.id ? { ...item, folderId: null } : item));
-        // Il DB orfanizza automaticamente le sotto-cartelle dirette (parent_
-        // folder_id ... on delete set null, supabase-add-nested-folders.sql)
-        // ma lo stato client no - senza questo, restavano invisibili (il loro
-        // parentFolderId punta a un id ormai rimosso dall'array locale, finche'
-        // non arriva un reload completo).
-        const reparentOrphans = (list: Folder[]) =>
-          list.map((f) => (f.parentFolderId === deleteFolderTarget.id ? { ...f, parentFolderId: null } : f));
-        // Nessun case 'character': la sezione Personaggi non crea piu'
-        // cartelle di quel tipo, questo target non e' piu' raggiungibile da
-        // questa UI (eventuali cartelle 'character' residue dai test restano
-        // nel DB, senza piu' un percorso per eliminarle da qui).
-        switch (deleteFolderTarget.entityType) {
-          case 'premade':
-            setPremadeFolders((prev) => reparentOrphans(prev.filter((f) => f.id !== deleteFolderTarget.id)));
-            setAvailablePremades((prev) => clearFolder(prev));
-            break;
-          case 'npc':
-            setNpcFolders((prev) => reparentOrphans(prev.filter((f) => f.id !== deleteFolderTarget.id)));
-            setNpcs((prev) => clearFolder(prev));
-            break;
-          case 'monster':
-            setMonsterFolders((prev) => reparentOrphans(prev.filter((f) => f.id !== deleteFolderTarget.id)));
-            setMonsters((prev) => clearFolder(prev));
-            break;
-        }
-      }
-      setDeleteFolderTarget(null);
-    } catch (err) {
-      console.error('Errore eliminazione cartella:', err);
-    } finally {
-      setIsDeletingFolder(false);
-    }
-  };
+  // ─── Cartelle: azioni generiche (crea/rinomina/riordina/annida/elimina)
+  // interamente dentro useFolderSection (Fase 2). Restano qui solo gli
+  // handler entity-specific sotto (assegnazione di una card a una cartella,
+  // e la pulizia di playerRows/availablePremades/npcs/monsters dopo
+  // un'eliminazione - via onFolderDeleted passato a ciascuna istanza
+  // dell'hook piu' sotto).
 
   // PG/Precompilati: endpoint stretto dedicato (POST /characters/:id/folder)
   // - PUT /campaigns/:id/characters/:id (saveCharacterAsGm) fa un update
@@ -1112,7 +827,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       const current = playerRows.flatMap((row) => row.characters).find((c) => c.id === characterId)
         ?? availablePremades.find((c) => c.id === characterId);
       if (current?.folderId === folderId) {
-        const targetFolder = premadeFolders.find((f) => f.id === folderId);
+        const targetFolder = premadeSection.folders.find((f) => f.id === folderId);
         resolvedFolderId = targetFolder?.parentFolderId ?? null;
       }
     }
@@ -1136,7 +851,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     // sulla propria cartella attuale -> promuovi al genitore di quella.
     let resolvedFolderId = folderId;
     if (folderId !== null && npc.folderId === folderId) {
-      resolvedFolderId = npcFolders.find((f) => f.id === folderId)?.parentFolderId ?? null;
+      resolvedFolderId = npcSection.folders.find((f) => f.id === folderId)?.parentFolderId ?? null;
     }
     const updated = { ...npc, folderId: resolvedFolderId };
     setNpcs((prev) => prev.map((n) => (n.id === npcId ? updated : n)));
@@ -1153,7 +868,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     if (!monster || !activeCampaign) return;
     let resolvedFolderId = folderId;
     if (folderId !== null && monster.folderId === folderId) {
-      resolvedFolderId = monsterFolders.find((f) => f.id === folderId)?.parentFolderId ?? null;
+      resolvedFolderId = monsterSection.folders.find((f) => f.id === folderId)?.parentFolderId ?? null;
     }
     const updated = { ...monster, folderId: resolvedFolderId };
     setMonsters((prev) => prev.map((m) => (m.id === monsterId ? updated : m)));
@@ -1165,40 +880,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     }
   };
 
-  // Le 3 sezioni con cartelle (Precompilati/PNG/Mostri - Personaggi tornato
-  // al comportamento pre-cartelle) condividono lo stesso containerRef (un
-  // solo grid flat, vedi il commento sul markup piu' sotto) - ogni istanza
-  // filtra i propri target di drop tramite entityType, senza contaminarsi a
-  // vicenda pur osservando tutte lo stesso DOM (vedi il commento su
-  // resolveFolderDropTarget in useFolderDragDrop.ts).
-  const foldersContainerRef = useRef<HTMLDivElement | null>(null);
-  const premadeFolderDnd = useFolderDragDrop({
-    canEdit: isOwner,
-    entityType: 'premade',
-    folderIds: premadeFolders.map((f) => f.id),
-    onReorderFolders: (draggedId, beforeId) => handleReorderFolders(premadeFolders, draggedId, beforeId, setPremadeFolders),
-    onMoveCard: handleMoveCharacterFolder,
-    onNestFolder: (folderId, newParentFolderId) => handleNestFolder(premadeFolders, folderId, newParentFolderId, setPremadeFolders),
-    containerRef: foldersContainerRef,
-  });
-  const npcFolderDnd = useFolderDragDrop({
-    canEdit: isOwner,
-    entityType: 'npc',
-    folderIds: npcFolders.map((f) => f.id),
-    onReorderFolders: (draggedId, beforeId) => handleReorderFolders(npcFolders, draggedId, beforeId, setNpcFolders),
-    onMoveCard: handleMoveNpcFolder,
-    onNestFolder: (folderId, newParentFolderId) => handleNestFolder(npcFolders, folderId, newParentFolderId, setNpcFolders),
-    containerRef: foldersContainerRef,
-  });
-  const monsterFolderDnd = useFolderDragDrop({
-    canEdit: isOwner,
-    entityType: 'monster',
-    folderIds: monsterFolders.map((f) => f.id),
-    onReorderFolders: (draggedId, beforeId) => handleReorderFolders(monsterFolders, draggedId, beforeId, setMonsterFolders),
-    onMoveCard: handleMoveMonsterFolder,
-    onNestFolder: (folderId, newParentFolderId) => handleNestFolder(monsterFolders, folderId, newParentFolderId, setMonsterFolders),
-    containerRef: foldersContainerRef,
-  });
+  // Le chiamate a useFolderSection sono piu' sotto, dopo i render*Card/
+  // render*GhostCard (servono come parametri) - vedi li' per il commento
+  // sul containerRef condiviso.
 
   // Costruisce le voci del menu ⋮ di un PG - condivisa tra playerRows (di un
   // giocatore, row valorizzato) e availablePremades (del GM, row assente).
@@ -1349,53 +1033,6 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     if (activeQuickFilter === 'npc') return npcSectionVisible ? 'h-8' : null;
     if (activeQuickFilter === 'monster') return monsterSectionVisible ? 'h-8' : null;
     return 'h-8'; // premades / all / pg -> header sempre presente, altezza fissa uniforme
-  })();
-
-  // Lookup per id + percorso radice→corrente per sezione, usati da
-  // FolderRow/FolderBreadcrumb/renderFolderedSection e dal calcolo del
-  // limite di annidamento sotto - ricalcolati ad ogni render (gli array di
-  // cartelle sono piccoli, nessuna necessita' di memoizzazione qui).
-  const premadeFoldersById = new Map(premadeFolders.map((f) => [f.id, f]));
-  const npcFoldersById = new Map(npcFolders.map((f) => [f.id, f]));
-  const monsterFoldersById = new Map(monsterFolders.map((f) => [f.id, f]));
-  const premadeFolderPath = getFolderPath(premadeCurrentFolderId, premadeFoldersById);
-  const npcFolderPath = getFolderPath(npcCurrentFolderId, npcFoldersById);
-  const monsterFolderPath = getFolderPath(monsterCurrentFolderId, monsterFoldersById);
-  const premadeCreateDisabledReason =
-    getFolderDepth(premadeCurrentFolderId, premadeFoldersById) >= MAX_FOLDER_DEPTH
-      ? 'Limite di 5 livelli di annidamento raggiunto' : null;
-  const npcCreateDisabledReason =
-    getFolderDepth(npcCurrentFolderId, npcFoldersById) >= MAX_FOLDER_DEPTH
-      ? 'Limite di 5 livelli di annidamento raggiunto' : null;
-  const monsterCreateDisabledReason =
-    getFolderDepth(monsterCurrentFolderId, monsterFoldersById) >= MAX_FOLDER_DEPTH
-      ? 'Limite di 5 livelli di annidamento raggiunto' : null;
-
-  // Conteggio del contenuto della cartella da eliminare, per il checkbox di
-  // eliminazione a cascata nel dialog sotto - null se la cartella e' vuota
-  // (in quel caso il checkbox non ha senso, vedi extraContent piu' sotto).
-  const deleteFolderContents = (() => {
-    if (!deleteFolderTarget) return null;
-    let counts: { itemCount: number; folderCount: number };
-    let itemLabel: string;
-    switch (deleteFolderTarget.entityType) {
-      case 'premade':
-        counts = countFolderContentsRecursive(deleteFolderTarget.id, premadeFolders, availablePremades);
-        itemLabel = 'Precompilati';
-        break;
-      case 'npc':
-        counts = countFolderContentsRecursive(deleteFolderTarget.id, npcFolders, npcs);
-        itemLabel = 'PNG';
-        break;
-      case 'monster':
-        counts = countFolderContentsRecursive(deleteFolderTarget.id, monsterFolders, monsters);
-        itemLabel = 'Mostri';
-        break;
-      default:
-        return null;
-    }
-    if (counts.itemCount + counts.folderCount === 0) return null;
-    return { ...counts, itemLabel };
   })();
 
   const handleCoverUpdate = (patch: CampaignCoverPatch) => {
@@ -1611,98 +1248,86 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     />
   );
 
-  // Conteggio ricorsivo (sotto-cartelle+card annidate incluse), scomposto
-  // per tipo - usato sia per il badge "(n)" sulla riga cartella (solo
-  // itemCount, con la vista drill-down che nasconde il contenuto finche' non
-  // ci si entra un "(0)" su una cartella che in realta' contiene nipoti
-  // sarebbe fuorviante) sia per il messaggio di eliminazione a cascata
-  // (entrambi i conteggi, per un avviso tipo "3 PNG e 2 sotto-cartelle").
-  function countFolderContentsRecursive(
-    folderId: string,
-    folders: Folder[],
-    items: { folderId?: string | null }[],
-  ): { itemCount: number; folderCount: number } {
-    const directItems = items.filter((it) => it.folderId === folderId).length;
-    const childFolders = folders.filter((f) => f.parentFolderId === folderId);
-    return childFolders.reduce((acc, child) => {
-      const sub = countFolderContentsRecursive(child.id, folders, items);
-      return { itemCount: acc.itemCount + sub.itemCount, folderCount: acc.folderCount + sub.folderCount + 1 };
-    }, { itemCount: directItems, folderCount: 0 });
-  }
+  // Le 3 sezioni con cartelle (Precompilati/PNG/Mostri - Personaggi tornato
+  // al comportamento pre-cartelle) condividono lo stesso containerRef (un
+  // solo grid flat, vedi il commento sul markup piu' sotto) - ogni istanza
+  // di useFolderSection filtra i propri target di drop tramite entityType,
+  // senza contaminarsi a vicenda pur osservando tutte lo stesso DOM (vedi il
+  // commento su resolveFolderDropTarget in useFolderDragDrop.ts). Dichiarate
+  // qui (non subito dopo gli state di sessione/isOwner) perche' richiedono i
+  // render*Card/render*GhostCard appena definiti sopra come parametri.
+  const foldersContainerRef = useRef<HTMLDivElement | null>(null);
+  const sessionKey = session?.user?.id ?? null;
+  const accessToken = session?.access_token ?? null;
 
-  // Un solo livello alla volta (drill-down, vedi FolderBreadcrumb per la
-  // navigazione) - solo le sotto-cartelle dirette e le card dirette di
-  // nav.currentFolderId, mai l'intero sottoalbero. Le card sciolte (senza
-  // cartella) sono assorbite qui: prima erano un blocco duplicato dopo ogni
-  // chiamata in ciascuna delle 3 sezioni, ora sono semplicemente le
-  // directItems quando si e' alla radice (currentFolderId === null).
-  function renderFolderedSection<T extends { id: string; folderId?: string | null }>(
-    entityType: FolderEntityType,
-    folders: Folder[],
-    setFolders: React.Dispatch<React.SetStateAction<Folder[]>>,
-    dnd: typeof premadeFolderDnd,
-    items: T[],
-    renderCard: (item: T) => React.ReactNode,
-    nav: { currentFolderId: string | null; setCurrentFolderId: (id: string | null) => void; foldersById: Map<string, Folder> },
-  ) {
-    const { currentFolderId, foldersById } = nav;
-    const childFolders = folders
-      .filter((f) => f.parentFolderId === currentFolderId)
-      .sort((a, b) => a.position - b.position);
-    const directItems = items.filter((it) => (it.folderId ?? null) === currentFolderId);
-
-    return (
-      <>
-        {childFolders.map((folder) => {
-          const counts = countFolderContentsRecursive(folder.id, folders, items);
-          const descendantFolders = getDescendantFolders(folder.id, folders);
-          return (
-          <FolderRow
-            key={folder.id}
-            folder={folder}
-            onEnter={() => nav.setCurrentFolderId(folder.id)}
-            count={counts.itemCount}
-            descendantFolders={descendantFolders}
-            onNavigateTo={(id) => nav.setCurrentFolderId(id)}
-            canEdit={isOwner}
-            isRenaming={renamingFolderId === folder.id}
-            renameDraft={renameFolderDraft}
-            onRenameDraftChange={setRenameFolderDraft}
-            onStartRename={() => { setRenamingFolderId(folder.id); setRenameFolderDraft(folder.name); }}
-            onCommitRename={() => handleCommitFolderRename(folder, setFolders)}
-            onCancelRename={() => setRenamingFolderId(null)}
-            onRequestDelete={() => { setDeleteFolderTarget(folder); setDeleteFolderCascadeContent(false); }}
-            onOpenIconPicker={() => setIconPickerTarget({ folder, setFolders })}
-            onPointerDown={(e) => dnd.handlePointerDown(e, { kind: 'folder', id: folder.id })}
-            dropState={computeFolderRowDropState(dnd, folder, foldersById)}
-            isDimmed={dnd.draggedItem?.kind === 'folder' && dnd.draggedItem.id === folder.id}
-          />
-          );
-        })}
-        {directItems.map((it) => (
-          <div
-            key={it.id}
-            // cursor-grabbing legato allo stato reale del drag
-            // (dnd.draggedItem, valorizzato solo dopo la soglia di
-            // movimento DRAG_THRESHOLD_PX) invece di active:cursor-grabbing
-            // (:active scattava anche per un click semplice, prima ancora
-            // che diventasse un vero drag) - implica gia' isOwner, l'unico
-            // che puo' far valorizzare draggedItem (handlePointerDown esce
-            // subito se !canEdit).
-            className={
-              dnd.draggedItem?.kind === 'card' && dnd.draggedItem.id === it.id ? 'cursor-grabbing opacity-40' : ''
-            }
-            onPointerDown={(e) => dnd.handlePointerDown(e, { kind: 'card', id: it.id })}
-          >
-            {renderCard(it)}
-          </div>
-        ))}
-        {currentFolderId === null && childFolders.length > 0 && (
-          <UnfiledDropZone entityType={entityType} isDropActive={dnd.dropTarget?.type === 'unfiled'} />
-        )}
-      </>
-    );
-  }
+  // 'premade' caricata per chiunque veda la sezione Precompilati (GM e
+  // giocatori, sola lettura per questi ultimi - canAccessFolders lato
+  // server ammette anche i membri in lettura) - enabled sempre true.
+  const premadeSection = useFolderSection({
+    entityType: 'premade',
+    campaignId: activeCampaign?.id ?? null,
+    sessionKey,
+    accessToken,
+    canEdit: isOwner,
+    enabled: true,
+    items: availablePremades,
+    renderCard: renderPremadeCard,
+    renderGhostCard: renderPremadeGhostCard,
+    itemLabel: 'Precompilati',
+    onMoveCard: handleMoveCharacterFolder,
+    onFolderDeleted: (deletedFolderId, cascade) => {
+      if (cascade) {
+        setPlayersReloadToken((t) => t + 1);
+      } else {
+        setAvailablePremades((prev) => prev.map((c) => (c.folderId === deletedFolderId ? { ...c, folderId: null } : c)));
+      }
+    },
+    containerRef: foldersContainerRef,
+  });
+  // 'npc'/'monster' solo per il GM, stessa regola di sicurezza delle
+  // sezioni PNG/Mostri (mai richieste per un giocatore).
+  const npcSection = useFolderSection({
+    entityType: 'npc',
+    campaignId: activeCampaign?.id ?? null,
+    sessionKey,
+    accessToken,
+    canEdit: isOwner,
+    enabled: isOwner,
+    items: npcs,
+    renderCard: renderNpcCard,
+    renderGhostCard: renderNpcGhostCard,
+    itemLabel: 'PNG',
+    onMoveCard: handleMoveNpcFolder,
+    onFolderDeleted: async (deletedFolderId, cascade) => {
+      if (cascade) {
+        if (activeCampaign?.id) setNpcs(await loadNPCs(activeCampaign.id));
+      } else {
+        setNpcs((prev) => prev.map((n) => (n.folderId === deletedFolderId ? { ...n, folderId: null } : n)));
+      }
+    },
+    containerRef: foldersContainerRef,
+  });
+  const monsterSection = useFolderSection({
+    entityType: 'monster',
+    campaignId: activeCampaign?.id ?? null,
+    sessionKey,
+    accessToken,
+    canEdit: isOwner,
+    enabled: isOwner,
+    items: monsters,
+    renderCard: renderMonsterCard,
+    renderGhostCard: renderMonsterGhostCard,
+    itemLabel: 'Mostri',
+    onMoveCard: handleMoveMonsterFolder,
+    onFolderDeleted: async (deletedFolderId, cascade) => {
+      if (cascade) {
+        if (activeCampaign?.id) setMonsters(await loadMonsters(activeCampaign.id));
+      } else {
+        setMonsters((prev) => prev.map((m) => (m.folderId === deletedFolderId ? { ...m, folderId: null } : m)));
+      }
+    },
+    containerRef: foldersContainerRef,
+  });
 
   // Vista "Tutti": tutte le card della sezione (a qualunque profondita' di
   // cartella), ordinate alfabeticamente invece che navigabili per cartella -
@@ -1976,18 +1601,16 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
               <>
                 <FolderSectionHeader
                   icon={Package} label="Precompilati" isOwner={isOwner}
-                  onCreateFolder={() => handleCreateFolder('premade', setPremadeFolders, premadeCurrentFolderId)}
-                  disabledReason={premadeCreateDisabledReason}
+                  onCreateFolder={premadeSection.handleCreateFolder}
+                  disabledReason={premadeSection.createDisabledReason}
                 />
-                {premadeFolderPath.length > 0 && (
+                {premadeSection.folderPath.length > 0 && (
                   <FolderBreadcrumb
-                    sectionLabel="Precompilati" path={premadeFolderPath} entityType="premade"
-                    dropTarget={premadeFolderDnd.dropTarget} onNavigate={setPremadeCurrentFolderId}
+                    sectionLabel="Precompilati" path={premadeSection.folderPath} entityType="premade"
+                    dropTarget={premadeSection.dnd.dropTarget} onNavigate={premadeSection.setCurrentFolderId}
                   />
                 )}
-                {renderFolderedSection('premade', premadeFolders, setPremadeFolders, premadeFolderDnd, availablePremades, renderPremadeCard, {
-                  currentFolderId: premadeCurrentFolderId, setCurrentFolderId: setPremadeCurrentFolderId, foldersById: premadeFoldersById,
-                })}
+                {premadeSection.renderRows()}
                 {availablePremades.length === 0 && (
                   <div className="col-span-2 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-5 py-8 text-center">
                     <Package className="mx-auto mb-3 h-10 w-10 text-[var(--dash-muted)]" />
@@ -2005,22 +1628,20 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                 {activeQuickFilter === 'npc' ? (
                   <FolderSectionHeader
                     icon={Ghost} label="PNG" isOwner={isOwner}
-                    onCreateFolder={() => handleCreateFolder('npc', setNpcFolders, npcCurrentFolderId)}
-                    disabledReason={npcCreateDisabledReason}
+                    onCreateFolder={npcSection.handleCreateFolder}
+                    disabledReason={npcSection.createDisabledReason}
                   />
                 ) : (
                   <FolderSectionHeader icon={Ghost} label="PNG" isOwner={isOwner} />
                 )}
-                {activeQuickFilter === 'npc' && npcFolderPath.length > 0 && (
+                {activeQuickFilter === 'npc' && npcSection.folderPath.length > 0 && (
                   <FolderBreadcrumb
-                    sectionLabel="PNG" path={npcFolderPath} entityType="npc"
-                    dropTarget={npcFolderDnd.dropTarget} onNavigate={setNpcCurrentFolderId}
+                    sectionLabel="PNG" path={npcSection.folderPath} entityType="npc"
+                    dropTarget={npcSection.dnd.dropTarget} onNavigate={npcSection.setCurrentFolderId}
                   />
                 )}
                 {activeQuickFilter === 'npc'
-                  ? renderFolderedSection('npc', npcFolders, setNpcFolders, npcFolderDnd, npcs, renderNpcCard, {
-                      currentFolderId: npcCurrentFolderId, setCurrentFolderId: setNpcCurrentFolderId, foldersById: npcFoldersById,
-                    })
+                  ? npcSection.renderRows()
                   : renderFlatSection(npcs, renderNpcCard)}
               </>
             )}
@@ -2030,22 +1651,20 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                 {activeQuickFilter === 'monster' ? (
                   <FolderSectionHeader
                     icon={Skull} label="Mostri" isOwner={isOwner}
-                    onCreateFolder={() => handleCreateFolder('monster', setMonsterFolders, monsterCurrentFolderId)}
-                    disabledReason={monsterCreateDisabledReason}
+                    onCreateFolder={monsterSection.handleCreateFolder}
+                    disabledReason={monsterSection.createDisabledReason}
                   />
                 ) : (
                   <FolderSectionHeader icon={Skull} label="Mostri" isOwner={isOwner} />
                 )}
-                {activeQuickFilter === 'monster' && monsterFolderPath.length > 0 && (
+                {activeQuickFilter === 'monster' && monsterSection.folderPath.length > 0 && (
                   <FolderBreadcrumb
-                    sectionLabel="Mostri" path={monsterFolderPath} entityType="monster"
-                    dropTarget={monsterFolderDnd.dropTarget} onNavigate={setMonsterCurrentFolderId}
+                    sectionLabel="Mostri" path={monsterSection.folderPath} entityType="monster"
+                    dropTarget={monsterSection.dnd.dropTarget} onNavigate={monsterSection.setCurrentFolderId}
                   />
                 )}
                 {activeQuickFilter === 'monster'
-                  ? renderFolderedSection('monster', monsterFolders, setMonsterFolders, monsterFolderDnd, monsters, renderMonsterCard, {
-                      currentFolderId: monsterCurrentFolderId, setCurrentFolderId: setMonsterCurrentFolderId, foldersById: monsterFoldersById,
-                    })
+                  ? monsterSection.renderRows()
                   : renderFlatSection(monsters, renderMonsterCard)}
               </>
             )}
@@ -2054,9 +1673,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
         </div>
       )}
 
-      <DragGhost dnd={premadeFolderDnd} folders={premadeFolders} items={availablePremades} renderCard={renderPremadeGhostCard} />
-      <DragGhost dnd={npcFolderDnd} folders={npcFolders} items={npcs} renderCard={renderNpcGhostCard} />
-      <DragGhost dnd={monsterFolderDnd} folders={monsterFolders} items={monsters} renderCard={renderMonsterGhostCard} />
+      {premadeSection.renderGhost()}
+      {npcSection.renderGhost()}
+      {monsterSection.renderGhost()}
 
       {copyDialogChar && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4">
@@ -2190,42 +1809,50 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
         />
       )}
 
-      {iconPickerTarget && (
-        <FolderIconPicker
-          selectedIconId={iconPickerTarget.folder.icon}
-          onSelect={handleSelectFolderIcon}
-          onClose={() => setIconPickerTarget(null)}
-        />
-      )}
-
-      {deleteFolderTarget && (
-        <ConfirmDialog
-          title="Eliminare questa cartella?"
-          message={
-            deleteFolderCascadeContent
-              ? `"${deleteFolderTarget.name}" e tutto il suo contenuto verranno eliminati definitivamente. Questa azione non è reversibile.`
-              : `"${deleteFolderTarget.name}" verrà eliminata. Le card al suo interno non vengono eliminate: torneranno semplicemente senza cartella.`
-          }
-          confirmLabel={deleteFolderCascadeContent ? 'Elimina tutto' : 'Elimina'}
-          extraContent={deleteFolderContents && (
-            <label className="flex items-start gap-2 text-sm text-[var(--dash-text)]">
-              <input
-                type="checkbox"
-                checked={deleteFolderCascadeContent}
-                onChange={(e) => setDeleteFolderCascadeContent(e.target.checked)}
-                className="mt-0.5"
-              />
-              <span>
-                Elimina anche il contenuto: {deleteFolderContents.itemCount} {deleteFolderContents.itemLabel}
-                {deleteFolderContents.folderCount > 0 && ` e ${deleteFolderContents.folderCount} sotto-cartell${deleteFolderContents.folderCount === 1 ? 'a' : 'e'}`}
-                {' '}verranno eliminati definitivamente.
-              </span>
-            </label>
+      {/* Dialog icona/eliminazione cartella: una coppia per sezione (ognuna
+          con il proprio stato indipendente da useFolderSection) - un solo
+          .map invece di triplicare a mano lo stesso JSX 3 volte, ma il
+          comportamento resta "ogni istanza possiede il proprio stato",
+          coerente col resto della Fase 2 (al piu' una e' aperta alla volta). */}
+      {[premadeSection, npcSection, monsterSection].map((section) => (
+        <Fragment key={section.itemLabel}>
+          {section.iconPickerFolder && (
+            <FolderIconPicker
+              selectedIconId={section.iconPickerFolder.icon}
+              onSelect={section.selectFolderIcon}
+              onClose={section.closeIconPicker}
+            />
           )}
-          onConfirm={handleConfirmDeleteFolder}
-          onCancel={() => setDeleteFolderTarget(null)}
-        />
-      )}
+          {section.deleteFolderTarget && (
+            <ConfirmDialog
+              title="Eliminare questa cartella?"
+              message={
+                section.deleteFolderCascadeContent
+                  ? `"${section.deleteFolderTarget.name}" e tutto il suo contenuto verranno eliminati definitivamente. Questa azione non è reversibile.`
+                  : `"${section.deleteFolderTarget.name}" verrà eliminata. Le card al suo interno non vengono eliminate: torneranno semplicemente senza cartella.`
+              }
+              confirmLabel={section.deleteFolderCascadeContent ? 'Elimina tutto' : 'Elimina'}
+              extraContent={section.deleteFolderContents && (
+                <label className="flex items-start gap-2 text-sm text-[var(--dash-text)]">
+                  <input
+                    type="checkbox"
+                    checked={section.deleteFolderCascadeContent}
+                    onChange={(e) => section.setDeleteFolderCascadeContent(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    Elimina anche il contenuto: {section.deleteFolderContents.itemCount} {section.itemLabel}
+                    {section.deleteFolderContents.folderCount > 0 && ` e ${section.deleteFolderContents.folderCount} sotto-cartell${section.deleteFolderContents.folderCount === 1 ? 'a' : 'e'}`}
+                    {' '}verranno eliminati definitivamente.
+                  </span>
+                </label>
+              )}
+              onConfirm={section.confirmDeleteFolder}
+              onCancel={section.cancelDeleteFolder}
+            />
+          )}
+        </Fragment>
+      ))}
 
       {copyEntityDialog && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4">

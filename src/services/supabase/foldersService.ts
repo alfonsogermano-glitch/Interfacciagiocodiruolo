@@ -71,6 +71,25 @@ export function getFolderPath(folderId: string | null, foldersById: Map<string, 
   return path;
 }
 
+// Conteggio ricorsivo (sotto-cartelle+card annidate incluse), scomposto
+// per tipo - usato sia per il badge "(n)" sulla riga cartella (solo
+// itemCount, con la vista drill-down che nasconde il contenuto finche' non
+// ci si entra un "(0)" su una cartella che in realta' contiene nipoti
+// sarebbe fuorviante) sia per il messaggio di eliminazione a cascata
+// (entrambi i conteggi, per un avviso tipo "3 PNG e 2 sotto-cartelle").
+export function countFolderContentsRecursive(
+  folderId: string,
+  folders: Folder[],
+  items: { folderId?: string | null }[],
+): { itemCount: number; folderCount: number } {
+  const directItems = items.filter((it) => it.folderId === folderId).length;
+  const childFolders = folders.filter((f) => f.parentFolderId === folderId);
+  return childFolders.reduce((acc, child) => {
+    const sub = countFolderContentsRecursive(child.id, folders, items);
+    return { itemCount: acc.itemCount + sub.itemCount, folderCount: acc.folderCount + sub.folderCount + 1 };
+  }, { itemCount: directItems, folderCount: 0 });
+}
+
 function wouldCreateFolderCycle(draggedFolderId: string, targetFolderId: string, foldersById: Map<string, Folder>): boolean {
   let current: string | null = targetFolderId;
   const seen = new Set<string>();
