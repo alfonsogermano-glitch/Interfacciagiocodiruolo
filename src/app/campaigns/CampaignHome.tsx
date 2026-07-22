@@ -39,7 +39,7 @@ import {
   getFolderDepth, isValidFolderNestTarget, MAX_FOLDER_DEPTH,
   type Folder, type FolderEntityType,
 } from '../../services/supabase/foldersService';
-import { useFolderDragDrop, UNFILED_DROP_ID, reorderIds } from '../components/session/shared/useFolderDragDrop';
+import { useFolderDragDrop, UNFILED_DROP_ID, reorderIds, type FolderDropTarget } from '../components/session/shared/useFolderDragDrop';
 import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../components/ui/paletteColors';
 import type { Character } from '../../types/character';
@@ -282,22 +282,33 @@ function computeFolderRowDropState(
   return isValidFolderNestTarget(dnd.draggedItem.id, folder.id, foldersById) ? 'valid' : 'invalid';
 }
 
-// Striscia "Senza cartella": bersaglio esplicito per togliere una card da
-// una cartella (invece di rendere tutta l'area sparsa delle card sciolte un
-// hit-target implicito, che avrebbe richiesto di avvolgerle in un unico div
-// e romperebbe il flusso a griglia condiviso - vedi piano Fase 2). Mostrata
-// solo se la sezione ha almeno una cartella: con zero cartelle tutte le card
-// sono gia' banalmente "sciolte", nessun'etichetta serve.
-function UnfiledDropZone({ entityType, isDropActive }: { entityType: FolderEntityType; isDropActive: boolean }) {
+// Striscia bersaglio esplicito per togliere una card da una cartella
+// (invece di rendere tutta l'area sparsa delle card sciolte un hit-target
+// implicito, che avrebbe richiesto di avvolgerle in un unico div e
+// romperebbe il flusso a griglia condiviso - vedi piano Fase 2).
+// Generalizzata (Fase 7) per servire due casi con lo stesso markup:
+// - alla radice (dropFolderId=UNFILED_DROP_ID, mostrata solo se la sezione
+//   ha almeno una cartella - con zero cartelle tutte le card sono gia'
+//   banalmente "sciolte", nessun'etichetta serve);
+// - dentro una cartella (dropFolderId=currentFolderId, sempre mostrata li'
+//   qualunque sia il contenuto): i gestori onMoveCard/onNestFolder
+//   riconoscono da soli "stai rilasciando sulla cartella in cui gia' sei"
+//   e promuovono al genitore invece di fare un no-op (stessa logica gia'
+//   presente in handleMove*Folder/handleNestFolder) - risolve anche il caso
+//   peggiore del bug originale, una cartella annidata senza sotto-cartelle
+//   proprie, dove prima non esisteva alcun bersaglio di drop.
+function FolderDropZone({
+  entityType, dropFolderId, label, isDropActive,
+}: { entityType: FolderEntityType; dropFolderId: string; label: string; isDropActive: boolean }) {
   return (
     <div
-      data-folder-id={UNFILED_DROP_ID}
+      data-folder-id={dropFolderId}
       data-folder-entity-type={entityType}
       className={`col-span-2 rounded-lg border border-dashed px-3 py-1.5 text-[11px] uppercase tracking-wide transition-colors ${
         isDropActive ? 'border-[var(--dash-accent)] text-[var(--dash-accent-2)]' : 'border-[var(--dash-border-soft)] text-[var(--dash-muted)]'
       }`}
     >
-      Senza cartella
+      {label}
     </div>
   );
 }
@@ -320,38 +331,78 @@ function getFolderPath(folderId: string | null, foldersById: Map<string, Folder>
   return path;
 }
 
+// Un antenato del currentFolderId e' per costruzione anche antenato della
+// cartella/card trascinata (figlia diretta di currentFolderId) - spostare
+// qualcosa verso un proprio antenato non puo' mai creare un ciclo ne'
+// violare MAX_FOLDER_DEPTH (si va sempre piu' superficiali). Il guardiano
+// generico in handleNestFolder resta comunque attivo, ridondante ma innocuo.
+function isBreadcrumbDropActive(dropTarget: FolderDropTarget | null, folderId: string): boolean {
+  if (!dropTarget) return false;
+  if (folderId === UNFILED_DROP_ID) return dropTarget.type === 'unfiled';
+  return (dropTarget.type === 'into-folder' || dropTarget.type === 'nest-into-folder') && dropTarget.folderId === folderId;
+}
+
 // Percorso di navigazione del drill-down - non lo shadcn ui/breadcrumb.tsx
 // (mai usato altrove in questo file, usa classi generiche text-muted-
 // foreground/text-foreground invece delle var(--dash-*) di palette usate
 // ovunque qui) - stesso idioma "div a mano con var(--dash-*)" del resto del
 // file. Nascosto alla radice (path vuoto), ridondante con l'etichetta di
 // FolderSectionHeader.
+// Da Fase 7 anche bersaglio di drop (per saltare direttamente a un
+// antenato non immediato, senza dover risalire di un livello alla volta) -
+// tranne l'ultimo segmento (la cartella corrente, in grassetto): quella
+// stessa identica azione ("risali di un livello") e' gia' coperta dalla
+// FolderDropZone dedicata mostrata sotto, due bersagli per la stessa
+// identica azione sarebbero ridondanti.
 function FolderBreadcrumb({
-  sectionLabel, path, onNavigate,
+  sectionLabel, path, entityType, dropTarget, onNavigate,
 }: {
   sectionLabel: string;
   path: Folder[];
+  entityType: FolderEntityType;
+  dropTarget: FolderDropTarget | null;
   onNavigate: (folderId: string | null) => void;
 }) {
   return (
     <div className="col-span-2 flex flex-wrap items-center gap-1 text-xs text-[var(--dash-muted)]">
-      <button type="button" onClick={() => onNavigate(null)} className="transition-colors hover:text-[var(--dash-text-strong)]">
+      <button
+        type="button"
+        onClick={() => onNavigate(null)}
+        data-folder-id={UNFILED_DROP_ID}
+        data-folder-entity-type={entityType}
+        data-folder-breadcrumb="true"
+        className={`transition-colors ${
+          isBreadcrumbDropActive(dropTarget, UNFILED_DROP_ID) ? 'text-[var(--dash-accent-2)]' : 'hover:text-[var(--dash-text-strong)]'
+        }`}
+      >
         {sectionLabel}
       </button>
-      {path.map((folder, idx) => (
+      {path.map((folder, idx) => {
+        const isCurrent = idx === path.length - 1;
+        return (
         <Fragment key={folder.id}>
           <ChevronRight className="h-3 w-3 shrink-0" />
           <button
             type="button"
             onClick={() => onNavigate(folder.id)}
+            {...(isCurrent ? {} : {
+              'data-folder-id': folder.id,
+              'data-folder-entity-type': entityType,
+              'data-folder-breadcrumb': 'true',
+            })}
             className={`truncate transition-colors ${
-              idx === path.length - 1 ? 'font-semibold text-[var(--dash-text-strong)]' : 'hover:text-[var(--dash-text-strong)]'
+              isCurrent
+                ? 'font-semibold text-[var(--dash-text-strong)]'
+                : isBreadcrumbDropActive(dropTarget, folder.id)
+                ? 'text-[var(--dash-accent-2)]'
+                : 'hover:text-[var(--dash-text-strong)]'
             }`}
           >
             {folder.name}
           </button>
         </Fragment>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -1940,9 +1991,19 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
             {renderCard(it)}
           </div>
         ))}
-        {currentFolderId === null && childFolders.length > 0 && (
-          <UnfiledDropZone entityType={entityType} isDropActive={dnd.dropTarget?.type === 'unfiled'} />
-        )}
+        {currentFolderId === null
+          ? childFolders.length > 0 && (
+              <FolderDropZone
+                entityType={entityType} dropFolderId={UNFILED_DROP_ID} label="Senza cartella"
+                isDropActive={dnd.dropTarget?.type === 'unfiled'}
+              />
+            )
+          : (
+              <FolderDropZone
+                entityType={entityType} dropFolderId={currentFolderId} label="Rimuovi da questa cartella"
+                isDropActive={dnd.dropTarget?.type === 'into-folder' && dnd.dropTarget.folderId === currentFolderId}
+              />
+            )}
       </>
     );
   }
@@ -2223,7 +2284,10 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                   disabledReason={premadeCreateDisabledReason}
                 />
                 {premadeFolderPath.length > 0 && (
-                  <FolderBreadcrumb sectionLabel="Precompilati" path={premadeFolderPath} onNavigate={setPremadeCurrentFolderId} />
+                  <FolderBreadcrumb
+                    sectionLabel="Precompilati" path={premadeFolderPath} entityType="premade"
+                    dropTarget={premadeFolderDnd.dropTarget} onNavigate={setPremadeCurrentFolderId}
+                  />
                 )}
                 {renderFolderedSection('premade', premadeFolders, setPremadeFolders, premadeFolderDnd, availablePremades, renderPremadeCard, {
                   currentFolderId: premadeCurrentFolderId, setCurrentFolderId: setPremadeCurrentFolderId, foldersById: premadeFoldersById,
@@ -2252,7 +2316,10 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                   <FolderSectionHeader icon={Ghost} label="PNG" isOwner={isOwner} />
                 )}
                 {activeQuickFilter === 'npc' && npcFolderPath.length > 0 && (
-                  <FolderBreadcrumb sectionLabel="PNG" path={npcFolderPath} onNavigate={setNpcCurrentFolderId} />
+                  <FolderBreadcrumb
+                    sectionLabel="PNG" path={npcFolderPath} entityType="npc"
+                    dropTarget={npcFolderDnd.dropTarget} onNavigate={setNpcCurrentFolderId}
+                  />
                 )}
                 {activeQuickFilter === 'npc'
                   ? renderFolderedSection('npc', npcFolders, setNpcFolders, npcFolderDnd, npcs, renderNpcCard, {
@@ -2274,7 +2341,10 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                   <FolderSectionHeader icon={Skull} label="Mostri" isOwner={isOwner} />
                 )}
                 {activeQuickFilter === 'monster' && monsterFolderPath.length > 0 && (
-                  <FolderBreadcrumb sectionLabel="Mostri" path={monsterFolderPath} onNavigate={setMonsterCurrentFolderId} />
+                  <FolderBreadcrumb
+                    sectionLabel="Mostri" path={monsterFolderPath} entityType="monster"
+                    dropTarget={monsterFolderDnd.dropTarget} onNavigate={setMonsterCurrentFolderId}
+                  />
                 )}
                 {activeQuickFilter === 'monster'
                   ? renderFolderedSection('monster', monsterFolders, setMonsterFolders, monsterFolderDnd, monsters, renderMonsterCard, {

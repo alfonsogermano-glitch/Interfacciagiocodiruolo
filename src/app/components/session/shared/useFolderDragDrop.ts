@@ -62,10 +62,23 @@ export function reorderIds(ids: string[], movedId: string, beforeId: string | nu
  *   drop di una cartella qui (Fase 4) = 'unfiled' anche per lei (torna
  *   cartella radice, parentFolderId null).
  *
- * Verticale (clientY) perche' entrambe le superfici target (lista laterale
- * di SessionCharactersPanel.tsx, riga cartelle in cima alla griglia di
- * CampaignHome.tsx) dispongono le cartelle in un'unica colonna/riga - non
- * serve un algoritmo di prossimita' 2D per il caso d'uso reale.
+ * Contenimento 2D (clientX+clientY dentro il rect, non solo verticale):
+ * FolderRow/UnfiledDropZone sono col-span-2 (una riga = tutta la larghezza
+ * del contenitore, quindi X e' banalmente sempre soddisfatto sopra di
+ * esse - nessun cambio di comportamento li'), ma da quando FolderBreadcrumb
+ * e' diventato un bersaglio di drop piu' segmenti condividono la stessa
+ * riga orizzontale: con solo Y, tutti condividerebbero lo stesso
+ * rect.top/bottom e il ciclo sotto risolverebbe sempre l'ultimo elemento
+ * del DOM in quella fascia, indipendentemente da dove orizzontalmente si
+ * rilascia. Il controllo su X li' distingue correttamente i segmenti.
+ *
+ * data-folder-breadcrumb="true" (solo sui segmenti di FolderBreadcrumb)
+ * esclude l'elemento dal calcolo di beforeFolderId (riordino tra fratelli,
+ * solo per draggedKind 'folder'): un segmento di breadcrumb rappresenta un
+ * antenato, mai un fratello, e senza l'esclusione un riordino nei pressi
+ * della riga del breadcrumb potrebbe risolvere beforeFolderId a un id di
+ * breadcrumb invece che a un vero fratello. Resta comunque un target
+ * valido per overFolderId/overUnfiled.
  *
  * entityType filtra gli elementi candidati a quelli con lo stesso
  * data-folder-entity-type: in CampaignHome.tsx tutte e 4 le sezioni
@@ -78,6 +91,7 @@ export function reorderIds(ids: string[], movedId: string, beforeId: string | nu
  * sbagliato durante il drag stesso.
  */
 export function resolveFolderDropTarget(
+  clientX: number,
   clientY: number,
   container: HTMLElement,
   draggedKind: FolderDragKind,
@@ -95,13 +109,14 @@ export function resolveFolderDropTarget(
     const id = el.dataset.folderId as string;
     const rect = el.getBoundingClientRect();
     const mid = rect.top + rect.height / 2;
+    const withinRect = clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
 
     if (id === UNFILED_DROP_ID) {
-      if (clientY >= rect.top && clientY <= rect.bottom) overUnfiled = true;
+      if (withinRect) overUnfiled = true;
       continue;
     }
-    if (clientY >= rect.top && clientY <= rect.bottom) overFolderId = id;
-    if (beforeFolderId === null && clientY < mid) beforeFolderId = id;
+    if (withinRect) overFolderId = id;
+    if (el.dataset.folderBreadcrumb !== 'true' && beforeFolderId === null && clientY < mid) beforeFolderId = id;
   }
 
   if (draggedKind === 'card') {
@@ -168,7 +183,11 @@ export interface UseFolderDragDropParams {
  * - marcare ogni riga/chip di cartella con `data-folder-id={folder.id}`
  *   e `data-folder-entity-type={entityType}` (lo stesso valore passato qui
  *   sotto), e la zona delle card sciolte con `data-folder-id="UNFILED"` +
- *   lo stesso `data-folder-entity-type`;
+ *   lo stesso `data-folder-entity-type`; un segmento di breadcrumb (o
+ *   qualunque bersaglio che non sia una vera riga/fratello nella lista,
+ *   es. un salto diretto a un antenato) aggiunge anche
+ *   `data-folder-breadcrumb="true"` per restare escluso dal riordino tra
+ *   fratelli (vedi resolveFolderDropTarget sopra);
  * - chiamare `handlePointerDown(e, { kind: 'folder', id })` sull'header di
  *   una cartella trascinabile, o `handlePointerDown(e, { kind: 'card', id })`
  *   su una card;
@@ -217,7 +236,7 @@ export function useFolderDragDrop({
         setPointerPosition({ x: e.clientX, y: e.clientY });
         const container = containerRef.current;
         if (!container) return;
-        const target = resolveFolderDropTarget(e.clientY, container, draggedItem.kind, entityType, draggedItem.id);
+        const target = resolveFolderDropTarget(e.clientX, e.clientY, container, draggedItem.kind, entityType, draggedItem.id);
         dropTargetRef.current = target;
         setDropTarget(target);
         return;
