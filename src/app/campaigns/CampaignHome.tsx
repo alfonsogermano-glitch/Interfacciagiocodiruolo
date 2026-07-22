@@ -389,7 +389,7 @@ function FolderBreadcrumb({
             {sectionLabel}
           </button>
         </TooltipTrigger>
-        <TooltipContent side="bottom">Sposta qui</TooltipContent>
+        <TooltipContent side="top">Sposta qui</TooltipContent>
       </Tooltip>
       {path.map((folder, idx) => {
         const isCurrent = idx === path.length - 1;
@@ -419,7 +419,7 @@ function FolderBreadcrumb({
             {isCurrent ? button : (
               <Tooltip>
                 <TooltipTrigger asChild>{button}</TooltipTrigger>
-                <TooltipContent side="bottom">Sposta qui</TooltipContent>
+                <TooltipContent side="top">Sposta qui</TooltipContent>
               </Tooltip>
             )}
           </Fragment>
