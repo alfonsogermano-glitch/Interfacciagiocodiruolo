@@ -688,7 +688,15 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     return () => {
       cancelled = true;
     };
-  }, [activeCampaign?.id, activeCampaign?.ownerId, session, playersReloadToken]);
+  // session?.user?.id, non session intero: la libreria Supabase riemette un
+  // nuovo riferimento di sessione ad ogni ritorno in foreground della tab
+  // (vedi campaignChannel.ts/GoTrueClient - _recoverAndRefresh chiama
+  // sempre _notifyAllSubscribers anche a token non vicino a scadenza), anche
+  // senza un vero cambio di utente. Con l'oggetto intero in dipendenza,
+  // setPlayersLoaded(false) qui sopra faceva lampeggiare la sezione
+  // Personaggi e rifare due fetch ad ogni cambio di tab, senza che nulla
+  // fosse davvero cambiato.
+  }, [activeCampaign?.id, activeCampaign?.ownerId, session?.user?.id, playersReloadToken]);
 
   // Sezione "NPCs": solo per il GM - i PNG nascosti ai giocatori non devono
   // arrivare al browser di un giocatore (nemmeno solo per essere filtrati
@@ -786,7 +794,14 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     return () => {
       cancelled = true;
     };
-  }, [activeCampaign?.id, session, isOwner]);
+  // session?.user?.id, non session intero: stesso motivo del blocco Players
+  // qui sopra - un nuovo riferimento di sessione (senza un vero cambio di
+  // utente) ad ogni ritorno in foreground della tab faceva scattare
+  // setPremadeCurrentFolderId(null)/setNpcCurrentFolderId(null)/
+  // setMonsterCurrentFolderId(null) qui sopra, riportando bruscamente alla
+  // radice qualunque drill-down aperto senza che campagna o utente fossero
+  // davvero cambiati.
+  }, [activeCampaign?.id, session?.user?.id, isOwner]);
 
   // Canale campaign:{id} condiviso (src/services/realtime/campaignChannel.ts):
   // CampaignHome non è l'unico consumer di questo topic (SessionCharactersPanel,
