@@ -126,23 +126,25 @@ function pillClass(active: boolean) {
 // intestazione) + pulsante "Nuova cartella", solo GM (le cartelle sono
 // gestite solo dal GM, visibili identiche a tutti - vedi piano Fase 2).
 function FolderSectionHeader({
-  icon: Icon, label, isOwner, onCreateFolder, disabledReason,
+  icon: Icon, label, isOwner, onCreateFolder, disabledReason = null,
 }: {
   icon: typeof Users;
   label: string;
   isOwner: boolean;
-  onCreateFolder: () => void;
+  /** Assente = nessun pulsante "Nuova cartella" (es. vista piatta "Tutti",
+   *  o sezione Personaggi che non ha mai cartelle) - solo icona+etichetta. */
+  onCreateFolder?: () => void;
   /** null = pulsante attivo; stringa = disabilitato, mostrata nel tooltip
    *  al posto di "Nuova cartella" (limite di annidamento, vedi
    *  MAX_FOLDER_DEPTH in foldersService.ts). */
-  disabledReason: string | null;
+  disabledReason?: string | null;
 }) {
   return (
     <div className="col-span-2 flex items-center justify-between gap-2">
       <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
         <Icon className="h-4 w-4" /> {label}
       </h2>
-      {isOwner && (
+      {isOwner && onCreateFolder && (
         <Tooltip>
           <TooltipTrigger asChild>
             <button
@@ -1559,18 +1561,30 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   };
 
   const gmInitial = (gmDisplayName ?? 'G').trim().charAt(0).toUpperCase() || 'G';
-  // Colonna 1 (GM/Note) non ha equivalente di FolderSectionHeader: quando
-  // la sezione attiva mostra quell'header in cima alla griglia di colonna 2
-  // (Precompilati sempre, PNG/Mostri solo per il GM - Personaggi/'all' non
-  // lo mostrano mai, vedi il blocco Personaggi piu' sotto che e' sempre il
-  // primo di quei due filtri) la card GM partirebbe piu' in alto della
-  // prima card reale. Spaziatore compensa esattamente quell'offset -
-  // altezza header (28px con pulsante "Nuova cartella" da GM, 20px senza)
-  // + gap-4 della griglia (16px) - gap-3 di questa colonna (12px, aggiunto
-  // automaticamente dopo lo spaziatore) = 32px / 24px.
-  const showsFolderHeaderAtTop =
-    activeQuickFilter === 'premades' ||
-    ((activeQuickFilter === 'npc' || activeQuickFilter === 'monster') && isOwner);
+  // Le sezioni PNG/Mostri sono visibili solo al GM (i PNG/Mostri nascosti
+  // vanno solo a chi gestisce la campagna) e solo quando c'e' davvero
+  // qualcosa da mostrare - stessa condizione gia' usata per i due blocchi
+  // piu' sotto nella griglia, ora centralizzata qui perche' serve anche allo
+  // spaziatore di colonna 1 subito sotto.
+  const npcSectionVisible = isOwner && npcsLoaded && npcs.length > 0;
+  const monsterSectionVisible = isOwner && monstersLoaded && monsters.length > 0;
+
+  // Colonna 1 (GM/Note) non ha equivalente di FolderSectionHeader: ogni
+  // sezione della griglia di colonna 2 ha ora sempre un header in cima
+  // (Personaggi/'all' incluso, icona+etichetta senza pulsante) tranne
+  // quando PNG/Mostri non hanno nulla da mostrare (npcSectionVisible/
+  // monsterSectionVisible false, il blocco non renderizza nulla) - la card
+  // GM partirebbe altrimenti piu' in alto della prima card reale.
+  // Spaziatore compensa esattamente quell'offset - altezza header (28px con
+  // pulsante "Nuova cartella" da GM, 20px senza) + gap-4 della griglia
+  // (16px) - gap-3 di questa colonna (12px, aggiunto automaticamente dopo lo
+  // spaziatore) = 32px / 24px.
+  const activeSectionHeaderSpacerClass = (() => {
+    if (activeQuickFilter === 'npc') return npcSectionVisible ? 'h-8' : null;
+    if (activeQuickFilter === 'monster') return monsterSectionVisible ? 'h-8' : null;
+    if (activeQuickFilter === 'premades') return isOwner ? 'h-8' : 'h-6';
+    return 'h-6'; // 'all' / 'pg' -> header "Personaggi", mai bottone
+  })();
 
   // Lookup per id + percorso radice→corrente per sezione, usati da
   // FolderRow/FolderBreadcrumb/renderFolderedSection e dal calcolo del
@@ -1911,6 +1925,22 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     );
   }
 
+  // Vista "Tutti": tutte le card della sezione (a qualunque profondita' di
+  // cartella), ordinate alfabeticamente invece che navigabili per cartella -
+  // niente FolderRow/breadcrumb/drag qui, il filtro dedicato resta l'unico
+  // posto dove le cartelle si vedono e si organizzano (renderFolderedSection
+  // sopra). Stesso comparator di MyCharactersPage.tsx (sort by name, 'it',
+  // sensitivity 'base'). Nessun wrapper attorno a renderCard: i render*Card
+  // impostano gia' key={item.id} sull'EntityCard restituita.
+  function renderFlatSection<T extends { id: string; name: string }>(
+    items: T[],
+    renderCard: (item: T) => React.ReactNode,
+  ) {
+    return [...items]
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'it', { sensitivity: 'base' }))
+      .map(renderCard);
+  }
+
   return (
     <div className="flex h-full flex-col overflow-y-auto text-left select-none">
       <div className="relative">
@@ -2087,8 +2117,8 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
               La riga pulsanti sessione che stava qui è ora sovrapposta al
               banner qui sopra (stessa griglia 320px/1fr), non più qui. */}
           <div className="flex flex-col gap-3">
-            {showsFolderHeaderAtTop && (
-              <div className={isOwner ? 'h-8' : 'h-6'} />
+            {activeSectionHeaderSpacerClass && (
+              <div className={activeSectionHeaderSpacerClass} />
             )}
             <div className="flex items-center gap-3 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-3">
               {gmAvatarUrl ? (
@@ -2143,6 +2173,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                 semplicemente inutilizzato per questa sezione. */}
             {(activeQuickFilter === 'all' || activeQuickFilter === 'pg') && (
               <>
+                <FolderSectionHeader icon={Users} label="Personaggi" isOwner={isOwner} />
                 {playerRows.map((row) =>
                   row.characters.length > 0 ? (
                     row.characters.map((ch) => renderCharacterCard(ch, row))
@@ -2187,35 +2218,47 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
               </>
             )}
 
-            {(activeQuickFilter === 'all' || activeQuickFilter === 'npc') && isOwner && npcsLoaded && npcs.length > 0 && (
+            {(activeQuickFilter === 'all' || activeQuickFilter === 'npc') && npcSectionVisible && (
               <>
-                <FolderSectionHeader
-                  icon={Ghost} label="PNG" isOwner={isOwner}
-                  onCreateFolder={() => handleCreateFolder('npc', setNpcFolders, npcCurrentFolderId)}
-                  disabledReason={npcCreateDisabledReason}
-                />
-                {npcFolderPath.length > 0 && (
+                {activeQuickFilter === 'npc' ? (
+                  <FolderSectionHeader
+                    icon={Ghost} label="PNG" isOwner={isOwner}
+                    onCreateFolder={() => handleCreateFolder('npc', setNpcFolders, npcCurrentFolderId)}
+                    disabledReason={npcCreateDisabledReason}
+                  />
+                ) : (
+                  <FolderSectionHeader icon={Ghost} label="PNG" isOwner={isOwner} />
+                )}
+                {activeQuickFilter === 'npc' && npcFolderPath.length > 0 && (
                   <FolderBreadcrumb sectionLabel="PNG" path={npcFolderPath} onNavigate={setNpcCurrentFolderId} />
                 )}
-                {renderFolderedSection('npc', npcFolders, setNpcFolders, npcFolderDnd, npcs, renderNpcCard, {
-                  currentFolderId: npcCurrentFolderId, setCurrentFolderId: setNpcCurrentFolderId, foldersById: npcFoldersById,
-                })}
+                {activeQuickFilter === 'npc'
+                  ? renderFolderedSection('npc', npcFolders, setNpcFolders, npcFolderDnd, npcs, renderNpcCard, {
+                      currentFolderId: npcCurrentFolderId, setCurrentFolderId: setNpcCurrentFolderId, foldersById: npcFoldersById,
+                    })
+                  : renderFlatSection(npcs, renderNpcCard)}
               </>
             )}
 
-            {(activeQuickFilter === 'all' || activeQuickFilter === 'monster') && isOwner && monstersLoaded && monsters.length > 0 && (
+            {(activeQuickFilter === 'all' || activeQuickFilter === 'monster') && monsterSectionVisible && (
               <>
-                <FolderSectionHeader
-                  icon={Skull} label="Mostri" isOwner={isOwner}
-                  onCreateFolder={() => handleCreateFolder('monster', setMonsterFolders, monsterCurrentFolderId)}
-                  disabledReason={monsterCreateDisabledReason}
-                />
-                {monsterFolderPath.length > 0 && (
+                {activeQuickFilter === 'monster' ? (
+                  <FolderSectionHeader
+                    icon={Skull} label="Mostri" isOwner={isOwner}
+                    onCreateFolder={() => handleCreateFolder('monster', setMonsterFolders, monsterCurrentFolderId)}
+                    disabledReason={monsterCreateDisabledReason}
+                  />
+                ) : (
+                  <FolderSectionHeader icon={Skull} label="Mostri" isOwner={isOwner} />
+                )}
+                {activeQuickFilter === 'monster' && monsterFolderPath.length > 0 && (
                   <FolderBreadcrumb sectionLabel="Mostri" path={monsterFolderPath} onNavigate={setMonsterCurrentFolderId} />
                 )}
-                {renderFolderedSection('monster', monsterFolders, setMonsterFolders, monsterFolderDnd, monsters, renderMonsterCard, {
-                  currentFolderId: monsterCurrentFolderId, setCurrentFolderId: setMonsterCurrentFolderId, foldersById: monsterFoldersById,
-                })}
+                {activeQuickFilter === 'monster'
+                  ? renderFolderedSection('monster', monsterFolders, setMonsterFolders, monsterFolderDnd, monsters, renderMonsterCard, {
+                      currentFolderId: monsterCurrentFolderId, setCurrentFolderId: setMonsterCurrentFolderId, foldersById: monsterFoldersById,
+                    })
+                  : renderFlatSection(monsters, renderMonsterCard)}
               </>
             )}
           </div>
