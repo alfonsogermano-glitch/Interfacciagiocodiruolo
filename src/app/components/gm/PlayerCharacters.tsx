@@ -10,7 +10,7 @@ import { CharacterCreationWizard } from './CharacterCreationWizard';
 import { EntityPortraitImage } from '../shared/EntityPortraitImage';
 import type { Character } from '../../../types/character';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
-import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, deleteCharacter as deleteCharacterFromSupabase, deleteCharacterAsGm, mapRowToCharacter } from '../../../services/supabase/charactersService';
+import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, deleteCharacter as deleteCharacterFromSupabase, mapRowToCharacter, isLastActiveCharacterForOwner } from '../../../services/supabase/charactersService';
 import { generateUUID } from '../../../lib/uuid';
 import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
@@ -311,10 +311,16 @@ const updateProdigi = (id: string, delta: number) => {
 };
 
   const deleteCharacter = (id: string) => {
-  if (!confirm('Sei sicuro di voler eliminare questo personaggio?')) return;
-
   const target = characters.find(c => c.id === id);
-  const isMineDelete = (target as any)?.ownerProfileId === user?.id;
+  const ownerProfileId = (target as any)?.ownerProfileId as string | null | undefined;
+  // Suffisso condizionale - vedi lastPlayerCharacterSuffix in
+  // CampaignHome.tsx, stessa ragione. Esclude il caso in cui il PG sia del
+  // GM stesso (mai membro della propria campagna).
+  const suffix = ownerProfileId && ownerProfileId !== activeCampaign?.ownerId
+    && isLastActiveCharacterForOwner(characters as unknown as Array<{ id: string; ownerProfileId?: string | null }>, id, ownerProfileId)
+    ? ' Il giocatore verrà anche rimosso dalla campagna, dato che questo è il suo unico personaggio qui.'
+    : '';
+  if (!confirm(`Sei sicuro di voler eliminare questo personaggio?${suffix}`)) return;
 
   setCharacters(prev =>
     prev
@@ -330,15 +336,12 @@ const updateProdigi = (id: string, delta: number) => {
   newExpanded.delete(id);
   setExpandedCharacters(newExpanded);
 
-  if (isMineDelete || !(target as any)?.ownerProfileId) {
-    deleteCharacterFromSupabase(id).catch(error => {
-      console.error('Errore eliminazione personaggio da Supabase:', error);
-    });
-  } else {
-    deleteCharacterAsGm(activeCampaignId, id, SERVER_BASE, session?.access_token ?? '').catch(error => {
-      console.error('Errore eliminazione personaggio da Supabase (GM):', error);
-    });
-  }
+  // Permesso (proprietario o GM della campagna) deciso dal server - nessun
+  // branching qui, stesso endpoint per entrambi i casi (vedi il commento su
+  // deleteCharacter in charactersService.ts).
+  deleteCharacterFromSupabase(id, SERVER_BASE, session?.access_token ?? '').catch(error => {
+    console.error('Errore eliminazione personaggio da Supabase:', error);
+  });
 };
 
   const exportCharacters = () => {

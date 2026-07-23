@@ -244,6 +244,49 @@ async function addPlayerToCampaign(
   await broadcastCampaignMembersChange(admin, campaignId);
 }
 
+// "Leave" implicito: se characterOwnerId non ha più nessun PG attivo in
+// campaignId (escluso excludeCharacterId, il PG appena spostato/eliminato/
+// rilasciato), non è più membro di quella campagna - rimuove la membership
+// da entrambe le fonti (KV + tabella Postgres) e da playerCampaigns.
+// Estratta qui perché usata da /characters/:id/assign-campaign,
+// /characters/:id/release e DELETE /characters/:id - prima era duplicata
+// inline in ciascuno, con lo stesso bug in due punti: usava l'id di CHI
+// CHIAMA l'endpoint invece di characterOwnerId (il vero proprietario del
+// personaggio), quindi quando il GM rimuoveva il PG di un giocatore la
+// query controllava i PG rimasti del GM, non quelli del giocatore, e la
+// membership del giocatore non veniva mai ripulita. characterOwnerId deve
+// sempre essere character.owner_profile_id, mai lo userId del chiamante.
+// Ritorna true se la membership è stata rimossa - i chiamanti hanno
+// semantiche di broadcast diverse (assign-campaign trasmette solo se
+// rimossa, release/delete trasmettono sempre), quindi il broadcast resta a
+// carico del chiamante, non di questa funzione.
+async function leaveIfLastActiveCharacter(
+  admin: ReturnType<typeof getAdminClient>,
+  campaignId: string,
+  characterOwnerId: string,
+  excludeCharacterId: string,
+): Promise<boolean> {
+  const { data: remaining } = await admin
+    .from("characters")
+    .select("id")
+    .eq("campaign_id", campaignId)
+    .eq("owner_profile_id", characterOwnerId)
+    .eq("status", "active")
+    .neq("id", excludeCharacterId);
+
+  if (remaining && remaining.length > 0) return false;
+
+  const members = await kv.get(campaignMembersKey(campaignId)) ?? [];
+  await kv.set(campaignMembersKey(campaignId), members.filter((m: any) => m.profileId !== characterOwnerId));
+  await admin.from('campaign_members').delete()
+    .eq('campaign_id', campaignId)
+    .eq('profile_id', characterOwnerId);
+
+  const playerCampaigns = await kv.get(playerCampaignsKey(characterOwnerId)) ?? [];
+  await kv.set(playerCampaignsKey(characterOwnerId), playerCampaigns.filter((pc: any) => pc.campaignId !== campaignId));
+  return true;
+}
+
 // ─── Health ─────────────────────────────────────────────────────────────────
 
 app.get("/make-server-771c5bfd/health", (c) => {
@@ -961,27 +1004,14 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
     }
 
     if (oldCampaignId && oldCampaignId !== targetCampaignId) {
-      const { data: remaining } = await admin
-        .from("characters")
-        .select("id")
-        .eq("campaign_id", oldCampaignId)
-        .eq("owner_profile_id", userId)
-        .eq("status", "active")
-        .neq("id", characterId);
-
-      if (!remaining || remaining.length === 0) {
-        const oldMembers = await kv.get(campaignMembersKey(oldCampaignId)) ?? [];
-        await kv.set(campaignMembersKey(oldCampaignId), oldMembers.filter((m) => m.profileId !== userId));
-        await getAdminClient().from('campaign_members').delete()
-          .eq('campaign_id', oldCampaignId)
-          .eq('profile_id', userId);
-
-        const oldPlayerCampaigns = await kv.get(playerCampaignsKey(userId)) ?? [];
-        await kv.set(playerCampaignsKey(userId), oldPlayerCampaigns.filter((pc) => pc.campaignId !== oldCampaignId));
-
-        // "Leave" implicito: l'ultimo PG attivo del giocatore ha lasciato la
-        // vecchia campagna, quindi non è più membro - il GM lì (se ha
-        // CampaignHome aperto) deve vederlo sparire dalla griglia.
+      // "Leave" implicito: se questo era l'ultimo PG attivo del PROPRIETARIO
+      // del personaggio (character.owner_profile_id, non userId - chi chiama
+      // questo endpoint puo' essere il GM che rimuove il PG di un giocatore,
+      // vedi il commento su leaveIfLastActiveCharacter) nella vecchia
+      // campagna, non ne e' piu' membro - il GM li' (se ha CampaignHome
+      // aperto) deve vederlo sparire dalla griglia.
+      const removed = await leaveIfLastActiveCharacter(admin, oldCampaignId, character.owner_profile_id, characterId);
+      if (removed) {
         await broadcastCampaignMembersChange(admin, oldCampaignId);
       }
     }
@@ -1288,26 +1318,12 @@ app.post("/make-server-771c5bfd/characters/:id/release", async (c) => {
     // non ha una campagna con questo PG dentro.
     if (character.campaign_id) {
       // "Leave" implicito: se questo era l'ultimo PG attivo del giocatore in
-      // questa campagna, non ne e' piu' membro - stesso blocco di
-      // assign-campaign sopra, stessa ragione.
-      const { data: remaining } = await admin
-        .from("characters")
-        .select("id")
-        .eq("campaign_id", character.campaign_id)
-        .eq("owner_profile_id", userId)
-        .eq("status", "active")
-        .neq("id", characterId);
-
-      if (!remaining || remaining.length === 0) {
-        const members = await kv.get(campaignMembersKey(character.campaign_id)) ?? [];
-        await kv.set(campaignMembersKey(character.campaign_id), members.filter((m) => m.profileId !== userId));
-        await admin.from('campaign_members').delete()
-          .eq('campaign_id', character.campaign_id)
-          .eq('profile_id', userId);
-
-        const playerCampaigns = await kv.get(playerCampaignsKey(userId)) ?? [];
-        await kv.set(playerCampaignsKey(userId), playerCampaigns.filter((pc) => pc.campaignId !== character.campaign_id));
-      }
+      // questa campagna, non ne e' piu' membro - vedi
+      // leaveIfLastActiveCharacter. userId qui coincide sempre con
+      // character.owner_profile_id (verificato sopra, /release e' sempre
+      // self-service), passato esplicitamente per coerenza col contratto
+      // della funzione condivisa.
+      await leaveIfLastActiveCharacter(admin, character.campaign_id, character.owner_profile_id, characterId);
 
       // Incondizionato (non solo nel ramo "leave" sopra): il PG e' tornato al
       // GM ed e' di nuovo disponibile anche se il giocatore resta membro
@@ -2398,43 +2414,122 @@ app.put("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c)
   return c.json({ success: true });
 });
 
-app.delete("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c) => {
-  const token = c.req.header("Authorization")?.split(" ")[1];
-  if (!token) return c.json({ error: "Non autorizzato" }, 401);
-  const userId = await getUserIdFromToken(token);
-  if (!userId) return c.json({ error: "Token non valido" }, 401);
+// Eliminazione unificata: sostituisce sia il delete diretto client-side
+// (bypassava il server, quindi non applicava mai il leave implicito) sia il
+// vecchio DELETE /campaigns/:id/characters/:characterId (solo GM, nessun
+// leave implicito). Permesso derivato dalla riga del personaggio stessa
+// (proprietario, o GM della campagna in cui si trova oggi) invece che da un
+// :campaignId nell'URL - un solo controllo invece di due ridondanti.
+app.delete("/make-server-771c5bfd/characters/:id", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
 
-  const campaignId = c.req.param("id");
-  const characterId = c.req.param("characterId");
+    const characterId = c.req.param("id");
+    const admin = getAdminClient();
 
-  const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
-  const isOwner = myCampaigns.some((camp) => camp.id === campaignId);
-  if (!isOwner) {
-    return c.json({ error: "Solo il proprietario della campagna può eliminare i personaggi altrui" }, 403);
+    const { data: character, error: charError } = await admin
+      .from("characters")
+      .select("id, campaign_id, owner_profile_id")
+      .eq("id", characterId)
+      .single();
+    if (charError || !character) {
+      return c.json({ error: "Personaggio non trovato" }, 404);
+    }
+
+    const isCharacterOwner = character.owner_profile_id === userId;
+    let isGm = false;
+    if (!isCharacterOwner && character.campaign_id) {
+      const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+      isGm = myCampaigns.some((camp) => camp.id === character.campaign_id);
+    }
+    if (!isCharacterOwner && !isGm) {
+      return c.json({ error: "Non hai i permessi su questo personaggio" }, 403);
+    }
+
+    const { error: deleteError } = await admin
+      .from("characters")
+      .delete()
+      .eq("id", characterId);
+    if (deleteError) {
+      console.log("Errore eliminazione personaggio:", deleteError);
+      return c.json({ error: "Errore eliminazione personaggio" }, 500);
+    }
+
+    // "Leave" implicito: stessa funzione di assign-campaign/release -
+    // character.owner_profile_id (mai userId: chi elimina puo' essere il GM,
+    // non il proprietario). Broadcast incondizionato come in /release: la
+    // composizione visibile della campagna e' comunque cambiata (un PG in
+    // meno), a prescindere da se il proprietario resta membro o no.
+    if (character.campaign_id && character.owner_profile_id) {
+      await leaveIfLastActiveCharacter(admin, character.campaign_id, character.owner_profile_id, characterId);
+      await broadcastCampaignMembersChange(admin, character.campaign_id);
+    }
+
+    return c.json({ success: true });
+  } catch (err) {
+    console.log("Errore DELETE characters/:id:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
   }
+});
 
-  const admin = getAdminClient();
-  const { data: existing } = await admin
-    .from("characters")
-    .select("campaign_id")
-    .eq("id", characterId)
-    .single();
+// TEMPORANEO - una tantum, da rimuovere subito dopo l'esecuzione (2026-07-23):
+// il leave implicito non e' mai stato applicato retroattivamente, quindi
+// campaign_members puo' contenere membri senza piu' nessun PG attivo in
+// quella campagna (es. "alessandro germanò" su "La scuola degli Orrori",
+// trovato durante l'indagine di oggi). Stessa identica pulizia di
+// leaveIfLastActiveCharacter, applicata a tutti i membri esistenti invece
+// che a un singolo PG in uscita. Solo il GM proprietario della campagna.
+app.post("/make-server-771c5bfd/campaigns/:id/cleanup-orphan-members-oneoff", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
 
-  if (!existing || existing.campaign_id !== campaignId) {
-    return c.json({ error: "Personaggio non trovato in questa campagna" }, 404);
+    const campaignId = c.req.param("id");
+    const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    if (!myCampaigns.some((camp) => camp.id === campaignId)) {
+      return c.json({ error: "Campagna non trovata o non sei il proprietario" }, 403);
+    }
+
+    const admin = getAdminClient();
+    const members = await kv.get(campaignMembersKey(campaignId)) ?? [];
+    const removedProfileIds: string[] = [];
+
+    for (const member of members) {
+      const { data: active } = await admin
+        .from("characters")
+        .select("id")
+        .eq("campaign_id", campaignId)
+        .eq("owner_profile_id", member.profileId)
+        .eq("status", "active");
+      if (!active || active.length === 0) {
+        removedProfileIds.push(member.profileId);
+      }
+    }
+
+    for (const profileId of removedProfileIds) {
+      const currentMembers = await kv.get(campaignMembersKey(campaignId)) ?? [];
+      await kv.set(campaignMembersKey(campaignId), currentMembers.filter((m: any) => m.profileId !== profileId));
+      await admin.from('campaign_members').delete()
+        .eq('campaign_id', campaignId)
+        .eq('profile_id', profileId);
+      const playerCampaigns = await kv.get(playerCampaignsKey(profileId)) ?? [];
+      await kv.set(playerCampaignsKey(profileId), playerCampaigns.filter((pc: any) => pc.campaignId !== campaignId));
+    }
+
+    if (removedProfileIds.length > 0) {
+      await broadcastCampaignMembersChange(admin, campaignId);
+    }
+
+    return c.json({ removedProfileIds });
+  } catch (err) {
+    console.log("Errore POST cleanup-orphan-members-oneoff:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
   }
-
-  const { error: deleteError } = await admin
-    .from("characters")
-    .delete()
-    .eq("id", characterId);
-
-  if (deleteError) {
-    console.log("Errore eliminazione personaggio (GM):", deleteError);
-    return c.json({ error: "Errore eliminazione personaggio" }, 500);
-  }
-
-  return c.json({ success: true });
 });
 
 // ─── Type helper (Deno) ─────────────────────────────────────────────────────

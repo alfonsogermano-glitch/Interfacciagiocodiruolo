@@ -10,7 +10,7 @@ import { FolderIconPicker } from '../shared/FolderIconPicker';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/paletteColors';
 import { projectId } from '/utils/supabase/info';
 import type { Character } from '../../../types/character';
-import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, mapRowToCharacter, unassignCharacterFromCampaign } from '../../../services/supabase/charactersService';
+import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, mapRowToCharacter, unassignCharacterFromCampaign, isLastActiveCharacterForOwner } from '../../../services/supabase/charactersService';
 import {
   loadNPCs, loadMonsters,
   saveNPC, saveMonster,
@@ -335,6 +335,20 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
       setActionError(err instanceof Error ? err.message : String(err));
     }
   };
+
+  // Suffisso condizionale per il dialog "Rimuovere il personaggio dalla
+  // campagna?" - vedi lastPlayerCharacterSuffix in CampaignHome.tsx, stessa
+  // ragione. `characters` qui e' gia' scoped alla sola activeCampaignId,
+  // nessuna campagna da distinguere. Esclude il caso in cui il PG selezionato
+  // sia del GM stesso (mai membro della propria campagna).
+  const removeCharSuffix = (() => {
+    if (!selectedChar) return '';
+    const ownerProfileId = (selectedChar as any).ownerProfileId as string | null | undefined;
+    if (!ownerProfileId || ownerProfileId === activeCampaign?.ownerId) return '';
+    return isLastActiveCharacterForOwner(characters as unknown as Array<{ id: string; ownerProfileId?: string | null }>, selectedChar.id, ownerProfileId)
+      ? ' Il giocatore verrà anche rimosso dalla campagna, dato che questo è il suo unico personaggio qui.'
+      : '';
+  })();
 
   const handleRemovePlayer = async () => {
     if (!selectedChar) return;
@@ -959,7 +973,7 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     {confirmRemoveChar && (
       <ConfirmDialog
         title="Rimuovere il personaggio dalla campagna?"
-        message="Il personaggio non verrà eliminato: resterà nel database del giocatore, semplicemente non farà più parte di questa campagna."
+        message={`Il personaggio non verrà eliminato: resterà nel database del giocatore, semplicemente non farà più parte di questa campagna.${removeCharSuffix}`}
         confirmLabel="Rimuovi"
         onConfirm={handleRemoveCharacterFromCampaign}
         onCancel={() => setConfirmRemoveChar(false)}

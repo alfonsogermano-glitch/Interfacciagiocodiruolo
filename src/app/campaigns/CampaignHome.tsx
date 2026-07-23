@@ -10,7 +10,8 @@ import { useCampaignChannel } from '../../services/realtime/campaignChannel';
 import {
   loadCharactersByOwner, copyCharacterToCampaign, unassignCharacterFromCampaign,
   duplicateCharacter, deleteCharacter, setCharacterAvailableForPlayers, releaseCharacter,
-  saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, deleteCharacterAsGm, mapRowToCharacter,
+  saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, mapRowToCharacter,
+  isLastActiveCharacterForOwner,
 } from '../../services/supabase/charactersService';
 import {
   loadNPCs, loadMonsters, saveNPC, saveMonster, type NPC, type Monster,
@@ -712,12 +713,11 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     if (!deleteCharTarget || !activeCampaign || !session) return;
     setIsDeletingChar(true);
     try {
-      const isMine = deleteCharTarget.ownerProfileId === user?.id;
-      if (isMine) {
-        await deleteCharacter(deleteCharTarget.id);
-      } else {
-        await deleteCharacterAsGm(activeCampaign.id, deleteCharTarget.id, SERVER_BASE, session.access_token);
-      }
+      // Il permesso (proprietario o GM della campagna) e' deciso dal server
+      // ora - nessun branching isMine qui, l'endpoint e' lo stesso per
+      // entrambi i casi (vedi il commento su deleteCharacter in
+      // charactersService.ts).
+      await deleteCharacter(deleteCharTarget.id, SERVER_BASE, session.access_token);
       setDeleteCharTarget(null);
       setPlayersReloadToken((t) => t + 1);
     } catch (err) {
@@ -757,6 +757,21 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     } finally {
       setIsUnassigningChar(false);
     }
+  };
+
+  // Suffisso condizionale per i dialog di eliminazione/rimozione di un PG -
+  // avvisa che, oltre al PG, sparisce anche la membership del giocatore se
+  // questo era il suo unico personaggio attivo qui (leave implicito lato
+  // server, vedi leaveIfLastActiveCharacter in index.tsx - questo e' solo un
+  // avviso, la fonte di verita' resta il server). Esclude di proposito i
+  // precompilati del GM (ownerProfileId === activeCampaign.ownerId): il GM
+  // non e' mai in playerRows/campaign_members, non c'e' membership da perdere.
+  const lastPlayerCharacterSuffix = (target: PlayerCharacterSummary | null) => {
+    if (!target || !activeCampaign || target.ownerProfileId === activeCampaign.ownerId) return '';
+    const row = playerRows.find((r) => r.profileId === target.ownerProfileId);
+    return isLastActiveCharacterForOwner(row?.characters ?? [], target.id, target.ownerProfileId)
+      ? ' Il giocatore verrà anche rimosso dalla campagna, dato che questo è il suo unico personaggio qui.'
+      : '';
   };
 
   // Toggle "Disponibile per i giocatori" - solo sui precompilati del GM,
@@ -996,9 +1011,10 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
 
     // "Elimina" solo su un PG che possiedi davvero (il GM sul proprio
     // precompilato, o il giocatore sul proprio PG) - mai al GM su un PG di
-    // un giocatore: non e' suo, non deve poterlo eliminare (ne' con
-    // deleteCharacter ne' con deleteCharacterAsGm). "Rimuovi giocatore" sotto
-    // resta lo strumento corretto per il GM su un PG altrui.
+    // un giocatore: non e' suo, non deve poterlo eliminare da qui (il server
+    // lo permetterebbe comunque, vedi deleteCharacter in
+    // charactersService.ts, ma questo menu non offre mai la voce). "Rimuovi
+    // giocatore" sotto resta lo strumento corretto per il GM su un PG altrui.
     if (isSelfOwned) {
       items.push({
         key: 'delete',
@@ -1839,7 +1855,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       {deleteCharTarget && (
         <ConfirmDialog
           title="Eliminare questo personaggio?"
-          message={`"${deleteCharTarget.name}" e tutti i suoi dati verranno eliminati definitivamente. Questa azione non è reversibile.`}
+          message={`"${deleteCharTarget.name}" e tutti i suoi dati verranno eliminati definitivamente. Questa azione non è reversibile.${lastPlayerCharacterSuffix(deleteCharTarget)}`}
           confirmLabel="Elimina"
           onConfirm={handleConfirmDeleteCharacter}
           onCancel={() => setDeleteCharTarget(null)}
@@ -1860,7 +1876,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       {unassignCharTarget && (
         <ConfirmDialog
           title="Rimuovere il personaggio dalla campagna?"
-          message={`"${unassignCharTarget.name}" non verrà eliminato: resterà nel database del giocatore, semplicemente non farà più parte di questa campagna.`}
+          message={`"${unassignCharTarget.name}" non verrà eliminato: resterà nel database del giocatore, semplicemente non farà più parte di questa campagna.${lastPlayerCharacterSuffix(unassignCharTarget)}`}
           confirmLabel="Rimuovi"
           danger={false}
           onConfirm={handleConfirmUnassignCharacter}

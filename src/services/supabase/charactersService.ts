@@ -368,22 +368,33 @@ export async function saveCharacter(
 }
 
 /**
- * Elimina un personaggio
+ * Elimina un personaggio - passa dal server (non piu' un delete diretto del
+ * client) per poter applicare il "leave implicito": se questo era l'ultimo
+ * PG attivo del suo proprietario in quella campagna, la membership viene
+ * rimossa insieme al personaggio (vedi DELETE /characters/:id lato server -
+ * sostituisce sia il vecchio delete diretto sia deleteCharacterAsGm sotto,
+ * unificati in un solo endpoint che decide da solo se il chiamante e' il
+ * proprietario o il GM della campagna). serverBase/accessToken ignorati in
+ * modalita' locale (nessuna campagna/membership li', solo storage offline).
  */
-export async function deleteCharacter(characterId: string): Promise<void> {
+export async function deleteCharacter(
+  characterId: string,
+  serverBase: string,
+  accessToken: string
+): Promise<void> {
   if (shouldUseLocalMode()) {
     await deleteLocalCharacter(characterId);
     return;
   }
 
-  if (!supabase) throw new Error('Supabase non configurato');
-
-  const { error } = await supabase
-    .from('characters')
-    .delete()
-    .eq('id', characterId);
-
-  if (error) throw error;
+  const res = await fetch(`${serverBase}/characters/${characterId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? 'Errore eliminazione personaggio');
+  }
 }
 
 export async function loadCharactersViaServer(
@@ -652,20 +663,22 @@ export async function saveCharacterAsGm(
   }
 }
 
-export async function deleteCharacterAsGm(
-  campaignId: string,
+/**
+ * true se characterId e' l'unico personaggio ATTIVO di ownerProfileId nella
+ * lista passata (tipicamente i personaggi gia' caricati per una singola
+ * campagna) - usato per decidere se mostrare, nei dialog di conferma di
+ * rimozione/eliminazione, l'avviso "il giocatore verra' anche rimosso dalla
+ * campagna". Nessuna chiamata di rete: si appoggia sui dati gia' in stato,
+ * puramente indicativo per la UI (la fonte di verita' resta il leave
+ * implicito lato server, vedi leaveIfLastActiveCharacter in index.tsx).
+ */
+export function isLastActiveCharacterForOwner<T extends { id: string; ownerProfileId?: string | null }>(
+  campaignCharacters: T[],
   characterId: string,
-  serverBase: string,
-  accessToken: string
-): Promise<void> {
-  const res = await fetch(`${serverBase}/campaigns/${campaignId}/characters/${characterId}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error ?? 'Errore eliminazione personaggio');
-  }
+  ownerProfileId: string | null | undefined
+): boolean {
+  if (!ownerProfileId) return false;
+  return !campaignCharacters.some((c) => c.id !== characterId && c.ownerProfileId === ownerProfileId);
 }
 
 /**

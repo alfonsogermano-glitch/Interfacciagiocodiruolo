@@ -30,6 +30,7 @@ import {
   assignCharacterToCampaign, unassignCharacterFromCampaign,
   duplicateCharacter, setCharacterAvailableForPlayers,
   loadAvailableCharactersInCampaigns, claimCharacter, releaseCharacter,
+  isLastActiveCharacterForOwner,
 } from '../../../services/supabase/charactersService';
 import {
   loadNPCsByOwner, loadMonstersByOwner, loadAdventures,
@@ -446,7 +447,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
 
   const confirmDelete = async () => {
     if (!deleteTargetId) return;
-    await deleteCharacter(deleteTargetId);
+    const accessToken = session?.access_token ?? publicAnonKey;
+    await deleteCharacter(deleteTargetId, SERVER_BASE, accessToken);
     setDeleteTargetId(null);
     await load();
   };
@@ -509,6 +511,20 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     } finally {
       setUnassignConfirmChar(null);
     }
+  };
+
+  // Suffisso condizionale per i dialog di eliminazione/rimozione di un PG -
+  // sempre self-service qui (questa e' "I miei personaggi"), quindi seconda
+  // persona invece di "il giocatore" (vedi l'equivalente in CampaignHome.tsx).
+  // Esclude le campagne possedute dall'utente stesso (campaigns, non
+  // joinedCampaigns): il GM non e' mai membro della propria campagna, non
+  // c'e' membership da perdere li'.
+  const lastCampaignCharacterSuffix = (target: OwnedCharacter | null) => {
+    if (!target || !target.campaignId || campaigns.some((c) => c.id === target.campaignId)) return '';
+    const campaignCharacters = characters.filter((c) => c.campaignId === target.campaignId);
+    return isLastActiveCharacterForOwner(campaignCharacters, target.id, target.ownerProfileId)
+      ? ' Verrai anche rimosso dalla campagna, dato che questo è il tuo unico personaggio lì.'
+      : '';
   };
 
   // Marca/smarca un PG come "disponibile per i giocatori" ("Precompilati") -
@@ -1765,7 +1781,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
       {deleteTargetId && (
         <ConfirmDialog
           title="Eliminare il personaggio?"
-          message="Questa azione non è reversibile. Il personaggio e tutti i suoi dati verranno eliminati definitivamente."
+          message={`Questa azione non è reversibile. Il personaggio e tutti i suoi dati verranno eliminati definitivamente.${lastCampaignCharacterSuffix(characters.find((c) => c.id === deleteTargetId) ?? null)}`}
           confirmLabel="Elimina"
           onConfirm={confirmDelete}
           onCancel={() => setDeleteTargetId(null)}
@@ -1888,7 +1904,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
       {unassignConfirmChar && (
         <ConfirmDialog
           title="Rimuovere il personaggio dalla campagna?"
-          message={`"${unassignConfirmChar.name}" non verrà eliminato: resterà nel tuo database, semplicemente non farà più parte di questa campagna.`}
+          message={`"${unassignConfirmChar.name}" non verrà eliminato: resterà nel tuo database, semplicemente non farà più parte di questa campagna.${lastCampaignCharacterSuffix(unassignConfirmChar)}`}
           confirmLabel="Rimuovi"
           danger={false}
           onConfirm={handleConfirmUnassignCharacter}
