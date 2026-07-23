@@ -16,6 +16,7 @@ import {
   loadNPCs, loadMonsters, saveNPC, saveMonster, type NPC, type Monster,
   duplicateNPC, deleteNPC, unassignNPCFromCampaign, copyNPCToCampaign,
   duplicateMonster, deleteMonster, unassignMonsterFromCampaign, copyMonsterToCampaign,
+  toCamelCase,
 } from '../../services/supabase/entitiesService';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { EntityCard } from '../components/session/shared/EntityCard';
@@ -438,6 +439,61 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   // comportamento (sessionKey invece di session intero, vedi il commento sul
   // parametro dell'hook).
 
+  // INSERT/UPDATE/DELETE su folders/npcs/monsters (bug realtime 2026-07-23:
+  // CampaignHome non ascoltava affatto questi eventi, a differenza di
+  // SessionCharactersPanel.tsx che gia' li gestisce per characters/npcs/
+  // monsters/entity_notes - stesso trigger DB condiviso
+  // characters_broadcast_changes(), qui ne mancava solo la sottoscrizione
+  // client). characters escluso di proposito: quella sezione si aggiorna
+  // gia' via members_change piu' sotto (reload completo di playerRows),
+  // aggiungere anche l'evento fine-grained qui sarebbe ridondante.
+  //
+  // folders: nessun merge fine-grained possibile (useFolderSection.tsx non
+  // espone lo stato interno) - reloadFolders() sulla sezione giusta
+  // (entity_type su record per INSERT/UPDATE, su old_record per DELETE dove
+  // record non esiste). Precompilati incluso (entity_type 'premade' vive
+  // nel namespace cartelle di premadeSection, non 'character' - vedi
+  // supabase-add-folders.sql).
+  //
+  // npcs/monsters: merge per id nello stato locale, stesso identico schema
+  // di SessionCharactersPanel.tsx (mapped via toCamelCase, exists ? map :
+  // append per INSERT/UPDATE, filter per DELETE) - nessun guard tipo
+  // recentLocalEditRef qui: a differenza della scheda personaggio (editor
+  // con autosave a ogni tasto), le uniche scritture di CampaignHome su
+  // npcs/monsters sono azioni singole e discrete (crea/duplica/nascondi/
+  // sposta cartella), nessun rischio di un broadcast che sovrascrive una
+  // digitazione in corso.
+  const handleEntityBroadcast = (msg: any) => {
+    const data = msg?.payload ?? {};
+    const table = data.table;
+
+    if (table === 'folders') {
+      const entityType = (data.record ?? data.old_record)?.entity_type;
+      if (entityType === 'premade') premadeSection.reloadFolders();
+      else if (entityType === 'npc') npcSection.reloadFolders();
+      else if (entityType === 'monster') monsterSection.reloadFolders();
+      return;
+    }
+
+    if (table !== 'npcs' && table !== 'monsters') return;
+    const setEntities = table === 'npcs' ? setNpcs : setMonsters;
+
+    if (data.operation === 'DELETE') {
+      const deletedId = data.old_record?.id;
+      if (!deletedId) return;
+      setEntities((prev: any[]) => prev.filter((e) => e.id !== deletedId));
+      return;
+    }
+
+    const row = data.record;
+    if (!row) return;
+    const mapped = toCamelCase(row);
+    setEntities((prev: any[]) => {
+      const exists = prev.some((e) => e.id === mapped.id);
+      return exists ? prev.map((e) => (e.id === mapped.id ? mapped : e)) : [...prev, mapped];
+    });
+  };
+
   // Canale campaign:{id} condiviso (src/services/realtime/campaignChannel.ts):
   // CampaignHome non è l'unico consumer di questo topic (SessionCharactersPanel,
   // SessionNotesPanel e useEntityTabs lo usano anche loro quando montati
@@ -458,6 +514,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       members_change: () => {
         setPlayersReloadToken((t) => t + 1);
       },
+      INSERT: handleEntityBroadcast,
+      UPDATE: handleEntityBroadcast,
+      DELETE: handleEntityBroadcast,
     },
     onPresenceSync: (state) => {
       const online = Object.values(state).some((presences: any) =>

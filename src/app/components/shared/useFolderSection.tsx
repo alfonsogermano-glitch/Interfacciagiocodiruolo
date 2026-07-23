@@ -109,6 +109,18 @@ export interface UseFolderSectionResult {
   iconPickerFolder: Folder | null;
   selectFolderIcon: (iconId: string | null) => void;
   closeIconPicker: () => void;
+
+  /** Ricarica folders da zero (bug realtime cartelle, 2026-07-23): il
+   *  chiamante lo invoca quando riceve un broadcast 'folders' per questa
+   *  campagna/entityType (un'altra vista - CampaignHome.tsx <->
+   *  SessionCharactersPanel.tsx - ha creato/rinominato/spostato/eliminato
+   *  una cartella). Reload completo invece di un merge fine-grained
+   *  INSERT/UPDATE/DELETE sull'array locale: stesso principio gia' usato
+   *  per il caso cascade in confirmDeleteFolder sopra - piu' semplice e
+   *  senza rischio di disallineamento tra client che si scambiano solo
+   *  diff parziali, a costo di un giro di rete in piu' per evento (le
+   *  modifiche a cartelle sono rare rispetto a quelle sulle entita'). */
+  reloadFolders: () => Promise<void>;
 }
 
 /**
@@ -298,6 +310,15 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
   };
   const cancelDeleteFolder = () => setDeleteFolderTarget(null);
 
+  const reloadFolders = async () => {
+    if (!campaignId) return;
+    try {
+      setFolders(await loadFolders(campaignId, entityType, SERVER_BASE, accessToken ?? ''));
+    } catch (err) {
+      console.error(`Errore ricaricamento cartelle ${entityType}:`, err);
+    }
+  };
+
   // Un solo livello alla volta (drill-down, vedi FolderBreadcrumb per la
   // navigazione) - solo le sotto-cartelle dirette e le card dirette di
   // currentFolderId, mai l'intero sottoalbero. Le card sciolte (senza
@@ -380,5 +401,6 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
     iconPickerFolder,
     selectFolderIcon,
     closeIconPicker,
+    reloadFolders,
   };
 }

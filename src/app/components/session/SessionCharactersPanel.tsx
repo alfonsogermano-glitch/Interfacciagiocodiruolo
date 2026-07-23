@@ -184,6 +184,20 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     const data = msg?.payload ?? {};
     const table = data.table;
 
+    // Cartelle (bug realtime 2026-07-23): niente merge fine-grained qui -
+    // useFolderSection.tsx non espone lo stato folders per una patch
+    // puntuale, solo un reload completo (reloadFolders, vedi il commento li'
+    // per il perche' e' la scelta giusta). entity_type sta su record
+    // (INSERT/UPDATE) o su old_record (DELETE, dove record non esiste).
+    // Personaggi non ha mai cartelle (Fase 4), nessun ramo da gestire per
+    // quell'entity_type.
+    if (table === 'folders') {
+      const entityType = (data.record ?? data.old_record)?.entity_type;
+      if (entityType === 'npc') npcSection.reloadFolders();
+      else if (entityType === 'monster') monsterSection.reloadFolders();
+      return;
+    }
+
     if (data.operation === 'DELETE') {
       const deletedId = data.old_record?.id;
       if (!deletedId) return;
