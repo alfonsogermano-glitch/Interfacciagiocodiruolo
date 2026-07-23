@@ -444,7 +444,6 @@ export function MonstersManager({ navigationTarget = null, onNavigate }: Monster
               campaignId={activeCampaignId}
               accessToken={session?.access_token}
               isHSC={isHSC}
-              draggable={false}
               showRail
               isDraft={isViewingDraft}
               monsterAudaciaExtraAction={

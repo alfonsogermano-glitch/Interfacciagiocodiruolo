@@ -2005,7 +2005,6 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
               campaignId={detailData.campaignId ?? null}
               accessToken={session?.access_token}
               isHSC={isHSC}
-              draggable={false}
               showOwnerRow={false}
               showRail={false}
               activeSection={railSection}

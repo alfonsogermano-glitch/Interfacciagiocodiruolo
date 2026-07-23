@@ -397,7 +397,6 @@ export function NPCsManager({ navigationTarget = null }: NPCsManagerProps) {
               campaignId={activeCampaignId}
               accessToken={session?.access_token}
               isHSC={isHSC}
-              draggable={false}
               showRail
               isDraft={isViewingDraft}
               headerAction={

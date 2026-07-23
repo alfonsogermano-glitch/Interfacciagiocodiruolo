@@ -76,7 +76,6 @@ export function EntityCard({
               />
             }
             size={56}
-            draggable={false}
             tokenColor={tokenColor}
             tokenBackgroundColor={tokenBackgroundColor}
             tokenBorderStyle={tokenBorderStyle}
@@ -152,7 +151,6 @@ export function EntityCard({
           }
           size={140}
           chrome="flush"
-          draggable={false}
           tokenColor={tokenColor}
           tokenBackgroundColor={tokenBackgroundColor}
           tokenBorderStyle={tokenBorderStyle}

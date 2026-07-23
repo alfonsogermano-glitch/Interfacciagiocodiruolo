@@ -22,7 +22,7 @@ export type FolderDropTarget =
   | { type: 'nest-into-folder'; folderId: string }
   | { type: 'unfiled' };
 
-interface DraggedItem {
+export interface DraggedItem {
   kind: FolderDragKind;
   id: string;
 }
@@ -167,6 +167,15 @@ export interface UseFolderDragDropParams {
    *  ne crea uno proprio (comportamento originale, un'istanza indipendente
    *  con il proprio containerRef). */
   containerRef?: React.RefObject<HTMLDivElement | null>;
+  /** Punto di estensione (Fase 3, SessionCharactersPanel.tsx): rilascio di
+   *  una card fuori da qualunque target cartella riconosciuto (nessun
+   *  elemento data-folder-id sotto il punto di rilascio) - pensato per un
+   *  futuro drop sulla Mappa, non per il riordino/annidamento cartelle qui
+   *  sopra. Solo il contratto: nessun chiamante attuale lo passa, nessuna
+   *  logica di ricezione da costruire ora. Non invocato per draggedKind
+   *  'folder' (il riordino cartelle senza target riconosciuto resta un
+   *  no-op, comportamento invariato). */
+  onDropOutside?: (item: DraggedItem, clientX: number, clientY: number) => void;
 }
 
 /**
@@ -209,6 +218,7 @@ export function useFolderDragDrop({
   onMoveCard,
   onNestFolder,
   containerRef: externalContainerRef,
+  onDropOutside,
 }: UseFolderDragDropParams) {
   const [draggedItem, setDraggedItem] = useState<DraggedItem | null>(null);
   const [dropTarget, setDropTarget] = useState<FolderDropTarget | null>(null);
@@ -252,7 +262,7 @@ export function useFolderDragDrop({
       }
     };
 
-    const handleUp = () => {
+    const handleUp = (e: PointerEvent) => {
       if (draggedItem) {
         // Il browser genera comunque un evento click nativo dopo il
         // pointerup, sull'elemento sotto il cursore al rilascio -
@@ -279,6 +289,8 @@ export function useFolderDragDrop({
           } else if (draggedItem.kind === 'card' && target.type === 'unfiled') {
             onMoveCard(draggedItem.id, null);
           }
+        } else if (draggedItem.kind === 'card') {
+          onDropOutside?.(draggedItem, e.clientX, e.clientY);
         }
         setDraggedItem(null);
         setDropTarget(null);

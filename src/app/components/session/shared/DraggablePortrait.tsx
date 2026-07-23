@@ -1,5 +1,4 @@
-import { useId, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { useId } from 'react';
 import { EyeOff } from 'lucide-react';
 import { TokenShapePreview } from '../../shared/TokenShapePreview';
 import { EntityPortraitImage } from '../../shared/EntityPortraitImage';
@@ -26,8 +25,7 @@ export function DraggablePortrait({
   fallbackIcon,
   size = 56,
   chrome = 'framed',
-  draggable,
-  onDragStart,
+  onPointerDown,
   hiddenFromPlayers = false,
   hiddenBadgePosition = 'top-right',
   tokenColor,
@@ -55,8 +53,15 @@ export function DraggablePortrait({
    *  grid di EntityCard.tsx): il ritaglio agli angoli arriva dal
    *  contenitore (rounded+overflow-hidden), non da qui. */
   chrome?: 'framed' | 'flush';
-  draggable: boolean;
-  onDragStart?: (e: React.DragEvent) => void;
+  /** Assente = non trascinabile (comportamento invariato, es. EntityCard.tsx
+   *  che gestisce il proprio drag-and-drop cartelle a livello di card intera
+   *  - vedi useFolderDragDrop.ts). Presente = avvia il drag a puntatore
+   *  condiviso (Fase 3, sostituisce il precedente draggable/onDragStart
+   *  nativo) sull'entita' rappresentata da questo ritratto; il fantasma
+   *  visivo durante il trascinamento non vive piu' qui (era il div
+   *  off-screen + dataTransfer.setDragImage) ma nel chiamante, che conosce
+   *  pointerPosition/draggedItem dell'hook (vedi TokenDragGhost.tsx). */
+  onPointerDown?: (e: React.PointerEvent) => void;
   hiddenFromPlayers?: boolean;
   hiddenBadgePosition?: 'center' | 'top-right';
   tokenColor?: string | null;
@@ -67,7 +72,6 @@ export function DraggablePortrait({
   tokenBorderLabel?: string | null;
 }) {
   const isFlush = chrome === 'flush';
-  const dragGhostRef = useRef<HTMLDivElement | null>(null);
   const clipIdBase = useId().replace(/:/g, '');
 
   const color = tokenColor ?? DEFAULT_TOKEN_COLOR;
@@ -80,16 +84,10 @@ export function DraggablePortrait({
 
   return (
     <div
-      draggable={draggable}
-      onDragStart={(e) => {
-        if (dragGhostRef.current) {
-          e.dataTransfer.setDragImage(dragGhostRef.current, TOKEN_SIZE / 2, TOKEN_SIZE / 2);
-        }
-        onDragStart?.(e);
-      }}
+      onPointerDown={onPointerDown}
       className={`group relative shrink-0 overflow-hidden ${
         isFlush ? '' : 'rounded-2xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] shadow-lg'
-      } ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      } ${onPointerDown ? 'cursor-grab active:cursor-grabbing' : ''}`}
       style={isFlush ? { width: size, height: '100%' } : { width: size, height: size }}
     >
       {url || (sourceImageUrl && cropArea) ? (
@@ -104,7 +102,7 @@ export function DraggablePortrait({
       ) : (
         <div className="flex h-full w-full items-center justify-center">{fallbackIcon}</div>
       )}
-      {draggable && (
+      {onPointerDown && (
         <div
           className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100"
           style={{ backgroundColor: 'rgba(0,0,0,0.35)' }}
@@ -135,26 +133,6 @@ export function DraggablePortrait({
         >
           <EyeOff className="h-3 w-3 text-white" />
         </div>
-      )}
-      {draggable && createPortal(
-        <div ref={dragGhostRef} style={{ position: 'fixed', left: -9999, top: -9999 }}>
-          <TokenShapePreview
-            clipId={`${clipIdBase}-dragimage`}
-            name={name}
-            portraitImageUrl={url}
-            portraitSourceImageUrl={sourceImageUrl}
-            portraitCropArea={cropArea}
-            fallbackContent={!url ? fallbackIcon : undefined}
-            crop={IDENTITY_CROP}
-            color={color}
-            backgroundColor={backgroundColor}
-            geometry={geometry}
-            strokeWidth={strokeWidth}
-            borderVisible={borderVisible}
-            style={{ width: TOKEN_SIZE, height: TOKEN_SIZE }}
-          />
-        </div>,
-        document.body
       )}
     </div>
   );

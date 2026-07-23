@@ -131,8 +131,10 @@ interface EntityDetailViewProps {
   campaignId: string | null;
   accessToken: string | null | undefined;
   isHSC: boolean;
-  draggable: boolean;
-  onDragStart?: (e: React.DragEvent) => void;
+  /** Vedi il commento gemello su DraggablePortrait.tsx: assente = ritratto
+   *  non trascinabile, presente = avvia il drag a puntatore condiviso
+   *  (Fase 3) sull'entita' mostrata qui. */
+  onPointerDown?: (e: React.PointerEvent) => void;
   headerAction?: ReactNode;
   /** true per una bozza locale mai salvata su Supabase (es. "+ Nuovo PNG"/
    *  "+ Nuovo Mostro" prima che venga compilato un nome): disattiva le tab
@@ -178,8 +180,7 @@ export function EntityDetailView({
   campaignId,
   accessToken,
   isHSC,
-  draggable,
-  onDragStart,
+  onPointerDown,
   headerAction,
   showOwnerRow = true,
   showRail = true,
@@ -483,8 +484,7 @@ export function EntityDetailView({
               name={entity.name}
               fallbackIcon={fallbackIcon}
               size={portraitSize}
-              draggable={draggable}
-              onDragStart={onDragStart}
+              onPointerDown={onPointerDown}
               hiddenFromPlayers={entityType !== 'character' ? !entity.visibleToPlayers : undefined}
               tokenColor={entity.tokenColor}
               tokenBackgroundColor={entity.tokenBackgroundColor}

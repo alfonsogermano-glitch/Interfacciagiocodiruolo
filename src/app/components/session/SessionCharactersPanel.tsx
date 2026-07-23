@@ -24,6 +24,8 @@ import { EntityKebabMenu } from './shared/EntityKebabMenu';
 import { EntityDetailView } from './shared/EntityDetailView';
 import { EntityPortraitImage } from '../shared/EntityPortraitImage';
 import type { CropAreaPercent } from '../shared/SourceCroppedImage';
+import { useFolderDragDrop } from './shared/useFolderDragDrop';
+import { TokenDragGhost } from './shared/TokenDragGhost';
 
 interface PlayerCharacter extends Character {
   player: string;
@@ -479,6 +481,43 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     return false;
   };
 
+  // Fase 3: sostituisce il drag nativo (draggable/onDragStart/dataTransfer)
+  // con il sistema a puntatore condiviso di useFolderDragDrop.ts (stesso
+  // usato dal sistema cartelle in CampaignHome.tsx). Nessuna cartella
+  // integrata qui ancora - folderIds/onReorderFolders/onMoveCard/
+  // onNestFolder restano no-op perche' senza elementi data-folder-id nel
+  // DOM di questo pannello resolveFolderDropTarget non risolve mai un
+  // target cartella (vedi il commento sulla funzione). canEdit:true perche'
+  // il permesso di trascinare e' gia' deciso per-entita' da canDragEntity
+  // sopra (chiamato prima di ogni handlePointerDown sotto), non a livello
+  // di intero hook. onDropOutside: punto di estensione per la Mappa futura
+  // (vedi useFolderDragDrop.ts) - solo il contratto, nessun consumer ancora.
+  const dnd = useFolderDragDrop({
+    canEdit: true,
+    entityType: 'session-entity',
+    folderIds: [],
+    onReorderFolders: () => {},
+    onMoveCard: () => {},
+    onNestFolder: () => {},
+    onDropOutside: undefined,
+  });
+
+  // Risolve l'entita' attualmente trascinata a partire dall'id composito
+  // "<kind>:<id>" passato a handlePointerDown sotto (il kind non viaggia
+  // altrimenti nel DraggedItem dell'hook, che e' generico folder/card) -
+  // usata solo per disegnare il ghost (vedi TokenDragGhost sotto), nessuna
+  // logica di persistenza qui.
+  const draggedEntityInfo = (() => {
+    if (!dnd.draggedItem) return null;
+    const sep = dnd.draggedItem.id.indexOf(':');
+    if (sep === -1) return null;
+    const kind = dnd.draggedItem.id.slice(0, sep) as EntityKind;
+    const id = dnd.draggedItem.id.slice(sep + 1);
+    const source = kind === 'pg' ? characters : kind === 'png' ? npcs : kind === 'mostro' ? monsters : null;
+    const entity = source?.find((e: any) => e.id === id) ?? null;
+    return entity ? { kind, entity } : null;
+  })();
+
   if (isLoading) {
     return <div className="flex h-full items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[var(--dash-muted)]" /></div>;
   }
@@ -493,9 +532,10 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
       }`}
     >
       <div
-        draggable={canDragEntity(entry.kind, entry.ownerProfileId)}
-        onDragStart={(e) => {
-          e.dataTransfer.setData('application/x-hollowgate-entity', JSON.stringify({ kind: entry.kind, id: entry.id }));
+        onPointerDown={(e) => {
+          if (canDragEntity(entry.kind, entry.ownerProfileId)) {
+            dnd.handlePointerDown(e, { kind: 'card', id: `${entry.kind}:${entry.id}` });
+          }
         }}
         className={`relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-[var(--dash-input)] ${
           canDragEntity(entry.kind, entry.ownerProfileId) ? 'cursor-grab active:cursor-grabbing' : ''
@@ -530,7 +570,7 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
 
   return (
     <>
-    <div className="flex h-full select-none">
+    <div ref={dnd.containerRef} className="flex h-full select-none">
       <div className="w-64 shrink-0 overflow-y-auto border-r border-[var(--dash-border-soft)] py-3">
         <SectionHeader title="Personaggi" count={characters.length} isOpen={openSections.pg} onToggle={() => toggleSection('pg')} />
         {openSections.pg && (
@@ -588,8 +628,7 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
             accessToken={session?.access_token}
             isHSC={isHSC}
             showRail={false}
-            draggable={canDragEntity('pg', (selectedChar as any).ownerProfileId)}
-            onDragStart={(e) => e.dataTransfer.setData('application/x-hollowgate-entity', JSON.stringify({ kind: 'pg', id: selectedChar.id }))}
+            onPointerDown={canDragEntity('pg', (selectedChar as any).ownerProfileId) ? (e) => dnd.handlePointerDown(e, { kind: 'card', id: `pg:${selectedChar.id}` }) : undefined}
             headerAction={canEdit ? (
               <EntityKebabMenu
                 colors={menuColors}
@@ -643,8 +682,7 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
             accessToken={session?.access_token}
             isHSC={isHSC}
             showRail={false}
-            draggable={canDragEntity('png')}
-            onDragStart={(e) => e.dataTransfer.setData('application/x-hollowgate-entity', JSON.stringify({ kind: 'png', id: selectedNpc.id }))}
+            onPointerDown={canDragEntity('png') ? (e) => dnd.handlePointerDown(e, { kind: 'card', id: `png:${selectedNpc.id}` }) : undefined}
             headerAction={isOwner ? (
               <EntityKebabMenu
                 colors={menuColors}
@@ -666,8 +704,7 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
             accessToken={session?.access_token}
             isHSC={isHSC}
             showRail={false}
-            draggable={canDragEntity('mostro')}
-            onDragStart={(e) => e.dataTransfer.setData('application/x-hollowgate-entity', JSON.stringify({ kind: 'mostro', id: selectedMonster.id }))}
+            onPointerDown={canDragEntity('mostro') ? (e) => dnd.handlePointerDown(e, { kind: 'card', id: `mostro:${selectedMonster.id}` }) : undefined}
             headerAction={isOwner ? (
               <EntityKebabMenu
                 colors={menuColors}
@@ -780,6 +817,26 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
         </div>
       </div>
     )}
+    <TokenDragGhost
+      entity={draggedEntityInfo ? {
+        id: draggedEntityInfo.entity.id,
+        name: draggedEntityInfo.entity.name,
+        portraitImageUrl: draggedEntityInfo.entity.portraitImageUrl,
+        portraitSourceImageUrl: draggedEntityInfo.entity.portraitSourceImageUrl,
+        portraitCropArea: draggedEntityInfo.entity.portraitCropArea,
+        tokenColor: draggedEntityInfo.entity.tokenColor,
+        tokenBackgroundColor: draggedEntityInfo.entity.tokenBackgroundColor,
+        tokenBorderStyle: draggedEntityInfo.entity.tokenBorderStyle,
+        tokenBorderThickness: draggedEntityInfo.entity.tokenBorderThickness,
+        tokenBorderVisible: draggedEntityInfo.entity.tokenBorderVisible,
+      } : null}
+      pointerPosition={dnd.pointerPosition}
+      fallbackIcon={
+        draggedEntityInfo?.kind === 'png' ? <Ghost className="h-4 w-4 text-[var(--dash-accent-2)]" />
+          : draggedEntityInfo?.kind === 'mostro' ? <Skull className="h-4 w-4 text-[var(--dash-accent-2)]" />
+          : <User className="h-4 w-4 text-[var(--dash-accent-2)]" />
+      }
+    />
     </>
   );
 }
