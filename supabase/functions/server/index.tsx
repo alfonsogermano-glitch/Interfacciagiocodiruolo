@@ -2475,63 +2475,6 @@ app.delete("/make-server-771c5bfd/characters/:id", async (c) => {
   }
 });
 
-// TEMPORANEO - una tantum, da rimuovere subito dopo l'esecuzione (2026-07-23):
-// il leave implicito non e' mai stato applicato retroattivamente, quindi
-// campaign_members puo' contenere membri senza piu' nessun PG attivo in
-// quella campagna (es. "alessandro germanò" su "La scuola degli Orrori",
-// trovato durante l'indagine di oggi). Stessa identica pulizia di
-// leaveIfLastActiveCharacter, applicata a tutti i membri esistenti invece
-// che a un singolo PG in uscita. Solo il GM proprietario della campagna.
-app.post("/make-server-771c5bfd/campaigns/:id/cleanup-orphan-members-oneoff", async (c) => {
-  try {
-    const token = c.req.header("Authorization")?.split(" ")[1];
-    if (!token) return c.json({ error: "Non autorizzato" }, 401);
-    const userId = await getUserIdFromToken(token);
-    if (!userId) return c.json({ error: "Token non valido" }, 401);
-
-    const campaignId = c.req.param("id");
-    const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
-    if (!myCampaigns.some((camp) => camp.id === campaignId)) {
-      return c.json({ error: "Campagna non trovata o non sei il proprietario" }, 403);
-    }
-
-    const admin = getAdminClient();
-    const members = await kv.get(campaignMembersKey(campaignId)) ?? [];
-    const removedProfileIds: string[] = [];
-
-    for (const member of members) {
-      const { data: active } = await admin
-        .from("characters")
-        .select("id")
-        .eq("campaign_id", campaignId)
-        .eq("owner_profile_id", member.profileId)
-        .eq("status", "active");
-      if (!active || active.length === 0) {
-        removedProfileIds.push(member.profileId);
-      }
-    }
-
-    for (const profileId of removedProfileIds) {
-      const currentMembers = await kv.get(campaignMembersKey(campaignId)) ?? [];
-      await kv.set(campaignMembersKey(campaignId), currentMembers.filter((m: any) => m.profileId !== profileId));
-      await admin.from('campaign_members').delete()
-        .eq('campaign_id', campaignId)
-        .eq('profile_id', profileId);
-      const playerCampaigns = await kv.get(playerCampaignsKey(profileId)) ?? [];
-      await kv.set(playerCampaignsKey(profileId), playerCampaigns.filter((pc: any) => pc.campaignId !== campaignId));
-    }
-
-    if (removedProfileIds.length > 0) {
-      await broadcastCampaignMembersChange(admin, campaignId);
-    }
-
-    return c.json({ removedProfileIds });
-  } catch (err) {
-    console.log("Errore POST cleanup-orphan-members-oneoff:", err);
-    return c.json({ error: `Errore interno: ${err}` }, 500);
-  }
-});
-
 // ─── Type helper (Deno) ─────────────────────────────────────────────────────
 
 interface Campaign {
