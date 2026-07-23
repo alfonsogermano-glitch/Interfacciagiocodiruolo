@@ -30,16 +30,23 @@ function isBreadcrumbDropActive(dropTarget: FolderDropTarget | null, folderId: s
 // si e' annidati un solo livello) e' per costruzione il genitore diretto
 // della cartella corrente.
 export function FolderBreadcrumb({
-  sectionLabel, path, entityType, dropTarget, onNavigate,
+  sectionLabel, path, entityType, dropTarget, onNavigate, compact = false,
 }: {
   sectionLabel: string;
   path: Folder[];
   entityType: FolderEntityType;
   dropTarget: FolderDropTarget | null;
   onNavigate: (folderId: string | null) => void;
+  /** true = una sola riga senza wrap (colonna stretta, es.
+   *  SessionCharactersPanel.tsx Fase 4): i segmenti non correnti si
+   *  troncano a una larghezza fissa piccola, quello corrente (l'ultimo, in
+   *  grassetto - dove ci si trova ora) prende lo spazio restante e resta
+   *  sempre il piu' leggibile. Default false = comportamento invariato
+   *  (flex-wrap, nessun troncamento) per CampaignHome.tsx. */
+  compact?: boolean;
 }) {
   return (
-    <div className="col-span-2 flex flex-wrap items-center gap-1 text-xs text-[var(--dash-muted)]">
+    <div className={`col-span-2 flex items-center gap-1 text-xs text-[var(--dash-muted)] ${compact ? 'flex-nowrap overflow-hidden' : 'flex-wrap'}`}>
       <Tooltip>
         <TooltipTrigger asChild>
           <button
@@ -48,9 +55,10 @@ export function FolderBreadcrumb({
             data-folder-id={UNFILED_DROP_ID}
             data-folder-entity-type={entityType}
             data-folder-breadcrumb="true"
-            className={`transition-colors ${
+            className={`transition-colors ${compact ? 'shrink-0 truncate' : ''} ${
               isBreadcrumbDropActive(dropTarget, UNFILED_DROP_ID) ? 'text-[var(--dash-accent-2)]' : 'hover:text-[var(--dash-text-strong)]'
             }`}
+            style={compact ? { maxWidth: 56 } : undefined}
           >
             {sectionLabel}
           </button>
@@ -69,12 +77,15 @@ export function FolderBreadcrumb({
               'data-folder-breadcrumb': 'true',
             })}
             className={`truncate transition-colors ${
+              compact ? (isCurrent ? 'min-w-0 flex-1' : 'shrink-0') : ''
+            } ${
               isCurrent
                 ? 'font-semibold text-[var(--dash-text-strong)]'
                 : isBreadcrumbDropActive(dropTarget, folder.id)
                 ? 'text-[var(--dash-accent-2)]'
                 : 'hover:text-[var(--dash-text-strong)]'
             }`}
+            style={compact && !isCurrent ? { maxWidth: 56 } : undefined}
           >
             {folder.name}
           </button>

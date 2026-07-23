@@ -74,6 +74,11 @@ export interface UseFolderSectionParams<T extends { id: string; folderId?: strin
   /** Container DOM condiviso tra piu' istanze dell'hook (le diverse sezioni
    *  di una stessa pagina) - stesso containerRef passato a useFolderDragDrop. */
   containerRef?: React.RefObject<HTMLDivElement | null>;
+  /** Inoltrato a FolderRow (vedi il commento li' sopra) - assente = default
+   *  di FolderRow (10, pensato per il grid a 2 colonne di CampaignHome.tsx).
+   *  SessionCharactersPanel.tsx (Fase 4, colonna 256px) passa un valore
+   *  ridotto. */
+  maxVisibleDescendantShortcuts?: number;
 }
 
 export interface UseFolderSectionResult {
@@ -119,7 +124,7 @@ export interface UseFolderSectionResult {
  */
 export function useFolderSection<T extends { id: string; folderId?: string | null }>({
   entityType, campaignId, sessionKey, accessToken, canEdit, enabled, items, renderCard, renderGhostCard, itemLabel,
-  onMoveCard, onFolderDeleted, containerRef,
+  onMoveCard, onFolderDeleted, containerRef, maxVisibleDescendantShortcuts,
 }: UseFolderSectionParams<T>): UseFolderSectionResult {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -328,6 +333,7 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
               onPointerDown={(e) => dnd.handlePointerDown(e, { kind: 'folder', id: folder.id })}
               dropState={computeFolderRowDropState(dnd, folder, foldersById)}
               isDimmed={dnd.draggedItem?.kind === 'folder' && dnd.draggedItem.id === folder.id}
+              maxVisibleDescendantShortcuts={maxVisibleDescendantShortcuts}
             />
           );
         })}

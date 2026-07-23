@@ -1,8 +1,12 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { Fragment, useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { User, ChevronDown, ChevronRight, Loader2, Skull, Ghost } from 'lucide-react';
+import { User, ChevronDown, ChevronRight, Loader2, Skull, Ghost, FolderPlus } from 'lucide-react';
 import { Copy, UserMinus, UserX, Eye, EyeOff, Search, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
+import { useFolderSection } from '../shared/useFolderSection';
+import { FolderBreadcrumb } from '../shared/FolderBreadcrumb';
+import { FolderIconPicker } from '../shared/FolderIconPicker';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/paletteColors';
 import { projectId } from '/utils/supabase/info';
 import type { Character } from '../../../types/character';
@@ -57,18 +61,34 @@ function getCurrentPaletteColors() {
   return palette && PALETTE_COLORS[palette] ? PALETTE_COLORS[palette] : DEFAULT_PALETTE_COLORS;
 }
 
-function SectionHeader({ title, count, isOpen, onToggle }: { title: string; count: number; isOpen: boolean; onToggle: () => void }) {
+function SectionHeader({
+  title, count, isOpen, onToggle, extraAction,
+}: {
+  title: string;
+  count: number;
+  isOpen: boolean;
+  onToggle: () => void;
+  /** Pulsante "Nuova cartella" (Fase 4, solo PNG/Mostri, solo GM, solo a
+   *  sezione aperta) - reso come sibling del toggle (non annidato dentro,
+   *  altrimenti sarebbe un <button> dentro un <button>, HTML non valido e un
+   *  click sopra farebbe scattare anche il collapse/espandi). Assente =
+   *  comportamento invariato (Personaggi, o chiunque non sia GM). */
+  extraAction?: React.ReactNode;
+}) {
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="flex w-full items-center justify-between px-4 py-2 text-left"
-    >
-      <span className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
-        {title} <span className="text-[var(--dash-muted)]">({count})</span>
-      </span>
-      {isOpen ? <ChevronDown className="h-3.5 w-3.5 text-[var(--dash-muted)]" /> : <ChevronRight className="h-3.5 w-3.5 text-[var(--dash-muted)]" />}
-    </button>
+    <div className="flex w-full items-center justify-between gap-1 px-4 py-2">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex min-w-0 flex-1 items-center justify-between gap-2 text-left"
+      >
+        <span className="truncate text-xs font-semibold uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+          {title} <span className="text-[var(--dash-muted)]">({count})</span>
+        </span>
+        {isOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--dash-muted)]" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--dash-muted)]" />}
+      </button>
+      {extraAction}
+    </div>
   );
 }
 
@@ -408,6 +428,52 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     }
   };
 
+  // Fase 4: assegna/sposta PNG/Mostro in una cartella - PNG/Mostri sono
+  // sempre interamente del GM (mai un rischio di scrivere sull'entita' di
+  // qualcun altro), stesso schema ottimistico + rollback di
+  // handleToggleVisibleToPlayers sopra. saveNPC/saveMonster fanno un
+  // round-trip sull'oggetto intero, quindi lo spread con solo folderId
+  // cambiato e' sicuro. Stessa identica logica di CampaignHome.tsx
+  // (handleMoveNpcFolder/handleMoveMonsterFolder) - duplicata qui perche'
+  // opera sullo stato locale (npcs/monsters) di questo componente, non su
+  // quello di CampaignHome.
+  const handleMoveNpcFolder = async (npcId: string, folderId: string | null) => {
+    const npc = npcs.find((n) => n.id === npcId);
+    if (!npc || !activeCampaign) return;
+    // "Sposta di un livello" (vedi commento gemello in CampaignHome.tsx):
+    // rilasciato sulla propria cartella attuale -> promuovi al genitore di
+    // quella, invece di un no-op.
+    let resolvedFolderId = folderId;
+    if (folderId !== null && npc.folderId === folderId) {
+      resolvedFolderId = npcSection.folders.find((f) => f.id === folderId)?.parentFolderId ?? null;
+    }
+    const updated = { ...npc, folderId: resolvedFolderId };
+    setNpcs((prev) => prev.map((n) => (n.id === npcId ? updated : n)));
+    try {
+      await saveNPC(activeCampaign.id, updated);
+    } catch (err) {
+      console.error('Errore assegnazione cartella PNG:', err);
+      setNpcs((prev) => prev.map((n) => (n.id === npcId ? npc : n)));
+    }
+  };
+
+  const handleMoveMonsterFolder = async (monsterId: string, folderId: string | null) => {
+    const monster = monsters.find((m) => m.id === monsterId);
+    if (!monster || !activeCampaign) return;
+    let resolvedFolderId = folderId;
+    if (folderId !== null && monster.folderId === folderId) {
+      resolvedFolderId = monsterSection.folders.find((f) => f.id === folderId)?.parentFolderId ?? null;
+    }
+    const updated = { ...monster, folderId: resolvedFolderId };
+    setMonsters((prev) => prev.map((m) => (m.id === monsterId ? updated : m)));
+    try {
+      await saveMonster(activeCampaign.id, updated);
+    } catch (err) {
+      console.error('Errore assegnazione cartella mostro:', err);
+      setMonsters((prev) => prev.map((m) => (m.id === monsterId ? monster : m)));
+    }
+  };
+
   const buildEntityMenuItems = (entity: any, deleteLabel: string) => [
     {
       key: 'copy',
@@ -518,11 +584,111 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     return entity ? { kind, entity } : null;
   })();
 
+  const npcToEntry = (n: any): ListEntry => ({
+    kind: 'png', id: n.id, name: n.name, subtitle: n.role || 'PNG',
+    portraitUrl: n.portraitImageUrl,
+    portraitSourceUrl: n.portraitSourceImageUrl,
+    portraitCropArea: n.portraitCropArea,
+    hiddenFromPlayers: !n.visibleToPlayers,
+  });
+  const monsterToEntry = (m: any): ListEntry => ({
+    kind: 'mostro', id: m.id, name: m.name, subtitle: 'Mostro',
+    portraitUrl: m.portraitImageUrl,
+    portraitSourceUrl: m.portraitSourceImageUrl,
+    portraitCropArea: m.portraitCropArea,
+    hiddenFromPlayers: !m.visibleToPlayers,
+  });
+
+  // Fase 4: PNG e Mostri (mai Personaggi, resta piatta) organizzabili in
+  // cartelle - riuso 1:1 di useFolderSection.tsx (stessa infrastruttura di
+  // CampaignHome.tsx, entityType 'npc'/'monster', nessun cambio lato
+  // servizio/DB). containerRef condiviso con dnd sopra (stesso principio
+  // "un solo containerRef, filtrato per entityType" di CampaignHome).
+  // canEdit/enabled: isOwner - le cartelle sono gestite solo dal GM, e per
+  // chi non e' GM restano semplicemente vuote (folders:[]): il fallback
+  // piatto sotto (non isOwner) mostra comunque tutti i PNG/Mostri visibili,
+  // indipendentemente da come il GM li ha organizzati - decisione esplicita
+  // (vedi piano Fase 4): niente navigazione cartelle in sola lettura per i
+  // giocatori qui, a differenza dei Precompilati in CampaignHome.
+  // maxVisibleDescendantShortcuts ridotto (4 invece del default 10 di
+  // CampaignHome): colonna fissa 256px, 10 scorciatoie in wrap
+  // occuperebbero piu' righe di quante ne valga la pena in cosi' poco
+  // spazio. onDropOutside: non passato in questa fase (vedi il commento su
+  // dnd sopra) - il pointerdown di un item PNG/Mostro qui appartiene
+  // interamente al drag-in-cartella, non al contratto Mappa futura (che
+  // resta solo per Personaggi finche' la Mappa non esiste davvero).
+  const npcSection = useFolderSection({
+    entityType: 'npc',
+    campaignId: activeCampaignId,
+    sessionKey: user?.id ?? null,
+    accessToken: session?.access_token ?? null,
+    canEdit: isOwner,
+    enabled: isOwner,
+    items: npcs,
+    renderCard: (n) => renderListItem(npcToEntry(n), { disableOwnDrag: true }),
+    renderGhostCard: (n) => renderListItem(npcToEntry(n)),
+    itemLabel: 'PNG',
+    onMoveCard: handleMoveNpcFolder,
+    onFolderDeleted: async (deletedFolderId, cascade) => {
+      if (cascade) {
+        setNpcs(await loadNPCs(activeCampaignId));
+      } else {
+        setNpcs((prev) => prev.map((n) => (n.folderId === deletedFolderId ? { ...n, folderId: null } : n)));
+      }
+    },
+    containerRef: dnd.containerRef,
+    maxVisibleDescendantShortcuts: 4,
+  });
+  const monsterSection = useFolderSection({
+    entityType: 'monster',
+    campaignId: activeCampaignId,
+    sessionKey: user?.id ?? null,
+    accessToken: session?.access_token ?? null,
+    canEdit: isOwner,
+    enabled: isOwner,
+    items: monsters,
+    renderCard: (m) => renderListItem(monsterToEntry(m), { disableOwnDrag: true }),
+    renderGhostCard: (m) => renderListItem(monsterToEntry(m)),
+    itemLabel: 'Mostri',
+    onMoveCard: handleMoveMonsterFolder,
+    onFolderDeleted: async (deletedFolderId, cascade) => {
+      if (cascade) {
+        setMonsters(await loadMonsters(activeCampaignId));
+      } else {
+        setMonsters((prev) => prev.map((m) => (m.folderId === deletedFolderId ? { ...m, folderId: null } : m)));
+      }
+    },
+    containerRef: dnd.containerRef,
+    maxVisibleDescendantShortcuts: 4,
+  });
+
+  // "Nessun PNG/mostro" (Fase 4): per il GM va valutato sulla cartella
+  // attualmente aperta (currentFolderId), non sul totale della sezione -
+  // altrimenti il messaggio resterebbe nascosto anche quando si e'
+  // navigati dentro una cartella vuota. Stesso identico calcolo che
+  // renderRows() fa internamente per childFolders/directItems (nessuna API
+  // pubblica dedicata in useFolderSection per "vista corrente vuota").
+  const npcCurrentViewEmpty = isOwner
+    && npcSection.folders.filter((f) => f.parentFolderId === npcSection.currentFolderId).length === 0
+    && npcs.filter((n) => (n.folderId ?? null) === npcSection.currentFolderId).length === 0;
+  const monsterCurrentViewEmpty = isOwner
+    && monsterSection.folders.filter((f) => f.parentFolderId === monsterSection.currentFolderId).length === 0
+    && monsters.filter((m) => (m.folderId ?? null) === monsterSection.currentFolderId).length === 0;
+
   if (isLoading) {
     return <div className="flex h-full items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-[var(--dash-muted)]" /></div>;
   }
 
-  const renderListItem = (entry: ListEntry) => (
+  // disableOwnDrag (Fase 4): usato quando questa riga e' gia' avvolta da un
+  // wrapper esterno che gestisce da solo l'intero pointerdown (vedi
+  // renderRows() in useFolderSection.tsx per PNG/Mostri foderati) - senza
+  // questo, l'avatar avvierebbe COMUNQUE il drag standalone verso `dnd`
+  // (Fase 3, pensato per Personaggi/Mappa futura) in parallelo a quello di
+  // npcSection/monsterSection sullo stesso gesto, con due hook che
+  // inseguono lo stesso pointermove/pointerup in conflitto. "Personaggi"
+  // (mai foderata) e il fallback piatto di PNG/Mostri per i non-GM restano
+  // sull'unico dnd standalone, comportamento Fase 3 invariato.
+  const renderListItem = (entry: ListEntry, options?: { disableOwnDrag?: boolean }) => (
     <button
       key={`${entry.kind}-${entry.id}`}
       type="button"
@@ -532,7 +698,7 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
       }`}
     >
       <div
-        onPointerDown={(e) => {
+        onPointerDown={options?.disableOwnDrag ? undefined : (e) => {
           if (canDragEntity(entry.kind, entry.ownerProfileId)) {
             dnd.handlePointerDown(e, { kind: 'card', id: `${entry.kind}:${entry.id}` });
           }
@@ -586,31 +752,91 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
           </div>
         )}
 
-        <SectionHeader title="PNG" count={visibleNpcs.length} isOpen={openSections.png} onToggle={() => toggleSection('png')} />
+        <SectionHeader
+          title="PNG" count={visibleNpcs.length} isOpen={openSections.png} onToggle={() => toggleSection('png')}
+          extraAction={isOwner && openSections.png ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={npcSection.handleCreateFolder}
+                  disabled={npcSection.createDisabledReason !== null}
+                  aria-label="Nuova cartella"
+                  className={`flex shrink-0 items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors ${
+                    npcSection.createDisabledReason !== null ? 'cursor-not-allowed opacity-40' : 'hover:text-[var(--dash-text-strong)]'
+                  }`}
+                >
+                  <FolderPlus className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="left">{npcSection.createDisabledReason ?? 'Nuova cartella'}</TooltipContent>
+            </Tooltip>
+          ) : undefined}
+        />
         {openSections.png && (
           <div className="space-y-1 px-2 pb-2">
-            {visibleNpcs.map(n => renderListItem({
-              kind: 'png', id: n.id, name: n.name, subtitle: n.role || 'PNG',
-              portraitUrl: n.portraitImageUrl,
-              portraitSourceUrl: n.portraitSourceImageUrl,
-              portraitCropArea: n.portraitCropArea,
-              hiddenFromPlayers: !n.visibleToPlayers,
-            }))}
-            {visibleNpcs.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun PNG.</div>}
+            {isOwner ? (
+              <>
+                {npcSection.folderPath.length > 0 && (
+                  <FolderBreadcrumb
+                    sectionLabel="PNG" path={npcSection.folderPath} entityType="npc"
+                    dropTarget={npcSection.dnd.dropTarget} onNavigate={npcSection.setCurrentFolderId}
+                    compact
+                  />
+                )}
+                {npcSection.renderRows()}
+                {npcCurrentViewEmpty && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun PNG.</div>}
+              </>
+            ) : (
+              <>
+                {visibleNpcs.map(n => renderListItem(npcToEntry(n)))}
+                {visibleNpcs.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun PNG.</div>}
+              </>
+            )}
           </div>
         )}
 
-        <SectionHeader title="Mostri" count={visibleMonsters.length} isOpen={openSections.mostro} onToggle={() => toggleSection('mostro')} />
+        <SectionHeader
+          title="Mostri" count={visibleMonsters.length} isOpen={openSections.mostro} onToggle={() => toggleSection('mostro')}
+          extraAction={isOwner && openSections.mostro ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={monsterSection.handleCreateFolder}
+                  disabled={monsterSection.createDisabledReason !== null}
+                  aria-label="Nuova cartella"
+                  className={`flex shrink-0 items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors ${
+                    monsterSection.createDisabledReason !== null ? 'cursor-not-allowed opacity-40' : 'hover:text-[var(--dash-text-strong)]'
+                  }`}
+                >
+                  <FolderPlus className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="left">{monsterSection.createDisabledReason ?? 'Nuova cartella'}</TooltipContent>
+            </Tooltip>
+          ) : undefined}
+        />
         {openSections.mostro && (
           <div className="space-y-1 px-2 pb-2">
-            {visibleMonsters.map(m => renderListItem({
-              kind: 'mostro', id: m.id, name: m.name, subtitle: 'Mostro',
-              portraitUrl: m.portraitImageUrl,
-              portraitSourceUrl: m.portraitSourceImageUrl,
-              portraitCropArea: m.portraitCropArea,
-              hiddenFromPlayers: !m.visibleToPlayers,
-            }))}
-            {visibleMonsters.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun mostro.</div>}
+            {isOwner ? (
+              <>
+                {monsterSection.folderPath.length > 0 && (
+                  <FolderBreadcrumb
+                    sectionLabel="Mostri" path={monsterSection.folderPath} entityType="monster"
+                    dropTarget={monsterSection.dnd.dropTarget} onNavigate={monsterSection.setCurrentFolderId}
+                    compact
+                  />
+                )}
+                {monsterSection.renderRows()}
+                {monsterCurrentViewEmpty && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun mostro.</div>}
+              </>
+            ) : (
+              <>
+                {visibleMonsters.map(m => renderListItem(monsterToEntry(m)))}
+                {visibleMonsters.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun mostro.</div>}
+              </>
+            )}
           </div>
         )}
       </div>
@@ -817,6 +1043,50 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
         </div>
       </div>
     )}
+    {/* Dialog icona/eliminazione cartella per PNG/Mostri - stesso schema di
+        CampaignHome.tsx (una coppia per sezione, ognuna col proprio stato
+        indipendente da useFolderSection, al piu' una aperta alla volta). */}
+    {[npcSection, monsterSection].map((section) => (
+      <Fragment key={section.itemLabel}>
+        {section.iconPickerFolder && (
+          <FolderIconPicker
+            selectedIconId={section.iconPickerFolder.icon}
+            onSelect={section.selectFolderIcon}
+            onClose={section.closeIconPicker}
+          />
+        )}
+        {section.deleteFolderTarget && (
+          <ConfirmDialog
+            title="Eliminare questa cartella?"
+            message={
+              section.deleteFolderCascadeContent
+                ? `"${section.deleteFolderTarget.name}" e tutto il suo contenuto verranno eliminati definitivamente. Questa azione non è reversibile.`
+                : `"${section.deleteFolderTarget.name}" verrà eliminata. Le card al suo interno non vengono eliminate: torneranno semplicemente senza cartella.`
+            }
+            confirmLabel={section.deleteFolderCascadeContent ? 'Elimina tutto' : 'Elimina'}
+            extraContent={section.deleteFolderContents && (
+              <label className="flex items-start gap-2 text-sm text-[var(--dash-text)]">
+                <input
+                  type="checkbox"
+                  checked={section.deleteFolderCascadeContent}
+                  onChange={(e) => section.setDeleteFolderCascadeContent(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  Elimina anche il contenuto: {section.deleteFolderContents.itemCount} {section.itemLabel}
+                  {section.deleteFolderContents.folderCount > 0 && ` e ${section.deleteFolderContents.folderCount} sotto-cartell${section.deleteFolderContents.folderCount === 1 ? 'a' : 'e'}`}
+                  {' '}verranno eliminati definitivamente.
+                </span>
+              </label>
+            )}
+            onConfirm={section.confirmDeleteFolder}
+            onCancel={section.cancelDeleteFolder}
+          />
+        )}
+      </Fragment>
+    ))}
+    {npcSection.renderGhost()}
+    {monsterSection.renderGhost()}
     <TokenDragGhost
       entity={draggedEntityInfo ? {
         id: draggedEntityInfo.entity.id,

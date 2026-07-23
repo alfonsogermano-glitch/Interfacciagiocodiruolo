@@ -231,6 +231,19 @@ export function useFolderDragDrop({
   const ownContainerRef = useRef<HTMLDivElement | null>(null);
   const containerRef = externalContainerRef ?? ownContainerRef;
   const dropTargetRef = useRef<FolderDropTarget | null>(null);
+  // Specchio sincrono di draggedItem, stesso motivo di dropTargetRef sopra:
+  // handleMove/handleUp sotto sono chiusure catturate all'ultimo giro
+  // dell'effect (deps [draggedItem, ...]), che si riesegue solo DOPO che
+  // React ha applicato l'aggiornamento di stato - con un drag sintetico
+  // abbastanza rapido (es. left_click_drag di automazione, mousedown+move+up
+  // senza un giro di render nel mezzo), il pointerup poteva arrivare alla
+  // VECCHIA chiusura di handleUp (quella di prima del drag, con
+  // draggedItem ancora null), che quindi non faceva nulla e lasciava lo
+  // stato - e il ghost a schermo - bloccato per sempre (bug osservato
+  // verificando la Fase 4 con drag automatizzati). Un ref aggiornato in
+  // modo sincrono nello stesso gestore che chiama setDraggedItem elimina la
+  // dipendenza dal giro di render, esattamente come gia' fa dropTargetRef.
+  const draggedItemRef = useRef<DraggedItem | null>(null);
   const pointerStartRef = useRef<{ x: number; y: number; item: DraggedItem } | null>(null);
 
   const handlePointerDown = (e: React.PointerEvent, item: DraggedItem) => {
@@ -242,11 +255,12 @@ export function useFolderDragDrop({
 
   useEffect(() => {
     const handleMove = (e: PointerEvent) => {
-      if (draggedItem) {
+      if (draggedItemRef.current) {
+        const current = draggedItemRef.current;
         setPointerPosition({ x: e.clientX, y: e.clientY });
         const container = containerRef.current;
         if (!container) return;
-        const target = resolveFolderDropTarget(e.clientX, e.clientY, container, draggedItem.kind, entityType, draggedItem.id);
+        const target = resolveFolderDropTarget(e.clientX, e.clientY, container, current.kind, entityType, current.id);
         dropTargetRef.current = target;
         setDropTarget(target);
         return;
@@ -257,13 +271,15 @@ export function useFolderDragDrop({
       const dx = e.clientX - start.x;
       const dy = e.clientY - start.y;
       if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD_PX) {
+        draggedItemRef.current = start.item;
         setDraggedItem(start.item);
         setPointerPosition({ x: e.clientX, y: e.clientY });
       }
     };
 
     const handleUp = (e: PointerEvent) => {
-      if (draggedItem) {
+      const current = draggedItemRef.current;
+      if (current) {
         // Il browser genera comunque un evento click nativo dopo il
         // pointerup, sull'elemento sotto il cursore al rilascio -
         // indipendentemente dal movimento avvenuto nel mezzo (anche se il
@@ -276,22 +292,23 @@ export function useFolderDragDrop({
         window.addEventListener('click', suppressClickAfterDrag, { capture: true, once: true });
         const target = dropTargetRef.current;
         if (target) {
-          if (draggedItem.kind === 'folder' && target.type === 'reorder-folder') {
-            if (target.beforeFolderId !== draggedItem.id) {
-              onReorderFolders(draggedItem.id, target.beforeFolderId);
+          if (current.kind === 'folder' && target.type === 'reorder-folder') {
+            if (target.beforeFolderId !== current.id) {
+              onReorderFolders(current.id, target.beforeFolderId);
             }
-          } else if (draggedItem.kind === 'folder' && target.type === 'nest-into-folder') {
-            onNestFolder(draggedItem.id, target.folderId);
-          } else if (draggedItem.kind === 'folder' && target.type === 'unfiled') {
-            onNestFolder(draggedItem.id, null);
-          } else if (draggedItem.kind === 'card' && target.type === 'into-folder') {
-            onMoveCard(draggedItem.id, target.folderId);
-          } else if (draggedItem.kind === 'card' && target.type === 'unfiled') {
-            onMoveCard(draggedItem.id, null);
+          } else if (current.kind === 'folder' && target.type === 'nest-into-folder') {
+            onNestFolder(current.id, target.folderId);
+          } else if (current.kind === 'folder' && target.type === 'unfiled') {
+            onNestFolder(current.id, null);
+          } else if (current.kind === 'card' && target.type === 'into-folder') {
+            onMoveCard(current.id, target.folderId);
+          } else if (current.kind === 'card' && target.type === 'unfiled') {
+            onMoveCard(current.id, null);
           }
-        } else if (draggedItem.kind === 'card') {
-          onDropOutside?.(draggedItem, e.clientX, e.clientY);
+        } else if (current.kind === 'card') {
+          onDropOutside?.(current, e.clientX, e.clientY);
         }
+        draggedItemRef.current = null;
         setDraggedItem(null);
         setDropTarget(null);
         setPointerPosition(null);

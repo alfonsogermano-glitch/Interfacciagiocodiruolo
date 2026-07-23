@@ -6,7 +6,11 @@ import { getFolderIconComponent } from './folderIconCatalog';
 
 // Quante scorciatoie a discendenti mostrare prima di "+N altre" (righe 2
 // wrap ragionevoli anche con parecchi discendenti) - vedi FolderRow sotto.
-const MAX_VISIBLE_DESCENDANT_SHORTCUTS = 10;
+// Default per il grid a 2 colonne di CampaignHome (~200px+ per colonna) -
+// SessionCharactersPanel.tsx (Fase 4, colonna fissa 256px) passa un valore
+// ridotto tramite la prop sotto, altrimenti 10 scorciatoie in wrap
+// occuperebbero piu' righe di quante ne valga la pena in cosi' poco spazio.
+const DEFAULT_MAX_VISIBLE_DESCENDANT_SHORTCUTS = 10;
 
 // Riga di una singola cartella (drill-down: click = entra dentro, il
 // contenuto della cartella sostituisce la vista invece di espandersi sotto -
@@ -20,6 +24,7 @@ const MAX_VISIBLE_DESCENDANT_SHORTCUTS = 10;
 export function FolderRow({
   folder, onEnter, count, descendantFolders, onNavigateTo, canEdit, isRenaming, renameDraft, onRenameDraftChange,
   onStartRename, onCommitRename, onCancelRename, onRequestDelete, onOpenIconPicker, onPointerDown, dropState, isDimmed,
+  maxVisibleDescendantShortcuts = DEFAULT_MAX_VISIBLE_DESCENDANT_SHORTCUTS,
 }: {
   folder: Folder;
   /** Naviga dentro la cartella (drill-down) - visibile/utilizzabile anche
@@ -61,12 +66,15 @@ export function FolderRow({
    *  allo stato reale del drag invece di :active (che scattava anche per un
    *  click semplice, prima ancora di sapere se sarebbe diventato un drag). */
   isDimmed: boolean;
+  /** Tetto scorciatoie a discendenti prima di "+N altre" - vedi il commento
+   *  sulla costante di default sopra. */
+  maxVisibleDescendantShortcuts?: number;
 }) {
   // Solo UI, transitorio - nessun altro consumer ne ha bisogno, non serve
   // sollevarlo al genitore (si azzera comunque quando questa riga smonta,
   // es. dopo un salto che cambia la vista corrente).
   const [expanded, setExpanded] = useState(false);
-  const visibleDescendants = expanded ? descendantFolders : descendantFolders.slice(0, MAX_VISIBLE_DESCENDANT_SHORTCUTS);
+  const visibleDescendants = expanded ? descendantFolders : descendantFolders.slice(0, maxVisibleDescendantShortcuts);
   const hiddenCount = descendantFolders.length - visibleDescendants.length;
 
   return (
@@ -179,7 +187,7 @@ export function FolderRow({
               +{hiddenCount} altre
             </button>
           )}
-          {expanded && descendantFolders.length > MAX_VISIBLE_DESCENDANT_SHORTCUTS && (
+          {expanded && descendantFolders.length > maxVisibleDescendantShortcuts && (
             <button
               type="button"
               data-no-drag
