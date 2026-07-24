@@ -672,6 +672,7 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     },
     containerRef: dnd.containerRef,
     maxVisibleDescendantShortcuts: 4,
+    menuColors,
   });
   const monsterSection = useFolderSection({
     entityType: 'monster',
@@ -694,6 +695,7 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     },
     containerRef: dnd.containerRef,
     maxVisibleDescendantShortcuts: 4,
+    menuColors,
   });
 
   // "Nessun PNG/mostro" (Fase 4): per il GM va valutato sulla cartella

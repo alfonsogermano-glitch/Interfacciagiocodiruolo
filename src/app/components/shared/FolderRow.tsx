@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Trash2, ChevronRight } from 'lucide-react';
+import { Trash2, ChevronRight, Pencil } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { type Folder } from '../../../services/supabase/foldersService';
 import { getFolderIconComponent } from './folderIconCatalog';
+import { EntityKebabMenu, type EntityKebabMenuColors } from '../session/shared/EntityKebabMenu';
 
 // Quante scorciatoie a discendenti mostrare prima di "+N altre" (righe 2
 // wrap ragionevoli anche con parecchi discendenti) - vedi FolderRow sotto.
@@ -24,7 +25,7 @@ const DEFAULT_MAX_VISIBLE_DESCENDANT_SHORTCUTS = 10;
 export function FolderRow({
   folder, onEnter, count, descendantFolders, onNavigateTo, canEdit, isRenaming, renameDraft, onRenameDraftChange,
   onStartRename, onCommitRename, onCancelRename, onRequestDelete, onOpenIconPicker, onPointerDown, dropState, isDimmed,
-  maxVisibleDescendantShortcuts = DEFAULT_MAX_VISIBLE_DESCENDANT_SHORTCUTS,
+  maxVisibleDescendantShortcuts = DEFAULT_MAX_VISIBLE_DESCENDANT_SHORTCUTS, colors,
 }: {
   folder: Folder;
   /** Naviga dentro la cartella (drill-down) - visibile/utilizzabile anche
@@ -49,8 +50,9 @@ export function FolderRow({
   onCommitRename: () => void;
   onCancelRename: () => void;
   onRequestDelete: () => void;
-  /** Apre FolderIconPicker per questa cartella - assente/non chiamato se
-   *  !canEdit (icona non cliccabile per chi non puo' modificare). */
+  /** Apre FolderIconPicker per questa cartella - richiamato solo dalla voce
+   *  "Cambia icona" del menu ⋮ (icona in riga non piu' cliccabile
+   *  direttamente, vedi il commento sul menu ⋮ piu' sotto). */
   onOpenIconPicker: () => void;
   onPointerDown: (e: React.PointerEvent) => void;
   /** 'valid'/'invalid' solo mentre e' il bersaglio di un drag di CARTELLA in
@@ -69,6 +71,9 @@ export function FolderRow({
   /** Tetto scorciatoie a discendenti prima di "+N altre" - vedi il commento
    *  sulla costante di default sopra. */
   maxVisibleDescendantShortcuts?: number;
+  /** Colori per il menu ⋮ (Cambia icona/Rinomina/Elimina) - stesso oggetto
+   *  menuColors gia' usato dagli altri EntityKebabMenu del chiamante. */
+  colors: EntityKebabMenuColors;
 }) {
   // Solo UI, transitorio - nessun altro consumer ne ha bisogno, non serve
   // sollevarlo al genitore (si azzera comunque quando questa riga smonta,
@@ -103,22 +108,7 @@ export function FolderRow({
         <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
           {(() => {
             const Icon = getFolderIconComponent(folder.icon);
-            return canEdit ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span
-                    data-no-drag
-                    onClick={(e) => { e.stopPropagation(); onOpenIconPicker(); }}
-                    className="shrink-0 rounded p-0.5 text-[var(--dash-accent-2)] transition-colors hover:bg-[var(--dash-surface-2)]"
-                  >
-                    <Icon className="h-4 w-4" />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top">Cambia icona</TooltipContent>
-              </Tooltip>
-            ) : (
-              <Icon className="h-4 w-4 shrink-0 text-[var(--dash-accent-2)]" />
-            );
+            return <Icon className="h-4 w-4 shrink-0 text-[var(--dash-accent-2)]" />;
           })()}
           {isRenaming ? (
             <input
@@ -136,26 +126,43 @@ export function FolderRow({
               className="w-40 rounded-md border border-[var(--dash-accent)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text)]"
             />
           ) : (
-            <span
-              className="truncate text-sm font-medium text-[var(--dash-text-strong)]"
-              onClick={canEdit ? (e) => { e.stopPropagation(); onStartRename(); } : undefined}
-            >
+            <span className="truncate text-sm font-medium text-[var(--dash-text-strong)]">
               {folder.name}
             </span>
           )}
           <span className="shrink-0 text-xs text-[var(--dash-muted)]">({count})</span>
         </div>
-        {canEdit && !isRenaming && (
-          <button
-            type="button"
-            data-no-drag
-            onClick={(e) => { e.stopPropagation(); onRequestDelete(); }}
-            className="shrink-0 rounded p-1 text-[var(--dash-muted)] opacity-0 transition-opacity hover:text-[var(--dash-danger-text)] group-hover:opacity-100"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
+        {canEdit && !isRenaming ? (
+          <div data-no-drag>
+            <EntityKebabMenu
+              colors={colors}
+              buttonClassName="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]"
+              items={[
+                {
+                  key: 'icon',
+                  icon: (() => { const Icon = getFolderIconComponent(folder.icon); return <Icon className="h-4 w-4" />; })(),
+                  label: 'Cambia icona',
+                  onClick: onOpenIconPicker,
+                },
+                {
+                  key: 'rename',
+                  icon: <Pencil className="h-4 w-4" />,
+                  label: 'Rinomina',
+                  onClick: onStartRename,
+                },
+                {
+                  key: 'delete',
+                  icon: <Trash2 className="h-4 w-4" />,
+                  label: 'Elimina',
+                  onClick: onRequestDelete,
+                  danger: true,
+                },
+              ]}
+            />
+          </div>
+        ) : (
+          <ChevronRight className="h-4 w-4 shrink-0 text-[var(--dash-muted)]" />
         )}
-        <ChevronRight className="h-4 w-4 shrink-0 text-[var(--dash-muted)]" />
       </div>
       {descendantFolders.length > 0 && (
         <div className="flex flex-wrap items-center gap-1 pl-6">

@@ -1366,6 +1366,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       }
     },
     containerRef: foldersContainerRef,
+    menuColors,
   });
   // 'npc'/'monster' solo per il GM, stessa regola di sicurezza delle
   // sezioni PNG/Mostri (mai richieste per un giocatore).
@@ -1389,6 +1390,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       }
     },
     containerRef: foldersContainerRef,
+    menuColors,
   });
   const monsterSection = useFolderSection({
     entityType: 'monster',
@@ -1410,6 +1412,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       }
     },
     containerRef: foldersContainerRef,
+    menuColors,
   });
 
   // Vista "Tutti": tutte le card della sezione (a qualunque profondita' di

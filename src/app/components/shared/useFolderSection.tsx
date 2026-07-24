@@ -6,6 +6,7 @@ import {
   type Folder, type FolderEntityType,
 } from '../../../services/supabase/foldersService';
 import { useFolderDragDrop, reorderIds } from '../session/shared/useFolderDragDrop';
+import { type EntityKebabMenuColors } from '../session/shared/EntityKebabMenu';
 import { FolderRow } from './FolderRow';
 import { DragGhost } from './DragGhost';
 
@@ -78,6 +79,10 @@ export interface UseFolderSectionParams<T extends { id: string; folderId?: strin
    *  SessionCharactersPanel.tsx (Fase 4, colonna 256px) passa un valore
    *  ridotto. */
   maxVisibleDescendantShortcuts?: number;
+  /** Colori per il menu ⋮ di FolderRow (Cambia icona/Rinomina/Elimina) -
+   *  lo stesso oggetto menuColors gia' usato dal chiamante per i propri
+   *  EntityKebabMenu (card PG/PNG/Mostri). */
+  menuColors: EntityKebabMenuColors;
 }
 
 export interface UseFolderSectionResult {
@@ -135,7 +140,7 @@ export interface UseFolderSectionResult {
  */
 export function useFolderSection<T extends { id: string; folderId?: string | null }>({
   entityType, campaignId, sessionKey, accessToken, canEdit, enabled, items, renderCard, renderGhostCard, itemLabel,
-  onMoveCard, onFolderDeleted, containerRef, maxVisibleDescendantShortcuts,
+  onMoveCard, onFolderDeleted, containerRef, maxVisibleDescendantShortcuts, menuColors,
 }: UseFolderSectionParams<T>): UseFolderSectionResult {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -354,6 +359,7 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
               dropState={computeFolderRowDropState(dnd, folder, foldersById)}
               isDimmed={dnd.draggedItem?.kind === 'folder' && dnd.draggedItem.id === folder.id}
               maxVisibleDescendantShortcuts={maxVisibleDescendantShortcuts}
+              colors={menuColors}
             />
           );
         })}

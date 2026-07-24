@@ -28,7 +28,7 @@ export interface EntityKebabMenuItem {
   keepOpenAfterClick?: boolean;
 }
 
-interface EntityKebabMenuColors {
+export interface EntityKebabMenuColors {
   panel: string;
   border: string;
   text: string;
