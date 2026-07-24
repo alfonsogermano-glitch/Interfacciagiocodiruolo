@@ -769,9 +769,13 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   const lastPlayerCharacterSuffix = (target: PlayerCharacterSummary | null) => {
     if (!target || !activeCampaign || target.ownerProfileId === activeCampaign.ownerId) return '';
     const row = playerRows.find((r) => r.profileId === target.ownerProfileId);
-    return isLastActiveCharacterForOwner(row?.characters ?? [], target.id, target.ownerProfileId)
-      ? ' Il giocatore verrà anche rimosso dalla campagna, dato che questo è il suo unico personaggio qui.'
-      : '';
+    if (!isLastActiveCharacterForOwner(row?.characters ?? [], target.id, target.ownerProfileId)) return '';
+    // Seconda persona quando e' il giocatore stesso ad agire sul proprio PG
+    // (ora possibile anche da qui, non solo da MyCharactersPage.tsx), terza
+    // persona quando e' il GM ad agire su un PG altrui.
+    return target.ownerProfileId === user?.id
+      ? ' Verrai anche rimosso dalla campagna, dato che questo è il tuo unico personaggio qui.'
+      : ' Il giocatore verrà anche rimosso dalla campagna, dato che questo è il suo unico personaggio qui.';
   };
 
   // Toggle "Disponibile per i giocatori" - solo sui precompilati del GM,
@@ -1025,12 +1029,14 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       });
     }
 
-    // Due ampiezze distinte, entrambe solo GM (mai al giocatore proprietario):
     // "Rimuovi dalla campagna" tocca solo questo PG (il giocatore resta
-    // membro con eventuali altri suoi PG); "Rimuovi giocatore" e' il
+    // membro con eventuali altri suoi PG) - disponibile sia al GM su
+    // qualunque PG, sia al giocatore sul proprio (stesso identico gesto gia'
+    // offerto in MyCharactersPage.tsx, qui e' solo un secondo punto di
+    // accesso). "Rimuovi giocatore" sotto resta invece solo-GM: e' il
     // sovrainsieme che rimuove tutti i PG del giocatore in questa campagna
-    // piu' la membership.
-    if (isOwner) {
+    // piu' la membership, non un'azione self-service.
+    if (isOwner || isSelfOwned) {
       items.push({
         key: 'unassign',
         icon: <UserMinus className="h-4 w-4" />,
@@ -1876,7 +1882,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       {unassignCharTarget && (
         <ConfirmDialog
           title="Rimuovere il personaggio dalla campagna?"
-          message={`"${unassignCharTarget.name}" non verrà eliminato: resterà nel database del giocatore, semplicemente non farà più parte di questa campagna.${lastPlayerCharacterSuffix(unassignCharTarget)}`}
+          message={`"${unassignCharTarget.name}" non verrà eliminato: resterà nel database ${unassignCharTarget.ownerProfileId === user?.id ? 'del tuo profilo' : 'del giocatore'}, semplicemente non farà più parte di questa campagna.${lastPlayerCharacterSuffix(unassignCharTarget)}`}
           confirmLabel="Rimuovi"
           danger={false}
           onConfirm={handleConfirmUnassignCharacter}
