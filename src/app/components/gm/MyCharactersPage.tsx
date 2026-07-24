@@ -627,8 +627,13 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     // stessa nota in filterEntries() per PNG/Mostri.
     .filter(c => !charRulesetFilter || c.ruleset === charRulesetFilter);
   const filteredCharacters = sortByNameOrDate(searchCharacters(charFilterPool, charSearch), charSort);
+  // Vero solo nel terzo ramo del ternario piu' sotto (non loading, non
+  // vuoto) - riusata anche per decidere se mostrare la paginazione, ora
+  // separata dalla griglia per poter inserire "PG disponibili da richiedere"
+  // tra le due senza che finisca dentro lo stesso ramo della paginazione.
+  const showCharacterGrid = !(isLoading && !hasLoadedCharactersOnce) && filteredCharacters.length > 0;
   // Intestazione della sezione principale, simmetrica a "PG disponibili da
-  // richiedere" sopra (stesso stile) - dinamica sul filtro attivo cosi'
+  // richiedere" sotto (stesso stile) - dinamica sul filtro attivo cosi'
   // resta accurata anche quando charFilter non e' 'all'.
   const charSectionLabel = charFilter === 'assigned'
     ? 'I miei personaggi in campagna'
@@ -1656,7 +1661,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             </button>
             <button type="button" onClick={() => setCharFilter('available')} className={pillClass(charFilter === 'available')}>
               <Sparkles className="h-3 w-3" />
-              Richiedibile <span className="opacity-70">({availableForPlayersCharacters.length})</span>
+              I miei precompilati <span className="opacity-70">({availableForPlayersCharacters.length})</span>
             </button>
           </EntityFilterToolbar>
 
@@ -1684,36 +1689,18 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                           : 'Nessun personaggio trovato.'}
               </p>
             </div>
-          ) : (
-            <>
-              {charViewMode === 'list' ? (
-                <div className={LIST_CONTAINER_CLASS}>
-                  <div className="space-y-2">
-                    {pagedCharacters.map(char => renderCharacterCard(char, 'list'))}
-                  </div>
-                </div>
-              ) : (
-                <div className={GRID_CONTAINER_CLASS}>
-                  <div className={GRID_CLASS}>
-                    {pagedCharacters.map(char => renderCharacterCard(char))}
-                  </div>
-                </div>
-              )}
-
-              <div className={GRID_CONTAINER_CLASS}>
-                <EntityPagination
-                  page={charSafePage}
-                  onPageChange={setCharPage}
-                  pageSize={charPageSize}
-                  onPageSizeChange={setCharPageSize}
-                  totalPages={charTotalPages}
-                  startIndex={charStartIndex}
-                  endIndex={charEndIndex}
-                  totalItems={filteredCharacters.length}
-                  itemLabelPlural="personaggi"
-                />
+          ) : charViewMode === 'list' ? (
+            <div className={LIST_CONTAINER_CLASS}>
+              <div className="space-y-2">
+                {pagedCharacters.map(char => renderCharacterCard(char, 'list'))}
               </div>
-            </>
+            </div>
+          ) : (
+            <div className={GRID_CONTAINER_CLASS}>
+              <div className={GRID_CLASS}>
+                {pagedCharacters.map(char => renderCharacterCard(char))}
+              </div>
+            </div>
           )}
 
           {availableCharacters.length > 0 && (
@@ -1724,6 +1711,22 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
               <div className={GRID_CLASS}>
                 {availableCharacters.map(char => renderAvailableCharacterCard(char))}
               </div>
+            </div>
+          )}
+
+          {showCharacterGrid && (
+            <div className={GRID_CONTAINER_CLASS}>
+              <EntityPagination
+                page={charSafePage}
+                onPageChange={setCharPage}
+                pageSize={charPageSize}
+                onPageSizeChange={setCharPageSize}
+                totalPages={charTotalPages}
+                startIndex={charStartIndex}
+                endIndex={charEndIndex}
+                totalItems={filteredCharacters.length}
+                itemLabelPlural="personaggi"
+              />
             </div>
           )}
         </div>
