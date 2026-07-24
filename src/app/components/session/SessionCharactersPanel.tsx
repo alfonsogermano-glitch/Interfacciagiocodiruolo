@@ -336,20 +336,6 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     }
   };
 
-  // Suffisso condizionale per il dialog "Rimuovere il personaggio dalla
-  // campagna?" - vedi lastPlayerCharacterSuffix in CampaignHome.tsx, stessa
-  // ragione. `characters` qui e' gia' scoped alla sola activeCampaignId,
-  // nessuna campagna da distinguere. Esclude il caso in cui il PG selezionato
-  // sia del GM stesso (mai membro della propria campagna).
-  const removeCharSuffix = (() => {
-    if (!selectedChar) return '';
-    const ownerProfileId = (selectedChar as any).ownerProfileId as string | null | undefined;
-    if (!ownerProfileId || ownerProfileId === activeCampaign?.ownerId) return '';
-    return isLastActiveCharacterForOwner(characters as unknown as Array<{ id: string; ownerProfileId?: string | null }>, selectedChar.id, ownerProfileId)
-      ? ' Il giocatore verrà anche rimosso dalla campagna, dato che questo è il suo unico personaggio qui.'
-      : '';
-  })();
-
   const handleRemovePlayer = async () => {
     if (!selectedChar) return;
     const playerProfileId = (selectedChar as any).ownerProfileId;
@@ -560,6 +546,24 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
   const selectedMonster = selected?.kind === 'mostro' ? monsters.find(m => m.id === selected.id) ?? null : null;
   const isMine = selectedChar ? (selectedChar as any).ownerProfileId === user?.id : false;
   const canEdit = isMine || isOwner;
+
+  // Suffisso condizionale per il dialog "Rimuovere il personaggio dalla
+  // campagna?" - vedi lastPlayerCharacterSuffix in CampaignHome.tsx, stessa
+  // ragione. `characters` qui e' gia' scoped alla sola activeCampaignId,
+  // nessuna campagna da distinguere. Esclude il caso in cui il PG selezionato
+  // sia del GM stesso (mai membro della propria campagna). Deve stare dopo
+  // la dichiarazione di selectedChar sopra - prima causava un crash
+  // "Cannot access 'selectedChar' before initialization" (TDZ, la IIFE si
+  // eseguiva subito durante il render, quando selectedChar non era ancora
+  // stato dichiarato piu' sotto nel file).
+  const removeCharSuffix = (() => {
+    if (!selectedChar) return '';
+    const ownerProfileId = (selectedChar as any).ownerProfileId as string | null | undefined;
+    if (!ownerProfileId || ownerProfileId === activeCampaign?.ownerId) return '';
+    return isLastActiveCharacterForOwner(characters as unknown as Array<{ id: string; ownerProfileId?: string | null }>, selectedChar.id, ownerProfileId)
+      ? ' Il giocatore verrà anche rimosso dalla campagna, dato che questo è il suo unico personaggio qui.'
+      : '';
+  })();
 
   const selectedEntityRuleset: RulesetId | null | undefined =
     selectedChar?.ruleset ?? selectedNpc?.ruleset ?? selectedMonster?.ruleset;
