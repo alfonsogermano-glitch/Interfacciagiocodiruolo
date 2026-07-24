@@ -776,14 +776,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         accent
         name={char.name}
         subtitle={styleViaggio}
-        badge={
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 rounded-full border border-[var(--dash-accent)] bg-[var(--dash-accent)]/15 px-2.5 py-1 text-xs font-medium tracking-wide text-[var(--dash-accent-2)]">
-              <MapPin className="h-3 w-3" /> {campaignInfoFor(char.campaignId)?.name ?? 'Campagna sconosciuta'}
-            </span>
-            <RulesetTag rulesetId={char.ruleset ?? 'hsc'} />
-          </div>
-        }
+        badge={<RulesetTag rulesetId={char.ruleset ?? 'hsc'} />}
         secondaryText={char.description}
         photoUrl={char.portraitImageUrl}
         photoSourceUrl={char.portraitSourceImageUrl}
@@ -805,7 +798,15 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
             Richiedi
           </button>
         }
-      />
+      >
+        <div className="flex items-center gap-1.5 truncate text-[11px] text-[var(--dash-accent-2)]">
+          <MapPin className="h-3 w-3 shrink-0" />
+          <span className="truncate">
+            {campaignInfoFor(char.campaignId)?.name ?? 'Campagna sconosciuta'}
+            {char.campaignId ? ` · GM ${gmOnlineFor[char.campaignId] ? 'online' : 'offline'}` : ''}
+          </span>
+        </div>
+      </EntityCard>
     );
   };
 
