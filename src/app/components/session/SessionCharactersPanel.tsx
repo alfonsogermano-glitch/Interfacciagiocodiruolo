@@ -516,13 +516,6 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
       onClick: () => setConfirmUnassignEntity(true),
     },
     {
-      key: 'delete',
-      icon: <Trash2 className="h-4 w-4" />,
-      label: deleteLabel,
-      onClick: () => setConfirmDeleteEntity(true),
-      danger: true,
-    },
-    {
       key: 'requestable',
       icon: <Search className="h-4 w-4" />,
       label: 'Richiedibile',
@@ -533,6 +526,15 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
       icon: entity.visibleToPlayers ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />,
       label: entity.visibleToPlayers ? 'Rendi invisibile ai giocatori' : 'Rendi visibile ai giocatori',
       onClick: handleToggleVisibleToPlayers,
+    },
+    // Sempre ultima voce del menu, qualunque combinazione delle precedenti
+    // sia presente - stessa convenzione in tutti i menu ⋮ dell'app.
+    {
+      key: 'delete',
+      icon: <Trash2 className="h-4 w-4" />,
+      label: deleteLabel,
+      onClick: () => setConfirmDeleteEntity(true),
+      danger: true,
     },
   ];
 

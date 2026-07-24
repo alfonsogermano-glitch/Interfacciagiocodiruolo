@@ -20,6 +20,12 @@ interface EntityCardProps {
   badge?: ReactNode;
   cornerAction?: ReactNode;
   children?: ReactNode;
+  /** Bordo/sfondo accent-colorato al posto del neutro standard - per
+   *  distinguere a colpo d'occhio card che rappresentano un'azione diversa
+   *  dal solito (es. un PG non ancora tuo, richiedibile), senza dover
+   *  aggiungere un secondo componente. Default false = comportamento
+   *  invariato per tutti gli usi esistenti. */
+  accent?: boolean;
   // 'list' e' una riga orizzontale compatta (portrait piu' piccolo, testo su
   // una riga sola) per la vista a lista di MyCharactersPage.tsx - stesse
   // funzionalita' (badge/menu/children), solo riorganizzate. Default 'grid'
@@ -46,6 +52,7 @@ export function EntityCard({
   cornerAction,
   children,
   variant = 'grid',
+  accent = false,
   tokenColor,
   tokenBackgroundColor,
   tokenBorderStyle,
@@ -53,11 +60,15 @@ export function EntityCard({
   tokenBorderVisible,
   tokenBorderLabel,
 }: EntityCardProps) {
+  const shellClass = accent
+    ? 'border-[var(--dash-accent)]/50 bg-[var(--dash-accent)]/[0.06]'
+    : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)]';
+
   if (variant === 'list') {
     return (
       <div
         onClick={onClick}
-        className={`flex items-center gap-3 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] py-2 pl-2 pr-3 transition-colors hover:border-[var(--dash-accent)] ${
+        className={`flex items-center gap-3 rounded-xl border ${shellClass} py-2 pl-2 pr-3 transition-colors hover:border-[var(--dash-accent)] ${
           onClick ? 'cursor-pointer' : ''
         }`}
       >
@@ -125,7 +136,7 @@ export function EntityCard({
   return (
     <div
       onClick={onClick}
-      className={`relative flex items-stretch overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] transition-colors hover:border-[var(--dash-accent)] ${
+      className={`relative flex items-stretch overflow-hidden rounded-2xl border ${shellClass} transition-colors hover:border-[var(--dash-accent)] ${
         onClick ? 'cursor-pointer' : ''
       }`}
     >

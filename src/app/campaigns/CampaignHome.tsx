@@ -1013,22 +1013,6 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       });
     }
 
-    // "Elimina" solo su un PG che possiedi davvero (il GM sul proprio
-    // precompilato, o il giocatore sul proprio PG) - mai al GM su un PG di
-    // un giocatore: non e' suo, non deve poterlo eliminare da qui (il server
-    // lo permetterebbe comunque, vedi deleteCharacter in
-    // charactersService.ts, ma questo menu non offre mai la voce). "Rimuovi
-    // giocatore" sotto resta lo strumento corretto per il GM su un PG altrui.
-    if (isSelfOwned) {
-      items.push({
-        key: 'delete',
-        icon: <Trash2 className="h-4 w-4" />,
-        label: 'Elimina',
-        onClick: () => setDeleteCharTarget(ch),
-        danger: true,
-      });
-    }
-
     // "Rimuovi dalla campagna" tocca solo questo PG (il giocatore resta
     // membro con eventuali altri suoi PG) - disponibile sia al GM su
     // qualunque PG, sia al giocatore sul proprio (stesso identico gesto gia'
@@ -1051,6 +1035,24 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
         icon: <Users className="h-4 w-4" />,
         label: 'Rimuovi giocatore',
         onClick: () => setRemovePlayerTarget(row),
+        danger: true,
+      });
+    }
+
+    // "Elimina" solo su un PG che possiedi davvero (il GM sul proprio
+    // precompilato, o il giocatore sul proprio PG) - mai al GM su un PG di
+    // un giocatore: non e' suo, non deve poterlo eliminare da qui (il server
+    // lo permetterebbe comunque, vedi deleteCharacter in
+    // charactersService.ts, ma questo menu non offre mai la voce). "Rimuovi
+    // giocatore" sopra resta lo strumento corretto per il GM su un PG altrui.
+    // Sempre ultima voce del menu, qualunque combinazione delle precedenti
+    // sia presente - stessa convenzione in tutti i menu ⋮ dell'app.
+    if (isSelfOwned) {
+      items.push({
+        key: 'delete',
+        icon: <Trash2 className="h-4 w-4" />,
+        label: 'Elimina',
+        onClick: () => setDeleteCharTarget(ch),
         danger: true,
       });
     }

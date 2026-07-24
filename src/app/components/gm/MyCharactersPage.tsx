@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Plus, Loader2, Pencil, Trash2,
   Copy, CopyPlus, UserPlus, UserMinus, UserCog, Undo2, Search, Eye, EyeOff, MapPin, ArrowLeft, Sparkles,
-  DoorOpen, X,
+  DoorOpen, X, Users,
 } from 'lucide-react';
 import { useJoinByCodeFlow } from '../../../hooks/useJoinByCodeFlow';
 import { JoinCampaignCharacterDialog } from '../session/shared/JoinCampaignCharacterDialog';
@@ -615,6 +615,14 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     // stessa nota in filterEntries() per PNG/Mostri.
     .filter(c => !charRulesetFilter || c.ruleset === charRulesetFilter);
   const filteredCharacters = sortByNameOrDate(searchCharacters(charFilterPool, charSearch), charSort);
+  // Intestazione della sezione principale, simmetrica a "PG disponibili da
+  // richiedere" sopra (stesso stile) - dinamica sul filtro attivo cosi'
+  // resta accurata anche quando charFilter non e' 'all'.
+  const charSectionLabel = charFilter === 'assigned'
+    ? 'I miei personaggi in campagna'
+    : charFilter === 'unassigned'
+      ? 'I miei personaggi non in campagna'
+      : 'I miei personaggi';
   const {
     pageItems: pagedCharacters,
     totalPages: charTotalPages,
@@ -765,9 +773,17 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
       <EntityCard
         key={char.id}
         variant="grid"
+        accent
         name={char.name}
         subtitle={styleViaggio}
-        badge={<RulesetTag rulesetId={char.ruleset ?? 'hsc'} />}
+        badge={
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="inline-flex items-center rounded-full border border-[var(--dash-accent)] bg-[var(--dash-accent)]/15 px-2.5 py-1 text-xs font-medium tracking-wide text-[var(--dash-accent-2)]">
+              Da richiedere
+            </span>
+            <RulesetTag rulesetId={char.ruleset ?? 'hsc'} />
+          </div>
+        }
         secondaryText={char.description}
         photoUrl={char.portraitImageUrl}
         photoSourceUrl={char.portraitSourceImageUrl}
@@ -1232,13 +1248,6 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                 label: isUnassigned ? 'Assegna alla campagna' : 'Rimuovi dalla campagna',
                 onClick: () => (isUnassigned ? setAssignDialogEntry(entry) : setUnassignEntry(entry)),
               },
-              {
-                key: 'delete',
-                icon: <Trash2 className="h-4 w-4" />,
-                label: 'Elimina definitivamente',
-                onClick: () => setDeleteEntry(entry),
-                danger: true,
-              },
               // Solo PNG (non Mostri): predisposizione UI per "il giocatore
               // puo' richiedere questo PNG come proprio PG" - disabilitato per
               // QUALSIASI ruleset per ora (oggi comunque sempre HSC). Per
@@ -1271,6 +1280,16 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                 icon: entity.visibleToPlayers ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />,
                 label: entity.visibleToPlayers ? 'Rendi invisibile ai giocatori' : 'Rendi visibile ai giocatori',
                 onClick: () => handleToggleEntityVisibility(entry),
+              },
+              // Sempre ultima voce del menu, qualunque combinazione delle
+              // precedenti sia presente - stessa convenzione in tutti i menu
+              // ⋮ dell'app.
+              {
+                key: 'delete',
+                icon: <Trash2 className="h-4 w-4" />,
+                label: 'Elimina definitivamente',
+                onClick: () => setDeleteEntry(entry),
+                danger: true,
               },
             ]}
             footer={
@@ -1640,6 +1659,16 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
               </div>
             </div>
           )}
+
+          <div className={GRID_CONTAINER_CLASS}>
+            <h2
+              className={`mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)] ${
+                availableCharacters.length > 0 ? 'border-t border-[var(--dash-border-soft)] pt-4' : ''
+              }`}
+            >
+              <Users className="h-4 w-4" /> {charSectionLabel}
+            </h2>
+          </div>
 
           {isLoading && !hasLoadedCharactersOnce ? (
             <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-[var(--dash-muted)]" /></div>
