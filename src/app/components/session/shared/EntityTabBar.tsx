@@ -1,5 +1,8 @@
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { MoreVertical, Plus, Pencil, EyeOff, Eye, Trash2, Lock, AlertTriangle } from 'lucide-react';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
+import { usePortalContainer } from '../../ui/portal-container';
 import type { UseEntityTabsResult } from './useEntityTabs';
 
 interface EntityTabBarProps {
@@ -12,6 +15,12 @@ interface EntityTabBarProps {
 }
 
 export function EntityTabBar({ canEdit, tabs, tabIndicators = {} }: EntityTabBarProps) {
+  const portalContainer = usePortalContainer();
+  // Il menu ⋮ e' portato fuori dal DOM locale con position:fixed alle
+  // coordinate del bottone al click, per non finire tagliato dall'
+  // overflow-hidden del contenitore di EntityDetailView (visto in
+  // CampaignHome/rail Note, ma preesistente anche per PG/PNG/Mostri).
+  const [menuAnchorRect, setMenuAnchorRect] = useState<{ top: number; right: number } | null>(null);
   const {
     orderedTabs,
     currentTab,
@@ -86,60 +95,24 @@ export function EntityTabBar({ canEdit, tabs, tabIndicators = {} }: EntityTabBar
                 </button>
               )}
 
-              {/* Menu ⋮ — SOLO tab personalizzate */}
+              {/* Menu ⋮ — SOLO tab personalizzate. Sempre visibile (non piu'
+                  legato a group-hover); il menu a comparsa e' un portale in
+                  position:fixed (vedi sotto il map) per non finire tagliato
+                  dall'overflow-hidden del contenitore di EntityDetailView. */}
               {tab.isCustom && canEdit && renamingTabId !== tab.id && (
                 <div className="absolute right-1 top-1/2 -translate-y-1/2">
                   <button
                     data-no-drag
                     onClick={(e) => {
                       e.stopPropagation();
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setMenuAnchorRect({ top: rect.bottom, right: window.innerWidth - rect.right });
                       setOpenMenuTabId(prev => (prev === tab.id ? null : tab.id));
                     }}
-                    className="cursor-default rounded p-0.5 text-[var(--dash-muted)] opacity-0 transition-opacity hover:text-[var(--dash-text-strong)] group-hover:opacity-100"
+                    className="cursor-default rounded p-0.5 text-[var(--dash-text-strong)] transition-colors"
                   >
                     <MoreVertical className="h-3.5 w-3.5" />
                   </button>
-
-                  {openMenuTabId === tab.id && (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute right-0 top-full z-30 mt-1 w-40 overflow-hidden rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] py-1 shadow-xl"
-                    >
-                      <button
-                        onClick={() => {
-                          setRenamingTabId(tab.id);
-                          setRenameDraft(tab.label);
-                          setOpenMenuTabId(null);
-                        }}
-                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-input)] hover:text-[var(--dash-text-strong)]"
-                      >
-                        <Pencil className="h-3.5 w-3.5" /> Rinomina
-                      </button>
-                      <button
-                        onClick={() => {
-                          handleToggleHideCustomTab(tab.id);
-                          setOpenMenuTabId(null);
-                        }}
-                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-input)] hover:text-[var(--dash-text-strong)]"
-                      >
-                        {tab.hidden ? (
-                          <><Eye className="h-3.5 w-3.5" /> Mostra</>
-                        ) : (
-                          <><EyeOff className="h-3.5 w-3.5" /> Nascondi</>
-                        )}
-                      </button>
-                      <div className="mx-2 my-1 border-t border-[var(--dash-border-soft)]" />
-                      <button
-                        onClick={() => {
-                          setConfirmDeleteTabId(tab.id);
-                          setOpenMenuTabId(null);
-                        }}
-                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--dash-danger-text)] transition-colors hover:bg-[var(--dash-input)]"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" /> Elimina
-                      </button>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -160,6 +133,53 @@ export function EntityTabBar({ canEdit, tabs, tabIndicators = {} }: EntityTabBar
           </button>
         )}
       </div>
+
+      {openMenuTabId && menuAnchorRect && (() => {
+        const openTab = orderedTabs.find(t => t.id === openMenuTabId);
+        if (!openTab) return null;
+        return createPortal(
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ position: 'fixed', top: menuAnchorRect.top + 4, right: menuAnchorRect.right }}
+            className="z-[9999] w-40 overflow-hidden rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] py-1 shadow-xl"
+          >
+            <button
+              onClick={() => {
+                setRenamingTabId(openTab.id);
+                setRenameDraft(openTab.label);
+                setOpenMenuTabId(null);
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-input)] hover:text-[var(--dash-text-strong)]"
+            >
+              <Pencil className="h-3.5 w-3.5" /> Rinomina
+            </button>
+            <button
+              onClick={() => {
+                handleToggleHideCustomTab(openTab.id);
+                setOpenMenuTabId(null);
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-input)] hover:text-[var(--dash-text-strong)]"
+            >
+              {openTab.hidden ? (
+                <><Eye className="h-3.5 w-3.5" /> Mostra</>
+              ) : (
+                <><EyeOff className="h-3.5 w-3.5" /> Nascondi</>
+              )}
+            </button>
+            <div className="mx-2 my-1 border-t border-[var(--dash-border-soft)]" />
+            <button
+              onClick={() => {
+                setConfirmDeleteTabId(openTab.id);
+                setOpenMenuTabId(null);
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--dash-danger-text)] transition-colors hover:bg-[var(--dash-input)]"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Elimina
+            </button>
+          </div>,
+          portalContainer ?? document.body
+        );
+      })()}
 
       {confirmDeleteTabId && (
         <ConfirmDialog
