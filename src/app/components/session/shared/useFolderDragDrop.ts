@@ -57,20 +57,23 @@ export function reorderIds(ids: string[], movedId: string, beforeId: string | nu
  *   la cartella trascinata diventa figlia di questa), drop tra due cartelle
  *   (non sopra il rect di nessuna) = 'reorder-folder' prima della piu'
  *   vicina.
- * - data-folder-id="UNFILED": zona delle card sciolte (fuori da ogni
- *   cartella) - drop di una card qui = 'unfiled' (torna senza cartella);
- *   drop di una cartella qui (Fase 4) = 'unfiled' anche per lei (torna
- *   cartella radice, parentFolderId null).
+ * - data-folder-id="UNFILED": drop di una card qui = 'unfiled' (torna senza
+ *   cartella); drop di una cartella qui (Fase 4) = 'unfiled' anche per lei
+ *   (torna cartella radice, parentFolderId null). Portato oggi solo dal
+ *   segmento radice di FolderBreadcrumb (visibile solo dentro una cartella,
+ *   folderPath.length > 0) - la vecchia UnfiledDropZone alla radice e'
+ *   stata rimossa: nessun elemento trascinabile alla radice e' mai altro
+ *   che gia' senza cartella, quindi non aveva un caso d'uso raggiungibile.
  *
  * Contenimento 2D (clientX+clientY dentro il rect, non solo verticale):
- * FolderRow/UnfiledDropZone sono col-span-2 (una riga = tutta la larghezza
- * del contenitore, quindi X e' banalmente sempre soddisfatto sopra di
- * esse - nessun cambio di comportamento li'), ma da quando FolderBreadcrumb
- * e' diventato un bersaglio di drop piu' segmenti condividono la stessa
- * riga orizzontale: con solo Y, tutti condividerebbero lo stesso
- * rect.top/bottom e il ciclo sotto risolverebbe sempre l'ultimo elemento
- * del DOM in quella fascia, indipendentemente da dove orizzontalmente si
- * rilascia. Il controllo su X li' distingue correttamente i segmenti.
+ * FolderRow e' col-span-2 (una riga = tutta la larghezza del contenitore,
+ * quindi X e' banalmente sempre soddisfatto sopra di essa - nessun cambio
+ * di comportamento li'), ma da quando FolderBreadcrumb e' diventato un
+ * bersaglio di drop piu' segmenti condividono la stessa riga orizzontale:
+ * con solo Y, tutti condividerebbero lo stesso rect.top/bottom e il ciclo
+ * sotto risolverebbe sempre l'ultimo elemento del DOM in quella fascia,
+ * indipendentemente da dove orizzontalmente si rilascia. Il controllo su X
+ * li' distingue correttamente i segmenti.
  *
  * data-folder-breadcrumb="true" (solo sui segmenti di FolderBreadcrumb)
  * esclude l'elemento dal calcolo di beforeFolderId (riordino tra fratelli,

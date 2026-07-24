@@ -7,7 +7,6 @@ import {
 } from '../../../services/supabase/foldersService';
 import { useFolderDragDrop, reorderIds } from '../session/shared/useFolderDragDrop';
 import { FolderRow } from './FolderRow';
-import { UnfiledDropZone } from './UnfiledDropZone';
 import { DragGhost } from './DragGhost';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
@@ -90,8 +89,8 @@ export interface UseFolderSectionResult {
   handleCreateFolder: () => void;
   dnd: ReturnType<typeof useFolderDragDrop>;
   /** Equivalente dell'odierno corpo di renderFolderedSection (childFolders +
-   *  directItems + UnfiledDropZone) - items/renderCard gia' presi dai
-   *  parametri dell'hook, non richiesti di nuovo qui. */
+   *  directItems) - items/renderCard gia' presi dai parametri dell'hook,
+   *  non richiesti di nuovo qui. */
   renderRows: () => React.ReactNode;
   /** DragGhost gia' cablato con folders/items/renderCard di questa sezione. */
   renderGhost: () => React.ReactNode;
@@ -369,9 +368,6 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
             {renderCard(it)}
           </div>
         ))}
-        {currentFolderId === null && childFolders.length > 0 && (
-          <UnfiledDropZone entityType={entityType} isDropActive={dnd.dropTarget?.type === 'unfiled'} />
-        )}
       </>
     );
   };
