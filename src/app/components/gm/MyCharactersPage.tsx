@@ -54,7 +54,10 @@ const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-7
 
 type OwnedCharacter = Character & { player: string; notes: string; ownerProfileId: string; campaignId: string | null; ruleset: RulesetId | null };
 type CatalogEntry = { kind: 'npc'; entity: NPC } | { kind: 'monster'; entity: Monster };
-type EntityFilter = 'all' | 'assigned' | 'unassigned';
+// 'available' e' usato solo dal filtro Personaggi (i tuoi PG con
+// availableForPlayers=true) - npc/monster non lo usano mai, la loro
+// pillola "Richiedibile" resta un placeholder disabilitato indipendente.
+type EntityFilter = 'all' | 'assigned' | 'unassigned' | 'available';
 type ActiveTab = 'characters' | 'npcs' | 'monsters';
 
 // Occupa tutta la larghezza di <main>, nessun contenitore centrato: con
@@ -608,7 +611,16 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
 
   const assignedCharacters = characters.filter(c => c.campaignId);
   const unassignedCharacters = characters.filter(c => !c.campaignId);
-  const charFilterPool = (charFilter === 'assigned' ? assignedCharacters : charFilter === 'unassigned' ? unassignedCharacters : characters)
+  // I *tuoi* precompilati attualmente aperti alla richiesta - non va confuso
+  // con availableCharacters piu' sotto, che sono quelli *altrui* richiedibili
+  // da te (sezione "PG disponibili da richiedere").
+  const availableForPlayersCharacters = characters.filter(c => c.availableForPlayers);
+  const charFilterPool = (
+    charFilter === 'assigned' ? assignedCharacters
+      : charFilter === 'unassigned' ? unassignedCharacters
+      : charFilter === 'available' ? availableForPlayersCharacters
+      : characters
+  )
     .filter(c => !charCampaignFilter || c.campaignId === charCampaignFilter)
     // Confronto diretto, non isRulesetCompatible: qui un PG senza ruleset
     // confermato va escluso quando si filtra per un set specifico, vedi
@@ -622,7 +634,9 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     ? 'I miei personaggi in campagna'
     : charFilter === 'unassigned'
       ? 'I miei personaggi non in campagna'
-      : 'I miei personaggi';
+      : charFilter === 'available'
+        ? 'I miei personaggi disponibili per i giocatori'
+        : 'I miei personaggi';
   const {
     pageItems: pagedCharacters,
     totalPages: charTotalPages,
@@ -1640,33 +1654,14 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
               <Sparkles className="h-3 w-3" />
               Non in campagna <span className="opacity-70">({unassignedCharacters.length})</span>
             </button>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button type="button" className={pillClass(false, true)} aria-disabled>
-                  Richiedibile
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Non disponibile per questo set di regole</TooltipContent>
-            </Tooltip>
+            <button type="button" onClick={() => setCharFilter('available')} className={pillClass(charFilter === 'available')}>
+              <Sparkles className="h-3 w-3" />
+              Richiedibile <span className="opacity-70">({availableForPlayersCharacters.length})</span>
+            </button>
           </EntityFilterToolbar>
 
-          {availableCharacters.length > 0 && (
-            <div className={`${GRID_CONTAINER_CLASS} mb-4`}>
-              <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
-                <UserPlus className="h-4 w-4" /> PG disponibili da richiedere
-              </h2>
-              <div className={GRID_CLASS}>
-                {availableCharacters.map(char => renderAvailableCharacterCard(char))}
-              </div>
-            </div>
-          )}
-
           <div className={GRID_CONTAINER_CLASS}>
-            <h2
-              className={`mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)] ${
-                availableCharacters.length > 0 ? 'border-t border-[var(--dash-border-soft)] pt-4' : ''
-              }`}
-            >
+            <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
               <Users className="h-4 w-4" /> {charSectionLabel}
             </h2>
           </div>
@@ -1684,7 +1679,9 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                       ? 'Nessun personaggio in campagna con questo filtro.'
                       : charFilter === 'unassigned'
                         ? 'Nessun personaggio scollegato da una campagna.'
-                        : 'Nessun personaggio trovato.'}
+                        : charFilter === 'available'
+                          ? 'Nessun personaggio marcato come disponibile per i giocatori.'
+                          : 'Nessun personaggio trovato.'}
               </p>
             </div>
           ) : (
@@ -1717,6 +1714,17 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                 />
               </div>
             </>
+          )}
+
+          {availableCharacters.length > 0 && (
+            <div className={GRID_CONTAINER_CLASS}>
+              <h2 className="mb-2 flex items-center gap-2 border-t border-[var(--dash-border-soft)] pt-4 text-sm font-semibold uppercase tracking-wide text-[var(--dash-muted)]">
+                <UserPlus className="h-4 w-4" /> PG disponibili da richiedere
+              </h2>
+              <div className={GRID_CLASS}>
+                {availableCharacters.map(char => renderAvailableCharacterCard(char))}
+              </div>
+            </div>
           )}
         </div>
       )}
