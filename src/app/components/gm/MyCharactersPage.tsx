@@ -778,8 +778,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         subtitle={styleViaggio}
         badge={
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="inline-flex items-center rounded-full border border-[var(--dash-accent)] bg-[var(--dash-accent)]/15 px-2.5 py-1 text-xs font-medium tracking-wide text-[var(--dash-accent-2)]">
-              Da richiedere
+            <span className="inline-flex items-center gap-1 rounded-full border border-[var(--dash-accent)] bg-[var(--dash-accent)]/15 px-2.5 py-1 text-xs font-medium tracking-wide text-[var(--dash-accent-2)]">
+              <MapPin className="h-3 w-3" /> {campaignInfoFor(char.campaignId)?.name ?? 'Campagna sconosciuta'}
             </span>
             <RulesetTag rulesetId={char.ruleset ?? 'hsc'} />
           </div>
