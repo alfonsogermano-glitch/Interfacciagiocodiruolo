@@ -19,6 +19,7 @@ export interface EntityCustomTab {
   content: string;
   position: number;
   hidden: boolean;
+  folder_id: string | null;
 }
 
 export interface EntityOrderedTab {
@@ -75,6 +76,30 @@ export function useEntityTabs({
   const customTabSaveTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const recentLocalEditRef = useRef<Record<string, number>>({});
 
+  // Estratto dall'effect sotto perche' serve anche a reloadCustomTabs (Note
+  // del GM/Campagna, vedi CampaignNotesPanel.tsx): cancellare una cartella
+  // con "elimina anche il contenuto" cancella piu' note in un colpo solo
+  // lato server (DELETE /folders/:id/cascade) - un reload completo e' piu'
+  // semplice e sicuro che affidarsi ai soli broadcast realtime riga-per-riga
+  // per convergere, stesso principio gia' seguito da reloadFolders in
+  // useFolderSection.tsx per lo stesso tipo di bug (bug realtime 2026-07-23).
+  const fetchCustomTabsData = async (): Promise<EntityCustomTab[] | null> => {
+    try {
+      const res = await fetch(
+        `${SERVER_BASE}/campaigns/${notesCampaignId}/notes?entityType=${entityType}&entityId=${entityId}`,
+        { headers: { Authorization: `Bearer ${accessToken ?? ''}` } }
+      );
+      const data = await res.json();
+      if (!res.ok) return null;
+      return (data.notes ?? [])
+        .map((n: any) => ({ ...n, hidden: n.hidden ?? false, folder_id: n.folder_id ?? null }))
+        .sort((a: any, b: any) => a.position - b.position);
+    } catch (err) {
+      console.error('Errore caricamento tab personalizzate:', err);
+      return null;
+    }
+  };
+
   // Fetch delle note (tab personalizzate) dell'entità selezionata
   useEffect(() => {
     if (!entityId) {
@@ -82,26 +107,16 @@ export function useEntityTabs({
       return;
     }
     let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(
-          `${SERVER_BASE}/campaigns/${notesCampaignId}/notes?entityType=${entityType}&entityId=${entityId}`,
-          { headers: { Authorization: `Bearer ${accessToken ?? ''}` } }
-        );
-        const data = await res.json();
-        if (cancelled) return;
-        if (res.ok) {
-          const sorted = (data.notes ?? [])
-            .map((n: any) => ({ ...n, hidden: n.hidden ?? false }))
-            .sort((a: any, b: any) => a.position - b.position);
-          setCustomTabs(sorted);
-        }
-      } catch (err) {
-        console.error('Errore caricamento tab personalizzate:', err);
-      }
-    })();
+    fetchCustomTabsData().then((sorted) => {
+      if (!cancelled && sorted) setCustomTabs(sorted);
+    });
     return () => { cancelled = true; };
   }, [entityId, campaignId, accessToken, entityType]);
+
+  const reloadCustomTabs = async () => {
+    const sorted = await fetchCustomTabsData();
+    if (sorted) setCustomTabs(sorted);
+  };
 
   // Realtime: propaga creazione/modifica/eliminazione di tab fatte da altri
   // client (es. il GM) verso chiunque stia guardando la stessa entità.
@@ -128,7 +143,7 @@ export function useEntityTabs({
     const lastLocalEdit = recentLocalEditRef.current[row.id];
     if (lastLocalEdit && Date.now() - lastLocalEdit < 1200) return;
 
-    const mapped: EntityCustomTab = { ...row, hidden: row.hidden ?? false };
+    const mapped: EntityCustomTab = { ...row, hidden: row.hidden ?? false, folder_id: row.folder_id ?? null };
     setCustomTabs(prev => {
       const exists = prev.some(t => t.id === mapped.id);
       return exists ? prev.map(t => (t.id === mapped.id ? mapped : t)) : [...prev, mapped];
@@ -243,24 +258,90 @@ export function useEntityTabs({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draggedTabId]);
 
-  const handleAddCustomTab = async () => {
+  // tabName/opts opzionali (Note del GM/Campagna, vedi CampaignNotesPanel.tsx):
+  // assenti = comportamento invariato per PG/PNG/Mostro, sempre 'Nuova tab'
+  // senza hidden/folderId espliciti (default server, vedi index.tsx).
+  const handleAddCustomTab = async (tabName = 'Nuova tab', opts?: { hidden?: boolean; folderId?: string | null }) => {
     if (!entityId) return;
     try {
       const res = await fetch(`${SERVER_BASE}/campaigns/${notesCampaignId}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken ?? ''}` },
-        body: JSON.stringify({ entityType, entityId, tabName: 'Nuova tab' }),
+        body: JSON.stringify({ entityType, entityId, tabName, hidden: opts?.hidden, folderId: opts?.folderId }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       recentLocalEditRef.current[data.note.id] = Date.now();
-      setCustomTabs(prev => [...prev, { ...data.note, hidden: data.note.hidden ?? false }]);
+      setCustomTabs(prev => [...prev, { ...data.note, hidden: data.note.hidden ?? false, folder_id: data.note.folder_id ?? null }]);
       setCurrentTab(data.note.id);
       // Entra subito in rinomina: il "+" crea e si passa direttamente al nome
       setRenamingTabId(data.note.id);
-      setRenameDraft('Nuova tab');
+      setRenameDraft(tabName);
     } catch (err) {
       console.error('Errore creazione tab:', err);
+    }
+  };
+
+  // Duplica una singola tab (a differenza di duplicateEntityNotes in
+  // entityNotesService.ts, che duplica TUTTE le tab di un'entita' verso
+  // un'altra - qui invece e' la stessa entita', una tab sola, dal menu ⋮ di
+  // EntityTabBar.tsx). Stesso pattern a due chiamate (POST poi PUT: la
+  // posizione la calcola il server contando le righe esistenti al momento
+  // della POST, quindi il contenuto va scritto dopo, in un secondo passo).
+  const handleDuplicateCustomTab = async (tabId: string) => {
+    const source = customTabs.find(t => t.id === tabId);
+    if (!entityId || !source) return;
+    try {
+      const createRes = await fetch(`${SERVER_BASE}/campaigns/${notesCampaignId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken ?? ''}` },
+        body: JSON.stringify({
+          entityType, entityId, tabName: `${source.tab_name} (copia)`,
+          hidden: source.hidden, folderId: source.folder_id,
+        }),
+      });
+      const createData = await createRes.json();
+      if (!createRes.ok) throw new Error(createData.error);
+
+      const putRes = await fetch(`${SERVER_BASE}/notes/${createData.note.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken ?? ''}` },
+        body: JSON.stringify({ content: source.content ?? '' }),
+      });
+      const putData = await putRes.json();
+      if (!putRes.ok) throw new Error(putData.error);
+
+      recentLocalEditRef.current[putData.note.id] = Date.now();
+      setCustomTabs(prev => [...prev, { ...putData.note, hidden: putData.note.hidden ?? false, folder_id: putData.note.folder_id ?? null }]);
+      setCurrentTab(putData.note.id);
+    } catch (err) {
+      console.error('Errore duplicazione tab:', err);
+    }
+  };
+
+  // Sposta una tab dentro/fuori una cartella (Note del GM/Campagna, vedi
+  // useFolderSection.tsx) - stesso schema ottimistico + rollback di
+  // handleToggleHideCustomTab sotto. Il server (PUT /notes/:id, vedi
+  // index.tsx) azzera da solo folder_id se questa stessa richiesta cambiasse
+  // anche `hidden` verso un namespace incompatibile - qui non succede mai
+  // (le due patch restano sempre separate), quindi nessun caso da gestire
+  // in piu' rispetto a un normale PUT.
+  const handleMoveCustomTabToFolder = async (tabId: string, folderId: string | null) => {
+    const tab = customTabs.find(t => t.id === tabId);
+    if (!tab) return;
+    const previousFolderId = tab.folder_id;
+    recentLocalEditRef.current[tabId] = Date.now();
+    setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, folder_id: folderId } : t)));
+    try {
+      const res = await fetch(`${SERVER_BASE}/notes/${tabId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken ?? ''}` },
+        body: JSON.stringify({ folderId }),
+      });
+      if (!res.ok) throw new Error('PUT folderId failed');
+    } catch (err) {
+      console.error('Errore spostamento tab in cartella:', err);
+      setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, folder_id: previousFolderId } : t)));
     }
   };
 
@@ -379,10 +460,13 @@ export function useEntityTabs({
     tabsContainerRef,
     handlePointerDownTab,
     handleAddCustomTab,
+    handleDuplicateCustomTab,
+    handleMoveCustomTabToFolder,
     handleRenameCustomTab,
     handleToggleHideCustomTab,
     handleDeleteCustomTab,
     handleCustomTabContentChange,
+    reloadCustomTabs,
   };
 }
 

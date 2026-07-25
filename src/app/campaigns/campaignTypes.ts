@@ -116,6 +116,16 @@ export interface Campaign {
   coverImageUrl?: string;
   sessionActive?: boolean;
   sessionActivatedAt?: string;
+  /** Ordine tab di "Note della Campagna" - prima della suddivisione GM/
+   *  Campagna era l'unico tabOrder delle note di campagna (vedi tabOrder
+   *  sopra, mantenuto per compatibilità: CampaignNotesPanel.tsx lo eredita
+   *  come valore iniziale di questo campo, così l'ordine esistente non si
+   *  perde al primo utilizzo dopo l'aggiornamento). */
+  tabOrderCampaignNotes?: string[];
+  /** Ordine tab di "Note del GM" - assente/vuoto finché il GM non crea la
+   *  prima nota in quella sezione, nessuna migrazione dati necessaria (vedi
+   *  PUT /campaigns/:id in index.tsx, merge generico senza schema fisso). */
+  tabOrderGmNotes?: string[];
   tabOrder?: string[];
 }
 

@@ -1635,10 +1635,18 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
               <h3 className="mb-3 text-sm font-semibold text-[var(--dash-text-strong)]">Note di campagna</h3>
               <CampaignNotesPanel
                 campaignId={activeCampaign.id}
+                sessionKey={user?.id ?? null}
                 accessToken={session?.access_token}
                 canEdit={isOwner}
-                savedTabOrder={activeCampaign.tabOrder}
-                onPersistTabOrder={(order) => updateCampaign(activeCampaign.id, { tabOrder: order })}
+                // Widget di CampaignHome (fuori sessione): solo le Note
+                // della Campagna, stesso sottoinsieme gia' visibile qui a
+                // un non-GM prima della suddivisione GM/Campagna (il
+                // vecchio filtro "canEdit || !hidden" nascondeva comunque
+                // le note hidden=true a chi non era owner). Le Note del GM
+                // restano raggiungibili dal pannello "Note" in sessione.
+                scope="shared"
+                savedTabOrder={activeCampaign.tabOrderCampaignNotes ?? activeCampaign.tabOrder}
+                onPersistTabOrder={(order) => updateCampaign(activeCampaign.id, { tabOrderCampaignNotes: order })}
               />
             </div>
           </div>

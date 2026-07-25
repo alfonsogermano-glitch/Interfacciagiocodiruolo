@@ -1534,7 +1534,7 @@ app.post("/make-server-771c5bfd/campaigns/:campaignId/notes", async (c) => {
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
     const campaignId = parseCampaignIdParam(c.req.param("campaignId"));
-    const { entityType, entityId, tabName } = await c.req.json();
+    const { entityType, entityId, tabName, hidden, folderId } = await c.req.json();
     if (!entityType || !entityId || !tabName) return c.json({ error: "Campi obbligatori mancanti" }, 400);
 
     const admin = getAdminClient();
@@ -1547,9 +1547,20 @@ app.post("/make-server-771c5bfd/campaigns/:campaignId/notes", async (c) => {
       .eq('entity_type', entityType)
       .eq('entity_id', entityId);
 
+    // hidden/folderId opzionali (Note del GM/Campagna, vedi
+    // supabase-add-notes-folders.sql): assenti = comportamento invariato
+    // (hidden default false lato DB, nessuna cartella). Creare gia' con il
+    // hidden/folderId giusti evita un giro POST+PUT separato per piazzare
+    // subito la nota nella sezione/cartella corretta.
+    const insertRow: Record<string, unknown> = {
+      campaign_id: campaignId, entity_type: entityType, entity_id: entityId, tab_name: tabName, position: count ?? 0,
+    };
+    if (typeof hidden === 'boolean') insertRow.hidden = hidden;
+    if (typeof folderId === 'string' || folderId === null) insertRow.folder_id = folderId;
+
     const { data, error } = await admin
       .from('entity_notes')
-      .insert({ campaign_id: campaignId, entity_type: entityType, entity_id: entityId, tab_name: tabName, position: count ?? 0 })
+      .insert(insertRow)
       .select('*')
       .single();
 
@@ -1569,7 +1580,7 @@ app.put("/make-server-771c5bfd/notes/:noteId", async (c) => {
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
     const noteId = c.req.param("noteId");
-    const { tabName, content, position, hidden } = await c.req.json();
+    const { tabName, content, position, hidden, folderId } = await c.req.json();
 
     const admin = getAdminClient();
     const { data: existing, error: fetchError } = await admin
@@ -1587,6 +1598,27 @@ app.put("/make-server-771c5bfd/notes/:noteId", async (c) => {
     if (typeof content === 'string') patch.content = content;
     if (typeof position === 'number') patch.position = position;
     if (typeof hidden === 'boolean') patch.hidden = hidden;
+    if (typeof folderId === 'string' || folderId === null) patch.folder_id = folderId;
+
+    // Se questa stessa richiesta cambia `hidden` (sposta la nota tra "Note
+    // del GM" e "Note della Campagna") senza spostarla esplicitamente anche
+    // di cartella, e la nota era in una cartella del namespace vecchio
+    // (gmnotes/campaignnotes, vedi supabase-add-notes-folders.sql), quella
+    // cartella non e' piu' valida per la nuova sezione: il trigger DB
+    // check_entity_notes_folder_type respingerebbe l'update con un 500.
+    // La stacchiamo qui (torna "senza cartella" nella nuova sezione) invece
+    // di un errore poco chiaro per l'utente.
+    if (typeof hidden === 'boolean' && hidden !== existing.hidden && existing.folder_id && patch.folder_id === undefined) {
+      const expectedEntityType = hidden ? 'gmnotes' : 'campaignnotes';
+      const { data: folder } = await admin
+        .from('folders')
+        .select('entity_type')
+        .eq('id', existing.folder_id)
+        .maybeSingle();
+      if (!folder || folder.entity_type !== expectedEntityType) {
+        patch.folder_id = null;
+      }
+    }
 
     const { data, error } = await admin
       .from('entity_notes')
@@ -1864,6 +1896,8 @@ app.delete("/make-server-771c5bfd/folders/:folderId/cascade", async (c) => {
       character: 'characters',
       npc: 'npcs',
       monster: 'monsters',
+      gmnotes: 'entity_notes',
+      campaignnotes: 'entity_notes',
     };
     const contentTable = tableByEntityType[existing.entity_type];
     if (!contentTable) return c.json({ error: "Tipo di cartella sconosciuto" }, 400);

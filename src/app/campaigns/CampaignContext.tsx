@@ -14,6 +14,8 @@ const CAMPAIGNS_CACHE_LS_KEY = 'hsc-campaigns-cache';
 // un vincolo del backend.
 type CampaignUpdatePatch = Partial<CampaignCreateInput> & {
   tabOrder?: string[];
+  tabOrderCampaignNotes?: string[];
+  tabOrderGmNotes?: string[];
   logoUrl?: string | null;
   coverImageUrl?: string | null;
 };

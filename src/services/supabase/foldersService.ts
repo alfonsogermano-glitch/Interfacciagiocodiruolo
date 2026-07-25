@@ -4,7 +4,7 @@
 // REST protetti da canAccessFolders lato server (vedi
 // supabase/functions/server/index.tsx).
 
-export type FolderEntityType = 'character' | 'premade' | 'npc' | 'monster';
+export type FolderEntityType = 'character' | 'premade' | 'npc' | 'monster' | 'gmnotes' | 'campaignnotes';
 
 export interface Folder {
   id: string;
