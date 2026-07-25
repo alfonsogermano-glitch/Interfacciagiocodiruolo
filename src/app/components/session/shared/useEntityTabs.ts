@@ -373,7 +373,21 @@ export function useEntityTabs({
   };
 
   const handleRenameCustomTab = async (tabId: string) => {
-    if (!renameDraft.trim()) { setRenamingTabId(null); return; }
+    // setRenamingTabId(prev => prev === tabId ? null : prev) invece di
+    // setRenamingTabId(null) incondizionato in entrambi i rami sotto: questa
+    // funzione parte anche dal blur automatico dell'input (EntityTabBar.tsx,
+    // onBlur) quando l'input perde il focus per QUALUNQUE motivo, incluso un
+    // secondo click su "+" che crea subito un'altra tab e reclama
+    // renamingTabId per se' (handleAddCustomTab). Se questa chiamata (per la
+    // VECCHIA tab, tabId) si risolve DOPO che la nuova tab ha gia' reclamato
+    // renamingTabId, un azzeramento incondizionato cancellerebbe anche
+    // l'editing appena avviato per la tab nuova, che non c'entra nulla con
+    // questa chiamata - bug isolato e verificato 2026-07-26 (doppio click su
+    // "+": nessuna delle due tab restava in editing).
+    if (!renameDraft.trim()) {
+      setRenamingTabId(prev => (prev === tabId ? null : prev));
+      return;
+    }
     recentLocalEditRef.current[tabId] = Date.now();
     try {
       const res = await fetch(`${SERVER_BASE}/notes/${tabId}`, {
@@ -388,7 +402,7 @@ export function useEntityTabs({
     } catch (err) {
       console.error('Errore rinomina tab:', err);
     } finally {
-      setRenamingTabId(null);
+      setRenamingTabId(prev => (prev === tabId ? null : prev));
     }
   };
 
