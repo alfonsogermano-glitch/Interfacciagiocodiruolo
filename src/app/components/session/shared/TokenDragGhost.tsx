@@ -1,6 +1,7 @@
 import { createPortal } from 'react-dom';
 import { usePortalContainer } from '../../ui/portal-container';
 import { TokenShapePreview } from '../../shared/TokenShapePreview';
+import { EntityPortraitImage } from '../../shared/EntityPortraitImage';
 import { TOKEN_SHAPE_SPECS, getTokenStrokeWidth } from '../../shared/tokenShapes';
 import {
   DEFAULT_TOKEN_COLOR,
@@ -47,13 +48,51 @@ export function TokenDragGhost({
   entity,
   pointerPosition,
   fallbackIcon,
+  insideList = false,
 }: {
   entity: TokenDragGhostEntity | null;
   pointerPosition: { x: number; y: number } | null;
   fallbackIcon: React.ReactNode;
+  /** Vero quando il puntatore e' attualmente dentro i confini della colonna
+   *  lista (vedi isPointerOverList in SessionCharactersPanel.tsx, ricalcolato
+   *  ad ogni pointermove) - fa disegnare una piccola scheda in trasparenza
+   *  (coerente con la riga della lista) invece del token tondo pensato per
+   *  il rilascio fuori dalla lista (es. la Mappa futura). Default false =
+   *  comportamento invariato per l'unico chiamante attuale finche' non passa
+   *  esplicitamente la posizione. */
+  insideList?: boolean;
 }) {
   const portalContainer = usePortalContainer();
   if (!entity || !pointerPosition) return null;
+
+  const ghostStyle: React.CSSProperties = {
+    position: 'fixed', left: pointerPosition.x + 14, top: pointerPosition.y + 14, zIndex: 2000,
+  };
+
+  if (insideList) {
+    return createPortal(
+      <div
+        style={ghostStyle}
+        className="pointer-events-none flex max-w-[200px] items-center gap-2 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/80 px-2 py-1.5 opacity-80 shadow-2xl"
+      >
+        <div className="h-8 w-8 shrink-0 overflow-hidden rounded-md bg-[var(--dash-input)]">
+          {entity.portraitImageUrl || (entity.portraitSourceImageUrl && entity.portraitCropArea) ? (
+            <EntityPortraitImage
+              portraitImageUrl={entity.portraitImageUrl}
+              portraitSourceImageUrl={entity.portraitSourceImageUrl}
+              portraitCropArea={entity.portraitCropArea}
+              alt={entity.name}
+              style={{ width: '100%', height: '100%' }}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center">{fallbackIcon}</div>
+          )}
+        </div>
+        <span className="min-w-0 truncate text-sm font-medium text-[var(--dash-text-strong)]">{entity.name}</span>
+      </div>,
+      portalContainer ?? document.body
+    );
+  }
 
   const color = entity.tokenColor ?? DEFAULT_TOKEN_COLOR;
   const backgroundColor = entity.tokenBackgroundColor ?? DEFAULT_TOKEN_BACKGROUND_COLOR;
@@ -64,10 +103,7 @@ export function TokenDragGhost({
   const strokeWidth = getTokenStrokeWidth(style, thickness);
 
   return createPortal(
-    <div
-      style={{ position: 'fixed', left: pointerPosition.x + 14, top: pointerPosition.y + 14, zIndex: 2000 }}
-      className="pointer-events-none opacity-90 shadow-2xl"
-    >
+    <div style={ghostStyle} className="pointer-events-none opacity-90 shadow-2xl">
       <TokenShapePreview
         clipId={`session-drag-ghost-${entity.id}`}
         name={entity.name}

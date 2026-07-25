@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { User, ChevronDown, ChevronRight, Loader2, Skull, Ghost, FolderPlus } from 'lucide-react';
+import { ChevronDown, ChevronRight, Loader2, FolderPlus } from 'lucide-react';
 import { Copy, UserMinus, UserX, Eye, EyeOff, Search, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
@@ -592,6 +592,13 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
   // sopra (chiamato prima di ogni handlePointerDown sotto), non a livello
   // di intero hook. onDropOutside: punto di estensione per la Mappa futura
   // (vedi useFolderDragDrop.ts) - solo il contratto, nessun consumer ancora.
+  // Rect dedicato alla sola colonna lista (w-64 sotto, non l'intero pannello
+  // di dnd.containerRef che comprende anche il dettaglio a destra) - serve
+  // solo a isPointerOverList sotto, per far cambiare aspetto al ghost
+  // (TokenDragGhost) quando il puntatore esce dai confini della lista
+  // durante il drag.
+  const listColumnRef = useRef<HTMLDivElement>(null);
+
   const dnd = useFolderDragDrop({
     canEdit: true,
     entityType: 'session-entity',
@@ -616,6 +623,19 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     const source = kind === 'pg' ? characters : kind === 'png' ? npcs : kind === 'mostro' ? monsters : null;
     const entity = source?.find((e: any) => e.id === id) ?? null;
     return entity ? { kind, entity } : null;
+  })();
+
+  // Confronto geometrico continuo (Fase 3, ghost): dnd.pointerPosition e'
+  // stato React aggiornato ad ogni pointermove durante il drag (vedi
+  // useFolderDragDrop.ts), quindi questo si ricalcola ad ogni render mentre
+  // ci si muove, non solo al rilascio - permette a TokenDragGhost sotto di
+  // cambiare aspetto in tempo reale in base a dentro/fuori la colonna lista.
+  const isPointerOverList = (() => {
+    const pos = dnd.pointerPosition;
+    const el = listColumnRef.current;
+    if (!pos || !el) return false;
+    const rect = el.getBoundingClientRect();
+    return pos.x >= rect.left && pos.x <= rect.right && pos.y >= rect.top && pos.y <= rect.bottom;
   })();
 
   const npcToEntry = (n: any): ListEntry => ({
@@ -733,32 +753,34 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
         selected?.kind === entry.kind && selected.id === entry.id ? 'bg-[var(--dash-surface-2)]' : 'hover:bg-[var(--dash-surface-2)]/50'
       }`}
     >
-      <div
-        onPointerDown={options?.disableOwnDrag ? undefined : (e) => {
-          if (canDragEntity(entry.kind, entry.ownerProfileId)) {
-            dnd.handlePointerDown(e, { kind: 'card', id: `${entry.kind}:${entry.id}` });
-          }
-        }}
-        className={`relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-[var(--dash-input)] ${
-          canDragEntity(entry.kind, entry.ownerProfileId) ? 'cursor-grab active:cursor-grabbing' : ''
-        }`}
-      >
-        {entry.portraitUrl || (entry.portraitSourceUrl && entry.portraitCropArea) ? (
-          <EntityPortraitImage
-            portraitImageUrl={entry.portraitUrl}
-            portraitSourceImageUrl={entry.portraitSourceUrl}
-            portraitCropArea={entry.portraitCropArea}
-            alt={entry.name}
-            style={{ width: '100%', height: '100%' }}
-            draggable={false}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            {entry.kind === 'png' ? <Ghost className="h-4 w-4 text-[var(--dash-accent-2)]" /> : entry.kind === 'mostro' ? <Skull className="h-4 w-4 text-[var(--dash-accent-2)]" /> : <User className="h-4 w-4 text-[var(--dash-accent-2)]" />}
-          </div>
-        )}
+      <div className="relative h-9 w-9 shrink-0">
+        <div
+          onPointerDown={options?.disableOwnDrag ? undefined : (e) => {
+            if (canDragEntity(entry.kind, entry.ownerProfileId)) {
+              dnd.handlePointerDown(e, { kind: 'card', id: `${entry.kind}:${entry.id}` });
+            }
+          }}
+          className={`h-full w-full overflow-hidden rounded-md bg-[var(--dash-input)] ${
+            canDragEntity(entry.kind, entry.ownerProfileId) ? 'cursor-grab active:cursor-grabbing' : ''
+          }`}
+        >
+          {entry.portraitUrl || (entry.portraitSourceUrl && entry.portraitCropArea) ? (
+            <EntityPortraitImage
+              portraitImageUrl={entry.portraitUrl}
+              portraitSourceImageUrl={entry.portraitSourceUrl}
+              portraitCropArea={entry.portraitCropArea}
+              alt={entry.name}
+              style={{ width: '100%', height: '100%' }}
+              draggable={false}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center">
+              <img src="/icon-source-1024.png" alt="" className="h-full w-full object-contain" style={{ filter: 'invert(1)', opacity: 0.9 }} />
+            </div>
+          )}
+        </div>
         {entry.hiddenFromPlayers && (
-          <div className="pointer-events-none absolute inset-0 m-auto flex h-4 w-4 items-center justify-center rounded-full bg-black/70">
+          <div className="pointer-events-none absolute -bottom-1 -right-1 z-[3] flex h-4 w-4 items-center justify-center rounded-full border border-white/20 bg-black/75">
             <EyeOff className="h-2.5 w-2.5 text-white" />
           </div>
         )}
@@ -773,7 +795,7 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
   return (
     <>
     <div ref={dnd.containerRef} className="flex h-full select-none">
-      <div className="w-64 shrink-0 overflow-y-auto border-r border-[var(--dash-border-soft)] py-3">
+      <div ref={listColumnRef} className="w-64 shrink-0 overflow-y-auto border-r border-[var(--dash-border-soft)] py-3">
         <SectionHeader title="Personaggi" count={characters.length} isOpen={openSections.pg} onToggle={() => toggleSection('pg')} />
         {openSections.pg && (
           <div className="space-y-1 px-2 pb-2">
@@ -1137,10 +1159,9 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
         tokenBorderVisible: draggedEntityInfo.entity.tokenBorderVisible,
       } : null}
       pointerPosition={dnd.pointerPosition}
+      insideList={isPointerOverList}
       fallbackIcon={
-        draggedEntityInfo?.kind === 'png' ? <Ghost className="h-4 w-4 text-[var(--dash-accent-2)]" />
-          : draggedEntityInfo?.kind === 'mostro' ? <Skull className="h-4 w-4 text-[var(--dash-accent-2)]" />
-          : <User className="h-4 w-4 text-[var(--dash-accent-2)]" />
+        <img src="/icon-source-1024.png" alt="" className="h-full w-full object-contain" style={{ filter: 'invert(1)', opacity: 0.9 }} />
       }
     />
     </>
