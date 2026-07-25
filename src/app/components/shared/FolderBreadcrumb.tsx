@@ -55,7 +55,7 @@ export function FolderBreadcrumb({
             data-folder-id={UNFILED_DROP_ID}
             data-folder-entity-type={entityType}
             data-folder-breadcrumb="true"
-            className={`transition-colors ${compact ? 'shrink-0 truncate' : ''} ${
+            className={`text-left transition-colors ${compact ? 'shrink-0 truncate' : ''} ${
               isBreadcrumbDropActive(dropTarget, UNFILED_DROP_ID) ? 'text-[var(--dash-accent-2)]' : 'hover:text-[var(--dash-text-strong)]'
             }`}
             style={compact ? { maxWidth: 56 } : undefined}
@@ -76,7 +76,7 @@ export function FolderBreadcrumb({
               'data-folder-entity-type': entityType,
               'data-folder-breadcrumb': 'true',
             })}
-            className={`truncate transition-colors ${
+            className={`truncate text-left transition-colors ${
               compact ? (isCurrent ? 'min-w-0 flex-1' : 'shrink-0') : ''
             } ${
               isCurrent

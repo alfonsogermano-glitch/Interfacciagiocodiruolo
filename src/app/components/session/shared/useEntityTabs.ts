@@ -386,7 +386,19 @@ export function useEntityTabs({
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken ?? ''}` },
         body: JSON.stringify({ hidden: nextHidden }),
       });
-      if (!res.ok) throw new Error('PUT hidden failed');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'PUT hidden failed');
+      // Cambiare `hidden` su una nota gia' in una cartella (Note del GM/
+      // Campagna) puo' far si' che il server stacchi da solo folder_id
+      // (index.tsx: la cartella apparteneva al namespace dell'hidden
+      // precedente, non piu' valido per quello nuovo - vedi
+      // supabase-add-notes-folders.sql) - senza riallinearsi qui, il
+      // folder_id locale resta "a penzoloni" su una cartella dell'altro
+      // namespace, mai combaciante con nessuna cartella dello scope
+      // corrente ne' con "nessuna cartella": la nota sparisce dai conteggi
+      // finche' non si ricarica da zero. Stesso principio gia' applicato in
+      // handleMoveCustomTabToFolder.
+      setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, hidden: data.note.hidden ?? false, folder_id: data.note.folder_id ?? null } : t)));
     } catch (err) {
       console.error('Errore nascondi tab:', err);
       setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, hidden: !nextHidden } : t)));
