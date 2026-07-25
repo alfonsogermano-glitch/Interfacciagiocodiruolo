@@ -101,6 +101,15 @@ export function CampaignNotesPanel({
     menuColors,
   });
 
+  // TEMP DEBUG - rimuovere dopo la diagnosi
+  console.log(
+    '[TEMP CampaignNotesPanel]', 'scope=', scope, 'folderEntityType=', folderEntityType,
+    'currentFolderId=', section.currentFolderId,
+    'section.folders=', section.folders.map(f => ({ id: f.id, name: f.name, entityType: f.entityType, parentFolderId: f.parentFolderId })),
+    'scopedTabs=', scopedTabs.map(t => ({ id: t.id, tab_name: t.tab_name, hidden: t.hidden, folder_id: t.folder_id })),
+    'tabs.customTabs (tutte, non filtrate)=', tabs.customTabs.map(t => ({ id: t.id, tab_name: t.tab_name, hidden: t.hidden, folder_id: t.folder_id })),
+  );
+
   const visibleCustomTabIds = new Set(
     scopedTabs.filter(t => (t.folder_id ?? null) === section.currentFolderId).map(t => t.id)
   );
