@@ -61,11 +61,6 @@ export function useEntityTabs({
   // Non cambia la convenzione di Monster altrove: solo qui, prima della fetch.
   const notesCampaignId = campaignId === '' ? null : campaignId;
 
-  // TEMP DEBUG - rimuovere dopo la diagnosi: id univoco per istanza del hook,
-  // per distinguere due mount separati (es. CampaignHome.tsx + SessionNotesPanel.tsx)
-  // da una singola istanza che cresce nel tempo.
-  const debugInstanceIdRef = useRef(Math.random().toString(36).slice(2, 8));
-
   const [customTabs, setCustomTabs] = useState<EntityCustomTab[]>([]);
   const [tabOrder, setTabOrder] = useState<string[]>(baseTabIds);
   const [currentTab, setCurrentTab] = useState<string>(defaultTabId);
@@ -146,16 +141,11 @@ export function useEntityTabs({
     const row = data.record;
     if (!matchesThisEntity(row)) return;
     const lastLocalEdit = recentLocalEditRef.current[row.id];
-    const suppressed = !!(lastLocalEdit && Date.now() - lastLocalEdit < 1200);
-    // TEMP DEBUG - rimuovere dopo la diagnosi
-    console.log('[TEMP broadcast]', 'instance=', debugInstanceIdRef.current, 'entityType=', entityType, 'op=', data.operation, 'row.id=', row.id, 'row.hidden=', row.hidden, 'row.folder_id=', row.folder_id, 'suppressed(recentLocalEdit)=', suppressed);
-    if (suppressed) return;
+    if (lastLocalEdit && Date.now() - lastLocalEdit < 1200) return;
 
     const mapped: EntityCustomTab = { ...row, hidden: row.hidden ?? false, folder_id: row.folder_id ?? null };
     setCustomTabs(prev => {
       const exists = prev.some(t => t.id === mapped.id);
-      // TEMP DEBUG - rimuovere dopo la diagnosi
-      console.log('[TEMP broadcast apply]', 'instance=', debugInstanceIdRef.current, 'exists=', exists, 'prev.length=', prev.length, 'ids=', prev.map(t => t.id));
       return exists ? prev.map(t => (t.id === mapped.id ? mapped : t)) : [...prev, mapped];
     });
   };
@@ -350,8 +340,6 @@ export function useEntityTabs({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'PUT folderId failed');
-      // TEMP DEBUG - rimuovere dopo la diagnosi
-      console.log('[TEMP handleMoveCustomTabToFolder] tabId=', tabId, 'entityType(hook)=', entityType, 'richiesto folderId=', folderId, 'server ha risposto=', data.note);
       // Il server puo' decidere un folder_id diverso da quello richiesto
       // (vedi index.tsx: se un'altra richiesta concorrente ha nel frattempo
       // cambiato `hidden` di questa nota, il trigger check_entity_notes_folder_type
@@ -475,8 +463,6 @@ export function useEntityTabs({
   }, [orderedTabs.map(t => t.id).join(','), currentTab]);
 
   return {
-    // TEMP DEBUG - rimuovere dopo la diagnosi
-    __debugInstanceId: debugInstanceIdRef.current,
     customTabs,
     tabOrder,
     orderedTabs,

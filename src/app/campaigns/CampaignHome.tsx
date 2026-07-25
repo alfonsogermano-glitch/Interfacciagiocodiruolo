@@ -22,7 +22,6 @@ import {
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { EntityCard } from '../components/session/shared/EntityCard';
 import { EntityKebabMenu, type EntityKebabMenuItem } from '../components/session/shared/EntityKebabMenu';
-import { CampaignNotesPanel } from '../components/session/shared/CampaignNotesPanel';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { CampaignForm } from './CampaignSelector';
 import { CampaignCoverEditor, type CampaignCoverPatch } from './CampaignCoverEditor';
@@ -1630,25 +1629,18 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                 </span>
               </div>
             </div>
-
-            <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-4">
-              <h3 className="mb-3 text-sm font-semibold text-[var(--dash-text-strong)]">Note di campagna</h3>
-              <CampaignNotesPanel
-                campaignId={activeCampaign.id}
-                sessionKey={user?.id ?? null}
-                accessToken={session?.access_token}
-                canEdit={isOwner}
-                // Widget di CampaignHome (fuori sessione): solo le Note
-                // della Campagna, stesso sottoinsieme gia' visibile qui a
-                // un non-GM prima della suddivisione GM/Campagna (il
-                // vecchio filtro "canEdit || !hidden" nascondeva comunque
-                // le note hidden=true a chi non era owner). Le Note del GM
-                // restano raggiungibili dal pannello "Note" in sessione.
-                scope="shared"
-                savedTabOrder={activeCampaign.tabOrderCampaignNotes ?? activeCampaign.tabOrder}
-                onPersistTabOrder={(order) => updateCampaign(activeCampaign.id, { tabOrderCampaignNotes: order })}
-              />
-            </div>
+            {/* Il widget "Note di campagna" che stava qui è stato rimosso
+                (bug 2026-07-26): questa schermata monta SEMPRE anche
+                SessionRightSidebar.tsx nello slot rightSidebar di AppShell
+                (vedi App.tsx, view==='campaign-home') - se l'utente apriva
+                "Note" li', si ottenevano due istanze indipendenti di
+                CampaignNotesPanel con scope='shared' per la stessa
+                campagna, ciascuna con il proprio stato ottimistico/realtime,
+                che divergevano nel tempo (refCount del canale a 2+,
+                confermato nei log). Stesso identico contenuto (Note della
+                Campagna) resta raggiungibile con un click su "Note" nella
+                sidebar di questa stessa schermata, con un'interfaccia più
+                completa (cartelle, sezione GM) - nessuna funzionalità persa. */}
           </div>
 
           {/* Colonna 2+3: la riga titolo+pillole che stava qui è ora

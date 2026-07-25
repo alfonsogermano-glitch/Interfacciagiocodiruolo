@@ -204,15 +204,9 @@ export function useRealtimeChannel(topic: string | null | undefined, options: Us
     entry.readyListeners.add(readyHandler);
     unregisterFns.push(() => entry.readyListeners.delete(readyHandler));
 
-    // TEMP DEBUG - rimuovere dopo la diagnosi
-    const debugSizes = () => Object.fromEntries([...entry.broadcastListeners.entries()].map(([ev, set]) => [ev, set.size]));
-    console.log('[TEMP useRealtimeChannel MOUNT]', topic, 'refCount=', entry.refCount, 'listenerSetSizes=', debugSizes());
-
     return () => {
       unregisterFns.forEach((fn) => fn());
       entryRef.current = null;
-      // TEMP DEBUG - rimuovere dopo la diagnosi
-      console.log('[TEMP useRealtimeChannel CLEANUP]', topic, 'refCount(prima di release)=', entry.refCount, 'listenerSetSizes(dopo unregister)=', debugSizes());
       releaseChannel(topic);
     };
   }, [topic]);
