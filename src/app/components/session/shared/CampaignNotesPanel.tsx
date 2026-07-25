@@ -103,7 +103,7 @@ export function CampaignNotesPanel({
 
   // TEMP DEBUG - rimuovere dopo la diagnosi
   console.log(
-    '[TEMP CampaignNotesPanel]', 'scope=', scope, 'folderEntityType=', folderEntityType,
+    '[TEMP CampaignNotesPanel]', 'instance=', (tabs as any).__debugInstanceId, 'scope=', scope, 'folderEntityType=', folderEntityType,
     'currentFolderId=', section.currentFolderId,
     'section.folders=', section.folders.map(f => ({ id: f.id, name: f.name, entityType: f.entityType, parentFolderId: f.parentFolderId })),
     'scopedTabs=', scopedTabs.map(t => ({ id: t.id, tab_name: t.tab_name, hidden: t.hidden, folder_id: t.folder_id })),
