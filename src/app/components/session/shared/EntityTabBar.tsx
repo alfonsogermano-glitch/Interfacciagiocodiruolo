@@ -5,6 +5,11 @@ import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { usePortalContainer } from '../../ui/portal-container';
 import type { UseEntityTabsResult } from './useEntityTabs';
 
+// TEMP DEBUG - rimuovere dopo la diagnosi: contatore a livello di modulo
+// (non React state), sopravvive a re-render/remount, per vedere la sequenza
+// assoluta di click sul bottone "+".
+let __tempAddClickCounter = 0;
+
 interface EntityTabBarProps {
   canEdit: boolean;
   tabs: UseEntityTabsResult;
@@ -173,7 +178,12 @@ export function EntityTabBar({ canEdit, tabs, tabIndicators = {}, onAddTab, fold
 
         {canEdit && (
           <button
-            onClick={() => (onAddTab ? onAddTab() : handleAddCustomTab())}
+            onClick={(e) => {
+              // TEMP DEBUG - rimuovere dopo la diagnosi
+              __tempAddClickCounter += 1;
+              console.log('[TEMP + button onClick]', 'seq=', __tempAddClickCounter, 't=', performance.now(), 'isTrusted=', e.isTrusted, 'detail=', e.detail);
+              onAddTab ? onAddTab() : handleAddCustomTab();
+            }}
             className="flex items-center justify-center rounded-md border border-dashed border-[var(--dash-border-soft)] p-1.5 text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
             title="Aggiungi tab"
           >
