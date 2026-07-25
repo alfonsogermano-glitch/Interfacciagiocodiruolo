@@ -61,6 +61,19 @@ export function useEntityTabs({
   // Non cambia la convenzione di Monster altrove: solo qui, prima della fetch.
   const notesCampaignId = campaignId === '' ? null : campaignId;
 
+  // TEMP DEBUG - rimuovere dopo la diagnosi: id univoco per istanza del hook
+  // e stack trace del mount, per scoprire QUALE componente sta montando
+  // questa istanza (il widget di CampaignHome.tsx e' stato rimosso, ma il
+  // problema persiste - serve trovare l'altra fonte del doppio mount).
+  const debugInstanceIdRef = useRef(Math.random().toString(36).slice(2, 8));
+  useEffect(() => {
+    console.log('[TEMP useEntityTabs MOUNT]', 'instance=', debugInstanceIdRef.current, 'entityType=', entityType, 'entityId=', entityId, 'campaignId=', campaignId, 'stack=', new Error().stack);
+    return () => {
+      console.log('[TEMP useEntityTabs UNMOUNT]', 'instance=', debugInstanceIdRef.current, 'entityType=', entityType, 'entityId=', entityId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [customTabs, setCustomTabs] = useState<EntityCustomTab[]>([]);
   const [tabOrder, setTabOrder] = useState<string[]>(baseTabIds);
   const [currentTab, setCurrentTab] = useState<string>(defaultTabId);
@@ -146,6 +159,8 @@ export function useEntityTabs({
     const mapped: EntityCustomTab = { ...row, hidden: row.hidden ?? false, folder_id: row.folder_id ?? null };
     setCustomTabs(prev => {
       const exists = prev.some(t => t.id === mapped.id);
+      // TEMP DEBUG - rimuovere dopo la diagnosi
+      console.log('[TEMP broadcast apply]', 'instance=', debugInstanceIdRef.current, 'entityType=', entityType, 'op=', data.operation, 'row.id=', row.id, 'exists=', exists, 'prev.length=', prev.length, '-> next.length=', exists ? prev.length : prev.length + 1);
       return exists ? prev.map(t => (t.id === mapped.id ? mapped : t)) : [...prev, mapped];
     });
   };
@@ -463,6 +478,8 @@ export function useEntityTabs({
   }, [orderedTabs.map(t => t.id).join(','), currentTab]);
 
   return {
+    // TEMP DEBUG - rimuovere dopo la diagnosi
+    __debugInstanceId: debugInstanceIdRef.current,
     customTabs,
     tabOrder,
     orderedTabs,

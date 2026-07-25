@@ -204,7 +204,12 @@ export function useRealtimeChannel(topic: string | null | undefined, options: Us
     entry.readyListeners.add(readyHandler);
     unregisterFns.push(() => entry.readyListeners.delete(readyHandler));
 
+    // TEMP DEBUG - rimuovere dopo la diagnosi
+    console.log('[TEMP useRealtimeChannel MOUNT]', topic, 'refCount=', entry.refCount, 'broadcastListeners[INSERT].size=', entry.broadcastListeners.get('INSERT')?.size, 'stack=', new Error().stack);
+
     return () => {
+      // TEMP DEBUG - rimuovere dopo la diagnosi
+      console.log('[TEMP useRealtimeChannel CLEANUP]', topic, 'refCount(prima di release)=', entry.refCount);
       unregisterFns.forEach((fn) => fn());
       entryRef.current = null;
       releaseChannel(topic);
