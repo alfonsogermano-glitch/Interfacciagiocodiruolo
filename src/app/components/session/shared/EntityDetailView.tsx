@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react';
-import { User, Brain, Heart, Star, Ghost, Skull, Lock, AlertTriangle } from 'lucide-react';
+import { User, Brain, Heart, Star, Lock, AlertTriangle } from 'lucide-react';
 import { FrischezzaTracker } from '../../FrischezzaTracker';
 import { FoliaSpiral } from '../../FoliaSpiral';
 import { ConditionsPanel } from '../../ConditionsPanel';
@@ -444,14 +444,9 @@ export function EntityDetailView({
     onUpdate({ ...entity, ambiti: { ...entity.ambiti, [ambito]: nextValue } });
   };
 
-  const fallbackIcon =
-    entityType === 'character' ? (
-      <User className="h-12 w-12 text-[var(--dash-accent-2)]" />
-    ) : entityType === 'npc' ? (
-      <Ghost className="h-6 w-6 text-[var(--dash-accent-2)]" />
-    ) : (
-      <Skull className="h-6 w-6 text-[var(--dash-accent-2)]" />
-    );
+  const fallbackIcon = (
+    <img src="/icon-source-1024.png" alt="" draggable={false} className="h-full w-full object-contain" style={{ filter: 'invert(1)', opacity: 0.9 }} />
+  );
 
   const portraitUrl = entity.portraitImageUrl;
   const portraitSourceUrl = entity.portraitSourceImageUrl;

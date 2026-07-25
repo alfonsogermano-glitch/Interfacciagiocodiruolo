@@ -30,6 +30,7 @@ import { EntityPortraitImage } from '../shared/EntityPortraitImage';
 import type { CropAreaPercent } from '../shared/SourceCroppedImage';
 import { useFolderDragDrop } from './shared/useFolderDragDrop';
 import { TokenDragGhost } from './shared/TokenDragGhost';
+import { useIsPointerOverRect } from '../shared/useIsPointerOverRect';
 
 interface PlayerCharacter extends Character {
   player: string;
@@ -625,18 +626,29 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     return entity ? { kind, entity } : null;
   })();
 
-  // Confronto geometrico continuo (Fase 3, ghost): dnd.pointerPosition e'
-  // stato React aggiornato ad ogni pointermove durante il drag (vedi
-  // useFolderDragDrop.ts), quindi questo si ricalcola ad ogni render mentre
-  // ci si muove, non solo al rilascio - permette a TokenDragGhost sotto di
-  // cambiare aspetto in tempo reale in base a dentro/fuori la colonna lista.
-  const isPointerOverList = (() => {
-    const pos = dnd.pointerPosition;
-    const el = listColumnRef.current;
-    if (!pos || !el) return false;
-    const rect = el.getBoundingClientRect();
-    return pos.x >= rect.left && pos.x <= rect.right && pos.y >= rect.top && pos.y <= rect.bottom;
-  })();
+  // Confronto geometrico continuo (Fase 3, ghost) - vedi useIsPointerOverRect.ts:
+  // si ricalcola ad ogni render mentre ci si muove, non solo al rilascio,
+  // permettendo a TokenDragGhost sotto di cambiare aspetto in tempo reale in
+  // base a dentro/fuori la colonna lista. Stessa identica funzione riusata
+  // da npcSection/monsterSection sotto (listColumnRef) per lo stesso ghost
+  // dinamico sul LORO dnd interno (Fase 6, correzione del 2026-07-26: prima
+  // il loro ghost restava sempre "scheda", perche' useFolderSection ha
+  // un'istanza dnd indipendente da questa, mai confrontata contro
+  // listColumnRef).
+  const isPointerOverList = useIsPointerOverRect(listColumnRef, dnd.pointerPosition);
+
+  // Icona brand di fallback (nessun ritratto caricato) - un solo nodo
+  // riusato ovunque serva (riga lista sotto, TokenDragGhost, ghost dinamico
+  // di npcSection/monsterSection): stesso identico elemento, nessun motivo
+  // di ricrearlo in piu' punti. draggable={false} esplicito: un <img> senza
+  // e' trascinabile nativamente dal browser (a differenza delle vecchie
+  // icone lucide, SVG inline mai trascinabili), col rischio di far scattare
+  // il drag nativo in parallelo al nostro sistema pointer-based (bug del
+  // 2026-07-25: trascinare un PG senza ritratto "trascinava" l'intera
+  // finestra).
+  const brandFallbackIcon = (
+    <img src="/icon-source-1024.png" alt="" draggable={false} className="h-full w-full object-contain" style={{ filter: 'invert(1)', opacity: 0.9 }} />
+  );
 
   const npcToEntry = (n: any): ListEntry => ({
     kind: 'png', id: n.id, name: n.name, subtitle: n.role || 'PNG',
@@ -693,6 +705,9 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     containerRef: dnd.containerRef,
     maxVisibleDescendantShortcuts: 4,
     menuColors,
+    listColumnRef,
+    ghostFallbackIcon: brandFallbackIcon,
+    toGhostShapeEntity: (n) => n,
   });
   const monsterSection = useFolderSection({
     entityType: 'monster',
@@ -716,6 +731,9 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     containerRef: dnd.containerRef,
     maxVisibleDescendantShortcuts: 4,
     menuColors,
+    listColumnRef,
+    ghostFallbackIcon: brandFallbackIcon,
+    toGhostShapeEntity: (m) => m,
   });
 
   // "Nessun PNG/mostro" (Fase 4): per il GM va valutato sulla cartella
@@ -775,7 +793,7 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center">
-              <img src="/icon-source-1024.png" alt="" className="h-full w-full object-contain" style={{ filter: 'invert(1)', opacity: 0.9 }} />
+              {brandFallbackIcon}
             </div>
           )}
         </div>
@@ -1160,9 +1178,7 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
       } : null}
       pointerPosition={dnd.pointerPosition}
       insideList={isPointerOverList}
-      fallbackIcon={
-        <img src="/icon-source-1024.png" alt="" className="h-full w-full object-contain" style={{ filter: 'invert(1)', opacity: 0.9 }} />
-      }
+      fallbackIcon={brandFallbackIcon}
     />
     </>
   );

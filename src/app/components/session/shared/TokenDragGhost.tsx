@@ -1,21 +1,9 @@
 import { createPortal } from 'react-dom';
 import { usePortalContainer } from '../../ui/portal-container';
-import { TokenShapePreview } from '../../shared/TokenShapePreview';
 import { EntityPortraitImage } from '../../shared/EntityPortraitImage';
-import { TOKEN_SHAPE_SPECS, getTokenStrokeWidth } from '../../shared/tokenShapes';
-import {
-  DEFAULT_TOKEN_COLOR,
-  DEFAULT_TOKEN_BACKGROUND_COLOR,
-  DEFAULT_TOKEN_BORDER_STYLE,
-  DEFAULT_TOKEN_BORDER_THICKNESS,
-  DEFAULT_TOKEN_BORDER_VISIBLE,
-  type TokenBorderStyle,
-  type TokenBorderThickness,
-} from '../../../../types/tokenStyle';
+import { TokenGhostShape } from '../../shared/TokenGhostShape';
+import type { TokenBorderStyle, TokenBorderThickness } from '../../../../types/tokenStyle';
 import type { CropAreaPercent } from '../../shared/SourceCroppedImage';
-
-const TOKEN_SIZE = 64;
-const IDENTITY_CROP = { x: 0, y: 0, scale: 1 };
 
 export interface TokenDragGhostEntity {
   id: string;
@@ -94,31 +82,9 @@ export function TokenDragGhost({
     );
   }
 
-  const color = entity.tokenColor ?? DEFAULT_TOKEN_COLOR;
-  const backgroundColor = entity.tokenBackgroundColor ?? DEFAULT_TOKEN_BACKGROUND_COLOR;
-  const style = entity.tokenBorderStyle ?? DEFAULT_TOKEN_BORDER_STYLE;
-  const thickness = entity.tokenBorderThickness ?? DEFAULT_TOKEN_BORDER_THICKNESS;
-  const borderVisible = entity.tokenBorderVisible ?? DEFAULT_TOKEN_BORDER_VISIBLE;
-  const geometry = TOKEN_SHAPE_SPECS[style].geometry;
-  const strokeWidth = getTokenStrokeWidth(style, thickness);
-
   return createPortal(
     <div style={ghostStyle} className="pointer-events-none opacity-90 shadow-2xl">
-      <TokenShapePreview
-        clipId={`session-drag-ghost-${entity.id}`}
-        name={entity.name}
-        portraitImageUrl={entity.portraitImageUrl}
-        portraitSourceImageUrl={entity.portraitSourceImageUrl}
-        portraitCropArea={entity.portraitCropArea}
-        fallbackContent={!entity.portraitImageUrl ? fallbackIcon : undefined}
-        crop={IDENTITY_CROP}
-        color={color}
-        backgroundColor={backgroundColor}
-        geometry={geometry}
-        strokeWidth={strokeWidth}
-        borderVisible={borderVisible}
-        style={{ width: TOKEN_SIZE, height: TOKEN_SIZE }}
-      />
+      <TokenGhostShape entity={entity} fallbackIcon={fallbackIcon} />
     </div>,
     portalContainer ?? document.body
   );

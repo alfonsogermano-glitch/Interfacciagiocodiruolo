@@ -253,6 +253,12 @@ export function useFolderDragDrop({
     if (!canEdit) return;
     const target = e.target as HTMLElement;
     if (target.closest('[data-no-drag]') || target.closest('input')) return;
+    // Sopprime il drag nativo del browser (es. un <img> senza draggable={false}
+    // annidato qui sotto) che altrimenti puo' attivarsi in parallelo a questo
+    // sistema pointer-based e rubargli il gesto - bug osservato il 2026-07-25:
+    // trascinare un PG col fallback icon (un <img>, a differenza delle vecchie
+    // icone lucide non trascinabili) faceva "trascinare" l'intera finestra.
+    e.preventDefault();
     pointerStartRef.current = { x: e.clientX, y: e.clientY, item };
   };
 

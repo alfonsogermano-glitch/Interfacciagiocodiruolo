@@ -3,6 +3,7 @@ import { usePortalContainer } from '../ui/portal-container';
 import { type Folder } from '../../../services/supabase/foldersService';
 import { useFolderDragDrop } from '../session/shared/useFolderDragDrop';
 import { getFolderIconComponent } from './folderIconCatalog';
+import { TokenGhostShape, type TokenGhostShapeEntity } from './TokenGhostShape';
 
 // Ghost visivo simulato via portal (Fase 5) - stesso principio del ghost
 // nativo di DraggablePortrait.tsx (nodo fuori flusso via createPortal), ma
@@ -21,12 +22,31 @@ import { getFolderIconComponent } from './folderIconCatalog';
 // bug gia' diagnosticato per il menu ⋮ invisibile, vedi portal-container.tsx
 // - stesso hook gia' usato da EntityTabBar.tsx per il suo menu portato).
 export function DragGhost<T extends { id: string }>({
-  dnd, folders, items, renderCard,
+  dnd, folders, items, renderCard, insideList = true, fallbackIcon, toGhostShapeEntity,
 }: {
   dnd: ReturnType<typeof useFolderDragDrop>;
   folders: Folder[];
   items: T[];
   renderCard: (item: T) => React.ReactNode;
+  /** Vero (default) = comportamento invariato, sempre la scheda in
+   *  miniatura (chiamanti che non passano listColumnRef a useFolderSection,
+   *  es. i Precompilati di CampaignHome.tsx). Falso = il puntatore e' fuori
+   *  dai confini della lista (vedi listColumnRef/isPointerOverList in
+   *  useFolderSection.tsx) - mostra la vista tonda del token al posto della
+   *  scheda, stesso comportamento gia' in TokenDragGhost.tsx per
+   *  Personaggi/PNG-Mostri non foderati. Rilevante solo per un
+   *  draggedItem.kind === 'card': una cartella trascinata resta sempre la
+   *  pillola con nome+icona, non ha una vista "fuori lista". */
+  insideList?: boolean;
+  /** Icona di fallback per la vista tonda quando l'item non ha un ritratto -
+   *  assente insieme a toGhostShapeEntity = questa vista non e' mai scelta
+   *  (vedi il ramo sotto), comportamento invariato. */
+  fallbackIcon?: React.ReactNode;
+  /** Riduce l'item T (generico, sconosciuto qui) ai soli campi che la vista
+   *  tonda sa disegnare (TokenGhostShapeEntity) - il chiamante conosce la
+   *  forma reale di T (es. NPC/Monster in SessionCharactersPanel.tsx, che
+   *  gia' coincide 1:1 con TokenGhostShapeEntity). */
+  toGhostShapeEntity?: (item: T) => TokenGhostShapeEntity;
 }) {
   const portalContainer = usePortalContainer();
   if (!dnd.draggedItem || !dnd.pointerPosition) return null;
@@ -44,6 +64,9 @@ export function DragGhost<T extends { id: string }>({
   })() : (() => {
     const item = items.find((it) => it.id === dnd.draggedItem!.id);
     if (!item) return null;
+    if (!insideList && toGhostShapeEntity && fallbackIcon) {
+      return <TokenGhostShape entity={toGhostShapeEntity(item)} fallbackIcon={fallbackIcon} />;
+    }
     // Card completa in miniatura, non la sola etichetta - il box foto di
     // EntityCard (variant grid) e' a larghezza fissa (140px) indipendente
     // dal contenitore, quindi per restringere il ghost si scala l'intera

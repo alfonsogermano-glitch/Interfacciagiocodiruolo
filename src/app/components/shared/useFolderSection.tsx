@@ -9,6 +9,8 @@ import { useFolderDragDrop, reorderIds } from '../session/shared/useFolderDragDr
 import { type EntityKebabMenuColors } from '../session/shared/EntityKebabMenu';
 import { FolderRow } from './FolderRow';
 import { DragGhost } from './DragGhost';
+import { useIsPointerOverRect } from './useIsPointerOverRect';
+import type { TokenGhostShapeEntity } from './TokenGhostShape';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
@@ -83,6 +85,21 @@ export interface UseFolderSectionParams<T extends { id: string; folderId?: strin
    *  lo stesso oggetto menuColors gia' usato dal chiamante per i propri
    *  EntityKebabMenu (card PG/PNG/Mostri). */
   menuColors: EntityKebabMenuColors;
+  /** Rect di riferimento per decidere se il ghost di drag e' "dentro" o
+   *  "fuori" lista (vedi DragGhost.tsx/TokenGhostShape.tsx) - stesso
+   *  listColumnRef gia' usato da SessionCharactersPanel.tsx per il proprio
+   *  dnd di primo livello (Personaggi). Assente = comportamento invariato,
+   *  il ghost di questa sezione resta sempre la scheda in miniatura (es. i
+   *  Precompilati di CampaignHome.tsx, che non hanno ancora un concetto di
+   *  "fuori lista"). */
+  listColumnRef?: React.RefObject<HTMLDivElement | null>;
+  /** Icona di fallback per la vista tonda del ghost (vedi sopra) - assente
+   *  insieme a listColumnRef/toGhostShapeEntity, quella vista non e' mai
+   *  scelta. */
+  ghostFallbackIcon?: React.ReactNode;
+  /** Riduce un item T ai soli campi che la vista tonda sa disegnare - vedi
+   *  lo stesso parametro su DragGhost.tsx. */
+  toGhostShapeEntity?: (item: T) => TokenGhostShapeEntity;
 }
 
 export interface UseFolderSectionResult {
@@ -141,6 +158,7 @@ export interface UseFolderSectionResult {
 export function useFolderSection<T extends { id: string; folderId?: string | null }>({
   entityType, campaignId, sessionKey, accessToken, canEdit, enabled, items, renderCard, renderGhostCard, itemLabel,
   onMoveCard, onFolderDeleted, containerRef, maxVisibleDescendantShortcuts, menuColors,
+  listColumnRef, ghostFallbackIcon, toGhostShapeEntity,
 }: UseFolderSectionParams<T>): UseFolderSectionResult {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -378,8 +396,25 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
     );
   };
 
+  // Confronto contro listColumnRef con lo stesso dnd di QUESTA sezione (non
+  // quello di primo livello del chiamante, vedi il commento su
+  // listColumnRef sopra) - dnd.pointerPosition qui e' quello aggiornato dal
+  // drag di un item/cartella di questa sezione, esattamente quello a cui
+  // insideList deve reagire. listColumnRef assente = isPointerOverList
+  // sempre forzato a true sotto (mai "fuori lista"), comportamento
+  // invariato per chi non lo passa.
+  const isPointerOverList = useIsPointerOverRect(listColumnRef, dnd.pointerPosition);
+
   const renderGhost = (): React.ReactNode => (
-    <DragGhost dnd={dnd} folders={folders} items={items} renderCard={renderGhostCard} />
+    <DragGhost
+      dnd={dnd}
+      folders={folders}
+      items={items}
+      renderCard={renderGhostCard}
+      insideList={listColumnRef ? isPointerOverList : true}
+      fallbackIcon={ghostFallbackIcon}
+      toGhostShapeEntity={toGhostShapeEntity}
+    />
   );
 
   return {
