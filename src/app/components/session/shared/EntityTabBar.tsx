@@ -27,9 +27,16 @@ interface EntityTabBarProps {
    *  CampaignNotesPanel.tsx per limitare la barra alla sola cartella
    *  attualmente sfogliata (vedi il commento li' su visibleCustomTabIds). */
   visibleCustomTabIds?: Set<string> | null;
+  /** Azione aggiuntiva spinta a destra sulla stessa riga della barra tab
+   *  (es. "Nuova cartella" di CampaignNotesPanel.tsx) - assente = comportamento
+   *  invariato (PG/PNG/Mostro, nessuna azione extra qui). Stesso principio
+   *  del extraAction di SectionHeader in SessionCharactersPanel.tsx, ma
+   *  sulla riga della barra tab invece che su un header di sezione separato:
+   *  evita una riga dedicata in piu' che schiaccerebbe la barra sotto. */
+  headerAction?: React.ReactNode;
 }
 
-export function EntityTabBar({ canEdit, tabs, tabIndicators = {}, onAddTab, folders, visibleCustomTabIds = null }: EntityTabBarProps) {
+export function EntityTabBar({ canEdit, tabs, tabIndicators = {}, onAddTab, folders, visibleCustomTabIds = null, headerAction }: EntityTabBarProps) {
   const portalContainer = usePortalContainer();
   // Il menu ⋮ e' portato fuori dal DOM locale con position:fixed alle
   // coordinate del bottone al click, per non finire tagliato dall'
@@ -173,6 +180,7 @@ export function EntityTabBar({ canEdit, tabs, tabIndicators = {}, onAddTab, fold
             <Plus className="h-3.5 w-3.5" />
           </button>
         )}
+        {headerAction && <div className="ml-auto shrink-0">{headerAction}</div>}
       </div>
 
       {openMenuTabId && menuAnchorRect && (() => {

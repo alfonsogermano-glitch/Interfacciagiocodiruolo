@@ -147,8 +147,8 @@ export function CampaignNotesPanel({
 
   return (
     <div className={className}>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        {section.folderPath.length > 0 ? (
+      {section.folderPath.length > 0 && (
+        <div className="mb-2">
           <FolderBreadcrumb
             sectionLabel={folderName}
             path={section.folderPath}
@@ -157,28 +157,10 @@ export function CampaignNotesPanel({
             onNavigate={section.setCurrentFolderId}
             compact
           />
-        ) : <span />}
-        {canEdit && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={section.handleCreateFolder}
-                disabled={section.createDisabledReason !== null}
-                aria-label="Nuova cartella"
-                className={`flex shrink-0 items-center gap-1 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 text-xs text-[var(--dash-muted)] transition-colors ${
-                  section.createDisabledReason !== null ? 'cursor-not-allowed opacity-40' : 'hover:text-[var(--dash-text-strong)]'
-                }`}
-              >
-                <FolderPlus className="h-3.5 w-3.5" /> Nuova cartella
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="left">{section.createDisabledReason ?? 'Nuova cartella'}</TooltipContent>
-          </Tooltip>
-        )}
-      </div>
+        </div>
+      )}
 
-      {section.renderRows()}
+      <div className="space-y-1 mb-2">{section.renderRows()}</div>
 
       <EntityTabBar
         canEdit={canEdit}
@@ -186,6 +168,24 @@ export function CampaignNotesPanel({
         visibleCustomTabIds={visibleCustomTabIds}
         onAddTab={() => tabs.handleAddCustomTab('Nuova nota', { hidden: scope === 'gm', folderId: section.currentFolderId })}
         folders={section.folders.map(f => ({ id: f.id, name: f.name }))}
+        headerAction={canEdit ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={section.handleCreateFolder}
+                disabled={section.createDisabledReason !== null}
+                aria-label="Nuova cartella"
+                className={`flex shrink-0 items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors ${
+                  section.createDisabledReason !== null ? 'cursor-not-allowed opacity-40' : 'hover:text-[var(--dash-text-strong)]'
+                }`}
+              >
+                <FolderPlus className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left">{section.createDisabledReason ?? 'Nuova cartella'}</TooltipContent>
+          </Tooltip>
+        ) : undefined}
       />
 
       {visibleCustomTabIds.size === 0 ? (

@@ -338,7 +338,16 @@ export function useEntityTabs({
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken ?? ''}` },
         body: JSON.stringify({ folderId }),
       });
-      if (!res.ok) throw new Error('PUT folderId failed');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'PUT folderId failed');
+      // Il server puo' decidere un folder_id diverso da quello richiesto
+      // (vedi index.tsx: se un'altra richiesta concorrente ha nel frattempo
+      // cambiato `hidden` di questa nota, il trigger check_entity_notes_folder_type
+      // potrebbe gia' averla staccata) - qui ci si allinea al valore
+      // autorevole tornato dalla PUT invece di fidarsi ciecamente
+      // dell'aggiornamento ottimistico sopra, che altrimenti resterebbe
+      // silenziosamente divergente dal DB fino al prossimo fetch completo.
+      setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, folder_id: data.note.folder_id ?? null } : t)));
     } catch (err) {
       console.error('Errore spostamento tab in cartella:', err);
       setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, folder_id: previousFolderId } : t)));
