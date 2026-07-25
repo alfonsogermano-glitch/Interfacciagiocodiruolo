@@ -340,6 +340,8 @@ export function useEntityTabs({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'PUT folderId failed');
+      // TEMP DEBUG - rimuovere dopo la diagnosi
+      console.log('[TEMP handleMoveCustomTabToFolder] tabId=', tabId, 'richiesto folderId=', folderId, 'server ha risposto folder_id=', data.note.folder_id, 'nota completa=', data.note);
       // Il server puo' decidere un folder_id diverso da quello richiesto
       // (vedi index.tsx: se un'altra richiesta concorrente ha nel frattempo
       // cambiato `hidden` di questa nota, il trigger check_entity_notes_folder_type
