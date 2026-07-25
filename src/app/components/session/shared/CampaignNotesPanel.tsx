@@ -101,9 +101,6 @@ export function CampaignNotesPanel({
     menuColors,
   });
 
-  // TEMP DEBUG - rimuovere dopo la diagnosi
-  console.log('[TEMP CampaignNotesPanel render]', 'instance=', (tabs as any).__debugInstanceId, 'scope=', scope, 'tabs.customTabs.length=', tabs.customTabs.length);
-
   const visibleCustomTabIds = new Set(
     scopedTabs.filter(t => (t.folder_id ?? null) === section.currentFolderId).map(t => t.id)
   );

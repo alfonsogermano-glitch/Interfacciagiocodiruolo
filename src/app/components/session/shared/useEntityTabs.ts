@@ -6,11 +6,6 @@ const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-7
 
 const DRAG_THRESHOLD_PX = 6;
 
-// TEMP DEBUG - rimuovere dopo la diagnosi: contatore a livello di modulo
-// (sopravvive a re-render/remount), per vedere quante volte handleAddCustomTab
-// esegue davvero il proprio corpo (e la propria POST) per ogni click.
-let __tempHandleAddCustomTabCounter = 0;
-
 export type EntityTabsEntityType = 'character' | 'npc' | 'monster' | 'campaign';
 
 export interface EntityBaseTab {
@@ -66,19 +61,6 @@ export function useEntityTabs({
   // Non cambia la convenzione di Monster altrove: solo qui, prima della fetch.
   const notesCampaignId = campaignId === '' ? null : campaignId;
 
-  // TEMP DEBUG - rimuovere dopo la diagnosi: id univoco per istanza del hook
-  // e stack trace del mount, per scoprire QUALE componente sta montando
-  // questa istanza (il widget di CampaignHome.tsx e' stato rimosso, ma il
-  // problema persiste - serve trovare l'altra fonte del doppio mount).
-  const debugInstanceIdRef = useRef(Math.random().toString(36).slice(2, 8));
-  useEffect(() => {
-    console.log('[TEMP useEntityTabs MOUNT]', 'instance=', debugInstanceIdRef.current, 'entityType=', entityType, 'entityId=', entityId, 'campaignId=', campaignId, 'stack=', new Error().stack);
-    return () => {
-      console.log('[TEMP useEntityTabs UNMOUNT]', 'instance=', debugInstanceIdRef.current, 'entityType=', entityType, 'entityId=', entityId);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const [customTabs, setCustomTabs] = useState<EntityCustomTab[]>([]);
   const [tabOrder, setTabOrder] = useState<string[]>(baseTabIds);
   const [currentTab, setCurrentTab] = useState<string>(defaultTabId);
@@ -121,29 +103,19 @@ export function useEntityTabs({
   // Fetch delle note (tab personalizzate) dell'entità selezionata
   useEffect(() => {
     if (!entityId) {
-      // TEMP DEBUG - rimuovere dopo la diagnosi
-      console.log('[TEMP setCustomTabs @fetch-effect-empty]', 'instance=', debugInstanceIdRef.current, '-> []');
       setCustomTabs([]);
       return;
     }
     let cancelled = false;
     fetchCustomTabsData().then((sorted) => {
-      if (!cancelled && sorted) {
-        // TEMP DEBUG - rimuovere dopo la diagnosi
-        console.log('[TEMP setCustomTabs @fetch-effect]', 'instance=', debugInstanceIdRef.current, '-> length=', sorted.length, 'ids=', sorted.map(t => t.id));
-        setCustomTabs(sorted);
-      }
+      if (!cancelled && sorted) setCustomTabs(sorted);
     });
     return () => { cancelled = true; };
   }, [entityId, campaignId, accessToken, entityType]);
 
   const reloadCustomTabs = async () => {
     const sorted = await fetchCustomTabsData();
-    if (sorted) {
-      // TEMP DEBUG - rimuovere dopo la diagnosi
-      console.log('[TEMP setCustomTabs @reloadCustomTabs]', 'instance=', debugInstanceIdRef.current, '-> length=', sorted.length, 'ids=', sorted.map(t => t.id));
-      setCustomTabs(sorted);
-    }
+    if (sorted) setCustomTabs(sorted);
   };
 
   // Realtime: propaga creazione/modifica/eliminazione di tab fatte da altri
@@ -162,11 +134,7 @@ export function useEntityTabs({
       if (!matchesThisEntity(data.old_record)) return;
       const deletedId = data.old_record?.id;
       if (!deletedId) return;
-      setCustomTabs(prev => {
-        // TEMP DEBUG - rimuovere dopo la diagnosi
-        console.log('[TEMP setCustomTabs @broadcast-delete]', 'instance=', debugInstanceIdRef.current, 'deletedId=', deletedId, 'prev.length=', prev.length, '-> next.length=', prev.filter(t => t.id !== deletedId).length);
-        return prev.filter(t => t.id !== deletedId);
-      });
+      setCustomTabs(prev => prev.filter(t => t.id !== deletedId));
       return;
     }
 
@@ -178,8 +146,6 @@ export function useEntityTabs({
     const mapped: EntityCustomTab = { ...row, hidden: row.hidden ?? false, folder_id: row.folder_id ?? null };
     setCustomTabs(prev => {
       const exists = prev.some(t => t.id === mapped.id);
-      // TEMP DEBUG - rimuovere dopo la diagnosi
-      console.log('[TEMP broadcast apply]', 'instance=', debugInstanceIdRef.current, 'entityType=', entityType, 'op=', data.operation, 'row.id=', row.id, 'exists=', exists, 'prev.length=', prev.length, '-> next.length=', exists ? prev.length : prev.length + 1);
       return exists ? prev.map(t => (t.id === mapped.id ? mapped : t)) : [...prev, mapped];
     });
   };
@@ -297,24 +263,28 @@ export function useEntityTabs({
   // senza hidden/folderId espliciti (default server, vedi index.tsx).
   const handleAddCustomTab = async (tabName = 'Nuova tab', opts?: { hidden?: boolean; folderId?: string | null }) => {
     if (!entityId) return;
-    // TEMP DEBUG - rimuovere dopo la diagnosi
-    __tempHandleAddCustomTabCounter += 1;
-    const __tempCallSeq = __tempHandleAddCustomTabCounter;
-    console.log('[TEMP handleAddCustomTab ENTRY]', 'seq=', __tempCallSeq, 'instance=', debugInstanceIdRef.current, 't=', performance.now(), 'entityType=', entityType, 'entityId=', entityId, 'folderId=', opts?.folderId, 'stack=', new Error().stack);
     try {
-      console.log('[TEMP handleAddCustomTab FETCH START]', 'seq=', __tempCallSeq, 't=', performance.now());
       const res = await fetch(`${SERVER_BASE}/campaigns/${notesCampaignId}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken ?? ''}` },
         body: JSON.stringify({ entityType, entityId, tabName, hidden: opts?.hidden, folderId: opts?.folderId }),
       });
-      console.log('[TEMP handleAddCustomTab FETCH DONE]', 'seq=', __tempCallSeq, 't=', performance.now());
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       recentLocalEditRef.current[data.note.id] = Date.now();
-      // TEMP DEBUG - rimuovere dopo la diagnosi
-      console.log('[TEMP setCustomTabs @handleAddCustomTab]', 'seq=', __tempCallSeq, 'instance=', debugInstanceIdRef.current, 'nuovo id=', data.note.id, 'prev.length=', customTabs.length);
-      setCustomTabs(prev => [...prev, { ...data.note, hidden: data.note.hidden ?? false, folder_id: data.note.folder_id ?? null }]);
+      // Aggiornamento funzionale con controllo "esiste gia'" - tra l'avvio
+      // della POST e la sua risoluzione puo' arrivare prima il broadcast
+      // realtime dello stesso INSERT (l'eco della propria stessa creazione,
+      // vedi handleEntityNotesBroadcast), che aggiunge gia' la nota. Senza
+      // questo controllo, l'append incondizionato qui sotto la duplicava
+      // nell'array in memoria (mai una vera riga duplicata nel DB da questo
+      // meccanismo, ma un conteggio cartelle gonfiato ad ogni "+" cliccato
+      // mentre si e' dentro una cartella - bug isolato e verificato 2026-07-26).
+      const mappedNote: EntityCustomTab = { ...data.note, hidden: data.note.hidden ?? false, folder_id: data.note.folder_id ?? null };
+      setCustomTabs(prev => {
+        const exists = prev.some(t => t.id === mappedNote.id);
+        return exists ? prev.map(t => (t.id === mappedNote.id ? mappedNote : t)) : [...prev, mappedNote];
+      });
       setCurrentTab(data.note.id);
       // Entra subito in rinomina: il "+" crea e si passa direttamente al nome
       setRenamingTabId(data.note.id);
@@ -354,9 +324,13 @@ export function useEntityTabs({
       if (!putRes.ok) throw new Error(putData.error);
 
       recentLocalEditRef.current[putData.note.id] = Date.now();
-      // TEMP DEBUG - rimuovere dopo la diagnosi
-      console.log('[TEMP setCustomTabs @handleDuplicateCustomTab]', 'instance=', debugInstanceIdRef.current, 'nuovo id=', putData.note.id, 'prev.length=', customTabs.length);
-      setCustomTabs(prev => [...prev, { ...putData.note, hidden: putData.note.hidden ?? false, folder_id: putData.note.folder_id ?? null }]);
+      // Stesso controllo "esiste gia'" di handleAddCustomTab - stesso rischio
+      // di corsa col broadcast realtime tra la POST/PUT e la loro risoluzione.
+      const mappedNote: EntityCustomTab = { ...putData.note, hidden: putData.note.hidden ?? false, folder_id: putData.note.folder_id ?? null };
+      setCustomTabs(prev => {
+        const exists = prev.some(t => t.id === mappedNote.id);
+        return exists ? prev.map(t => (t.id === mappedNote.id ? mappedNote : t)) : [...prev, mappedNote];
+      });
       setCurrentTab(putData.note.id);
     } catch (err) {
       console.error('Errore duplicazione tab:', err);
@@ -375,8 +349,6 @@ export function useEntityTabs({
     if (!tab) return;
     const previousFolderId = tab.folder_id;
     recentLocalEditRef.current[tabId] = Date.now();
-    // TEMP DEBUG - rimuovere dopo la diagnosi
-    console.log('[TEMP setCustomTabs @handleMoveCustomTabToFolder-optimistic]', 'instance=', debugInstanceIdRef.current, 'tabId=', tabId, 'folderId=', folderId, 'prev.length=', customTabs.length);
     setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, folder_id: folderId } : t)));
     try {
       const res = await fetch(`${SERVER_BASE}/notes/${tabId}`, {
@@ -393,13 +365,9 @@ export function useEntityTabs({
       // autorevole tornato dalla PUT invece di fidarsi ciecamente
       // dell'aggiornamento ottimistico sopra, che altrimenti resterebbe
       // silenziosamente divergente dal DB fino al prossimo fetch completo.
-      // TEMP DEBUG - rimuovere dopo la diagnosi
-      console.log('[TEMP setCustomTabs @handleMoveCustomTabToFolder-reconcile]', 'instance=', debugInstanceIdRef.current, 'tabId=', tabId, 'server folder_id=', data.note.folder_id);
       setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, folder_id: data.note.folder_id ?? null } : t)));
     } catch (err) {
       console.error('Errore spostamento tab in cartella:', err);
-      // TEMP DEBUG - rimuovere dopo la diagnosi
-      console.log('[TEMP setCustomTabs @handleMoveCustomTabToFolder-rollback]', 'instance=', debugInstanceIdRef.current, 'tabId=', tabId, 'previousFolderId=', previousFolderId);
       setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, folder_id: previousFolderId } : t)));
     }
   };
@@ -415,8 +383,6 @@ export function useEntityTabs({
       });
       const data = await res.json();
       if (res.ok) {
-        // TEMP DEBUG - rimuovere dopo la diagnosi
-        console.log('[TEMP setCustomTabs @handleRenameCustomTab]', 'instance=', debugInstanceIdRef.current, 'tabId=', tabId, 'nuovo nome=', data.note.tab_name);
         setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, tab_name: data.note.tab_name } : t)));
       }
     } catch (err) {
@@ -431,8 +397,6 @@ export function useEntityTabs({
     if (!tab) return;
     const nextHidden = !tab.hidden;
     recentLocalEditRef.current[tabId] = Date.now();
-    // TEMP DEBUG - rimuovere dopo la diagnosi
-    console.log('[TEMP setCustomTabs @handleToggleHideCustomTab-optimistic]', 'instance=', debugInstanceIdRef.current, 'tabId=', tabId, 'nextHidden=', nextHidden, 'prev.length=', customTabs.length);
     setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, hidden: nextHidden } : t)));
     try {
       const res = await fetch(`${SERVER_BASE}/notes/${tabId}`, {
@@ -452,13 +416,9 @@ export function useEntityTabs({
       // corrente ne' con "nessuna cartella": la nota sparisce dai conteggi
       // finche' non si ricarica da zero. Stesso principio gia' applicato in
       // handleMoveCustomTabToFolder.
-      // TEMP DEBUG - rimuovere dopo la diagnosi
-      console.log('[TEMP setCustomTabs @handleToggleHideCustomTab-reconcile]', 'instance=', debugInstanceIdRef.current, 'tabId=', tabId, 'server hidden=', data.note.hidden, 'server folder_id=', data.note.folder_id);
       setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, hidden: data.note.hidden ?? false, folder_id: data.note.folder_id ?? null } : t)));
     } catch (err) {
       console.error('Errore nascondi tab:', err);
-      // TEMP DEBUG - rimuovere dopo la diagnosi
-      console.log('[TEMP setCustomTabs @handleToggleHideCustomTab-rollback]', 'instance=', debugInstanceIdRef.current, 'tabId=', tabId);
       setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, hidden: !nextHidden } : t)));
     }
   };
@@ -472,8 +432,6 @@ export function useEntityTabs({
         method: 'DELETE',
         headers: { Authorization: `Bearer ${accessTokenValue}` },
       });
-      // TEMP DEBUG - rimuovere dopo la diagnosi
-      console.log('[TEMP setCustomTabs @handleDeleteCustomTab]', 'instance=', debugInstanceIdRef.current, 'tabId=', tabId, 'prev.length=', customTabs.length);
       setCustomTabs(prev => prev.filter(t => t.id !== tabId));
       setTabOrder(prev => {
         const next = prev.filter(id => id !== tabId);
@@ -490,8 +448,6 @@ export function useEntityTabs({
 
   const handleCustomTabContentChange = (tabId: string, content: string) => {
     recentLocalEditRef.current[tabId] = Date.now();
-    // TEMP DEBUG - rimuovere dopo la diagnosi
-    console.log('[TEMP setCustomTabs @handleCustomTabContentChange]', 'instance=', debugInstanceIdRef.current, 'tabId=', tabId);
     setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, content } : t)));
     if (customTabSaveTimerRef.current[tabId]) clearTimeout(customTabSaveTimerRef.current[tabId]);
     customTabSaveTimerRef.current[tabId] = setTimeout(async () => {
@@ -525,8 +481,6 @@ export function useEntityTabs({
   }, [orderedTabs.map(t => t.id).join(','), currentTab]);
 
   return {
-    // TEMP DEBUG - rimuovere dopo la diagnosi
-    __debugInstanceId: debugInstanceIdRef.current,
     customTabs,
     tabOrder,
     orderedTabs,
