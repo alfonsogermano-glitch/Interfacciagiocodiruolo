@@ -355,12 +355,6 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
       <>
         {childFolders.map((folder) => {
           const counts = countFolderContentsRecursive(folder.id, folders, items);
-          // TEMP DEBUG - rimuovere dopo la diagnosi
-          console.log(
-            '[TEMP renderRows] entityType=', entityType, 'folder=', folder.id, folder.name,
-            'counts=', counts,
-            'items completo (id/folderId)=', items.map((it: any) => ({ id: it.id, folderId: it.folderId })),
-          );
           const descendantFolders = getDescendantFolders(folder.id, folders);
           return (
             <FolderRow

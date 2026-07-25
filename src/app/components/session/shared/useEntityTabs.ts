@@ -108,8 +108,6 @@ export function useEntityTabs({
     }
     let cancelled = false;
     fetchCustomTabsData().then((sorted) => {
-      // TEMP DEBUG - rimuovere dopo la diagnosi
-      console.log('[TEMP fetch effect]', 'entityId=', entityId, 'cancelled=', cancelled, 'sorted?.length=', sorted?.length, 'ids=', sorted?.map(t => t.id));
       if (!cancelled && sorted) setCustomTabs(sorted);
     });
     return () => { cancelled = true; };
@@ -148,8 +146,6 @@ export function useEntityTabs({
     const mapped: EntityCustomTab = { ...row, hidden: row.hidden ?? false, folder_id: row.folder_id ?? null };
     setCustomTabs(prev => {
       const exists = prev.some(t => t.id === mapped.id);
-      // TEMP DEBUG - rimuovere dopo la diagnosi
-      console.log('[TEMP handleEntityNotesBroadcast]', data.operation, 'row.id=', row.id, 'exists=', exists, 'prev.length=', prev.length, '-> next.length=', exists ? prev.length : prev.length + 1, 'prev ids=', prev.map(t => t.id));
       return exists ? prev.map(t => (t.id === mapped.id ? mapped : t)) : [...prev, mapped];
     });
   };
@@ -344,8 +340,6 @@ export function useEntityTabs({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'PUT folderId failed');
-      // TEMP DEBUG - rimuovere dopo la diagnosi
-      console.log('[TEMP handleMoveCustomTabToFolder] tabId=', tabId, 'richiesto folderId=', folderId, 'server ha risposto folder_id=', data.note.folder_id, 'nota completa=', data.note);
       // Il server puo' decidere un folder_id diverso da quello richiesto
       // (vedi index.tsx: se un'altra richiesta concorrente ha nel frattempo
       // cambiato `hidden` di questa nota, il trigger check_entity_notes_folder_type
