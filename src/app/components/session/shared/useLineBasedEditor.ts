@@ -142,7 +142,11 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
   const getActiveLineElement = (): HTMLDivElement | null => {
     const container = containerRef.current;
     const sel = window.getSelection();
-    if (!container || !sel || sel.rangeCount === 0) return null;
+    if (!container || !sel || sel.rangeCount === 0) {
+      // DEBUG TEMPORANEO - snapshot diretto del DOM, vedi richiesta di log.
+      console.log('[SLASH-DEBUG] getActiveLineElement bail', { hasContainer: !!container, hasSel: !!sel, rangeCount: sel?.rangeCount ?? -1 });
+      return null;
+    }
     const startContainer = sel.getRangeAt(0).startContainer;
     // closest() opera solo su Element: se il nodo di partenza della
     // selezione e' un nodo di testo (il caso piu' comune, il cursore dentro
@@ -155,12 +159,27 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
       ? startContainer.parentElement
       : (startContainer as Element | null);
     const lineEl = startEl?.closest<HTMLDivElement>('[data-level]') ?? null;
+    // DEBUG TEMPORANEO - snapshot diretto del DOM reale al momento
+    // dell'evento, per vedere lo stato effettivo invece di ipotizzarlo.
+    console.log('[SLASH-DEBUG] getActiveLineElement snapshot', {
+      startContainer: { type: startContainer.nodeType, name: startContainer.nodeName, text: startContainer.textContent },
+      startEl: startEl ? { tag: startEl.tagName, level: (startEl as HTMLElement).dataset?.level, text: startEl.textContent } : null,
+      closestResult: lineEl ? { tag: lineEl.tagName, level: lineEl.dataset.level, text: lineEl.textContent, parentIsContainer: lineEl.parentElement === container } : null,
+      containerChildren: Array.from(container.children).map((el) => ({
+        tag: el.tagName,
+        level: (el as HTMLElement).dataset?.level,
+        text: el.textContent,
+        childNodeCount: el.childNodes.length,
+        firstChildType: el.firstChild?.nodeType ?? null,
+      })),
+    });
     // Guardia per il caso del crash originale: un nodo estraneo ancorato
     // direttamente sotto container, senza alcun <div> di riga tra i suoi
     // antenati (o un match di closest() fuori dai confini di questo
     // editor), va trattato come "nessuna riga attiva", mai passato ai
     // chiamanti.
     if (!lineEl || lineEl.parentElement !== container || !(lineEl instanceof HTMLDivElement)) {
+      console.log('[SLASH-DEBUG] getActiveLineElement -> null (guardia finale)');
       return null;
     }
     return lineEl;
