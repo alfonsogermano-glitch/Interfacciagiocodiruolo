@@ -259,6 +259,44 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
     syncActiveLine();
   };
 
+  // Intercetta l'inserimento di testo semplice PRIMA che il browser lo
+  // esegua autonomamente. Necessario perche' su una riga vuota (un <div>
+  // con un solo nodo di testo vuoto, vedi setLineText) il comportamento
+  // nativo del browser per "insertText" non e' garantito scrivere nel nodo
+  // di testo esistente: puo' invece creare un nuovo elemento "fantasma" per
+  // contenere il carattere digitato, che finisce fuori dalla struttura a
+  // righe che gli altri handler si aspettano (getActiveLineElement non lo
+  // trova piu' come riga valida). Scrivendo il carattere a mano, nel punto
+  // esatto del testo della riga corrente, eliminiamo l'incertezza sul
+  // risultato della mutazione DOM nativa per questo caso.
+  // Non intercetta: composizione IME (inputType 'insertCompositionText',
+  // gestita da compositionstart/compositionend), Invio/Backspace/incolla
+  // (gia' gestiti rispettivamente da handleKeyDown/handlePaste).
+  const handleBeforeInput = (e: React.FormEvent<HTMLDivElement>) => {
+    if (isComposingRef.current) return;
+    const nativeEvent = e.nativeEvent as InputEvent;
+    if (nativeEvent.inputType !== 'insertText') return;
+    const data = nativeEvent.data;
+    if (!data) return;
+
+    const lineEl = getActiveLineElement();
+    const sel = window.getSelection();
+    if (!lineEl || !sel || sel.rangeCount === 0) return;
+
+    e.preventDefault();
+    const range = sel.getRangeAt(0);
+    const offset = getOffsetWithinLine(lineEl, range.startContainer, range.startOffset);
+    const text = lineEl.textContent ?? '';
+    const newText = text.slice(0, offset) + data + text.slice(offset);
+
+    setLineText(lineEl, newText);
+    applyLineClass(lineEl, detectHeadingLevel(newText));
+    setCaretAtLineOffset(lineEl, offset + data.length);
+
+    emitChange();
+    syncActiveLine();
+  };
+
   const handleEnterSplit = () => {
     const lineEl = getActiveLineElement();
     const sel = window.getSelection();
@@ -402,6 +440,7 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
   return {
     containerRef,
     handleInput,
+    handleBeforeInput,
     handleKeyDown,
     handlePaste,
     handleCompositionStart,

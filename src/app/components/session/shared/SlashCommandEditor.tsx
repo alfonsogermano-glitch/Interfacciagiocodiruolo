@@ -54,6 +54,7 @@ export function SlashCommandEditor({ value, onChange, disabled, placeholder, cla
         role="textbox"
         aria-multiline="true"
         aria-label={placeholder ?? 'Contenuto'}
+        onBeforeInput={editor.handleBeforeInput}
         onInput={editor.handleInput}
         onKeyDown={editor.handleKeyDown}
         onPaste={editor.handlePaste}
