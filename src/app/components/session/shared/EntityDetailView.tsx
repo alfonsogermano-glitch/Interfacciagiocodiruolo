@@ -7,6 +7,7 @@ import { TurbePanel } from '../../TurbePanel';
 import { EquipmentPanel as LegacyEquipmentPanel } from '../../EquipmentPanel';
 import { DraggablePortrait } from './DraggablePortrait';
 import { EntityTabBar } from './EntityTabBar';
+import { SlashCommandEditor } from './SlashCommandEditor';
 import { EntityDetailRail, type EntityDetailRailSection } from './EntityDetailRail';
 import { TokenStyleEditor } from '../../shared/TokenStyleEditor';
 import { EntityImageTab } from './EntityImageTab';
@@ -1455,12 +1456,12 @@ export function EntityDetailView({
 
           {tabs.customTabs.map(tab =>
             tabs.currentTab === tab.id && (canEdit || !tab.hidden) ? (
-              <textarea
+              <SlashCommandEditor
                 key={tab.id}
                 value={tab.content}
-                onChange={(e) => tabs.handleCustomTabContentChange(tab.id, e.target.value)}
+                onChange={(content) => tabs.handleCustomTabContentChange(tab.id, content)}
                 disabled={!canEdit}
-                placeholder="Scrivi qui..."
+                placeholder="Scrivi qui... ('/' per un'intestazione)"
                 className="h-64 w-full resize-none rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4 text-sm text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
               />
             ) : null

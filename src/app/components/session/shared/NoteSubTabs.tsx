@@ -1,6 +1,7 @@
 import { Plus, StickyNote } from 'lucide-react';
 import { useEntityTabs, type EntityCustomTab } from './useEntityTabs';
 import { EntityTabBar } from './EntityTabBar';
+import { SlashCommandEditor } from './SlashCommandEditor';
 
 interface NoteSubTabsProps {
   /** La nota "contenitore" selezionata nella lista di livello superiore
@@ -81,12 +82,11 @@ export function NoteSubTabs({ note, campaignId, accessToken, canEdit, onPersistS
       />
 
       {selectedSubTab && (canEdit || !selectedSubTab.hidden) ? (
-        <textarea
+        <SlashCommandEditor
           value={selectedSubTab.content}
-          onChange={(e) => nestedTabs.handleCustomTabContentChange(selectedSubTab.id, e.target.value)}
+          onChange={(content) => nestedTabs.handleCustomTabContentChange(selectedSubTab.id, content)}
           disabled={!canEdit}
-          placeholder="Scrivi qui..."
-          className="h-48 w-full resize-none rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3 text-sm text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
+          placeholder="Scrivi qui... ('/' per un'intestazione)"
         />
       ) : null}
     </div>

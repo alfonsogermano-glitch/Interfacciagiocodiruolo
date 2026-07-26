@@ -1,3 +1,5 @@
+import { MarkdownContent } from './MarkdownContent';
+
 interface TrashItemPreviewProps {
   name: string;
   /** "Nota" | "Sotto-tab" | "Cartella" */
@@ -26,13 +28,11 @@ export function TrashItemPreview({ name, typeLabel, scopeLabel, content }: Trash
         <div className="text-xs text-[var(--dash-muted)]">{typeLabel} · {scopeLabel} · Nel cestino</div>
       </div>
       {content !== null ? (
-        <textarea
-          value={content}
-          readOnly
-          disabled
-          placeholder="(vuoto)"
-          className="h-48 w-full resize-none rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3 text-sm text-[var(--dash-text)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
-        />
+        <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
+          {content ? <MarkdownContent content={content} /> : (
+            <span className="text-sm text-[var(--dash-muted)]">(vuoto)</span>
+          )}
+        </div>
       ) : (
         <div className="text-sm text-[var(--dash-muted)]">Le cartelle non hanno un contenuto testuale proprio.</div>
       )}
