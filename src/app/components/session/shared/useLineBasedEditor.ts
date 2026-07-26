@@ -269,9 +269,11 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
   // trova piu' come riga valida). Scrivendo il carattere a mano, nel punto
   // esatto del testo della riga corrente, eliminiamo l'incertezza sul
   // risultato della mutazione DOM nativa per questo caso.
-  // Non intercetta: composizione IME (inputType 'insertCompositionText',
-  // gestita da compositionstart/compositionend), Invio/Backspace/incolla
-  // (gia' gestiti rispettivamente da handleKeyDown/handlePaste).
+  // Non intercetta: composizione IME (isComposingRef, gestita a parte da
+  // compositionstart/compositionend), cancellazioni/Invio/incolla (nessun
+  // testo in e.data, vedi sotto - gia' gestiti rispettivamente da
+  // handleKeyDown/handlePaste, o lasciati al comportamento nativo per il
+  // Backspace non a inizio riga).
   const handleBeforeInput = (e: React.FormEvent<HTMLDivElement>) => {
     // DEBUG TEMPORANEO - conferma se l'evento scatta affatto, vedi richiesta
     // di log immediato in cima all'handler.
@@ -283,9 +285,14 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
     });
     if (isComposingRef.current) return;
     const nativeEvent = e.nativeEvent as InputEvent;
-    if (nativeEvent.inputType !== 'insertText') return;
+    // Il controllo rigido su inputType === 'insertText' risultava undefined
+    // in questo contesto (confermato dai log) - inputType su beforeinput per
+    // contentEditable non e' affidabile allo stesso modo su tutti i
+    // browser/percorsi di inserimento. e.data invece e' presente e corretto
+    // (la stringa effettivamente digitata): usiamo quello per riconoscere un
+    // inserimento di testo semplice, indipendentemente da inputType.
     const data = nativeEvent.data;
-    if (!data) return;
+    if (typeof data !== 'string' || data.length === 0) return;
 
     const lineEl = getActiveLineElement();
     const sel = window.getSelection();
