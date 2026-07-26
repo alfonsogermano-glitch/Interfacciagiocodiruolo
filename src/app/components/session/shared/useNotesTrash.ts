@@ -14,6 +14,7 @@ const FOLDER_TRASH_TYPES = ['gmnotes', 'campaignnotes'];
 export interface TrashedNote {
   id: string;
   tab_name: string;
+  content: string;
   entity_type: 'campaign' | 'note';
   hidden: boolean;
   deleted_at: string;

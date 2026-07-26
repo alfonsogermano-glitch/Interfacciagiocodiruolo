@@ -6,6 +6,7 @@ import { useCampaignNotesSection, type UseCampaignNotesSectionResult } from './s
 import { useNotesTrash } from './shared/useNotesTrash';
 import { SectionHeader } from './shared/SectionHeader';
 import { TrashRow } from './shared/TrashRow';
+import { TrashItemPreview } from './shared/TrashItemPreview';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
@@ -33,6 +34,14 @@ export function SessionNotesPanel() {
   const [activeScope, setActiveScope] = useState<NotesScope>('shared');
   const [openSections, setOpenSections] = useState({ shared: true, gm: true, trash: false });
   const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false);
+  // Elemento specifico selezionato dentro il Cestino (per l'anteprima nel
+  // pannello destro, vedi TrashItemPreview.tsx) - DISTINTO da activeScope:
+  // quest'ultimo dice "quale sezione possiede il pannello destro adesso",
+  // questo dice "quale riga, se ce n'e' una". Si popola SOLO dal click su
+  // una riga (TrashRow.tsx/onSelect), mai dall'apertura dell'header (vedi
+  // toggleSection sotto - bug corretto: prima l'espansione della sezione
+  // chiamava lo stesso setActiveScope('trash') del click su una riga).
+  const [selectedTrashItem, setSelectedTrashItem] = useState<{ kind: 'note' | 'folder'; id: string } | null>(null);
 
   // Se isOwner diventa false mentre la sezione GM o il Cestino avevano il
   // contesto attivo (es. il GM passa la campagna ad altri mentre questo
@@ -80,15 +89,13 @@ export function SessionNotesPanel() {
     enabled: isOwner,
   });
 
+  // Solo apertura/chiusura dell'accordion - NON tocca activeScope/
+  // selectedTrashItem (bug corretto: espandere l'header "Cestino" faceva
+  // scattare lo stesso placeholder di una selezione vera). Il contesto
+  // attivo cambia solo dal click su una riga (onSelectNote per le sezioni
+  // Note, onSelect di TrashRow per il Cestino).
   const toggleSection = (key: keyof typeof openSections) => {
-    setOpenSections(prev => {
-      const next = { ...prev, [key]: !prev[key] };
-      // Espandere il Cestino e' gia' di per se' "interagire con il
-      // Cestino" (vedi il commento su NotesScope sopra) - stesso principio
-      // di onSelectNote per una riga nota, qui sull'header della sezione.
-      if (key === 'trash' && next.trash) setActiveScope('trash');
-      return next;
-    });
+    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   // Lista piatta unica (note + cartelle), piu' recente cestinato per primo -
@@ -103,6 +110,7 @@ export function SessionNotesPanel() {
       deletedAt: f.deleted_at,
       onRestore: () => trash.restoreFolder(f.id),
       onPurge: () => trash.purgeFolder(f.id),
+      onSelect: () => { setActiveScope('trash'); setSelectedTrashItem({ kind: 'folder', id: f.id }); },
     })),
     ...trash.notes.map((n) => ({
       key: `note-${n.id}`,
@@ -112,8 +120,21 @@ export function SessionNotesPanel() {
       deletedAt: n.deleted_at,
       onRestore: () => trash.restoreNote(n.id),
       onPurge: () => trash.purgeNote(n.id),
+      onSelect: () => { setActiveScope('trash'); setSelectedTrashItem({ kind: 'note', id: n.id }); },
     })),
   ].sort((a, b) => (a.deletedAt < b.deletedAt ? 1 : -1));
+
+  // Dati completi dell'elemento selezionato (per l'anteprima) - derivati
+  // live da trash.notes/trash.folders, non copiati in selectedTrashItem:
+  // se l'elemento viene ripristinato/eliminato definitivamente (anche da un
+  // altro client) sparisce da qui automaticamente, senza bisogno di un
+  // effect dedicato per "sganciare" la selezione.
+  const selectedTrashNote = selectedTrashItem?.kind === 'note'
+    ? trash.notes.find(n => n.id === selectedTrashItem.id) ?? null
+    : null;
+  const selectedTrashFolder = selectedTrashItem?.kind === 'folder'
+    ? trash.folders.find(f => f.id === selectedTrashItem.id) ?? null
+    : null;
 
   // Pulsanti "nuova nota"/"nuova cartella" nell'header di sezione - stesso
   // slot extraAction gia' usato da PNG/Mostri in SessionCharactersPanel.tsx
@@ -182,6 +203,7 @@ export function SessionNotesPanel() {
             <>
               <SectionHeader
                 title="Cestino"
+                icon={<Trash2 className="h-3.5 w-3.5 shrink-0" />}
                 count={trash.count}
                 isOpen={openSections.trash}
                 onToggle={() => toggleSection('trash')}
@@ -229,7 +251,7 @@ export function SessionNotesPanel() {
                         scopeLabel={row.scopeLabel}
                         onRestore={row.onRestore}
                         onPurge={row.onPurge}
-                        onSelect={() => setActiveScope('trash')}
+                        onSelect={row.onSelect}
                       />
                     ))
                   )}
@@ -241,19 +263,31 @@ export function SessionNotesPanel() {
 
         <div className="flex-1 overflow-auto p-4">
           {isOwner && activeScope === 'trash' ? (
-            // Il Cestino non ha una vista di dettaglio (nessuna riga e'
-            // "selezionabile" nel senso di apertura, vedi TrashRow.tsx: solo
-            // Ripristina/Elimina definitivamente nella lista stessa) -
-            // tabs.currentTab non viene mai toccato da qui, resta esattamente
-            // quello che era. activeScope (non openSections.trash) e' la
-            // fonte di verita' per "cosa mostra il pannello destro adesso":
-            // openSections.trash e' solo espansione/collasso dell'accordion,
-            // un concetto diverso - confonderli teneva questo placeholder
-            // visibile anche dopo aver selezionato una nota in un'altra
-            // sezione (bug verificato).
-            <div className="flex h-full items-center justify-center text-center text-sm text-[var(--dash-muted)]">
-              Elementi nel cestino — usa "Ripristina" o "Elimina definitivamente" dalla lista.
-            </div>
+            // activeScope (non openSections.trash) e' la fonte di verita'
+            // per "cosa mostra il pannello destro adesso": openSections.trash
+            // e' solo espansione/collasso dell'accordion, un concetto diverso
+            // (bug corretto: prima si confondevano). tabs.currentTab delle
+            // sezioni Note non viene mai toccato da qui, resta esattamente
+            // quello che era.
+            selectedTrashNote ? (
+              <TrashItemPreview
+                name={selectedTrashNote.tab_name}
+                typeLabel={selectedTrashNote.entity_type === 'campaign' ? 'Nota' : 'Sotto-tab'}
+                scopeLabel={selectedTrashNote.hidden ? 'GM' : 'Campagna'}
+                content={selectedTrashNote.content}
+              />
+            ) : selectedTrashFolder ? (
+              <TrashItemPreview
+                name={selectedTrashFolder.name}
+                typeLabel="Cartella"
+                scopeLabel={selectedTrashFolder.entity_type === 'gmnotes' ? 'GM' : 'Campagna'}
+                content={null}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-center text-sm text-[var(--dash-muted)]">
+                Seleziona un elemento dalla lista per vederne l'anteprima, oppure usa "Ripristina"/"Elimina definitivamente".
+              </div>
+            )
           ) : activeScope === 'gm' && isOwner ? gmSection.renderDetail() : sharedSection.renderDetail()}
         </div>
       </div>
