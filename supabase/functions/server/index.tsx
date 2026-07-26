@@ -1459,6 +1459,20 @@ async function canAccessEntityNotes(
     const myJoined: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
     return myJoined.some((pc) => pc.campaignId === campaignId);
   }
+  // Sotto-tab di una nota (entity_id = id della nota padre, vedi
+  // supabase-add-note-subtabs.sql): eredita i permessi di chi possiede la
+  // nota padre, risalendo di un livello - la profondita' e' fissa a 2
+  // (una sotto-tab non e' mai a sua volta padre di altre sotto-tab), quindi
+  // questa risalita si ferma sempre al primo passo.
+  if (entityType === 'note') {
+    const { data: parentNote } = await admin
+      .from('entity_notes')
+      .select('entity_type, entity_id, campaign_id')
+      .eq('id', entityId)
+      .single();
+    if (!parentNote) return false;
+    return canAccessEntityNotes(admin, userId, parentNote.campaign_id, parentNote.entity_type, parentNote.entity_id, mode);
+  }
   if (entityType === 'character') {
     const { data: character } = await admin
       .from('characters')
@@ -1580,7 +1594,7 @@ app.put("/make-server-771c5bfd/notes/:noteId", async (c) => {
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
     const noteId = c.req.param("noteId");
-    const { tabName, content, position, hidden, folderId } = await c.req.json();
+    const { tabName, content, position, hidden, folderId, tabOrder } = await c.req.json();
 
     const admin = getAdminClient();
     const { data: existing, error: fetchError } = await admin
@@ -1599,6 +1613,11 @@ app.put("/make-server-771c5bfd/notes/:noteId", async (c) => {
     if (typeof position === 'number') patch.position = position;
     if (typeof hidden === 'boolean') patch.hidden = hidden;
     if (typeof folderId === 'string' || folderId === null) patch.folder_id = folderId;
+    // Ordine delle sotto-tab di QUESTA nota (vedi supabase-add-note-subtabs.sql)
+    // - array di id, stesso schema di tabOrderCampaignNotes/tabOrderGmNotes
+    // ma persistito qui perche' la nota stessa e' il proprietario naturale
+    // delle proprie sotto-tab.
+    if (Array.isArray(tabOrder)) patch.tab_order = tabOrder;
 
     // Se questa stessa richiesta cambia `hidden` (sposta la nota tra "Note
     // del GM" e "Note della Campagna") senza spostarla esplicitamente anche
@@ -1653,6 +1672,15 @@ app.delete("/make-server-771c5bfd/notes/:noteId", async (c) => {
 
     const allowed = await canAccessEntityNotes(admin, userId, existing.campaign_id, existing.entity_type, existing.entity_id, 'write');
     if (!allowed) return c.json({ error: "Non hai accesso a questa tab" }, 403);
+
+    // Elimina prima le eventuali sotto-tab (entity_type='note', entity_id=
+    // questa nota - vedi supabase-add-note-subtabs.sql): nessuna FK "on
+    // delete cascade" su entity_id (colonna polimorfica non tipizzata, stesso
+    // pattern gia' in uso per entity_type='campaign'/'character'/ecc.), quindi
+    // vanno rimosse esplicitamente qui. Un solo passaggio, non ricorsivo: la
+    // profondita' e' fissa a 2 livelli, una sotto-tab non ha mai proprie
+    // sotto-tab.
+    await admin.from('entity_notes').delete().eq('entity_type', 'note').eq('entity_id', noteId);
 
     const { error } = await admin.from('entity_notes').delete().eq('id', noteId);
     if (error) return c.json({ error: "Errore eliminazione tab" }, 500);

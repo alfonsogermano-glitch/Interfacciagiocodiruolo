@@ -1,4 +1,4 @@
-export type EntityNotesEntityType = 'character' | 'npc' | 'monster' | 'campaign';
+export type EntityNotesEntityType = 'character' | 'npc' | 'monster' | 'campaign' | 'note';
 
 interface EntityNoteRow {
   id: string;
@@ -52,5 +52,15 @@ export async function duplicateEntityNotes(
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({ content: note.content ?? '', hidden: note.hidden ?? false }),
     });
+
+    // Ogni nota puo' essere a sua volta un contenitore con proprie sotto-tab
+    // (entity_type='note', entity_id=questa nota - vedi
+    // supabase-add-note-subtabs.sql): si richiama la stessa funzione un
+    // livello piu' in profondita', dalla nota originale (sourceEntityId=
+    // note.id) verso la sua copia appena creata (newEntityId=
+    // createData.note.id). Si ferma da sola dopo un solo livello: le
+    // sotto-tab non hanno mai proprie sotto-tab (nessuna riga con
+    // entity_type='note' punta a un'altra riga entity_type='note').
+    await duplicateEntityNotes('note', note.id, createData.note.id, campaignId, serverBase, accessToken);
   }
 }

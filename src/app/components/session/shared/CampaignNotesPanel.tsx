@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { StickyNote, FolderPlus } from 'lucide-react';
 import { EntityTabBar } from './EntityTabBar';
 import { useEntityTabs } from './useEntityTabs';
+import { NoteSubTabs } from './NoteSubTabs';
 import { useFolderSection } from '../../shared/useFolderSection';
 import { FolderBreadcrumb } from '../../shared/FolderBreadcrumb';
 import { FolderIconPicker } from '../../shared/FolderIconPicker';
@@ -196,12 +197,13 @@ export function CampaignNotesPanel({
           </div>
         </div>
       ) : selectedTab && (canEdit || !selectedTab.hidden) ? (
-        <textarea
-          value={selectedTab.content}
-          onChange={(e) => tabs.handleCustomTabContentChange(selectedTab.id, e.target.value)}
-          disabled={!canEdit}
-          placeholder="Scrivi qui..."
-          className="h-48 w-full resize-none rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3 text-sm text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
+        <NoteSubTabs
+          note={selectedTab}
+          campaignId={campaignId}
+          accessToken={accessToken}
+          canEdit={canEdit}
+          onMainContentChange={(content) => tabs.handleCustomTabContentChange(selectedTab.id, content)}
+          onPersistSubTabOrder={(order) => tabs.handlePersistSubTabOrder(selectedTab.id, order)}
         />
       ) : null}
 

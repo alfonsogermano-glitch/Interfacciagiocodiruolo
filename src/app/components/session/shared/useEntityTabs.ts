@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { projectId } from '/utils/supabase/info';
 import { useCampaignChannel } from '../../../../services/realtime/campaignChannel';
+import { duplicateEntityNotes } from '../../../../services/supabase/entityNotesService';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
 const DRAG_THRESHOLD_PX = 6;
 
-export type EntityTabsEntityType = 'character' | 'npc' | 'monster' | 'campaign';
+// 'note' = sotto-tab dentro una nota (entity_id = id della nota padre, vedi
+// supabase-add-note-subtabs.sql) - stesso pattern gia' usato per 'campaign'
+// (entity_id = id della campagna), un livello piu' in profondita'.
+export type EntityTabsEntityType = 'character' | 'npc' | 'monster' | 'campaign' | 'note';
 
 export interface EntityBaseTab {
   id: string;
@@ -20,6 +24,11 @@ export interface EntityCustomTab {
   position: number;
   hidden: boolean;
   folder_id: string | null;
+  /** Ordine delle SOTTO-tab di questa nota (entity_notes con entity_type=
+   *  'note' ed entity_id=questo id) - null/assente finche' non se ne crea
+   *  almeno una, stesso fallback di savedTabOrder in useEntityTabs. Sempre
+   *  null per note che non sono a loro volta contenitori di sotto-tab. */
+  tab_order: string[] | null;
 }
 
 export interface EntityOrderedTab {
@@ -92,7 +101,7 @@ export function useEntityTabs({
       const data = await res.json();
       if (!res.ok) return null;
       return (data.notes ?? [])
-        .map((n: any) => ({ ...n, hidden: n.hidden ?? false, folder_id: n.folder_id ?? null }))
+        .map((n: any) => ({ ...n, hidden: n.hidden ?? false, folder_id: n.folder_id ?? null, tab_order: n.tab_order ?? null }))
         .sort((a: any, b: any) => a.position - b.position);
     } catch (err) {
       console.error('Errore caricamento tab personalizzate:', err);
@@ -143,7 +152,7 @@ export function useEntityTabs({
     const lastLocalEdit = recentLocalEditRef.current[row.id];
     if (lastLocalEdit && Date.now() - lastLocalEdit < 1200) return;
 
-    const mapped: EntityCustomTab = { ...row, hidden: row.hidden ?? false, folder_id: row.folder_id ?? null };
+    const mapped: EntityCustomTab = { ...row, hidden: row.hidden ?? false, folder_id: row.folder_id ?? null, tab_order: row.tab_order ?? null };
     setCustomTabs(prev => {
       const exists = prev.some(t => t.id === mapped.id);
       return exists ? prev.map(t => (t.id === mapped.id ? mapped : t)) : [...prev, mapped];
@@ -280,7 +289,7 @@ export function useEntityTabs({
       // nell'array in memoria (mai una vera riga duplicata nel DB da questo
       // meccanismo, ma un conteggio cartelle gonfiato ad ogni "+" cliccato
       // mentre si e' dentro una cartella - bug isolato e verificato 2026-07-26).
-      const mappedNote: EntityCustomTab = { ...data.note, hidden: data.note.hidden ?? false, folder_id: data.note.folder_id ?? null };
+      const mappedNote: EntityCustomTab = { ...data.note, hidden: data.note.hidden ?? false, folder_id: data.note.folder_id ?? null, tab_order: data.note.tab_order ?? null };
       setCustomTabs(prev => {
         const exists = prev.some(t => t.id === mappedNote.id);
         return exists ? prev.map(t => (t.id === mappedNote.id ? mappedNote : t)) : [...prev, mappedNote];
@@ -323,10 +332,16 @@ export function useEntityTabs({
       const putData = await putRes.json();
       if (!putRes.ok) throw new Error(putData.error);
 
+      // Porta con se' anche le eventuali sotto-tab della nota sorgente
+      // (entity_type='note', entity_id=source.id - vedi
+      // supabase-add-note-subtabs.sql), stessa funzione gia' usata per
+      // duplicare tutte le note di un'entita' intera (MyCharactersPage.tsx).
+      await duplicateEntityNotes('note', source.id, putData.note.id, notesCampaignId, SERVER_BASE, accessToken ?? '');
+
       recentLocalEditRef.current[putData.note.id] = Date.now();
       // Stesso controllo "esiste gia'" di handleAddCustomTab - stesso rischio
       // di corsa col broadcast realtime tra la POST/PUT e la loro risoluzione.
-      const mappedNote: EntityCustomTab = { ...putData.note, hidden: putData.note.hidden ?? false, folder_id: putData.note.folder_id ?? null };
+      const mappedNote: EntityCustomTab = { ...putData.note, hidden: putData.note.hidden ?? false, folder_id: putData.note.folder_id ?? null, tab_order: putData.note.tab_order ?? null };
       setCustomTabs(prev => {
         const exists = prev.some(t => t.id === mappedNote.id);
         return exists ? prev.map(t => (t.id === mappedNote.id ? mappedNote : t)) : [...prev, mappedNote];
@@ -369,6 +384,32 @@ export function useEntityTabs({
     } catch (err) {
       console.error('Errore spostamento tab in cartella:', err);
       setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, folder_id: previousFolderId } : t)));
+    }
+  };
+
+  // Persiste l'ordine delle SOTTO-tab di una nota (vedi NoteSubTabs.tsx) -
+  // tabId qui e' l'id della nota CONTENITORE (una riga di questo stesso
+  // customTabs), non di una sotto-tab: e' la nota stessa il proprietario del
+  // campo tab_order (vedi supabase-add-note-subtabs.sql), stesso motivo per
+  // cui tabOrderCampaignNotes/tabOrderGmNotes vivono sulla riga Campaign.
+  // Stesso schema ottimistico + rollback di handleMoveCustomTabToFolder sopra.
+  const handlePersistSubTabOrder = async (tabId: string, order: string[]) => {
+    const tab = customTabs.find(t => t.id === tabId);
+    if (!tab) return;
+    const previousOrder = tab.tab_order;
+    setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, tab_order: order } : t)));
+    try {
+      const res = await fetch(`${SERVER_BASE}/notes/${tabId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken ?? ''}` },
+        body: JSON.stringify({ tabOrder: order }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'PUT tabOrder failed');
+      setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, tab_order: data.note.tab_order ?? null } : t)));
+    } catch (err) {
+      console.error('Errore salvataggio ordine sotto-tab:', err);
+      setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, tab_order: previousOrder } : t)));
     }
   };
 
@@ -515,6 +556,7 @@ export function useEntityTabs({
     handleAddCustomTab,
     handleDuplicateCustomTab,
     handleMoveCustomTabToFolder,
+    handlePersistSubTabOrder,
     handleRenameCustomTab,
     handleToggleHideCustomTab,
     handleDeleteCustomTab,
