@@ -189,35 +189,52 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
   const syncActiveLine = () => {
     const lineEl = getActiveLineElement();
     const sel = window.getSelection();
+    // DEBUG TEMPORANEO - rimuovere una volta diagnosticato perche' il popup
+    // slash non compare (vedi richiesta di log mirati).
+    console.log('[SLASH-DEBUG] syncActiveLine start', {
+      lineEl: lineEl ? { tag: lineEl.tagName, text: lineEl.textContent } : null,
+      hasSel: !!sel,
+      rangeCount: sel?.rangeCount ?? -1,
+    });
     if (!lineEl || !sel || sel.rangeCount === 0) {
+      console.log('[SLASH-DEBUG] bail: no lineEl/sel/range');
       if (slashState) closeSlashMenu();
       return;
     }
     const range = sel.getRangeAt(0);
     const cursorOffset = getOffsetWithinLine(lineEl, range.startContainer, range.startOffset);
     const lineText = lineEl.textContent ?? '';
+    console.log('[SLASH-DEBUG] cursorOffset', cursorOffset, 'lineText', JSON.stringify(lineText), 'charBeforeCursor', JSON.stringify(lineText[cursorOffset - 1]));
 
     applyLineClass(lineEl, detectHeadingLevel(lineText));
 
     if (slashState && slashState.lineEl === lineEl) {
       const query = lineText.slice(slashState.slashStart + 1, cursorOffset);
+      console.log('[SLASH-DEBUG] slashState already active for this line', { slashStart: slashState.slashStart, query });
       if (cursorOffset <= slashState.slashStart || /\s/.test(query)) {
+        console.log('[SLASH-DEBUG] closing slash menu (cursor before start or whitespace in query)');
         closeSlashMenu();
       } else {
+        console.log('[SLASH-DEBUG] updating slash menu query');
         setSlashState({ ...slashState, query, anchor: getCaretViewportPosition() });
       }
       return;
     }
 
     if (lineText[cursorOffset - 1] === '/') {
+      console.log('[SLASH-DEBUG] opening slash menu, anchor', getCaretViewportPosition());
       setSlashState({ lineEl, slashStart: cursorOffset - 1, query: '', anchor: getCaretViewportPosition() });
       setHighlighted(HEADING_COMMANDS[0].value);
     } else if (slashState) {
+      console.log('[SLASH-DEBUG] closing slash menu (char before cursor is not /)');
       closeSlashMenu();
+    } else {
+      console.log('[SLASH-DEBUG] no-op: char before cursor is not / and no active slashState');
     }
   };
 
   const handleInput = () => {
+    console.log('[SLASH-DEBUG] handleInput fired, isComposing', isComposingRef.current);
     if (isComposingRef.current) return;
     emitChange();
     syncActiveLine();
