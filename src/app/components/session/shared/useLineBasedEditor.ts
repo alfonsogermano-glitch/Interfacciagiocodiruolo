@@ -165,7 +165,27 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
     const startEl = startContainer.nodeType === Node.TEXT_NODE
       ? startContainer.parentElement
       : (startContainer as Element | null);
-    const lineEl = startEl?.closest<HTMLDivElement>('[data-level]') ?? null;
+    // DEBUG TEMPORANEO - selettore isolato in una costante, cosi' il log
+    // puo' mostrarlo carattere per carattere (escludendo refusi invisibili:
+    // spazi non-breaking, virgolette curve, parentesi sbagliate, ecc.), e
+    // verifica diretta con getAttribute/matches sullo STESSO nodo passato a
+    // closest(), nello stesso punto in cui il codice reale lo invoca -
+    // elimina la possibilita' che sia il codice di log stesso (letto altrove,
+    // su un riferimento diverso) a mostrare dati inconsistenti.
+    const LINE_SELECTOR = '[data-level]';
+    if (startEl) {
+      console.log('[SLASH-DEBUG] closest() input check', {
+        selector: LINE_SELECTOR,
+        selectorCharCodes: Array.from(LINE_SELECTOR).map((c) => `${c}:${c.charCodeAt(0)}`),
+        selectorLength: LINE_SELECTOR.length,
+        startEl_getAttribute_data_level: startEl.getAttribute('data-level'),
+        startEl_hasAttribute_data_level: startEl.hasAttribute('data-level'),
+        startEl_matches_selector: startEl.matches(LINE_SELECTOR),
+        startEl_outerHTML: (startEl as HTMLElement).outerHTML?.slice(0, 200),
+        startEl_isSameNodeAsContainerFirstChild: startEl === container.firstElementChild,
+      });
+    }
+    const lineEl = startEl?.closest<HTMLDivElement>(LINE_SELECTOR) ?? null;
     // DEBUG TEMPORANEO - snapshot diretto del DOM reale al momento
     // dell'evento, per vedere lo stato effettivo invece di ipotizzarlo.
     // Include l'id univoco di istanza (vedi instanceIdRef) per verificare se
