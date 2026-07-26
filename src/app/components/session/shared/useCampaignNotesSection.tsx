@@ -201,7 +201,6 @@ export function useCampaignNotesSection({
         campaignId={campaignId}
         accessToken={accessToken}
         canEdit={canEdit}
-        onMainContentChange={(content) => tabs.handleCustomTabContentChange(selectedTab.id, content)}
         onPersistSubTabOrder={(order) => tabs.handlePersistSubTabOrder(selectedTab.id, order)}
       />
     );
