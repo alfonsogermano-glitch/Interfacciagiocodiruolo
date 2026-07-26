@@ -1527,6 +1527,7 @@ app.get("/make-server-771c5bfd/campaigns/:campaignId/notes", async (c) => {
       .select('*')
       .eq('entity_type', entityType)
       .eq('entity_id', entityId)
+      .is('deleted_at', null)
       .order('position', { ascending: true });
     query = campaignId ? query.eq('campaign_id', campaignId) : query.is('campaign_id', null);
 
@@ -1559,7 +1560,8 @@ app.post("/make-server-771c5bfd/campaigns/:campaignId/notes", async (c) => {
       .from('entity_notes')
       .select('*', { count: 'exact', head: true })
       .eq('entity_type', entityType)
-      .eq('entity_id', entityId);
+      .eq('entity_id', entityId)
+      .is('deleted_at', null);
 
     // hidden/folderId opzionali (Note del GM/Campagna, vedi
     // supabase-add-notes-folders.sql): assenti = comportamento invariato
@@ -1673,15 +1675,27 @@ app.delete("/make-server-771c5bfd/notes/:noteId", async (c) => {
     const allowed = await canAccessEntityNotes(admin, userId, existing.campaign_id, existing.entity_type, existing.entity_id, 'write');
     if (!allowed) return c.json({ error: "Non hai accesso a questa tab" }, 403);
 
-    // Elimina prima le eventuali sotto-tab (entity_type='note', entity_id=
-    // questa nota - vedi supabase-add-note-subtabs.sql): nessuna FK "on
-    // delete cascade" su entity_id (colonna polimorfica non tipizzata, stesso
-    // pattern gia' in uso per entity_type='campaign'/'character'/ecc.), quindi
-    // vanno rimosse esplicitamente qui. Un solo passaggio, non ricorsivo: la
-    // profondita' e' fissa a 2 livelli, una sotto-tab non ha mai proprie
-    // sotto-tab.
-    await admin.from('entity_notes').delete().eq('entity_type', 'note').eq('entity_id', noteId);
+    // Note di Campagna/GM (entity_type='campaign') e le loro sotto-tab
+    // (entity_type='note') vanno nel Cestino (soft-delete, vedi
+    // supabase-add-notes-trash.sql) - le tab di PG/PNG/Mostro restano
+    // hard-delete immediato, invariato: entity_notes e' condivisa da tutto
+    // l'app, non solo da Note, quindi questo branch e' l'unico punto che
+    // decide chi entra nel Cestino. Nessuna FK "on delete cascade" su
+    // entity_id (colonna polimorfica non tipizzata), quindi le sotto-tab
+    // vanno sempre risolte esplicitamente qui - un solo passaggio, non
+    // ricorsivo: la profondita' e' fissa a 2 livelli, una sotto-tab non ha
+    // mai proprie sotto-tab.
+    const isTrashable = existing.entity_type === 'campaign' || existing.entity_type === 'note';
 
+    if (isTrashable) {
+      const now = new Date().toISOString();
+      await admin.from('entity_notes').update({ deleted_at: now, updated_at: now }).eq('entity_type', 'note').eq('entity_id', noteId);
+      const { error } = await admin.from('entity_notes').update({ deleted_at: now, updated_at: now }).eq('id', noteId);
+      if (error) return c.json({ error: "Errore eliminazione tab" }, 500);
+      return c.json({ success: true });
+    }
+
+    await admin.from('entity_notes').delete().eq('entity_type', 'note').eq('entity_id', noteId);
     const { error } = await admin.from('entity_notes').delete().eq('id', noteId);
     if (error) return c.json({ error: "Errore eliminazione tab" }, 500);
     return c.json({ success: true });
@@ -1717,6 +1731,7 @@ app.get("/make-server-771c5bfd/campaigns/:campaignId/folders", async (c) => {
       .select('*')
       .eq('campaign_id', campaignId)
       .eq('entity_type', entityType)
+      .is('deleted_at', null)
       .order('position', { ascending: true });
 
     if (error) return c.json({ error: "Errore lettura cartelle" }, 500);
@@ -1750,7 +1765,8 @@ app.post("/make-server-771c5bfd/campaigns/:campaignId/folders", async (c) => {
       .from('folders')
       .select('*', { count: 'exact', head: true })
       .eq('campaign_id', campaignId)
-      .eq('entity_type', entityType);
+      .eq('entity_type', entityType)
+      .is('deleted_at', null);
     countQuery = parentFolderId ? countQuery.eq('parent_folder_id', parentFolderId) : countQuery.is('parent_folder_id', null);
     const { count } = await countQuery;
 
@@ -1848,6 +1864,24 @@ app.delete("/make-server-771c5bfd/folders/:folderId", async (c) => {
     const allowed = await canAccessFolders(admin, userId, existing.campaign_id, 'write');
     if (!allowed) return c.json({ error: "Non hai accesso a questa cartella" }, 403);
 
+    // Cartelle di Note (gmnotes/campaignnotes) vanno nel Cestino
+    // (soft-delete, vedi supabase-add-notes-trash.sql) - le cartelle di
+    // PG/Precompilati/PNG/Mostro restano hard-delete immediato, invariato:
+    // folders e' condivisa da tutto l'app, non solo da Note.
+    const isTrashable = existing.entity_type === 'gmnotes' || existing.entity_type === 'campaignnotes';
+
+    if (isTrashable) {
+      const now = new Date().toISOString();
+      // Orfanizza esplicitamente il contenuto diretto (folder_id -> null):
+      // la FK "on delete set null" non scatta qui, la riga della cartella
+      // non viene davvero cancellata - stesso comportamento del ramo hard
+      // sotto, reso esplicito.
+      await admin.from('entity_notes').update({ folder_id: null, updated_at: now }).eq('folder_id', folderId);
+      const { error } = await admin.from('folders').update({ deleted_at: now, updated_at: now }).eq('id', folderId);
+      if (error) return c.json({ error: "Errore eliminazione cartella" }, 500);
+      return c.json({ success: true });
+    }
+
     // Le card dentro restano solo orfane (folder_id -> null via ON DELETE SET
     // NULL sulla FK), mai cancellate insieme alla cartella.
     const { error } = await admin.from('folders').delete().eq('id', folderId);
@@ -1930,6 +1964,33 @@ app.delete("/make-server-771c5bfd/folders/:folderId/cascade", async (c) => {
     const contentTable = tableByEntityType[existing.entity_type];
     if (!contentTable) return c.json({ error: "Tipo di cartella sconosciuto" }, 400);
 
+    // Cartelle di Note (gmnotes/campaignnotes) vanno nel Cestino a cascata
+    // (soft-delete, vedi supabase-add-notes-trash.sql) - le altre restano
+    // hard-delete invariato (branch sotto). Le note dirette dentro il
+    // sottoalbero vanno risolte PRIMA di aggiornarle, per poter cestinare
+    // anche le LORO sotto-tab (entity_type='note', entity_id=quella nota) -
+    // il filtro folder_id non le raggiungerebbe altrimenti (le sotto-tab
+    // non hanno mai un folder_id proprio).
+    const isTrashable = existing.entity_type === 'gmnotes' || existing.entity_type === 'campaignnotes';
+
+    if (isTrashable) {
+      const now = new Date().toISOString();
+      const { data: notesInSubtree } = await admin.from(contentTable).select('id').in('folder_id', descendantIds);
+      const noteIds = (notesInSubtree ?? []).map((n: any) => n.id);
+
+      const { error: contentError } = await admin.from(contentTable).update({ deleted_at: now, updated_at: now }).in('folder_id', descendantIds);
+      if (contentError) return c.json({ error: "Errore eliminazione contenuto cartella" }, 500);
+
+      if (noteIds.length > 0) {
+        await admin.from('entity_notes').update({ deleted_at: now, updated_at: now }).eq('entity_type', 'note').in('entity_id', noteIds);
+      }
+
+      const { error: foldersError } = await admin.from('folders').update({ deleted_at: now, updated_at: now }).in('id', descendantIds);
+      if (foldersError) return c.json({ error: "Errore eliminazione sottoalbero cartelle" }, 500);
+
+      return c.json({ success: true, deletedFolderIds: descendantIds });
+    }
+
     let contentDeleteQuery = admin.from(contentTable).delete().in('folder_id', descendantIds);
     if (existing.entity_type === 'premade') {
       // Difesa in profondita': availablePremades (cio' che compare in una
@@ -1957,6 +2018,278 @@ app.delete("/make-server-771c5bfd/folders/:folderId/cascade", async (c) => {
     return c.json({ success: true, deletedFolderIds: descendantIds });
   } catch (err) {
     console.log("Errore DELETE folders/cascade:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+// ─── Cestino Note (note/sotto-tab/cartelle) ────────────────────────────────
+// Scope fisso: entity_notes con entity_type in ('campaign','note'), folders
+// con entity_type in ('gmnotes','campaignnotes') - vedi supabase-add-notes-
+// trash.sql. PG/PNG/Mostro non hanno cestino, restano hard-delete (branch
+// gia' visto sopra nelle DELETE /notes e /folders). Owner-only ovunque
+// (stesso principio di canAccessFolders/canAccessEntityNotes in modalita'
+// 'write': solo il GM cestina/ripristina/svuota).
+
+const NOTE_TRASH_ENTITY_TYPES = ['campaign', 'note'];
+const FOLDER_TRASH_ENTITY_TYPES = ['gmnotes', 'campaignnotes'];
+
+app.post("/make-server-771c5bfd/notes/:noteId/restore", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const noteId = c.req.param("noteId");
+    const admin = getAdminClient();
+    const { data: existing, error: fetchError } = await admin
+      .from('entity_notes')
+      .select('*')
+      .eq('id', noteId)
+      .single();
+    if (fetchError || !existing) return c.json({ error: "Tab non trovata" }, 404);
+    if (!NOTE_TRASH_ENTITY_TYPES.includes(existing.entity_type)) return c.json({ error: "Questa tab non ha un cestino" }, 400);
+
+    const allowed = await canAccessEntityNotes(admin, userId, existing.campaign_id, existing.entity_type, existing.entity_id, 'write');
+    if (!allowed) return c.json({ error: "Non hai accesso a questa tab" }, 403);
+
+    // Solo questa riga, mai i discendenti/il genitore (vedi il piano -
+    // nessun restore a cascata automatico).
+    const { data, error } = await admin
+      .from('entity_notes')
+      .update({ deleted_at: null, updated_at: new Date().toISOString() })
+      .eq('id', noteId)
+      .select('*')
+      .single();
+    if (error) return c.json({ error: "Errore ripristino tab" }, 500);
+    return c.json({ note: data });
+  } catch (err) {
+    console.log("Errore POST notes/:noteId/restore:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.delete("/make-server-771c5bfd/notes/:noteId/purge", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const noteId = c.req.param("noteId");
+    const admin = getAdminClient();
+    const { data: existing, error: fetchError } = await admin
+      .from('entity_notes')
+      .select('*')
+      .eq('id', noteId)
+      .single();
+    if (fetchError || !existing) return c.json({ error: "Tab non trovata" }, 404);
+    if (!existing.deleted_at) return c.json({ error: "La tab non e' nel cestino" }, 400);
+
+    const allowed = await canAccessEntityNotes(admin, userId, existing.campaign_id, existing.entity_type, existing.entity_id, 'write');
+    if (!allowed) return c.json({ error: "Non hai accesso a questa tab" }, 403);
+
+    // Stesso identico corpo dell'hard-delete di DELETE /notes/:noteId per
+    // PG/PNG/Mostro - qui raggiungibile solo da una riga gia' cestinata
+    // (guardia sopra), mai su una tab ancora attiva.
+    await admin.from('entity_notes').delete().eq('entity_type', 'note').eq('entity_id', noteId);
+    const { error } = await admin.from('entity_notes').delete().eq('id', noteId);
+    if (error) return c.json({ error: "Errore eliminazione definitiva tab" }, 500);
+    return c.json({ success: true });
+  } catch (err) {
+    console.log("Errore DELETE notes/:noteId/purge:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.post("/make-server-771c5bfd/folders/:folderId/restore", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const folderId = c.req.param("folderId");
+    const admin = getAdminClient();
+    const { data: existing, error: fetchError } = await admin
+      .from('folders')
+      .select('*')
+      .eq('id', folderId)
+      .single();
+    if (fetchError || !existing) return c.json({ error: "Cartella non trovata" }, 404);
+    if (!FOLDER_TRASH_ENTITY_TYPES.includes(existing.entity_type)) return c.json({ error: "Questa cartella non ha un cestino" }, 400);
+
+    const allowed = await canAccessFolders(admin, userId, existing.campaign_id, 'write');
+    if (!allowed) return c.json({ error: "Non hai accesso a questa cartella" }, 403);
+
+    const { data, error } = await admin
+      .from('folders')
+      .update({ deleted_at: null, updated_at: new Date().toISOString() })
+      .eq('id', folderId)
+      .select('*')
+      .single();
+    if (error) return c.json({ error: "Errore ripristino cartella" }, 500);
+    return c.json({ folder: data });
+  } catch (err) {
+    console.log("Errore POST folders/:folderId/restore:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.delete("/make-server-771c5bfd/folders/:folderId/purge", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const folderId = c.req.param("folderId");
+    const admin = getAdminClient();
+    const { data: existing, error: fetchError } = await admin
+      .from('folders')
+      .select('*')
+      .eq('id', folderId)
+      .single();
+    if (fetchError || !existing) return c.json({ error: "Cartella non trovata" }, 404);
+    if (!existing.deleted_at) return c.json({ error: "La cartella non e' nel cestino" }, 400);
+
+    const allowed = await canAccessFolders(admin, userId, existing.campaign_id, 'write');
+    if (!allowed) return c.json({ error: "Non hai accesso a questa cartella" }, 403);
+
+    // Stesso BFS di DELETE /folders/:folderId/cascade, qui raggiungibile
+    // solo da una cartella gia' cestinata (guardia sopra). I discendenti
+    // possono includere sotto-cartelle non ancora cestinate individualmente
+    // (es. create dopo il cestinamento del genitore, se mai possibile) -
+    // purge le elimina comunque tutte, coerente con "svuota per sempre
+    // questo ramo".
+    const { data: siblings, error: siblingsError } = await admin
+      .from('folders')
+      .select('id, parent_folder_id')
+      .eq('campaign_id', existing.campaign_id)
+      .eq('entity_type', existing.entity_type);
+    if (siblingsError) return c.json({ error: "Errore lettura sottoalbero cartelle" }, 500);
+
+    const childrenByParent = new Map<string, string[]>();
+    for (const f of siblings ?? []) {
+      const parentId = f.parent_folder_id;
+      if (!parentId) continue;
+      const list = childrenByParent.get(parentId) ?? [];
+      list.push(f.id);
+      childrenByParent.set(parentId, list);
+    }
+    const descendantIds: string[] = [folderId];
+    let cursor = 0;
+    while (cursor < descendantIds.length) {
+      const current = descendantIds[cursor++];
+      for (const childId of childrenByParent.get(current) ?? []) {
+        if (!descendantIds.includes(childId)) descendantIds.push(childId);
+      }
+    }
+
+    const { data: notesInSubtree } = await admin.from('entity_notes').select('id').in('folder_id', descendantIds);
+    const noteIds = (notesInSubtree ?? []).map((n: any) => n.id);
+    if (noteIds.length > 0) {
+      await admin.from('entity_notes').delete().eq('entity_type', 'note').in('entity_id', noteIds);
+    }
+    const { error: contentError } = await admin.from('entity_notes').delete().in('folder_id', descendantIds);
+    if (contentError) return c.json({ error: "Errore eliminazione definitiva contenuto cartella" }, 500);
+
+    const { error: foldersError } = await admin.from('folders').delete().in('id', descendantIds);
+    if (foldersError) return c.json({ error: "Errore eliminazione definitiva sottoalbero cartelle" }, 500);
+
+    return c.json({ success: true, deletedFolderIds: descendantIds });
+  } catch (err) {
+    console.log("Errore DELETE folders/:folderId/purge:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.get("/make-server-771c5bfd/campaigns/:campaignId/trash", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const campaignId = c.req.param("campaignId");
+    const admin = getAdminClient();
+    const allowed = await canAccessFolders(admin, userId, campaignId, 'write');
+    if (!allowed) return c.json({ error: "Non hai accesso al cestino di questa campagna" }, 403);
+
+    const { data: notes, error: notesError } = await admin
+      .from('entity_notes')
+      .select('*')
+      .eq('campaign_id', campaignId)
+      .in('entity_type', NOTE_TRASH_ENTITY_TYPES)
+      .not('deleted_at', 'is', null)
+      .order('deleted_at', { ascending: false });
+    if (notesError) return c.json({ error: "Errore lettura cestino note" }, 500);
+
+    const { data: folders, error: foldersError } = await admin
+      .from('folders')
+      .select('*')
+      .eq('campaign_id', campaignId)
+      .in('entity_type', FOLDER_TRASH_ENTITY_TYPES)
+      .not('deleted_at', 'is', null)
+      .order('deleted_at', { ascending: false });
+    if (foldersError) return c.json({ error: "Errore lettura cestino cartelle" }, 500);
+
+    return c.json({ notes: notes ?? [], folders: folders ?? [] });
+  } catch (err) {
+    console.log("Errore GET campaigns/:campaignId/trash:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.post("/make-server-771c5bfd/campaigns/:campaignId/trash/restore-all", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const campaignId = c.req.param("campaignId");
+    const admin = getAdminClient();
+    const allowed = await canAccessFolders(admin, userId, campaignId, 'write');
+    if (!allowed) return c.json({ error: "Non hai accesso al cestino di questa campagna" }, 403);
+
+    const now = new Date().toISOString();
+    await admin.from('entity_notes').update({ deleted_at: null, updated_at: now })
+      .eq('campaign_id', campaignId).in('entity_type', NOTE_TRASH_ENTITY_TYPES).not('deleted_at', 'is', null);
+    await admin.from('folders').update({ deleted_at: null, updated_at: now })
+      .eq('campaign_id', campaignId).in('entity_type', FOLDER_TRASH_ENTITY_TYPES).not('deleted_at', 'is', null);
+
+    return c.json({ success: true });
+  } catch (err) {
+    console.log("Errore POST trash/restore-all:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.post("/make-server-771c5bfd/campaigns/:campaignId/trash/empty", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const campaignId = c.req.param("campaignId");
+    const admin = getAdminClient();
+    const allowed = await canAccessFolders(admin, userId, campaignId, 'write');
+    if (!allowed) return c.json({ error: "Non hai accesso al cestino di questa campagna" }, 403);
+
+    // Cancellazione diretta di tutto cio' che e' gia' cestinato per questa
+    // campagna/scope - nessuna camminata BFS necessaria (a differenza del
+    // purge di una singola cartella): si eliminano TUTTE le righe gia'
+    // marcate deleted_at, indipendentemente dalla gerarchia tra loro.
+    await admin.from('entity_notes').delete()
+      .eq('campaign_id', campaignId).in('entity_type', NOTE_TRASH_ENTITY_TYPES).not('deleted_at', 'is', null);
+    await admin.from('folders').delete()
+      .eq('campaign_id', campaignId).in('entity_type', FOLDER_TRASH_ENTITY_TYPES).not('deleted_at', 'is', null);
+
+    return c.json({ success: true });
+  } catch (err) {
+    console.log("Errore POST trash/empty:", err);
     return c.json({ error: `Errore interno: ${err}` }, 500);
   }
 });

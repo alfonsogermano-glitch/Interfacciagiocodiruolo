@@ -163,8 +163,8 @@ export function NoteListRow({ note, tabs, canEdit, folders, colors, isSelected, 
 
       {tabs.confirmDeleteTabId === note.id && (
         <ConfirmDialog
-          title="Eliminare questa tab?"
-          message={`"${note.tab_name}" e tutto il suo contenuto andranno persi. L'azione non è reversibile.`}
+          title="Eliminare questa nota?"
+          message={`"${note.tab_name}" (e le sue eventuali sotto-tab) verrà spostata nel Cestino - potrai ripristinarla in seguito.`}
           confirmLabel="Elimina"
           onConfirm={() => tabs.handleDeleteCustomTab(note.id)}
           onCancel={() => tabs.setConfirmDeleteTabId(null)}

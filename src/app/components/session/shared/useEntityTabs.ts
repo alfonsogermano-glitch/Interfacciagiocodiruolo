@@ -161,6 +161,16 @@ export function useEntityTabs({
     const lastLocalEdit = recentLocalEditRef.current[row.id];
     if (lastLocalEdit && Date.now() - lastLocalEdit < 1200) return;
 
+    // Un cestinamento (Cestino Note, vedi supabase-add-notes-trash.sql) e'
+    // un UPDATE (deleted_at valorizzato), non un DELETE - senza questo
+    // controllo il ramo sotto lo tratterebbe come un aggiornamento normale
+    // e la nota resterebbe visibile qui anche dopo essere stata cestinata
+    // da un altro client. Stesso trattamento del ramo DELETE sopra.
+    if (row.deleted_at) {
+      setCustomTabs(prev => prev.filter(t => t.id !== row.id));
+      return;
+    }
+
     const mapped: EntityCustomTab = { ...row, hidden: row.hidden ?? false, folder_id: row.folder_id ?? null, tab_order: row.tab_order ?? null };
     setCustomTabs(prev => {
       const exists = prev.some(t => t.id === mapped.id);

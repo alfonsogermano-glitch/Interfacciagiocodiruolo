@@ -220,8 +220,8 @@ export function useCampaignNotesSection({
           title="Eliminare questa cartella?"
           message={
             section.deleteFolderCascadeContent
-              ? `"${section.deleteFolderTarget.name}" e tutto il suo contenuto verranno eliminati definitivamente. Questa azione non è reversibile.`
-              : `"${section.deleteFolderTarget.name}" verrà eliminata. Le note al suo interno non vengono eliminate: torneranno semplicemente senza cartella.`
+              ? `"${section.deleteFolderTarget.name}" e tutto il suo contenuto verranno spostati nel Cestino - potrai ripristinarli in seguito.`
+              : `"${section.deleteFolderTarget.name}" verrà spostata nel Cestino. Le note al suo interno non vengono cestinate: torneranno semplicemente senza cartella.`
           }
           confirmLabel={section.deleteFolderCascadeContent ? 'Elimina tutto' : 'Elimina'}
           extraContent={section.deleteFolderContents && (
@@ -235,7 +235,7 @@ export function useCampaignNotesSection({
               <span>
                 Elimina anche il contenuto: {section.deleteFolderContents.itemCount} {section.itemLabel}
                 {section.deleteFolderContents.folderCount > 0 && ` e ${section.deleteFolderContents.folderCount} sotto-cartell${section.deleteFolderContents.folderCount === 1 ? 'a' : 'e'}`}
-                {' '}verranno eliminati definitivamente.
+                {' '}verranno spostati nel Cestino.
               </span>
             </label>
           )}

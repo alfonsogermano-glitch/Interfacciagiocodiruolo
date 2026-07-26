@@ -73,7 +73,11 @@ export function NoteSubTabs({ note, campaignId, accessToken, canEdit, onPersistS
 
   return (
     <div>
-      <EntityTabBar canEdit={canEdit} tabs={nestedTabs} />
+      <EntityTabBar
+        canEdit={canEdit}
+        tabs={nestedTabs}
+        deleteConfirmMessage={(tabName) => `"${tabName}" verrà spostata nel Cestino - potrai ripristinarla in seguito.`}
+      />
 
       {selectedSubTab && (canEdit || !selectedSubTab.hidden) ? (
         <textarea

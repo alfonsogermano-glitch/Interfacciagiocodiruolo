@@ -16,9 +16,17 @@ interface EntityTabBarProps {
    *  hidden/cartella (PG/PNG/Mostro). Presente = il chiamante decide nome/
    *  hidden iniziali (vedi NoteSubTabs.tsx, sotto-tab di una nota). */
   onAddTab?: () => void;
+  /** Messaggio del ConfirmDialog di eliminazione - assente = testo di
+   *  default (hard-delete immediato, PG/PNG/Mostro, invariato). Le sotto-tab
+   *  di una nota (NoteSubTabs.tsx) sono invece cestinabili (vedi
+   *  supabase-add-notes-trash.sql) e passano un testo diverso, coerente col
+   *  comportamento reversibile - stessa tab, stesso componente, testo
+   *  diverso perche' il "cosa succede davvero" dipende dal chiamante, non
+   *  da EntityTabBar stesso. */
+  deleteConfirmMessage?: (tabName: string) => string;
 }
 
-export function EntityTabBar({ canEdit, tabs, tabIndicators = {}, onAddTab }: EntityTabBarProps) {
+export function EntityTabBar({ canEdit, tabs, tabIndicators = {}, onAddTab, deleteConfirmMessage }: EntityTabBarProps) {
   const portalContainer = usePortalContainer();
   // Il menu ⋮ e' portato fuori dal DOM locale con position:fixed alle
   // coordinate del bottone al click, per non finire tagliato dall'
@@ -199,7 +207,11 @@ export function EntityTabBar({ canEdit, tabs, tabIndicators = {}, onAddTab }: En
       {confirmDeleteTabId && (
         <ConfirmDialog
           title="Eliminare questa tab?"
-          message={`"${customTabs.find(t => t.id === confirmDeleteTabId)?.tab_name}" e tutto il suo contenuto andranno persi. L'azione non è reversibile.`}
+          message={
+            deleteConfirmMessage
+              ? deleteConfirmMessage(customTabs.find(t => t.id === confirmDeleteTabId)?.tab_name ?? '')
+              : `"${customTabs.find(t => t.id === confirmDeleteTabId)?.tab_name}" e tutto il suo contenuto andranno persi. L'azione non è reversibile.`
+          }
           confirmLabel="Elimina"
           onConfirm={() => handleDeleteCustomTab(confirmDeleteTabId)}
           onCancel={() => setConfirmDeleteTabId(null)}

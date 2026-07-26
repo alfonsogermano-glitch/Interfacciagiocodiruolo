@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Plus, FolderPlus } from 'lucide-react';
+import { Plus, FolderPlus, RotateCcw, Trash2 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useCampaignNotesSection, type UseCampaignNotesSectionResult } from './shared/useCampaignNotesSection';
+import { useNotesTrash } from './shared/useNotesTrash';
 import { SectionHeader } from './shared/SectionHeader';
+import { TrashRow } from './shared/TrashRow';
+import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 type NotesScope = 'gm' | 'shared';
@@ -21,7 +24,8 @@ export function SessionNotesPanel() {
   const isOwner = activeCampaign?.ownerId === user?.id;
 
   const [activeScope, setActiveScope] = useState<NotesScope>('shared');
-  const [openSections, setOpenSections] = useState({ shared: true, gm: true });
+  const [openSections, setOpenSections] = useState({ shared: true, gm: true, trash: false });
+  const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false);
 
   // Se isOwner diventa false mentre la sezione GM aveva la selezione attiva
   // (es. il GM passa la campagna ad altri mentre questo pannello e' aperto
@@ -60,9 +64,41 @@ export function SessionNotesPanel() {
     enabled: isOwner,
   });
 
+  // Owner-only come gmSection sopra, stesso principio (hook chiamato sempre,
+  // enabled ne disabilita fetch/sottoscrizione per chi non e' GM).
+  const trash = useNotesTrash({
+    campaignId: activeCampaignId,
+    accessToken: session?.access_token,
+    enabled: isOwner,
+  });
+
   const toggleSection = (key: keyof typeof openSections) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
+
+  // Lista piatta unica (note + cartelle), piu' recente cestinato per primo -
+  // il Cestino non distingue GM/Campagna in sezioni separate (vedi il
+  // piano), solo un'etichetta per riga.
+  const trashRows = [
+    ...trash.folders.map((f) => ({
+      key: `folder-${f.id}`,
+      name: f.name,
+      typeLabel: 'Cartella',
+      scopeLabel: f.entity_type === 'gmnotes' ? 'GM' : 'Campagna',
+      deletedAt: f.deleted_at,
+      onRestore: () => trash.restoreFolder(f.id),
+      onPurge: () => trash.purgeFolder(f.id),
+    })),
+    ...trash.notes.map((n) => ({
+      key: `note-${n.id}`,
+      name: n.tab_name,
+      typeLabel: n.entity_type === 'campaign' ? 'Nota' : 'Sotto-tab',
+      scopeLabel: n.hidden ? 'GM' : 'Campagna',
+      deletedAt: n.deleted_at,
+      onRestore: () => trash.restoreNote(n.id),
+      onPurge: () => trash.purgeNote(n.id),
+    })),
+  ].sort((a, b) => (a.deletedAt < b.deletedAt ? 1 : -1));
 
   // Pulsanti "nuova nota"/"nuova cartella" nell'header di sezione - stesso
   // slot extraAction gia' usato da PNG/Mostri in SessionCharactersPanel.tsx
@@ -126,6 +162,65 @@ export function SessionNotesPanel() {
             extraAction={isOwner && openSections.shared ? renderSectionHeaderAction(sharedSection) : undefined}
           />
           {openSections.shared && <div className="space-y-1 px-2 pb-2">{sharedSection.renderSidebar()}</div>}
+
+          {isOwner && (
+            <>
+              <SectionHeader
+                title="Cestino"
+                count={trash.count}
+                isOpen={openSections.trash}
+                onToggle={() => toggleSection('trash')}
+                extraAction={openSections.trash && trash.count > 0 ? (
+                  <div className="flex items-center gap-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={trash.restoreAll}
+                          aria-label="Ripristina tutto"
+                          className="flex shrink-0 items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left">Ripristina tutto</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmEmptyTrash(true)}
+                          aria-label="Svuota cestino"
+                          className="flex shrink-0 items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-danger-text)]"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left">Svuota cestino</TooltipContent>
+                    </Tooltip>
+                  </div>
+                ) : undefined}
+              />
+              {openSections.trash && (
+                <div className="space-y-1 px-2 pb-2">
+                  {trashRows.length === 0 ? (
+                    <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Cestino vuoto.</div>
+                  ) : (
+                    trashRows.map((row) => (
+                      <TrashRow
+                        key={row.key}
+                        name={row.name}
+                        typeLabel={row.typeLabel}
+                        scopeLabel={row.scopeLabel}
+                        onRestore={row.onRestore}
+                        onPurge={row.onPurge}
+                      />
+                    ))
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         <div className="flex-1 overflow-auto p-4">
@@ -134,6 +229,15 @@ export function SessionNotesPanel() {
       </div>
       {sharedSection.renderDialogs()}
       {isOwner && gmSection.renderDialogs()}
+      {confirmEmptyTrash && (
+        <ConfirmDialog
+          title="Svuotare il cestino?"
+          message="Tutti gli elementi nel cestino verranno eliminati per sempre. Questa azione non è reversibile."
+          confirmLabel="Svuota per sempre"
+          onConfirm={() => { setConfirmEmptyTrash(false); trash.emptyTrash(); }}
+          onCancel={() => setConfirmEmptyTrash(false)}
+        />
+      )}
     </>
   );
 }
