@@ -98,6 +98,11 @@ function setLineText(el: HTMLDivElement, text: string) {
  */
 export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  // DEBUG TEMPORANEO - id univoco per istanza dell'hook, per verificare via
+  // log se esistono piu' contentEditable montati contemporaneamente nel
+  // documento (ipotesi doppio mount, stesso pattern gia' scoperto per
+  // CampaignNotesPanel).
+  const instanceIdRef = useRef(Math.random().toString(36).slice(2, 9));
   // Ultimo valore che ABBIAMO emesso noi stessi via onChange - distingue un
   // cambio di `value` "in eco" (il nostro stesso onInput, tornato indietro
   // come prop dal genitore) da un cambio ESTERNO vero (cambio nota,
@@ -126,6 +131,8 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
   const initFromValue = (v: string) => {
     const container = containerRef.current;
     if (!container) return;
+    // DEBUG TEMPORANEO - vedi instanceIdRef sopra.
+    container.dataset.editorInstance = instanceIdRef.current;
     container.innerHTML = '';
     for (const line of v.split('\n')) container.appendChild(buildLineElement(line));
     lastEmittedRef.current = v;
@@ -161,9 +168,15 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
     const lineEl = startEl?.closest<HTMLDivElement>('[data-level]') ?? null;
     // DEBUG TEMPORANEO - snapshot diretto del DOM reale al momento
     // dell'evento, per vedere lo stato effettivo invece di ipotizzarlo.
+    // Include l'id univoco di istanza (vedi instanceIdRef) per verificare se
+    // il nodo su cui e' ancorata la selezione appartiene REALMENTE a questo
+    // container, o a un secondo contentEditable montato altrove (ipotesi
+    // doppio mount).
     console.log('[SLASH-DEBUG] getActiveLineElement snapshot', {
+      thisInstance: container.dataset.editorInstance,
       startContainer: { type: startContainer.nodeType, name: startContainer.nodeName, text: startContainer.textContent },
       startEl: startEl ? { tag: startEl.tagName, level: (startEl as HTMLElement).dataset?.level, text: startEl.textContent } : null,
+      startElOwnInstance: startEl?.closest('[data-editor-instance]')?.getAttribute('data-editor-instance') ?? null,
       closestResult: lineEl ? { tag: lineEl.tagName, level: lineEl.dataset.level, text: lineEl.textContent, parentIsContainer: lineEl.parentElement === container } : null,
       containerChildren: Array.from(container.children).map((el) => ({
         tag: el.tagName,
@@ -171,6 +184,11 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
         text: el.textContent,
         childNodeCount: el.childNodes.length,
         firstChildType: el.firstChild?.nodeType ?? null,
+      })),
+      allEditorInstancesInDocument: Array.from(document.querySelectorAll('[data-editor-instance]')).map((el) => ({
+        instance: el.getAttribute('data-editor-instance'),
+        connected: el.isConnected,
+        text: el.textContent,
       })),
     });
     // Guardia per il caso del crash originale: un nodo estraneo ancorato
