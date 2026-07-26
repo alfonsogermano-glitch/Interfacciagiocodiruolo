@@ -224,7 +224,17 @@ export function SessionNotesPanel() {
         </div>
 
         <div className="flex-1 overflow-auto p-4">
-          {activeScope === 'gm' && isOwner ? gmSection.renderDetail() : sharedSection.renderDetail()}
+          {isOwner && openSections.trash ? (
+            // Il Cestino non ha una vista di dettaglio (nessuna riga e'
+            // "selezionabile", vedi TrashRow.tsx: solo Ripristina/Elimina
+            // definitivamente nella lista stessa) - senza questo controllo
+            // il pannello continuerebbe a mostrare l'ultima nota attiva
+            // selezionata prima di aprire il Cestino (tabs.currentTab non
+            // viene mai toccato da qui, resta esattamente quello che era).
+            <div className="flex h-full items-center justify-center text-center text-sm text-[var(--dash-muted)]">
+              Elementi nel cestino — usa "Ripristina" o "Elimina definitivamente" dalla lista.
+            </div>
+          ) : activeScope === 'gm' && isOwner ? gmSection.renderDetail() : sharedSection.renderDetail()}
         </div>
       </div>
       {sharedSection.renderDialogs()}
