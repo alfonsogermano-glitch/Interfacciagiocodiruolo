@@ -273,6 +273,14 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
   // gestita da compositionstart/compositionend), Invio/Backspace/incolla
   // (gia' gestiti rispettivamente da handleKeyDown/handlePaste).
   const handleBeforeInput = (e: React.FormEvent<HTMLDivElement>) => {
+    // DEBUG TEMPORANEO - conferma se l'evento scatta affatto, vedi richiesta
+    // di log immediato in cima all'handler.
+    console.log('[SLASH-DEBUG] handleBeforeInput fired', {
+      inputType: (e.nativeEvent as InputEvent).inputType,
+      data: (e.nativeEvent as InputEvent).data,
+      isComposing: isComposingRef.current,
+      cancelable: e.nativeEvent.cancelable,
+    });
     if (isComposingRef.current) return;
     const nativeEvent = e.nativeEvent as InputEvent;
     if (nativeEvent.inputType !== 'insertText') return;
@@ -281,9 +289,21 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
 
     const lineEl = getActiveLineElement();
     const sel = window.getSelection();
-    if (!lineEl || !sel || sel.rangeCount === 0) return;
+    // DEBUG TEMPORANEO - se lineEl e' null qui, la funzione esce SENZA aver
+    // mai chiamato preventDefault(): il browser procederebbe con
+    // l'inserimento nativo esattamente come prima del fix.
+    console.log('[SLASH-DEBUG] handleBeforeInput pre-check', {
+      hasLineEl: !!lineEl,
+      hasSel: !!sel,
+      rangeCount: sel?.rangeCount ?? -1,
+    });
+    if (!lineEl || !sel || sel.rangeCount === 0) {
+      console.log('[SLASH-DEBUG] handleBeforeInput bail SENZA preventDefault - lineEl non risolto');
+      return;
+    }
 
     e.preventDefault();
+    console.log('[SLASH-DEBUG] handleBeforeInput preventDefault chiamato, defaultPrevented =', e.nativeEvent.defaultPrevented);
     const range = sel.getRangeAt(0);
     const offset = getOffsetWithinLine(lineEl, range.startContainer, range.startOffset);
     const text = lineEl.textContent ?? '';
