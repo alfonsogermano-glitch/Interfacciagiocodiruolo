@@ -142,17 +142,39 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
   const getActiveLineElement = (): HTMLDivElement | null => {
     const container = containerRef.current;
     const sel = window.getSelection();
-    if (!container || !sel || sel.rangeCount === 0) return null;
+    // DEBUG TEMPORANEO - vedi richiesta di log piu' dettagliato.
+    console.log('[SLASH-DEBUG] getActiveLineElement', {
+      hasContainer: !!container,
+      hasSel: !!sel,
+      rangeCount: sel?.rangeCount ?? -1,
+      isCollapsed: sel?.isCollapsed,
+      anchorNode: sel?.anchorNode ? { type: sel.anchorNode.nodeType, name: sel.anchorNode.nodeName, text: sel.anchorNode.textContent } : null,
+      focusNode: sel?.focusNode ? { type: sel.focusNode.nodeType, name: sel.focusNode.nodeName, text: sel.focusNode.textContent } : null,
+    });
+    if (!container) { console.log('[SLASH-DEBUG] getActiveLineElement -> null: containerRef.current is null'); return null; }
+    if (!sel) { console.log('[SLASH-DEBUG] getActiveLineElement -> null: window.getSelection() is null'); return null; }
+    if (sel.rangeCount === 0) { console.log('[SLASH-DEBUG] getActiveLineElement -> null: sel.rangeCount === 0'); return null; }
     let node: Node | null = sel.getRangeAt(0).startContainer;
+    const startContainerInfo = { type: node.nodeType, name: node.nodeName, text: node.textContent, parentTag: node.parentElement?.tagName, isContainer: node === container };
+    const climbed: string[] = [];
     while (node && node.parentElement !== container) {
+      climbed.push(`${node.nodeName}(${node.nodeType})`);
       node = node.parentElement;
     }
+    console.log('[SLASH-DEBUG] getActiveLineElement climb', {
+      startContainer: startContainerInfo,
+      climbedPath: climbed,
+      resolvedNode: node ? { type: node.nodeType, name: node.nodeName, isHTMLDivElement: node instanceof HTMLDivElement, ctor: node.constructor?.name } : null,
+    });
     // `node` e' un figlio diretto di container, ma non e' garantito che sia
     // uno dei nostri <div> di riga: se il browser ha ancorato la selezione al
     // livello del container (vedi setLineText), il nodo trovato puo' essere
     // un nodo di testo orfano, privo di .dataset - va trattato come "nessuna
     // riga attiva" invece di essere passato ai chiamanti.
-    if (!(node instanceof HTMLDivElement)) return null;
+    if (!(node instanceof HTMLDivElement)) {
+      console.log('[SLASH-DEBUG] getActiveLineElement -> null: resolved node is not an HTMLDivElement');
+      return null;
+    }
     return node;
   };
 
