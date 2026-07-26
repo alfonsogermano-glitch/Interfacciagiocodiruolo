@@ -10,6 +10,12 @@ interface TrashRowProps {
   scopeLabel: string;
   onRestore: () => void;
   onPurge: () => void;
+  /** Nessuna vista di dettaglio per il Cestino (solo Ripristina/Elimina
+   *  definitivamente, qui sulla riga) - questo callback serve solo a far
+   *  sapere al chiamante "l'utente sta interagendo col Cestino", cosi' il
+   *  pannello destro puo' confermare/mantenere il placeholder dedicato
+   *  invece di un'assenza di riscontro al click - vedi SessionNotesPanel.tsx. */
+  onSelect: () => void;
 }
 
 /**
@@ -18,11 +24,14 @@ interface TrashRowProps {
  * "Ripristina" e "Elimina definitivamente" (con conferma, azione senza
  * ritorno). Nessun drill-down: il Cestino e' una lista piatta.
  */
-export function TrashRow({ name, typeLabel, scopeLabel, onRestore, onPurge }: TrashRowProps) {
+export function TrashRow({ name, typeLabel, scopeLabel, onRestore, onPurge, onSelect }: TrashRowProps) {
   const [confirmPurge, setConfirmPurge] = useState(false);
 
   return (
-    <div className="flex items-center gap-1 rounded-xl px-3 py-2 transition-colors hover:bg-[var(--dash-surface-2)]/50">
+    <div
+      onClick={onSelect}
+      className="flex cursor-default items-center gap-1 rounded-xl px-3 py-2 transition-colors hover:bg-[var(--dash-surface-2)]/50 active:bg-[var(--dash-surface-2)]"
+    >
       <div className="min-w-0 flex-1">
         <div className="whitespace-normal break-words text-sm text-[var(--dash-text)]">{name}</div>
         <div className="text-xs text-[var(--dash-muted)]">{typeLabel} · {scopeLabel}</div>

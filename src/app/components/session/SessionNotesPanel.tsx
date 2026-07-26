@@ -9,7 +9,14 @@ import { TrashRow } from './shared/TrashRow';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
-type NotesScope = 'gm' | 'shared';
+// 'trash' = il pannello destro mostra il placeholder dedicato del Cestino,
+// non la nota attiva selezionata in precedenza - stato SEPARATO da
+// openSections.trash (che e' solo espansione/collasso dell'accordion): senza
+// questa distinzione, riaprire "Note della Campagna" dopo aver guardato il
+// Cestino lasciava il placeholder visibile anche selezionando una nota li'
+// (bug verificato: il pannello destro leggeva openSections.trash invece del
+// contesto realmente attivo).
+type NotesScope = 'gm' | 'shared' | 'trash';
 
 // Prima di questa versione, la navigazione delle note era un EntityTabBar
 // orizzontale sopra il contenuto, con la colonna sinistra ridotta a due
@@ -27,12 +34,13 @@ export function SessionNotesPanel() {
   const [openSections, setOpenSections] = useState({ shared: true, gm: true, trash: false });
   const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false);
 
-  // Se isOwner diventa false mentre la sezione GM aveva la selezione attiva
-  // (es. il GM passa la campagna ad altri mentre questo pannello e' aperto
-  // altrove), torna a 'shared' invece di restare bloccato su una sezione ora
-  // inaccessibile - stessa guardia dell'ex effectiveScope.
+  // Se isOwner diventa false mentre la sezione GM o il Cestino avevano il
+  // contesto attivo (es. il GM passa la campagna ad altri mentre questo
+  // pannello e' aperto altrove), torna a 'shared' invece di restare
+  // bloccato su un contesto ora inaccessibile - stessa guardia dell'ex
+  // effectiveScope, estesa a 'trash' (owner-only anch'esso).
   useEffect(() => {
-    if (activeScope === 'gm' && !isOwner) setActiveScope('shared');
+    if ((activeScope === 'gm' || activeScope === 'trash') && !isOwner) setActiveScope('shared');
   }, [isOwner]);
 
   const sharedSection = useCampaignNotesSection({
@@ -73,7 +81,14 @@ export function SessionNotesPanel() {
   });
 
   const toggleSection = (key: keyof typeof openSections) => {
-    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+    setOpenSections(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      // Espandere il Cestino e' gia' di per se' "interagire con il
+      // Cestino" (vedi il commento su NotesScope sopra) - stesso principio
+      // di onSelectNote per una riga nota, qui sull'header della sezione.
+      if (key === 'trash' && next.trash) setActiveScope('trash');
+      return next;
+    });
   };
 
   // Lista piatta unica (note + cartelle), piu' recente cestinato per primo -
@@ -116,7 +131,7 @@ export function SessionNotesPanel() {
             <Plus className="h-3.5 w-3.5" />
           </button>
         </TooltipTrigger>
-        <TooltipContent side="left">Nuova nota</TooltipContent>
+        <TooltipContent side="top">Nuova nota</TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -132,7 +147,7 @@ export function SessionNotesPanel() {
             <FolderPlus className="h-3.5 w-3.5" />
           </button>
         </TooltipTrigger>
-        <TooltipContent side="left">{section.createDisabledReason ?? 'Nuova cartella'}</TooltipContent>
+        <TooltipContent side="top">{section.createDisabledReason ?? 'Nuova cartella'}</TooltipContent>
       </Tooltip>
     </div>
   );
@@ -183,7 +198,7 @@ export function SessionNotesPanel() {
                           <RotateCcw className="h-3.5 w-3.5" />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="left">Ripristina tutto</TooltipContent>
+                      <TooltipContent side="top">Ripristina tutto</TooltipContent>
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -196,7 +211,7 @@ export function SessionNotesPanel() {
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="left">Svuota cestino</TooltipContent>
+                      <TooltipContent side="top">Svuota cestino</TooltipContent>
                     </Tooltip>
                   </div>
                 ) : undefined}
@@ -214,6 +229,7 @@ export function SessionNotesPanel() {
                         scopeLabel={row.scopeLabel}
                         onRestore={row.onRestore}
                         onPurge={row.onPurge}
+                        onSelect={() => setActiveScope('trash')}
                       />
                     ))
                   )}
@@ -224,13 +240,17 @@ export function SessionNotesPanel() {
         </div>
 
         <div className="flex-1 overflow-auto p-4">
-          {isOwner && openSections.trash ? (
+          {isOwner && activeScope === 'trash' ? (
             // Il Cestino non ha una vista di dettaglio (nessuna riga e'
-            // "selezionabile", vedi TrashRow.tsx: solo Ripristina/Elimina
-            // definitivamente nella lista stessa) - senza questo controllo
-            // il pannello continuerebbe a mostrare l'ultima nota attiva
-            // selezionata prima di aprire il Cestino (tabs.currentTab non
-            // viene mai toccato da qui, resta esattamente quello che era).
+            // "selezionabile" nel senso di apertura, vedi TrashRow.tsx: solo
+            // Ripristina/Elimina definitivamente nella lista stessa) -
+            // tabs.currentTab non viene mai toccato da qui, resta esattamente
+            // quello che era. activeScope (non openSections.trash) e' la
+            // fonte di verita' per "cosa mostra il pannello destro adesso":
+            // openSections.trash e' solo espansione/collasso dell'accordion,
+            // un concetto diverso - confonderli teneva questo placeholder
+            // visibile anche dopo aver selezionato una nota in un'altra
+            // sezione (bug verificato).
             <div className="flex h-full items-center justify-center text-center text-sm text-[var(--dash-muted)]">
               Elementi nel cestino — usa "Ripristina" o "Elimina definitivamente" dalla lista.
             </div>
