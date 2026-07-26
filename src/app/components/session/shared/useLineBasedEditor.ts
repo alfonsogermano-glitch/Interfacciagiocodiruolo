@@ -98,11 +98,6 @@ function setLineText(el: HTMLDivElement, text: string) {
  */
 export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  // DEBUG TEMPORANEO - id univoco per istanza dell'hook, per verificare via
-  // log se esistono piu' contentEditable montati contemporaneamente nel
-  // documento (ipotesi doppio mount, stesso pattern gia' scoperto per
-  // CampaignNotesPanel).
-  const instanceIdRef = useRef(Math.random().toString(36).slice(2, 9));
   // Ultimo valore che ABBIAMO emesso noi stessi via onChange - distingue un
   // cambio di `value` "in eco" (il nostro stesso onInput, tornato indietro
   // come prop dal genitore) da un cambio ESTERNO vero (cambio nota,
@@ -131,8 +126,6 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
   const initFromValue = (v: string) => {
     const container = containerRef.current;
     if (!container) return;
-    // DEBUG TEMPORANEO - vedi instanceIdRef sopra.
-    container.dataset.editorInstance = instanceIdRef.current;
     container.innerHTML = '';
     for (const line of v.split('\n')) container.appendChild(buildLineElement(line));
     lastEmittedRef.current = v;
@@ -149,78 +142,42 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
   const getActiveLineElement = (): HTMLDivElement | null => {
     const container = containerRef.current;
     const sel = window.getSelection();
-    if (!container || !sel || sel.rangeCount === 0) {
-      // DEBUG TEMPORANEO - snapshot diretto del DOM, vedi richiesta di log.
-      console.log('[SLASH-DEBUG] getActiveLineElement bail', { hasContainer: !!container, hasSel: !!sel, rangeCount: sel?.rangeCount ?? -1 });
-      return null;
-    }
-    const startContainer = sel.getRangeAt(0).startContainer;
-    // closest() opera solo su Element: se il nodo di partenza della
-    // selezione e' un nodo di testo (il caso piu' comune, il cursore dentro
-    // il testo di una riga) si parte dal suo elemento genitore. Da li'
-    // closest() risale TUTTI gli antenati (non un solo passo, a differenza
-    // di un singolo controllo su parentElement) cercando il <div> di riga
-    // piu' vicino, riconoscibile dall'attributo data-level che
-    // applyLineClass imposta su ogni riga fin dalla sua creazione.
+    if (!container || !sel || sel.rangeCount === 0) return null;
+    const range = sel.getRangeAt(0);
+    const startContainer = range.startContainer;
+
+    // Caso normale: il punto di partenza e' dentro (o e' esso stesso) un
+    // <div> di riga. closest() opera solo su Element: se il nodo di
+    // partenza e' un nodo di testo si parte dal suo elemento genitore, poi
+    // closest() risale TUTTI gli antenati (non un solo passo) cercando il
+    // <div> di riga piu' vicino, riconoscibile dall'attributo data-level.
     const startEl = startContainer.nodeType === Node.TEXT_NODE
       ? startContainer.parentElement
       : (startContainer as Element | null);
-    // DEBUG TEMPORANEO - selettore isolato in una costante, cosi' il log
-    // puo' mostrarlo carattere per carattere (escludendo refusi invisibili:
-    // spazi non-breaking, virgolette curve, parentesi sbagliate, ecc.), e
-    // verifica diretta con getAttribute/matches sullo STESSO nodo passato a
-    // closest(), nello stesso punto in cui il codice reale lo invoca -
-    // elimina la possibilita' che sia il codice di log stesso (letto altrove,
-    // su un riferimento diverso) a mostrare dati inconsistenti.
-    const LINE_SELECTOR = '[data-level]';
-    if (startEl) {
-      console.log('[SLASH-DEBUG] closest() input check', {
-        selector: LINE_SELECTOR,
-        selectorCharCodes: Array.from(LINE_SELECTOR).map((c) => `${c}:${c.charCodeAt(0)}`),
-        selectorLength: LINE_SELECTOR.length,
-        startEl_getAttribute_data_level: startEl.getAttribute('data-level'),
-        startEl_hasAttribute_data_level: startEl.hasAttribute('data-level'),
-        startEl_matches_selector: startEl.matches(LINE_SELECTOR),
-        startEl_outerHTML: (startEl as HTMLElement).outerHTML?.slice(0, 200),
-        startEl_isSameNodeAsContainerFirstChild: startEl === container.firstElementChild,
-      });
+    if (startEl && startEl !== container) {
+      const lineEl = startEl.closest<HTMLDivElement>('[data-level]');
+      if (lineEl && lineEl.parentElement === container) {
+        return lineEl;
+      }
     }
-    const lineEl = startEl?.closest<HTMLDivElement>(LINE_SELECTOR) ?? null;
-    // DEBUG TEMPORANEO - snapshot diretto del DOM reale al momento
-    // dell'evento, per vedere lo stato effettivo invece di ipotizzarlo.
-    // Include l'id univoco di istanza (vedi instanceIdRef) per verificare se
-    // il nodo su cui e' ancorata la selezione appartiene REALMENTE a questo
-    // container, o a un secondo contentEditable montato altrove (ipotesi
-    // doppio mount).
-    console.log('[SLASH-DEBUG] getActiveLineElement snapshot', {
-      thisInstance: container.dataset.editorInstance,
-      startContainer: { type: startContainer.nodeType, name: startContainer.nodeName, text: startContainer.textContent },
-      startEl: startEl ? { tag: startEl.tagName, level: (startEl as HTMLElement).dataset?.level, text: startEl.textContent } : null,
-      startElOwnInstance: startEl?.closest('[data-editor-instance]')?.getAttribute('data-editor-instance') ?? null,
-      closestResult: lineEl ? { tag: lineEl.tagName, level: lineEl.dataset.level, text: lineEl.textContent, parentIsContainer: lineEl.parentElement === container } : null,
-      containerChildren: Array.from(container.children).map((el) => ({
-        tag: el.tagName,
-        level: (el as HTMLElement).dataset?.level,
-        text: el.textContent,
-        childNodeCount: el.childNodes.length,
-        firstChildType: el.firstChild?.nodeType ?? null,
-      })),
-      allEditorInstancesInDocument: Array.from(document.querySelectorAll('[data-editor-instance]')).map((el) => ({
-        instance: el.getAttribute('data-editor-instance'),
-        connected: el.isConnected,
-        text: el.textContent,
-      })),
-    });
-    // Guardia per il caso del crash originale: un nodo estraneo ancorato
-    // direttamente sotto container, senza alcun <div> di riga tra i suoi
-    // antenati (o un match di closest() fuori dai confini di questo
-    // editor), va trattato come "nessuna riga attiva", mai passato ai
-    // chiamanti.
-    if (!lineEl || lineEl.parentElement !== container || !(lineEl instanceof HTMLDivElement)) {
-      console.log('[SLASH-DEBUG] getActiveLineElement -> null (guardia finale)');
-      return null;
+
+    // Caso riga vuota: confermato via log che il browser puo' ancorare la
+    // selezione DIRETTAMENTE sul container esterno (startContainer ===
+    // container), con startOffset = indice del figlio davanti al quale si
+    // trova il cursore (semantica standard di Range quando il container e'
+    // un Element, non un nodo di testo). closest() non puo' aiutare qui:
+    // risale solo gli ANTENATI, mai i discendenti, e il container stesso
+    // non ha mai data-level (non e' una riga). Bisogna invece SCENDERE nei
+    // figli usando l'offset.
+    if (startContainer === container) {
+      const children = container.children;
+      if (children.length === 0) return null;
+      const index = Math.min(Math.max(range.startOffset, 0), children.length - 1);
+      const child = children[index];
+      return child instanceof HTMLDivElement ? child : null;
     }
-    return lineEl;
+
+    return null;
   };
 
   const emitChange = () => {
@@ -313,42 +270,21 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
   // handleKeyDown/handlePaste, o lasciati al comportamento nativo per il
   // Backspace non a inizio riga).
   const handleBeforeInput = (e: React.FormEvent<HTMLDivElement>) => {
-    // DEBUG TEMPORANEO - conferma se l'evento scatta affatto, vedi richiesta
-    // di log immediato in cima all'handler.
-    console.log('[SLASH-DEBUG] handleBeforeInput fired', {
-      inputType: (e.nativeEvent as InputEvent).inputType,
-      data: (e.nativeEvent as InputEvent).data,
-      isComposing: isComposingRef.current,
-      cancelable: e.nativeEvent.cancelable,
-    });
     if (isComposingRef.current) return;
     const nativeEvent = e.nativeEvent as InputEvent;
-    // Il controllo rigido su inputType === 'insertText' risultava undefined
-    // in questo contesto (confermato dai log) - inputType su beforeinput per
-    // contentEditable non e' affidabile allo stesso modo su tutti i
-    // browser/percorsi di inserimento. e.data invece e' presente e corretto
-    // (la stringa effettivamente digitata): usiamo quello per riconoscere un
-    // inserimento di testo semplice, indipendentemente da inputType.
+    // inputType su beforeinput per contentEditable non e' affidabile in
+    // tutti i browser/percorsi di inserimento (risultava undefined in
+    // produzione anche per una digitazione normale) - e.data invece e'
+    // sempre presente e corretto per un inserimento di testo semplice
+    // (la stringa effettivamente digitata): usiamo quello.
     const data = nativeEvent.data;
     if (typeof data !== 'string' || data.length === 0) return;
 
     const lineEl = getActiveLineElement();
     const sel = window.getSelection();
-    // DEBUG TEMPORANEO - se lineEl e' null qui, la funzione esce SENZA aver
-    // mai chiamato preventDefault(): il browser procederebbe con
-    // l'inserimento nativo esattamente come prima del fix.
-    console.log('[SLASH-DEBUG] handleBeforeInput pre-check', {
-      hasLineEl: !!lineEl,
-      hasSel: !!sel,
-      rangeCount: sel?.rangeCount ?? -1,
-    });
-    if (!lineEl || !sel || sel.rangeCount === 0) {
-      console.log('[SLASH-DEBUG] handleBeforeInput bail SENZA preventDefault - lineEl non risolto');
-      return;
-    }
+    if (!lineEl || !sel || sel.rangeCount === 0) return;
 
     e.preventDefault();
-    console.log('[SLASH-DEBUG] handleBeforeInput preventDefault chiamato, defaultPrevented =', e.nativeEvent.defaultPrevented);
     const range = sel.getRangeAt(0);
     const offset = getOffsetWithinLine(lineEl, range.startContainer, range.startOffset);
     const text = lineEl.textContent ?? '';
