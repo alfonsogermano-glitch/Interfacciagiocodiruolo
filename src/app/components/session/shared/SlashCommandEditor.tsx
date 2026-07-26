@@ -30,9 +30,15 @@ interface SlashCommandEditorProps {
  * useEntityTabs.handleCustomTabContentChange (NoteSubTabs.tsx,
  * EntityDetailView.tsx). Due modalita': vista renderizzata (MarkdownContent,
  * sempre per disabled=true) e modifica (textarea di testo grezzo, solo al
- * click quando canEdit). Il comando slash scatta SOLO a inizio riga vuota
- * (stesso comportamento di Notion) - evita falsi positivi (es. una "/" in
- * un URL).
+ * click quando canEdit).
+ *
+ * Il comando slash scatta su QUALUNQUE "/" digitato, ovunque nel testo -
+ * non solo a inizio riga (vincolo rimosso su richiesta esplicita, rischio
+ * di falsi positivi, es. una "/" in un URL, accettato). insertHeadingAtCursor
+ * in markdownHeadings.ts trasforma comunque sempre l'INTERA riga corrente in
+ * intestazione (un prefisso "#" a meta' riga non verrebbe mai riconosciuto
+ * come tale), quindi il risultato resta sempre un markdown valido a
+ * prescindere da dove il comando e' stato invocato.
  */
 export function SlashCommandEditor({ value, onChange, disabled, placeholder, className }: SlashCommandEditorProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -91,7 +97,7 @@ export function SlashCommandEditor({ value, onChange, disabled, placeholder, cla
     if (slashStart !== null) {
       // Un comando slash non contiene mai spazi/a-capo nel filtro - se
       // compare uno, o il cursore torna prima della "/", il menu si chiude
-      // (stesso comportamento "solo a inizio riga vuota" del trigger).
+      // (query invalida, non un vincolo di posizione).
       const query = newValue.slice(slashStart + 1, cursor);
       if (cursor <= slashStart || /\s/.test(query)) {
         closeMenu();
@@ -101,14 +107,15 @@ export function SlashCommandEditor({ value, onChange, disabled, placeholder, cla
       return;
     }
 
+    // Il comando scatta su QUALUNQUE "/" digitato, ovunque nel testo (non
+    // piu' solo a inizio riga vuota - vincolo rimosso su richiesta esplicita,
+    // rischio di falsi positivi accettato). insertHeadingAtCursor in
+    // markdownHeadings.ts gestisce comunque un inserimento sensato anche a
+    // meta' riga/documento, spostando il prefisso a inizio riga.
     if (newValue[cursor - 1] === '/') {
-      const lineStart = newValue.lastIndexOf('\n', cursor - 2) + 1;
-      const beforeSlash = newValue.slice(lineStart, cursor - 1);
-      if (beforeSlash.trim() === '') {
-        setSlashStart(cursor - 1);
-        setHighlighted(HEADING_COMMANDS[0].value);
-        requestAnimationFrame(updateMenuPosition);
-      }
+      setSlashStart(cursor - 1);
+      setHighlighted(HEADING_COMMANDS[0].value);
+      requestAnimationFrame(updateMenuPosition);
     }
   };
 

@@ -26,11 +26,19 @@ export function parseLines(content: string): ParsedLine[] {
 }
 
 /**
- * Sostituisce "/" + il testo di filtro digitato dopo (da `slashStart` a
- * `cursorPos`) con il prefisso Markdown dell'intestazione scelta - il resto
- * della riga (se presente dopo il cursore) resta intatto. Ritorna anche la
- * nuova posizione del cursore (subito dopo il prefisso inserito), per
- * poterla ripristinare nella textarea dopo l'aggiornamento controllato.
+ * Il comando "/" puo' scattare ovunque nel testo, non solo a inizio riga
+ * (vincolo rimosso su richiesta esplicita) - ma un prefisso "#" inserito a
+ * META' riga non verrebbe MAI riconosciuto come intestazione (parseLines
+ * sopra richiede il prefisso a inizio riga, coerente con la sintassi
+ * Markdown reale). Per restare "sensato" in ogni posizione, questa funzione
+ * trasforma sempre l'INTERA riga corrente in intestazione: rimuove solo il
+ * trigger "/"+query digitato (ovunque si trovi nella riga) e sposta il
+ * prefisso all'inizio, preservando il resto del testo della riga prima e
+ * dopo il trigger. Es. riga "Ciao /h2 mondo" -> "## Ciao  mondo" (il
+ * trigger sparisce, il resto resta, l'intestazione e' sempre valida).
+ * Ritorna anche la nuova posizione del cursore (dove si trovava il trigger,
+ * ricalcolata dopo l'inserimento del prefisso), per ripristinarla nella
+ * textarea dopo l'aggiornamento controllato.
  */
 export function insertHeadingAtCursor(
   content: string,
@@ -38,7 +46,15 @@ export function insertHeadingAtCursor(
   cursorPos: number,
   level: HeadingLevel
 ): { content: string; cursorPos: number } {
+  const lineStart = content.lastIndexOf('\n', slashStart - 1) + 1;
+  const nextNewline = content.indexOf('\n', cursorPos);
+  const lineEnd = nextNewline === -1 ? content.length : nextNewline;
+
+  const before = content.slice(lineStart, slashStart);
+  const after = content.slice(cursorPos, lineEnd);
   const prefix = '#'.repeat(level) + ' ';
-  const nextContent = content.slice(0, slashStart) + prefix + content.slice(cursorPos);
-  return { content: nextContent, cursorPos: slashStart + prefix.length };
+  const newLine = prefix + before + after;
+
+  const nextContent = content.slice(0, lineStart) + newLine + content.slice(lineEnd);
+  return { content: nextContent, cursorPos: lineStart + prefix.length + before.length };
 }
