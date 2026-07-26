@@ -23,12 +23,33 @@ export function TooltipColorsProvider({
 
 function TooltipProvider({
   delayDuration = 0,
+  // Radix, con "hoverable content" attivo (il default), non chiude il
+  // tooltip subito quando il puntatore lascia il trigger: calcola un
+  // poligono di "grazia" tra il punto di uscita e l'intero rettangolo del
+  // contenuto, e resta aperto finche' il puntatore non ne esce (pensato per
+  // non far sparire il tooltip mentre ci si sposta verso di esso per
+  // leggerlo/selezionarne il testo). Con icone piccole ravvicinate (gap-1,
+  // bottoni 28x28 - TrashRow.tsx, FolderRow.tsx, le coppie di pulsanti
+  // header in SessionNotesPanel.tsx) quel poligono finisce quasi sempre per
+  // includere anche l'icona ADIACENTE, quindi muovere il mouse da un'icona
+  // all'altra non fa mai uscire il puntatore dal poligono: il tooltip resta
+  // visibile finche' non si esce dall'intero gruppo (bug verificato,
+  // indipendente da `side` - stesso motivo per cui provare top/bottom/left
+  // non cambiava nulla). Disattivato di default: i tooltip di questa app
+  // sono sempre etichette brevi in sola lettura (mai testo da selezionare o
+  // contenuto interattivo dentro la bolla), quindi la "grace area" non
+  // protegge nessuna interazione reale qui - il costo (chiusura immediata
+  // all'uscita dal trigger, invece che "morbida") e' trascurabile per
+  // bottoni di dimensione normale, il beneficio (niente piu' tooltip
+  // bloccati tra icone ravvicinate) e' netto.
+  disableHoverableContent = true,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
   return (
     <TooltipPrimitive.Provider
       data-slot="tooltip-provider"
       delayDuration={delayDuration}
+      disableHoverableContent={disableHoverableContent}
       {...props}
     />
   );
