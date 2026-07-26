@@ -122,7 +122,10 @@ export function NoteListRow({ note, tabs, canEdit, folders, colors, isSelected, 
               {
                 key: 'delete',
                 icon: <Trash2 className="h-4 w-4" />,
-                label: 'Elimina',
+                // Sempre soft-delete qui: NoteListRow.tsx e' usato solo per
+                // le note di Note Campagna/GM (mai per PG/PNG/Mostro, che
+                // restano hard-delete via EntityTabBar.tsx).
+                label: 'Sposta nel cestino',
                 onClick: () => tabs.setConfirmDeleteTabId(note.id),
                 danger: true,
               },

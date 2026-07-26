@@ -77,6 +77,7 @@ export function NoteSubTabs({ note, campaignId, accessToken, canEdit, onPersistS
         canEdit={canEdit}
         tabs={nestedTabs}
         deleteConfirmMessage={(tabName) => `"${tabName}" verrà spostata nel Cestino - potrai ripristinarla in seguito.`}
+        deleteMenuLabel="Sposta nel cestino"
       />
 
       {selectedSubTab && (canEdit || !selectedSubTab.hidden) ? (

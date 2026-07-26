@@ -24,9 +24,14 @@ interface EntityTabBarProps {
    *  diverso perche' il "cosa succede davvero" dipende dal chiamante, non
    *  da EntityTabBar stesso. */
   deleteConfirmMessage?: (tabName: string) => string;
+  /** Etichetta della voce "Elimina" nel menu ⋮ - assente = "Elimina"
+   *  (default, PG/PNG/Mostro, hard-delete immediato invariato). Le sotto-tab
+   *  di una nota (NoteSubTabs.tsx) passano "Sposta nel cestino", stesso
+   *  principio di deleteConfirmMessage sopra. */
+  deleteMenuLabel?: string;
 }
 
-export function EntityTabBar({ canEdit, tabs, tabIndicators = {}, onAddTab, deleteConfirmMessage }: EntityTabBarProps) {
+export function EntityTabBar({ canEdit, tabs, tabIndicators = {}, onAddTab, deleteConfirmMessage, deleteMenuLabel = 'Elimina' }: EntityTabBarProps) {
   const portalContainer = usePortalContainer();
   // Il menu ⋮ e' portato fuori dal DOM locale con position:fixed alle
   // coordinate del bottone al click, per non finire tagliato dall'
@@ -197,7 +202,7 @@ export function EntityTabBar({ canEdit, tabs, tabIndicators = {}, onAddTab, dele
               }}
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--dash-danger-text)] transition-colors hover:bg-[var(--dash-input)]"
             >
-              <Trash2 className="h-3.5 w-3.5" /> Elimina
+              <Trash2 className="h-3.5 w-3.5" /> {deleteMenuLabel}
             </button>
           </div>,
           portalContainer ?? document.body

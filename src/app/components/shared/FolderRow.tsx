@@ -81,6 +81,11 @@ export function FolderRow({
   const [expanded, setExpanded] = useState(false);
   const visibleDescendants = expanded ? descendantFolders : descendantFolders.slice(0, maxVisibleDescendantShortcuts);
   const hiddenCount = descendantFolders.length - visibleDescendants.length;
+  // Solo le cartelle di Note (gmnotes/campaignnotes) sono cestinabili (vedi
+  // supabase-add-notes-trash.sql) - le altre 4 entity_type condivise da
+  // questo stesso componente (character/premade/npc/monster, CampaignHome.tsx/
+  // SessionCharactersPanel.tsx) restano hard-delete, invariate.
+  const isTrashableFolder = folder.entityType === 'gmnotes' || folder.entityType === 'campaignnotes';
 
   return (
     <div
@@ -153,7 +158,7 @@ export function FolderRow({
                 {
                   key: 'delete',
                   icon: <Trash2 className="h-4 w-4" />,
-                  label: 'Elimina',
+                  label: isTrashableFolder ? 'Sposta nel cestino' : 'Elimina',
                   onClick: onRequestDelete,
                   danger: true,
                 },
