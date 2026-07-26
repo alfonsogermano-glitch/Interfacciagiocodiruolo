@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronRight, Loader2, FolderPlus } from 'lucide-react';
+import { Loader2, FolderPlus } from 'lucide-react';
 import { Copy, UserMinus, UserX, Eye, EyeOff, Search, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
+import { SectionHeader } from './shared/SectionHeader';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { useFolderSection } from '../shared/useFolderSection';
 import { FolderBreadcrumb } from '../shared/FolderBreadcrumb';
@@ -60,37 +61,6 @@ function getCurrentPaletteColors() {
   const el = document.querySelector('[data-dashboard-palette]');
   const palette = el?.getAttribute('data-dashboard-palette') as PaletteId | null;
   return palette && PALETTE_COLORS[palette] ? PALETTE_COLORS[palette] : DEFAULT_PALETTE_COLORS;
-}
-
-function SectionHeader({
-  title, count, isOpen, onToggle, extraAction,
-}: {
-  title: string;
-  count: number;
-  isOpen: boolean;
-  onToggle: () => void;
-  /** Pulsante "Nuova cartella" (Fase 4, solo PNG/Mostri, solo GM, solo a
-   *  sezione aperta) - reso come sibling del toggle (non annidato dentro,
-   *  altrimenti sarebbe un <button> dentro un <button>, HTML non valido e un
-   *  click sopra farebbe scattare anche il collapse/espandi). Assente =
-   *  comportamento invariato (Personaggi, o chiunque non sia GM). */
-  extraAction?: React.ReactNode;
-}) {
-  return (
-    <div className="flex w-full items-center justify-between gap-1 px-4 py-2">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex min-w-0 flex-1 items-center justify-between gap-2 text-left"
-      >
-        <span className="truncate text-xs font-semibold uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
-          {title} <span className="text-[var(--dash-muted)]">({count})</span>
-        </span>
-        {isOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--dash-muted)]" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--dash-muted)]" />}
-      </button>
-      {extraAction}
-    </div>
-  );
 }
 
 interface SessionCharactersPanelProps {

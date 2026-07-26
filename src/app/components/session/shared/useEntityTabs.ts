@@ -47,6 +47,14 @@ export interface UseEntityTabsParams {
   baseTabs: EntityBaseTab[];
   savedTabOrder: string[] | undefined;
   onPersistTabOrder: (order: string[]) => void;
+  /** false = niente fetch ne' sottoscrizione realtime (customTabs resta []) -
+   *  stesso principio di `enabled` in useFolderSection.tsx. Usato da
+   *  useCampaignNotesSection.tsx per l'istanza 'gm' quando il chiamante non
+   *  e' GM: il pannello Note del GM per un giocatore non solo non e' montato
+   *  in UI, ma questo hook non deve nemmeno interrogare il server per quelle
+   *  note (contenuto riservato). Default true = comportamento invariato per
+   *  tutti gli altri chiamanti (PG/PNG/Mostro, Note di campagna). */
+  enabled?: boolean;
 }
 
 export function useEntityTabs({
@@ -58,6 +66,7 @@ export function useEntityTabs({
   baseTabs,
   savedTabOrder,
   onPersistTabOrder,
+  enabled = true,
 }: UseEntityTabsParams) {
   const baseTabIds = baseTabs.map(t => t.id);
   const defaultTabId = baseTabIds[0] ?? '';
@@ -111,7 +120,7 @@ export function useEntityTabs({
 
   // Fetch delle note (tab personalizzate) dell'entità selezionata
   useEffect(() => {
-    if (!entityId) {
+    if (!enabled || !entityId) {
       setCustomTabs([]);
       return;
     }
@@ -120,7 +129,7 @@ export function useEntityTabs({
       if (!cancelled && sorted) setCustomTabs(sorted);
     });
     return () => { cancelled = true; };
-  }, [entityId, campaignId, accessToken, entityType]);
+  }, [enabled, entityId, campaignId, accessToken, entityType]);
 
   const reloadCustomTabs = async () => {
     const sorted = await fetchCustomTabsData();
@@ -159,7 +168,7 @@ export function useEntityTabs({
     });
   };
 
-  useCampaignChannel(entityId ? campaignId : null, {
+  useCampaignChannel(enabled && entityId ? campaignId : null, {
     onBroadcast: {
       INSERT: handleEntityNotesBroadcast,
       UPDATE: handleEntityNotesBroadcast,
