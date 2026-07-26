@@ -105,15 +105,6 @@ export function SessionNotesPanel() {
     <>
       <div className="flex h-full select-none">
         <div className="w-64 shrink-0 overflow-y-auto border-r border-[var(--dash-border-soft)] py-3">
-          <SectionHeader
-            title="Note della Campagna"
-            count={sharedSection.count}
-            isOpen={openSections.shared}
-            onToggle={() => toggleSection('shared')}
-            extraAction={isOwner && openSections.shared ? renderSectionHeaderAction(sharedSection) : undefined}
-          />
-          {openSections.shared && <div className="space-y-1 px-2 pb-2">{sharedSection.renderSidebar()}</div>}
-
           {isOwner && (
             <>
               <SectionHeader
@@ -126,6 +117,15 @@ export function SessionNotesPanel() {
               {openSections.gm && <div className="space-y-1 px-2 pb-2">{gmSection.renderSidebar()}</div>}
             </>
           )}
+
+          <SectionHeader
+            title="Note della Campagna"
+            count={sharedSection.count}
+            isOpen={openSections.shared}
+            onToggle={() => toggleSection('shared')}
+            extraAction={isOwner && openSections.shared ? renderSectionHeaderAction(sharedSection) : undefined}
+          />
+          {openSections.shared && <div className="space-y-1 px-2 pb-2">{sharedSection.renderSidebar()}</div>}
         </div>
 
         <div className="flex-1 overflow-auto p-4">

@@ -76,12 +76,12 @@ export function NoteListRow({ note, tabs, canEdit, folders, colors, isSelected, 
         <button
           type="button"
           onClick={() => { tabs.setCurrentTab(note.id); onSelect(); }}
-          className={`flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm ${note.hidden ? 'opacity-50' : ''} ${
+          className={`flex min-w-0 flex-1 items-start gap-1.5 text-left text-sm ${note.hidden ? 'opacity-50' : ''} ${
             isSelected ? 'font-medium text-[var(--dash-text-strong)]' : 'text-[var(--dash-text)]'
           }`}
         >
-          {note.hidden && <EyeOff className="h-3 w-3 shrink-0" />}
-          <span className="truncate">{note.tab_name}</span>
+          {note.hidden && <EyeOff className="mt-0.5 h-3 w-3 shrink-0" />}
+          <span className="whitespace-normal break-words">{note.tab_name}</span>
         </button>
       )}
 

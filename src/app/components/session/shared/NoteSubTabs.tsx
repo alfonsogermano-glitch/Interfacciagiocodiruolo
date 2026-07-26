@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react';
 import { useEntityTabs, type EntityCustomTab } from './useEntityTabs';
 import { EntityTabBar } from './EntityTabBar';
 
@@ -44,7 +45,28 @@ export function NoteSubTabs({ note, campaignId, accessToken, canEdit, onMainCont
 
   return (
     <div>
-      <EntityTabBar canEdit={canEdit} tabs={nestedTabs} />
+      {/* Barra nascosta finche' la nota non ha alcuna sotto-tab: mostra solo
+          la textarea pulita del contenuto principale, senza una barra a una
+          sola pillola "Principale" che non aggiungerebbe nulla - compare da
+          sola non appena si crea la prima sotto-tab (customTabs.length>0).
+          Il "+" minimale sotto sostituisce, per questo solo caso, il "+"
+          della barra (altrimenti irraggiungibile mentre la barra e'
+          nascosta): stessa azione (handleAddCustomTab), stesso stile del "+"
+          di EntityTabBar.tsx, senza il contenitore/bordo della barra intera. */}
+      {nestedTabs.customTabs.length > 0 ? (
+        <EntityTabBar canEdit={canEdit} tabs={nestedTabs} />
+      ) : canEdit && (
+        <div className="mb-3 flex justify-end">
+          <button
+            type="button"
+            onClick={() => nestedTabs.handleAddCustomTab()}
+            className="flex items-center justify-center rounded-md border border-dashed border-[var(--dash-border-soft)] p-1.5 text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
+            title="Aggiungi sotto-tab"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {nestedTabs.currentTab === 'main' ? (
         <textarea

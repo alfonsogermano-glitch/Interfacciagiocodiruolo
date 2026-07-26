@@ -21,9 +21,9 @@ export function SectionHeader({
       <button
         type="button"
         onClick={onToggle}
-        className="flex min-w-0 flex-1 items-center justify-between gap-2 text-left"
+        className="flex min-w-0 flex-1 items-start justify-between gap-2 text-left"
       >
-        <span className="truncate text-xs font-semibold uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
+        <span className="whitespace-normal break-words text-xs font-semibold uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
           {title} <span className="text-[var(--dash-muted)]">({count})</span>
         </span>
         {isOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--dash-muted)]" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--dash-muted)]" />}
