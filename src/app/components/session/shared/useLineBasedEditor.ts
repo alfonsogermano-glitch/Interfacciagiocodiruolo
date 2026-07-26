@@ -73,6 +73,18 @@ function filterCommands(query: string): HeadingCommand[] {
   return HEADING_COMMANDS.filter((c) => c.label.toLowerCase().includes(q));
 }
 
+// Imposta il testo di una riga garantendo che rimanga sempre almeno un nodo
+// di testo (anche vuoto) al suo interno. `el.textContent = ''` rimuove ogni
+// figlio: un <div> di riga completamente vuoto (zero nodi) e' un punto
+// d'aggancio ambiguo per la Selection del browser, che in quel caso puo'
+// ancorare il cursore al livello del container invece che dentro il div e
+// inserire il primo carattere digitato come nodo di testo "orfano" fratello
+// dei div di riga invece che figlio del div - vedi getActiveLineElement.
+function setLineText(el: HTMLDivElement, text: string) {
+  el.textContent = text;
+  if (!el.firstChild) el.appendChild(document.createTextNode(''));
+}
+
 /**
  * Motore di editing a righe per SlashCommandEditor.tsx - contentEditable
  * NON controllato da React (il DOM e' la fonte di verita' durante la
@@ -106,7 +118,7 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
 
   const buildLineElement = (text: string): HTMLDivElement => {
     const el = document.createElement('div');
-    el.textContent = text;
+    setLineText(el, text);
     applyLineClass(el, detectHeadingLevel(text));
     return el;
   };
@@ -135,7 +147,13 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
     while (node && node.parentElement !== container) {
       node = node.parentElement;
     }
-    return node as HTMLDivElement | null;
+    // `node` e' un figlio diretto di container, ma non e' garantito che sia
+    // uno dei nostri <div> di riga: se il browser ha ancorato la selezione al
+    // livello del container (vedi setLineText), il nodo trovato puo' essere
+    // un nodo di testo orfano, privo di .dataset - va trattato come "nessuna
+    // riga attiva" invece di essere passato ai chiamanti.
+    if (!(node instanceof HTMLDivElement)) return null;
+    return node;
   };
 
   const emitChange = () => {
@@ -159,7 +177,7 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
     const lineText = lineEl.textContent ?? '';
     const result = applyHeadingToLine(lineText, slashStart, cursorOffset, level);
 
-    lineEl.textContent = result.text;
+    setLineText(lineEl, result.text);
     applyLineClass(lineEl, level);
     setCaretAtLineOffset(lineEl, result.cursorPos);
     closeSlashMenu();
@@ -222,7 +240,7 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
     const before = text.slice(0, offset);
     const after = text.slice(offset);
 
-    lineEl.textContent = before;
+    setLineText(lineEl, before);
     applyLineClass(lineEl, detectHeadingLevel(before));
 
     const newLineEl = buildLineElement(after);
@@ -240,7 +258,7 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
     const mergedOffset = prevText.length;
     const combined = prevText + (lineEl.textContent ?? '');
 
-    prevEl.textContent = combined;
+    setLineText(prevEl, combined);
     applyLineClass(prevEl, detectHeadingLevel(combined));
     lineEl.remove();
 
@@ -320,12 +338,12 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
 
     if (pastedLines.length === 1) {
       const newText = before + pastedLines[0] + after;
-      lineEl.textContent = newText;
+      setLineText(lineEl, newText);
       applyLineClass(lineEl, detectHeadingLevel(newText));
       setCaretAtLineOffset(lineEl, before.length + pastedLines[0].length);
     } else {
       const firstLineText = before + pastedLines[0];
-      lineEl.textContent = firstLineText;
+      setLineText(lineEl, firstLineText);
       applyLineClass(lineEl, detectHeadingLevel(firstLineText));
 
       let insertAfter: HTMLDivElement = lineEl;
