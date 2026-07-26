@@ -35,10 +35,6 @@ export function SlashCommandEditor({ value, onChange, disabled, placeholder, cla
   const portalContainer = usePortalContainer();
   const editor = useLineBasedEditor({ value, onChange });
 
-  // DEBUG TEMPORANEO - rimuovere una volta diagnosticato perche' il popup
-  // slash non compare (vedi richiesta di log mirati).
-  console.log('[SLASH-DEBUG] render', { slashMenu: editor.slashMenu, portalContainer: !!portalContainer });
-
   if (disabled) {
     return (
       <div className={className ?? 'min-h-[3rem] rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3'}>

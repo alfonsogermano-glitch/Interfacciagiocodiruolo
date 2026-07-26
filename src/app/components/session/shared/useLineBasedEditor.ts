@@ -142,40 +142,28 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
   const getActiveLineElement = (): HTMLDivElement | null => {
     const container = containerRef.current;
     const sel = window.getSelection();
-    // DEBUG TEMPORANEO - vedi richiesta di log piu' dettagliato.
-    console.log('[SLASH-DEBUG] getActiveLineElement', {
-      hasContainer: !!container,
-      hasSel: !!sel,
-      rangeCount: sel?.rangeCount ?? -1,
-      isCollapsed: sel?.isCollapsed,
-      anchorNode: sel?.anchorNode ? { type: sel.anchorNode.nodeType, name: sel.anchorNode.nodeName, text: sel.anchorNode.textContent } : null,
-      focusNode: sel?.focusNode ? { type: sel.focusNode.nodeType, name: sel.focusNode.nodeName, text: sel.focusNode.textContent } : null,
-    });
-    if (!container) { console.log('[SLASH-DEBUG] getActiveLineElement -> null: containerRef.current is null'); return null; }
-    if (!sel) { console.log('[SLASH-DEBUG] getActiveLineElement -> null: window.getSelection() is null'); return null; }
-    if (sel.rangeCount === 0) { console.log('[SLASH-DEBUG] getActiveLineElement -> null: sel.rangeCount === 0'); return null; }
-    let node: Node | null = sel.getRangeAt(0).startContainer;
-    const startContainerInfo = { type: node.nodeType, name: node.nodeName, text: node.textContent, parentTag: node.parentElement?.tagName, isContainer: node === container };
-    const climbed: string[] = [];
-    while (node && node.parentElement !== container) {
-      climbed.push(`${node.nodeName}(${node.nodeType})`);
-      node = node.parentElement;
-    }
-    console.log('[SLASH-DEBUG] getActiveLineElement climb', {
-      startContainer: startContainerInfo,
-      climbedPath: climbed,
-      resolvedNode: node ? { type: node.nodeType, name: node.nodeName, isHTMLDivElement: node instanceof HTMLDivElement, ctor: node.constructor?.name } : null,
-    });
-    // `node` e' un figlio diretto di container, ma non e' garantito che sia
-    // uno dei nostri <div> di riga: se il browser ha ancorato la selezione al
-    // livello del container (vedi setLineText), il nodo trovato puo' essere
-    // un nodo di testo orfano, privo di .dataset - va trattato come "nessuna
-    // riga attiva" invece di essere passato ai chiamanti.
-    if (!(node instanceof HTMLDivElement)) {
-      console.log('[SLASH-DEBUG] getActiveLineElement -> null: resolved node is not an HTMLDivElement');
+    if (!container || !sel || sel.rangeCount === 0) return null;
+    const startContainer = sel.getRangeAt(0).startContainer;
+    // closest() opera solo su Element: se il nodo di partenza della
+    // selezione e' un nodo di testo (il caso piu' comune, il cursore dentro
+    // il testo di una riga) si parte dal suo elemento genitore. Da li'
+    // closest() risale TUTTI gli antenati (non un solo passo, a differenza
+    // di un singolo controllo su parentElement) cercando il <div> di riga
+    // piu' vicino, riconoscibile dall'attributo data-level che
+    // applyLineClass imposta su ogni riga fin dalla sua creazione.
+    const startEl = startContainer.nodeType === Node.TEXT_NODE
+      ? startContainer.parentElement
+      : (startContainer as Element | null);
+    const lineEl = startEl?.closest<HTMLDivElement>('[data-level]') ?? null;
+    // Guardia per il caso del crash originale: un nodo estraneo ancorato
+    // direttamente sotto container, senza alcun <div> di riga tra i suoi
+    // antenati (o un match di closest() fuori dai confini di questo
+    // editor), va trattato come "nessuna riga attiva", mai passato ai
+    // chiamanti.
+    if (!lineEl || lineEl.parentElement !== container || !(lineEl instanceof HTMLDivElement)) {
       return null;
     }
-    return node;
+    return lineEl;
   };
 
   const emitChange = () => {
@@ -211,52 +199,35 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
   const syncActiveLine = () => {
     const lineEl = getActiveLineElement();
     const sel = window.getSelection();
-    // DEBUG TEMPORANEO - rimuovere una volta diagnosticato perche' il popup
-    // slash non compare (vedi richiesta di log mirati).
-    console.log('[SLASH-DEBUG] syncActiveLine start', {
-      lineEl: lineEl ? { tag: lineEl.tagName, text: lineEl.textContent } : null,
-      hasSel: !!sel,
-      rangeCount: sel?.rangeCount ?? -1,
-    });
     if (!lineEl || !sel || sel.rangeCount === 0) {
-      console.log('[SLASH-DEBUG] bail: no lineEl/sel/range');
       if (slashState) closeSlashMenu();
       return;
     }
     const range = sel.getRangeAt(0);
     const cursorOffset = getOffsetWithinLine(lineEl, range.startContainer, range.startOffset);
     const lineText = lineEl.textContent ?? '';
-    console.log('[SLASH-DEBUG] cursorOffset', cursorOffset, 'lineText', JSON.stringify(lineText), 'charBeforeCursor', JSON.stringify(lineText[cursorOffset - 1]));
 
     applyLineClass(lineEl, detectHeadingLevel(lineText));
 
     if (slashState && slashState.lineEl === lineEl) {
       const query = lineText.slice(slashState.slashStart + 1, cursorOffset);
-      console.log('[SLASH-DEBUG] slashState already active for this line', { slashStart: slashState.slashStart, query });
       if (cursorOffset <= slashState.slashStart || /\s/.test(query)) {
-        console.log('[SLASH-DEBUG] closing slash menu (cursor before start or whitespace in query)');
         closeSlashMenu();
       } else {
-        console.log('[SLASH-DEBUG] updating slash menu query');
         setSlashState({ ...slashState, query, anchor: getCaretViewportPosition() });
       }
       return;
     }
 
     if (lineText[cursorOffset - 1] === '/') {
-      console.log('[SLASH-DEBUG] opening slash menu, anchor', getCaretViewportPosition());
       setSlashState({ lineEl, slashStart: cursorOffset - 1, query: '', anchor: getCaretViewportPosition() });
       setHighlighted(HEADING_COMMANDS[0].value);
     } else if (slashState) {
-      console.log('[SLASH-DEBUG] closing slash menu (char before cursor is not /)');
       closeSlashMenu();
-    } else {
-      console.log('[SLASH-DEBUG] no-op: char before cursor is not / and no active slashState');
     }
   };
 
   const handleInput = () => {
-    console.log('[SLASH-DEBUG] handleInput fired, isComposing', isComposingRef.current);
     if (isComposingRef.current) return;
     emitChange();
     syncActiveLine();
