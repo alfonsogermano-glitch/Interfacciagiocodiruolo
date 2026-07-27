@@ -52,9 +52,19 @@ export function insertHeadingAtCursor(
 
   const before = content.slice(lineStart, slashStart);
   const after = content.slice(cursorPos, lineEnd);
+  const rest = before + after;
+  // La riga puo' essere gia' un'intestazione (da un click precedente sulla
+  // barra icone, o da "#" digitato a mano): senza toglierlo qui resterebbe
+  // come testo letterale davanti al nuovo prefisso ("## # Titolo" invece di
+  // "## Titolo") - questa funzione promette di trasformare SEMPRE l'intera
+  // riga, quindi un prefisso preesistente va sempre rimosso, non solo lo
+  // span (slashStart..cursorPos) passato dal chiamante.
+  const existingMatch = rest.match(HEADING_RE);
+  const strippedRest = existingMatch ? existingMatch[2] : rest;
+  const removedFromBefore = Math.min(before.length, rest.length - strippedRest.length);
   const prefix = '#'.repeat(level) + ' ';
-  const newLine = prefix + before + after;
+  const newLine = prefix + strippedRest;
 
   const nextContent = content.slice(0, lineStart) + newLine + content.slice(lineEnd);
-  return { content: nextContent, cursorPos: lineStart + prefix.length + before.length };
+  return { content: nextContent, cursorPos: lineStart + prefix.length + (before.length - removedFromBefore) };
 }
