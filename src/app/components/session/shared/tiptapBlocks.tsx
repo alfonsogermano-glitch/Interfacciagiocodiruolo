@@ -1,7 +1,26 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
-import { Selection } from '@tiptap/pm/state';
+import { Selection, Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
 import { ChevronRight } from 'lucide-react';
+
+// Vero fino a qualunque profondita' (non solo il genitore immediato) che il
+// cursore sia dentro un nodo di quel tipo - usata sotto per impedire
+// l'inserimento di un blocco (TextBox/CollapseBlock) dentro il sommario di
+// un Collapse (content: 'inline*', solo testo). Bug segnalato: i comandi
+// setTextBox/setCollapseBlock passano da insertContentAt, che internamente
+// chiama tr.replaceWith - a differenza della logica di "adattamento"
+// (Slice.fit) usata da drag/incolla nativi di ProseMirror, replaceWith non
+// cerca una posizione alternativa valida: se il punto d'inserimento non
+// accetta quel tipo di nodo, genera un errore invece di limitarsi a
+// rifiutare silenziosamente. Controllo esplicito qui, prima di tentare
+// l'inserimento.
+function isSelectionInside(state: EditorState, typeName: string): boolean {
+  const { $from } = state.selection;
+  for (let depth = $from.depth; depth >= 0; depth -= 1) {
+    if ($from.node(depth).type.name === typeName) return true;
+  }
+  return false;
+}
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -57,8 +76,10 @@ export const TextBox = Node.create({
     return {
       setTextBox:
         () =>
-        ({ commands }) =>
-          commands.insertContent({ type: this.name, content: [{ type: 'paragraph' }] }),
+        ({ commands, state }) => {
+          if (isSelectionInside(state, 'collapseSummary')) return false;
+          return commands.insertContent({ type: this.name, content: [{ type: 'paragraph' }] });
+        },
     };
   },
 });
@@ -121,6 +142,37 @@ const CollapseSummary = Node.create({
           .run();
       },
     };
+  },
+  // Rete di sicurezza per trascinamento/incolla di un blocco dentro il
+  // sommario: a differenza dei nostri comandi (guardia esplicita sopra),
+  // drag-and-drop e incolla nativi di ProseMirror passano da Slice.fit, che
+  // di norma cerca gia' da solo una posizione alternativa valida - ma non e'
+  // garantito per ogni caso (es. incollare uno spezzone che contiene
+  // esattamente un textBox/collapseBlock mentre il cursore e' nel sommario).
+  // filterTransaction scarta l'INTERA transazione, silenziosamente, se il
+  // risultato violerebbe il vincolo "il sommario contiene solo testo" -
+  // prima ancora che arrivi a un errore visibile o a un documento
+  // incoerente, qualunque sia il percorso che ha provato a produrla.
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('collapseSummaryOnlyInline'),
+        filterTransaction: (tr) => {
+          if (!tr.docChanged) return true;
+          let valid = true;
+          tr.doc.descendants((node) => {
+            if (!valid) return false;
+            if (node.type.name === 'collapseSummary') {
+              node.forEach((child) => {
+                if (!child.isInline) valid = false;
+              });
+            }
+            return valid;
+          });
+          return valid;
+        },
+      }),
+    ];
   },
 });
 
@@ -226,15 +278,17 @@ export const CollapseBlock = Node.create({
     return {
       setCollapseBlock:
         () =>
-        ({ commands }) =>
-          commands.insertContent({
+        ({ commands, state }) => {
+          if (isSelectionInside(state, 'collapseSummary')) return false;
+          return commands.insertContent({
             type: this.name,
             attrs: { open: false },
             content: [
               { type: 'collapseSummary', content: [] },
               { type: 'collapseBody', content: [{ type: 'paragraph' }] },
             ],
-          }),
+          });
+        },
     };
   },
 });
