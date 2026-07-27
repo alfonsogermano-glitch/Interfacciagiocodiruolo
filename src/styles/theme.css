@@ -179,3 +179,35 @@
     line-height: 1.5;
   }
 }
+
+/* Contenuto dell'editor TipTap (RichTextEditor.tsx) - il preflight di
+   Tailwind toglie list-style/padding a ul/ol globalmente (per non imporre
+   pallini/numeri di default a menu e componenti UI): dentro il documento
+   dell'editor, dove l'utente sceglie esplicitamente "elenco puntato/numerato"
+   dalla barra, li rivogliamo visibili. Scoperto a .tiptap-content, non
+   globale, per non toccare liste UI altrove nell'app. */
+.tiptap-content ul {
+  list-style: disc;
+  padding-left: 1.5rem;
+}
+
+.tiptap-content ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+}
+
+/* Il preflight di Tailwind resetta solo font-size/font-weight sugli heading
+   (h1-h6{font-size:inherit;font-weight:inherit}), MAI il margine - il
+   margine di default del browser per h1-h4 e' in em, relativo al font-size
+   di quell'elemento stesso: passare una riga da H4 a H1 non ingrandisce
+   solo il testo ma anche lo spazio attorno, in modo non lineare tra i
+   livelli (verificato nel CSS compilato). Margine fisso in rem (non em, non
+   proporzionale al font-size del singolo heading) per uno spazio tra
+   blocchi coerente a qualunque livello. */
+.tiptap-content h1,
+.tiptap-content h2,
+.tiptap-content h3,
+.tiptap-content h4,
+.tiptap-content p {
+  margin: 0 0 0.25rem 0;
+}

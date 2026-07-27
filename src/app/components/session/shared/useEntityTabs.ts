@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { JSONContent } from '@tiptap/core';
 import { projectId } from '/utils/supabase/info';
 import { useCampaignChannel } from '../../../../services/realtime/campaignChannel';
 import { duplicateEntityNotes } from '../../../../services/supabase/entityNotesService';
@@ -41,6 +42,17 @@ export interface EntityCustomTab {
    *  supabase-add-notes-visibility.sql), sempre valorizzato per le nuove. */
   owner_profile_id: string | null;
   visibility: NoteVisibility;
+  /** Documento TipTap (editor.getJSON()) - null = nota mai promossa al
+   *  nuovo editor rich text, RichTextEditor.tsx mostra allora `content`
+   *  (legacy) in sola lettura finche' l'utente non sceglie di aggiornarla. */
+  content_rich: JSONContent | null;
+  /** Timestamp dell'ultimo UPDATE lato server - usato SOLO da
+   *  handleEntityNotesBroadcast per scartare un broadcast piu' vecchio di
+   *  quanto gia' in mano (es. l'evento di CREAZIONE di una nota, sempre con
+   *  content_rich nullo, arrivato in ritardo rispetto al successivo
+   *  aggiornamento che lo valorizza - un canale realtime non garantisce
+   *  l'ordine di arrivo). */
+  updated_at: string;
 }
 
 /** Puo' l'utente `currentUserId` modificare/eliminare `note`? GM: sempre.
@@ -136,7 +148,7 @@ export function useEntityTabs({
       const data = await res.json();
       if (!res.ok) return null;
       return (data.notes ?? [])
-        .map((n: any) => ({ ...n, hidden: n.hidden ?? false, folder_id: n.folder_id ?? null, tab_order: n.tab_order ?? null, visibility: n.visibility ?? 'all' }))
+        .map((n: any) => ({ ...n, hidden: n.hidden ?? false, folder_id: n.folder_id ?? null, tab_order: n.tab_order ?? null, visibility: n.visibility ?? 'all', content_rich: n.content_rich ?? null }))
         .sort((a: any, b: any) => a.position - b.position);
     } catch (err) {
       console.error('Errore caricamento tab personalizzate:', err);
@@ -197,9 +209,22 @@ export function useEntityTabs({
       return;
     }
 
-    const mapped: EntityCustomTab = { ...row, hidden: row.hidden ?? false, folder_id: row.folder_id ?? null, tab_order: row.tab_order ?? null, visibility: row.visibility ?? 'all' };
+    const mapped: EntityCustomTab = { ...row, hidden: row.hidden ?? false, folder_id: row.folder_id ?? null, tab_order: row.tab_order ?? null, visibility: row.visibility ?? 'all', content_rich: row.content_rich ?? null };
     setCustomTabs(prev => {
-      const exists = prev.some(t => t.id === mapped.id);
+      const existing = prev.find(t => t.id === mapped.id);
+      // Un canale realtime non garantisce l'ordine di arrivo: un broadcast
+      // piu' vecchio di quanto gia' in mano (es. l'evento di CREAZIONE della
+      // nota, sempre con content_rich nullo, arrivato dopo il successivo
+      // aggiornamento che lo valorizza) va scartato, non applicato - la sola
+      // soppressione a 1200ms sopra (recentLocalEditRef) protegge solo
+      // dall'eco della propria scrittura, non da un evento fuori ordine.
+      // Confronto dentro la forma funzionale di setCustomTabs cosi' `prev`
+      // e' sempre lo stato piu' fresco, mai una closure potenzialmente
+      // stantia catturata al momento in cui e' stato creato questo handler.
+      if (existing?.updated_at && row.updated_at && row.updated_at <= existing.updated_at) {
+        return prev;
+      }
+      const exists = !!existing;
       return exists ? prev.map(t => (t.id === mapped.id ? mapped : t)) : [...prev, mapped];
     });
   };
@@ -334,7 +359,7 @@ export function useEntityTabs({
       // nell'array in memoria (mai una vera riga duplicata nel DB da questo
       // meccanismo, ma un conteggio cartelle gonfiato ad ogni "+" cliccato
       // mentre si e' dentro una cartella - bug isolato e verificato 2026-07-26).
-      const mappedNote: EntityCustomTab = { ...data.note, hidden: data.note.hidden ?? false, folder_id: data.note.folder_id ?? null, tab_order: data.note.tab_order ?? null, visibility: data.note.visibility ?? 'all' };
+      const mappedNote: EntityCustomTab = { ...data.note, hidden: data.note.hidden ?? false, folder_id: data.note.folder_id ?? null, tab_order: data.note.tab_order ?? null, visibility: data.note.visibility ?? 'all', content_rich: data.note.content_rich ?? null };
       setCustomTabs(prev => {
         const exists = prev.some(t => t.id === mappedNote.id);
         return exists ? prev.map(t => (t.id === mappedNote.id ? mappedNote : t)) : [...prev, mappedNote];
@@ -372,7 +397,11 @@ export function useEntityTabs({
       const putRes = await fetch(`${SERVER_BASE}/notes/${createData.note.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken ?? ''}` },
-        body: JSON.stringify({ content: source.content ?? '' }),
+        // contentRich sempre incluso (anche se null): una nota gia' promossa
+        // al nuovo editor deve portarsi dietro il documento TipTap nella
+        // copia, non solo `content` - altrimenti la duplicazione di una
+        // nota rich perderebbe silenziosamente il contenuto vero.
+        body: JSON.stringify({ content: source.content ?? '', contentRich: source.content_rich }),
       });
       const putData = await putRes.json();
       if (!putRes.ok) throw new Error(putData.error);
@@ -386,7 +415,7 @@ export function useEntityTabs({
       recentLocalEditRef.current[putData.note.id] = Date.now();
       // Stesso controllo "esiste gia'" di handleAddCustomTab - stesso rischio
       // di corsa col broadcast realtime tra la POST/PUT e la loro risoluzione.
-      const mappedNote: EntityCustomTab = { ...putData.note, hidden: putData.note.hidden ?? false, folder_id: putData.note.folder_id ?? null, tab_order: putData.note.tab_order ?? null, visibility: putData.note.visibility ?? 'all' };
+      const mappedNote: EntityCustomTab = { ...putData.note, hidden: putData.note.hidden ?? false, folder_id: putData.note.folder_id ?? null, tab_order: putData.note.tab_order ?? null, visibility: putData.note.visibility ?? 'all', content_rich: putData.note.content_rich ?? null };
       setCustomTabs(prev => {
         const exists = prev.some(t => t.id === mappedNote.id);
         return exists ? prev.map(t => (t.id === mappedNote.id ? mappedNote : t)) : [...prev, mappedNote];
@@ -577,13 +606,55 @@ export function useEntityTabs({
     if (customTabSaveTimerRef.current[tabId]) clearTimeout(customTabSaveTimerRef.current[tabId]);
     customTabSaveTimerRef.current[tabId] = setTimeout(async () => {
       try {
-        await fetch(`${SERVER_BASE}/notes/${tabId}`, {
+        const res = await fetch(`${SERVER_BASE}/notes/${tabId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken ?? ''}` },
           body: JSON.stringify({ content }),
         });
+        // fetch() non lancia mai per uno status HTTP di errore (403/500/...),
+        // solo per un fallimento di rete - senza questo controllo un rifiuto
+        // del server passava silenzioso: l'aggiornamento ottimistico sopra
+        // restava a schermo (l'utente vede il proprio testo, pensa sia
+        // salvato) ma il server non riceveva mai nulla - il contenuto
+        // sparisce al primo reload, senza nessun errore visibile nel
+        // frattempo. Bug di perdita dati verificato 2026-07-27.
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.error('Errore salvataggio contenuto tab (risposta non ok):', res.status, data.error);
+        }
       } catch (err) {
         console.error('Errore salvataggio contenuto tab:', err);
+      }
+    }, 400);
+  };
+
+  // Controparte di handleCustomTabContentChange per il nuovo editor rich
+  // text (RichTextEditor.tsx) - stesso schema debounce-poi-PUT, ma scrive
+  // content_rich invece di content. Riusa lo stesso customTabSaveTimerRef
+  // (keyed per tabId): per una data nota, in un dato momento, arriva sempre
+  // e solo una delle due (una nota o e' ancora in formato legacy o e' gia'
+  // stata promossa, mai entrambe le vie di salvataggio attive insieme).
+  const handleCustomTabRichContentChange = (tabId: string, contentRich: JSONContent) => {
+    recentLocalEditRef.current[tabId] = Date.now();
+    setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, content_rich: contentRich } : t)));
+    if (customTabSaveTimerRef.current[tabId]) clearTimeout(customTabSaveTimerRef.current[tabId]);
+    customTabSaveTimerRef.current[tabId] = setTimeout(async () => {
+      try {
+        const res = await fetch(`${SERVER_BASE}/notes/${tabId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken ?? ''}` },
+          body: JSON.stringify({ contentRich }),
+        });
+        // Vedi commento gemello in handleCustomTabContentChange sopra: senza
+        // controllare res.ok, un rifiuto del server (es. 403 di permesso)
+        // passava silenzioso - possibile causa della perdita di contenuto
+        // segnalata per i giocatori non-GM.
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          console.error('Errore salvataggio contenuto rich tab (risposta non ok):', res.status, data.error);
+        }
+      } catch (err) {
+        console.error('Errore salvataggio contenuto rich tab:', err);
       }
     }, 400);
   };
@@ -632,6 +703,7 @@ export function useEntityTabs({
     handleSetNoteVisibility,
     handleDeleteCustomTab,
     handleCustomTabContentChange,
+    handleCustomTabRichContentChange,
     reloadCustomTabs,
   };
 }

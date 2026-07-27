@@ -1659,9 +1659,16 @@ app.put("/make-server-771c5bfd/notes/:noteId", async (c) => {
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
     const noteId = c.req.param("noteId");
-    const { tabName, content, position, hidden, folderId, tabOrder, visibility } = await c.req.json();
+    const { tabName, content, contentRich, position, hidden, folderId, tabOrder, visibility } = await c.req.json();
     if (visibility !== undefined && visibility !== 'all' && visibility !== 'private') {
       return c.json({ error: "visibility non valida" }, 400);
+    }
+    // contentRich: documento TipTap (editor.getJSON()) - nessuna validazione
+    // di forma oltre "e' un oggetto o null", la struttura interna (nodi/marks
+    // TipTap) non e' compito del server da validare, stesso principio gia'
+    // seguito per `content` (solo typeof string).
+    if (contentRich !== undefined && contentRich !== null && typeof contentRich !== 'object') {
+      return c.json({ error: "contentRich non valido" }, 400);
     }
 
     const admin = getAdminClient();
@@ -1687,6 +1694,7 @@ app.put("/make-server-771c5bfd/notes/:noteId", async (c) => {
     const patch: any = { updated_at: new Date().toISOString() };
     if (typeof tabName === 'string') patch.tab_name = tabName;
     if (typeof content === 'string') patch.content = content;
+    if (contentRich !== undefined) patch.content_rich = contentRich;
     if (typeof position === 'number') patch.position = position;
     if (typeof hidden === 'boolean') patch.hidden = hidden;
     if (typeof folderId === 'string' || folderId === null) patch.folder_id = folderId;

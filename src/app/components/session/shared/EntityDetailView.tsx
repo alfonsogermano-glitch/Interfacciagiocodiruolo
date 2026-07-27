@@ -7,7 +7,7 @@ import { TurbePanel } from '../../TurbePanel';
 import { EquipmentPanel as LegacyEquipmentPanel } from '../../EquipmentPanel';
 import { DraggablePortrait } from './DraggablePortrait';
 import { EntityTabBar } from './EntityTabBar';
-import { SlashCommandEditor } from './SlashCommandEditor';
+import { RichTextEditor } from './RichTextEditor';
 import { EntityDetailRail, type EntityDetailRailSection } from './EntityDetailRail';
 import { TokenStyleEditor } from '../../shared/TokenStyleEditor';
 import { EntityImageTab } from './EntityImageTab';
@@ -1456,13 +1456,14 @@ export function EntityDetailView({
 
           {tabs.customTabs.map(tab =>
             tabs.currentTab === tab.id && (canEdit || !tab.hidden) ? (
-              <SlashCommandEditor
+              <RichTextEditor
                 key={tab.id}
-                value={tab.content}
-                onChange={(content) => tabs.handleCustomTabContentChange(tab.id, content)}
+                legacyContent={tab.content}
+                richContent={tab.content_rich}
+                onChangeRich={(json) => tabs.handleCustomTabRichContentChange(tab.id, json)}
                 disabled={!canEdit}
-                placeholder="Scrivi qui... ('/' per un'intestazione)"
-                className="h-64 w-full resize-none rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4 text-sm text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-70"
+                placeholder="Scrivi qui..."
+                className="h-64 w-full overflow-y-auto rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4 text-sm text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
               />
             ) : null
           )}

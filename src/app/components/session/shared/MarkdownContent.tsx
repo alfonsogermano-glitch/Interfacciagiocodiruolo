@@ -11,11 +11,12 @@ const HEADING_CLASSES: Record<HeadingLevel, string> = {
 };
 
 /**
- * Vista di sola lettura del contenuto markdown-leggero (SlashCommandEditor.tsx):
- * intestazioni H1-H4 formattate, tutto il resto come testo semplice (a capo
- * preservati). Usato sia come "modalita' vista" dell'editor sia direttamente
- * da TrashItemPreview.tsx (il Cestino non ha bisogno del toggle vista/modifica,
- * solo del rendering).
+ * Vista di sola lettura del formato markdown-leggero LEGACY (righe con
+ * prefisso "#"+spazio, vedi markdownHeadings.ts): intestazioni H1-H4
+ * formattate, tutto il resto come testo semplice (a capo preservati). Usato
+ * da RichTextEditor.tsx per le note non ancora promosse al nuovo editor
+ * TipTap (content_rich nullo), e direttamente da TrashItemPreview.tsx (il
+ * Cestino non ha bisogno di toggle vista/modifica, solo del rendering).
  */
 export function MarkdownContent({ content }: { content: string }) {
   const lines = parseLines(content);
