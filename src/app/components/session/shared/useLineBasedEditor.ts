@@ -47,13 +47,27 @@ function getOffsetWithinLine(lineEl: HTMLElement, container: Node, containerOffs
   return preRange.toString().length;
 }
 
-function getCaretViewportPosition(): { top: number; left: number } {
+// Il rect del caret puo' risultare tutto-zero (Chrome) quando il range
+// collassato non ha alcun glyph renderizzato da misurare - tipicamente un
+// caret dentro/accanto a un nodo di testo vuoto (riga vuota, es. il primo
+// "/" di una riga appena creata con Invio). lineEl e' passato come fallback:
+// il <div> di riga ha sempre un'altezza (line-height) anche da vuoto, quindi
+// il suo rect resta valido dove quello del caret non lo e'.
+function getCaretViewportPosition(lineEl?: HTMLElement): { top: number; left: number } {
   const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0) return { top: 0, left: 0 };
-  const range = sel.getRangeAt(0).cloneRange();
-  range.collapse(true);
-  const rect = range.getBoundingClientRect();
-  return { top: rect.bottom, left: rect.left };
+  if (sel && sel.rangeCount > 0) {
+    const range = sel.getRangeAt(0).cloneRange();
+    range.collapse(true);
+    const rect = range.getBoundingClientRect();
+    if (rect.top !== 0 || rect.left !== 0 || rect.width !== 0 || rect.height !== 0) {
+      return { top: rect.bottom, left: rect.left };
+    }
+  }
+  if (lineEl) {
+    const lineRect = lineEl.getBoundingClientRect();
+    return { top: lineRect.bottom, left: lineRect.left };
+  }
+  return { top: 0, left: 0 };
 }
 
 function setCaretAtLineOffset(lineEl: HTMLElement, offset: number) {
@@ -225,10 +239,16 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
 
     if (slashState && slashState.lineEl === lineEl) {
       const query = lineText.slice(slashState.slashStart, cursorOffset);
-      if (cursorOffset <= slashState.slashStart || /\s/.test(query)) {
+      // Nessun comando corrisponde piu' alla query: chiudere invece di
+      // lasciare lo stato aperto ma invisibile (slashMenu si annulla altrove
+      // per commands.length === 0, ma slashState restava vivo, agganciato a
+      // questa lineEl - il prossimo "/" sulla riga veniva letto come "popup
+      // gia' aperto" invece che come nuovo tentativo, trigger apparentemente
+      // rotto).
+      if (cursorOffset <= slashState.slashStart || /\s/.test(query) || filterCommands(query).length === 0) {
         closeSlashMenu();
       } else {
-        setSlashState({ ...slashState, query, anchor: getCaretViewportPosition() });
+        setSlashState({ ...slashState, query, anchor: getCaretViewportPosition(lineEl) });
       }
       return;
     }
@@ -294,7 +314,7 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
     // invece l'unico modo per ottenere lo slash letterale: lo lasciamo inserire
     // normalmente e chiudiamo il popup senza applicare alcun comando.
     if (data === '/' && !(slashState && slashState.lineEl === lineEl)) {
-      setSlashState({ lineEl, slashStart: offset, query: '', anchor: getCaretViewportPosition() });
+      setSlashState({ lineEl, slashStart: offset, query: '', anchor: getCaretViewportPosition(lineEl) });
       setHighlighted(HEADING_COMMANDS[0].value);
       return;
     }
