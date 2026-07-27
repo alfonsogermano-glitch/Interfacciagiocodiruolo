@@ -17,6 +17,13 @@ export interface EntityBaseTab {
   label: string;
 }
 
+/** 'all' (default) = visibile a chiunque possa gia' vedere la sezione
+ *  (Note della Campagna: tutti i membri) - 'private' = solo il creatore
+ *  (owner_profile_id) e il GM, indipendentemente da chi altro e' membro.
+ *  Asse ortogonale a `hidden` (che resta a livello di SEZIONE, Note del
+ *  GM/Campagna): questo e' per-nota, dentro "Note della Campagna". */
+export type NoteVisibility = 'all' | 'private';
+
 export interface EntityCustomTab {
   id: string;
   tab_name: string;
@@ -29,6 +36,25 @@ export interface EntityCustomTab {
    *  almeno una, stesso fallback di savedTabOrder in useEntityTabs. Sempre
    *  null per note che non sono a loro volta contenitori di sotto-tab. */
   tab_order: string[] | null;
+  /** Chi ha creato questa nota - null per righe create prima
+   *  dell'introduzione di questo campo (nessun backfill, vedi
+   *  supabase-add-notes-visibility.sql), sempre valorizzato per le nuove. */
+  owner_profile_id: string | null;
+  visibility: NoteVisibility;
+}
+
+/** Puo' l'utente `currentUserId` modificare/eliminare `note`? GM: sempre.
+ *  Altrimenti: solo se ne e' il creatore. Usata sia da NoteListRow.tsx (menu
+ *  ⋮ per-riga, al posto del vecchio canEdit piatto di sezione) sia da
+ *  NoteSubTabs.tsx (le sotto-tab devono ereditare esattamente lo stesso
+ *  permesso della nota padre - vedi canAccessEntityNotes lato server, ramo
+ *  'note', stessa regola). Nota senza owner_profile_id (pregressa, mai
+ *  backfillata): modificabile solo dal GM, isGm gia' la copre.
+ *  Puramente client-side per la UI (mostrare/nascondere controlli) -
+ *  l'enforcement reale resta sempre lato server. */
+export function canEditNote(note: Pick<EntityCustomTab, 'owner_profile_id'>, currentUserId: string | null | undefined, isGm: boolean): boolean {
+  if (isGm) return true;
+  return !!currentUserId && note.owner_profile_id === currentUserId;
 }
 
 export interface EntityOrderedTab {
@@ -110,7 +136,7 @@ export function useEntityTabs({
       const data = await res.json();
       if (!res.ok) return null;
       return (data.notes ?? [])
-        .map((n: any) => ({ ...n, hidden: n.hidden ?? false, folder_id: n.folder_id ?? null, tab_order: n.tab_order ?? null }))
+        .map((n: any) => ({ ...n, hidden: n.hidden ?? false, folder_id: n.folder_id ?? null, tab_order: n.tab_order ?? null, visibility: n.visibility ?? 'all' }))
         .sort((a: any, b: any) => a.position - b.position);
     } catch (err) {
       console.error('Errore caricamento tab personalizzate:', err);
@@ -171,7 +197,7 @@ export function useEntityTabs({
       return;
     }
 
-    const mapped: EntityCustomTab = { ...row, hidden: row.hidden ?? false, folder_id: row.folder_id ?? null, tab_order: row.tab_order ?? null };
+    const mapped: EntityCustomTab = { ...row, hidden: row.hidden ?? false, folder_id: row.folder_id ?? null, tab_order: row.tab_order ?? null, visibility: row.visibility ?? 'all' };
     setCustomTabs(prev => {
       const exists = prev.some(t => t.id === mapped.id);
       return exists ? prev.map(t => (t.id === mapped.id ? mapped : t)) : [...prev, mapped];
@@ -289,13 +315,13 @@ export function useEntityTabs({
   // tabName/opts opzionali (Note del GM/Campagna, vedi CampaignNotesPanel.tsx):
   // assenti = comportamento invariato per PG/PNG/Mostro, sempre 'Nuova tab'
   // senza hidden/folderId espliciti (default server, vedi index.tsx).
-  const handleAddCustomTab = async (tabName = 'Nuova tab', opts?: { hidden?: boolean; folderId?: string | null }) => {
+  const handleAddCustomTab = async (tabName = 'Nuova tab', opts?: { hidden?: boolean; folderId?: string | null; visibility?: NoteVisibility }) => {
     if (!entityId) return;
     try {
       const res = await fetch(`${SERVER_BASE}/campaigns/${notesCampaignId}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken ?? ''}` },
-        body: JSON.stringify({ entityType, entityId, tabName, hidden: opts?.hidden, folderId: opts?.folderId }),
+        body: JSON.stringify({ entityType, entityId, tabName, hidden: opts?.hidden, folderId: opts?.folderId, visibility: opts?.visibility }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -308,7 +334,7 @@ export function useEntityTabs({
       // nell'array in memoria (mai una vera riga duplicata nel DB da questo
       // meccanismo, ma un conteggio cartelle gonfiato ad ogni "+" cliccato
       // mentre si e' dentro una cartella - bug isolato e verificato 2026-07-26).
-      const mappedNote: EntityCustomTab = { ...data.note, hidden: data.note.hidden ?? false, folder_id: data.note.folder_id ?? null, tab_order: data.note.tab_order ?? null };
+      const mappedNote: EntityCustomTab = { ...data.note, hidden: data.note.hidden ?? false, folder_id: data.note.folder_id ?? null, tab_order: data.note.tab_order ?? null, visibility: data.note.visibility ?? 'all' };
       setCustomTabs(prev => {
         const exists = prev.some(t => t.id === mappedNote.id);
         return exists ? prev.map(t => (t.id === mappedNote.id ? mappedNote : t)) : [...prev, mappedNote];
@@ -360,7 +386,7 @@ export function useEntityTabs({
       recentLocalEditRef.current[putData.note.id] = Date.now();
       // Stesso controllo "esiste gia'" di handleAddCustomTab - stesso rischio
       // di corsa col broadcast realtime tra la POST/PUT e la loro risoluzione.
-      const mappedNote: EntityCustomTab = { ...putData.note, hidden: putData.note.hidden ?? false, folder_id: putData.note.folder_id ?? null, tab_order: putData.note.tab_order ?? null };
+      const mappedNote: EntityCustomTab = { ...putData.note, hidden: putData.note.hidden ?? false, folder_id: putData.note.folder_id ?? null, tab_order: putData.note.tab_order ?? null, visibility: putData.note.visibility ?? 'all' };
       setCustomTabs(prev => {
         const exists = prev.some(t => t.id === mappedNote.id);
         return exists ? prev.map(t => (t.id === mappedNote.id ? mappedNote : t)) : [...prev, mappedNote];
@@ -497,6 +523,31 @@ export function useEntityTabs({
     }
   };
 
+  // Visibilita' PER-NOTA dentro "Note della Campagna" ('all'|'private',
+  // vedi NoteVisibility) - asse ortogonale a hidden sopra (quello resta a
+  // livello di SEZIONE, GM vs Campagna). Stesso schema ottimistico +
+  // rollback di handleToggleHideCustomTab.
+  const handleSetNoteVisibility = async (tabId: string, visibility: NoteVisibility) => {
+    const tab = customTabs.find(t => t.id === tabId);
+    if (!tab) return;
+    const previousVisibility = tab.visibility;
+    recentLocalEditRef.current[tabId] = Date.now();
+    setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, visibility } : t)));
+    try {
+      const res = await fetch(`${SERVER_BASE}/notes/${tabId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken ?? ''}` },
+        body: JSON.stringify({ visibility }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'PUT visibility failed');
+      setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, visibility: data.note.visibility ?? 'all' } : t)));
+    } catch (err) {
+      console.error('Errore cambio visibilita\' nota:', err);
+      setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, visibility: previousVisibility } : t)));
+    }
+  };
+
   // Chiamata SOLO dopo conferma nel ConfirmDialog (niente più window.confirm)
   const handleDeleteCustomTab = async (tabId: string) => {
     recentLocalEditRef.current[tabId] = Date.now();
@@ -578,6 +629,7 @@ export function useEntityTabs({
     handlePersistSubTabOrder,
     handleRenameCustomTab,
     handleToggleHideCustomTab,
+    handleSetNoteVisibility,
     handleDeleteCustomTab,
     handleCustomTabContentChange,
     reloadCustomTabs,

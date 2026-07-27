@@ -57,6 +57,7 @@ export function SessionNotesPanel() {
     sessionKey: user?.id ?? null,
     accessToken: session?.access_token,
     canEdit: isOwner,
+    currentUserId: user?.id,
     scope: 'shared',
     savedTabOrder: activeCampaign?.tabOrderCampaignNotes ?? activeCampaign?.tabOrder,
     onPersistTabOrder: (order) => updateCampaign(activeCampaignId, { tabOrderCampaignNotes: order }),
@@ -74,6 +75,7 @@ export function SessionNotesPanel() {
     sessionKey: user?.id ?? null,
     accessToken: session?.access_token,
     canEdit: isOwner,
+    currentUserId: user?.id,
     scope: 'gm',
     savedTabOrder: activeCampaign?.tabOrderGmNotes,
     onPersistTabOrder: (order) => updateCampaign(activeCampaignId, { tabOrderGmNotes: order }),
@@ -139,7 +141,13 @@ export function SessionNotesPanel() {
   // Pulsanti "nuova nota"/"nuova cartella" nell'header di sezione - stesso
   // slot extraAction gia' usato da PNG/Mostri in SessionCharactersPanel.tsx
   // (li' solo "nuova cartella"; qui in coppia, stessa idea).
-  const renderSectionHeaderAction = (section: UseCampaignNotesSectionResult) => (
+  // "Nuova nota" ora visibile a chiunque veda la sezione Campagna (tutti i
+  // membri possono creare una propria nota, vedi canAccessEntityNotes lato
+  // server) - "Nuova cartella" resta un'azione organizzativa sull'intera
+  // sezione, ancora riservata al GM (showFolderButton), altrimenti il
+  // bottone comparirebbe a un giocatore per poi fallire lato server
+  // (canAccessFolders e' tuttora GM-only, invariato).
+  const renderSectionHeaderAction = (section: UseCampaignNotesSectionResult, showFolderButton: boolean) => (
     <div className="flex items-center gap-1">
       <Tooltip>
         <TooltipTrigger asChild>
@@ -154,22 +162,24 @@ export function SessionNotesPanel() {
         </TooltipTrigger>
         <TooltipContent side="top">Nuova nota</TooltipContent>
       </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            onClick={section.handleCreateFolder}
-            disabled={section.createDisabledReason !== null}
-            aria-label="Nuova cartella"
-            className={`flex shrink-0 items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors ${
-              section.createDisabledReason !== null ? 'cursor-not-allowed opacity-40' : 'hover:text-[var(--dash-text-strong)]'
-            }`}
-          >
-            <FolderPlus className="h-3.5 w-3.5" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="top">{section.createDisabledReason ?? 'Nuova cartella'}</TooltipContent>
-      </Tooltip>
+      {showFolderButton && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={section.handleCreateFolder}
+              disabled={section.createDisabledReason !== null}
+              aria-label="Nuova cartella"
+              className={`flex shrink-0 items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors ${
+                section.createDisabledReason !== null ? 'cursor-not-allowed opacity-40' : 'hover:text-[var(--dash-text-strong)]'
+              }`}
+            >
+              <FolderPlus className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top">{section.createDisabledReason ?? 'Nuova cartella'}</TooltipContent>
+        </Tooltip>
+      )}
     </div>
   );
 
@@ -184,7 +194,7 @@ export function SessionNotesPanel() {
                 count={gmSection.count}
                 isOpen={openSections.gm}
                 onToggle={() => toggleSection('gm')}
-                extraAction={openSections.gm ? renderSectionHeaderAction(gmSection) : undefined}
+                extraAction={openSections.gm ? renderSectionHeaderAction(gmSection, true) : undefined}
               />
               {openSections.gm && <div className="space-y-1 px-2 pb-2">{gmSection.renderSidebar()}</div>}
             </>
@@ -195,7 +205,7 @@ export function SessionNotesPanel() {
             count={sharedSection.count}
             isOpen={openSections.shared}
             onToggle={() => toggleSection('shared')}
-            extraAction={isOwner && openSections.shared ? renderSectionHeaderAction(sharedSection) : undefined}
+            extraAction={openSections.shared ? renderSectionHeaderAction(sharedSection, isOwner) : undefined}
           />
           {openSections.shared && <div className="space-y-1 px-2 pb-2">{sharedSection.renderSidebar()}</div>}
 

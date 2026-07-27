@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Pencil, EyeOff, Eye, Trash2, Copy, FolderInput } from 'lucide-react';
+import { Pencil, EyeOff, Eye, Trash2, Copy, FolderInput, Lock, Globe } from 'lucide-react';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { usePortalContainer } from '../../ui/portal-container';
 import { EntityKebabMenu, type EntityKebabMenuColors } from './EntityKebabMenu';
@@ -12,7 +12,15 @@ interface NoteListRowProps {
    *  handler gia' usati da EntityTabBar.tsx per le pillole, qui applicati a
    *  una riga verticale invece che a una pillola. */
   tabs: UseEntityTabsResult;
+  /** Puo' modificare/eliminare/rendere privata QUESTA nota - gia' calcolato
+   *  per-riga dal chiamante (canEditNote: GM sempre, altrimenti solo il
+   *  creatore), non piu' un canEdit piatto di sezione. */
   canEdit: boolean;
+  /** true solo per il GM della campagna - a differenza di `canEdit` sopra,
+   *  che un giocatore ottiene per le proprie note, "Nascondi" (sposta la
+   *  nota tra sezione Campagna/GM) resta un'azione esclusivamente GM: e'
+   *  uno spostamento tra sezioni, non un'azione sul contenuto proprio. */
+  isGm: boolean;
   /** Cartelle disponibili per "Muovi in cartella..." - vuoto = la voce di
    *  menu resta comunque presente (solo "Nessuna cartella" nel submenu),
    *  stesso comportamento di EntityTabBar.tsx. */
@@ -34,7 +42,7 @@ interface NoteListRowProps {
  * al rect della riga stessa invece che al bottone ⋮ (EntityKebabMenu non
  * espone le coordinate del click ai propri item).
  */
-export function NoteListRow({ note, tabs, canEdit, folders, colors, isSelected, onSelect }: NoteListRowProps) {
+export function NoteListRow({ note, tabs, canEdit, isGm, folders, colors, isSelected, onSelect }: NoteListRowProps) {
   const portalContainer = usePortalContainer();
   const rowRef = useRef<HTMLDivElement | null>(null);
   const [moveMenuOpen, setMoveMenuOpen] = useState(false);
@@ -81,6 +89,11 @@ export function NoteListRow({ note, tabs, canEdit, folders, colors, isSelected, 
           }`}
         >
           {note.hidden && <EyeOff className="mt-0.5 h-3 w-3 shrink-0" />}
+          {/* Icona diversa da EyeOff/Eye (usata sopra per `hidden`, sezione
+              GM/Campagna) apposta - `visibility` e' un asse ortogonale,
+              confonderle con la stessa icona renderebbe ambiguo quale delle
+              due si sta guardando. */}
+          {note.visibility === 'private' && <Lock className="mt-0.5 h-3 w-3 shrink-0" />}
           <span className="whitespace-normal break-words">{note.tab_name}</span>
         </button>
       )}
@@ -98,11 +111,20 @@ export function NoteListRow({ note, tabs, canEdit, folders, colors, isSelected, 
                 onClick: () => { tabs.setRenamingTabId(note.id); tabs.setRenameDraft(note.tab_name); },
               },
               {
+                key: 'visibility',
+                icon: note.visibility === 'private' ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />,
+                label: note.visibility === 'private' ? 'Rendi visibile a tutti' : 'Rendi visibile solo a me e al GM',
+                onClick: () => tabs.handleSetNoteVisibility(note.id, note.visibility === 'private' ? 'all' : 'private'),
+              },
+              // "Nascondi" sposta la nota tra sezione Campagna/GM - resta
+              // un'azione esclusivamente GM anche per un giocatore che
+              // modifica una nota propria (canEdit=true non basta qui).
+              ...(isGm ? [{
                 key: 'hide',
                 icon: note.hidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />,
                 label: note.hidden ? 'Mostra' : 'Nascondi',
                 onClick: () => tabs.handleToggleHideCustomTab(note.id),
-              },
+              }] : []),
               {
                 key: 'duplicate',
                 icon: <Copy className="h-4 w-4" />,

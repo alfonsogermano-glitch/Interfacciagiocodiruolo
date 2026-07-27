@@ -1447,31 +1447,64 @@ async function canAccessFolders(
   return !!membership;
 }
 
+async function isGmOfCampaign(userId: string, campaignId: string | null): Promise<boolean> {
+  if (!campaignId) return false;
+  const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+  return myCampaigns.some((camp) => camp.id === campaignId);
+}
+
+// noteRow: dati della RIGA nota specifica (owner_profile_id/visibility),
+// distinti da entityType/entityId che qui rappresentano il CONTENITORE
+// (es. 'campaign'+campaignId) - servono solo al ramo 'campaign' sotto, per
+// due usi diversi a seconda che siano presenti o no:
+// - mode='write', noteRow assente: creazione di una nuova nota (nessuna
+//   riga esiste ancora) - concessa a chiunque sia membro, non piu' solo GM.
+// - mode='write', noteRow presente: modifica/eliminazione di una nota
+//   ESISTENTE - concessa solo al proprietario (oltre al GM, gia' filtrato
+//   sopra da isGm).
+// - mode='read', noteRow presente: filtro per-riga su visibility='private'
+//   (usato per verificare l'accesso a UNA nota specifica, es. PUT/DELETE
+//   in lettura preliminare) - la lista (GET) filtra invece riga-per-riga
+//   separatamente nell'handler, questa funzione autorizza solo la query
+//   nel suo complesso quando noteRow e' assente.
 async function canAccessEntityNotes(
   admin: any, userId: string, campaignId: string | null, entityType: string, entityId: string,
-  mode: 'read' | 'write' = 'write'
+  mode: 'read' | 'write' = 'write',
+  noteRow?: { owner_profile_id: string | null; visibility: string } | null
 ): Promise<boolean> {
-  const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
-  const isGm = !!campaignId && myCampaigns.some((camp) => camp.id === campaignId);
+  const isGm = await isGmOfCampaign(userId, campaignId);
   if (isGm) return true;
   if (entityType === 'campaign') {
-    if (mode !== 'read') return false;
     const myJoined: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
-    return myJoined.some((pc) => pc.campaignId === campaignId);
+    const isMember = myJoined.some((pc) => pc.campaignId === campaignId);
+    if (!isMember) return false;
+    if (mode === 'read') {
+      if (!noteRow) return true;
+      return noteRow.visibility !== 'private' || noteRow.owner_profile_id === userId;
+    }
+    if (!noteRow) return true;
+    return noteRow.owner_profile_id === userId;
   }
   // Sotto-tab di una nota (entity_id = id della nota padre, vedi
   // supabase-add-note-subtabs.sql): eredita i permessi di chi possiede la
   // nota padre, risalendo di un livello - la profondita' e' fissa a 2
   // (una sotto-tab non e' mai a sua volta padre di altre sotto-tab), quindi
-  // questa risalita si ferma sempre al primo passo.
+  // questa risalita si ferma sempre al primo passo. Passa owner_profile_id/
+  // visibility DELLA NOTA PADRE come noteRow: una sotto-tab non ha una
+  // propria visibility indipendente, eredita sempre quella del contenitore
+  // (creare/modificare una sotto-tab richiede di poter scrivere sulla nota
+  // padre, con le stesse regole di sopra).
   if (entityType === 'note') {
     const { data: parentNote } = await admin
       .from('entity_notes')
-      .select('entity_type, entity_id, campaign_id')
+      .select('entity_type, entity_id, campaign_id, owner_profile_id, visibility')
       .eq('id', entityId)
       .single();
     if (!parentNote) return false;
-    return canAccessEntityNotes(admin, userId, parentNote.campaign_id, parentNote.entity_type, parentNote.entity_id, mode);
+    return canAccessEntityNotes(
+      admin, userId, parentNote.campaign_id, parentNote.entity_type, parentNote.entity_id, mode,
+      { owner_profile_id: parentNote.owner_profile_id, visibility: parentNote.visibility }
+    );
   }
   if (entityType === 'character') {
     const { data: character } = await admin
@@ -1534,7 +1567,26 @@ app.get("/make-server-771c5bfd/campaigns/:campaignId/notes", async (c) => {
     const { data, error } = await query;
 
     if (error) return c.json({ error: "Errore lettura note" }, 500);
-    return c.json({ notes: data ?? [] });
+
+    // canAccessEntityNotes sopra autorizza solo la query nel suo complesso
+    // (nessun noteRow passato) - qui, per la lista di note di campagna, va
+    // ANCHE tolta ogni riga privata non propria: la GET restituiva finora
+    // sempre tutte le righe indipendentemente da chi chiama (il solo filtro
+    // esistente, su `hidden`, vive lato client in useEntityTabs.ts - stesso
+    // gap, non lo ripetiamo qui per la nuova visibilita'). Le sotto-tab
+    // (entityType='note') non hanno bisogno di questo filtro: l'accesso alla
+    // lista stessa e' gia' condizionato dalla visibility della nota padre
+    // (vedi canAccessEntityNotes, ramo 'note'), non serve rifiltrare riga
+    // per riga qui.
+    let notes = data ?? [];
+    if (entityType === 'campaign') {
+      const isGm = await isGmOfCampaign(userId, campaignId);
+      if (!isGm) {
+        notes = notes.filter((n: any) => n.visibility !== 'private' || n.owner_profile_id === userId);
+      }
+    }
+
+    return c.json({ notes });
   } catch (err) {
     console.log("Errore GET notes:", err);
     return c.json({ error: `Errore interno: ${err}` }, 500);
@@ -1549,10 +1601,16 @@ app.post("/make-server-771c5bfd/campaigns/:campaignId/notes", async (c) => {
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
     const campaignId = parseCampaignIdParam(c.req.param("campaignId"));
-    const { entityType, entityId, tabName, hidden, folderId } = await c.req.json();
+    const { entityType, entityId, tabName, hidden, folderId, visibility } = await c.req.json();
     if (!entityType || !entityId || !tabName) return c.json({ error: "Campi obbligatori mancanti" }, 400);
+    if (visibility !== undefined && visibility !== 'all' && visibility !== 'private') {
+      return c.json({ error: "visibility non valida" }, 400);
+    }
 
     const admin = getAdminClient();
+    // Nessun noteRow qui: e' una CREAZIONE, non esiste ancora una riga - per
+    // entityType='campaign' questo concede a qualunque membro (non piu' solo
+    // GM) di creare una propria nota, vedi canAccessEntityNotes.
     const allowed = await canAccessEntityNotes(admin, userId, campaignId, entityType, entityId, 'write');
     if (!allowed) return c.json({ error: "Non hai accesso alle note di questa scheda" }, 403);
 
@@ -1563,16 +1621,21 @@ app.post("/make-server-771c5bfd/campaigns/:campaignId/notes", async (c) => {
       .eq('entity_id', entityId)
       .is('deleted_at', null);
 
-    // hidden/folderId opzionali (Note del GM/Campagna, vedi
-    // supabase-add-notes-folders.sql): assenti = comportamento invariato
-    // (hidden default false lato DB, nessuna cartella). Creare gia' con il
-    // hidden/folderId giusti evita un giro POST+PUT separato per piazzare
-    // subito la nota nella sezione/cartella corretta.
+    // hidden/folderId/visibility opzionali (Note del GM/Campagna, vedi
+    // supabase-add-notes-folders.sql/supabase-add-notes-visibility.sql):
+    // assenti = comportamento invariato (hidden/visibility ai default DB,
+    // nessuna cartella). Creare gia' coi valori giusti evita un giro
+    // POST+PUT separato per piazzare subito la nota nella sezione/cartella/
+    // visibilita' corretta. owner_profile_id sempre chi crea, mai opzionale:
+    // e' il dato stesso che rende possibile "solo il proprietario puo'
+    // modificare" per le note create da un giocatore.
     const insertRow: Record<string, unknown> = {
       campaign_id: campaignId, entity_type: entityType, entity_id: entityId, tab_name: tabName, position: count ?? 0,
+      owner_profile_id: userId,
     };
     if (typeof hidden === 'boolean') insertRow.hidden = hidden;
     if (typeof folderId === 'string' || folderId === null) insertRow.folder_id = folderId;
+    if (visibility === 'all' || visibility === 'private') insertRow.visibility = visibility;
 
     const { data, error } = await admin
       .from('entity_notes')
@@ -1596,7 +1659,10 @@ app.put("/make-server-771c5bfd/notes/:noteId", async (c) => {
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
     const noteId = c.req.param("noteId");
-    const { tabName, content, position, hidden, folderId, tabOrder } = await c.req.json();
+    const { tabName, content, position, hidden, folderId, tabOrder, visibility } = await c.req.json();
+    if (visibility !== undefined && visibility !== 'all' && visibility !== 'private') {
+      return c.json({ error: "visibility non valida" }, 400);
+    }
 
     const admin = getAdminClient();
     const { data: existing, error: fetchError } = await admin
@@ -1606,7 +1672,16 @@ app.put("/make-server-771c5bfd/notes/:noteId", async (c) => {
       .single();
     if (fetchError || !existing) return c.json({ error: "Tab non trovata" }, 404);
 
-    const allowed = await canAccessEntityNotes(admin, userId, existing.campaign_id, existing.entity_type, existing.entity_id, 'write');
+    // noteRow = la riga stessa che si sta modificando: per una nota di
+    // campagna (existing.entity_type='campaign'), concede la scrittura solo
+    // al proprietario (oltre al GM, gia' filtrato da isGm dentro
+    // canAccessEntityNotes) - per una sotto-tab (existing.entity_type='note')
+    // questi due campi vengono ignorati dal ramo 'note', che risale alla nota
+    // padre per conto proprio.
+    const allowed = await canAccessEntityNotes(
+      admin, userId, existing.campaign_id, existing.entity_type, existing.entity_id, 'write',
+      { owner_profile_id: existing.owner_profile_id, visibility: existing.visibility }
+    );
     if (!allowed) return c.json({ error: "Non hai accesso a questa tab" }, 403);
 
     const patch: any = { updated_at: new Date().toISOString() };
@@ -1615,6 +1690,7 @@ app.put("/make-server-771c5bfd/notes/:noteId", async (c) => {
     if (typeof position === 'number') patch.position = position;
     if (typeof hidden === 'boolean') patch.hidden = hidden;
     if (typeof folderId === 'string' || folderId === null) patch.folder_id = folderId;
+    if (visibility === 'all' || visibility === 'private') patch.visibility = visibility;
     // Ordine delle sotto-tab di QUESTA nota (vedi supabase-add-note-subtabs.sql)
     // - array di id, stesso schema di tabOrderCampaignNotes/tabOrderGmNotes
     // ma persistito qui perche' la nota stessa e' il proprietario naturale
@@ -1672,7 +1748,12 @@ app.delete("/make-server-771c5bfd/notes/:noteId", async (c) => {
       .single();
     if (fetchError || !existing) return c.json({ error: "Tab non trovata" }, 404);
 
-    const allowed = await canAccessEntityNotes(admin, userId, existing.campaign_id, existing.entity_type, existing.entity_id, 'write');
+    // noteRow: stessa ragione del PUT sopra - concede l'eliminazione al
+    // proprietario oltre che al GM per una nota di campagna.
+    const allowed = await canAccessEntityNotes(
+      admin, userId, existing.campaign_id, existing.entity_type, existing.entity_id, 'write',
+      { owner_profile_id: existing.owner_profile_id, visibility: existing.visibility }
+    );
     if (!allowed) return c.json({ error: "Non hai accesso a questa tab" }, 403);
 
     // Note di Campagna/GM (entity_type='campaign') e le loro sotto-tab

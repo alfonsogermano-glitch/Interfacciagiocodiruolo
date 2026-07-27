@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useEntityTabs } from './useEntityTabs';
+import { useEntityTabs, canEditNote } from './useEntityTabs';
 import { NoteSubTabs } from './NoteSubTabs';
 import { NoteListRow } from './NoteListRow';
 import { useFolderSection } from '../../shared/useFolderSection';
@@ -21,7 +21,16 @@ export interface UseCampaignNotesSectionParams {
    *  ragione: session?.user?.id, mai l'intero oggetto sessione. */
   sessionKey: string | null;
   accessToken: string | null | undefined;
+  /** true = GM di questa campagna - da non confondere col "posso modificare
+   *  QUESTA nota" per-riga (vedi canEditNote in useEntityTabs.ts): il GM
+   *  puo' sempre tutto, un giocatore solo le note che ha creato lui stesso.
+   *  Questo flag pilota ancora azioni a livello di intera SEZIONE (cartelle,
+   *  spostamento tra GM/Campagna) che restano riservate al GM. */
   canEdit: boolean;
+  /** Id dell'utente corrente - serve a calcolare canEditNote per-riga
+   *  (nota per nota, non piu' un canEdit piatto di sezione), dato che dentro
+   *  "Note della Campagna" ogni nota puo' avere un proprietario diverso. */
+  currentUserId: string | null | undefined;
   /** 'gm' = Note del GM (entity_notes con hidden=true, mai lette da chi non
    *  e' GM - vedi canAccessEntityNotes lato server). 'shared' = Note della
    *  Campagna (hidden=false, lette da tutti i membri). Stessa tabella
@@ -71,6 +80,7 @@ export function useCampaignNotesSection({
   sessionKey,
   accessToken,
   canEdit,
+  currentUserId,
   scope,
   savedTabOrder,
   onPersistTabOrder,
@@ -124,7 +134,8 @@ export function useCampaignNotesSection({
       <NoteListRow
         note={note}
         tabs={tabs}
-        canEdit={canEdit}
+        canEdit={canEditNote(note, currentUserId, canEdit)}
+        isGm={canEdit}
         folders={section.folders.map(f => ({ id: f.id, name: f.name }))}
         colors={menuColors}
         isSelected={tabs.currentTab === note.id}
@@ -200,7 +211,7 @@ export function useCampaignNotesSection({
         note={selectedTab}
         campaignId={campaignId}
         accessToken={accessToken}
-        canEdit={canEdit}
+        canEdit={canEditNote(selectedTab, currentUserId, canEdit)}
         onPersistSubTabOrder={(order) => tabs.handlePersistSubTabOrder(selectedTab.id, order)}
       />
     );
