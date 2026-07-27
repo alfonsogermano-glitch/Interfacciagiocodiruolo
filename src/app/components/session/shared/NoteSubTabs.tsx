@@ -73,7 +73,7 @@ export function NoteSubTabs({ note, campaignId, accessToken, canEdit, onPersistS
   }
 
   return (
-    <div>
+    <>
       <EntityTabBar
         canEdit={canEdit}
         tabs={nestedTabs}
@@ -90,6 +90,6 @@ export function NoteSubTabs({ note, campaignId, accessToken, canEdit, onPersistS
           placeholder="Scrivi qui..."
         />
       ) : null}
-    </div>
+    </>
   );
 }

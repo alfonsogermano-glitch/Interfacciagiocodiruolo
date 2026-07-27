@@ -211,3 +211,13 @@
 .tiptap-content p {
   margin: 0 0 0.25rem 0;
 }
+
+/* Il div contenteditable di ProseMirror (.tiptap-content) riceve dal
+   browser il proprio outline nativo da focus - nessuna regola qui lo
+   sopprimeva, quindi durante la modifica appariva un secondo riquadro
+   (l'outline nativo del contenteditable) annidato dentro il bordo gia'
+   disegnato dal contenitore di RichTextEditor.tsx, dando l'impressione di
+   due box sovrapposti invece di uno solo attorno a barra+editor. */
+.tiptap-content {
+  outline: none;
+}
