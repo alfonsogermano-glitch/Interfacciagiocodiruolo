@@ -282,8 +282,12 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
     syncActiveLine();
   };
 
-  const handleCompositionStart = () => { isComposingRef.current = true; };
-  const handleCompositionEnd = () => {
+  const handleCompositionStart = (e: React.CompositionEvent<HTMLDivElement>) => {
+    console.log('[SCE-DEBUG] compositionstart', { data: JSON.stringify(e.data) });
+    isComposingRef.current = true;
+  };
+  const handleCompositionEnd = (e: React.CompositionEvent<HTMLDivElement>) => {
+    console.log('[SCE-DEBUG] compositionend', { data: JSON.stringify(e.data) });
     isComposingRef.current = false;
     emitChange();
     syncActiveLine();
@@ -305,19 +309,39 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
   // handleKeyDown/handlePaste, o lasciati al comportamento nativo per il
   // Backspace non a inizio riga).
   const handleBeforeInput = (e: React.FormEvent<HTMLDivElement>) => {
-    if (isComposingRef.current) return;
     const nativeEvent = e.nativeEvent as InputEvent;
+    // Log INCONDIZIONATO, prima di qualunque return - il log precedente era
+    // dopo tutti i guard (isComposingRef, data non stringa/vuota, lineEl/sel
+    // mancanti), quindi un return anticipato su uno di questi lo saltava del
+    // tutto e non si vedeva mai in console.
+    console.log('[SCE-DEBUG] handleBeforeInput RAW', {
+      isComposingRef: isComposingRef.current,
+      inputType: nativeEvent.inputType,
+      data: JSON.stringify(nativeEvent.data),
+      dataTransfer: !!nativeEvent.dataTransfer,
+      isComposingEvent: (nativeEvent as any).isComposing,
+    });
+    if (isComposingRef.current) {
+      console.log('[SCE-DEBUG] handleBeforeInput BLOCCATO da isComposingRef');
+      return;
+    }
     // inputType su beforeinput per contentEditable non e' affidabile in
     // tutti i browser/percorsi di inserimento (risultava undefined in
     // produzione anche per una digitazione normale) - e.data invece e'
     // sempre presente e corretto per un inserimento di testo semplice
     // (la stringa effettivamente digitata): usiamo quello.
     const data = nativeEvent.data;
-    if (typeof data !== 'string' || data.length === 0) return;
+    if (typeof data !== 'string' || data.length === 0) {
+      console.log('[SCE-DEBUG] handleBeforeInput BLOCCATO da data non stringa/vuota', { data: JSON.stringify(data) });
+      return;
+    }
 
     const lineEl = getActiveLineElement();
     const sel = window.getSelection();
-    if (!lineEl || !sel || sel.rangeCount === 0) return;
+    if (!lineEl || !sel || sel.rangeCount === 0) {
+      console.log('[SCE-DEBUG] handleBeforeInput BLOCCATO da lineEl/sel mancanti', { hasLineEl: !!lineEl, hasSel: !!sel, rangeCount: sel?.rangeCount });
+      return;
+    }
 
     e.preventDefault();
     const range = sel.getRangeAt(0);
@@ -395,6 +419,7 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    console.log('[SCE-DEBUG] keydown', { key: e.key, code: e.code, isComposingRef: isComposingRef.current, nativeIsComposing: e.nativeEvent.isComposing });
     if (isComposingRef.current) return;
 
     if (slashState) {
