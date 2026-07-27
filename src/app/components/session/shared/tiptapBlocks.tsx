@@ -1,5 +1,6 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
+import { Selection } from '@tiptap/pm/state';
 import { ChevronRight } from 'lucide-react';
 
 declare module '@tiptap/core' {
@@ -9,7 +10,7 @@ declare module '@tiptap/core' {
       setTextBox: () => ReturnType;
     };
     collapseBlock: {
-      /** Inserisce un blocco Collapse (sommario + corpo comprimibile) al cursore, aperto di default. */
+      /** Inserisce un blocco Collapse (sommario + corpo comprimibile) al cursore, chiuso di default. */
       setCollapseBlock: () => ReturnType;
     };
   }
@@ -54,6 +55,51 @@ const CollapseSummary = Node.create({
   },
   renderHTML({ HTMLAttributes }) {
     return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'collapse-summary', class: 'tiptap-collapse-summary' }), 0];
+  },
+  // Invio nel sommario: apre il blocco genitore E sposta il cursore
+  // nell'inizio del corpo, invece del normale "vai a capo" - flusso naturale
+  // "scrivo il titolo, premo Invio, si apre e continuo a scrivere sotto"
+  // richiesto dal piano. Guardia sul tipo del nodo genitore della selezione:
+  // le scorciatoie da tastiera di un'estensione si applicano sempre a
+  // livello globale dell'editor, quindi senza questo controllo Invio
+  // scatterebbe (sbagliato) anche fuori da un sommario - restituendo false
+  // si lascia il comportamento di default (a capo normale) in ogni altro
+  // punto del documento.
+  addKeyboardShortcuts() {
+    return {
+      Enter: () => {
+        const { editor } = this;
+        const { $from } = editor.state.selection;
+        if ($from.parent.type.name !== this.name) return false;
+
+        const blockDepth = $from.depth - 1;
+        if (blockDepth < 0) return false;
+        const blockNode = $from.node(blockDepth);
+        if (!blockNode || blockNode.type.name !== 'collapseBlock') return false;
+
+        const summaryNode = blockNode.firstChild;
+        if (!summaryNode) return false;
+
+        const blockPos = $from.before(blockDepth);
+        // Posizione subito dopo la chiusura del sommario = inizio del corpo
+        // (il secondo figlio, vedi content 'collapseSummary collapseBody').
+        const bodyBoundaryPos = blockPos + 1 + summaryNode.nodeSize;
+
+        return editor
+          .chain()
+          .command(({ tr }) => {
+            tr.setNodeMarkup(blockPos, undefined, { ...blockNode.attrs, open: true });
+            // Selection.near invece di +1/+2 manuali: trova da solo la prima
+            // posizione valida dentro il corpo (dentro il suo primo figlio,
+            // es. un paragrafo), a prescindere da quanti livelli servano.
+            const resolved = tr.doc.resolve(bodyBoundaryPos);
+            tr.setSelection(Selection.near(resolved, 1));
+            return true;
+          })
+          .scrollIntoView()
+          .run();
+      },
+    };
   },
 });
 
@@ -110,10 +156,14 @@ export const CollapseBlock = Node.create({
   isolating: true,
   addAttributes() {
     return {
+      // Chiuso di default: si vede solo la riga del sommario finche' l'utente
+      // non lo espande (freccina, o Invio nel sommario - vedi
+      // CollapseSummary sopra) - partire aperto confondeva titolo (sempre
+      // visibile) e corpo (comunque da scrivere dopo).
       open: {
-        default: true,
-        parseHTML: (element) => element.getAttribute('data-open') !== 'false',
-        renderHTML: (attributes) => ({ 'data-open': attributes.open !== false }),
+        default: false,
+        parseHTML: (element) => element.getAttribute('data-open') === 'true',
+        renderHTML: (attributes) => ({ 'data-open': attributes.open === true }),
       },
     };
   },
@@ -133,7 +183,7 @@ export const CollapseBlock = Node.create({
         ({ commands }) =>
           commands.insertContent({
             type: this.name,
-            attrs: { open: true },
+            attrs: { open: false },
             content: [
               { type: 'collapseSummary', content: [] },
               { type: 'collapseBody', content: [{ type: 'paragraph' }] },

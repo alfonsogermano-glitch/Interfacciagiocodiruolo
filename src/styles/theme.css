@@ -260,6 +260,16 @@
 }
 .tiptap-collapse-body {
   margin-top: 0.25rem;
+  /* Il corpo e il sommario sono resi entrambi dentro .tiptap-collapse-content
+     (stesso contentDOM, vedi tiptapBlocks.tsx) - senza questo margine
+     negativo partirebbero allo stesso bordo sinistro del titolo. Il corpo
+     deve invece iniziare sotto la freccina, non sotto il testo del titolo:
+     -1.25rem = -(0.875rem larghezza freccina + 0.375rem gap) riporta il
+     bordo sinistro del corpo esattamente al bordo interno del riquadro
+     (dove inizia la freccina) senza toccare il bordo destro (margin-right
+     resta 0, quindi la larghezza si allarga solo verso sinistra).
+  */
+  margin-left: -1.25rem;
 }
 .tiptap-collapse[data-open='false'] .tiptap-collapse-body {
   display: none;
