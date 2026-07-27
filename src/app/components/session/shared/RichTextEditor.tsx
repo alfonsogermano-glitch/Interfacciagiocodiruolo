@@ -85,13 +85,17 @@ function ToolbarButton({ active, disabled, onClick, label, children }: {
   );
 }
 
-// Barra di formattazione standard (Fase 0: nessuna estensione RPG) - stesso
-// principio della barra H1-H4 gia' costruita per l'editor precedente:
-// onMouseDown con preventDefault sull'intero contenitore per non far perdere
-// la selezione nell'editor al click di un bottone (qui serve ancora di piu'
-// che con una <textarea>: senza, TipTap perderebbe il focus/la selezione
-// PRIMA che il comando venga eseguito sul punto giusto del documento).
-function Toolbar({ editor }: { editor: Editor }) {
+// Barra di formattazione standard (Fase 0: nessuna estensione RPG) - griglia
+// 2 colonne x 4 righe, verticale a sinistra del testo, sempre visibile (non
+// solo durante la modifica): una singola colonna di 8 pulsanti avrebbe
+// richiesto ~280px di altezza, piu' del contenitore fisso h-64 usato da
+// EntityDetailView.tsx (vedi piano approvato) - la griglia 2x4 dimezza
+// l'ingombro verticale. onMouseDown con preventDefault sull'intero
+// contenitore per non far perdere la selezione nell'editor al click di un
+// bottone (qui serve ancora di piu' che con una <textarea>: senza, TipTap
+// perderebbe il focus/la selezione PRIMA che il comando venga eseguito sul
+// punto giusto del documento).
+function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
   // Aggiornamento esplicito, non delegato al ri-render automatico di
   // useEditor sulle transazioni: confermato che quel meccanismo (interno a
   // TipTap, via useEditorState/useSyncExternalStore) non ri-renderizza la
@@ -111,29 +115,29 @@ function Toolbar({ editor }: { editor: Editor }) {
   const boldActive = editor.isActive('bold');
 
   return (
-    <div onMouseDown={(e) => e.preventDefault()} className="mb-1.5 flex flex-wrap items-center gap-1">
-      <ToolbarButton label="Grassetto" active={boldActive} onClick={() => runCommand(() => editor.chain().focus().toggleBold().run())}>
+    <div onMouseDown={(e) => e.preventDefault()} className="grid shrink-0 grid-cols-2 gap-1">
+      <ToolbarButton disabled={!editable} label="Grassetto" active={boldActive} onClick={() => runCommand(() => editor.chain().focus().toggleBold().run())}>
         <Bold className="h-4 w-4" />
       </ToolbarButton>
-      <ToolbarButton label="Corsivo" active={editor.isActive('italic')} onClick={() => runCommand(() => editor.chain().focus().toggleItalic().run())}>
+      <ToolbarButton disabled={!editable} label="Corsivo" active={editor.isActive('italic')} onClick={() => runCommand(() => editor.chain().focus().toggleItalic().run())}>
         <Italic className="h-4 w-4" />
       </ToolbarButton>
-      <ToolbarButton label="Titolo 1" active={editor.isActive('heading', { level: 1 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 1 }).run())}>
+      <ToolbarButton disabled={!editable} label="Titolo 1" active={editor.isActive('heading', { level: 1 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 1 }).run())}>
         <Heading1 className="h-4 w-4" />
       </ToolbarButton>
-      <ToolbarButton label="Titolo 2" active={editor.isActive('heading', { level: 2 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 2 }).run())}>
+      <ToolbarButton disabled={!editable} label="Titolo 2" active={editor.isActive('heading', { level: 2 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 2 }).run())}>
         <Heading2 className="h-4 w-4" />
       </ToolbarButton>
-      <ToolbarButton label="Titolo 3" active={editor.isActive('heading', { level: 3 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 3 }).run())}>
+      <ToolbarButton disabled={!editable} label="Titolo 3" active={editor.isActive('heading', { level: 3 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 3 }).run())}>
         <Heading3 className="h-4 w-4" />
       </ToolbarButton>
-      <ToolbarButton label="Titolo 4" active={editor.isActive('heading', { level: 4 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 4 }).run())}>
+      <ToolbarButton disabled={!editable} label="Titolo 4" active={editor.isActive('heading', { level: 4 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 4 }).run())}>
         <Heading4 className="h-4 w-4" />
       </ToolbarButton>
-      <ToolbarButton label="Elenco puntato" active={editor.isActive('bulletList')} onClick={() => runCommand(() => editor.chain().focus().toggleBulletList().run())}>
+      <ToolbarButton disabled={!editable} label="Elenco puntato" active={editor.isActive('bulletList')} onClick={() => runCommand(() => editor.chain().focus().toggleBulletList().run())}>
         <List className="h-4 w-4" />
       </ToolbarButton>
-      <ToolbarButton label="Elenco numerato" active={editor.isActive('orderedList')} onClick={() => runCommand(() => editor.chain().focus().toggleOrderedList().run())}>
+      <ToolbarButton disabled={!editable} label="Elenco numerato" active={editor.isActive('orderedList')} onClick={() => runCommand(() => editor.chain().focus().toggleOrderedList().run())}>
         <ListOrdered className="h-4 w-4" />
       </ToolbarButton>
     </div>
@@ -146,9 +150,17 @@ function Toolbar({ editor }: { editor: Editor }) {
 // di RichTextEditor) perche' useEditor va chiamato in modo incondizionato
 // per le regole degli Hook - isolarlo qui evita di doverlo montare/smontare
 // insieme al ramo "legacy in sola lettura" dove non serve affatto.
-function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEditor }: {
+function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEditor, onClickText, containerClassName }: {
   richContent: JSONContent; onChangeRich: (json: JSONContent) => void; editable: boolean; autoFocus: boolean;
   onBlurEditor?: () => void;
+  /** Click sulla colonna di testo per entrare in modifica (sola lettura) -
+   *  assente/non invocato mentre editable e' gia' true, per non interferire
+   *  col normale posizionamento del cursore durante la scrittura. */
+  onClickText?: () => void;
+  /** Applicata SOLO alla colonna di testo, non alla riga toolbar+testo -
+   *  vedi piano approvato: il riquadro che avvolgeva toolbar+editor insieme
+   *  e' stato rimosso, ne resta uno solo attorno al solo testo. */
+  containerClassName: string;
 }) {
   // Ultimo documento emesso NOI STESSI - stessa distinzione eco/esterno gia'
   // vista nell'editor precedente (lastEmittedRef): senza, un aggiornamento
@@ -172,7 +184,6 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     extensions: [StarterKit],
     content: initialContent,
     editable,
-    autofocus: autoFocus,
     // .tiptap-content: vedi theme.css - ripristina list-style/padding per
     // ul/ol dentro il documento (il preflight di Tailwind li toglie
     // globalmente altrove nell'app).
@@ -200,6 +211,18 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     editor.setEditable(editable);
   }, [editor, editable]);
 
+  // Il focus non puo' piu' passare dall'opzione autofocus di useEditor
+  // (letta solo alla creazione dell'istanza): la toolbar sempre visibile
+  // significa che la STESSA istanza resta montata sia in sola lettura sia
+  // in modifica (prima venivano smontata/rimontata ad ogni cambio
+  // modalita'), quindi il focus va dato qui in modo imperativo ogni volta
+  // che si entra davvero in modifica.
+  useEffect(() => {
+    if (!editor) return;
+    if (editable && autoFocus) editor.commands.focus('end');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editable, autoFocus]);
+
   useEffect(() => {
     if (!editor) return;
     const isEcho = richContent === lastEmittedRef.current;
@@ -224,10 +247,15 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
   if (!editor) return null;
 
   return (
-    <>
-      {editable && <Toolbar editor={editor} />}
-      <EditorContent editor={editor} />
-    </>
+    <div className="flex items-start gap-2">
+      <Toolbar editor={editor} editable={editable} />
+      <div
+        onClick={!editable ? onClickText : undefined}
+        className={`min-w-0 flex-1 ${!editable && onClickText ? 'cursor-text' : ''} ${containerClassName}`}
+      >
+        <EditorContent editor={editor} />
+      </div>
+    </div>
   );
 }
 
@@ -257,14 +285,36 @@ export function RichTextEditor({ legacyContent, richContent, onChangeRich, disab
   // contenitore stabile, solo il contenuto grezzo di ProseMirror.
   const containerClassName = className ?? DEFAULT_CONTAINER_CLASS;
 
+  // Documento TipTap gia' esistente (nota gia' scritta col nuovo editor):
+  // toolbar sempre visibile (disabilitata quando non si sta modificando o
+  // !canEdit, mai nascosta - vedi Toolbar/ToolbarButton), un'unica istanza
+  // condivisa fra sola lettura e modifica invece di due TipTapEditor
+  // separati montati/smontati ad ogni cambio modalita' come prima - editable
+  // stesso a decidere se il testo e' scrivibile.
+  if (richContent !== null) {
+    return (
+      <TipTapEditor
+        richContent={richContent}
+        onChangeRich={onChangeRich}
+        editable={!disabled && isEditing}
+        autoFocus={isEditing}
+        onBlurEditor={() => setIsEditing(false)}
+        onClickText={!disabled ? () => setIsEditing(true) : undefined}
+        containerClassName={containerClassName}
+      />
+    );
+  }
+
+  // Nessun documento TipTap ancora (nota nuova mai scritta, o nota legacy
+  // non ancora promossa): nessuna toolbar da mostrare - non esiste un
+  // editor reale a cui agganciarla (vedi piano approvato: costruirne una
+  // finta per un editor inesistente non avrebbe beneficio concreto).
   const viewBlock = (
     <div
       onClick={() => { if (!disabled) setIsEditing(true); }}
       className={`${!disabled ? 'cursor-text' : ''} ${containerClassName}`}
     >
-      {richContent !== null ? (
-        <TipTapEditor richContent={richContent} onChangeRich={onChangeRich} editable={false} autoFocus={false} />
-      ) : legacyContent ? (
+      {legacyContent ? (
         <MarkdownContent content={legacyContent} />
       ) : (
         <span className="text-sm text-[var(--dash-muted)]">{placeholder ?? 'Scrivi qui...'}</span>
@@ -292,15 +342,18 @@ export function RichTextEditor({ legacyContent, richContent, onChangeRich, disab
     );
   }
 
+  // Nota nuova, prima scrittura: nessun content_rich ancora - il documento
+  // vuoto e' creato solo ora, al primo ingresso in modifica (non prima, per
+  // non montare un editor/toolbar per un documento che potrebbe non
+  // esistere mai se l'utente esce senza scrivere nulla).
   return (
-    <div className={containerClassName}>
-      <TipTapEditor
-        richContent={richContent ?? { type: 'doc', content: [{ type: 'paragraph' }] }}
-        onChangeRich={onChangeRich}
-        editable
-        autoFocus
-        onBlurEditor={() => setIsEditing(false)}
-      />
-    </div>
+    <TipTapEditor
+      richContent={{ type: 'doc', content: [{ type: 'paragraph' }] }}
+      onChangeRich={onChangeRich}
+      editable
+      autoFocus
+      onBlurEditor={() => setIsEditing(false)}
+      containerClassName={containerClassName}
+    />
   );
 }
