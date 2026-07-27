@@ -20,17 +20,38 @@ declare module '@tiptap/core' {
 // (paragrafi, titoli, liste) - a differenza del Collapse sotto, non serve
 // nessuna interattivita' ne' NodeView React: puro renderHTML statico, stesso
 // identico rendering in sola lettura e in modifica (solo non modificabile).
+// selectable+draggable: opzioni native di ProseMirror, verificate nel
+// sorgente (prosemirror-view imposta da solo dom.draggable sulla node view
+// di default quando non c'e' una NodeView custom, e gestisce da solo click-
+// to-select/Backspace-elimina-nodo) - non serve nessun codice nostro per
+// selezione/eliminazione. Il drag vero pero' richiede un elemento
+// data-drag-handle dedicato (verificato in stopEvent/onDragStart di
+// @tiptap/core: un trascinamento che parte da un punto qualsiasi FUORI da
+// quell'elemento viene bloccato con preventDefault) - senza, il testo dentro
+// il box perderebbe la normale selezione-per-trascinamento del mouse.
 export const TextBox = Node.create({
   name: 'textBox',
   group: 'block',
   content: 'block+',
   defining: true,
+  selectable: true,
+  draggable: true,
 
+  // contentElement: senza, un copia-incolla interno (che ri-analizza l'HTML
+  // gia' reso) tratterebbe l'elemento maniglia come se fosse contenuto reale
+  // del nodo (i figli diretti dell'elemento cercato sono, per default, cio'
+  // che viene interpretato come content) - punta invece esplicitamente al
+  // div che contiene davvero i blocchi (paragrafi/titoli/liste).
   parseHTML() {
-    return [{ tag: 'div[data-type="text-box"]' }];
+    return [{ tag: 'div[data-type="text-box"]', contentElement: '.tiptap-textbox-content' }];
   },
   renderHTML({ HTMLAttributes }) {
-    return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'text-box', class: 'tiptap-textbox' }), 0];
+    return [
+      'div',
+      mergeAttributes(HTMLAttributes, { 'data-type': 'text-box', class: 'tiptap-textbox' }),
+      ['div', { 'data-drag-handle': '', contenteditable: 'false', class: 'tiptap-block-handle', 'aria-hidden': 'true' }, '⠿'],
+      ['div', { class: 'tiptap-textbox-content' }, 0],
+    ];
   },
   addCommands() {
     return {
@@ -131,12 +152,31 @@ const CollapseBody = Node.create({
 // per chi non ha i permessi - vedi handleCustomTabRichContentChange).
 function CollapseBlockView({ node, updateAttributes }: NodeViewProps) {
   const open = node.attrs.open !== false;
+  // draggable qui esplicito: a differenza della node view di default di
+  // ProseMirror (che imposta da sola dom.draggable in base allo schema,
+  // verificato nel sorgente), ReactNodeViewRenderer NON lo fa da solo -
+  // l'attributo nativo va messo a mano sull'elemento radice reso da noi.
   return (
-    <NodeViewWrapper className="tiptap-collapse" data-open={open}>
+    <NodeViewWrapper className="tiptap-collapse" data-open={open} draggable={true}>
+      {/* data-drag-handle: fuori dal contentDOM come il pulsante freccina,
+          stesso principio - vedi il commento su TextBox sopra per il
+          meccanismo completo (verificato nel sorgente di @tiptap/core). */}
+      <div data-drag-handle contentEditable={false} className="tiptap-block-handle" aria-hidden="true">
+        ⠿
+      </div>
       <button
         type="button"
         contentEditable={false}
-        onClick={() => updateAttributes({ open: !open })}
+        onClick={(e) => {
+          // Il pulsante vive fuori dal contentDOM (come la maniglia sopra):
+          // senza stopPropagation, il click bolla fino al click-handling
+          // nativo di ProseMirror per i nodi selectable, selezionando
+          // l'intero blocco OLTRE ad aprirlo/chiuderlo - innocuo (il toggle
+          // funziona comunque) ma visivamente confuso (l'evidenziazione da
+          // selezione lampeggia ad ogni click sulla freccina).
+          e.stopPropagation();
+          updateAttributes({ open: !open });
+        }}
         aria-expanded={open}
         aria-label={open ? 'Comprimi' : 'Espandi'}
         className="tiptap-collapse-toggle"
@@ -154,6 +194,8 @@ export const CollapseBlock = Node.create({
   content: 'collapseSummary collapseBody',
   defining: true,
   isolating: true,
+  selectable: true,
+  draggable: true,
   addAttributes() {
     return {
       // Chiuso di default: si vede solo la riga del sommario finche' l'utente
@@ -167,8 +209,12 @@ export const CollapseBlock = Node.create({
       },
     };
   },
+  // contentElement: la maniglia e il pulsante freccina vivono entrambi fuori
+  // dal contentDOM (sibling prima di NodeViewContent) - senza puntare
+  // esplicitamente a .tiptap-collapse-content, un copia-incolla interno li
+  // tratterebbe come se fossero contenuto reale del nodo.
   parseHTML() {
-    return [{ tag: 'div[data-type="collapse-block"]' }];
+    return [{ tag: 'div[data-type="collapse-block"]', contentElement: '.tiptap-collapse-content' }];
   },
   renderHTML({ HTMLAttributes }) {
     return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'collapse-block' }), 0];

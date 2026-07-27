@@ -214,17 +214,72 @@
 
 /* Box di testo (tiptapBlocks.tsx, TextBox) - stessa palette gia' usata per
    l'avviso "Formato precedente" (RichTextEditor.tsx), coerenza visiva col
-   resto dell'app. Identico in sola lettura e in modifica: nessuna
-   interattivita' propria, solo bordo/sfondo statici. */
+   resto dell'app. Riga flex con la maniglia di trascinamento/selezione
+   (.tiptap-block-handle) prima del contenuto vero e proprio, che vive nel
+   proprio div (.tiptap-textbox-content) - separato dal contenitore esterno
+   perche' quest'ultimo ha ora due figli diretti (maniglia + contenuto), non
+   piu' il contenuto stesso. */
 .tiptap-textbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.375rem;
   margin: 0 0 0.5rem 0;
   padding: 0.5rem 0.75rem;
   border-radius: 0.75rem;
   border: 1px solid color-mix(in srgb, var(--dash-accent) 40%, transparent);
   background: color-mix(in srgb, var(--dash-accent) 10%, transparent);
 }
-.tiptap-textbox > *:last-child {
+.tiptap-textbox-content {
+  flex: 1;
+  min-width: 0;
+}
+.tiptap-textbox-content > *:last-child {
   margin-bottom: 0;
+}
+
+/* Maniglia di selezione/trascinamento (TextBox e Collapse) - spazio sempre
+   riservato nella riga flex (nessuno spostamento di layout al passaggio del
+   mouse), ma invisibile finche' non si passa sopra il blocco: niente
+   posizionamento assoluto/margini negativi per farla "sporgere" fuori dal
+   riquadro, che rischierebbe di essere tagliata da un antenato con
+   overflow-y impostato (es. il contenitore di EntityDetailView.tsx, dove
+   impostare SOLO overflow-y rende implicitamente anche overflow-x non piu'
+   "visible" per spec CSS). data-drag-handle e' l'attributo che
+   @tiptap/core cerca per permettere il trascinamento nativo di ProseMirror
+   (verificato nel sorgente: senza, un trascinamento che parte altrove nel
+   nodo viene bloccato con preventDefault). */
+.tiptap-block-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.875rem;
+  flex-shrink: 0;
+  margin-top: 0.125rem;
+  border-radius: 0.25rem;
+  color: var(--dash-muted);
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: grab;
+  opacity: 0;
+  user-select: none;
+  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+.tiptap-block-handle:hover {
+  background: var(--dash-surface-2);
+  color: var(--dash-text-strong);
+}
+.tiptap-textbox:hover .tiptap-block-handle,
+.tiptap-collapse:hover .tiptap-block-handle {
+  opacity: 1;
+}
+
+/* Evidenziazione quando l'intero blocco (TextBox o Collapse) e' selezionato
+   come NodeSelection - classe applicata automaticamente da ProseMirror
+   stesso (prosemirror-view), nessun codice nostro necessario per attivarla/
+   disattivarla. */
+.tiptap-content .ProseMirror-selectednode {
+  outline: 2px solid var(--dash-accent);
+  outline-offset: 2px;
 }
 
 /* Collapse (tiptapBlocks.tsx, CollapseBlock/CollapseBlockView) - il corpo si
