@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
@@ -52,6 +52,15 @@ function docText(doc: JSONContent | null | undefined): string {
 // incompleto.
 function isDocEmpty(doc: JSONContent | null | undefined): boolean {
   return docText(doc).trim() === '';
+}
+
+// Confronto strutturale (non per riferimento) fra due documenti TipTap -
+// vedi il commento nell'effect di sincronizzazione in TipTapEditor sotto,
+// serve a riconoscere un'eco arrivata da rete (oggetto JS diverso, stesso
+// contenuto) come tale, invece di trattarla come un cambiamento esterno
+// reale.
+function docsEqual(a: JSONContent | null | undefined, b: JSONContent | null | undefined): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 // Costante di modulo, non un letterale dentro il componente: useEditor (con
@@ -109,22 +118,23 @@ function ToolbarSection({ label, defaultOpen, children }: { label: string; defau
         <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
         <span className="truncate">{label}</span>
       </button>
-      {open && <div className="mt-1 grid grid-cols-2 gap-1">{children}</div>}
+      {open && <div className="mt-1 flex flex-col gap-1">{children}</div>}
     </div>
   );
 }
 
 // Barra di formattazione standard (Fase 0: nessuna estensione RPG) - una
-// sola sezione oggi ("Formattazione testo", griglia 2x4 con gli 8 pulsanti
-// attuali), verticale a sinistra del testo, sempre visibile (non solo
-// durante la modifica): una singola colonna di 8 pulsanti senza sezioni
-// avrebbe richiesto ~280px di altezza, piu' del contenitore fisso h-64
-// usato da EntityDetailView.tsx (vedi piano approvato) - la griglia 2x4
-// dentro la sezione dimezza l'ingombro verticale. onMouseDown con
-// preventDefault sull'intero contenitore per non far perdere la selezione
-// nell'editor al click di un bottone (qui serve ancora di piu' che con una
-// <textarea>: senza, TipTap perderebbe il focus/la selezione PRIMA che il
-// comando venga eseguito sul punto giusto del documento).
+// sola sezione oggi ("Formattazione testo", colonna singola con gli 8
+// pulsanti attuali, 1 per riga), verticale a sinistra del testo, sempre
+// visibile (non solo durante la modifica). Con la sezione collassabile,
+// l'altezza della colonna singola (~280px da aperta) non e' piu' un
+// vincolo fisso come lo sarebbe stata una barra sempre-visibile non
+// richiudibile - l'utente puo' comprimere "Formattazione testo" quando non
+// serve. onMouseDown con preventDefault sull'intero contenitore per non far
+// perdere la selezione nell'editor al click di un bottone (qui serve ancora
+// di piu' che con una <textarea>: senza, TipTap perderebbe il focus/la
+// selezione PRIMA che il comando venga eseguito sul punto giusto del
+// documento).
 function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
   // Aggiornamento esplicito, non delegato al ri-render automatico di
   // useEditor sulle transazioni: confermato che quel meccanismo (interno a
@@ -145,7 +155,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
   const boldActive = editor.isActive('bold');
 
   return (
-    <div onMouseDown={(e) => e.preventDefault()} className="flex w-[76px] shrink-0 flex-col gap-2">
+    <div onMouseDown={(e) => e.preventDefault()} className="flex w-9 shrink-0 flex-col gap-2">
       <ToolbarSection label="Formattazione testo" defaultOpen>
         <ToolbarButton disabled={!editable} label="Grassetto" active={boldActive} onClick={() => runCommand(() => editor.chain().focus().toggleBold().run())}>
           <Bold className="h-4 w-4" />
@@ -197,14 +207,6 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
    *  e' stato rimosso, ne resta uno solo attorno al solo testo. */
   containerClassName: string;
 }) {
-  // Ultimo documento emesso NOI STESSI - stessa distinzione eco/esterno gia'
-  // vista nell'editor precedente (lastEmittedRef): senza, un aggiornamento
-  // esterno legittimo (cambio nota, realtime da un altro client) non
-  // arriverebbe mai a editor.commands.setContent, ma un giro dello stesso
-  // valore che ritorna come prop dopo il nostro stesso onChangeRich
-  // romperebbe inutilmente cursore/selezione ad ogni tasto.
-  const lastEmittedRef = useRef<JSONContent>(richContent);
-
   // content: SOLO per la creazione iniziale (confermato nel sorgente di
   // @tiptap/core: letto una volta in createDoc(), mai riapplicato da
   // useEditor dopo il mount) - va congelato con useState lazy invece di
@@ -224,9 +226,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // globalmente altrove nell'app).
     editorProps: TIPTAP_EDITOR_PROPS,
     onUpdate: ({ editor }) => {
-      const json = editor.getJSON();
-      lastEmittedRef.current = json;
-      onChangeRich(json);
+      onChangeRich(editor.getJSON());
     },
     // Evento nativo dell'editor invece di un onBlur React sul contenitore:
     // la barra qui sopra ferma gia' il mousedown (preventDefault), quindi
@@ -265,8 +265,20 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
 
   useEffect(() => {
     if (!editor) return;
-    const isEcho = richContent === lastEmittedRef.current;
-    if (isEcho) return;
+
+    // Confronto STRUTTURALE col documento gia' presente nell'editor, non
+    // per riferimento con l'ultimo valore emesso da noi (come prima): un
+    // salvataggio che torna indietro via realtime/refetch e' un oggetto JS
+    // diverso anche a contenuto identico (passato per rete, serializzato/
+    // deserializzato), quindi l'uguaglianza per riferimento smetteva di
+    // riconoscerlo come eco non appena la finestra di soppressione lato
+    // client (~1200ms, recentLocalEditRef in useEntityTabs.ts) scadeva -
+    // richiamava comunque setContent() su un documento identico, e
+    // sostituire l'intero documento (tr.replaceWith(0, doc.content.size,
+    // ...) dentro @tiptap/core) sposta la selezione mappata verso la fine
+    // invece di lasciarla dov'era. Confrontando il CONTENUTO invece del
+    // riferimento, un eco (anche tardivo) non tocca mai piu' l'editor.
+    if (docsEqual(richContent, editor.getJSON())) return;
 
     // Guardia difensiva: un documento esterno vuoto non deve MAI sovrascrivere
     // un documento locale con contenuto reale, qualunque sia la causa a monte
@@ -274,13 +286,16 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // ancora scoperti). Un documento esterno genuinamente vuoto resta un
     // caso legittimo (nota appena creata da un altro client), ma SOLO se
     // anche il documento locale attuale e' vuoto.
-    if (isDocEmpty(richContent) && !isDocEmpty(editor.getJSON())) {
-      lastEmittedRef.current = richContent;
-      return;
-    }
+    if (isDocEmpty(richContent) && !isDocEmpty(editor.getJSON())) return;
 
-    lastEmittedRef.current = richContent;
+    // Documento esterno realmente diverso (un altro client/utente ha
+    // modificato la stessa nota) - preserva la selezione attraverso
+    // setContent(): setTextSelection clampa gia' da solo entro i limiti del
+    // nuovo documento (vedi sorgente @tiptap/core), quindi e' sicuro
+    // riapplicare la stessa posizione anche se il nuovo testo e' piu' corto.
+    const { from, to } = editor.state.selection;
     editor.commands.setContent(richContent, { emitUpdate: false });
+    editor.commands.setTextSelection({ from, to });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [richContent]);
 
