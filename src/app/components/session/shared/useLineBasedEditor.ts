@@ -224,7 +224,7 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
     applyLineClass(lineEl, detectHeadingLevel(lineText));
 
     if (slashState && slashState.lineEl === lineEl) {
-      const query = lineText.slice(slashState.slashStart + 1, cursorOffset);
+      const query = lineText.slice(slashState.slashStart, cursorOffset);
       if (cursorOffset <= slashState.slashStart || /\s/.test(query)) {
         closeSlashMenu();
       } else {
@@ -233,12 +233,10 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
       return;
     }
 
-    if (lineText[cursorOffset - 1] === '/') {
-      setSlashState({ lineEl, slashStart: cursorOffset - 1, query: '', anchor: getCaretViewportPosition() });
-      setHighlighted(HEADING_COMMANDS[0].value);
-    } else if (slashState) {
-      closeSlashMenu();
-    }
+    // L'apertura del popup vive interamente in handleBeforeInput (blocca il
+    // primo "/" prima che finisca nel testo) - qui restano solo l'aggiornamento
+    // della query sopra e la chiusura di uno stato ormai orfano (riga cambiata).
+    if (slashState) closeSlashMenu();
   };
 
   const handleInput = () => {
@@ -287,14 +285,37 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
     e.preventDefault();
     const range = sel.getRangeAt(0);
     const offset = getOffsetWithinLine(lineEl, range.startContainer, range.startOffset);
+
+    // Il trigger "/" del popup comandi non finisce MAI da solo nel testo: il
+    // primo "/" (popup chiuso per questa riga) viene bloccato qui e apre solo
+    // il popup, senza scrivere nulla - cosi' slashStart e' sempre "dove inizia
+    // la query", mai "indice di un carattere / da saltare" (vedi syncActiveLine).
+    // Un secondo "/" digitato mentre il popup e' gia' aperto per QUESTA riga e'
+    // invece l'unico modo per ottenere lo slash letterale: lo lasciamo inserire
+    // normalmente e chiudiamo il popup senza applicare alcun comando.
+    if (data === '/' && !(slashState && slashState.lineEl === lineEl)) {
+      setSlashState({ lineEl, slashStart: offset, query: '', anchor: getCaretViewportPosition() });
+      setHighlighted(HEADING_COMMANDS[0].value);
+      return;
+    }
+
     const text = lineEl.textContent ?? '';
     const newText = text.slice(0, offset) + data + text.slice(offset);
 
     setLineText(lineEl, newText);
     applyLineClass(lineEl, detectHeadingLevel(newText));
     setCaretAtLineOffset(lineEl, offset + data.length);
-
     emitChange();
+
+    if (data === '/') {
+      // Chiusura esplicita invece di syncActiveLine: slashState nella closure
+      // di questa chiamata e' ancora il valore pre-update (setState non e'
+      // sincrono), quindi syncActiveLine vedrebbe lo stato "vecchio" ancora
+      // aperto e riaprirebbe subito il popup sullo slash appena inserito.
+      closeSlashMenu();
+      return;
+    }
+
     syncActiveLine();
   };
 
