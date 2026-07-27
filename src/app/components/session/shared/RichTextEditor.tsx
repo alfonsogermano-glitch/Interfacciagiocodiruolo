@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
-import { Bold, Italic, Heading1, Heading2, Heading3, Heading4, List, ListOrdered } from 'lucide-react';
+import { Bold, Italic, Heading1, Heading2, Heading3, Heading4, List, ListOrdered, ChevronRight } from 'lucide-react';
 import { MarkdownContent } from './MarkdownContent';
 import { parseLines } from './markdownHeadings';
 
@@ -85,16 +85,46 @@ function ToolbarButton({ active, disabled, onClick, label, children }: {
   );
 }
 
-// Barra di formattazione standard (Fase 0: nessuna estensione RPG) - griglia
-// 2 colonne x 4 righe, verticale a sinistra del testo, sempre visibile (non
-// solo durante la modifica): una singola colonna di 8 pulsanti avrebbe
-// richiesto ~280px di altezza, piu' del contenitore fisso h-64 usato da
-// EntityDetailView.tsx (vedi piano approvato) - la griglia 2x4 dimezza
-// l'ingombro verticale. onMouseDown con preventDefault sull'intero
-// contenitore per non far perdere la selezione nell'editor al click di un
-// bottone (qui serve ancora di piu' che con una <textarea>: senza, TipTap
-// perderebbe il focus/la selezione PRIMA che il comando venga eseguito sul
-// punto giusto del documento).
+// Gruppo di pulsanti della toolbar con intestazione cliccabile che
+// espande/collassa il contenuto (stile accordion verticale) - progettato per
+// essere esteso in futuro con altri gruppi (Widget, Oggetti speciali) senza
+// toccare questo componente: basta aggiungere un'altra <ToolbarSection> nel
+// Toolbar sotto. Apertura indipendente per sezione (non "un solo gruppo
+// aperto alla volta"): con piu' sezioni in futuro puo' avere senso tenerne
+// aperte piu' di una mentre si lavora (scelta confermata dall'utente).
+// L'intestazione resta sempre cliccabile anche in sola lettura/!canEdit -
+// espandere/collassare e' solo UI, non modifica nulla; solo i pulsanti di
+// formattazione dentro (ToolbarButton) si disabilitano in quel caso.
+function ToolbarSection({ label, defaultOpen, children }: { label: string; defaultOpen: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        title={label}
+        className="flex w-full items-center gap-0.5 rounded-md px-0.5 py-1 text-left text-[10px] font-medium uppercase tracking-wide text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]"
+      >
+        <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
+        <span className="truncate">{label}</span>
+      </button>
+      {open && <div className="mt-1 grid grid-cols-2 gap-1">{children}</div>}
+    </div>
+  );
+}
+
+// Barra di formattazione standard (Fase 0: nessuna estensione RPG) - una
+// sola sezione oggi ("Formattazione testo", griglia 2x4 con gli 8 pulsanti
+// attuali), verticale a sinistra del testo, sempre visibile (non solo
+// durante la modifica): una singola colonna di 8 pulsanti senza sezioni
+// avrebbe richiesto ~280px di altezza, piu' del contenitore fisso h-64
+// usato da EntityDetailView.tsx (vedi piano approvato) - la griglia 2x4
+// dentro la sezione dimezza l'ingombro verticale. onMouseDown con
+// preventDefault sull'intero contenitore per non far perdere la selezione
+// nell'editor al click di un bottone (qui serve ancora di piu' che con una
+// <textarea>: senza, TipTap perderebbe il focus/la selezione PRIMA che il
+// comando venga eseguito sul punto giusto del documento).
 function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
   // Aggiornamento esplicito, non delegato al ri-render automatico di
   // useEditor sulle transazioni: confermato che quel meccanismo (interno a
@@ -115,31 +145,36 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
   const boldActive = editor.isActive('bold');
 
   return (
-    <div onMouseDown={(e) => e.preventDefault()} className="grid shrink-0 grid-cols-2 gap-1">
-      <ToolbarButton disabled={!editable} label="Grassetto" active={boldActive} onClick={() => runCommand(() => editor.chain().focus().toggleBold().run())}>
-        <Bold className="h-4 w-4" />
-      </ToolbarButton>
-      <ToolbarButton disabled={!editable} label="Corsivo" active={editor.isActive('italic')} onClick={() => runCommand(() => editor.chain().focus().toggleItalic().run())}>
-        <Italic className="h-4 w-4" />
-      </ToolbarButton>
-      <ToolbarButton disabled={!editable} label="Titolo 1" active={editor.isActive('heading', { level: 1 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 1 }).run())}>
-        <Heading1 className="h-4 w-4" />
-      </ToolbarButton>
-      <ToolbarButton disabled={!editable} label="Titolo 2" active={editor.isActive('heading', { level: 2 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 2 }).run())}>
-        <Heading2 className="h-4 w-4" />
-      </ToolbarButton>
-      <ToolbarButton disabled={!editable} label="Titolo 3" active={editor.isActive('heading', { level: 3 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 3 }).run())}>
-        <Heading3 className="h-4 w-4" />
-      </ToolbarButton>
-      <ToolbarButton disabled={!editable} label="Titolo 4" active={editor.isActive('heading', { level: 4 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 4 }).run())}>
-        <Heading4 className="h-4 w-4" />
-      </ToolbarButton>
-      <ToolbarButton disabled={!editable} label="Elenco puntato" active={editor.isActive('bulletList')} onClick={() => runCommand(() => editor.chain().focus().toggleBulletList().run())}>
-        <List className="h-4 w-4" />
-      </ToolbarButton>
-      <ToolbarButton disabled={!editable} label="Elenco numerato" active={editor.isActive('orderedList')} onClick={() => runCommand(() => editor.chain().focus().toggleOrderedList().run())}>
-        <ListOrdered className="h-4 w-4" />
-      </ToolbarButton>
+    <div onMouseDown={(e) => e.preventDefault()} className="flex w-[76px] shrink-0 flex-col gap-2">
+      <ToolbarSection label="Formattazione testo" defaultOpen>
+        <ToolbarButton disabled={!editable} label="Grassetto" active={boldActive} onClick={() => runCommand(() => editor.chain().focus().toggleBold().run())}>
+          <Bold className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton disabled={!editable} label="Corsivo" active={editor.isActive('italic')} onClick={() => runCommand(() => editor.chain().focus().toggleItalic().run())}>
+          <Italic className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton disabled={!editable} label="Titolo 1" active={editor.isActive('heading', { level: 1 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 1 }).run())}>
+          <Heading1 className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton disabled={!editable} label="Titolo 2" active={editor.isActive('heading', { level: 2 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 2 }).run())}>
+          <Heading2 className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton disabled={!editable} label="Titolo 3" active={editor.isActive('heading', { level: 3 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 3 }).run())}>
+          <Heading3 className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton disabled={!editable} label="Titolo 4" active={editor.isActive('heading', { level: 4 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 4 }).run())}>
+          <Heading4 className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton disabled={!editable} label="Elenco puntato" active={editor.isActive('bulletList')} onClick={() => runCommand(() => editor.chain().focus().toggleBulletList().run())}>
+          <List className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton disabled={!editable} label="Elenco numerato" active={editor.isActive('orderedList')} onClick={() => runCommand(() => editor.chain().focus().toggleOrderedList().run())}>
+          <ListOrdered className="h-4 w-4" />
+        </ToolbarButton>
+      </ToolbarSection>
+      {/* Sezioni future (Widget, Oggetti speciali): aggiungere qui altre
+          <ToolbarSection label="..." defaultOpen={false}>...</ToolbarSection>,
+          nessuna modifica a ToolbarSection/ToolbarButton necessaria. */}
     </div>
   );
 }
@@ -216,10 +251,15 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
   // significa che la STESSA istanza resta montata sia in sola lettura sia
   // in modifica (prima venivano smontata/rimontata ad ogni cambio
   // modalita'), quindi il focus va dato qui in modo imperativo ogni volta
-  // che si entra davvero in modifica.
+  // che si entra davvero in modifica. Nessun argomento di posizione (niente
+  // 'end'): il click che ha fatto scattare onClickText/setIsEditing ha gia'
+  // posizionato la selezione di ProseMirror nel punto cliccato (il
+  // click-handling nativo della view aggiorna la selezione anche quando
+  // editable era ancora false) - forzare 'end' qui la spostava sempre alla
+  // fine del testo, ignorando dove l'utente aveva davvero cliccato.
   useEffect(() => {
     if (!editor) return;
-    if (editable && autoFocus) editor.commands.focus('end');
+    if (editable && autoFocus) editor.commands.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editable, autoFocus]);
 
