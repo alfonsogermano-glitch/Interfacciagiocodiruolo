@@ -212,6 +212,59 @@
   margin: 0 0 0.25rem 0;
 }
 
+/* Box di testo (tiptapBlocks.tsx, TextBox) - stessa palette gia' usata per
+   l'avviso "Formato precedente" (RichTextEditor.tsx), coerenza visiva col
+   resto dell'app. Identico in sola lettura e in modifica: nessuna
+   interattivita' propria, solo bordo/sfondo statici. */
+.tiptap-textbox {
+  margin: 0 0 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--dash-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--dash-accent) 10%, transparent);
+}
+.tiptap-textbox > *:last-child {
+  margin-bottom: 0;
+}
+
+/* Collapse (tiptapBlocks.tsx, CollapseBlock/CollapseBlockView) - il corpo si
+   nasconde via CSS puro in base all'attributo data-open sul wrapper (non su
+   ogni singolo figlio): un solo NodeViewContent per nodo non permette due
+   regioni editabili separate, quindi sommario e corpo sono resi entrambi
+   dentro lo stesso contentDOM e la visibilita' del solo corpo e' un
+   selettore discendente, non una condizione nella NodeView React. */
+.tiptap-collapse {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.375rem;
+  margin: 0 0 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--dash-border-soft);
+  background: var(--dash-panel);
+}
+.tiptap-collapse-toggle {
+  margin-top: 0.125rem;
+  color: var(--dash-muted);
+  cursor: pointer;
+}
+.tiptap-collapse-toggle:hover {
+  color: var(--dash-text-strong);
+}
+.tiptap-collapse-content {
+  flex: 1;
+  min-width: 0;
+}
+.tiptap-collapse-summary {
+  font-weight: var(--font-weight-medium);
+}
+.tiptap-collapse-body {
+  margin-top: 0.25rem;
+}
+.tiptap-collapse[data-open='false'] .tiptap-collapse-body {
+  display: none;
+}
+
 /* Il div contenteditable di ProseMirror (.tiptap-content) riceve dal
    browser il proprio outline nativo da focus - nessuna regola qui lo
    sopprimeva, quindi durante la modifica appariva un secondo riquadro

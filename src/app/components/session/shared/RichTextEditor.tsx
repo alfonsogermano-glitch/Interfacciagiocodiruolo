@@ -2,9 +2,16 @@ import { useEffect, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
-import { Bold, Italic, Heading1, Heading2, Heading3, Heading4, List, ListOrdered, ChevronRight } from 'lucide-react';
+import { Bold, Italic, Heading1, Heading2, Heading3, Heading4, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Square, ChevronsDownUp } from 'lucide-react';
 import { MarkdownContent } from './MarkdownContent';
 import { parseLines } from './markdownHeadings';
+import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
+// @tiptap/extension-underline non va importato/aggiunto qui: StarterKit lo
+// include e attiva gia' di default (verificato nel suo sorgente - "if
+// (this.options.underline !== false)"), aggiungerlo di nuovo registrerebbe
+// la stessa estensione due volte. Il pacchetto resta comunque una
+// dipendenza diretta (non solo transitiva di starter-kit) per la stabilita'
+// della risoluzione dei tipi di toggleUnderline()/isActive('underline').
 
 interface RichTextEditorProps {
   /** entity_notes.content - formato legacy (markdown-leggero a righe). */
@@ -163,6 +170,12 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         <ToolbarButton disabled={!editable} label="Corsivo" active={editor.isActive('italic')} onClick={() => runCommand(() => editor.chain().focus().toggleItalic().run())}>
           <Italic className="h-4 w-4" />
         </ToolbarButton>
+        {/* toggleUnderline/isActive('underline'): comandi gia' disponibili
+            senza registrare nulla in piu' - Underline e' incluso e attivo di
+            default dentro StarterKit (vedi commento sull'import sopra). */}
+        <ToolbarButton disabled={!editable} label="Sottolineato" active={editor.isActive('underline')} onClick={() => runCommand(() => editor.chain().focus().toggleUnderline().run())}>
+          <UnderlineIcon className="h-4 w-4" />
+        </ToolbarButton>
         <ToolbarButton disabled={!editable} label="Titolo 1" active={editor.isActive('heading', { level: 1 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 1 }).run())}>
           <Heading1 className="h-4 w-4" />
         </ToolbarButton>
@@ -180,6 +193,20 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         </ToolbarButton>
         <ToolbarButton disabled={!editable} label="Elenco numerato" active={editor.isActive('orderedList')} onClick={() => runCommand(() => editor.chain().focus().toggleOrderedList().run())}>
           <ListOrdered className="h-4 w-4" />
+        </ToolbarButton>
+      </ToolbarSection>
+      {/* Sezione separata da "Formattazione testo": Box di testo e Collapse
+          sono nodi a blocco (inseriscono/racchiudono contenuto), non marchi
+          inline sul testo selezionato come grassetto/corsivo/sottolineato -
+          concettualmente diversi, da cui la sezione dedicata (confermato nel
+          piano). Pulsanti "insert", non toggle: nessuno stato attivo/non
+          attivo da riflettere (active sempre false). */}
+      <ToolbarSection label="Blocchi" defaultOpen>
+        <ToolbarButton disabled={!editable} label="Box di testo" active={false} onClick={() => runCommand(() => editor.chain().focus().setTextBox().run())}>
+          <Square className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton disabled={!editable} label="Collapse (espandi/comprimi)" active={false} onClick={() => runCommand(() => editor.chain().focus().setCollapseBlock().run())}>
+          <ChevronsDownUp className="h-4 w-4" />
         </ToolbarButton>
       </ToolbarSection>
       {/* Sezioni future (Widget, Oggetti speciali): aggiungere qui altre
@@ -218,7 +245,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
   const [initialContent] = useState(() => richContent);
 
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [StarterKit, ...TIPTAP_BLOCK_EXTENSIONS],
     content: initialContent,
     editable,
     // .tiptap-content: vedi theme.css - ripristina list-style/padding per
