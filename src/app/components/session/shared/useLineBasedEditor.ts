@@ -261,6 +261,22 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
 
   const handleInput = () => {
     if (isComposingRef.current) return;
+
+    // Il Backspace a meta' riga non e' mai intercettato (handleKeyDown lo
+    // lascia al comportamento nativo): quando cancella l'ultimo carattere di
+    // una riga e' l'UNICO punto in cui il div puo' restare senza un nodo di
+    // testo (rimosso del tutto dal browser, o sostituito con un <br>) - lo
+    // stesso stato ambiguo per cui setLineText garantisce sempre un nodo di
+    // testo anche vuoto, ma solo per le mutazioni che facciamo noi (vedi il
+    // suo commento). Senza ripristinare l'invariante anche qui, getActiveLineElement
+    // per il tasto successivo (es. "/") puo' ancorarsi in modo ambiguo e far
+    // fallire silenziosamente l'intercettazione in handleBeforeInput.
+    const lineEl = getActiveLineElement();
+    if (lineEl && lineEl.textContent === '' && !(lineEl.childNodes.length === 1 && lineEl.firstChild?.nodeType === Node.TEXT_NODE)) {
+      setLineText(lineEl, '');
+      setCaretAtLineOffset(lineEl, 0);
+    }
+
     emitChange();
     syncActiveLine();
   };

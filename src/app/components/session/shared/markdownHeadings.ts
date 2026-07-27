@@ -81,7 +81,17 @@ export function applyHeadingToLine(
 ): { text: string; cursorPos: number } {
   const before = lineText.slice(0, slashStart);
   const after = lineText.slice(cursorPos);
+  const rest = before + after;
+  // La riga puo' essere gia' un'intestazione (da una selezione precedente o
+  // da "#" digitato a mano): senza toglierlo qui resterebbe come testo
+  // letterale davanti al nuovo prefisso ("## # Ciao" invece di "## Ciao") -
+  // applyHeadingToLine promette di trasformare SEMPRE l'intera riga, quindi
+  // un prefisso preesistente va sempre rimosso, non solo lo span digitato
+  // come query.
+  const existingMatch = rest.match(HEADING_RE);
+  const strippedRest = existingMatch ? existingMatch[2] : rest;
+  const removedFromBefore = Math.min(before.length, rest.length - strippedRest.length);
   const prefix = '#'.repeat(level) + ' ';
-  const text = prefix + before + after;
-  return { text, cursorPos: prefix.length + before.length };
+  const text = prefix + strippedRest;
+  return { text, cursorPos: prefix.length + (before.length - removedFromBefore) };
 }
