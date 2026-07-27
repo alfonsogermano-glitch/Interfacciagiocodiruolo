@@ -140,6 +140,7 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
   const initFromValue = (v: string) => {
     const container = containerRef.current;
     if (!container) return;
+    console.log('[SCE-DEBUG] initFromValue REBUILD', { incoming: JSON.stringify(v), lastEmitted: JSON.stringify(lastEmittedRef.current), mounted: isMountedRef.current });
     container.innerHTML = '';
     for (const line of v.split('\n')) container.appendChild(buildLineElement(line));
     lastEmittedRef.current = v;
@@ -197,9 +198,9 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
   const emitChange = () => {
     const container = containerRef.current;
     if (!container) return;
-    const text = Array.from(container.children)
-      .map((el) => (el as HTMLElement).textContent ?? '')
-      .join('\n');
+    const lineTexts = Array.from(container.children).map((el) => (el as HTMLElement).textContent ?? '');
+    const text = lineTexts.join('\n');
+    console.log('[SCE-DEBUG] emitChange', { lineCount: lineTexts.length, lineTexts: lineTexts.map(JSON.stringify), text: JSON.stringify(text) });
     lastEmittedRef.current = text;
     onChange(text);
   };
@@ -337,6 +338,7 @@ export function useLineBasedEditor({ value, onChange }: UseLineBasedEditorParams
 
     const text = lineEl.textContent ?? '';
     const newText = text.slice(0, offset) + data + text.slice(offset);
+    console.log('[SCE-DEBUG] handleBeforeInput insert', { data: JSON.stringify(data), offset, before: JSON.stringify(text), after: JSON.stringify(newText) });
 
     setLineText(lineEl, newText);
     applyLineClass(lineEl, detectHeadingLevel(newText));

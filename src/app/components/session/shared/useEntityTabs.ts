@@ -159,7 +159,12 @@ export function useEntityTabs({
     const row = data.record;
     if (!matchesThisEntity(row)) return;
     const lastLocalEdit = recentLocalEditRef.current[row.id];
-    if (lastLocalEdit && Date.now() - lastLocalEdit < 1200) return;
+    const msSinceLocalEdit = lastLocalEdit ? Date.now() - lastLocalEdit : null;
+    if (lastLocalEdit && Date.now() - lastLocalEdit < 1200) {
+      console.log('[SCE-DEBUG] broadcast SOPPRESSO (eco propria)', { id: row.id, msSinceLocalEdit, content: JSON.stringify(row.content) });
+      return;
+    }
+    console.log('[SCE-DEBUG] broadcast APPLICATO', { id: row.id, msSinceLocalEdit, content: JSON.stringify(row.content) });
 
     // Un cestinamento (Cestino Note, vedi supabase-add-notes-trash.sql) e'
     // un UPDATE (deleted_at valorizzato), non un DELETE - senza questo
@@ -521,16 +526,19 @@ export function useEntityTabs({
   };
 
   const handleCustomTabContentChange = (tabId: string, content: string) => {
+    console.log('[SCE-DEBUG] handleCustomTabContentChange onChange ricevuto', { tabId, content: JSON.stringify(content) });
     recentLocalEditRef.current[tabId] = Date.now();
     setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, content } : t)));
     if (customTabSaveTimerRef.current[tabId]) clearTimeout(customTabSaveTimerRef.current[tabId]);
     customTabSaveTimerRef.current[tabId] = setTimeout(async () => {
+      console.log('[SCE-DEBUG] PUT /notes in invio', { tabId, content: JSON.stringify(content) });
       try {
         await fetch(`${SERVER_BASE}/notes/${tabId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken ?? ''}` },
           body: JSON.stringify({ content }),
         });
+        console.log('[SCE-DEBUG] PUT /notes completata', { tabId });
       } catch (err) {
         console.error('Errore salvataggio contenuto tab:', err);
       }
