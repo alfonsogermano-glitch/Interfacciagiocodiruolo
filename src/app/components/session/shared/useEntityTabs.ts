@@ -670,9 +670,16 @@ export function useEntityTabs({
     .filter((t): t is EntityOrderedTab => t !== null)
     .filter(t => canEdit || !t.hidden);
 
-  // Se la tab attiva è sparita (nascosta/eliminata da altri), torna alla tab di default
+  // Se la tab attiva è sparita (nascosta/eliminata da altri), torna alla tab
+  // di default. Quando non esistono baseTabs (es. le sotto-tab di una nota,
+  // NoteSubTabs.tsx: baseTabs sempre []), defaultTabId è '' - una stringa
+  // che non corrisponde mai a nessuna tab reale, quindi ripiegare su di essa
+  // lasciava la selezione vuota anche con sotto-tab già esistenti, finché
+  // l'utente non ne sceglieva una a mano. In quel caso, seleziona la prima
+  // tab disponibile nell'ordine invece di restare senza selezione.
   useEffect(() => {
-    if (!orderedTabs.some(t => t.id === currentTab)) setCurrentTab(defaultTabId);
+    if (orderedTabs.some(t => t.id === currentTab)) return;
+    setCurrentTab(defaultTabId !== '' ? defaultTabId : (orderedTabs[0]?.id ?? ''));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderedTabs.map(t => t.id).join(','), currentTab]);
 
