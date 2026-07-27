@@ -1,4 +1,14 @@
-import { parseLines, HEADING_CLASSES } from './markdownHeadings';
+import { parseLines, type HeadingLevel } from './markdownHeadings';
+
+// Dimensioni scalate H1 (piu' grande) -> H4 (piu' piccolo, nello stesso
+// stile delle etichette di sezione gia' usate ovunque nell'app, es.
+// EntityDetailView.tsx "text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]").
+const HEADING_CLASSES: Record<HeadingLevel, string> = {
+  1: 'text-xl font-bold text-[var(--dash-text-strong)]',
+  2: 'text-lg font-semibold text-[var(--dash-text-strong)]',
+  3: 'text-base font-semibold text-[var(--dash-text-strong)]',
+  4: 'text-xs font-semibold uppercase tracking-[0.08em] text-[var(--dash-accent-2)]',
+};
 
 /**
  * Vista di sola lettura del contenuto markdown-leggero (SlashCommandEditor.tsx):
