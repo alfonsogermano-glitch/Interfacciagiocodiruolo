@@ -116,10 +116,34 @@ function TooltipContent({
         {...props}
       >
         {children}
-        <TooltipPrimitive.Arrow
-          style={{ fill: colors.panel }}
-          className="z-[1200] size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px]"
-        />
+        {/* asChild: il polygon che @radix-ui/react-arrow disegnerebbe da solo
+            (asChild=false) e' irraggiungibile da qui - non possiamo dargli
+            uno stroke proprio, solo un fill che eredita via cascata SVG. Il
+            bordo del riquadro (border: 1px solid, sopra) finiva quindi
+            "tagliato" esattamente dove la freccia lo ricopre col proprio
+            fill piatto senza contorno: da qui l'interruzione visibile nella
+            cornice, sempre sul lato da cui la freccia esce verso il
+            trigger - bug verificato 2026-07-29. Fornendo noi stessi il
+            <polygon>, possiamo aggiungergli uno stroke che ridisegna quel
+            tratto di bordo esattamente dove il fill lo ricopriva, richiudendo
+            il contorno. vectorEffect="non-scaling-stroke" evita che lo
+            stroke venga deformato dal viewBox non quadrato (30x10, reso poi
+            10x10 via preserveAspectRatio="none") e dalla rotazione CSS
+            (rotate-45) applicata all'svg intero - senza, lo stesso
+            strokeWidth risulterebbe piu' sottile su un asse che sull'altro. */}
+        <TooltipPrimitive.Arrow asChild>
+          <svg className="z-[1200] size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px]">
+            <polygon
+              points="0,0 30,0 15,10"
+              style={{
+                fill: colors.panel,
+                stroke: colors.border,
+                strokeWidth: 1,
+                vectorEffect: 'non-scaling-stroke',
+              }}
+            />
+          </svg>
+        </TooltipPrimitive.Arrow>
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   );
