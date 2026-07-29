@@ -439,7 +439,22 @@
    sopprimeva, quindi durante la modifica appariva un secondo riquadro
    (l'outline nativo del contenteditable) annidato dentro il bordo gia'
    disegnato dal contenitore di RichTextEditor.tsx, dando l'impressione di
-   due box sovrapposti invece di uno solo attorno a barra+editor. */
+   due box sovrapposti invece di uno solo attorno a barra+editor.
+
+   overflow-x:auto AGGIUNTO QUI (non solo sul contenitore esterno di
+   RichTextEditor.tsx, gia' overflow-x-auto+max-w-full ma insufficiente
+   da solo - bug verificato 2026-07-29, due tentativi falliti a livello
+   esterno): ispezione DOM diretta ha misurato .tiptap-content a 280px
+   (stesso valore di due livelli superiori, quindi gia' correttamente
+   vincolato) con una tabella interna a 716px - overflow:visible di
+   default su .tiptap-content lasciava passare quell'eccedenza verso
+   l'alto senza che NESSUN antenato la intercettasse, nonostante loro
+   stessi avessero gia' overflow-x:auto: l'overflow "scorre" attraverso
+   contenitori intermedi senza un proprio overflow diverso da visible,
+   ma qui .tiptap-content stesso era quello a overflow:visible - il
+   livello dove la tabella supera DAVVERO il proprio genitore diretto,
+   non un livello piu' esterno. */
 .tiptap-content {
   outline: none;
+  overflow-x: auto;
 }
