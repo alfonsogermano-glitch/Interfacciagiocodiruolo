@@ -82,7 +82,23 @@ export function EntityKebabMenu({
   }, [open, close]);
 
   return (
-    <div className="relative shrink-0">
+    <div
+      className="relative shrink-0"
+      // preventDefault sul mousedown (non sul click): stesso schema gia'
+      // usato dalla toolbar di RichTextEditor.tsx per non far perdere il
+      // focus all'editor TipTap quando i suoi bottoni vengono cliccati -
+      // senza, il click nativo sposta il focus del browser su questo
+      // bottone/le voci del menu, il contenteditable va in blur, e se un
+      // chiamante ascolta quel blur per uscire dalla modalita' modifica
+      // (RichTextEditor.tsx, onBlurEditor) l'intero menu si smonta A META'
+      // CLICK - il suo stesso onClick non arriva mai a scattare (bug
+      // verificato con TipTapTableMenu.tsx: il click sul ⋮ non apriva
+      // nulla, e disabilitava contemporaneamente l'intera toolbar
+      // dell'editor, tornata in sola lettura). Innocuo per gli altri usi di
+      // questo componente (NPCsManager.tsx, MonstersManager.tsx, ecc.): non
+      // c'e' nessun campo con cui contendere il focus in quei contesti.
+      onMouseDown={(e) => e.preventDefault()}
+    >
       <button
         type="button"
         ref={buttonRef}
@@ -103,6 +119,12 @@ export function EntityKebabMenu({
       {open && position && createPortal(
         <div
           onClick={(e) => e.stopPropagation()}
+          // Stesso motivo del preventDefault sul contenitore sopra: il
+          // dropdown e' un portal a se' (document.body), non un discendente
+          // DOM del bottone ⋮ - va protetto separatamente perche' le voci
+          // cliccabili al suo interno (es. "Elimina riga") sono altrettanto
+          // in grado di causare lo stesso blur-a-meta-click.
+          onMouseDown={(e) => e.preventDefault()}
           style={{
             position: 'fixed',
             top: position.top,
