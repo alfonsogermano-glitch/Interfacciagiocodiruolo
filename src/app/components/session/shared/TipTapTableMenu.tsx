@@ -50,8 +50,49 @@ function insertColumnAtEdge(editor: Editor, edge: 'start' | 'end') {
   const found = findTable(state.selection.$from);
   if (!found) return;
   const map = TableMap.get(found.node);
+
+  // Larghezza di riferimento letta dal DOM di una colonna gia' esistente,
+  // PRIMA di costruire la transazione (quando il documento e' ancora quello
+  // "vecchio", stabile) - la nuova colonna la eredita esplicitamente invece
+  // di restare con colwidth:null (il valore di default dello schema, lo
+  // stesso che produce anche addColumnBefore/After nativi: la creazione
+  // della cella non e' diversa). Con table-layout:fixed (necessario per il
+  // ridimensionamento, vedi theme.css) una colonna senza alcuna larghezza
+  // esplicita puo' ricevere dal browser una quota sproporzionata dello
+  // spazio disponibile, corretta solo al primo ridimensionamento manuale
+  // qualunque - bug verificato 2026-07-29, non un problema di attributi
+  // mancanti sulla cella ma di layout senza un valore esplicito da cui
+  // partire.
+  const referenceCol = edge === 'start' ? 0 : map.width - 1;
+  const referenceDom = view.nodeDOM(found.start + map.map[referenceCol]);
+  const referenceWidth = referenceDom instanceof HTMLElement
+    ? Math.round(referenceDom.getBoundingClientRect().width)
+    : null;
+
   const rect = { map, tableStart: found.start, table: found.node, left: 0, right: map.width, top: 0, bottom: map.height };
-  const tr = addColumn(state.tr, rect, edge === 'start' ? 0 : map.width);
+  const targetCol = edge === 'start' ? 0 : map.width;
+  const tr = addColumn(state.tr, rect, targetCol);
+
+  // Ricostruisce la mappa DOPO l'inserimento (gli indici sono cambiati) per
+  // stampare la stessa larghezza su ogni cella della nuova colonna, riga
+  // per riga - updateColumns (TableView) legge il colwidth solo dalla prima
+  // riga per calcolare il <colgroup>, ma va comunque tenuta coerente anche
+  // sulle altre righe per non lasciarle mai divergenti.
+  if (referenceWidth) {
+    const tableStart = tr.mapping.map(found.start);
+    const newTable = tr.doc.nodeAt(tableStart - 1);
+    if (newTable) {
+      const newMap = TableMap.get(newTable);
+      for (let row = 0; row < newMap.height; row++) {
+        const cellPos = tableStart + newMap.positionAt(row, targetCol, newTable);
+        const cellNode = tr.doc.nodeAt(cellPos);
+        if (cellNode) {
+          tr.setNodeMarkup(cellPos, null, { ...cellNode.attrs, colwidth: [referenceWidth] });
+        }
+      }
+    }
+  }
+
   view.dispatch(tr);
   editor.commands.focus();
 }
