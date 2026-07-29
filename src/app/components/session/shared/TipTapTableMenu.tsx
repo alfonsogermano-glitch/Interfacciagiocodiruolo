@@ -212,7 +212,12 @@ export function TipTapTableMenu({ editor }: { editor: Editor }) {
       editor={editor}
       pluginKey="tableMenu"
       shouldShow={({ editor: e }) => e.isActive('table')}
-      options={{ placement: 'top-end' }}
+      // offset: 2 invece del default della libreria (8px) - il gap tra il
+      // bottone ⋮ e l'angolo della tabella risultava troppo largo (segnalato
+      // 2026-07-29), avvicinato qui invece di intervenire su
+      // getReferencedVirtualElement (che ancora correttamente all'angolo
+      // reale della tabella, il .tableWrapper renderizzato da TableView).
+      options={{ placement: 'top-end', offset: 2 }}
       getReferencedVirtualElement={() => {
         const { state, view } = editor;
         const found = findTable(state.selection.$from);
