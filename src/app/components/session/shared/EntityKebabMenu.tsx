@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreVertical } from 'lucide-react';
+import { MoreHorizontal, MoreVertical } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 
 export interface EntityKebabMenuItem {
@@ -49,6 +49,12 @@ interface EntityKebabMenuProps {
    *  prop vincola SOLO il dropdown, che e' un portal su document.body
    *  indipendente e altrimenti privo di qualunque collision detection. */
   boundaryElement?: HTMLElement | null;
+  /** 'vertical' (default, icona MoreVertical) per tutti i call site
+   *  esistenti - 'horizontal' (MoreHorizontal) richiesto solo per
+   *  TipTapTableMenu.tsx, dove il menu si affianca al bordo della tabella
+   *  invece che a una riga di testo/card, contesto dove l'icona
+   *  orizzontale legge meglio. */
+  iconOrientation?: 'vertical' | 'horizontal';
 }
 
 // Al massimo un EntityKebabMenu aperto alla volta in tutta l'app - variabile
@@ -71,6 +77,7 @@ export function EntityKebabMenu({
   menuWidthClassName = 'w-60',
   menuWidthPx = 240,
   boundaryElement = null,
+  iconOrientation = 'vertical',
 }: EntityKebabMenuProps) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
@@ -91,7 +98,14 @@ export function EntityKebabMenu({
     const boundary = boundaryElement.getBoundingClientRect();
     const menu = dropdownRef.current.getBoundingClientRect();
     const buttonRect = buttonRef.current.getBoundingClientRect();
-    const padding = 8;
+    // 0, non un valore arbitrario positivo: stessa correzione applicata al
+    // boundary di flip/shift in TipTapTableMenu.tsx (bug segnalato
+    // 2026-07-29) - un padding qui avrebbe fatto scattare il clamp
+    // orizzontale anche nel caso comune (dropdown allineato a destra
+    // dell'icona, gia' vicina al bordo destro del boundary per costruzione
+    // quando la tabella riempie la larghezza disponibile), non solo nei
+    // casi limite dove serve davvero.
+    const padding = 0;
 
     let { top, left } = position;
 
@@ -159,7 +173,7 @@ export function EntityKebabMenu({
         }}
         className={buttonClassName}
       >
-        <MoreVertical className="h-4 w-4" />
+        {iconOrientation === 'horizontal' ? <MoreHorizontal className="h-4 w-4" /> : <MoreVertical className="h-4 w-4" />}
       </button>
 
       {open && position && createPortal(

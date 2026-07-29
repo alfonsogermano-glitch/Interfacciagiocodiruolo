@@ -231,11 +231,26 @@ export function TipTapTableMenu({ editor }: { editor: Editor }) {
       // .tiptap-content, vedi show() in BubbleMenuView) - fix del bug
       // segnalato 2026-07-29: tabella come primo elemento del documento,
       // poco spazio sopra, il menu sconfinava fuori da quel contenitore.
+      //
+      // NESSUN padding qui (default di Floating UI: 0) - un padding:8
+      // messo in un primo tentativo causava un bug diverso e peggiore
+      // (segnalato 2026-07-29, secondo giro): per placement 'top-end', lo
+      // shift di Floating UI corregge di default SOLO l'asse orizzontale
+      // (verificato nel sorgente di @floating-ui/core - per un
+      // placement 'top', mainAxis interno = 'x', checkMainAxis default
+      // true; l'asse verticale e' checkCrossAxis, default false, quello e'
+      // compito del flip qui sopra) - con padding:8, qualunque tabella col
+      // bordo destro entro 8px dal bordo destro del boundary veniva
+      // considerata "in overflow" e l'icona spostata a sinistra ad OGNI
+      // apertura, anche con tabelle normalissime che riempiono la
+      // larghezza disponibile (il caso comune, non quello limite). Senza
+      // padding, la correzione scatta solo quando l'icona uscirebbe
+      // DAVVERO dal boundary.
       options={{
         placement: 'top-end',
         offset: 2,
-        flip: { boundary: editor.view.dom.parentElement ?? undefined, padding: 8 },
-        shift: { boundary: editor.view.dom.parentElement ?? undefined, padding: 8 },
+        flip: { boundary: editor.view.dom.parentElement ?? undefined },
+        shift: { boundary: editor.view.dom.parentElement ?? undefined },
       }}
       getReferencedVirtualElement={() => {
         const { state, view } = editor;
@@ -256,6 +271,9 @@ export function TipTapTableMenu({ editor }: { editor: Editor }) {
         // dentro EntityKebabMenu.tsx, senza collision detection propria)
         // condivide cosi' lo stesso riferimento all'area di scrittura.
         boundaryElement={editor.view.dom.parentElement}
+        // MoreHorizontal invece del MoreVertical di default - solo qui,
+        // gli altri 8 punti d'uso di EntityKebabMenu restano invariati.
+        iconOrientation="horizontal"
       />
     </BubbleMenu>
   );
