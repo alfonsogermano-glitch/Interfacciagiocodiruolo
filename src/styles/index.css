@@ -280,11 +280,16 @@
   --dash-card-inner: #24263a;
 }
 
-* {
+/* .tiptap-content e .tableWrapper esclusi: li' la scrollbar nativa deve
+   restare visibile come indizio di overflow orizzontale (tabelle piu'
+   larghe del contenitore, vedi theme.css) - senza questa esclusione un
+   overflow reale sarebbe scrollabile ma invisibile, indistinguibile da
+   nessun overflow. */
+*:not(.tiptap-content):not(.tableWrapper) {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-*::-webkit-scrollbar {
+*:not(.tiptap-content):not(.tableWrapper)::-webkit-scrollbar {
   display: none;
 }
 
