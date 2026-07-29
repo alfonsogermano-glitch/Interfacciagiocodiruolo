@@ -217,7 +217,26 @@ export function TipTapTableMenu({ editor }: { editor: Editor }) {
       // 2026-07-29), avvicinato qui invece di intervenire su
       // getReferencedVirtualElement (che ancora correttamente all'angolo
       // reale della tabella, il .tableWrapper renderizzato da TableView).
-      options={{ placement: 'top-end', offset: 2 }}
+      //
+      // flip/shift: gia' attivi di default dentro BubbleMenuView anche senza
+      // specificarli qui (floatingUIOptions parte da flip:{}/shift:{}, non
+      // sovrascritti passando solo placement/offset - verificato nel
+      // sorgente di @tiptap/extension-bubble-menu) - il flip da solo pero'
+      // usa come limite di collisione 'clippingAncestors' di Floating UI
+      // (intersezione implicita di tutti gli antenati con overflow lungo
+      // la catena, fino al viewport), non l'area di scrittura vera e
+      // propria. boundary esplicito la vincola direttamente al contenitore
+      // effettivo (editor.view.dom.parentElement, la colonna di testo in
+      // RichTextEditor.tsx dove il menu viene agganciato come sibling di
+      // .tiptap-content, vedi show() in BubbleMenuView) - fix del bug
+      // segnalato 2026-07-29: tabella come primo elemento del documento,
+      // poco spazio sopra, il menu sconfinava fuori da quel contenitore.
+      options={{
+        placement: 'top-end',
+        offset: 2,
+        flip: { boundary: editor.view.dom.parentElement ?? undefined, padding: 8 },
+        shift: { boundary: editor.view.dom.parentElement ?? undefined, padding: 8 },
+      }}
       getReferencedVirtualElement={() => {
         const { state, view } = editor;
         const found = findTable(state.selection.$from);
