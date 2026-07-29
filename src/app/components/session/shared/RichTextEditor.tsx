@@ -392,7 +392,18 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
       <Toolbar editor={editor} editable={editable} />
       <div
         onClick={!editable ? onClickText : undefined}
-        className={`min-w-0 flex-1 ${!editable && onClickText ? 'cursor-text' : ''} ${containerClassName}`}
+        // overflow-x-auto sempre presente (non delegato al solo containerClassName
+        // del chiamante, ne' alla regola .tableWrapper in theme.css): senza un
+        // vincolo di larghezza esplicito A QUESTO livello, un div a blocco senza
+        // overflow proprio non ferma mai una tabella piu' larga di lui, che risale
+        // semplicemente lungo gli antenati finche' non trova un overflow:hidden
+        // qualunque (es. il contenitore-scheda arrotondato di EntityDetailView.tsx)
+        // che la taglia via invece di scrollarla - bug verificato 2026-07-29,
+        // capitava solo dove containerClassName non impostava gia' un proprio
+        // overflow-y (che per spec CSS rende anche overflow-x implicitamente
+        // 'auto': NoteSubTabs.tsx, che usa il DEFAULT_CONTAINER_CLASS senza
+        // overflow, era il caso rotto - qui invece funziona sempre, in ogni uso).
+        className={`min-w-0 flex-1 overflow-x-auto ${!editable && onClickText ? 'cursor-text' : ''} ${containerClassName}`}
       >
         <EditorContent editor={editor} />
         {editable && <TipTapTableMenu editor={editor} />}

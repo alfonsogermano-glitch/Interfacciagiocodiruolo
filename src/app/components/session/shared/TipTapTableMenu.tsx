@@ -1,6 +1,6 @@
 import { BubbleMenu } from '@tiptap/react/menus';
 import type { Editor } from '@tiptap/react';
-import { findTable, TableMap, addRow, addColumn } from '@tiptap/pm/tables';
+import { findTable, TableMap, addRow, addColumn, type FindNodeResult } from '@tiptap/pm/tables';
 import {
   ArrowUpToLine,
   ArrowDownToLine,
@@ -45,49 +45,62 @@ function insertRowAtEdge(editor: Editor, edge: 'start' | 'end') {
   editor.commands.focus();
 }
 
+// Larghezza attuale di una colonna esistente (riga 0, quella che
+// updateColumns legge per calcolare il <colgroup>) - preferisce il
+// colwidth gia' salvato nel documento (nota gia' ridimensionata a mano,
+// valore autorevole) e solo se assente misura dal DOM quella renderizzata
+// (colonna mai toccata, ancora sul min-width di default).
+function getColumnWidth(editor: Editor, found: FindNodeResult, col: number): number | null {
+  const relPos = TableMap.get(found.node).map[col];
+  const explicit = found.node.nodeAt(relPos)?.attrs.colwidth?.[0];
+  if (explicit) return explicit;
+  const dom = editor.view.nodeDOM(found.start + relPos);
+  return dom instanceof HTMLElement ? Math.round(dom.getBoundingClientRect().width) || null : null;
+}
+
 function insertColumnAtEdge(editor: Editor, edge: 'start' | 'end') {
   const { state, view } = editor;
   const found = findTable(state.selection.$from);
   if (!found) return;
   const map = TableMap.get(found.node);
 
-  // Larghezza di riferimento letta dal DOM di una colonna gia' esistente,
-  // PRIMA di costruire la transazione (quando il documento e' ancora quello
-  // "vecchio", stabile) - la nuova colonna la eredita esplicitamente invece
-  // di restare con colwidth:null (il valore di default dello schema, lo
-  // stesso che produce anche addColumnBefore/After nativi: la creazione
-  // della cella non e' diversa). Con table-layout:fixed (necessario per il
-  // ridimensionamento, vedi theme.css) una colonna senza alcuna larghezza
-  // esplicita puo' ricevere dal browser una quota sproporzionata dello
-  // spazio disponibile, corretta solo al primo ridimensionamento manuale
-  // qualunque - bug verificato 2026-07-29, non un problema di attributi
-  // mancanti sulla cella ma di layout senza un valore esplicito da cui
-  // partire.
-  const referenceCol = edge === 'start' ? 0 : map.width - 1;
-  const referenceDom = view.nodeDOM(found.start + map.map[referenceCol]);
-  const referenceWidth = referenceDom instanceof HTMLElement
-    ? Math.round(referenceDom.getBoundingClientRect().width)
-    : null;
+  // Larghezza di OGNI colonna esistente, letta PRIMA di costruire la
+  // transazione (documento ancora "vecchio", stabile). updateColumns
+  // (TableView) ricostruisce il <colgroup> riusando gli elementi <col>
+  // ESISTENTI per POSIZIONE, non per identita' di colonna: inserendo a
+  // "fine" la nuova colonna cade sempre oltre l'ultimo <col> esistente,
+  // quindi ne crea sempre uno nuovo e pulito - inserendo a "inizio" invece
+  // il PRIMO <col> esistente (che rappresentava la vecchia colonna 0)
+  // viene riassegnato alla nuova colonna, mentre le altre colonne
+  // scalano di un indice. Dare un colwidth esplicito SOLO alla cella
+  // nuova (fix precedente) lasciava le colonne scalate senza una
+  // larghezza coerente in riga 0 per quello stesso passaggio - qui invece
+  // ristampiamo esplicitamente la larghezza di TUTTE le colonne (nuova
+  // compresa) cosi' riga 0 e' sempre internamente coerente, in entrambi i
+  // casi - bug verificato 2026-07-29 (funzionava solo per "fine").
+  const existingWidths = Array.from({ length: map.width }, (_, col) => getColumnWidth(editor, found, col));
+  const newColumnWidth = edge === 'start' ? existingWidths[0] : existingWidths[existingWidths.length - 1];
 
   const rect = { map, tableStart: found.start, table: found.node, left: 0, right: map.width, top: 0, bottom: map.height };
   const targetCol = edge === 'start' ? 0 : map.width;
   const tr = addColumn(state.tr, rect, targetCol);
 
-  // Ricostruisce la mappa DOPO l'inserimento (gli indici sono cambiati) per
-  // stampare la stessa larghezza su ogni cella della nuova colonna, riga
-  // per riga - updateColumns (TableView) legge il colwidth solo dalla prima
-  // riga per calcolare il <colgroup>, ma va comunque tenuta coerente anche
-  // sulle altre righe per non lasciarle mai divergenti.
-  if (referenceWidth) {
-    const tableStart = tr.mapping.map(found.start);
-    const newTable = tr.doc.nodeAt(tableStart - 1);
-    if (newTable) {
-      const newMap = TableMap.get(newTable);
-      for (let row = 0; row < newMap.height; row++) {
-        const cellPos = tableStart + newMap.positionAt(row, targetCol, newTable);
+  const tableStart = tr.mapping.map(found.start);
+  const newTable = tr.doc.nodeAt(tableStart - 1);
+  if (newTable) {
+    const newMap = TableMap.get(newTable);
+    for (let row = 0; row < newMap.height; row++) {
+      for (let col = 0; col < newMap.width; col++) {
+        // Per ogni colonna della tabella AGGIORNATA, risale a quale
+        // larghezza usare: la nuova colonna prende newColumnWidth, le
+        // altre la loro larghezza pre-inserimento (indice scalato di 1
+        // per "inizio", invariato per "fine", vedi il commento sopra).
+        const width = col === targetCol ? newColumnWidth : existingWidths[edge === 'start' ? col - 1 : col];
+        if (!width) continue;
+        const cellPos = tableStart + newMap.positionAt(row, col, newTable);
         const cellNode = tr.doc.nodeAt(cellPos);
         if (cellNode) {
-          tr.setNodeMarkup(cellPos, null, { ...cellNode.attrs, colwidth: [referenceWidth] });
+          tr.setNodeMarkup(cellPos, null, { ...cellNode.attrs, colwidth: [width] });
         }
       }
     }
