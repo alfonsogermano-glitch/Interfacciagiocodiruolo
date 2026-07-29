@@ -709,7 +709,17 @@ export function useEntityTabs({
   // tab disponibile nell'ordine invece di restare senza selezione.
   useEffect(() => {
     if (orderedTabs.some(t => t.id === currentTab)) return;
-    setCurrentTab(defaultTabId !== '' ? defaultTabId : (orderedTabs[0]?.id ?? ''));
+    const nextTabId = defaultTabId !== '' ? defaultTabId : (orderedTabs[0]?.id ?? '');
+    setCurrentTab(nextTabId);
+    // Marca pendingFocusTabId esattamente come selectTabByClick: questo e'
+    // anche il ramo che seleziona la prima sotto-tab quando si apre una nota
+    // (NoteSubTabs.tsx, baseTabs sempre [] quindi defaultTabId sempre '') -
+    // dal punto di vista dell'utente "ho aperto la nota" equivale a "voglio
+    // scrivere subito", stesso segnale che consuma RichTextEditor.tsx. Per
+    // PG/PNG/Mostro (baseTabs non vuoti) nextTabId e' sempre un base tab
+    // (es. 'summary'), mai un custom tab con RichTextEditor: marcarlo qui
+    // resta innocuo, nessun RichTextEditor lo consuma mai.
+    if (nextTabId) setPendingFocusTabId(nextTabId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderedTabs.map(t => t.id).join(','), currentTab]);
 
