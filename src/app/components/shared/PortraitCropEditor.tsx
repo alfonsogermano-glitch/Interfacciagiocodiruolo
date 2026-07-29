@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NO_FRAME_VALUE, type ImageCrop } from '../../../types/imageCrop';
 import type { VisualAsset } from '../../../services/storage/visualAssetsStorage';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 // ImageEditor e FrameTransformStepper: props primitive pure, nessun
 // riferimento al tipo Monster. PortraitCropFrame invece era in origine
@@ -112,27 +113,35 @@ export function PortraitCropFrame({
 
       {frameImageUrl && (
         <div className="mb-3 flex flex-wrap justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => onRotateFrameDegrees?.(-5)}
-            className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
-            title="Ruota cornice a sinistra"
-          >
-            ↺ Cornice
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => onRotateFrameDegrees?.(-5)}
+                className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
+              >
+                ↺ Cornice
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Ruota cornice a sinistra</TooltipContent>
+          </Tooltip>
 
           <div className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2 text-sm text-[var(--dash-muted)]">
             Cornice portrait
           </div>
 
-          <button
-            type="button"
-            onClick={() => onRotateFrameDegrees?.(5)}
-            className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
-            title="Ruota cornice a destra"
-          >
-            Cornice ↻
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => onRotateFrameDegrees?.(5)}
+                className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
+              >
+                Cornice ↻
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Ruota cornice a destra</TooltipContent>
+          </Tooltip>
         </div>
       )}
 
@@ -608,54 +617,74 @@ export function CoverFrame({
       </div>
 
       <div className="mb-3 flex flex-wrap justify-center gap-2">
-        <button
-          type="button"
-          onClick={() => onRotateImageDegrees?.(-5)}
-          className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
-          title="Ruota immagine a sinistra"
-        >
-          ↺ Img
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => onRotateImageDegrees?.(-5)}
+              className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
+            >
+              ↺ Img
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top">Ruota immagine a sinistra</TooltipContent>
+        </Tooltip>
 
         {frameImageUrl && (
           <>
-            <button
-              type="button"
-              onClick={() => onRotateFrameDegrees?.(-5)}
-              className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
-              title="Ruota cornice a sinistra"
-            >
-              ↺ Cornice
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => onRotateFrameDegrees?.(-5)}
+                  className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
+                >
+                  ↺ Cornice
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Ruota cornice a sinistra</TooltipContent>
+            </Tooltip>
 
-            <button
-              type="button"
-              onClick={onToggleFrameRotation}
-              className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2 text-sm text-[var(--dash-muted)] hover:bg-[var(--dash-surface)]"
-              title="Alterna orientamento finestra foto"
-            >
-              Finestra {isLandscape ? 'orizzontale' : 'verticale'}
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={onToggleFrameRotation}
+                  className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2 text-sm text-[var(--dash-muted)] hover:bg-[var(--dash-surface)]"
+                >
+                  Finestra {isLandscape ? 'orizzontale' : 'verticale'}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Alterna orientamento finestra foto</TooltipContent>
+            </Tooltip>
 
-            <button
-              type="button"
-              onClick={() => onRotateFrameDegrees?.(5)}
-              className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
-              title="Ruota cornice a destra"
-            >
-              Cornice ↻
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => onRotateFrameDegrees?.(5)}
+                  className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
+                >
+                  Cornice ↻
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Ruota cornice a destra</TooltipContent>
+            </Tooltip>
           </>
         )}
 
-        <button
-          type="button"
-          onClick={() => onRotateImageDegrees?.(5)}
-          className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
-          title="Ruota immagine a destra"
-        >
-          Img ↻
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => onRotateImageDegrees?.(5)}
+              className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]"
+            >
+              Img ↻
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top">Ruota immagine a destra</TooltipContent>
+        </Tooltip>
       </div>
 
       <div className="flex justify-center">

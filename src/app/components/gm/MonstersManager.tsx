@@ -4,6 +4,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useRuleset } from '../../campaigns/RulesetContext';
 import { RulesetBadge } from '../../campaigns/RulesetGate';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { loadEnvironmentReferences } from '../../../services/campaign/entityReferenceService';
 import { formatCampaignAdventureLabel } from '../../../services/campaign/campaignAdventureLabel';
 import { MONSTER_BASE_CATALOG } from '../../../data/monsterBaseCatalog';
@@ -254,19 +255,23 @@ export function MonstersManager({ navigationTarget = null, onNavigate }: Monster
 
   const renderLuogoBadge = (monster: Monster) =>
     monster.environmentId ? (
-      <button
-        type="button"
-        onClick={event => {
-          event.preventDefault();
-          event.stopPropagation();
-          handleLinkedEntityNavigate({ tabId: 'environments', entityId: monster.environmentId ?? undefined, entityType: 'environment' });
-        }}
-        title={getEnvironmentPath(monster.environmentId) || 'Luogo non trovato'}
-        className="inline-flex max-w-[200px] items-center gap-1 truncate rounded-md border border-[var(--dash-accent)] bg-[var(--dash-panel)] px-2 py-0.5 text-[10px] font-semibold text-[var(--dash-text-strong)] transition-colors hover:border-[var(--dash-accent-2)] hover:text-[var(--dash-accent-2)]"
-      >
-        <MapPin className="h-3 w-3 shrink-0" />
-        <span className="truncate">{getEnvironmentPath(monster.environmentId) || 'Luogo non trovato'}</span>
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={event => {
+              event.preventDefault();
+              event.stopPropagation();
+              handleLinkedEntityNavigate({ tabId: 'environments', entityId: monster.environmentId ?? undefined, entityType: 'environment' });
+            }}
+            className="inline-flex max-w-[200px] items-center gap-1 truncate rounded-md border border-[var(--dash-accent)] bg-[var(--dash-panel)] px-2 py-0.5 text-[10px] font-semibold text-[var(--dash-text-strong)] transition-colors hover:border-[var(--dash-accent-2)] hover:text-[var(--dash-accent-2)]"
+          >
+            <MapPin className="h-3 w-3 shrink-0" />
+            <span className="truncate">{getEnvironmentPath(monster.environmentId) || 'Luogo non trovato'}</span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top">{getEnvironmentPath(monster.environmentId) || 'Luogo non trovato'}</TooltipContent>
+      </Tooltip>
     ) : null;
 
   return (
@@ -277,14 +282,19 @@ export function MonstersManager({ navigationTarget = null, onNavigate }: Monster
             Mostri<RulesetBadge className="ml-2" />
           </h2>
 
-          <button
-            type="button"
-            onClick={handleAddMonster}
-            title="Crea un nuovo mostro"
-            className="rounded-lg border-2 border-[var(--dash-border)] bg-[var(--dash-border)] p-2 text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-border)]"
-          >
-            <Plus className="h-5 w-5" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={handleAddMonster}
+                aria-label="Crea un nuovo mostro"
+                className="rounded-lg border-2 border-[var(--dash-border)] bg-[var(--dash-border)] p-2 text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-border)]"
+              >
+                <Plus className="h-5 w-5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Crea un nuovo mostro</TooltipContent>
+          </Tooltip>
         </div>
 
         <EntityFilterToolbar

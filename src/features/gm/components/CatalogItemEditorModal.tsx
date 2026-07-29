@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Package, X, ChevronDown, ChevronRight, Upload, Save, Trash2 } from 'lucide-react';
 import { Icon } from '@iconify/react';
 
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../../app/components/ui/tooltip';
 import { generateUUID } from '../../../lib/uuid';
 import {
   loadEntityReferenceBundle,
@@ -762,22 +763,26 @@ export function CatalogItemEditorModal({
                       const isSelected = iconId === option.id;
 
                       return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          onClick={() => {
-                            setIconId(option.id);
-                            setIsIconPickerOpen(false);
-                          }}
-                          title={option.label}
-                          className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${
-                            isSelected
-                              ? 'border-[var(--dash-accent-2)] bg-[var(--dash-accent)]'
-                              : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] hover:border-[var(--dash-accent)] hover:bg-[var(--dash-panel)]'
-                          }`}
-                        >
-                          <Icon icon={option.id} className="h-5 w-5" style={{ color: iconColor }} />
-                        </button>
+                        <Tooltip key={option.id}>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIconId(option.id);
+                                setIsIconPickerOpen(false);
+                              }}
+                              aria-label={option.label}
+                              className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${
+                                isSelected
+                                  ? 'border-[var(--dash-accent-2)] bg-[var(--dash-accent)]'
+                                  : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] hover:border-[var(--dash-accent)] hover:bg-[var(--dash-panel)]'
+                              }`}
+                            >
+                              <Icon icon={option.id} className="h-5 w-5" style={{ color: iconColor }} />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">{option.label}</TooltipContent>
+                        </Tooltip>
                       );
                     })}
                   </div>
@@ -902,26 +907,29 @@ export function CatalogItemEditorModal({
                           const isSelected = imageAssetId === asset.id;
 
                           return (
-                            <button
-                              key={asset.id}
-                              type="button"
-                              onClick={() => {
-                                setImageAssetId(asset.id);
-                                setIsImagePickerOpen(false);
-                              }}
-                              className={`rounded-lg border p-1 transition-colors ${
-                                isSelected
-                                  ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
-                                  : 'border-[var(--dash-border-soft)] bg-[var(--dash-input)] hover:border-[var(--dash-accent-2)]'
-                              }`}
-                              title={asset.name}
-                            >
-                              <img
-                                src={asset.thumbnailDataUrl || asset.imageDataUrl}
-                                alt={asset.name}
-                                className="h-16 w-full rounded object-contain"
-                              />
-                            </button>
+                            <Tooltip key={asset.id}>
+                              <TooltipTrigger asChild>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setImageAssetId(asset.id);
+                                    setIsImagePickerOpen(false);
+                                  }}
+                                  className={`rounded-lg border p-1 transition-colors ${
+                                    isSelected
+                                      ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
+                                      : 'border-[var(--dash-border-soft)] bg-[var(--dash-input)] hover:border-[var(--dash-accent-2)]'
+                                  }`}
+                                >
+                                  <img
+                                    src={asset.thumbnailDataUrl || asset.imageDataUrl}
+                                    alt={asset.name}
+                                    className="h-16 w-full rounded object-contain"
+                                  />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">{asset.name}</TooltipContent>
+                            </Tooltip>
                           );
                         })}
                       </div>

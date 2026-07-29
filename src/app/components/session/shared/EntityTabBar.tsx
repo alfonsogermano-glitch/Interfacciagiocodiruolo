@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { MoreVertical, Plus, Pencil, EyeOff, Eye, Trash2, Copy, Lock, AlertTriangle } from 'lucide-react';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { usePortalContainer } from '../../ui/portal-container';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import type { UseEntityTabsResult } from './useEntityTabs';
 
 interface EntityTabBarProps {
@@ -143,13 +144,18 @@ export function EntityTabBar({ canEdit, tabs, tabIndicators = {}, onAddTab, dele
         )}
 
         {canEdit && (
-          <button
-            onClick={() => (onAddTab ? onAddTab() : handleAddCustomTab())}
-            className="flex items-center justify-center rounded-md border border-dashed border-[var(--dash-border-soft)] p-1.5 text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
-            title="Aggiungi tab"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => (onAddTab ? onAddTab() : handleAddCustomTab())}
+                aria-label="Aggiungi tab"
+                className="flex items-center justify-center rounded-md border border-dashed border-[var(--dash-border-soft)] p-1.5 text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Aggiungi tab</TooltipContent>
+          </Tooltip>
         )}
       </div>
 

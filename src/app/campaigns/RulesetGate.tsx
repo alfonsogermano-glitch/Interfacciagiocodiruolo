@@ -1,6 +1,7 @@
 import { useRuleset } from './RulesetContext';
 import type { RulesetId } from './campaignTypes';
 import { RULESETS } from './campaignTypes';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 
 /**
  * Mostra i children solo se il ruleset attivo corrisponde a uno dei valori in `only`.
@@ -35,16 +36,20 @@ export function RulesetBadge({ className = '' }: { className?: string }) {
   const { ruleset } = useRuleset();
 
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-2.5 py-1 text-xs text-[var(--dash-muted)] ${className}`}
-      title={ruleset.description}
-    >
-      <span
-        className="h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: ruleset.color }}
-      />
-      {ruleset.name}
-    </span>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-2.5 py-1 text-xs text-[var(--dash-muted)] ${className}`}
+        >
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{ backgroundColor: ruleset.color }}
+          />
+          {ruleset.name}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top">{ruleset.description}</TooltipContent>
+    </Tooltip>
   );
 }
 

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Search, LayoutGrid, List, ListFilter } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 
 // Ricerca/ordinamento/vista/toggle-filtri genuinamente riusabili tra
 // contesti diversi (indagati confrontando MonstersManager.tsx con
@@ -85,32 +86,40 @@ export function EntityFilterToolbar({
         )}
 
         <div className="ml-auto flex gap-1 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1">
-          <button
-            type="button"
-            onClick={() => onViewModeChange('grid')}
-            aria-label="Vista a griglia"
-            title="Vista a griglia"
-            className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
-              viewMode === 'grid'
-                ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
-                : 'text-[var(--dash-muted)] hover:text-[var(--dash-text)]'
-            }`}
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => onViewModeChange('list')}
-            aria-label="Vista a lista"
-            title="Vista a lista"
-            className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
-              viewMode === 'list'
-                ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
-                : 'text-[var(--dash-muted)] hover:text-[var(--dash-text)]'
-            }`}
-          >
-            <List className="h-4 w-4" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => onViewModeChange('grid')}
+                aria-label="Vista a griglia"
+                className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+                  viewMode === 'grid'
+                    ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
+                    : 'text-[var(--dash-muted)] hover:text-[var(--dash-text)]'
+                }`}
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Vista a griglia</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => onViewModeChange('list')}
+                aria-label="Vista a lista"
+                className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
+                    : 'text-[var(--dash-muted)] hover:text-[var(--dash-text)]'
+                }`}
+              >
+                <List className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Vista a lista</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 

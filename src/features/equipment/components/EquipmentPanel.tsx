@@ -13,6 +13,7 @@ import {
 
 import { AddEquipmentModal } from '@/features/equipment/components/AddEquipmentModal';
 import { useCharacterEquipment } from '@/features/equipment/hooks/useCharacterEquipment';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/app/components/ui/tooltip';
 import { useEquipmentCatalog } from '@/features/equipment/hooks/useEquipmentCatalog';
 
 import {
@@ -280,48 +281,60 @@ export function EquipmentPanel({
     return (
       <div className="ml-2 flex flex-wrap items-center gap-1.5">
         {locationActions.map(action => (
-          <button
-            key={action.key}
-            type="button"
-            onClick={() => void handleMove(item, action.key)}
-            disabled={isSaving}
-            title={action.label}
-            className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--dash-border)] bg-[var(--dash-panel)] text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)] disabled:opacity-50"
-          >
-            {getLocationActionIcon(action.key)}
-          </button>
+          <Tooltip key={action.key}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => void handleMove(item, action.key)}
+                disabled={isSaving}
+                aria-label={action.label}
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--dash-border)] bg-[var(--dash-panel)] text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)] disabled:opacity-50"
+              >
+                {getLocationActionIcon(action.key)}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">{action.label}</TooltipContent>
+          </Tooltip>
         ))}
 
         {(item.type === 'trasportabile' || item.type === 'arma') &&
           !isBackpack(item) && (
-            <button
-              type="button"
-              onClick={() => void handleToggleInseparabile(item)}
-              disabled={isSaving}
-              title={
-                item.inseparabile
-                  ? 'Rimuovi stato inseparabile'
-                  : 'Rendi inseparabile'
-              }
-              className={`flex h-8 w-8 items-center justify-center rounded-md border transition-colors disabled:opacity-50 ${
-                item.inseparabile
-                  ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
-                  : 'border-[var(--dash-border)] bg-[var(--dash-panel)] text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]'
-              }`}
-            >
-              <Link2 className="h-4 w-4" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => void handleToggleInseparabile(item)}
+                  disabled={isSaving}
+                  aria-label={item.inseparabile ? 'Rimuovi stato inseparabile' : 'Rendi inseparabile'}
+                  className={`flex h-8 w-8 items-center justify-center rounded-md border transition-colors disabled:opacity-50 ${
+                    item.inseparabile
+                      ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
+                      : 'border-[var(--dash-border)] bg-[var(--dash-panel)] text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]'
+                  }`}
+                >
+                  <Link2 className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                {item.inseparabile ? 'Rimuovi stato inseparabile' : 'Rendi inseparabile'}
+              </TooltipContent>
+            </Tooltip>
           )}
 
-        <button
-          type="button"
-          onClick={() => void handleRemove(item)}
-          disabled={isSaving}
-          title="Elimina oggetto"
-          className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] text-[var(--dash-danger-text)] transition-colors hover:bg-[var(--dash-danger-hover)] disabled:opacity-50"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => void handleRemove(item)}
+              disabled={isSaving}
+              aria-label="Elimina oggetto"
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] text-[var(--dash-danger-text)] transition-colors hover:bg-[var(--dash-danger-hover)] disabled:opacity-50"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top">Elimina oggetto</TooltipContent>
+        </Tooltip>
       </div>
     );
   };

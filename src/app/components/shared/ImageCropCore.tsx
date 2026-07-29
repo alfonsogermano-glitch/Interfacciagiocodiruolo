@@ -4,6 +4,7 @@ import Cropper, { type Area } from 'react-easy-crop';
 import { supabase } from '../../auth/AuthContext';
 import { renderShapeSvgChild } from './TokenShapePreview';
 import type { TokenShapeGeometry } from './tokenShapes';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 
 export interface ImageCropCoreProps {
   bucket: string;
@@ -476,13 +477,18 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
                 Annulla
               </button>
             )}
-            <button type="button" onClick={() => { setCrop({ x: 0, y: 0 }); setZoom(1); }} disabled={isUploading}
-              title="Ripristina zoom e posizione"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
-                       width: 40, padding: '0.6rem', borderRadius: 999, backgroundColor: 'transparent',
-                       border: '1px solid var(--dash-border)', color: 'var(--dash-muted)', cursor: isUploading ? 'not-allowed' : 'pointer' }}>
-              <RotateCcw size={15} />
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" onClick={() => { setCrop({ x: 0, y: 0 }); setZoom(1); }} disabled={isUploading}
+                  aria-label="Ripristina zoom e posizione"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
+                           width: 40, padding: '0.6rem', borderRadius: 999, backgroundColor: 'transparent',
+                           border: '1px solid var(--dash-border)', color: 'var(--dash-muted)', cursor: isUploading ? 'not-allowed' : 'pointer' }}>
+                  <RotateCcw size={15} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Ripristina zoom e posizione</TooltipContent>
+            </Tooltip>
             {!autosaveDebounceMs && (
               <button type="button" onClick={handleConfirm} disabled={isUploading}
                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',

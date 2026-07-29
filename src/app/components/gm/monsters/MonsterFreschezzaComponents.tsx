@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { Monster } from './monstersTypes';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 
 export function FreschezzaMaxEditor({
   monster,
@@ -157,33 +158,36 @@ export function FreschezzaBoxesEditor({
           const isFilled = box <= current;
           const isCritical = hasCriticalBoxes && criticalBoxes.includes(box);
 
-          return (
-            <button
-              key={box}
-              type="button"
-              onClick={() => handleSingleClick(box)}
-              onDoubleClick={(event) => handleDoubleClick(event, box)}
-              className={`relative flex h-9 w-9 items-center justify-center rounded-lg border text-xs transition-colors ${
-                isFilled
-                  ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
-                  : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] text-[var(--dash-muted)]'
-              } ${isCritical ? 'ring-2 ring-[var(--dash-danger-border)]' : ''}`}
-              title={
-                isCritical
-                  ? 'Casella Critica: raggiungerla genera 1 Audacia'
-                  : hasCriticalBoxes && allowCriticalEditing
-                    ? 'Doppio click per impostare come Casella Critica'
-                    : 'Freschezza'
-              }
-            >
-              {box}
+          const boxLabel = isCritical
+            ? 'Casella Critica: raggiungerla genera 1 Audacia'
+            : hasCriticalBoxes && allowCriticalEditing
+              ? 'Doppio click per impostare come Casella Critica'
+              : 'Freschezza';
 
-              {isCritical && (
-                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] text-[9px] font-bold text-[var(--dash-danger-text)] shadow-md">
-                  !
-                </span>
-              )}
-            </button>
+          return (
+            <Tooltip key={box}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => handleSingleClick(box)}
+                  onDoubleClick={(event) => handleDoubleClick(event, box)}
+                  className={`relative flex h-9 w-9 items-center justify-center rounded-lg border text-xs transition-colors ${
+                    isFilled
+                      ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
+                      : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] text-[var(--dash-muted)]'
+                  } ${isCritical ? 'ring-2 ring-[var(--dash-danger-border)]' : ''}`}
+                >
+                  {box}
+
+                  {isCritical && (
+                    <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] text-[9px] font-bold text-[var(--dash-danger-text)] shadow-md">
+                      !
+                    </span>
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">{boxLabel}</TooltipContent>
+            </Tooltip>
           );
         })}
       </div>

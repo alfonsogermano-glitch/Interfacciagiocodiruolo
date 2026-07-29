@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useCampaign } from './CampaignContext';
 import { RULESETS, VISIBLE_RULESETS, type Campaign, type CampaignCreateInput, type RulesetId } from './campaignTypes';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 
 const RULESET_ICONS: Record<RulesetId, React.ReactNode> = {
   hsc: <Skull className="h-4 w-4" />,
@@ -220,23 +221,33 @@ function CampaignCard({
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={onEdit}
-          title="Modifica"
-          className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1.5 text-[var(--dash-muted)] hover:text-[var(--dash-text)]"
-        >
-          <Edit2 className="h-4 w-4" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={onEdit}
+              aria-label="Modifica"
+              className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1.5 text-[var(--dash-muted)] hover:text-[var(--dash-text)]"
+            >
+              <Edit2 className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top">Modifica</TooltipContent>
+        </Tooltip>
 
-        <button
-          type="button"
-          onClick={onDelete}
-          title="Elimina"
-          className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1.5 text-[var(--dash-muted)] hover:border-[var(--dash-danger-border)] hover:text-[var(--dash-danger-text)]"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={onDelete}
+              aria-label="Elimina"
+              className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1.5 text-[var(--dash-muted)] hover:border-[var(--dash-danger-border)] hover:text-[var(--dash-danger-text)]"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top">Elimina</TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );

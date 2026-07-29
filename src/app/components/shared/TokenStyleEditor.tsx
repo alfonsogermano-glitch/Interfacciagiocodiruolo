@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import type { ImageCrop } from '../gm/monsters/monstersTypes';
 import type { CropAreaPercent } from './SourceCroppedImage';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import {
   DEFAULT_TOKEN_COLOR,
   DEFAULT_TOKEN_BACKGROUND_COLOR,
@@ -153,27 +154,30 @@ export function TokenStyleEditor({
             {TOKEN_BORDER_STYLE_OPTIONS.map(option => {
               const selected = activeStyle === option.id;
               return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => onChange({ tokenBorderStyle: option.id })}
-                  title={option.label}
-                  aria-label={option.label}
-                  aria-pressed={selected}
-                  className={`flex items-center justify-center rounded-lg border p-2 transition-colors ${
-                    selected
-                      ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
-                      : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] hover:border-[var(--dash-accent)]/60'
-                  }`}
-                >
-                  <svg viewBox="0 0 1 1" className="h-10 w-10 overflow-visible">
-                    {renderShapeSvgChild(TOKEN_SHAPE_SPECS[option.id].geometry, {
-                      fill: 'none',
-                      stroke: selected ? 'var(--dash-accent)' : 'var(--dash-text-strong)',
-                      strokeWidth: TOKEN_SHAPE_SPECS[option.id].strokeWidth,
-                    })}
-                  </svg>
-                </button>
+                <Tooltip key={option.id}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => onChange({ tokenBorderStyle: option.id })}
+                      aria-label={option.label}
+                      aria-pressed={selected}
+                      className={`flex items-center justify-center rounded-lg border p-2 transition-colors ${
+                        selected
+                          ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
+                          : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] hover:border-[var(--dash-accent)]/60'
+                      }`}
+                    >
+                      <svg viewBox="0 0 1 1" className="h-10 w-10 overflow-visible">
+                        {renderShapeSvgChild(TOKEN_SHAPE_SPECS[option.id].geometry, {
+                          fill: 'none',
+                          stroke: selected ? 'var(--dash-accent)' : 'var(--dash-text-strong)',
+                          strokeWidth: TOKEN_SHAPE_SPECS[option.id].strokeWidth,
+                        })}
+                      </svg>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">{option.label}</TooltipContent>
+                </Tooltip>
               );
             })}
           </div>

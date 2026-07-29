@@ -4,6 +4,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useRuleset } from '../../campaigns/RulesetContext';
 import { RulesetBadge } from '../../campaigns/RulesetGate';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
 import { generateUUID } from '../../../lib/uuid';
 import {
@@ -245,14 +246,19 @@ export function NPCsManager({ navigationTarget = null }: NPCsManagerProps) {
             PNG<RulesetBadge className="ml-2" />
           </h2>
 
-          <button
-            type="button"
-            onClick={handleAddNpc}
-            title="Crea un nuovo PNG"
-            className="rounded-lg border-2 border-[var(--dash-border)] bg-[var(--dash-border)] p-2 text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-border)]"
-          >
-            <Plus className="h-5 w-5" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={handleAddNpc}
+                aria-label="Crea un nuovo PNG"
+                className="rounded-lg border-2 border-[var(--dash-border)] bg-[var(--dash-border)] p-2 text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-border)]"
+              >
+                <Plus className="h-5 w-5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Crea un nuovo PNG</TooltipContent>
+          </Tooltip>
         </div>
 
         <EntityFilterToolbar

@@ -369,9 +369,14 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
                 )}
 
                 <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--dash-text)]">
-                  <span className="flex items-center gap-1" title={campaign.memberNames.join(', ')}>
-                    <Users className="h-3.5 w-3.5 shrink-0" /> {formatMemberNames(campaign.memberNames, campaign.memberCount)}
-                  </span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="flex items-center gap-1">
+                        <Users className="h-3.5 w-3.5 shrink-0" /> {formatMemberNames(campaign.memberNames, campaign.memberCount)}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">{campaign.memberNames.join(', ')}</TooltipContent>
+                  </Tooltip>
                   {campaign.characters.length > 0 && (
                     <span className="flex flex-wrap items-center gap-1 text-[var(--dash-muted)]">
                       <User className="h-3.5 w-3.5 shrink-0" />

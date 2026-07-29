@@ -6,6 +6,7 @@ import { Bold, Italic, Heading1, Heading2, Heading3, Heading4, List, ListOrdered
 import { MarkdownContent } from './MarkdownContent';
 import { parseLines } from './markdownHeadings';
 import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 // @tiptap/extension-underline non va importato/aggiunto qui: StarterKit lo
 // include e attiva gia' di default (verificato nel suo sorgente - "if
 // (this.options.underline !== false)"), aggiungerlo di nuovo registrerebbe
@@ -101,19 +102,23 @@ function ToolbarButton({ active, disabled, onClick, label, children }: {
   active: boolean; disabled?: boolean; onClick: () => void; label: string; children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      title={label}
-      aria-label={label}
-      aria-pressed={active}
-      className={`flex shrink-0 items-center justify-center rounded-md p-1.5 transition-colors ${
-        active ? 'bg-[var(--dash-surface-2)] text-[var(--dash-text-strong)]' : 'text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]'
-      } ${disabled ? 'cursor-not-allowed opacity-40' : ''}`}
-    >
-      {children}
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={onClick}
+          aria-label={label}
+          aria-pressed={active}
+          className={`flex shrink-0 items-center justify-center rounded-md p-1.5 transition-colors ${
+            active ? 'bg-[var(--dash-surface-2)] text-[var(--dash-text-strong)]' : 'text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]'
+          } ${disabled ? 'cursor-not-allowed opacity-40' : ''}`}
+        >
+          {children}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -131,16 +136,20 @@ function ToolbarSection({ label, defaultOpen, children }: { label: string; defau
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        title={label}
-        className="flex w-full items-center gap-0.5 rounded-md px-0.5 py-1 text-left text-[10px] font-medium uppercase tracking-wide text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]"
-      >
-        <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
-        <span className="truncate">{label}</span>
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            className="flex w-full items-center gap-0.5 rounded-md px-0.5 py-1 text-left text-[10px] font-medium uppercase tracking-wide text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]"
+          >
+            <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
+            <span className="truncate">{label}</span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right">{label}</TooltipContent>
+      </Tooltip>
       {open && <div className="mt-1 flex flex-col gap-1">{children}</div>}
     </div>
   );
