@@ -218,38 +218,29 @@ export function TipTapTableMenu({ editor }: { editor: Editor }) {
       // getReferencedVirtualElement (che ancora correttamente all'angolo
       // reale della tabella, il .tableWrapper renderizzato da TableView).
       //
-      // flip/shift: gia' attivi di default dentro BubbleMenuView anche senza
-      // specificarli qui (floatingUIOptions parte da flip:{}/shift:{}, non
-      // sovrascritti passando solo placement/offset - verificato nel
-      // sorgente di @tiptap/extension-bubble-menu) - il flip da solo pero'
-      // usa come limite di collisione 'clippingAncestors' di Floating UI
-      // (intersezione implicita di tutti gli antenati con overflow lungo
-      // la catena, fino al viewport), non l'area di scrittura vera e
-      // propria. boundary esplicito la vincola direttamente al contenitore
-      // effettivo (editor.view.dom.parentElement, la colonna di testo in
-      // RichTextEditor.tsx dove il menu viene agganciato come sibling di
-      // .tiptap-content, vedi show() in BubbleMenuView) - fix del bug
-      // segnalato 2026-07-29: tabella come primo elemento del documento,
-      // poco spazio sopra, il menu sconfinava fuori da quel contenitore.
+      // flip: DISATTIVATO esplicitamente (flip:false, non semplicemente
+      // omesso - BubbleMenuView parte da flip:{} nei suoi default, un
+      // oggetto vuoto e' comunque truthy, quindi ometterlo qui l'avrebbe
+      // lasciato attivo). Due tentativi precedenti (boundary su
+      // editor.view.dom.parentElement, poi rimozione del relativo padding)
+      // avevano provato a rendere il flip verticale meno aggressivo invece
+      // di eliminarlo - scelta finale piu' semplice e robusta (2026-07-29,
+      // terzo giro): l'icona resta SEMPRE a placement:'top-end' fisso, mai
+      // spostata sotto la tabella. Lo spazio che il flip andava a cercare
+      // quando mancava sopra la tabella e' garantito invece a monte da un
+      // margin-top sulla regola `.tiptap-content table` in theme.css
+      // (spazio riservato sempre, non solo quando la tabella e' il primo
+      // elemento del documento - vedi commento li').
       //
-      // NESSUN padding qui (default di Floating UI: 0) - un padding:8
-      // messo in un primo tentativo causava un bug diverso e peggiore
-      // (segnalato 2026-07-29, secondo giro): per placement 'top-end', lo
-      // shift di Floating UI corregge di default SOLO l'asse orizzontale
-      // (verificato nel sorgente di @floating-ui/core - per un
-      // placement 'top', mainAxis interno = 'x', checkMainAxis default
-      // true; l'asse verticale e' checkCrossAxis, default false, quello e'
-      // compito del flip qui sopra) - con padding:8, qualunque tabella col
-      // bordo destro entro 8px dal bordo destro del boundary veniva
-      // considerata "in overflow" e l'icona spostata a sinistra ad OGNI
-      // apertura, anche con tabelle normalissime che riempiono la
-      // larghezza disponibile (il caso comune, non quello limite). Senza
-      // padding, la correzione scatta solo quando l'icona uscirebbe
-      // DAVVERO dal boundary.
+      // shift: resta attivo, senza padding (vedi giro precedente - con un
+      // padding qualunque tabella larga quanto il contenitore veniva
+      // trattata come overflow orizzontale anche nel caso comune) - copre
+      // solo il caso limite orizzontale (tabella vicina al bordo
+      // sinistro/destro), indipendente dal flip verticale rimosso sopra.
       options={{
         placement: 'top-end',
         offset: 2,
-        flip: { boundary: editor.view.dom.parentElement ?? undefined },
+        flip: false,
         shift: { boundary: editor.view.dom.parentElement ?? undefined },
       }}
       getReferencedVirtualElement={() => {

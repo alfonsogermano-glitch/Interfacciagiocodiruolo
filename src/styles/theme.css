@@ -252,7 +252,20 @@
 }
 .tiptap-content table {
   width: 100%;
-  margin: 0 0 0.5rem 0;
+  /* margin-top 2.25rem (36px, dentro il range 32-40px richiesto): spazio
+     riservato SEMPRE sopra ogni tabella, non solo quando e' il primo
+     elemento del documento - piu' semplice e robusto che condizionarlo
+     alla posizione (richiederebbe un selettore tipo :first-child che
+     smetterebbe di funzionare al primo paragrafo vuoto prima della
+     tabella, o JS per rilevare la posizione reale). Sostituisce il flip
+     verticale del menu ⋮ (disattivato in TipTapTableMenu.tsx, vedi
+     commento li') - lo spazio per l'icona (sempre a placement:'top-end'
+     fisso) ora c'e' sempre in partenza, invece di doverlo "trovare"
+     dinamicamente quando manca. .tableWrapper (overflow-x:auto, sotto)
+     stabilisce un nuovo contesto di formattazione a blocco: questo
+     margin-top non collassa con quanto sta sopra il wrapper, resta
+     sempre spazio reale dentro il wrapper stesso. */
+  margin: 2.25rem 0 0.5rem 0;
   border-collapse: collapse;
   /* Richiesto dal ridimensionamento colonne: con table-layout:auto il
      browser ricalcola le larghezze in base al contenuto ignorando le
