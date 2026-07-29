@@ -107,7 +107,6 @@ function TooltipContent({
         style={{
           backgroundColor: colors.panel,
           color: colors.text,
-          border: `1px solid ${colors.border}`,
         }}
         className={cn(
           "animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-[1200] w-fit origin-(--radix-tooltip-content-transform-origin) rounded-md px-3 py-1.5 text-xs text-balance shadow-lg",
@@ -116,34 +115,37 @@ function TooltipContent({
         {...props}
       >
         {children}
-        {/* asChild: il polygon che @radix-ui/react-arrow disegnerebbe da solo
-            (asChild=false) e' irraggiungibile da qui - non possiamo dargli
-            uno stroke proprio, solo un fill che eredita via cascata SVG. Il
-            bordo del riquadro (border: 1px solid, sopra) finiva quindi
-            "tagliato" esattamente dove la freccia lo ricopre col proprio
-            fill piatto senza contorno: da qui l'interruzione visibile nella
-            cornice, sempre sul lato da cui la freccia esce verso il
-            trigger - bug verificato 2026-07-29. Fornendo noi stessi il
-            <polygon>, possiamo aggiungergli uno stroke che ridisegna quel
-            tratto di bordo esattamente dove il fill lo ricopriva, richiudendo
-            il contorno. vectorEffect="non-scaling-stroke" evita che lo
-            stroke venga deformato dal viewBox non quadrato (30x10, reso poi
-            10x10 via preserveAspectRatio="none") e dalla rotazione CSS
-            (rotate-45) applicata all'svg intero - senza, lo stesso
-            strokeWidth risulterebbe piu' sottile su un asse che sull'altro. */}
-        <TooltipPrimitive.Arrow asChild>
-          <svg className="z-[1200] size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px]">
-            <polygon
-              points="0,0 30,0 15,10"
-              style={{
-                fill: colors.panel,
-                stroke: colors.border,
-                strokeWidth: 1,
-                vectorEffect: 'non-scaling-stroke',
-              }}
-            />
-          </svg>
-        </TooltipPrimitive.Arrow>
+        {/* Arrow SENZA stroke, come in origine - il primo tentativo di fix
+            (dare uno stroke al polygon intero, vedi storia git) chiudeva si'
+            il buco nella cornice ma delineava anche la punta esterna rivolta
+            verso il trigger, che deve restare piatta/senza contorno per
+            fondersi visivamente col corpo - selezionare a mano SOLO i due
+            lati "giusti" del polygon non e' praticabile da qui: quali lati
+            finiscano dentro il riquadro (nascosti, irrilevanti) o fuori
+            (visibili) dipende dalla rotazione combinata data da
+            PopperArrow per ciascun side (top/right/bottom/left) + il nostro
+            rotate-45, diversa per ciascuno dei 4 casi. */}
+        <TooltipPrimitive.Arrow
+          style={{ fill: colors.panel }}
+          className="z-[1200] size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px]"
+        />
+        {/* Cornice del riquadro ridisegnata QUI, come layer separato DOPO
+            l'arrow (quindi sopra di essa nell'ordine di paint), invece che
+            come proprieta' `border` sul Content sopra: un `border` sul
+            Content stesso viene dipinto PRIMA dei suoi figli (l'arrow e'
+            un figlio), quindi l'arrow lo ricopriva col proprio fill piatto
+            esattamente dove i due si sovrappongono - da li' il buco nella
+            cornice (bug verificato 2026-07-29). Questo layer e' un
+            rettangolo assoluto statico, mai ruotato: indipendentemente da
+            side/rotazione dell'arrow, ridisegna l'intero perimetro
+            arrotondato del riquadro SOPRA a tutto, richiudendo il buco
+            senza mai delineare la sagoma dell'arrow (che resta cosi'
+            visibile solo per il proprio fill, non per un contorno). */}
+        <div
+          aria-hidden="true"
+          style={{ border: `1px solid ${colors.border}` }}
+          className="pointer-events-none absolute inset-0 z-[1200] rounded-md"
+        />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   );
