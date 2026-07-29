@@ -247,25 +247,32 @@
    uno scroll orizzontale invece di un taglio brusco quando la somma delle
    larghezze minime delle colonne (--default-cell-min-width, impostata in
    inline style dalla libreria) supera lo spazio disponibile. */
+/* margin-top qui, non su "table" sotto: bug verificato 2026-07-29 (secondo
+   giro) leggendo il sorgente di prosemirror-tables (TableView, this.dom =
+   <div class="tableWrapper">, this.table = this.dom.appendChild(<table>))
+   - view.nodeDOM(found.pos) in TipTapTableMenu.tsx (getReferencedVirtualElement)
+   restituisce QUESTO div, non il <table> figlio. Un margin-top messo sul
+   <table> interno (primo tentativo) sposta il <table> visivamente DENTRO
+   il wrapper senza spostare il bordo superiore del wrapper stesso, che e'
+   cio' da cui Floating UI calcola la posizione dell'icona - il margine
+   creava quindi solo spazio vuoto inutile, senza alcun effetto sulla
+   posizione reale dell'icona (che restava sempre nello stesso punto,
+   spiegando perche' aumentarlo o ridurlo non risolveva ne' lo spazio
+   eccessivo ne' l'invasione della barra delle tab quando la tabella e' il
+   primo elemento: erano lo stesso problema).
+   Valore 2.125rem (34px): calibrato sulla misura REALE del bottone ⋮
+   (h-8 di Tailwind = 2rem = 32px, buttonClassName di default in
+   EntityKebabMenu.tsx, non sovrascritto per l'uso tabella) + offset:2
+   (2px) di TipTapTableMenu.tsx - lo spazio minimo esatto perche' l'icona
+   (sempre a placement:'top-end' fisso, flip disattivato) resti dentro il
+   wrapper invece di sconfinare sopra, senza margine sprecato in piu'. */
 .tiptap-content .tableWrapper {
   overflow-x: auto;
+  margin-top: 2.125rem;
 }
 .tiptap-content table {
   width: 100%;
-  /* margin-top 2.25rem (36px, dentro il range 32-40px richiesto): spazio
-     riservato SEMPRE sopra ogni tabella, non solo quando e' il primo
-     elemento del documento - piu' semplice e robusto che condizionarlo
-     alla posizione (richiederebbe un selettore tipo :first-child che
-     smetterebbe di funzionare al primo paragrafo vuoto prima della
-     tabella, o JS per rilevare la posizione reale). Sostituisce il flip
-     verticale del menu ⋮ (disattivato in TipTapTableMenu.tsx, vedi
-     commento li') - lo spazio per l'icona (sempre a placement:'top-end'
-     fisso) ora c'e' sempre in partenza, invece di doverlo "trovare"
-     dinamicamente quando manca. .tableWrapper (overflow-x:auto, sotto)
-     stabilisce un nuovo contesto di formattazione a blocco: questo
-     margin-top non collassa con quanto sta sopra il wrapper, resta
-     sempre spazio reale dentro il wrapper stesso. */
-  margin: 2.25rem 0 0.5rem 0;
+  margin: 0 0 0.5rem 0;
   border-collapse: collapse;
   /* Richiesto dal ridimensionamento colonne: con table-layout:auto il
      browser ricalcola le larghezze in base al contenuto ignorando le

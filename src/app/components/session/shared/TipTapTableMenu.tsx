@@ -228,9 +228,14 @@ export function TipTapTableMenu({ editor }: { editor: Editor }) {
       // terzo giro): l'icona resta SEMPRE a placement:'top-end' fisso, mai
       // spostata sotto la tabella. Lo spazio che il flip andava a cercare
       // quando mancava sopra la tabella e' garantito invece a monte da un
-      // margin-top sulla regola `.tiptap-content table` in theme.css
-      // (spazio riservato sempre, non solo quando la tabella e' il primo
-      // elemento del documento - vedi commento li').
+      // margin-top sulla regola `.tiptap-content .tableWrapper` in
+      // theme.css - IMPORTANTE: sul wrapper, non sul <table> interno (bug
+      // corretto 2026-07-29, quarto giro: getReferencedVirtualElement qui
+      // sotto usa view.nodeDOM(found.pos), che per una tabella
+      // ridimensionabile restituisce .tableWrapper, non il <table> - un
+      // margin-top sul <table> sposta la tabella DENTRO il wrapper senza
+      // spostare il bordo superiore del wrapper stesso, cioe' senza alcun
+      // effetto sulla posizione reale dell'icona).
       //
       // shift: resta attivo, senza padding (vedi giro precedente - con un
       // padding qualunque tabella larga quanto il contenitore veniva
