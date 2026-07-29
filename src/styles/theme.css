@@ -465,3 +465,34 @@
   outline: none;
   overflow-x: auto;
 }
+
+/* Scrollbar nativa ristilizzata sulla palette del tema attivo (vedi
+   l'esclusione di .tiptap-content/.tableWrapper dalla soppressione
+   globale in index.css) - senza queste regole il browser userebbe il
+   proprio grigio di sistema, stonando col resto del pannello scuro.
+   scrollbar-color copre Firefox e Chrome/Edge recenti in un colpo solo;
+   le pseudo-classi ::-webkit-scrollbar-* sotto sono il fallback
+   necessario per Chrome/Safari piu' datati dove scrollbar-color da solo
+   non basta a personalizzare spessore/aspetto. --dash-panel (stesso
+   sfondo dell'editor) per il track, --dash-border-soft (stesso colore
+   dei bordi di cella sopra) per il thumb: entrambe variabili di palette,
+   quindi seguono automaticamente il tema attivo invece di un colore
+   fisso. */
+.tiptap-content,
+.tiptap-content .tableWrapper {
+  scrollbar-color: var(--dash-border-soft) var(--dash-panel);
+}
+.tiptap-content::-webkit-scrollbar,
+.tiptap-content .tableWrapper::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.tiptap-content::-webkit-scrollbar-track,
+.tiptap-content .tableWrapper::-webkit-scrollbar-track {
+  background: var(--dash-panel);
+}
+.tiptap-content::-webkit-scrollbar-thumb,
+.tiptap-content .tableWrapper::-webkit-scrollbar-thumb {
+  background: var(--dash-border-soft);
+  border-radius: 5px;
+}
