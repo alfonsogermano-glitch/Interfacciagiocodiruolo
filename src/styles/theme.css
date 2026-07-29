@@ -467,31 +467,30 @@
 }
 
 /* Indizio visivo di scroll orizzontale disponibile (tabelle piu' larghe
-   del contenitore, vedi overflow-x:auto sopra) - proposto e approvato
-   separatamente dal fix funzionale dello scroll. Tecnica CSS pura nota
-   come "scroll shadow" (Lea Verou): due coppie di gradienti sovrapposti
-   ai bordi sinistro/destro - la coppia "ombra" (scroll, quindi ancorata
-   al viewport del contenitore, non al contenuto) resta sempre nella
-   stessa posizione visiva; la coppia "copertura" sopra di essa, dello
-   stesso colore del pannello, si muove COL contenuto
-   (background-attachment: local) e la nasconde finche' c'e' altro da
-   scrollare da quel lato - una volta scrollati fino in fondo (o se il
-   contenuto non eccede affatto), la copertura arriva a coprire
-   interamente l'ombra corrispondente, che quindi sparisce da sola senza
-   bisogno di ascoltare eventi di scroll via JS. var(--dash-panel): stesso
-   colore di sfondo gia' usato dai contenitori che ospitano
-   .tiptap-content (DEFAULT_CONTAINER_CLASS e containerClassName in
-   RichTextEditor.tsx), per fondersi invece di lasciare una striscia
-   visibile quando non c'e' nulla da scrollare. */
+   del contenitore, vedi overflow-x:auto sopra). Versione semplificata
+   dopo un'indagine diretta con test progressivi in DevTools (2026-07-29):
+   la tecnica originale a 4 layer ("scroll shadow" di Lea Verou, con due
+   maschere background-attachment:local che avrebbero dovuto nascondere
+   l'ombra a inizio/fine scroll) non funzionava - confermato con test
+   mirati che le due maschere (piu' larghe, 24px, disegnate per prime
+   quindi sopra) coprivano sempre le due ombre sottostanti (piu' strette,
+   10px), qualunque fosse la posizione di scroll, perche' entrambe
+   ancorate allo stesso bordo. Invertire l'ordine dei layer avrebbe reso
+   l'ombra sempre visibile (mai piu' nascosta dalla maschera) - stesso
+   risultato pratico di questa versione, ma con il doppio dei layer e
+   la stessa combinazione local/scroll gia' rivelatasi fragile - qui
+   invece solo le due ombre, sempre `scroll` (il default, quindi ancorate
+   al bordo visibile del contenitore, non al contenuto che scorre), senza
+   alcuna maschera. Costo accettato: l'ombra resta visibile anche una
+   volta scrollati fino in fondo da quel lato (o se il contenuto non
+   eccede affatto) - imprecisione estetica minore, non un difetto
+   funzionale, preferita alla fragilita' della versione "intelligente". */
 .tiptap-content {
   background-color: var(--dash-panel);
   background-repeat: no-repeat;
   background-image:
-    linear-gradient(to right, var(--dash-panel) 30%, transparent),
-    linear-gradient(to left, var(--dash-panel) 30%, transparent),
     linear-gradient(to right, rgba(0, 0, 0, 0.25), transparent),
     linear-gradient(to left, rgba(0, 0, 0, 0.25), transparent);
-  background-position: left, right, left, right;
-  background-size: 24px 100%, 24px 100%, 10px 100%, 10px 100%;
-  background-attachment: local, local, scroll, scroll;
+  background-position: left, right;
+  background-size: 10px 100%, 10px 100%;
 }
