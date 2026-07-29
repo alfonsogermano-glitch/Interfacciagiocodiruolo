@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
-import { Bold, Italic, Heading1, Heading2, Heading3, Heading4, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Square, ChevronsDownUp } from 'lucide-react';
+import { Bold, Italic, Heading1, Heading2, Heading3, Heading4, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, Table as TableIcon } from 'lucide-react';
+import { TableKit } from '@tiptap/extension-table';
 import { MarkdownContent } from './MarkdownContent';
 import { parseLines } from './markdownHeadings';
 import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
+import { TipTapTableMenu } from './TipTapTableMenu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 // @tiptap/extension-underline non va importato/aggiunto qui: StarterKit lo
 // include e attiva gia' di default (verificato nel suo sorgente - "if
@@ -201,6 +203,12 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         <ToolbarButton disabled={!editable} label="Sottolineato" active={editor.isActive('underline')} onClick={() => runCommand(() => editor.chain().focus().toggleUnderline().run())}>
           <UnderlineIcon className="h-4 w-4" />
         </ToolbarButton>
+        {/* toggleStrike/isActive('strike'): come Underline sopra, gia'
+            incluso e attivo di default dentro StarterKit - nessuna nuova
+            estensione da registrare. */}
+        <ToolbarButton disabled={!editable} label="Sbarrato" active={editor.isActive('strike')} onClick={() => runCommand(() => editor.chain().focus().toggleStrike().run())}>
+          <Strikethrough className="h-4 w-4" />
+        </ToolbarButton>
         <ToolbarButton disabled={!editable} label="Titolo 1" active={editor.isActive('heading', { level: 1 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 1 }).run())}>
           <Heading1 className="h-4 w-4" />
         </ToolbarButton>
@@ -219,6 +227,14 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         <ToolbarButton disabled={!editable} label="Elenco numerato" active={editor.isActive('orderedList')} onClick={() => runCommand(() => editor.chain().focus().toggleOrderedList().run())}>
           <ListOrdered className="h-4 w-4" />
         </ToolbarButton>
+        {/* toggleBlockquote/isActive('blockquote'): comportamento di
+            Backspace/Invio nativo di ProseMirror (lift fuori dalla citazione
+            a inizio riga, la riga verticale si allunga da sola su piu'
+            paragrafi) - vedi lo stile in theme.css, nessun codice qui oltre
+            al toggle. Gia' incluso in StarterKit come Underline/Strike. */}
+        <ToolbarButton disabled={!editable} label="Citazione" active={editor.isActive('blockquote')} onClick={() => runCommand(() => editor.chain().focus().toggleBlockquote().run())}>
+          <Quote className="h-4 w-4" />
+        </ToolbarButton>
       </ToolbarSection>
       {/* Sezione separata da "Formattazione testo": Box di testo e Collapse
           sono nodi a blocco (inseriscono/racchiudono contenuto), non marchi
@@ -232,6 +248,19 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         </ToolbarButton>
         <ToolbarButton disabled={!editable} label="Collapse (espandi/comprimi)" active={false} onClick={() => runCommand(() => editor.chain().focus().setCollapseBlock().run())}>
           <ChevronsDownUp className="h-4 w-4" />
+        </ToolbarButton>
+        {/* setHorizontalRule: gia' incluso in StarterKit come
+            Blockquote/Strike, nessuna nuova estensione. Comando di
+            inserimento (non toggle) come Box di testo/Collapse sopra. */}
+        <ToolbarButton disabled={!editable} label="Linea orizzontale" active={false} onClick={() => runCommand(() => editor.chain().focus().setHorizontalRule().run())}>
+          <SeparatorHorizontal className="h-4 w-4" />
+        </ToolbarButton>
+        {/* insertTable: unica funzionalita' di questo gruppo che richiede una
+            nuova estensione (TableKit, vedi extensions sotto) - tabella 3x3
+            senza riga di intestazione (si attiva dopo dal menu contestuale
+            della tabella, vedi TipTapTableMenu.tsx). */}
+        <ToolbarButton disabled={!editable} label="Tabella" active={false} onClick={() => runCommand(() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: false }).run())}>
+          <TableIcon className="h-4 w-4" />
         </ToolbarButton>
       </ToolbarSection>
       {/* Sezioni future (Widget, Oggetti speciali): aggiungere qui altre
@@ -270,7 +299,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
   const [initialContent] = useState(() => richContent);
 
   const editor = useEditor({
-    extensions: [StarterKit, ...TIPTAP_BLOCK_EXTENSIONS],
+    extensions: [StarterKit, TableKit.configure({ table: { resizable: false } }), ...TIPTAP_BLOCK_EXTENSIONS],
     content: initialContent,
     editable,
     // .tiptap-content: vedi theme.css - ripristina list-style/padding per
@@ -361,6 +390,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
         className={`min-w-0 flex-1 ${!editable && onClickText ? 'cursor-text' : ''} ${containerClassName}`}
       >
         <EditorContent editor={editor} />
+        {editable && <TipTapTableMenu editor={editor} />}
       </div>
     </div>
   );

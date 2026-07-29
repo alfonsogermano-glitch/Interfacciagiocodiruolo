@@ -212,6 +212,56 @@
   margin: 0 0 0.25rem 0;
 }
 
+/* Linea orizzontale (HorizontalRule, gia' inclusa in StarterKit) - il
+   preflight di Tailwind azzera bordo/margine di <hr>, stesso motivo di
+   ul/ol/heading sopra. */
+.tiptap-content hr {
+  margin: 0.75rem 0;
+  border: none;
+  border-top: 1px solid var(--dash-border-soft);
+}
+
+/* Citazione (Blockquote, gia' inclusa in StarterKit) - il comportamento
+   (Backspace a inizio riga rimuove la citazione, Invio allunga la riga
+   verticale su piu' paragrafi) e' gia' nativo di ProseMirror (vedi
+   handleBackspace nel sorgente dell'estensione): qui serve solo lo stile,
+   il preflight di Tailwind azzera bordo/margine/padding di default anche
+   per <blockquote>. */
+.tiptap-content blockquote {
+  margin: 0 0 0.5rem 0;
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--dash-accent);
+  color: var(--dash-muted);
+}
+.tiptap-content blockquote > *:last-child {
+  margin-bottom: 0;
+}
+
+/* Tabella (TableKit, RichTextEditor.tsx) - il preflight di Tailwind toglie
+   bordo/spaziatura di default a table/td/th, stesso motivo di ul/ol/hr/
+   blockquote sopra: senza queste regole la griglia sarebbe invisibile,
+   indistinguibile da normale testo affiancato. */
+.tiptap-content table {
+  width: 100%;
+  margin: 0 0 0.5rem 0;
+  border-collapse: collapse;
+}
+.tiptap-content td,
+.tiptap-content th {
+  border: 1px solid var(--dash-border-soft);
+  padding: 0.375rem 0.5rem;
+  vertical-align: top;
+}
+.tiptap-content th {
+  background: var(--dash-surface-2);
+  font-weight: var(--font-weight-medium);
+  text-align: left;
+}
+.tiptap-content td > *:last-child,
+.tiptap-content th > *:last-child {
+  margin-bottom: 0;
+}
+
 /* Box di testo (tiptapBlocks.tsx, TextBox) - stessa palette gia' usata per
    l'avviso "Formato precedente" (RichTextEditor.tsx), coerenza visiva col
    resto dell'app. Riga flex con la maniglia di trascinamento/selezione
