@@ -299,7 +299,12 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
   const [initialContent] = useState(() => richContent);
 
   const editor = useEditor({
-    extensions: [StarterKit, TableKit.configure({ table: { resizable: false } }), ...TIPTAP_BLOCK_EXTENSIONS],
+    // resizable: true attiva columnResizing di prosemirror-tables (gia'
+    // dentro @tiptap/extension-table, nessun codice nostro) - richiede pero'
+    // il CSS dedicato in theme.css (table-layout:fixed, .tableWrapper,
+    // .column-resize-handle, testo a capo) senza il quale le colonne
+    // resterebbero incoerenti col contenuto durante il trascinamento.
+    extensions: [StarterKit, TableKit.configure({ table: { resizable: true } }), ...TIPTAP_BLOCK_EXTENSIONS],
     content: initialContent,
     editable,
     // .tiptap-content: vedi theme.css - ripristina list-style/padding per

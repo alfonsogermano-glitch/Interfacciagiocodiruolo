@@ -241,16 +241,51 @@
    bordo/spaziatura di default a table/td/th, stesso motivo di ul/ol/hr/
    blockquote sopra: senza queste regole la griglia sarebbe invisibile,
    indistinguibile da normale testo affiancato. */
+/* .tableWrapper: presente sempre in modifica quando la tabella e'
+   ridimensionabile (TableView di @tiptap/extension-table, vedi il
+   commento su resizable in RichTextEditor.tsx) - overflow-x:auto permette
+   uno scroll orizzontale invece di un taglio brusco quando la somma delle
+   larghezze minime delle colonne (--default-cell-min-width, impostata in
+   inline style dalla libreria) supera lo spazio disponibile. */
+.tiptap-content .tableWrapper {
+  overflow-x: auto;
+}
 .tiptap-content table {
   width: 100%;
   margin: 0 0 0.5rem 0;
   border-collapse: collapse;
+  /* Richiesto dal ridimensionamento colonne: con table-layout:auto il
+     browser ricalcola le larghezze in base al contenuto ignorando le
+     larghezze esplicite impostate trascinando una maniglia - con "fixed"
+     restano quelle scelte dall'utente, e per questo il testo lungo va
+     mandato a capo esplicitamente sotto invece di poter allargare la
+     cella. */
+  table-layout: fixed;
 }
 .tiptap-content td,
 .tiptap-content th {
+  position: relative;
+  box-sizing: border-box;
   border: 1px solid var(--dash-border-soft);
   padding: 0.375rem 0.5rem;
   vertical-align: top;
+  /* Conseguenza diretta di table-layout:fixed sopra: una parola/stringa
+     piu' larga della colonna (ridotta trascinando una maniglia) andrebbe
+     altrimenti in overflow invece di andare a capo. */
+  overflow-wrap: break-word;
+}
+/* Larghezza minima di default finche' la colonna non e' stata
+   ridimensionata esplicitamente (data-colwidth assente) o non e' in corso
+   il trascinamento - stessa condizione usata dal CSS di riferimento di
+   prosemirror-tables, qui solo riportata sotto lo scoping .tiptap-content. */
+.tiptap-content td:not([data-colwidth]):not(.column-resize-dragging),
+.tiptap-content th:not([data-colwidth]):not(.column-resize-dragging) {
+  /* Fallback 25px: la CSS var e' impostata dalla libreria solo quando la
+     tabella e' montata con la NodeView di ridimensionamento (modifica
+     attiva) - in sola lettura (renderHTML statico, nessun resizing) la
+     var non esiste, il fallback riprende lo stesso valore di
+     cellMinWidth configurato in RichTextEditor.tsx. */
+  min-width: var(--default-cell-min-width, 25px);
 }
 .tiptap-content th {
   background: var(--dash-surface-2);
@@ -260,6 +295,23 @@
 .tiptap-content td > *:last-child,
 .tiptap-content th > *:last-child {
   margin-bottom: 0;
+}
+/* Maniglia di ridimensionamento colonna (decorazione inserita da
+   columnResizing di prosemirror-tables solo quando il puntatore e' vicino
+   al bordo tra due colonne, mai visibile permanentemente) - stessa palette
+   dash-* del resto dell'app al posto del blu (#adf) hardcoded di default. */
+.tiptap-content .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  z-index: 20;
+  background-color: var(--dash-accent);
+  pointer-events: none;
+}
+.tiptap-content.resize-cursor {
+  cursor: col-resize;
 }
 
 /* Box di testo (tiptapBlocks.tsx, TextBox) - stessa palette gia' usata per
