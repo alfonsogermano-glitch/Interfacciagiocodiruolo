@@ -42,7 +42,7 @@ export function EntityTabBar({ canEdit, tabs, tabIndicators = {}, onAddTab, dele
   const {
     orderedTabs,
     currentTab,
-    setCurrentTab,
+    selectTabByClick,
     draggedTabId,
     dragOverId,
     tabsContainerRef,
@@ -98,7 +98,7 @@ export function EntityTabBar({ canEdit, tabs, tabIndicators = {}, onAddTab, dele
                 />
               ) : (
                 <button
-                  onClick={() => setCurrentTab(tab.id)}
+                  onClick={() => selectTabByClick(tab.id)}
                   className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
                     currentTab === tab.id
                       ? 'border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'

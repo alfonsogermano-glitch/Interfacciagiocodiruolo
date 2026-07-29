@@ -83,11 +83,20 @@ export function NoteSubTabs({ note, campaignId, accessToken, canEdit, onPersistS
 
       {selectedSubTab && (canEdit || !selectedSubTab.hidden) ? (
         <RichTextEditor
+          // key per-sotto-tab: senza, il cambio di sotto-tab riusava la
+          // stessa istanza (solo richContent/legacyContent cambiavano via
+          // props), quindi isEditing/lo stato del segnale di auto-focus
+          // sotto non venivano mai riletti al cambio - stesso pattern di
+          // remount gia' usato per le tab in EntityDetailView.tsx
+          // (RichTextEditor key={tab.id} li').
+          key={selectedSubTab.id}
           legacyContent={selectedSubTab.content}
           richContent={selectedSubTab.content_rich}
           onChangeRich={(json) => nestedTabs.handleCustomTabRichContentChange(selectedSubTab.id, json)}
           disabled={!canEdit}
           placeholder="Scrivi qui..."
+          autoFocusOnSelect={nestedTabs.pendingFocusTabId === selectedSubTab.id}
+          onAutoFocusConsumed={() => nestedTabs.clearPendingFocusTab(selectedSubTab.id)}
         />
       ) : null}
     </>

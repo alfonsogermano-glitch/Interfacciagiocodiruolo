@@ -22,6 +22,22 @@ interface RichTextEditorProps {
   disabled: boolean;
   placeholder?: string;
   className?: string;
+  /** true = questo mount corrisponde a una tab appena selezionata con un
+   *  click diretto sulla sua pillola (EntityTabBar.tsx, vedi
+   *  selectTabByClick in useEntityTabs.ts) - letto SOLO all'avvio (seed
+   *  dello stato isEditing iniziale), mai riletto durante la vita del
+   *  componente: il chiamante deve montare una nuova istanza per ogni tab
+   *  (key={tab.id}) perche' questo funzioni, esattamente come gia' fa
+   *  EntityDetailView.tsx/NoteSubTabs.tsx. Assente/false = comportamento
+   *  invariato (serve ancora un click nel testo per entrare in modifica -
+   *  sincronizzazione da altri client, apertura iniziale della nota). */
+  autoFocusOnSelect?: boolean;
+  /** Consumo one-shot di autoFocusOnSelect, invocato al mount - il chiamante
+   *  lo usa per azzerare il proprio pendingFocusTabId (vedi
+   *  clearPendingFocusTab in useEntityTabs.ts) cosi' un rimontaggio
+   *  successivo della stessa tab per un motivo diverso da un nuovo click non
+   *  la ritrova ancora "in attesa di focus". */
+  onAutoFocusConsumed?: () => void;
 }
 
 // Converte il formato legacy (righe con prefisso "#"+spazio, vedi
@@ -356,8 +372,16 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
  */
 const DEFAULT_CONTAINER_CLASS = 'min-h-[3rem] rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3';
 
-export function RichTextEditor({ legacyContent, richContent, onChangeRich, disabled, placeholder, className }: RichTextEditorProps) {
-  const [isEditing, setIsEditing] = useState(false);
+export function RichTextEditor({ legacyContent, richContent, onChangeRich, disabled, placeholder, className, autoFocusOnSelect, onAutoFocusConsumed }: RichTextEditorProps) {
+  // Lazy init: valutata una sola volta, al mount di QUESTA istanza (una per
+  // tab, vedi il commento su autoFocusOnSelect sopra) - un cambio successivo
+  // della prop non riapre la modifica da solo, esattamente come per
+  // qualunque altro useState seedato da una prop iniziale.
+  const [isEditing, setIsEditing] = useState(() => !!autoFocusOnSelect && !disabled);
+  useEffect(() => {
+    if (autoFocusOnSelect) onAutoFocusConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const hasLegacyToProtect = richContent === null && legacyContent.trim() !== '';
   // Il fallback al contenitore di default va applicato in OGNI ramo, non solo
   // nella vista di sola lettura: senza, un chiamante che non passa una

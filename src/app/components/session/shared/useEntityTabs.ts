@@ -120,6 +120,15 @@ export function useEntityTabs({
   const [customTabs, setCustomTabs] = useState<EntityCustomTab[]>([]);
   const [tabOrder, setTabOrder] = useState<string[]>(baseTabIds);
   const [currentTab, setCurrentTab] = useState<string>(defaultTabId);
+  // Id della tab appena selezionata con un click diretto sulla sua pillola
+  // (EntityTabBar.tsx) - a differenza di setCurrentTab (usato anche per
+  // fallback automatici: sync realtime che fa sparire la tab attiva,
+  // apertura iniziale, creazione/duplicazione/eliminazione tab), questo
+  // segnale serve SOLO a dire al RichTextEditor della tab "sei stata aperta
+  // da un click dell'utente, entra subito in modifica e prendi il focus" -
+  // vedi selectTabByClick/clearPendingFocusTab sotto e il consumo in
+  // RichTextEditor.tsx (prop autoFocusOnSelect).
+  const [pendingFocusTabId, setPendingFocusTabId] = useState<string | null>(null);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [openMenuTabId, setOpenMenuTabId] = useState<string | null>(null);
@@ -259,6 +268,27 @@ export function useEntityTabs({
 
   const persistTabOrder = (order: string[]) => {
     onPersistTabOrder(order);
+  };
+
+  // Controparte "click" di setCurrentTab, usata dal solo onClick sulla
+  // pillola in EntityTabBar.tsx. Le altre chiamate a setCurrentTab nel resto
+  // di questo file (fallback quando la tab attiva sparisce, apertura
+  // iniziale, dopo creazione/duplicazione/eliminazione tab) restano
+  // volutamente invariate: non marcano pendingFocusTabId, quindi non fanno
+  // scattare l'auto-focus in RichTextEditor.tsx.
+  const selectTabByClick = (tabId: string) => {
+    setCurrentTab(tabId);
+    setPendingFocusTabId(tabId);
+  };
+
+  // Consumo one-shot del segnale, invocato da RichTextEditor.tsx al mount
+  // quando ha effettivamente seedato isEditing da questo segnale - senza
+  // questo, un rimontaggio successivo della stessa tab per un motivo diverso
+  // da un click (es. si torna su una tab gia' cliccata in precedenza tramite
+  // un fallback automatico) la ritroverebbe ancora "in attesa di focus" e
+  // riattiverebbe la modifica senza che l'utente abbia ricliccato nulla.
+  const clearPendingFocusTab = (tabId: string) => {
+    setPendingFocusTabId(prev => (prev === tabId ? null : prev));
   };
 
   const handlePointerDownTab = (e: React.PointerEvent, tabId: string) => {
@@ -689,6 +719,9 @@ export function useEntityTabs({
     orderedTabs,
     currentTab,
     setCurrentTab,
+    pendingFocusTabId,
+    selectTabByClick,
+    clearPendingFocusTab,
     renamingTabId,
     setRenamingTabId,
     renameDraft,
