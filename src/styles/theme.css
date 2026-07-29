@@ -298,19 +298,26 @@
 }
 /* Maniglia di ridimensionamento colonna (decorazione inserita da
    columnResizing di prosemirror-tables come widget DENTRO la cella stessa,
-   solo quando il puntatore e' vicino al bordo tra due colonne) - display:none
-   invece di un overlay visibile: la libreria la posiziona con right:-2px
-   (sporge 2px oltre il bordo della cella - per l'ultima colonna, oltre il
-   bordo della tabella stessa), che puo' far scattare il calcolo di overflow
-   del contenitore e mostrare/nascondere una scrollbar, causando lo
-   sfarfallio di qualche pixel segnalato dall'utente (bug verificato
-   2026-07-29). display:none elimina qualunque box generato per l'elemento,
-   nessun contributo possibile a calcoli di overflow/layout - il cambio del
-   cursore sotto resta l'unico segnale visivo di ridimensionamento, come
-   esplicitamente preferito dall'utente rispetto a rincorrere lo sfarfallio
-   con un overlay diverso. */
+   solo quando il puntatore e' vicino al bordo tra due colonne). display:none
+   (primo tentativo) restava inefficace contro lo sfarfallio segnalato -
+   ipotesi verificata: ProseMirror puo' tenere traccia della geometria del
+   widget per i propri calcoli interni (mapping coordinate/cursore,
+   view.coordsAtPos usata da handleMouseMove) indipendentemente dal
+   rendering CSS - un elemento display:none non ha alcuna geometria
+   (getBoundingClientRect tutto a zero, nessun box nell'albero di
+   rendering), mentre un elemento position:absolute a dimensione zero
+   resta comunque un box reale (sia pure invisibile e senza spazio
+   occupato) che quei calcoli interni possono continuare a misurare
+   normalmente. width/height:0 + overflow:hidden garantiscono comunque
+   zero ingombro visivo e zero contributo a calcoli di overflow/layout dei
+   contenitori - il cambio del cursore sotto resta l'unico segnale visivo
+   volontario di ridimensionamento. */
 .tiptap-content .column-resize-handle {
-  display: none;
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 .tiptap-content.resize-cursor {
   cursor: col-resize;
