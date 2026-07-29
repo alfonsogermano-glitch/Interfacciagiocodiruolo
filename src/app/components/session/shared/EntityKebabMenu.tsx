@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreVertical } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
@@ -41,6 +41,14 @@ interface EntityKebabMenuProps {
   buttonClassName?: string;
   menuWidthClassName?: string;
   menuWidthPx?: number;
+  /** Elemento entro cui il dropdown deve restare (clampato/capovolto se
+   *  altrimenti uscirebbe) - assente in tutti i call site tranne
+   *  TipTapTableMenu.tsx, che mantengono cosi' l'attuale posizionamento
+   *  fixed-to-viewport invariato. Il bottone ⋮ resta posizionato da chi lo
+   *  usa (in TipTapTableMenu.tsx, da Floating UI via BubbleMenu) - questa
+   *  prop vincola SOLO il dropdown, che e' un portal su document.body
+   *  indipendente e altrimenti privo di qualunque collision detection. */
+  boundaryElement?: HTMLElement | null;
 }
 
 // Al massimo un EntityKebabMenu aperto alla volta in tutta l'app - variabile
@@ -62,11 +70,49 @@ export function EntityKebabMenu({
   buttonClassName = 'flex h-8 w-8 items-center justify-center rounded-lg text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]',
   menuWidthClassName = 'w-60',
   menuWidthPx = 240,
+  boundaryElement = null,
 }: EntityKebabMenuProps) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
   const close = useCallback(() => setOpen(false), []);
+
+  // Vincola il dropdown (portal indipendente su document.body, vedi sotto -
+  // nessuna collision detection propria) dentro boundaryElement, se fornito.
+  // Gira DOPO che il dropdown e' gia' renderizzato con la posizione iniziale
+  // (rect.bottom+4/rect.right-menuWidthPx sotto), perche' l'altezza reale
+  // dipende dal numero di voci e non e' nota prima - useLayoutEffect invece
+  // di useEffect per applicare la correzione prima del paint, senza flash
+  // visibile nella posizione sbagliata.
+  useLayoutEffect(() => {
+    if (!open || !position || !boundaryElement || !dropdownRef.current || !buttonRef.current) return;
+
+    const boundary = boundaryElement.getBoundingClientRect();
+    const menu = dropdownRef.current.getBoundingClientRect();
+    const buttonRect = buttonRef.current.getBoundingClientRect();
+    const padding = 8;
+
+    let { top, left } = position;
+
+    // Verticale: se il dropdown sfora il bordo inferiore del boundary,
+    // prova ad aprirlo verso l'alto invece che verso il basso (stesso
+    // principio del flip di Floating UI gia' usato per l'icona in
+    // TipTapTableMenu.tsx) - se non c'e' spazio nemmeno sopra, clampa al
+    // bordo inferiore: imprecisione minore accettata negli stessi termini
+    // gia' documentati altrove nel progetto per casi limite analoghi.
+    if (top + menu.height > boundary.bottom - padding) {
+      const openUpward = buttonRect.top - menu.height - 4;
+      top = openUpward >= boundary.top + padding ? openUpward : boundary.bottom - padding - menu.height;
+    }
+
+    left = Math.min(Math.max(left, boundary.left + padding), boundary.right - padding - menu.width);
+
+    if (top !== position.top || left !== position.left) {
+      setPosition({ top, left });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, position, boundaryElement]);
 
   // Chiude il menu al click fuori + (de)registrazione come menu attivo nel
   // singleton sopra - stessa dipendenza [open] di prima, ora fa anche da
@@ -118,6 +164,7 @@ export function EntityKebabMenu({
 
       {open && position && createPortal(
         <div
+          ref={dropdownRef}
           onClick={(e) => e.stopPropagation()}
           // Stesso motivo del preventDefault sul contenitore sopra: il
           // dropdown e' un portal a se' (document.body), non un discendente

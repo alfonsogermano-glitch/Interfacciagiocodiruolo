@@ -246,7 +246,17 @@ export function TipTapTableMenu({ editor }: { editor: Editor }) {
         return { getBoundingClientRect: () => dom.getBoundingClientRect() };
       }}
     >
-      <EntityKebabMenu items={items} colors={getCurrentPaletteColors()} menuWidthClassName="w-64" menuWidthPx={256} />
+      <EntityKebabMenu
+        items={items}
+        colors={getCurrentPaletteColors()}
+        menuWidthClassName="w-64"
+        menuWidthPx={256}
+        // Stesso elemento gia' usato come boundary di flip/shift qui sopra
+        // per l'icona - il dropdown (portal indipendente su document.body
+        // dentro EntityKebabMenu.tsx, senza collision detection propria)
+        // condivide cosi' lo stesso riferimento all'area di scrittura.
+        boundaryElement={editor.view.dom.parentElement}
+      />
     </BubbleMenu>
   );
 }
