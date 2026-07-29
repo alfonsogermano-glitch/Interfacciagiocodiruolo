@@ -403,7 +403,16 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
         // overflow-y (che per spec CSS rende anche overflow-x implicitamente
         // 'auto': NoteSubTabs.tsx, che usa il DEFAULT_CONTAINER_CLASS senza
         // overflow, era il caso rotto - qui invece funziona sempre, in ogni uso).
-        className={`min-w-0 flex-1 overflow-x-auto ${!editable && onClickText ? 'cursor-text' : ''} ${containerClassName}`}
+        // max-w-full aggiunto perche' overflow-x-auto da solo non bastava
+        // ancora (bug verificato 2026-07-29, secondo giro): senza un tetto
+        // esplicito la larghezza "intrinseca" della tabella (table-layout:fixed
+        // + larghezze di colonna calcolate via JS da TableView) puo' comunque
+        // propagarsi verso l'alto attraverso i contenitori a blocco che non
+        // hanno un vincolo di larghezza reale, facendo crescere l'intero
+        // contenitore invece di scrollare al suo interno - max-width e' un
+        // tetto assoluto, chiude la propagazione qui indipendentemente dal
+        // meccanismo esatto piu' sotto (.tiptap-content, .tableWrapper).
+        className={`min-w-0 flex-1 max-w-full overflow-x-auto ${!editable && onClickText ? 'cursor-text' : ''} ${containerClassName}`}
       >
         <EditorContent editor={editor} />
         {editable && <TipTapTableMenu editor={editor} />}

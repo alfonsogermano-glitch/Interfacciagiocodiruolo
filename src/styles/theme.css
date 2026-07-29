@@ -297,18 +297,20 @@
   margin-bottom: 0;
 }
 /* Maniglia di ridimensionamento colonna (decorazione inserita da
-   columnResizing di prosemirror-tables solo quando il puntatore e' vicino
-   al bordo tra due colonne, mai visibile permanentemente) - stessa palette
-   dash-* del resto dell'app al posto del blu (#adf) hardcoded di default. */
+   columnResizing di prosemirror-tables come widget DENTRO la cella stessa,
+   solo quando il puntatore e' vicino al bordo tra due colonne) - display:none
+   invece di un overlay visibile: la libreria la posiziona con right:-2px
+   (sporge 2px oltre il bordo della cella - per l'ultima colonna, oltre il
+   bordo della tabella stessa), che puo' far scattare il calcolo di overflow
+   del contenitore e mostrare/nascondere una scrollbar, causando lo
+   sfarfallio di qualche pixel segnalato dall'utente (bug verificato
+   2026-07-29). display:none elimina qualunque box generato per l'elemento,
+   nessun contributo possibile a calcoli di overflow/layout - il cambio del
+   cursore sotto resta l'unico segnale visivo di ridimensionamento, come
+   esplicitamente preferito dall'utente rispetto a rincorrere lo sfarfallio
+   con un overlay diverso. */
 .tiptap-content .column-resize-handle {
-  position: absolute;
-  right: -2px;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  z-index: 20;
-  background-color: var(--dash-accent);
-  pointer-events: none;
+  display: none;
 }
 .tiptap-content.resize-cursor {
   cursor: col-resize;
