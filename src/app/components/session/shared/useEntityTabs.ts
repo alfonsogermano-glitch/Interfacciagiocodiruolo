@@ -689,6 +689,21 @@ export function useEntityTabs({
     }, 400);
   };
 
+  // Specchia nello stato locale il risultato di un ripristino da Cronologia
+  // versioni (NoteHistoryPanel.tsx via useNoteHistory.ts) - a differenza di
+  // handleCustomTabRichContentChange sopra, NESSUN PUT qui: il ripristino ha
+  // gia' scritto su DB tramite il suo endpoint dedicato (POST /notes/:id/
+  // history/:historyId/restore), un secondo PUT sarebbe ridondante e
+  // rischierebbe un altro snapshot di cronologia inutile. Stesso
+  // recentLocalEditRef del blocco sopra: sopprime il broadcast realtime
+  // della stessa scrittura (che arriverebbe comunque poco dopo con lo
+  // stesso contenuto, vedi handleEntityNotesBroadcast) invece di lasciarlo
+  // ri-applicare un aggiornamento identico.
+  const applyRestoredTabContent = (tabId: string, content: string | null, contentRich: JSONContent | null) => {
+    recentLocalEditRef.current[tabId] = Date.now();
+    setCustomTabs(prev => prev.map(t => (t.id === tabId ? { ...t, content: content ?? t.content, content_rich: contentRich } : t)));
+  };
+
   const orderedTabs: EntityOrderedTab[] = tabOrder
     .map(id => {
       const base = baseTabs.find(t => t.id === id);
@@ -754,6 +769,7 @@ export function useEntityTabs({
     handleDeleteCustomTab,
     handleCustomTabContentChange,
     handleCustomTabRichContentChange,
+    applyRestoredTabContent,
     reloadCustomTabs,
   };
 }

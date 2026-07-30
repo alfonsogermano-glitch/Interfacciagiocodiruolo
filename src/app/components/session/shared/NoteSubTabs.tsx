@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Plus, StickyNote } from 'lucide-react';
 import { useEntityTabs, type EntityCustomTab } from './useEntityTabs';
 import { EntityTabBar } from './EntityTabBar';
 import { RichTextEditor } from './RichTextEditor';
+import { NoteHistoryPanel } from './NoteHistoryPanel';
 
 interface NoteSubTabsProps {
   /** La nota "contenitore" selezionata nella lista di livello superiore
@@ -49,6 +51,9 @@ export function NoteSubTabs({ note, campaignId, accessToken, canEdit, onPersistS
   });
 
   const selectedSubTab = nestedTabs.customTabs.find(t => t.id === nestedTabs.currentTab) ?? null;
+  // Cronologia versioni (Fase 3) - vedi lo stesso pattern/commento in
+  // EntityDetailView.tsx (historyOpenTabId).
+  const [historyOpenTabId, setHistoryOpenTabId] = useState<string | null>(null);
 
   if (nestedTabs.customTabs.length === 0) {
     return (
@@ -97,8 +102,17 @@ export function NoteSubTabs({ note, campaignId, accessToken, canEdit, onPersistS
           placeholder="Scrivi qui..."
           autoFocusOnSelect={nestedTabs.pendingFocusTabId === selectedSubTab.id}
           onAutoFocusConsumed={() => nestedTabs.clearPendingFocusTab(selectedSubTab.id)}
+          onOpenHistory={canEdit ? () => setHistoryOpenTabId(selectedSubTab.id) : undefined}
         />
       ) : null}
+      {historyOpenTabId && (
+        <NoteHistoryPanel
+          noteId={historyOpenTabId}
+          accessToken={accessToken}
+          onClose={() => setHistoryOpenTabId(null)}
+          onRestored={(content, contentRich) => nestedTabs.applyRestoredTabContent(historyOpenTabId, content, contentRich)}
+        />
+      )}
     </>
   );
 }
