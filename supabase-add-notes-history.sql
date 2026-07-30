@@ -10,10 +10,17 @@
 -- lato server in supabase/functions/server/index.tsx (snapshotNoteHistory),
 -- non qui - questa migration crea solo lo schema.
 --
--- Nessuna RLS/policy: stessa postura di entity_notes stessa (verificato,
--- nessuna migration la abilita) - la tabella non e' mai raggiunta da query
--- dirette del client Supabase, solo dall'edge function con service role,
--- che gia' incapsula tutti i controlli di permesso (canAccessEntityNotes).
+-- RLS abilitata, ZERO policy - stessa postura di entity_notes stessa
+-- (corretto 2026-07-30: verificato DAL VIVO durante l'esecuzione di questa
+-- migration che entity_notes ha gia' RLS abilitata senza alcuna policy,
+-- non "nessuna RLS" come dichiarato erroneamente in un giro precedente -
+-- un grep sulle sole CREATE POLICY nelle migration non intercetta un
+-- ENABLE ROW LEVEL SECURITY senza policy associate). Con RLS abilitata e
+-- zero policy, Postgres nega implicitamente OGNI riga a client
+-- anon/authenticated (query dirette dal browser tornano sempre vuote);
+-- solo l'edge function, che usa la service role key (bypassa RLS per
+-- definizione), puo' leggere/scrivere - ed e' l'unico punto che gia'
+-- incapsula tutti i controlli di permesso (canAccessEntityNotes).
 --
 -- on delete cascade: se una nota viene eliminata definitivamente (purge
 -- dal Cestino), la sua cronologia sparisce con lei - stessa semantica del
@@ -37,3 +44,8 @@ create table if not exists entity_notes_history (
 -- coperte dallo stesso indice.
 create index if not exists idx_entity_notes_history_note_created
   on entity_notes_history(note_id, created_at desc);
+
+-- Vedi commento sopra: nessuna policy aggiunta di proposito (zero accesso
+-- diretto da client anon/authenticated, solo edge function via service
+-- role) - idempotente, sicuro da rieseguire.
+alter table entity_notes_history enable row level security;
