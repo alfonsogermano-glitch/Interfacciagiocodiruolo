@@ -295,13 +295,28 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
           nessuna estensione nuova) - stesso identico comando gia'
           disponibile da tastiera (Ctrl+Z), qui solo reso cliccabile. FUORI
           da ToolbarSection come Box di testo/Tabella sopra sarebbero
-          sbagliati li' (non e' un inserimento di contenuto), ma e' comunque
-          un comando che modifica il documento: disabled segue sia
-          `editable` (come tutti gli altri pulsanti sopra) sia
-          editor.can().undo() (nessuno storico da annullare) - a differenza
-          della Cronologia versioni rimossa (vedi git history), che non
-          richiedeva una sessione di modifica attiva. */}
-      <ToolbarButton disabled={!editable || !editor.can().undo()} label="Annulla" active={false} onClick={() => runCommand(() => editor.chain().focus().undo().run())}>
+          sbagliati li' (non e' un inserimento di contenuto).
+          disabled={!editable} SOLO - stesso identico criterio di ogni altro
+          pulsante qui sopra (Grassetto/Corsivo/...), NON piu' anche
+          editor.can().undo() come nel giro precedente (bug segnalato
+          2026-07-30: le maniglie di drag di TextBox/Collapse/Tabella
+          smettevano di rispondere all'hover dopo un click qui, recuperabile
+          solo con un altro click nel testo). editor.can().undo() e'
+          sicuro di per se' (dry-run, nessun dispatch - verificato nel
+          sorgente di @tiptap/core/CommandManager.ts), ma qui veniva
+          rivalutato ad OGNI render di Toolbar (che si ri-renderizza ad ogni
+          transazione, quindi praticamente ad ogni battuta in tutto il
+          documento) - unica differenza strutturale reale rispetto agli
+          altri pulsanti, che controllano solo un booleano semplice. undo()
+          stesso e' comunque innocuo quando non c'e' nulla da annullare
+          (verificato in prosemirror-history: buildCommand ritorna false
+          subito, nessun dispatch, nessuna eccezione) - la guardia dentro
+          l'onClick sotto evita solo la focus() sprecata in quel caso, non
+          serve per sicurezza. */}
+      <ToolbarButton disabled={!editable} label="Annulla" active={false} onClick={() => runCommand(() => {
+        if (!editor.can().undo()) return;
+        editor.chain().focus().undo().run();
+      })}>
         <Undo2 className="h-4 w-4" />
       </ToolbarButton>
     </div>
