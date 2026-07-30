@@ -1529,6 +1529,85 @@ async function canAccessEntityNotes(
   return entity.owner_profile_id === userId || entity.visible_to_players === true;
 }
 
+// Cronologia versioni (entity_notes_history, vedi supabase-add-notes-
+// history.sql) - una riga per salvataggio SIGNIFICATIVO, non per ogni PUT
+// (altrimenti il debounce 400ms lato client - vedi useEntityTabs.ts -
+// produrrebbe comunque una riga per ogni pausa di digitazione). Soglia e
+// cap qui sotto: nessuna infrastruttura di cron nel progetto, quindi sia
+// il throttle sia la pulizia sono opportunistici, eseguiti dentro la
+// stessa richiesta che genera un nuovo snapshot - vedi il piano approvato.
+const HISTORY_SNAPSHOT_THROTTLE_MS = 15 * 60 * 1000;
+const HISTORY_MAX_VERSIONS_PER_NOTE = 50;
+
+// existingRow: la riga DI ENTITY_NOTES PRIMA della modifica in corso - il
+// PUT esistente la fetcha gia' per il controllo di permessi (riga
+// `existing` sotto), quindi qui non serve nessuna query aggiuntiva per
+// leggerla, solo per decidere/eseguire lo snapshot.
+// force=false (chiamata normale dal PUT): salta se la nota non ha ancora
+// contenuto rich (niente da preservare alla primissima promozione verso
+// il nuovo editor) o se sono passati meno di HISTORY_SNAPSHOT_THROTTLE_MS
+// dall'ultimo snapshot della stessa nota.
+// force=true (chiamata dal ripristino, Fase 2): salta SOLO il controllo
+// "nota vuota", MAI la soglia - un ripristino e' un'azione deliberata
+// dell'utente, non un artefatto di digitazione: la versione che sta per
+// essere sovrascritta va sempre preservata, cosi' il ripristino stesso
+// resta annullabile dalla stessa cronologia.
+async function snapshotNoteHistory(
+  admin: any,
+  existingRow: { id: string; campaign_id: string | null; content: string | null; content_rich: any },
+  userId: string,
+  { force = false }: { force?: boolean } = {}
+): Promise<void> {
+  if (existingRow.content_rich == null) return;
+
+  if (!force) {
+    const { data: last } = await admin
+      .from('entity_notes_history')
+      .select('created_at')
+      .eq('note_id', existingRow.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (last && Date.now() - new Date(last.created_at).getTime() < HISTORY_SNAPSHOT_THROTTLE_MS) return;
+  }
+
+  const { error: insertError } = await admin.from('entity_notes_history').insert({
+    note_id: existingRow.id,
+    campaign_id: existingRow.campaign_id,
+    content: existingRow.content,
+    content_rich: existingRow.content_rich,
+    saved_by_profile_id: userId,
+  });
+  // Uno snapshot mancato non deve mai far fallire il salvataggio/ripristino
+  // vero e proprio (che resta l'operazione primaria) - solo un log, stesso
+  // principio di "non bloccare l'azione principale per un side-effect".
+  if (insertError) {
+    console.log("Errore snapshot cronologia nota:", insertError);
+    return;
+  }
+
+  // Pulizia opportunistica: tiene solo le HISTORY_MAX_VERSIONS_PER_NOTE
+  // piu' recenti per questa nota, eseguita solo quando arriva un NUOVO
+  // snapshot (non ad ogni PUT). range(N-1,N-1) prende la riga di confine
+  // (la N-esima piu' recente, 0-indicizzata) SE esiste almeno N righe -
+  // elimina tutto cio' che e' strettamente piu' vecchio di lei, cosi' il
+  // confine stesso resta (totale tenuto >= N, mai sotto la soglia).
+  const { data: cutoffRow } = await admin
+    .from('entity_notes_history')
+    .select('created_at')
+    .eq('note_id', existingRow.id)
+    .order('created_at', { ascending: false })
+    .range(HISTORY_MAX_VERSIONS_PER_NOTE - 1, HISTORY_MAX_VERSIONS_PER_NOTE - 1)
+    .maybeSingle();
+  if (cutoffRow) {
+    await admin
+      .from('entity_notes_history')
+      .delete()
+      .eq('note_id', existingRow.id)
+      .lt('created_at', cutoffRow.created_at);
+  }
+}
+
 // Il client valorizza :campaignId col template literal `${activeCampaignId}`:
 // per un'entità senza campagna (es. catalogo PG/PNG/Mostri fuori sessione),
 // activeCampaignId è null/undefined lato JS e finisce nel path come la
@@ -1733,6 +1812,19 @@ app.put("/make-server-771c5bfd/notes/:noteId", async (c) => {
       .single();
 
     if (error) return c.json({ error: "Errore aggiornamento tab" }, 500);
+
+    // Snapshot della versione PRE-modifica (existing, gia' in mano da
+    // sopra) in entity_notes_history - solo se questa richiesta tocca
+    // davvero il contenuto (stessa condizione gia' usata per costruire
+    // patch.content/patch.content_rich sopra), non per un rename/
+    // riordino/cambio visibilita' che non ha nulla da preservare.
+    // Dopo l'update, non prima: se l'update fallisse (branch sopra) non
+    // avrebbe senso registrare uno snapshot per una modifica che non e'
+    // mai stata applicata.
+    if (typeof content === 'string' || contentRich !== undefined) {
+      await snapshotNoteHistory(admin, existing, userId, { force: false });
+    }
+
     return c.json({ note: data });
   } catch (err) {
     console.log("Errore PUT notes:", err);
