@@ -266,35 +266,39 @@
    (2px) di TipTapTableMenu.tsx - lo spazio minimo esatto perche' l'icona
    (sempre a placement:'top-end' fisso, flip disattivato) resti dentro il
    wrapper invece di sconfinare sopra, senza margine sprecato in piu'. */
-/* position:relative + padding-left: contesto di posizionamento e spazio
-   riservato per la maniglia di trascinamento (.tiptap-table-handle sotto),
-   stesso principio "spazio vero nel box, mai sporgente" gia' documentato
-   per TextBox/Collapse piu' sotto - qui non c'e' un flex naturale come li'
-   (il wrapper ha un solo figlio, <table>), quindi il gutter e' riservato
-   via padding invece che via un item flex dedicato. box-sizing:border-box
-   (preflight Tailwind) fa si' che il padding non cambi la larghezza esterna
-   del wrapper ne' il bordo destro (dove il menu tabella si ancora via
-   view.nodeDOM(...).getBoundingClientRect() in TipTapTableMenu.tsx). */
+/* position:relative: contesto di posizionamento per la maniglia di
+   trascinamento (.tiptap-table-handle sotto) - NIENTE piu' padding-left
+   riservato (tentativo precedente, 2026-07-30): stesso esito scartato gia'
+   visto per TextBox/Collapse, un gutter fisso allarga il box senza
+   benefici quando la maniglia puo' invece stare assoluta dentro i confini
+   gia' esistenti. box-sizing:border-box (preflight Tailwind) - qui non
+   piu' rilevante per il padding (rimosso), resta valido per gli altri usi
+   di questa regola nel file. */
 .tiptap-content .tableWrapper {
   position: relative;
   overflow-x: auto;
   margin-top: 2.125rem;
-  padding-left: 1.25rem;
 }
-/* Maniglia di selezione/trascinamento della tabella - riusa .tiptap-block-handle
-   (cursore/hover/transizione gia' definiti sotto per TextBox/Collapse) per
-   coerenza visiva, posizionata dentro il padding-left riservato sopra
-   (mai fuori dal box: .tableWrapper ha overflow-x:auto, che per spec CSS
-   clippa implicitamente anche l'asse verticale se un elemento sporgesse
-   fuori dal proprio bordo). top allineato al padding-top di td/th
-   (0.375rem) per restare alla stessa altezza della prima riga. */
+/* Maniglia di selezione/trascinamento della tabella - stesso schema appena
+   validato per TextBox/Collapse (vedi il commento su .tiptap-block-handle
+   piu' sotto per il ragionamento completo): position:absolute con top/left
+   POSITIVI, mai negativi, quindi mai oltre il bordo del wrapper - non
+   sporge, quindi non e' soggetta al rischio di clipping di un antenato con
+   overflow-y (ne' qui, ne' dal proprio overflow-x:auto sul wrapper
+   stesso). Riusa .tiptap-block-handle per cursore/opacity/pointer-events/
+   transizione - qui serve pero' una regola :hover dedicata (il wrapper non
+   e' .tiptap-textbox/.tiptap-collapse) per renderla visibile e cliccabile
+   solo quando si passa sopra la tabella. Puo' sovrapporsi all'angolo della
+   prima cella quando visibile, per design - stesso compromesso accettato
+   per TextBox/Collapse. */
 .tiptap-content .tiptap-table-handle {
   position: absolute;
   top: 0.375rem;
-  left: 0.1875rem;
+  left: 0.375rem;
 }
 .tiptap-content .tableWrapper:hover .tiptap-table-handle {
   opacity: 1;
+  pointer-events: auto;
 }
 .tiptap-content table {
   width: 100%;
