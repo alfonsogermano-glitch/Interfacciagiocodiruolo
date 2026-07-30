@@ -1832,6 +1832,103 @@ app.put("/make-server-771c5bfd/notes/:noteId", async (c) => {
   }
 });
 
+// ─── Cronologia versioni (Fase 2) ───────────────────────────────────────
+// Stesso permesso del PUT sopra (canAccessEntityNotes in mode 'write' CON
+// noteRow, non la versione senza noteRow usata dal Cestino sotto - qui
+// serve il controllo per-riga esatto: solo chi puo' MODIFICARE la nota
+// oggi vede/ripristina la sua cronologia, nessun nuovo livello di
+// permesso). Vedi supabase-add-notes-history.sql per lo schema.
+
+app.get("/make-server-771c5bfd/notes/:noteId/history", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const noteId = c.req.param("noteId");
+    const admin = getAdminClient();
+    const { data: existing, error: fetchError } = await admin
+      .from('entity_notes')
+      .select('*')
+      .eq('id', noteId)
+      .single();
+    if (fetchError || !existing) return c.json({ error: "Tab non trovata" }, 404);
+
+    const allowed = await canAccessEntityNotes(
+      admin, userId, existing.campaign_id, existing.entity_type, existing.entity_id, 'write',
+      { owner_profile_id: existing.owner_profile_id, visibility: existing.visibility }
+    );
+    if (!allowed) return c.json({ error: "Non hai accesso a questa tab" }, 403);
+
+    const { data, error } = await admin
+      .from('entity_notes_history')
+      .select('*')
+      .eq('note_id', noteId)
+      .order('created_at', { ascending: false });
+    if (error) return c.json({ error: "Errore lettura cronologia" }, 500);
+    return c.json({ history: data ?? [] });
+  } catch (err) {
+    console.log("Errore GET notes/:noteId/history:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
+app.post("/make-server-771c5bfd/notes/:noteId/history/:historyId/restore", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+
+    const noteId = c.req.param("noteId");
+    const historyId = c.req.param("historyId");
+    const admin = getAdminClient();
+    const { data: existing, error: fetchError } = await admin
+      .from('entity_notes')
+      .select('*')
+      .eq('id', noteId)
+      .single();
+    if (fetchError || !existing) return c.json({ error: "Tab non trovata" }, 404);
+
+    const allowed = await canAccessEntityNotes(
+      admin, userId, existing.campaign_id, existing.entity_type, existing.entity_id, 'write',
+      { owner_profile_id: existing.owner_profile_id, visibility: existing.visibility }
+    );
+    if (!allowed) return c.json({ error: "Non hai accesso a questa tab" }, 403);
+
+    // eq('note_id', noteId) oltre a eq('id', historyId): impedisce di
+    // ripristinare una versione presa da UN'ALTRA nota passando un
+    // historyId a caso - deve appartenere davvero alla nota richiesta.
+    const { data: version, error: versionError } = await admin
+      .from('entity_notes_history')
+      .select('*')
+      .eq('id', historyId)
+      .eq('note_id', noteId)
+      .maybeSingle();
+    if (versionError || !version) return c.json({ error: "Versione non trovata" }, 404);
+
+    // Preserva la versione CORRENTE (pre-ripristino) prima di sovrascrivere -
+    // force:true, mai soggetta alla soglia dei 15 minuti (vedi
+    // snapshotNoteHistory sopra): un ripristino e' un'azione deliberata,
+    // non un artefatto di digitazione, e deve restare a sua volta
+    // annullabile dalla stessa cronologia.
+    await snapshotNoteHistory(admin, existing, userId, { force: true });
+
+    const { data, error } = await admin
+      .from('entity_notes')
+      .update({ content: version.content, content_rich: version.content_rich, updated_at: new Date().toISOString() })
+      .eq('id', noteId)
+      .select('*')
+      .single();
+    if (error) return c.json({ error: "Errore ripristino versione" }, 500);
+    return c.json({ note: data });
+  } catch (err) {
+    console.log("Errore POST notes/:noteId/history/:historyId/restore:", err);
+    return c.json({ error: `Errore interno: ${err}` }, 500);
+  }
+});
+
 app.delete("/make-server-771c5bfd/notes/:noteId", async (c) => {
   try {
     const token = c.req.header("Authorization")?.split(" ")[1];
