@@ -258,8 +258,32 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         {/* insertTable: unica funzionalita' di questo gruppo che richiede una
             nuova estensione (TableKit, vedi extensions sotto) - tabella 3x3
             senza riga di intestazione (si attiva dopo dal menu contestuale
-            della tabella, vedi TipTapTableMenu.tsx). */}
-        <ToolbarButton disabled={!editable} label="Tabella" active={false} onClick={() => runCommand(() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: false }).run())}>
+            della tabella, vedi TipTapTableMenu.tsx). Non esiste
+            un'opzione di insertTable() per sopprimerlo: il comando
+            (node_modules/@tiptap/extension-table/src/table/table.ts) usa
+            tr.replaceSelectionWith(), che quando il cursore e' a inizio di
+            un paragrafo vuoto lascia quel paragrafo vuoto come fratello
+            prima della tabella (ProseMirror deve "chiudere" il paragrafo
+            per far posto a un nodo che non puo' esserne figlio). Il
+            .command() aggiunto qui gira nella STESSA transazione di
+            insertTable (chain condivide una sola tr, dispatch unico - vedi
+            CommandManager.createChain in @tiptap/core), quindi resta un
+            solo step di undo: risale alla tabella appena creata e, se il
+            nodo immediatamente precedente e' un paragrafo vuoto, lo
+            rimuove. */}
+        <ToolbarButton disabled={!editable} label="Tabella" active={false} onClick={() => runCommand(() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: false }).command(({ tr, dispatch }) => {
+          const { $from } = tr.selection;
+          for (let depth = $from.depth; depth > 0; depth--) {
+            if ($from.node(depth).type.name !== 'table') continue;
+            const tablePos = $from.before(depth);
+            const nodeBefore = tr.doc.resolve(tablePos).nodeBefore;
+            if (nodeBefore?.type.name === 'paragraph' && nodeBefore.content.size === 0) {
+              if (dispatch) tr.delete(tablePos - nodeBefore.nodeSize, tablePos);
+            }
+            break;
+          }
+          return true;
+        }).run())}>
           <TableIcon className="h-4 w-4" />
         </ToolbarButton>
       </ToolbarSection>
