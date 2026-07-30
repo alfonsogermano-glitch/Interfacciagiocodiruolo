@@ -8,7 +8,6 @@ import { EquipmentPanel as LegacyEquipmentPanel } from '../../EquipmentPanel';
 import { DraggablePortrait } from './DraggablePortrait';
 import { EntityTabBar } from './EntityTabBar';
 import { RichTextEditor } from './RichTextEditor';
-import { NoteHistoryPanel } from './NoteHistoryPanel';
 import { EntityDetailRail, type EntityDetailRailSection } from './EntityDetailRail';
 import { TokenStyleEditor } from '../../shared/TokenStyleEditor';
 import { EntityImageTab } from './EntityImageTab';
@@ -204,12 +203,6 @@ export function EntityDetailView({
   const [campaignCharacters, setCampaignCharacters] = useState<Array<{ id: string; name: string }>>([]);
   const [campaignAdventures, setCampaignAdventures] = useState<Adventure[]>([]);
   const [campaignEnvironments, setCampaignEnvironments] = useState<EntityReference[]>([]);
-  // Cronologia versioni (Fase 3): id della tab custom per cui il pannello e'
-  // aperto, o null. Un id (non un booleano) invece di un semplice flag: piu'
-  // robusto se in futuro tornasse utile sapere PER QUALE tab e' aperto senza
-  // doverlo dedurre da altrove - qui in pratica coincide sempre con
-  // tabs.currentTab, dato che solo la tab corrente monta un RichTextEditor.
-  const [historyOpenTabId, setHistoryOpenTabId] = useState<string | null>(null);
 
   // Stessa determinazione di ruleset gia' usata in NPCManager.tsx
   // (const isD20 = isDnD5e || isPathfinder), per applicare le identiche
@@ -1473,19 +1466,10 @@ export function EntityDetailView({
                 className="h-64 w-full overflow-y-auto rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4 text-sm text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
                 autoFocusOnSelect={tabs.pendingFocusTabId === tab.id}
                 onAutoFocusConsumed={() => tabs.clearPendingFocusTab(tab.id)}
-                onOpenHistory={canEdit ? () => setHistoryOpenTabId(tab.id) : undefined}
               />
             ) : null
           )}
         </fieldset>
-        {historyOpenTabId && (
-          <NoteHistoryPanel
-            noteId={historyOpenTabId}
-            accessToken={accessToken}
-            onClose={() => setHistoryOpenTabId(null)}
-            onRestored={(content, contentRich) => tabs.applyRestoredTabContent(historyOpenTabId, content, contentRich)}
-          />
-        )}
         </>
         )}
 

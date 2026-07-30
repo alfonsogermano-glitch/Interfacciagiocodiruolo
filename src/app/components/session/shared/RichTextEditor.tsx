@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
-import { Bold, Italic, Heading1, Heading2, Heading3, Heading4, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, Table as TableIcon, History as HistoryIcon } from 'lucide-react';
+import { Bold, Italic, Heading1, Heading2, Heading3, Heading4, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, Table as TableIcon, Undo2 } from 'lucide-react';
 import { TableKit } from '@tiptap/extension-table';
 import { MarkdownContent } from './MarkdownContent';
 import { parseLines } from './markdownHeadings';
@@ -42,13 +42,6 @@ interface RichTextEditorProps {
    *  successivo della stessa tab per un motivo diverso da un nuovo click non
    *  la ritrova ancora "in attesa di focus". */
   onAutoFocusConsumed?: () => void;
-  /** Apre il pannello Cronologia versioni (NoteHistoryPanel.tsx) - assente/
-   *  undefined = nessun pulsante mostrato (RichTextEditor resta generico,
-   *  non conosce noteId/accessToken: e' il chiamante, che li ha gia', a
-   *  decidere SE passare questo callback - tipicamente solo se canEdit,
-   *  stessa persona che oggi puo' gia' modificare la nota, vedi
-   *  canAccessEntityNotes lato server). */
-  onOpenHistory?: () => void;
 }
 
 // Converte il formato legacy (righe con prefisso "#"+spazio, vedi
@@ -177,7 +170,7 @@ function ToolbarSection({ label, defaultOpen, children }: { label: string; defau
 // di piu' che con una <textarea>: senza, TipTap perderebbe il focus/la
 // selezione PRIMA che il comando venga eseguito sul punto giusto del
 // documento).
-function Toolbar({ editor, editable, onOpenHistory }: { editor: Editor; editable: boolean; onOpenHistory?: () => void }) {
+function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
   // Aggiornamento esplicito, non delegato al ri-render automatico di
   // useEditor sulle transazioni: confermato che quel meccanismo (interno a
   // TipTap, via useEditorState/useSyncExternalStore) non ri-renderizza la
@@ -298,22 +291,19 @@ function Toolbar({ editor, editable, onOpenHistory }: { editor: Editor; editable
       {/* Sezioni future (Widget, Oggetti speciali): aggiungere qui altre
           <ToolbarSection label="..." defaultOpen={false}>...</ToolbarSection>,
           nessuna modifica a ToolbarSection/ToolbarButton necessaria. */}
-      {/* Cronologia versioni: FUORI da ToolbarSection (a differenza dei
-          gruppi sopra) - non e' un comando di formattazione/inserimento sul
-          documento, e' un'azione a livello di nota, non ha senso in un
-          gruppo collassabile "Formattazione testo"/"Blocchi". disabled
-          sempre false (non legato a `editable`, il flag transitorio
-          "modifica attiva in questo momento"): la cronologia si puo'
-          consultare anche mentre la nota e' solo in visualizzazione, non
-          richiede una selezione attiva nell'editor come grassetto/corsivo.
-          Il chiamante di RichTextEditor decide GIA' se mostrare o no questo
-          pulsante passando onOpenHistory solo quando ha senso (vedi il
-          commento sulla prop in RichTextEditorProps). */}
-      {onOpenHistory && (
-        <ToolbarButton disabled={false} label="Cronologia versioni" active={false} onClick={onOpenHistory}>
-          <HistoryIcon className="h-4 w-4" />
-        </ToolbarButton>
-      )}
+      {/* Annulla: undo nativo di TipTap History (gia' incluso in StarterKit,
+          nessuna estensione nuova) - stesso identico comando gia'
+          disponibile da tastiera (Ctrl+Z), qui solo reso cliccabile. FUORI
+          da ToolbarSection come Box di testo/Tabella sopra sarebbero
+          sbagliati li' (non e' un inserimento di contenuto), ma e' comunque
+          un comando che modifica il documento: disabled segue sia
+          `editable` (come tutti gli altri pulsanti sopra) sia
+          editor.can().undo() (nessuno storico da annullare) - a differenza
+          della Cronologia versioni rimossa (vedi git history), che non
+          richiedeva una sessione di modifica attiva. */}
+      <ToolbarButton disabled={!editable || !editor.can().undo()} label="Annulla" active={false} onClick={() => runCommand(() => editor.chain().focus().undo().run())}>
+        <Undo2 className="h-4 w-4" />
+      </ToolbarButton>
     </div>
   );
 }
@@ -324,7 +314,7 @@ function Toolbar({ editor, editable, onOpenHistory }: { editor: Editor; editable
 // di RichTextEditor) perche' useEditor va chiamato in modo incondizionato
 // per le regole degli Hook - isolarlo qui evita di doverlo montare/smontare
 // insieme al ramo "legacy in sola lettura" dove non serve affatto.
-function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEditor, onClickText, containerClassName, onOpenHistory }: {
+function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEditor, onClickText, containerClassName }: {
   richContent: JSONContent; onChangeRich: (json: JSONContent) => void; editable: boolean; autoFocus: boolean;
   onBlurEditor?: () => void;
   /** Click sulla colonna di testo per entrare in modifica (sola lettura) -
@@ -335,7 +325,6 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
    *  vedi piano approvato: il riquadro che avvolgeva toolbar+editor insieme
    *  e' stato rimosso, ne resta uno solo attorno al solo testo. */
   containerClassName: string;
-  onOpenHistory?: () => void;
 }) {
   // content: SOLO per la creazione iniziale (confermato nel sorgente di
   // @tiptap/core: letto una volta in createDoc(), mai riapplicato da
@@ -443,7 +432,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
 
   return (
     <div className="flex items-start gap-2">
-      <Toolbar editor={editor} editable={editable} onOpenHistory={onOpenHistory} />
+      <Toolbar editor={editor} editable={editable} />
       <div
         onClick={!editable ? onClickText : undefined}
         // overflow-x-auto sempre presente (non delegato al solo containerClassName
@@ -490,7 +479,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
  */
 const DEFAULT_CONTAINER_CLASS = 'min-h-[3rem] rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3';
 
-export function RichTextEditor({ legacyContent, richContent, onChangeRich, disabled, placeholder, className, autoFocusOnSelect, onAutoFocusConsumed, onOpenHistory }: RichTextEditorProps) {
+export function RichTextEditor({ legacyContent, richContent, onChangeRich, disabled, placeholder, className, autoFocusOnSelect, onAutoFocusConsumed }: RichTextEditorProps) {
   // Lazy init: valutata una sola volta, al mount di QUESTA istanza (una per
   // tab, vedi il commento su autoFocusOnSelect sopra) - un cambio successivo
   // della prop non riapre la modifica da solo, esattamente come per
@@ -525,7 +514,6 @@ export function RichTextEditor({ legacyContent, richContent, onChangeRich, disab
         onBlurEditor={() => setIsEditing(false)}
         onClickText={!disabled ? () => setIsEditing(true) : undefined}
         containerClassName={containerClassName}
-        onOpenHistory={onOpenHistory}
       />
     );
   }
