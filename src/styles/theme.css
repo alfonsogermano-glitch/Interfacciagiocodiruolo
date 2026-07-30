@@ -273,26 +273,38 @@
    benefici quando la maniglia puo' invece stare assoluta dentro i confini
    gia' esistenti. box-sizing:border-box (preflight Tailwind) - qui non
    piu' rilevante per il padding (rimosso), resta valido per gli altri usi
-   di questa regola nel file. */
+   di questa regola nel file.
+   isolation:isolate: confina lo z-index della maniglia sotto (necessario
+   qui, a differenza di TextBox/Collapse - vedi quel commento) alla sola
+   sottoalbero di questo wrapper, cosi' non compete per errore con z-index
+   di elementi lontani e non correlati altrove nel documento. */
 .tiptap-content .tableWrapper {
   position: relative;
+  isolation: isolate;
   overflow-x: auto;
   margin-top: 2.125rem;
 }
 /* Maniglia di selezione/trascinamento della tabella - stesso schema appena
    validato per TextBox/Collapse (vedi il commento su .tiptap-block-handle
-   piu' sotto per il ragionamento completo): position:absolute con top/left
+   piu' sotto per il ragionamento completo: position:absolute con top/left
    POSITIVI, mai negativi, quindi mai oltre il bordo del wrapper - non
    sporge, quindi non e' soggetta al rischio di clipping di un antenato con
-   overflow-y (ne' qui, ne' dal proprio overflow-x:auto sul wrapper
-   stesso). Riusa .tiptap-block-handle per cursore/opacity/pointer-events/
-   transizione - qui serve pero' una regola :hover dedicata (il wrapper non
-   e' .tiptap-textbox/.tiptap-collapse) per renderla visibile e cliccabile
-   solo quando si passa sopra la tabella. Puo' sovrapporsi all'angolo della
-   prima cella quando visibile, per design - stesso compromesso accettato
-   per TextBox/Collapse. */
+   overflow-y). Qui pero' serve IN PIU' uno z-index esplicito, cosa non
+   necessaria per TextBox/Collapse: .tiptap-content td/th sotto hanno
+   position:relative (serve alla libreria per posizionare la propria
+   maniglia di resize colonna dentro ogni cella) - un elemento "positioned"
+   con z-index:auto, come i td/th, PIU' AVANTI nell'ordine del DOM rispetto
+   alla nostra maniglia (che e' un fratello inserito PRIMA di <table>, vedi
+   tiptapTableHandle.ts) vince lo stacking a parita' di z-index e finisce
+   sopra per l'hit-test del browser - anche se il td e' visivamente
+   trasparente (nessun background proprio), il click ci finiva comunque
+   dentro invece che sulla maniglia (bug segnalato 2026-07-30: cliccare la
+   maniglia selezionava la cella sottostante, non la tabella). z-index:1
+   promuove la maniglia sopra quella parita', a prescindere dall'ordine nel
+   DOM. */
 .tiptap-content .tiptap-table-handle {
   position: absolute;
+  z-index: 1;
   top: 0.375rem;
   left: 0.375rem;
 }
