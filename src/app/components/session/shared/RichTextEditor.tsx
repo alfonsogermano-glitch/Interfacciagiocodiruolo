@@ -7,6 +7,7 @@ import { TableKit } from '@tiptap/extension-table';
 import { MarkdownContent } from './MarkdownContent';
 import { parseLines } from './markdownHeadings';
 import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
+import { TableWithHandle } from './tiptapTableHandle';
 import { TipTapTableMenu } from './TipTapTableMenu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 // @tiptap/extension-underline non va importato/aggiunto qui: StarterKit lo
@@ -328,7 +329,12 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // il CSS dedicato in theme.css (table-layout:fixed, .tableWrapper,
     // .column-resize-handle, testo a capo) senza il quale le colonne
     // resterebbero incoerenti col contenuto durante il trascinamento.
-    extensions: [StarterKit, TableKit.configure({ table: { resizable: true } }), ...TIPTAP_BLOCK_EXTENSIONS],
+    // table: false in TableKit - il node "table" e' registrato a parte da
+    // TableWithHandle (tiptapTableHandle.ts), esteso con selectable/
+    // draggable per la maniglia di trascinamento (stesso sistema di
+    // TextBox/CollapseBlock, vedi tiptapBlocks.tsx) - TableCell/TableHeader/
+    // TableRow restano quelli di TableKit, invariati.
+    extensions: [StarterKit, TableKit.configure({ table: false }), TableWithHandle, ...TIPTAP_BLOCK_EXTENSIONS],
     content: initialContent,
     editable,
     // .tiptap-content: vedi theme.css - ripristina list-style/padding per
