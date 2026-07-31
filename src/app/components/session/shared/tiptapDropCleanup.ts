@@ -2,11 +2,25 @@ import { Extension, combineTransactionSteps } from '@tiptap/core';
 import { Plugin, PluginKey, NodeSelection } from '@tiptap/pm/state';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 
-// Stessa identica definizione gia' usata dal pulsante "Tabella" della
-// toolbar (RichTextEditor.tsx, .command() dopo insertTable) per lo stesso
-// tipo di problema.
+// "Vuoto" = solo whitespace (o niente), non content.size===0 in senso
+// stretto (bug segnalato 2026-07-31: un paragrafo con un solo spazio
+// residuo - testato con certezza che fosse whitespace vero e non un
+// artefatto del <br class="ProseMirror-trailingBreak"> che ProseMirror
+// renderizza SOLO nel DOM per i paragrafi davvero vuoti, mai nel documento -
+// appariva visivamente vuoto ma content.size!==0 lo escludeva dalla pulizia
+// in tiptapDropCleanup.ts, lasciandolo indietro proprio come nel bug
+// originale). textContent.trim() copre anche questo caso restando un
+// superset stretto del controllo precedente (un paragrafo con
+// content.size===0 ha sempre textContent==='' comunque). Scelta deliberata
+// di NON distinguere "spazio isolato lasciato per errore" da "spazio isolato
+// voluto apposta": visivamente le due situazioni sono indistinguibili (uno
+// spazio a fine blocco non produce alcun segno visibile), quindi trattarle
+// diversamente non avrebbe comunque un riscontro percepibile per l'utente -
+// e uno spazio isolato come contenuto intenzionale e' un caso d'uso talmente
+// raro da non giustificare il rischio, gia' visto oggi, di lasciare
+// artefatti invisibili in giro.
 function isEmptyParagraph(node: ProseMirrorNode): boolean {
-  return node.type.name === 'paragraph' && node.content.size === 0;
+  return node.type.name === 'paragraph' && node.textContent.trim().length === 0;
 }
 
 /**
