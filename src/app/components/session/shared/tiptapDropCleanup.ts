@@ -69,6 +69,23 @@ function isEmptyParagraph(node: ProseMirrorNode): boolean {
  * inserito DURANTE il drop - la condizione cercata. Controllati entrambi gli
  * estremi del range (assoc opposti, verso l'interno del nodo) per coprire
  * l'intero paragrafo, non solo un punto.
+ *
+ * LIMITAZIONE NOTA (indagata 2026-07-31, non e' un bug di questo plugin):
+ * trascinare un TextBox/Collapse/Tabella DENTRO LA STESSA cella verso un
+ * fratello diretto adiacente che e' un paragrafo VUOTO non ha alcun effetto
+ * (il drop fallisce in silenzio, l'elemento resta dov'era) - funziona invece
+ * verso un fratello con contenuto reale, o verso una cella diversa. Escluso
+ * con certezza: nessuna eccezione da combineTransactionSteps qui sopra,
+ * nessuna cancellazione indebita (deleted:false su entrambi gli estremi,
+ * verificato con log dal vivo). La causa e' quindi a monte, dentro
+ * handleDrop di prosemirror-view stesso (probabile: il controllo interno
+ * "if (tr.doc.eq(beforeInsert)) return" abbandona il drop senza dispatch se
+ * il documento post-inserimento risulta strutturalmente uguale a quello
+ * post-cancellazione-sorgente, possibile per posizioni cosi' ravvicinate
+ * nello stesso genitore) - territorio di libreria, non di questo codice.
+ * Scope volutamente non approfondito oltre: nessuna perdita di dati (vero
+ * no-op), workaround banale (scrivere qualcosa nella riga di destinazione
+ * prima, o passare da un'altra cella).
  */
 export const DropCleanup = Extension.create({
   name: 'dropCleanup',
