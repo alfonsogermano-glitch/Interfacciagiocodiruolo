@@ -196,42 +196,6 @@
   padding-left: 1.5rem;
 }
 
-/* Gap cursor (prosemirror-gapcursor, gia' incluso e attivo di default in
-   StarterKit - nessuna estensione nuova) - senza queste regole il cursore
-   funziona comunque (navigazione da tastiera, click prima/dopo un nodo
-   isolating come TextBox/Collapse/Tabella) ma resta invisibile: la libreria
-   lo rende con display:none di default e richiede esplicitamente il proprio
-   style/gapcursor.css (o un equivalente) per essere visto (verificato nel
-   commento del sorgente, node_modules/prosemirror-gapcursor). Versione
-   tematizzata (var(--dash-*) invece del nero fisso della libreria) scoperta
-   a .tiptap-content come tutto il resto del CSS dell'editor - .ProseMirror-
-   focused e' applicata da prosemirror-view allo stesso elemento radice che
-   porta gia' la classe .tiptap-content (editorProps.attributes.class in
-   RichTextEditor.tsx), quindi il selettore composto sotto la raggiunge
-   correttamente senza bisogno di un selettore discendente. */
-.tiptap-content .ProseMirror-gapcursor {
-  display: none;
-  pointer-events: none;
-  position: absolute;
-}
-.tiptap-content .ProseMirror-gapcursor:after {
-  content: '';
-  display: block;
-  position: absolute;
-  top: -2px;
-  width: 20px;
-  border-top: 1px solid var(--dash-text-strong);
-  animation: tiptap-gapcursor-blink 1.1s steps(2, start) infinite;
-}
-@keyframes tiptap-gapcursor-blink {
-  to {
-    visibility: hidden;
-  }
-}
-.tiptap-content.ProseMirror-focused .ProseMirror-gapcursor {
-  display: block;
-}
-
 /* Il preflight di Tailwind resetta solo font-size/font-weight sui paragrafi,
    MAI il margine di default del browser - margine fisso in rem per uno
    spazio coerente tra blocchi. Il nodo "heading" (h1-h4) e' stato rimosso
