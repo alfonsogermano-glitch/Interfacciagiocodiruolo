@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
-import { Bold, Italic, Heading1, Heading2, Heading3, Heading4, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, Table as TableIcon, Undo2 } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, Table as TableIcon, Undo2 } from 'lucide-react';
 import { TableKit } from '@tiptap/extension-table';
 import { MarkdownContent } from './MarkdownContent';
 import { parseLines } from './markdownHeadings';
@@ -113,7 +113,7 @@ function ToolbarButton({ active, disabled, onClick, label, children }: {
           onClick={onClick}
           aria-label={label}
           aria-pressed={active}
-          className={`flex shrink-0 items-center justify-center rounded-md p-1.5 transition-colors ${
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md p-1.5 transition-colors ${
             active ? 'bg-[var(--dash-surface-2)] text-[var(--dash-text-strong)]' : 'text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]'
           } ${disabled ? 'cursor-not-allowed opacity-40' : ''}`}
         >
@@ -122,6 +122,48 @@ function ToolbarButton({ active, disabled, onClick, label, children }: {
       </TooltipTrigger>
       <TooltipContent side="right">{label}</TooltipContent>
     </Tooltip>
+  );
+}
+
+// Tendina "Normale"/"1"-"4" (stile Word/Google Docs) al posto dei 4 pulsanti
+// H1-H4 separati - un <select> nativo invece di un dropdown custom: piu'
+// semplice, gia' accessibile via tastiera/screen reader senza codice
+// aggiuntivo, coerente con lo stesso pattern gia' usato altrove nell'app
+// (vedi EntityFilterToolbar.tsx) solo ristretto qui a text-xs/padding minore
+// per stare nella colonna toolbar stretta. Nessun comando nuovo: riusa
+// toggleHeading (gia' usato dai vecchi pulsanti H1-H4, stesso identico
+// comportamento "imposta il livello, o toglilo se e' gia' quello attivo")
+// e setParagraph (comando standard dell'estensione Paragraph, gia' incluso
+// in StarterKit) per "Normale" - toggleHeading da solo non basta per quel
+// caso: se il cursore e' su un'intestazione di livello DIVERSO da quello
+// passato, la converte a quel livello invece di rimuoverla (vedi
+// toggleNode in @tiptap/core), quindi non esiste un livello "magico" da
+// passargli per garantire sempre l'uscita a paragrafo.
+function HeadingSelect({ editor, editable, onCommand }: { editor: Editor; editable: boolean; onCommand: (fn: () => void) => void }) {
+  const currentLevel = ([1, 2, 3, 4] as const).find((level) => editor.isActive('heading', { level })) ?? 0;
+
+  return (
+    <select
+      disabled={!editable}
+      value={currentLevel}
+      onChange={(e) => {
+        const level = Number(e.target.value);
+        onCommand(() => {
+          if (level === 0) editor.chain().focus().setParagraph().run();
+          else editor.chain().focus().toggleHeading({ level: level as 1 | 2 | 3 | 4 }).run();
+        });
+      }}
+      aria-label="Stile titolo"
+      className={`w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-1 py-1.5 text-xs text-[var(--dash-text)] ${
+        editable ? '' : 'cursor-not-allowed opacity-40'
+      }`}
+    >
+      <option value={0}>Normale</option>
+      <option value={1}>1</option>
+      <option value={2}>2</option>
+      <option value={3}>3</option>
+      <option value={4}>4</option>
+    </select>
   );
 }
 
@@ -159,17 +201,23 @@ function ToolbarSection({ label, defaultOpen, children }: { label: string; defau
 }
 
 // Barra di formattazione standard (Fase 0: nessuna estensione RPG) - una
-// sola sezione oggi ("Formattazione testo", colonna singola con gli 8
-// pulsanti attuali, 1 per riga), verticale a sinistra del testo, sempre
-// visibile (non solo durante la modifica). Con la sezione collassabile,
-// l'altezza della colonna singola (~280px da aperta) non e' piu' un
-// vincolo fisso come lo sarebbe stata una barra sempre-visibile non
-// richiudibile - l'utente puo' comprimere "Formattazione testo" quando non
-// serve. onMouseDown con preventDefault sull'intero contenitore per non far
-// perdere la selezione nell'editor al click di un bottone (qui serve ancora
-// di piu' che con una <textarea>: senza, TipTap perderebbe il focus/la
-// selezione PRIMA che il comando venga eseguito sul punto giusto del
-// documento).
+// sola sezione oggi ("Formattazione testo", colonna singola, 1 elemento per
+// riga - la tendina Normale/1-4 di HeadingSelect sopra piu' i pulsanti
+// icona), verticale a sinistra del testo, sempre visibile (non solo durante
+// la modifica). Con la sezione collassabile, l'altezza della colonna
+// singola non e' piu' un vincolo fisso come lo sarebbe stata una barra
+// sempre-visibile non richiudibile - l'utente puo' comprimere
+// "Formattazione testo" quando non serve. onMouseDown con preventDefault
+// sull'intero contenitore per non far perdere la selezione nell'editor al
+// click di un bottone (qui serve ancora di piu' che con una <textarea>:
+// senza, TipTap perderebbe il focus/la selezione PRIMA che il comando venga
+// eseguito sul punto giusto del documento).
+//
+// w-20 (non piu' w-9): allargato per ospitare la tendina HeadingSelect, che
+// deve mostrare "Normale" per intero - i pulsanti icona sotto (ToolbarButton,
+// ora con h-9 w-9 espliciti invece di affidarsi allo stretch del
+// contenitore) restano alla stessa dimensione quadrata di prima, solo
+// allineati a sinistra nella colonna piu' larga invece di riempirla.
 function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
   // Aggiornamento esplicito, non delegato al ri-render automatico di
   // useEditor sulle transazioni: confermato che quel meccanismo (interno a
@@ -190,7 +238,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
   const boldActive = editor.isActive('bold');
 
   return (
-    <div onMouseDown={(e) => e.preventDefault()} className="flex w-9 shrink-0 flex-col gap-2">
+    <div onMouseDown={(e) => e.preventDefault()} className="flex w-20 shrink-0 flex-col gap-2">
       <ToolbarSection label="Formattazione testo" defaultOpen>
         <ToolbarButton disabled={!editable} label="Grassetto" active={boldActive} onClick={() => runCommand(() => editor.chain().focus().toggleBold().run())}>
           <Bold className="h-4 w-4" />
@@ -210,18 +258,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         <ToolbarButton disabled={!editable} label="Sbarrato" active={editor.isActive('strike')} onClick={() => runCommand(() => editor.chain().focus().toggleStrike().run())}>
           <Strikethrough className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton disabled={!editable} label="Titolo 1" active={editor.isActive('heading', { level: 1 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 1 }).run())}>
-          <Heading1 className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton disabled={!editable} label="Titolo 2" active={editor.isActive('heading', { level: 2 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 2 }).run())}>
-          <Heading2 className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton disabled={!editable} label="Titolo 3" active={editor.isActive('heading', { level: 3 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 3 }).run())}>
-          <Heading3 className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton disabled={!editable} label="Titolo 4" active={editor.isActive('heading', { level: 4 })} onClick={() => runCommand(() => editor.chain().focus().toggleHeading({ level: 4 }).run())}>
-          <Heading4 className="h-4 w-4" />
-        </ToolbarButton>
+        <HeadingSelect editor={editor} editable={editable} onCommand={runCommand} />
         <ToolbarButton disabled={!editable} label="Elenco puntato" active={editor.isActive('bulletList')} onClick={() => runCommand(() => editor.chain().focus().toggleBulletList().run())}>
           <List className="h-4 w-4" />
         </ToolbarButton>
