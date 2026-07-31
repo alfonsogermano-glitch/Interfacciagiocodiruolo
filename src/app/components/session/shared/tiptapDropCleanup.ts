@@ -41,6 +41,35 @@ function isEmptyParagraph(node: ProseMirrorNode): boolean {
  * Collapse, primo livello del documento - nessuna logica specifica per
  * "dentro una tabella", lo stesso problema si presenta ovunque una zona di
  * drop abbia gia' un paragrafo vuoto adiacente).
+ *
+ * GUARDIA childCount===2 (bug segnalato 2026-07-31, effetto collaterale
+ * della prima versione): la prima versione cancellava QUALUNQUE paragrafo
+ * vuoto adiacente, senza distinguere un vero placeholder residuo (l'unico
+ * altro contenuto del contenitore, come nel caso originale sopra) da una
+ * riga vuota lasciata li' DI PROPOSITO dall'utente in una cella con PIU'
+ * righe (es. prima riga vuota intenzionale, seconda riga di destinazione) -
+ * cancellava quella riga comunque, spostando di fatto l'elemento appena
+ * trascinato "al posto" della riga vuota invece che accanto alla riga
+ * bersaglio. $from.parent.childCount === 2 dopo il drop (il nodo trascinato
+ * + un solo altro figlio, quello vuoto) e' vero SOLO quando quel paragrafo
+ * era l'UNICO contenuto del contenitore prima del drop (childCount saliva
+ * da 1 a 2) - con piu' righe pre-esistenti il contenitore ha gia' 3+ figli
+ * dopo il drop, la guardia impedisce qualunque cancellazione e le righe
+ * vuote intenzionali restano intatte, indipendentemente da quale fratello
+ * diretto dell'elemento risultino essere.
+ *
+ * Ipotesi alternativa verificata e scartata: un bug nel calcolo nativo
+ * della posizione di drop (area di hit-test ridotta su una riga vuota,
+ * dropPoint() che punta sempre alla riga sbagliata) non serve a spiegare il
+ * sintomo - ne' theme.css ne' altrove nel progetto esiste una regola che
+ * riduca l'altezza di un <p> vuoto (nessun :empty/min-height trovato), quindi
+ * un paragrafo vuoto ha la stessa area di hit-test verticale di uno pieno.
+ * Ed e' comunque irrilevante ai fini del sintomo osservato: sia che il drop
+ * fosse atterrato PRIMA sia DOPO il paragrafo vuoto, la vecchia versione di
+ * questo plugin lo cancellava comunque, producendo in ENTRAMBI i casi lo
+ * stesso risultato visibile finale ("l'elemento finisce al posto della riga
+ * vuota") - la causa piena e sufficiente e' la cancellazione incondizionata,
+ * non la posizione del drop.
  */
 export const DropCleanup = Extension.create({
   name: 'dropCleanup',
@@ -56,24 +85,21 @@ export const DropCleanup = Extension.create({
           if (!(selection instanceof NodeSelection)) return null;
 
           const { $from, $to } = selection;
-          const ranges: { from: number; to: number }[] = [];
-          if ($from.nodeBefore && isEmptyParagraph($from.nodeBefore)) {
-            ranges.push({ from: $from.pos - $from.nodeBefore.nodeSize, to: $from.pos });
-          }
-          if ($to.nodeAfter && isEmptyParagraph($to.nodeAfter)) {
-            ranges.push({ from: $to.pos, to: $to.pos + $to.nodeAfter.nodeSize });
-          }
-          if (ranges.length === 0) return null;
+          // Contenitore con SOLO il nodo trascinato + un altro figlio: solo
+          // in questo caso quell'altro figlio, se vuoto, era certamente il
+          // placeholder obbligatorio del contenitore altrimenti vuoto (vedi
+          // commento sopra) - con 3+ figli non si tocca nulla.
+          if ($from.parent.childCount !== 2) return null;
 
-          const tr = newState.tr;
-          // Ordine decrescente di posizione: cancellando prima il range piu'
-          // a destra, le posizioni del range a sinistra (se presente anche
-          // quello, entrambi i lati con un placeholder) restano valide per
-          // la cancellazione successiva nella stessa transazione.
-          ranges
-            .sort((a, b) => b.from - a.from)
-            .forEach(({ from, to }) => tr.delete(from, to));
-          return tr;
+          let range: { from: number; to: number } | null = null;
+          if ($from.nodeBefore && isEmptyParagraph($from.nodeBefore)) {
+            range = { from: $from.pos - $from.nodeBefore.nodeSize, to: $from.pos };
+          } else if ($to.nodeAfter && isEmptyParagraph($to.nodeAfter)) {
+            range = { from: $to.pos, to: $to.pos + $to.nodeAfter.nodeSize };
+          }
+          if (!range) return null;
+
+          return newState.tr.delete(range.from, range.to);
         },
       }),
     ];
