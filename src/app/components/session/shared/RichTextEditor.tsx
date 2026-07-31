@@ -9,6 +9,7 @@ import { parseLines } from './markdownHeadings';
 import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
 import { TableWithHandle } from './tiptapTableHandle';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
+import { DropCleanup } from './tiptapDropCleanup';
 import { TipTapTableMenu } from './TipTapTableMenu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 // @tiptap/extension-underline non va importato/aggiunto qui: StarterKit lo
@@ -450,7 +451,10 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // heading:false - il vecchio Node a blocco H1-H4 e' sostituito dal Mark
     // inline FontSize (tiptapFontSize.ts, applicabile a una selezione
     // parziale invece che a tutta la riga - cambio di scope confermato).
-    extensions: [StarterKit.configure({ heading: false }), TableKit.configure({ table: false }), TableWithHandle, FontSize, ...TIPTAP_BLOCK_EXTENSIONS],
+    // DropCleanup: ripulisce il paragrafo vuoto placeholder residuo dopo il
+    // drag di TextBox/Collapse/Tabella verso una zona che ne aveva gia' uno
+    // (bug segnalato 2026-07-31, vedi tiptapDropCleanup.ts).
+    extensions: [StarterKit.configure({ heading: false }), TableKit.configure({ table: false }), TableWithHandle, FontSize, DropCleanup, ...TIPTAP_BLOCK_EXTENSIONS],
     content: initialContent,
     editable,
     // .tiptap-content: vedi theme.css - ripristina list-style/padding per
