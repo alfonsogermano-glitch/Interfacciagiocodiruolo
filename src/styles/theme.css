@@ -302,7 +302,26 @@
   top: 0.375rem;
   left: 0.375rem;
 }
-.tiptap-content .tableWrapper:hover .tiptap-table-handle {
+/* :hover si propaga a TUTTI gli antenati (non solo all'elemento puntato dal
+   mouse) - un TextBox/Collapse/tabella annidato dentro una cella (schema
+   valido: tableCell content e' "block+", include table/textBox/collapseBlock
+   nel gruppo 'block' - verificato in @tiptap/extension-table e
+   tiptapBlocks.tsx) rende :hover vero anche su .tableWrapper mentre il
+   mouse e' sull'elemento interno, quindi SENZA la guardia sotto questa
+   regola e quella di .tiptap-block-handle piu' sotto scattavano insieme,
+   mostrando entrambe le maniglie invece della sola piu' interna (bug
+   segnalato 2026-07-31). :not(:has(...)) esclude il caso in cui il wrapper
+   contenga (a qualunque profondita') un altro elemento "con maniglia"
+   ATTUALMENTE in hover: se c'e', il mouse e' su quell'elemento piu' interno,
+   non sul bordo/sfondo di questa tabella, quindi la SUA maniglia (non
+   questa) deve essere l'unica visibile. Supporto :has(): baseline gia'
+   assunta dal progetto (color-mix() qui sotto in .tiptap-textbox richiede
+   Firefox 113+/Safari 16.2+, :has() e' supportato da versioni comparabili
+   o precedenti in tutti i motori principali). Selettore ">" (non piu' " ")
+   sul target: senza, la regola raggiungerebbe anche la maniglia di UNA
+   TABELLA ANNIDATA piu' in profondita' dentro la stessa cella (descendente
+   a qualunque livello), non solo la maniglia diretta di QUESTO wrapper. */
+.tiptap-content .tableWrapper:hover:not(:has(.tableWrapper:hover, .tiptap-textbox:hover, .tiptap-collapse:hover)) > .tiptap-table-handle {
   opacity: 1;
   pointer-events: auto;
 }
@@ -441,8 +460,17 @@
   background: var(--dash-surface-2);
   color: var(--dash-text-strong);
 }
-.tiptap-textbox:hover .tiptap-block-handle,
-.tiptap-collapse:hover .tiptap-block-handle {
+/* Stessa guardia e stesso motivo della regola gemella su .tiptap-table-handle
+   sopra (:hover si propaga agli antenati, un TextBox/Collapse puo' averne
+   un altro annidato dentro di se' - content 'block+' li accetta entrambi,
+   vedi tiptapBlocks.tsx - e lo stesso vale per un TextBox/Collapse annidato
+   dentro una cella di tabella): senza :not(:has(...)), hoverare il blocco
+   piu' interno faceva comparire anche la maniglia di QUALUNQUE box/tabella
+   antenato invece della sola piu' interna. Selettore ">" sul target per lo
+   stesso motivo li' spiegato (non raggiungere la maniglia di un box ancora
+   piu' annidato in profondita'). */
+.tiptap-textbox:hover:not(:has(.tableWrapper:hover, .tiptap-textbox:hover, .tiptap-collapse:hover)) > .tiptap-block-handle,
+.tiptap-collapse:hover:not(:has(.tableWrapper:hover, .tiptap-textbox:hover, .tiptap-collapse:hover)) > .tiptap-block-handle {
   opacity: 1;
   pointer-events: auto;
 }
