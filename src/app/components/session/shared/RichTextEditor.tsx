@@ -8,6 +8,7 @@ import { MarkdownContent } from './MarkdownContent';
 import { parseLines } from './markdownHeadings';
 import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
 import { TableWithHandle } from './tiptapTableHandle';
+import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { TipTapTableMenu } from './TipTapTableMenu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 // @tiptap/extension-underline non va importato/aggiunto qui: StarterKit lo
@@ -48,15 +49,20 @@ interface RichTextEditorProps {
 // markdownHeadings.ts) in un documento TipTap iniziale equivalente, cosi'
 // "promuovere" una nota vecchia al nuovo editor parte dal suo contenuto
 // invece che da una pagina vuota - riusa parseLines, stessa unica fonte di
-// verita' del parsing legacy gia' usata da MarkdownContent.tsx.
+// verita' del parsing legacy gia' usata da MarkdownContent.tsx. Le righe con
+// livello (ex "#"-N) diventano paragraph con mark fontSize invece del nodo
+// "heading" (rimosso dallo schema, vedi StarterKit.configure({heading:false})
+// sotto) - stesso mapping livello->px di migrateHeadingsToFontSize, per
+// coerenza fra le due strade che portano a una nota gia' con "titoli".
 function legacyToTipTapDoc(content: string): JSONContent {
   const lines = parseLines(content);
   return {
     type: 'doc',
     content: lines.map((line) => ({
-      type: line.level === 0 ? 'paragraph' : 'heading',
-      ...(line.level !== 0 ? { attrs: { level: line.level } } : {}),
-      content: line.text ? [{ type: 'text', text: line.text }] : [],
+      type: 'paragraph',
+      content: line.text
+        ? [{ type: 'text', text: line.text, ...(line.level !== 0 ? { marks: [{ type: 'fontSize', attrs: { size: HEADING_LEVEL_TO_FONT_SIZE[line.level] } }] } : {}) }]
+        : [],
     })),
   };
 }
@@ -125,44 +131,45 @@ function ToolbarButton({ active, disabled, onClick, label, children }: {
   );
 }
 
-// Tendina "Normale"/"1"-"4" (stile Word/Google Docs) al posto dei 4 pulsanti
-// H1-H4 separati - un <select> nativo invece di un dropdown custom: piu'
+// Tendina numerica (stile word processor) per la dimensione del testo
+// selezionato - un <select> nativo invece di un dropdown custom: piu'
 // semplice, gia' accessibile via tastiera/screen reader senza codice
 // aggiuntivo, coerente con lo stesso pattern gia' usato altrove nell'app
 // (vedi EntityFilterToolbar.tsx) solo ristretto qui a text-xs/padding minore
-// per stare nella colonna toolbar stretta. Nessun comando nuovo: riusa
-// toggleHeading (gia' usato dai vecchi pulsanti H1-H4, stesso identico
-// comportamento "imposta il livello, o toglilo se e' gia' quello attivo")
-// e setParagraph (comando standard dell'estensione Paragraph, gia' incluso
-// in StarterKit) per "Normale" - toggleHeading da solo non basta per quel
-// caso: se il cursore e' su un'intestazione di livello DIVERSO da quello
-// passato, la converte a quel livello invece di rimuoverla (vedi
-// toggleNode in @tiptap/core), quindi non esiste un livello "magico" da
-// passargli per garantire sempre l'uscita a paragrafo.
-function HeadingSelect({ editor, editable, onCommand }: { editor: Editor; editable: boolean; onCommand: (fn: () => void) => void }) {
-  const currentLevel = ([1, 2, 3, 4] as const).find((level) => editor.isActive('heading', { level })) ?? 0;
+// per stare nella colonna toolbar stretta. Sostituisce l'ex tendina
+// Normale/1-4 (Heading, rimosso dallo schema - vedi
+// StarterKit.configure({heading:false}) sotto): fontSize e' un Mark
+// inline (come Grassetto/Corsivo), non un Node di blocco, quindi si applica
+// alla sola selezione invece che a tutta la riga. 16 = la dimensione
+// effettivamente ereditata quando NON c'e' nessun mark fontSize (root
+// --font-size:16px in theme.css, nessun override in .tiptap-content) - la
+// tendina mostra sempre un numero reale, mai un placeholder vuoto, e
+// selezionare 16 esplicitamente e' un no-op visivo ma comunque valido
+// (stesso trattamento di qualunque altro valore, nessun caso speciale
+// "rimuovi formattazione" richiesto). Nessun comando nuovo da scrivere per
+// il cursore senza selezione: setMark (usato da setFontSize in
+// tiptapFontSize.ts) ha gia' il branch stored-mark per selezione vuota,
+// stesso codice condiviso da toggleBold/toggleItalic (verificato nel
+// sorgente di @tiptap/core).
+function FontSizeSelect({ editor, editable, onCommand }: { editor: Editor; editable: boolean; onCommand: (fn: () => void) => void }) {
+  const currentSize = (editor.getAttributes('fontSize').size as number | undefined) ?? 16;
 
   return (
     <select
       disabled={!editable}
-      value={currentLevel}
+      value={currentSize}
       onChange={(e) => {
-        const level = Number(e.target.value);
-        onCommand(() => {
-          if (level === 0) editor.chain().focus().setParagraph().run();
-          else editor.chain().focus().toggleHeading({ level: level as 1 | 2 | 3 | 4 }).run();
-        });
+        const size = Number(e.target.value);
+        onCommand(() => editor.chain().focus().setFontSize(size).run());
       }}
-      aria-label="Stile titolo"
+      aria-label="Dimensione testo"
       className={`w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-1 py-1.5 text-xs text-[var(--dash-text)] ${
         editable ? '' : 'cursor-not-allowed opacity-40'
       }`}
     >
-      <option value={0}>Normale</option>
-      <option value={1}>1</option>
-      <option value={2}>2</option>
-      <option value={3}>3</option>
-      <option value={4}>4</option>
+      {FONT_SIZES.map((size) => (
+        <option key={size} value={size}>{size}</option>
+      ))}
     </select>
   );
 }
@@ -202,10 +209,10 @@ function ToolbarSection({ label, defaultOpen, children }: { label: string; defau
 
 // Barra di formattazione standard (Fase 0: nessuna estensione RPG) - una
 // sola sezione oggi ("Formattazione testo", colonna singola, 1 elemento per
-// riga - la tendina Normale/1-4 di HeadingSelect sopra piu' i pulsanti
-// icona), verticale a sinistra del testo, sempre visibile (non solo durante
-// la modifica). Con la sezione collassabile, l'altezza della colonna
-// singola non e' piu' un vincolo fisso come lo sarebbe stata una barra
+// riga - la tendina numerica di FontSizeSelect sopra piu' i pulsanti icona),
+// verticale a sinistra del testo, sempre visibile (non solo durante la
+// modifica). Con la sezione collassabile, l'altezza della colonna singola
+// non e' piu' un vincolo fisso come lo sarebbe stata una barra
 // sempre-visibile non richiudibile - l'utente puo' comprimere
 // "Formattazione testo" quando non serve. onMouseDown con preventDefault
 // sull'intero contenitore per non far perdere la selezione nell'editor al
@@ -213,11 +220,11 @@ function ToolbarSection({ label, defaultOpen, children }: { label: string; defau
 // senza, TipTap perderebbe il focus/la selezione PRIMA che il comando venga
 // eseguito sul punto giusto del documento).
 //
-// w-20 (non piu' w-9): allargato per ospitare la tendina HeadingSelect, che
-// deve mostrare "Normale" per intero - i pulsanti icona sotto (ToolbarButton,
-// ora con h-9 w-9 espliciti invece di affidarsi allo stretch del
-// contenitore) restano alla stessa dimensione quadrata di prima, solo
-// allineati a sinistra nella colonna piu' larga invece di riempirla.
+// w-20 (non piu' w-9): allargato per ospitare la tendina FontSizeSelect - i
+// pulsanti icona sotto (ToolbarButton, ora con h-9 w-9 espliciti invece di
+// affidarsi allo stretch del contenitore) restano alla stessa dimensione
+// quadrata di prima, solo allineati a sinistra nella colonna piu' larga
+// invece di riempirla.
 function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
   // Aggiornamento esplicito, non delegato al ri-render automatico di
   // useEditor sulle transazioni: confermato che quel meccanismo (interno a
@@ -258,7 +265,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         <ToolbarButton disabled={!editable} label="Sbarrato" active={editor.isActive('strike')} onClick={() => runCommand(() => editor.chain().focus().toggleStrike().run())}>
           <Strikethrough className="h-4 w-4" />
         </ToolbarButton>
-        <HeadingSelect editor={editor} editable={editable} onCommand={runCommand} />
+        <FontSizeSelect editor={editor} editable={editable} onCommand={runCommand} />
         <ToolbarButton disabled={!editable} label="Elenco puntato" active={editor.isActive('bulletList')} onClick={() => runCommand(() => editor.chain().focus().toggleBulletList().run())}>
           <List className="h-4 w-4" />
         </ToolbarButton>
@@ -385,8 +392,14 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
   // farebbe risultare le options "diverse" ad ogni render (vedi
   // TIPTAP_EDITOR_PROPS sopra, stessa causa). La sincronizzazione REALE dei
   // cambi successivi resta interamente affidata all'effect con setContent
-  // piu' sotto.
-  const [initialContent] = useState(() => richContent);
+  // piu' sotto. migrateHeadingsToFontSize qui (e nell'effect sotto): una nota
+  // gia' salvata PRIMA della rimozione del nodo "heading" dallo schema
+  // avrebbe un content_rich con nodi che lo schema non riconosce piu' -
+  // createNodeFromContent (@tiptap/core) cattura quell'errore in silenzio e
+  // sostituisce l'INTERO documento con uno vuoto, non solo il nodo
+  // incriminato (verificato nel sorgente): senza questa conversione qui,
+  // aprire una vecchia nota con un titolo la svuoterebbe silenziosamente.
+  const [initialContent] = useState(() => migrateHeadingsToFontSize(richContent));
 
   const editor = useEditor({
     // resizable: true attiva columnResizing di prosemirror-tables (gia'
@@ -399,7 +412,10 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // draggable per la maniglia di trascinamento (stesso sistema di
     // TextBox/CollapseBlock, vedi tiptapBlocks.tsx) - TableCell/TableHeader/
     // TableRow restano quelli di TableKit, invariati.
-    extensions: [StarterKit, TableKit.configure({ table: false }), TableWithHandle, ...TIPTAP_BLOCK_EXTENSIONS],
+    // heading:false - il vecchio Node a blocco H1-H4 e' sostituito dal Mark
+    // inline FontSize (tiptapFontSize.ts, applicabile a una selezione
+    // parziale invece che a tutta la riga - cambio di scope confermato).
+    extensions: [StarterKit.configure({ heading: false }), TableKit.configure({ table: false }), TableWithHandle, FontSize, ...TIPTAP_BLOCK_EXTENSIONS],
     content: initialContent,
     editable,
     // .tiptap-content: vedi theme.css - ripristina list-style/padding per
@@ -447,6 +463,16 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
   useEffect(() => {
     if (!editor) return;
 
+    // migrateHeadingsToFontSize PRIMA di ogni confronto/uso, non solo prima
+    // di setContent: editor.getJSON() qui sotto non conterra' MAI un nodo
+    // "heading" (rimosso dallo schema), quindi confrontare il richContent
+    // grezzo di una nota vecchia (ancora con "heading" salvato) contro
+    // editor.getJSON() risulterebbe sempre "diverso" anche a contenuto
+    // gia' migrato in memoria, forzando un setContent superfluo (e la
+    // perdita di selezione che questo effect esiste apposta per evitare) ad
+    // ogni giro. Stesso motivo del rischio spiegato sopra per initialContent.
+    const migratedRichContent = migrateHeadingsToFontSize(richContent);
+
     // Confronto STRUTTURALE col documento gia' presente nell'editor, non
     // per riferimento con l'ultimo valore emesso da noi (come prima): un
     // salvataggio che torna indietro via realtime/refetch e' un oggetto JS
@@ -459,7 +485,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // ...) dentro @tiptap/core) sposta la selezione mappata verso la fine
     // invece di lasciarla dov'era. Confrontando il CONTENUTO invece del
     // riferimento, un eco (anche tardivo) non tocca mai piu' l'editor.
-    if (docsEqual(richContent, editor.getJSON())) return;
+    if (docsEqual(migratedRichContent, editor.getJSON())) return;
 
     // Guardia difensiva: un documento esterno vuoto non deve MAI sovrascrivere
     // un documento locale con contenuto reale, qualunque sia la causa a monte
@@ -467,7 +493,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // ancora scoperti). Un documento esterno genuinamente vuoto resta un
     // caso legittimo (nota appena creata da un altro client), ma SOLO se
     // anche il documento locale attuale e' vuoto.
-    if (isDocEmpty(richContent) && !isDocEmpty(editor.getJSON())) return;
+    if (isDocEmpty(migratedRichContent) && !isDocEmpty(editor.getJSON())) return;
 
     // Documento esterno realmente diverso (un altro client/utente ha
     // modificato la stessa nota) - preserva la selezione attraverso
@@ -475,7 +501,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // nuovo documento (vedi sorgente @tiptap/core), quindi e' sicuro
     // riapplicare la stessa posizione anche se il nuovo testo e' piu' corto.
     const { from, to } = editor.state.selection;
-    editor.commands.setContent(richContent, { emitUpdate: false });
+    editor.commands.setContent(migratedRichContent, { emitUpdate: false });
     editor.commands.setTextSelection({ from, to });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [richContent]);

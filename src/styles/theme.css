@@ -196,18 +196,12 @@
   padding-left: 1.5rem;
 }
 
-/* Il preflight di Tailwind resetta solo font-size/font-weight sugli heading
-   (h1-h6{font-size:inherit;font-weight:inherit}), MAI il margine - il
-   margine di default del browser per h1-h4 e' in em, relativo al font-size
-   di quell'elemento stesso: passare una riga da H4 a H1 non ingrandisce
-   solo il testo ma anche lo spazio attorno, in modo non lineare tra i
-   livelli (verificato nel CSS compilato). Margine fisso in rem (non em, non
-   proporzionale al font-size del singolo heading) per uno spazio tra
-   blocchi coerente a qualunque livello. */
-.tiptap-content h1,
-.tiptap-content h2,
-.tiptap-content h3,
-.tiptap-content h4,
+/* Il preflight di Tailwind resetta solo font-size/font-weight sui paragrafi,
+   MAI il margine di default del browser - margine fisso in rem per uno
+   spazio coerente tra blocchi. Il nodo "heading" (h1-h4) e' stato rimosso
+   dallo schema TipTap (RichTextEditor.tsx, sostituito dal Mark inline
+   FontSize) - non renderizza piu' dentro .tiptap-content, da cui la regola
+   ristretta al solo <p>. */
 .tiptap-content p {
   margin: 0 0 0.25rem 0;
 }
