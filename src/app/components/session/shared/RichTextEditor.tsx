@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
@@ -151,6 +151,22 @@ function ToolbarButton({ active, disabled, onClick, label, children }: {
 // tiptapFontSize.ts) ha gia' il branch stored-mark per selezione vuota,
 // stesso codice condiviso da toggleBold/toggleItalic (verificato nel
 // sorgente di @tiptap/core).
+//
+// onMouseDown con stopPropagation (non preventDefault, l'opposto):
+// bug 2026-07-31, la tendina non si apriva affatto al click, stesso sintomo
+// gia' visto con l'ex HeadingSelect e mai risolto davvero. Causa reale
+// (verificata nel sorgente): il contenitore Toolbar piu' sotto ferma il
+// mousedown con preventDefault per i pulsanti (evita che rubino il focus
+// all'editor), ma per un <select> nativo preventDefault sul mousedown
+// sopprime ANCHE l'apertura della lista a discesa, che e' il suo stesso
+// default action nativo - non solo lo spostamento del focus. stopPropagation
+// QUI, sul mousedown della select stessa, impedisce all'evento di
+// raggiungere l'handler dell'antenato (mai chiamato per questo elemento),
+// lasciando che il browser apra la lista normalmente. Il focus che la select
+// prende di conseguenza e' gestito dall'onBlur con relatedTarget in
+// TipTapEditor sopra (senza, l'editor uscirebbe dalla modalita' modifica a
+// meta' interazione, disabilitando la select prima ancora che l'utente
+// riesca a scegliere un valore).
 function FontSizeSelect({ editor, editable, onCommand }: { editor: Editor; editable: boolean; onCommand: (fn: () => void) => void }) {
   const currentSize = (editor.getAttributes('fontSize').size as number | undefined) ?? 16;
 
@@ -158,12 +174,13 @@ function FontSizeSelect({ editor, editable, onCommand }: { editor: Editor; edita
     <select
       disabled={!editable}
       value={currentSize}
+      onMouseDown={(e) => e.stopPropagation()}
       onChange={(e) => {
         const size = Number(e.target.value);
         onCommand(() => editor.chain().focus().setFontSize(size).run());
       }}
       aria-label="Dimensione testo"
-      className={`w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-1 py-1.5 text-xs text-[var(--dash-text)] ${
+      className={`w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-0.5 py-1.5 text-center text-xs text-[var(--dash-text)] ${
         editable ? '' : 'cursor-not-allowed opacity-40'
       }`}
     >
@@ -220,10 +237,13 @@ function ToolbarSection({ label, defaultOpen, children }: { label: string; defau
 // senza, TipTap perderebbe il focus/la selezione PRIMA che il comando venga
 // eseguito sul punto giusto del documento).
 //
-// w-20 (non piu' w-9): allargato per ospitare la tendina FontSizeSelect - i
-// pulsanti icona sotto (ToolbarButton, ora con h-9 w-9 espliciti invece di
-// affidarsi allo stretch del contenitore) restano alla stessa dimensione
-// quadrata di prima, solo allineati a sinistra nella colonna piu' larga
+// w-11 (non w-9): leggermente piu' largo per ospitare la tendina
+// FontSizeSelect coi suoi numeri a 1-2 cifre + freccina nativa (bug
+// segnalato 2026-07-31: era rimasto w-20, tarato per "Normale" dell'ex
+// tendina Heading, troppo largo per un semplice numero) - i pulsanti icona
+// sotto (ToolbarButton, con h-9 w-9 espliciti invece di affidarsi allo
+// stretch del contenitore) restano alla stessa dimensione quadrata di
+// prima, solo allineati a sinistra nella colonna leggermente piu' larga
 // invece di riempirla.
 function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
   // Aggiornamento esplicito, non delegato al ri-render automatico di
@@ -245,7 +265,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
   const boldActive = editor.isActive('bold');
 
   return (
-    <div onMouseDown={(e) => e.preventDefault()} className="flex w-20 shrink-0 flex-col gap-2">
+    <div onMouseDown={(e) => e.preventDefault()} className="flex w-11 shrink-0 flex-col gap-2">
       <ToolbarSection label="Formattazione testo" defaultOpen>
         <ToolbarButton disabled={!editable} label="Grassetto" active={boldActive} onClick={() => runCommand(() => editor.chain().focus().toggleBold().run())}>
           <Bold className="h-4 w-4" />
@@ -401,6 +421,21 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
   // aprire una vecchia nota con un titolo la svuoterebbe silenziosamente.
   const [initialContent] = useState(() => migrateHeadingsToFontSize(richContent));
 
+  // Contiene sia la Toolbar sia la colonna di testo (vedi il return sotto) -
+  // usato SOLO dall'onBlur qui sotto per distinguere un blur genuino (click
+  // fuori dall'editor, Tab) da uno causato dallo spostamento del focus su un
+  // controllo nativo DENTRO la toolbar stessa (bug 2026-07-31: la tendina
+  // FontSizeSelect - e prima di lei HeadingSelect, stesso sintomo mai
+  // risolto davvero - non si apriva al click). Un <select> nativo, a
+  // differenza di un <button>, DEVE prendere il focus DOM per aprire la sua
+  // lista a discesa (e' il default action nativo del mousedown sul select,
+  // non solo "prendere il focus" - preventDefault sul mousedown, come faceva
+  // gia' l'intero contenitore Toolbar qui sotto per i pulsanti, sopprime
+  // ANCHE quello, non solo lo spostamento del focus - da cui il fix parallelo
+  // in FontSizeSelect, stopPropagation sul proprio mousedown per non farsi
+  // fermare da quel preventDefault dell'antenato).
+  const toolbarWrapRef = useRef<HTMLDivElement>(null);
+
   const editor = useEditor({
     // resizable: true attiva columnResizing di prosemirror-tables (gia'
     // dentro @tiptap/extension-table, nessun codice nostro) - richiede pero'
@@ -426,11 +461,20 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
       onChangeRich(editor.getJSON());
     },
     // Evento nativo dell'editor invece di un onBlur React sul contenitore:
-    // la barra qui sopra ferma gia' il mousedown (preventDefault), quindi
-    // cliccare un bottone non fa mai perdere il focus all'editor - questo
-    // scatta solo per un blur genuino (click fuori, Tab), esattamente
-    // quando vogliamo davvero tornare alla vista di sola lettura.
-    onBlur: () => onBlurEditor?.(),
+    // per i pulsanti la barra ferma gia' il mousedown (preventDefault),
+    // quindi cliccarne uno non fa mai perdere il focus all'editor - ma un
+    // <select> nativo (FontSizeSelect) il focus lo deve prendere per forza
+    // (altrimenti la sua lista a discesa non si apre affatto, vedi
+    // toolbarWrapRef sopra), quindi QUI serve distinguere: event.relatedTarget
+    // e' l'elemento che sta per ricevere il focus (disponibile sull'evento
+    // nativo "blur", non simulato da React) - se e' dentro la toolbar
+    // (es. la select stessa) non e' un vero abbandono dell'editor, si resta
+    // in modifica; altrimenti (click fuori, Tab) e' un blur genuino, si
+    // torna alla vista di sola lettura come prima.
+    onBlur: ({ event }) => {
+      if (toolbarWrapRef.current?.contains(event.relatedTarget as Node | null)) return;
+      onBlurEditor?.();
+    },
   });
   // Nessun onSelectionUpdate/onTransaction manuale per aggiornare lo stato
   // "active" della barra: useEditor si iscrive gia' da solo alle transazioni
@@ -509,7 +553,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
   if (!editor) return null;
 
   return (
-    <div className="flex items-start gap-2">
+    <div ref={toolbarWrapRef} className="flex items-start gap-2">
       <Toolbar editor={editor} editable={editable} />
       <div
         onClick={!editable ? onClickText : undefined}
