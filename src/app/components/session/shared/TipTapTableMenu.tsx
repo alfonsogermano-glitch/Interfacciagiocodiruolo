@@ -1,6 +1,7 @@
 import { BubbleMenu } from '@tiptap/react/menus';
 import type { Editor } from '@tiptap/react';
 import { findTable, TableMap, addRow, addColumn, type FindNodeResult } from '@tiptap/pm/tables';
+import { Slice, Fragment } from '@tiptap/pm/model';
 import {
   ArrowUpToLine,
   ArrowDownToLine,
@@ -110,25 +111,75 @@ function insertColumnAtEdge(editor: Editor, edge: 'start' | 'end') {
   editor.commands.focus();
 }
 
-// Nessun comando nativo per "copia tabella": serializzazione minima in TSV
-// (righe/celle separate da \n/\t, testo puro) - si incolla in modo
-// utilizzabile sia in un altro punto dello stesso editor sia in un vero
-// foglio elettronico esterno. Stesso pattern di HomeScreen.tsx
-// (copyInviteCode) per il resto: navigator.clipboard.writeText diretto,
-// nessuna gestione di permessi aggiuntiva.
-function copyTableAsText(editor: Editor) {
-  const { state } = editor;
-  const found = findTable(state.selection.$from);
-  if (!found) return;
+// TSV (righe/celle separate da \n/\t, testo puro) - invariato rispetto alla
+// versione precedente di "copia tabella": resta l'unico formato utile per
+// incollare in un vero foglio elettronico esterno (Excel/Google Sheets), che
+// non capirebbe comunque l'HTML ricco scritto in parallelo sotto.
+function tableAsTsv(tableNode: FindNodeResult['node']): string {
   const rows: string[] = [];
-  found.node.forEach((rowNode) => {
+  tableNode.forEach((rowNode) => {
     const cells: string[] = [];
     rowNode.forEach((cellNode) => {
       cells.push(cellNode.textContent.replace(/\t/g, ' ').replace(/\n/g, ' '));
     });
     rows.push(cells.join('\t'));
   });
-  void navigator.clipboard.writeText(rows.join('\n'));
+  return rows.join('\n');
+}
+
+// "Copia tabella": scrive SIA l'HTML ricco (per re-incollare la tabella
+// intera, TextBox/Collapse annidati compresi, altrove nello stesso editor)
+// SIA il TSV (per incollare in un'app esterna, vedi tableAsTsv sopra) - due
+// MIME type nello stesso ClipboardItem, non due scritte separate (un secondo
+// clipboard.write() sovrascriverebbe il primo).
+//
+// L'HTML ricco NON e' costruito a mano: editor.view.serializeForClipboard()
+// e' lo stesso metodo pubblico (node_modules/prosemirror-view, tipizzato in
+// index.d.ts) che ProseMirror usa internamente per il vero Ctrl+C nativo
+// (handlers.copy) - produce un <div> via DOMSerializer.fromSchema (lo stesso
+// renderHTML di ogni nodo, incluso il contentElement di TextBox/Collapse in
+// tiptapBlocks.tsx, gia' pensato per il copia-incolla interno) con un
+// attributo data-pm-slice che il parser di incolla nativo (parseFromClipboard,
+// stesso modulo) riconosce per ricostruire lo slice originale esatto -
+// nessun reparse HTML "a tentativi" ne' logica di ricostruzione nostra.
+//
+// Lo slice e' costruito a mano da found.node (new Slice(Fragment.from(...),
+// 0, 0), stesso risultato di NodeSelection.content() per un nodo singolo)
+// invece di selezionare davvero la tabella con una NodeSelection e leggere
+// state.selection.content(): questa sessione ha gia' visto bug sottili
+// legati alla NodeSelection sulla maniglia della tabella (vedi
+// tiptapTableHandle.ts) - costruire lo slice senza mai toccare
+// editor.state.selection evita del tutto quella classe di problemi qui,
+// invece di limitarsi a "funzionare lo stesso".
+//
+// ClipboardItem/clipboard.write (non clipboard.writeText, usato altrove
+// nell'app - vedi HomeScreen.tsx/copyInviteCode) e' l'unica API che permette
+// di scrivere piu' MIME type in un colpo solo - supportata nei browser
+// moderni ma piu' recente/meno diffusa di writeText, da cui il fallback
+// esplicito al solo TSV se assente o se la scrittura fallisce (es. permesso
+// negato) invece di lasciare "copia tabella" silenziosamente senza effetto.
+function copyTableRich(editor: Editor) {
+  const { state, view } = editor;
+  const found = findTable(state.selection.$from);
+  if (!found) return;
+
+  const tsv = tableAsTsv(found.node);
+
+  const ClipboardItemCtor = typeof ClipboardItem !== 'undefined' ? ClipboardItem : null;
+  if (ClipboardItemCtor) {
+    const slice = new Slice(Fragment.from(found.node), 0, 0);
+    const { dom } = view.serializeForClipboard(slice);
+    const item = new ClipboardItemCtor({
+      'text/plain': new Blob([tsv], { type: 'text/plain' }),
+      'text/html': new Blob([dom.innerHTML], { type: 'text/html' }),
+    });
+    navigator.clipboard.write([item]).catch(() => {
+      void navigator.clipboard.writeText(tsv);
+    });
+    return;
+  }
+
+  void navigator.clipboard.writeText(tsv);
 }
 
 /**
@@ -196,7 +247,7 @@ export function TipTapTableMenu({ editor }: { editor: Editor }) {
       key: 'copy',
       icon: <Copy className="h-4 w-4" />,
       label: 'Copia tabella',
-      onClick: () => copyTableAsText(editor),
+      onClick: () => copyTableRich(editor),
     },
     {
       key: 'delete-table',
