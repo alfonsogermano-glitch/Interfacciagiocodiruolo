@@ -48,11 +48,26 @@ declare module '@tiptap/core' {
 // @tiptap/core: un trascinamento che parte da un punto qualsiasi FUORI da
 // quell'elemento viene bloccato con preventDefault) - senza, il testo dentro
 // il box perderebbe la normale selezione-per-trascinamento del mouse.
+// isolating: true (bug segnalato 2026-07-31, mancava - unico dei tre nodi
+// selezionabili/trascinabili dello schema senza, verificato: table e
+// collapseBlock lo hanno gia' entrambi) - senza, il gap cursor di
+// prosemirror-gapcursor (gia' incluso e attivo di default in StarterKit) non
+// riesce mai a posizionarsi prima/dopo un TextBox: closedBefore/closedAfter
+// (node_modules/prosemirror-gapcursor/dist/index.js) considerano un nodo
+// "chiuso" (quindi degno di un gap cursor al suo confine) solo se e'
+// isolating (o atom) - senza, l'algoritmo "vede attraverso" il TextBox, trova
+// il paragrafo di testo al suo interno e conclude che li' un cursore normale
+// e' gia' raggiungibile, negando il gap cursor. Stesso trattamento che
+// collapseBlock ha gia' da tempo senza problemi segnalati - permette di
+// posizionare il cursore prima/dopo il box e premere Invio per creare una
+// riga vuota, workaround al bug nativo di ProseMirror sul drag-and-drop
+// interno alla stessa cella verso un fratello vuoto (vedi tiptapDropCleanup.ts).
 export const TextBox = Node.create({
   name: 'textBox',
   group: 'block',
   content: 'block+',
   defining: true,
+  isolating: true,
   selectable: true,
   draggable: true,
 
