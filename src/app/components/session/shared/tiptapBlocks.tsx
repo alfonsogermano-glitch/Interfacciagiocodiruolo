@@ -1,8 +1,9 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
 import { Selection, Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
-import type { ResolvedPos } from '@tiptap/pm/model';
+import type { Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model';
 import { ChevronRight } from 'lucide-react';
+import { TextBoxEdgeCursor } from './tiptapTextBoxEdgeCursor';
 
 // Vero fino a qualunque profondita' (non solo il genitore immediato) che il
 // cursore sia dentro un nodo di quel tipo - usata sotto per impedire
@@ -35,6 +36,26 @@ function findAncestorDepth($pos: ResolvedPos, typeName: string): number | null {
     if ($pos.node(depth).type.name === typeName) return depth;
   }
   return null;
+}
+
+// $pos.start(depth)/.end(depth) danno il confine del NODO a quella
+// profondita' (subito prima/dopo il suo primo/ultimo figlio diretto), non la
+// posizione cursore raggiungibile dentro quel figlio - un box con un
+// paragrafo come primo figlio ha sempre pos===start(depth)+1 quando il
+// cursore e' davvero a inizio contenuto, MAI pos===start(depth) (bug
+// confermato via log 2026-08-01: pos=99, start=98, scarto costante di 1,
+// mai zero). Un annidamento piu' profondo (lista dentro il box, ecc.)
+// richiederebbe uno scarto diverso, calcolabile solo camminando i livelli
+// intermedi - invece di ricalcolarlo a mano (stessa classe di bug gia'
+// vista una volta), si delega a Selection.near la ricerca della posizione
+// cursore valida piu' vicina al confine grezzo del nodo (stesso idioma gia'
+// in uso e funzionante in CollapseSummary.addKeyboardShortcuts sotto): se
+// coincide esattamente con $pos, il cursore era gia' li'.
+function isAtBoxBoundary(doc: ProseMirrorNode, $pos: ResolvedPos, boxDepth: number, side: 'start' | 'end'): boolean {
+  const rawBoundary = side === 'start' ? $pos.start(boxDepth) : $pos.end(boxDepth);
+  const bias = side === 'start' ? 1 : -1;
+  const nearest = Selection.near(doc.resolve(rawBoundary), bias);
+  return nearest.from === $pos.pos && nearest.to === $pos.pos;
 }
 
 declare module '@tiptap/core' {
@@ -128,7 +149,7 @@ export const TextBox = Node.create({
     // che si fermerebbe al solo genitore diretto del cursore.
     const exitBoundary = (dir: 'before' | 'after') => (): boolean => {
       const { editor } = this;
-      const { selection, schema } = editor.state;
+      const { selection } = editor.state;
       // selection.empty esclude sia una selezione di testo non collassata
       // sia una NodeSelection (es. box selezionato con la maniglia, dove
       // interferire non avrebbe senso) - in entrambi i casi si lascia il
@@ -138,7 +159,7 @@ export const TextBox = Node.create({
       const boxDepth = findAncestorDepth($from, 'textBox');
       if (boxDepth === null) return false;
 
-      const atBoundary = dir === 'before' ? $from.pos === $from.start(boxDepth) : $from.pos === $from.end(boxDepth);
+      const atBoundary = isAtBoxBoundary(editor.state.doc, $from, boxDepth, dir === 'before' ? 'start' : 'end');
       if (!atBoundary) return false;
 
       return editor
@@ -146,22 +167,24 @@ export const TextBox = Node.create({
         .command(({ tr }) => {
           // Stesso idioma di tiptapDropCleanup.ts per leggere il fratello
           // diretto a un confine nodo: risolvere la posizione e leggere
-          // nodeBefore/nodeAfter, senza calcolare indici a mano.
+          // nodeBefore/nodeAfter, senza calcolare indici a mano. Se non c'e'
+          // un fratello, un cursore finto (TextBoxEdgeCursor) invece di
+          // creare subito un paragrafo reale - si materializza solo se
+          // l'utente digita/preme Invio mentre e' attivo (vedi
+          // tiptapTextBoxEdgeCursor.ts, validato con uno spike dal vivo).
           if (dir === 'before') {
             const boxBefore = $from.before(boxDepth);
             if (tr.doc.resolve(boxBefore).nodeBefore) {
               tr.setSelection(Selection.near(tr.doc.resolve(boxBefore), -1));
             } else {
-              tr.insert(boxBefore, schema.nodes.paragraph.create());
-              tr.setSelection(Selection.near(tr.doc.resolve(boxBefore + 1)));
+              tr.setSelection(new TextBoxEdgeCursor(tr.doc.resolve(boxBefore)));
             }
           } else {
             const boxAfter = $from.after(boxDepth);
             if (tr.doc.resolve(boxAfter).nodeAfter) {
               tr.setSelection(Selection.near(tr.doc.resolve(boxAfter), 1));
             } else {
-              tr.insert(boxAfter, schema.nodes.paragraph.create());
-              tr.setSelection(Selection.near(tr.doc.resolve(boxAfter + 1)));
+              tr.setSelection(new TextBoxEdgeCursor(tr.doc.resolve(boxAfter)));
             }
           }
           return true;
@@ -188,7 +211,7 @@ export const TextBox = Node.create({
         const { $from } = selection;
         const boxDepth = findAncestorDepth($from, 'textBox');
         if (boxDepth === null) return false;
-        if ($from.pos !== $from.start(boxDepth)) return false;
+        if (!isAtBoxBoundary(editor.state.doc, $from, boxDepth, 'start')) return false;
 
         const from = $from.before(boxDepth);
         const to = $from.after(boxDepth);

@@ -10,6 +10,7 @@ import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
 import { TableWithHandle } from './tiptapTableHandle';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { DropCleanup } from './tiptapDropCleanup';
+import { TextBoxEdgeCursorExtension } from './tiptapTextBoxEdgeCursor';
 import { TipTapTableMenu } from './TipTapTableMenu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 // @tiptap/extension-underline non va importato/aggiunto qui: StarterKit lo
@@ -454,7 +455,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // DropCleanup: ripulisce il paragrafo vuoto placeholder residuo dopo il
     // drag di TextBox/Collapse/Tabella verso una zona che ne aveva gia' uno
     // (bug segnalato 2026-07-31, vedi tiptapDropCleanup.ts).
-    extensions: [StarterKit.configure({ heading: false }), TableKit.configure({ table: false }), TableWithHandle, FontSize, DropCleanup, ...TIPTAP_BLOCK_EXTENSIONS],
+    extensions: [StarterKit.configure({ heading: false }), TableKit.configure({ table: false }), TableWithHandle, FontSize, DropCleanup, ...TIPTAP_BLOCK_EXTENSIONS, TextBoxEdgeCursorExtension],
     content: initialContent,
     editable,
     // .tiptap-content: vedi theme.css - ripristina list-style/padding per
