@@ -8,6 +8,7 @@ import { MarkdownContent } from './MarkdownContent';
 import { parseLines } from './markdownHeadings';
 import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
 import { TableWithHandle } from './tiptapTableHandle';
+import { TableCellWithFlexWrapper, TableHeaderWithFlexWrapper } from './tiptapTableCellWrapper';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { DropCleanup } from './tiptapDropCleanup';
 import { TextBoxEdgeCursorExtension } from './tiptapTextBoxEdgeCursor';
@@ -455,7 +456,23 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // DropCleanup: ripulisce il paragrafo vuoto placeholder residuo dopo il
     // drag di TextBox/Collapse/Tabella verso una zona che ne aveva gia' uno
     // (bug segnalato 2026-07-31, vedi tiptapDropCleanup.ts).
-    extensions: [StarterKit.configure({ heading: false }), TableKit.configure({ table: false }), TableWithHandle, FontSize, DropCleanup, ...TIPTAP_BLOCK_EXTENSIONS, TextBoxEdgeCursorExtension],
+    extensions: [
+      StarterKit.configure({ heading: false }),
+      // table/tableCell/tableHeader disattivati qui - sostituiti da
+      // TableWithHandle (maniglia di trascinamento) e da
+      // TableCellWithFlexWrapper/TableHeaderWithFlexWrapper (wrapper interno
+      // .tiptap-td-flex per affiancare TextBox/Collapse - vedi
+      // tiptapTableCellWrapper.ts: display:flex NON puo' stare sulla cella
+      // stessa, romperebbe il layout a colonne della tabella).
+      TableKit.configure({ table: false, tableCell: false, tableHeader: false }),
+      TableWithHandle,
+      TableCellWithFlexWrapper,
+      TableHeaderWithFlexWrapper,
+      FontSize,
+      DropCleanup,
+      ...TIPTAP_BLOCK_EXTENSIONS,
+      TextBoxEdgeCursorExtension,
+    ],
     content: initialContent,
     editable,
     // .tiptap-content: vedi theme.css - ripristina list-style/padding per

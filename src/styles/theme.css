@@ -348,27 +348,39 @@
      piu' larga della colonna (ridotta trascinando una maniglia) andrebbe
      altrimenti in overflow invece di andare a capo. */
   overflow-wrap: break-word;
-  /* display:flex + flex-wrap: permette a TextBox/Collapse di affiancarsi
-     sulla stessa riga visiva invece di andare sempre a capo (rifinitura
-     2026-08-01) - column-gap SOLO orizzontale (mai row-gap): lo spazio
-     verticale fra una "riga" e la successiva resta affidato al
-     margin-bottom di ciascun blocco, gia' presente da prima - un row-gap
-     qui raddoppierebbe quello spazio. align-items:flex-start: blocchi di
-     altezza diversa affiancati non si stirano per pareggiarsi. */
+}
+/* REGRESSIONE 2026-08-01 e correzione: display:flex era stato messo QUI,
+   direttamente su td/th - rompeva l'algoritmo di layout della tabella
+   (table-layout:fixed + colgroup, costruito con cura per il
+   ridimensionamento colonne): il browser decide se un elemento partecipa
+   al calcolo delle colonne in base al suo essere display:table-cell,
+   cambiarlo a flex lo fa uscire da quel calcolo (spariva ogni colonna
+   tranne la prima). td/th restano percio' display:table-cell (nativo,
+   invariato sopra) - il flex-wrap per affiancare TextBox/Collapse vive
+   invece in un CONTENITORE INTERNO aggiuntivo, .tiptap-td-flex
+   (tiptapTableCellWrapper.ts: TableCell/TableHeader estesi con un div in
+   piu' nel renderHTML, contentElement con fallback per restare compatibili
+   con l'incolla di tabelle esterne che non hanno mai visto questo
+   wrapper). column-gap SOLO orizzontale (mai row-gap): lo spazio verticale
+   fra una "riga" e la successiva resta affidato al margin-bottom di
+   ciascun blocco, gia' presente da prima - un row-gap qui raddoppierebbe
+   quello spazio. align-items:flex-start: blocchi di altezza diversa
+   affiancati non si stirano per pareggiarsi. */
+.tiptap-td-flex {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   column-gap: 0.5rem;
+  width: 100%;
 }
-/* Ogni figlio diretto di una cella e' ora un item flex (conseguenza di
+/* Ogni figlio diretto del wrapper e' un item flex (conseguenza di
    display:flex sopra, si applica a QUALUNQUE figlio a prescindere dal
    proprio display - "blockificazione" degli item flex, standard CSS) -
    flex:1 1 100% qui replica il comportamento di prima (riga intera,
    nessuna condivisione) per i blocchi "normali" (paragrafo, lista,
    blockquote, tabella annidata, ecc.). Sovrascritto sotto SOLO per
    TextBox/Collapse. */
-.tiptap-content td > *,
-.tiptap-content th > * {
+.tiptap-td-flex > * {
   flex: 1 1 100%;
 }
 /* TextBox/Collapse: flex-basis piu' piccolo di una riga intera (~260px) e
@@ -385,10 +397,8 @@
    eliminare, "nessuna eccezione"). min-width: soglia sotto la quale un box
    preferisce andare a capo invece di stringersi troppo quando 3+ provano a
    stare sulla stessa riga. */
-.tiptap-content td > .tiptap-textbox,
-.tiptap-content th > .tiptap-textbox,
-.tiptap-content td > .tiptap-collapse,
-.tiptap-content th > .tiptap-collapse {
+.tiptap-td-flex > .tiptap-textbox,
+.tiptap-td-flex > .tiptap-collapse {
   flex: 1 1 260px;
   min-width: 160px;
   max-width: calc(100% - 20px);
@@ -411,8 +421,7 @@
   font-weight: var(--font-weight-medium);
   text-align: left;
 }
-.tiptap-content td > *:last-child,
-.tiptap-content th > *:last-child {
+.tiptap-td-flex > *:last-child {
   margin-bottom: 0;
 }
 /* Maniglia di ridimensionamento colonna (decorazione inserita da
