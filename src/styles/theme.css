@@ -383,24 +383,40 @@
 .tiptap-td-flex > * {
   flex: 1 1 100%;
 }
-/* TextBox/Collapse: flex-basis piu' piccolo di una riga intera (~260px) e
-   flex-grow:1 permettono la stessa identica meccanica in ENTRAMBI i casi
-   senza contare quanti fratelli ci sono via JS - da solo su una riga,
-   flex-grow lo fa crescere fino a riempirla (uguale a prima); due o piu'
-   sulla stessa riga, lo spazio disponibile si divide automaticamente fra
-   loro (flex-wrap nativo). max-width: calc(100% - 20px) invece di 100%
-   pieni: riserva sempre una piccola fetta (~20px) sulla riga per il
-   cursore finto del confine (tiptapTextBoxEdgeCursor.ts) - senza, un box
-   da solo che cresce fino al 100% non lascerebbe MAI spazio al cursore
-   sulla stessa riga quando esce dal suo lato destro, costringendolo a capo
-   (esattamente il comportamento che la rifinitura 2026-08-01 chiede di
-   eliminare, "nessuna eccezione"). min-width: soglia sotto la quale un box
-   preferisce andare a capo invece di stringersi troppo quando 3+ provano a
-   stare sulla stessa riga. */
+/* TextBox/Collapse: flex-grow:1 permette la stessa identica meccanica in
+   ENTRAMBI i casi senza contare quanti fratelli ci sono via JS - da solo
+   su una riga, flex-grow lo fa crescere fino a riempirla (uguale a
+   prima); due o piu' sulla stessa riga, lo spazio disponibile si divide
+   automaticamente fra loro (flex-wrap nativo). max-width: calc(100% -
+   20px) invece di 100% pieni: riserva sempre una piccola fetta (~20px)
+   sulla riga per il cursore finto del confine (tiptapTextBoxEdgeCursor.ts)
+   - senza, un box da solo che cresce fino al 100% non lascerebbe MAI
+   spazio al cursore sulla stessa riga quando esce dal suo lato destro,
+   costringendolo a capo (esattamente il comportamento che la rifinitura
+   2026-08-01 chiede di eliminare, "nessuna eccezione").
+
+   flex-basis:0 (NON un valore tipo 180px) - bug importante scoperto
+   2026-08-01 ispezionando dal vivo con flex-wrap forzato a nowrap/wrap
+   via devtools: la decisione di flex-wrap se un item entra nella riga
+   corrente si basa sulla sua "hypothetical main size", che e' la
+   flex-basis clampata da min-width/max-width - NON sulla dimensione
+   raggiungibile dopo il flex-shrink. Con flex-basis:180px, due box
+   sommano 360px di hypothetical size: anche se min-width:90px li avrebbe
+   fatti stare comodi in una cella da 202px dopo il restringimento,
+   flex-wrap decideva di mandare il secondo a capo PRIMA di provare a
+   restringerli, perche' 360px > 202px gia' nella sola valutazione delle
+   basi (confermato dal vivo: con flex-wrap:nowrap forzato entrambi
+   entravano perfettamente a ~97px ciascuno - il restringimento stesso
+   funzionava sempre, era la decisione "quanti entrano in riga" a non
+   considerarlo). flex-basis:0 clampa l'hypothetical size al solo
+   min-width (90px): 2x90+gap sta quasi sempre nella riga, e flex-grow:1
+   fa comunque crescere fino a max-width quando c'e' spazio (da solo o in
+   piu' di quanti min-width permetterebbero). min-width: soglia sotto la
+   quale un box preferisce andare a capo invece di stringersi troppo. */
 .tiptap-td-flex > .tiptap-textbox,
 .tiptap-td-flex > .tiptap-collapse {
-  flex: 1 1 260px;
-  min-width: 160px;
+  flex: 1 1 0;
+  min-width: 90px;
   max-width: calc(100% - 20px);
 }
 /* Larghezza minima di default finche' la colonna non e' stata
