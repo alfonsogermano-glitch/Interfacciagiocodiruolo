@@ -95,17 +95,24 @@ function nearestPositionedAncestor(el: HTMLElement): HTMLElement {
 // salto di riga introdotto altrove dove viene inserito nel DOM).
 //
 // Le due direzioni NON sono simmetriche per scelta (confermato
-// dall'utente): box.side==='before' (il box sta PRIMA della posizione del
-// cursore - uscita da FINE contenuto, freccia destra/giu) e' un blocco a
-// piena larghezza, quindi la' una riga nuova andrebbe visivamente SOTTO il
-// box (come un paragrafo fratello che verrebbe creato li'), non alla sua
-// destra sulla stessa riga - la' non avrebbe senso per un blocco
-// block-level. box.side==='after' (il box sta DOPO - uscita da INIZIO
+// dall'utente), ma solo condizionatamente per il lato 'before' (il box sta
+// PRIMA della posizione del cursore - uscita da FINE contenuto, freccia
+// destra/giu): se esiste GIA' un fratello reale dopo il box nella cella,
+// "sotto, verso quel contenuto" resta corretto (il box e' un blocco a piena
+// larghezza, una riga nuova ci andrebbe visivamente sotto). Ma se il box e'
+// invece l'ULTIMO elemento reale della cella, "sotto" fluttuerebbe senza
+// nulla a cui riferirsi - li' torna simmetrico al lato 'after' (stessa
+// riga, a destra invece che a sinistra). Il controllo (nodeAfter alla
+// posizione del cursore) e' lo STESSO gia' usato da TextBox.exitBoundary in
+// tiptapBlocks.tsx per decidere se creare questo cursore al posto di un
+// paragrafo reale - non un'euristica visiva separata, rifinitura richiesta
+// 2026-08-01. box.side==='after' (il box sta DOPO - uscita da INIZIO
 // contenuto, freccia sinistra/su) resta invece sulla stessa riga, a
-// sinistra del box - comportamento gia' confermato, invariato (solo il
-// bug di allineamento verticale sotto e' stato corretto anche qui).
+// sinistra del box in OGNI circostanza - comportamento gia' confermato,
+// invariato.
 function positionEdgeCursor(view: EditorView, pos: number, dom: HTMLElement) {
-  const box = adjacentBox(view.state.doc.resolve(pos));
+  const $pos = view.state.doc.resolve(pos);
+  const box = adjacentBox($pos);
   if (!box) return;
 
   const boxPos = box.side === 'after' ? pos : pos - box.node.nodeSize;
@@ -137,17 +144,26 @@ function positionEdgeCursor(view: EditorView, pos: number, dom: HTMLElement) {
 
   dom.style.height = `${lineHeight}px`;
 
-  if (box.side === 'before') {
-    // Box PRIMA della posizione (fine contenuto, freccia destra/giu): sotto
-    // il box, allineata al suo bordo sinistro (dove inizierebbe davvero il
-    // testo di un nuovo paragrafo fratello) - +4 piccolo distacco visivo,
-    // stesso principio del -4 usato sotto per l'altro caso.
+  const hasRealSiblingAfter = box.side === 'before' && !!$pos.nodeAfter;
+
+  if (hasRealSiblingAfter) {
+    // Box PRIMA della posizione, MA esiste gia' un fratello reale dopo:
+    // sotto il box, allineata al suo bordo sinistro (dove inizia davvero il
+    // paragrafo fratello) - +4 piccolo distacco visivo, stesso principio
+    // del -4 usato sotto per l'altro caso.
     dom.style.top = `${boxRect.bottom - anchorRect.top - anchorBorderTop + 4}px`;
     dom.style.left = `${boxRect.left - anchorRect.left - anchorBorderLeft}px`;
+  } else if (box.side === 'before') {
+    // Box PRIMA della posizione, nessun fratello reale dopo (il box e'
+    // l'ultimo elemento della cella): simmetrico al ramo sotto, ma a destra
+    // del box invece che a sinistra.
+    dom.style.top = `${contentRect.top - anchorRect.top - anchorBorderTop}px`;
+    dom.style.left = `${boxRect.right - anchorRect.left - anchorBorderLeft + 4}px`;
   } else {
     // Box DOPO la posizione (inizio contenuto, freccia sinistra/su): stessa
     // riga della prima riga di testo dentro il box (contentRect, non
     // boxRect - vedi commento sopra), appena a sinistra del bordo del box.
+    // Invariato in ogni circostanza.
     dom.style.top = `${contentRect.top - anchorRect.top - anchorBorderTop}px`;
     dom.style.left = `${boxRect.left - anchorRect.left - anchorBorderLeft - 4}px`;
   }
