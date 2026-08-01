@@ -1,6 +1,7 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
 import { Selection, Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
+import type { ResolvedPos } from '@tiptap/pm/model';
 import { ChevronRight } from 'lucide-react';
 
 // Vero fino a qualunque profondita' (non solo il genitore immediato) che il
@@ -20,6 +21,20 @@ function isSelectionInside(state: EditorState, typeName: string): boolean {
     if ($from.node(depth).type.name === typeName) return true;
   }
   return false;
+}
+
+// Come isSelectionInside sopra, ma ritorna la profondita' invece di un
+// booleano - usata sotto da TextBox.addKeyboardShortcuts per trovare il
+// TextBox piu' vicino a prescindere da quanto in profondita' sia annidato il
+// cursore al suo interno (un paragrafo dentro una lista dentro il box,
+// ecc.), cosi' da poter calcolare $from.start(depth)/$from.end(depth) -
+// posizione assoluta di inizio/fine dell'INTERO contenuto del box, non solo
+// del suo figlio immediato.
+function findAncestorDepth($pos: ResolvedPos, typeName: string): number | null {
+  for (let depth = $pos.depth; depth >= 0; depth -= 1) {
+    if ($pos.node(depth).type.name === typeName) return depth;
+  }
+  return null;
 }
 
 declare module '@tiptap/core' {
@@ -92,6 +107,100 @@ export const TextBox = Node.create({
           if (isSelectionInside(state, 'collapseSummary')) return false;
           return commands.insertContent({ type: this.name, content: [{ type: 'paragraph' }] });
         },
+    };
+  },
+
+  // isolating:true sopra blocca deliberatamente Invio dal sollevare
+  // contenuto fuori dal box (il bug appena corretto), ma come effetto
+  // collaterale impedisce anche a frecce/Backspace di attraversare
+  // nativamente il confine del box - senza questi shortcut il cursore
+  // resterebbe bloccato dentro (frecce) o Backspace non farebbe piu' nulla a
+  // inizio contenuto (bug segnalato 2026-08-01, conseguenza diretta del
+  // fix). Entrambi intervengono SOLO al confine esatto (vedi guardie dentro
+  // exitBoundary/Backspace sotto) - altrove dentro il box restituiscono
+  // false e la digitazione/navigazione nativa resta invariata.
+  addKeyboardShortcuts() {
+    // dir: 'before' = Sinistra/Su (uscita dall'inizio del contenuto),
+    // 'after' = Destra/Giu (uscita dalla fine). $from.start(boxDepth)/
+    // .end(boxDepth) sono posizioni ASSOLUTE di inizio/fine dell'intero
+    // contenuto del box (a qualunque profondita' annidata al suo interno,
+    // non solo il paragrafo immediato) - a differenza di parentOffset===0,
+    // che si fermerebbe al solo genitore diretto del cursore.
+    const exitBoundary = (dir: 'before' | 'after') => (): boolean => {
+      const { editor } = this;
+      const { selection, schema } = editor.state;
+      // selection.empty esclude sia una selezione di testo non collassata
+      // sia una NodeSelection (es. box selezionato con la maniglia, dove
+      // interferire non avrebbe senso) - in entrambi i casi si lascia il
+      // comportamento nativo.
+      if (!selection.empty) return false;
+      const { $from } = selection;
+      const boxDepth = findAncestorDepth($from, 'textBox');
+      if (boxDepth === null) return false;
+
+      const atBoundary = dir === 'before' ? $from.pos === $from.start(boxDepth) : $from.pos === $from.end(boxDepth);
+      if (!atBoundary) return false;
+
+      return editor
+        .chain()
+        .command(({ tr }) => {
+          // Stesso idioma di tiptapDropCleanup.ts per leggere il fratello
+          // diretto a un confine nodo: risolvere la posizione e leggere
+          // nodeBefore/nodeAfter, senza calcolare indici a mano.
+          if (dir === 'before') {
+            const boxBefore = $from.before(boxDepth);
+            if (tr.doc.resolve(boxBefore).nodeBefore) {
+              tr.setSelection(Selection.near(tr.doc.resolve(boxBefore), -1));
+            } else {
+              tr.insert(boxBefore, schema.nodes.paragraph.create());
+              tr.setSelection(Selection.near(tr.doc.resolve(boxBefore + 1)));
+            }
+          } else {
+            const boxAfter = $from.after(boxDepth);
+            if (tr.doc.resolve(boxAfter).nodeAfter) {
+              tr.setSelection(Selection.near(tr.doc.resolve(boxAfter), 1));
+            } else {
+              tr.insert(boxAfter, schema.nodes.paragraph.create());
+              tr.setSelection(Selection.near(tr.doc.resolve(boxAfter + 1)));
+            }
+          }
+          return true;
+        })
+        .scrollIntoView()
+        .run();
+    };
+
+    return {
+      ArrowLeft: exitBoundary('before'),
+      ArrowUp: exitBoundary('before'),
+      ArrowRight: exitBoundary('after'),
+      ArrowDown: exitBoundary('after'),
+      // Cancella l'intero box (non solo il paragrafo vuoto) quando il
+      // cursore e' esattamente a inizio contenuto - equivalente esatto di
+      // selezionare il box con la maniglia e premere Canc (deleteSelection
+      // su una NodeSelection fa lo stesso tr.delete sul range del nodo).
+      // Un solo lato (nessun equivalente "a fine contenuto"): Backspace
+      // cancella all'indietro per definizione.
+      Backspace: () => {
+        const { editor } = this;
+        const { selection } = editor.state;
+        if (!selection.empty) return false;
+        const { $from } = selection;
+        const boxDepth = findAncestorDepth($from, 'textBox');
+        if (boxDepth === null) return false;
+        if ($from.pos !== $from.start(boxDepth)) return false;
+
+        const from = $from.before(boxDepth);
+        const to = $from.after(boxDepth);
+        return editor
+          .chain()
+          .command(({ tr }) => {
+            tr.delete(from, to);
+            return true;
+          })
+          .scrollIntoView()
+          .run();
+      },
     };
   },
 });
