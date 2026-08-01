@@ -48,11 +48,23 @@ declare module '@tiptap/core' {
 // @tiptap/core: un trascinamento che parte da un punto qualsiasi FUORI da
 // quell'elemento viene bloccato con preventDefault) - senza, il testo dentro
 // il box perderebbe la normale selezione-per-trascinamento del mouse.
+// isolating: true - impedisce a liftEmptyBlock (catena nativa di Invio,
+// vedi @tiptap/core) di sollevare fuori dal TextBox l'unico paragrafo
+// vuoto che contiene, cosa che altrimenti elimina l'intero wrapper TextBox
+// (bug confermato via log 2026-08-01: Invio su paragrafo vuoto, unico figlio
+// del box, dentro una cella di tabella - il box scompariva, -2 sul totale
+// documento). Table e CollapseBlock hanno gia' isolating:true da tempo senza
+// problemi segnalati - stesso trattamento qui. Gia' provato una volta
+// insieme a un workaround CSS per il gap cursor (rimosso in 7a53367 perche'
+// quel workaround specifico non funzionava per nodi non-atomici) - qui
+// riproposto SOLO per il suo effetto sulla catena di Invio, non per il gap
+// cursor.
 export const TextBox = Node.create({
   name: 'textBox',
   group: 'block',
   content: 'block+',
   defining: true,
+  isolating: true,
   selectable: true,
   draggable: true,
 
