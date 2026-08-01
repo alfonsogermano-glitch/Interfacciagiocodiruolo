@@ -448,8 +448,12 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // table: false in TableKit - il node "table" e' registrato a parte da
     // TableWithHandle (tiptapTableHandle.ts), esteso con selectable/
     // draggable per la maniglia di trascinamento (stesso sistema di
-    // TextBox/CollapseBlock, vedi tiptapBlocks.tsx) - TableCell/TableHeader/
-    // TableRow restano quelli di TableKit, invariati.
+    // TextBox/CollapseBlock, vedi tiptapBlocks.tsx). tableCell/tableHeader:
+    // false allo stesso modo - registrati a parte da
+    // TableCellWithFlexWrapper/TableHeaderWithFlexWrapper
+    // (tiptapTableCellWrapper.ts, wrapper interno per affiancare
+    // TextBox/Collapse senza toccare display:table-cell della cella).
+    // TableRow resta quello di TableKit, invariato.
     // heading:false - il vecchio Node a blocco H1-H4 e' sostituito dal Mark
     // inline FontSize (tiptapFontSize.ts, applicabile a una selezione
     // parziale invece che a tutta la riga - cambio di scope confermato).

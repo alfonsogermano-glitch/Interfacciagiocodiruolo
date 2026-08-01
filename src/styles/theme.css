@@ -475,19 +475,27 @@
    (--dash-text-strong, stessa palette del resto dell'editor). Da quando la
    cella e' un contenitore flex (sopra) il widget e' semplicemente un altro
    item flex fra i tanti - flex:0 0 auto (non cresce/non si restringe, si
-   dimensiona sulla propria larghezza) e align-self:stretch (si allinea
-   all'altezza della riga flex, cioe' del box adiacente) bastano da soli:
-   niente piu' position:absolute ne' calcolo di coordinate in JS
-   (rimosso 2026-08-01, positionEdgeCursor/nearestPositionedAncestor - non
-   servono piu' col layout flex). blink steps(2,start) infinite: stesso
-   pattern gia' visto nel gap cursor nativo di ProseMirror
-   (style/gapcursor.css), qui applicato a una barra verticale invece che a
-   una riga orizzontale (quel disegno serviva a un concetto visivo diverso,
-   "qui andrebbe una nuova riga di blocco" - rimosso in 7a53367 insieme al
-   workaround che lo usava, non riproposto qui). */
+   dimensiona sulla propria larghezza): niente piu' position:absolute ne'
+   calcolo di coordinate in JS (rimosso 2026-08-01,
+   positionEdgeCursor/nearestPositionedAncestor - non servono piu' col
+   layout flex).
+   align-self:stretch (bug segnalato 2026-08-01, rimosso): allineava la
+   barra all'altezza dell'INTERA riga flex, cioe' quella del box adiacente
+   per intero (alto quanto un box con piu' paragrafi dentro) - sembrava un
+   cursore gigante invece di un normale cursore di testo. height:1.2em
+   (relativo al font-size ereditato dal contesto, coerente con testo di
+   dimensioni diverse) approssima l'altezza di una riga di testo normale,
+   indipendente da quanto e' alto il box accanto - align-self resta quello
+   di default (flex-start, ereditato da align-items sopra: non si stira).
+   blink steps(2,start) infinite: stesso pattern gia' visto nel gap cursor
+   nativo di ProseMirror (style/gapcursor.css), qui applicato a una barra
+   verticale invece che a una riga orizzontale (quel disegno serviva a un
+   concetto visivo diverso, "qui andrebbe una nuova riga di blocco" -
+   rimosso in 7a53367 insieme al workaround che lo usava, non riproposto
+   qui). */
 .tiptap-textbox-edge-cursor {
   flex: 0 0 auto;
-  align-self: stretch;
+  height: 1.2em;
   width: 1px;
   background-color: var(--dash-text-strong);
   pointer-events: none;
