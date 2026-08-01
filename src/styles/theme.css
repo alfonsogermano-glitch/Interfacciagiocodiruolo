@@ -348,6 +348,50 @@
      piu' larga della colonna (ridotta trascinando una maniglia) andrebbe
      altrimenti in overflow invece di andare a capo. */
   overflow-wrap: break-word;
+  /* display:flex + flex-wrap: permette a TextBox/Collapse di affiancarsi
+     sulla stessa riga visiva invece di andare sempre a capo (rifinitura
+     2026-08-01) - column-gap SOLO orizzontale (mai row-gap): lo spazio
+     verticale fra una "riga" e la successiva resta affidato al
+     margin-bottom di ciascun blocco, gia' presente da prima - un row-gap
+     qui raddoppierebbe quello spazio. align-items:flex-start: blocchi di
+     altezza diversa affiancati non si stirano per pareggiarsi. */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  column-gap: 0.5rem;
+}
+/* Ogni figlio diretto di una cella e' ora un item flex (conseguenza di
+   display:flex sopra, si applica a QUALUNQUE figlio a prescindere dal
+   proprio display - "blockificazione" degli item flex, standard CSS) -
+   flex:1 1 100% qui replica il comportamento di prima (riga intera,
+   nessuna condivisione) per i blocchi "normali" (paragrafo, lista,
+   blockquote, tabella annidata, ecc.). Sovrascritto sotto SOLO per
+   TextBox/Collapse. */
+.tiptap-content td > *,
+.tiptap-content th > * {
+  flex: 1 1 100%;
+}
+/* TextBox/Collapse: flex-basis piu' piccolo di una riga intera (~260px) e
+   flex-grow:1 permettono la stessa identica meccanica in ENTRAMBI i casi
+   senza contare quanti fratelli ci sono via JS - da solo su una riga,
+   flex-grow lo fa crescere fino a riempirla (uguale a prima); due o piu'
+   sulla stessa riga, lo spazio disponibile si divide automaticamente fra
+   loro (flex-wrap nativo). max-width: calc(100% - 20px) invece di 100%
+   pieni: riserva sempre una piccola fetta (~20px) sulla riga per il
+   cursore finto del confine (tiptapTextBoxEdgeCursor.ts) - senza, un box
+   da solo che cresce fino al 100% non lascerebbe MAI spazio al cursore
+   sulla stessa riga quando esce dal suo lato destro, costringendolo a capo
+   (esattamente il comportamento che la rifinitura 2026-08-01 chiede di
+   eliminare, "nessuna eccezione"). min-width: soglia sotto la quale un box
+   preferisce andare a capo invece di stringersi troppo quando 3+ provano a
+   stare sulla stessa riga. */
+.tiptap-content td > .tiptap-textbox,
+.tiptap-content th > .tiptap-textbox,
+.tiptap-content td > .tiptap-collapse,
+.tiptap-content th > .tiptap-collapse {
+  flex: 1 1 260px;
+  min-width: 160px;
+  max-width: calc(100% - 20px);
 }
 /* Larghezza minima di default finche' la colonna non e' stata
    ridimensionata esplicitamente (data-colwidth assente) o non e' in corso
@@ -417,18 +461,24 @@
   margin-bottom: 0;
 }
 
-/* Cursore finto al confine di un TextBox (tiptapTextBoxEdgeCursor.ts) -
-   barra verticale sottile stile caret nativo, colore coerente col testo
-   (--dash-text-strong, stessa palette del resto dell'editor). left/top/
-   height sono impostati in JS (positionEdgeCursor) perche' vanno calcolati
-   dal rettangolo del box adiacente - qui solo l'aspetto statico. blink
-   steps(2,start) infinite: stesso pattern gia' visto nel gap cursor nativo
-   di ProseMirror (style/gapcursor.css), qui applicato a una barra verticale
-   invece che a una riga orizzontale (quel disegno serviva a un concetto
-   visivo diverso, "qui andrebbe una nuova riga di blocco" - rimosso in
-   7a53367 insieme al workaround che lo usava, non riproposto qui). */
+/* Cursore finto al confine di un TextBox/Collapse (tiptapTextBoxEdgeCursor.ts)
+   - barra verticale sottile stile caret nativo, colore coerente col testo
+   (--dash-text-strong, stessa palette del resto dell'editor). Da quando la
+   cella e' un contenitore flex (sopra) il widget e' semplicemente un altro
+   item flex fra i tanti - flex:0 0 auto (non cresce/non si restringe, si
+   dimensiona sulla propria larghezza) e align-self:stretch (si allinea
+   all'altezza della riga flex, cioe' del box adiacente) bastano da soli:
+   niente piu' position:absolute ne' calcolo di coordinate in JS
+   (rimosso 2026-08-01, positionEdgeCursor/nearestPositionedAncestor - non
+   servono piu' col layout flex). blink steps(2,start) infinite: stesso
+   pattern gia' visto nel gap cursor nativo di ProseMirror
+   (style/gapcursor.css), qui applicato a una barra verticale invece che a
+   una riga orizzontale (quel disegno serviva a un concetto visivo diverso,
+   "qui andrebbe una nuova riga di blocco" - rimosso in 7a53367 insieme al
+   workaround che lo usava, non riproposto qui). */
 .tiptap-textbox-edge-cursor {
-  position: absolute;
+  flex: 0 0 auto;
+  align-self: stretch;
   width: 1px;
   background-color: var(--dash-text-strong);
   pointer-events: none;
@@ -588,7 +638,6 @@
    livello dove la tabella supera DAVVERO il proprio genitore diretto,
    non un livello piu' esterno. */
 .tiptap-content {
-  position: relative;
   outline: none;
   overflow-x: auto;
 }

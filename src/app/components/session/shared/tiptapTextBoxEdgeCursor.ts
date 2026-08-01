@@ -3,19 +3,18 @@ import { Selection, Plugin, PluginKey } from '@tiptap/pm/state';
 import { Slice } from '@tiptap/pm/model';
 import type { Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
-import type { EditorView } from '@tiptap/pm/view';
 import type { Mapping } from '@tiptap/pm/transform';
 
-// Selezione custom per il cursore "finto" al confine di un TextBox - stesso
-// schema di GapCursor (prosemirror-gapcursor, letto dal sorgente durante
-// l'indagine 2026-08-01): $anchor===$head, content() vuoto, visible=false
-// (nasconde il caret nativo, il segno visivo e' solo la decorazione piu'
-// sotto). NON riusa GapCursor stesso: la SUA ricerca (closedBefore/
-// closedAfter) vede attraverso un contenitore con contenuto reale come
-// TextBox e non si ferma mai al suo confine esterno (verificato dal vivo il
-// 2026-07-31, commit 7a53367) - la validita' qui e' invece decisa a monte da
-// TextBox.addKeyboardShortcuts (isAtBoxBoundary, tiptapBlocks.tsx), non da
-// questa classe.
+// Selezione custom per il cursore "finto" al confine di un TextBox/Collapse
+// - stesso schema di GapCursor (prosemirror-gapcursor, letto dal sorgente
+// durante l'indagine 2026-08-01): $anchor===$head, content() vuoto,
+// visible=false (nasconde il caret nativo, il segno visivo e' solo la
+// decorazione piu' sotto). NON riusa GapCursor stesso: la SUA ricerca
+// (closedBefore/closedAfter) vede attraverso un contenitore con contenuto
+// reale come TextBox/Collapse e non si ferma mai al suo confine esterno
+// (verificato dal vivo il 2026-07-31, commit 7a53367) - la validita' qui e'
+// invece decisa a monte da createEdgeAwareKeyboardShortcuts
+// (isAtBoxBoundary, tiptapBlocks.tsx), non da questa classe.
 //
 // Il vantaggio di essere una VERA Selection (non solo stato di plugin) e'
 // che digitare mentre e' attiva materializza da solo un paragrafo col testo
@@ -25,7 +24,15 @@ import type { Mapping } from '@tiptap/pm/transform';
 // invece che dentro un textblock - stessa ragione per cui digitare con un
 // gap cursor nativo prima/dopo un'immagine crea gia' un paragrafo da solo,
 // senza codice dedicato. Validato con uno spike dal vivo il 2026-08-01
-// prima di procedere con la rifinitura completa.
+// prima di procedere con la rifinitura completa. Per lo stesso motivo,
+// inserire un TextBox/Collapse dalla toolbar mentre questo cursore e'
+// attivo funziona gia' correttamente senza alcuna modifica a
+// setTextBox/setCollapseBlock: insertContentAt (@tiptap/core) usa
+// genericamente tr.selection.from/.to per il punto d'inserimento
+// (verificato nel sorgente, node_modules/@tiptap/core/dist/index.js) - il
+// suo unico ramo speciale espande il range solo se il parent della
+// posizione e' un textblock VUOTO, mai il caso qui (il parent e' sempre la
+// cella, un contenitore di blocchi).
 export class TextBoxEdgeCursor extends Selection {
   constructor($pos: ResolvedPos) {
     super($pos, $pos);
@@ -56,139 +63,36 @@ export class TextBoxEdgeCursor extends Selection {
 (TextBoxEdgeCursor.prototype as unknown as { visible: boolean }).visible = false;
 Selection.jsonID('textBoxEdgeCursor', TextBoxEdgeCursor);
 
-// Il TextBox adiacente alla posizione del cursore finto (box DOPO se e' un
-// cursore "before", box PRIMA se e' un cursore "after") - nessuno stato
-// separato "quale box, quale lato" da tracciare altrove: la posizione stessa
-// lo dice gia', via nodeBefore/nodeAfter. Usato sia dal rendering (trovare
-// il DOM del box per posizionare la barra accanto) sia da Invio/frecce/
-// Escape sotto.
-function adjacentBox($pos: ResolvedPos): { node: ProseMirrorNode; side: 'before' | 'after' } | null {
-  if ($pos.nodeAfter?.type.name === 'textBox') return { node: $pos.nodeAfter, side: 'after' };
-  if ($pos.nodeBefore?.type.name === 'textBox') return { node: $pos.nodeBefore, side: 'before' };
+// Tipi di nodo che partecipano al cursore finto - generalizzato 2026-08-01
+// da solo 'textBox' anche a 'collapseBlock' (stessa meccanica per
+// entrambi, nessuna duplicazione: vedi createEdgeAwareKeyboardShortcuts in
+// tiptapBlocks.tsx, usata da entrambi i nodi parametrizzata sul proprio
+// nome).
+const SIDE_BY_SIDE_BLOCK_TYPES = ['textBox', 'collapseBlock'];
+
+// Il box/collapse adiacente alla posizione del cursore finto (nodo DOPO se
+// e' un cursore "before", nodo PRIMA se e' un cursore "after") - nessuno
+// stato separato "quale box, quale lato" da tracciare altrove: la
+// posizione stessa lo dice gia', via nodeBefore/nodeAfter. Usato sia dal
+// rendering sotto sia da Invio/frecce/Escape in tiptapBlocks.tsx.
+export function adjacentBox($pos: ResolvedPos): { node: ProseMirrorNode; side: 'before' | 'after' } | null {
+  if ($pos.nodeAfter && SIDE_BY_SIDE_BLOCK_TYPES.includes($pos.nodeAfter.type.name)) {
+    return { node: $pos.nodeAfter, side: 'after' };
+  }
+  if ($pos.nodeBefore && SIDE_BY_SIDE_BLOCK_TYPES.includes($pos.nodeBefore.type.name)) {
+    return { node: $pos.nodeBefore, side: 'before' };
+  }
   return null;
 }
 
 // Esiste gia' un fratello reale dopo questa posizione, nella STESSA cella -
 // esistenza del nodo (qualunque tipo, vuoto o no), MAI contenuto testuale:
 // un paragrafo vuoto e' comunque un oggetto Node vero, quindi conta.
-// Esportata e riusata sia da TextBox.exitBoundary (tiptapBlocks.tsx, decide
-// se creare questo cursore al posto di un paragrafo reale) sia da
-// positionEdgeCursor sotto (decide sotto-vs-accanto) - UNA sola definizione
-// condivisa, cosi' le due decisioni non possono mai divergere fra loro
-// (verificato 2026-08-01: erano gia' equivalenti come logica duplicata in
-// due punti, unificate qui per eliminare ogni dubbio).
+// Esportata e riusata da createEdgeAwareKeyboardShortcuts
+// (tiptapBlocks.tsx) per decidere se creare questo cursore al posto di un
+// paragrafo reale - UNA sola definizione condivisa.
 export function hasRealSiblingAfter($pos: ResolvedPos): boolean {
   return !!$pos.nodeAfter;
-}
-
-// Il containing block REALE di un elemento position:absolute e' il piu'
-// vicino antenato con position!=static nel DOM - non e' detto sia
-// .tiptap-content: .tableWrapper (introdotto per la maniglia della
-// tabella, theme.css) ha anch'esso position:relative, e per un TextBox
-// dentro una cella e' LUI il piu' vicino, non .tiptap-content piu' esterno
-// (bug segnalato 2026-08-01: coordinate calcolate rispetto all'antenato
-// sbagliato facevano comparire la barra fuori dalla tabella). Si cerca
-// sempre a runtime invece di assumerne uno fisso, cosi' funziona a
-// qualunque profondita' di nesting (box dentro tabella dentro un altro box,
-// ecc.) - parte da boxDom.parentElement, non da boxDom stesso: il widget e'
-// un FRATELLO del box nel DOM, non un suo discendente, quindi il
-// .tiptap-textbox del box stesso (anch'esso position:relative) non e' un
-// antenato valido per lui.
-function nearestPositionedAncestor(el: HTMLElement): HTMLElement {
-  let node: HTMLElement | null = el;
-  while (node) {
-    if (getComputedStyle(node).position !== 'static') return node;
-    node = node.parentElement;
-  }
-  return document.documentElement;
-}
-
-// Calcola e imposta left/top/height in px sulla barra. .tiptap-textbox-edge-
-// cursor e' position:absolute in CSS (toglie l'elemento dal flusso, nessun
-// salto di riga introdotto altrove dove viene inserito nel DOM).
-//
-// Le due direzioni NON sono simmetriche per scelta (confermato
-// dall'utente), ma solo condizionatamente per il lato 'before' (il box sta
-// PRIMA della posizione del cursore - uscita da FINE contenuto, freccia
-// destra/giu): se esiste GIA' un fratello reale dopo il box nella cella,
-// "sotto, verso quel contenuto" resta corretto (il box e' un blocco a piena
-// larghezza, una riga nuova ci andrebbe visivamente sotto). Ma se il box e'
-// invece l'ULTIMO elemento reale della cella, "sotto" fluttuerebbe senza
-// nulla a cui riferirsi - li' torna simmetrico al lato 'after' (stessa
-// riga, a destra invece che a sinistra). Il controllo (nodeAfter alla
-// posizione del cursore) e' lo STESSO gia' usato da TextBox.exitBoundary in
-// tiptapBlocks.tsx per decidere se creare questo cursore al posto di un
-// paragrafo reale - non un'euristica visiva separata, rifinitura richiesta
-// 2026-08-01. box.side==='after' (il box sta DOPO - uscita da INIZIO
-// contenuto, freccia sinistra/su) resta invece sulla stessa riga, a
-// sinistra del box in OGNI circostanza - comportamento gia' confermato,
-// invariato.
-function positionEdgeCursor(view: EditorView, pos: number, dom: HTMLElement) {
-  const $pos = view.state.doc.resolve(pos);
-  const box = adjacentBox($pos);
-  if (!box) return;
-
-  const boxPos = box.side === 'after' ? pos : pos - box.node.nodeSize;
-  const boxDom = view.nodeDOM(boxPos);
-  if (!(boxDom instanceof HTMLElement)) return;
-  // .tiptap-textbox-content (non il box esterno, che include bordo/padding):
-  // e' il riferimento giusto sia per l'altezza di riga (lineHeight sotto)
-  // sia per l'allineamento verticale nel caso 'before' - usare il rettangolo
-  // del box ESTERNO per il top lo sarebbe stato spostato piu' in alto della
-  // vera prima riga di testo, esattamente della misura di padding+bordo del
-  // box (bug segnalato 2026-08-01: barra "troppo in alto" rispetto al
-  // centro della riga).
-  const contentDom = boxDom.querySelector<HTMLElement>('.tiptap-textbox-content') ?? boxDom;
-
-  const anchor = nearestPositionedAncestor(boxDom.parentElement ?? (view.dom as HTMLElement));
-  const anchorRect = anchor.getBoundingClientRect();
-  const anchorStyle = getComputedStyle(anchor);
-  // getBoundingClientRect() da' il border-box, ma il containing block CSS
-  // per top/left e' il padding-box dell'antenato - senza sottrarre lo
-  // spessore del bordo, la barra risulterebbe spostata esattamente di
-  // quella misura ogni volta che l'antenato ne ha uno (.tableWrapper non ne
-  // ha oggi, ma qui si copre il caso generale invece di assumerlo).
-  const anchorBorderTop = parseFloat(anchorStyle.borderTopWidth) || 0;
-  const anchorBorderLeft = parseFloat(anchorStyle.borderLeftWidth) || 0;
-
-  const boxRect = boxDom.getBoundingClientRect();
-  const contentRect = contentDom.getBoundingClientRect();
-  const lineHeight = parseFloat(getComputedStyle(contentDom).lineHeight) || boxRect.height;
-
-  dom.style.height = `${lineHeight}px`;
-
-  // Math.round su OGNI coordinata: getBoundingClientRect() da' valori
-  // floating-point, e una barra da 1px con left/top non allineati al pixel
-  // intero viene antialiasata dal browser su due colonne di pixel fisici,
-  // apparendo piu' spessa/sfocata invece che nitida (bug segnalato
-  // 2026-08-01: "regressione di spessore" sul lato destro - non era la CSS,
-  // che e' un'unica regola invariata, ma le coordinate non arrotondate).
-  const round = (value: number) => Math.round(value);
-
-  if (box.side === 'before' && hasRealSiblingAfter($pos)) {
-    // Box PRIMA della posizione, MA esiste gia' un fratello reale dopo
-    // (hasRealSiblingAfter: esistenza del nodo, conta anche un paragrafo
-    // vuoto - stessa funzione usata da TextBox.exitBoundary per decidere se
-    // creare questo cursore, nessuna logica duplicata separata): sotto il
-    // box, allineata al suo bordo sinistro (dove inizia davvero il
-    // paragrafo fratello) - +4 piccolo distacco visivo, stesso principio
-    // del -4 usato sotto per l'altro caso.
-    dom.style.top = `${round(boxRect.bottom - anchorRect.top - anchorBorderTop + 4)}px`;
-    dom.style.left = `${round(boxRect.left - anchorRect.left - anchorBorderLeft)}px`;
-  } else if (box.side === 'before') {
-    // Box PRIMA della posizione, nessun fratello reale dopo (il box e'
-    // l'ultimo elemento della cella): simmetrico al ramo sotto, ma a destra
-    // del box invece che a sinistra.
-    dom.style.top = `${round(contentRect.top - anchorRect.top - anchorBorderTop)}px`;
-    dom.style.left = `${round(boxRect.right - anchorRect.left - anchorBorderLeft + 4)}px`;
-  } else {
-    // Box DOPO la posizione (inizio contenuto, freccia sinistra/su): stessa
-    // riga della prima riga di testo dentro il box (contentRect, non
-    // boxRect - vedi commento sopra), appena a sinistra del bordo del box.
-    // Invariato in ogni circostanza.
-    dom.style.top = `${round(contentRect.top - anchorRect.top - anchorBorderTop)}px`;
-    dom.style.left = `${round(boxRect.left - anchorRect.left - anchorBorderLeft - 4)}px`;
-  }
 }
 
 export const TextBoxEdgeCursorExtension = Extension.create({
@@ -198,17 +102,24 @@ export const TextBoxEdgeCursorExtension = Extension.create({
       new Plugin({
         key: new PluginKey('textBoxEdgeCursor'),
         props: {
+          // Nessun calcolo di coordinate: la cella e' ora un contenitore
+          // flex con avvolgimento (theme.css) e TextBox/Collapse hanno un
+          // max-width che riserva sempre spazio per questa barra sulla
+          // STESSA riga flex - il widget e' semplicemente un altro item
+          // flex (flex:0 0 auto in CSS), posizionato dal browser esattamente
+          // dove viene inserito nel DOM, senza il sistema
+          // position:absolute + misurazione DOM dei giri precedenti
+          // (rimosso 2026-08-01: non serve piu' con il layout flex).
           decorations(state) {
             const { selection } = state;
             if (!(selection instanceof TextBoxEdgeCursor)) return null;
             return DecorationSet.create(state.doc, [
               Decoration.widget(
                 selection.head,
-                (view) => {
+                () => {
                   const dom = document.createElement('span');
                   dom.className = 'tiptap-textbox-edge-cursor';
                   dom.setAttribute('aria-hidden', 'true');
-                  positionEdgeCursor(view, selection.head, dom);
                   return dom;
                 },
                 { key: 'textBoxEdgeCursor' }
@@ -238,8 +149,8 @@ export const TextBoxEdgeCursorExtension = Extension.create({
 
     // Rientra nel box da cui il cursore finto e' uscito (Escape, o freccia
     // in direzione opposta a quella di uscita) - Selection.near dal lato
-    // giusto del box, stesso idioma gia' usato da TextBox.exitBoundary per
-    // il caso "esiste gia' un fratello" (tiptapBlocks.tsx).
+    // giusto del box, stesso idioma gia' usato da createEdgeAwareKeyboardShortcuts
+    // per il caso "esiste gia' un fratello" (tiptapBlocks.tsx).
     const reenterBox = (selection: TextBoxEdgeCursor, box: { side: 'before' | 'after' }) =>
       editor
         .chain()
@@ -264,9 +175,7 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         // "after" e' il risultato di un'uscita 'before', e viceversa - vedi
         // adjacentBox sopra): premere la freccia che punta VERSO il lato del
         // box (dir === box.side) rientra nel box; l'altra direzione
-        // prosegue oltre. Bug corretto 2026-08-01: la condizione era
-        // invertita, faceva rientrare nel box premendo la STESSA freccia di
-        // uscita invece della freccia opposta.
+        // prosegue oltre.
         if (dir === box.side) return reenterBox(selection, box);
 
         // Direzione opposta al lato del box: prosegue oltre. Selection.near
@@ -276,13 +185,7 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         // gia' esistente nel documento, e isolating vincola solo le
         // trasformazioni strutturali, non la ricerca di selezione (verificato
         // nel sorgente di prosemirror-state: TextSelection.findFrom non
-        // consulta mai NodeType.spec.isolating). Bug corretto 2026-08-01: un
-        // controllo precedente (nodeBefore/nodeAfter limitato alla sola
-        // cella corrente) faceva un no-op non appena non c'era piu' nulla
-        // DENTRO la cella in quella direzione, anche se la freccia veniva
-        // premuta piu' volte di seguito - risultava "bloccato" invece di
-        // proseguire verso il paragrafo/cella successivi fuori dalla
-        // tabella.
+        // consulta mai NodeType.spec.isolating).
         return editor
           .chain()
           .command(({ tr }) => {
