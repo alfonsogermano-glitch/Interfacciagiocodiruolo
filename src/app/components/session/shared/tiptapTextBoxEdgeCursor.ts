@@ -231,10 +231,20 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         // uscita invece della freccia opposta.
         if (dir === box.side) return reenterBox(selection, box);
 
-        // Direzione opposta al lato del box: prosegue oltre, verso
-        // l'eventuale fratello successivo nella cella.
-        const hasFurther = dir === 'before' ? !!$pos.nodeBefore : !!$pos.nodeAfter;
-        if (!hasFurther) return true; // confine della cella (isolating) - assorbe il tasto, nessun altro posto dove andare
+        // Direzione opposta al lato del box: prosegue oltre. Selection.near
+        // cerca la prima posizione cursore valida in quella direzione
+        // attraversando QUALUNQUE confine, incluso isolating (tableCell) -
+        // non e' un'operazione di join/lift, solo ricerca di una posizione
+        // gia' esistente nel documento, e isolating vincola solo le
+        // trasformazioni strutturali, non la ricerca di selezione (verificato
+        // nel sorgente di prosemirror-state: TextSelection.findFrom non
+        // consulta mai NodeType.spec.isolating). Bug corretto 2026-08-01: un
+        // controllo precedente (nodeBefore/nodeAfter limitato alla sola
+        // cella corrente) faceva un no-op non appena non c'era piu' nulla
+        // DENTRO la cella in quella direzione, anche se la freccia veniva
+        // premuta piu' volte di seguito - risultava "bloccato" invece di
+        // proseguire verso il paragrafo/cella successivi fuori dalla
+        // tabella.
         return editor
           .chain()
           .command(({ tr }) => {

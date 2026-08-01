@@ -429,7 +429,7 @@
    7a53367 insieme al workaround che lo usava, non riproposto qui). */
 .tiptap-textbox-edge-cursor {
   position: absolute;
-  width: 1.5px;
+  width: 1px;
   background-color: var(--dash-text-strong);
   pointer-events: none;
   animation: tiptap-textbox-edge-cursor-blink 1.05s steps(2, start) infinite;
