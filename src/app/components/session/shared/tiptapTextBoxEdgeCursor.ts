@@ -68,6 +68,19 @@ function adjacentBox($pos: ResolvedPos): { node: ProseMirrorNode; side: 'before'
   return null;
 }
 
+// Esiste gia' un fratello reale dopo questa posizione, nella STESSA cella -
+// esistenza del nodo (qualunque tipo, vuoto o no), MAI contenuto testuale:
+// un paragrafo vuoto e' comunque un oggetto Node vero, quindi conta.
+// Esportata e riusata sia da TextBox.exitBoundary (tiptapBlocks.tsx, decide
+// se creare questo cursore al posto di un paragrafo reale) sia da
+// positionEdgeCursor sotto (decide sotto-vs-accanto) - UNA sola definizione
+// condivisa, cosi' le due decisioni non possono mai divergere fra loro
+// (verificato 2026-08-01: erano gia' equivalenti come logica duplicata in
+// due punti, unificate qui per eliminare ogni dubbio).
+export function hasRealSiblingAfter($pos: ResolvedPos): boolean {
+  return !!$pos.nodeAfter;
+}
+
 // Il containing block REALE di un elemento position:absolute e' il piu'
 // vicino antenato con position!=static nel DOM - non e' detto sia
 // .tiptap-content: .tableWrapper (introdotto per la maniglia della
@@ -144,28 +157,37 @@ function positionEdgeCursor(view: EditorView, pos: number, dom: HTMLElement) {
 
   dom.style.height = `${lineHeight}px`;
 
-  const hasRealSiblingAfter = box.side === 'before' && !!$pos.nodeAfter;
+  // Math.round su OGNI coordinata: getBoundingClientRect() da' valori
+  // floating-point, e una barra da 1px con left/top non allineati al pixel
+  // intero viene antialiasata dal browser su due colonne di pixel fisici,
+  // apparendo piu' spessa/sfocata invece che nitida (bug segnalato
+  // 2026-08-01: "regressione di spessore" sul lato destro - non era la CSS,
+  // che e' un'unica regola invariata, ma le coordinate non arrotondate).
+  const round = (value: number) => Math.round(value);
 
-  if (hasRealSiblingAfter) {
-    // Box PRIMA della posizione, MA esiste gia' un fratello reale dopo:
-    // sotto il box, allineata al suo bordo sinistro (dove inizia davvero il
+  if (box.side === 'before' && hasRealSiblingAfter($pos)) {
+    // Box PRIMA della posizione, MA esiste gia' un fratello reale dopo
+    // (hasRealSiblingAfter: esistenza del nodo, conta anche un paragrafo
+    // vuoto - stessa funzione usata da TextBox.exitBoundary per decidere se
+    // creare questo cursore, nessuna logica duplicata separata): sotto il
+    // box, allineata al suo bordo sinistro (dove inizia davvero il
     // paragrafo fratello) - +4 piccolo distacco visivo, stesso principio
     // del -4 usato sotto per l'altro caso.
-    dom.style.top = `${boxRect.bottom - anchorRect.top - anchorBorderTop + 4}px`;
-    dom.style.left = `${boxRect.left - anchorRect.left - anchorBorderLeft}px`;
+    dom.style.top = `${round(boxRect.bottom - anchorRect.top - anchorBorderTop + 4)}px`;
+    dom.style.left = `${round(boxRect.left - anchorRect.left - anchorBorderLeft)}px`;
   } else if (box.side === 'before') {
     // Box PRIMA della posizione, nessun fratello reale dopo (il box e'
     // l'ultimo elemento della cella): simmetrico al ramo sotto, ma a destra
     // del box invece che a sinistra.
-    dom.style.top = `${contentRect.top - anchorRect.top - anchorBorderTop}px`;
-    dom.style.left = `${boxRect.right - anchorRect.left - anchorBorderLeft + 4}px`;
+    dom.style.top = `${round(contentRect.top - anchorRect.top - anchorBorderTop)}px`;
+    dom.style.left = `${round(boxRect.right - anchorRect.left - anchorBorderLeft + 4)}px`;
   } else {
     // Box DOPO la posizione (inizio contenuto, freccia sinistra/su): stessa
     // riga della prima riga di testo dentro il box (contentRect, non
     // boxRect - vedi commento sopra), appena a sinistra del bordo del box.
     // Invariato in ogni circostanza.
-    dom.style.top = `${contentRect.top - anchorRect.top - anchorBorderTop}px`;
-    dom.style.left = `${boxRect.left - anchorRect.left - anchorBorderLeft - 4}px`;
+    dom.style.top = `${round(contentRect.top - anchorRect.top - anchorBorderTop)}px`;
+    dom.style.left = `${round(boxRect.left - anchorRect.left - anchorBorderLeft - 4)}px`;
   }
 }
 

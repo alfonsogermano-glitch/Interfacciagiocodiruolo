@@ -3,7 +3,7 @@ import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewP
 import { Selection, Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
 import type { Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model';
 import { ChevronRight } from 'lucide-react';
-import { TextBoxEdgeCursor } from './tiptapTextBoxEdgeCursor';
+import { TextBoxEdgeCursor, hasRealSiblingAfter } from './tiptapTextBoxEdgeCursor';
 
 // Vero fino a qualunque profondita' (non solo il genitore immediato) che il
 // cursore sia dentro un nodo di quel tipo - usata sotto per impedire
@@ -181,7 +181,7 @@ export const TextBox = Node.create({
             }
           } else {
             const boxAfter = $from.after(boxDepth);
-            if (tr.doc.resolve(boxAfter).nodeAfter) {
+            if (hasRealSiblingAfter(tr.doc.resolve(boxAfter))) {
               tr.setSelection(Selection.near(tr.doc.resolve(boxAfter), 1));
             } else {
               tr.setSelection(new TextBoxEdgeCursor(tr.doc.resolve(boxAfter)));
