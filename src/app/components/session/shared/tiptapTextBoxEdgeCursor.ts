@@ -2,7 +2,7 @@ import { Extension, type Editor } from '@tiptap/core';
 import { Selection, Plugin, PluginKey } from '@tiptap/pm/state';
 import { Slice } from '@tiptap/pm/model';
 import type { Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model';
-import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import type { Mapping } from '@tiptap/pm/transform';
 
 // Selezione custom per il cursore "finto" al confine di un TextBox/Collapse
@@ -284,6 +284,85 @@ export function exitCellBoundary(editor: Editor, dir: 'before' | 'after'): boole
     .run();
 }
 
+// Riallinea via JS la riga VISIVA del widget quando il flex-wrap l'ha
+// lasciato sulla riga sbagliata (bug 2026-08-02, "3 TextBox affiancate,
+// la terza va a capo, il cursore finto sembra saltarci dentro"): il
+// MODELLO non ha alcun concetto di "riga visiva 2" (tre fratelli piatti
+// nella stessa cella, l'a-capo e' un puro artefatto del flex-wrap CSS a
+// runtime) - il posizionamento del widget e' gia' corretto un livello
+// alla volta (verificato: servono ancora due frecce per entrare
+// davvero nel terzo box), ma la sua RIGA VISIVA no: flex-wrap decide in
+// base alla sua "hypothetical size" (minuscola) se entra nella riga
+// corrente, che quasi sempre "ci sta" anche quando il box che lo segue
+// nel DOM e' gia' stato spinto alla riga successiva - il widget resta
+// incollato in coda alla riga 1 (a volte sconfinando oltre il bordo
+// della cella) invece di comparire all'inizio della riga 2, prima del
+// box che lo segue.
+//
+// Non risolvibile con un trucco CSS puro equivalente a quello usato per
+// .tiptap-td-flex/.tiptap-textbox-content sopra: un flex-basis grande
+// abbastanza da forzare l'a-capo (l'unico modo per "spingere" un item
+// flex sulla riga successiva) diventerebbe anche la sua dimensione
+// RESA finale sulla nuova riga (flex-shrink non entra in gioco se quella
+// riga non va in overflow) - un cursore che dovrebbe restare 1px
+// renderizzerebbe invece largo quanto il valore forzato. L'unico modo
+// per ottenere "stessa riga del box successivo, 1px di larghezza" e'
+// misurare le coordinate REALI dopo il render (getBoundingClientRect,
+// unica fonte di verita' per "riga visiva", il modello non la conosce)
+// e, se non combaciano, riposizionare il widget con position:absolute
+// (rispetto al contenitore flex, reso position:relative in theme.css
+// solo per questo) esattamente dove si trova il box successivo - un
+// ritorno mirato e isolato al vecchio meccanismo position:absolute +
+// misurazione DOM (rimosso nel 2026-08-01 come meccanismo PRINCIPALE),
+// qui riproposto SOLO come correzione di eccezione per il caso limite
+// del wrap, non come sostituto del flex layout che gestisce gia'
+// correttamente il 99% dei casi (nessuna riga visiva coinvolta).
+function syncEdgeCursorRow(widget: HTMLElement) {
+  // Ripristina PRIMA di misurare: ProseMirror riusa lo stesso nodo DOM per
+  // la stessa "key" di decorazione anche quando la posizione nel modello
+  // cambia (bug scoperto dal vivo: il cursore fra box0/box1, sulla STESSA
+  // riga, veniva scorrettamente ricorretto perche' l'inline style
+  // position:absolute lasciato da una correzione precedente - fra box1/
+  // box2, righe diverse - falsava getBoundingClientRect() qui sotto,
+  // facendo sembrare "disallineata" anche una posizione gia' corretta di
+  // suo). Senza reset preventivo, ogni misurazione sarebbe relativa
+  // all'ultima correzione anziche' al layout flex naturale.
+  widget.style.position = '';
+  widget.style.top = '';
+  widget.style.left = '';
+  widget.style.margin = '';
+
+  const next = widget.nextElementSibling as HTMLElement | null;
+  const container = widget.parentElement as HTMLElement | null;
+  if (!next || !container || !(next.classList.contains('tiptap-textbox') || next.classList.contains('tiptap-collapse'))) return;
+
+  // Il widget ha un margin-top intenzionale (allineamento verticale col
+  // testo del box adiacente, bug 2026-08-02 di un giro precedente) che lo
+  // sposta SEMPRE un po' piu' in basso del bordo superiore della riga
+  // flex rispetto al box (che non ha quel margine, e' lui stesso a
+  // definire l'inizio della riga) - va sottratto PRIMA di confrontare,
+  // altrimenti quello scarto atteso verrebbe scambiato per un a-capo
+  // anche quando sono sulla stessa riga (bug scoperto dal vivo: il
+  // cursore fra due box sulla stessa riga veniva ricorretto per errore).
+  const widgetMarginTop = parseFloat(getComputedStyle(widget).marginTop) || 0;
+  const widgetRowTop = widget.getBoundingClientRect().top - widgetMarginTop;
+  const mismatched = Math.abs(next.getBoundingClientRect().top - widgetRowTop) > 1;
+
+  if (!mismatched) return;
+
+  const containerRect = container!.getBoundingClientRect();
+  const nextRect = next!.getBoundingClientRect();
+  widget.style.position = 'absolute';
+  widget.style.top = `${nextRect.top - containerRect.top}px`;
+  // 4px: stessa meta' gap usata per il caso "fra due box" allineato
+  // (.tiptap-textbox-edge-cursor:not(:first-child):not(:last-child) in
+  // theme.css) - qui solo approssimata (non e' detto ci sia un box PRIMA
+  // su questa nuova riga con cui centrarsi), sufficiente per un piccolo
+  // distacco visivo dal box che segue senza toccarne il bordo.
+  widget.style.left = `${nextRect.left - containerRect.left - 4}px`;
+  widget.style.margin = '0';
+}
+
 export const TextBoxEdgeCursorExtension = Extension.create({
   name: 'textBoxEdgeCursor',
   addProseMirrorPlugins() {
@@ -291,14 +370,12 @@ export const TextBoxEdgeCursorExtension = Extension.create({
       new Plugin({
         key: new PluginKey('textBoxEdgeCursor'),
         props: {
-          // Nessun calcolo di coordinate: la cella e' ora un contenitore
-          // flex con avvolgimento (theme.css) e TextBox/Collapse hanno un
-          // max-width che riserva sempre spazio per questa barra sulla
-          // STESSA riga flex - il widget e' semplicemente un altro item
-          // flex (flex:0 0 auto in CSS), posizionato dal browser esattamente
-          // dove viene inserito nel DOM, senza il sistema
-          // position:absolute + misurazione DOM dei giri precedenti
-          // (rimosso 2026-08-01: non serve piu' con il layout flex).
+          // flex-wrap (theme.css) posiziona il widget da solo sulla STESSA
+          // riga flex del box adiacente nel caso comune (nessun avvolgimento
+          // di mezzo) - view() sotto corregge SOLO il caso limite in cui il
+          // flex-wrap CSS ha effettivamente mandato a capo il box successivo
+          // (vedi syncEdgeCursorRow sopra per il perche' non e' risolvibile
+          // in puro CSS).
           decorations(state) {
             const { selection } = state;
             if (!(selection instanceof TextBoxEdgeCursor)) return null;
@@ -315,6 +392,32 @@ export const TextBoxEdgeCursorExtension = Extension.create({
               ),
             ]);
           },
+        },
+        // Rimisura/corregge SOLO quando il cursore finto compare o cambia
+        // posizione (bug da evitare: rimisurare a ogni update, incluso
+        // ogni battitura altrove nel documento, e' costoso e inutile la
+        // stragrande maggioranza delle volte) - lastKey (chiusura di
+        // questa singola istanza di plugin, sopravvive fra un update e
+        // l'altro) e' la posizione del cursore finto corrente, o null se
+        // non attivo; invariata rispetto all'ultima chiamata => nessun
+        // nuovo getBoundingClientRect. Il ridimensionamento della finestra
+        // mentre il cursore e' fermo in pausa non viene ricontrollato
+        // (nessuna transazione ProseMirror lo farebbe scattare) - lasciato
+        // com'e', caso limite entro un limite gia' accettato per lo stesso
+        // motivo.
+        view() {
+          let lastKey: number | null = null;
+          return {
+            update(view: EditorView) {
+              const { selection } = view.state;
+              const key = selection instanceof TextBoxEdgeCursor ? selection.head : null;
+              if (key === lastKey) return;
+              lastKey = key;
+              if (key === null) return;
+              const widget = view.dom.querySelector<HTMLElement>('.tiptap-textbox-edge-cursor');
+              if (widget) syncEdgeCursorRow(widget);
+            },
+          };
         },
       }),
     ];

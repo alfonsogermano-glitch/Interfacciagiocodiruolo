@@ -380,6 +380,12 @@
   align-items: flex-start;
   column-gap: var(--tiptap-box-gap);
   width: 100%;
+  /* position:relative SOLO come contesto per l'eccezionale
+     position:absolute che tiptapTextBoxEdgeCursor.ts (syncEdgeCursorRow)
+     applica al cursore finto quando il flex-wrap l'ha lasciato sulla riga
+     visiva sbagliata (bug 2026-08-02) - nessun effetto sul layout normale
+     (nessun top/left impostato qui). */
+  position: relative;
 }
 /* Ogni figlio diretto del wrapper e' un item flex (conseguenza di
    display:flex sopra, si applica a QUALUNQUE figlio a prescindere dal
@@ -539,6 +545,10 @@
   flex-wrap: wrap;
   align-items: flex-start;
   column-gap: var(--tiptap-box-gap);
+  /* Stesso motivo di .tiptap-td-flex sopra: contesto per l'eccezionale
+     position:absolute del cursore finto sul wrap sbagliato (bug
+     2026-08-02, tiptapTextBoxEdgeCursor.ts). */
+  position: relative;
 }
 
 /* Cursore finto al confine di un TextBox/Collapse (tiptapTextBoxEdgeCursor.ts)
@@ -749,6 +759,10 @@
   flex-wrap: wrap;
   align-items: flex-start;
   column-gap: var(--tiptap-box-gap);
+  /* Stesso motivo di .tiptap-td-flex/.tiptap-textbox-content sopra:
+     contesto per l'eccezionale position:absolute del cursore finto sul
+     wrap sbagliato (bug 2026-08-02, tiptapTextBoxEdgeCursor.ts). */
+  position: relative;
   margin-top: 0.25rem;
   /* Il corpo e il sommario sono resi entrambi dentro .tiptap-collapse-content
      (stesso contentDOM, vedi tiptapBlocks.tsx) - senza questo margine
