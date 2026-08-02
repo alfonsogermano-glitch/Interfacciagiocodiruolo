@@ -2,6 +2,14 @@
 
 :root {
   --font-size: 16px;
+  /* Spaziatura orizzontale condivisa fra TextBox/Collapse affiancati -
+     usata sia dal column-gap di .tiptap-td-flex/.tiptap-textbox-content/
+     .tiptap-collapse-body (tutti e tre lo stesso layout flex per
+     affiancamento, a qualunque profondita' di annidamento) sia dal
+     margine negativo di .tiptap-textbox-edge-cursor che ne annulla il
+     contributo (vedi commento li' sotto) - un solo valore invece di
+     ripeterlo in 4 punti che dovrebbero sempre restare identici. */
+  --tiptap-box-gap: 0.5rem;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
@@ -370,7 +378,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  column-gap: 0.5rem;
+  column-gap: var(--tiptap-box-gap);
   width: 100%;
 }
 /* Ogni figlio diretto del wrapper e' un item flex (conseguenza di
@@ -379,8 +387,23 @@
    flex:1 1 100% qui replica il comportamento di prima (riga intera,
    nessuna condivisione) per i blocchi "normali" (paragrafo, lista,
    blockquote, tabella annidata, ecc.). Sovrascritto sotto SOLO per
-   TextBox/Collapse. */
-.tiptap-td-flex > * {
+   TextBox/Collapse.
+   Stessa regola ripetuta per .tiptap-textbox-content e
+   .tiptap-collapse-body (bug 2026-08-02: senza questo trattamento anche
+   LI', un TextBox/Collapse annidato dentro un altro non aveva mai un
+   vero contenitore flex intorno - il cursore finto ci finiva dentro
+   comunque nei casi limite, ma senza flex ne' flex:0 0 auto ne' height
+   si applicano davvero a un elemento inline non sostituito, quindi
+   restava invisibile o sbagliato invece di essere una barra sulla stessa
+   riga - vedi .tiptap-textbox-edge-cursor sotto). Nessuna differenza di
+   comportamento per il contenuto "normale" di un box: un solo paragrafo/
+   lista dentro un TextBox continua a occupare l'intera riga esattamente
+   come prima, la condivisione della riga scatta SOLO fra due
+   TextBox/Collapse annidati fratelli, esattamente come gia' succede
+   dentro una cella di tabella. */
+.tiptap-td-flex > *,
+.tiptap-textbox-content > *,
+.tiptap-collapse-body > * {
   flex: 1 1 100%;
 }
 /* TextBox/Collapse: flex-grow:1 permette la stessa identica meccanica in
@@ -429,7 +452,11 @@
    colonna (ridimensionabile trascinando il bordo), non solo da questa
    soglia. */
 .tiptap-td-flex > .tiptap-textbox,
-.tiptap-td-flex > .tiptap-collapse {
+.tiptap-td-flex > .tiptap-collapse,
+.tiptap-textbox-content > .tiptap-textbox,
+.tiptap-textbox-content > .tiptap-collapse,
+.tiptap-collapse-body > .tiptap-textbox,
+.tiptap-collapse-body > .tiptap-collapse {
   flex: 1 1 0;
   min-width: 64px;
 }
@@ -451,7 +478,9 @@
   font-weight: var(--font-weight-medium);
   text-align: left;
 }
-.tiptap-td-flex > *:last-child {
+.tiptap-td-flex > *:last-child,
+.tiptap-textbox-content > *:last-child,
+.tiptap-collapse-body > *:last-child {
   margin-bottom: 0;
 }
 /* Maniglia di ridimensionamento colonna (decorazione inserita da
@@ -484,10 +513,7 @@
 /* Box di testo (tiptapBlocks.tsx, TextBox) - stessa palette gia' usata per
    l'avviso "Formato precedente" (RichTextEditor.tsx), coerenza visiva col
    resto dell'app. position:relative solo come contesto di posizionamento
-   per la maniglia (.tiptap-block-handle sotto, ora assoluta) - il
-   contenuto e' l'unico figlio a partecipare al layout normale, quindi
-   riempie da solo l'intero riquadro con lo stesso padding su tutti i lati
-   (mai piu' "spinto" da un secondo elemento in riga come un flex item). */
+   per la maniglia (.tiptap-block-handle sotto, ora assoluta). */
 .tiptap-textbox {
   position: relative;
   margin: 0 0 0.5rem 0;
@@ -496,19 +522,41 @@
   border: 1px solid color-mix(in srgb, var(--dash-accent) 40%, transparent);
   background: color-mix(in srgb, var(--dash-accent) 10%, transparent);
 }
-.tiptap-textbox-content > *:last-child {
-  margin-bottom: 0;
+/* Contenitore flex per affiancare TextBox/Collapse annidati DENTRO questo
+   box, esattamente come .tiptap-td-flex fa dentro una cella di tabella
+   (bug 2026-08-02: senza questo trattamento anche qui, un TextBox/Collapse
+   annidato non aveva mai un vero contenitore flex intorno, e il cursore
+   finto tiptapTextBoxEdgeCursor.ts ci finiva dentro comunque nei casi
+   limite - senza effetto utile, dato che ne' flex:0 0 auto ne' height si
+   applicano a un elemento inline non sostituito in un contenitore non
+   flex). Le regole di dettaglio (flex:1 1 100% per i blocchi "normali",
+   flex:1 1 0 + min-width:64px per TextBox/Collapse, margin-bottom
+   sull'ultimo figlio) sono condivise con .tiptap-td-flex/.tiptap-collapse-body
+   sopra/sotto - un solo blocco di regole per tutti e tre i contenitori
+   invece di tre copie che dovrebbero restare identiche. */
+.tiptap-textbox-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  column-gap: var(--tiptap-box-gap);
 }
 
 /* Cursore finto al confine di un TextBox/Collapse (tiptapTextBoxEdgeCursor.ts)
    - barra verticale sottile stile caret nativo, colore coerente col testo
-   (--dash-text-strong, stessa palette del resto dell'editor). Da quando la
-   cella e' un contenitore flex (sopra) il widget e' semplicemente un altro
-   item flex fra i tanti - flex:0 0 auto (non cresce/non si restringe, si
-   dimensiona sulla propria larghezza): niente piu' position:absolute ne'
-   calcolo di coordinate in JS (rimosso 2026-08-01,
-   positionEdgeCursor/nearestPositionedAncestor - non servono piu' col
-   layout flex).
+   (--dash-text-strong, stessa palette del resto dell'editor). Il widget e'
+   semplicemente un altro item flex fra i tanti nel contenitore che lo
+   ospita - cella (.tiptap-td-flex), TextBox (.tiptap-textbox-content) o
+   corpo di un Collapse (.tiptap-collapse-body), tutti e tre lo stesso
+   layout flex sopra: flex:0 0 auto (non cresce/non si restringe, si
+   dimensiona sulla propria larghezza) garantisce lo stesso comportamento
+   OVUNQUE finisca nel DOM, a qualunque profondita' di annidamento (bug
+   2026-08-02: prima che .tiptap-textbox-content/.tiptap-collapse-body
+   diventassero flex, il widget poteva finirci dentro nei casi limite senza
+   che flex/height avessero alcun effetto, restando invisibile o con
+   un'altezza sbagliata invece di una barra sulla stessa riga) - niente
+   piu' position:absolute ne' calcolo di coordinate in JS (rimosso
+   2026-08-01, positionEdgeCursor/nearestPositionedAncestor - non servono
+   piu' col layout flex).
    align-self:stretch (bug segnalato 2026-08-01, rimosso): allineava la
    barra all'altezza dell'INTERA riga flex, cioe' quella del box adiacente
    per intero (alto quanto un box con piu' paragrafi dentro) - sembrava un
@@ -520,17 +568,26 @@
    font-size EREDITATO nel punto esatto in cui ProseMirror inserisce il
    widget nel DOM, che non e' garantito essere quello "di una riga di
    testo normale" del box - puo' finire dentro uno <span> con un mark
-   fontSize attivo (tiptapFontSize.ts, dimensioni fino a 32/34px) o, in
-   alcuni casi limite (cursore dopo l'ultimo blocco di una cella, nessun
-   fratello successivo a cui ancorare la decorazione), annidato dentro
-   .tiptap-textbox-content invece che come fratello diretto in
-   .tiptap-td-flex - in NESSUNO dei due casi il font-size locale
-   rispecchia la dimensione "di base" del testo. --font-size e' la
-   variabile CSS radice (:root, theme.css riga 4, 16px) usata dal solo
-   layer base globale per l'intero editor - una custom property NON viene
-   toccata da un font-size inline locale (il mark fontSize imposta solo
-   la proprieta' font-size, mai la custom property), quindi calc() la
+   fontSize attivo (tiptapFontSize.ts, dimensioni fino a 32/34px). --font-size
+   e' la variabile CSS radice (:root, theme.css riga 4, 16px) usata dal
+   solo layer base globale per l'intero editor - una custom property NON
+   viene toccata da un font-size inline locale (il mark fontSize imposta
+   solo la proprieta' font-size, mai la custom property), quindi calc() la
    legge sempre stabile a prescindere da dove nel DOM finisca il widget.
+   margin-left/-right negativi pari a --tiptap-box-gap (bug 2026-08-02,
+   "il cursore occupa piu' spazio di quanto reso visivamente"): column-gap
+   del contenitore flex si inserisce fra QUALUNQUE coppia di item adiacenti,
+   cursore compreso - senza compensazione, il widget da 1px di fatto
+   prenotava 1px+gap (o 1px+2*gap se fra due box), bastante a mandare a
+   capo l'ultimo box di una riga gia' piena al 100%. :first-child annulla
+   il gap DOPO di se' (non esiste un gap "prima" quando non c'e' nulla
+   prima); altrimenti (ultimo o in mezzo a due box) annulla quello PRIMA -
+   nel caso in mezzo resta comunque UN gap normale fra i due box, esatto
+   equivalente di quando il cursore non c'e'. Nessun caso speciale per
+   :only-child: :first-child la copre gia', e un margin-right negativo
+   senza nulla dopo non ha alcun effetto visivo (riduce solo il calcolo
+   interno di larghezza della riga, il rendering del widget stesso resta
+   invariato).
    blink steps(2,start) infinite: stesso pattern gia' visto nel gap cursor
    nativo di ProseMirror (style/gapcursor.css), qui applicato a una barra
    verticale invece che a una riga orizzontale (quel disegno serviva a un
@@ -541,9 +598,14 @@
   flex: 0 0 auto;
   height: calc(var(--font-size, 16px) * 1.2);
   width: 1px;
+  margin-left: calc(-1 * var(--tiptap-box-gap));
   background-color: var(--dash-text-strong);
   pointer-events: none;
   animation: tiptap-textbox-edge-cursor-blink 1.05s steps(2, start) infinite;
+}
+.tiptap-textbox-edge-cursor:first-child {
+  margin-left: 0;
+  margin-right: calc(-1 * var(--tiptap-box-gap));
 }
 @keyframes tiptap-textbox-edge-cursor-blink {
   to {
@@ -658,6 +720,10 @@
   font-weight: var(--font-weight-medium);
 }
 .tiptap-collapse-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  column-gap: var(--tiptap-box-gap);
   margin-top: 0.25rem;
   /* Il corpo e il sommario sono resi entrambi dentro .tiptap-collapse-content
      (stesso contentDOM, vedi tiptapBlocks.tsx) - senza questo margine
