@@ -2,7 +2,7 @@ import { Node, mergeAttributes, type Editor } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
 import { Selection, Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
 import { ChevronRight } from 'lucide-react';
-import { findBoxAncestorDepth, isAtBoxBoundary, exitBoxBoundary } from './tiptapTextBoxEdgeCursor';
+import { findBoxAncestorDepth, isAtBoxBoundary, exitBoxBoundary, exitCellBoundary } from './tiptapTextBoxEdgeCursor';
 
 // Vero fino a qualunque profondita' (non solo il genitore immediato) che il
 // cursore sia dentro un nodo di quel tipo - usata sotto per impedire
@@ -41,11 +41,21 @@ function isSelectionInside(state: EditorState, typeName: string): boolean {
 // da entrambi i nodi (TextBox e CollapseBlock sotto): innocuo, la prima
 // scorciatoia dell'uno o dell'altro che gira nel keymap la gestisce, non
 // c'e' bisogno di sapere QUALE tipo specifico e' l'antenato trovato.
+//
+// ArrowLeft/Right provano ANCHE exitCellBoundary se exitBoxBoundary non
+// scatta (bug 2026-08-02: passando da una cella "esterna" - anche senza
+// alcun box, testo normale - a una cella che INIZIA con un TextBox/Collapse,
+// la normale navigazione fra celle di ProseMirror non ha nessuna cognizione
+// dei nostri box e ci faceva atterrare dritti dentro, scavalcando sia il
+// confine fra le due celle sia l'ingresso nel box). Solo Left/Right, MAI
+// Up/Down: su/giu' vanno alla cella nella riga sopra/sotto nella STESSA
+// colonna, una relazione diversa da "cella precedente/successiva nella
+// stessa riga" su cui exitCellBoundary si basa - fuori scopo qui.
 function createEdgeAwareKeyboardShortcuts(editor: Editor) {
   return {
-    ArrowLeft: () => exitBoxBoundary(editor, 'before'),
+    ArrowLeft: () => exitBoxBoundary(editor, 'before') || exitCellBoundary(editor, 'before'),
     ArrowUp: () => exitBoxBoundary(editor, 'before'),
-    ArrowRight: () => exitBoxBoundary(editor, 'after'),
+    ArrowRight: () => exitBoxBoundary(editor, 'after') || exitCellBoundary(editor, 'after'),
     ArrowDown: () => exitBoxBoundary(editor, 'after'),
     // Cancella l'intero nodo (non solo il paragrafo vuoto) quando il
     // cursore e' esattamente a inizio contenuto - equivalente esatto di
