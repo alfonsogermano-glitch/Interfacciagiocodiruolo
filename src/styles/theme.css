@@ -387,13 +387,16 @@
    ENTRAMBI i casi senza contare quanti fratelli ci sono via JS - da solo
    su una riga, flex-grow lo fa crescere fino a riempirla (uguale a
    prima); due o piu' sulla stessa riga, lo spazio disponibile si divide
-   automaticamente fra loro (flex-wrap nativo). max-width: calc(100% -
-   20px) invece di 100% pieni: riserva sempre una piccola fetta (~20px)
-   sulla riga per il cursore finto del confine (tiptapTextBoxEdgeCursor.ts)
-   - senza, un box da solo che cresce fino al 100% non lascerebbe MAI
-   spazio al cursore sulla stessa riga quando esce dal suo lato destro,
-   costringendolo a capo (esattamente il comportamento che la rifinitura
-   2026-08-01 chiede di eliminare, "nessuna eccezione").
+   automaticamente fra loro (flex-wrap nativo). NESSUN max-width (bug
+   segnalato 2026-08-02, rimosso: un box da solo su una riga mostrava
+   sempre ~20px di vuoto asimmetrico a destra). Il cap serviva quando il
+   cursore finto (tiptapTextBoxEdgeCursor.ts) era ancora posizionato con
+   position:absolute e non partecipava al flex layout, quindi bisognava
+   riservargli manualmente spazio fisico sulla riga; da quando e' un vero
+   item flex (flex:0 0 auto, vedi .tiptap-textbox-edge-cursor sotto), il
+   suo ingombro viene gia' sottratto automaticamente dall'algoritmo flex
+   quando distribuisce lo spazio libero fra i fratelli con flex-grow - la
+   riserva manuale era un residuo mai rimosso, non piu' necessaria.
 
    flex-basis:0 (NON un valore tipo 180px) - bug importante scoperto
    2026-08-01 ispezionando dal vivo con flex-wrap forzato a nowrap/wrap
@@ -417,7 +420,6 @@
 .tiptap-td-flex > .tiptap-collapse {
   flex: 1 1 0;
   min-width: 90px;
-  max-width: calc(100% - 20px);
 }
 /* Larghezza minima di default finche' la colonna non e' stata
    ridimensionata esplicitamente (data-colwidth assente) o non e' in corso
