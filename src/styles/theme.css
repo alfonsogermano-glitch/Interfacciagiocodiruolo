@@ -415,11 +415,23 @@
    min-width (90px): 2x90+gap sta quasi sempre nella riga, e flex-grow:1
    fa comunque crescere fino a max-width quando c'e' spazio (da solo o in
    piu' di quanti min-width permetterebbero). min-width: soglia sotto la
-   quale un box preferisce andare a capo invece di stringersi troppo. */
+   quale un box preferisce andare a capo invece di stringersi troppo -
+   abbassata a 64px (bug segnalato 2026-08-02: con 90px ne stavano al
+   massimo 2 per riga nelle colonne di larghezza tipica di questa tabella
+   di test, es. 202px --> 2x90+gap=188 ci sta, un terzo (3x90+2gap=286)
+   va a capo). Verificato box-sizing:border-box (globale, preflight di
+   Tailwind - vedi tailwind.css) su .tiptap-textbox: padding/bordo sono
+   GIA' inclusi nei 90/64px, non sommati sopra - non era quello il
+   problema. 64px lascia ~38px di area di contenuto utile (64 - 24px di
+   padding orizzontale - 2px di bordo), ancora scrivibile ma abbastanza
+   piccolo da lasciarne stare comodamente diversi in piu' per riga; il
+   numero esatto che entra dipende comunque dalla larghezza reale della
+   colonna (ridimensionabile trascinando il bordo), non solo da questa
+   soglia. */
 .tiptap-td-flex > .tiptap-textbox,
 .tiptap-td-flex > .tiptap-collapse {
   flex: 1 1 0;
-  min-width: 90px;
+  min-width: 64px;
 }
 /* Larghezza minima di default finche' la colonna non e' stata
    ridimensionata esplicitamente (data-colwidth assente) o non e' in corso
@@ -500,11 +512,25 @@
    align-self:stretch (bug segnalato 2026-08-01, rimosso): allineava la
    barra all'altezza dell'INTERA riga flex, cioe' quella del box adiacente
    per intero (alto quanto un box con piu' paragrafi dentro) - sembrava un
-   cursore gigante invece di un normale cursore di testo. height:1.2em
-   (relativo al font-size ereditato dal contesto, coerente con testo di
-   dimensioni diverse) approssima l'altezza di una riga di testo normale,
-   indipendente da quanto e' alto il box accanto - align-self resta quello
-   di default (flex-start, ereditato da align-items sopra: non si stira).
+   cursore gigante invece di un normale cursore di testo. align-self resta
+   quello di default (flex-start, ereditato da align-items sopra: non si
+   stira).
+   height: calc(var(--font-size, 16px) * 1.2) invece di 1.2em (bug
+   segnalato 2026-08-02, "di nuovo troppo alto"): 1.2em e' relativo al
+   font-size EREDITATO nel punto esatto in cui ProseMirror inserisce il
+   widget nel DOM, che non e' garantito essere quello "di una riga di
+   testo normale" del box - puo' finire dentro uno <span> con un mark
+   fontSize attivo (tiptapFontSize.ts, dimensioni fino a 32/34px) o, in
+   alcuni casi limite (cursore dopo l'ultimo blocco di una cella, nessun
+   fratello successivo a cui ancorare la decorazione), annidato dentro
+   .tiptap-textbox-content invece che come fratello diretto in
+   .tiptap-td-flex - in NESSUNO dei due casi il font-size locale
+   rispecchia la dimensione "di base" del testo. --font-size e' la
+   variabile CSS radice (:root, theme.css riga 4, 16px) usata dal solo
+   layer base globale per l'intero editor - una custom property NON viene
+   toccata da un font-size inline locale (il mark fontSize imposta solo
+   la proprieta' font-size, mai la custom property), quindi calc() la
+   legge sempre stabile a prescindere da dove nel DOM finisca il widget.
    blink steps(2,start) infinite: stesso pattern gia' visto nel gap cursor
    nativo di ProseMirror (style/gapcursor.css), qui applicato a una barra
    verticale invece che a una riga orizzontale (quel disegno serviva a un
@@ -513,7 +539,7 @@
    qui). */
 .tiptap-textbox-edge-cursor {
   flex: 0 0 auto;
-  height: 1.2em;
+  height: calc(var(--font-size, 16px) * 1.2);
   width: 1px;
   background-color: var(--dash-text-strong);
   pointer-events: none;
