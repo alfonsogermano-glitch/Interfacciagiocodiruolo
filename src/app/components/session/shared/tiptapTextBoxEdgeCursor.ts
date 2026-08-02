@@ -1,4 +1,4 @@
-import { Extension } from '@tiptap/core';
+import { Extension, type Editor } from '@tiptap/core';
 import { Selection, Plugin, PluginKey } from '@tiptap/pm/state';
 import { Slice } from '@tiptap/pm/model';
 import type { Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model';
@@ -65,10 +65,15 @@ Selection.jsonID('textBoxEdgeCursor', TextBoxEdgeCursor);
 
 // Tipi di nodo che partecipano al cursore finto - generalizzato 2026-08-01
 // da solo 'textBox' anche a 'collapseBlock' (stessa meccanica per
-// entrambi, nessuna duplicazione: vedi createEdgeAwareKeyboardShortcuts in
-// tiptapBlocks.tsx, usata da entrambi i nodi parametrizzata sul proprio
-// nome).
+// entrambi, nessuna duplicazione: vedi exitBoxBoundary sotto, usata da
+// entrambi i nodi in tiptapBlocks.tsx senza parametrizzare sul proprio
+// nome - un TextBox annidato dentro un CollapseBlock, o viceversa, deve
+// contare comunque come "box" per l'altro).
 const SIDE_BY_SIDE_BLOCK_TYPES = ['textBox', 'collapseBlock'];
+
+function isSideBySideBox(node: ProseMirrorNode): boolean {
+  return SIDE_BY_SIDE_BLOCK_TYPES.includes(node.type.name);
+}
 
 // Il box/collapse adiacente alla posizione del cursore finto (nodo DOPO se
 // e' un cursore "before", nodo PRIMA se e' un cursore "after") - nessuno
@@ -76,10 +81,10 @@ const SIDE_BY_SIDE_BLOCK_TYPES = ['textBox', 'collapseBlock'];
 // posizione stessa lo dice gia', via nodeBefore/nodeAfter. Usato sia dal
 // rendering sotto sia da Invio/frecce/Escape in tiptapBlocks.tsx.
 export function adjacentBox($pos: ResolvedPos): { node: ProseMirrorNode; side: 'before' | 'after' } | null {
-  if ($pos.nodeAfter && SIDE_BY_SIDE_BLOCK_TYPES.includes($pos.nodeAfter.type.name)) {
+  if ($pos.nodeAfter && isSideBySideBox($pos.nodeAfter)) {
     return { node: $pos.nodeAfter, side: 'after' };
   }
-  if ($pos.nodeBefore && SIDE_BY_SIDE_BLOCK_TYPES.includes($pos.nodeBefore.type.name)) {
+  if ($pos.nodeBefore && isSideBySideBox($pos.nodeBefore)) {
     return { node: $pos.nodeBefore, side: 'before' };
   }
   return null;
@@ -88,11 +93,113 @@ export function adjacentBox($pos: ResolvedPos): { node: ProseMirrorNode; side: '
 // Esiste gia' un fratello reale dopo questa posizione, nella STESSA cella -
 // esistenza del nodo (qualunque tipo, vuoto o no), MAI contenuto testuale:
 // un paragrafo vuoto e' comunque un oggetto Node vero, quindi conta.
-// Esportata e riusata da createEdgeAwareKeyboardShortcuts
-// (tiptapBlocks.tsx) per decidere se creare questo cursore al posto di un
-// paragrafo reale - UNA sola definizione condivisa.
+// Usata da exitBoxBoundary sotto per decidere se creare questo cursore al
+// posto di un paragrafo reale.
 export function hasRealSiblingAfter($pos: ResolvedPos): boolean {
   return !!$pos.nodeAfter;
+}
+
+// Profondita' dell'antenato PIU' INTERNO che sia un TextBox o un
+// CollapseBlock, a QUALUNQUE profondita' - a differenza di una ricerca per
+// un solo tipo alla volta (bug 2026-08-02: con un TextBox annidato dentro
+// un altro, o dentro un CollapseBlock, cercare solo 'textBox' o solo
+// 'collapseBlock' poteva trovare un antenato piu' esterno di quello vero,
+// se il piu' interno era dell'ALTRO tipo), questa considera entrambi i
+// tipi in un colpo solo: il primo (piu' profondo) che matcha vince,
+// a prescindere da quale dei due sia.
+export function findBoxAncestorDepth($pos: ResolvedPos): number | null {
+  for (let depth = $pos.depth; depth >= 0; depth -= 1) {
+    if (isSideBySideBox($pos.node(depth))) return depth;
+  }
+  return null;
+}
+
+// $pos.start(depth)/.end(depth) danno il confine del NODO a quella
+// profondita' (subito prima/dopo il suo primo/ultimo figlio diretto), non
+// la posizione cursore raggiungibile dentro quel figlio - un box con un
+// paragrafo come primo figlio ha sempre pos===start(depth)+1 quando il
+// cursore e' davvero a inizio contenuto, MAI pos===start(depth) (bug
+// confermato via log 2026-08-01: pos=99, start=98, scarto costante di 1,
+// mai zero). Selection.near trova da sola la posizione cursore valida piu'
+// vicina al confine grezzo del nodo: se coincide esattamente con $pos, il
+// cursore era gia' li'.
+//
+// Controllo diretto $pos.pos===rawBoundary PRIMA di Selection.near (bug
+// 2026-08-02): quando $pos e' gia' un cursore finto attivo che riprova a
+// uscire di un altro livello (exitBoxBoundary chiamata in prosecuzione da
+// TextBoxEdgeCursorExtension), $pos NON e' una posizione di testo reale ma
+// GIA' un gap fra blocchi - esattamente il confine grezzo, per
+// costruzione. Selection.near su un gap del genere non lo restituisce
+// invariato: cerca la prima posizione DENTRO un vero textblock, che puo'
+// essere altrove nel documento (in un'altra cella, se questo box e' l'
+// ultimo blocco della sua riga) - facendo fallire il confronto e quindi
+// l'intera exitBoxBoundary, con conseguente fallback al salto cieco
+// (proprio il bug: da un box annidato, la freccia scavalcava il livello
+// esterno e atterrava nella cella successiva). Il confronto diretto
+// intercetta questo caso PRIMA che Selection.near se ne allontani; per una
+// posizione di testo reale rawBoundary e $pos.pos non coincidono mai (vedi
+// sopra), quindi il comportamento per il primo ingresso resta invariato.
+export function isAtBoxBoundary(doc: ProseMirrorNode, $pos: ResolvedPos, boxDepth: number, side: 'start' | 'end'): boolean {
+  const rawBoundary = side === 'start' ? $pos.start(boxDepth) : $pos.end(boxDepth);
+  if ($pos.pos === rawBoundary) return true;
+  const bias = side === 'start' ? 1 : -1;
+  const nearest = Selection.near(doc.resolve(rawBoundary), bias);
+  return nearest.from === $pos.pos && nearest.to === $pos.pos;
+}
+
+// Esce di UN SOLO livello di annidamento nella direzione data, a partire
+// dalla selezione corrente (funziona sia da una posizione di testo reale
+// dentro un box, sia da un cursore finto gia' attivo - Selection espone
+// $from/$to genericamente per ogni sottoclasse, non solo TextSelection) -
+// condivisa fra createEdgeAwareKeyboardShortcuts (primo ingresso in questo
+// stato, da testo reale, tiptapBlocks.tsx) e la prosecuzione da un cursore
+// finto gia' attivo sotto (TextBoxEdgeCursorExtension.exitArrow).
+//
+// Bug 2026-08-02 che questa condivisione risolve: prima, la prosecuzione
+// (da un cursore finto gia' attivo) usava una singola Selection.near che
+// cerca la prima posizione cursore valida IN QUALUNQUE DIREZIONE,
+// attraversando in un colpo solo TUTTI i confini annidati incontrati -
+// da dentro un TextBox annidato in un altro, la freccia destra scavalcava
+// sia il box esterno sia un eventuale fratello affiancato al livello
+// esterno, atterrando dritta nella cella di tabella successiva. Chiamando
+// invece QUESTA funzione ad ogni pressione (sia dal primo ingresso sia
+// dalla prosecuzione), ogni freccia esce di un livello alla volta: se il
+// fratello al livello corrente e' un altro box affiancabile (o non esiste
+// alcun fratello), si ferma con un nuovo cursore finto proprio li'; solo
+// se il fratello e' un blocco normale (o non c'e' piu' nessun antenato
+// box) procede oltre.
+export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after'): boolean {
+  const { selection, doc } = editor.state;
+  if (!selection.empty) return false;
+  const $from = selection.$from;
+  const boxDepth = findBoxAncestorDepth($from);
+  if (boxDepth === null) return false;
+  if (!isAtBoxBoundary(doc, $from, boxDepth, dir === 'before' ? 'start' : 'end')) return false;
+
+  return editor
+    .chain()
+    .command(({ tr }) => {
+      if (dir === 'before') {
+        const boxBefore = $from.before(boxDepth);
+        const $boxBefore = tr.doc.resolve(boxBefore);
+        if ($boxBefore.nodeBefore && !isSideBySideBox($boxBefore.nodeBefore)) {
+          tr.setSelection(Selection.near($boxBefore, -1));
+        } else {
+          tr.setSelection(new TextBoxEdgeCursor($boxBefore));
+        }
+      } else {
+        const boxAfter = $from.after(boxDepth);
+        const $boxAfter = tr.doc.resolve(boxAfter);
+        if (hasRealSiblingAfter($boxAfter) && !isSideBySideBox($boxAfter.nodeAfter!)) {
+          tr.setSelection(Selection.near($boxAfter, 1));
+        } else {
+          tr.setSelection(new TextBoxEdgeCursor($boxAfter));
+        }
+      }
+      return true;
+    })
+    .scrollIntoView()
+    .run();
 }
 
 export const TextBoxEdgeCursorExtension = Extension.create({
@@ -178,14 +285,24 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         // prosegue oltre.
         if (dir === box.side) return reenterBox(selection, box);
 
-        // Direzione opposta al lato del box: prosegue oltre. Selection.near
-        // cerca la prima posizione cursore valida in quella direzione
-        // attraversando QUALUNQUE confine, incluso isolating (tableCell) -
-        // non e' un'operazione di join/lift, solo ricerca di una posizione
-        // gia' esistente nel documento, e isolating vincola solo le
-        // trasformazioni strutturali, non la ricerca di selezione (verificato
-        // nel sorgente di prosemirror-state: TextSelection.findFrom non
-        // consulta mai NodeType.spec.isolating).
+        // Direzione opposta al lato del box: prosegue oltre. Riprova PRIMA
+        // exitBoxBoundary sulla posizione attuale: se questo cursore finto
+        // e' ANCH'ESSO al confine di un antenato piu' esterno (annidamento)
+        // o ha un altro box fratello allo stesso livello (affiancamento),
+        // si ferma di nuovo li' un livello alla volta invece di scavalcarlo
+        // (bug 2026-08-02, vedi commento su exitBoxBoundary in
+        // tiptapTextBoxEdgeCursor.ts). Solo se non c'e' PIU' nessun
+        // antenato box a questa posizione (siamo davvero usciti da tutto)
+        // si ricade sulla Selection.near generica: cerca la prima posizione
+        // cursore valida in quella direzione attraversando QUALUNQUE
+        // confine, incluso isolating (tableCell) - non e' un'operazione di
+        // join/lift, solo ricerca di una posizione gia' esistente nel
+        // documento, e isolating vincola solo le trasformazioni
+        // strutturali, non la ricerca di selezione (verificato nel sorgente
+        // di prosemirror-state: TextSelection.findFrom non consulta mai
+        // NodeType.spec.isolating).
+        if (exitBoxBoundary(editor, dir)) return true;
+
         return editor
           .chain()
           .command(({ tr }) => {

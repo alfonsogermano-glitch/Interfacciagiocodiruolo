@@ -1,9 +1,8 @@
 import { Node, mergeAttributes, type Editor } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
 import { Selection, Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
-import type { Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model';
 import { ChevronRight } from 'lucide-react';
-import { TextBoxEdgeCursor, hasRealSiblingAfter } from './tiptapTextBoxEdgeCursor';
+import { findBoxAncestorDepth, isAtBoxBoundary, exitBoxBoundary } from './tiptapTextBoxEdgeCursor';
 
 // Vero fino a qualunque profondita' (non solo il genitore immediato) che il
 // cursore sia dentro un nodo di quel tipo - usata sotto per impedire
@@ -24,122 +23,43 @@ function isSelectionInside(state: EditorState, typeName: string): boolean {
   return false;
 }
 
-// Come isSelectionInside sopra, ma ritorna la profondita' invece di un
-// booleano - usata sotto da TextBox.addKeyboardShortcuts per trovare il
-// TextBox piu' vicino a prescindere da quanto in profondita' sia annidato il
-// cursore al suo interno (un paragrafo dentro una lista dentro il box,
-// ecc.), cosi' da poter calcolare $from.start(depth)/$from.end(depth) -
-// posizione assoluta di inizio/fine dell'INTERO contenuto del box, non solo
-// del suo figlio immediato.
-function findAncestorDepth($pos: ResolvedPos, typeName: string): number | null {
-  for (let depth = $pos.depth; depth >= 0; depth -= 1) {
-    if ($pos.node(depth).type.name === typeName) return depth;
-  }
-  return null;
-}
-
-// $pos.start(depth)/.end(depth) danno il confine del NODO a quella
-// profondita' (subito prima/dopo il suo primo/ultimo figlio diretto), non la
-// posizione cursore raggiungibile dentro quel figlio - un box con un
-// paragrafo come primo figlio ha sempre pos===start(depth)+1 quando il
-// cursore e' davvero a inizio contenuto, MAI pos===start(depth) (bug
-// confermato via log 2026-08-01: pos=99, start=98, scarto costante di 1,
-// mai zero). Un annidamento piu' profondo (lista dentro il box, ecc.)
-// richiederebbe uno scarto diverso, calcolabile solo camminando i livelli
-// intermedi - invece di ricalcolarlo a mano (stessa classe di bug gia'
-// vista una volta), si delega a Selection.near la ricerca della posizione
-// cursore valida piu' vicina al confine grezzo del nodo (stesso idioma gia'
-// in uso e funzionante in CollapseSummary.addKeyboardShortcuts sotto): se
-// coincide esattamente con $pos, il cursore era gia' li'.
-function isAtBoxBoundary(doc: ProseMirrorNode, $pos: ResolvedPos, boxDepth: number, side: 'start' | 'end'): boolean {
-  const rawBoundary = side === 'start' ? $pos.start(boxDepth) : $pos.end(boxDepth);
-  const bias = side === 'start' ? 1 : -1;
-  const nearest = Selection.near(doc.resolve(rawBoundary), bias);
-  return nearest.from === $pos.pos && nearest.to === $pos.pos;
-}
-
 // Frecce/Backspace al confine di un TextBox O di un CollapseBlock - stessa
 // meccanica per entrambi (generalizzata 2026-08-01, prima esisteva solo per
 // TextBox): entrambi hanno isolating:true, che blocca deliberatamente Invio
 // dal sollevare contenuto fuori dal nodo (vedi il commento su isolating in
 // TextBox sotto), ma come effetto collaterale impedisce anche a
-// frecce/Backspace di attraversarne il confine nativamente. Parametrizzata
-// sul nome del tipo (typeName) invece di duplicare il corpo in entrambi i
-// nodi - findAncestorDepth/isAtBoxBoundary sopra non assumono nulla sulla
-// struttura interna del nodo (funzionano identiche sia per il 'block+' di
-// TextBox sia per il 'collapseSummary collapseBody' fisso di CollapseBlock,
-// verificato leggendo entrambe le definizioni). Entrambi gli shortcut
-// intervengono SOLO al confine esatto (vedi guardie dentro
-// exitBoundary/Backspace) - altrove dentro il nodo restituiscono false e la
-// digitazione/navigazione nativa resta invariata.
-function createEdgeAwareKeyboardShortcuts(editor: Editor, typeName: string) {
-  // dir: 'before' = Sinistra/Su (uscita dall'inizio del contenuto),
-  // 'after' = Destra/Giu (uscita dalla fine). $from.start(boxDepth)/
-  // .end(boxDepth) sono posizioni ASSOLUTE di inizio/fine dell'intero
-  // contenuto del nodo (a qualunque profondita' annidata al suo interno,
-  // non solo il figlio immediato) - a differenza di parentOffset===0, che
-  // si fermerebbe al solo genitore diretto del cursore.
-  const exitBoundary = (dir: 'before' | 'after') => (): boolean => {
-    const { selection } = editor.state;
-    // selection.empty esclude sia una selezione di testo non collassata
-    // sia una NodeSelection (es. nodo selezionato con la maniglia, dove
-    // interferire non avrebbe senso) - in entrambi i casi si lascia il
-    // comportamento nativo.
-    if (!selection.empty) return false;
-    const { $from } = selection;
-    const boxDepth = findAncestorDepth($from, typeName);
-    if (boxDepth === null) return false;
-
-    const atBoundary = isAtBoxBoundary(editor.state.doc, $from, boxDepth, dir === 'before' ? 'start' : 'end');
-    if (!atBoundary) return false;
-
-    return editor
-      .chain()
-      .command(({ tr }) => {
-        // Stesso idioma di tiptapDropCleanup.ts per leggere il fratello
-        // diretto a un confine nodo: risolvere la posizione e leggere
-        // nodeBefore/nodeAfter, senza calcolare indici a mano. Se non c'e'
-        // un fratello, un cursore finto (TextBoxEdgeCursor) invece di
-        // creare subito un paragrafo reale - si materializza solo se
-        // l'utente digita/preme Invio mentre e' attivo (vedi
-        // tiptapTextBoxEdgeCursor.ts, validato con uno spike dal vivo).
-        if (dir === 'before') {
-          const boxBefore = $from.before(boxDepth);
-          if (tr.doc.resolve(boxBefore).nodeBefore) {
-            tr.setSelection(Selection.near(tr.doc.resolve(boxBefore), -1));
-          } else {
-            tr.setSelection(new TextBoxEdgeCursor(tr.doc.resolve(boxBefore)));
-          }
-        } else {
-          const boxAfter = $from.after(boxDepth);
-          if (hasRealSiblingAfter(tr.doc.resolve(boxAfter))) {
-            tr.setSelection(Selection.near(tr.doc.resolve(boxAfter), 1));
-          } else {
-            tr.setSelection(new TextBoxEdgeCursor(tr.doc.resolve(boxAfter)));
-          }
-        }
-        return true;
-      })
-      .scrollIntoView()
-      .run();
-  };
-
+// frecce/Backspace di attraversarne il confine nativamente.
+//
+// Le frecce delegano interamente a exitBoxBoundary (tiptapTextBoxEdgeCursor.ts,
+// condivisa con la prosecuzione da un cursore finto gia' attivo) invece di
+// avere qui una logica propria - non piu' parametrizzata sul nome del tipo
+// (typeName): findBoxAncestorDepth cerca l'antenato box PIU' VICINO fra
+// ENTRAMBI i tipi in un colpo solo (bug 2026-08-02: un TextBox annidato
+// dentro un CollapseBlock, o viceversa, con la ricerca ristretta a un solo
+// tipo per volta poteva far trovare l'antenato sbagliato - piu' esterno di
+// quello vero se il piu' interno era dell'ALTRO tipo). Registrata identica
+// da entrambi i nodi (TextBox e CollapseBlock sotto): innocuo, la prima
+// scorciatoia dell'uno o dell'altro che gira nel keymap la gestisce, non
+// c'e' bisogno di sapere QUALE tipo specifico e' l'antenato trovato.
+function createEdgeAwareKeyboardShortcuts(editor: Editor) {
   return {
-    ArrowLeft: exitBoundary('before'),
-    ArrowUp: exitBoundary('before'),
-    ArrowRight: exitBoundary('after'),
-    ArrowDown: exitBoundary('after'),
+    ArrowLeft: () => exitBoxBoundary(editor, 'before'),
+    ArrowUp: () => exitBoxBoundary(editor, 'before'),
+    ArrowRight: () => exitBoxBoundary(editor, 'after'),
+    ArrowDown: () => exitBoxBoundary(editor, 'after'),
     // Cancella l'intero nodo (non solo il paragrafo vuoto) quando il
     // cursore e' esattamente a inizio contenuto - equivalente esatto di
     // selezionarlo con la maniglia e premere Canc (deleteSelection su una
     // NodeSelection fa lo stesso tr.delete sul range del nodo). Un solo
     // lato (nessun equivalente "a fine contenuto"): Backspace cancella
-    // all'indietro per definizione.
+    // all'indietro per definizione. Stesso antenato "piu' vicino fra
+    // entrambi i tipi" di sopra: cancella il box PIU' INTERNO, non
+    // necessariamente quello del tipo che ha registrato lo shortcut.
     Backspace: (): boolean => {
       const { selection } = editor.state;
       if (!selection.empty) return false;
       const { $from } = selection;
-      const boxDepth = findAncestorDepth($from, typeName);
+      const boxDepth = findBoxAncestorDepth($from);
       if (boxDepth === null) return false;
       if (!isAtBoxBoundary(editor.state.doc, $from, boxDepth, 'start')) return false;
 
@@ -236,7 +156,7 @@ export const TextBox = Node.create({
   // impedisce anche a frecce/Backspace di attraversarne il confine
   // nativamente - da qui questi shortcut).
   addKeyboardShortcuts() {
-    return createEdgeAwareKeyboardShortcuts(this.editor, 'textBox');
+    return createEdgeAwareKeyboardShortcuts(this.editor);
   },
 });
 
@@ -455,7 +375,7 @@ export const CollapseBlock = Node.create({
   // Nessun conflitto con l'Enter di CollapseSummary sopra (nodo diverso,
   // scatta solo quando $from.parent e' collapseSummary).
   addKeyboardShortcuts() {
-    return createEdgeAwareKeyboardShortcuts(this.editor, 'collapseBlock');
+    return createEdgeAwareKeyboardShortcuts(this.editor);
   },
 });
 
