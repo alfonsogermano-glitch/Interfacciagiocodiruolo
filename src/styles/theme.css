@@ -595,22 +595,28 @@
    annullando solo META' gap per lato si lascia un margine uguale su
    entrambi, il totale resta ESATTAMENTE un gap, solo distribuito in due
    meta' invece che azzerato da un lato.
-   Le due estremita' (:first-child/:last-child, bug 2026-08-04) NON hanno
-   un vero vicino sul lato esterno (nessun box prima del primo, nessuno
-   dopo l'ultimo - column-gap non si applica mai li'): un primo tentativo
-   di fix aveva invertito il segno anche su QUEL lato (margin-left
-   positivo su :first-child, invece di azzerarlo) - PEGGIORAVA la
-   decentratura, perche' creava un respiro dal nulla dove prima -a
-   ragione- non ce n'era alcuno, raddoppiando lo spazio totale intorno al
-   cursore invece di dimezzarlo. Il lato SENZA vicino va lasciato a ZERO
-   (:first-child azzera solo margin-left, :last-child solo margin-right):
-   il dimezzamento a meta' gap si applica SOLO al lato che ha davvero un
-   vicino reale, ereditato inalterato dalla regola di base sopra (per
-   :first-child e' margin-right verso il box dopo; per :last-child e'
-   margin-left verso il box prima). Nessun caso speciale per :only-child:
-   entrambe le regole si applicano insieme, azzerando i due lati e
-   lasciando il cursore semplicemente flush ai due bordi del contenitore
-   (nessun vicino su nessuno dei due lati con cui centrarsi).
+   Le due estremita' (:first-child/:last-child) NON hanno un vero vicino
+   sul lato esterno (nessun box prima del primo, nessuno dopo l'ultimo -
+   column-gap non si applica mai li'): a differenza del caso centrale,
+   qui c'e' UN SOLO vicino reale (non due), quindi non esiste alcuno
+   spazio "da dividere a meta'" - ogni gap introdotto sul lato del vicino
+   (mezzo gap, bug 2026-08-04, o un margine positivo dal nulla sul lato
+   senza vicino, primo tentativo dello stesso bug) e' stato segnalato
+   come spazio indesiderato, non come centratura (bug 2026-08-05: "ancora
+   spazio quando il cursore e' a sinistra del primo elemento" nonostante
+   il lato senza vicino fosse gia' a zero - verificato dal vivo,
+   getBoundingClientRect: gap 0px verso il bordo del contenitore, 4px
+   verso il box, e i 4px erano proprio lo spazio lamentato). L'unica resa
+   senza spazio inventato ne' residuo e' annullare il gap reale PER
+   INTERO sul lato del vicino (come il box stesso farebbe senza cursore
+   in mezzo): :first-child annulla l'intero gap verso il box dopo
+   (margin-right), :last-child l'intero gap verso il box prima
+   (margin-left) - il cursore resta flush a ENTRAMBI i lati (il bordo del
+   contenitore da un lato, il box dall'altro), esattamente come un caret
+   di testo nativo prima del primo/dopo l'ultimo carattere, senza alcun
+   respiro artificiale. Nessun caso speciale per :only-child: le due
+   regole si applicano insieme, lasciando il cursore flush ai due bordi
+   del contenitore.
    margin-top: calc(0.5rem + 1px) (bug 2026-08-02, "cursore disallineato
    in altezza" nonostante l'altezza numerica gia' corretta): align-items:
    flex-start (sopra) allinea il TOP del widget al top della riga flex,
@@ -642,8 +648,10 @@
 }
 .tiptap-textbox-edge-cursor:first-child {
   margin-left: 0;
+  margin-right: calc(-1 * var(--tiptap-box-gap));
 }
 .tiptap-textbox-edge-cursor:last-child {
+  margin-left: calc(-1 * var(--tiptap-box-gap));
   margin-right: 0;
 }
 @keyframes tiptap-textbox-edge-cursor-blink {

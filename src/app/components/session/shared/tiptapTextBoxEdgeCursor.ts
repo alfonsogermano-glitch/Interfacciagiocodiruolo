@@ -75,48 +75,18 @@ function isSideBySideBox(node: ProseMirrorNode): boolean {
   return SIDE_BY_SIDE_BLOCK_TYPES.includes(node.type.name);
 }
 
-// Nomi di nodo di una cella di tabella (TableCellWithFlexWrapper/
-// TableHeaderWithFlexWrapper, tiptapTableCellWrapper.ts, estendono
-// semplicemente TableCell/TableHeader di @tiptap/extension-table senza
-// cambiarne il nome) - usati per riconoscere una TRANSIZIONE fra celle
-// diverse, distinta dall'affiancamento/annidamento DENTRO la stessa
-// cella gestito da isSideBySideBox sopra.
-const TABLE_CELL_TYPES = ['tableCell', 'tableHeader'];
-
-function isTableCell(node: ProseMirrorNode): boolean {
-  return TABLE_CELL_TYPES.includes(node.type.name);
-}
-
-// Il primo/ultimo figlio di una cella (a seconda della direzione con cui
-// ci si entra) e' esso stesso un TextBox/Collapse? Se si', entrare nella
-// cella richiede la stessa pausa "un livello alla volta" che si applica
-// gia' fra due box fratelli - senza questo controllo, muoversi fra celle
-// diverse bypassava del tutto exitBoxBoundary (che parte da un antenato
-// box, mai da un antenato cella) e faceva atterrare il cursore dritto
-// dentro il box della cella di destinazione (bug 2026-08-02).
-function cellEdgeNeedsPause(cell: ProseMirrorNode, dir: 'before' | 'after'): boolean {
-  const edgeChild = dir === 'after' ? cell.firstChild : cell.lastChild;
-  return !!edgeChild && isSideBySideBox(edgeChild);
-}
-
 // Elemento adiacente alla posizione del cursore finto (nodo DOPO se e' un
 // cursore "before", nodo PRIMA se e' un cursore "after") - nessuno stato
 // separato "quale elemento, quale lato" da tracciare altrove: la posizione
-// stessa lo dice gia', via nodeBefore/nodeAfter. "kind" distingue un
-// TextBox/Collapse fratello (stesso contenitore) da una cella di tabella
-// diversa (il cursore finto e' stato creato al confine FRA due celle,
-// vedi exitCellBoundary sotto) - la rientrata (reenterBox) si comporta
-// diversamente nei due casi. Usato sia dal rendering sotto sia da
-// Invio/frecce/Escape in tiptapBlocks.tsx.
-export function adjacentBox($pos: ResolvedPos): { node: ProseMirrorNode; side: 'before' | 'after'; kind: 'box' | 'cell' } | null {
-  if ($pos.nodeAfter) {
-    if (isSideBySideBox($pos.nodeAfter)) return { node: $pos.nodeAfter, side: 'after', kind: 'box' };
-    if (isTableCell($pos.nodeAfter)) return { node: $pos.nodeAfter, side: 'after', kind: 'cell' };
-  }
-  if ($pos.nodeBefore) {
-    if (isSideBySideBox($pos.nodeBefore)) return { node: $pos.nodeBefore, side: 'before', kind: 'box' };
-    if (isTableCell($pos.nodeBefore)) return { node: $pos.nodeBefore, side: 'before', kind: 'cell' };
-  }
+// stessa lo dice gia', via nodeBefore/nodeAfter. Usato sia dal rendering
+// sotto sia da Invio/frecce/Escape in tiptapBlocks.tsx.
+// Riconosceva anche il confine FRA DUE CELLE diverse (kind:'cell', fino al
+// 2026-08-05) - rimosso insieme a exitCellBoundary (vedi
+// tiptapBlocks.tsx): un cursore finto non nasce piu' mai a quel confine,
+// solo fra box fratelli/annidati DENTRO la stessa cella.
+export function adjacentBox($pos: ResolvedPos): { node: ProseMirrorNode; side: 'before' | 'after' } | null {
+  if ($pos.nodeAfter && isSideBySideBox($pos.nodeAfter)) return { node: $pos.nodeAfter, side: 'after' };
+  if ($pos.nodeBefore && isSideBySideBox($pos.nodeBefore)) return { node: $pos.nodeBefore, side: 'before' };
   return null;
 }
 
@@ -131,20 +101,6 @@ export function adjacentBox($pos: ResolvedPos): { node: ProseMirrorNode; side: '
 export function findBoxAncestorDepth($pos: ResolvedPos): number | null {
   for (let depth = $pos.depth; depth >= 0; depth -= 1) {
     if (isSideBySideBox($pos.node(depth))) return depth;
-  }
-  return null;
-}
-
-// Come findBoxAncestorDepth, ma per la cella di tabella (tableCell o
-// tableHeader) piu' vicina - usata SOLO da exitCellBoundary sotto per
-// decidere la pausa alla transizione fra celle diverse, MAI da Backspace
-// (a differenza di findBoxAncestorDepth): un antenato "cella" trovato al
-// posto di un antenato "box" farebbe cancellare l'intera cella invece di
-// un box al suo interno se riusata li' - le due ricerche restano
-// deliberatamente separate.
-function findCellAncestorDepth($pos: ResolvedPos): number | null {
-  for (let depth = $pos.depth; depth >= 0; depth -= 1) {
-    if (isTableCell($pos.node(depth))) return depth;
   }
   return null;
 }
@@ -185,8 +141,8 @@ export function isAtBoxBoundary(doc: ProseMirrorNode, $pos: ResolvedPos, boxDept
 // Decide cosa fare arrivati ESATTAMENTE alla posizione `pos` muovendosi in
 // direzione `dir`: fermarsi con un nuovo cursore finto proprio li', oppure
 // proseguire fino alla prima posizione di testo reale (Selection.near).
-// Condivisa da exitBoxBoundary (uscita da un box/cella) ed exitArrow sotto
-// (rientro in un box/cella dopo una pausa) - la stessa identica decisione
+// Condivisa da exitBoxBoundary (uscita da un box) ed exitArrow sotto
+// (rientro in un box dopo una pausa) - la stessa identica decisione
 // serve in entrambe le direzioni di attraversamento di un confine, non
 // solo in uscita: un box il cui primo figlio e' un ALTRO box annidato
 // deve fermarsi anche RIENTRANDOCI, non solo uscendone (stessa filosofia
@@ -196,7 +152,6 @@ function landOrDive(doc: ProseMirrorNode, pos: number, dir: 'before' | 'after'):
   const neighbor = dir === 'after' ? $pos.nodeAfter : $pos.nodeBefore;
   if (!neighbor) return new TextBoxEdgeCursor($pos);
   if (isSideBySideBox(neighbor)) return new TextBoxEdgeCursor($pos);
-  if (isTableCell(neighbor) && cellEdgeNeedsPause(neighbor, dir)) return new TextBoxEdgeCursor($pos);
   return Selection.near($pos, dir === 'after' ? 1 : -1);
 }
 
@@ -256,49 +211,6 @@ export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after'): boolea
       tr.setSelection(landOrDive(tr.doc, boundaryPos, dir));
       tr.setMeta(ROW_PAUSE_WRAPPED_META, rowWrapped);
       tr.setMeta(ROW_PAUSE_DIR_META, dir);
-      return true;
-    })
-    .scrollIntoView()
-    .run();
-}
-
-// Transizione fra DUE CELLE DIVERSE (stessa riga di tabella) - a
-// differenza di exitBoxBoundary sopra (che parte da un antenato box, e
-// quindi non scatta affatto se il cursore e' su testo normale senza
-// alcun TextBox/Collapse intorno), qui l'antenato cercato e' la cella
-// stessa: serve a intercettare ANCHE il caso "sono su testo normale in
-// una cella, la cella ACCANTO comincia con un box" (bug 2026-08-02: senza
-// questo controllo, muoversi fra celle passava per la normale
-// navigazione nativa di ProseMirror/prosemirror-tables, che non ha
-// nessuna cognizione dei nostri box e atterrava il cursore dritto dentro
-// il primo box della cella di destinazione, scavalcando sia il confine
-// fra le due celle sia l'ingresso nel box).
-//
-// Interviene SOLO se la cella accanto comincia (lato d'ingresso) con un
-// TextBox/Collapse - se il suo contenuto e' normale, non fa nulla e si
-// lascia il comportamento nativo di navigazione fra celle invariato
-// (esattamente come oggi, nessuna pausa in piu' per il caso comune).
-// Chiamata solo da ArrowLeft/ArrowRight (mai Up/Down, tiptapBlocks.tsx):
-// su/giu' passano alla cella nella riga sopra/sotto nella STESSA colonna,
-// una relazione strutturale diversa da "prima/dopo nella stessa riga" che
-// prev/nextSibling qui sotto assumono - fuori scopo per questo fix.
-export function exitCellBoundary(editor: Editor, dir: 'before' | 'after'): boolean {
-  const { selection, doc } = editor.state;
-  if (!selection.empty) return false;
-  const $from = selection.$from;
-  const cellDepth = findCellAncestorDepth($from);
-  if (cellDepth === null) return false;
-  if (!isAtBoxBoundary(doc, $from, cellDepth, dir === 'before' ? 'start' : 'end')) return false;
-
-  const boundaryPos = dir === 'before' ? $from.before(cellDepth) : $from.after(cellDepth);
-  const $boundary = doc.resolve(boundaryPos);
-  const neighborCell = dir === 'before' ? $boundary.nodeBefore : $boundary.nodeAfter;
-  if (!neighborCell || !isTableCell(neighborCell) || !cellEdgeNeedsPause(neighborCell, dir)) return false;
-
-  return editor
-    .chain()
-    .command(({ tr }) => {
-      tr.setSelection(new TextBoxEdgeCursor(tr.doc.resolve(boundaryPos)));
       return true;
     })
     .scrollIntoView()
@@ -575,17 +487,12 @@ export const TextBoxEdgeCursorExtension = Extension.create({
       return fn(selection);
     };
 
-    // Rientra nel box O nella cella da cui il cursore finto e' uscito
-    // (Escape, o freccia in direzione opposta a quella di uscita) -
-    // landOrDive dal lato giusto invece di una Selection.near diretta (bug
-    // 2026-08-02): se il vicino e' una CELLA (kind==='cell', il cursore
-    // era al confine fra due celle diverse, vedi exitCellBoundary sopra),
-    // muoversi verso di essa non deve tuffarsi dritto nel primo testo
-    // reale - deve prima controllare se il SUO stesso figlio d'ingresso e'
-    // a sua volta un box, fermandosi li' (stessa pausa "un livello alla
-    // volta" gia' applicata dentro una singola cella). Stessa logica
-    // riusata anche per kind==='box': un box il cui primo figlio e' un
-    // ALTRO box annidato si ferma anche rientrandoci, non solo uscendone.
+    // Rientra nel box da cui il cursore finto e' uscito (Escape, o freccia
+    // in direzione opposta a quella di uscita) - landOrDive dal lato
+    // giusto invece di una Selection.near diretta (bug 2026-08-02): un box
+    // il cui primo figlio e' un ALTRO box annidato si ferma anche
+    // rientrandoci, non solo uscendone, stessa pausa "un livello alla
+    // volta" gia' applicata in uscita.
     const reenterBox = (selection: TextBoxEdgeCursor, box: { side: 'before' | 'after' }) =>
       editor
         .chain()

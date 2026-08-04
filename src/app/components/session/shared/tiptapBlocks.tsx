@@ -2,7 +2,7 @@ import { Node, mergeAttributes, type Editor } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
 import { Selection, Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
 import { ChevronRight } from 'lucide-react';
-import { findBoxAncestorDepth, isAtBoxBoundary, exitBoxBoundary, exitCellBoundary } from './tiptapTextBoxEdgeCursor';
+import { findBoxAncestorDepth, isAtBoxBoundary, exitBoxBoundary } from './tiptapTextBoxEdgeCursor';
 
 // Vero fino a qualunque profondita' (non solo il genitore immediato) che il
 // cursore sia dentro un nodo di quel tipo - usata sotto per impedire
@@ -42,20 +42,30 @@ function isSelectionInside(state: EditorState, typeName: string): boolean {
 // scorciatoia dell'uno o dell'altro che gira nel keymap la gestisce, non
 // c'e' bisogno di sapere QUALE tipo specifico e' l'antenato trovato.
 //
-// ArrowLeft/Right provano ANCHE exitCellBoundary se exitBoxBoundary non
-// scatta (bug 2026-08-02: passando da una cella "esterna" - anche senza
-// alcun box, testo normale - a una cella che INIZIA con un TextBox/Collapse,
-// la normale navigazione fra celle di ProseMirror non ha nessuna cognizione
-// dei nostri box e ci faceva atterrare dritti dentro, scavalcando sia il
-// confine fra le due celle sia l'ingresso nel box). Solo Left/Right, MAI
-// Up/Down: su/giu' vanno alla cella nella riga sopra/sotto nella STESSA
-// colonna, una relazione diversa da "cella precedente/successiva nella
-// stessa riga" su cui exitCellBoundary si basa - fuori scopo qui.
+// Attraversare il confine fra DUE CELLE diverse (stessa riga di tabella)
+// NON passa piu' da qui (bug 2026-08-02, rimosso 2026-08-05): esisteva un
+// controllo dedicato (exitCellBoundary) che, se la cella di destinazione
+// iniziava/finiva con un TextBox/Collapse, ci faceva fermare un livello
+// alla volta invece di atterrare dritti dentro - stessa filosofia "un
+// livello alla volta" usata dentro una cella. Rimosso su richiesta
+// esplicita (2026-08-05, "regola fissa e senza eccezioni, che ignori
+// completamente qualunque elemento/testo nella cella di destinazione"):
+// dopo tre giri di fix sempre piu' fragili sui soli casi limite del
+// wrap/centratura, un salto diretto e incondizionato all'inizio/fine
+// della cella di destinazione (qualunque cosa contenga) e' piu' robusto
+// e prevedibile di un ennesimo caso speciale - senza ALCUN codice
+// dedicato: e' semplicemente il comportamento nativo di
+// prosemirror-tables quando nessuna scorciatoia lo intercetta (return
+// false qui sotto se exitBoxBoundary non scatta), lo stesso già usato
+// oggi dalla prosecuzione da un cursore finto gia' attivo (exitArrow in
+// tiptapTextBoxEdgeCursor.ts, mai passata da exitCellBoundary neppure
+// prima d'ora). Resta invariato SOLO l'attraversamento DENTRO la stessa
+// cella (fra box fratelli/annidati), gestito da exitBoxBoundary sopra.
 function createEdgeAwareKeyboardShortcuts(editor: Editor) {
   return {
-    ArrowLeft: () => exitBoxBoundary(editor, 'before') || exitCellBoundary(editor, 'before'),
+    ArrowLeft: () => exitBoxBoundary(editor, 'before'),
     ArrowUp: () => exitBoxBoundary(editor, 'before'),
-    ArrowRight: () => exitBoxBoundary(editor, 'after') || exitCellBoundary(editor, 'after'),
+    ArrowRight: () => exitBoxBoundary(editor, 'after'),
     ArrowDown: () => exitBoxBoundary(editor, 'after'),
     // Cancella l'intero nodo (non solo il paragrafo vuoto) quando il
     // cursore e' esattamente a inizio contenuto - equivalente esatto di
