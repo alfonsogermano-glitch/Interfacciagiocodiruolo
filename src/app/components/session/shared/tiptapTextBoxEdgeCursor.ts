@@ -231,10 +231,31 @@ export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after'): boolea
 
   const boundaryPos = dir === 'before' ? $from.before(boxDepth) : $from.after(boxDepth);
 
+  // Rilevamento anticipato di un a-capo di riga flex (bug 2026-08-04, "il
+  // fix di ieri corregge troppo": una singola freccia scavalcava fine-
+  // riga-1 e atterrava dritta a inizio-riga-2, saltando una fermata) -
+  // misurato QUI, PRIMA della transazione sotto, sui due box reali ancora
+  // affiancati nel DOM (nessun widget di mezzo finche' la transazione non
+  // parte): box1.nextElementSibling e' ancora letteralmente box2, la
+  // stessa relazione che syncEdgeCursorRow sfrutta a posteriori sul
+  // widget. Solo per dir 'after' (uscita verso destra): l'altra direzione
+  // (uscita da un box verso sinistra) atterra gia' correttamente sulla
+  // riga giusta con la correzione immediata esistente, nessuna fermata in
+  // piu' richiesta o segnalata li' (non e' il caso riportato).
+  let rowWrapped = false;
+  if (dir === 'after') {
+    const afterDom = editor.view.nodeDOM(boundaryPos) as HTMLElement | null;
+    const beforeDom = afterDom?.previousElementSibling as HTMLElement | null;
+    if (afterDom && beforeDom) {
+      rowWrapped = Math.abs(afterDom.getBoundingClientRect().top - beforeDom.getBoundingClientRect().top) > 1;
+    }
+  }
+
   return editor
     .chain()
     .command(({ tr }) => {
       tr.setSelection(landOrDive(tr.doc, boundaryPos, dir));
+      tr.setMeta(ROW_PAUSE_WRAPPED_META, rowWrapped);
       return true;
     })
     .scrollIntoView()
@@ -317,20 +338,28 @@ export function exitCellBoundary(editor: Editor, dir: 'before' | 'after'): boole
 // qui riproposto SOLO come correzione di eccezione per il caso limite
 // del wrap, non come sostituto del flex layout che gestisce gia'
 // correttamente il 99% dei casi (nessuna riga visiva coinvolta).
-function syncEdgeCursorRow(widget: HTMLElement) {
-  // Ripristina PRIMA di misurare: ProseMirror riusa lo stesso nodo DOM per
-  // la stessa "key" di decorazione anche quando la posizione nel modello
-  // cambia (bug scoperto dal vivo: il cursore fra box0/box1, sulla STESSA
-  // riga, veniva scorrettamente ricorretto perche' l'inline style
-  // position:absolute lasciato da una correzione precedente - fra box1/
-  // box2, righe diverse - falsava getBoundingClientRect() qui sotto,
-  // facendo sembrare "disallineata" anche una posizione gia' corretta di
-  // suo). Senza reset preventivo, ogni misurazione sarebbe relativa
-  // all'ultima correzione anziche' al layout flex naturale.
+// Ripristina PRIMA di misurare: ProseMirror riusa lo stesso nodo DOM per
+// la stessa "key" di decorazione anche quando la posizione nel modello
+// cambia (bug scoperto dal vivo: il cursore fra box0/box1, sulla STESSA
+// riga, veniva scorrettamente ricorretto perche' l'inline style
+// position:absolute lasciato da una correzione precedente - fra box1/
+// box2, righe diverse - falsava getBoundingClientRect() qui sotto,
+// facendo sembrare "disallineata" anche una posizione gia' corretta di
+// suo). Senza reset preventivo, ogni misurazione sarebbe relativa
+// all'ultima correzione anziche' al layout flex naturale. Estratta a
+// parte (bug 2026-08-04) perche' serve anche da sola, senza rimisurare:
+// la fase "natural" sotto (prima fermata su un vero a-capo) deve poter
+// ripulire un residuo di una correzione precedente senza per questo
+// riapplicarne subito una nuova.
+function resetEdgeCursorRowOverride(widget: HTMLElement) {
   widget.style.position = '';
   widget.style.top = '';
   widget.style.left = '';
   widget.style.margin = '';
+}
+
+function syncEdgeCursorRow(widget: HTMLElement) {
+  resetEdgeCursorRowOverride(widget);
 
   const next = widget.nextElementSibling as HTMLElement | null;
   const container = widget.parentElement as HTMLElement | null;
@@ -363,12 +392,62 @@ function syncEdgeCursorRow(widget: HTMLElement) {
   widget.style.margin = '0';
 }
 
+// Meta di transazione per la "pausa di riga": ROW_PAUSE_WRAPPED_META e'
+// impostata da exitBoxBoundary SOLO quando crea un cursore finto uscendo
+// verso destra ('after') e ha misurato in anticipo (PRIMA della
+// transazione, sui due box reali ancora affiancati nel DOM, nessun widget
+// di mezzo) che il box successivo e' gia' su una riga visiva diversa
+// (flex-wrap) - vedi li' sotto per il motivo per cui la misura va fatta
+// PRIMA, non dopo. Se assente/false, il cursore appena creato parte
+// direttamente in fase 'corrected' (comportamento identico a prima di
+// questo fix per OGNI caso che non sia un vero a-capo: nessuna fermata in
+// piu' introdotta per il caso comune "due box sulla stessa riga").
+// ROW_PAUSE_ADVANCE_META e' impostata da exitArrow (tiptapBlocks.tsx la
+// invoca indirettamente via editor.chain()) quando l'utente preme di
+// nuovo la stessa freccia mentre il cursore e' fermo in fase 'natural':
+// fa avanzare la fase a 'corrected' SENZA muovere la selezione, cosi' il
+// prossimo update() applica davvero la correzione di riga - una fermata
+// separata, non la stessa della creazione.
+const ROW_PAUSE_WRAPPED_META = 'textBoxEdgeCursorRowWrapped';
+const ROW_PAUSE_ADVANCE_META = 'textBoxEdgeCursorRowAdvance';
+
+type EdgeCursorRowPauseState = { pos: number; phase: 'natural' | 'corrected' } | null;
+
+// PluginKey tipizzata (non anonima come le altre in questo file): serve a
+// leggere lo stato da fuori il plugin stesso, dentro exitArrow
+// (addKeyboardShortcuts sotto), per decidere se questa pressione deve
+// solo far avanzare la fase o puo' gia' rientrare nel box.
+const textBoxEdgeCursorPluginKey = new PluginKey<EdgeCursorRowPauseState>('textBoxEdgeCursor');
+
 export const TextBoxEdgeCursorExtension = Extension.create({
   name: 'textBoxEdgeCursor',
   addProseMirrorPlugins() {
     return [
       new Plugin({
-        key: new PluginKey('textBoxEdgeCursor'),
+        key: textBoxEdgeCursorPluginKey,
+        // Traccia posizione+fase del cursore finto corrente (bug
+        // 2026-08-04, "il fix di ieri corregge troppo": uscendo da un box
+        // che e' l'ultimo della sua riga visiva verso un fratello gia'
+        // andato a capo, servono DUE fermate separate - prima a fine riga
+        // corrente ('natural', nessuna correzione applicata), poi a inizio
+        // riga successiva ('corrected', dopo una seconda pressione della
+        // stessa freccia) - solo alla terza pressione si rientra
+        // davvero nel box. Per qualunque cursore che NON e' un vero
+        // a-capo (compreso il caso comune due-box-stessa-riga) la fase e'
+        // 'corrected' fin da subito, nessuna fermata in piu' rispetto a
+        // prima di questo fix.
+        state: {
+          init: (): EdgeCursorRowPauseState => null,
+          apply(tr, value): EdgeCursorRowPauseState {
+            const sel = tr.selection;
+            if (!(sel instanceof TextBoxEdgeCursor)) return null;
+            if (value && value.pos === sel.head) {
+              return tr.getMeta(ROW_PAUSE_ADVANCE_META) ? { pos: value.pos, phase: 'corrected' } : value;
+            }
+            const wrapped = tr.getMeta(ROW_PAUSE_WRAPPED_META) === true;
+            return { pos: sel.head, phase: wrapped ? 'natural' : 'corrected' };
+          },
+        },
         props: {
           // flex-wrap (theme.css) posiziona il widget da solo sulla STESSA
           // riga flex del box adiacente nel caso comune (nessun avvolgimento
@@ -406,16 +485,35 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         // com'e', caso limite entro un limite gia' accettato per lo stesso
         // motivo.
         view() {
-          let lastKey: number | null = null;
+          // Chiave composta pos+fase (non solo pos, bug 2026-08-04): la
+          // transazione di "avanzamento" (ROW_PAUSE_ADVANCE_META) cambia
+          // SOLO la fase, mai la posizione - un dedup per sola posizione
+          // la vedrebbe identica alla precedente e salterebbe l'update,
+          // lasciando la correzione di riga non applicata nonostante
+          // l'utente abbia gia' premuto la freccia una seconda volta.
+          let lastKey: string | null = null;
           return {
             update(view: EditorView) {
-              const { selection } = view.state;
-              const key = selection instanceof TextBoxEdgeCursor ? selection.head : null;
+              const pauseState = textBoxEdgeCursorPluginKey.getState(view.state);
+              const key = pauseState ? `${pauseState.pos}:${pauseState.phase}` : null;
               if (key === lastKey) return;
               lastKey = key;
-              if (key === null) return;
+              if (!pauseState) return;
               const widget = view.dom.querySelector<HTMLElement>('.tiptap-textbox-edge-cursor');
-              if (widget) syncEdgeCursorRow(widget);
+              if (!widget) return;
+              if (pauseState.phase === 'natural') {
+                // Prima fermata su un vero a-capo: nessuna misurazione/
+                // correzione qui, il widget resta dove il flex layout lo
+                // metterebbe da solo (fine della riga corrente) finche'
+                // l'utente non conferma con una seconda pressione della
+                // stessa freccia (exitArrow sotto). Reset comunque
+                // necessario: il nodo DOM puo' essere lo stesso riusato da
+                // una correzione precedente ad un'ALTRA posizione (vedi
+                // resetEdgeCursorRowOverride).
+                resetEdgeCursorRowOverride(widget);
+                return;
+              }
+              syncEdgeCursorRow(widget);
             },
           };
         },
@@ -475,7 +573,26 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         // adjacentBox sopra): premere la freccia che punta VERSO il lato del
         // box (dir === box.side) rientra nel box; l'altra direzione
         // prosegue oltre.
-        if (dir === box.side) return reenterBox(selection, box);
+        if (dir === box.side) {
+          // Fermata di riga ancora da confermare (bug 2026-08-04, vedi
+          // ROW_PAUSE_WRAPPED_META sopra): questa pressione non rientra nel
+          // box, si limita a far avanzare la fase 'natural'->'corrected'
+          // (nessun cambio di selezione/posizione, solo la meta) cosi' il
+          // prossimo update() del plugin applica la correzione di riga.
+          // Una TERZA pressione della stessa freccia trovera' la fase gia'
+          // 'corrected' e rientrera' davvero nel box, come sempre.
+          const pauseState = textBoxEdgeCursorPluginKey.getState(editor.state);
+          if (pauseState && pauseState.pos === selection.head && pauseState.phase === 'natural') {
+            return editor
+              .chain()
+              .command(({ tr }) => {
+                tr.setMeta(ROW_PAUSE_ADVANCE_META, true);
+                return true;
+              })
+              .run();
+          }
+          return reenterBox(selection, box);
+        }
 
         // Direzione opposta al lato del box: prosegue oltre. Riprova PRIMA
         // exitBoxBoundary sulla posizione attuale: se questo cursore finto

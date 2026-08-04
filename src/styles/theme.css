@@ -584,28 +584,36 @@
    viene toccata da un font-size inline locale (il mark fontSize imposta
    solo la proprieta' font-size, mai la custom property), quindi calc() la
    legge sempre stabile a prescindere da dove nel DOM finisca il widget.
-   margin-left/-right negativi pari a --tiptap-box-gap (bug 2026-08-02,
-   "il cursore occupa piu' spazio di quanto reso visivamente"): column-gap
-   del contenitore flex si inserisce fra QUALUNQUE coppia di item adiacenti,
-   cursore compreso - senza compensazione, il widget da 1px di fatto
-   prenotava 1px+gap (o 1px+2*gap se fra due box), bastante a mandare a
-   capo l'ultimo box di una riga gia' piena al 100%. :first-child annulla
-   il gap DOPO di se' (non esiste un gap "prima" quando non c'e' nulla
-   prima); il caso "in mezzo a due box" (ne' primo ne' ultimo figlio) e'
-   sotto separato dal caso "ultimo figlio" (bug 2026-08-02, "cursore non
-   piu' centrato, spostato a sinistra": annullare un gap INTERO da un solo
-   lato lo faceva toccare il bordo del box a sinistra, con tutto lo spazio
-   residuo solo a destra) - annulla META' gap per lato, lasciando un
-   piccolo margine uguale su entrambi i lati (il totale resta comunque
+   margin-left/-right pari a META' di --tiptap-box-gap, stesso valore per
+   OGNI posizione del cursore incluse le due estremita' (bug 2026-08-04,
+   "cursore non centrato quando fuori dal primo/ultimo box" - stessa
+   identica logica del caso centrale, che pero' non copriva ancora gli
+   estremi): column-gap del contenitore flex si inserisce fra QUALUNQUE
+   coppia di item adiacenti, cursore compreso - senza compensazione, il
+   widget da 1px di fatto prenotava 1px+gap (o 1px+2*gap se fra due box),
+   bastante a mandare a capo l'ultimo box di una riga gia' piena al 100%.
+   Annullare l'INTERO gap da un solo lato (comportamento precedente per
+   :first-child/:last-child) faceva toccare il cursore al bordo del box
+   adiacente, con tutto lo spazio residuo dall'altro lato - stesso bug gia'
+   risolto per il caso centrale (bug 2026-08-02, "cursore non piu'
+   centrato, spostato a sinistra"): annullando solo META' gap per lato si
+   lascia un margine uguale su entrambi i lati (il totale resta comunque
    ESATTAMENTE un gap solo, uguale a quando il cursore non c'e', solo
-   distribuito in due meta' invece che azzerato da un lato). Il caso
-   "ultimo figlio" (o unico fratello, senza box dopo) resta invece con
-   l'annullamento pieno da un lato solo: nessun secondo bordo con cui
-   restare centrato, quindi va bene che tocchi quello di sinistra. Nessun
-   caso speciale per :only-child: :first-child la copre gia', e un
-   margin-right negativo senza nulla dopo non ha alcun effetto visivo
-   (riduce solo il calcolo interno di larghezza della riga, il rendering
-   del widget stesso resta invariato).
+   distribuito in due meta' invece che azzerato da un lato).
+   Le due estremita' differiscono dal caso centrale SOLO nel segno di UN
+   margine: :first-child non ha alcun gap reale prima di se' (e' il primo
+   item flex, column-gap non si applica mai prima del primo ne' dopo
+   l'ultimo) - un margin-left negativo lo spingerebbe fuori dal bordo del
+   contenitore invece di centrarlo. Serve percio' un margin-left POSITIVO
+   (mezzo gap, non piu' azzerato a 0) per creare lo stesso respiro visivo
+   che il caso centrale ottiene gratis da un gap gia' esistente prima di
+   se'; margin-right resta negativo come nella regola di base, a
+   compensare il gap che il flex layout inserisce ora fra il cursore e il
+   box dopo di lui. Specularmente per :last-child (solo margin-right
+   positivo). Nessun caso speciale per :only-child: le due regole si
+   sommano da sole (margin-left positivo da :first-child, margin-right
+   positivo da :last-child), centrando comunque il cursore fra i due bordi
+   del contenitore.
    margin-top: calc(0.5rem + 1px) (bug 2026-08-02, "cursore disallineato
    in altezza" nonostante l'altezza numerica gia' corretta): align-items:
    flex-start (sopra) allinea il TOP del widget al top della riga flex,
@@ -629,18 +637,17 @@
   height: calc(var(--font-size, 16px) * 1.2);
   width: 1px;
   margin-top: calc(0.5rem + 1px);
-  margin-left: calc(-1 * var(--tiptap-box-gap));
+  margin-left: calc(-0.5 * var(--tiptap-box-gap));
+  margin-right: calc(-0.5 * var(--tiptap-box-gap));
   background-color: var(--dash-text-strong);
   pointer-events: none;
   animation: tiptap-textbox-edge-cursor-blink 1.05s steps(2, start) infinite;
 }
 .tiptap-textbox-edge-cursor:first-child {
-  margin-left: 0;
-  margin-right: calc(-1 * var(--tiptap-box-gap));
+  margin-left: calc(0.5 * var(--tiptap-box-gap));
 }
-.tiptap-textbox-edge-cursor:not(:first-child):not(:last-child) {
-  margin-left: calc(-0.5 * var(--tiptap-box-gap));
-  margin-right: calc(-0.5 * var(--tiptap-box-gap));
+.tiptap-textbox-edge-cursor:last-child {
+  margin-right: calc(0.5 * var(--tiptap-box-gap));
 }
 @keyframes tiptap-textbox-edge-cursor-blink {
   to {
