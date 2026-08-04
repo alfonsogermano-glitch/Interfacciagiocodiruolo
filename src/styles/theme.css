@@ -407,11 +407,27 @@
    lista dentro un TextBox continua a occupare l'intera riga esattamente
    come prima, la condivisione della riga scatta SOLO fra due
    TextBox/Collapse annidati fratelli, esattamente come gia' succede
-   dentro una cella di tabella. */
+   dentro una cella di tabella.
+   min-width:0 (bug 2026-08-05, "una sequenza lunga di caratteri
+   ininterrotta in una cella non va piu' a capo, esce dalla tabella"):
+   ogni item flex ha un min-width AUTOMATICO pari al proprio min-content
+   (qui, la stringa ininterrotta piu' lunga al suo interno) a meno di non
+   annullarlo esplicitamente - standard CSS, indipendente da flex-basis o
+   da qualunque overflow-wrap impostato sull'elemento stesso o su un
+   antenato. table td/th sopra hanno gia' overflow-wrap:break-word (serve
+   per table-layout:fixed), ma quella regola puo' mandare a capo un
+   testo SOLO se il box che lo contiene puo' restringersi sotto la
+   larghezza della stringa - da quando il paragrafo e' un item flex
+   (sopra), il min-width automatico glielo impediva, il testo restava
+   largo quanto la stringa e usciva dalla cella invece di andare a capo.
+   Nessun effetto sul caso comune (testo che va gia' a capo normalmente,
+   flex-basis:100% comunque presente): min-width:0 abbassa solo il
+   LIMITE INFERIORE di restringimento, mai la dimensione preferita. */
 .tiptap-td-flex > *,
 .tiptap-textbox-content > *,
 .tiptap-collapse-body > * {
   flex: 1 1 100%;
+  min-width: 0;
 }
 /* TextBox/Collapse: flex-grow:1 permette la stessa identica meccanica in
    ENTRAMBI i casi senza contare quanti fratelli ci sono via JS - da solo
