@@ -217,91 +217,76 @@ export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after'): boolea
     .run();
 }
 
-// Riallinea via JS la riga VISIVA del widget quando il flex-wrap l'ha
-// lasciato sulla riga sbagliata (bug 2026-08-02, "3 TextBox affiancate,
-// la terza va a capo, il cursore finto sembra saltarci dentro"): il
-// MODELLO non ha alcun concetto di "riga visiva 2" (tre fratelli piatti
-// nella stessa cella, l'a-capo e' un puro artefatto del flex-wrap CSS a
-// runtime) - il posizionamento del widget e' gia' corretto un livello
-// alla volta (verificato: servono ancora due frecce per entrare
-// davvero nel terzo box), ma la sua RIGA VISIVA no: flex-wrap decide in
-// base alla sua "hypothetical size" (minuscola) se entra nella riga
-// corrente, che quasi sempre "ci sta" anche quando il box che lo segue
-// nel DOM e' gia' stato spinto alla riga successiva - il widget resta
-// incollato in coda alla riga 1 (a volte sconfinando oltre il bordo
-// della cella) invece di comparire all'inizio della riga 2, prima del
-// box che lo segue.
-//
-// Non risolvibile con un trucco CSS puro equivalente a quello usato per
-// .tiptap-td-flex/.tiptap-textbox-content sopra: un flex-basis grande
-// abbastanza da forzare l'a-capo (l'unico modo per "spingere" un item
-// flex sulla riga successiva) diventerebbe anche la sua dimensione
-// RESA finale sulla nuova riga (flex-shrink non entra in gioco se quella
-// riga non va in overflow) - un cursore che dovrebbe restare 1px
-// renderizzerebbe invece largo quanto il valore forzato. L'unico modo
-// per ottenere "stessa riga del box successivo, 1px di larghezza" e'
-// misurare le coordinate REALI dopo il render (getBoundingClientRect,
-// unica fonte di verita' per "riga visiva", il modello non la conosce)
-// e, se non combaciano, riposizionare il widget con position:absolute
-// (rispetto al contenitore flex, reso position:relative in theme.css
-// solo per questo) esattamente dove si trova il box successivo - un
-// ritorno mirato e isolato al vecchio meccanismo position:absolute +
-// misurazione DOM (rimosso nel 2026-08-01 come meccanismo PRINCIPALE),
-// qui riproposto SOLO come correzione di eccezione per il caso limite
-// del wrap, non come sostituto del flex layout che gestisce gia'
-// correttamente il 99% dei casi (nessuna riga visiva coinvolta).
-// Ripristina PRIMA di misurare: ProseMirror riusa lo stesso nodo DOM per
-// la stessa "key" di decorazione anche quando la posizione nel modello
-// cambia (bug scoperto dal vivo: il cursore fra box0/box1, sulla STESSA
-// riga, veniva scorrettamente ricorretto perche' l'inline style
-// position:absolute lasciato da una correzione precedente - fra box1/
-// box2, righe diverse - falsava getBoundingClientRect() qui sotto,
-// facendo sembrare "disallineata" anche una posizione gia' corretta di
-// suo). Senza reset preventivo, ogni misurazione sarebbe relativa
-// all'ultima correzione anziche' al layout flex naturale. Estratta a
-// parte (bug 2026-08-04) perche' serve anche da sola, senza rimisurare:
-// la fase "natural" sotto (prima fermata su un vero a-capo) deve poter
-// ripulire un residuo di una correzione precedente senza per questo
-// riapplicarne subito una nuova.
-function resetEdgeCursorRowOverride(widget: HTMLElement) {
-  widget.style.position = '';
-  widget.style.top = '';
-  widget.style.left = '';
-  widget.style.margin = '';
+// Nome di classe di un TextBox/Collapse RESO (non il nome di nodo dello
+// schema, isSideBySideBox sopra lavora su ProseMirrorNode - qui serve il
+// suo equivalente DOM, per riconoscere i veri VICINI del widget nel
+// markup effettivo).
+function isBoxElement(el: Element | null): el is HTMLElement {
+  return !!el && (el.classList.contains('tiptap-textbox') || el.classList.contains('tiptap-collapse'));
 }
 
-function syncEdgeCursorRow(widget: HTMLElement) {
-  resetEdgeCursorRowOverride(widget);
+// Calcolo UNICO della posizione del cursore finto (bug 2026-08-05,
+// riscrittura completa: sostituisce sia le regole CSS per-caso
+// (:first-child/:last-child/centrale in theme.css) sia la correzione JS
+// di eccezione per l'a-capo che c'era prima - un solo meccanismo, sempre
+// attivo, per ogni contesto geometrico (primo/ultimo/in mezzo/annidato/
+// a-capo), invece di doverli tenere manualmente coerenti fra loro (causa
+// diretta degli ultimi 5 round di fix, ognuno dei quali ne rompeva un
+// altro - es. l'approssimazione "-4px" della vecchia correzione a-capo
+// non e' mai stata aggiornata quando gli estremi sono passati a "flush",
+// restando silenziosamente incoerente).
+//
+// widget.previousElementSibling/nextElementSibling danno gia' i VERI
+// vicini nel DOM (il widget e' comunque inserito nel flusso alla
+// posizione giusta dalla decorazione, solo il suo RENDERING e'
+// position:absolute) - nessun bisogno di risalire al modello/nodeDOM: la
+// stessa identica funzione, senza rami dedicati, gestisce:
+// - un solo vicino reale (estremi, o box affiancato a un blocco normale
+//   che occupa l'intera riga): flush contro di lui, 0px (bug 2026-08-04/
+//   05, "qualunque gap inventato verso l'unico vicino e' spazio
+//   indesiderato" - verificato dal vivo).
+// - due vicini reali sulla STESSA riga visiva (caso centrale): centrato
+//   fra i due bordi (bug 2026-08-02), calcolato come midpoint reale
+//   invece che da --tiptap-box-gap - resta corretto anche se il gap CSS
+//   cambia.
+// - due vicini reali su righe DIVERSE (a-capo, bug 2026-08-02): stesso
+//   trattamento "un solo vicino" sopra, scegliendo quale dei due tramite
+//   preferSide (riflette la fase natural/corrected della pausa a due
+//   fermate - vedi Plugin.state sotto, logica di navigazione invariata).
+function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after') {
+  const container = widget.parentElement;
+  if (!container) return;
 
-  const next = widget.nextElementSibling as HTMLElement | null;
-  const container = widget.parentElement as HTMLElement | null;
-  if (!next || !container || !(next.classList.contains('tiptap-textbox') || next.classList.contains('tiptap-collapse'))) return;
+  const prevEl = widget.previousElementSibling;
+  const nextEl = widget.nextElementSibling;
+  const boxBefore = isBoxElement(prevEl) ? prevEl : null;
+  const boxAfter = isBoxElement(nextEl) ? nextEl : null;
+  if (!boxBefore && !boxAfter) return; // difensivo: per costruzione ce n'e' sempre almeno uno
 
-  // Il widget ha un margin-top intenzionale (allineamento verticale col
-  // testo del box adiacente, bug 2026-08-02 di un giro precedente) che lo
-  // sposta SEMPRE un po' piu' in basso del bordo superiore della riga
-  // flex rispetto al box (che non ha quel margine, e' lui stesso a
-  // definire l'inizio della riga) - va sottratto PRIMA di confrontare,
-  // altrimenti quello scarto atteso verrebbe scambiato per un a-capo
-  // anche quando sono sulla stessa riga (bug scoperto dal vivo: il
-  // cursore fra due box sulla stessa riga veniva ricorretto per errore).
-  const widgetMarginTop = parseFloat(getComputedStyle(widget).marginTop) || 0;
-  const widgetRowTop = widget.getBoundingClientRect().top - widgetMarginTop;
-  const mismatched = Math.abs(next.getBoundingClientRect().top - widgetRowTop) > 1;
+  const containerRect = container.getBoundingClientRect();
+  const beforeRect = boxBefore?.getBoundingClientRect() ?? null;
+  const afterRect = boxAfter?.getBoundingClientRect() ?? null;
 
-  if (!mismatched) return;
+  const sameRow = !!beforeRect && !!afterRect && Math.abs(beforeRect.top - afterRect.top) <= 1;
 
-  const containerRect = container!.getBoundingClientRect();
-  const nextRect = next!.getBoundingClientRect();
+  let top: number;
+  let left: number;
+  if (sameRow) {
+    top = beforeRect!.top - containerRect.top;
+    left = (beforeRect!.right + afterRect!.left) / 2 - containerRect.left;
+  } else {
+    // Un solo vicino disponibile (estremi/a-capo): preferSide sceglie fra
+    // i due quando ENTRAMBI esistono ma su righe diverse; altrimenti
+    // vince comunque l'unico che c'e' davvero (preferSide ignorato).
+    const useAfter = !!afterRect && (preferSide === 'after' || !beforeRect);
+    const rect = useAfter ? afterRect! : beforeRect!;
+    top = rect.top - containerRect.top;
+    left = (useAfter ? rect.left : rect.right) - containerRect.left;
+  }
+
   widget.style.position = 'absolute';
-  widget.style.top = `${nextRect.top - containerRect.top}px`;
-  // 4px: stessa meta' gap usata per il caso "fra due box" allineato
-  // (.tiptap-textbox-edge-cursor:not(:first-child):not(:last-child) in
-  // theme.css) - qui solo approssimata (non e' detto ci sia un box PRIMA
-  // su questa nuova riga con cui centrarsi), sufficiente per un piccolo
-  // distacco visivo dal box che segue senza toccarne il bordo.
-  widget.style.left = `${nextRect.left - containerRect.left - 4}px`;
-  widget.style.margin = '0';
+  widget.style.top = `${top}px`;
+  widget.style.left = `${left}px`;
 }
 
 // Meta di transazione per la "pausa di riga": ROW_PAUSE_WRAPPED_META e'
@@ -381,12 +366,11 @@ export const TextBoxEdgeCursorExtension = Extension.create({
           },
         },
         props: {
-          // flex-wrap (theme.css) posiziona il widget da solo sulla STESSA
-          // riga flex del box adiacente nel caso comune (nessun avvolgimento
-          // di mezzo) - view() sotto corregge SOLO il caso limite in cui il
-          // flex-wrap CSS ha effettivamente mandato a capo il box successivo
-          // (vedi syncEdgeCursorRow sopra per il perche' non e' risolvibile
-          // in puro CSS).
+          // Il widget nasce qui senza alcuna posizione (position:absolute
+          // e' impostato in CSS, ma top/left no) - view() sotto la calcola
+          // SEMPRE dal vivo (positionEdgeCursor), subito dopo il mount,
+          // nella stessa fase di update sincrona con questa decorazione
+          // (nessun frame intermedio visibile).
           decorations(state) {
             const { selection } = state;
             if (!(selection instanceof TextBoxEdgeCursor)) return null;
@@ -435,35 +419,23 @@ export const TextBoxEdgeCursorExtension = Extension.create({
               const widget = view.dom.querySelector<HTMLElement>('.tiptap-textbox-edge-cursor');
               if (!widget) return;
 
-              // La RESA "in attesa" e' opposta nelle due direzioni (bug
-              // 2026-08-05, vedi ROW_PAUSE_DIR_META sopra per il
-              // ragionamento completo): uscendo verso destra ('after') il
-              // primo arrivo (confirmed=false) deve restare sulla riga
-              // corrente (nessuna correzione, la conferma la applica);
-              // uscendo verso sinistra ('before') e' l'OPPOSTO - il primo
-              // arrivo deve mostrare subito la riga da cui si e' usciti
-              // (correzione applicata), e' la conferma a toglierla,
-              // rivelando la riga precedente verso cui ci si sta
-              // muovendo. Se non e' affatto un a-capo (!wrapped), nessuna
-              // attesa in nessun caso: applica sempre (syncEdgeCursorRow
-              // si limita da sola a un no-op se non c'e' davvero un
-              // mismatch, stesso comportamento di sempre per il caso
-              // comune due-box-stessa-riga).
-              const shouldApply =
-                !pauseState.wrapped || (pauseState.dir === 'after' ? pauseState.confirmed : !pauseState.confirmed);
-
-              if (!shouldApply) {
-                // In attesa: nessuna misurazione/correzione qui, il
-                // widget resta dove il flex layout lo metterebbe da solo
-                // finche' l'utente non conferma con una seconda pressione
-                // della stessa freccia (exitArrow sotto). Reset comunque
-                // necessario: il nodo DOM puo' essere lo stesso riusato da
-                // una correzione precedente ad un'ALTRA posizione (vedi
-                // resetEdgeCursorRowOverride).
-                resetEdgeCursorRowOverride(widget);
-                return;
-              }
-              syncEdgeCursorRow(widget);
+              // preferSide riflette la fase natural/corrected della pausa
+              // a-capo (bug 2026-08-05, vedi ROW_PAUSE_DIR_META sopra per
+              // il ragionamento completo su perche' le due direzioni
+              // preferiscono lati opposti prima/dopo la conferma) -
+              // ininfluente quando i due vicini sono sulla stessa riga o
+              // ce n'e' uno solo (positionEdgeCursor lo ignora in quei
+              // casi). Se non c'e' affatto un a-capo in corso (!wrapped),
+              // il valore e' comunque irrilevante per lo stesso motivo.
+              const preferSide: 'before' | 'after' =
+                pauseState.dir === 'after'
+                  ? pauseState.confirmed
+                    ? 'after'
+                    : 'before'
+                  : pauseState.confirmed
+                    ? 'before'
+                    : 'after';
+              positionEdgeCursor(widget, preferSide);
             },
           };
         },

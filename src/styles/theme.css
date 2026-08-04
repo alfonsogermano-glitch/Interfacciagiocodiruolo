@@ -380,11 +380,12 @@
   align-items: flex-start;
   column-gap: var(--tiptap-box-gap);
   width: 100%;
-  /* position:relative SOLO come contesto per l'eccezionale
-     position:absolute che tiptapTextBoxEdgeCursor.ts (syncEdgeCursorRow)
-     applica al cursore finto quando il flex-wrap l'ha lasciato sulla riga
-     visiva sbagliata (bug 2026-08-02) - nessun effetto sul layout normale
-     (nessun top/left impostato qui). */
+  /* position:relative come contesto per il cursore finto
+     (.tiptap-textbox-edge-cursor sotto, tiptapTextBoxEdgeCursor.ts -
+     position:absolute SEMPRE, calcolato dal vivo, non piu' un item flex -
+     bug 2026-08-05 "riscrivi il posizionamento in un unico calcolo JS
+     invece di regole CSS diverse per ogni caso geometrico") - nessun
+     effetto sul layout dei box reali (nessun top/left impostato qui). */
   position: relative;
 }
 /* Ogni figlio diretto del wrapper e' un item flex (conseguenza di
@@ -545,114 +546,48 @@
   flex-wrap: wrap;
   align-items: flex-start;
   column-gap: var(--tiptap-box-gap);
-  /* Stesso motivo di .tiptap-td-flex sopra: contesto per l'eccezionale
-     position:absolute del cursore finto sul wrap sbagliato (bug
-     2026-08-02, tiptapTextBoxEdgeCursor.ts). */
+  /* Stesso motivo di .tiptap-td-flex sopra: contesto per il cursore finto,
+     sempre position:absolute (tiptapTextBoxEdgeCursor.ts). */
   position: relative;
 }
 
 /* Cursore finto al confine di un TextBox/Collapse (tiptapTextBoxEdgeCursor.ts)
    - barra verticale sottile stile caret nativo, colore coerente col testo
-   (--dash-text-strong, stessa palette del resto dell'editor). Il widget e'
-   semplicemente un altro item flex fra i tanti nel contenitore che lo
-   ospita - cella (.tiptap-td-flex), TextBox (.tiptap-textbox-content) o
-   corpo di un Collapse (.tiptap-collapse-body), tutti e tre lo stesso
-   layout flex sopra: flex:0 0 auto (non cresce/non si restringe, si
-   dimensiona sulla propria larghezza) garantisce lo stesso comportamento
-   OVUNQUE finisca nel DOM, a qualunque profondita' di annidamento (bug
-   2026-08-02: prima che .tiptap-textbox-content/.tiptap-collapse-body
-   diventassero flex, il widget poteva finirci dentro nei casi limite senza
-   che flex/height avessero alcun effetto, restando invisibile o con
-   un'altezza sbagliata invece di una barra sulla stessa riga) - niente
-   piu' position:absolute ne' calcolo di coordinate in JS (rimosso
-   2026-08-01, positionEdgeCursor/nearestPositionedAncestor - non servono
-   piu' col layout flex).
-   align-self:stretch (bug segnalato 2026-08-01, rimosso): allineava la
-   barra all'altezza dell'INTERA riga flex, cioe' quella del box adiacente
-   per intero (alto quanto un box con piu' paragrafi dentro) - sembrava un
-   cursore gigante invece di un normale cursore di testo. align-self resta
-   quello di default (flex-start, ereditato da align-items sopra: non si
-   stira).
-   height: calc(var(--font-size, 16px) * 1.2) invece di 1.2em (bug
-   segnalato 2026-08-02, "di nuovo troppo alto"): 1.2em e' relativo al
-   font-size EREDITATO nel punto esatto in cui ProseMirror inserisce il
-   widget nel DOM, che non e' garantito essere quello "di una riga di
-   testo normale" del box - puo' finire dentro uno <span> con un mark
-   fontSize attivo (tiptapFontSize.ts, dimensioni fino a 32/34px). --font-size
-   e' la variabile CSS radice (:root, theme.css riga 4, 16px) usata dal
-   solo layer base globale per l'intero editor - una custom property NON
-   viene toccata da un font-size inline locale (il mark fontSize imposta
-   solo la proprieta' font-size, mai la custom property), quindi calc() la
-   legge sempre stabile a prescindere da dove nel DOM finisca il widget.
-   margin-left/-right pari a META' di --tiptap-box-gap sul lato che ha un
-   vero vicino flex (bug 2026-08-02, caso centrale, cursore fra due box:
-   risolto per primo, vedi sotto) - column-gap del contenitore flex si
-   inserisce fra QUALUNQUE coppia di item adiacenti, cursore compreso,
-   senza compensazione il widget da 1px prenotava 1px+gap (o 1px+2*gap fra
-   due box), bastante a mandare a capo l'ultimo box di una riga gia' piena
-   al 100%; annullare l'INTERO gap da un solo lato faceva toccare il
-   cursore al bordo del box, con lo spazio residuo tutto dall'altro lato -
-   annullando solo META' gap per lato si lascia un margine uguale su
-   entrambi, il totale resta ESATTAMENTE un gap, solo distribuito in due
-   meta' invece che azzerato da un lato.
-   Le due estremita' (:first-child/:last-child) NON hanno un vero vicino
-   sul lato esterno (nessun box prima del primo, nessuno dopo l'ultimo -
-   column-gap non si applica mai li'): a differenza del caso centrale,
-   qui c'e' UN SOLO vicino reale (non due), quindi non esiste alcuno
-   spazio "da dividere a meta'" - ogni gap introdotto sul lato del vicino
-   (mezzo gap, bug 2026-08-04, o un margine positivo dal nulla sul lato
-   senza vicino, primo tentativo dello stesso bug) e' stato segnalato
-   come spazio indesiderato, non come centratura (bug 2026-08-05: "ancora
-   spazio quando il cursore e' a sinistra del primo elemento" nonostante
-   il lato senza vicino fosse gia' a zero - verificato dal vivo,
-   getBoundingClientRect: gap 0px verso il bordo del contenitore, 4px
-   verso il box, e i 4px erano proprio lo spazio lamentato). L'unica resa
-   senza spazio inventato ne' residuo e' annullare il gap reale PER
-   INTERO sul lato del vicino (come il box stesso farebbe senza cursore
-   in mezzo): :first-child annulla l'intero gap verso il box dopo
-   (margin-right), :last-child l'intero gap verso il box prima
-   (margin-left) - il cursore resta flush a ENTRAMBI i lati (il bordo del
-   contenitore da un lato, il box dall'altro), esattamente come un caret
-   di testo nativo prima del primo/dopo l'ultimo carattere, senza alcun
-   respiro artificiale. Nessun caso speciale per :only-child: le due
-   regole si applicano insieme, lasciando il cursore flush ai due bordi
-   del contenitore.
-   margin-top: calc(0.5rem + 1px) (bug 2026-08-02, "cursore disallineato
-   in altezza" nonostante l'altezza numerica gia' corretta): align-items:
-   flex-start (sopra) allinea il TOP del widget al top della riga flex,
-   cioe' al bordo ESTERNO del box adiacente - ma il testo dentro quel box
-   comincia 0.5rem (padding-top) + 1px (border) piu' in basso (vedi
-   .tiptap-textbox/.tiptap-collapse sotto, stesso padding+bordo in
-   entrambi), quindi senza questo margine il cursore restava sempre
-   piu' in alto E piu' corto della riga di testo accanto, "galleggiando"
-   sopra invece di starci affiancato. Valore identico per TextBox e
-   Collapse (stesso padding 0.5rem e stesso bordo 1px in entrambi,
-   verificato leggendo le rispettive regole) - un solo valore universale
-   basta, non serve differenziare in base al contenitore.
-   blink steps(2,start) infinite: stesso pattern gia' visto nel gap cursor
-   nativo di ProseMirror (style/gapcursor.css), qui applicato a una barra
-   verticale invece che a una riga orizzontale (quel disegno serviva a un
-   concetto visivo diverso, "qui andrebbe una nuova riga di blocco" -
-   rimosso in 7a53367 insieme al workaround che lo usava, non riproposto
-   qui). */
+   (--dash-text-strong, stessa palette del resto dell'editor).
+   position:absolute SEMPRE (bug 2026-08-05, riscrittura completa): fino a
+   qui il widget era un item flex reale con margini negativi diversi per
+   ogni caso geometrico (primo/ultimo/in mezzo/annidato) che dovevano
+   annullare esattamente il column-gap del contenitore - 5 round di fix
+   successivi, ognuno dei quali ha rotto un caso diverso da quello appena
+   sistemato (l'ultimo esempio: l'approssimazione "-4px" nella correzione
+   JS per l'a-capo non era mai stata aggiornata quando il trattamento
+   degli estremi era passato da "mezzo gap" a "flush", restando
+   silenziosamente incoerente). Un solo calcolo JS (positionEdgeCursor in
+   tiptapTextBoxEdgeCursor.ts, richiamato da Plugin.view.update() ad ogni
+   cambio di posizione/conferma) misura dal vivo i box reali adiacenti
+   (getBoundingClientRect) e scrive top/left - nessuna distinzione fra i
+   casi nel codice, primo/ultimo/in mezzo/annidato/a-capo emergono
+   naturalmente dai rect misurati. Essendo fuori dal flusso flex, il
+   widget non partecipa piu' nemmeno al calcolo "quanti box entrano in
+   riga" - la classe di bug sull'a-capo che ha motivato meta' di questa
+   storia diventa strutturalmente impossibile, non solo gestita.
+   height/margin-top restano gli stessi valori CSS di sempre (mai stati
+   causa di bug, nessun motivo di spostarli in JS): height in calc()
+   sul font-size RADICE (non 1.2em, che seguirebbe un mark fontSize
+   locale se il widget finisse dentro uno span con dimensione diversa);
+   margin-top compensa lo scarto fra il bordo esterno del box (dove punta
+   il top calcolato in JS) e l'inizio del testo dentro di esso
+   (padding+bordo, uguali per TextBox e Collapse).
+   blink steps(2,start) infinite: stesso pattern del gap cursor nativo di
+   ProseMirror (style/gapcursor.css), qui su una barra verticale. */
 .tiptap-textbox-edge-cursor {
-  flex: 0 0 auto;
+  position: absolute;
   height: calc(var(--font-size, 16px) * 1.2);
   width: 1px;
   margin-top: calc(0.5rem + 1px);
-  margin-left: calc(-0.5 * var(--tiptap-box-gap));
-  margin-right: calc(-0.5 * var(--tiptap-box-gap));
   background-color: var(--dash-text-strong);
   pointer-events: none;
   animation: tiptap-textbox-edge-cursor-blink 1.05s steps(2, start) infinite;
-}
-.tiptap-textbox-edge-cursor:first-child {
-  margin-left: 0;
-  margin-right: calc(-1 * var(--tiptap-box-gap));
-}
-.tiptap-textbox-edge-cursor:last-child {
-  margin-left: calc(-1 * var(--tiptap-box-gap));
-  margin-right: 0;
 }
 @keyframes tiptap-textbox-edge-cursor-blink {
   to {
@@ -772,8 +707,8 @@
   align-items: flex-start;
   column-gap: var(--tiptap-box-gap);
   /* Stesso motivo di .tiptap-td-flex/.tiptap-textbox-content sopra:
-     contesto per l'eccezionale position:absolute del cursore finto sul
-     wrap sbagliato (bug 2026-08-02, tiptapTextBoxEdgeCursor.ts). */
+     contesto per il cursore finto, sempre position:absolute
+     (tiptapTextBoxEdgeCursor.ts). */
   position: relative;
   margin-top: 0.25rem;
   /* Il corpo e il sommario sono resi entrambi dentro .tiptap-collapse-content
