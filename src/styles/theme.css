@@ -501,9 +501,29 @@
   font-weight: var(--font-weight-medium);
   text-align: left;
 }
+/* :has(+ .tiptap-textbox-edge-cursor:last-child) IN PIU' (bug 2026-08-05,
+   "spazio in eccesso sotto l'elemento appena uscito verso destra, dentro
+   la stessa cella" - segnalato dal vivo): il cursore finto
+   (tiptapTextBoxEdgeCursor.ts), quando nasce subito DOPO l'ultimo box di
+   riga (uscita verso destra da un box che e' l'ultimo figlio del
+   contenitore), e' esso stesso un figlio del wrapper flex, inserito nel
+   flusso del documento SUBITO DOPO quel box - :last-child qui sopra
+   smette percio' di puntare al box reale e inizia a puntare al widget
+   (position:absolute, innocuo che riceva margin-bottom:0, ma il box VERO
+   perde silenziosamente l'annullamento del proprio margin-bottom, che i
+   margini dei flex item NON collassano mai con il bordo del contenitore -
+   quel margine torna a contare per intero nell'altezza della riga flex,
+   la spazio in eccesso segnalato). Riferimento diretto al widget (non
+   solo alla sua presenza) perche' e' l'UNICO elemento che puo' seguire un
+   box senza essere esso stesso normale contenuto di riga - qualunque
+   altro fratello reale dopo il box resta gestito dalla regola base sopra
+   (quel fratello, non il box, e' il vero :last-child in quel caso). */
 .tiptap-td-flex > *:last-child,
 .tiptap-textbox-content > *:last-child,
-.tiptap-collapse-body > *:last-child {
+.tiptap-collapse-body > *:last-child,
+.tiptap-td-flex > *:has(+ .tiptap-textbox-edge-cursor:last-child),
+.tiptap-textbox-content > *:has(+ .tiptap-textbox-edge-cursor:last-child),
+.tiptap-collapse-body > *:has(+ .tiptap-textbox-edge-cursor:last-child) {
   margin-bottom: 0;
 }
 /* Maniglia di ridimensionamento colonna (decorazione inserita da
