@@ -2,7 +2,7 @@ import { Node, mergeAttributes, type Editor } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
 import { Selection, Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
 import { ChevronRight } from 'lucide-react';
-import { findBoxAncestorDepth, isAtBoxBoundary, exitBoxBoundary, exitCellBoundary } from './tiptapTextBoxEdgeCursor';
+import { findBoxAncestorDepth, isAtBoxBoundary, exitBoxBoundary, exitCellBoundary, exitRowBoundary } from './tiptapTextBoxEdgeCursor';
 
 // Vero fino a qualunque profondita' (non solo il genitore immediato) che il
 // cursore sia dentro un nodo di quel tipo - usata sotto per impedire
@@ -42,27 +42,31 @@ function isSelectionInside(state: EditorState, typeName: string): boolean {
 // scorciatoia dell'uno o dell'altro che gira nel keymap la gestisce, non
 // c'e' bisogno di sapere QUALE tipo specifico e' l'antenato trovato.
 //
-// ArrowLeft/Right provano ANCHE exitCellBoundary se exitBoxBoundary non
-// scatta (bug 2026-08-02, rimosso 2026-08-05 "regola fissa senza
-// eccezioni", ripristinato 2026-08-05 in forma diversa su richiesta
-// esplicita - vedi storia completa su exitCellBoundary in
+// ArrowLeft/Right provano ANCHE exitCellBoundary e poi exitRowBoundary se
+// exitBoxBoundary non scatta (bug 2026-08-02, rimosso 2026-08-05 "regola
+// fissa senza eccezioni", ripristinato 2026-08-05 in forma diversa su
+// richiesta esplicita - vedi storia completa su exitCellBoundary in
 // tiptapTextBoxEdgeCursor.ts): passando da una cella "esterna" - anche
 // senza alcun box, testo normale - a una cella che INIZIA/FINISCE con un
 // TextBox/Collapse, la normale navigazione fra celle di ProseMirror non
 // ha nessuna cognizione dei nostri box e atterrerebbe il cursore dritto
 // dentro, scavalcando sia il confine fra le due celle sia l'ingresso nel
-// box. exitCellBoundary interviene SOLO in quel caso specifico (ritorna
-// false, nessun effetto, per qualunque cella di destinazione con
-// contenuto normale) - il salto diretto e incondizionato resta il
-// comportamento per tutto il resto, invariato. Solo Left/Right, MAI
-// Up/Down: su/giu' vanno alla cella nella riga sopra/sotto nella STESSA
-// colonna, una relazione diversa da "cella precedente/successiva nella
-// stessa riga" su cui exitCellBoundary si basa - fuori scopo qui.
+// box. exitRowBoundary (2026-08-05, bug gemello segnalato subito dopo:
+// stesso problema ma sul CAMBIO DI RIGA, dall'ultima/prima cella di una
+// riga) copre lo stesso caso un livello piu' in su, quando exitCellBoundary
+// non trova alcun vicino nella STESSA riga. Entrambe intervengono SOLO
+// quando serve davvero (ritornano false, nessun effetto, per qualunque
+// cella/riga di destinazione con contenuto normale) - il salto diretto e
+// incondizionato resta il comportamento per tutto il resto, invariato.
+// Solo Left/Right, MAI Up/Down: su/giu' vanno alla cella nella riga
+// sopra/sotto nella STESSA colonna, una relazione diversa da "cella/riga
+// successiva nella stessa riga/tabella" su cui queste due si basano -
+// fuori scopo qui.
 function createEdgeAwareKeyboardShortcuts(editor: Editor) {
   return {
-    ArrowLeft: () => exitBoxBoundary(editor, 'before') || exitCellBoundary(editor, 'before'),
+    ArrowLeft: () => exitBoxBoundary(editor, 'before') || exitCellBoundary(editor, 'before') || exitRowBoundary(editor, 'before'),
     ArrowUp: () => exitBoxBoundary(editor, 'before'),
-    ArrowRight: () => exitBoxBoundary(editor, 'after') || exitCellBoundary(editor, 'after'),
+    ArrowRight: () => exitBoxBoundary(editor, 'after') || exitCellBoundary(editor, 'after') || exitRowBoundary(editor, 'after'),
     ArrowDown: () => exitBoxBoundary(editor, 'after'),
     // Cancella l'intero nodo (non solo il paragrafo vuoto) quando il
     // cursore e' esattamente a inizio contenuto - equivalente esatto di

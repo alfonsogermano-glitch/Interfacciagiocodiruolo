@@ -87,6 +87,15 @@ function isTableCell(node: ProseMirrorNode): boolean {
   return TABLE_CELL_TYPES.includes(node.type.name);
 }
 
+// Nome di nodo di una riga di tabella (TableRow di @tiptap/extension-table,
+// invariato - non estesa da nessun wrapper qui, a differenza di
+// TableCell/TableHeader) - usato per riconoscere una TRANSIZIONE fra righe
+// diverse (exitRowBoundary sotto), simmetrica a isTableCell sopra ma un
+// livello piu' in su.
+function isTableRow(node: ProseMirrorNode): boolean {
+  return node.type.name === 'tableRow';
+}
+
 // Come findBoxAncestorDepth (sotto), ma per la cella di tabella piu'
 // vicina - usata SOLO da exitCellBoundary per decidere la transizione fra
 // celle diverse, MAI da Backspace (a differenza di findBoxAncestorDepth):
@@ -174,25 +183,34 @@ export function isAtBoxBoundary(doc: ProseMirrorNode, $pos: ResolvedPos, boxDept
 // deve fermarsi anche RIENTRANDOCI, non solo uscendone (stessa filosofia
 // "un livello alla volta" gia' applicata all'uscita).
 //
-// isTableCell(neighbor): `pos` e' il confine FRA DUE CELLE diverse (usata
-// da exitCellBoundary sotto, chiamata li' con la posizione a livello di
-// RIGA - fra i due nodi cella fratelli, mai da exitBoxBoundary: il
-// confine di un box e' sempre un livello piu' dentro, fra i FIGLI di una
-// cella, dove un fratello non e' mai di tipo cella). Un "tuffo" diretto
-// dentro sarebbe il salto incondizionato di default (comportamento
-// nativo di prosemirror-tables) - qui invece si RIPROVA la stessa identica
-// decisione un livello piu' dentro, verso il primo/ultimo figlio della
-// cella di destinazione: se e' a sua volta un box, il cursore finto nasce
-// li' (dentro la cella di destinazione, adiacente al box - MAI al confine
-// grezzo fra le due celle, che non e' un contenitore DOM valido per il
-// widget), altrimenti si procede fino al primo testo reale esattamente
-// come nel caso comune.
+// isTableCell(neighbor)/isTableRow(neighbor): `pos` e' il confine FRA DUE
+// CELLE della stessa riga (usata da exitCellBoundary sotto, chiamata li'
+// con la posizione a livello di RIGA) o FRA DUE RIGHE della stessa
+// tabella (exitRowBoundary, un livello piu' su, posizione a livello di
+// TABELLA) - mai da exitBoxBoundary: il confine di un box e' sempre un
+// livello piu' dentro, fra i FIGLI di una cella, dove un fratello non e'
+// mai di tipo cella ne' riga. Un "tuffo" diretto dentro sarebbe il salto
+// incondizionato di default (comportamento nativo di prosemirror-tables)
+// - qui invece si RIPROVA la stessa identica decisione un livello piu'
+// dentro, verso il primo/ultimo figlio della cella/riga di destinazione:
+// una riga ha SEMPRE almeno una cella e una cella ha SEMPRE almeno un
+// blocco (schema, "backfill" celle vuote) - la ricorsione non puo' mai
+// incontrare un vicino nullo per un livello di container come questo,
+// solo il caso "prima/ultima riga della tabella" (nessuna riga vicina)
+// puo' esserlo, ma quello e' filtrato PRIMA di arrivare qui da
+// exitRowBoundary (guardia esplicita, mai una ricorsione di landOrDive -
+// vedi commento li' per il perche', stessa causa del bug 2026-08-05 sulla
+// cella fantasma). Se il figlio d'ingresso e' un box il cursore finto
+// nasce li' (dentro la cella/riga di destinazione, adiacente al box - MAI
+// al confine grezzo, che non e' un contenitore DOM valido per il widget),
+// altrimenti si procede fino al primo testo reale esattamente come nel
+// caso comune.
 function landOrDive(doc: ProseMirrorNode, pos: number, dir: 'before' | 'after'): Selection {
   const $pos = doc.resolve(pos);
   const neighbor = dir === 'after' ? $pos.nodeAfter : $pos.nodeBefore;
   if (!neighbor) return new TextBoxEdgeCursor($pos);
   if (isSideBySideBox(neighbor)) return new TextBoxEdgeCursor($pos);
-  if (isTableCell(neighbor)) return landOrDive(doc, dir === 'after' ? pos + 1 : pos - 1, dir);
+  if (isTableCell(neighbor) || isTableRow(neighbor)) return landOrDive(doc, dir === 'after' ? pos + 1 : pos - 1, dir);
   return Selection.near($pos, dir === 'after' ? 1 : -1);
 }
 
@@ -321,6 +339,73 @@ export function exitCellBoundary(editor: Editor, dir: 'before' | 'after'): boole
     .chain()
     .command(({ tr }) => {
       tr.setSelection(landOrDive(tr.doc, boundaryPos, dir));
+      return true;
+    })
+    .scrollIntoView()
+    .run();
+}
+
+// Transizione fra DUE RIGHE DIVERSE della stessa tabella - simmetrica a
+// exitCellBoundary sopra ma un livello piu' in su (l'antenato cercato per
+// il salto e' la RIGA, non la cella): interviene SOLO quando NON c'e' un
+// vicino nella STESSA riga (altrimenti e' compito di exitCellBoundary,
+// non di questa) - bug 2026-08-05 segnalato subito dopo il fix del bug
+// gemello sulla cella fantasma: "dall'ultima cella di una riga, uscendo a
+// destra, scende correttamente alla riga successiva ma entra dritto nel
+// primo elemento invece di fermarsi fuori". Stessa causa di fondo: il
+// salto nativo di prosemirror-tables per il cambio riga non ha nessuna
+// cognizione dei nostri box, esattamente come il salto diretto fra due
+// celle della stessa riga (gia' corretto da exitCellBoundary).
+//
+// Guardia esplicita "nessun vicino nella stessa riga" ripetuta qui (non
+// solo dedotta dal fatto che questa funzione viene provata SOLO dopo che
+// exitCellBoundary e' gia' fallita, vedi tiptapBlocks.tsx/exitArrow
+// sotto): exitCellBoundary puo' fallire per DUE motivi diversi - nessun
+// vicino nella riga (il caso che riguarda QUESTA funzione) OPPURE un
+// vicino c'e' ma non serve un cursore finto (contenuto normale, il salto
+// diretto nativo fra celle della stessa riga resta corretto) - solo il
+// primo motivo deve far scattare un cambio di riga qui, il secondo deve
+// restare "nessun intervento" anche per questa funzione.
+//
+// Stesso identico schema esplicito-prima-di-landOrDive di
+// exitCellBoundary (guardia neighborRow non nulla PRIMA di chiamare
+// landOrDive, mai una ricorsione "a occhi chiusi"): a PRIMA/ULTIMA riga
+// della tabella non c'e' alcuna riga vicina - chiamare comunque
+// landOrDive li' ricreerebbe la stessa corruzione strutturale appena
+// risolta, un livello piu' in su (un gap a livello di TABELLA invece che
+// di riga, ugualmente non valido per lo schema: table accetta solo
+// righe). Nessuna riga vicina => return false, lascia il comportamento
+// nativo di prosemirror-tables (uscita dalla tabella) invariato.
+//
+// Chiamata solo da ArrowLeft/ArrowRight, stesso motivo di
+// exitCellBoundary: Up/Down restano alla STESSA colonna (comportamento
+// nativo di prosemirror-tables, mai "prima/ultima cella della riga
+// adiacente" come qui) - fuori scopo anche per questa funzione.
+export function exitRowBoundary(editor: Editor, dir: 'before' | 'after'): boolean {
+  const { selection, doc } = editor.state;
+  if (!selection.empty) return false;
+  const $from = selection.$from;
+  const cellDepth = findCellAncestorDepth($from);
+  if (cellDepth === null) return false;
+  if (!isAtBoxBoundary(doc, $from, cellDepth, dir === 'before' ? 'start' : 'end')) return false;
+
+  const cellBoundaryPos = dir === 'before' ? $from.before(cellDepth) : $from.after(cellDepth);
+  const $cellBoundary = doc.resolve(cellBoundaryPos);
+  const neighborCell = dir === 'before' ? $cellBoundary.nodeBefore : $cellBoundary.nodeAfter;
+  if (neighborCell && isTableCell(neighborCell)) return false;
+
+  const rowDepth = cellDepth - 1;
+  const rowBoundaryPos = dir === 'before' ? $from.before(rowDepth) : $from.after(rowDepth);
+  const $rowBoundary = doc.resolve(rowBoundaryPos);
+  const neighborRow = dir === 'before' ? $rowBoundary.nodeBefore : $rowBoundary.nodeAfter;
+  if (!neighborRow || !isTableRow(neighborRow)) return false;
+
+  if (!(landOrDive(doc, rowBoundaryPos, dir) instanceof TextBoxEdgeCursor)) return false;
+
+  return editor
+    .chain()
+    .command(({ tr }) => {
+      tr.setSelection(landOrDive(tr.doc, rowBoundaryPos, dir));
       return true;
     })
     .scrollIntoView()
@@ -688,10 +773,16 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         // stessa riga" - fuori scopo per Up/Down, vedi exitCellBoundary).
         if (axis === 'horizontal' && exitCellBoundary(editor, dir)) return true;
 
-        // Solo se non c'e' PIU' nessun antenato box ne' un confine di cella
-        // rilevante a questa posizione (siamo davvero usciti da tutto) si
-        // ricade sulla Selection.near generica: cerca la prima posizione
-        // cursore valida in quella direzione attraversando QUALUNQUE
+        // Poi exitRowBoundary, stessa riprova ma un livello piu' in su (bug
+        // gemello 2026-08-05, cambio di RIGA invece che di cella): mancava
+        // identica nella prosecuzione, stesso identico ragionamento sopra
+        // per exitCellBoundary - solo axis==='horizontal'.
+        if (axis === 'horizontal' && exitRowBoundary(editor, dir)) return true;
+
+        // Solo se non c'e' PIU' nessun antenato box ne' un confine di
+        // cella/riga rilevante a questa posizione (siamo davvero usciti da
+        // tutto) si ricade sulla Selection.near generica: cerca la prima
+        // posizione cursore valida in quella direzione attraversando QUALUNQUE
         // confine, incluso isolating (tableCell) - non e' un'operazione di
         // join/lift, solo ricerca di una posizione gia' esistente nel
         // documento, e isolating vincola solo le trasformazioni
