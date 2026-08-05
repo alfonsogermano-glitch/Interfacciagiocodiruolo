@@ -594,7 +594,12 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         .scrollIntoView()
         .run();
 
-    const exitArrow = (dir: 'before' | 'after') =>
+    // axis distingue Left/Right (horizontal) da Up/Down (vertical): sotto,
+    // "prosegue oltre" riprova ANCHE exitCellBoundary, ma solo per
+    // horizontal - vedi commento su quella riprova per il motivo (stessa
+    // ambiguita' 'before'/'after' fra le due coppie di frecce che riguarda
+    // gia' exitBoxBoundary li' accanto).
+    const exitArrow = (dir: 'before' | 'after', axis: 'horizontal' | 'vertical') =>
       withCursor((selection) => {
         const { doc } = editor.state;
         const $pos = doc.resolve(selection.head);
@@ -642,9 +647,26 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         // o ha un altro box fratello allo stesso livello (affiancamento),
         // si ferma di nuovo li' un livello alla volta invece di scavalcarlo
         // (bug 2026-08-02, vedi commento su exitBoxBoundary in
-        // tiptapTextBoxEdgeCursor.ts). Solo se non c'e' PIU' nessun
-        // antenato box a questa posizione (siamo davvero usciti da tutto)
-        // si ricade sulla Selection.near generica: cerca la prima posizione
+        // tiptapTextBoxEdgeCursor.ts).
+        if (exitBoxBoundary(editor, dir)) return true;
+
+        // Poi exitCellBoundary, SOLO in orizzontale (bug 2026-08-05,
+        // "salta un livello sul confine di cella": senza questa riprova, un
+        // cursore finto gia' attivo che prosegue verso una cella diversa
+        // atterrava dritto nel primo box della cella di destinazione invece
+        // di fermarsi fuori - stesso identico bug che exitCellBoundary
+        // risolve per il PRIMO ingresso in questo stato, da testo reale
+        // (createEdgeAwareKeyboardShortcuts, tiptapBlocks.tsx), qui mancava
+        // solo nella PROSECUZIONE da un cursore finto gia' attivo). Solo
+        // axis==='horizontal' (Left/Right, mai Up/Down che condividono lo
+        // stesso `dir` con Left/Right rispettivamente ma significano "riga
+        // sopra/sotto nella stessa colonna", non "cella successiva nella
+        // stessa riga" - fuori scopo per Up/Down, vedi exitCellBoundary).
+        if (axis === 'horizontal' && exitCellBoundary(editor, dir)) return true;
+
+        // Solo se non c'e' PIU' nessun antenato box ne' un confine di cella
+        // rilevante a questa posizione (siamo davvero usciti da tutto) si
+        // ricade sulla Selection.near generica: cerca la prima posizione
         // cursore valida in quella direzione attraversando QUALUNQUE
         // confine, incluso isolating (tableCell) - non e' un'operazione di
         // join/lift, solo ricerca di una posizione gia' esistente nel
@@ -652,8 +674,6 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         // strutturali, non la ricerca di selezione (verificato nel sorgente
         // di prosemirror-state: TextSelection.findFrom non consulta mai
         // NodeType.spec.isolating).
-        if (exitBoxBoundary(editor, dir)) return true;
-
         return editor
           .chain()
           .command(({ tr }) => {
@@ -677,10 +697,10 @@ export const TextBoxEdgeCursorExtension = Extension.create({
           .scrollIntoView()
           .run();
       }),
-      ArrowLeft: exitArrow('before'),
-      ArrowUp: exitArrow('before'),
-      ArrowRight: exitArrow('after'),
-      ArrowDown: exitArrow('after'),
+      ArrowLeft: exitArrow('before', 'horizontal'),
+      ArrowUp: exitArrow('before', 'vertical'),
+      ArrowRight: exitArrow('after', 'horizontal'),
+      ArrowDown: exitArrow('after', 'vertical'),
       Escape: withCursor((selection) => {
         const box = adjacentBox(editor.state.doc.resolve(selection.head));
         if (!box) return false;
