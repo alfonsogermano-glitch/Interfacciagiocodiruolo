@@ -75,15 +75,41 @@ function isSideBySideBox(node: ProseMirrorNode): boolean {
   return SIDE_BY_SIDE_BLOCK_TYPES.includes(node.type.name);
 }
 
+// Nomi di nodo di una cella di tabella (TableCellWithFlexWrapper/
+// TableHeaderWithFlexWrapper, tiptapTableCellWrapper.ts, estendono
+// semplicemente TableCell/TableHeader di @tiptap/extension-table senza
+// cambiarne il nome) - usati per riconoscere una TRANSIZIONE fra celle
+// diverse, distinta dall'affiancamento/annidamento DENTRO la stessa cella
+// gestito da isSideBySideBox sopra.
+const TABLE_CELL_TYPES = ['tableCell', 'tableHeader'];
+
+function isTableCell(node: ProseMirrorNode): boolean {
+  return TABLE_CELL_TYPES.includes(node.type.name);
+}
+
+// Come findBoxAncestorDepth (sotto), ma per la cella di tabella piu'
+// vicina - usata SOLO da exitCellBoundary per decidere la transizione fra
+// celle diverse, MAI da Backspace (a differenza di findBoxAncestorDepth):
+// un antenato "cella" trovato al posto di un antenato "box" cancellerebbe
+// l'intera cella invece di un box al suo interno se riusata li' - le due
+// ricerche restano deliberatamente separate.
+function findCellAncestorDepth($pos: ResolvedPos): number | null {
+  for (let depth = $pos.depth; depth >= 0; depth -= 1) {
+    if (isTableCell($pos.node(depth))) return depth;
+  }
+  return null;
+}
+
 // Elemento adiacente alla posizione del cursore finto (nodo DOPO se e' un
 // cursore "before", nodo PRIMA se e' un cursore "after") - nessuno stato
 // separato "quale elemento, quale lato" da tracciare altrove: la posizione
 // stessa lo dice gia', via nodeBefore/nodeAfter. Usato sia dal rendering
 // sotto sia da Invio/frecce/Escape in tiptapBlocks.tsx.
-// Riconosceva anche il confine FRA DUE CELLE diverse (kind:'cell', fino al
-// 2026-08-05) - rimosso insieme a exitCellBoundary (vedi
-// tiptapBlocks.tsx): un cursore finto non nasce piu' mai a quel confine,
-// solo fra box fratelli/annidati DENTRO la stessa cella.
+// Il confine FRA DUE CELLE diverse (exitCellBoundary sotto) non passa da
+// qui: quel cursore nasce sempre GIA' dentro la cella di destinazione,
+// adiacente al suo box di bordo (vedi landOrDive) - agli occhi di questa
+// funzione e' quindi indistinguibile da un confine box/box dentro la
+// stessa cella, nessun ramo dedicato necessario.
 export function adjacentBox($pos: ResolvedPos): { node: ProseMirrorNode; side: 'before' | 'after' } | null {
   if ($pos.nodeAfter && isSideBySideBox($pos.nodeAfter)) return { node: $pos.nodeAfter, side: 'after' };
   if ($pos.nodeBefore && isSideBySideBox($pos.nodeBefore)) return { node: $pos.nodeBefore, side: 'before' };
@@ -147,11 +173,26 @@ export function isAtBoxBoundary(doc: ProseMirrorNode, $pos: ResolvedPos, boxDept
 // solo in uscita: un box il cui primo figlio e' un ALTRO box annidato
 // deve fermarsi anche RIENTRANDOCI, non solo uscendone (stessa filosofia
 // "un livello alla volta" gia' applicata all'uscita).
+//
+// isTableCell(neighbor): `pos` e' il confine FRA DUE CELLE diverse (usata
+// da exitCellBoundary sotto, chiamata li' con la posizione a livello di
+// RIGA - fra i due nodi cella fratelli, mai da exitBoxBoundary: il
+// confine di un box e' sempre un livello piu' dentro, fra i FIGLI di una
+// cella, dove un fratello non e' mai di tipo cella). Un "tuffo" diretto
+// dentro sarebbe il salto incondizionato di default (comportamento
+// nativo di prosemirror-tables) - qui invece si RIPROVA la stessa identica
+// decisione un livello piu' dentro, verso il primo/ultimo figlio della
+// cella di destinazione: se e' a sua volta un box, il cursore finto nasce
+// li' (dentro la cella di destinazione, adiacente al box - MAI al confine
+// grezzo fra le due celle, che non e' un contenitore DOM valido per il
+// widget), altrimenti si procede fino al primo testo reale esattamente
+// come nel caso comune.
 function landOrDive(doc: ProseMirrorNode, pos: number, dir: 'before' | 'after'): Selection {
   const $pos = doc.resolve(pos);
   const neighbor = dir === 'after' ? $pos.nodeAfter : $pos.nodeBefore;
   if (!neighbor) return new TextBoxEdgeCursor($pos);
   if (isSideBySideBox(neighbor)) return new TextBoxEdgeCursor($pos);
+  if (isTableCell(neighbor)) return landOrDive(doc, dir === 'after' ? pos + 1 : pos - 1, dir);
   return Selection.near($pos, dir === 'after' ? 1 : -1);
 }
 
@@ -217,6 +258,51 @@ export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after'): boolea
     .run();
 }
 
+// Transizione fra DUE CELLE DIVERSE (stessa riga di tabella) - a differenza
+// di exitBoxBoundary sopra (che parte da un antenato box, quindi non
+// scatta affatto se il cursore e' su testo normale senza alcun
+// TextBox/Collapse intorno), qui l'antenato cercato e' la cella stessa:
+// serve a intercettare ANCHE il caso "sono su testo normale in una cella,
+// la cella ACCANTO comincia/finisce con un box" - senza questo controllo
+// muoversi fra celle e' sempre il salto diretto e incondizionato nativo di
+// prosemirror-tables (comportamento voluto per il caso comune, vedi
+// tiptapBlocks.tsx), che non ha nessuna cognizione dei nostri box e
+// atterrerebbe il cursore dritto dentro il primo box della cella di
+// destinazione.
+//
+// Decisione presa PRIMA di costruire la transazione (chiamando landOrDive
+// sul `doc` corrente, non ancora modificato) invece di controllare dentro
+// il chain: interviene SOLO se il lato d'ingresso della cella vicina
+// produce davvero un cursore finto (landOrDive restituisce una
+// TextBoxEdgeCursor) - se la cella vicina inizia/finisce con contenuto
+// normale, ritorna false e lascia il comportamento nativo invariato,
+// nessuna pausa in piu' per il caso comune.
+//
+// Chiamata solo da ArrowLeft/ArrowRight (mai Up/Down, tiptapBlocks.tsx):
+// su/giu' passano alla cella nella riga sopra/sotto nella STESSA colonna,
+// una relazione strutturale diversa da "prima/dopo nella stessa riga" su
+// cui questa funzione si basa - fuori scopo qui.
+export function exitCellBoundary(editor: Editor, dir: 'before' | 'after'): boolean {
+  const { selection, doc } = editor.state;
+  if (!selection.empty) return false;
+  const $from = selection.$from;
+  const cellDepth = findCellAncestorDepth($from);
+  if (cellDepth === null) return false;
+  if (!isAtBoxBoundary(doc, $from, cellDepth, dir === 'before' ? 'start' : 'end')) return false;
+
+  const boundaryPos = dir === 'before' ? $from.before(cellDepth) : $from.after(cellDepth);
+  if (!(landOrDive(doc, boundaryPos, dir) instanceof TextBoxEdgeCursor)) return false;
+
+  return editor
+    .chain()
+    .command(({ tr }) => {
+      tr.setSelection(landOrDive(tr.doc, boundaryPos, dir));
+      return true;
+    })
+    .scrollIntoView()
+    .run();
+}
+
 // Nome di classe di un TextBox/Collapse RESO (non il nome di nodo dello
 // schema, isSideBySideBox sopra lavora su ProseMirrorNode - qui serve il
 // suo equivalente DOM, per riconoscere i veri VICINI del widget nel
@@ -244,7 +330,8 @@ function isBoxElement(el: Element | null): el is HTMLElement {
 // - un solo vicino reale (estremi, o box affiancato a un blocco normale
 //   che occupa l'intera riga): flush contro di lui, 0px (bug 2026-08-04/
 //   05, "qualunque gap inventato verso l'unico vicino e' spazio
-//   indesiderato" - verificato dal vivo).
+//   indesiderato" - verificato dal vivo) sul lato del vicino - SALVO il
+//   caso sotto quando il contenitore e' una cella di tabella.
 // - due vicini reali sulla STESSA riga visiva (caso centrale): centrato
 //   fra i due bordi (bug 2026-08-02), calcolato come midpoint reale
 //   invece che da --tiptap-box-gap - resta corretto anche se il gap CSS
@@ -253,6 +340,26 @@ function isBoxElement(el: Element | null): el is HTMLElement {
 //   trattamento "un solo vicino" sopra, scegliendo quale dei due tramite
 //   preferSide (riflette la fase natural/corrected della pausa a due
 //   fermate - vedi Plugin.state sotto, logica di navigazione invariata).
+//
+// Caso "un solo vicino" DENTRO UNA CELLA (bug 2026-08-05, transizione fra
+// due celle diverse - exitCellBoundary sopra): il "flush 0px" verificato
+// dal vivo per gli estremi si applicava a un container flex SENZA
+// padding proprio (.tiptap-textbox-content/.tiptap-collapse-body: il
+// padding e' sul bordo/sfondo del box stesso, il cursore finto vive
+// dentro un contenitore neutro) - li' il bordo del contenitore NON e' un
+// confine visibile, quindi 0px e' gia' "nessun respiro inventato". Una
+// cella di tabella e' diversa: .tiptap-td-flex (il contenitore reale del
+// widget qui, tiptapTableCellWrapper.ts) e' anch'esso senza padding
+// proprio, ma il vero bordo/padding VISIBILE (0.375rem/0.5rem, theme.css)
+// sta sul <td>/<th> che lo contiene - un vicino solo con "flush 0px"
+// azzererebbe silenziosamente quel padding reale, incollando il cursore
+// al box e lasciando TUTTO il respiro visibile sul lato opposto (verso
+// il bordo vero della cella), invece di dividerlo come farebbe un caret
+// nativo fra due caratteri. cell.getBoundingClientRect() da' il vero
+// bordo (border-box, box-sizing:border-box su td/th sopra) - il
+// riferimento "esterno" usato per il midpoint e' quindi la cella quando
+// c'e', il contenitore stesso altrimenti (comportamento flush invariato
+// per i casi non-tabella, tuttora corretto li').
 function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after') {
   const container = widget.parentElement;
   if (!container) return;
@@ -281,7 +388,16 @@ function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after')
     const useAfter = !!afterRect && (preferSide === 'after' || !beforeRect);
     const rect = useAfter ? afterRect! : beforeRect!;
     top = rect.top - containerRect.top;
-    left = (useAfter ? rect.left : rect.right) - containerRect.left;
+
+    const cell = container.classList.contains('tiptap-td-flex') ? container.parentElement : null;
+    if (cell) {
+      const cellRect = cell.getBoundingClientRect();
+      const outerEdge = useAfter ? cellRect.left : cellRect.right;
+      const innerEdge = useAfter ? rect.left : rect.right;
+      left = (outerEdge + innerEdge) / 2 - containerRect.left;
+    } else {
+      left = (useAfter ? rect.left : rect.right) - containerRect.left;
+    }
   }
 
   widget.style.position = 'absolute';
