@@ -278,6 +278,26 @@ export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after'): boolea
 // normale, ritorna false e lascia il comportamento nativo invariato,
 // nessuna pausa in piu' per il caso comune.
 //
+// Controllo ESPLICITO di una vera cella vicina NELLA STESSA RIGA, PRIMA
+// di chiamare landOrDive (bug 2026-08-05, corruzione strutturale reale -
+// "una cella vuota fantasma appare, spostando tutte le altre a destra"):
+// alla PRIMA/ULTIMA colonna di una riga, $boundary non ha alcun
+// nodeBefore/nodeAfter a livello di riga (nessuna cella li', il passo
+// successivo e' la RIGA precedente/successiva, non gestito qui - vedi
+// sotto). Chiamare comunque landOrDive su quella posizione faceva
+// scattare il suo ramo "nessun vicino => fermati qui" - pensato per un
+// box appena uscito, dove "nessun vicino" significa "fermati esattamente
+// al SUO bordo" (un bordo reale, il box stesso) - ma qui non c'e' NESSUN
+// bordo reale: quella posizione e' un gap a livello di RIGA (prima di
+// qualunque cella), mai contenuto valido per lo schema (tableRow accetta
+// solo celle). Il cursore finto creato li' non e' rappresentabile, e
+// ProseMirror lo "ripara" al render successivo materializzando una cella
+// vuota per renderlo valido - la cella fantasma segnalata dal vivo.
+// Nessuna cella vicina => return false SENZA MAI toccare landOrDive:
+// lascia il salto diretto nativo di prosemirror-tables (che gestisce gia'
+// correttamente la risalita/discesa alla riga precedente/successiva)
+// completamente invariato.
+//
 // Chiamata solo da ArrowLeft/ArrowRight (mai Up/Down, tiptapBlocks.tsx):
 // su/giu' passano alla cella nella riga sopra/sotto nella STESSA colonna,
 // una relazione strutturale diversa da "prima/dopo nella stessa riga" su
@@ -291,6 +311,10 @@ export function exitCellBoundary(editor: Editor, dir: 'before' | 'after'): boole
   if (!isAtBoxBoundary(doc, $from, cellDepth, dir === 'before' ? 'start' : 'end')) return false;
 
   const boundaryPos = dir === 'before' ? $from.before(cellDepth) : $from.after(cellDepth);
+  const $boundary = doc.resolve(boundaryPos);
+  const neighborCell = dir === 'before' ? $boundary.nodeBefore : $boundary.nodeAfter;
+  if (!neighborCell || !isTableCell(neighborCell)) return false;
+
   if (!(landOrDive(doc, boundaryPos, dir) instanceof TextBoxEdgeCursor)) return false;
 
   return editor
