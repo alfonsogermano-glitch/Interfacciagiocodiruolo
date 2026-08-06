@@ -618,9 +618,9 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
         const cellRect = cellEl.getBoundingClientRect();
         const containerRect = ancestor.getBoundingClientRect();
         if (cellRect.left < containerRect.left) {
-          ancestor.scrollLeft -= containerRect.left - cellRect.left;
+          ancestor.scrollLeft = Math.round(ancestor.scrollLeft - (containerRect.left - cellRect.left));
         } else if (cellRect.right > containerRect.right) {
-          ancestor.scrollLeft += cellRect.right - containerRect.right;
+          ancestor.scrollLeft = Math.round(ancestor.scrollLeft + (cellRect.right - containerRect.right));
         }
         if (ancestor === outerBound) break;
         ancestor = ancestor.parentElement;
