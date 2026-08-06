@@ -501,12 +501,38 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
       if (toolbarWrapRef.current?.contains(event.relatedTarget as Node | null)) return;
       onBlurEditor?.();
     },
+    // Bug segnalato 2026-08-06: spostandosi con le frecce dall'ultima cella
+    // di una riga di tabella alla prima cella di quella sotto, se la cella
+    // di destinazione inizia con testo semplice (nessun TextBox/Collapse,
+    // quindi nessuna delle funzioni in tiptapTextBoxEdgeCursor.ts
+    // interviene - tutte ritornano false in quel caso, per design: vedi i
+    // commenti su exitCellBoundary/exitRowBoundary li'), l'intero movimento
+    // e' gestito dal caret nativo del browser, che NON chiama mai il nostro
+    // .scrollIntoView() esplicito (presente invece in OGNI altro ramo dello
+    // stesso file). Con due contenitori di scroll orizzontale annidati
+    // (.tableWrapper per-tabella dentro .tiptap-content, entrambi
+    // overflow-x:auto - vedi theme.css) il riposizionamento nativo dello
+    // scroll del browser al movimento del caret non attraversa
+    // correttamente entrambi i livelli, lasciando la tabella scrollata a
+    // destra. tr.scrollIntoView() di ProseMirror (usato ovunque nel resto
+    // del box-cursor system) gestisce correttamente qualunque catena di
+    // antenati scrollabili - richiamarlo qui, ad OGNI cambio di selezione,
+    // colma il buco lasciato dai casi in cui nessun nostro codice
+    // intercetta il movimento. Nessun rischio di loop: la transazione che
+    // scrollIntoView() emette non cambia la selezione, quindi non
+    // ri-scatena selectionUpdate (vedi dispatchTransaction in
+    // @tiptap/core: l'evento scatta solo se selectionHasChanged).
+    onSelectionUpdate: ({ editor }) => {
+      editor.commands.scrollIntoView();
+    },
   });
-  // Nessun onSelectionUpdate/onTransaction manuale per aggiornare lo stato
-  // "active" della barra: useEditor si iscrive gia' da solo alle transazioni
-  // e ri-renderizza il componente (shouldRerenderOnTransaction e' attivo di
+  // Nessun onTransaction manuale per aggiornare lo stato "active" della
+  // barra: useEditor si iscrive gia' da solo alle transazioni e
+  // ri-renderizza il componente (shouldRerenderOnTransaction e' attivo di
   // default, verificato nel sorgente) - un secondo meccanismo manuale era
   // ridondante e amplificava la frequenza dei render ad ogni tasto.
+  // onSelectionUpdate sopra e' per uno scopo diverso (scroll orizzontale
+  // della tabella, non lo stato della barra) e non compete con questo.
 
   useEffect(() => {
     if (!editor) return;
