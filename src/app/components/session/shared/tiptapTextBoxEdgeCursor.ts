@@ -96,6 +96,15 @@ function isTableRow(node: ProseMirrorNode): boolean {
   return node.type.name === 'tableRow';
 }
 
+// Nome di nodo della tabella stessa (TableWithHandle, tiptapTableHandle.ts
+// - Table.extend({...}) da @tiptap/extension-table: .extend() non tocca
+// name, resta 'table' invariato, stesso motivo di isTableRow sopra) - usato
+// da exitTableBoundary sotto, un livello ancora piu' in su di isTableRow,
+// per risalire dalla riga alla tabella che la contiene.
+function isTable(node: ProseMirrorNode): boolean {
+  return node.type.name === 'table';
+}
+
 // Come findBoxAncestorDepth (sotto), ma per la cella di tabella piu'
 // vicina - usata da exitCellBoundary/exitRowBoundary per decidere la
 // transizione fra celle/righe diverse, e da isAtRowStart/isAtRowEnd sotto
@@ -113,6 +122,21 @@ function isTableRow(node: ProseMirrorNode): boolean {
 export function findCellAncestorDepth($pos: ResolvedPos): number | null {
   for (let depth = $pos.depth; depth >= 0; depth -= 1) {
     if (isTableCell($pos.node(depth))) return depth;
+  }
+  return null;
+}
+
+// Come findCellAncestorDepth sopra, un livello ancora piu' in su - usata
+// SOLO da exitTableBoundary sotto per risalire dalla cella alla TABELLA
+// che la contiene (non alla riga, isTableRow non basta qui: serve il
+// nodo il cui confine esterno e' il vero bordo assoluto della tabella,
+// dove far atterrare il cursore fuori). Stessa ricerca esplicita per
+// profondita' invece di assumerla via aritmetica (es. rowDepth - 1) -
+// coerente con lo stile del resto del file, mai assumere la profondita'
+// di un antenato quando si puo' cercarla.
+export function findTableAncestorDepth($pos: ResolvedPos): number | null {
+  for (let depth = $pos.depth; depth >= 0; depth -= 1) {
+    if (isTable($pos.node(depth))) return depth;
   }
   return null;
 }
@@ -455,6 +479,101 @@ export function exitRowBoundary(editor: Editor, dir: 'before' | 'after'): boolea
     .chain()
     .command(({ tr }) => {
       tr.setSelection(landOrDive(tr.doc, rowBoundaryPos, dir));
+      return true;
+    })
+    .scrollIntoView()
+    .run();
+}
+
+// Confine ASSOLUTO della tabella (richiesta 2026-08-06): quando
+// exitRowBoundary sopra fallisce perche' non c'e' NE' una cella vicina
+// nella riga NE' una riga vicina - siamo alla prima cella/prima colonna
+// con dir 'before', o all'ultima cella/ultima colonna con dir 'after', il
+// vero bordo esterno della tabella, non un confine interno gia' coperto
+// da exitCellBoundary/exitRowBoundary - il cursore esce dalla tabella
+// verso il paragrafo immediatamente prima/dopo, creandolo se non esiste.
+// Funzione volutamente SEPARATA da exitRowBoundary (mai un ramo al suo
+// interno): quella resta invariata, ritorna false esattamente come prima
+// - questa va provata DOPO di lei, da entrambi i punti che oggi
+// concatenano exitBoxBoundary || exitCellBoundary || exitRowBoundary
+// (createEdgeAwareKeyboardShortcuts in tiptapBlocks.tsx, ed exitArrow
+// sotto in questo stesso file).
+//
+// Guardie iniziali E doppio controllo "nessuna cella/riga vicina"
+// duplicati da exitRowBoundary invece di fattorizzati - stesso motivo
+// gia' spiegato li' (righe sopra, "guardia esplicita ripetuta"): questa
+// funzione deve restare autosufficiente se chiamata isolatamente da un
+// punto diverso della catena, esattamente come le altre in questo file.
+//
+// Ramo "vicino gia' esistente" attivo per QUALUNQUE neighborBlock, non
+// solo un textblock (bug 2026-08-06, corruzione "due tabelle consecutive,
+// senza paragrafo fra loro": isTextblock e' false anche per un'ALTRA
+// tabella adiacente, quindi il vecchio controllo ci faceva cadere nel
+// ramo inserimento come se non ci fosse nulla, inserendo un paragrafo
+// indesiderato FRA le due tabelle invece di saltare dentro la seconda) -
+// Selection.near sa gia' attraversare qualunque tipo di nodo per trovare
+// la prima posizione cursore valida, textblock o no, quindi il controllo
+// di tipo era ridondante oltre che sbagliato: l'unico caso che deve
+// davvero inserire un nuovo paragrafo e' neighborBlock === null (nessun
+// nodo li', vero bordo assoluto del documento).
+//
+// Ramo inserimento: stesso identico schema di Enter (withCursor,
+// addKeyboardShortcuts sotto) - tr.insert(pos, paragraph.create()) poi
+// Selection.near(tr.doc.resolve(pos + 1)), risolvendo la posizione SUL
+// DOCUMENTO DOPO L'INSERT (tr.doc, non il `doc` di editor.state catturato
+// prima della transazione) - pos+1 e' valida per costruzione (un
+// paragrafo vuoto appena inserito ha una sola posizione cursore, il suo
+// interno) a prescindere da dir: l'inserimento avviene sempre esattamente
+// a `tablePos`, mai altrove, quindi non serve alcun mapping ulteriore ne'
+// per dir 'before' ne' per dir 'after'.
+//
+// Ramo "vicino gia' esistente": bias di Selection.near coerente con dir,
+// stesso segno gia' usato da landOrDive sopra (dir==='after' ? 1 : -1) -
+// uscendo a destra (after) si cerca in avanti, atterrando all'INIZIO del
+// paragrafo dopo la tabella; uscendo a sinistra (before) si cerca
+// all'indietro, atterrando alla FINE del paragrafo prima della tabella
+// (mai a ridosso del bordo tabella dal lato sbagliato).
+export function exitTableBoundary(editor: Editor, dir: 'before' | 'after'): boolean {
+  const { selection, doc } = editor.state;
+  if (!selection.empty) return false;
+  const $from = selection.$from;
+  const cellDepth = findCellAncestorDepth($from);
+  if (cellDepth === null) return false;
+  if (!isAtBoxBoundary(doc, $from, cellDepth, dir === 'before' ? 'start' : 'end')) return false;
+
+  const cellBoundaryPos = dir === 'before' ? $from.before(cellDepth) : $from.after(cellDepth);
+  const $cellBoundary = doc.resolve(cellBoundaryPos);
+  const neighborCell = dir === 'before' ? $cellBoundary.nodeBefore : $cellBoundary.nodeAfter;
+  if (neighborCell && isTableCell(neighborCell)) return false;
+
+  const rowDepth = cellDepth - 1;
+  const rowBoundaryPos = dir === 'before' ? $from.before(rowDepth) : $from.after(rowDepth);
+  const $rowBoundary = doc.resolve(rowBoundaryPos);
+  const neighborRow = dir === 'before' ? $rowBoundary.nodeBefore : $rowBoundary.nodeAfter;
+  if (neighborRow && isTableRow(neighborRow)) return false;
+
+  const tableDepth = findTableAncestorDepth($from);
+  if (tableDepth === null) return false;
+  const tablePos = dir === 'before' ? $from.before(tableDepth) : $from.after(tableDepth);
+  const $tableBoundary = doc.resolve(tablePos);
+  const neighborBlock = dir === 'before' ? $tableBoundary.nodeBefore : $tableBoundary.nodeAfter;
+
+  if (neighborBlock) {
+    return editor
+      .chain()
+      .command(({ tr }) => {
+        tr.setSelection(Selection.near(tr.doc.resolve(tablePos), dir === 'after' ? 1 : -1));
+        return true;
+      })
+      .scrollIntoView()
+      .run();
+  }
+
+  return editor
+    .chain()
+    .command(({ tr }) => {
+      tr.insert(tablePos, editor.schema.nodes.paragraph.create());
+      tr.setSelection(Selection.near(tr.doc.resolve(tablePos + 1)));
       return true;
     })
     .scrollIntoView()
@@ -827,6 +946,16 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         // identica nella prosecuzione, stesso identico ragionamento sopra
         // per exitCellBoundary - solo axis==='horizontal'.
         if (axis === 'horizontal' && exitRowBoundary(editor, dir)) return true;
+
+        // Poi exitTableBoundary, DOPO exitRowBoundary (richiesta 2026-08-06:
+        // uscita dalla tabella verso il paragrafo prima/dopo, creandolo se
+        // non esiste, quando siamo al vero bordo assoluto della tabella,
+        // non un confine interno) - stessa riprova nella prosecuzione da un
+        // cursore finto gia' attivo, esattamente come per exitCellBoundary/
+        // exitRowBoundary sopra, solo axis==='horizontal' per lo stesso
+        // motivo (Up/Down restano nella stessa colonna, mai "esci dalla
+        // tabella").
+        if (axis === 'horizontal' && exitTableBoundary(editor, dir)) return true;
 
         // Solo se non c'e' PIU' nessun antenato box ne' un confine di
         // cella/riga rilevante a questa posizione (siamo davvero usciti da

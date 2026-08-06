@@ -2,7 +2,7 @@ import { Node, mergeAttributes, type Editor } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
 import { Selection, Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
 import { ChevronRight } from 'lucide-react';
-import { findBoxAncestorDepth, isAtBoxBoundary, exitBoxBoundary, exitCellBoundary, exitRowBoundary } from './tiptapTextBoxEdgeCursor';
+import { findBoxAncestorDepth, isAtBoxBoundary, exitBoxBoundary, exitCellBoundary, exitRowBoundary, exitTableBoundary } from './tiptapTextBoxEdgeCursor';
 
 // Vero fino a qualunque profondita' (non solo il genitore immediato) che il
 // cursore sia dentro un nodo di quel tipo - usata sotto per impedire
@@ -58,15 +58,24 @@ function isSelectionInside(state: EditorState, typeName: string): boolean {
 // quando serve davvero (ritornano false, nessun effetto, per qualunque
 // cella/riga di destinazione con contenuto normale) - il salto diretto e
 // incondizionato resta il comportamento per tutto il resto, invariato.
+// exitTableBoundary (2026-08-06, provata per ultima, DOPO exitRowBoundary
+// e MAI dentro di lei - vedi commento completo su exitTableBoundary in
+// tiptapTextBoxEdgeCursor.ts) copre il caso ancora piu' esterno: quando
+// exitRowBoundary fallisce perche' non c'e' ne' una cella ne' una riga
+// vicina, cioe' siamo al vero bordo ASSOLUTO della tabella (prima/ultima
+// cella dell'intera tabella, non un confine interno) - il cursore esce
+// dalla tabella verso il paragrafo prima/dopo, creandolo se non esiste.
 // Solo Left/Right, MAI Up/Down: su/giu' vanno alla cella nella riga
 // sopra/sotto nella STESSA colonna, una relazione diversa da "cella/riga
-// successiva nella stessa riga/tabella" su cui queste due si basano -
+// successiva nella stessa riga/tabella" su cui queste tre si basano -
 // fuori scopo qui.
 function createEdgeAwareKeyboardShortcuts(editor: Editor) {
   return {
-    ArrowLeft: () => exitBoxBoundary(editor, 'before') || exitCellBoundary(editor, 'before') || exitRowBoundary(editor, 'before'),
+    ArrowLeft: () =>
+      exitBoxBoundary(editor, 'before') || exitCellBoundary(editor, 'before') || exitRowBoundary(editor, 'before') || exitTableBoundary(editor, 'before'),
     ArrowUp: () => exitBoxBoundary(editor, 'before'),
-    ArrowRight: () => exitBoxBoundary(editor, 'after') || exitCellBoundary(editor, 'after') || exitRowBoundary(editor, 'after'),
+    ArrowRight: () =>
+      exitBoxBoundary(editor, 'after') || exitCellBoundary(editor, 'after') || exitRowBoundary(editor, 'after') || exitTableBoundary(editor, 'after'),
     ArrowDown: () => exitBoxBoundary(editor, 'after'),
     // Cancella l'intero nodo (non solo il paragrafo vuoto) quando il
     // cursore e' esattamente a inizio contenuto - equivalente esatto di
