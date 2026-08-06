@@ -11,7 +11,7 @@ import { TableWithHandle } from './tiptapTableHandle';
 import { TableCellWithFlexWrapper, TableHeaderWithFlexWrapper } from './tiptapTableCellWrapper';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { DropCleanup } from './tiptapDropCleanup';
-import { TextBoxEdgeCursorExtension, isAtRowStart, isAtRowEnd } from './tiptapTextBoxEdgeCursor';
+import { TextBoxEdgeCursorExtension, isAtRowStart, isAtRowEnd, findCellAncestorDepth } from './tiptapTextBoxEdgeCursor';
 import { TipTapTableMenu } from './TipTapTableMenu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 // @tiptap/extension-underline non va importato/aggiunto qui: StarterKit lo
@@ -550,6 +550,26 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     //    scrollLeft su un ancestor che non ha overflow proprio e' un no-op
     //    innocuo (il browser lo clampa da solo) - nessun bisogno di
     //    filtrare quali dei tre siano davvero scrollabili in quel momento.
+    //    La cella si trova via findCellAncestorDepth + view.nodeDOM (stessa
+    //    identica strategia di isAtRowStart/isAtRowEnd sopra), NON via
+    //    view.domAtPos(selection.from) + closest('td, th') (usato invece
+    //    nel ramo 1, dove funziona: li' non serve individuare la CELLA,
+    //    solo un punto di partenza qualunque nel suo subtree da cui risalire
+    //    gli antenati) - bug 2026-08-06 (round 5), caso limite: entrando
+    //    all'indietro in una cella con un box come ultimo figlio, il
+    //    cursore finto atterra fra il box e la fine della cella; in quella
+    //    posizione domAtPos(pos) risolve alla shallow position piu' vicina
+    //    (side di default 0, vedi la sua doc in prosemirror-view), che per
+    //    un gap adiacente a un widget decoration puo' non essere un
+    //    discendente affidabile della cella - closest() da li' falliva in
+    //    silenzio (nessun 'td'/'th' trovato, ramo generale un no-op).
+    //    findCellAncestorDepth lavora invece sulla POSIZIONE RISOLTA
+    //    ($pos.node(depth)), non sul DOM: stessa risposta a prescindere dal
+    //    tipo di selezione (TextSelection reale o il nostro TextBoxEdgeCursor)
+    //    e da quali decorazioni siano montate in quel punto - viene poi
+    //    girata a view.nodeDOM (non domAtPos) per ottenere il vero elemento
+    //    <td>/<th>, univoco per costruzione (un nodo del documento ha
+    //    sempre un solo elemento DOM che lo rappresenta).
     //
     // Nessun rischio di loop in nessuno dei due casi: ne' scrollIntoView()
     // ne' un tocco diretto a scrollLeft del DOM cambiano la selezione,
@@ -568,10 +588,6 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
       const outerBound = scrollContainerRef.current;
       if (!outerBound) return;
 
-      let node: Node | null = editor.view.domAtPos(selection.from).node;
-      if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
-      const startNode = node as HTMLElement | null;
-
       const atStart = isAtRowStart(doc, selection.$from);
       // atStart escluso prima di controllare atEnd: nell'unico caso in cui
       // potrebbero valere entrambi (riga con una sola cella, vuota - li'
@@ -581,7 +597,9 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
       const atEnd = !atStart && isAtRowEnd(doc, selection.$from);
 
       if (atStart || atEnd) {
-        let el = startNode;
+        let node: Node | null = editor.view.domAtPos(selection.from).node;
+        if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+        let el = node as HTMLElement | null;
         while (el) {
           el.scrollLeft = atStart ? 0 : el.scrollWidth - el.clientWidth;
           if (el === outerBound) break;
@@ -590,8 +608,11 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
         return;
       }
 
-      const cellEl = startNode?.closest('td, th') as HTMLElement | null;
+      const cellDepth = findCellAncestorDepth(selection.$from);
+      if (cellDepth === null) return;
+      const cellEl = editor.view.nodeDOM(selection.$from.before(cellDepth)) as HTMLElement | null;
       if (!cellEl) return;
+
       let ancestor = cellEl.parentElement;
       while (ancestor) {
         const cellRect = cellEl.getBoundingClientRect();

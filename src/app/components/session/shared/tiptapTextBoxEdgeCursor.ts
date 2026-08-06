@@ -97,12 +97,20 @@ function isTableRow(node: ProseMirrorNode): boolean {
 }
 
 // Come findBoxAncestorDepth (sotto), ma per la cella di tabella piu'
-// vicina - usata SOLO da exitCellBoundary per decidere la transizione fra
-// celle diverse, MAI da Backspace (a differenza di findBoxAncestorDepth):
-// un antenato "cella" trovato al posto di un antenato "box" cancellerebbe
-// l'intera cella invece di un box al suo interno se riusata li' - le due
-// ricerche restano deliberatamente separate.
-function findCellAncestorDepth($pos: ResolvedPos): number | null {
+// vicina - usata da exitCellBoundary/exitRowBoundary per decidere la
+// transizione fra celle/righe diverse, e da isAtRowStart/isAtRowEnd sotto
+// per lo stesso motivo, MAI da Backspace (a differenza di
+// findBoxAncestorDepth): un antenato "cella" trovato al posto di un
+// antenato "box" cancellerebbe l'intera cella invece di un box al suo
+// interno se riusata li' - le due ricerche restano deliberatamente
+// separate. Esportata anche per RichTextEditor.tsx (scroll orizzontale
+// della tabella, round 5, bug 2026-08-06): la' serve lo stesso identico
+// antenato-cella, ma per trovarne il nodo DOM via view.nodeDOM invece che
+// per una decisione di navigazione - riusare la stessa funzione invece di
+// una ricerca DOM (closest('td, th') dalla posizione del cursore) evita la
+// fragilita' di quella ricerca quando la selezione attiva e' il nostro
+// cursore finto (vedi commento su quel caso in RichTextEditor.tsx).
+export function findCellAncestorDepth($pos: ResolvedPos): number | null {
   for (let depth = $pos.depth; depth >= 0; depth -= 1) {
     if (isTableCell($pos.node(depth))) return depth;
   }
