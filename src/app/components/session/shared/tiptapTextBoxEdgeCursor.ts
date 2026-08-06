@@ -370,6 +370,22 @@ export function isAtRowStart(doc: ProseMirrorNode, $pos: ResolvedPos): boolean {
   return isAtBoxBoundary(doc, $pos, cellDepth, 'start');
 }
 
+// Simmetrica a isAtRowStart sopra (stesso identico ragionamento, lato
+// destro): vero quando $pos e' esattamente a fine contenuto dell'ULTIMA
+// cella di una riga (lastChild invece di firstChild, isAtBoxBoundary side
+// 'end' invece di 'start') - usata da RichTextEditor.tsx per forzare
+// scrollLeft al MASSIMO (scrollWidth - clientWidth) quando il cursore
+// raggiunge il vero margine destro della tabella, richiesta 2026-08-06
+// "simmetrica" al fix sinistro gia' in vigore.
+export function isAtRowEnd(doc: ProseMirrorNode, $pos: ResolvedPos): boolean {
+  const cellDepth = findCellAncestorDepth($pos);
+  if (cellDepth === null) return false;
+  const rowDepth = cellDepth - 1;
+  if (rowDepth < 0) return false;
+  if ($pos.node(rowDepth).lastChild !== $pos.node(cellDepth)) return false;
+  return isAtBoxBoundary(doc, $pos, cellDepth, 'end');
+}
+
 // Transizione fra DUE RIGHE DIVERSE della stessa tabella - simmetrica a
 // exitCellBoundary sopra ma un livello piu' in su (l'antenato cercato per
 // il salto e' la RIGA, non la cella): interviene SOLO quando NON c'e' un

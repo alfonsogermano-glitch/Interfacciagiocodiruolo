@@ -11,7 +11,7 @@ import { TableWithHandle } from './tiptapTableHandle';
 import { TableCellWithFlexWrapper, TableHeaderWithFlexWrapper } from './tiptapTableCellWrapper';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { DropCleanup } from './tiptapDropCleanup';
-import { TextBoxEdgeCursorExtension, isAtRowStart } from './tiptapTextBoxEdgeCursor';
+import { TextBoxEdgeCursorExtension, isAtRowStart, isAtRowEnd } from './tiptapTextBoxEdgeCursor';
 import { TipTapTableMenu } from './TipTapTableMenu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 // @tiptap/extension-underline non va importato/aggiunto qui: StarterKit lo
@@ -522,10 +522,15 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // selezione colma il buco per i casi in cui nessun nostro codice
     // intercetta il movimento - ma da solo NON basta (round 2, stesso bug
     // segnalato di nuovo): calcola il MINIMO scroll che rende visibile il
-    // cursore con un margine, mai un vero azzeramento, lasciando un residuo
-    // quando il cursore e' genuinamente alla prima colonna. isAtRowStart
-    // (tiptapTextBoxEdgeCursor.ts) rileva proprio quel caso e qui si forza
-    // esplicitamente scrollLeft=0 su tutti e tre i contenitori annidati
+    // cursore con un margine, mai un vero azzeramento/massimizzazione,
+    // lasciando un residuo quando il cursore e' genuinamente alla prima o
+    // ultima colonna. isAtRowStart/isAtRowEnd (tiptapTextBoxEdgeCursor.ts)
+    // rilevano proprio i due casi (richiesta 2026-08-06 di rendere il fix
+    // simmetrico anche sul bordo destro) e qui si forza esplicitamente
+    // scrollLeft al minimo (0) o al massimo (scrollWidth-clientWidth, per
+    // ciascun contenitore - i tre livelli non hanno necessariamente la
+    // stessa larghezza di overflow, a differenza del caso "0" dove il
+    // valore e' identico ovunque) su tutti e tre i contenitori annidati
     // (questo wrapper, .tiptap-content, .tableWrapper - vedi
     // scrollContainerRef sopra), risalendo dal nodo DOM alla posizione del
     // cursore (view.domAtPos) fino al wrapper esterno incluso. Nessun
@@ -537,10 +542,18 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
       editor.commands.scrollIntoView();
 
       const { selection, doc } = editor.state;
-      if (!selection.empty || !isAtRowStart(doc, selection.$from)) return;
+      if (!selection.empty) return;
+      const atStart = isAtRowStart(doc, selection.$from);
+      // atStart escluso prima di controllare atEnd: nell'unico caso in cui
+      // potrebbero valere entrambi (riga con una sola cella, vuota - li'
+      // firstChild===lastChild===quella cella) la prima colonna vince,
+      // nessun conflitto pratico dato che con una sola colonna la tabella
+      // di norma non ha comunque overflow da nessuna delle due parti.
+      const atEnd = !atStart && isAtRowEnd(doc, selection.$from);
+      if (!atStart && !atEnd) return;
 
       // outerBound assente (ref non ancora montato): esce subito invece di
-      // risalire senza limite - un ciclo senza il confine sotto azzererebbe
+      // risalire senza limite - un ciclo senza il confine sotto toccherebbe
       // scrollLeft su QUALUNQUE antenato scrollabile fino a <html>, inclusi
       // contenitori di pagina non correlati a questo editor.
       const outerBound = scrollContainerRef.current;
@@ -550,7 +563,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
       if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
       let el = node as HTMLElement | null;
       while (el) {
-        el.scrollLeft = 0;
+        el.scrollLeft = atStart ? 0 : el.scrollWidth - el.clientWidth;
         if (el === outerBound) break;
         el = el.parentElement;
       }
