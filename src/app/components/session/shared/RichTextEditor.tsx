@@ -11,7 +11,7 @@ import { TableWithHandle } from './tiptapTableHandle';
 import { TableCellWithFlexWrapper, TableHeaderWithFlexWrapper } from './tiptapTableCellWrapper';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { DropCleanup } from './tiptapDropCleanup';
-import { TextBoxEdgeCursorExtension } from './tiptapTextBoxEdgeCursor';
+import { TextBoxEdgeCursorExtension, isAtRowStart } from './tiptapTextBoxEdgeCursor';
 import { TipTapTableMenu } from './TipTapTableMenu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 // @tiptap/extension-underline non va importato/aggiunto qui: StarterKit lo
@@ -439,6 +439,15 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
   // fermare da quel preventDefault dell'antenato).
   const toolbarWrapRef = useRef<HTMLDivElement>(null);
 
+  // Il piu' esterno dei TRE contenitori di scroll orizzontale annidati
+  // attorno a una tabella (questo wrapper, poi .tiptap-content, poi
+  // .tableWrapper per-tabella - tutti overflow-x:auto, vedi il div sotto e
+  // theme.css) - limite superiore della risalita degli antenati in
+  // onSelectionUpdate sotto, cosi' da azzerare scrollLeft solo sui
+  // contenitori che esistono per mostrare QUESTO editor, mai su un
+  // antenato di pagina non correlato piu' in alto.
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   const editor = useEditor({
     // resizable: true attiva columnResizing di prosemirror-tables (gia'
     // dentro @tiptap/extension-table, nessun codice nostro) - richiede pero'
@@ -509,21 +518,42 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // commenti su exitCellBoundary/exitRowBoundary li'), l'intero movimento
     // e' gestito dal caret nativo del browser, che NON chiama mai il nostro
     // .scrollIntoView() esplicito (presente invece in OGNI altro ramo dello
-    // stesso file). Con due contenitori di scroll orizzontale annidati
-    // (.tableWrapper per-tabella dentro .tiptap-content, entrambi
-    // overflow-x:auto - vedi theme.css) il riposizionamento nativo dello
-    // scroll del browser al movimento del caret non attraversa
-    // correttamente entrambi i livelli, lasciando la tabella scrollata a
-    // destra. tr.scrollIntoView() di ProseMirror (usato ovunque nel resto
-    // del box-cursor system) gestisce correttamente qualunque catena di
-    // antenati scrollabili - richiamarlo qui, ad OGNI cambio di selezione,
-    // colma il buco lasciato dai casi in cui nessun nostro codice
-    // intercetta il movimento. Nessun rischio di loop: la transazione che
-    // scrollIntoView() emette non cambia la selezione, quindi non
-    // ri-scatena selectionUpdate (vedi dispatchTransaction in
-    // @tiptap/core: l'evento scatta solo se selectionHasChanged).
+    // stesso file). tr.scrollIntoView() richiamato qui ad ogni cambio di
+    // selezione colma il buco per i casi in cui nessun nostro codice
+    // intercetta il movimento - ma da solo NON basta (round 2, stesso bug
+    // segnalato di nuovo): calcola il MINIMO scroll che rende visibile il
+    // cursore con un margine, mai un vero azzeramento, lasciando un residuo
+    // quando il cursore e' genuinamente alla prima colonna. isAtRowStart
+    // (tiptapTextBoxEdgeCursor.ts) rileva proprio quel caso e qui si forza
+    // esplicitamente scrollLeft=0 su tutti e tre i contenitori annidati
+    // (questo wrapper, .tiptap-content, .tableWrapper - vedi
+    // scrollContainerRef sopra), risalendo dal nodo DOM alla posizione del
+    // cursore (view.domAtPos) fino al wrapper esterno incluso. Nessun
+    // rischio di loop: ne' scrollIntoView() ne' un tocco diretto a
+    // scrollLeft del DOM cambiano la selezione, quindi non ri-scatena
+    // selectionUpdate (vedi dispatchTransaction in @tiptap/core: l'evento
+    // scatta solo se selectionHasChanged).
     onSelectionUpdate: ({ editor }) => {
       editor.commands.scrollIntoView();
+
+      const { selection, doc } = editor.state;
+      if (!selection.empty || !isAtRowStart(doc, selection.$from)) return;
+
+      // outerBound assente (ref non ancora montato): esce subito invece di
+      // risalire senza limite - un ciclo senza il confine sotto azzererebbe
+      // scrollLeft su QUALUNQUE antenato scrollabile fino a <html>, inclusi
+      // contenitori di pagina non correlati a questo editor.
+      const outerBound = scrollContainerRef.current;
+      if (!outerBound) return;
+
+      let node: Node | null = editor.view.domAtPos(selection.from).node;
+      if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+      let el = node as HTMLElement | null;
+      while (el) {
+        el.scrollLeft = 0;
+        if (el === outerBound) break;
+        el = el.parentElement;
+      }
     },
   });
   // Nessun onTransaction manuale per aggiornare lo stato "active" della
@@ -608,6 +638,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     <div ref={toolbarWrapRef} className="flex items-start gap-2">
       <Toolbar editor={editor} editable={editable} />
       <div
+        ref={scrollContainerRef}
         onClick={!editable ? onClickText : undefined}
         // overflow-x-auto sempre presente (non delegato al solo containerClassName
         // del chiamante, ne' alla regola .tableWrapper in theme.css): senza un

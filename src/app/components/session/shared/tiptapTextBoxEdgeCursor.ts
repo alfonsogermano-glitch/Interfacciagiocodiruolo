@@ -345,6 +345,31 @@ export function exitCellBoundary(editor: Editor, dir: 'before' | 'after'): boole
     .run();
 }
 
+// Vero quando $pos e' esattamente all'inizio della prima cella di una riga
+// (colonna 0) - usato da RichTextEditor.tsx per forzare scrollLeft=0 sui
+// contenitori di scroll orizzontale annidati (.tableWrapper dentro
+// .tiptap-content dentro il wrapper esterno, tutti overflow-x:auto) quando
+// il cursore raggiunge il vero margine sinistro della tabella. Bug
+// segnalato 2026-08-06 dopo il primo fix (tr.scrollIntoView() ad ogni
+// selectionUpdate, gia' in vigore): scrollIntoView calcola solo il MINIMO
+// scroll necessario per rendere visibile il cursore con un margine, mai un
+// vero azzeramento - lasciando un residuo quando si atterra su testo
+// semplice senza alcun box (nessuna delle funzioni sopra interviene in quel
+// caso, il movimento resta nativo). Riusa isAtBoxBoundary per "il cursore e'
+// alla posizione cursore-equivalente dell'inizio della cella" (stessa
+// identica logica gia' validata per i box, qui applicata alla cella)
+// - "prima cella della riga" verificato a parte confrontando il nodo cella
+// con firstChild del nodo riga (colonna 0 per definizione, indipendente da
+// eventuali colspan altrove nella stessa riga).
+export function isAtRowStart(doc: ProseMirrorNode, $pos: ResolvedPos): boolean {
+  const cellDepth = findCellAncestorDepth($pos);
+  if (cellDepth === null) return false;
+  const rowDepth = cellDepth - 1;
+  if (rowDepth < 0) return false;
+  if ($pos.node(rowDepth).firstChild !== $pos.node(cellDepth)) return false;
+  return isAtBoxBoundary(doc, $pos, cellDepth, 'start');
+}
+
 // Transizione fra DUE RIGHE DIVERSE della stessa tabella - simmetrica a
 // exitCellBoundary sopra ma un livello piu' in su (l'antenato cercato per
 // il salto e' la RIGA, non la cella): interviene SOLO quando NON c'e' un
