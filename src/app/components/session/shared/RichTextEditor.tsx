@@ -520,37 +520,46 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // .scrollIntoView() esplicito (presente invece in OGNI altro ramo dello
     // stesso file). tr.scrollIntoView() richiamato qui ad ogni cambio di
     // selezione colma il buco per i casi in cui nessun nostro codice
-    // intercetta il movimento - ma da solo NON basta (round 2, stesso bug
-    // segnalato di nuovo): calcola il MINIMO scroll che rende visibile il
-    // cursore con un margine, mai un vero azzeramento/massimizzazione,
-    // lasciando un residuo quando il cursore e' genuinamente alla prima o
-    // ultima colonna. isAtRowStart/isAtRowEnd (tiptapTextBoxEdgeCursor.ts)
-    // rilevano proprio i due casi (richiesta 2026-08-06 di rendere il fix
-    // simmetrico anche sul bordo destro) e qui si forza esplicitamente
-    // scrollLeft al minimo (0) o al massimo (scrollWidth-clientWidth, per
-    // ciascun contenitore - i tre livelli non hanno necessariamente la
-    // stessa larghezza di overflow, a differenza del caso "0" dove il
-    // valore e' identico ovunque) su tutti e tre i contenitori annidati
-    // (questo wrapper, .tiptap-content, .tableWrapper - vedi
-    // scrollContainerRef sopra), risalendo dal nodo DOM alla posizione del
-    // cursore (view.domAtPos) fino al wrapper esterno incluso. Nessun
-    // rischio di loop: ne' scrollIntoView() ne' un tocco diretto a
-    // scrollLeft del DOM cambiano la selezione, quindi non ri-scatena
-    // selectionUpdate (vedi dispatchTransaction in @tiptap/core: l'evento
-    // scatta solo se selectionHasChanged).
+    // intercetta il movimento - ma da solo NON basta (round 2): calcola il
+    // MINIMO scroll che rende visibile il cursore con un margine, mai un
+    // vero azzeramento/massimizzazione ai bordi veri della tabella.
+    //
+    // Due livelli di correzione manuale sotto, entrambi sugli stessi tre
+    // contenitori annidati (questo wrapper, .tiptap-content, .tableWrapper
+    // - vedi scrollContainerRef sopra), risalendo dal nodo DOM della
+    // posizione del cursore (view.domAtPos) fino al wrapper esterno incluso:
+    //
+    // 1) isAtRowStart/isAtRowEnd (tiptapTextBoxEdgeCursor.ts, round 2/3):
+    //    ai VERI bordi di una riga (prima/ultima cella, cursore a inizio/
+    //    fine contenuto) forzano scrollLeft esattamente al minimo (0) o al
+    //    massimo (scrollWidth-clientWidth) - piu' precisi del calcolo
+    //    generale sotto perche' non dipendono dalla geometria del momento,
+    //    danno il valore vero e proprio invariante rispetto a eventuali
+    //    arrotondamenti subpixel di getBoundingClientRect.
+    // 2) Caso generale (round 4, richiesta 2026-08-06 "ogni cambio di
+    //    cella, non solo i due estremi"): quando il cursore e' in una
+    //    cella qualunque che NON e' ne' la prima ne' l'ultima della riga
+    //    (o lo e' ma senza soddisfare le condizioni sopra, es. non a
+    //    inizio/fine contenuto), uno scrollIntoView manuale sulla CELLA
+    //    (non sul singolo carattere) - confronta il bounding rect della
+    //    cella con quello di ciascun contenitore scrollabile e sposta
+    //    scrollLeft del minimo necessario per farla rientrare per intero,
+    //    un livello alla volta (il rect della cella va rimisurato ad ogni
+    //    iterazione: scrollare un livello interno sposta la sua posizione
+    //    visiva rispetto al livello esterno successivo). Assegnare
+    //    scrollLeft su un ancestor che non ha overflow proprio e' un no-op
+    //    innocuo (il browser lo clampa da solo) - nessun bisogno di
+    //    filtrare quali dei tre siano davvero scrollabili in quel momento.
+    //
+    // Nessun rischio di loop in nessuno dei due casi: ne' scrollIntoView()
+    // ne' un tocco diretto a scrollLeft del DOM cambiano la selezione,
+    // quindi non ri-scatena selectionUpdate (vedi dispatchTransaction in
+    // @tiptap/core: l'evento scatta solo se selectionHasChanged).
     onSelectionUpdate: ({ editor }) => {
       editor.commands.scrollIntoView();
 
       const { selection, doc } = editor.state;
       if (!selection.empty) return;
-      const atStart = isAtRowStart(doc, selection.$from);
-      // atStart escluso prima di controllare atEnd: nell'unico caso in cui
-      // potrebbero valere entrambi (riga con una sola cella, vuota - li'
-      // firstChild===lastChild===quella cella) la prima colonna vince,
-      // nessun conflitto pratico dato che con una sola colonna la tabella
-      // di norma non ha comunque overflow da nessuna delle due parti.
-      const atEnd = !atStart && isAtRowEnd(doc, selection.$from);
-      if (!atStart && !atEnd) return;
 
       // outerBound assente (ref non ancora montato): esce subito invece di
       // risalire senza limite - un ciclo senza il confine sotto toccherebbe
@@ -561,11 +570,39 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
 
       let node: Node | null = editor.view.domAtPos(selection.from).node;
       if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
-      let el = node as HTMLElement | null;
-      while (el) {
-        el.scrollLeft = atStart ? 0 : el.scrollWidth - el.clientWidth;
-        if (el === outerBound) break;
-        el = el.parentElement;
+      const startNode = node as HTMLElement | null;
+
+      const atStart = isAtRowStart(doc, selection.$from);
+      // atStart escluso prima di controllare atEnd: nell'unico caso in cui
+      // potrebbero valere entrambi (riga con una sola cella, vuota - li'
+      // firstChild===lastChild===quella cella) la prima colonna vince,
+      // nessun conflitto pratico dato che con una sola colonna la tabella
+      // di norma non ha comunque overflow da nessuna delle due parti.
+      const atEnd = !atStart && isAtRowEnd(doc, selection.$from);
+
+      if (atStart || atEnd) {
+        let el = startNode;
+        while (el) {
+          el.scrollLeft = atStart ? 0 : el.scrollWidth - el.clientWidth;
+          if (el === outerBound) break;
+          el = el.parentElement;
+        }
+        return;
+      }
+
+      const cellEl = startNode?.closest('td, th') as HTMLElement | null;
+      if (!cellEl) return;
+      let ancestor = cellEl.parentElement;
+      while (ancestor) {
+        const cellRect = cellEl.getBoundingClientRect();
+        const containerRect = ancestor.getBoundingClientRect();
+        if (cellRect.left < containerRect.left) {
+          ancestor.scrollLeft -= containerRect.left - cellRect.left;
+        } else if (cellRect.right > containerRect.right) {
+          ancestor.scrollLeft += cellRect.right - containerRect.right;
+        }
+        if (ancestor === outerBound) break;
+        ancestor = ancestor.parentElement;
       }
     },
   });
