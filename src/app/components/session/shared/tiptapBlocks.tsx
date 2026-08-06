@@ -2,7 +2,15 @@ import { Node, mergeAttributes, type Editor } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
 import { Selection, Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
 import { ChevronRight } from 'lucide-react';
-import { findBoxAncestorDepth, isAtBoxBoundary, exitBoxBoundary, exitCellBoundary, exitRowBoundary, exitTableBoundary } from './tiptapTextBoxEdgeCursor';
+import {
+  findBoxAncestorDepth,
+  isAtBoxBoundary,
+  exitBoxBoundary,
+  exitCellBoundary,
+  exitRowBoundary,
+  exitTableBoundary,
+  exitTableTopEdge,
+} from './tiptapTextBoxEdgeCursor';
 
 // Vero fino a qualunque profondita' (non solo il genitore immediato) che il
 // cursore sia dentro un nodo di quel tipo - usata sotto per impedire
@@ -69,11 +77,20 @@ function isSelectionInside(state: EditorState, typeName: string): boolean {
 // sopra/sotto nella STESSA colonna, una relazione diversa da "cella/riga
 // successiva nella stessa riga/tabella" su cui queste tre si basano -
 // fuori scopo qui.
+//
+// exitTableTopEdge (2026-08-06, SOLO ArrowUp, MAI ArrowDown per design
+// esplicito) sostituisce il GapCursor nativo di ProseMirror con il nostro
+// cursore finto quando siamo in riga 0 (qualunque colonna, non solo la
+// prima - a differenza delle tre sopra) e sopra la tabella non c'e' nulla
+// di valido: vedi il commento completo su exitTableTopEdge in
+// tiptapTextBoxEdgeCursor.ts per il ragionamento (riusa GapCursor.valid
+// come oracolo). ArrowDown dall'ultima riga resta interamente invariato
+// (TrailingNode + comportamento nativo, mai toccato).
 function createEdgeAwareKeyboardShortcuts(editor: Editor) {
   return {
     ArrowLeft: () =>
       exitBoxBoundary(editor, 'before') || exitCellBoundary(editor, 'before') || exitRowBoundary(editor, 'before') || exitTableBoundary(editor, 'before'),
-    ArrowUp: () => exitBoxBoundary(editor, 'before'),
+    ArrowUp: () => exitBoxBoundary(editor, 'before') || exitTableTopEdge(editor),
     ArrowRight: () =>
       exitBoxBoundary(editor, 'after') || exitCellBoundary(editor, 'after') || exitRowBoundary(editor, 'after') || exitTableBoundary(editor, 'after'),
     ArrowDown: () => exitBoxBoundary(editor, 'after'),

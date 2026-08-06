@@ -4,6 +4,7 @@ import { Slice } from '@tiptap/pm/model';
 import type { Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import type { Mapping } from '@tiptap/pm/transform';
+import { GapCursor } from '@tiptap/pm/gapcursor';
 
 // Selezione custom per il cursore "finto" al confine di un TextBox/Collapse
 // - stesso schema di GapCursor (prosemirror-gapcursor, letto dal sorgente
@@ -151,9 +152,21 @@ export function findTableAncestorDepth($pos: ResolvedPos): number | null {
 // adiacente al suo box di bordo (vedi landOrDive) - agli occhi di questa
 // funzione e' quindi indistinguibile da un confine box/box dentro la
 // stessa cella, nessun ramo dedicato necessario.
+//
+// isTable(...) incluso nel riconoscimento (round 2026-08-06, cursore finto
+// sopra il bordo superiore di una tabella - exitTableTopEdge sotto): sicuro
+// allargarlo qui invece di un concetto parallelo perche' PRIMA di questa
+// modifica un TextBoxEdgeCursor non e' MAI stato adiacente a una tabella
+// (l'unica funzione che lo crea, landOrDive, non tocca mai i nodi table) -
+// allargare il riconoscimento non puo' quindi cambiare nessuno scenario
+// gia' funzionante, si attiva solo per il caso nuovo. Non fusa dentro
+// isSideBySideBox/SIDE_BY_SIDE_BLOCK_TYPES: quell'insieme e' specificamente
+// "box che condividono una riga via flexbox" (vedi commento li'), una
+// tabella non partecipa a quella semantica - concettualmente sbagliato
+// anche se innocuo, restano volutamente due controlli separati uniti da ||.
 export function adjacentBox($pos: ResolvedPos): { node: ProseMirrorNode; side: 'before' | 'after' } | null {
-  if ($pos.nodeAfter && isSideBySideBox($pos.nodeAfter)) return { node: $pos.nodeAfter, side: 'after' };
-  if ($pos.nodeBefore && isSideBySideBox($pos.nodeBefore)) return { node: $pos.nodeBefore, side: 'before' };
+  if ($pos.nodeAfter && (isSideBySideBox($pos.nodeAfter) || isTable($pos.nodeAfter))) return { node: $pos.nodeAfter, side: 'after' };
+  if ($pos.nodeBefore && (isSideBySideBox($pos.nodeBefore) || isTable($pos.nodeBefore))) return { node: $pos.nodeBefore, side: 'before' };
   return null;
 }
 
@@ -580,12 +593,95 @@ export function exitTableBoundary(editor: Editor, dir: 'before' | 'after'): bool
     .run();
 }
 
+// Sostituisce il GapCursor nativo di ProseMirror con il nostro cursore
+// finto SOLO nel caso Freccia Su dalla riga 0 di una tabella quando sopra
+// non c'e' nulla di valido (richiesta 2026-08-06) - simmetrico solo nel
+// nome a exitTableBoundary, non nel comportamento: qui non c'e' un
+// parametro dir, la direzione e' unica e fissa (Su) per design esplicito -
+// Freccia Giu' dall'ultima riga resta INVARIATA (TrailingNode + comportamento
+// nativo attuale, mai toccata da questa funzione).
+//
+// A differenza di exitTableBoundary (orizzontale, dove il controllo e'
+// "nessuna cella/riga vicina", specifico alla colonna 0/ultima), qui il
+// controllo e' "siamo nella RIGA 0" a QUALUNQUE colonna - il salto
+// nativo riga-sopra/riga-sotto di prosemirror-tables per le righe interne
+// resta interamente invariato, fuori scopo qui.
+//
+// Il discriminante vero - "qui comparirebbe davvero il GapCursor nativo,
+// si' o no" - NON e' GapCursor.valid($pos) da solo (bug scoperto dal vivo,
+// round 2026-08-06: due tabelle consecutive, Freccia Su dalla riga 0 della
+// seconda verso la prima - GapCursor.valid(tablePos) risulta true li'
+// isolatamente, ma il nativo REALE non mostra mai un gapcursor in quel
+// punto, atterra dentro l'ultima cella della tabella sopra). Il motivo:
+// GapCursor.valid risponde "un gap cursor SAREBBE valido qui in astratto",
+// ma non tiene conto che prosemirror-tables ha la PRECEDENZA e trova gia'
+// una destinazione valida (la stessa Selection.near che usa lui stesso
+// internamente, vedi node_modules/prosemirror-tables/dist/index.js,
+// funzione arrow()) PRIMA che il gapcursor abbia la possibilita' di
+// intervenire - GapCursor.valid non sa nulla di questa corsa fra plugin.
+//
+// Il vero test e' quindi RIPRODURRE esattamente quella stessa chiamata
+// (Selection.near(doc.resolve(tablePos), -1), lo stesso bias -1 di
+// arrow()) e verificare se il risultato e' una destinazione GENUINAMENTE
+// prima della tabella (nativeTarget.from < tablePos, es. dentro un
+// paragrafo o un'altra tabella sopra) oppure se Selection.near e'
+// "rimbalzato" dentro/dopo la tabella stessa (nessuna posizione valida
+// trovata andando indietro, e' questo il segnale vero che il nativo
+// fallirebbe e mostrerebbe il gapcursor). GapCursor.valid resta come
+// SECONDO controllo, in AND - piu' conservativo, interveniamo solo se
+// ENTRAMBI concordano che serve davvero un gap cursor.
+//
+// Nessun tr.insert qui, mai: il cursore finto resta puramente
+// presentazionale finche' l'utente non digita (Selection.replace() di base,
+// ereditato dalla classe, materializza da solo un paragrafo se necessario -
+// stesso comportamento gia' validato per TextBoxEdgeCursor accanto ai box).
+export function exitTableTopEdge(editor: Editor): boolean {
+  const { selection, doc } = editor.state;
+  if (!selection.empty) return false;
+  const $from = selection.$from;
+  const cellDepth = findCellAncestorDepth($from);
+  if (cellDepth === null) return false;
+  if (!isAtBoxBoundary(doc, $from, cellDepth, 'start')) return false;
+
+  const rowDepth = cellDepth - 1;
+  const tableDepth = findTableAncestorDepth($from);
+  if (tableDepth === null) return false;
+  if ($from.node(tableDepth).firstChild !== $from.node(rowDepth)) return false;
+
+  const tablePos = $from.before(tableDepth);
+  const nativeTarget = Selection.near(doc.resolve(tablePos), -1);
+  if (nativeTarget.from < tablePos) return false;
+  if (!GapCursor.valid(doc.resolve(tablePos))) return false;
+
+  return editor
+    .chain()
+    .command(({ tr }) => {
+      tr.setSelection(new TextBoxEdgeCursor(tr.doc.resolve(tablePos)));
+      return true;
+    })
+    .scrollIntoView()
+    .run();
+}
+
 // Nome di classe di un TextBox/Collapse RESO (non il nome di nodo dello
 // schema, isSideBySideBox sopra lavora su ProseMirrorNode - qui serve il
 // suo equivalente DOM, per riconoscere i veri VICINI del widget nel
 // markup effettivo).
 function isBoxElement(el: Element | null): el is HTMLElement {
   return !!el && (el.classList.contains('tiptap-textbox') || el.classList.contains('tiptap-collapse'));
+}
+
+// Equivalente di isBoxElement ma per il wrapper di una tabella (TableView
+// di prosemirror-tables, tiptapTableHandle.ts: this.dom.className =
+// 'tableWrapper') - usato SOLO da positionEdgeCursor sotto per il caso
+// nuovo "cursore finto sopra il bordo superiore di una tabella"
+// (exitTableTopEdge sopra). .tableWrapper e non <table>: e' lei ad avere
+// il margin-top (2.125rem, theme.css) che crea lo spazio dove il cursore
+// finto deve vivere - stesso riferimento "bordo vero visibile" gia' usato
+// ovunque nel file (vedi cell.getBoundingClientRect() poco sotto per il
+// caso dentro-cella, stessa logica).
+function isTableWrapperElement(el: Element | null): el is HTMLElement {
+  return !!el && el.classList.contains('tableWrapper');
 }
 
 // Calcolo UNICO della posizione del cursore finto (bug 2026-08-05,
@@ -645,7 +741,39 @@ function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after')
   const nextEl = widget.nextElementSibling;
   const boxBefore = isBoxElement(prevEl) ? prevEl : null;
   const boxAfter = isBoxElement(nextEl) ? nextEl : null;
-  if (!boxBefore && !boxAfter) return; // difensivo: per costruzione ce n'e' sempre almeno uno
+  if (!boxBefore && !boxAfter) {
+    // Nessun box vicino - caso nuovo (2026-08-06): cursore finto sopra il
+    // bordo superiore di una tabella (exitTableTopEdge sopra), quindi il
+    // vicino e' invece .tableWrapper. Sempre e solo nextEl (il cursore
+    // nasce SOLO in direzione 'before'/Su, mai dopo una tabella - Giu'
+    // resta interamente nativo, invariato) - nessuna ambiguita' di lato,
+    // preferSide non si applica qui (un solo vicino possibile).
+    const tableAfter = isTableWrapperElement(nextEl) ? nextEl : null;
+    if (!tableAfter) return; // difensivo: nessuno dei due casi riconosciuti
+    const containerRect = container.getBoundingClientRect();
+    const tableRect = tableAfter.getBoundingClientRect();
+    // Compensazione del margin-top CSS condiviso (theme.css,
+    // .tiptap-textbox-edge-cursor: pensato per il caso box, dove sposta il
+    // caret leggermente PIU' IN BASSO rispetto al bordo esterno per
+    // allinearlo al testo dopo il padding) - qui l'effetto e' sbagliato:
+    // misurato dal vivo (round 2026-08-06), senza compensarlo il widget
+    // finiva 9px DENTRO il bordo della tabella invece che nel gap sopra
+    // (margin-top:2.125rem della .tableWrapper, dove deve vivere). Per un
+    // elemento position:absolute, margin-top SI SOMMA a top nel
+    // posizionamento finale - sottraendolo qui (insieme all'altezza del
+    // caret) si ottiene il bordo INFERIORE del caret esattamente flush col
+    // bordo superiore della tabella, stesso principio "flush 0px, nessun
+    // gap inventato" gia' usato ovunque in questa funzione per gli altri
+    // casi "un solo vicino". Letti da getComputedStyle (non hardcoded):
+    // restano corretti anche se i valori CSS cambiano in futuro.
+    const cs = getComputedStyle(widget);
+    const marginTop = parseFloat(cs.marginTop) || 0;
+    const capHeight = parseFloat(cs.height) || 0;
+    widget.style.position = 'absolute';
+    widget.style.top = `${tableRect.top - containerRect.top - marginTop - capHeight}px`;
+    widget.style.left = `${tableRect.left - containerRect.left}px`;
+    return;
+  }
 
   const containerRect = container.getBoundingClientRect();
   const beforeRect = boxBefore?.getBoundingClientRect() ?? null;
@@ -917,6 +1045,25 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         // box (dir === box.side) rientra nel box; l'altra direzione
         // prosegue oltre.
         if (dir === box.side) return reenterBox(selection, box);
+
+        // Vicino e' una TABELLA, non un box (round 2026-08-06,
+        // exitTableTopEdge/adjacentBox sopra): siamo nel cursore finto
+        // creato sopra il bordo superiore di una tabella. A differenza dei
+        // box (dove "prosegue oltre" sotto prova exitBoxBoundary/Cell/Row/
+        // Table, un livello alla volta), qui non c'e' alcun livello
+        // ulteriore da attraversare - l'assenza di qualunque posizione
+        // valida sopra e' gia' stata accertata da GapCursor.valid al
+        // momento della creazione (exitTableTopEdge), quindi non c'e'
+        // altro posto dove andare. return true SENZA dispatchare alcuna
+        // transazione: la selezione resta esattamente com'e', "resta
+        // fermo" - evita di cadere nel fallback Selection.near generico
+        // sotto, che rientrerebbe in tabella (nessuna posizione valida
+        // all'indietro, il suo bias si inverte in avanti). dir e' sempre
+        // 'before' quando si arriva qui con box.node una tabella (box.side
+        // e' sempre 'after' per costruzione - exitTableTopEdge crea il
+        // cursore solo in direzione 'before' - quindi dir==='after'
+        // avrebbe gia' preso il ramo reenterBox sopra, mai questo).
+        if (isTable(box.node)) return true;
 
         // Direzione opposta al lato del box: prosegue oltre. Riprova PRIMA
         // exitBoxBoundary sulla posizione attuale: se questo cursore finto
