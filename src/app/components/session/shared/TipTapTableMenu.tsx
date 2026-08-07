@@ -283,6 +283,40 @@ export function TipTapTableMenu({ editor }: { editor: Editor }) {
       // mainAxis (verticale) resta true di default - tabella vicina al
       // fondo dell'area di scrittura, pannello alto quanto i suoi gruppi
       // di bottoni, altrimenti sforerebbe sotto.
+      //
+      // appendTo + className z-index, TERZO giro (stesso round, bug
+      // verificato dal vivo subito dopo il fix del boundary): con le
+      // coordinate ormai corrette (nessuna sovrapposizione con la
+      // tabella), il pannello finiva comunque NASCOSTO DIETRO la barra
+      // laterale destra dell'app (SessionRightSidebar.tsx, <aside
+      // z-[950]>) - non un problema di posizione ne' di z-index del
+      // pannello in se', ma di STACKING CONTEXT: senza appendTo esplicito,
+      // BubbleMenuView.show() (@tiptap/extension-bubble-menu) appende il
+      // div del pannello dentro editor.view.dom.parentElement di default -
+      // che qui e' annidato dentro il pannello "Note" dell'app
+      // (SlideOverPanel.tsx: position:fixed, z-index:900, transform
+      // sempre presente anche a riposo). Ognuna di quelle tre proprieta'
+      // crea da sola un nuovo stacking context: il pannello tabella,
+      // vivendo dentro quello z-900, non puo' MAI vincere contro un
+      // fratello esterno a z-950 (la barra laterale) - confrontabile SOLO
+      // con gli altri elementi DENTRO lo stesso stacking context z-900,
+      // qualunque z-index gli si desse (verificato dal vivo con
+      // elementFromPoint() sul centro del bottone "Copia tabella":
+      // restituiva l'<aside>, non il bottone). appendTo={() =>
+      // document.body} sposta il div del pannello (quello che
+      // BubbleMenuView appende via appendChild in show(), non i suoi
+      // figli React - vedi BubbleMenu.tsx di @tiptap/react,
+      // createPortal(children, menuEl.current) resta un dettaglio
+      // React interno, appendTo agisce sul contenitore DOM reale) FUORI
+      // da quello stacking context, come figlio diretto di <body> - a
+      // quel punto lo z-index (z-[1000] via className, PLUGIN_MANAGED_
+      // STYLE_PROPERTIES di useMenuElementProps.ts NON include zIndex,
+      // quindi la classe non viene mai sovrascritta dagli inline style
+      // del plugin) compete finalmente nel root stacking context, sopra
+      // la barra laterale (950) con margine per eventuali z-index alti
+      // futuri.
+      appendTo={() => document.body}
+      className="z-[1000]"
       options={{
         placement: 'right-start',
         offset: 8,
