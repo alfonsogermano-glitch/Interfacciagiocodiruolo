@@ -15,6 +15,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
+import { usePortalContainer } from '../../ui/portal-container';
 import type { ReactNode } from 'react';
 
 // addRow/addColumn (prosemirror-tables, ri-esportate da @tiptap/pm/tables)
@@ -224,6 +225,13 @@ function TableMenuSeparator() {
  * sovrapposta all'angolo in alto (placement sotto).
  */
 export function TipTapTableMenu({ editor }: { editor: Editor }) {
+  // Hook chiamato qui, al livello del componente - MAI dentro la callback
+  // di appendTo sotto (violerebbe le Rules of Hooks, chiamata condizionale
+  // implicita ad ogni show() del pannello invece che ad ogni render).
+  // Vedi il commento su appendTo per il motivo (round 2026-08-07, QUARTO
+  // giro: le variabili --dash-* sparivano su document.body).
+  const portalContainer = usePortalContainer();
+
   return (
     <BubbleMenu
       editor={editor}
@@ -315,7 +323,38 @@ export function TipTapTableMenu({ editor }: { editor: Editor }) {
       // del plugin) compete finalmente nel root stacking context, sopra
       // la barra laterale (950) con margine per eventuali z-index alti
       // futuri.
-      appendTo={() => document.body}
+      //
+      // appendTo → portalContainer, QUARTO giro (stesso round, bug
+      // verificato dal vivo subito dopo il fix precedente): document.body
+      // risolve lo stacking context ma rompe le variabili CSS --dash-*
+      // (colori della palette attiva) usate da questo stesso pannello
+      // (bg-[var(--dash-panel)], border-[var(--dash-border-soft)],
+      // text-[var(--dash-muted)] su TableMenuButton/TableMenuSeparator
+      // sopra) - quelle variabili NON sono su :root ma su un selettore
+      // d'attributo `[data-dashboard-palette='...']` (src/styles/index.css,
+      // una regola per ciascuna delle 9 palette) applicato a un <div>
+      // annidato dentro l'albero di AppShell.tsx (data-dashboard-palette),
+      // non su <html>/<body> - verificato dal vivo con getComputedStyle:
+      // --dash-panel si risolveva a stringa vuota sia su document.body sia
+      // su document.documentElement. Un elemento appeso FUORI da quell'
+      // albero (figlio diretto di <body>, un fratello della sua radice,
+      // non un discendente) perde quindi l'ereditarietà CSS di quelle
+      // variabili - sfondo trasparente, bordo/testo ridotti al fallback
+      // implicito (currentColor/colore ereditato) invece del colore
+      // palette. portalContainer (usePortalContainer(), da
+      // ui/portal-container.tsx) e' il nodo DOM CON quell'attributo,
+      // esposto via Context da AppShell.tsx proprio per questo scopo -
+      // stesso identico bug e stessa soluzione gia' usati altrove
+      // nell'app (commento originale in portal-container.tsx: "visto con
+      // il menu a tre puntini invisibile in CampaignHome"). Non ha
+      // position/z-index/transform propri (e' un <div> flex semplice),
+      // quindi non reintroduce il problema del giro precedente: il
+      // pannello resta comunque fuori dallo stacking context z-900 del
+      // pannello Note, con la palette attiva ereditata correttamente.
+      // Fallback ?? document.body invariato per sicurezza (component
+      // renderizzato fuori da AppShell, mai il caso oggi, ma senza
+      // costringere il chiamante a garantirlo).
+      appendTo={() => portalContainer ?? document.body}
       className="z-[1000]"
       options={{
         placement: 'right-start',
