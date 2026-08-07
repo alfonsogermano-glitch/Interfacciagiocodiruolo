@@ -163,7 +163,10 @@ declare module '@tiptap/core' {
 // cursor.
 export const TextBox = Node.create({
   name: 'textBox',
-  group: 'block',
+  // 'rowItem' in piu' rispetto al nativo 'block' (Fase 1 "affiancamento a
+  // livello documento", piano confermato 2026-08-07): rende un TextBox
+  // inseribile come figlio di una row (tiptapRow.ts).
+  group: 'block rowItem',
   content: 'block+',
   defining: true,
   isolating: true,
@@ -365,7 +368,10 @@ function CollapseBlockView({ node, updateAttributes }: NodeViewProps) {
 
 export const CollapseBlock = Node.create({
   name: 'collapseBlock',
-  group: 'block',
+  // 'rowItem' in piu' rispetto al nativo 'block' (Fase 1 "affiancamento a
+  // livello documento", piano confermato 2026-08-07): rende un CollapseBlock
+  // inseribile come figlio di una row (tiptapRow.ts).
+  group: 'block rowItem',
   content: 'collapseSummary collapseBody',
   defining: true,
   isolating: true,

@@ -48,9 +48,15 @@ class TableViewWithHandle extends TableView {
 // parseHTML/renderHTML, incluso il tokenizer markdown per l'incolla di
 // tabelle) resta ereditato invariato da Table originale - .extend() sovrascrive
 // solo le chiavi passate qui.
+//
+// group:'block rowItem' - in piu' rispetto al nativo 'block' (Fase 1
+// "affiancamento a livello documento", piano confermato 2026-08-07): rende
+// una tabella inseribile come figlio di una row (tiptapRow.ts), insieme a
+// TextBox/CollapseBlock/paragraph.
 export const TableWithHandle = Table.extend({
   selectable: true,
   draggable: true,
+  group: 'block rowItem',
 }).configure({
   resizable: true,
   allowTableNodeSelection: true,

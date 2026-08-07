@@ -9,6 +9,7 @@ import { parseLines } from './markdownHeadings';
 import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
 import { TableWithHandle } from './tiptapTableHandle';
 import { TableCellWithFlexWrapper, TableHeaderWithFlexWrapper } from './tiptapTableCellWrapper';
+import { Row, ParagraphWithRowGroup } from './tiptapRow';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { DropCleanup } from './tiptapDropCleanup';
 import { TextBoxEdgeCursorExtension, isAtRowStart, isAtRowEnd, findCellAncestorDepth } from './tiptapTextBoxEdgeCursor';
@@ -469,8 +470,14 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // DropCleanup: ripulisce il paragrafo vuoto placeholder residuo dopo il
     // drag di TextBox/Collapse/Tabella verso una zona che ne aveva gia' uno
     // (bug segnalato 2026-07-31, vedi tiptapDropCleanup.ts).
+    //
+    // paragraph:false - stesso trattamento di table/tableCell/tableHeader
+    // sotto: il node nativo di StarterKit e' disattivato qui e sostituito da
+    // ParagraphWithRowGroup (tiptapRow.ts), che aggiunge solo il group
+    // 'rowItem' in piu' (Fase 1 "affiancamento a livello documento", piano
+    // confermato 2026-08-07) - nessun altro comportamento cambiato.
     extensions: [
-      StarterKit.configure({ heading: false }),
+      StarterKit.configure({ heading: false, paragraph: false }),
       // table/tableCell/tableHeader disattivati qui - sostituiti da
       // TableWithHandle (maniglia di trascinamento) e da
       // TableCellWithFlexWrapper/TableHeaderWithFlexWrapper (wrapper interno
@@ -481,6 +488,10 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
       TableWithHandle,
       TableCellWithFlexWrapper,
       TableHeaderWithFlexWrapper,
+      ParagraphWithRowGroup,
+      // Row: Fase 1, solo schema+rendering, nessun modo di crearla dalla UI
+      // ancora (nessun comando setRow/toolbar/drag&drop - vedi tiptapRow.ts).
+      Row,
       FontSize,
       DropCleanup,
       ...TIPTAP_BLOCK_EXTENSIONS,

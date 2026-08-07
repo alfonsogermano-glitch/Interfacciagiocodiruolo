@@ -405,7 +405,8 @@
    LIMITE INFERIORE di restringimento, mai la dimensione preferita. */
 .tiptap-td-flex > *,
 .tiptap-textbox-content > *,
-.tiptap-collapse-body > * {
+.tiptap-collapse-body > *,
+.tiptap-row-flex > * {
   flex: 1 1 100%;
   min-width: 0;
 }
@@ -459,7 +460,9 @@
 .tiptap-textbox-content > .tiptap-textbox,
 .tiptap-textbox-content > .tiptap-collapse,
 .tiptap-collapse-body > .tiptap-textbox,
-.tiptap-collapse-body > .tiptap-collapse {
+.tiptap-collapse-body > .tiptap-collapse,
+.tiptap-row-flex > .tiptap-textbox,
+.tiptap-row-flex > .tiptap-collapse {
   flex: 1 1 0;
   min-width: 64px;
 }
@@ -501,9 +504,11 @@
 .tiptap-td-flex > *:last-child,
 .tiptap-textbox-content > *:last-child,
 .tiptap-collapse-body > *:last-child,
+.tiptap-row-flex > *:last-child,
 .tiptap-td-flex > *:has(+ .tiptap-textbox-edge-cursor:last-child),
 .tiptap-textbox-content > *:has(+ .tiptap-textbox-edge-cursor:last-child),
-.tiptap-collapse-body > *:has(+ .tiptap-textbox-edge-cursor:last-child) {
+.tiptap-collapse-body > *:has(+ .tiptap-textbox-edge-cursor:last-child),
+.tiptap-row-flex > *:has(+ .tiptap-textbox-edge-cursor:last-child) {
   margin-bottom: 0;
 }
 /* Maniglia di ridimensionamento colonna (decorazione inserita da
@@ -667,6 +672,36 @@
 .tiptap-collapse:hover:not(:has(.tableWrapper:hover, .tiptap-textbox:hover, .tiptap-collapse:hover)) > .tiptap-block-handle {
   opacity: 1;
   pointer-events: auto;
+}
+/* Riga a livello documento (tiptapRow.ts, Fase 1 "affiancamento a livello
+   documento", piano confermato 2026-08-07) - nessun bordo/sfondo proprio,
+   e' un puro contenitore di layout (a differenza di TextBox/Collapse, che
+   sono box visivamente distinti per design): solo position:relative come
+   contesto per la maniglia assoluta, stesso schema di .tiptap-textbox/
+   .tiptap-collapse sopra. Stessa guardia :not(:has(...)) per lo stesso
+   motivo (una row puo' avere TextBox/Collapse/tabelle annidate al suo
+   interno). */
+.tiptap-row {
+  position: relative;
+  margin: 0 0 0.5rem 0;
+}
+.tiptap-row:hover:not(:has(.tableWrapper:hover, .tiptap-textbox:hover, .tiptap-collapse:hover)) > .tiptap-block-handle {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* .tiptap-row-flex: stesso identico pattern di .tiptap-td-flex sopra
+   (display:flex/flex-wrap/align-items/column-gap/width/position - vedi li'
+   per il ragionamento completo su ciascuna proprieta'). Le regole di
+   dettaglio sui figli (flex:1 1 100% per i blocchi "normali", flex:1 1 0 +
+   min-width:64px per TextBox/Collapse, margin-bottom sull'ultimo figlio)
+   sono nei blocchi comma-condivisi sopra, non ripetute qui. */
+.tiptap-row-flex {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  column-gap: var(--tiptap-box-gap);
+  width: 100%;
+  position: relative;
 }
 
 /* Evidenziazione quando l'intero blocco (TextBox o Collapse) e' selezionato
