@@ -1,5 +1,8 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import { Paragraph } from '@tiptap/extension-paragraph';
+import { createTable } from '@tiptap/extension-table';
+import { TextSelection, type EditorState } from '@tiptap/pm/state';
+import type { Node as ProseMirrorNode, ResolvedPos, Schema } from '@tiptap/pm/model';
 
 // Fase 1 del progetto "affiancamento a livello documento" (piano confermato
 // 2026-08-07): solo schema + rendering CSS, NESSUNA navigazione/drag&drop/
@@ -29,6 +32,62 @@ import { Paragraph } from '@tiptap/extension-paragraph';
 // (stesso pattern di TextBox, non di TableWithHandle) - ProseMirror gestisce
 // selectable/draggable in automatico per un NodeView di default (non
 // custom), non serve una classe View dedicata.
+
+// Tipi di elemento che il comando addElementBeside sa costruire - stessi 4
+// gia' supportati dallo schema in Fase 1 (group 'rowItem').
+export type RowElementType = 'paragraph' | 'textBox' | 'collapseBlock' | 'table';
+
+// Nodo vuoto pronto per l'inserimento, un tipo per volta - stessa identica
+// struttura gia' usata dai comandi setTextBox/setCollapseBlock esistenti
+// (tiptapBlocks.tsx) e dal pulsante Tabella esistente (RichTextEditor.tsx),
+// solo costruita come Node ProseMirror diretto invece che come JSON passato
+// a insertContent: qui serve un nodo GIA' PRONTO da piazzare dentro il
+// content array di una nuova row nella STESSA transazione (vedi
+// addElementBeside sotto) - insertContent lancerebbe un secondo
+// step/dispatch separato, rompendo l'atomicita' undo richiesta dal piano
+// Fase 2 confermato 2026-08-07.
+function createRowElementNode(schema: Schema, type: RowElementType): ProseMirrorNode {
+  const paragraph = schema.nodes.paragraph.create();
+  switch (type) {
+    case 'paragraph':
+      return paragraph;
+    case 'textBox':
+      return schema.nodes.textBox.create(null, paragraph);
+    case 'collapseBlock':
+      return schema.nodes.collapseBlock.create({ open: false }, [
+        schema.nodes.collapseSummary.create(),
+        schema.nodes.collapseBody.create(null, schema.nodes.paragraph.create()),
+      ]);
+    case 'table':
+      // Stessi parametri del pulsante "Tabella" esistente (RichTextEditor.tsx):
+      // 3x3, senza riga di intestazione (si attiva dopo dal menu contestuale).
+      return createTable(schema, 3, 3, false);
+  }
+}
+
+// Antenato piu' vicino di un dato tipo, a qualunque profondita' - stessa
+// idea di isSelectionInside (tiptapBlocks.tsx), ma restituisce la depth
+// invece di un booleano: serve sapere ESATTAMENTE a che profondita' si
+// trova la row per calcolare $from.end(depth) sotto.
+function findAncestorDepth($pos: ResolvedPos, typeName: string): number | null {
+  for (let depth = $pos.depth; depth >= 0; depth -= 1) {
+    if ($pos.node(depth).type.name === typeName) return depth;
+  }
+  return null;
+}
+
+// Vero se la selezione e' annidata dentro uno qualunque dei tipi elencati, a
+// qualunque profondita' - stessa idea di isSelectionInside (tiptapBlocks.tsx)
+// generalizzata a piu' tipi in un colpo solo (qui servono contemporaneamente
+// table/textBox/collapseBlock, non un tipo alla volta).
+function isSelectionInsideAny(state: EditorState, typeNames: string[]): boolean {
+  const { $from } = state.selection;
+  for (let depth = $from.depth; depth >= 0; depth -= 1) {
+    if (typeNames.includes($from.node(depth).type.name)) return true;
+  }
+  return false;
+}
+
 export const Row = Node.create({
   name: 'row',
   group: 'block',
@@ -52,6 +111,90 @@ export const Row = Node.create({
       ['div', { class: 'tiptap-row-flex' }, 0],
     ];
   },
+
+  // Fase 2 (piano confermato 2026-08-07): comando esplicito da toolbar
+  // "Aggiungi elemento accanto" - due comportamenti secondo la posizione del
+  // cursore, un solo step di transazione/undo in entrambi i casi (nessun
+  // insertContent + spostamento successivo, vedi createRowElementNode sopra).
+  //
+  // Guardia sulla selezione: non un semplice "solo se collapsed" come le
+  // funzioni di navigazione tastiera in tiptapTextBoxEdgeCursor.ts (che
+  // giustamente si bloccano sempre con selezione estesa - "muovi il
+  // cursore" non ha senso su un range). Qui, essendo un comando esplicito di
+  // toolbar e non di navigazione, si procede anche con selezione estesa,
+  // purche' $from e $to concordino sullo stesso contenitore rilevante (la
+  // stessa row per il caso "aggiungi in coda", lo stesso blocco a livello
+  // documento per il caso "avvolgi") - altrimenti il comando e' un no-op
+  // (return false): avvolgere/appendere ignorando silenziosamente meta' di
+  // una selezione che attraversa due contenitori diversi sarebbe un
+  // comportamento sorprendente.
+  addCommands() {
+    return {
+      addElementBeside:
+        (type: RowElementType) =>
+        ({ tr, dispatch, state }) => {
+          const { $from, $to } = state.selection;
+          const schema = state.schema;
+
+          // Caso 1: il cursore (o l'intera selezione) e' gia' dentro una
+          // row esistente - il nuovo elemento si aggiunge in coda al suo
+          // content, nessun wrapping.
+          const rowDepthFrom = findAncestorDepth($from, 'row');
+          const rowDepthTo = findAncestorDepth($to, 'row');
+          if (
+            rowDepthFrom !== null &&
+            rowDepthFrom === rowDepthTo &&
+            $from.node(rowDepthFrom) === $to.node(rowDepthTo)
+          ) {
+            const insertPos = $from.end(rowDepthFrom);
+            if (dispatch) {
+              const newNode = createRowElementNode(schema, type);
+              tr.insert(insertPos, newNode);
+              tr.setSelection(TextSelection.near(tr.doc.resolve(insertPos + 1)));
+            }
+            return true;
+          }
+
+          // Caso 2: livello documento - avvolge il blocco corrente + il
+          // nuovo elemento in una row nuova. Limitato per questa fase al
+          // solo livello documento top-level (piano confermato 2026-08-07,
+          // punto 3): se il cursore e' annidato dentro una cella di
+          // tabella o dentro un TextBox/Collapse, il comando e' disabilitato
+          // - creare intenzionalmente una row annidata (lo schema Fase 1 lo
+          // permetterebbe) e' rimandato a quando avremo piu' chiarezza su
+          // scroll orizzontale annidato/arrow-nav a doppio livello.
+          if (isSelectionInsideAny(state, ['table', 'textBox', 'collapseBlock'])) return false;
+
+          // Selezione che attraversa due blocchi diversi a livello
+          // documento (es. da meta' di un paragrafo a meta' del successivo)
+          // - "il blocco corrente" diventerebbe ambiguo, no-op deliberato
+          // invece di avvolgere solo il primo e perdere silenziosamente il
+          // resto della selezione.
+          if ($from.node(1) !== $to.node(1)) return false;
+
+          const blockStart = $from.before(1);
+          const blockEnd = $from.after(1);
+          const existingNode = $from.node(1);
+
+          if (dispatch) {
+            const newNode = createRowElementNode(schema, type);
+            const rowNode = schema.nodes.row.create(null, [existingNode, newNode]);
+            tr.replaceWith(blockStart, blockEnd, rowNode);
+            // +1 per entrare nella row appena creata, +existingNode.nodeSize
+            // per superare il primo figlio (quello preesistente), +1 per
+            // entrare nel nuovo nodo - TextSelection.near (stesso helper
+            // usato dal comando nativo insertTable, vedi
+            // node_modules/@tiptap/extension-table/src/table/table.ts)
+            // trova poi la prima posizione di testo valida li' dentro,
+            // generico per tutti e 4 i tipi (incluse le celle di una
+            // tabella appena creata).
+            const offset = blockStart + 1 + existingNode.nodeSize + 1;
+            tr.setSelection(TextSelection.near(tr.doc.resolve(offset)));
+          }
+          return true;
+        },
+    };
+  },
 });
 
 // Paragraph esteso col group 'rowItem' in piu' (oltre al nativo 'block') -
@@ -62,3 +205,13 @@ export const Row = Node.create({
 export const ParagraphWithRowGroup = Paragraph.extend({
   group: 'block rowItem',
 });
+
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    row: {
+      /** Aggiunge un elemento (paragrafo/TextBox/Collapse/tabella) accanto al blocco corrente:
+       *  in coda se il cursore e' gia' in una row, avvolgendo blocco corrente + nuovo altrimenti. */
+      addElementBeside: (type: RowElementType) => ReturnType;
+    };
+  }
+}

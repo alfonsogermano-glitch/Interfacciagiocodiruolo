@@ -2,19 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
-import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, Table as TableIcon, Undo2 } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, Table as TableIcon, Undo2, Columns2, Pilcrow } from 'lucide-react';
 import { TableKit } from '@tiptap/extension-table';
 import { MarkdownContent } from './MarkdownContent';
 import { parseLines } from './markdownHeadings';
 import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
 import { TableWithHandle } from './tiptapTableHandle';
 import { TableCellWithFlexWrapper, TableHeaderWithFlexWrapper } from './tiptapTableCellWrapper';
-import { Row, ParagraphWithRowGroup } from './tiptapRow';
+import { Row, ParagraphWithRowGroup, type RowElementType } from './tiptapRow';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { DropCleanup } from './tiptapDropCleanup';
 import { TextBoxEdgeCursorExtension, isAtRowStart, isAtRowEnd, findCellAncestorDepth } from './tiptapTextBoxEdgeCursor';
 import { TipTapTableMenu } from './TipTapTableMenu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../../ui/dropdown-menu';
 // @tiptap/extension-underline non va importato/aggiunto qui: StarterKit lo
 // include e attiva gia' di default (verificato nel suo sorgente - "if
 // (this.options.underline !== false)"), aggiungerlo di nuovo registrerebbe
@@ -355,6 +356,65 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         }).run())}>
           <TableIcon className="h-4 w-4" />
         </ToolbarButton>
+        {/* Fase 2 "affiancamento a livello documento" (piano confermato
+            2026-08-07): addElementBeside (tiptapRow.ts) sceglie da solo se
+            aggiungere in coda a una row esistente o avvolgere blocco
+            corrente+nuovo in una row nuova - qui serve solo far scegliere
+            il TIPO di elemento, da cui il menu invece di un singolo
+            pulsante come Box di testo/Tabella sopra (che non hanno scelte
+            da fare). Trigger disabilitato quando il comando non
+            risulterebbe applicabile in nessuno dei due casi (selezione che
+            attraversa due blocchi diversi, o annidata dentro
+            tabella/TextBox/Collapse - vedi addElementBeside) - 'paragraph'
+            come tipo-sonda per il check e' arbitrario: la guardia non
+            dipende dal tipo scelto, solo dalla posizione del cursore,
+            stesso risultato per tutti e 4.
+            onMouseDown preventDefault sul contenuto del menu: il
+            DropdownMenuContent vive in un portale (usePortalContainer,
+            vedi dropdown-menu.tsx) FUORI dal sottoalbero DOM di questo
+            div Toolbar, quindi il preventDefault sul contenitore Toolbar
+            qui sotto non lo raggiunge - stesso trattamento riapplicato
+            esplicitamente qui per non perdere selezione/focus
+            dell'editor al click di una voce. */}
+        <Tooltip>
+          <DropdownMenu>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  disabled={!editable || !editor.can().addElementBeside('paragraph')}
+                  aria-label="Aggiungi elemento accanto"
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md p-1.5 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)] ${
+                    !editable || !editor.can().addElementBeside('paragraph') ? 'cursor-not-allowed opacity-40' : ''
+                  }`}
+                >
+                  <Columns2 className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <DropdownMenuContent
+              align="start"
+              onMouseDown={(e) => e.preventDefault()}
+              className="border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-text)]"
+            >
+              {([
+                ['paragraph', Pilcrow, 'Paragrafo'],
+                ['textBox', Square, 'Box di testo'],
+                ['collapseBlock', ChevronsDownUp, 'Collapse'],
+                ['table', TableIcon, 'Tabella'],
+              ] as const).map(([type, Icon, itemLabel]) => (
+                <DropdownMenuItem
+                  key={type}
+                  onSelect={() => runCommand(() => editor.chain().focus().addElementBeside(type as RowElementType).run())}
+                  className="text-[var(--dash-text)] focus:bg-[var(--dash-surface-2)] focus:text-[var(--dash-text-strong)]"
+                >
+                  <Icon className="h-4 w-4" /> {itemLabel}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <TooltipContent side="right">Aggiungi elemento accanto</TooltipContent>
+        </Tooltip>
       </ToolbarSection>
       {/* Sezioni future (Widget, Oggetti speciali): aggiungere qui altre
           <ToolbarSection label="..." defaultOpen={false}>...</ToolbarSection>,
