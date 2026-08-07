@@ -14,18 +14,8 @@ import {
   Copy,
   Trash2,
 } from 'lucide-react';
-import { EntityKebabMenu, type EntityKebabMenuItem } from './EntityKebabMenu';
-import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../../ui/paletteColors';
-
-// Stesso helper duplicato in SessionCharactersPanel.tsx/useCampaignNotesSection.tsx
-// (nessun modulo condiviso lo espone ancora) - legge la palette attiva dal
-// data-attribute impostato a livello di dashboard, per colorare il menu
-// coerentemente col resto dell'app invece che con un default fisso.
-function getCurrentPaletteColors() {
-  const el = document.querySelector('[data-dashboard-palette]');
-  const palette = el?.getAttribute('data-dashboard-palette') as PaletteId | null;
-  return palette && PALETTE_COLORS[palette] ? PALETTE_COLORS[palette] : DEFAULT_PALETTE_COLORS;
-}
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
+import type { ReactNode } from 'react';
 
 // addRow/addColumn (prosemirror-tables, ri-esportate da @tiptap/pm/tables)
 // accettano un indice di riga/colonna ESPLICITO - a differenza dei comandi
@@ -182,122 +172,122 @@ function copyTableRich(editor: Editor) {
   void navigator.clipboard.writeText(tsv);
 }
 
+// Pannello verticale di azioni tabella (round 2026-08-07, sostituisce il
+// vecchio bottone ⋮/EntityKebabMenu): stile duplicato da ToolbarButton in
+// RichTextEditor.tsx (bottone quadrato h-9 w-9, tooltip side="right")
+// invece di importarlo da li' - e' un componente locale/non esportato in
+// quel file, e duplicarlo qui evita qualunque rischio sugli 8 altri punti
+// d'uso di EntityKebabMenu e sulla toolbar principale (nessun modulo
+// condiviso da tenere sincronizzato fra usi con requisiti diversi: qui
+// serve anche la variante "danger", mai richiesta li'). onClick diretto
+// (non piu' un array di {key,icon,label,onClick} passato a un componente
+// esterno): 10 bottoni fissi, nessun beneficio a mappare su una lista dati
+// quando il markup e' comunque scritto a mano qui sotto.
+function TableMenuButton({ icon, label, onClick, danger }: { icon: ReactNode; label: string; onClick: () => void; danger?: boolean }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={onClick}
+          aria-label={label}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md p-1.5 transition-colors ${
+            danger ? 'text-red-300 hover:bg-red-500/10' : 'text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]'
+          }`}
+        >
+          {icon}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+// Separatore fra i 4 gruppi (Righe/Colonne/Intestazioni/Tabella) - una
+// semplice linea, non una ToolbarSection collassabile: il pannello e' gia'
+// visibile solo quando serve (dentro la tabella), comprimere i gruppi non
+// avrebbe alcun beneficio qui a differenza della toolbar principale, sempre
+// presente indipendentemente dal contesto.
+function TableMenuSeparator() {
+  return <div className="my-1 h-px w-full bg-[var(--dash-border-soft)]" />;
+}
+
 /**
- * Menu contestuale della tabella (RichTextEditor.tsx) - un BubbleMenu
+ * Pannello contestuale della tabella (RichTextEditor.tsx) - un BubbleMenu
  * (@tiptap/react/menus, gia' incluso in @tiptap/react) con shouldShow legato
  * a editor.isActive('table') invece che alla selezione di testo, e
  * getReferencedVirtualElement per ancorarlo all'angolo della <table> DOM
- * reale invece che inseguire il cursore cella per cella. Il contenuto e'
- * un EntityKebabMenu (stesso menu ⋮ gia' usato per PG/PNG/Mostri) invece di
- * un dropdown nuovo.
+ * reale invece che inseguire il cursore cella per cella. Round 2026-08-07:
+ * non piu' un bottone ⋮ che apre una tendina (EntityKebabMenu) - una
+ * colonna verticale di azioni raggruppate, sempre visibile quando la
+ * selezione e' dentro la tabella, affiancata sul lato DESTRO invece che
+ * sovrapposta all'angolo in alto (placement sotto).
  */
 export function TipTapTableMenu({ editor }: { editor: Editor }) {
-  const items: EntityKebabMenuItem[] = [
-    {
-      key: 'row-start',
-      icon: <ArrowUpToLine className="h-4 w-4" />,
-      label: 'Aggiungi riga a inizio',
-      onClick: () => insertRowAtEdge(editor, 'start'),
-    },
-    {
-      key: 'row-end',
-      icon: <ArrowDownToLine className="h-4 w-4" />,
-      label: 'Aggiungi riga a fine',
-      onClick: () => insertRowAtEdge(editor, 'end'),
-    },
-    {
-      key: 'col-start',
-      icon: <ArrowLeftToLine className="h-4 w-4" />,
-      label: 'Aggiungi colonna a inizio',
-      onClick: () => insertColumnAtEdge(editor, 'start'),
-    },
-    {
-      key: 'col-end',
-      icon: <ArrowRightToLine className="h-4 w-4" />,
-      label: 'Aggiungi colonna a fine',
-      onClick: () => insertColumnAtEdge(editor, 'end'),
-    },
-    {
-      key: 'delete-row',
-      icon: <Rows3 className="h-4 w-4" />,
-      label: 'Elimina riga',
-      onClick: () => editor.chain().focus().deleteRow().run(),
-      danger: true,
-    },
-    {
-      key: 'delete-col',
-      icon: <Columns3 className="h-4 w-4" />,
-      label: 'Elimina colonna',
-      onClick: () => editor.chain().focus().deleteColumn().run(),
-      danger: true,
-    },
-    {
-      key: 'header-row',
-      icon: <PanelTop className="h-4 w-4" />,
-      label: 'Intestazione orizzontale',
-      onClick: () => editor.chain().focus().toggleHeaderRow().run(),
-    },
-    {
-      key: 'header-col',
-      icon: <PanelLeft className="h-4 w-4" />,
-      label: 'Intestazione verticale',
-      onClick: () => editor.chain().focus().toggleHeaderColumn().run(),
-    },
-    {
-      key: 'copy',
-      icon: <Copy className="h-4 w-4" />,
-      label: 'Copia tabella',
-      onClick: () => copyTableRich(editor),
-    },
-    {
-      key: 'delete-table',
-      icon: <Trash2 className="h-4 w-4" />,
-      label: 'Elimina tabella',
-      onClick: () => editor.chain().focus().deleteTable().run(),
-      danger: true,
-    },
-  ];
-
   return (
     <BubbleMenu
       editor={editor}
       pluginKey="tableMenu"
       shouldShow={({ editor: e }) => e.isActive('table')}
-      // offset: 2 invece del default della libreria (8px) - il gap tra il
-      // bottone ⋮ e l'angolo della tabella risultava troppo largo (segnalato
-      // 2026-07-29), avvicinato qui invece di intervenire su
-      // getReferencedVirtualElement (che ancora correttamente all'angolo
-      // reale della tabella, il .tableWrapper renderizzato da TableView).
+      // placement 'right-start' (round 2026-08-07, era 'top-end'): il
+      // pannello e' ora una colonna verticale di bottoni, non piu' una
+      // singola icona - non ha piu' senso sovrapporlo all'angolo della
+      // tabella, ne' farlo dipendere dallo spazio sopra di essa (lo spazio
+      // riservato per quello, il margin-top di .tableWrapper, e' stato
+      // rimosso nello stesso round - vedi theme.css e
+      // tiptapTextBoxEdgeCursor.ts/exitTableTopEdge). Affiancato a destra
+      // invece: stesso identico meccanismo di ancoraggio
+      // (getReferencedVirtualElement sotto, invariato) e stessa filosofia
+      // "posizione fissa, mai flip" di prima - flip:false per lo stesso
+      // motivo di sempre (mai un salto imprevedibile fra due lati in base
+      // allo spazio disponibile).
       //
-      // flip: DISATTIVATO esplicitamente (flip:false, non semplicemente
-      // omesso - BubbleMenuView parte da flip:{} nei suoi default, un
-      // oggetto vuoto e' comunque truthy, quindi ometterlo qui l'avrebbe
-      // lasciato attivo). Due tentativi precedenti (boundary su
-      // editor.view.dom.parentElement, poi rimozione del relativo padding)
-      // avevano provato a rendere il flip verticale meno aggressivo invece
-      // di eliminarlo - scelta finale piu' semplice e robusta (2026-07-29,
-      // terzo giro): l'icona resta SEMPRE a placement:'top-end' fisso, mai
-      // spostata sotto la tabella. Lo spazio che il flip andava a cercare
-      // quando mancava sopra la tabella e' garantito invece a monte da un
-      // margin-top sulla regola `.tiptap-content .tableWrapper` in
-      // theme.css - IMPORTANTE: sul wrapper, non sul <table> interno (bug
-      // corretto 2026-07-29, quarto giro: getReferencedVirtualElement qui
-      // sotto usa view.nodeDOM(found.pos), che per una tabella
-      // ridimensionabile restituisce .tableWrapper, non il <table> - un
-      // margin-top sul <table> sposta la tabella DENTRO il wrapper senza
-      // spostare il bordo superiore del wrapper stesso, cioe' senza alcun
-      // effetto sulla posizione reale dell'icona).
+      // shift, primo giro (stesso round): ENTRAMBI gli assi esplicitamente
+      // attivi, boundary ancora editor.view.dom.parentElement come per
+      // 'top-end' - bug verificato dal vivo: con placement 'top-end' il
+      // vecchio `shift:{boundary}` (senza altro) correggeva gia' da solo
+      // l'orizzontale (per quel placement, il "mainAxis" interno di
+      // shift() e' 'x' - checkMainAxis default true, verificato nel
+      // sorgente di @floating-ui/core, getSideAxis('top')==='y' quindi
+      // mainAxis=getOppositeAxis('y')==='x'). Per 'right-start' i due assi
+      // di shift si INVERTONO (getSideAxis('right')==='x', quindi
+      // mainAxis diventa 'y'): senza crossAxis:true esplicito, il pannello
+      // restava corretto solo in verticale (mainAxis, default true) ma
+      // MAI in orizzontale (crossAxis, default false).
       //
-      // shift: resta attivo, senza padding (vedi giro precedente - con un
-      // padding qualunque tabella larga quanto il contenitore veniva
-      // trattata come overflow orizzontale anche nel caso comune) - copre
-      // solo il caso limite orizzontale (tabella vicina al bordo
-      // sinistro/destro), indipendente dal flip verticale rimosso sopra.
+      // boundary, SECONDO giro (stesso round, bug verificato dal vivo
+      // subito dopo il primo fix): con crossAxis:true MA boundary ancora
+      // editor.view.dom.parentElement (l'area di scrittura, stretta),
+      // shift correggeva si' l'overflow orizzontale - ma l'UNICO spazio
+      // "libero" dentro quel confine stretto, quando la tabella e' larga
+      // quanto il confine stesso (width:100% su .tiptap-content table,
+      // theme.css, il caso comune - non un limite), e' quello SOPRA la
+      // tabella: shift ci spingeva dentro il pannello, sovrapposto alla
+      // tabella invece che accanto (misurato dal vivo: panel.left finiva
+      // 42px DENTRO table.right). boundary:document.body invece di
+      // editor.view.dom.parentElement risolve alla radice - non e' un
+      // valore piu' permissivo dello stesso meccanismo, e' un input
+      // diverso a getClippingRect() (@floating-ui/dom): per un `boundary`
+      // che e' un singolo Element (non la stringa 'clippingAncestors'),
+      // la funzione usa SOLO il rect di quell'elemento (intersecato con
+      // rootBoundary, 'viewport' di default) - MAI la catena reale di
+      // antenati con overflow (verificato nel sorgente:
+      // `elementClippingAncestors = boundary === 'clippingAncestors' ? ... : [].concat(boundary)`).
+      // Passare l'area di scrittura la rendeva quindi l'UNICO limite
+      // considerato, ignorando che il vero spazio disponibile e' tutta la
+      // finestra del browser; document.body (che di norma copre l'intera
+      // larghezza viewport) intersecato col rootBoundary 'viewport' da'
+      // invece il confine reale - il pannello puo' ora sconfinare nella
+      // barra delle sezioni campagna a sinistra dell'area di scrittura
+      // (accettato) invece di retrocedere sopra la tabella (bug).
+      // mainAxis (verticale) resta true di default - tabella vicina al
+      // fondo dell'area di scrittura, pannello alto quanto i suoi gruppi
+      // di bottoni, altrimenti sforerebbe sotto.
       options={{
-        placement: 'top-end',
-        offset: 2,
+        placement: 'right-start',
+        offset: 8,
         flip: false,
-        shift: { boundary: editor.view.dom.parentElement ?? undefined },
+        shift: { boundary: document.body, crossAxis: true },
       }}
       getReferencedVirtualElement={() => {
         const { state, view } = editor;
@@ -308,20 +298,30 @@ export function TipTapTableMenu({ editor }: { editor: Editor }) {
         return { getBoundingClientRect: () => dom.getBoundingClientRect() };
       }}
     >
-      <EntityKebabMenu
-        items={items}
-        colors={getCurrentPaletteColors()}
-        menuWidthClassName="w-64"
-        menuWidthPx={256}
-        // Stesso elemento gia' usato come boundary di flip/shift qui sopra
-        // per l'icona - il dropdown (portal indipendente su document.body
-        // dentro EntityKebabMenu.tsx, senza collision detection propria)
-        // condivide cosi' lo stesso riferimento all'area di scrittura.
-        boundaryElement={editor.view.dom.parentElement}
-        // MoreHorizontal invece del MoreVertical di default - solo qui,
-        // gli altri 8 punti d'uso di EntityKebabMenu restano invariati.
-        iconOrientation="horizontal"
-      />
+      {/* onMouseDown preventDefault sull'intero pannello - stesso motivo
+          gia' documentato per il vecchio EntityKebabMenu qui (rimosso):
+          senza, il click su un bottone sposta il focus del browser PRIMA
+          che l'onClick scatti, il contenteditable va in blur, e
+          RichTextEditor (onBlurEditor) uscirebbe dalla modalita' modifica
+          a meta' click, prima ancora che il comando sulla tabella giri. */}
+      <div
+        onMouseDown={(e) => e.preventDefault()}
+        className="flex flex-col gap-1 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1.5 shadow-2xl"
+      >
+        <TableMenuButton icon={<ArrowUpToLine className="h-4 w-4" />} label="Aggiungi riga a inizio" onClick={() => insertRowAtEdge(editor, 'start')} />
+        <TableMenuButton icon={<ArrowDownToLine className="h-4 w-4" />} label="Aggiungi riga a fine" onClick={() => insertRowAtEdge(editor, 'end')} />
+        <TableMenuButton icon={<Rows3 className="h-4 w-4" />} label="Elimina riga" danger onClick={() => editor.chain().focus().deleteRow().run()} />
+        <TableMenuSeparator />
+        <TableMenuButton icon={<ArrowLeftToLine className="h-4 w-4" />} label="Aggiungi colonna a inizio" onClick={() => insertColumnAtEdge(editor, 'start')} />
+        <TableMenuButton icon={<ArrowRightToLine className="h-4 w-4" />} label="Aggiungi colonna a fine" onClick={() => insertColumnAtEdge(editor, 'end')} />
+        <TableMenuButton icon={<Columns3 className="h-4 w-4" />} label="Elimina colonna" danger onClick={() => editor.chain().focus().deleteColumn().run()} />
+        <TableMenuSeparator />
+        <TableMenuButton icon={<PanelTop className="h-4 w-4" />} label="Intestazione orizzontale" onClick={() => editor.chain().focus().toggleHeaderRow().run()} />
+        <TableMenuButton icon={<PanelLeft className="h-4 w-4" />} label="Intestazione verticale" onClick={() => editor.chain().focus().toggleHeaderColumn().run()} />
+        <TableMenuSeparator />
+        <TableMenuButton icon={<Copy className="h-4 w-4" />} label="Copia tabella" onClick={() => copyTableRich(editor)} />
+        <TableMenuButton icon={<Trash2 className="h-4 w-4" />} label="Elimina tabella" danger onClick={() => editor.chain().focus().deleteTable().run()} />
+      </div>
     </BubbleMenu>
   );
 }

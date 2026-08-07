@@ -249,25 +249,6 @@
    uno scroll orizzontale invece di un taglio brusco quando la somma delle
    larghezze minime delle colonne (--default-cell-min-width, impostata in
    inline style dalla libreria) supera lo spazio disponibile. */
-/* margin-top qui, non su "table" sotto: bug verificato 2026-07-29 (secondo
-   giro) leggendo il sorgente di prosemirror-tables (TableView, this.dom =
-   <div class="tableWrapper">, this.table = this.dom.appendChild(<table>))
-   - view.nodeDOM(found.pos) in TipTapTableMenu.tsx (getReferencedVirtualElement)
-   restituisce QUESTO div, non il <table> figlio. Un margin-top messo sul
-   <table> interno (primo tentativo) sposta il <table> visivamente DENTRO
-   il wrapper senza spostare il bordo superiore del wrapper stesso, che e'
-   cio' da cui Floating UI calcola la posizione dell'icona - il margine
-   creava quindi solo spazio vuoto inutile, senza alcun effetto sulla
-   posizione reale dell'icona (che restava sempre nello stesso punto,
-   spiegando perche' aumentarlo o ridurlo non risolveva ne' lo spazio
-   eccessivo ne' l'invasione della barra delle tab quando la tabella e' il
-   primo elemento: erano lo stesso problema).
-   Valore 2.125rem (34px): calibrato sulla misura REALE del bottone ⋮
-   (h-8 di Tailwind = 2rem = 32px, buttonClassName di default in
-   EntityKebabMenu.tsx, non sovrascritto per l'uso tabella) + offset:2
-   (2px) di TipTapTableMenu.tsx - lo spazio minimo esatto perche' l'icona
-   (sempre a placement:'top-end' fisso, flip disattivato) resti dentro il
-   wrapper invece di sconfinare sopra, senza margine sprecato in piu'. */
 /* position:relative: contesto di posizionamento per la maniglia di
    trascinamento (.tiptap-table-handle sotto) - NIENTE piu' padding-left
    riservato (tentativo precedente, 2026-07-30): stesso esito scartato gia'
@@ -284,7 +265,6 @@
   position: relative;
   isolation: isolate;
   overflow-x: auto;
-  margin-top: 2.125rem;
 }
 /* Maniglia di selezione/trascinamento della tabella - stesso schema appena
    validato per TextBox/Collapse (vedi il commento su .tiptap-block-handle
