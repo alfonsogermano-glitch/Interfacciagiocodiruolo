@@ -752,25 +752,37 @@ function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after')
     if (!tableAfter) return; // difensivo: nessuno dei due casi riconosciuti
     const containerRect = container.getBoundingClientRect();
     const tableRect = tableAfter.getBoundingClientRect();
-    // Compensazione del margin-top CSS condiviso (theme.css,
-    // .tiptap-textbox-edge-cursor: pensato per il caso box, dove sposta il
-    // caret leggermente PIU' IN BASSO rispetto al bordo esterno per
-    // allinearlo al testo dopo il padding) - qui l'effetto e' sbagliato:
-    // misurato dal vivo (round 2026-08-06), senza compensarlo il widget
-    // finiva 9px DENTRO il bordo della tabella invece che nel gap sopra
-    // (margin-top:2.125rem della .tableWrapper, dove deve vivere). Per un
-    // elemento position:absolute, margin-top SI SOMMA a top nel
-    // posizionamento finale - sottraendolo qui (insieme all'altezza del
-    // caret) si ottiene il bordo INFERIORE del caret esattamente flush col
-    // bordo superiore della tabella, stesso principio "flush 0px, nessun
-    // gap inventato" gia' usato ovunque in questa funzione per gli altri
-    // casi "un solo vicino". Letti da getComputedStyle (non hardcoded):
-    // restano corretti anche se i valori CSS cambiano in futuro.
+    // Centrato nello spazio libero sopra la tabella (round 2026-08-07,
+    // corregge il "flush" del round precedente: qui il vicino non e' un
+    // altro box/bordo cella a ridosso del quale appoggiarsi, e' il vero
+    // margine superiore dell'area di scrittura - lo spazio libero va diviso
+    // a meta' come farebbe un caret nativo, non azzerato su un lato.
+    // container (.tiptap-content o .tiptap-td-flex, a seconda che la
+    // tabella sia di primo livello o annidata in una cella) non ha mai
+    // padding/border proprio in questo CSS (verificato in theme.css), quindi
+    // spaceAvailable = tableRect.top - containerRect.top e' per intero il
+    // margin-top di .tableWrapper (2.125rem), niente di piu' - misurato dal
+    // vivo, non assunto, quindi resta corretto anche se questo smettesse di
+    // essere vero in futuro.
+    //
+    // Compensazione margin-top CSS condiviso (.tiptap-textbox-edge-cursor,
+    // pensato per il caso box): per un elemento position:absolute con `top`
+    // esplicito e `bottom` auto, il bordo VISIBILE del widget finisce a
+    // containerRect.top + top_offset + marginTop (margin-top SI SOMMA al
+    // top nel posizionamento finale) - per centrare il bordo visibile
+    // (altezza capHeight) a meta' di spaceAvailable serve quindi
+    // visibleTop = (spaceAvailable - capHeight) / 2, poi si isola
+    // top_offset sottraendo marginTop. Widget senza padding/border/altri
+    // margin (verificato in theme.css) quindi nessuna correzione ulteriore
+    // di box-sizing e' necessaria. Letti da getComputedStyle (non
+    // hardcoded): restano corretti anche se i valori CSS cambiano in
+    // futuro.
     const cs = getComputedStyle(widget);
     const marginTop = parseFloat(cs.marginTop) || 0;
     const capHeight = parseFloat(cs.height) || 0;
+    const spaceAvailable = tableRect.top - containerRect.top;
     widget.style.position = 'absolute';
-    widget.style.top = `${tableRect.top - containerRect.top - marginTop - capHeight}px`;
+    widget.style.top = `${(spaceAvailable - capHeight) / 2 - marginTop}px`;
     widget.style.left = `${tableRect.left - containerRect.left}px`;
     return;
   }
