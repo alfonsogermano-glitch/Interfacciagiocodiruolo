@@ -1,6 +1,7 @@
-import { Extension, type Editor } from '@tiptap/core';
-import { Plugin, PluginKey, NodeSelection, TextSelection, type Transaction, type EditorState } from '@tiptap/pm/state';
+import { Extension } from '@tiptap/core';
+import { Plugin, PluginKey, NodeSelection, type Transaction, type EditorState } from '@tiptap/pm/state';
 import type { Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model';
+import type { EditorView } from '@tiptap/pm/view';
 import { findAncestorDepth, isPositionInsideAny } from './tiptapRow';
 
 // Fase 4a del progetto "affiancamento a livello documento" (piano confermato
@@ -94,6 +95,36 @@ function resolveRowDropItem(doc: ProseMirrorNode, pos: number): { itemPos: numbe
   return null;
 }
 
+// Nucleo condiviso Fase 4b: data la posizione X del mouse e una posizione
+// nel documento (gia' risolta da chi chiama - i tre punti di chiamata sotto
+// la ottengono in modi diversi: handleDrop da posAtCoords sull'evento drop,
+// disableDropCursor dal parametro pos gia' fornito da prosemirror-dropcursor
+// stesso, il nuovo handler dragover da posAtCoords sull'evento dragover),
+// decide se siamo in zona-soglia valida e per cosa - stesso identico
+// calcolo per tutti e tre, ESTRATTO qui invece di lasciarlo duplicato tre
+// volte (handleDrop lo faceva gia' inline in Fase 4a, qui riscritto per
+// riuso). null se non c'e' una sorgente valida, il target non e' un
+// rowItem idoneo, o il punto e' in zona centrale (nativo, non affianca).
+function computeSideDrop(
+  view: EditorView,
+  sourcePos: number | null,
+  clientX: number,
+  docPos: number
+): { target: { itemPos: number; rowDepth: number | null }; side: 'before' | 'after'; rect: DOMRect } | null {
+  if (sourcePos === null) return null;
+
+  const target = resolveRowDropItem(view.state.doc, docPos);
+  if (!target || target.itemPos === sourcePos) return null;
+
+  const targetDom = view.nodeDOM(target.itemPos);
+  if (!(targetDom instanceof HTMLElement)) return null;
+  const rect = targetDom.getBoundingClientRect();
+  const side = resolveSideZone(clientX, rect);
+  if (!side) return null;
+
+  return { target, side, rect };
+}
+
 // Costruisce, in UNA transazione, lo spostamento del nodo trascinato -
 // rimozione dalla sorgente + inserimento accanto al target. Non riusa
 // addElementBeside (tiptapRow.ts) direttamente: quel comando assume sempre
@@ -153,21 +184,90 @@ function buildRowDropTransaction(
   return tr;
 }
 
+interface RowDropStorage {
+  // Posizione (nel doc al momento del dragstart) del nodo in trascinamento -
+  // in this.storage (non una chiusura come in Fase 4a) perche' Fase 4b
+  // deve leggerla anche da extendNodeSchema sotto, un metodo DIVERSO da
+  // addProseMirrorPlugins - this.storage e' lo stesso oggetto condiviso fra
+  // tutti i metodi della stessa istanza di estensione (meccanismo Tiptap
+  // dedicato, addStorage), una chiusura locale a un solo metodo non
+  // basterebbe piu'.
+  sourcePos: number | null;
+  indicatorEl: HTMLElement | null;
+}
+
+// Crea (al bisogno) e posiziona la barra verticale sul bordo del blocco
+// target - stesso principio di misura-rect-reale di positionEdgeCursor
+// (tiptapTextBoxEdgeCursor.ts), ma un elemento DOM gestito a mano, MAI una
+// Decoration: dragover e' un evento DOM puro, senza transazione associata -
+// pilotare una Decoration richiederebbe dispacciarne una ad ogni movimento
+// del mouse durante il drag (decine al secondo), inutilmente pesante.
+// Stesso identico problema gia' risolto da prosemirror-dropcursor stesso
+// (letto nel sorgente, node_modules/prosemirror-dropcursor/dist/index.js,
+// DropCursorView): crea/posiziona un <div> a mano dentro i propri handler
+// dragover/dragleave/dragend/drop, mai una Decoration - stesso schema qui.
+//
+// position:fixed (non absolute + offsetParent come fa dropcursor): le
+// coordinate che abbiamo sono gia' getBoundingClientRect (viewport-
+// relative) e l'indicatore viene ricalcolato da zero ad ogni dragover -
+// fixed evita di replicare la matematica di scroll/offsetParent di
+// dropcursor, che A LUI serve solo perche' il suo elemento deve
+// sopravvivere a uno scroll fra un dragover e l'altro senza essere
+// riposizionato - requisito che non abbiamo (si ricalcola comunque sempre).
+function showIndicator(storage: RowDropStorage, side: 'before' | 'after', rect: DOMRect) {
+  if (!storage.indicatorEl) {
+    const el = document.createElement('div');
+    el.className = 'tiptap-row-drop-indicator';
+    el.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(el);
+    storage.indicatorEl = el;
+  }
+  const el = storage.indicatorEl;
+  el.style.left = `${side === 'before' ? rect.left : rect.right}px`;
+  el.style.top = `${rect.top}px`;
+  el.style.height = `${rect.height}px`;
+}
+
+function hideIndicator(storage: RowDropStorage) {
+  if (storage.indicatorEl) {
+    storage.indicatorEl.remove();
+    storage.indicatorEl = null;
+  }
+}
+
 const rowDropPluginKey = new PluginKey('rowDrop');
 
 export const RowDropExtension = Extension.create({
   name: 'rowDrop',
-  addProseMirrorPlugins() {
-    const editor = this.editor as Editor;
+  addStorage(): RowDropStorage {
+    return { sourcePos: null, indicatorEl: null };
+  },
 
-    // Posizione (nel doc al momento del dragstart) del nodo in
-    // trascinamento - chiusura del plugin, stesso pattern gia' in uso in
-    // TextBoxEdgeCursorExtension (tiptapTextBoxEdgeCursor.ts, `lastKey`
-    // dentro view()): non e' stato ProseMirror (non sopravviverebbe a un
-    // evento DOM puro come dragstart, che non e' una transazione), ne'
-    // serve esserlo - vive solo per la durata del gesto di trascinamento,
-    // azzerata a dragend.
-    let sourcePos: number | null = null;
+  // Fase 4b - sopprime il dropcursor NATIVO (prosemirror-dropcursor, incluso
+  // di default da StarterKit) solo quando siamo effettivamente in zona-
+  // soglia per un drag che il nostro meccanismo gestira' - non sempre:
+  // fuori zona-soglia (o senza una sorgente valida) il dropcursor nativo
+  // deve restare visibile come oggi, invariato. disableDropCursor puo'
+  // essere una funzione (view, pos, event) => boolean, richiamata da
+  // prosemirror-dropcursor ad OGNI dragover (verificato nel sorgente,
+  // DropCursorView.computeTarget) - non serve altro meccanismo, e' gia'
+  // dinamica per costruzione. Applicata solo ai tipi rowItem (stesso
+  // elenco di ROW_ITEM_TYPE_NAMES): sono gli unici nodi il cui
+  // node.type.spec.disableDropCursor viene mai controllato per una
+  // posizione che ci interessa (dropcursor lo legge da doc.nodeAt(pos.
+  // inside), non da un tipo arbitrario).
+  extendNodeSchema(extension) {
+    if (!ROW_ITEM_TYPE_NAMES.includes(extension.name)) return {};
+    return {
+      disableDropCursor: (view: EditorView, pos: { pos: number; inside: number }, event: Event) => {
+        if (!(event instanceof DragEvent)) return false;
+        return computeSideDrop(view, this.storage.sourcePos, event.clientX, pos.pos) !== null;
+      },
+    };
+  },
+
+  addProseMirrorPlugins() {
+    const storage = this.storage as RowDropStorage;
 
     return [
       new Plugin({
@@ -183,7 +283,7 @@ export const RowDropExtension = Extension.create({
             // mai API interne (docView/nearestDesc, assenti dal tipo
             // pubblico di EditorView).
             dragstart(view, event) {
-              sourcePos = null;
+              storage.sourcePos = null;
               if (!(event instanceof DragEvent)) return false;
               const coords = { left: event.clientX, top: event.clientY };
               const startPos = view.posAtCoords(coords);
@@ -192,37 +292,70 @@ export const RowDropExtension = Extension.create({
               if (!target) return false;
               const node = view.state.doc.nodeAt(target.itemPos);
               if (node && DRAGGABLE_SOURCE_TYPES.includes(node.type.name) && node.type.spec.draggable) {
-                sourcePos = target.itemPos;
+                storage.sourcePos = target.itemPos;
+              }
+              return false;
+            },
+            // Fase 4b - calcola la zona ad ogni movimento e mostra/nasconde
+            // la barra di conseguenza. Nessun debounce: showIndicator/
+            // hideIndicator creano/rimuovono l'elemento SOLO quando la sua
+            // presenza cambia (if (!storage.indicatorEl)), le chiamate
+            // ripetute con la stessa presenza si limitano a riposizionarlo
+            // (poche scritture di stile, economiche) - stesso principio
+            // "nessun lavoro extra se lo stato non cambia" gia' validato in
+            // TextBoxEdgeCursorExtension (dedup per chiave in view().
+            // update()), qui la "chiave" e' semplicemente presente/assente
+            // dell'elemento invece di una stringa esplicita.
+            dragover(view, event) {
+              if (!(event instanceof DragEvent)) return false;
+              const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY });
+              const result = dropPos ? computeSideDrop(view, storage.sourcePos, event.clientX, dropPos.pos) : null;
+              if (result) {
+                showIndicator(storage, result.side, result.rect);
+              } else {
+                hideIndicator(storage);
+              }
+              return false;
+            },
+            // Nasconde la barra SOLO quando il drag lascia davvero l'intero
+            // editor, non ad ogni passaggio fra due elementi figli interni
+            // (dragleave nativo si scatena anche li', per via del
+            // bubbling/re-enter fra elementi DOM annidati) - stessa identica
+            // guardia gia' usata da prosemirror-dropcursor stesso per lo
+            // stesso motivo (dragleave, DropCursorView sopra).
+            dragleave(view, event) {
+              if (!(event instanceof DragEvent)) return false;
+              const related = event.relatedTarget;
+              if (!(related instanceof Node) || !view.dom.contains(related)) {
+                hideIndicator(storage);
               }
               return false;
             },
             dragend() {
-              sourcePos = null;
+              storage.sourcePos = null;
+              hideIndicator(storage);
               return false;
             },
           },
           handleDrop(view, event, slice, moved) {
-            if (!moved || sourcePos === null) return false;
+            // Il drop e' concluso in ogni caso (gestito da noi o lasciato al
+            // nativo) - la barra non deve mai sopravvivere oltre il rilascio.
+            hideIndicator(storage);
+
+            if (!moved || storage.sourcePos === null) return false;
             if (!(event instanceof DragEvent)) return false;
 
             const isSingleNodeSlice = slice.openStart === 0 && slice.openEnd === 0 && slice.content.childCount === 1;
             const draggedType = isSingleNodeSlice ? slice.content.firstChild?.type.name : null;
             if (!draggedType || !DRAGGABLE_SOURCE_TYPES.includes(draggedType)) return false;
 
-            const coords = { left: event.clientX, top: event.clientY };
-            const dropPos = view.posAtCoords(coords);
+            const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY });
             if (!dropPos) return false;
 
-            const target = resolveRowDropItem(view.state.doc, dropPos.pos);
-            if (!target) return false;
-            if (target.itemPos === sourcePos) return false;
+            const result = computeSideDrop(view, storage.sourcePos, event.clientX, dropPos.pos);
+            if (!result) return false;
 
-            const targetDom = view.nodeDOM(target.itemPos);
-            if (!(targetDom instanceof HTMLElement)) return false;
-            const zone = resolveSideZone(event.clientX, targetDom.getBoundingClientRect());
-            if (!zone) return false;
-
-            const tr = buildRowDropTransaction(view.state, sourcePos, target, zone);
+            const tr = buildRowDropTransaction(view.state, storage.sourcePos, result.target, result.side);
             if (!tr) return false;
 
             view.dispatch(tr);
