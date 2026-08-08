@@ -204,6 +204,21 @@ function findFlexItemAncestorDepth($pos: ResolvedPos): number | null {
   return null;
 }
 
+// Come isSideBySideBox, ma include ANCHE la tabella (Fase 3b) - usata SOLO
+// da adjacentBox sotto, mai da landOrDive/exitFlexSiblingBoundary/
+// pauseAtIsolatingBoundary (che decidono SE pausare, e restano ancorate a
+// isSideBySideBox com'era: la tabella come VICINO di un paragrafo che
+// pausa resta fuori scope, vedi pauseAtIsolatingBoundary sopra). Qui invece
+// la domanda e' diversa: "posso rientrare in questo vicino da una pausa
+// gia' creata" - una pausa puo' gia' avere una tabella adiacente (creata da
+// exitTableBoundary sotto, via pauseAtIsolatingBoundary) e senza questo
+// riconoscimento adjacentBox tornerebbe null, bloccando exitArrow in testa
+// (if (!box) return false) - nessuna freccia funzionerebbe piu' da quella
+// pausa, un vicolo cieco peggiore del gap che Fase 3b risolve.
+function isReenterableNeighbor(node: ProseMirrorNode): boolean {
+  return isSideBySideBox(node) || isTable(node);
+}
+
 // Elemento adiacente alla posizione del cursore finto (nodo DOPO se e' un
 // cursore "before", nodo PRIMA se e' un cursore "after") - nessuno stato
 // separato "quale elemento, quale lato" da tracciare altrove: la posizione
@@ -216,8 +231,8 @@ function findFlexItemAncestorDepth($pos: ResolvedPos): number | null {
 // stessa cella, nessun ramo dedicato necessario.
 //
 export function adjacentBox($pos: ResolvedPos): { node: ProseMirrorNode; side: 'before' | 'after' } | null {
-  if ($pos.nodeAfter && isSideBySideBox($pos.nodeAfter)) return { node: $pos.nodeAfter, side: 'after' };
-  if ($pos.nodeBefore && isSideBySideBox($pos.nodeBefore)) return { node: $pos.nodeBefore, side: 'before' };
+  if ($pos.nodeAfter && isReenterableNeighbor($pos.nodeAfter)) return { node: $pos.nodeAfter, side: 'after' };
+  if ($pos.nodeBefore && isReenterableNeighbor($pos.nodeBefore)) return { node: $pos.nodeBefore, side: 'before' };
   return null;
 }
 
@@ -354,6 +369,39 @@ function measureRowWrap(editor: Editor, boundaryPos: number): boolean {
   return Math.abs(afterDom.getBoundingClientRect().top - beforeDom.getBoundingClientRect().top) > 1;
 }
 
+// Pausa incondizionata al confine di un elemento ISOLATING (box O tabella,
+// Fase 3b) che sta uscendo verso un fratello diretto di row/cella - estratta
+// dal ramo "sibling esiste" del fix Fase 3a di exitBoxBoundary (scoperto dal
+// vivo 2026-08-08 testando A2->A1) per essere riusata identica da
+// exitTableBoundary sotto (Fase 3b, tabella come fratello diretto di una
+// row): chi esce e' isolating per definizione (box O tabella, entrambi
+// isolating:true nello schema), quindi la pausa scatta SEMPRE quando c'e' un
+// vero fratello, qualunque sia il SUO tipo - a differenza di
+// exitFlexSiblingBoundary sotto, dove e' il fratello a dover essere un box
+// perche' chi esce - un paragrafo - non e' isolating di suo. Esclusa la
+// tabella come possibile VICINO (isTable(sibling)) - resta fuori scope anche
+// qui il caso "due tabelle affiancate" o "box accanto a tabella nella
+// stessa row", non ancora verificato dal vivo. Ritorna false se non c'e'
+// alcun fratello (bordo assoluto del contenitore, competenza del chiamante).
+function pauseAtIsolatingBoundary(editor: Editor, boundaryPos: number, dir: 'before' | 'after'): boolean {
+  const { doc } = editor.state;
+  const $boundary = doc.resolve(boundaryPos);
+  const sibling = dir === 'before' ? $boundary.nodeBefore : $boundary.nodeAfter;
+  if (!sibling || isTable(sibling)) return false;
+
+  const rowWrapped = measureRowWrap(editor, boundaryPos);
+  return editor
+    .chain()
+    .command(({ tr }) => {
+      tr.setSelection(new TextBoxEdgeCursor(tr.doc.resolve(boundaryPos)));
+      tr.setMeta(ROW_PAUSE_WRAPPED_META, rowWrapped);
+      tr.setMeta(ROW_PAUSE_DIR_META, dir);
+      return true;
+    })
+    .scrollIntoView()
+    .run();
+}
+
 export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after'): boolean {
   const { selection, doc } = editor.state;
   if (!selection.empty) return false;
@@ -376,38 +424,24 @@ export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after'): boolea
   // e' il box a non fermarsi verso il paragrafo).
   const parentDepth = boxDepth - 1;
   if (parentDepth >= 0 && isFlexSiblingContainer($from.node(parentDepth))) {
+    if (pauseAtIsolatingBoundary(editor, boundaryPos, dir)) return true;
+
     const $boundary = doc.resolve(boundaryPos);
     const sibling = dir === 'before' ? $boundary.nodeBefore : $boundary.nodeAfter;
 
-    // Fratello reale, non tabella (la tabella resta fuori scope, Fase 3b -
-    // stesso confine gia' escluso da isSideBySideBox/landOrDive altrove):
-    // sto uscendo da un box, isolating per definizione - la pausa scatta
-    // SEMPRE quando c'e' un vero fratello, qualunque sia il SUO tipo (a
-    // differenza di exitFlexSiblingBoundary, dove e' il fratello a dover
-    // essere un box perche' chi esce - un paragrafo - non lo e' di suo).
-    if (sibling && !isTable(sibling)) {
-      const rowWrapped = measureRowWrap(editor, boundaryPos);
-      return editor
-        .chain()
-        .command(({ tr }) => {
-          tr.setSelection(new TextBoxEdgeCursor(tr.doc.resolve(boundaryPos)));
-          tr.setMeta(ROW_PAUSE_WRAPPED_META, rowWrapped);
-          tr.setMeta(ROW_PAUSE_DIR_META, dir);
-          return true;
-        })
-        .scrollIntoView()
-        .run();
-    }
-
-    // Nessun fratello E il contenitore e' una row (non una cella): il vero
-    // bordo assoluto e' quello della ROW, non del box - NON creare qui la
-    // pausa "morta" del ramo generico sotto (pensata per altri contesti,
-    // es. box a livello documento senza nulla prima/dopo): lascia scendere
-    // la catena fino a exitRowDocumentBoundary, che sa uscire davvero dalla
-    // row. Se il contenitore e' invece una CELLA, questo ramo non scatta
-    // (isDocRow falso) - comportamento INVARIATO sotto, stesso "pausa morta
-    // poi seconda pressione" di sempre (fuori scope per questa fase, vedi
-    // test di non-regressione).
+    // Nessun fratello (non-tabella) E il contenitore e' una row (non una
+    // cella): il vero bordo assoluto e' quello della ROW, non del box - NON
+    // creare qui la pausa "morta" del ramo generico sotto (pensata per altri
+    // contesti, es. box a livello documento senza nulla prima/dopo): lascia
+    // scendere la catena fino a exitRowDocumentBoundary, che sa uscire
+    // davvero dalla row. Se il contenitore e' invece una CELLA, questo ramo
+    // non scatta (isDocRow falso) - comportamento INVARIATO sotto, stesso
+    // "pausa morta poi seconda pressione" di sempre (fuori scope per questa
+    // fase, vedi test di non-regressione). Se il fratello esiste ma e' una
+    // tabella (pauseAtIsolatingBoundary l'ha scartato), si ricade
+    // deliberatamente nel ramo generico sotto invece di un altro return
+    // false qui: fuori scope anche per la Fase 3b, stesso comportamento di
+    // oggi (tuffo diretto via landOrDive).
     if (!sibling && isDocRow($from.node(parentDepth))) return false;
   }
 
@@ -715,12 +749,88 @@ export function exitRowBoundary(editor: Editor, dir: 'before' | 'after'): boolea
 // a `tablePos`, mai altrove, quindi non serve alcun mapping ulteriore ne'
 // per dir 'before' ne' per dir 'after'.
 //
+// Bordo assoluto DI UN INTERO CONTENITORE (tabella o row documentale) nel
+// SUO genitore - a containerPos, riusa il vicino gia' li' se c'e' (Selection.
+// near, bias coerente con dir), altrimenti inserisce un paragrafo vuoto e ci
+// entra. Estratta dal ramo finale di exitTableBoundary sotto (il primo, Fase
+// 3 originale) per essere riusata identica sia dalla coda invariata di
+// exitTableBoundary stessa (tabella NON dentro una row) sia dal nuovo ramo
+// Fase 3b (tabella dentro una row, senza fratello di row sul lato richiesto
+// - li' containerPos e' il bordo della ROW, non della tabella) sia dalla
+// coda di exitRowDocumentBoundary sotto (Fase 3a, row senza fratello): le
+// tre situazioni condividono esattamente questo stesso identico calcolo,
+// cambia solo QUALE contenitore e QUALE posizione viene passata.
+//
+// Ramo "vicino gia' esistente" attivo per QUALUNQUE neighborBlock, non solo
+// un textblock (bug 2026-08-06, corruzione "due tabelle consecutive, senza
+// paragrafo fra loro" - isTextblock era false anche per un'ALTRA tabella
+// adiacente, facendo cadere nel ramo inserimento come se non ci fosse
+// nulla): Selection.near sa gia' attraversare qualunque tipo di nodo per
+// trovare la prima posizione cursore valida - l'unico caso che deve davvero
+// inserire un nuovo paragrafo e' neighborBlock === null.
+function jumpOrInsertAtContainerBoundary(editor: Editor, containerPos: number, dir: 'before' | 'after'): boolean {
+  const { doc } = editor.state;
+  const $boundary = doc.resolve(containerPos);
+  const neighborBlock = dir === 'before' ? $boundary.nodeBefore : $boundary.nodeAfter;
+
+  if (neighborBlock) {
+    return editor
+      .chain()
+      .command(({ tr }) => {
+        tr.setSelection(Selection.near(tr.doc.resolve(containerPos), dir === 'after' ? 1 : -1));
+        return true;
+      })
+      .scrollIntoView()
+      .run();
+  }
+
+  return editor
+    .chain()
+    .command(({ tr }) => {
+      tr.insert(containerPos, editor.schema.nodes.paragraph.create());
+      tr.setSelection(Selection.near(tr.doc.resolve(containerPos + 1)));
+      return true;
+    })
+    .scrollIntoView()
+    .run();
+}
+
 // Ramo "vicino gia' esistente": bias di Selection.near coerente con dir,
 // stesso segno gia' usato da landOrDive sopra (dir==='after' ? 1 : -1) -
 // uscendo a destra (after) si cerca in avanti, atterrando all'INIZIO del
 // paragrafo dopo la tabella; uscendo a sinistra (before) si cerca
 // all'indietro, atterrando alla FINE del paragrafo prima della tabella
 // (mai a ridosso del bordo tabella dal lato sbagliato).
+//
+// Fase 3b - tabella come fratello diretto di una row (piano confermato
+// 2026-08-08): subito dopo aver calcolato tablePos, controllo esplicito se
+// il genitore DIRETTO della tabella e' una row (rowDepth === tableDepth-1,
+// stesso schema "verifica esplicita, mai solo trovata da qualche parte
+// sopra" gia' usato da exitRowDocumentBoundary sotto per lo stesso motivo -
+// una CELLA come genitore diretto, con una row piu' in alto oltre di lei,
+// non deve mai far scattare questo ramo). Se vero, delega interamente ai
+// due casi gia' pronti invece di reinventarli:
+// - pauseAtIsolatingBoundary(tablePos): se c'e' un vero fratello di row li',
+//   la tabella (isolating, come un box) pausa prima di attraversarlo -
+//   colma per la tabella lo stesso gap gia' risolto per i box in Fase 3a
+//   (li' era exitBoxBoundary a tuffarsi dritto verso un paragrafo fratello;
+//   qui senza questo ramo exitTableBoundary farebbe la stessa cosa, vedi
+//   il vecchio ramo "neighborBlock" sotto che non distingueva affatto un
+//   fratello di row da un blocco qualunque a livello documento).
+// - altrimenti (nessun fratello di row su questo lato): il vero bordo
+//   assoluto e' quello della ROW, non della tabella - bug confermato dal
+//   vivo 2026-08-08 (harness, addElementBeside('table')): il vecchio ramo
+//   sotto, ignaro della row, inseriva il nuovo paragrafo a tablePos, una
+//   posizione che qui e' DENTRO il contenuto della row (terzo figlio),
+//   invece che fuori. jumpOrInsertAtContainerBoundary richiamata sul bordo
+//   della ROW (rowPos, non tablePos) risolve correttamente sia il riuso di
+//   un vicino esistente sia l'inserimento, esattamente come gia' fa
+//   exitRowDocumentBoundary sotto per lo stesso identico bordo.
+//
+// Se il genitore diretto NON e' una row (oggi l'unico caso, tabella a
+// livello documento o dentro una cella/box), il comportamento sotto resta
+// ESATTAMENTE quello di sempre - stessa jumpOrInsertAtContainerBoundary,
+// stesso tablePos, nessuna differenza osservabile.
 export function exitTableBoundary(editor: Editor, dir: 'before' | 'after'): boolean {
   const { selection, doc } = editor.state;
   if (!selection.empty) return false;
@@ -743,29 +853,15 @@ export function exitTableBoundary(editor: Editor, dir: 'before' | 'after'): bool
   const tableDepth = findTableAncestorDepth($from);
   if (tableDepth === null) return false;
   const tablePos = dir === 'before' ? $from.before(tableDepth) : $from.after(tableDepth);
-  const $tableBoundary = doc.resolve(tablePos);
-  const neighborBlock = dir === 'before' ? $tableBoundary.nodeBefore : $tableBoundary.nodeAfter;
 
-  if (neighborBlock) {
-    return editor
-      .chain()
-      .command(({ tr }) => {
-        tr.setSelection(Selection.near(tr.doc.resolve(tablePos), dir === 'after' ? 1 : -1));
-        return true;
-      })
-      .scrollIntoView()
-      .run();
+  const docRowDepth = findDocRowAncestorDepth($from);
+  if (docRowDepth === tableDepth - 1) {
+    if (pauseAtIsolatingBoundary(editor, tablePos, dir)) return true;
+    const rowPos = dir === 'before' ? $from.before(docRowDepth) : $from.after(docRowDepth);
+    return jumpOrInsertAtContainerBoundary(editor, rowPos, dir);
   }
 
-  return editor
-    .chain()
-    .command(({ tr }) => {
-      tr.insert(tablePos, editor.schema.nodes.paragraph.create());
-      tr.setSelection(Selection.near(tr.doc.resolve(tablePos + 1)));
-      return true;
-    })
-    .scrollIntoView()
-    .run();
+  return jumpOrInsertAtContainerBoundary(editor, tablePos, dir);
 }
 
 // Confine ASSOLUTO di una row documentale (Fase 3a, gemella di
@@ -810,29 +906,7 @@ export function exitRowDocumentBoundary(editor: Editor, dir: 'before' | 'after')
   if (sibling) return false;
 
   const rowPos = dir === 'before' ? $from.before(rowDepth) : $from.after(rowDepth);
-  const $rowBoundary = doc.resolve(rowPos);
-  const neighborBlock = dir === 'before' ? $rowBoundary.nodeBefore : $rowBoundary.nodeAfter;
-
-  if (neighborBlock) {
-    return editor
-      .chain()
-      .command(({ tr }) => {
-        tr.setSelection(Selection.near(tr.doc.resolve(rowPos), dir === 'after' ? 1 : -1));
-        return true;
-      })
-      .scrollIntoView()
-      .run();
-  }
-
-  return editor
-    .chain()
-    .command(({ tr }) => {
-      tr.insert(rowPos, editor.schema.nodes.paragraph.create());
-      tr.setSelection(Selection.near(tr.doc.resolve(rowPos + 1)));
-      return true;
-    })
-    .scrollIntoView()
-    .run();
+  return jumpOrInsertAtContainerBoundary(editor, rowPos, dir);
 }
 
 // Va oltre il bordo superiore assoluto della tabella (round 2026-08-07,
