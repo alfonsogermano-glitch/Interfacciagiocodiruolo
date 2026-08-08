@@ -10,6 +10,7 @@ import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
 import { TableWithHandle } from './tiptapTableHandle';
 import { TableCellWithFlexWrapper, TableHeaderWithFlexWrapper } from './tiptapTableCellWrapper';
 import { Row, ParagraphWithRowGroup, type RowElementType } from './tiptapRow';
+import { RowDropExtension } from './tiptapRowDrop';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { DropCleanup } from './tiptapDropCleanup';
 import { TextBoxEdgeCursorExtension, isAtRowStart, isAtRowEnd, findCellAncestorDepth } from './tiptapTextBoxEdgeCursor';
@@ -549,9 +550,11 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
       TableCellWithFlexWrapper,
       TableHeaderWithFlexWrapper,
       ParagraphWithRowGroup,
-      // Row: Fase 1, solo schema+rendering, nessun modo di crearla dalla UI
-      // ancora (nessun comando setRow/toolbar/drag&drop - vedi tiptapRow.ts).
+      // Row: Fase 1, solo schema+rendering - la creazione via drag&drop
+      // (Fase 4a, tiptapRowDrop.ts) e via toolbar (Fase 2, comando
+      // addElementBeside sopra) sono entrambe registrate qui.
       Row,
+      RowDropExtension,
       FontSize,
       DropCleanup,
       ...TIPTAP_BLOCK_EXTENSIONS,

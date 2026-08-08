@@ -68,12 +68,29 @@ function createRowElementNode(schema: Schema, type: RowElementType): ProseMirror
 // Antenato piu' vicino di un dato tipo, a qualunque profondita' - stessa
 // idea di isSelectionInside (tiptapBlocks.tsx), ma restituisce la depth
 // invece di un booleano: serve sapere ESATTAMENTE a che profondita' si
-// trova la row per calcolare $from.end(depth) sotto.
-function findAncestorDepth($pos: ResolvedPos, typeName: string): number | null {
+// trova la row per calcolare $from.end(depth) sotto. Esportata (Fase 4a,
+// tiptapRowDrop.ts): la risoluzione del target di un drop riusa la stessa
+// identica ricerca per sapere se il punto sotto il mouse e' gia' dentro una
+// row esistente, invece di reimplementarla.
+export function findAncestorDepth($pos: ResolvedPos, typeName: string): number | null {
   for (let depth = $pos.depth; depth >= 0; depth -= 1) {
     if ($pos.node(depth).type.name === typeName) return depth;
   }
   return null;
+}
+
+// Vero se la posizione data e' annidata dentro uno qualunque dei tipi
+// elencati, a qualunque profondita' - nucleo condiviso, non piu' legato a
+// state.selection: estratta (Fase 4a) perche' il drag&drop deve fare la
+// STESSA verifica su posizioni che non sono la selezione corrente (dove
+// il drag e' partito, dove sta per atterrare - tiptapRowDrop.ts), mentre
+// isSelectionInsideAny sotto resta il caso specifico "verifica sulla
+// selezione", ora un thin wrapper.
+export function isPositionInsideAny($pos: ResolvedPos, typeNames: string[]): boolean {
+  for (let depth = $pos.depth; depth >= 0; depth -= 1) {
+    if (typeNames.includes($pos.node(depth).type.name)) return true;
+  }
+  return false;
 }
 
 // Vero se la selezione e' annidata dentro uno qualunque dei tipi elencati, a
@@ -81,11 +98,7 @@ function findAncestorDepth($pos: ResolvedPos, typeName: string): number | null {
 // generalizzata a piu' tipi in un colpo solo (qui servono contemporaneamente
 // table/textBox/collapseBlock, non un tipo alla volta).
 function isSelectionInsideAny(state: EditorState, typeNames: string[]): boolean {
-  const { $from } = state.selection;
-  for (let depth = $from.depth; depth >= 0; depth -= 1) {
-    if (typeNames.includes($from.node(depth).type.name)) return true;
-  }
-  return false;
+  return isPositionInsideAny(state.selection.$from, typeNames);
 }
 
 export const Row = Node.create({
