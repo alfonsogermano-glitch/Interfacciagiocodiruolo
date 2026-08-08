@@ -142,6 +142,68 @@ export function findTableAncestorDepth($pos: ResolvedPos): number | null {
   return null;
 }
 
+// Nome di nodo della row a livello documento (tiptapRow.ts, Fase 1-2
+// "affiancamento a livello documento") - chiamata "Doc" (non solo "Row",
+// gia' preso da isTableRow/findRow* piu' sopra per la riga di TABELLA) per
+// restare inequivocabile: le due "row" del file (riga di tabella e row
+// documentale) non condividono ne' nome di nodo ne' semantica, solo la
+// somiglianza superficiale del termine italiano.
+function isDocRow(node: ProseMirrorNode): boolean {
+  return node.type.name === 'row';
+}
+
+// Come findTableAncestorDepth sopra - antenato 'row' documentale piu'
+// vicino. Usata da exitRowDocumentBoundary sotto SOLO dopo aver gia'
+// verificato che il risultato coincide esattamente col genitore diretto
+// dell'item (rowDepth === itemDepth-1, vedi li'): una ricerca "ovunque
+// sopra" da sola non basterebbe a distinguere "il mio contenitore diretto
+// e' una row" da "c'e' una row da qualche parte piu' in alto, oltre una
+// cella di tabella in mezzo" (Fase 3b, tabella dentro una row - fuori
+// scope qui, verificato dal vivo 2026-08-08: con la tabella dentro una
+// row, il cursore dentro una cella risolve SEMPRE itemDepth dentro quella
+// cella, mai al livello della row - ma questa funzione da sola, chiamata
+// senza quel controllo, troverebbe comunque la row piu' esterna e
+// scavalcherebbe erroneamente la tabella).
+function findDocRowAncestorDepth($pos: ResolvedPos): number | null {
+  for (let depth = $pos.depth; depth >= 0; depth -= 1) {
+    if (isDocRow($pos.node(depth))) return depth;
+  }
+  return null;
+}
+
+// Vero per un nodo che affianca i propri figli diretti via flex (row
+// documentale O cella di tabella - stesso layout CSS, .tiptap-row-flex e
+// .tiptap-td-flex, vedi theme.css) - il contenitore di riferimento per
+// findFlexItemAncestorDepth sotto, che riconosce QUALUNQUE coppia di
+// fratelli diretti in uno di questi due contenitori (non solo TextBox/
+// Collapse, a differenza di isSideBySideBox sopra che resta invariata:
+// quella decide "e' un box pausabile", non "sono in un contenitore che
+// affianca i suoi figli" - le due domande sono indipendenti, vedi
+// exitFlexSiblingBoundary sotto per come si combinano).
+function isFlexSiblingContainer(node: ProseMirrorNode): boolean {
+  return isDocRow(node) || isTableCell(node);
+}
+
+// Profondita' del figlio DIRETTO di una row/cella che contiene $pos - "un
+// livello alla volta" come findBoxAncestorDepth/findCellAncestorDepth
+// sopra, ma cerca il genitore (node(depth-1)) invece del nodo stesso a
+// quella profondita': serve la profondita' dell'ITEM (il fratello il cui
+// bordo interessa), non della row/cella che lo contiene. Per costruzione
+// si ferma sempre al contenitore piu' INTERNO: se $pos e' dentro una
+// tabella che e' essa stessa figlia di una row (Fase 3b, non ancora
+// gestita da exitFlexSiblingBoundary/exitRowDocumentBoundary sotto), la
+// cella di quella tabella viene incontrata per prima risalendo da $pos -
+// verificato dal vivo 2026-08-08 (harness con addElementBeside('table'),
+// angoli riga0/colonna0 e ultima riga/colonna): itemDepth risolve sempre
+// dentro la cella, mai al livello della row esterna, nessuna guardia
+// esplicita su isTable(item) necessaria.
+function findFlexItemAncestorDepth($pos: ResolvedPos): number | null {
+  for (let depth = $pos.depth; depth >= 1; depth -= 1) {
+    if (isFlexSiblingContainer($pos.node(depth - 1))) return depth;
+  }
+  return null;
+}
+
 // Elemento adiacente alla posizione del cursore finto (nodo DOPO se e' un
 // cursore "before", nodo PRIMA se e' un cursore "after") - nessuno stato
 // separato "quale elemento, quale lato" da tracciare altrove: la posizione
@@ -269,6 +331,29 @@ function landOrDive(doc: ProseMirrorNode, pos: number, dir: 'before' | 'after'):
 // alcun fratello), si ferma con un nuovo cursore finto proprio li'; solo
 // se il fratello e' un blocco normale (o non c'e' piu' nessun antenato
 // box) procede oltre.
+//
+// Rilevamento anticipato di un a-capo di riga flex (bug 2026-08-04/05, "il
+// fix corregge troppo, e solo in una direzione": una singola freccia
+// scavalcava fine-riga-1/inizio-riga-2 saltando una fermata, sia uscendo
+// da box1 verso destra sia da box2 verso sinistra) - misurato PRIMA della
+// transazione, sui due elementi reali ancora affiancati nel DOM (nessun
+// widget di mezzo finche' la transazione non parte): elemento1/elemento2
+// sono fratelli diretti a questa posizione condivisa (fine di uno ===
+// inizio dell'altro, un solo intero) a PRESCINDERE da quale dei due si
+// sta lasciando, quindi la stessa misura (via nodeDOM/previousElementSibling)
+// vale identica per entrambe le direzioni - nessuna asimmetria qui, solo
+// la FASE iniziale (ROW_PAUSE_DIR_META, vedi sotto) distingue le due
+// direzioni. Estratta come funzione a parte (round Fase 3, "affiancamento
+// a livello documento") perche' riusata identica da exitFlexSiblingBoundary
+// sotto: la misura e' generica (due elementi DOM adiacenti qualunque),
+// mai stata specifica ai box.
+function measureRowWrap(editor: Editor, boundaryPos: number): boolean {
+  const afterDom = editor.view.nodeDOM(boundaryPos) as HTMLElement | null;
+  const beforeDom = afterDom?.previousElementSibling as HTMLElement | null;
+  if (!afterDom || !beforeDom) return false;
+  return Math.abs(afterDom.getBoundingClientRect().top - beforeDom.getBoundingClientRect().top) > 1;
+}
+
 export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after'): boolean {
   const { selection, doc } = editor.state;
   if (!selection.empty) return false;
@@ -279,24 +364,125 @@ export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after'): boolea
 
   const boundaryPos = dir === 'before' ? $from.before(boxDepth) : $from.after(boxDepth);
 
-  // Rilevamento anticipato di un a-capo di riga flex (bug 2026-08-04/05,
-  // "il fix corregge troppo, e solo in una direzione": una singola
-  // freccia scavalcava fine-riga-1/inizio-riga-2 saltando una fermata,
-  // sia uscendo da box1 verso destra sia da box2 verso sinistra) -
-  // misurato QUI, PRIMA della transazione sotto, sui due box reali ancora
-  // affiancati nel DOM (nessun widget di mezzo finche' la transazione non
-  // parte): box1/box2 sono fratelli diretti a questa posizione condivisa
-  // (fine di uno === inizio dell'altro, un solo intero) a PRESCINDERE da
-  // quale dei due si sta lasciando, quindi la stessa misura (via
-  // nodeDOM/previousElementSibling) vale identica per entrambe le
-  // direzioni - nessuna asimmetria qui, solo la FASE iniziale sotto
-  // (ROW_PAUSE_DIR_META) distingue le due direzioni.
-  let rowWrapped = false;
-  const afterDom = editor.view.nodeDOM(boundaryPos) as HTMLElement | null;
-  const beforeDom = afterDom?.previousElementSibling as HTMLElement | null;
-  if (afterDom && beforeDom) {
-    rowWrapped = Math.abs(afterDom.getBoundingClientRect().top - beforeDom.getBoundingClientRect().top) > 1;
+  // Caso Fase 3a - box il cui genitore DIRETTO e' una row/cella (scoperto dal
+  // vivo 2026-08-08 testando A2->A1: senza questo ramo, questa funzione
+  // (controllata per PRIMA nella catena, findBoxAncestorDepth trova il box
+  // a QUALUNQUE profondita') intercetta sempre il confine prima che
+  // exitFlexSiblingBoundary/exitRowDocumentBoundary abbiano una possibilita' -
+  // landOrDive sotto pausa SOLO se il vicino e' anch'esso un box
+  // (isSideBySideBox), quindi un box che esce verso un paragrafo/tabella
+  // fratello si tuffava dritto attraverso, l'esatta asimmetria opposta al
+  // gap del passo 0 (li' era il paragrafo a non fermarsi verso il box; qui
+  // e' il box a non fermarsi verso il paragrafo).
+  const parentDepth = boxDepth - 1;
+  if (parentDepth >= 0 && isFlexSiblingContainer($from.node(parentDepth))) {
+    const $boundary = doc.resolve(boundaryPos);
+    const sibling = dir === 'before' ? $boundary.nodeBefore : $boundary.nodeAfter;
+
+    // Fratello reale, non tabella (la tabella resta fuori scope, Fase 3b -
+    // stesso confine gia' escluso da isSideBySideBox/landOrDive altrove):
+    // sto uscendo da un box, isolating per definizione - la pausa scatta
+    // SEMPRE quando c'e' un vero fratello, qualunque sia il SUO tipo (a
+    // differenza di exitFlexSiblingBoundary, dove e' il fratello a dover
+    // essere un box perche' chi esce - un paragrafo - non lo e' di suo).
+    if (sibling && !isTable(sibling)) {
+      const rowWrapped = measureRowWrap(editor, boundaryPos);
+      return editor
+        .chain()
+        .command(({ tr }) => {
+          tr.setSelection(new TextBoxEdgeCursor(tr.doc.resolve(boundaryPos)));
+          tr.setMeta(ROW_PAUSE_WRAPPED_META, rowWrapped);
+          tr.setMeta(ROW_PAUSE_DIR_META, dir);
+          return true;
+        })
+        .scrollIntoView()
+        .run();
+    }
+
+    // Nessun fratello E il contenitore e' una row (non una cella): il vero
+    // bordo assoluto e' quello della ROW, non del box - NON creare qui la
+    // pausa "morta" del ramo generico sotto (pensata per altri contesti,
+    // es. box a livello documento senza nulla prima/dopo): lascia scendere
+    // la catena fino a exitRowDocumentBoundary, che sa uscire davvero dalla
+    // row. Se il contenitore e' invece una CELLA, questo ramo non scatta
+    // (isDocRow falso) - comportamento INVARIATO sotto, stesso "pausa morta
+    // poi seconda pressione" di sempre (fuori scope per questa fase, vedi
+    // test di non-regressione).
+    if (!sibling && isDocRow($from.node(parentDepth))) return false;
   }
+
+  const rowWrapped = measureRowWrap(editor, boundaryPos);
+
+  return editor
+    .chain()
+    .command(({ tr }) => {
+      tr.setSelection(landOrDive(tr.doc, boundaryPos, dir));
+      tr.setMeta(ROW_PAUSE_WRAPPED_META, rowWrapped);
+      tr.setMeta(ROW_PAUSE_DIR_META, dir);
+      return true;
+    })
+    .scrollIntoView()
+    .run();
+}
+
+// Pausa fra due fratelli DIRETTI di una row documentale o di una cella di
+// tabella (Fase 3a "navigazione fra fratelli di row/cella", generalizza il
+// meccanismo gia' collaudato di exitBoxBoundary sopra) - a differenza sua
+// (che parte da un antenato box isolating e scatta OVUNQUE nel documento,
+// anche fuori da ogni contesto flex), qui il trigger e' strutturale: sono
+// al bordo del MIO contenitore diretto (paragrafo, box, o - non ancora,
+// vedi sotto - tabella) dentro una row/cella, con un fratello dall'altra
+// parte. Colma il gap scoperto dal vivo 2026-08-08 (harness, passo 0):
+// oggi un paragrafo normale affiancato a un TextBox/Collapse (stessa cella
+// O stessa row) attraversa il confine in un solo tasto, senza la pausa che
+// invece box-box gia' ha - qui SOLO perche' isSideBySideBox(paragrafo) e'
+// falso e nessun codice guardava il bordo "in mezzo" a un contenitore
+// flex, non un blocco reale del caret nativo (isolating non impedisce la
+// ricerca di selezione, solo le trasformazioni - vedi commento su
+// Selection.near piu' sotto in exitArrow).
+//
+// isSideBySideBox/adjacentBox/landOrDive NON cambiano: il fratello deve
+// ancora essere un box (TextBox/Collapse) perche' scatti una pausa -
+// paragrafo-paragrafo resta un salto diretto, invariato, stesso
+// precedente gia' in vigore per due celle di tabella adiacenti che
+// iniziano/finiscono entrambe con testo normale (exitCellBoundary sotto,
+// che con lo stesso identico ragionamento non pausa in quel caso). La
+// pausa quindi resta limitata a "almeno un lato e' un box", esattamente
+// come il comportamento box-box gia' collaudato - solo il CONTESTO in cui
+// puo' scattare si allarga (bordo del proprio item in una row/cella,
+// non solo bordo di un box).
+//
+// Guardia "sibling esiste" PRIMA di chiamare landOrDive (stesso schema di
+// exitCellBoundary/exitRowBoundary sotto, mai una chiamata a occhi chiusi
+// su un bordo assoluto): se l'item e' primo/ultimo figlio della sua row/
+// cella, non c'e' alcun fratello qui - quel bordo e' competenza di
+// exitCellBoundary (bordo di cella) o di exitRowDocumentBoundary sotto
+// (bordo assoluto di una row), MAI di questa funzione.
+//
+// Nessuna guardia esplicita su isTable(item): verificato dal vivo
+// 2026-08-08 (harness con addElementBeside('table'), angoli riga0/
+// colonna0 e ultima riga/colonna di una tabella dentro una row) che
+// findFlexItemAncestorDepth non risolve mai alla tabella quando il
+// cursore e' al suo interno - risolve sempre dentro la sua cella, gia'
+// intercettata per prima. Tabella-dentro-una-row resta percio' gestita
+// (per ora, invariata) solo da exitCellBoundary/exitRowBoundary/
+// exitTableBoundary sotto - fuori scope per questa fase (Fase 3b).
+export function exitFlexSiblingBoundary(editor: Editor, dir: 'before' | 'after'): boolean {
+  const { selection, doc } = editor.state;
+  if (!selection.empty) return false;
+  const $from = selection.$from;
+  const itemDepth = findFlexItemAncestorDepth($from);
+  if (itemDepth === null) return false;
+  if (!isAtBoxBoundary(doc, $from, itemDepth, dir === 'before' ? 'start' : 'end')) return false;
+
+  const boundaryPos = dir === 'before' ? $from.before(itemDepth) : $from.after(itemDepth);
+  const $boundary = doc.resolve(boundaryPos);
+  const sibling = dir === 'before' ? $boundary.nodeBefore : $boundary.nodeAfter;
+  if (!sibling) return false;
+
+  if (!(landOrDive(doc, boundaryPos, dir) instanceof TextBoxEdgeCursor)) return false;
+
+  const rowWrapped = measureRowWrap(editor, boundaryPos);
 
   return editor
     .chain()
@@ -582,6 +768,73 @@ export function exitTableBoundary(editor: Editor, dir: 'before' | 'after'): bool
     .run();
 }
 
+// Confine ASSOLUTO di una row documentale (Fase 3a, gemella di
+// exitTableBoundary sopra) - quando exitFlexSiblingBoundary fallisce
+// perche' l'item e' primo/ultimo figlio della sua row (nessun fratello su
+// questo lato), il cursore esce dalla row verso il paragrafo immediatamente
+// prima/dopo, creandolo se non esiste - stesso identico schema "riusa
+// vicino esistente o inserisci paragrafo" di exitTableBoundary, solo
+// applicato a rowDepth invece che a tableDepth.
+//
+// findFlexItemAncestorDepth (non un check diretto su cellDepth/tableDepth
+// come le funzioni sopra): riusa la stessa nozione di "item" gia' usata da
+// exitFlexSiblingBoundary, cosi' le due funzioni si dividono esattamente lo
+// stesso spazio di casi (fratello presente -> quella, assente -> questa),
+// nessuna sovrapposizione ne' buco fra le due.
+//
+// rowDepth === itemDepth - 1 verificato ESPLICITAMENTE (non solo "trovata
+// una row da qualche parte sopra" via findDocRowAncestorDepth da sola):
+// se il contenitore diretto dell'item e' una CELLA (non una row), questa
+// funzione deve restare silenziosa - quel bordo assoluto e' gia'
+// competenza di exitCellBoundary/exitRowBoundary/exitTableBoundary sopra,
+// invariate. E' esattamente la guardia che evita la sovrapposizione con
+// Fase 3b (tabella dentro una row): verificato dal vivo 2026-08-08 che con
+// la tabella dentro una row, dall'interno di una sua cella
+// findFlexItemAncestorDepth risolve sempre alla CELLA, mai alla row - qui
+// il controllo esplicito su rowDepth e' comunque la difesa a monte, nel
+// caso (oggi non riproducibile, ma non impossibile in futuro) in cui
+// itemDepth risolvesse diversamente.
+export function exitRowDocumentBoundary(editor: Editor, dir: 'before' | 'after'): boolean {
+  const { selection, doc } = editor.state;
+  if (!selection.empty) return false;
+  const $from = selection.$from;
+  const itemDepth = findFlexItemAncestorDepth($from);
+  if (itemDepth === null) return false;
+  const rowDepth = findDocRowAncestorDepth($from);
+  if (rowDepth !== itemDepth - 1) return false;
+  if (!isAtBoxBoundary(doc, $from, itemDepth, dir === 'before' ? 'start' : 'end')) return false;
+
+  const boundaryPos = dir === 'before' ? $from.before(itemDepth) : $from.after(itemDepth);
+  const $boundary = doc.resolve(boundaryPos);
+  const sibling = dir === 'before' ? $boundary.nodeBefore : $boundary.nodeAfter;
+  if (sibling) return false;
+
+  const rowPos = dir === 'before' ? $from.before(rowDepth) : $from.after(rowDepth);
+  const $rowBoundary = doc.resolve(rowPos);
+  const neighborBlock = dir === 'before' ? $rowBoundary.nodeBefore : $rowBoundary.nodeAfter;
+
+  if (neighborBlock) {
+    return editor
+      .chain()
+      .command(({ tr }) => {
+        tr.setSelection(Selection.near(tr.doc.resolve(rowPos), dir === 'after' ? 1 : -1));
+        return true;
+      })
+      .scrollIntoView()
+      .run();
+  }
+
+  return editor
+    .chain()
+    .command(({ tr }) => {
+      tr.insert(rowPos, editor.schema.nodes.paragraph.create());
+      tr.setSelection(Selection.near(tr.doc.resolve(rowPos + 1)));
+      return true;
+    })
+    .scrollIntoView()
+    .run();
+}
+
 // Va oltre il bordo superiore assoluto della tabella (round 2026-08-07,
 // sostituisce il cursore finto TextBoxEdgeCursor introdotto qui il
 // 2026-08-06): quando Freccia Su parte dalla riga 0 e sopra non c'e' nulla
@@ -660,12 +913,18 @@ export function exitTableTopEdge(editor: Editor): boolean {
     .run();
 }
 
-// Nome di classe di un TextBox/Collapse RESO (non il nome di nodo dello
-// schema, isSideBySideBox sopra lavora su ProseMirrorNode - qui serve il
-// suo equivalente DOM, per riconoscere i veri VICINI del widget nel
-// markup effettivo).
-function isBoxElement(el: Element | null): el is HTMLElement {
-  return !!el && (el.classList.contains('tiptap-textbox') || el.classList.contains('tiptap-collapse'));
+// Un fratello DOM reale del widget, di QUALUNQUE tipo (non solo TextBox/
+// Collapse come la vecchia isBoxElement - allargata in Fase 3a insieme a
+// exitFlexSiblingBoundary sopra: da quando il cursore finto puo' nascere
+// anche fra un paragrafo/tabella e un box, o fra due box in una row, i
+// suoi VERI vicini nel DOM possono essere un <p>, un .tableWrapper, o
+// qualunque altro blocco - non piu' solo .tiptap-textbox/.tiptap-collapse).
+// L'unico elemento da ESCLUDERE e' un altro cursore finto stesso (mai
+// dovrebbe capitare, ma per costruzione e' l'unico widget non-contenuto
+// inserito a questo stesso livello) - nessun controllo positivo sul tipo
+// serve piu': qualunque cosa non sia il widget e' contenuto reale.
+function isRealSiblingElement(el: Element | null): el is HTMLElement {
+  return !!el && !el.classList.contains('tiptap-textbox-edge-cursor');
 }
 
 // Calcolo UNICO della posizione del cursore finto (bug 2026-08-05,
@@ -723,13 +982,13 @@ function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after')
 
   const prevEl = widget.previousElementSibling;
   const nextEl = widget.nextElementSibling;
-  const boxBefore = isBoxElement(prevEl) ? prevEl : null;
-  const boxAfter = isBoxElement(nextEl) ? nextEl : null;
-  if (!boxBefore && !boxAfter) return; // difensivo: per costruzione ce n'e' sempre almeno uno
+  const siblingBefore = isRealSiblingElement(prevEl) ? prevEl : null;
+  const siblingAfter = isRealSiblingElement(nextEl) ? nextEl : null;
+  if (!siblingBefore && !siblingAfter) return; // difensivo: per costruzione ce n'e' sempre almeno uno
 
   const containerRect = container.getBoundingClientRect();
-  const beforeRect = boxBefore?.getBoundingClientRect() ?? null;
-  const afterRect = boxAfter?.getBoundingClientRect() ?? null;
+  const beforeRect = siblingBefore?.getBoundingClientRect() ?? null;
+  const afterRect = siblingAfter?.getBoundingClientRect() ?? null;
 
   const sameRow = !!beforeRect && !!afterRect && Math.abs(beforeRect.top - afterRect.top) <= 1;
 
@@ -1006,6 +1265,15 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         // (bug 2026-08-02, vedi commento su exitBoxBoundary in
         // tiptapTextBoxEdgeCursor.ts).
         if (exitBoxBoundary(editor, dir)) return true;
+
+        // Poi exitFlexSiblingBoundary/exitRowDocumentBoundary (Fase 3a,
+        // stesso identico motivo delle riprove sotto: la prosecuzione da un
+        // cursore finto gia' attivo deve poter fermarsi di nuovo al
+        // prossimo bordo fratello di row/cella, non solo al primo ingresso
+        // da testo reale in createEdgeAwareKeyboardShortcuts) - solo
+        // axis==='horizontal', stesso motivo di exitCellBoundary sotto.
+        if (axis === 'horizontal' && exitFlexSiblingBoundary(editor, dir)) return true;
+        if (axis === 'horizontal' && exitRowDocumentBoundary(editor, dir)) return true;
 
         // Poi exitCellBoundary, SOLO in orizzontale (bug 2026-08-05,
         // "salta un livello sul confine di cella": senza questa riprova, un

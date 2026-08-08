@@ -6,9 +6,11 @@ import {
   findBoxAncestorDepth,
   isAtBoxBoundary,
   exitBoxBoundary,
+  exitFlexSiblingBoundary,
   exitCellBoundary,
   exitRowBoundary,
   exitTableBoundary,
+  exitRowDocumentBoundary,
   exitTableTopEdge,
 } from './tiptapTextBoxEdgeCursor';
 
@@ -86,13 +88,32 @@ function isSelectionInside(state: EditorState, typeName: string): boolean {
 // tiptapTextBoxEdgeCursor.ts per il ragionamento (riusa GapCursor.valid
 // come oracolo). ArrowDown dall'ultima riga resta interamente invariato
 // (TrailingNode + comportamento nativo, mai toccato).
+//
+// exitFlexSiblingBoundary/exitRowDocumentBoundary (Fase 3a "navigazione fra
+// fratelli di row/cella", provate DOPO exitBoxBoundary e PRIMA di
+// exitCellBoundary - un livello concettuale in mezzo: bordo del box
+// isolating, poi bordo del proprio item dentro row/cella, poi bordo della
+// cella/riga di tabella) - vedi il commento completo su
+// exitFlexSiblingBoundary in tiptapTextBoxEdgeCursor.ts. Solo Left/Right,
+// stesso motivo di exitCellBoundary/exitRowBoundary/exitTableBoundary
+// sotto (row e' un concetto orizzontale, flex-wrap, non verticale).
 function createEdgeAwareKeyboardShortcuts(editor: Editor) {
   return {
     ArrowLeft: () =>
-      exitBoxBoundary(editor, 'before') || exitCellBoundary(editor, 'before') || exitRowBoundary(editor, 'before') || exitTableBoundary(editor, 'before'),
+      exitBoxBoundary(editor, 'before') ||
+      exitFlexSiblingBoundary(editor, 'before') ||
+      exitCellBoundary(editor, 'before') ||
+      exitRowBoundary(editor, 'before') ||
+      exitTableBoundary(editor, 'before') ||
+      exitRowDocumentBoundary(editor, 'before'),
     ArrowUp: () => exitBoxBoundary(editor, 'before') || exitTableTopEdge(editor),
     ArrowRight: () =>
-      exitBoxBoundary(editor, 'after') || exitCellBoundary(editor, 'after') || exitRowBoundary(editor, 'after') || exitTableBoundary(editor, 'after'),
+      exitBoxBoundary(editor, 'after') ||
+      exitFlexSiblingBoundary(editor, 'after') ||
+      exitCellBoundary(editor, 'after') ||
+      exitRowBoundary(editor, 'after') ||
+      exitTableBoundary(editor, 'after') ||
+      exitRowDocumentBoundary(editor, 'after'),
     ArrowDown: () => exitBoxBoundary(editor, 'after'),
     // Cancella l'intero nodo (non solo il paragrafo vuoto) quando il
     // cursore e' esattamente a inizio contenuto - equivalente esatto di
