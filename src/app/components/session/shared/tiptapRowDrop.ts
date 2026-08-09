@@ -2,7 +2,7 @@ import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey, NodeSelection, type Transaction, type EditorState } from '@tiptap/pm/state';
 import type { Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
-import { findAncestorDepth, isPositionInsideAny } from './tiptapRow';
+import { findAncestorDepth } from './tiptapRow';
 
 // Fase 4a del progetto "affiancamento a livello documento" (piano confermato
 // 2026-08-08): drag&drop per CREARE una row trascinando un elemento accanto
@@ -36,15 +36,17 @@ import { findAncestorDepth, isPositionInsideAny } from './tiptapRow';
 // poterli elencare/confrontare a runtime durante la risoluzione del target).
 const ROW_ITEM_TYPE_NAMES = ['paragraph', 'textBox', 'collapseBlock', 'table'];
 
-// Sorgenti accettate per QUESTA sotto-fase - tabella esplicitamente esclusa
-// (Fase 4c, ha gia' il proprio drag&drop interno via prosemirror-tables,
-// interagire con essa e' fuori scope qui). Paragraph incluso a livello di
+// Sorgenti accettate - 'table' incluso da Fase 4c (ha gia' la propria
+// maniglia con data-drag-handle e draggable:true a livello di schema,
+// tiptapTableHandle.ts - lo stesso identico meccanismo generico di
+// dragstart/handleDrop qui sotto la gestisce senza rami dedicati, l'unica
+// differenza reale era questa lista). Paragraph incluso a livello di
 // type-check (nessun motivo strutturale per escluderlo) ma non ha oggi una
 // maniglia dedicata in UI (nessun data-drag-handle nel suo renderHTML) - un
 // trascinamento di un paragrafo intero passerebbe comunque da qui se mai
 // avviato (es. via drag di una selezione di testo), ma resta un percorso
 // non esercitato dalla UI attuale.
-const DRAGGABLE_SOURCE_TYPES = ['paragraph', 'textBox', 'collapseBlock'];
+const DRAGGABLE_SOURCE_TYPES = ['paragraph', 'textBox', 'collapseBlock', 'table'];
 
 // Frazione della larghezza del rect target oltre la quale il punto e'
 // "zona affianca" (sinistra o destra) invece che "zona centrale" (nativo,
@@ -74,16 +76,25 @@ function resolveSideZone(clientX: number, rect: DOMRect): 'before' | 'after' | n
 // l'item da considerare e' il box stesso, non il suo contenuto - fermarsi
 // al PRIMO match dall'esterno garantisce questo senza un ramo dedicato.
 //
-// Guardia tabella/cella PRIMA della risalita (isPositionInsideAny, la
-// stessa gia' usata da addElementBeside in tiptapRow.ts per lo stesso
-// identico motivo): annidare/affiancare dentro una cella resta fuori scope,
-// tabella o non tabella il rowItem trovato - un $pos dentro una cella di
-// una tabella che e' essa stessa figlia di una row viene comunque
-// rifiutato, coerente con la Fase 2.
+// NESSUNA guardia tabella/cella (rimossa in Fase 4c, verificato dal vivo che
+// serviva a poco/niente e bloccava il caso voluto): 'table' e' un rowItem
+// valido (ROW_ITEM_TYPE_NAMES sopra), quindi e' SEMPRE l'antenato rowItem
+// piu' esterno di qualunque posizione al suo interno (tableRow/tableCell/
+// tableHeader non sono mai piu' in alto di 'table' nella catena - non
+// possono esistere senza di lei) - il walk sotto, fermandosi al PRIMO match
+// dall'esterno, arriva quindi SEMPRE a 'table' prima di poter mai
+// raggiungere contenuto annidato in una cella (paragrafo/textBox/
+// collapseBlock), rendendo una guardia esplicita ridondante per quel caso.
+// Una guardia su 'tableCell'/'tableHeader' (provato dal vivo, poi tolto)
+// sembrava innocua per lo stesso motivo ma NON lo e': posAtCoords per un
+// punto ovunque sopra il rettangolo di una tabella (incluso il click sulla
+// sua maniglia, che occupa visivamente l'angolo della prima cella) risolve
+// quasi sempre DENTRO una cella - una guardia che rifiuta quella posizione
+// rifiuta quindi anche la tabella stessa come sorgente/target, l'esatto
+// comportamento che questa sotto-fase deve invece abilitare.
 function resolveRowDropItem(doc: ProseMirrorNode, pos: number): { itemPos: number; rowDepth: number | null } | null {
   if (pos < 0 || pos > doc.content.size) return null;
   const $pos: ResolvedPos = doc.resolve(pos);
-  if (isPositionInsideAny($pos, ['table', 'tableCell', 'tableHeader'])) return null;
 
   for (let depth = 1; depth <= $pos.depth; depth += 1) {
     if (ROW_ITEM_TYPE_NAMES.includes($pos.node(depth).type.name)) {
