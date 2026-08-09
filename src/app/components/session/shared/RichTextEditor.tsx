@@ -13,6 +13,7 @@ import { Row, ParagraphWithRowGroup, type RowElementType } from './tiptapRow';
 import { RowDropExtension } from './tiptapRowDrop';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { DropCleanup } from './tiptapDropCleanup';
+import { RowCollapseCleanup } from './tiptapRowCollapseCleanup';
 import { TextBoxEdgeCursorExtension, isAtRowStart, isAtRowEnd, findCellAncestorDepth } from './tiptapTextBoxEdgeCursor';
 import { TipTapTableMenu } from './TipTapTableMenu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
@@ -557,6 +558,12 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
       RowDropExtension,
       FontSize,
       DropCleanup,
+      // RowCollapseCleanup: scioglie una row che scende a 1 (o 0) figli
+      // reali dopo un drag/backspace/Cut - vedi tiptapRowCollapseCleanup.ts
+      // (Fase 4c parte 2). Ordine ininfluente rispetto a DropCleanup:
+      // entrambe sono appendTransaction indipendenti, ProseMirror le gira
+      // tutte sulla stessa transazione dispacciata, in sequenza fra loro.
+      RowCollapseCleanup,
       ...TIPTAP_BLOCK_EXTENSIONS,
       TextBoxEdgeCursorExtension,
     ],

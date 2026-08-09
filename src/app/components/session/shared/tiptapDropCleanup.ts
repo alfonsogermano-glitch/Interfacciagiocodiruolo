@@ -19,7 +19,11 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 // e uno spazio isolato come contenuto intenzionale e' un caso d'uso talmente
 // raro da non giustificare il rischio, gia' visto oggi, di lasciare
 // artefatti invisibili in giro.
-function isEmptyParagraph(node: ProseMirrorNode): boolean {
+// Esportata (Fase 4c parte 2, tiptapRowCollapseCleanup.ts): stessa identica
+// nozione di "vuoto" serve anche li' per riconoscere il paragrafo
+// segnaposto auto-inserito da ProseMirror quando una row scende sotto il
+// minimo 'rowItem{2,}' - un solo posto dove tenerla coerente.
+export function isEmptyParagraph(node: ProseMirrorNode): boolean {
   return node.type.name === 'paragraph' && node.textContent.trim().length === 0;
 }
 
