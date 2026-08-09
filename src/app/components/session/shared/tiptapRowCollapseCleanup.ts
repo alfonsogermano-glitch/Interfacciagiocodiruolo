@@ -95,10 +95,47 @@ export const RowCollapseCleanup = Extension.create({
             const toRow = findEnclosingRowPos(newState.doc, newRange.to);
             if (toRow !== null) rowPositions.add(toRow);
           });
-          if (rowPositions.size === 0) return null;
-
           const invertedMapping = combined.mapping.invert();
           let tr: Transaction | null = null;
+
+          // rowGrow "fantasma" (Fase 5d, piano confermato 2026-08-09):
+          // rowGrow non ha alcun significato fuori da una row (nessun
+          // fratello con cui condividere lo spazio) - un rowItem che LASCIA
+          // una row (per qualunque motivo) non deve portarselo dietro,
+          // altrimenti si riattiva in modo confuso se quello stesso nodo
+          // finisce in una row DIVERSA in futuro, con un rapporto ereditato
+          // da una relazione che non esiste piu'. Due percorsi distinti
+          // producono questo stato, entrambi verificati dal vivo:
+          // 1) drag nativo verso una zona CENTRALE (non gestita da
+          //    RowDropExtension, che side-zone a parte lascia fare al
+          //    comportamento nativo di ProseMirror) - il nodo esce dalla
+          //    sua row e finisce altrove SENZA passare da un collasso,
+          //    perche' gli altri fratelli restano sufficienti. Gestito QUI,
+          //    PRIMA del passo di collasso sotto: un nodo il cui genitore
+          //    e' ancora 'row' in questo momento (perche' non gli e' successo
+          //    nulla, es. il superstite di un collasso non ancora avvenuto)
+          //    viene correttamente ignorato, ci pensa il passo sotto.
+          // 2) il superstite di un collasso (quando una row scende a 1
+          //    figlio reale) - gestito PIU' SOTTO, inline nel momento in
+          //    cui quel nodo viene riutilizzato per sostituire la row.
+          //
+          // Nessuna rimappatura fra questo passo e il successivo: setNodeMarkup
+          // non cambia mai dimensione/posizione dei nodi, quindi i pos
+          // ricavati da newState.doc restano validi anche dopo aver
+          // applicato reset qui.
+          changes.forEach(({ newRange }) => {
+            newState.doc.nodesBetween(newRange.from, newRange.to, (node, pos, parent) => {
+              if (node.attrs.rowGrow == null) return;
+              if (parent && parent.type.name === 'row') return;
+              if (!tr) tr = newState.tr;
+              const current = tr.doc.nodeAt(pos);
+              if (current && current.attrs.rowGrow != null) {
+                tr.setNodeMarkup(pos, undefined, { ...current.attrs, rowGrow: null });
+              }
+            });
+          });
+
+          if (rowPositions.size === 0) return tr;
 
           // Dalla posizione piu' alta verso il basso: collassare/eliminare
           // una row sposta le posizioni di tutto cio' che viene DOPO di lei
@@ -147,7 +184,21 @@ export const RowCollapseCleanup = Extension.create({
               // scioglie, il figlio torna a livello documento al posto
               // della row (stesso tr, cosi' un solo Ctrl+Z disfa sia questa
               // transazione che quella che l'ha scatenata).
-              tr.replaceWith(rowPos, rowPos + rowNode.nodeSize, realChildren[0]);
+              //
+              // rowGrow azzerato qui (Fase 5d) se presente - stesso motivo
+              // del passo sopra: il superstite sta per lasciare l'UNICA row
+              // a cui apparteneva, portarselo dietro sarebbe lo stesso
+              // valore fantasma, solo raggiunto per un percorso diverso
+              // (collasso invece di drag nativo).
+              const survivor =
+                realChildren[0].attrs.rowGrow != null
+                  ? realChildren[0].type.create(
+                      { ...realChildren[0].attrs, rowGrow: null },
+                      realChildren[0].content,
+                      realChildren[0].marks,
+                    )
+                  : realChildren[0];
+              tr.replaceWith(rowPos, rowPos + rowNode.nodeSize, survivor);
             }
             // 2+ figli reali superstiti insieme a un filler fresco: non
             // dovrebbe potersi verificare (il filler viene inserito da
