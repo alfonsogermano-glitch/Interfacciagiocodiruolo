@@ -388,6 +388,15 @@
    come prima, la condivisione della riga scatta SOLO fra due
    TextBox/Collapse annidati fratelli, esattamente come gia' succede
    dentro una cella di tabella.
+   .tiptap-row-flex NON e' piu' in questa lista (Fase 5a, "affiancamento a
+   livello documento" - piano confermato 2026-08-09): a livello di row
+   OGNI tipo di rowItem (paragraph/table incluse, non solo TextBox/
+   Collapse) deve affiancarsi per davvero - verificato dal vivo che con
+   flex-basis:100% due paragrafi o una tabella+paragrafo in una row NON si
+   affiancavano affatto, restavano impilati esattamente come fuori da una
+   row (la riga "condivisa" a livello di documento era di fatto vuota per
+   quei tipi). La regola per .tiptap-row-flex ora vive per intero nel
+   blocco flex:1 1 0 sotto, senza eccezioni di tipo - vedi il commento li'.
    min-width:0 (bug 2026-08-05, "una sequenza lunga di caratteri
    ininterrotta in una cella non va piu' a capo, esce dalla tabella"):
    ogni item flex ha un min-width AUTOMATICO pari al proprio min-content
@@ -405,8 +414,7 @@
    LIMITE INFERIORE di restringimento, mai la dimensione preferita. */
 .tiptap-td-flex > *,
 .tiptap-textbox-content > *,
-.tiptap-collapse-body > *,
-.tiptap-row-flex > * {
+.tiptap-collapse-body > * {
   flex: 1 1 100%;
   min-width: 0;
 }
@@ -454,15 +462,26 @@
    piccolo da lasciarne stare comodamente diversi in piu' per riga; il
    numero esatto che entra dipende comunque dalla larghezza reale della
    colonna (ridimensionabile trascinando il bordo), non solo da questa
-   soglia. */
+   soglia.
+   .tiptap-row-flex > * (non piu' solo .tiptap-textbox/.tiptap-collapse,
+   Fase 5a "affiancamento a livello documento" - piano confermato
+   2026-08-09): a livello di row questo trattamento si applica a
+   QUALUNQUE rowItem, non solo TextBox/Collapse - paragraph e table sono
+   rowItem alla pari (tiptapRow.ts, ROW_ITEM_TYPE_NAMES in
+   tiptapRowDrop.ts), non c'e' motivo per cui debbano affiancarsi secondo
+   regole diverse. Stesso min-width:64px per tutti per ora (nessun valore
+   diverso per tipo finche' non serve davvero - la Fase 5 successiva,
+   resize manuale del confine, e' il momento naturale per rivederlo se
+   necessario). td-flex/textbox-content/collapse-body RESTANO ristretti a
+   solo TextBox/Collapse sotto: quel contesto (box annidati dentro una
+   cella o dentro un altro box) e' un problema diverso, fuori scope qui. */
 .tiptap-td-flex > .tiptap-textbox,
 .tiptap-td-flex > .tiptap-collapse,
 .tiptap-textbox-content > .tiptap-textbox,
 .tiptap-textbox-content > .tiptap-collapse,
 .tiptap-collapse-body > .tiptap-textbox,
 .tiptap-collapse-body > .tiptap-collapse,
-.tiptap-row-flex > .tiptap-textbox,
-.tiptap-row-flex > .tiptap-collapse {
+.tiptap-row-flex > * {
   flex: 1 1 0;
   min-width: 64px;
 }
