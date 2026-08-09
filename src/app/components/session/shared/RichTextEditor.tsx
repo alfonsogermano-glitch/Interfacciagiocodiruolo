@@ -11,6 +11,7 @@ import { TableWithHandle } from './tiptapTableHandle';
 import { TableCellWithFlexWrapper, TableHeaderWithFlexWrapper } from './tiptapTableCellWrapper';
 import { Row, ParagraphWithRowGroup, type RowElementType } from './tiptapRow';
 import { RowDropExtension } from './tiptapRowDrop';
+import { RowResizeExtension } from './tiptapRowResize';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { DropCleanup } from './tiptapDropCleanup';
 import { RowCollapseCleanup } from './tiptapRowCollapseCleanup';
@@ -556,6 +557,10 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
       // addElementBeside sopra) sono entrambe registrate qui.
       Row,
       RowDropExtension,
+      // RowResizeExtension: trascinamento manuale del confine fra due
+      // rowItem affiancati (Fase 5c) - scrive rowGrow (schema Fase 5b) sui
+      // due nodi coinvolti al rilascio del mouse.
+      RowResizeExtension,
       FontSize,
       DropCleanup,
       // RowCollapseCleanup: scioglie una row che scende a 1 (o 0) figli

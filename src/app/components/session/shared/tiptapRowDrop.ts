@@ -92,7 +92,11 @@ function resolveSideZone(clientX: number, rect: DOMRect): 'before' | 'after' | n
 // quasi sempre DENTRO una cella - una guardia che rifiuta quella posizione
 // rifiuta quindi anche la tabella stessa come sorgente/target, l'esatto
 // comportamento che questa sotto-fase deve invece abilitare.
-function resolveRowDropItem(doc: ProseMirrorNode, pos: number): { itemPos: number; rowDepth: number | null } | null {
+// Esportata (Fase 5c, tiptapRowResize.ts): stessa identica risoluzione
+// "posizione nel documento -> item rowItem piu' esterno" serve anche li'
+// per mappare gli elementi DOM ai due lati di un confine da ridimensionare -
+// un solo posto dove tenerla coerente invece di duplicarla.
+export function resolveRowDropItem(doc: ProseMirrorNode, pos: number): { itemPos: number; rowDepth: number | null } | null {
   if (pos < 0 || pos > doc.content.size) return null;
   const $pos: ResolvedPos = doc.resolve(pos);
 
