@@ -183,11 +183,25 @@ function buildRowDropTransaction(
     // Non ancora in una row: avvolge target + sorgente in una row nuova,
     // stesso schema del Caso 2 di addElementBeside (tiptapRow.ts) - side
     // decide l'ordine dei due figli.
+    //
+    // selectPos DEVE tenere conto della profondita' in piu' introdotta dalla
+    // row appena creata (bug trovato dal vivo in Fase 4c, mai esercitato
+    // prima perche' 4a/4b non avevano ancora un test live per side:'after':
+    // +1 per "entrare" nella row (mappedTargetPos punta PRIMA del nodo row,
+    // non del suo primo figlio), poi la nodeSize del figlio che PRECEDE
+    // quello da selezionare per saltarlo - mai sourceNode.nodeSize come
+    // offset assoluto da mappedTargetPos, che ignora sia il +1 sia il fatto
+    // che per side:'after' il nodo da saltare e' targetNode (il primo
+    // figlio), non sourceNode stesso. Senza questa correzione,
+    // NodeSelection.create riceveva una posizione a meta' del nodo
+    // (o oltre la fine della row) e falliva con "Cannot read properties of
+    // null (reading 'nodeSize')" - verificato dal vivo trascinando un
+    // TextBox sul lato destro (side:'after') di una tabella.
     const schema = state.schema;
     const children = side === 'before' ? [sourceNode, targetNode] : [targetNode, sourceNode];
     const rowNode = schema.nodes.row.create(null, children);
     tr.replaceWith(mappedTargetPos, mappedTargetPos + targetNode.nodeSize, rowNode);
-    const selectPos = side === 'before' ? mappedTargetPos : mappedTargetPos + sourceNode.nodeSize;
+    const selectPos = side === 'before' ? mappedTargetPos + 1 : mappedTargetPos + 1 + targetNode.nodeSize;
     tr.setSelection(NodeSelection.create(tr.doc, selectPos));
   }
 
