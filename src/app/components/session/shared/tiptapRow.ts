@@ -210,13 +210,64 @@ export const Row = Node.create({
   },
 });
 
+// Attributo condiviso dai 4 tipi rowItem (Fase 5b "affiancamento a livello
+// documento", piano confermato 2026-08-09) - fattorizzato in un solo posto
+// per evitare che le 4 copie (paragraph/textBox/collapseBlock/table)
+// divergano nel parsing/serializzazione nel tempo. number|null, default
+// null = comportamento automatico attuale (flex:1 1 0 da theme.css, tutti
+// i fratelli crescono alla pari) - un valore numerico sostituisce SOLO la
+// componente flex-grow via style inline (mai flex-basis/min-width, che
+// restano quelli del CSS - vedi Fase 5a per il perche' flex-basis non va
+// mai toccato: un longhand inline sovrascrive correttamente solo quella
+// componente dello shorthand da stylesheet). data-row-grow come attributo
+// DOM piatto SEMPRE presente (oltre allo style, quando incluso) per un
+// roundtrip robusto anche se lo style venisse perso/alterato (incolla
+// esterno, ispezione DOM) - stesso pattern gia' in uso da prosemirror-
+// tables per colwidth (data-colwidth).
+//
+// includeStyle:false (usato solo da TableWithHandle, tiptapTableHandle.ts):
+// il renderHTML della tabella (libreria @tiptap/extension-table) usa gia'
+// HTMLAttributes.style per calcolare la larghezza delle colonne
+// (getTableStyle() - se style e' gia' presente lo usa cosi' com'e',
+// altrimenti calcola width/min-width dalle colonne) - un nostro
+// style:'flex-grow:N' li' sovrascriverebbe quel calcolo nell'export
+// statico (getHTML/clipboard). Per la tabella l'applicazione visiva vive
+// SOLO nella sua NodeView (TableViewWithHandle), mai nel renderHTML.
+export function createRowGrowAttribute(options?: { includeStyle?: boolean }) {
+  const includeStyle = options?.includeStyle ?? true;
+  return {
+    default: null as number | null,
+    parseHTML: (element: HTMLElement) => {
+      const raw = element.getAttribute('data-row-grow');
+      return raw === null ? null : Number(raw);
+    },
+    renderHTML: (attributes: { rowGrow: number | null }) => {
+      if (attributes.rowGrow == null) return {};
+      const rendered: Record<string, unknown> = { 'data-row-grow': attributes.rowGrow };
+      if (includeStyle) rendered.style = `flex-grow: ${attributes.rowGrow}`;
+      return rendered;
+    },
+  };
+}
+
 // Paragraph esteso col group 'rowItem' in piu' (oltre al nativo 'block') -
 // stesso pattern gia' usato per TableWithHandle (tiptapTableHandle.ts):
 // paragraph non e' un nodo custom altrove nel repo, viene dal bundle
 // StarterKit, quindi va disattivato li' (RichTextEditor.tsx,
 // StarterKit.configure({ paragraph:false })) e ri-registrato qui a parte.
+// addAttributes con ...this.parent?.() (Fase 5b): Paragraph nativo non ha
+// attrs propri oggi, ma preservare quelli ereditati costa nulla ed evita
+// una futura regressione silenziosa se la libreria ne aggiungesse - stesso
+// principio gia' in uso altrove nel repo per parseHTML/renderHTML
+// (tiptapTableCellWrapper.ts).
 export const ParagraphWithRowGroup = Paragraph.extend({
   group: 'block rowItem',
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      rowGrow: createRowGrowAttribute(),
+    };
+  },
 });
 
 declare module '@tiptap/core' {

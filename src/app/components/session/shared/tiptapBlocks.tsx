@@ -13,6 +13,7 @@ import {
   exitRowDocumentBoundary,
   exitTableTopEdge,
 } from './tiptapTextBoxEdgeCursor';
+import { createRowGrowAttribute } from './tiptapRow';
 
 // Vero fino a qualunque profondita' (non solo il genitore immediato) che il
 // cursore sia dentro un nodo di quel tipo - usata sotto per impedire
@@ -194,6 +195,17 @@ export const TextBox = Node.create({
   selectable: true,
   draggable: true,
 
+  // rowGrow (Fase 5b): nessuna NodeView propria (renderHTML nativo sotto
+  // gia' fa mergeAttributes su HTMLAttributes), quindi lo style prodotto
+  // dall'attributo arriva gia' da solo sul div reso - a differenza di
+  // CollapseBlock/TableWithHandle sotto/in tiptapTableHandle.ts, che hanno
+  // una NodeView propria e devono leggere node.attrs.rowGrow a mano.
+  addAttributes() {
+    return {
+      rowGrow: createRowGrowAttribute(),
+    };
+  },
+
   // contentElement: senza, un copia-incolla interno (che ri-analizza l'HTML
   // gia' reso) tratterebbe l'elemento maniglia come se fosse contenuto reale
   // del nodo (i figli diretti dell'elemento cercato sono, per default, cio'
@@ -355,6 +367,19 @@ function CollapseBlockView({ node, updateAttributes }: NodeViewProps) {
   // ProseMirror (che imposta da sola dom.draggable in base allo schema,
   // verificato nel sorgente), ReactNodeViewRenderer NON lo fa da solo -
   // l'attributo nativo va messo a mano sull'elemento radice reso da noi.
+  //
+  // rowGrow (Fase 5b) NON va applicato qui: NodeViewWrapper (.tiptap-collapse)
+  // NON e' l'elemento che ProseMirror tratta come flex item di
+  // .tiptap-row-flex - verificato dal vivo (bug preso durante il test:
+  // uno style qui non aveva alcun effetto visivo). ReactNodeViewRenderer
+  // avvolge SEMPRE il componente in un elemento esterno proprio
+  // (.react-renderer, node_modules/@tiptap/react/dist/index.js,
+  // ReactNodeView.get dom() ritorna renderer.element, MAI il DOM del
+  // componente) - quello, non NodeViewWrapper, e' il vero figlio diretto
+  // di .tiptap-row-flex. L'applicazione vera e' nell'opzione "attrs" di
+  // ReactNodeViewRenderer sotto (addNodeView), l'unico hook ufficiale
+  // della libreria per controllare attributi/style di quell'elemento
+  // esterno dall'infuori del componente React.
   return (
     <NodeViewWrapper className="tiptap-collapse" data-open={open} draggable={true}>
       {/* data-drag-handle: fuori dal contentDOM come il pulsante freccina,
@@ -409,6 +434,12 @@ export const CollapseBlock = Node.create({
         parseHTML: (element) => element.getAttribute('data-open') === 'true',
         renderHTML: (attributes) => ({ 'data-open': attributes.open === true }),
       },
+      // rowGrow (Fase 5b): l'attr esiste comunque nello schema (roundtrip
+      // JSON/serializzazione statica), anche se qui - come per "open" sopra -
+      // l'applicazione VISIVA vera passa da CollapseBlockView, non da
+      // questo renderHTML (mai usato per il DOM live in presenza di una
+      // NodeView, vedi commento li').
+      rowGrow: createRowGrowAttribute(),
     };
   },
   // contentElement: la maniglia e il pulsante freccina vivono entrambi fuori
@@ -421,8 +452,26 @@ export const CollapseBlock = Node.create({
   renderHTML({ HTMLAttributes }) {
     return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'collapse-block' }), 0];
   },
+  // attrs (Fase 5b): opzione ufficiale di ReactNodeViewRenderer per
+  // applicare attributi/style all'elemento ESTERNO che la libreria crea da
+  // sola (.react-renderer, il vero figlio diretto di .tiptap-row-flex -
+  // vedi il commento in CollapseBlockView sopra) - richiamata sia al primo
+  // render che ad ogni update() del nodo (verificato nel sorgente,
+  // ReactNodeView.update -> rerenderComponent -> updateElementAttributes),
+  // quindi copre anche i resize successivi (Fase 5c) e undo/redo senza
+  // bisogno di altro codice qui.
   addNodeView() {
-    return ReactNodeViewRenderer(CollapseBlockView);
+    return ReactNodeViewRenderer(CollapseBlockView, {
+      // SEMPRE la chiave 'style' presente, mai {} quando rowGrow e' null:
+      // ReactRenderer.updateAttributes fa setAttribute per ogni chiave
+      // dell'oggetto ritornato, MAI una sostituzione completa - un {}
+      // lascerebbe lo style di un rowGrow precedente bloccato per sempre
+      // sull'elemento (nessuna chiave da "cancellare" nel merge).
+      attrs: ({ node }) => {
+        const rowGrow = node.attrs.rowGrow as number | null;
+        return { style: rowGrow == null ? '' : `flex-grow: ${rowGrow}` };
+      },
+    });
   },
   addCommands() {
     return {
