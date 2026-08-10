@@ -171,12 +171,24 @@ export const Row = Node.create({
           // Caso 2: livello documento - avvolge il blocco corrente + il
           // nuovo elemento in una row nuova. Limitato per questa fase al
           // solo livello documento top-level (piano confermato 2026-08-07,
-          // punto 3): se il cursore e' annidato dentro una cella di
-          // tabella o dentro un TextBox/Collapse, il comando e' disabilitato
-          // - creare intenzionalmente una row annidata (lo schema Fase 1 lo
-          // permetterebbe) e' rimandato a quando avremo piu' chiarezza su
-          // scroll orizzontale annidato/arrow-nav a doppio livello.
-          if (isSelectionInsideAny(state, ['table', 'textBox', 'collapseBlock'])) return false;
+          // punto 3, ristretto 2026-08-10): se il cursore e' annidato
+          // dentro una cella di tabella, $from.node(1) risolverebbe alla
+          // table intera (target sbagliato da avvolgere) - il comando resta
+          // disabilitato, creare intenzionalmente una row annidata dentro
+          // una cella (lo schema Fase 1 lo permetterebbe) e' rimandato a
+          // quando avremo piu' chiarezza su scroll orizzontale annidato/
+          // arrow-nav a doppio livello. TextBox/Collapse rimossi da questo
+          // guard (bug segnalato 2026-08-10): quando il box e' esso stesso
+          // il blocco di primo livello (non annidato in una cella), $from.
+          // node(1) risolve correttamente al box stesso, esattamente come
+          // per un paragrafo normale - bloccarlo impediva di affiancare un
+          // secondo elemento a un box appena creato. Il caso "box gia'
+          // dentro una row esistente" resta gestito dal Caso 1 sopra (che
+          // intercetta per primo qualunque antenato 'row' a qualunque
+          // profondita'), quindi restringere qui non riapre il rischio di
+          // row annidata in row: lo schema stesso (gruppo di 'row' e'
+          // 'block', non incluso in 'rowItem') lo impedirebbe comunque.
+          if (isSelectionInsideAny(state, ['table'])) return false;
 
           // Selezione che attraversa due blocchi diversi a livello
           // documento (es. da meta' di un paragrafo a meta' del successivo)
