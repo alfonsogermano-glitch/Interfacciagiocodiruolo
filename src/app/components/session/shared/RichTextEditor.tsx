@@ -271,6 +271,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
   };
 
   const boldActive = editor.isActive('bold');
+  const addElementBesideDisabled = !editable || !editor.can().addElementBeside('paragraph');
 
   return (
     <div onMouseDown={(e) => e.preventDefault()} className="flex w-11 shrink-0 flex-col gap-2">
@@ -423,13 +424,13 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         <Tooltip>
           <DropdownMenu>
             <TooltipTrigger asChild>
-              <DropdownMenuTrigger asChild>
+              <DropdownMenuTrigger asChild disabled={addElementBesideDisabled}>
                 <button
                   type="button"
-                  disabled={!editable || !editor.can().addElementBeside('paragraph')}
+                  disabled={addElementBesideDisabled}
                   aria-label="Aggiungi elemento accanto"
                   className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md p-1.5 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)] ${
-                    !editable || !editor.can().addElementBeside('paragraph') ? 'cursor-not-allowed opacity-40' : ''
+                    addElementBesideDisabled ? 'opacity-40' : ''
                   }`}
                 >
                   <Columns2 className="h-4 w-4" />
