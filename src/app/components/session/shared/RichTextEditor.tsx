@@ -389,7 +389,37 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
             rete di sicurezza per i casi limite, ma aprendo lateralmente
             nello spazio ampio del pannello nota il problema non si pone
             piu' nella colonna stretta della toolbar, stesso lato gia'
-            usato dal Tooltip di questo stesso pulsante poco sotto. */}
+            usato dal Tooltip di questo stesso pulsante poco sotto.
+            z-[1000] + collisionBoundary=document.body, SECONDO giro
+            (stesso bug 2026-08-10, riapparso subito dopo il fix di
+            side="right" sopra): stessa identica diagnosi gia' fatta per
+            TipTapTableMenu.tsx (vedi il suo commento su appendTo) -
+            questo DropdownMenuContent vive dentro un portale
+            (usePortalContainer, dropdown-menu.tsx) che lo mette FUORI
+            dal sottoalbero DOM del pannello Note, come fratello diretto
+            di <SlideOverPanel> (SlideOverPanel.tsx: position:fixed,
+            z-index:900) e dell'<aside> di navigazione (z-[940],
+            AppShell.tsx) nello stesso stacking context radice - la
+            classe z-50 di base (dropdown-menu.tsx) perde sempre contro
+            quei due, il menu risultava percio' RENDERIZZATO SOTTO il
+            pannello (non semplicemente mal posizionato: verificato dal
+            vivo con getComputedStyle, sfondo/testo non trasparenti, solo
+            invisibili perche' coperti). z-[1000] (stesso valore gia'
+            usato da TipTapTableMenu per lo stesso identico conflitto,
+            className passato qui vince su z-50 via cn()/tailwind-merge)
+            resta scoped a QUESTA istanza, non un cambio alla classe base
+            condivisa dagli altri usi di DropdownMenu nell'app (TopBar,
+            CampaignHome) che non vivono dentro un pannello z-900 e non
+            ne hanno bisogno. collisionBoundary=document.body: verificato
+            dal vivo che, a finestra bassa (894x448), il menu eccedeva
+            comunque il fondo della viewport di ~200px pur con side="right"
+            e nonostante Radix calcolasse il --radix-popper-available-height
+            corretto (448px) - il confine di collisione di default
+            (clippingAncestors, che risale dal trigger fino al div
+            scrollabile stretto della nota) e' troppo restrittivo sull'asse
+            cross (verticale, per side="right"), stesso identico problema e
+            stessa soluzione di TipTapTableMenu (boundary:document.body
+            invece dell'area di scrittura). */}
         <Tooltip>
           <DropdownMenu>
             <TooltipTrigger asChild>
@@ -409,8 +439,9 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
             <DropdownMenuContent
               side="right"
               align="start"
+              collisionBoundary={typeof document !== 'undefined' ? document.body : undefined}
               onMouseDown={(e) => e.preventDefault()}
-              className="border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-text)]"
+              className="z-[1000] border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-text)]"
             >
               {([
                 ['paragraph', Pilcrow, 'Paragrafo'],
@@ -604,8 +635,32 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // (es. la select stessa) non e' un vero abbandono dell'editor, si resta
     // in modifica; altrimenti (click fuori, Tab) e' un blur genuino, si
     // torna alla vista di sola lettura come prima.
+    //
+    // closest('[role="menu"]') IN PIU' (bug segnalato 2026-08-10): il menu
+    // "Aggiungi elemento accanto" (DropdownMenuContent, RichTextEditor.tsx
+    // piu' sotto) vive in un portale (usePortalContainer, dropdown-menu.tsx)
+    // che lo monta come FRATELLO di toolbarWrapRef, non discendente - non
+    // "dentro la toolbar" agli occhi di toolbarWrapRef.contains(), anche se
+    // visivamente e concettualmente lo e'. Aprendo il menu, Radix sposta il
+    // focus DOM sul suo contenuto (role="menu", verificato dal vivo con
+    // document.activeElement), quindi relatedTarget qui punta li' - senza
+    // questo controllo la guardia sopra falliva sempre, onBlurEditor()
+    // scattava subito all'apertura del menu, isEditing tornava false e
+    // l'INTERA toolbar si disabilitava (incluso il trigger stesso) prima
+    // ancora che l'utente potesse scegliere una voce - il comando dietro
+    // ogni voce (editor.chain().focus()...run()) falliva percio' sempre in
+    // silenzio, il menu appariva a tutti gli effetti rotto. Nessuno scoping
+    // al trigger di QUESTA istanza (un role="menu" e' un role="menu" per
+    // qualunque editor in pagina): un'altra istanza di RichTextEditor con un
+    // proprio menu aperto altrove manterrebbe ugualmente questo editor in
+    // modifica se genericamente focalizzato - caso limite accettato, l'
+    // alternativa (associare esplicitamente trigger e contenuto via un id
+    // dedicato) e' complessita' non giustificata per un solo menu in tutta
+    // l'app.
     onBlur: ({ event }) => {
-      if (toolbarWrapRef.current?.contains(event.relatedTarget as Node | null)) return;
+      const related = event.relatedTarget as Node | null;
+      if (toolbarWrapRef.current?.contains(related)) return;
+      if (related instanceof Element && related.closest('[role="menu"]')) return;
       onBlurEditor?.();
     },
     // Bug segnalato 2026-08-06: spostandosi con le frecce dall'ultima cella

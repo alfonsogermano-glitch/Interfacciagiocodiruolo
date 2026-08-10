@@ -474,14 +474,26 @@
    resize manuale del confine, e' il momento naturale per rivederlo se
    necessario). td-flex/textbox-content/collapse-body RESTANO ristretti a
    solo TextBox/Collapse sotto: quel contesto (box annidati dentro una
-   cella o dentro un altro box) e' un problema diverso, fuori scope qui. */
+   cella o dentro un altro box) e' un problema diverso, fuori scope qui.
+   :not(.tiptap-textbox-edge-cursor) su .tiptap-row-flex > * (bug segnalato
+   2026-08-10): il cursore finto (tiptapTextBoxEdgeCursor.ts) che nasce fra
+   due fratelli diretti della row (exitFlexSiblingBoundary, Fase 3a - non
+   ancora scritta quando questa regola e' stata introdotta in Fase 5a) e'
+   anch'esso un figlio diretto di .tiptap-row-flex, quindi ricadeva senza
+   volerlo in questo stesso selettore generico - min-width:64px vinceva
+   sempre sul width:1px del widget (min-width clampa width quando width e'
+   piu' piccolo, per specifica CSS), rendendolo un rettangolo largo 64px
+   invece della sottile barra verticale prevista. Le pause DENTRO un box
+   (.tiptap-textbox-content/.tiptap-collapse-body) restano gia' fuori da
+   questo selettore (righe sopra, ristrette a .tiptap-textbox/.tiptap-collapse)
+   e non erano mai state affette. */
 .tiptap-td-flex > .tiptap-textbox,
 .tiptap-td-flex > .tiptap-collapse,
 .tiptap-textbox-content > .tiptap-textbox,
 .tiptap-textbox-content > .tiptap-collapse,
 .tiptap-collapse-body > .tiptap-textbox,
 .tiptap-collapse-body > .tiptap-collapse,
-.tiptap-row-flex > * {
+.tiptap-row-flex > *:not(.tiptap-textbox-edge-cursor) {
   flex: 1 1 0;
   min-width: 64px;
 }
