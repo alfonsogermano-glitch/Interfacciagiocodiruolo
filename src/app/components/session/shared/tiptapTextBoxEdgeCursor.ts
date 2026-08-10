@@ -1399,19 +1399,83 @@ export const TextBoxEdgeCursorExtension = Extension.create({
           .run();
       });
 
-    return {
-      Enter: withCursor((selection) => {
+    // Invio su una pausa che ha gia' un vicino REALE sul lato "in avanti"
+    // (la stessa direzione da cui si e' arrivati premendo la freccia che ha
+    // creato QUESTA pausa, tracciata da ROW_PAUSE_DIR_META - pauseState.dir,
+    // stesso stato gia' letto da exitArrow sopra) naviga li' invece di
+    // materializzare un nuovo paragrafo - bug segnalato 2026-08-10: prima,
+    // Invio materializzava SEMPRE e comunque (vedi storia sotto), anche
+    // quando la pausa era solo una tappa intermedia fra due fratelli di riga
+    // o cella entrambi gia' reali (es. affiancamento TextBox+paragrafo in
+    // una row, Fase 3a), creando un blocco indesiderato mai richiesto
+    // dall'utente - la creazione di elementi deve avvenire SOLO tramite il
+    // pulsante dedicato della toolbar (addElementBeside), mai come effetto
+    // collaterale di Invio in un punto di navigazione.
+    //
+    // pauseState.dir invece di adjacentBox() da solo (quest'ultimo, usato
+    // sopra da exitArrow/Escape, controlla SEMPRE prima nodeAfter poi
+    // nodeBefore, a prescindere da quale direzione ha creato la pausa - va
+    // bene li' perche' exitArrow confronta il risultato con `dir` esplicito
+    // del tasto premuto in quel momento, ma Invio non ha una propria
+    // direzione): usare adjacentBox() qui rientrerebbe erroneamente nel box
+    // appena lasciato ogni volta che e' proprio lui il vicino sul lato
+    // "prima" della pausa - esattamente il caso storico del cursore sopra/
+    // sotto una tabella o di un box isolato a fine documento, dove
+    // nodeBefore e' il box da cui si e' appena usciti e nodeAfter e' null:
+    // senza questo controllo mirato al solo lato "in avanti", quel caso
+    // smetterebbe di materializzare e rientrerebbe invece nel box,
+    // rompendo l'unico punto d'ingresso per scrivere testo dopo un box
+    // isolato (regressione che romperebbe il test 3 confermato). pauseState
+    // puo' mancare (selezione TextBoxEdgeCursor ricostruita da fromJSON,
+    // es. history/redo mai passato da una delle funzioni exit* sopra) -
+    // `?? 'after'` come fallback e' innocuo in quel caso limite: degrada
+    // allo stesso comportamento di sempre (nessun vicino sul lato
+    // ipotizzato => materializza).
+    //
+    // Vicino trovato ma NON un box (es. il paragrafo normale affiancato nel
+    // caso Fase 3a): stessa identica Selection.near col bias gia' usato dal
+    // fallback generico di exitArrow poco sopra (dir==='after' ? 1 : -1) -
+    // e' lo stesso identico target che una pressione ripetuta della stessa
+    // freccia raggiungerebbe da qui in poi.
+    const enterAtPause = (selection: TextBoxEdgeCursor) => {
+      const pos = selection.head;
+      const $pos = editor.state.doc.resolve(pos);
+      const pauseState = textBoxEdgeCursorPluginKey.getState(editor.state);
+      const dir: 'before' | 'after' = pauseState?.dir ?? 'after';
+      const neighbor = dir === 'after' ? $pos.nodeAfter : $pos.nodeBefore;
+
+      if (neighbor && isReenterableNeighbor(neighbor)) {
+        return reenterBox(selection, { side: dir });
+      }
+
+      if (neighbor) {
         return editor
           .chain()
           .command(({ tr }) => {
-            const pos = selection.head;
-            tr.insert(pos, editor.schema.nodes.paragraph.create());
-            tr.setSelection(Selection.near(tr.doc.resolve(pos + 1)));
+            tr.setSelection(Selection.near(tr.doc.resolve(pos), dir === 'after' ? 1 : -1));
             return true;
           })
           .scrollIntoView()
           .run();
-      }),
+      }
+
+      // Vicolo cieco vero (nessun vicino sul lato "in avanti", es. box
+      // isolato a inizio/fine documento) - comportamento invariato:
+      // materializza un nuovo paragrafo vuoto e ci entra, stesso identico
+      // meccanismo di sempre (Enter sopra/sotto una tabella isolata).
+      return editor
+        .chain()
+        .command(({ tr }) => {
+          tr.insert(pos, editor.schema.nodes.paragraph.create());
+          tr.setSelection(Selection.near(tr.doc.resolve(pos + 1)));
+          return true;
+        })
+        .scrollIntoView()
+        .run();
+    };
+
+    return {
+      Enter: withCursor(enterAtPause),
       ArrowLeft: exitArrow('before', 'horizontal'),
       ArrowUp: exitArrow('before', 'vertical'),
       ArrowRight: exitArrow('after', 'horizontal'),
