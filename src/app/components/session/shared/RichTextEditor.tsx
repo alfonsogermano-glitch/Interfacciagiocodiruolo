@@ -378,7 +378,18 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
             div Toolbar, quindi il preventDefault sul contenitore Toolbar
             qui sotto non lo raggiunge - stesso trattamento riapplicato
             esplicitamente qui per non perdere selezione/focus
-            dell'editor al click di una voce. */}
+            dell'editor al click di una voce.
+            side="right" (invece del default "bottom"): bug segnalato
+            2026-08-10, in colonne/editor bassi (es. tab custom di
+            EntityDetailView, editor limitato a h-64) il pulsante finisce
+            vicino al bordo inferiore della finestra e il menu apriva
+            verso il basso lasciando pochi px di margine, fuori schermo su
+            schermi piu' bassi di quello di sviluppo - avoidCollisions di
+            Radix (default, mai disattivato) resta comunque attivo come
+            rete di sicurezza per i casi limite, ma aprendo lateralmente
+            nello spazio ampio del pannello nota il problema non si pone
+            piu' nella colonna stretta della toolbar, stesso lato gia'
+            usato dal Tooltip di questo stesso pulsante poco sotto. */}
         <Tooltip>
           <DropdownMenu>
             <TooltipTrigger asChild>
@@ -396,6 +407,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
               </DropdownMenuTrigger>
             </TooltipTrigger>
             <DropdownMenuContent
+              side="right"
               align="start"
               onMouseDown={(e) => e.preventDefault()}
               className="border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-text)]"
