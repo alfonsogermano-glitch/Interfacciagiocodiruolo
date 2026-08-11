@@ -1090,6 +1090,16 @@ function isRealSiblingElement(el: Element | null): el is HTMLElement {
 // riferimento "esterno" usato per il midpoint e' quindi la cella quando
 // c'e', il contenitore stesso altrimenti (comportamento flush invariato
 // per i casi non-tabella, tuttora corretto li').
+//
+// Stesso identico ragionamento esteso al container DOCUMENTALE
+// (.tiptap-content, bug segnalato dal vivo 2026-08-11): un TextBox/Collapse
+// isolato a livello di documento riempie .tiptap-content al 100% (nessun
+// margine proprio, verificato dal vivo) esattamente come un box riempie una
+// cella - il vero bordo/padding visibile e' pero' su un antenato ANCORA piu'
+// esterno (il wrapper con containerClassName in RichTextEditor.tsx, non il
+// genitore diretto come per la cella). Estratto in findOuterVisibleBoundary
+// sotto invece di un secondo blocco if/else duplicato qui: stessa formula di
+// midpoint, cambia solo QUALE elemento fornisce il bordo esterno.
 function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after') {
   const container = widget.parentElement;
   if (!container) return;
@@ -1119,10 +1129,10 @@ function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after')
     const rect = useAfter ? afterRect! : beforeRect!;
     top = rect.top - containerRect.top;
 
-    const cell = container.classList.contains('tiptap-td-flex') ? container.parentElement : null;
-    if (cell) {
-      const cellRect = cell.getBoundingClientRect();
-      const outerEdge = useAfter ? cellRect.left : cellRect.right;
+    const outerBoundary = findOuterVisibleBoundary(container);
+    if (outerBoundary) {
+      const boundaryRect = outerBoundary.getBoundingClientRect();
+      const outerEdge = useAfter ? boundaryRect.left : boundaryRect.right;
       const innerEdge = useAfter ? rect.left : rect.right;
       left = (outerEdge + innerEdge) / 2 - containerRect.left;
     } else {
@@ -1133,6 +1143,42 @@ function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after')
   widget.style.position = 'absolute';
   widget.style.top = `${top}px`;
   widget.style.left = `${left}px`;
+}
+
+// Estratta da positionEdgeCursor sopra (bug segnalato dal vivo 2026-08-11,
+// "elemento isolato senza vicini, cursore finto non centrato"): il ramo "un
+// solo vicino" centrava gia' correttamente contro il vero bordo VISIBILE
+// quando quel bordo e' su un antenato diverso dal container immediato (caso
+// cella di tabella, sotto), ma trattava OGNI altro container come se il
+// proprio bordo fosse gia' quello vero (flush, 0px) - vale per
+// .tiptap-textbox-content/.tiptap-collapse-body (nessun padding proprio, il
+// padding visibile e' sul box stesso, gia' incluso nel confronto fra
+// vicini), ma NON per .tiptap-content: quello e' l'elemento contenteditable
+// nudo, senza il proprio bordo/padding visibile (border+p-3, RichTextEditor.
+// tsx, containerClassName sul div scrollContainerRef) - verificato dal vivo,
+// un TextBox isolato come UNICO figlio del documento riempie .tiptap-content
+// al 100% (nessun margine proprio), quindi "flush contro .tiptap-content"
+// coincideva ESATTAMENTE con "flush contro il box": il widget finiva
+// incollato al box con TUTTO il respiro visibile del pannello (12px+bordo,
+// misurato) spinto su un solo lato, invece che diviso a meta' come un caret
+// nativo.
+//
+// container.parentElement.parentElement (non un selettore di classe, come
+// per .tiptap-td-flex sopra): a differenza della cella di tabella, il
+// wrapper con bordo/padding visibile (containerClassName, spesso
+// DEFAULT_CONTAINER_CLASS ma sovrascrivibile dal chiamante - RichTextEditor.
+// tsx riga ~892 - quindi NON identificabile per nome di classe fisso) non e'
+// il genitore diretto di .tiptap-content ma il suo NONNO: EditorContent
+// (libreria @tiptap/react) interpone un proprio div senza classe fra il
+// wrapper e l'elemento contentEditable - struttura verificata dal vivo via
+// ispezione DOM (tiptap-content -> div anonimo -> scrollContainerRef
+// bordato). Se quella struttura manca per qualche motivo (nessun nonno),
+// null fa degradare al ramo flush precedente invece di un crash - stesso
+// principio difensivo gia' in uso altrove in questo file.
+function findOuterVisibleBoundary(container: HTMLElement): HTMLElement | null {
+  if (container.classList.contains('tiptap-td-flex')) return container.parentElement;
+  if (container.classList.contains('tiptap-content')) return container.parentElement?.parentElement ?? null;
+  return null;
 }
 
 // Meta di transazione per la "pausa di riga": ROW_PAUSE_WRAPPED_META e'
