@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
+import { Selection } from '@tiptap/pm/state';
+import type { EditorView } from '@tiptap/pm/view';
 import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, Table as TableIcon, Undo2 } from 'lucide-react';
 import { TableKit } from '@tiptap/extension-table';
 import { MarkdownContent } from './MarkdownContent';
@@ -103,6 +105,62 @@ function docsEqual(a: JSONContent | null | undefined, b: JSONContent | null | un
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+// Bug segnalato 2026-08-11 (diagnosi completa e verifica dal vivo prima di
+// questo fix, 7 punti di click incl. paragrafo vuoto IN MEZZO a una row di
+// 3): un paragrafo vuoto come figlio DIRETTO di .tiptap-row-flex ha il
+// proprio box (il tag <p>) allargato dal flex-grow:1 (theme.css), ma
+// l'unico contenuto - il <br class="ProseMirror-trailingBreak"> che
+// ProseMirror renderizza per un paragrafo vuoto - ha larghezza ZERO,
+// ancorato al bordo sinistro. Il motore nativo di hit-test click->caret
+// del browser considera clickabile solo la stretta area del contenuto
+// REALE (il <br>), non l'intero box allargato dal flex: un click nella
+// porzione "vuota" del box (centro/destra) non trova alcun contenuto li' e
+// ricade sul fratello flex piu' vicino (es. un TextBox affiancato),
+// spostando il cursore li' invece di restare nel paragrafo cliccato -
+// dall'esterno sembra "il click non fa nulla" perche' il fratello puo'
+// essere anch'esso vuoto/senza segnale visivo del caret differente.
+//
+// Un tentativo con CSS puro (padding-right sul paragrafo vuoto) e' stato
+// verificato dal vivo e SCARTATO: funziona (il padding estende davvero
+// l'area clickabile nativa in Chrome) ma solo di un valore FISSO in px -
+// una row abbastanza larga lascia comunque una dead-zone residua oltre il
+// padding - e distorce la ripartizione flex-grow fra i fratelli (misurato:
+// il fratello affiancato si restringe visibilmente quando il paragrafo
+// vuoto guadagna padding, un paragrafo vuoto e uno con testo non si
+// dividerebbero piu' lo spazio allo stesso modo).
+//
+// Risolto qui a livello di gestione click di ProseMirror invece che
+// "ingannando" l'hit-test nativo via CSS: handleClick intercetta il click
+// PRIMA che il hit-test nativo lo gestisca, usando le coordinate REALI
+// dell'evento (event.clientX/Y) contro il rect vero (getBoundingClientRect,
+// non l'hit-test) di ogni paragrafo vuoto diretto di una row - se il click
+// cade nel rect, la selezione viene posizionata li' esplicitamente
+// (Selection.near + view.posAtDOM), bypassando il problema alla radice
+// invece di provare a estendere l'area nativa. Nessun conflitto con gli
+// altri handleDOMEvents registrati nell'editor (verificato: mousedown per
+// il resize della row in tiptapRowResize.ts, dragstart/dragover per il
+// drag&drop in tiptapRowDrop.ts - eventi diversi da "click", ProseMirror
+// prova ciascun handleClick/handleDOMEvents registrato in ordine via
+// someProp finche' uno ritorna true, nessuno scarta gli altri).
+//
+// childNodes.length===1 && firstChild.nodeName==='BR': stesso identico
+// controllo "e' un paragrafo vuoto" gia' verificato dal vivo nella patch
+// runtime - un paragrafo con testo ha invece un nodo di testo come unico
+// figlio, non un BR, quindi non matcha mai qui (il click su un paragrafo
+// con contenuto reale resta gestito dall'hit-test nativo, mai intercettato
+// da questa funzione).
+function findEmptyRowParagraphAt(clientX: number, clientY: number): HTMLElement | null {
+  const candidates = document.querySelectorAll('.tiptap-row-flex > p');
+  for (const p of candidates) {
+    if (p.childNodes.length !== 1 || p.firstChild?.nodeName !== 'BR') continue;
+    const rect = p.getBoundingClientRect();
+    if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+      return p as HTMLElement;
+    }
+  }
+  return null;
+}
+
 // Costante di modulo, non un letterale dentro il componente: useEditor (con
 // deps di default, vedi TipTapEditor) confronta l'intero oggetto opzioni ad
 // OGNI render e richiama editor.setOptions()/view.setProps() se qualcosa
@@ -111,8 +169,21 @@ function docsEqual(a: JSONContent | null | undefined, b: JSONContent | null | un
 // ProseMirror a rielaborare le props della view ad ogni tasto digitato.
 // Causa concreta (verificata leggendo il sorgente di @tiptap/react) dietro
 // il flash di ridimensionamento/riga che sparisce/grassetto che non si
-// disattiva.
-const TIPTAP_EDITOR_PROPS = { attributes: { class: 'tiptap-content' } };
+// disattiva. handleClick (Fase fix 2026-08-11) aggiunto qui, non come
+// plugin ProseMirror separato: e' una sola gestione puntuale del click
+// nativo, non serve lo stato/le decorazioni di un plugin dedicato - stesso
+// principio "nessuna complessita' non giustificata" gia' seguito altrove.
+const TIPTAP_EDITOR_PROPS = {
+  attributes: { class: 'tiptap-content' },
+  handleClick(view: EditorView, _pos: number, event: MouseEvent) {
+    const p = findEmptyRowParagraphAt(event.clientX, event.clientY);
+    if (!p) return false;
+    const domPos = view.posAtDOM(p, 0);
+    const $pos = view.state.doc.resolve(domPos);
+    view.dispatch(view.state.tr.setSelection(Selection.near($pos)));
+    return true;
+  },
+};
 
 function ToolbarButton({ active, disabled, onClick, label, children }: {
   active: boolean; disabled?: boolean; onClick: () => void; label: string; children: React.ReactNode;
