@@ -233,6 +233,28 @@ export const Row = Node.create({
           const blockEnd = $from.after(1);
           const existingNode = $from.node(1);
 
+          // Caso 2 non scatta se il blocco esistente e' VUOTO (nessun
+          // contenuto testuale, bug segnalato 2026-08-12): avvolgere un
+          // blocco vuoto produrrebbe una row con un elemento inutile/
+          // invisibile accanto al nuovo. No-op deliberato: il chiamante (i
+          // 3 pulsanti Blocchi, withRowAwareInsert in RichTextEditor.tsx)
+          // ricade sul proprio comando di default, che gia' gestisce
+          // correttamente la conversione di un blocco vuoto isolato senza
+          // lasciare alcun residuo - setTextBox/setCollapseBlock passano da
+          // insertContentAt (@tiptap/core), il cui unico ramo speciale
+          // espande il range quando il parent e' un textblock VUOTO (vedi
+          // il commento su TextBoxEdgeCursor in tiptapTextBoxEdgeCursor.ts,
+          // stesso meccanismo gia' verificato li' per un motivo diverso):
+          // SOSTITUISCE l'intero blocco vuoto invece di dividerlo.
+          // insertTable (RichTextEditor.tsx) ha gia' un proprio step di
+          // pulizia dedicato per lo stesso identico caso (paragrafo vuoto
+          // lasciato da tr.replaceSelectionWith). existingNode.textContent
+          // (non content.size, che per un rowItem con figli annidati come
+          // textBox/collapseBlock non sarebbe mai 0 anche se vuoto di
+          // testo): scende ricorsivamente in qualunque profondita' di
+          // figli, generico per tutti e 3 i tipi che possono arrivare qui.
+          if (existingNode.textContent === '') return false;
+
           if (dispatch) {
             const newNode = createRowElementNode(schema, type);
             const rowNode = schema.nodes.row.create(null, [existingNode, newNode]);
