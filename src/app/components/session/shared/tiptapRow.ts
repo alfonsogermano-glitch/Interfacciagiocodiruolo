@@ -3,6 +3,12 @@ import { Paragraph } from '@tiptap/extension-paragraph';
 import { createTable } from '@tiptap/extension-table';
 import { TextSelection, type EditorState } from '@tiptap/pm/state';
 import type { Node as ProseMirrorNode, ResolvedPos, Schema } from '@tiptap/pm/model';
+// TextBoxEdgeCursor: nessuna dipendenza circolare - tiptapTextBoxEdgeCursor.ts
+// non importa nulla da questo file (verificato, solo tiptapBlocks.tsx importa
+// da entrambi). Fase A del consolidamento "Aggiungi elemento accanto" nei
+// pulsanti esistenti (piano confermato 2026-08-11): il Caso 1 sotto restringe
+// la sua applicabilita' a questa sola classe di selezione.
+import { TextBoxEdgeCursor } from './tiptapTextBoxEdgeCursor';
 
 // Fase 1 del progetto "affiancamento a livello documento" (piano confermato
 // 2026-08-07): solo schema + rendering CSS, NESSUNA navigazione/drag&drop/
@@ -146,47 +152,29 @@ export const Row = Node.create({
       addElementBeside:
         (type: RowElementType) =>
         ({ tr, dispatch, state }) => {
-          const { $from, $to } = state.selection;
+          const { selection } = state;
           const schema = state.schema;
 
-          // Caso 1: il cursore (o l'intera selezione) e' gia' dentro una
-          // row esistente - il nuovo elemento si inserisce SUBITO DOPO
-          // l'item che contiene $from (non piu' sempre in coda, cambio
-          // 2026-08-11 confermato). itemDepth = rowDepthFrom + 1: il figlio
-          // DIRETTO della row che contiene $from (non il punto esatto
-          // dentro di esso, che puo' essere annidato molto piu' a fondo -
-          // es. dentro un paragrafo dentro una cella di tabella dentro
-          // l'item). $from.after(itemDepth) copre da solo, senza alcun
-          // branch esplicito, tutti e tre gli scenari:
-          // - cursore REALE annidato dentro l'item (itemDepth < $from.depth):
-          //   ResolvedPos.after(depth) con depth<=this.depth ritorna la fine
-          //   dell'antenato a quella profondita' - il confine subito dopo
-          //   l'item stesso.
-          // - cursore FINTO (TextBoxEdgeCursor, Fase 3a) fermo esattamente
-          //   nel gap fra due item (itemDepth === $from.depth + 1, il gap
-          //   risolve alla profondita' della row stessa): ProseMirror
-          //   gestisce questo come caso speciale di after() e ritorna
-          //   invariato this.pos, cioe' il gap stesso - il nuovo elemento
-          //   atterra esattamente li', senza dover leggere selection.head
-          //   ne' importare TextBoxEdgeCursor qui.
-          // - NodeSelection su un item intero (es. click sulla sua maniglia,
-          //   stesso itemDepth === $from.depth + 1 di sopra: $from risolve
-          //   gia' immediatamente prima del nodo selezionato).
-          // Selezione ESTESA fra due item diversi della stessa row (guardia
-          // sotto lo permette, verifica solo "stessa row", non "stesso
-          // item"): usa sempre $from come riferimento (deciso 2026-08-11,
-          // nessun caso speciale "resta in coda") - inserisce dopo l'item
-          // che contiene l'INIZIO della selezione, coerente con la regola
-          // generale invece di un'eccezione dedicata.
-          const rowDepthFrom = findAncestorDepth($from, 'row');
-          const rowDepthTo = findAncestorDepth($to, 'row');
-          if (
-            rowDepthFrom !== null &&
-            rowDepthFrom === rowDepthTo &&
-            $from.node(rowDepthFrom) === $to.node(rowDepthTo)
-          ) {
-            const itemDepth = rowDepthFrom + 1;
-            const insertPos = $from.after(itemDepth);
+          // Caso 1 (Fase A del consolidamento "Aggiungi elemento accanto"
+          // nei pulsanti esistenti, piano confermato 2026-08-11): ristretto
+          // alla sola TextBoxEdgeCursor (cursore finto, Fase 3a) - un
+          // cursore REALE dentro un item di una row esistente non passa piu'
+          // da qui (vedi guardia rowDepthFrom sotto, Caso 3). selection.head
+          // e' per costruzione ESATTAMENTE il gap dove il cursore finto e'
+          // fermo (TextBoxEdgeCursor.constructor fa super($pos,$pos) - vedi
+          // tiptapTextBoxEdgeCursor.ts): non serve piu' la formula
+          // itemDepth/$from.after(itemDepth) della versione precedente (che
+          // la faceva coincidere con questo stesso valore SOLO grazie al
+          // caso speciale di ResolvedPos.after quando depth===this.depth+1)
+          // - un inserimento diretto a selection.head e' equivalente ma
+          // generico: funziona identico che il gap sia dentro una row,
+          // dentro una cella di tabella (accanto a un box) o a livello
+          // documento, perche' landOrDive (che crea questi cursori,
+          // tiptapTextBoxEdgeCursor.ts) non si ferma MAI su un gap
+          // strutturalmente invalido - ricorre apposta oltre i confini di
+          // cella/riga di tabella per non atterrare mai li'.
+          if (selection instanceof TextBoxEdgeCursor) {
+            const insertPos = selection.head;
             if (dispatch) {
               const newNode = createRowElementNode(schema, type);
               tr.insert(insertPos, newNode);
@@ -194,6 +182,23 @@ export const Row = Node.create({
             }
             return true;
           }
+
+          const { $from, $to } = selection;
+
+          // Caso 3: cursore normale (non TextBoxEdgeCursor) ma GIA' dentro
+          // un item di una row esistente, a qualunque profondita' - no-op
+          // deliberato: il chiamante (i 3 pulsanti Blocchi, Fase B) ricade
+          // sul proprio comando di sempre, ignaro del contesto row. Solo
+          // $from (non piu' anche $to/rowDepthTo come nella versione
+          // precedente, che serviva a delimitare il vecchio inserimento "in
+          // coda"): qui basta sapere se il PUNTO DI PARTENZA della
+          // selezione e' gia' dentro una row per rifiutare, a prescindere
+          // da dove finisca $to - una selezione che comincia fuori da ogni
+          // row ($from) ma finisce dentro una ($to) e' comunque gestita in
+          // sicurezza dalla guardia $from.node(1)!==$to.node(1) del Caso 2
+          // sotto (i due nodi di primo livello differiscono per
+          // costruzione in quel caso, quindi resta un no-op anche li').
+          if (findAncestorDepth($from, 'row') !== null) return false;
 
           // Caso 2: livello documento - avvolge il blocco corrente + il
           // nuovo elemento in una row nuova. Limitato per questa fase al
@@ -210,7 +215,7 @@ export const Row = Node.create({
           // node(1) risolve correttamente al box stesso, esattamente come
           // per un paragrafo normale - bloccarlo impediva di affiancare un
           // secondo elemento a un box appena creato. Il caso "box gia'
-          // dentro una row esistente" resta gestito dal Caso 1 sopra (che
+          // dentro una row esistente" resta gestito dal Caso 3 sopra (che
           // intercetta per primo qualunque antenato 'row' a qualunque
           // profondita'), quindi restringere qui non riapre il rischio di
           // row annidata in row: lo schema stesso (gruppo di 'row' e'
@@ -312,8 +317,10 @@ export const ParagraphWithRowGroup = Paragraph.extend({
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     row: {
-      /** Aggiunge un elemento (paragrafo/TextBox/Collapse/tabella) accanto al blocco corrente:
-       *  in coda se il cursore e' gia' in una row, avvolgendo blocco corrente + nuovo altrimenti. */
+      /** Aggiunge un elemento (paragrafo/TextBox/Collapse/tabella) come fratello: esattamente
+       *  al cursore finto (TextBoxEdgeCursor) se attivo; avvolgendo blocco corrente + nuovo se il
+       *  cursore normale non e' in nessuna row; no-op (false) se il cursore normale e' gia' dentro
+       *  una row esistente - il chiamante ricade sul proprio comando di default in quel caso. */
       addElementBeside: (type: RowElementType) => ReturnType;
     };
   }
