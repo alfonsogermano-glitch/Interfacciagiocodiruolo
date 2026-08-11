@@ -150,8 +150,34 @@ export const Row = Node.create({
           const schema = state.schema;
 
           // Caso 1: il cursore (o l'intera selezione) e' gia' dentro una
-          // row esistente - il nuovo elemento si aggiunge in coda al suo
-          // content, nessun wrapping.
+          // row esistente - il nuovo elemento si inserisce SUBITO DOPO
+          // l'item che contiene $from (non piu' sempre in coda, cambio
+          // 2026-08-11 confermato). itemDepth = rowDepthFrom + 1: il figlio
+          // DIRETTO della row che contiene $from (non il punto esatto
+          // dentro di esso, che puo' essere annidato molto piu' a fondo -
+          // es. dentro un paragrafo dentro una cella di tabella dentro
+          // l'item). $from.after(itemDepth) copre da solo, senza alcun
+          // branch esplicito, tutti e tre gli scenari:
+          // - cursore REALE annidato dentro l'item (itemDepth < $from.depth):
+          //   ResolvedPos.after(depth) con depth<=this.depth ritorna la fine
+          //   dell'antenato a quella profondita' - il confine subito dopo
+          //   l'item stesso.
+          // - cursore FINTO (TextBoxEdgeCursor, Fase 3a) fermo esattamente
+          //   nel gap fra due item (itemDepth === $from.depth + 1, il gap
+          //   risolve alla profondita' della row stessa): ProseMirror
+          //   gestisce questo come caso speciale di after() e ritorna
+          //   invariato this.pos, cioe' il gap stesso - il nuovo elemento
+          //   atterra esattamente li', senza dover leggere selection.head
+          //   ne' importare TextBoxEdgeCursor qui.
+          // - NodeSelection su un item intero (es. click sulla sua maniglia,
+          //   stesso itemDepth === $from.depth + 1 di sopra: $from risolve
+          //   gia' immediatamente prima del nodo selezionato).
+          // Selezione ESTESA fra due item diversi della stessa row (guardia
+          // sotto lo permette, verifica solo "stessa row", non "stesso
+          // item"): usa sempre $from come riferimento (deciso 2026-08-11,
+          // nessun caso speciale "resta in coda") - inserisce dopo l'item
+          // che contiene l'INIZIO della selezione, coerente con la regola
+          // generale invece di un'eccezione dedicata.
           const rowDepthFrom = findAncestorDepth($from, 'row');
           const rowDepthTo = findAncestorDepth($to, 'row');
           if (
@@ -159,7 +185,8 @@ export const Row = Node.create({
             rowDepthFrom === rowDepthTo &&
             $from.node(rowDepthFrom) === $to.node(rowDepthTo)
           ) {
-            const insertPos = $from.end(rowDepthFrom);
+            const itemDepth = rowDepthFrom + 1;
+            const insertPos = $from.after(itemDepth);
             if (dispatch) {
               const newNode = createRowElementNode(schema, type);
               tr.insert(insertPos, newNode);
