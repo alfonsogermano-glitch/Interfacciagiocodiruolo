@@ -370,19 +370,30 @@ function measureRowWrap(editor: Editor, boundaryPos: number): boolean {
 }
 
 // Pausa incondizionata al confine di un elemento ISOLATING (box O tabella,
-// Fase 3b) che sta uscendo verso un fratello diretto di row/cella - estratta
-// dal ramo "sibling esiste" del fix Fase 3a di exitBoxBoundary (scoperto dal
-// vivo 2026-08-08 testando A2->A1) per essere riusata identica da
-// exitTableBoundary sotto (Fase 3b, tabella come fratello diretto di una
-// row): chi esce e' isolating per definizione (box O tabella, entrambi
-// isolating:true nello schema), quindi la pausa scatta SEMPRE quando c'e' un
-// vero fratello, qualunque sia il SUO tipo - a differenza di
-// exitFlexSiblingBoundary sotto, dove e' il fratello a dover essere un box
-// perche' chi esce - un paragrafo - non e' isolating di suo. Esclusa la
-// tabella come possibile VICINO (isTable(sibling)) - resta fuori scope anche
-// qui il caso "due tabelle affiancate" o "box accanto a tabella nella
-// stessa row", non ancora verificato dal vivo. Ritorna false se non c'e'
-// alcun fratello (bordo assoluto del contenitore, competenza del chiamante).
+// Fase 3b) che sta uscendo verso un fratello DIRETTO qualunque - non piu'
+// limitata a "fratello dentro una row/cella" (gate rimosso in
+// exitBoxBoundary sotto, piano confermato 2026-08-13, Problema B - Passo 2):
+// gia' dalla sua prima estrazione (fix Fase 3a, scoperto dal vivo
+// 2026-08-08 testando A2->A1) questa funzione era scritta in modo
+// completamente generico - "chi esce e' isolating per definizione (box O
+// tabella, entrambi isolating:true nello schema), quindi la pausa scatta
+// SEMPRE quando c'e' un vero fratello, qualunque sia il SUO tipo" - il
+// limite a row/cella non era nella funzione ma nel GATE della chiamata in
+// exitBoxBoundary; rimosso quel gate, questa stessa identica logica ora
+// pausa anche un box ISOLATO (nessuna row/cella, es. genitore diretto il
+// documento o il contenuto di un altro TextBox/Collapse) che esce verso un
+// fratello NORMALE (un paragrafo qualunque) - prima il fallback generico in
+// fondo a exitBoxBoundary pausava solo se il fratello era anch'esso un box
+// (o assente del tutto), mai verso un blocco normale, lasciando le frecce
+// tuffarsi dritte dentro senza fermata in quel caso, il gap segnalato dal
+// Problema B. A differenza di exitFlexSiblingBoundary sotto, dove e' il
+// fratello a dover essere un box perche' chi esce - un paragrafo - non e'
+// isolating di suo, qui e' irrilevante: e' SEMPRE chi esce (il box/tabella)
+// a essere isolating, mai il fratello. Esclusa la tabella come possibile
+// VICINO (isTable(sibling)) - resta fuori scope anche qui il caso "due
+// tabelle affiancate" o "box accanto a tabella", non ancora verificato dal
+// vivo, invariato da questo passo. Ritorna false se non c'e' alcun fratello
+// (bordo assoluto del contenitore, competenza del chiamante).
 function pauseAtIsolatingBoundary(editor: Editor, boundaryPos: number, dir: 'before' | 'after'): boolean {
   const { doc } = editor.state;
   const $boundary = doc.resolve(boundaryPos);
@@ -412,37 +423,56 @@ export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after'): boolea
 
   const boundaryPos = dir === 'before' ? $from.before(boxDepth) : $from.after(boxDepth);
 
-  // Caso Fase 3a - box il cui genitore DIRETTO e' una row/cella (scoperto dal
-  // vivo 2026-08-08 testando A2->A1: senza questo ramo, questa funzione
-  // (controllata per PRIMA nella catena, findBoxAncestorDepth trova il box
-  // a QUALUNQUE profondita') intercetta sempre il confine prima che
-  // exitFlexSiblingBoundary/exitRowDocumentBoundary abbiano una possibilita' -
-  // landOrDive sotto pausa SOLO se il vicino e' anch'esso un box
-  // (isSideBySideBox), quindi un box che esce verso un paragrafo/tabella
-  // fratello si tuffava dritto attraverso, l'esatta asimmetria opposta al
-  // gap del passo 0 (li' era il paragrafo a non fermarsi verso il box; qui
-  // e' il box a non fermarsi verso il paragrafo).
+  // Caso Fase 3a, generalizzato al Problema B (piano confermato 2026-08-13,
+  // Passo 2) - box il cui genitore DIRETTO e' QUALUNQUE contenitore
+  // (documento, TextBox/Collapse gia' esistente, row, cella), non piu' solo
+  // row/cella: senza questo ramo, questa funzione (controllata per PRIMA
+  // nella catena, findBoxAncestorDepth trova il box a QUALUNQUE profondita')
+  // intercetta sempre il confine prima che exitFlexSiblingBoundary/
+  // exitRowDocumentBoundary abbiano una possibilita' - landOrDive sotto
+  // pausa SOLO se il vicino e' anch'esso un box (isSideBySideBox), quindi un
+  // box che esce verso un paragrafo/tabella fratello si tuffava dritto
+  // attraverso. Fino al 2026-08-13 questo ramo (e quindi
+  // pauseAtIsolatingBoundary) scattava SOLO se il genitore era gia' una
+  // row/cella (isFlexSiblingContainer) - un box ISOLATO (genitore il
+  // documento o un altro box) che usciva verso un fratello NORMALE cadeva
+  // nel fallback generico in fondo, che pausa solo se il vicino e' assente o
+  // anch'esso un box, mai verso un blocco qualunque: l'esatta asimmetria che
+  // il Problema B segnala (nessuna pausa "di fianco" per un box isolato).
+  // Gate rimosso: pauseAtIsolatingBoundary e' gia' di per se' generica (vedi
+  // il suo commento sopra), il limite era solo qui nella chiamata.
   const parentDepth = boxDepth - 1;
-  if (parentDepth >= 0 && isFlexSiblingContainer($from.node(parentDepth))) {
+  if (parentDepth >= 0) {
     if (pauseAtIsolatingBoundary(editor, boundaryPos, dir)) return true;
 
-    const $boundary = doc.resolve(boundaryPos);
-    const sibling = dir === 'before' ? $boundary.nodeBefore : $boundary.nodeAfter;
+    // Il resto di questo ramo (deferral al vero bordo del CONTENITORE
+    // invece di una pausa "morta" qui) resta scoped al SOLO caso row -
+    // verificato esplicitamente con isFlexSiblingContainer PRIMA di questo
+    // controllo piu' specifico (non piu' come gate esterno): un box isolato
+    // (genitore il documento o un altro box) senza alcun fratello ricade
+    // correttamente nel fallback generico sotto invariato, che gia' pausa
+    // da solo su un vero bordo assoluto senza fratelli (landOrDive,
+    // ramo "nessun vicino").
+    if (isFlexSiblingContainer($from.node(parentDepth))) {
+      const $boundary = doc.resolve(boundaryPos);
+      const sibling = dir === 'before' ? $boundary.nodeBefore : $boundary.nodeAfter;
 
-    // Nessun fratello (non-tabella) E il contenitore e' una row (non una
-    // cella): il vero bordo assoluto e' quello della ROW, non del box - NON
-    // creare qui la pausa "morta" del ramo generico sotto (pensata per altri
-    // contesti, es. box a livello documento senza nulla prima/dopo): lascia
-    // scendere la catena fino a exitRowDocumentBoundary, che sa uscire
-    // davvero dalla row. Se il contenitore e' invece una CELLA, questo ramo
-    // non scatta (isDocRow falso) - comportamento INVARIATO sotto, stesso
-    // "pausa morta poi seconda pressione" di sempre (fuori scope per questa
-    // fase, vedi test di non-regressione). Se il fratello esiste ma e' una
-    // tabella (pauseAtIsolatingBoundary l'ha scartato), si ricade
-    // deliberatamente nel ramo generico sotto invece di un altro return
-    // false qui: fuori scope anche per la Fase 3b, stesso comportamento di
-    // oggi (tuffo diretto via landOrDive).
-    if (!sibling && isDocRow($from.node(parentDepth))) return false;
+      // Nessun fratello (non-tabella) E il contenitore e' una row (non una
+      // cella): il vero bordo assoluto e' quello della ROW, non del box -
+      // NON creare qui la pausa "morta" del ramo generico sotto (pensata
+      // per altri contesti, es. box a livello documento senza nulla
+      // prima/dopo): lascia scendere la catena fino a
+      // exitRowDocumentBoundary, che sa uscire davvero dalla row. Se il
+      // contenitore e' invece una CELLA, questo ramo non scatta (isDocRow
+      // falso) - comportamento INVARIATO sotto, stesso "pausa morta poi
+      // seconda pressione" di sempre (fuori scope per questa fase, vedi
+      // test di non-regressione). Se il fratello esiste ma e' una tabella
+      // (pauseAtIsolatingBoundary l'ha scartato), si ricade
+      // deliberatamente nel ramo generico sotto invece di un altro return
+      // false qui: fuori scope anche per la Fase 3b, stesso comportamento
+      // di oggi (tuffo diretto via landOrDive).
+      if (!sibling && isDocRow($from.node(parentDepth))) return false;
+    }
   }
 
   const rowWrapped = measureRowWrap(editor, boundaryPos);
