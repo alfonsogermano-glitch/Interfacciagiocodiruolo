@@ -225,8 +225,19 @@ function findFlexItemAncestorDepth($pos: ResolvedPos): number | null {
 // riconoscimento adjacentBox tornerebbe null, bloccando exitArrow in testa
 // (if (!box) return false) - nessuna freccia funzionerebbe piu' da quella
 // pausa, un vicolo cieco peggiore del gap che Fase 3b risolve.
+//
+// isDocRow aggiunta (Fase 2, piano confermato 2026-08-11, coordinamento
+// Segnalazione 2): la nuova pausa intermedia creata da exitRowDocumentBoundary
+// sotto, quando il bordo assoluto di una row non ha alcun vicino, e' sempre
+// adiacente alla row stessa - senza questo riconoscimento adjacentBox
+// tornerebbe null anche qui, bloccando exitArrow PRIMA di poter riprovare
+// exitRowDocumentBoundary una seconda volta (stesso identico vicolo cieco
+// del commento sopra, per la tabella). Sicuro per costruzione: landOrDive
+// (l'unica altra funzione che crea pause) non tratta MAI una row come
+// vicino pausabile - nessuna pausa preesistente puo' quindi trovarsi
+// adiacente a una row, questo ramo si attiva solo per la pausa nuova.
 function isReenterableNeighbor(node: ProseMirrorNode): boolean {
-  return isSideBySideBox(node) || isTable(node);
+  return isSideBySideBox(node) || isTable(node) || isDocRow(node);
 }
 
 // Elemento adiacente alla posizione del cursore finto (nodo DOPO se e' un
@@ -930,9 +941,33 @@ export function exitTableBoundary(editor: Editor, dir: 'before' | 'after'): bool
 // il controllo esplicito su rowDepth e' comunque la difesa a monte, nel
 // caso (oggi non riproducibile, ma non impossibile in futuro) in cui
 // itemDepth risolvesse diversamente.
+// Caso B aggiunto in testa (Fase 2, piano confermato 2026-08-11,
+// Segnalazione 2 - "uscire dal bordo assoluto di una row salta sopra invece
+// di restare sulla stessa riga"): quando la row non ha alcun vicino reale
+// sul lato richiesto, il Caso A sotto ora crea prima una PAUSA al bordo
+// della row invece di materializzare subito (stesso identico principio gia'
+// in uso per i box isolati, Fase 3a) - la seconda pressione della STESSA
+// freccia arriva qui con `selection` gia' una TextBoxEdgeCursor esattamente
+// in quella posizione (routing garantito da isReenterableNeighbor esteso
+// sopra, altrimenti exitArrow abortirebbe prima di riprovare) e procede col
+// comportamento di sempre. Il vicino atteso e' su $pos.nodeAfter per
+// dir==='before' (la row segue immediatamente rowPos, non l'ha preceduto -
+// e' per questo che il Caso A l'ha scelta come punto di pausa) o
+// $pos.nodeBefore per dir==='after' (simmetrico) - null/non-row e' un
+// segnale che questa pausa non e' "nostra" (creata da qualcos'altro,
+// ricostruita da history/redo, ecc.): si resta silenziosi (return false)
+// invece di agire su un presupposto non verificato.
 export function exitRowDocumentBoundary(editor: Editor, dir: 'before' | 'after'): boolean {
   const { selection, doc } = editor.state;
   if (!selection.empty) return false;
+
+  if (selection instanceof TextBoxEdgeCursor) {
+    const $pos = doc.resolve(selection.head);
+    const row = dir === 'before' ? $pos.nodeAfter : $pos.nodeBefore;
+    if (!row || !isDocRow(row)) return false;
+    return jumpOrInsertAtContainerBoundary(editor, selection.head, dir);
+  }
+
   const $from = selection.$from;
   const itemDepth = findFlexItemAncestorDepth($from);
   if (itemDepth === null) return false;
@@ -946,7 +981,27 @@ export function exitRowDocumentBoundary(editor: Editor, dir: 'before' | 'after')
   if (sibling) return false;
 
   const rowPos = dir === 'before' ? $from.before(rowDepth) : $from.after(rowDepth);
-  return jumpOrInsertAtContainerBoundary(editor, rowPos, dir);
+
+  // NUOVO (Fase 2): un vicino REALE gia' al bordo assoluto della row resta
+  // fuori scope di Segnalazione 2 (quel "jump" diretto, mai un
+  // materializzare, non e' mai stato il comportamento contestato) - solo
+  // quando non c'e' NESSUN vicino (il ramo che prima materializzava subito)
+  // si passa da una pausa. landOrDive sotto, con neighborBlock gia'
+  // verificato null qui, degrada per costruzione al suo stesso primo ramo
+  // (nessun vicino => pausa) - riuso dell'idioma esistente invece di un
+  // `new TextBoxEdgeCursor(...)` manuale, mai fatto altrove in questo file.
+  const $rowBoundary = doc.resolve(rowPos);
+  const neighborBlock = dir === 'before' ? $rowBoundary.nodeBefore : $rowBoundary.nodeAfter;
+  if (neighborBlock) return jumpOrInsertAtContainerBoundary(editor, rowPos, dir);
+
+  return editor
+    .chain()
+    .command(({ tr }) => {
+      tr.setSelection(landOrDive(tr.doc, rowPos, dir));
+      return true;
+    })
+    .scrollIntoView()
+    .run();
 }
 
 // Va oltre il bordo superiore assoluto della tabella (round 2026-08-07,

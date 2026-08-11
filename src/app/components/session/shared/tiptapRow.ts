@@ -247,13 +247,48 @@ export const Row = Node.create({
               return true;
             }
 
-            // Caso 1b (nuovo, Passo 3): il gap NON e' ancora dentro una
-            // row - avvolge i fratelli REALI del gap (nodeBefore/nodeAfter,
-            // quelli che esistono davvero - landOrDive crea la pausa sempre
-            // adiacente ad ALMENO uno dei due, mai fra il nulla e il nulla)
-            // insieme al nuovo elemento in una row nuova, stesso identico
-            // pattern replaceWith del Caso 2 sotto, con $gap.parent gia'
-            // dato come contenitore (non serve richiamare
+            const before = $gap.nodeBefore;
+            const after = $gap.nodeAfter;
+            if (!before && !after) return false;
+
+            // Caso 1b-bis (Fase 2, piano confermato 2026-08-11,
+            // coordinamento Segnalazione 2): il vicino reale del gap e'
+            // ESSO STESSO una row esistente - possibile SOLO da quando
+            // exitRowDocumentBoundary (tiptapTextBoxEdgeCursor.ts) pausa al
+            // bordo assoluto di una row invece di materializzare subito
+            // (landOrDive normale non crea mai pause adiacenti a una row,
+            // per nessun altro percorso - verificato dal vivo 2026-08-11,
+            // primo test dopo l'estensione: click da questa pausa produceva
+            // una row DENTRO un'altra row, mai valido). Avvolgerla come nel
+            // Caso 1b sotto la annidrebbe dentro se stessa; il nuovo
+            // elemento va invece INSERITO come primo/ultimo figlio della
+            // row esistente, mai in una row-wrapper aggiuntiva.
+            if (before && before.type === schema.nodes.row) {
+              if (dispatch) {
+                const newNode = createRowElementNode(schema, type);
+                const insertAt = gapPos - 1; // dentro `before`, dopo il suo ultimo figlio
+                tr.insert(insertAt, newNode);
+                tr.setSelection(TextSelection.near(tr.doc.resolve(insertAt + 1)));
+              }
+              return true;
+            }
+            if (after && after.type === schema.nodes.row) {
+              if (dispatch) {
+                const newNode = createRowElementNode(schema, type);
+                const insertAt = gapPos + 1; // dentro `after`, prima del suo primo figlio
+                tr.insert(insertAt, newNode);
+                tr.setSelection(TextSelection.near(tr.doc.resolve(insertAt + 1)));
+              }
+              return true;
+            }
+
+            // Caso 1b (Passo 3): nessuno dei due vicini e' una row - avvolge
+            // i fratelli REALI del gap (nodeBefore/nodeAfter, quelli che
+            // esistono davvero - landOrDive/la nuova pausa di Fase 2 creano
+            // il gap sempre adiacente ad ALMENO uno dei due, mai fra il
+            // nulla e il nulla) insieme al nuovo elemento in una row nuova,
+            // stesso identico pattern replaceWith del Caso 2 sotto, con
+            // $gap.parent gia' dato come contenitore (non serve richiamare
             // findNearestBlockContainerAncestorDepth: la pausa vive per
             // costruzione esattamente al confine di un box nel SUO
             // genitore diretto - quel genitore, per essere arrivati fino a
@@ -267,10 +302,6 @@ export const Row = Node.create({
             // (before o after, mai entrambi - vedi sopra) viene omesso,
             // sempre almeno 2 elementi per costruzione, coerente con
             // l'ordine di lettura sinistra-destra del documento.
-            const before = $gap.nodeBefore;
-            const after = $gap.nodeAfter;
-            if (!before && !after) return false;
-
             if (dispatch) {
               const newNode = createRowElementNode(schema, type);
               const children = [...(before ? [before] : []), newNode, ...(after ? [after] : [])];
