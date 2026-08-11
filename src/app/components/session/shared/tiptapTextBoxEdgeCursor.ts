@@ -180,7 +180,17 @@ function findDocRowAncestorDepth($pos: ResolvedPos): number | null {
 // quella decide "e' un box pausabile", non "sono in un contenitore che
 // affianca i suoi figli" - le due domande sono indipendenti, vedi
 // exitFlexSiblingBoundary sotto per come si combinano).
-function isFlexSiblingContainer(node: ProseMirrorNode): boolean {
+//
+// Esportata (piano confermato 2026-08-13, Problema A+B - Passo 3): riusata
+// da addElementBeside (tiptapRow.ts, Caso 1) per distinguere, quando la
+// selezione e' un TextBoxEdgeCursor, se il gap si trova GIA' dentro una
+// row/cella (Caso 1a: il fratello con cui affiancare esiste gia', basta un
+// insert nudo, invariato da ieri) oppure NO (Caso 1b, nuovo: il gap e' fra
+// due fratelli non ancora in una row - es. un box isolato uscito verso un
+// paragrafo normale, pausa introdotta dal Passo 2 - serve avvolgerli in una
+// row nuova invece di limitarsi a un insert nudo, altrimenti il nuovo
+// elemento finirebbe come terzo blocco impilato invece che affiancato).
+export function isFlexSiblingContainer(node: ProseMirrorNode): boolean {
   return isDocRow(node) || isTableCell(node);
 }
 

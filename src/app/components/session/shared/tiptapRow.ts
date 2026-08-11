@@ -3,12 +3,15 @@ import { Paragraph } from '@tiptap/extension-paragraph';
 import { createTable } from '@tiptap/extension-table';
 import { TextSelection, type EditorState } from '@tiptap/pm/state';
 import type { Node as ProseMirrorNode, NodeType, ResolvedPos, Schema } from '@tiptap/pm/model';
-// TextBoxEdgeCursor: nessuna dipendenza circolare - tiptapTextBoxEdgeCursor.ts
-// non importa nulla da questo file (verificato, solo tiptapBlocks.tsx importa
-// da entrambi). Fase A del consolidamento "Aggiungi elemento accanto" nei
-// pulsanti esistenti (piano confermato 2026-08-11): il Caso 1 sotto restringe
-// la sua applicabilita' a questa sola classe di selezione.
-import { TextBoxEdgeCursor } from './tiptapTextBoxEdgeCursor';
+// TextBoxEdgeCursor/isFlexSiblingContainer: nessuna dipendenza circolare -
+// tiptapTextBoxEdgeCursor.ts non importa nulla da questo file (verificato,
+// solo tiptapBlocks.tsx importa da entrambi). Fase A del consolidamento
+// "Aggiungi elemento accanto" nei pulsanti esistenti (piano confermato
+// 2026-08-11): il Caso 1 sotto restringe la sua applicabilita' a questa
+// sola classe di selezione. isFlexSiblingContainer aggiunta al Passo 3
+// (piano confermato 2026-08-13, Problema A+B): distingue Caso 1a/1b, vedi
+// commento sul Caso 1 sotto.
+import { TextBoxEdgeCursor, isFlexSiblingContainer } from './tiptapTextBoxEdgeCursor';
 
 // Fase 1 del progetto "affiancamento a livello documento" (piano confermato
 // 2026-08-07): solo schema + rendering CSS, NESSUNA navigazione/drag&drop/
@@ -206,23 +209,80 @@ export const Row = Node.create({
           // da qui (vedi guardia rowDepthFrom sotto, Caso 3). selection.head
           // e' per costruzione ESATTAMENTE il gap dove il cursore finto e'
           // fermo (TextBoxEdgeCursor.constructor fa super($pos,$pos) - vedi
-          // tiptapTextBoxEdgeCursor.ts): non serve piu' la formula
-          // itemDepth/$from.after(itemDepth) della versione precedente (che
-          // la faceva coincidere con questo stesso valore SOLO grazie al
-          // caso speciale di ResolvedPos.after quando depth===this.depth+1)
-          // - un inserimento diretto a selection.head e' equivalente ma
-          // generico: funziona identico che il gap sia dentro una row,
-          // dentro una cella di tabella (accanto a un box) o a livello
-          // documento, perche' landOrDive (che crea questi cursori,
-          // tiptapTextBoxEdgeCursor.ts) non si ferma MAI su un gap
-          // strutturalmente invalido - ricorre apposta oltre i confini di
-          // cella/riga di tabella per non atterrare mai li'.
+          // tiptapTextBoxEdgeCursor.ts).
+          //
+          // Diviso in Caso 1a/1b dal Passo 3 (piano confermato 2026-08-13,
+          // coordinamento Problema A+B): il Passo 2 ha esteso le pause a box
+          // ISOLATI (nessuna row/cella, es. un TextBox che esce verso un
+          // paragrafo normale adiacente) - un insert nudo li' (comportamento
+          // di ieri, invariato) piazzerebbe il nuovo elemento come un TERZO
+          // blocco impilato invece che affiancato, vanificando lo scopo
+          // della pausa. $gap.parent (il contenitore in cui il gap vive,
+          // risolto una sola volta qui) decide quale dei due rami si
+          // applica.
           if (selection instanceof TextBoxEdgeCursor) {
-            const insertPos = selection.head;
+            const gapPos = selection.head;
+            const $gap = state.doc.resolve(gapPos);
+
+            // Caso 1a: il gap e' GIA' dentro una row o una cella di tabella
+            // (isFlexSiblingContainer, esportata da tiptapTextBoxEdgeCursor.ts
+            // per questo riuso) - comportamento INVARIATO da ieri: un
+            // insert nudo esattamente al gap. Non serve piu' la formula
+            // itemDepth/$from.after(itemDepth) della versione precedente
+            // (che la faceva coincidere con questo stesso valore SOLO
+            // grazie al caso speciale di ResolvedPos.after quando
+            // depth===this.depth+1) - un inserimento diretto a
+            // selection.head e' equivalente ma generico: funziona identico
+            // che il gap sia dentro una row o dentro una cella di tabella
+            // (accanto a un box), perche' landOrDive (che crea questi
+            // cursori, tiptapTextBoxEdgeCursor.ts) non si ferma MAI su un
+            // gap strutturalmente invalido - ricorre apposta oltre i
+            // confini di cella/riga di tabella per non atterrare mai li'.
+            if (isFlexSiblingContainer($gap.parent)) {
+              if (dispatch) {
+                const newNode = createRowElementNode(schema, type);
+                tr.insert(gapPos, newNode);
+                tr.setSelection(TextSelection.near(tr.doc.resolve(gapPos + 1)));
+              }
+              return true;
+            }
+
+            // Caso 1b (nuovo, Passo 3): il gap NON e' ancora dentro una
+            // row - avvolge i fratelli REALI del gap (nodeBefore/nodeAfter,
+            // quelli che esistono davvero - landOrDive crea la pausa sempre
+            // adiacente ad ALMENO uno dei due, mai fra il nulla e il nulla)
+            // insieme al nuovo elemento in una row nuova, stesso identico
+            // pattern replaceWith del Caso 2 sotto, con $gap.parent gia'
+            // dato come contenitore (non serve richiamare
+            // findNearestBlockContainerAncestorDepth: la pausa vive per
+            // costruzione esattamente al confine di un box nel SUO
+            // genitore diretto - quel genitore, per essere arrivati fino a
+            // qui via exitBoxBoundary/pauseAtIsolatingBoundary, e' sempre
+            // uno dei contenitori block+ della Fase A - documento, content
+            // di un TextBox, body di un Collapse - mai un tipo che
+            // rifiuterebbe una row, quindi nessun canReplaceWith difensivo
+            // in piu' qui).
+            //
+            // Ordine figli [before?, nuovo, after?]: quello che manca
+            // (before o after, mai entrambi - vedi sopra) viene omesso,
+            // sempre almeno 2 elementi per costruzione, coerente con
+            // l'ordine di lettura sinistra-destra del documento.
+            const before = $gap.nodeBefore;
+            const after = $gap.nodeAfter;
+            if (!before && !after) return false;
+
             if (dispatch) {
               const newNode = createRowElementNode(schema, type);
-              tr.insert(insertPos, newNode);
-              tr.setSelection(TextSelection.near(tr.doc.resolve(insertPos + 1)));
+              const children = [...(before ? [before] : []), newNode, ...(after ? [after] : [])];
+              const rowNode = schema.nodes.row.create(null, children);
+              const wrapStart = before ? gapPos - before.nodeSize : gapPos;
+              const wrapEnd = after ? gapPos + after.nodeSize : gapPos;
+              tr.replaceWith(wrapStart, wrapEnd, rowNode);
+              // +1 per entrare nella row appena creata, + la dimensione di
+              // "before" (0 se assente) per superarlo, +1 per entrare nel
+              // nuovo nodo - stesso schema TextSelection.near del Caso 2.
+              const offset = wrapStart + 1 + (before ? before.nodeSize : 0) + 1;
+              tr.setSelection(TextSelection.near(tr.doc.resolve(offset)));
             }
             return true;
           }
@@ -386,8 +446,10 @@ export const ParagraphWithRowGroup = Paragraph.extend({
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     row: {
-      /** Aggiunge un elemento (paragrafo/TextBox/Collapse/tabella) come fratello: esattamente
-       *  al cursore finto (TextBoxEdgeCursor) se attivo; avvolgendo blocco corrente + nuovo se il
+      /** Aggiunge un elemento (paragrafo/TextBox/Collapse/tabella) come fratello: al cursore
+       *  finto (TextBoxEdgeCursor) se attivo - insert nudo se il gap e' gia' dentro una row/cella,
+       *  altrimenti avvolge i fratelli reali del gap in una row nuova; avvolgendo il contenitore
+       *  block+ piu' vicino (documento, TextBox, body di un Collapse - MAI una cella) + nuovo se il
        *  cursore normale non e' in nessuna row; no-op (false) se il cursore normale e' gia' dentro
        *  una row esistente - il chiamante ricade sul proprio comando di default in quel caso. */
       addElementBeside: (type: RowElementType) => ReturnType;
