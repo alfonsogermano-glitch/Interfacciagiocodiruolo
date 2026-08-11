@@ -2,7 +2,7 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import { Paragraph } from '@tiptap/extension-paragraph';
 import { createTable } from '@tiptap/extension-table';
 import { TextSelection, type EditorState } from '@tiptap/pm/state';
-import type { Node as ProseMirrorNode, ResolvedPos, Schema } from '@tiptap/pm/model';
+import type { Node as ProseMirrorNode, NodeType, ResolvedPos, Schema } from '@tiptap/pm/model';
 // TextBoxEdgeCursor: nessuna dipendenza circolare - tiptapTextBoxEdgeCursor.ts
 // non importa nulla da questo file (verificato, solo tiptapBlocks.tsx importa
 // da entrambi). Fase A del consolidamento "Aggiungi elemento accanto" nei
@@ -81,6 +81,50 @@ function createRowElementNode(schema: Schema, type: RowElementType): ProseMirror
 export function findAncestorDepth($pos: ResolvedPos, typeName: string): number | null {
   for (let depth = $pos.depth; depth >= 0; depth -= 1) {
     if ($pos.node(depth).type.name === typeName) return depth;
+  }
+  return null;
+}
+
+// Antenato piu' vicino il cui GENITORE accetta un nodo di tipo childType
+// come figlio - a differenza di findAncestorDepth sopra e di
+// findDocRowAncestorDepth/findCellAncestorDepth (tiptapTextBoxEdgeCursor.ts),
+// che cercano un TIPO DI NODO SPECIFICO per nome a qualunque profondita',
+// questa non cerca un nome: verifica, livello per livello risalendo da
+// $pos, se il CONTENT MODEL dello schema accetterebbe davvero childType in
+// quella posizione, con parent.canReplaceWith(index, index+1, childType) -
+// la stessa identica verifica che tr.replaceWith farebbe comunque,
+// calcolata PRIMA invece di tentare a occhi chiusi (stesso principio "mai
+// un tentativo alla cieca" gia' in uso in questo file, es. lo schema stesso
+// che rifiuta una row con meno di 2 figli invece di un controllo custom).
+//
+// Usata dal Caso 2 di addElementBeside sotto per generalizzare "quale
+// blocco avvolgere" da "sempre il figlio diretto del documento" a "il piu'
+// vicino contenitore block+ a qualunque profondita'" (piano confermato
+// 2026-08-13, Problema A - Passo 1): TextBox e il body di un Collapse hanno
+// content 'block+' come il documento (tiptapBlocks.tsx), quindi un cursore
+// dentro il paragrafo interno di un TextBox esistente trova qui la
+// profondita' DENTRO quel TextBox, non piu' sempre depth 1 - la row nasce
+// li' dentro, non piu' sempre avvolgendo l'intero TextBox a livello
+// documento.
+//
+// Degrada correttamente da sola quando il livello piu' interno non accetta
+// blocchi (es. dentro collapseSummary, content 'inline*': canReplaceWith
+// fallisce li'): il loop risale finche' non trova un contenitore valido
+// (tipicamente il documento, depth 1) - STESSO risultato di oggi per quel
+// caso limite (avvolge l'intero CollapseBlock), nessuna guardia dedicata
+// necessaria qui a differenza di isSelectionInside(state,'collapseSummary')
+// usata da setTextBox/setCollapseBlock in tiptapBlocks.tsx.
+//
+// Non tocca la cella di tabella (guardia isSelectionInsideAny(['table'])
+// sotto la intercetta comunque PRIMA di arrivare qui, decisione presa
+// 2026-08-13 - il content model di una cella e' anch'esso 'block+',
+// tecnicamente accetterebbe una row, ma l'affiancamento dentro una cella
+// resta rimandato, motivo gia' documentato piu' sotto).
+export function findNearestBlockContainerAncestorDepth($pos: ResolvedPos, childType: NodeType): number | null {
+  for (let depth = $pos.depth; depth >= 1; depth -= 1) {
+    const parent = $pos.node(depth - 1);
+    const index = $pos.index(depth - 1);
+    if (parent.canReplaceWith(index, index + 1, childType)) return depth;
   }
   return null;
 }
@@ -200,38 +244,41 @@ export const Row = Node.create({
           // costruzione in quel caso, quindi resta un no-op anche li').
           if (findAncestorDepth($from, 'row') !== null) return false;
 
-          // Caso 2: livello documento - avvolge il blocco corrente + il
-          // nuovo elemento in una row nuova. Limitato per questa fase al
-          // solo livello documento top-level (piano confermato 2026-08-07,
-          // punto 3, ristretto 2026-08-10): se il cursore e' annidato
-          // dentro una cella di tabella, $from.node(1) risolverebbe alla
-          // table intera (target sbagliato da avvolgere) - il comando resta
-          // disabilitato, creare intenzionalmente una row annidata dentro
-          // una cella (lo schema Fase 1 lo permetterebbe) e' rimandato a
-          // quando avremo piu' chiarezza su scroll orizzontale annidato/
-          // arrow-nav a doppio livello. TextBox/Collapse rimossi da questo
-          // guard (bug segnalato 2026-08-10): quando il box e' esso stesso
-          // il blocco di primo livello (non annidato in una cella), $from.
-          // node(1) risolve correttamente al box stesso, esattamente come
-          // per un paragrafo normale - bloccarlo impediva di affiancare un
-          // secondo elemento a un box appena creato. Il caso "box gia'
-          // dentro una row esistente" resta gestito dal Caso 3 sopra (che
-          // intercetta per primo qualunque antenato 'row' a qualunque
-          // profondita'), quindi restringere qui non riapre il rischio di
-          // row annidata in row: lo schema stesso (gruppo di 'row' e'
-          // 'block', non incluso in 'rowItem') lo impedirebbe comunque.
+          // Caso 2: avvolge il blocco corrente + il nuovo elemento in una
+          // row nuova, al contenitore block+ piu' vicino a $from (Passo 1,
+          // piano confermato 2026-08-13 - vedi findNearestBlockContainerAncestorDepth
+          // sopra per la logica completa): non piu' sempre il documento,
+          // ora anche dentro un TextBox/Collapse gia' esistente, se e'
+          // quello il contenitore piu' vicino. La cella di tabella resta
+          // ESPLICITAMENTE esclusa (decisione 2026-08-13, non riaperta da
+          // questo passo): se il cursore e' annidato dentro una cella,
+          // questa guardia intercetta PRIMA che findNearestBlockContainerAncestorDepth
+          // venga anche solo chiamata - creare intenzionalmente una row
+          // dentro una cella e' rimandato a quando avremo piu' chiarezza su
+          // scroll orizzontale annidato/arrow-nav a doppio livello (stesso
+          // motivo gia' valido quando la guardia copriva anche TextBox/
+          // Collapse, ristretta al solo 'table' il 2026-08-10 per un bug
+          // diverso - vedi storia commit).
           if (isSelectionInsideAny(state, ['table'])) return false;
 
-          // Selezione che attraversa due blocchi diversi a livello
-          // documento (es. da meta' di un paragrafo a meta' del successivo)
-          // - "il blocco corrente" diventerebbe ambiguo, no-op deliberato
-          // invece di avvolgere solo il primo e perdere silenziosamente il
-          // resto della selezione.
-          if ($from.node(1) !== $to.node(1)) return false;
+          const wrapDepth = findNearestBlockContainerAncestorDepth($from, schema.nodes.row);
+          if (wrapDepth === null) return false;
 
-          const blockStart = $from.before(1);
-          const blockEnd = $from.after(1);
-          const existingNode = $from.node(1);
+          // Selezione che attraversa due blocchi diversi ALLA STESSA
+          // profondita' di wrap (es. da meta' di un paragrafo a meta' del
+          // successivo, nello stesso contenitore) - "il blocco corrente"
+          // diventerebbe ambiguo, no-op deliberato invece di avvolgere solo
+          // il primo e perdere silenziosamente il resto della selezione.
+          // $to.depth < wrapDepth PRIMA del confronto per nodo (non solo
+          // $from.node(wrapDepth)!==$to.node(wrapDepth) da sola): $to.node(d)
+          // lancia un errore se d supera $to.depth, possibile quando $to e'
+          // annidato meno di $from (selezione che finisce in un contenitore
+          // piu' esterno di quello trovato per $from).
+          if ($to.depth < wrapDepth || $from.node(wrapDepth) !== $to.node(wrapDepth)) return false;
+
+          const blockStart = $from.before(wrapDepth);
+          const blockEnd = $from.after(wrapDepth);
+          const existingNode = $from.node(wrapDepth);
 
           // Caso 2 non scatta se il blocco esistente e' VUOTO (nessun
           // contenuto testuale, bug segnalato 2026-08-12): avvolgere un
