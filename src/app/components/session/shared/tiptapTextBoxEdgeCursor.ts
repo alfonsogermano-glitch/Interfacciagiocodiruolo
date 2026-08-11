@@ -1048,6 +1048,17 @@ export function exitRowDocumentBoundary(editor: Editor, dir: 'before' | 'after')
 // isReenterableNeighbor (sopra) gia' riconosce la row per la ripresa/
 // rientro da li', nessuna duplicazione.
 //
+// isTable(neighbor) aggiunta (round bug 2026-08-11 sera, "avvicinarsi a una
+// tabella dentro una cella scrollata dall'esterno produce lo stesso identico
+// GapCursor invisibile"): stesso identico ragionamento della row - una
+// tabella con un box isolating come primo/ultimo figlio della sua prima/
+// ultima cella richiede anch'essa di attraversare DUE confini isolating
+// (tabella + box) per trovare testo valido dall'esterno, il nativo rinuncia
+// alla stessa identica maniera. isReenterableNeighbor (sopra) riconosce gia'
+// anche la tabella da tempo (Fase 3b, per la ripresa/rientro da una pausa
+// gia' creata da exitTableBoundary) - qui serve lo stesso riconoscimento ma
+// per la creazione INIZIALE della pausa, avvicinandosi da fuori.
+//
 // findFlexItemAncestorDepth/findCellAncestorDepth esclusi esplicitamente:
 // se $from e' gia' dentro un item di un'altra row o dentro una cella,
 // quella situazione e' competenza di exitFlexSiblingBoundary/
@@ -1055,11 +1066,11 @@ export function exitRowDocumentBoundary(editor: Editor, dir: 'before' | 'after')
 // nella catena in tiptapBlocks.tsx) - questa funzione resta silenziosa li',
 // mai un tentativo alla cieca su un presupposto gia' di competenza altrui.
 // Nessuna esclusione invece per un box ancestor (TextBox/Collapse): una row
-// annidata dentro il content di un box e' un caso legittimo, il confine da
-// controllare e' quello del PROPRIO genitore diretto di $from (blockDepth =
-// $from.depth), a qualunque profondita' esso sia - generico esattamente
-// come jumpOrInsertAtContainerBoundary sopra, che serve gia' documento,
-// TextBox e Collapse senza distinzione.
+// o una tabella annidata dentro il content di un box e' un caso legittimo,
+// il confine da controllare e' quello del PROPRIO genitore diretto di
+// $from (blockDepth = $from.depth), a qualunque profondita' esso sia -
+// generico esattamente come jumpOrInsertAtContainerBoundary sopra, che
+// serve gia' documento, TextBox e Collapse senza distinzione.
 export function enterRowDocumentBoundary(editor: Editor, dir: 'before' | 'after'): boolean {
   const { selection, doc } = editor.state;
   if (!selection.empty) return false;
@@ -1083,7 +1094,7 @@ export function enterRowDocumentBoundary(editor: Editor, dir: 'before' | 'after'
   const boundaryPos = dir === 'before' ? $from.before(blockDepth) : $from.after(blockDepth);
   const $boundary = doc.resolve(boundaryPos);
   const neighbor = dir === 'before' ? $boundary.nodeBefore : $boundary.nodeAfter;
-  if (!neighbor || !isDocRow(neighbor)) return false;
+  if (!neighbor || !(isDocRow(neighbor) || isTable(neighbor))) return false;
 
   return editor
     .chain()
