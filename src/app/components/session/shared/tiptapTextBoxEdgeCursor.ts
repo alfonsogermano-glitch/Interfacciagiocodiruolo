@@ -383,10 +383,30 @@ function landOrDive(doc: ProseMirrorNode, pos: number, dir: 'before' | 'after'):
 // a livello documento") perche' riusata identica da exitFlexSiblingBoundary
 // sotto: la misura e' generica (due elementi DOM adiacenti qualunque),
 // mai stata specifica ai box.
+//
+// Guardia sul CONTENITORE aggiunta (round bug 2026-08-11 pomeriggio, "la
+// doppia fermata a-capo scatta anche uscendo verticalmente da un box/row
+// isolato verso un paragrafo normale sottostante, mai stata un vero
+// a-capo"): "due elementi DOM adiacenti con top diverso" e' vero per
+// COSTRUZIONE per qualunque coppia di blocchi impilati verticalmente (mai
+// dentro un flex) - il controllo misurava solo "sono su righe diverse",
+// mai "sono ENTRAMBI item flex della STESSA riga/cella che avrebbero
+// dovuto stare affiancati". pauseAtIsolatingBoundary (sopra) e' chiamata
+// oggi da QUALUNQUE bordo isolating (box Fase 3a/Passo 2, row Fase 2) - non
+// piu' solo da bordi dentro una row/cella come alle origini di questa
+// funzione, quindi il falso positivo non era mai stato raggiungibile prima
+// di quei due fix. Wrap vero SOLO se afterDom e' figlio diretto di un
+// contenitore flex (.tiptap-row-flex/.tiptap-td-flex, gli stessi due usati
+// da findOuterVisibleBoundary sopra) - altrimenti la nozione stessa di
+// "andato a capo" non si applica, `wrapped` resta false e la pausa avanza
+// alla prima pressione ripetuta, invece di richiederne una in piu' per una
+// conferma che qui non ha alcun significato.
 function measureRowWrap(editor: Editor, boundaryPos: number): boolean {
   const afterDom = editor.view.nodeDOM(boundaryPos) as HTMLElement | null;
   const beforeDom = afterDom?.previousElementSibling as HTMLElement | null;
   if (!afterDom || !beforeDom) return false;
+  const container = afterDom.parentElement;
+  if (!container || !(container.classList.contains('tiptap-row-flex') || container.classList.contains('tiptap-td-flex'))) return false;
   return Math.abs(afterDom.getBoundingClientRect().top - beforeDom.getBoundingClientRect().top) > 1;
 }
 
@@ -982,22 +1002,93 @@ export function exitRowDocumentBoundary(editor: Editor, dir: 'before' | 'after')
 
   const rowPos = dir === 'before' ? $from.before(rowDepth) : $from.after(rowDepth);
 
-  // NUOVO (Fase 2): un vicino REALE gia' al bordo assoluto della row resta
-  // fuori scope di Segnalazione 2 (quel "jump" diretto, mai un
-  // materializzare, non e' mai stato il comportamento contestato) - solo
-  // quando non c'e' NESSUN vicino (il ramo che prima materializzava subito)
-  // si passa da una pausa. landOrDive sotto, con neighborBlock gia'
-  // verificato null qui, degrada per costruzione al suo stesso primo ramo
-  // (nessun vicino => pausa) - riuso dell'idioma esistente invece di un
-  // `new TextBoxEdgeCursor(...)` manuale, mai fatto altrove in questo file.
-  const $rowBoundary = doc.resolve(rowPos);
-  const neighborBlock = dir === 'before' ? $rowBoundary.nodeBefore : $rowBoundary.nodeAfter;
-  if (neighborBlock) return jumpOrInsertAtContainerBoundary(editor, rowPos, dir);
+  // AGGIORNATO (round bug 2026-08-11 pomeriggio, "Freccia Destra dall'ultimo
+  // elemento scende sotto invece di pausare"): un vicino REALE gia' al bordo
+  // assoluto della row NON e' piu' un caso a parte - pauseAtIsolatingBoundary
+  // (stessa funzione gia' usata da exitBoxBoundary per i singoli box,
+  // Passo 2 di ieri) pausa incondizionatamente verso QUALUNQUE vicino reale
+  // che non sia una tabella, qui applicata al bordo della ROW invece che del
+  // singolo box - stesso principio "sempre una pausa prima", ora coerente
+  // fra box e row. Se fallisce (nessun vicino, o vicino e' una tabella -
+  // esclusa anche li', fuori scope), landOrDive sotto copre entrambi i
+  // residui: nessun vicino => pausa (comportamento gia' corretto di ieri,
+  // invariato); vicino e' una tabella => dive diretto (comportamento
+  // pre-esistente, invariato, mai stato contestato).
+  if (pauseAtIsolatingBoundary(editor, rowPos, dir)) return true;
 
   return editor
     .chain()
     .command(({ tr }) => {
       tr.setSelection(landOrDive(tr.doc, rowPos, dir));
+      return true;
+    })
+    .scrollIntoView()
+    .run();
+}
+
+// Simmetrica a exitRowDocumentBoundary sopra, ma per l'INGRESSO invece
+// dell'uscita (round bug 2026-08-11 pomeriggio, "rientrare nella row da un
+// paragrafo esterno con le frecce fa apparire un GapCursor nativo invece di
+// una pausa"): tutte le funzioni exit* sopra gestiscono solo l'uscita da
+// DENTRO un box/row/cella - nessuna gestisce l'avvicinamento da FUORI, in
+// testo normale, verso il bordo di una row vicina. Il fallback nativo di
+// ProseMirror di solito basta da solo (verificato dal vivo: row[paragrafo,
+// paragrafo], un solo confine isolating da attraversare, funziona gia'
+// senza alcun intervento) - ma quando il primo/ultimo figlio della row e'
+// esso stesso isolating (TextBox/Collapse, il caso comune per cui esiste
+// l'affiancamento), servirebbe attraversare DUE confini isolating in un
+// colpo solo per trovare una posizione di testo valida: li' il nativo
+// rinuncia e produce un GapCursor invece di una posizione di testo o una
+// pausa. Pausa qui SEMPRE che il vicino sia una row, a prescindere dal suo
+// contenuto (nessun controllo su cosa c'e' dentro, stesso principio "sempre
+// una pausa al bordo" gia' applicato in uscita sopra) - piu' semplice e
+// coerente che condizionare la pausa al tipo del figlio, e converge sulla
+// STESSA pausa che exitRowDocumentBoundary creerebbe uscendo dalla row
+// verso questo stesso paragrafo (stessa rowPos, vista dal lato opposto):
+// isReenterableNeighbor (sopra) gia' riconosce la row per la ripresa/
+// rientro da li', nessuna duplicazione.
+//
+// findFlexItemAncestorDepth/findCellAncestorDepth esclusi esplicitamente:
+// se $from e' gia' dentro un item di un'altra row o dentro una cella,
+// quella situazione e' competenza di exitFlexSiblingBoundary/
+// exitCellBoundary/exitRowBoundary/exitTableBoundary sopra (provate PRIMA
+// nella catena in tiptapBlocks.tsx) - questa funzione resta silenziosa li',
+// mai un tentativo alla cieca su un presupposto gia' di competenza altrui.
+// Nessuna esclusione invece per un box ancestor (TextBox/Collapse): una row
+// annidata dentro il content di un box e' un caso legittimo, il confine da
+// controllare e' quello del PROPRIO genitore diretto di $from (blockDepth =
+// $from.depth), a qualunque profondita' esso sia - generico esattamente
+// come jumpOrInsertAtContainerBoundary sopra, che serve gia' documento,
+// TextBox e Collapse senza distinzione.
+export function enterRowDocumentBoundary(editor: Editor, dir: 'before' | 'after'): boolean {
+  const { selection, doc } = editor.state;
+  if (!selection.empty) return false;
+  // Una pausa gia' attiva e' competenza di exitArrow/adjacentBox
+  // (TextBoxEdgeCursorExtension) - selection.empty e' vero anche per una
+  // TextBoxEdgeCursor ($anchor===$head), quindi va escluso esplicitamente
+  // qui: altrimenti, se mai raggiunta con una pausa gia' attiva (oggi non
+  // accade, TextBoxEdgeCursorExtension la intercetta prima - ma questa
+  // funzione non deve dipendere da un ordine di registrazione delle
+  // estensioni per restare corretta), $from risolverebbe su una posizione
+  // gia' di confine, non testo reale.
+  if (selection instanceof TextBoxEdgeCursor) return false;
+  const $from = selection.$from;
+  if (findFlexItemAncestorDepth($from) !== null) return false;
+  if (findCellAncestorDepth($from) !== null) return false;
+
+  const blockDepth = $from.depth;
+  if (blockDepth === 0) return false;
+  if (!isAtBoxBoundary(doc, $from, blockDepth, dir === 'before' ? 'start' : 'end')) return false;
+
+  const boundaryPos = dir === 'before' ? $from.before(blockDepth) : $from.after(blockDepth);
+  const $boundary = doc.resolve(boundaryPos);
+  const neighbor = dir === 'before' ? $boundary.nodeBefore : $boundary.nodeAfter;
+  if (!neighbor || !isDocRow(neighbor)) return false;
+
+  return editor
+    .chain()
+    .command(({ tr }) => {
+      tr.setSelection(new TextBoxEdgeCursor(tr.doc.resolve(boundaryPos)));
       return true;
     })
     .scrollIntoView()
@@ -1193,6 +1284,34 @@ function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after')
     } else {
       left = (useAfter ? rect.left : rect.right) - containerRect.left;
     }
+  }
+
+  // Clamp finale (round bug 2026-08-11 pomeriggio, "elemento isolato a
+  // inizio documento, il cursore SPARISCE"): il ramo "outerBoundary" sopra
+  // centra correttamente contro il vero bordo visibile, ma quel bordo puo'
+  // essere PIU' esterno di .tiptap-content stesso - verificato dal vivo,
+  // .tiptap-content ha overflow-x:auto (theme.css) e zero padding proprio
+  // quando il box lo riempie al 100%: il punto medio centrato cade a
+  // coordinata NEGATIVA rispetto a .tiptap-content, che lo clippa via
+  // (scrollLeft non puo' andare sotto 0 in LTR, scrollIntoView() non ha
+  // dove scrollare) - il widget esiste, e' posizionato "correttamente" per
+  // la formula, ma e' semplicemente invisibile.
+  //
+  // SOLO per .tiptap-content (bug verificato dal vivo, secondo giro:
+  // applicarlo incondizionatamente a QUALUNQUE container rompeva il caso
+  // cella di tabella - .tiptap-td-flex non ha overflow proprio, ne'
+  // .tiptap-td-flex ne' il <td> che lo contiene clippano nulla, quindi un
+  // left "negativo rispetto al container" li' e' comunque perfettamente
+  // visibile, renderizzato nel padding reale della cella - ESATTAMENTE il
+  // punto centrato voluto, non un valore da correggere. Il clamp ha senso
+  // solo dove esiste un overflow reale che clippa, non ovunque il numero
+  // capiti negativo). Aggancio a [0, clientWidth] (il range visibile di
+  // .tiptap-content senza scroll dell'utente): sacrifica la centratura
+  // perfetta SOLO nel caso limite dove sarebbe comunque invisibile, in
+  // cambio della garanzia che il widget sia sempre visibile.
+  if (container.classList.contains('tiptap-content')) {
+    const maxLeft = Math.max(0, container.clientWidth - 1);
+    left = Math.min(Math.max(left, 0), maxLeft);
   }
 
   widget.style.position = 'absolute';

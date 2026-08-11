@@ -11,6 +11,7 @@ import {
   exitRowBoundary,
   exitTableBoundary,
   exitRowDocumentBoundary,
+  enterRowDocumentBoundary,
   exitTableTopEdge,
 } from './tiptapTextBoxEdgeCursor';
 import { createRowGrowAttribute } from './tiptapRow';
@@ -100,13 +101,21 @@ function isSelectionInside(state: EditorState, typeName: string): boolean {
 // sotto (row e' un concetto orizzontale, flex-wrap, non verticale).
 function createEdgeAwareKeyboardShortcuts(editor: Editor) {
   return {
+    // enterRowDocumentBoundary in coda (round bug 2026-08-11 pomeriggio,
+    // "rientrare in una row da un paragrafo esterno produce un GapCursor
+    // nativo"): tutte le funzioni sopra gestiscono l'uscita da DENTRO
+    // qualcosa, mai l'ingresso in una row da FUORI - provata per ultima,
+    // dopo che nessun'altra ha trovato applicazione (nessuna sovrapposizione
+    // possibile: richiede $from fuori da box/row/cella, vedi commento sulla
+    // funzione stessa).
     ArrowLeft: () =>
       exitBoxBoundary(editor, 'before') ||
       exitFlexSiblingBoundary(editor, 'before') ||
       exitCellBoundary(editor, 'before') ||
       exitRowBoundary(editor, 'before') ||
       exitTableBoundary(editor, 'before') ||
-      exitRowDocumentBoundary(editor, 'before'),
+      exitRowDocumentBoundary(editor, 'before') ||
+      enterRowDocumentBoundary(editor, 'before'),
     ArrowUp: () => exitBoxBoundary(editor, 'before') || exitTableTopEdge(editor),
     ArrowRight: () =>
       exitBoxBoundary(editor, 'after') ||
@@ -114,7 +123,8 @@ function createEdgeAwareKeyboardShortcuts(editor: Editor) {
       exitCellBoundary(editor, 'after') ||
       exitRowBoundary(editor, 'after') ||
       exitTableBoundary(editor, 'after') ||
-      exitRowDocumentBoundary(editor, 'after'),
+      exitRowDocumentBoundary(editor, 'after') ||
+      enterRowDocumentBoundary(editor, 'after'),
     ArrowDown: () => exitBoxBoundary(editor, 'after'),
     // Cancella l'intero nodo (non solo il paragrafo vuoto) quando il
     // cursore e' esattamente a inizio contenuto - equivalente esatto di
