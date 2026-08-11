@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
-import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, Table as TableIcon, Undo2, Columns2, Pilcrow } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, Table as TableIcon, Undo2 } from 'lucide-react';
 import { TableKit } from '@tiptap/extension-table';
 import { MarkdownContent } from './MarkdownContent';
 import { parseLines } from './markdownHeadings';
@@ -18,7 +18,6 @@ import { RowCollapseCleanup } from './tiptapRowCollapseCleanup';
 import { TextBoxEdgeCursorExtension, isAtRowStart, isAtRowEnd, findCellAncestorDepth } from './tiptapTextBoxEdgeCursor';
 import { TipTapTableMenu } from './TipTapTableMenu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../../ui/dropdown-menu';
 // @tiptap/extension-underline non va importato/aggiunto qui: StarterKit lo
 // include e attiva gia' di default (verificato nel suo sorgente - "if
 // (this.options.underline !== false)"), aggiungerlo di nuovo registrerebbe
@@ -271,7 +270,25 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
   };
 
   const boldActive = editor.isActive('bold');
-  const addElementBesideDisabled = !editable || !editor.can().addElementBeside('paragraph');
+
+  // Fase B del consolidamento "Aggiungi elemento accanto" nei pulsanti
+  // esistenti (piano confermato 2026-08-11): ogni pulsante Blocchi sotto
+  // (Box di testo/Collapse/Tabella) prova PRIMA addElementBeside
+  // (tiptapRow.ts) - unica fonte di verita' per "quando si applica",
+  // ristretta in Fase A a TextBoxEdgeCursor attivo o nessuna row antenata
+  // (mai un cursore normale gia' dentro una row esistente). addElementBeside
+  // e' un no-op ATOMICO quando non si applica (return false, nessun
+  // dispatch, tr scartata - verificato dal vivo in Fase A: tr.doc invariato
+  // byte per byte), quindi il fallback puo' girare subito dopo senza alcun
+  // rischio di doppio inserimento o stato intermedio inconsistente. Un solo
+  // punto (qui) invece di ripetere lo stesso if/else nei 3 onClick sotto -
+  // il vecchio pulsante dedicato (DropdownMenu "Aggiungi elemento accanto")
+  // e' stato rimosso in Fase C, superfluo ora che i 3 pulsanti Blocchi
+  // coprono lo stesso comportamento.
+  const withRowAwareInsert = (type: RowElementType, fallback: () => boolean) => () =>
+    runCommand(() => {
+      if (!editor.chain().focus().addElementBeside(type).run()) fallback();
+    });
 
   return (
     <div onMouseDown={(e) => e.preventDefault()} className="flex w-11 shrink-0 flex-col gap-2">
@@ -317,10 +334,10 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
           piano). Pulsanti "insert", non toggle: nessuno stato attivo/non
           attivo da riflettere (active sempre false). */}
       <ToolbarSection label="Blocchi" defaultOpen>
-        <ToolbarButton disabled={!editable} label="Box di testo" active={false} onClick={() => runCommand(() => editor.chain().focus().setTextBox().run())}>
+        <ToolbarButton disabled={!editable} label="Box di testo" active={false} onClick={withRowAwareInsert('textBox', () => editor.chain().focus().setTextBox().run())}>
           <Square className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton disabled={!editable} label="Collapse (espandi/comprimi)" active={false} onClick={() => runCommand(() => editor.chain().focus().setCollapseBlock().run())}>
+        <ToolbarButton disabled={!editable} label="Collapse (espandi/comprimi)" active={false} onClick={withRowAwareInsert('collapseBlock', () => editor.chain().focus().setCollapseBlock().run())}>
           <ChevronsDownUp className="h-4 w-4" />
         </ToolbarButton>
         {/* setHorizontalRule: gia' incluso in StarterKit come
@@ -345,7 +362,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
             solo step di undo: risale alla tabella appena creata e, se il
             nodo immediatamente precedente e' un paragrafo vuoto, lo
             rimuove. */}
-        <ToolbarButton disabled={!editable} label="Tabella" active={false} onClick={() => runCommand(() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: false }).command(({ tr, dispatch }) => {
+        <ToolbarButton disabled={!editable} label="Tabella" active={false} onClick={withRowAwareInsert('table', () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: false }).command(({ tr, dispatch }) => {
           const { $from } = tr.selection;
           for (let depth = $from.depth; depth > 0; depth--) {
             if ($from.node(depth).type.name !== 'table') continue;
@@ -360,108 +377,6 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         }).run())}>
           <TableIcon className="h-4 w-4" />
         </ToolbarButton>
-        {/* Fase 2 "affiancamento a livello documento" (piano confermato
-            2026-08-07): addElementBeside (tiptapRow.ts) sceglie da solo se
-            aggiungere in coda a una row esistente o avvolgere blocco
-            corrente+nuovo in una row nuova - qui serve solo far scegliere
-            il TIPO di elemento, da cui il menu invece di un singolo
-            pulsante come Box di testo/Tabella sopra (che non hanno scelte
-            da fare). Trigger disabilitato quando il comando non
-            risulterebbe applicabile in nessuno dei due casi (selezione che
-            attraversa due blocchi diversi, o annidata dentro
-            tabella/TextBox/Collapse - vedi addElementBeside) - 'paragraph'
-            come tipo-sonda per il check e' arbitrario: la guardia non
-            dipende dal tipo scelto, solo dalla posizione del cursore,
-            stesso risultato per tutti e 4.
-            onMouseDown preventDefault sul contenuto del menu: il
-            DropdownMenuContent vive in un portale (usePortalContainer,
-            vedi dropdown-menu.tsx) FUORI dal sottoalbero DOM di questo
-            div Toolbar, quindi il preventDefault sul contenitore Toolbar
-            qui sotto non lo raggiunge - stesso trattamento riapplicato
-            esplicitamente qui per non perdere selezione/focus
-            dell'editor al click di una voce.
-            side="right" (invece del default "bottom"): bug segnalato
-            2026-08-10, in colonne/editor bassi (es. tab custom di
-            EntityDetailView, editor limitato a h-64) il pulsante finisce
-            vicino al bordo inferiore della finestra e il menu apriva
-            verso il basso lasciando pochi px di margine, fuori schermo su
-            schermi piu' bassi di quello di sviluppo - avoidCollisions di
-            Radix (default, mai disattivato) resta comunque attivo come
-            rete di sicurezza per i casi limite, ma aprendo lateralmente
-            nello spazio ampio del pannello nota il problema non si pone
-            piu' nella colonna stretta della toolbar, stesso lato gia'
-            usato dal Tooltip di questo stesso pulsante poco sotto.
-            z-[1000] + collisionBoundary=document.body, SECONDO giro
-            (stesso bug 2026-08-10, riapparso subito dopo il fix di
-            side="right" sopra): stessa identica diagnosi gia' fatta per
-            TipTapTableMenu.tsx (vedi il suo commento su appendTo) -
-            questo DropdownMenuContent vive dentro un portale
-            (usePortalContainer, dropdown-menu.tsx) che lo mette FUORI
-            dal sottoalbero DOM del pannello Note, come fratello diretto
-            di <SlideOverPanel> (SlideOverPanel.tsx: position:fixed,
-            z-index:900) e dell'<aside> di navigazione (z-[940],
-            AppShell.tsx) nello stesso stacking context radice - la
-            classe z-50 di base (dropdown-menu.tsx) perde sempre contro
-            quei due, il menu risultava percio' RENDERIZZATO SOTTO il
-            pannello (non semplicemente mal posizionato: verificato dal
-            vivo con getComputedStyle, sfondo/testo non trasparenti, solo
-            invisibili perche' coperti). z-[1000] (stesso valore gia'
-            usato da TipTapTableMenu per lo stesso identico conflitto,
-            className passato qui vince su z-50 via cn()/tailwind-merge)
-            resta scoped a QUESTA istanza, non un cambio alla classe base
-            condivisa dagli altri usi di DropdownMenu nell'app (TopBar,
-            CampaignHome) che non vivono dentro un pannello z-900 e non
-            ne hanno bisogno. collisionBoundary=document.body: verificato
-            dal vivo che, a finestra bassa (894x448), il menu eccedeva
-            comunque il fondo della viewport di ~200px pur con side="right"
-            e nonostante Radix calcolasse il --radix-popper-available-height
-            corretto (448px) - il confine di collisione di default
-            (clippingAncestors, che risale dal trigger fino al div
-            scrollabile stretto della nota) e' troppo restrittivo sull'asse
-            cross (verticale, per side="right"), stesso identico problema e
-            stessa soluzione di TipTapTableMenu (boundary:document.body
-            invece dell'area di scrittura). */}
-        <Tooltip>
-          <DropdownMenu>
-            <TooltipTrigger asChild>
-              <DropdownMenuTrigger asChild disabled={addElementBesideDisabled}>
-                <button
-                  type="button"
-                  disabled={addElementBesideDisabled}
-                  aria-label="Aggiungi elemento accanto"
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md p-1.5 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)] ${
-                    addElementBesideDisabled ? 'opacity-40' : ''
-                  }`}
-                >
-                  <Columns2 className="h-4 w-4" />
-                </button>
-              </DropdownMenuTrigger>
-            </TooltipTrigger>
-            <DropdownMenuContent
-              side="right"
-              align="start"
-              collisionBoundary={typeof document !== 'undefined' ? document.body : undefined}
-              onMouseDown={(e) => e.preventDefault()}
-              className="z-[1000] border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-text)]"
-            >
-              {([
-                ['paragraph', Pilcrow, 'Paragrafo'],
-                ['textBox', Square, 'Box di testo'],
-                ['collapseBlock', ChevronsDownUp, 'Collapse'],
-                ['table', TableIcon, 'Tabella'],
-              ] as const).map(([type, Icon, itemLabel]) => (
-                <DropdownMenuItem
-                  key={type}
-                  onSelect={() => runCommand(() => editor.chain().focus().addElementBeside(type as RowElementType).run())}
-                  className="text-[var(--dash-text)] focus:bg-[var(--dash-surface-2)] focus:text-[var(--dash-text-strong)]"
-                >
-                  <Icon className="h-4 w-4" /> {itemLabel}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <TooltipContent side="right">Aggiungi elemento accanto</TooltipContent>
-        </Tooltip>
       </ToolbarSection>
       {/* Sezioni future (Widget, Oggetti speciali): aggiungere qui altre
           <ToolbarSection label="..." defaultOpen={false}>...</ToolbarSection>,
@@ -636,32 +551,9 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // (es. la select stessa) non e' un vero abbandono dell'editor, si resta
     // in modifica; altrimenti (click fuori, Tab) e' un blur genuino, si
     // torna alla vista di sola lettura come prima.
-    //
-    // closest('[role="menu"]') IN PIU' (bug segnalato 2026-08-10): il menu
-    // "Aggiungi elemento accanto" (DropdownMenuContent, RichTextEditor.tsx
-    // piu' sotto) vive in un portale (usePortalContainer, dropdown-menu.tsx)
-    // che lo monta come FRATELLO di toolbarWrapRef, non discendente - non
-    // "dentro la toolbar" agli occhi di toolbarWrapRef.contains(), anche se
-    // visivamente e concettualmente lo e'. Aprendo il menu, Radix sposta il
-    // focus DOM sul suo contenuto (role="menu", verificato dal vivo con
-    // document.activeElement), quindi relatedTarget qui punta li' - senza
-    // questo controllo la guardia sopra falliva sempre, onBlurEditor()
-    // scattava subito all'apertura del menu, isEditing tornava false e
-    // l'INTERA toolbar si disabilitava (incluso il trigger stesso) prima
-    // ancora che l'utente potesse scegliere una voce - il comando dietro
-    // ogni voce (editor.chain().focus()...run()) falliva percio' sempre in
-    // silenzio, il menu appariva a tutti gli effetti rotto. Nessuno scoping
-    // al trigger di QUESTA istanza (un role="menu" e' un role="menu" per
-    // qualunque editor in pagina): un'altra istanza di RichTextEditor con un
-    // proprio menu aperto altrove manterrebbe ugualmente questo editor in
-    // modifica se genericamente focalizzato - caso limite accettato, l'
-    // alternativa (associare esplicitamente trigger e contenuto via un id
-    // dedicato) e' complessita' non giustificata per un solo menu in tutta
-    // l'app.
     onBlur: ({ event }) => {
       const related = event.relatedTarget as Node | null;
       if (toolbarWrapRef.current?.contains(related)) return;
-      if (related instanceof Element && related.closest('[role="menu"]')) return;
       onBlurEditor?.();
     },
     // Bug segnalato 2026-08-06: spostandosi con le frecce dall'ultima cella
