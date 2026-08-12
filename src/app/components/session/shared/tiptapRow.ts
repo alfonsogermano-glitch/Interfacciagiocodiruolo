@@ -307,14 +307,31 @@ export const Row = Node.create({
             // nuova row - avvolgerlo produce un terzo rowItem invisibile ma
             // che occupa spazio, MENTRE il meccanismo di ricreazione lo
             // rimpiazza subito fuori dalla row, lasciando un residuo intatto
-            // dentro. Stessa identica condizione (textContent==='') gia'
-            // usata dal Caso 2 sotto per lo stesso motivo, mai estesa qui
-            // quando questo caso e' stato aggiunto il 2026-08-13. Un vicino
-            // vuoto NON scompare dal documento - resta esattamente dove
-            // stava, semplicemente escluso dal wrap (wrapStart/wrapEnd sotto
-            // si fermano prima di lui).
-            const wrapBefore = before && before.textContent !== '' ? before : null;
-            const wrapAfter = after && after.textContent !== '' ? after : null;
+            // dentro. Un vicino vuoto NON scompare dal documento - resta
+            // esattamente dove stava, semplicemente escluso dal wrap
+            // (wrapStart/wrapEnd sotto si fermano prima di lui).
+            //
+            // RISTRETTO a type===paragraph (regressione segnalata subito
+            // dopo, 2026-08-12 sera): la prima versione escludeva QUALUNQUE
+            // vicino vuoto, non solo il paragrafo placeholder - rompendo lo
+            // scenario comune "crea un box vuoto, esci con la freccia SENZA
+            // scrivere nulla, clicca di nuovo per affiancarne un secondo":
+            // il box appena creato (before) e' esso stesso vuoto in quel
+            // momento, quindi prima veniva escluso ALLORA CON before E
+            // after entrambi esclusi, niente wrap, il pulsante ricadeva sul
+            // fallback nudo (impilato invece di affiancato). Un
+            // textBox/collapseBlock/table vuoto e' comunque un elemento che
+            // l'utente sta costruendo intenzionalmente - va sempre
+            // preservato. Solo un paragraph vuoto (il tipo specifico del
+            // placeholder trailing, mai uno degli altri tre tipi che
+            // createRowElementNode/RowElementType sa costruire) viene
+            // escluso, stessa condizione di emptiness del Caso 2 sotto ma
+            // ristretta al tipo di nodo giusto invece che a "qualunque nodo
+            // vuoto".
+            const isEmptyPlaceholderParagraph = (node: typeof before) =>
+              !!node && node.type === schema.nodes.paragraph && node.textContent === '';
+            const wrapBefore = before && !isEmptyPlaceholderParagraph(before) ? before : null;
+            const wrapAfter = after && !isEmptyPlaceholderParagraph(after) ? after : null;
             if (!wrapBefore && !wrapAfter) return false;
             //
             // Ordine figli [before?, nuovo, after?]: quello che manca
