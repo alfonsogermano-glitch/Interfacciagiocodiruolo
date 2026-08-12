@@ -961,22 +961,41 @@ export function exitTableBoundary(editor: Editor, dir: 'before' | 'after'): bool
 // il controllo esplicito su rowDepth e' comunque la difesa a monte, nel
 // caso (oggi non riproducibile, ma non impossibile in futuro) in cui
 // itemDepth risolvesse diversamente.
-// Caso B aggiunto in testa (Fase 2, piano confermato 2026-08-11,
-// Segnalazione 2 - "uscire dal bordo assoluto di una row salta sopra invece
-// di restare sulla stessa riga"): quando la row non ha alcun vicino reale
-// sul lato richiesto, il Caso A sotto ora crea prima una PAUSA al bordo
-// della row invece di materializzare subito (stesso identico principio gia'
-// in uso per i box isolati, Fase 3a) - la seconda pressione della STESSA
-// freccia arriva qui con `selection` gia' una TextBoxEdgeCursor esattamente
-// in quella posizione (routing garantito da isReenterableNeighbor esteso
-// sopra, altrimenti exitArrow abortirebbe prima di riprovare) e procede col
-// comportamento di sempre. Il vicino atteso e' su $pos.nodeAfter per
-// dir==='before' (la row segue immediatamente rowPos, non l'ha preceduto -
-// e' per questo che il Caso A l'ha scelta come punto di pausa) o
-// $pos.nodeBefore per dir==='after' (simmetrico) - null/non-row e' un
-// segnale che questa pausa non e' "nostra" (creata da qualcos'altro,
-// ricostruita da history/redo, ecc.): si resta silenziosi (return false)
-// invece di agire su un presupposto non verificato.
+// Caso B aggiunto in testa (Fase 2, piano confermato 2026-08-11, Segnalazione
+// 2 - "uscire dal bordo assoluto di una row salta sopra invece di restare
+// sulla stessa riga"): quando la row non ha alcun vicino reale sul lato
+// richiesto, il Caso A sotto crea una PAUSA al bordo della row invece di
+// materializzare subito (stesso principio gia' in uso per i box isolati,
+// Fase 3a).
+//
+// REVISIONE 2026-08-12 (richiesta esplicita utente, cambio di design netto
+// rispetto alla Fase 2 di stamattina, commit 566fcdc/f1dfe11): la seconda
+// pressione della STESSA freccia dalla stessa pausa NON deve piu' fare
+// nulla di ulteriore - niente escalation verso jumpOrInsertAtContainerBoundary.
+// La pausa resta ferma indefinitamente; gli unici modi di procedere da li'
+// sono il pulsante di inserimento (gia' cablato altrove) o Invio (che
+// materializza un paragrafo tramite l'handler generico di
+// TextBoxEdgeCursorExtension, invariato). Creare una riga sopra/sotto con le
+// frecce non e' piu' un comportamento supportato - l'utente la crea con
+// Invio, come in un editor di testo standard.
+//
+// return TRUE (non false) sul ramo sotto, non un semplice no-op silenzioso:
+// questa funzione e' raggiunta anche dalla catena di prosecuzione di
+// TextBoxEdgeCursorExtension.exitArrow (stessa pausa, stesso tasto,
+// TextBoxEdgeCursorExtension.ts piu' sotto in questo file), che in caso di
+// `false` qui prosegue fino al proprio fallback finale (Selection.near
+// generica, bias nella direzione richiesta con ricerca automatica anche
+// nell'altra se la prima fallisce) - verificato dal vivo 2026-08-12: senza
+// questo `return true`, la seconda freccia da questa pausa REBALZAVA dentro
+// il testo del box invece di restare ferma (Selection.near su un `head`
+// gia' al margine assoluto del documento non trova nulla nella direzione
+// richiesta e ripiega sull'unica posizione che esiste, quella da cui si
+// era appena usciti). `return true` senza alcuna transazione dichiara il
+// tasto "gestito" e ferma la catena esattamente qui, lasciando la
+// selezione invariata. Guardia isDocRow(row) invariata: resta l'unico
+// controllo che questa pausa sia davvero "nostra" (bordo di una row),
+// altrimenti si resta silenziosi (false) per non intercettare tasti non di
+// competenza.
 export function exitRowDocumentBoundary(editor: Editor, dir: 'before' | 'after'): boolean {
   const { selection, doc } = editor.state;
   if (!selection.empty) return false;
@@ -985,7 +1004,7 @@ export function exitRowDocumentBoundary(editor: Editor, dir: 'before' | 'after')
     const $pos = doc.resolve(selection.head);
     const row = dir === 'before' ? $pos.nodeAfter : $pos.nodeBefore;
     if (!row || !isDocRow(row)) return false;
-    return jumpOrInsertAtContainerBoundary(editor, selection.head, dir);
+    return true;
   }
 
   const $from = selection.$from;
@@ -1016,10 +1035,26 @@ export function exitRowDocumentBoundary(editor: Editor, dir: 'before' | 'after')
   // pre-esistente, invariato, mai stato contestato).
   if (pauseAtIsolatingBoundary(editor, rowPos, dir)) return true;
 
+  // FIX 2026-08-12 (scoperto testando la revisione sopra: Invio da questa
+  // pausa rientrava nella row invece di materializzare un paragrafo): a
+  // differenza di exitBoxBoundary/exitFlexSiblingBoundary sopra, questo ramo
+  // impostava la sola selezione senza ROW_PAUSE_DIR_META/WRAPPED_META -
+  // enterAtPause (TextBoxEdgeCursorExtension piu' sotto in questo file) legge
+  // pauseState.dir per sapere da che lato cercare un vicino "in avanti", ma
+  // senza il meta il plugin difetta a 'after' (vedi apply() del plugin,
+  // stesso `?? 'after'`) a prescindere dalla direzione REALE con cui si e'
+  // usciti - per una pausa creata con dir 'before' questo faceva rientrare
+  // enterAtPause nella row stessa (nodeAfter, sempre presente) invece di
+  // materializzare verso il vero vicolo cieco. Stesso identico setMeta gia'
+  // usato dagli altri tre siti di pausa in questo file.
+  const rowWrapped = measureRowWrap(editor, rowPos);
+
   return editor
     .chain()
     .command(({ tr }) => {
       tr.setSelection(landOrDive(tr.doc, rowPos, dir));
+      tr.setMeta(ROW_PAUSE_WRAPPED_META, rowWrapped);
+      tr.setMeta(ROW_PAUSE_DIR_META, dir);
       return true;
     })
     .scrollIntoView()
