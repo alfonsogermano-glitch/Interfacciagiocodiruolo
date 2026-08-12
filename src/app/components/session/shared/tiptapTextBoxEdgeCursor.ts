@@ -1408,9 +1408,96 @@ function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after')
   // scroll dell'utente): sacrifica la centratura perfetta SOLO nel caso
   // limite dove non ci sarebbe comunque spazio vero in cui centrarsi, in
   // cambio della garanzia che il widget non sporga mai fuori dal container.
+  // data-clamped (round 2026-08-13, "centratura vera agli estremi assoluti
+  // del documento" - piano confermato dopo aver scartato sia il tentativo di
+  // portare il widget FUORI da .tiptap-content, mai possibile: una
+  // Decoration.widget di ProseMirror vive per costruzione a una posizione
+  // del documento dentro contentDOM, nessun equivalente dei portali React
+  // usati altrove (TipTapTableMenu.tsx) - sia un elemento DOM parallelo
+  // gestito a mano o un padding dinamico, entrambi scartati per rischio
+  // sproporzionato rispetto al beneficio, un dettaglio cosmetico di pochi
+  // px visibile solo al primissimo/ultimissimo carattere del documento):
+  // NON si sposta la posizione del widget (resta esattamente al bordo
+  // garantito visibile dal clamp, invariato) - si ridisegna solo il suo
+  // ASPETTO quando il clamp ha avuto un effetto reale, per suggerire
+  // visivamente "il vero centro sarebbe piu' in la'" senza serviristi di
+  // spazio che non esiste davvero. Confronto valore pre/post clamp (non un
+  // controllo su outerBoundary o su altro): e' l'unico modo per sapere se
+  // QUESTA chiamata ha davvero dovuto forzare left fuori dal range naturale,
+  // a prescindere da quale dei due container/rami l'ha prodotto. Segno di
+  // `left` pre-clamp decide il lato - negativo (voleva stare PRIMA del
+  // bordo sinistro del container, clampato su a 0) e' il caso "inizio";
+  // maggiore di maxLeft (voleva stare DOPO il bordo destro, clampato giu')
+  // e' il caso "fine" - i due casi sono per costruzione mutualmente
+  // esclusivi (Math.max poi Math.min sullo stesso valore). removeAttribute
+  // esplicito nel path "nessun clamp applicabile" (container diverso da
+  // content/row-flex): stesso widget DOM puo' essere riposizionato piu'
+  // volte nella sua vita (resize, correzione a-capo) - senza questo reset
+  // un attributo lasciato da una chiamata precedente sopravvivrebbe a una
+  // successiva che non lo richiede piu'.
+  //
+  // CLAMPED_WIDGET_WIDTH (deve combaciare col width:7px in [data-clamped]
+  // di theme.css, nessun modo di leggerlo dal CSS prima del primo paint):
+  // il rettangolo allargato usa lo stesso `left` gia' calcolato come bordo
+  // di riferimento, ma deve estendersi SEMPRE verso l'INTERNO del
+  // container, mai oltre - per il lato "end" questo significa spostare
+  // `left` indietro di (larghezza-1)px cosi' che sia il bordo DESTRO del
+  // rettangolo (dove vive la lineetta vera, ::after right:0) a restare
+  // esattamente al bordo clampato di sempre, non il sinistro: senza
+  // questo offset il rettangolo sporgerebbe di 6px oltre il bordo destro
+  // del container, ripristinando esattamente l'overflow/scrollbar gia'
+  // risolto in un round precedente di oggi. Il lato "start" non ha bisogno
+  // di alcun offset: il bordo SINISTRO del rettangolo (dove vive la
+  // lineetta, ::after left:0) e' gia' il bordo clampato di sempre,
+  // estendersi verso destra e' gia' "verso l'interno".
+  // RISTRETTO al vero bordo assoluto (round 2026-08-13, verificato dal vivo:
+  // il trigger "clamp ha avuto effetto" da solo scattava anche per una row
+  // con un vicino REALE su un lato, es. row seguita da un paragrafo a
+  // livello documento - sameRow sopra e' strutturalmente sempre false per
+  // due blocchi impilati verticalmente, quindi ANCHE con due vicini reali
+  // il ramo "un solo vicino + bordo esterno" sceglieva un lato solo, e quel
+  // calcolo puo' comunque eccedere .tiptap-content per via del padding
+  // esterno - il rettangolo asimmetrico compariva quindi come aspetto
+  // "normale" uscendo da qualunque row verso un paragrafo, non solo al vero
+  // margine del documento). !siblingBefore || !siblingAfter (non un nuovo
+  // calcolo - stessi siblingBefore/siblingAfter di riga 1336-1338, l'unico
+  // modo affidabile di sapere se il widget ha VERAMENTE un solo vicino reale
+  // o se sameRow e' semplicemente false per impilamento verticale con
+  // entrambi i lati presenti): true solo quando manca DAVVERO uno dei due
+  // lati - esattamente il caso "elemento isolato, nulla dall'altra parte"
+  // del bug originale 2026-08-11, mai il caso "row con vicino reale" anche
+  // se quest'ultimo continua silenziosamente a passare dal clamp sotto
+  // (garanzia di visibilita' invariata, nessuna regressione li').
+  //
+  // isEmptyRealSibling IN PIU' (bug verificato dal vivo nel primo giro di
+  // test: il bordo DESTRO di un box isolato risultava erroneamente ESCLUSO,
+  // perche' il paragrafo vuoto che l'editor mantiene sempre in coda al
+  // documento - stesso placeholder gia' escluso oggi in addElementBeside,
+  // tiptapRow.ts - e' comunque un vero elemento DOM: siblingAfter non era
+  // mai null li', quindi isTrueAbsoluteEdge sopra falliva da solo). Stessa
+  // identica filosofia di oggi: un paragrafo vuoto non e' contenuto vero, va
+  // trattato come "nulla" anche qui, non solo nel wrap di una row. Non tocca
+  // siblingBefore/siblingAfter stessi (restano i VERI vicini DOM per la
+  // formula di posizionamento sopra, dove contano anche se vuoti - un
+  // paragrafo vuoto ha comunque un rect reale contro cui centrarsi) - questo
+  // controllo serve SOLO a decidere l'aspetto del widget, non la sua
+  // posizione.
+  const isEmptyRealSibling = (el: HTMLElement | null) => !el || el.textContent === '';
+  const isTrueAbsoluteEdge = isEmptyRealSibling(siblingBefore) || isEmptyRealSibling(siblingAfter);
+  const CLAMPED_WIDGET_WIDTH = 7;
   if (container.classList.contains('tiptap-content') || container.classList.contains('tiptap-row-flex')) {
     const maxLeft = Math.max(0, container.clientWidth - 1);
-    left = Math.min(Math.max(left, 0), maxLeft);
+    const clampedLeft = Math.min(Math.max(left, 0), maxLeft);
+    if (clampedLeft !== left && isTrueAbsoluteEdge) {
+      const side: 'start' | 'end' = left < 0 ? 'start' : 'end';
+      widget.setAttribute('data-clamped', side);
+      left = side === 'end' ? clampedLeft - (CLAMPED_WIDGET_WIDTH - 1) : clampedLeft;
+    } else {
+      widget.removeAttribute('data-clamped');
+      left = clampedLeft;
+    }
+  } else {
+    widget.removeAttribute('data-clamped');
   }
 
   widget.style.position = 'absolute';

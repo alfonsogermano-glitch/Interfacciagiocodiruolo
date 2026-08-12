@@ -646,6 +646,41 @@
     visibility: hidden;
   }
 }
+/* [data-clamped] (round 2026-08-13, "centratura vera agli estremi assoluti
+   del documento"): la posizione JS (tiptapTextBoxEdgeCursor.ts,
+   positionEdgeCursor) resta esattamente al bordo garantito visibile dal
+   clamp - qui si ridisegna solo l'ASPETTO per suggerire che il vero centro
+   sarebbe piu' in la', senza spostare nulla di reale. Larghezza allargata
+   (7px, un valore arbitrario "abbastanza per essere leggibile, non cosi'
+   largo da sembrare un blocco pieno") e sfondo trasparente sull'elemento
+   base - la vera lineetta (stesso 1px/blink di sempre) vive sul suo
+   ::after, spostata al bordo interno del rettangolo dal lato dove lo
+   spazio vero mancherebbe (start: sinistra, end: destra) - stessa logica
+   visiva di un caret che "punta" verso lo spazio che non riesce a
+   raggiungere. animation/background rimossi dall'elemento base quando
+   clampato (spostati sul solo ::after): senza questo, l'elemento base
+   lampeggerebbe per intero come un rettangolo pieno invece che una sottile
+   lineetta dentro un contenitore piu' largo. */
+.tiptap-textbox-edge-cursor[data-clamped] {
+  width: 7px;
+  background-color: transparent;
+  animation: none;
+}
+.tiptap-textbox-edge-cursor[data-clamped]::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  background-color: var(--dash-text-strong);
+  animation: tiptap-textbox-edge-cursor-blink 1.05s steps(2, start) infinite;
+}
+.tiptap-textbox-edge-cursor[data-clamped='start']::after {
+  left: 0;
+}
+.tiptap-textbox-edge-cursor[data-clamped='end']::after {
+  right: 0;
+}
 
 /* Indicatore di drop laterale (Fase 4b, tiptapRowDrop.ts) - barra verticale
    sul bordo del blocco target quando il drag e' in zona-soglia (affianca,
