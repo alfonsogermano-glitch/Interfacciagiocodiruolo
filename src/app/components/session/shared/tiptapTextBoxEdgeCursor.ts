@@ -1378,19 +1378,37 @@ function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after')
   // dove scrollare) - il widget esiste, e' posizionato "correttamente" per
   // la formula, ma e' semplicemente invisibile.
   //
-  // SOLO per .tiptap-content (bug verificato dal vivo, secondo giro:
-  // applicarlo incondizionatamente a QUALUNQUE container rompeva il caso
-  // cella di tabella - .tiptap-td-flex non ha overflow proprio, ne'
-  // .tiptap-td-flex ne' il <td> che lo contiene clippano nulla, quindi un
-  // left "negativo rispetto al container" li' e' comunque perfettamente
-  // visibile, renderizzato nel padding reale della cella - ESATTAMENTE il
-  // punto centrato voluto, non un valore da correggere. Il clamp ha senso
-  // solo dove esiste un overflow reale che clippa, non ovunque il numero
-  // capiti negativo). Aggancio a [0, clientWidth] (il range visibile di
-  // .tiptap-content senza scroll dell'utente): sacrifica la centratura
-  // perfetta SOLO nel caso limite dove sarebbe comunque invisibile, in
-  // cambio della garanzia che il widget sia sempre visibile.
-  if (container.classList.contains('tiptap-content')) {
+  // SOLO per .tiptap-content e .tiptap-row-flex (bug verificato dal vivo,
+  // secondo giro: applicarlo incondizionatamente a QUALUNQUE container
+  // rompeva il caso cella di tabella - .tiptap-td-flex non ha overflow
+  // proprio, ne' .tiptap-td-flex ne' il <td> che lo contiene clippano
+  // nulla, quindi un left "negativo rispetto al container" li' e' comunque
+  // perfettamente visibile, renderizzato nel padding reale della cella -
+  // ESATTAMENTE il punto centrato voluto, non un valore da correggere. Il
+  // clamp ha senso solo dove NON esiste un vero padding esterno in cui il
+  // widget possa sporgere senza conseguenze.
+  //
+  // .tiptap-row-flex AGGIUNTO (bug segnalato 2026-08-12 sera, "scrollbar
+  // fastidiosa alla 2a pressione uscendo da una row verso un vicino reale"):
+  // stessa identica situazione di .tiptap-content, non quella della cella -
+  // .tiptap-row (il genitore di .tiptap-row-flex, l'equivalente della <td>)
+  // ha zero padding/margine ORIZZONTALE proprio (verificato dal vivo:
+  // getBoundingClientRect() di .tiptap-row e .tiptap-row-flex identico
+  // byte per byte), quindi findOuterVisibleBoundary non e' la strada giusta
+  // qui - non c'e' alcun "vero bordo esterno" piu' largo in cui centrarsi,
+  // il bordo vero DEL WIDGET E' il bordo del container stesso. Senza
+  // questo clamp, un solo vicino a fine riga produceva left=containerWidth
+  // (flush contro il vicino, che riempie la row al 100%): il widget (1px)
+  // finiva per intero FUORI da .tiptap-row-flex - siccome quel container ha
+  // overflow:visible (nessuna clip propria), l'eccedenza si propagava fino
+  // a .tiptap-content, che invece ha overflow-x:auto (theme.css) e mostrava
+  // una vera scrollbar orizzontale per 1px di larghezza indesiderata.
+  //
+  // Aggancio a [0, clientWidth] (il range visibile del container senza
+  // scroll dell'utente): sacrifica la centratura perfetta SOLO nel caso
+  // limite dove non ci sarebbe comunque spazio vero in cui centrarsi, in
+  // cambio della garanzia che il widget non sporga mai fuori dal container.
+  if (container.classList.contains('tiptap-content') || container.classList.contains('tiptap-row-flex')) {
     const maxLeft = Math.max(0, container.clientWidth - 1);
     left = Math.min(Math.max(left, 0), maxLeft);
   }
