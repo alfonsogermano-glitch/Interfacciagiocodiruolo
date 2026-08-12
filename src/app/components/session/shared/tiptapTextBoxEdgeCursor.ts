@@ -929,7 +929,35 @@ export function exitTableBoundary(editor: Editor, dir: 'before' | 'after'): bool
   if (docRowDepth === tableDepth - 1) {
     if (pauseAtIsolatingBoundary(editor, tablePos, dir)) return true;
     const rowPos = dir === 'before' ? $from.before(docRowDepth) : $from.after(docRowDepth);
-    return jumpOrInsertAtContainerBoundary(editor, rowPos, dir);
+
+    // FIX 2026-08-12 (bug preesistente dell'8 agosto, segnalato oggi): senza
+    // fratello di row su questo lato, una tabella dentro una row saltava
+    // dritto a jumpOrInsertAtContainerBoundary SENZA MAI pausare prima,
+    // nemmeno alla prima pressione - a differenza della row stessa
+    // (exitRowDocumentBoundary sotto), che dal fix di oggi pausa sempre
+    // prima di materializzare. Stesso identico pattern qui: prova prima
+    // pauseAtIsolatingBoundary(rowPos) per un vero vicino a livello
+    // documento; se assente, landOrDive con gli stessi due meta
+    // (ROW_PAUSE_WRAPPED_META/DIR_META) che exitRowDocumentBoundary ora
+    // imposta, cosi' Invio da questa pausa materializza correttamente
+    // invece di rientrare nella row (stesso bug li' gia' risolto oggi).
+    // Nessuna guardia aggiuntiva serve per "seconda pressione da qui non
+    // deve fare nulla": la pausa nasce esattamente a rowPos, adiacente alla
+    // STESSA row - la guardia isDocRow gia' in testa a
+    // exitRowDocumentBoundary la riconosce e la blocca da sola, nessuna
+    // duplicazione necessaria.
+    if (pauseAtIsolatingBoundary(editor, rowPos, dir)) return true;
+    const rowWrapped = measureRowWrap(editor, rowPos);
+    return editor
+      .chain()
+      .command(({ tr }) => {
+        tr.setSelection(landOrDive(tr.doc, rowPos, dir));
+        tr.setMeta(ROW_PAUSE_WRAPPED_META, rowWrapped);
+        tr.setMeta(ROW_PAUSE_DIR_META, dir);
+        return true;
+      })
+      .scrollIntoView()
+      .run();
   }
 
   return jumpOrInsertAtContainerBoundary(editor, tablePos, dir);
