@@ -298,21 +298,40 @@ export const Row = Node.create({
             // rifiuterebbe una row, quindi nessun canReplaceWith difensivo
             // in piu' qui).
             //
+            // wrapBefore/wrapAfter invece dei before/after grezzi (bug
+            // segnalato 2026-08-12, "spazio vuoto dopo un secondo elemento"):
+            // un vicino REALE ma di testo VUOTO (tipicamente il paragrafo
+            // placeholder che l'editor ricrea sempre in coda al documento/
+            // box/collapse per garantire un punto di editing dopo l'ultimo
+            // blocco) non e' contenuto degno di essere trascinato dentro la
+            // nuova row - avvolgerlo produce un terzo rowItem invisibile ma
+            // che occupa spazio, MENTRE il meccanismo di ricreazione lo
+            // rimpiazza subito fuori dalla row, lasciando un residuo intatto
+            // dentro. Stessa identica condizione (textContent==='') gia'
+            // usata dal Caso 2 sotto per lo stesso motivo, mai estesa qui
+            // quando questo caso e' stato aggiunto il 2026-08-13. Un vicino
+            // vuoto NON scompare dal documento - resta esattamente dove
+            // stava, semplicemente escluso dal wrap (wrapStart/wrapEnd sotto
+            // si fermano prima di lui).
+            const wrapBefore = before && before.textContent !== '' ? before : null;
+            const wrapAfter = after && after.textContent !== '' ? after : null;
+            if (!wrapBefore && !wrapAfter) return false;
+            //
             // Ordine figli [before?, nuovo, after?]: quello che manca
             // (before o after, mai entrambi - vedi sopra) viene omesso,
             // sempre almeno 2 elementi per costruzione, coerente con
             // l'ordine di lettura sinistra-destra del documento.
             if (dispatch) {
               const newNode = createRowElementNode(schema, type);
-              const children = [...(before ? [before] : []), newNode, ...(after ? [after] : [])];
+              const children = [...(wrapBefore ? [wrapBefore] : []), newNode, ...(wrapAfter ? [wrapAfter] : [])];
               const rowNode = schema.nodes.row.create(null, children);
-              const wrapStart = before ? gapPos - before.nodeSize : gapPos;
-              const wrapEnd = after ? gapPos + after.nodeSize : gapPos;
+              const wrapStart = wrapBefore ? gapPos - wrapBefore.nodeSize : gapPos;
+              const wrapEnd = wrapAfter ? gapPos + wrapAfter.nodeSize : gapPos;
               tr.replaceWith(wrapStart, wrapEnd, rowNode);
               // +1 per entrare nella row appena creata, + la dimensione di
               // "before" (0 se assente) per superarlo, +1 per entrare nel
               // nuovo nodo - stesso schema TextSelection.near del Caso 2.
-              const offset = wrapStart + 1 + (before ? before.nodeSize : 0) + 1;
+              const offset = wrapStart + 1 + (wrapBefore ? wrapBefore.nodeSize : 0) + 1;
               tr.setSelection(TextSelection.near(tr.doc.resolve(offset)));
             }
             return true;
