@@ -1863,6 +1863,38 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         // strutturali, non la ricerca di selezione (verificato nel sorgente
         // di prosemirror-state: TextSelection.findFrom non consulta mai
         // NodeType.spec.isolating).
+        //
+        // Guardia vicolo cieco PRIMA di Selection.near (bug segnalato dal
+        // vivo 2026-08-13, "riga vuota + elemento vuoto isolato, la freccia
+        // oscilla all'infinito fra pausa e dentro l'elemento"): un box
+        // ISOLATO (nessuna row, genitore diretto il documento) al vero
+        // bordo assoluto del documento crea la sua pausa in exitBoxBoundary
+        // (Passo 2, "ieri" - mai passato da exitRowDocumentBoundary, la cui
+        // guardia isDocRow sopra quindi non lo riconosce e resta
+        // silenziosa) - la seconda pressione arriva quindi fino a QUESTO
+        // fallback, che chiama Selection.near con bias verso `dir`: se in
+        // quella direzione non c'e' NULLA (vero bordo del documento),
+        // Selection.near (a differenza di Selection.findFrom) ripiega da
+        // solo sulla direzione OPPOSTA pur di restituire una selezione
+        // valida - rientrando cosi' dentro il box appena lasciato. Preso
+        // singolarmente questo rientro sembra innocuo, ma la pausa che lo
+        // ha preceduto viene ricreata dalla pressione successiva (stesso
+        // meccanismo di exitBoxBoundary, invariato) - il risultato e'
+        // un'oscillazione infinita pausa/dentro a ogni pressione ripetuta
+        // della stessa freccia, mai risolvibile scorrendo oltre. Selection.
+        // findFrom (non .near) verifica SOLO la direzione richiesta, senza
+        // il ripiego automatico - null qui significa che siamo davvero a un
+        // vicolo cieco: resta fermi (return true, nessuna transazione,
+        // stesso pattern gia' usato per la pausa di riga stamattina) invece
+        // di lasciar rimbalzare Selection.near. Nessun impatto sul caso
+        // normale (testo reale raggiungibile in quella direzione, la
+        // stragrande maggioranza delle volte): li' findFrom trova subito
+        // quella posizione e il codice sotto prosegue identico a prima.
+        const $probe = editor.state.doc.resolve(selection.head);
+        if (!Selection.findFrom($probe, dir === 'before' ? -1 : 1)) {
+          return true;
+        }
+
         return editor
           .chain()
           .command(({ tr }) => {
