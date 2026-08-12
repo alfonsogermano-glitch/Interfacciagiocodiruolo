@@ -1630,14 +1630,42 @@ export const TextBoxEdgeCursorExtension = Extension.create({
     // il cui primo figlio e' un ALTRO box annidato si ferma anche
     // rientrandoci, non solo uscendone, stessa pausa "un livello alla
     // volta" gia' applicata in uscita.
-    const reenterBox = (selection: TextBoxEdgeCursor, box: { side: 'before' | 'after' }) =>
+    //
+    // Salto combinato SOLO per una row (bug segnalato 2026-08-12 sera,
+    // "3 pressioni per rientrare invece di 2, asimmetrico rispetto
+    // all'uscita"): landOrDive sopra si ferma correttamente sul bordo
+    // dell'item estremo quando quello e' esso stesso un box (isSideBySideBox,
+    // stessa pausa "un livello alla volta" gia' corretta per navigazione fra
+    // item della row o per un box VERO annidato dentro un altro) - ma
+    // rientrando in una ROW specificamente quel bordo coincide VISIVAMENTE
+    // col bordo della row stessa (nessun bordo/sfondo proprio, .tiptap-row
+    // in theme.css), esattamente lo stesso motivo per cui l'uscita
+    // (exitBoxBoundary che declina + exitRowDocumentBoundary sopra) salta
+    // GIA' in un solo balzo da dentro l'item estremo fino al bordo esterno
+    // della row, senza mai fermarsi sul bordo dell'item separatamente.
+    // isDocRow(box.node) (non un controllo su innerPos/target) individua
+    // esattamente e solo questo caso - box.node e' il vicino su cui
+    // adjacentBox si e' fermato per decidere di rientrare, quindi e' la row
+    // se e solo se si sta rientrando in una row da fuori (mai per un
+    // TextBox/Collapse/Table veri, che restano invariati - stesso comando,
+    // stessa pausa "un livello alla volta" di sempre per loro). Se il primo
+    // landOrDive NON si e' fermato (item estremo non e' un box, es. un
+    // paragrafo o una tabella che landOrDive attraversa gia' da sola) target
+    // e' gia' testo reale - nessun salto ulteriore, nessuna differenza dal
+    // comportamento di ieri.
+    const reenterBox = (selection: TextBoxEdgeCursor, box: { node: ProseMirrorNode; side: 'before' | 'after' }) =>
       editor
         .chain()
         .command(({ tr }) => {
           const pos = selection.head;
           const dir: 'before' | 'after' = box.side === 'after' ? 'after' : 'before';
           const innerPos = box.side === 'after' ? pos + 1 : pos - 1;
-          tr.setSelection(landOrDive(tr.doc, innerPos, dir));
+          let target = landOrDive(tr.doc, innerPos, dir);
+          if (isDocRow(box.node) && target instanceof TextBoxEdgeCursor) {
+            const deeperPos = dir === 'after' ? innerPos + 1 : innerPos - 1;
+            target = landOrDive(tr.doc, deeperPos, dir);
+          }
+          tr.setSelection(target);
           return true;
         })
         .scrollIntoView()
