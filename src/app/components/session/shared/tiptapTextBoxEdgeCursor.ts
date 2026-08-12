@@ -998,32 +998,36 @@ export function exitTableBoundary(editor: Editor, dir: 'before' | 'after'): bool
 //
 // REVISIONE 2026-08-12 (richiesta esplicita utente, cambio di design netto
 // rispetto alla Fase 2 di stamattina, commit 566fcdc/f1dfe11): la seconda
-// pressione della STESSA freccia dalla stessa pausa NON deve piu' fare
-// nulla di ulteriore - niente escalation verso jumpOrInsertAtContainerBoundary.
-// La pausa resta ferma indefinitamente; gli unici modi di procedere da li'
-// sono il pulsante di inserimento (gia' cablato altrove) o Invio (che
-// materializza un paragrafo tramite l'handler generico di
-// TextBoxEdgeCursorExtension, invariato). Creare una riga sopra/sotto con le
-// frecce non e' piu' un comportamento supportato - l'utente la crea con
-// Invio, come in un editor di testo standard.
+// pressione della STESSA freccia dalla stessa pausa NON deve materializzare
+// ne' saltare sopra la row - MA questo vale solo per la pausa "vicolo
+// cieco" (nessun vicino reale sul lato richiesto, il Caso B sopra): li' la
+// pausa resta ferma indefinitamente, gli unici modi di procedere sono il
+// pulsante di inserimento o Invio (che materializza un paragrafo tramite
+// l'handler generico di TextBoxEdgeCursorExtension). Creare una riga sopra/
+// sotto con le frecce non e' un comportamento supportato - l'utente la crea
+// con Invio, come in un editor di testo standard.
 //
-// return TRUE (non false) sul ramo sotto, non un semplice no-op silenzioso:
-// questa funzione e' raggiunta anche dalla catena di prosecuzione di
-// TextBoxEdgeCursorExtension.exitArrow (stessa pausa, stesso tasto,
-// TextBoxEdgeCursorExtension.ts piu' sotto in questo file), che in caso di
-// `false` qui prosegue fino al proprio fallback finale (Selection.near
-// generica, bias nella direzione richiesta con ricerca automatica anche
-// nell'altra se la prima fallisce) - verificato dal vivo 2026-08-12: senza
-// questo `return true`, la seconda freccia da questa pausa REBALZAVA dentro
-// il testo del box invece di restare ferma (Selection.near su un `head`
-// gia' al margine assoluto del documento non trova nulla nella direzione
-// richiesta e ripiega sull'unica posizione che esiste, quella da cui si
-// era appena usciti). `return true` senza alcuna transazione dichiara il
-// tasto "gestito" e ferma la catena esattamente qui, lasciando la
-// selezione invariata. Guardia isDocRow(row) invariata: resta l'unico
-// controllo che questa pausa sia davvero "nostra" (bordo di una row),
-// altrimenti si resta silenziosi (false) per non intercettare tasti non di
-// competenza.
+// CORREZIONE 2026-08-12 sera (la revisione sopra era stata applicata a
+// ENTRAMBI i rami della pausa, non solo al vicolo cieco): quando invece un
+// vicino REALE esiste gia' sul lato richiesto (es. il paragrafo garantito
+// da TrailingNode dopo l'ultima riga, pausato da pauseAtIsolatingBoundary
+// piu' sotto in questa stessa funzione), la seconda pressione DEVE entrare
+// in quel vicino - non si sta creando nulla di nuovo, solo spostandosi in
+// contenuto che esiste gia', esattamente il comportamento di sempre
+// (jumpOrInsertAtContainerBoundary) mai stato in discussione. Le due pause
+// sono indistinguibili dal solo controllo isDocRow(row) sopra (vede solo il
+// lato "da cui si e' usciti", mai il lato "verso cui si sta andando") -
+// serve un controllo separato sul lato opposto: realNeighbor e'
+// $pos.nodeBefore/nodeAfter dalla parte di `dir`, il lato che
+// pauseAtIsolatingBoundary aveva gia' verificato per decidere se pausare
+// qui la prima volta. Se assente, vicolo cieco confermato: return true
+// senza transazione (non un semplice no-op silenzioso: questa funzione e'
+// raggiunta anche dalla catena di TextBoxEdgeCursorExtension.exitArrow, che
+// con `false` qui prosegue fino al proprio fallback Selection.near generico
+// - verificato dal vivo 2026-08-12: senza questo `return true` la freccia
+// rimbalzava dentro il testo del box invece di restare ferma). Se presente,
+// jumpOrInsertAtContainerBoundary(selection.head, dir) - col vicino gia'
+// verificato esistente, il suo ramo "insert" non scatta mai qui.
 export function exitRowDocumentBoundary(editor: Editor, dir: 'before' | 'after'): boolean {
   const { selection, doc } = editor.state;
   if (!selection.empty) return false;
@@ -1032,7 +1036,10 @@ export function exitRowDocumentBoundary(editor: Editor, dir: 'before' | 'after')
     const $pos = doc.resolve(selection.head);
     const row = dir === 'before' ? $pos.nodeAfter : $pos.nodeBefore;
     if (!row || !isDocRow(row)) return false;
-    return true;
+
+    const realNeighbor = dir === 'before' ? $pos.nodeBefore : $pos.nodeAfter;
+    if (!realNeighbor) return true;
+    return jumpOrInsertAtContainerBoundary(editor, selection.head, dir);
   }
 
   const $from = selection.$from;
