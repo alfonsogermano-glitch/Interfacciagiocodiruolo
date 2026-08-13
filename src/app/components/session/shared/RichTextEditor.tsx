@@ -17,7 +17,7 @@ import { RowResizeExtension } from './tiptapRowResize';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { DropCleanup } from './tiptapDropCleanup';
 import { RowCollapseCleanup } from './tiptapRowCollapseCleanup';
-import { TextBoxEdgeCursorExtension, isAtRowStart, isAtRowEnd, findCellAncestorDepth } from './tiptapTextBoxEdgeCursor';
+import { TextBoxEdgeCursorExtension, TextBoxEdgeCursor, adjacentBox, isAtRowStart, isAtRowEnd, findCellAncestorDepth } from './tiptapTextBoxEdgeCursor';
 import { TipTapTableMenu } from './TipTapTableMenu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 // @tiptap/extension-underline non va importato/aggiunto qui: StarterKit lo
@@ -815,8 +815,49 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // nuovo documento (vedi sorgente @tiptap/core), quindi e' sicuro
     // riapplicare la stessa posizione anche se il nuovo testo e' piu' corto.
     const { from, to } = editor.state.selection;
+    // wasEdgeCursor catturato PRIMA di setContent (bug segnalato dal vivo
+    // 2026-08-13, "digitare alla pausa del bordo assoluto di una row la fa
+    // atterrare dentro la row invece che prima di essa"): setTextSelection
+    // sotto crea sempre una TextSelection - se `from` era il gap di una
+    // TextBoxEdgeCursor (una posizione FRA blocchi, mai una posizione di
+    // testo valida per costruzione), TextSelection.create/near la aggancia
+    // alla posizione di testo valida PIU' VICINA invece di lasciarla al
+    // bordo - verificato dal vivo: la pausa spariva silenziosamente,
+    // sostituita da un cursore vero dentro il box/row adiacente, pronto a
+    // ricevere il prossimo carattere digitato al posto della pausa. Questo
+    // sync esterno (autosave/realtime/refetch) puo' scattare nella finestra
+    // fra la freccia che crea la pausa e il carattere successivo (l'eco di
+    // un salvataggio precedente puo' arrivare fino a ~1200ms dopo, vedi
+    // recentLocalEditRef in useEntityTabs.ts) - il pulsante di inserimento
+    // non soffre dello stesso problema perche' e' un click sincrono,
+    // istantaneo, mai in corsa con un sync esterno.
+    const wasEdgeCursor = editor.state.selection instanceof TextBoxEdgeCursor;
     editor.commands.setContent(migratedRichContent, { emitUpdate: false });
-    editor.commands.setTextSelection({ from, to });
+
+    // adjacentBox (stessa funzione che tiptapTextBoxEdgeCursor.ts usa altrove
+    // per riconoscere una pausa RIENTRABILE, non reinventata qui) verifica
+    // che `from` sia ANCORA un gap valido nel documento appena arrivato
+    // dall'esterno - un salvataggio concorrente puo' aver cambiato esattamente
+    // il vicino da cui dipendeva la pausa (es. l'altro box e' stato rimosso),
+    // nel qual caso il gap non e' piu' valido: si ricade sul comportamento di
+    // sempre (setTextSelection sotto, invariato) invece di ricreare una pausa
+    // fantasma su un bordo che non esiste piu'. Bound check esplicito prima di
+    // resolve() - from e' una posizione del VECCHIO documento, il nuovo puo'
+    // essere piu' corto, resolve() lancia RangeError fuori range.
+    const restoredEdgeCursor =
+      wasEdgeCursor && from <= editor.state.doc.content.size && adjacentBox(editor.state.doc.resolve(from));
+    if (restoredEdgeCursor) {
+      // command (non chain().scrollIntoView()) - stesso schema minimo gia'
+      // usato per settare selezioni in questo file, nessuno scroll: questo
+      // effect sincronizza un doc esterno mentre l'utente e' fermo sulla
+      // pausa, non e' una navigazione che meriti di scrollare la vista.
+      editor.commands.command(({ tr }) => {
+        tr.setSelection(new TextBoxEdgeCursor(tr.doc.resolve(from)));
+        return true;
+      });
+    } else {
+      editor.commands.setTextSelection({ from, to });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [richContent]);
 
