@@ -11,7 +11,7 @@ import type { Node as ProseMirrorNode, NodeType, ResolvedPos, Schema } from '@ti
 // sola classe di selezione. isFlexSiblingContainer aggiunta al Passo 3
 // (piano confermato 2026-08-13, Problema A+B): distingue Caso 1a/1b, vedi
 // commento sul Caso 1 sotto.
-import { TextBoxEdgeCursor, isFlexSiblingContainer } from './tiptapTextBoxEdgeCursor';
+import { TextBoxEdgeCursor, isFlexSiblingContainer, insertRowItemBesideRow } from './tiptapTextBoxEdgeCursor';
 
 // Fase 1 del progetto "affiancamento a livello documento" (piano confermato
 // 2026-08-07): solo schema + rendering CSS, NESSUNA navigazione/drag&drop/
@@ -263,21 +263,18 @@ export const Row = Node.create({
             // Caso 1b sotto la annidrebbe dentro se stessa; il nuovo
             // elemento va invece INSERITO come primo/ultimo figlio della
             // row esistente, mai in una row-wrapper aggiuntiva.
-            if (before && before.type === schema.nodes.row) {
+            // insertRowItemBesideRow (tiptapTextBoxEdgeCursor.ts, round
+            // 2026-08-13 pomeriggio): stessa identica regola/posizione ora
+            // riusata anche da handleTextInput/handlePaste li' (bug
+            // "digitare/incollare alla pausa crea un paragrafo fratello
+            // invece di affiancarsi dentro la row") - fattorizzata qui,
+            // invece di duplicata, cosi' le due implementazioni non possono
+            // divergere in futuro.
+            if ((before && before.type === schema.nodes.row) || (after && after.type === schema.nodes.row)) {
               if (dispatch) {
                 const newNode = createRowElementNode(schema, type);
-                const insertAt = gapPos - 1; // dentro `before`, dopo il suo ultimo figlio
-                tr.insert(insertAt, newNode);
-                tr.setSelection(TextSelection.near(tr.doc.resolve(insertAt + 1)));
-              }
-              return true;
-            }
-            if (after && after.type === schema.nodes.row) {
-              if (dispatch) {
-                const newNode = createRowElementNode(schema, type);
-                const insertAt = gapPos + 1; // dentro `after`, prima del suo primo figlio
-                tr.insert(insertAt, newNode);
-                tr.setSelection(TextSelection.near(tr.doc.resolve(insertAt + 1)));
+                const insertAt = insertRowItemBesideRow(tr, gapPos, before, after, schema.nodes.row, newNode);
+                if (insertAt != null) tr.setSelection(TextSelection.near(tr.doc.resolve(insertAt)));
               }
               return true;
             }

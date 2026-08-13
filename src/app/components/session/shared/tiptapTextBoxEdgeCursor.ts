@@ -1,7 +1,8 @@
 import { Extension, type Editor } from '@tiptap/core';
-import { Selection, Plugin, PluginKey } from '@tiptap/pm/state';
+import { Selection, TextSelection, Plugin, PluginKey } from '@tiptap/pm/state';
+import type { Transaction } from '@tiptap/pm/state';
 import { Slice } from '@tiptap/pm/model';
-import type { Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model';
+import type { Node as ProseMirrorNode, NodeType, ResolvedPos } from '@tiptap/pm/model';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import type { Mapping } from '@tiptap/pm/transform';
 import { GapCursor } from '@tiptap/pm/gapcursor';
@@ -1504,6 +1505,45 @@ type EdgeCursorRowPauseState = { pos: number; dir: 'before' | 'after'; wrapped: 
 // prosecuzione oltre).
 const textBoxEdgeCursorPluginKey = new PluginKey<EdgeCursorRowPauseState>('textBoxEdgeCursor');
 
+// Posizione di inserimento condivisa fra addElementBeside (tiptapRow.ts,
+// Caso 1b-bis) e handleTextInput/handlePaste sotto (bug segnalato dal vivo
+// 2026-08-13, "digitare/incollare alla pausa del bordo assoluto di una row
+// crea un paragrafo fratello invece di affiancarsi dentro la row, come fa
+// gia' correttamente il pulsante"): STESSA regola in entrambi i casi, "se il
+// vicino della pausa e' la row stessa (prima o dopo), il nuovo elemento va
+// DENTRO quella row, mai in una row-wrapper aggiuntiva a livello documento" -
+// vedi Caso 1b-bis in tiptapRow.ts per la storia completa del perche' questa
+// regola esiste. Qui vive in tiptapTextBoxEdgeCursor.ts (non in tiptapRow.ts,
+// che gia' dipende da questo file, mai il contrario - vedi commento
+// sull'import di TextBoxEdgeCursor li') cosi' sia addElementBeside sia
+// handleTextInput/handlePaste possono chiamarla senza dipendenza circolare.
+// Costruzione del nodo lasciata al chiamante (un box vuoto per il pulsante,
+// un paragrafo con testo/marchi gia' dentro per la digitazione/incolla) -
+// solo il CALCOLO della posizione e' condiviso, l'ESITO no. Ritorna la
+// posizione DENTRO il nodo appena inserito (per costruire li' la selezione
+// successiva), o null se ne' before ne' after e' una row: in quel caso il
+// chiamante deve ricadere sul proprio comportamento di sempre.
+export function insertRowItemBesideRow(
+  tr: Transaction,
+  gapPos: number,
+  before: ProseMirrorNode | null,
+  after: ProseMirrorNode | null,
+  rowType: NodeType,
+  node: ProseMirrorNode
+): number | null {
+  if (before && before.type === rowType) {
+    const insertAt = gapPos - 1; // dentro `before`, dopo il suo ultimo figlio
+    tr.insert(insertAt, node);
+    return insertAt + 1;
+  }
+  if (after && after.type === rowType) {
+    const insertAt = gapPos + 1; // dentro `after`, prima del suo primo figlio
+    tr.insert(insertAt, node);
+    return insertAt + 1;
+  }
+  return null;
+}
+
 export const TextBoxEdgeCursorExtension = Extension.create({
   name: 'textBoxEdgeCursor',
   addProseMirrorPlugins() {
@@ -1556,6 +1596,88 @@ export const TextBoxEdgeCursorExtension = Extension.create({
                 { key: 'textBoxEdgeCursor' }
               ),
             ]);
+          },
+
+          // Digitazione alla pausa (bug segnalato dal vivo 2026-08-13,
+          // "va nella riga sopra/sotto invece che dentro la row"):
+          // Selection.replace()/tr.replaceRange() (percorso nativo, mai
+          // toccato qui) non sa nulla della regola "il vicino della pausa e'
+          // una row intera, il nuovo contenuto va dentro di essa" - la
+          // conosce solo addElementBeside (Caso 1b-bis, tiptapRow.ts).
+          // handleTextInput e' il punto ProseMirror pensato esattamente per
+          // intercettare la digitazione PRIMA che il percorso nativo la
+          // gestisca (verificato nel sorgente, prosemirror-view: l'handler
+          // keypress consulta questo prop ogni volta che la selezione NON e'
+          // una TextSelection, esattamente il caso di TextBoxEdgeCursor,
+          // PRIMA di ricadere su tr.insertText). Guardia in testa identica
+          // alle altre in questo file: se la selezione non e' la nostra
+          // pausa, false immediato, zero costo/interferenza sul percorso
+          // comune (digitazione normale altrove nel documento).
+          //
+          // insertRowItemBesideRow ritorna null quando ne' before ne' after
+          // e' una row (es. pausa verso un box isolato, o vero vicolo cieco
+          // senza alcun vicino) - in quei casi si ritorna false: il
+          // comportamento nativo (Selection.replace) resta l'unico applicato,
+          // esattamente come per il caso di controllo gia' funzionante
+          // (pausa fra due item della stessa row, dove il vicino e' un box,
+          // non una row).
+          //
+          // text sempre non vuoto per costruzione in questo punto di innesco
+          // (keypress, event.charCode gia' verificato troncante a monte da
+          // ProseMirror) - il controllo esplicito resta comunque, difensivo
+          // allo stesso modo delle altre guardie in questo file: schema.text
+          // lancia se chiamato con stringa vuota.
+          handleTextInput(view, _from, _to, text) {
+            if (!text) return false;
+            const { state } = view;
+            const { selection, schema } = state;
+            if (!(selection instanceof TextBoxEdgeCursor)) return false;
+            const rowType = schema.nodes.row;
+            if (!rowType) return false;
+
+            const gapPos = selection.head;
+            const $gap = state.doc.resolve(gapPos);
+            const paragraph = schema.nodes.paragraph.create(null, schema.text(text));
+            const tr = state.tr;
+            const insertAt = insertRowItemBesideRow(tr, gapPos, $gap.nodeBefore, $gap.nodeAfter, rowType, paragraph);
+            if (insertAt == null) return false;
+
+            tr.setSelection(TextSelection.near(tr.doc.resolve(insertAt + paragraph.content.size)));
+            view.dispatch(tr.scrollIntoView());
+            return true;
+          },
+
+          // Incolla alla pausa - stessa identica regola di handleTextInput
+          // sopra, ma handlePaste e' un hook COMPLETAMENTE separato in
+          // prosemirror-view (doPaste non consulta mai handleTextInput):
+          // senza questo, incollare testo alla pausa continuerebbe a produrre
+          // lo stesso bug anche dopo il fix sopra. Ristretto al caso comune
+          // (slice con un solo blocco testuale, es. una frase/parola copiata
+          // - childCount 1 e isTextblock) - uno slice con piu' blocchi
+          // (incolla multi-paragrafo) resta fuori scope, ricade sul
+          // comportamento nativo di sempre: nessuna regressione li', solo non
+          // esteso. single.content (non testo semplice ricostruito a mano)
+          // preserva i marchi (grassetto/corsivo) eventualmente copiati.
+          handlePaste(view, _event, slice) {
+            const { state } = view;
+            const { selection, schema } = state;
+            if (!(selection instanceof TextBoxEdgeCursor)) return false;
+            if (slice.content.childCount !== 1) return false;
+            const single = slice.content.firstChild;
+            if (!single || !single.isTextblock) return false;
+            const rowType = schema.nodes.row;
+            if (!rowType) return false;
+
+            const gapPos = selection.head;
+            const $gap = state.doc.resolve(gapPos);
+            const paragraph = schema.nodes.paragraph.create(null, single.content);
+            const tr = state.tr;
+            const insertAt = insertRowItemBesideRow(tr, gapPos, $gap.nodeBefore, $gap.nodeAfter, rowType, paragraph);
+            if (insertAt == null) return false;
+
+            tr.setSelection(TextSelection.near(tr.doc.resolve(insertAt + paragraph.content.size)));
+            view.dispatch(tr.scrollIntoView().setMeta('paste', true));
+            return true;
           },
         },
         // Rimisura/corregge SOLO quando il cursore finto compare o cambia
