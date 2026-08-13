@@ -497,6 +497,58 @@
   flex: 1 1 0;
   min-width: 64px;
 }
+/* Paragrafi in una row: larghezza ADATTIVA al contenuto (shrink-to-fit),
+   non una quota uguale come TextBox/Collapse/Tabella sopra (richiesta
+   utente, round 2026-08-13 sera) - flex-grow:0 lo esclude dalla
+   distribuzione dello spazio libero (i fratelli con flex-grow:1 sopra si
+   dividono TUTTO lo spazio non occupato dai paragrafi, comportamento
+   flexbox nativo, nessun calcolo JS necessario), flex-shrink:1 lo lascia
+   comunque restringibile sotto pressione (riga stretta, molti elementi).
+   flex-basis:auto (non 100%, il valore del bug Fase 5a corretto sopra):
+   auto usa la dimensione shrink-to-fit del contenuto per l'hypothetical
+   main size - fondamentalmente diverso da 100% (che forzava l'intera
+   riga, mai affiancabile).
+   max-width:75% (bug verificato dal vivo, round 2026-08-13 sera: senza
+   questo, un SOLO paragrafo il cui testo - letto su una riga sola, senza
+   andare a capo - eccede la larghezza della riga reintroduce ESATTAMENTE
+   il bug Fase 5a per un motivo diverso: l'hypothetical main size con
+   basis:auto e' il MAX-CONTENT del testo, non la dimensione finale dopo
+   lo shrink - se supera la riga da solo, flex-wrap manda il fratello
+   affiancato a capo SOTTO invece di lasciarlo ristretto sulla stessa
+   riga, prima ancora di provare a restringere). Stessa clamping gia'
+   sfruttata da min-width sopra ("flex-basis clampata da min-width/
+   max-width" - Fase 5a) ma sul lato opposto: max-width:75% limita
+   l'hypothetical size del paragrafo a non oltrepassare mai i 3/4 della
+   riga, lasciando sempre margine per almeno un altro rowItem (min-width
+   64px) sulla stessa riga - il testo eccedente va a capo INTERNAMENTE
+   al paragrafo (comportamento shrink-to-fit atteso), mai piu' il
+   fratello a capo sotto. Percentuale (non un px fisso): deve restare
+   proporzionale alla riga qualunque sia la sua larghezza reale
+   (ridimensionabile).
+   min-width:0 (non 64px come sopra): un paragrafo cortissimo ("a") non
+   deve avere uno zoccolo minimo arbitrario - il testo va comunque a capo
+   normalmente alla parola (comportamento nativo di un blocco di testo),
+   la riga non trabocca per lo stesso motivo per cui non traboccava mai
+   prima che diventasse un item flex. Selettore ristretto a
+   .tiptap-row-flex (mai .tiptap-td-flex/.tiptap-textbox-content/
+   .tiptap-collapse-body): un paragrafo affiancato dentro una cella di
+   tabella o dentro un altro box resta fuori scope di questa richiesta,
+   invariato (flex:1 1 100% dal blocco piu' sopra in questo file).
+   :not(.tiptap-textbox-edge-cursor) RIPETUTO qui (bug verificato dal vivo:
+   con solo ".tiptap-row-flex > p" il paragrafo restava largo quanto un
+   item flex:1 1 0 qualunque, la regola sopra vinceva) - non per escludere
+   davvero il cursore finto (mai un <p>, e' uno <span>, gia' innocuo da
+   solo), ma per SPECIFICITA': :not(X) conta come la specificita' di X
+   stesso (una classe, 0-1-0) per la selettore Selectors L3/4 - il
+   selettore sopra e' quindi .tiptap-row-flex(0-1-0) + *:not(classe)
+   (0-1-0) = 0-2-0, che batte .tiptap-row-flex(0-1-0) + p(0-0-1) = 0-1-1
+   da solo. Ripetendo la stessa esclusione qui la specificita' sale a
+   0-2-1, che vince. */
+.tiptap-row-flex > p:not(.tiptap-textbox-edge-cursor) {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 75%;
+}
 /* Larghezza minima di default finche' la colonna non e' stata
    ridimensionata esplicitamente (data-colwidth assente) o non e' in corso
    il trascinamento - stessa condizione usata dal CSS di riferimento di
