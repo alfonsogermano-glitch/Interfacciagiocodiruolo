@@ -121,6 +121,128 @@ function readEffectiveGrow(view: EditorView, itemPos: number): number {
   return rowGrow ?? 1;
 }
 
+// Floor nativo della tabella: somma delle larghezze di colonna attuali
+// (colgroup, gia' clampate a cellMinWidth=25 dal resize colonna nativo
+// di prosemirror-tables se l'utente ne ha mai trascinata una) o 25px di
+// default per ogni colonna non ancora ridimensionata individualmente -
+// stesso valore di cellMinWidth (columnResizing, prosemirror-tables,
+// mai configurato in questo codebase, vedi tiptapTableHandle.ts).
+// Deciso in fase di pianificazione FIX 2 (punto 4): la tabella NON va
+// mai misurata con la tecnica width:min-content usata sotto per il
+// resto - table-layout:fixed rende quel numero poco significativo, la
+// fonte di verita' e' colgroup.
+function measureTableNativeMin(tableWrapper: HTMLElement): number {
+  const table = tableWrapper.querySelector('table');
+  const cols = table?.querySelectorAll('colgroup col') ?? [];
+  if (cols.length === 0) return 25;
+  let sum = 0;
+  cols.forEach((col) => {
+    const w = parseFloat((col as HTMLElement).style.width);
+    sum += Number.isFinite(w) ? Math.max(w, 25) : 25;
+  });
+  return sum;
+}
+
+// Minimo REALE di un elemento del confine del drag (Fase 5c, piano
+// confermato 2026-08-09 - aggiornato 2026-08-14, "il minimo raggiungibile
+// deve tenere conto ricorsivamente del minimo reale di tutto cio' che
+// contiene"): con min-width:0 (theme.css) il CSS non esprime piu' alcun
+// floor riutilizzabile per il clamp del drag - getComputedStyle(el).minWidth
+// restituirebbe quasi sempre 0, lasciando il drag libero di scendere
+// sotto il minimo reale di un elemento con figli annidati (row dentro
+// TextBox dentro row, "Problema A" del progetto affiancamento),
+// causando l'overflow visivo dei figli oltre il proprio contenitore -
+// gia' misurato dal vivo in fase di indagine (bordo destro dei figli
+// annidati oltre il bordo destro del contenitore esterno).
+//
+// Tecnica: chiedere al BROWSER il min-content reale (width:min-content)
+// di un CLONE fuori dal flusso, invece di reimplementare a mano la
+// ricorsione bottom-up (prima bozza del piano, scartata durante
+// l'implementazione dopo aver riletto .tiptap-collapse in theme.css: e'
+// display:flex con una freccina SEMPRE visibile come vero item flex
+// oltre al contenuto, non solo padding/bordo - un calcolo manuale
+// avrebbe dovuto enumerare a mano ogni extra del genere per ogni tipo
+// di blocco, con rischio concreto di dimenticarne uno). Il motore di
+// layout nativo gestisce gia' correttamente, per qualunque contenitore
+// con flex-wrap:wrap annidato, la semantica "il minimo e' il figlio piu'
+// esigente, non la somma" (i fratelli eccedenti si impilano, spec CSS
+// Flexbox), oltre a padding/bordo/gap/elementi-sempre-visibili e
+// all'attraversamento trasparente di wrapper come .react-renderer
+// (ReactNodeViewRenderer per CollapseBlock - .tiptap-collapse e' un
+// livello piu' in profondita', vedi il commento su rowGrow in
+// tiptapBlocks.tsx) senza bisogno di riconoscerli esplicitamente: basta
+// misurare il min-content dell'elemento del confine cosi' com'e'.
+//
+// Unica eccezione voluta: la TABELLA (measureTableNativeMin sopra) -
+// ogni .tableWrapper annidato, a qualunque profondita', viene
+// "congelato" alla propria larghezza minima nativa PRIMA di chiedere il
+// min-content del resto, cosi' la misura complessiva la rispetta senza
+// provare a restringerla oltre.
+function computeRealMinWidth(liveEl: HTMLElement): number {
+  if (liveEl.classList.contains('tableWrapper')) return measureTableNativeMin(liveEl);
+
+  const clone = liveEl.cloneNode(true) as HTMLElement;
+
+  // min-width:auto (non 0, il default di FIX 1/theme.css) su OGNI
+  // discendente del clone: min-width:0 e' pensato per lo SHRINK a runtime
+  // di una row gia' stretta, ma un min-width esplicito puo' influenzare
+  // anche il calcolo del min-content stesso di un contenitore flex (non
+  // solo il comportamento di restringimento) - min-width:auto ripristina
+  // la risoluzione automatica "min-content del contenuto reale", che e'
+  // esattamente cio' che questa misura deve riflettere. Applicato qui
+  // (sul clone, mai sull'elemento live) quindi a costo zero per il resto
+  // dell'editor.
+  clone.querySelectorAll<HTMLElement>('*').forEach((node) => {
+    node.style.minWidth = 'auto';
+  });
+
+  clone.querySelectorAll<HTMLElement>('.tableWrapper').forEach((tableClone) => {
+    const nativeMin = measureTableNativeMin(tableClone);
+    tableClone.style.width = `${nativeMin}px`;
+    tableClone.style.flexBasis = `${nativeMin}px`;
+    tableClone.style.flexGrow = '0';
+    tableClone.style.flexShrink = '0';
+  });
+
+  // position:absolute (fuori dal flusso per definizione, indipendentemente
+  // da dove viene appeso nel DOM) evita due problemi verificati dal vivo
+  // in fase di indagine/revisione: (1) mutare lo stile dell'elemento LIVE
+  // dentro la sua row-flex reale sposterebbe visibilmente anche i
+  // fratelli non coinvolti nel drag per la durata della misura (lo stesso
+  // contenitore flex li ridistribuirebbe tutti in risposta); (2) il
+  // MutationObserver di ProseMirror potrebbe interpretare quella
+  // mutazione come una modifica esterna da correggere (rischio gia' visto
+  // in fase di indagine manipolando lo stile di elementi live per testare
+  // il comportamento pre-implementazione). Un clone non fa mai parte
+  // dell'albero che ProseMirror osserva/gestisce, quindi nessuno dei due
+  // rischi si applica. maxWidth:none neutralizza il max-width:75% dei
+  // paragrafi di riga (altrimenti clamperebbe la misura invece di
+  // lasciar emergere il vero min-content, se l'elemento misurato e'
+  // proprio un paragrafo di riga).
+  clone.style.position = 'absolute';
+  clone.style.visibility = 'hidden';
+  clone.style.pointerEvents = 'none';
+  clone.style.left = '-99999px';
+  clone.style.top = '0';
+  clone.style.margin = '0';
+  clone.style.width = 'min-content';
+  clone.style.maxWidth = 'none';
+
+  // Ancorato dentro lo stesso .tiptap-content (mai document.body): quasi
+  // tutti i selettori di questo progetto sono scoped a ".tiptap-content
+  // X" - il clone deve restare discendente per ereditare font/spaziatura/
+  // custom properties (es. --tiptap-box-gap) reali, altrimenti
+  // min-content misurerebbe con gli stili di default del browser invece
+  // di quelli effettivi dell'editor.
+  const host = liveEl.closest<HTMLElement>('.tiptap-content') ?? document.body;
+  host.appendChild(clone);
+  try {
+    return clone.getBoundingClientRect().width;
+  } finally {
+    host.removeChild(clone);
+  }
+}
+
 function startDragSession(view: EditorView, pair: EdgePair, startX: number): DragSession {
   const leftRect = pair.leftEl.getBoundingClientRect();
   const rightRect = pair.rightEl.getBoundingClientRect();
@@ -131,8 +253,8 @@ function startDragSession(view: EditorView, pair: EdgePair, startX: number): Dra
     rightItemPos: pair.rightItemPos,
     startX,
     totalWidth: leftRect.width + rightRect.width,
-    minLeftWidth: parseFloat(getComputedStyle(pair.leftEl).minWidth) || 0,
-    minRightWidth: parseFloat(getComputedStyle(pair.rightEl).minWidth) || 0,
+    minLeftWidth: computeRealMinWidth(pair.leftEl),
+    minRightWidth: computeRealMinWidth(pair.rightEl),
     sumGrow: readEffectiveGrow(view, pair.leftItemPos) + readEffectiveGrow(view, pair.rightItemPos),
     leftStartWidth: leftRect.width,
   };
@@ -149,13 +271,14 @@ function computeGrowPair(session: DragSession, clientX: number): { leftGrow: num
   if (totalWidth < minLeftWidth + minRightWidth) {
     // Caso limite (segnalato in fase di pianificazione): nessuno spazio
     // libero da ridistribuire, il drag non ha alcun effetto invece di
-    // produrre un clamp invertito/degenere. Da min-width:0 (theme.css,
-    // 2026-08-14) minLeftWidth/minRightWidth letti da getComputedStyle
-    // sono quasi sempre 0 per TextBox/Collapse/paragrafo/tabella (il
-    // floor vero e proprio - padding/bordo, cellMinWidth nativo - non e'
-    // espresso nel CSS min-width e quindi non e' visibile qui): il ramo
-    // sotto resta percio' ancora piu' teorico di prima, praticamente
-    // mai raggiunto.
+    // produrre un clamp invertito/degenere. Da FIX 2 (computeRealMinWidth,
+    // 2026-08-14) minLeftWidth/minRightWidth sono di nuovo numeri reali
+    // (il minimo ricorsivo misurato dal vivo, non piu' quasi-sempre-0 di
+    // getComputedStyle dopo il solo FIX 1) - questo ramo torna quindi
+    // raggiungibile per davvero quando entrambi i lati del confine hanno
+    // gia' contenuto annidato che li spinge vicino al proprio minimo
+    // cumulativo, non solo teorico come nella fase intermedia fra i due
+    // fix.
     return { leftGrow: readGrowFromStyle(session.leftEl) ?? sumGrow / 2, rightGrow: readGrowFromStyle(session.rightEl) ?? sumGrow / 2 };
   }
   const delta = clientX - startX;
