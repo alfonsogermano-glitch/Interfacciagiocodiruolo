@@ -88,6 +88,39 @@ function computeEdgePair(view: EditorView, event: MouseEvent): EdgePair | null {
   return null;
 }
 
+// Riusa la coppia gia' rilevata dall'ultimo mousemove in hover
+// (pluginState.active) invece di rifare da zero, a mousedown, la stessa
+// finestra di 5px di computeEdgePair sulle coordinate ESATTE del click -
+// bug segnalato dal vivo 2026-08-15 (dopo i due fix del giorno prima,
+// "resize legnoso, serve ripetere il tentativo"): un mouse fisico sposta
+// il cursore di qualche pixel nell'atto stesso di premere il tasto, e
+// quella tolleranza gia' stretta usata per l'hover non lasciava alcun
+// margine ulteriore al click - il pluginState.active restava vero
+// un istante prima ma computeEdgePair, richiamato sulle coordinate del
+// click leggermente spostate, falliva silenziosamente (return null),
+// annullando un aggancio che visivamente era gia' avvenuto (cursore di
+// resize gia' visibile). view.nodeDOM(pos) e' lo stesso approccio gia'
+// in uso in tiptapRowDrop.ts (resolveRowDropItem + view.nodeDOM per
+// risolvere il DOM di un item da una posizione nota) - qui pero' NON
+// richiede affatto che il click cada nella finestra di 5px, si fida
+// della coppia gia' verificata dall'hover.
+//
+// sameFlexLine ripetuto qui (non solo dentro computeEdgePair) come unica
+// guardia di sicurezza necessaria: fra l'ultimo mousemove che ha
+// impostato "active" e il mousedown il documento potrebbe essere
+// cambiato (resize della finestra che manda la riga a capo diversamente,
+// modifica concorrente, ecc.) - se i due item non sono piu' sulla stessa
+// riga visiva, la coppia non e' piu' valida e si ricade sul fallback
+// stretto invece di avviare un drag su un confine che non esiste piu'
+// cosi' com'era.
+function resolveEdgePairFromActive(view: EditorView, active: NonNullable<RowResizeState['active']>): EdgePair | null {
+  const leftEl = view.nodeDOM(active.leftItemPos);
+  const rightEl = view.nodeDOM(active.rightItemPos);
+  if (!(leftEl instanceof HTMLElement) || !(rightEl instanceof HTMLElement)) return null;
+  if (!sameFlexLine(leftEl, rightEl)) return null;
+  return { leftEl, rightEl, leftItemPos: active.leftItemPos, rightItemPos: active.rightItemPos };
+}
+
 function setActive(view: EditorView, active: RowResizeState['active']) {
   view.dispatch(view.state.tr.setMeta(rowResizePluginKey, { setActive: active }));
 }
@@ -385,12 +418,17 @@ export const RowResizeExtension = Extension.create({
               const pluginState = rowResizePluginKey.getState(view.state);
               if (!pluginState || !pluginState.active || pluginState.dragging) return false;
 
-              // Ricalcola la coppia fresca (non fidarsi della sola
-              // posizione salvata in "active", che potrebbe essere di un
-              // mousemove leggermente diverso) - stesso identico target del
-              // mousemove che ha attivato l'hover, quindi in pratica sempre
-              // la stessa coppia, ma niente assunzioni.
-              const pair = computeEdgePair(view, event);
+              // Riusa la coppia gia' attiva dall'hover (resolveEdgePairFromActive)
+              // invece di ririchiedere da zero la stessa finestra stretta di
+              // 5px sulle coordinate ESATTE del click (bug segnalato dal vivo
+              // 2026-08-15, vedi il commento su resolveEdgePairFromActive per
+              // il ragionamento completo) - fallback su computeEdgePair SOLO
+              // se la coppia attiva non e' piu' risolvibile (documento
+              // cambiato fra hover e click), mai un drag su una coppia
+              // inventata: entrambi i rami restano ugualmente rigorosi nel
+              // rifiutare un accoppiamento invalido, cambia solo QUALE
+              // controllo viene fidato per primo.
+              const pair = resolveEdgePairFromActive(view, pluginState.active) ?? computeEdgePair(view, event);
               if (!pair) return false;
 
               const win = view.dom.ownerDocument.defaultView ?? window;
