@@ -451,39 +451,59 @@
    fa comunque crescere fino a max-width quando c'e' spazio (da solo o in
    piu' di quanti min-width permetterebbero). min-width: soglia sotto la
    quale un box preferisce andare a capo invece di stringersi troppo -
-   abbassata a 64px (bug segnalato 2026-08-02: con 90px ne stavano al
-   massimo 2 per riga nelle colonne di larghezza tipica di questa tabella
-   di test, es. 202px --> 2x90+gap=188 ci sta, un terzo (3x90+2gap=286)
-   va a capo). Verificato box-sizing:border-box (globale, preflight di
-   Tailwind - vedi tailwind.css) su .tiptap-textbox: padding/bordo sono
-   GIA' inclusi nei 90/64px, non sommati sopra - non era quello il
-   problema. 64px lascia ~38px di area di contenuto utile (64 - 24px di
-   padding orizzontale - 2px di bordo), ancora scrivibile ma abbastanza
-   piccolo da lasciarne stare comodamente diversi in piu' per riga; il
-   numero esatto che entra dipende comunque dalla larghezza reale della
-   colonna (ridimensionabile trascinando il bordo), non solo da questa
-   soglia.
+   passata da 90px a 64px (bug segnalato 2026-08-02: con 90px ne stavano
+   al massimo 2 per riga nelle colonne di larghezza tipica di questa
+   tabella di test, es. 202px --> 2x90+gap=188 ci sta, un terzo
+   (3x90+2gap=286) va a capo), poi abbassata a 0 (Fase 5c, resize manuale
+   del confine, piano confermato 2026-08-09, richiesta "minimo raggiungibile
+   fino a una lettera" 2026-08-14): un valore fisso qui era comunque solo
+   una soglia di TUNING per il wrap automatico, non un floor di
+   usabilita' reale (verificato dal vivo: la maniglia del box, assoluta e
+   fuori dal flusso flex, e la finestra di hit-test del resize, centrata
+   sul confine e indipendente dalla larghezza del box, restano
+   utilizzabili a qualunque larghezza) - con 0 il floor effettivo di
+   ciascun tipo torna a emergere da cio' che e' davvero irriducibile:
+   padding+bordo per TextBox/Collapse (box-sizing:border-box, ~25-26px
+   comunque, verificato dal vivo - un min-width piu' basso di questo non
+   ha alcun effetto ulteriore), il min-content del testo per un paragrafo
+   (gia' min-width:0 in una regola dedicata sotto), il cellMinWidth
+   nativo di prosemirror-tables per una tabella (25px per colonna, un
+   meccanismo completamente diverso, mai legato a questa variabile - vedi
+   .tableWrapper piu' sotto). Conseguenza diretta di flex-basis:0 sopra:
+   con min-width:0 l'hypothetical main size di ogni rowItem e' 0, quindi
+   il flex-wrap impacchetta molti piu' elementi per riga prima di andare
+   a capo rispetto a quando c'era una soglia fissa - comportamento voluto
+   di questa richiesta, verificato dal vivo che non rompe il meccanismo
+   Fase 5a (il flex-shrink successivo funziona esattamente come prima,
+   solo la soglia "quanti entrano" e' cambiata).
    .tiptap-row-flex > * (non piu' solo .tiptap-textbox/.tiptap-collapse,
    Fase 5a "affiancamento a livello documento" - piano confermato
    2026-08-09): a livello di row questo trattamento si applica a
    QUALUNQUE rowItem, non solo TextBox/Collapse - paragraph e table sono
    rowItem alla pari (tiptapRow.ts, ROW_ITEM_TYPE_NAMES in
    tiptapRowDrop.ts), non c'e' motivo per cui debbano affiancarsi secondo
-   regole diverse. Stesso min-width:64px per tutti per ora (nessun valore
-   diverso per tipo finche' non serve davvero - la Fase 5 successiva,
-   resize manuale del confine, e' il momento naturale per rivederlo se
-   necessario). td-flex/textbox-content/collapse-body RESTANO ristretti a
-   solo TextBox/Collapse sotto: quel contesto (box annidati dentro una
-   cella o dentro un altro box) e' un problema diverso, fuori scope qui.
+   regole diverse. Stesso min-width:0 per tutti (Fase 5c, resize manuale
+   del confine, piano confermato 2026-08-09 - aggiornato 2026-08-14: il
+   valore fisso di tuning usato da Fase 5a/5b e' stato rimosso apposta
+   ora che il resize manuale deve poter scendere fino al floor naturale
+   di ciascun tipo, vedi il commento su flex-basis:0 sopra per il
+   ragionamento completo). td-flex/textbox-content/collapse-body RESTANO
+   ristretti a solo TextBox/Collapse sotto: quel contesto (box annidati
+   dentro una cella o dentro un altro box) e' un problema diverso, fuori
+   scope qui.
    :not(.tiptap-textbox-edge-cursor) su .tiptap-row-flex > * (bug segnalato
-   2026-08-10): il cursore finto (tiptapTextBoxEdgeCursor.ts) che nasce fra
-   due fratelli diretti della row (exitFlexSiblingBoundary, Fase 3a - non
+   2026-08-10, ancora valido dopo il passaggio a min-width:0 2026-08-14):
+   il cursore finto (tiptapTextBoxEdgeCursor.ts) che nasce fra due
+   fratelli diretti della row (exitFlexSiblingBoundary, Fase 3a - non
    ancora scritta quando questa regola e' stata introdotta in Fase 5a) e'
-   anch'esso un figlio diretto di .tiptap-row-flex, quindi ricadeva senza
-   volerlo in questo stesso selettore generico - min-width:64px vinceva
-   sempre sul width:1px del widget (min-width clampa width quando width e'
-   piu' piccolo, per specifica CSS), rendendolo un rettangolo largo 64px
-   invece della sottile barra verticale prevista. Le pause DENTRO un box
+   anch'esso un figlio diretto di .tiptap-row-flex, quindi ricadrebbe
+   senza volerlo in questo stesso selettore generico - il problema
+   originale (min-width:64px che vinceva su width:1px, per specifica CSS
+   min-width clampa width quando e' piu' piccolo) non si ripresenta piu'
+   con min-width:0, ma flex:1 1 0 da solo lo farebbe comunque diventare
+   un item flex che cresce/si restringe con gli altri invece di restare
+   la sottile barra verticale a larghezza fissa prevista - l'esclusione
+   resta quindi necessaria. Le pause DENTRO un box
    (.tiptap-textbox-content/.tiptap-collapse-body) restano gia' fuori da
    questo selettore (righe sopra, ristrette a .tiptap-textbox/.tiptap-collapse)
    e non erano mai state affette. */
@@ -495,7 +515,7 @@
 .tiptap-collapse-body > .tiptap-collapse,
 .tiptap-row-flex > *:not(.tiptap-textbox-edge-cursor) {
   flex: 1 1 0;
-  min-width: 64px;
+  min-width: 0;
 }
 /* Paragrafi in una row: larghezza ADATTIVA al contenuto (shrink-to-fit),
    non una quota uguale come TextBox/Collapse/Tabella sopra (richiesta
@@ -641,7 +661,7 @@
    limite - senza effetto utile, dato che ne' flex:0 0 auto ne' height si
    applicano a un elemento inline non sostituito in un contenitore non
    flex). Le regole di dettaglio (flex:1 1 100% per i blocchi "normali",
-   flex:1 1 0 + min-width:64px per TextBox/Collapse, margin-bottom
+   flex:1 1 0 + min-width:0 per TextBox/Collapse, margin-bottom
    sull'ultimo figlio) sono condivise con .tiptap-td-flex/.tiptap-collapse-body
    sopra/sotto - un solo blocco di regole per tutti e tre i contenitori
    invece di tre copie che dovrebbero restare identiche. */
@@ -795,7 +815,7 @@
    (display:flex/flex-wrap/align-items/column-gap/width/position - vedi li'
    per il ragionamento completo su ciascuna proprieta'). Le regole di
    dettaglio sui figli (flex:1 1 100% per i blocchi "normali", flex:1 1 0 +
-   min-width:64px per TextBox/Collapse, margin-bottom sull'ultimo figlio)
+   min-width:0 per TextBox/Collapse, margin-bottom sull'ultimo figlio)
    sono nei blocchi comma-condivisi sopra, non ripetute qui. */
 .tiptap-row-flex {
   display: flex;

@@ -147,10 +147,15 @@ function startDragSession(view: EditorView, pair: EdgePair, startX: number): Dra
 function computeGrowPair(session: DragSession, clientX: number): { leftGrow: number; rightGrow: number } {
   const { totalWidth, minLeftWidth, minRightWidth, sumGrow, leftStartWidth, startX } = session;
   if (totalWidth < minLeftWidth + minRightWidth) {
-    // Caso limite (segnalato in fase di pianificazione, mai visto dal vivo
-    // con min-width:64px e larghezze di riga tipiche): nessuno spazio
+    // Caso limite (segnalato in fase di pianificazione): nessuno spazio
     // libero da ridistribuire, il drag non ha alcun effetto invece di
-    // produrre un clamp invertito/degenere.
+    // produrre un clamp invertito/degenere. Da min-width:0 (theme.css,
+    // 2026-08-14) minLeftWidth/minRightWidth letti da getComputedStyle
+    // sono quasi sempre 0 per TextBox/Collapse/paragrafo/tabella (il
+    // floor vero e proprio - padding/bordo, cellMinWidth nativo - non e'
+    // espresso nel CSS min-width e quindi non e' visibile qui): il ramo
+    // sotto resta percio' ancora piu' teorico di prima, praticamente
+    // mai raggiunto.
     return { leftGrow: readGrowFromStyle(session.leftEl) ?? sumGrow / 2, rightGrow: readGrowFromStyle(session.rightEl) ?? sumGrow / 2 };
   }
   const delta = clientX - startX;
