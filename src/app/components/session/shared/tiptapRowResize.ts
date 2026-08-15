@@ -334,8 +334,17 @@ function readGrowFromStyle(el: HTMLElement): number | null {
 // proprio stile, solo il loro contenuto interno lo e').
 function previewResize(session: DragSession, clientX: number) {
   const { leftGrow, rightGrow } = computeGrowPair(session, clientX);
+  // flexBasis:0 impostato qui insieme a flexGrow (non solo lasciato al
+  // renderHTML di createRowGrowAttribute in tiptapRow.ts) perche' il primo
+  // drag di un paragrafo mai ridimensionato non ha ancora rowGrow nel
+  // documento - senza questa riga il paragrafo resterebbe flex-basis:auto
+  // (regola CSS shrink-to-fit) durante l'intero preview, e la formula
+  // lineare di computeGrowPair divergerebbe dal rendering reale fino al
+  // commit. No-op per TextBox/Tabella, gia' flex-basis:0 da CSS.
   session.leftEl.style.flexGrow = String(leftGrow);
+  session.leftEl.style.flexBasis = '0';
   session.rightEl.style.flexGrow = String(rightGrow);
+  session.rightEl.style.flexBasis = '0';
 }
 
 // Commit: UNA sola transazione, arrotondata a 2 decimali - rightGrow SEMPRE

@@ -452,11 +452,14 @@ export const Row = Node.create({
 // per evitare che le 4 copie (paragraph/textBox/collapseBlock/table)
 // divergano nel parsing/serializzazione nel tempo. number|null, default
 // null = comportamento automatico attuale (flex:1 1 0 da theme.css, tutti
-// i fratelli crescono alla pari) - un valore numerico sostituisce SOLO la
-// componente flex-grow via style inline (mai flex-basis/min-width, che
-// restano quelli del CSS - vedi Fase 5a per il perche' flex-basis non va
-// mai toccato: un longhand inline sovrascrive correttamente solo quella
-// componente dello shorthand da stylesheet). data-row-grow come attributo
+// i fratelli crescono alla pari) - un valore numerico sostituisce la
+// componente flex-grow via style inline, sempre insieme a flex-basis:0
+// (bug fix 2026-08-15: il paragrafo, unico rowItem con flex-basis:auto
+// da CSS - regola shrink-to-fit sotto Fase 5c in theme.css - deve
+// passare a flex-basis:0 non appena rowGrow e' impostato, altrimenti la
+// formula lineare di computeGrowPair in tiptapRowResize.ts diverge dal
+// rendering reale; per TextBox/Collapse e' un valore ridondante, quello
+// che il CSS impone gia' incondizionatamente). data-row-grow come attributo
 // DOM piatto SEMPRE presente (oltre allo style, quando incluso) per un
 // roundtrip robusto anche se lo style venisse perso/alterato (incolla
 // esterno, ispezione DOM) - stesso pattern gia' in uso da prosemirror-
@@ -481,7 +484,7 @@ export function createRowGrowAttribute(options?: { includeStyle?: boolean }) {
     renderHTML: (attributes: { rowGrow: number | null }) => {
       if (attributes.rowGrow == null) return {};
       const rendered: Record<string, unknown> = { 'data-row-grow': attributes.rowGrow };
-      if (includeStyle) rendered.style = `flex-grow: ${attributes.rowGrow}`;
+      if (includeStyle) rendered.style = `flex-grow: ${attributes.rowGrow}; flex-basis: 0`;
       return rendered;
     },
   };
