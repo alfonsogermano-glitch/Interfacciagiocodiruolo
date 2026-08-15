@@ -1,7 +1,7 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import { Paragraph } from '@tiptap/extension-paragraph';
 import { createTable } from '@tiptap/extension-table';
-import { TextSelection, type EditorState } from '@tiptap/pm/state';
+import { TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 import type { Node as ProseMirrorNode, NodeType, ResolvedPos, Schema } from '@tiptap/pm/model';
 // TextBoxEdgeCursor/isFlexSiblingContainer: nessuna dipendenza circolare -
 // tiptapTextBoxEdgeCursor.ts non importa nulla da questo file (verificato,
@@ -11,7 +11,7 @@ import type { Node as ProseMirrorNode, NodeType, ResolvedPos, Schema } from '@ti
 // sola classe di selezione. isFlexSiblingContainer aggiunta al Passo 3
 // (piano confermato 2026-08-13, Problema A+B): distingue Caso 1a/1b, vedi
 // commento sul Caso 1 sotto.
-import { TextBoxEdgeCursor, isFlexSiblingContainer, insertRowItemBesideRow } from './tiptapTextBoxEdgeCursor';
+import { TextBoxEdgeCursor, isFlexSiblingContainer, insertRowItemBesideRow, stripRowGrow } from './tiptapTextBoxEdgeCursor';
 
 // Fase 1 del progetto "affiancamento a livello documento" (piano confermato
 // 2026-08-07): solo schema + rendering CSS, NESSUNA navigazione/drag&drop/
@@ -152,6 +152,48 @@ export function isPositionInsideAny($pos: ResolvedPos, typeNames: string[]): boo
 // table/textBox/collapseBlock, non un tipo alla volta).
 function isSelectionInsideAny(state: EditorState, typeNames: string[]): boolean {
   return isPositionInsideAny(state.selection.$from, typeNames);
+}
+
+// I 4 tipi di nodo che lo schema accetta come figlio di una row (stessi di
+// RowElementType sopra, qui pero' serve verificare un nodo GIA' ESISTENTE
+// invece di costruirne uno nuovo) - usata da mergeAtBackspace sotto per
+// escludere un vicino che NON e' mai stato pensato per stare in una row
+// (es. un elenco puntato o una citazione, entrambi nello schema ma nel
+// gruppo 'block' e basta, mai 'rowItem'): schema.nodes.row.create
+// lancerebbe un errore se tentato con un figlio del genere, quindi va
+// verificato PRIMA di costruire il nodo, mai a occhi chiusi.
+const ROW_ITEM_TYPE_NAMES = ['paragraph', 'textBox', 'collapseBlock', 'table'];
+
+function isRowItemEligible(node: ProseMirrorNode): boolean {
+  return ROW_ITEM_TYPE_NAMES.includes(node.type.name);
+}
+
+// Sostituisce l'intero range dato con una row nuova i cui figli sono
+// leftNodes+rightNodes concatenati - nucleo condiviso dei 4 casi di
+// mergeAtBackspace sotto (blocco standalone+standalone, row+standalone in
+// entrambi gli ordini, row+row), stesso identico schema "un solo
+// tr.replaceWith + posizione calcolata direttamente su tr.doc" gia' usato da
+// splitRowAtPause (tiptapTextBoxEdgeCursor.ts) e dal Caso 1b di
+// addElementBeside sopra - mai piu' step separati con mapping, che
+// costringerebbero a rimappare le posizioni fra uno step e l'altro.
+//
+// Cursore al PUNTO DI GIUNZIONE fra i due gruppi (fine dell'ultimo nodo di
+// leftNodes, bias -1) in tutti e 4 i casi - convenzione standard di
+// Backspace: il cursore torna esattamente al bordo appena "attraversato",
+// pronto a continuare a cancellare all'indietro nel contenuto che era gia'
+// li' prima, mai dentro il contenuto che si e' appena unito da destra.
+function combineIntoRow(
+  tr: Transaction,
+  schema: Schema,
+  range: { from: number; to: number },
+  leftNodes: ProseMirrorNode[],
+  rightNodes: ProseMirrorNode[]
+) {
+  const rowNode = schema.nodes.row.create(null, [...leftNodes, ...rightNodes]);
+  tr.replaceWith(range.from, range.to, rowNode);
+  const leftSize = leftNodes.reduce((sum, node) => sum + node.nodeSize, 0);
+  const joinPos = range.from + 1 + leftSize;
+  tr.setSelection(TextSelection.near(tr.doc.resolve(joinPos), -1));
 }
 
 export const Row = Node.create({
@@ -443,6 +485,163 @@ export const Row = Node.create({
           }
           return true;
         },
+    };
+  },
+
+  // Backspace a inizio contenuto unisce il blocco corrente con quello
+  // immediatamente sopra in una row - simmetrico a splitRowAtPause
+  // (tiptapTextBoxEdgeCursor.ts, Invio su una pausa spacca la row in due),
+  // ma per un cursore VERO (TextSelection), non per il cursore finto: un
+  // cursore reale puo' essere "a inizio contenuto di un blocco" solo dentro
+  // un paragrafo (TextBox/Collapse/Tabella non ospitano mai direttamente il
+  // cursore al proprio livello, solo il loro paragrafo interno) - nessuna
+  // ambiguita' di bias da gestire qui, a differenza di isAtBoxBoundary
+  // (quello confronta contro il bordo ESTERNO di un box, che non e' un
+  // textblock; qui parentOffset===0 e' gia' di per se' inequivocabile).
+  //
+  // Nessuna sovrapposizione con Backspace-cancella-box esistente
+  // (createEdgeAwareKeyboardShortcuts, tiptapBlocks.tsx): quel comando
+  // scatta SOLO quando $from e' il PRIMO paragrafo di un TextBox/Collapse a
+  // offset 0 - qui la guardia "index===0 nel contenitore" sotto fa gia' da
+  // sola no-op in quella stessa identica posizione (nessun blocco sopra
+  // DENTRO lo stesso box), lasciando il comando esistente libero di
+  // intervenire. Verificato per costruzione (i due contenitori coincidono),
+  // non serve alcun ordine esplicito fra le due estensioni.
+  //
+  // Cursore a inizio di un item NON PRIMO di una row esistente resta fuori
+  // scope, deliberatamente invariato: lo schema (content 'rowItem{2,}')
+  // blocca gia' da solo quel join nativo fra due item della stessa row
+  // (vedi il commento originale in cima a questo file, "backspace bloccato
+  // se ridurrebbe una row a 1 solo figlio") - nessun nuovo codice necessario
+  // li', il caso e' gia' un no-op sicuro.
+  addKeyboardShortcuts() {
+    return {
+      Backspace: (): boolean => {
+        const { editor } = this;
+        const { state } = editor;
+        const { selection, schema } = state;
+        if (!selection.empty || !(selection instanceof TextSelection)) return false;
+
+        const { $from } = selection;
+        if ($from.parent.type.name !== 'paragraph' || $from.parentOffset !== 0) return false;
+
+        // Cella di tabella esclusa, stesso identico motivo/precedente di
+        // Case 2 in addElementBeside sopra (isSelectionInsideAny gia'
+        // definita in questo file) - restano fuori scope anche qui scroll
+        // orizzontale annidato/arrow-nav a doppio livello.
+        if (isSelectionInsideAny(state, ['table'])) return false;
+
+        const paragraphDepth = $from.depth;
+        const rowDepth = findAncestorDepth($from, 'row');
+
+        if (rowDepth !== null) {
+          // Caso 3/4: il paragrafo e' il PRIMO item di una row esistente -
+          // il blocco sopra (fuori dalla row, a livello del suo contenitore)
+          // si unisce come nuovo primo elemento (Caso 3, se e' standalone) o
+          // le due row si combinano in una sola (Caso 4, se e' anch'esso una
+          // row). rowDepth===paragraphDepth-1 per costruzione (il paragrafo
+          // e' sempre figlio DIRETTO della row quando findAncestorDepth lo
+          // trova a questa profondita' minima) - guardia difensiva, mai
+          // dovrebbe fallire, stesso principio "mai un'assunzione senza
+          // verifica" gia' in uso altrove in questo file.
+          if (rowDepth !== paragraphDepth - 1) return false;
+          const rowNode = $from.node(rowDepth);
+          if (rowNode.firstChild !== $from.node(paragraphDepth)) return false;
+
+          const containerDepth = rowDepth - 1;
+          if (containerDepth < 0) return false;
+          const container = $from.node(containerDepth);
+          const rowIndex = $from.index(containerDepth);
+          if (rowIndex === 0) return false;
+          const aboveNode = container.child(rowIndex - 1);
+
+          if (!container.canReplaceWith(rowIndex - 1, rowIndex + 1, schema.nodes.row)) return false;
+
+          const rangeFrom = $from.before(rowDepth) - aboveNode.nodeSize;
+          const rangeTo = $from.after(rowDepth);
+          const rowChildren: ProseMirrorNode[] = [];
+          rowNode.forEach((child) => rowChildren.push(child));
+
+          if (aboveNode.type === schema.nodes.row) {
+            // Caso 4: rowGrow di TUTTI i figli azzerato (piano confermato
+            // 2026-08-15) - i due gruppi di rapporti erano relativi a
+            // fratelli diversi (le due row originali), concatenarli senza
+            // reset produrrebbe proporzioni incoerenti.
+            const aboveChildren: ProseMirrorNode[] = [];
+            aboveNode.forEach((child) => aboveChildren.push(stripRowGrow(child)));
+            const strippedRowChildren = rowChildren.map((child) => stripRowGrow(child));
+            return editor
+              .chain()
+              .command(({ tr }) => {
+                combineIntoRow(tr, schema, { from: rangeFrom, to: rangeTo }, aboveChildren, strippedRowChildren);
+                return true;
+              })
+              .scrollIntoView()
+              .run();
+          }
+
+          // Caso 3: il blocco sopra deve essere di un tipo che una row puo'
+          // davvero accettare come figlio (mai a occhi chiusi, vedi
+          // isRowItemEligible sopra) - un elenco puntato o una citazione
+          // adiacenti restano fuori scope, Backspace nativo invariato.
+          if (!isRowItemEligible(aboveNode)) return false;
+          return editor
+            .chain()
+            .command(({ tr }) => {
+              combineIntoRow(tr, schema, { from: rangeFrom, to: rangeTo }, [stripRowGrow(aboveNode)], rowChildren);
+              return true;
+            })
+            .scrollIntoView()
+            .run();
+        }
+
+        // Caso 1/2: il paragrafo corrente e' standalone (non in nessuna
+        // row) - il blocco sopra, a livello del suo stesso contenitore, si
+        // unisce a lui in una row nuova (Caso 1, se e' anch'esso
+        // standalone) oppure il paragrafo corrente si aggiunge in coda a
+        // quella row (Caso 2, se il blocco sopra e' gia' una row).
+        const containerDepth = paragraphDepth - 1;
+        if (containerDepth < 0) return false;
+        const container = $from.node(containerDepth);
+        const index = $from.index(containerDepth);
+        if (index === 0) return false;
+        const aboveNode = container.child(index - 1);
+
+        if (!container.canReplaceWith(index - 1, index + 1, schema.nodes.row)) return false;
+
+        const currentParagraph = $from.node(paragraphDepth);
+        const rangeFrom = $from.before(paragraphDepth) - aboveNode.nodeSize;
+        const rangeTo = $from.after(paragraphDepth);
+
+        if (aboveNode.type === schema.nodes.row) {
+          // Caso 2: il paragrafo corrente si aggiunge in coda alla row
+          // sopra - rowGrow dei figli GIA' nella row preservato (restano
+          // proporzionalmente validi, e' lo stesso identico gruppo di
+          // fratelli di prima, solo con un elemento in piu' in coda).
+          const aboveChildren: ProseMirrorNode[] = [];
+          aboveNode.forEach((child) => aboveChildren.push(child));
+          return editor
+            .chain()
+            .command(({ tr }) => {
+              combineIntoRow(tr, schema, { from: rangeFrom, to: rangeTo }, aboveChildren, [stripRowGrow(currentParagraph)]);
+              return true;
+            })
+            .scrollIntoView()
+            .run();
+        }
+
+        // Caso 1: due blocchi standalone si uniscono in una row nuova -
+        // stessa guardia isRowItemEligible del Caso 3 sopra, stesso motivo.
+        if (!isRowItemEligible(aboveNode)) return false;
+        return editor
+          .chain()
+          .command(({ tr }) => {
+            combineIntoRow(tr, schema, { from: rangeFrom, to: rangeTo }, [stripRowGrow(aboveNode)], [stripRowGrow(currentParagraph)]);
+            return true;
+          })
+          .scrollIntoView()
+          .run();
+      },
     };
   },
 });

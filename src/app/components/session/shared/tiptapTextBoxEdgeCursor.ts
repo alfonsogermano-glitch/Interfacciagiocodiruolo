@@ -1523,6 +1523,18 @@ const textBoxEdgeCursorPluginKey = new PluginKey<EdgeCursorRowPauseState>('textB
 // posizione DENTRO il nodo appena inserito (per costruire li' la selezione
 // successiva), o null se ne' before ne' after e' una row: in quel caso il
 // chiamante deve ricadere sul proprio comportamento di sempre.
+// Azzera rowGrow (torna a crescita automatica uniforme) se presente - un
+// nodo che lascia il contesto row a cui il suo rowGrow era relativo (o che
+// entra a far parte di un gruppo di fratelli diverso da quello originale)
+// non deve portarsi dietro un valore ormai senza significato. Estratta a
+// livello di modulo ed esportata (round Backspace-unisce-blocchi, piano
+// confermato 2026-08-15) - prima viveva solo dentro splitRowAtPause sotto,
+// ora riusata anche da mergeAtBackspace (tiptapRow.ts) per lo stesso
+// identico motivo, evitando una seconda copia che potrebbe divergere.
+export function stripRowGrow(node: ProseMirrorNode): ProseMirrorNode {
+  return node.attrs.rowGrow != null ? node.type.create({ ...node.attrs, rowGrow: null }, node.content, node.marks) : node;
+}
+
 export function insertRowItemBesideRow(
   tr: Transaction,
   gapPos: number,
@@ -1985,11 +1997,6 @@ export const TextBoxEdgeCursorExtension = Extension.create({
           // elemento) - guardia difensiva, mai il ramo split invocato su una
           // pausa che non e' davvero fra due figli della stessa row.
           if (before.length === 0 || after.length === 0) return false;
-
-          const stripRowGrow = (node: ProseMirrorNode) =>
-            node.attrs.rowGrow != null
-              ? node.type.create({ ...node.attrs, rowGrow: null }, node.content, node.marks)
-              : node;
 
           const buildGroup = (nodes: ProseMirrorNode[]) =>
             nodes.length >= 2 ? rowNode.type.create(rowNode.attrs, Fragment.fromArray(nodes)) : stripRowGrow(nodes[0]);
