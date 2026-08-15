@@ -1,7 +1,7 @@
 import { Extension, type Editor } from '@tiptap/core';
 import { Selection, TextSelection, Plugin, PluginKey } from '@tiptap/pm/state';
 import type { Transaction } from '@tiptap/pm/state';
-import { Slice } from '@tiptap/pm/model';
+import { Fragment, Slice } from '@tiptap/pm/model';
 import type { Node as ProseMirrorNode, NodeType, ResolvedPos } from '@tiptap/pm/model';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import type { Mapping } from '@tiptap/pm/transform';
@@ -1945,70 +1945,126 @@ export const TextBoxEdgeCursorExtension = Extension.create({
           .run();
       });
 
-    // Invio su una pausa che ha gia' un vicino REALE sul lato "in avanti"
-    // (la stessa direzione da cui si e' arrivati premendo la freccia che ha
-    // creato QUESTA pausa, tracciata da ROW_PAUSE_DIR_META - pauseState.dir,
-    // stesso stato gia' letto da exitArrow sopra) naviga li' invece di
-    // materializzare un nuovo paragrafo - bug segnalato 2026-08-10: prima,
-    // Invio materializzava SEMPRE e comunque (vedi storia sotto), anche
-    // quando la pausa era solo una tappa intermedia fra due fratelli di riga
-    // o cella entrambi gia' reali (es. affiancamento TextBox+paragrafo in
-    // una row, Fase 3a), creando un blocco indesiderato mai richiesto
-    // dall'utente - la creazione di elementi deve avvenire SOLO tramite il
-    // pulsante dedicato della toolbar (addElementBeside), mai come effetto
-    // collaterale di Invio in un punto di navigazione.
-    //
-    // pauseState.dir invece di adjacentBox() da solo (quest'ultimo, usato
-    // sopra da exitArrow/Escape, controlla SEMPRE prima nodeAfter poi
-    // nodeBefore, a prescindere da quale direzione ha creato la pausa - va
-    // bene li' perche' exitArrow confronta il risultato con `dir` esplicito
-    // del tasto premuto in quel momento, ma Invio non ha una propria
-    // direzione): usare adjacentBox() qui rientrerebbe erroneamente nel box
-    // appena lasciato ogni volta che e' proprio lui il vicino sul lato
-    // "prima" della pausa - esattamente il caso storico del cursore sopra/
-    // sotto una tabella o di un box isolato a fine documento, dove
-    // nodeBefore e' il box da cui si e' appena usciti e nodeAfter e' null:
-    // senza questo controllo mirato al solo lato "in avanti", quel caso
-    // smetterebbe di materializzare e rientrerebbe invece nel box,
-    // rompendo l'unico punto d'ingresso per scrivere testo dopo un box
-    // isolato (regressione che romperebbe il test 3 confermato). pauseState
-    // puo' mancare (selezione TextBoxEdgeCursor ricostruita da fromJSON,
-    // es. history/redo mai passato da una delle funzioni exit* sopra) -
-    // `?? 'after'` come fallback e' innocuo in quel caso limite: degrada
-    // allo stesso comportamento di sempre (nessun vicino sul lato
-    // ipotizzato => materializza).
-    //
-    // Vicino trovato ma NON un box (es. il paragrafo normale affiancato nel
-    // caso Fase 3a): stessa identica Selection.near col bias gia' usato dal
-    // fallback generico di exitArrow poco sopra (dir==='after' ? 1 : -1) -
-    // e' lo stesso identico target che una pressione ripetuta della stessa
-    // freccia raggiungerebbe da qui in poi.
+    // Invio su una pausa TRA DUE rowItem della stessa row (testo o box, non
+    // importa) divide la row in quel punto invece di navigare in uno dei
+    // due - comportamento standard "split" di un editor (piano confermato
+    // 2026-08-15, sostituisce il precedente "naviga invece di
+    // materializzare" del 2026-08-10 per QUESTO caso specifico). Tutto cio'
+    // che precede la pausa resta nella meta' "prima" (srotolata a blocco
+    // standalone se resta un solo elemento, altrimenti ancora una row coi
+    // grow relativi fra i superstiti invariati - restano comunque
+    // proporzionalmente validi, sono lo stesso sottoinsieme di prima),
+    // tutto cio' che segue diventa la meta' "dopo", una row nuova (o un
+    // blocco standalone, stessa regola) inserita subito dopo quella
+    // originale. rowGrow del superstite azzerato quando esce dal contesto
+    // row (1 solo elemento) - stesso principio "nessun valore fantasma" gia'
+    // applicato da RowCollapseCleanup (Fase 5d, tiptapRowCollapseCleanup.ts)
+    // quando un nodo lascia l'UNICA row a cui apparteneva; RowCollapseCleanup
+    // stesso non interviene mai qui: scioglie solo una row con un filler
+    // vuoto inserito da ProseMirror IN QUESTA transazione (identita' tracciata
+    // via invertedMapping) - questa funzione non lascia mai una row sotto
+    // il minimo di 2, decide gia' da sola la forma di ciascuna meta'.
+    const splitRowAtPause = ($pos: ResolvedPos) => {
+      const rowDepth = $pos.depth;
+      const rowPos = $pos.before(rowDepth);
+      const splitOffset = $pos.parentOffset;
+
+      return editor
+        .chain()
+        .command(({ tr }) => {
+          const rowNode = tr.doc.nodeAt(rowPos);
+          if (!rowNode) return false;
+
+          const before: ProseMirrorNode[] = [];
+          const after: ProseMirrorNode[] = [];
+          rowNode.forEach((child, offset) => {
+            (offset < splitOffset ? before : after).push(child);
+          });
+          // Non dovrebbe potersi verificare (la pausa e' per costruzione fra
+          // due rowItem reali, quindi entrambi i lati hanno sempre almeno un
+          // elemento) - guardia difensiva, mai il ramo split invocato su una
+          // pausa che non e' davvero fra due figli della stessa row.
+          if (before.length === 0 || after.length === 0) return false;
+
+          const stripRowGrow = (node: ProseMirrorNode) =>
+            node.attrs.rowGrow != null
+              ? node.type.create({ ...node.attrs, rowGrow: null }, node.content, node.marks)
+              : node;
+
+          const buildGroup = (nodes: ProseMirrorNode[]) =>
+            nodes.length >= 2 ? rowNode.type.create(rowNode.attrs, Fragment.fromArray(nodes)) : stripRowGrow(nodes[0]);
+
+          const beforeResult = buildGroup(before);
+          const afterResult = buildGroup(after);
+
+          tr.replaceWith(rowPos, rowPos + rowNode.nodeSize, Fragment.fromArray([beforeResult, afterResult]));
+
+          // Cursore dentro il primo punto di testo valido della meta' "dopo"
+          // (stesso bias +1 di sempre in questo file per un atterraggio in
+          // avanti) - afterStart e' la posizione ESTERNA di afterResult
+          // (tr.doc.nodeAt(afterStart) === afterResult), +1 per entrarci.
+          const afterStart = rowPos + beforeResult.nodeSize;
+          tr.setSelection(Selection.near(tr.doc.resolve(afterStart + 1), 1));
+          return true;
+        })
+        .scrollIntoView()
+        .run();
+    };
+
+    // Invio su una pausa - isFlexSiblingContainer($pos.parent) distingue
+    // dove si trova ESATTAMENTE $pos (non il vicino - la posizione stessa):
+    // dentro il content di una row/cella (fra due suoi figli diretti, il
+    // caso Fase 3a) contro il bordo assoluto (il vicino trovato da
+    // pauseState.dir e' l'INTERA row/box/tabella come unita', $pos.parent e'
+    // il genitore di quella unita', non i suoi figli interni). Solo la row
+    // documentale si divide (splitRowAtPause sopra); una cella di tabella
+    // resta col comportamento di sempre (nessun nodo "row" al suo interno -
+    // ogni figlio diretto di una cella e' gia' affiancabile via
+    // .tiptap-td-flex incondizionato in theme.css, senza bisogno di un
+    // wrapper - "una riga sotto, nella stessa cella" non ha equivalente
+    // strutturale, piano confermato 2026-08-15).
     const enterAtPause = (selection: TextBoxEdgeCursor) => {
       const pos = selection.head;
       const $pos = editor.state.doc.resolve(pos);
-      const pauseState = textBoxEdgeCursorPluginKey.getState(editor.state);
-      const dir: 'before' | 'after' = pauseState?.dir ?? 'after';
-      const neighbor = dir === 'after' ? $pos.nodeAfter : $pos.nodeBefore;
 
-      if (neighbor && isReenterableNeighbor(neighbor)) {
-        return reenterBox(selection, { side: dir });
+      if (isFlexSiblingContainer($pos.parent)) {
+        if (isDocRow($pos.parent)) {
+          return splitRowAtPause($pos);
+        }
+
+        // Cella di tabella - stesso identico comportamento di prima del
+        // piano di oggi (naviga nel vicino, mai spacca): pauseState.dir
+        // sempre riletto qui (non piu' in cima alla funzione, serve solo in
+        // questo ramo ora) per lo stesso motivo di sempre - vedi il vecchio
+        // commento su "pauseState.dir invece di adjacentBox()" nella storia
+        // di questo file per il ragionamento completo su `?? 'after'`.
+        const pauseState = textBoxEdgeCursorPluginKey.getState(editor.state);
+        const dir: 'before' | 'after' = pauseState?.dir ?? 'after';
+        const neighbor = dir === 'after' ? $pos.nodeAfter : $pos.nodeBefore;
+
+        if (neighbor && isReenterableNeighbor(neighbor)) {
+          return reenterBox(selection, { node: neighbor, side: dir });
+        }
+
+        if (neighbor) {
+          return editor
+            .chain()
+            .command(({ tr }) => {
+              tr.setSelection(Selection.near(tr.doc.resolve(pos), dir === 'after' ? 1 : -1));
+              return true;
+            })
+            .scrollIntoView()
+            .run();
+        }
       }
 
-      if (neighbor) {
-        return editor
-          .chain()
-          .command(({ tr }) => {
-            tr.setSelection(Selection.near(tr.doc.resolve(pos), dir === 'after' ? 1 : -1));
-            return true;
-          })
-          .scrollIntoView()
-          .run();
-      }
-
-      // Vicolo cieco vero (nessun vicino sul lato "in avanti", es. box
-      // isolato a inizio/fine documento) - comportamento invariato:
-      // materializza un nuovo paragrafo vuoto e ci entra, stesso identico
-      // meccanismo di sempre (Enter sopra/sotto una tabella isolata).
+      // Bordo assoluto o vicolo cieco vero (nessun vicino dentro un
+      // contenitore affiancabile - una row/box/tabella isolata trovata da
+      // pauseState.dir, se presente, e' un'unita' intera adiacente, non
+      // c'e' niente al suo interno da dividere qui) - comportamento
+      // invariato: materializza un nuovo paragrafo vuoto e ci entra, stesso
+      // identico meccanismo di sempre (Enter sopra/sotto una tabella
+      // isolata, o ora anche sopra/sotto una row isolata).
       return editor
         .chain()
         .command(({ tr }) => {
