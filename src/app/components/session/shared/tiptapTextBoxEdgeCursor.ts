@@ -2,7 +2,7 @@ import { Extension, type Editor } from '@tiptap/core';
 import { Selection, TextSelection, Plugin, PluginKey } from '@tiptap/pm/state';
 import type { Transaction } from '@tiptap/pm/state';
 import { Fragment, Slice } from '@tiptap/pm/model';
-import type { Node as ProseMirrorNode, NodeType, ResolvedPos } from '@tiptap/pm/model';
+import type { Node as ProseMirrorNode, NodeType, ResolvedPos, Schema } from '@tiptap/pm/model';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import type { Mapping } from '@tiptap/pm/transform';
 import { GapCursor } from '@tiptap/pm/gapcursor';
@@ -1523,6 +1523,59 @@ const textBoxEdgeCursorPluginKey = new PluginKey<EdgeCursorRowPauseState>('textB
 // posizione DENTRO il nodo appena inserito (per costruire li' la selezione
 // successiva), o null se ne' before ne' after e' una row: in quel caso il
 // chiamante deve ricadere sul proprio comportamento di sempre.
+// I 4 tipi di nodo che lo schema accetta come figlio di una row (stessi di
+// RowElementType in tiptapRow.ts, qui pero' serve verificare un nodo GIA'
+// ESISTENTE invece di costruirne uno nuovo) - usata da mergeAtBackspace
+// (tiptapRow.ts, cursore reale) ed EXTENSIONS Backspace sotto (pausa) per
+// escludere un vicino che NON e' mai stato pensato per stare in una row
+// (es. un elenco puntato o una citazione, entrambi nello schema ma nel
+// gruppo 'block' e basta, mai 'rowItem'): schema.nodes.row.create
+// lancerebbe un errore se tentato con un figlio del genere, quindi va
+// verificato PRIMA di costruire il nodo, mai a occhi chiusi. Vive qui
+// (spostata da tiptapRow.ts, round Backspace-da-pausa 2026-08-16) perche'
+// serve a ENTRAMBI i punti d'ingresso di Backspace-unisce-blocchi - cursore
+// reale (tiptapRow.ts, che gia' dipende da questo file) e pausa
+// (TextBoxEdgeCursorExtension, sotto) - mai il contrario, stessa direzione
+// di dipendenza a senso unico gia' in vigore per stripRowGrow/
+// insertRowItemBesideRow.
+const ROW_ITEM_TYPE_NAMES = ['paragraph', 'textBox', 'collapseBlock', 'table'];
+
+export function isRowItemEligible(node: ProseMirrorNode): boolean {
+  return ROW_ITEM_TYPE_NAMES.includes(node.type.name);
+}
+
+// Sostituisce l'intero range dato con una row nuova i cui figli sono
+// leftNodes+rightNodes concatenati - nucleo condiviso di TUTTI i casi di
+// Backspace-unisce-blocchi (blocco standalone+standalone, row+standalone in
+// entrambi gli ordini, row+row), da ENTRAMBI i punti d'ingresso (cursore
+// reale in mergeAtBackspace/tiptapRow.ts, pausa in
+// TextBoxEdgeCursorExtension sotto) - stesso identico schema "un solo
+// tr.replaceWith + posizione calcolata direttamente su tr.doc" gia' usato da
+// splitRowAtPause sopra e dal Caso 1b di addElementBeside (tiptapRow.ts) -
+// mai piu' step separati con mapping, che costringerebbero a rimappare le
+// posizioni fra uno step e l'altro. Spostata qui (round Backspace-da-pausa
+// 2026-08-16, stesso motivo di isRowItemEligible sopra) da tiptapRow.ts, che
+// la importa invece di definirla.
+//
+// Cursore al PUNTO DI GIUNZIONE fra i due gruppi (fine dell'ultimo nodo di
+// leftNodes, bias -1) in tutti i casi - convenzione standard di Backspace:
+// il cursore torna esattamente al bordo appena "attraversato", pronto a
+// continuare a cancellare all'indietro nel contenuto che era gia' li'
+// prima, mai dentro il contenuto che si e' appena unito da destra.
+export function combineIntoRow(
+  tr: Transaction,
+  schema: Schema,
+  range: { from: number; to: number },
+  leftNodes: ProseMirrorNode[],
+  rightNodes: ProseMirrorNode[]
+) {
+  const rowNode = schema.nodes.row.create(null, [...leftNodes, ...rightNodes]);
+  tr.replaceWith(range.from, range.to, rowNode);
+  const leftSize = leftNodes.reduce((sum, node) => sum + node.nodeSize, 0);
+  const joinPos = range.from + 1 + leftSize;
+  tr.setSelection(TextSelection.near(tr.doc.resolve(joinPos), -1));
+}
+
 // Azzera rowGrow (torna a crescita automatica uniforme) se presente - un
 // nodo che lascia il contesto row a cui il suo rowGrow era relativo (o che
 // entra a far parte di un gruppo di fratelli diverso da quello originale)
@@ -2083,12 +2136,107 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         .run();
     };
 
+    // Backspace da una pausa unisce i due vicini reali del gap (before/
+    // after) in una row - simmetrico a mergeAtBackspace (tiptapRow.ts,
+    // cursore VERO), ma per il cursore FINTO: nessuno shortcut Backspace
+    // esisteva qui prima d'ora (round Backspace-da-pausa 2026-08-16, bug
+    // segnalato dal vivo - "TextBox standalone sotto un paragrafo con testo
+    // reale, Freccia sinistra per uscire poi Backspace" selezionava il
+    // paragrafo sopra come NodeSelection invece di unirlo in una row, poi lo
+    // cancellava alla pressione successiva, il TextBox 'saliva' al suo
+    // posto). Causa: senza uno shortcut dedicato, Backspace su questa
+    // Selection (content() vuoto, non TextSelection - vedi la classe sopra)
+    // cade sul fallback nativo (Keymap interno di @tiptap/core:
+    // undoInputRule -> ... -> deleteSelection -> joinBackward ->
+    // selectNodeBackward), che non ha alcuna cognizione della row - da cui
+    // il NodeSelection sul vicino sbagliato. Verificato dal vivo con
+    // editor.getJSON()/selection.constructor.name prima di questo fix:
+    // dopo una Freccia sinistra da dentro un TextBox standalone la
+    // selezione e' davvero TextBoxEdgeCursor, e il primo Backspace la
+    // trasformava in una NodeSelection sul paragrafo prima del box.
+    //
+    // before/after DEL GAP (non "il box da cui si e' usciti" ne'
+    // pauseState.dir): la pausa E' la posizione del cursore, prima/dopo
+    // sono i suoi soli due vicini reali, esattamente come $from.nodeBefore/
+    // nodeAfter per un cursore vero - stessa simmetria "leftNodes da
+    // before, rightNodes da after" di combineIntoRow, indipendente da QUALE
+    // lato ha innescato la pausa: pauseAtIsolatingBoundary puo' fermarsi
+    // sia uscendo verso 'before' sia verso 'after', ma il gap risultante ha
+    // comunque un prima/dopo ben definiti - la direzione di uscita e'
+    // irrilevante qui quanto lo sarebbe per un cursore vero fermo alla
+    // stessa posizione (Backspace guarda solo indietro dalla posizione
+    // corrente, mai come ci si e' arrivati).
+    //
+    // isFlexSiblingContainer($gap.parent): il gap e' GIA' dentro una row/
+    // cella (fra due suoi figli diretti, es. due box affiancati nella
+    // stessa riga) - fuori scope, stessa esclusione di "item non primo di
+    // una row" in mergeAtBackspace: lo schema blocca gia' da solo quel
+    // join, nessun codice nuovo necessario qui. findCellAncestorDepth/
+    // findTableAncestorDepth: stessa esclusione tabella di sempre (Case 2
+    // di addElementBeside, mergeAtBackspace) - restano fuori scope anche
+    // qui scroll orizzontale annidato/arrow-nav a doppio livello.
+    const backspaceAtPause = (selection: TextBoxEdgeCursor): boolean => {
+      const { state } = editor;
+      const { schema } = state;
+      const gapPos = selection.head;
+      const $gap = state.doc.resolve(gapPos);
+
+      if (isFlexSiblingContainer($gap.parent)) return false;
+      if (findCellAncestorDepth($gap) !== null || findTableAncestorDepth($gap) !== null) return false;
+
+      const before = $gap.nodeBefore;
+      const after = $gap.nodeAfter;
+      if (!before || !after) return false;
+
+      const index = $gap.index();
+      if (!$gap.parent.canReplaceWith(index - 1, index + 1, schema.nodes.row)) return false;
+
+      const rangeFrom = gapPos - before.nodeSize;
+      const rangeTo = gapPos + after.nodeSize;
+
+      // rowGrow: azzerato per ENTRAMBI i lati solo quando sono GIA' due row
+      // che si combinano (i due gruppi di rapporti erano relativi a
+      // fratelli diversi, concatenarli senza reset produrrebbe proporzioni
+      // incoerenti - stessa regola di mergeAtBackspace Caso 4); preservato
+      // quando un solo lato e' una row esistente (stesso gruppo di
+      // fratelli di prima, solo con un elemento in piu').
+      const bothRows = before.type === schema.nodes.row && after.type === schema.nodes.row;
+
+      let leftNodes: ProseMirrorNode[];
+      if (before.type === schema.nodes.row) {
+        leftNodes = [];
+        before.forEach((child) => leftNodes.push(bothRows ? stripRowGrow(child) : child));
+      } else {
+        if (!isRowItemEligible(before)) return false;
+        leftNodes = [stripRowGrow(before)];
+      }
+
+      let rightNodes: ProseMirrorNode[];
+      if (after.type === schema.nodes.row) {
+        rightNodes = [];
+        after.forEach((child) => rightNodes.push(bothRows ? stripRowGrow(child) : child));
+      } else {
+        if (!isRowItemEligible(after)) return false;
+        rightNodes = [stripRowGrow(after)];
+      }
+
+      return editor
+        .chain()
+        .command(({ tr }) => {
+          combineIntoRow(tr, schema, { from: rangeFrom, to: rangeTo }, leftNodes, rightNodes);
+          return true;
+        })
+        .scrollIntoView()
+        .run();
+    };
+
     return {
       Enter: withCursor(enterAtPause),
       ArrowLeft: exitArrow('before', 'horizontal'),
       ArrowUp: exitArrow('before', 'vertical'),
       ArrowRight: exitArrow('after', 'horizontal'),
       ArrowDown: exitArrow('after', 'vertical'),
+      Backspace: withCursor(backspaceAtPause),
       Escape: withCursor((selection) => {
         const box = adjacentBox(editor.state.doc.resolve(selection.head));
         if (!box) return false;

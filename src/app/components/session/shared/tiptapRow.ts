@@ -1,7 +1,7 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import { Paragraph } from '@tiptap/extension-paragraph';
 import { createTable } from '@tiptap/extension-table';
-import { TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
+import { TextSelection, type EditorState } from '@tiptap/pm/state';
 import type { Node as ProseMirrorNode, NodeType, ResolvedPos, Schema } from '@tiptap/pm/model';
 // TextBoxEdgeCursor/isFlexSiblingContainer: nessuna dipendenza circolare -
 // tiptapTextBoxEdgeCursor.ts non importa nulla da questo file (verificato,
@@ -11,7 +11,14 @@ import type { Node as ProseMirrorNode, NodeType, ResolvedPos, Schema } from '@ti
 // sola classe di selezione. isFlexSiblingContainer aggiunta al Passo 3
 // (piano confermato 2026-08-13, Problema A+B): distingue Caso 1a/1b, vedi
 // commento sul Caso 1 sotto.
-import { TextBoxEdgeCursor, isFlexSiblingContainer, insertRowItemBesideRow, stripRowGrow } from './tiptapTextBoxEdgeCursor';
+import {
+  TextBoxEdgeCursor,
+  isFlexSiblingContainer,
+  insertRowItemBesideRow,
+  stripRowGrow,
+  isRowItemEligible,
+  combineIntoRow,
+} from './tiptapTextBoxEdgeCursor';
 
 // Fase 1 del progetto "affiancamento a livello documento" (piano confermato
 // 2026-08-07): solo schema + rendering CSS, NESSUNA navigazione/drag&drop/
@@ -152,48 +159,6 @@ export function isPositionInsideAny($pos: ResolvedPos, typeNames: string[]): boo
 // table/textBox/collapseBlock, non un tipo alla volta).
 function isSelectionInsideAny(state: EditorState, typeNames: string[]): boolean {
   return isPositionInsideAny(state.selection.$from, typeNames);
-}
-
-// I 4 tipi di nodo che lo schema accetta come figlio di una row (stessi di
-// RowElementType sopra, qui pero' serve verificare un nodo GIA' ESISTENTE
-// invece di costruirne uno nuovo) - usata da mergeAtBackspace sotto per
-// escludere un vicino che NON e' mai stato pensato per stare in una row
-// (es. un elenco puntato o una citazione, entrambi nello schema ma nel
-// gruppo 'block' e basta, mai 'rowItem'): schema.nodes.row.create
-// lancerebbe un errore se tentato con un figlio del genere, quindi va
-// verificato PRIMA di costruire il nodo, mai a occhi chiusi.
-const ROW_ITEM_TYPE_NAMES = ['paragraph', 'textBox', 'collapseBlock', 'table'];
-
-function isRowItemEligible(node: ProseMirrorNode): boolean {
-  return ROW_ITEM_TYPE_NAMES.includes(node.type.name);
-}
-
-// Sostituisce l'intero range dato con una row nuova i cui figli sono
-// leftNodes+rightNodes concatenati - nucleo condiviso dei 4 casi di
-// mergeAtBackspace sotto (blocco standalone+standalone, row+standalone in
-// entrambi gli ordini, row+row), stesso identico schema "un solo
-// tr.replaceWith + posizione calcolata direttamente su tr.doc" gia' usato da
-// splitRowAtPause (tiptapTextBoxEdgeCursor.ts) e dal Caso 1b di
-// addElementBeside sopra - mai piu' step separati con mapping, che
-// costringerebbero a rimappare le posizioni fra uno step e l'altro.
-//
-// Cursore al PUNTO DI GIUNZIONE fra i due gruppi (fine dell'ultimo nodo di
-// leftNodes, bias -1) in tutti e 4 i casi - convenzione standard di
-// Backspace: il cursore torna esattamente al bordo appena "attraversato",
-// pronto a continuare a cancellare all'indietro nel contenuto che era gia'
-// li' prima, mai dentro il contenuto che si e' appena unito da destra.
-function combineIntoRow(
-  tr: Transaction,
-  schema: Schema,
-  range: { from: number; to: number },
-  leftNodes: ProseMirrorNode[],
-  rightNodes: ProseMirrorNode[]
-) {
-  const rowNode = schema.nodes.row.create(null, [...leftNodes, ...rightNodes]);
-  tr.replaceWith(range.from, range.to, rowNode);
-  const leftSize = leftNodes.reduce((sum, node) => sum + node.nodeSize, 0);
-  const joinPos = range.from + 1 + leftSize;
-  tr.setSelection(TextSelection.near(tr.doc.resolve(joinPos), -1));
 }
 
 export const Row = Node.create({
