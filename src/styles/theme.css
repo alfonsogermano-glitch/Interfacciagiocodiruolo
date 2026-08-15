@@ -802,12 +802,22 @@
    contesto per la maniglia assoluta, stesso schema di .tiptap-textbox/
    .tiptap-collapse sopra. Stessa guardia :not(:has(...)) per lo stesso
    motivo (una row puo' avere TextBox/Collapse/tabelle annidate al suo
-   interno). */
+   interno), PIU' `p:hover` (bug segnalato 2026-08-15, dal vivo dopo che i
+   paragrafi sono diventati rowItem con Fase 5a, 2026-08-09: un paragrafo
+   affiancato non ha mai una propria maniglia - a differenza di TextBox/
+   Collapse/tabella, elencati sopra - quindi senza questa esclusione la
+   maniglia DELLA ROW, sempre posizionata in alto a sinistra del
+   contenitore, restava visibile mentre il mouse era sopra il testo del
+   paragrafo, apparendo per errore come se fosse una maniglia del
+   paragrafo stesso). Nessun impatto sulla riga 793 sopra (maniglia DI
+   TextBox/Collapse): li' un paragrafo e' contenuto INTERNO del box, non
+   un rowItem fratello, e deve continuare a rivelare la maniglia del box
+   che lo contiene. */
 .tiptap-row {
   position: relative;
   margin: 0 0 0.25rem 0;
 }
-.tiptap-row:hover:not(:has(.tableWrapper:hover, .tiptap-textbox:hover, .tiptap-collapse:hover)) > .tiptap-block-handle {
+.tiptap-row:hover:not(:has(.tableWrapper:hover, .tiptap-textbox:hover, .tiptap-collapse:hover, p:hover)) > .tiptap-block-handle {
   opacity: 1;
   pointer-events: auto;
 }
