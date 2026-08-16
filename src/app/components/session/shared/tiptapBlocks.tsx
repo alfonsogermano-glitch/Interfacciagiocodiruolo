@@ -109,23 +109,23 @@ function createEdgeAwareKeyboardShortcuts(editor: Editor) {
     // possibile: richiede $from fuori da box/row/cella, vedi commento sulla
     // funzione stessa).
     ArrowLeft: () =>
-      exitBoxBoundary(editor, 'before') ||
+      exitBoxBoundary(editor, 'before', 'horizontal') ||
       exitFlexSiblingBoundary(editor, 'before') ||
       exitCellBoundary(editor, 'before') ||
       exitRowBoundary(editor, 'before') ||
       exitTableBoundary(editor, 'before') ||
       exitRowDocumentBoundary(editor, 'before') ||
       enterRowDocumentBoundary(editor, 'before'),
-    ArrowUp: () => exitBoxBoundary(editor, 'before') || exitTableTopEdge(editor),
+    ArrowUp: () => exitBoxBoundary(editor, 'before', 'vertical') || exitTableTopEdge(editor),
     ArrowRight: () =>
-      exitBoxBoundary(editor, 'after') ||
+      exitBoxBoundary(editor, 'after', 'horizontal') ||
       exitFlexSiblingBoundary(editor, 'after') ||
       exitCellBoundary(editor, 'after') ||
       exitRowBoundary(editor, 'after') ||
       exitTableBoundary(editor, 'after') ||
       exitRowDocumentBoundary(editor, 'after') ||
       enterRowDocumentBoundary(editor, 'after'),
-    ArrowDown: () => exitBoxBoundary(editor, 'after'),
+    ArrowDown: () => exitBoxBoundary(editor, 'after', 'vertical'),
     // Cancella l'intero nodo (non solo il paragrafo vuoto) quando il
     // cursore e' esattamente a inizio contenuto - equivalente esatto di
     // selezionarlo con la maniglia e premere Canc (deleteSelection su una

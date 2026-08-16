@@ -455,7 +455,48 @@ function pauseAtIsolatingBoundary(editor: Editor, boundaryPos: number, dir: 'bef
     .run();
 }
 
-export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after'): boolean {
+// Pattern condiviso "pausa se c'e' un vicino reale non-tabella
+// (pauseAtIsolatingBoundary), altrimenti atterra/tuffati con gli stessi due
+// meta di riga" - stesso identico blocco che finora viveva duplicato in tre
+// punti (fallback di exitBoxBoundary, ramo row di exitTableBoundary, coda di
+// exitRowDocumentBoundary, tutti invariati qui sotto). Estratto (Fase A,
+// piano navigazione verticale confermato 2026-08-16) perche' il nuovo ramo
+// verticale di exitBoxBoundary sotto lo riusa una quarta volta - i tre punti
+// preesistenti NON sono stati toccati/fatti convergere qui in questo passo
+// (nessun bisogno funzionale, e tenerli invariati riduce il rischio di
+// regressione sull'orizzontale gia' collaudato).
+function pauseOrLandAtRowBoundary(editor: Editor, pos: number, dir: 'before' | 'after'): boolean {
+  if (pauseAtIsolatingBoundary(editor, pos, dir)) return true;
+  const rowWrapped = measureRowWrap(editor, pos);
+  return editor
+    .chain()
+    .command(({ tr }) => {
+      tr.setSelection(landOrDive(tr.doc, pos, dir));
+      tr.setMeta(ROW_PAUSE_WRAPPED_META, rowWrapped);
+      tr.setMeta(ROW_PAUSE_DIR_META, dir);
+      return true;
+    })
+    .scrollIntoView()
+    .run();
+}
+
+// axis (Fase A, piano navigazione verticale confermato 2026-08-16): fino ad
+// oggi questa funzione non distingueva Sinistra/Destra da Su/Giu' - lo stesso
+// bordo "genitore diretto e' una row" veniva trattato identico in entrambi
+// gli assi, pausando (o tuffandosi) verso il FRATELLO nella riga (il box
+// adiacente nella stessa row). Corretto per l'orizzontale (e' esattamente il
+// significato di "esci a sinistra/destra"), sbagliato per il verticale: da
+// un box che non e' ne' il primo ne' l'ultimo della riga, uscire in verticale
+// deve raggiungere il bordo della RIGA STESSA (il blocco documento
+// sopra/sotto), mai un fratello affiancato - vedi il nuovo ramo
+// axis==='vertical' subito sotto, che intercetta PRIMA della chiamata
+// incondizionata a pauseAtIsolatingBoundary(boundaryPos,...) cosi' quel
+// fratello non viene mai considerato in verticale. Il ramo isTableCell
+// (dentro il blocco isFlexSiblingContainer piu' sotto) resta interamente
+// FUORI da questa distinzione, invariato per qualunque axis - stessa
+// esclusione "scroll orizzontale annidato/arrow-nav a doppio livello, fuori
+// scope" gia' documentata altrove in questo file per le celle di tabella.
+export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after', axis: 'horizontal' | 'vertical'): boolean {
   const { selection, doc } = editor.state;
   if (!selection.empty) return false;
   const $from = selection.$from;
@@ -485,6 +526,21 @@ export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after'): boolea
   // il suo commento sopra), il limite era solo qui nella chiamata.
   const parentDepth = boxDepth - 1;
   if (parentDepth >= 0) {
+    // Nuovo ramo verticale (Fase A, piano confermato 2026-08-16): se il
+    // genitore diretto del box e' una row documentale, l'uscita verticale
+    // NON deve mai considerare il fratello nella riga (quello sotto,
+    // pauseAtIsolatingBoundary(boundaryPos,...), e' un concetto orizzontale)
+    // - salta direttamente al bordo della ROW stessa nel SUO genitore
+    // (rowPos, stesso calcolo gia' usato dalla coda di
+    // exitRowDocumentBoundary per lo stesso identico bordo), riusando
+    // pauseOrLandAtRowBoundary per pausare/atterrare li'. isDocRow (non
+    // isFlexSiblingContainer): una cella di tabella resta fuori da questo
+    // ramo, invariata, vedi commento sulla funzione sopra.
+    if (axis === 'vertical' && isDocRow($from.node(parentDepth))) {
+      const rowPos = dir === 'before' ? $from.before(parentDepth) : $from.after(parentDepth);
+      return pauseOrLandAtRowBoundary(editor, rowPos, dir);
+    }
+
     if (pauseAtIsolatingBoundary(editor, boundaryPos, dir)) return true;
 
     // Il resto di questo ramo (deferral al vero bordo del CONTENITORE
@@ -517,18 +573,7 @@ export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after'): boolea
     }
   }
 
-  const rowWrapped = measureRowWrap(editor, boundaryPos);
-
-  return editor
-    .chain()
-    .command(({ tr }) => {
-      tr.setSelection(landOrDive(tr.doc, boundaryPos, dir));
-      tr.setMeta(ROW_PAUSE_WRAPPED_META, rowWrapped);
-      tr.setMeta(ROW_PAUSE_DIR_META, dir);
-      return true;
-    })
-    .scrollIntoView()
-    .run();
+  return pauseOrLandAtRowBoundary(editor, boundaryPos, dir);
 }
 
 // Pausa fra due fratelli DIRETTI di una row documentale o di una cella di
@@ -1917,7 +1962,7 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         // si ferma di nuovo li' un livello alla volta invece di scavalcarlo
         // (bug 2026-08-02, vedi commento su exitBoxBoundary in
         // tiptapTextBoxEdgeCursor.ts).
-        if (exitBoxBoundary(editor, dir)) return true;
+        if (exitBoxBoundary(editor, dir, axis)) return true;
 
         // Poi exitFlexSiblingBoundary/exitRowDocumentBoundary (Fase 3a,
         // stesso identico motivo delle riprove sotto: la prosecuzione da un
