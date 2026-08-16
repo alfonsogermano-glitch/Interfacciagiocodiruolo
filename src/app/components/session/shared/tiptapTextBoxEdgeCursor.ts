@@ -436,7 +436,7 @@ function measureRowWrap(editor: Editor, boundaryPos: number): boolean {
 // tabelle affiancate" o "box accanto a tabella", non ancora verificato dal
 // vivo, invariato da questo passo. Ritorna false se non c'e' alcun fratello
 // (bordo assoluto del contenitore, competenza del chiamante).
-function pauseAtIsolatingBoundary(editor: Editor, boundaryPos: number, dir: 'before' | 'after'): boolean {
+function pauseAtIsolatingBoundary(editor: Editor, boundaryPos: number, dir: 'before' | 'after', axis: 'horizontal' | 'vertical'): boolean {
   const { doc } = editor.state;
   const $boundary = doc.resolve(boundaryPos);
   const sibling = dir === 'before' ? $boundary.nodeBefore : $boundary.nodeAfter;
@@ -449,6 +449,7 @@ function pauseAtIsolatingBoundary(editor: Editor, boundaryPos: number, dir: 'bef
       tr.setSelection(new TextBoxEdgeCursor(tr.doc.resolve(boundaryPos)));
       tr.setMeta(ROW_PAUSE_WRAPPED_META, rowWrapped);
       tr.setMeta(ROW_PAUSE_DIR_META, dir);
+      tr.setMeta(ROW_PAUSE_AXIS_META, axis);
       return true;
     })
     .scrollIntoView()
@@ -465,8 +466,8 @@ function pauseAtIsolatingBoundary(editor: Editor, boundaryPos: number, dir: 'bef
 // preesistenti NON sono stati toccati/fatti convergere qui in questo passo
 // (nessun bisogno funzionale, e tenerli invariati riduce il rischio di
 // regressione sull'orizzontale gia' collaudato).
-function pauseOrLandAtRowBoundary(editor: Editor, pos: number, dir: 'before' | 'after'): boolean {
-  if (pauseAtIsolatingBoundary(editor, pos, dir)) return true;
+function pauseOrLandAtRowBoundary(editor: Editor, pos: number, dir: 'before' | 'after', axis: 'horizontal' | 'vertical'): boolean {
+  if (pauseAtIsolatingBoundary(editor, pos, dir, axis)) return true;
   const rowWrapped = measureRowWrap(editor, pos);
   return editor
     .chain()
@@ -474,6 +475,7 @@ function pauseOrLandAtRowBoundary(editor: Editor, pos: number, dir: 'before' | '
       tr.setSelection(landOrDive(tr.doc, pos, dir));
       tr.setMeta(ROW_PAUSE_WRAPPED_META, rowWrapped);
       tr.setMeta(ROW_PAUSE_DIR_META, dir);
+      tr.setMeta(ROW_PAUSE_AXIS_META, axis);
       return true;
     })
     .scrollIntoView()
@@ -538,10 +540,10 @@ export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after', axis: '
     // ramo, invariata, vedi commento sulla funzione sopra.
     if (axis === 'vertical' && isDocRow($from.node(parentDepth))) {
       const rowPos = dir === 'before' ? $from.before(parentDepth) : $from.after(parentDepth);
-      return pauseOrLandAtRowBoundary(editor, rowPos, dir);
+      return pauseOrLandAtRowBoundary(editor, rowPos, dir, 'vertical');
     }
 
-    if (pauseAtIsolatingBoundary(editor, boundaryPos, dir)) return true;
+    if (pauseAtIsolatingBoundary(editor, boundaryPos, dir, axis)) return true;
 
     // Il resto di questo ramo (deferral al vero bordo del CONTENITORE
     // invece di una pausa "morta" qui) resta scoped al SOLO caso row -
@@ -573,7 +575,7 @@ export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after', axis: '
     }
   }
 
-  return pauseOrLandAtRowBoundary(editor, boundaryPos, dir);
+  return pauseOrLandAtRowBoundary(editor, boundaryPos, dir, axis);
 }
 
 // Pausa fra due fratelli DIRETTI di una row documentale o di una cella di
@@ -641,6 +643,7 @@ export function exitFlexSiblingBoundary(editor: Editor, dir: 'before' | 'after')
       tr.setSelection(landOrDive(tr.doc, boundaryPos, dir));
       tr.setMeta(ROW_PAUSE_WRAPPED_META, rowWrapped);
       tr.setMeta(ROW_PAUSE_DIR_META, dir);
+      tr.setMeta(ROW_PAUSE_AXIS_META, 'horizontal');
       return true;
     })
     .scrollIntoView()
@@ -973,7 +976,7 @@ export function exitTableBoundary(editor: Editor, dir: 'before' | 'after'): bool
 
   const docRowDepth = findDocRowAncestorDepth($from);
   if (docRowDepth === tableDepth - 1) {
-    if (pauseAtIsolatingBoundary(editor, tablePos, dir)) return true;
+    if (pauseAtIsolatingBoundary(editor, tablePos, dir, 'horizontal')) return true;
     const rowPos = dir === 'before' ? $from.before(docRowDepth) : $from.after(docRowDepth);
 
     // FIX 2026-08-12 (bug preesistente dell'8 agosto, segnalato oggi): senza
@@ -992,7 +995,7 @@ export function exitTableBoundary(editor: Editor, dir: 'before' | 'after'): bool
     // STESSA row - la guardia isDocRow gia' in testa a
     // exitRowDocumentBoundary la riconosce e la blocca da sola, nessuna
     // duplicazione necessaria.
-    if (pauseAtIsolatingBoundary(editor, rowPos, dir)) return true;
+    if (pauseAtIsolatingBoundary(editor, rowPos, dir, 'horizontal')) return true;
     const rowWrapped = measureRowWrap(editor, rowPos);
     return editor
       .chain()
@@ -1000,6 +1003,7 @@ export function exitTableBoundary(editor: Editor, dir: 'before' | 'after'): bool
         tr.setSelection(landOrDive(tr.doc, rowPos, dir));
         tr.setMeta(ROW_PAUSE_WRAPPED_META, rowWrapped);
         tr.setMeta(ROW_PAUSE_DIR_META, dir);
+        tr.setMeta(ROW_PAUSE_AXIS_META, 'horizontal');
         return true;
       })
       .scrollIntoView()
@@ -1114,7 +1118,7 @@ export function exitRowDocumentBoundary(editor: Editor, dir: 'before' | 'after')
   // residui: nessun vicino => pausa (comportamento gia' corretto di ieri,
   // invariato); vicino e' una tabella => dive diretto (comportamento
   // pre-esistente, invariato, mai stato contestato).
-  if (pauseAtIsolatingBoundary(editor, rowPos, dir)) return true;
+  if (pauseAtIsolatingBoundary(editor, rowPos, dir, 'horizontal')) return true;
 
   // FIX 2026-08-12 (scoperto testando la revisione sopra: Invio da questa
   // pausa rientrava nella row invece di materializzare un paragrafo): a
@@ -1136,6 +1140,7 @@ export function exitRowDocumentBoundary(editor: Editor, dir: 'before' | 'after')
       tr.setSelection(landOrDive(tr.doc, rowPos, dir));
       tr.setMeta(ROW_PAUSE_WRAPPED_META, rowWrapped);
       tr.setMeta(ROW_PAUSE_DIR_META, dir);
+      tr.setMeta(ROW_PAUSE_AXIS_META, 'horizontal');
       return true;
     })
     .scrollIntoView()
@@ -1187,7 +1192,7 @@ export function exitRowDocumentBoundary(editor: Editor, dir: 'before' | 'after')
 // $from (blockDepth = $from.depth), a qualunque profondita' esso sia -
 // generico esattamente come jumpOrInsertAtContainerBoundary sopra, che
 // serve gia' documento, TextBox e Collapse senza distinzione.
-export function enterRowDocumentBoundary(editor: Editor, dir: 'before' | 'after'): boolean {
+export function enterRowDocumentBoundary(editor: Editor, dir: 'before' | 'after', axis: 'horizontal' | 'vertical'): boolean {
   const { selection, doc } = editor.state;
   if (!selection.empty) return false;
   // Una pausa gia' attiva e' competenza di exitArrow/adjacentBox
@@ -1216,6 +1221,7 @@ export function enterRowDocumentBoundary(editor: Editor, dir: 'before' | 'after'
     .chain()
     .command(({ tr }) => {
       tr.setSelection(new TextBoxEdgeCursor(tr.doc.resolve(boundaryPos)));
+      tr.setMeta(ROW_PAUSE_AXIS_META, axis);
       return true;
     })
     .scrollIntoView()
@@ -1373,7 +1379,7 @@ function isRealSiblingElement(el: Element | null): el is HTMLElement {
 // genitore diretto come per la cella). Estratto in findOuterVisibleBoundary
 // sotto invece di un secondo blocco if/else duplicato qui: stessa formula di
 // midpoint, cambia solo QUALE elemento fornisce il bordo esterno.
-function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after') {
+function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after', axis: 'horizontal' | 'vertical') {
   const container = widget.parentElement;
   if (!container) return;
 
@@ -1386,6 +1392,29 @@ function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after')
   const containerRect = container.getBoundingClientRect();
   const beforeRect = siblingBefore?.getBoundingClientRect() ?? null;
   const afterRect = siblingAfter?.getBoundingClientRect() ?? null;
+
+  // Ramo verticale (Fase B, piano navigazione verticale confermato
+  // 2026-08-16): la pausa rappresenta qui una transizione fra due blocchi
+  // IMPILATI (mai affiancati - vedi il commento su ROW_PAUSE_AXIS_META sopra
+  // per il perche' questi due blocchi sono sempre in colonna, mai in riga),
+  // quindi non ha senso la logica sameRow/outerBoundary sotto (pensata per
+  // decidere una coordinata ORIZZONTALE fra vicini che possono essere
+  // affiancati) - width/left sono fissi (100%/0, la classe modificatrice
+  // CSS --axis-vertical li impone), qui calcoliamo solo il top: a meta' fra
+  // il bordo inferiore del blocco sopra e il bordo superiore del blocco
+  // sotto quando esistono entrambi, altrimenti flush sull'unico vicino
+  // presente (stesso caso limite "vicolo cieco/bordo assoluto documento"
+  // gia' gestito per l'orizzontale, qui con un solo lato).
+  if (axis === 'vertical') {
+    const top =
+      beforeRect && afterRect
+        ? (beforeRect.bottom + afterRect.top) / 2 - containerRect.top
+        : (afterRect ? afterRect.top : beforeRect!.bottom) - containerRect.top;
+    widget.style.position = 'absolute';
+    widget.style.top = `${top}px`;
+    widget.style.left = '0px';
+    return;
+  }
 
   const sameRow = !!beforeRect && !!afterRect && Math.abs(beforeRect.top - afterRect.top) <= 1;
 
@@ -1533,6 +1562,17 @@ function findOuterVisibleBoundary(container: HTMLElement): HTMLElement | null {
 const ROW_PAUSE_WRAPPED_META = 'textBoxEdgeCursorRowWrapped';
 const ROW_PAUSE_DIR_META = 'textBoxEdgeCursorRowDir';
 const ROW_PAUSE_ADVANCE_META = 'textBoxEdgeCursorRowAdvance';
+// ROW_PAUSE_AXIS_META (Fase B, piano navigazione verticale confermato
+// 2026-08-16): quale ASSE di frecce ha creato la pausa - 'vertical' per le
+// pause raggiunte da Su/Giu' (exitBoxBoundary ramo isDocRow, o
+// enterRowDocumentBoundary chiamata da ArrowUp/Down dopo la Fase D),
+// 'horizontal' per tutte le altre (Sinistra/Destra, sempre state l'unico
+// asse fino a ieri). Serve a positionEdgeCursor (sotto) per scegliere fra
+// barra verticale sottile (orizzontale, invariata) e barra orizzontale
+// larga quanto il container (verticale, nuova) - la vecchia barra verticale
+// comunicava male "sei fra due righe impilate" quando riusata cosi' com'era
+// per le pause raggiunte in verticale.
+const ROW_PAUSE_AXIS_META = 'textBoxEdgeCursorRowAxis';
 
 // `confirmed` invece di due valori 'natural'/'corrected' fissi (versione
 // precedente, bug 2026-08-05 "funziona solo in avanti"): quale RESA
@@ -1541,7 +1581,13 @@ const ROW_PAUSE_ADVANCE_META = 'textBoxEdgeCursorRowAdvance';
 // derivazione e' in view() sotto, non qui: questo stato traccia solo il
 // FATTO "l'utente ha gia' premuto una seconda volta", non il suo
 // significato visivo.
-type EdgeCursorRowPauseState = { pos: number; dir: 'before' | 'after'; wrapped: boolean; confirmed: boolean } | null;
+type EdgeCursorRowPauseState = {
+  pos: number;
+  dir: 'before' | 'after';
+  wrapped: boolean;
+  confirmed: boolean;
+  axis: 'horizontal' | 'vertical';
+} | null;
 
 // PluginKey tipizzata (non anonima come le altre in questo file): serve a
 // leggere lo stato da fuori il plugin stesso, dentro exitArrow
@@ -1682,7 +1728,8 @@ export const TextBoxEdgeCursorExtension = Extension.create({
             }
             const dir = (tr.getMeta(ROW_PAUSE_DIR_META) as 'before' | 'after' | undefined) ?? 'after';
             const wrapped = tr.getMeta(ROW_PAUSE_WRAPPED_META) === true;
-            return { pos: sel.head, dir, wrapped, confirmed: false };
+            const axis = (tr.getMeta(ROW_PAUSE_AXIS_META) as 'horizontal' | 'vertical' | undefined) ?? 'horizontal';
+            return { pos: sel.head, dir, wrapped, confirmed: false, axis };
           },
         },
         props: {
@@ -1821,6 +1868,13 @@ export const TextBoxEdgeCursorExtension = Extension.create({
               const widget = view.dom.querySelector<HTMLElement>('.tiptap-textbox-edge-cursor');
               if (!widget) return;
 
+              // Fase B (piano navigazione verticale confermato 2026-08-16):
+              // classe modificatrice per la resa orizzontale (barra larga
+              // quanto il container) invece della barra verticale sottile
+              // ereditata - solo un toggle di classe, tutto il resto della
+              // geometria resta calcolato in positionEdgeCursor sotto.
+              widget.classList.toggle('tiptap-textbox-edge-cursor--axis-vertical', pauseState.axis === 'vertical');
+
               // preferSide riflette la fase natural/corrected della pausa
               // a-capo (bug 2026-08-05, vedi ROW_PAUSE_DIR_META sopra per
               // il ragionamento completo su perche' le due direzioni
@@ -1837,7 +1891,7 @@ export const TextBoxEdgeCursorExtension = Extension.create({
                   : pauseState.confirmed
                     ? 'before'
                     : 'after';
-              positionEdgeCursor(widget, preferSide);
+              positionEdgeCursor(widget, preferSide, pauseState.axis);
             },
           };
         },
@@ -1890,7 +1944,23 @@ export const TextBoxEdgeCursorExtension = Extension.create({
     // paragrafo o una tabella che landOrDive attraversa gia' da sola) target
     // e' gia' testo reale - nessun salto ulteriore, nessuna differenza dal
     // comportamento di ieri.
-    const reenterBox = (selection: TextBoxEdgeCursor, box: { node: ProseMirrorNode; side: 'before' | 'after' }) =>
+    // axis (Fase B, piano navigazione verticale confermato 2026-08-16): se
+    // il rientro "un livello alla volta" atterra su un'ALTRA pausa (box
+    // annidato dentro il box/row che si sta rientrando - scenario raro ma
+    // possibile, es. un TextBox il cui primo figlio e' un altro TextBox),
+    // quella nuova pausa va etichettata con lo stesso asse di QUESTO
+    // rientro, altrimenti positionEdgeCursor la renderebbe sempre come barra
+    // orizzontale (fallback '?? horizontal' del reducer) anche se si e'
+    // arrivati li' con Su/Giu'. tr.setMeta incondizionato (non solo quando
+    // target e' davvero una TextBoxEdgeCursor): innocuo se target e' una
+    // TextSelection reale, il reducer del plugin legge questo meta SOLO
+    // quando sel instanceof TextBoxEdgeCursor, stesso principio "nessun
+    // controllo extra necessario" gia' in uso altrove in questo file.
+    const reenterBox = (
+      selection: TextBoxEdgeCursor,
+      box: { node: ProseMirrorNode; side: 'before' | 'after' },
+      axis: 'horizontal' | 'vertical'
+    ) =>
       editor
         .chain()
         .command(({ tr }) => {
@@ -1903,6 +1973,7 @@ export const TextBoxEdgeCursorExtension = Extension.create({
             target = landOrDive(tr.doc, deeperPos, dir);
           }
           tr.setSelection(target);
+          tr.setMeta(ROW_PAUSE_AXIS_META, axis);
           return true;
         })
         .scrollIntoView()
@@ -1953,7 +2024,7 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         // adjacentBox sopra): premere la freccia che punta VERSO il lato del
         // box (dir === box.side) rientra nel box; l'altra direzione
         // prosegue oltre.
-        if (dir === box.side) return reenterBox(selection, box);
+        if (dir === box.side) return reenterBox(selection, box, axis);
 
         // Direzione opposta al lato del box: prosegue oltre. Riprova PRIMA
         // exitBoxBoundary sulla posizione attuale: se questo cursore finto
@@ -2148,7 +2219,7 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         const neighbor = dir === 'after' ? $pos.nodeAfter : $pos.nodeBefore;
 
         if (neighbor && isReenterableNeighbor(neighbor)) {
-          return reenterBox(selection, { node: neighbor, side: dir });
+          return reenterBox(selection, { node: neighbor, side: dir }, pauseState?.axis ?? 'horizontal');
         }
 
         if (neighbor) {
@@ -2285,7 +2356,8 @@ export const TextBoxEdgeCursorExtension = Extension.create({
       Escape: withCursor((selection) => {
         const box = adjacentBox(editor.state.doc.resolve(selection.head));
         if (!box) return false;
-        return reenterBox(selection, box);
+        const pauseState = textBoxEdgeCursorPluginKey.getState(editor.state);
+        return reenterBox(selection, box, pauseState?.axis ?? 'horizontal');
       }),
     };
   },

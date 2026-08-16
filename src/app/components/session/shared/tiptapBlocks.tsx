@@ -115,20 +115,24 @@ function createEdgeAwareKeyboardShortcuts(editor: Editor) {
       exitRowBoundary(editor, 'before') ||
       exitTableBoundary(editor, 'before') ||
       exitRowDocumentBoundary(editor, 'before') ||
-      enterRowDocumentBoundary(editor, 'before'),
+      enterRowDocumentBoundary(editor, 'before', 'horizontal'),
     // enterRowDocumentBoundary aggiunta anche qui (Fase D, piano navigazione
     // verticale confermato 2026-08-16, gap verificato dal vivo: paragrafo
     // normale sopra una row il cui primo figlio e' un box, Freccia Su/Giu'
     // dal paragrafo produceva un GapCursor NATIVO invisibile invece della
     // nostra pausa - stesso identico "doppio confine isolating" gia' risolto
-    // per l'orizzontale sopra, mai stata wired su questo asse). La funzione
-    // e' gia' axis-agnostic (nessuna logica orizzontale al suo interno, vedi
-    // il suo commento in tiptapTextBoxEdgeCursor.ts) - bastava chiamarla
-    // anche qui, in coda, stesso ordine "prova tutti gli exit, poi l'enter"
-    // di ArrowLeft/Right sopra. Dopo exitTableTopEdge (mai prima): quella
-    // resta l'unica competente sul bordo assoluto SUPERIORE di una tabella
-    // isolata (nessuna row coinvolta), nessuna sovrapposizione possibile.
-    ArrowUp: () => exitBoxBoundary(editor, 'before', 'vertical') || exitTableTopEdge(editor) || enterRowDocumentBoundary(editor, 'before'),
+    // per l'orizzontale sopra, mai stata wired su questo asse). La sua
+    // DECISIONE se scattare resta axis-agnostic (nessuna logica orizzontale
+    // nel trigger, vedi il suo commento in tiptapTextBoxEdgeCursor.ts) -
+    // bastava chiamarla anche qui, in coda, stesso ordine "prova tutti gli
+    // exit, poi l'enter" di ArrowLeft/Right sopra. Il parametro axis (Fase B,
+    // stesso piano) serve invece SOLO a etichettare la pausa risultante per
+    // positionEdgeCursor - passato letterale qui perche' e' sempre noto alla
+    // chiamata quale freccia ha innescato la funzione. Dopo exitTableTopEdge
+    // (mai prima): quella resta l'unica competente sul bordo assoluto
+    // SUPERIORE di una tabella isolata (nessuna row coinvolta), nessuna
+    // sovrapposizione possibile.
+    ArrowUp: () => exitBoxBoundary(editor, 'before', 'vertical') || exitTableTopEdge(editor) || enterRowDocumentBoundary(editor, 'before', 'vertical'),
     ArrowRight: () =>
       exitBoxBoundary(editor, 'after', 'horizontal') ||
       exitFlexSiblingBoundary(editor, 'after') ||
@@ -136,8 +140,8 @@ function createEdgeAwareKeyboardShortcuts(editor: Editor) {
       exitRowBoundary(editor, 'after') ||
       exitTableBoundary(editor, 'after') ||
       exitRowDocumentBoundary(editor, 'after') ||
-      enterRowDocumentBoundary(editor, 'after'),
-    ArrowDown: () => exitBoxBoundary(editor, 'after', 'vertical') || enterRowDocumentBoundary(editor, 'after'),
+      enterRowDocumentBoundary(editor, 'after', 'horizontal'),
+    ArrowDown: () => exitBoxBoundary(editor, 'after', 'vertical') || enterRowDocumentBoundary(editor, 'after', 'vertical'),
     // Cancella l'intero nodo (non solo il paragrafo vuoto) quando il
     // cursore e' esattamente a inizio contenuto - equivalente esatto di
     // selezionarlo con la maniglia e premere Canc (deleteSelection su una
