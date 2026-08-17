@@ -1573,7 +1573,17 @@ function isRealSiblingElement(el: Element | null): el is HTMLElement {
 // genitore diretto come per la cella). Estratto in findOuterVisibleBoundary
 // sotto invece di un secondo blocco if/else duplicato qui: stessa formula di
 // midpoint, cambia solo QUALE elemento fornisce il bordo esterno.
-function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after', axis: 'horizontal' | 'vertical') {
+// axis (Fase B, piano navigazione verticale confermato 2026-08-16) RIMOSSO
+// come parametro (revisione 2026-08-18, richiesta esplicita - "stesso
+// stile sottile gia' in uso per le pause orizzontali, mai piu' una barra
+// larga quanto il container"): una pausa verticale rappresenta due blocchi
+// IMPILATI, mai sulla stessa riga - sameRow sotto (che confronta
+// beforeRect.top/afterRect.top) e' quindi SEMPRE falso per costruzione in
+// quel caso, ricade da solo nel ramo "un solo vicino" (a-capo/estremi) gia'
+// collaudato per l'orizzontale, senza bisogno di alcun ramo dedicato: la
+// stessa lineetta sottile posizionata contro UNO dei due blocchi (quello
+// scelto da preferSide) invece di una barra a tutta larghezza fra i due.
+function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after') {
   const container = widget.parentElement;
   if (!container) return;
 
@@ -1586,29 +1596,6 @@ function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after',
   const containerRect = container.getBoundingClientRect();
   const beforeRect = siblingBefore?.getBoundingClientRect() ?? null;
   const afterRect = siblingAfter?.getBoundingClientRect() ?? null;
-
-  // Ramo verticale (Fase B, piano navigazione verticale confermato
-  // 2026-08-16): la pausa rappresenta qui una transizione fra due blocchi
-  // IMPILATI (mai affiancati - vedi il commento su ROW_PAUSE_AXIS_META sopra
-  // per il perche' questi due blocchi sono sempre in colonna, mai in riga),
-  // quindi non ha senso la logica sameRow/outerBoundary sotto (pensata per
-  // decidere una coordinata ORIZZONTALE fra vicini che possono essere
-  // affiancati) - width/left sono fissi (100%/0, la classe modificatrice
-  // CSS --axis-vertical li impone), qui calcoliamo solo il top: a meta' fra
-  // il bordo inferiore del blocco sopra e il bordo superiore del blocco
-  // sotto quando esistono entrambi, altrimenti flush sull'unico vicino
-  // presente (stesso caso limite "vicolo cieco/bordo assoluto documento"
-  // gia' gestito per l'orizzontale, qui con un solo lato).
-  if (axis === 'vertical') {
-    const top =
-      beforeRect && afterRect
-        ? (beforeRect.bottom + afterRect.top) / 2 - containerRect.top
-        : (afterRect ? afterRect.top : beforeRect!.bottom) - containerRect.top;
-    widget.style.position = 'absolute';
-    widget.style.top = `${top}px`;
-    widget.style.left = '0px';
-    return;
-  }
 
   const sameRow = !!beforeRect && !!afterRect && Math.abs(beforeRect.top - afterRect.top) <= 1;
 
@@ -2094,13 +2081,6 @@ export const TextBoxEdgeCursorExtension = Extension.create({
               const widget = view.dom.querySelector<HTMLElement>('.tiptap-textbox-edge-cursor');
               if (!widget) return;
 
-              // Fase B (piano navigazione verticale confermato 2026-08-16):
-              // classe modificatrice per la resa orizzontale (barra larga
-              // quanto il container) invece della barra verticale sottile
-              // ereditata - solo un toggle di classe, tutto il resto della
-              // geometria resta calcolato in positionEdgeCursor sotto.
-              widget.classList.toggle('tiptap-textbox-edge-cursor--axis-vertical', pauseState.axis === 'vertical');
-
               // preferSide riflette la fase natural/corrected della pausa
               // a-capo (bug 2026-08-05, vedi ROW_PAUSE_DIR_META sopra per
               // il ragionamento completo su perche' le due direzioni
@@ -2117,7 +2097,7 @@ export const TextBoxEdgeCursorExtension = Extension.create({
                   : pauseState.confirmed
                     ? 'before'
                     : 'after';
-              positionEdgeCursor(widget, preferSide, pauseState.axis);
+              positionEdgeCursor(widget, preferSide);
             },
           };
         },

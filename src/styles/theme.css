@@ -718,24 +718,6 @@
     visibility: hidden;
   }
 }
-/* Modificatore axis-vertical (Fase B navigazione verticale, piano confermato
-   2026-08-16): quando la pausa rappresenta una transizione VERTICALE
-   (Su/Giu', fra due blocchi impilati - vedi ROW_PAUSE_AXIS_META/
-   pauseState.axis in tiptapTextBoxEdgeCursor.ts) la barra sottile VERTICALE
-   della regola base sopra comunica male "sei fra due righe impilate" -
-   diventa una barra ORIZZONTALE (width:100%, height sottile) invece.
-   margin-top:0 annulla l'offset padding/bordo della regola base (pensato per
-   allineare la barra verticale al TESTO dentro un box) - qui il top e' gia'
-   calcolato in JS (positionEdgeCursor, ramo axis==='vertical') come punto
-   medio esatto fra i due blocchi, quell'offset sarebbe semplicemente
-   sbagliato. left resta quello impostato in JS (sempre 0 per questo ramo):
-   nessun centraggio orizzontale necessario, la barra riempie gia' l'intera
-   larghezza del container. */
-.tiptap-textbox-edge-cursor--axis-vertical {
-  width: 100%;
-  height: 2px;
-  margin-top: 0;
-}
 /* Indicatore di drop laterale (Fase 4b, tiptapRowDrop.ts) - barra verticale
    sul bordo del blocco target quando il drag e' in zona-soglia (affianca,
    non impila). Deliberatamente DIVERSA da .tiptap-textbox-edge-cursor sopra
