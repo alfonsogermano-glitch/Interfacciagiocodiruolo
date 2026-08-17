@@ -6,6 +6,7 @@ import {
   findBoxAncestorDepth,
   isAtBoxBoundary,
   exitBoxBoundary,
+  exitRowItemVertical,
   exitFlexSiblingBoundary,
   exitCellBoundary,
   exitRowBoundary,
@@ -121,20 +122,27 @@ function createEdgeAwareKeyboardShortcuts(editor: Editor) {
     // normale sopra una row il cui primo figlio e' un box, Freccia Su/Giu'
     // dal paragrafo produceva un GapCursor NATIVO invisibile - stesso
     // identico "doppio confine isolating" gia' risolto per l'orizzontale
-    // sopra, mai stata wired su questo asse). La sua DECISIONE se scattare
-    // resta axis-agnostic (nessuna logica orizzontale nel trigger, vedi il
-    // suo commento in tiptapTextBoxEdgeCursor.ts) - bastava chiamarla anche
-    // qui, in coda, stesso ordine "prova tutti gli exit, poi l'enter" di
-    // ArrowLeft/Right sopra. Il parametro axis serve a scegliere l'AZIONE
-    // finale dentro la funzione (vedi il suo commento): per l'orizzontale
-    // etichetta ancora la pausa risultante per positionEdgeCursor, invariato;
-    // per il verticale (REVISIONE 2026-08-17, "elimina la pausa verticale")
-    // la funzione salta direttamente al testo reale invece di pausare - il
-    // fix del GapCursor invisibile resta, cambia solo la cura. Dopo
-    // exitTableTopEdge (mai prima): quella resta l'unica competente sul
-    // bordo assoluto SUPERIORE di una tabella isolata (nessuna row
-    // coinvolta), nessuna sovrapposizione possibile.
-    ArrowUp: () => exitBoxBoundary(editor, 'before', 'vertical') || exitTableTopEdge(editor) || enterRowDocumentBoundary(editor, 'before', 'vertical'),
+    // sopra, mai stata wired su questo asse). Il parametro axis sceglie
+    // l'AZIONE finale dentro la funzione (vedi il suo commento): per
+    // l'orizzontale etichetta ancora la pausa risultante per
+    // positionEdgeCursor, invariato; per il verticale (REVISIONE 2026-08-17,
+    // tabella di verita' Su/Giu') la destinazione decide reale-o-fantasma
+    // (verticalPauseOrJump) - il fix del GapCursor invisibile resta, cambia
+    // solo la cura.
+    //
+    // exitRowItemVertical (stessa revisione 2026-08-17, gap scoperto in fase
+    // di analisi): generalizza il ramo isDocRow di exitBoxBoundary a
+    // QUALUNQUE rowItem, non solo un box - un paragrafo normale che e' item
+    // di una row non ha mai un box ancestor, quindi exitBoxBoundary da solo
+    // non lo raggiunge mai. Provata SUBITO dopo exitBoxBoundary (che ha
+    // sempre la precedenza per l'annidamento box-in-box/box-in-cella) e
+    // prima di exitTableTopEdge/enterRowDocumentBoundary - vedi il suo
+    // commento in tiptapTextBoxEdgeCursor.ts per il rilevamento completo.
+    ArrowUp: () =>
+      exitBoxBoundary(editor, 'before', 'vertical') ||
+      exitRowItemVertical(editor, 'before') ||
+      exitTableTopEdge(editor) ||
+      enterRowDocumentBoundary(editor, 'before', 'vertical'),
     ArrowRight: () =>
       exitBoxBoundary(editor, 'after', 'horizontal') ||
       exitFlexSiblingBoundary(editor, 'after') ||
@@ -143,7 +151,10 @@ function createEdgeAwareKeyboardShortcuts(editor: Editor) {
       exitTableBoundary(editor, 'after') ||
       exitRowDocumentBoundary(editor, 'after') ||
       enterRowDocumentBoundary(editor, 'after', 'horizontal'),
-    ArrowDown: () => exitBoxBoundary(editor, 'after', 'vertical') || enterRowDocumentBoundary(editor, 'after', 'vertical'),
+    ArrowDown: () =>
+      exitBoxBoundary(editor, 'after', 'vertical') ||
+      exitRowItemVertical(editor, 'after') ||
+      enterRowDocumentBoundary(editor, 'after', 'vertical'),
     // Cancella l'intero nodo (non solo il paragrafo vuoto) quando il
     // cursore e' esattamente a inizio contenuto - equivalente esatto di
     // selezionarlo con la maniglia e premere Canc (deleteSelection su una
