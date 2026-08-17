@@ -582,7 +582,37 @@ export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after', axis: '
   const $from = selection.$from;
   const boxDepth = findBoxAncestorDepth($from);
   if (boxDepth === null) return false;
-  if (!isAtBoxBoundary(doc, $from, boxDepth, dir === 'before' ? 'start' : 'end')) return false;
+
+  // REVISIONE 2026-08-17 sera (bug segnalato dal vivo, cascata di GapCursor
+  // nativi salendo/scendendo da un punto qualunque di una riga corta):
+  // isAtBoxBoundary richiede l'offset ESATTO 0/fine del contenuto del box -
+  // corretto per l'orizzontale (movimento carattere-per-carattere, il
+  // cursore raggiunge il bordo solo dopo aver attraversato tutta la riga),
+  // sbagliato per il verticale, dove un cursore reale puo' trovarsi in
+  // QUALUNQUE punto di una riga (specialmente monolinea) e voler comunque
+  // uscire in verticale - l'utente non deve prima premere Fine/Home. Su
+  // quell'asse il criterio giusto e' "sono sull'ultima riga VISIVA in
+  // questa direzione", non "sono all'ultimo carattere": view.endOfTextblock
+  // e' la stessa API nativa che ProseMirror usa internamente per la propria
+  // gestione delle frecce - misura il layout DOM reale, quindi gestisce da
+  // sola sia una riga corta (sempre vero, unica riga) sia un paragrafo
+  // lungo a capo (vero solo sulla riga visiva davvero prima/ultima, false
+  // altrimenti - il nativo gestisce il movimento infra-blocco). Nessun
+  // parametro di stato: opera su editor.view.state.selection, che a questo
+  // punto (prima di qualunque transazione) coincide con $from.
+  //
+  // Trade-off accettato: per un box con PIU' di un paragrafo al suo
+  // interno, endOfTextblock non sa distinguere "ultima riga del MIO
+  // paragrafo" da "ultimo paragrafo del box" - potrebbe uscire dal box da
+  // un paragrafo intermedio invece di scendere al paragrafo successivo
+  // interno. Fuori scope per questa revisione (uso reale in questa
+  // codebase: box quasi sempre a un solo paragrafo) - solo l'orizzontale,
+  // invariato sotto, resta rigorosamente corretto anche per quel caso.
+  const atBoxBoundary =
+    axis === 'vertical'
+      ? editor.view.endOfTextblock(dir === 'before' ? 'up' : 'down')
+      : isAtBoxBoundary(doc, $from, boxDepth, dir === 'before' ? 'start' : 'end');
+  if (!atBoxBoundary) return false;
 
   const boundaryPos = dir === 'before' ? $from.before(boxDepth) : $from.after(boxDepth);
 
@@ -690,7 +720,7 @@ export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after', axis: '
 // competenza di exitArrow, mai di questa funzione - selection.empty e'
 // vero anche per una TextBoxEdgeCursor, quindi va escluso a monte.
 export function exitRowItemVertical(editor: Editor, dir: 'before' | 'after'): boolean {
-  const { selection, doc } = editor.state;
+  const { selection } = editor.state;
   if (!selection.empty || selection instanceof TextBoxEdgeCursor) return false;
 
   const $from = selection.$from;
@@ -698,7 +728,10 @@ export function exitRowItemVertical(editor: Editor, dir: 'before' | 'after'): bo
   if (itemDepth === null) return false;
   const rowDepth = findDocRowAncestorDepth($from);
   if (rowDepth !== itemDepth - 1) return false;
-  if (!isAtBoxBoundary(doc, $from, itemDepth, dir === 'before' ? 'start' : 'end')) return false;
+  // REVISIONE 2026-08-17 sera (stesso bug/stessa cura di exitBoxBoundary
+  // sopra, vedi il suo commento per il ragionamento completo): funzione
+  // gia' solo-verticale, sostituzione diretta senza branch su axis.
+  if (!editor.view.endOfTextblock(dir === 'before' ? 'up' : 'down')) return false;
 
   const rowPos = dir === 'before' ? $from.before(rowDepth) : $from.after(rowDepth);
   return verticalPauseOrJump(editor, rowPos, dir);
@@ -1336,7 +1369,17 @@ export function enterRowDocumentBoundary(editor: Editor, dir: 'before' | 'after'
 
   const blockDepth = $from.depth;
   if (blockDepth === 0) return false;
-  if (!isAtBoxBoundary(doc, $from, blockDepth, dir === 'before' ? 'start' : 'end')) return false;
+  // REVISIONE 2026-08-17 sera (stesso bug/stessa cura di exitBoxBoundary,
+  // vedi il suo commento per il ragionamento completo): blockDepth qui e'
+  // SEMPRE $from.depth, cioe' il paragrafo immediato di $from stesso (mai
+  // un contenitore con piu' figli come un box multi-paragrafo) - nessun
+  // trade-off residuo per questa funzione, a differenza di
+  // exitBoxBoundary/exitRowItemVertical.
+  const atBoundary =
+    axis === 'vertical'
+      ? editor.view.endOfTextblock(dir === 'before' ? 'up' : 'down')
+      : isAtBoxBoundary(doc, $from, blockDepth, dir === 'before' ? 'start' : 'end');
+  if (!atBoundary) return false;
 
   const boundaryPos = dir === 'before' ? $from.before(blockDepth) : $from.after(blockDepth);
   const $boundary = doc.resolve(boundaryPos);
