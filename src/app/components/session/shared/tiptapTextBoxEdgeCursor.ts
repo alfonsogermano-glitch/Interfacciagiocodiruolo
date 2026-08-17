@@ -1717,15 +1717,30 @@ export function isRowItemEligible(node: ProseMirrorNode): boolean {
 // il cursore torna esattamente al bordo appena "attraversato", pronto a
 // continuare a cancellare all'indietro nel contenuto che era gia' li'
 // prima, mai dentro il contenuto che si e' appena unito da destra.
+//
+// trailingSibling opzionale (round Backspace-esce-solo-il-primo-elemento,
+// piano confermato 2026-08-17): quando la row da cui si sta uscendo aveva
+// altri elementi oltre a quello che si sta unendo (mergeAtBackspace Caso
+// 3/4, o l'equivalente da pausa in backspaceAtPause sotto - vedi li' per il
+// perche' solo il PRIMO elemento della row-sotto partecipa al merge), quel
+// "resto" (gia' costruito dal chiamante via buildRowGroup sopra) va inserito
+// SUBITO DOPO la row appena unita, non prima ne' dentro - stesso schema
+// `Fragment.fromArray` gia' usato da splitRowAtPause per il caso duale
+// (spaccare una row in due). Retrocompatibile: senza questo argomento il
+// comportamento e' identico a prima (un solo nodo `rowNode` al posto del
+// range), i tre punti d'ingresso che non lo passano (Caso 1/2 di
+// mergeAtBackspace, e il ramo "before e' standalone" di backspaceAtPause)
+// restano invariati.
 export function combineIntoRow(
   tr: Transaction,
   schema: Schema,
   range: { from: number; to: number },
   leftNodes: ProseMirrorNode[],
-  rightNodes: ProseMirrorNode[]
+  rightNodes: ProseMirrorNode[],
+  trailingSibling?: ProseMirrorNode
 ) {
   const rowNode = schema.nodes.row.create(null, [...leftNodes, ...rightNodes]);
-  tr.replaceWith(range.from, range.to, rowNode);
+  tr.replaceWith(range.from, range.to, trailingSibling ? Fragment.fromArray([rowNode, trailingSibling]) : rowNode);
   const leftSize = leftNodes.reduce((sum, node) => sum + node.nodeSize, 0);
   const joinPos = range.from + 1 + leftSize;
   tr.setSelection(TextSelection.near(tr.doc.resolve(joinPos), -1));
@@ -1741,6 +1756,23 @@ export function combineIntoRow(
 // identico motivo, evitando una seconda copia che potrebbe divergere.
 export function stripRowGrow(node: ProseMirrorNode): ProseMirrorNode {
   return node.attrs.rowGrow != null ? node.type.create({ ...node.attrs, rowGrow: null }, node.content, node.marks) : node;
+}
+
+// Dissolvi/mantieni un gruppo di rowItem a seconda di quanti ne restano -
+// row nuova (stessi rowGrow relativi fra i superstiti, ancora validi: sono
+// lo stesso sottoinsieme di prima, vedi stripRowGrow sopra per il perche' un
+// SOLO superstite invece va spogliato) se ne restano almeno 2, altrimenti un
+// blocco standalone. Estratta (round Backspace-esce-solo-il-primo-elemento,
+// piano confermato 2026-08-17) dalla `buildGroup` locale che viveva solo
+// dentro splitRowAtPause sotto - la stessa identica decisione serve ora
+// anche a mergeAtBackspace (tiptapRow.ts, Caso 3/4) e a backspaceAtPause
+// (sotto) per il "resto" della row da cui Backspace estrae un solo elemento,
+// evitando una seconda copia che potrebbe divergere. Mai chiamata con un
+// array vuoto: chi la chiama estrae sempre `.slice(1)` da una row che per
+// vincolo di schema ('rowItem{2,}') ha gia' almeno 2 figli, quindi il resto
+// ha sempre almeno 1 elemento.
+export function buildRowGroup(schema: Schema, nodes: ProseMirrorNode[]): ProseMirrorNode {
+  return nodes.length >= 2 ? schema.nodes.row.create(null, Fragment.fromArray(nodes)) : stripRowGrow(nodes[0]);
 }
 
 export function insertRowItemBesideRow(
@@ -2231,11 +2263,8 @@ export const TextBoxEdgeCursorExtension = Extension.create({
           // pausa che non e' davvero fra due figli della stessa row.
           if (before.length === 0 || after.length === 0) return false;
 
-          const buildGroup = (nodes: ProseMirrorNode[]) =>
-            nodes.length >= 2 ? rowNode.type.create(rowNode.attrs, Fragment.fromArray(nodes)) : stripRowGrow(nodes[0]);
-
-          const beforeResult = buildGroup(before);
-          const afterResult = buildGroup(after);
+          const beforeResult = buildRowGroup(editor.schema, before);
+          const afterResult = buildRowGroup(editor.schema, after);
 
           tr.replaceWith(rowPos, rowPos + rowNode.nodeSize, Fragment.fromArray([beforeResult, afterResult]));
 
@@ -2374,27 +2403,38 @@ export const TextBoxEdgeCursorExtension = Extension.create({
       const rangeFrom = gapPos - before.nodeSize;
       const rangeTo = gapPos + after.nodeSize;
 
-      // rowGrow: azzerato per ENTRAMBI i lati solo quando sono GIA' due row
-      // che si combinano (i due gruppi di rapporti erano relativi a
-      // fratelli diversi, concatenarli senza reset produrrebbe proporzioni
-      // incoerenti - stessa regola di mergeAtBackspace Caso 4); preservato
-      // quando un solo lato e' una row esistente (stesso gruppo di
-      // fratelli di prima, solo con un elemento in piu').
-      const bothRows = before.type === schema.nodes.row && after.type === schema.nodes.row;
-
+      // REVISIONE 2026-08-17 (piano "Backspace unisce solo il primo
+      // elemento della row", confermato): la stessa asimmetria di
+      // mergeAtBackspace (tiptapRow.ts, Caso 3/4) vale identica qui - il
+      // documento "paragrafo Sopra, poi row[A,B,C]" e' lo STESSO sia che il
+      // cursore ci arrivi come TextSelection dentro A (mergeAtBackspace)
+      // sia come pausa al bordo assoluto della row (qui): stesso Backspace,
+      // stesso risultato atteso. `before` gioca sempre il ruolo di
+      // "aboveNode" (il blocco che il Backspace raggiunge all'INDIETRO) -
+      // assorbimento pieno, rowGrow preservato se e' gia' una row (nessuno
+      // stripping: e' lo stesso gruppo di prima, guadagna solo un nuovo
+      // membro, esattamente come mergeAtBackspace Caso 2/4). `after` gioca
+      // sempre il ruolo di "la row da cui si sta uscendo" - se e' una row,
+      // SOLO il suo primo figlio partecipa al merge (stripped, lascia il
+      // gruppo B/C con cui non ha piu' nulla a che fare), il resto
+      // (buildRowGroup) diventa un fratello nuovo subito dopo la row unita.
       let leftNodes: ProseMirrorNode[];
       if (before.type === schema.nodes.row) {
         leftNodes = [];
-        before.forEach((child) => leftNodes.push(bothRows ? stripRowGrow(child) : child));
+        before.forEach((child) => leftNodes.push(child));
       } else {
         if (!isRowItemEligible(before)) return false;
         leftNodes = [stripRowGrow(before)];
       }
 
       let rightNodes: ProseMirrorNode[];
+      let trailingSibling: ProseMirrorNode | undefined;
       if (after.type === schema.nodes.row) {
-        rightNodes = [];
-        after.forEach((child) => rightNodes.push(bothRows ? stripRowGrow(child) : child));
+        const afterChildren: ProseMirrorNode[] = [];
+        after.forEach((child) => afterChildren.push(child));
+        const [firstOfAfter, ...restOfAfter] = afterChildren;
+        rightNodes = [stripRowGrow(firstOfAfter)];
+        trailingSibling = buildRowGroup(schema, restOfAfter);
       } else {
         if (!isRowItemEligible(after)) return false;
         rightNodes = [stripRowGrow(after)];
@@ -2403,7 +2443,7 @@ export const TextBoxEdgeCursorExtension = Extension.create({
       return editor
         .chain()
         .command(({ tr }) => {
-          combineIntoRow(tr, schema, { from: rangeFrom, to: rangeTo }, leftNodes, rightNodes);
+          combineIntoRow(tr, schema, { from: rangeFrom, to: rangeTo }, leftNodes, rightNodes, trailingSibling);
           return true;
         })
         .scrollIntoView()

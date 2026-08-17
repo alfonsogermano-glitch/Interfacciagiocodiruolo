@@ -18,6 +18,7 @@ import {
   stripRowGrow,
   isRowItemEligible,
   combineIntoRow,
+  buildRowGroup,
 } from './tiptapTextBoxEdgeCursor';
 
 // Fase 1 del progetto "affiancamento a livello documento" (piano confermato
@@ -503,12 +504,12 @@ export const Row = Node.create({
           // Caso 3/4: il paragrafo e' il PRIMO item di una row esistente -
           // il blocco sopra (fuori dalla row, a livello del suo contenitore)
           // si unisce come nuovo primo elemento (Caso 3, se e' standalone) o
-          // le due row si combinano in una sola (Caso 4, se e' anch'esso una
-          // row). rowDepth===paragraphDepth-1 per costruzione (il paragrafo
-          // e' sempre figlio DIRETTO della row quando findAncestorDepth lo
-          // trova a questa profondita' minima) - guardia difensiva, mai
-          // dovrebbe fallire, stesso principio "mai un'assunzione senza
-          // verifica" gia' in uso altrove in questo file.
+          // le due row si combinano (Caso 4, se e' anch'esso una row).
+          // rowDepth===paragraphDepth-1 per costruzione (il paragrafo e'
+          // sempre figlio DIRETTO della row quando findAncestorDepth lo trova
+          // a questa profondita' minima) - guardia difensiva, mai dovrebbe
+          // fallire, stesso principio "mai un'assunzione senza verifica" gia'
+          // in uso altrove in questo file.
           if (rowDepth !== paragraphDepth - 1) return false;
           const rowNode = $from.node(rowDepth);
           if (rowNode.firstChild !== $from.node(paragraphDepth)) return false;
@@ -527,18 +528,41 @@ export const Row = Node.create({
           const rowChildren: ProseMirrorNode[] = [];
           rowNode.forEach((child) => rowChildren.push(child));
 
+          // REVISIONE 2026-08-17 (piano "Backspace unisce solo il primo
+          // elemento della row", confermato): fino a ieri Caso 3/4
+          // assorbivano nella nuova row TUTTI i figli della row sotto
+          // (rowChildren intero) - B, C (tutto cio' che non e' A, il
+          // paragrafo da cui e' partito il Backspace) non hanno pero' alcun
+          // rapporto con "aboveNode": erano gia' un gruppo a se' PRIMA di
+          // questo Backspace, unirli forzatamente cancellava quella
+          // distinzione. Ora SOLO il primo figlio (A, sempre il paragrafo
+          // corrente per costruzione - vedi il controllo firstChild sopra)
+          // lascia la row per unirsi ad aboveNode; il resto (buildRowGroup:
+          // row se ne restano >=2, standalone se ne resta 1) diventa un
+          // fratello NUOVO subito dopo la row appena unita - mai un ramo a
+          // parte "se resta 1 solo elemento": buildRowGroup lo gestisce gia'.
+          //
+          // aboveNode (Caso 3 standalone, Caso 4 row) e' INVECE invariato in
+          // entrambi i casi rispetto a prima - e' il blocco che il Backspace
+          // raggiunge all'INDIETRO, mai quello da cui si sta "uscendo": non
+          // ha nulla da lasciarsi dietro, si comporta esattamente come Caso 2
+          // (una row esistente che guadagna un solo nuovo membro in coda) -
+          // stesso motivo per cui aboveChildren NON viene piu' stripped in
+          // Caso 4 (rowGrow interno ancora valido, e' lo stesso gruppo di
+          // prima con un membro in piu', non due gruppi che si fondono).
+          const [firstOfRow, ...restOfRow] = rowChildren;
+          const trailingSibling = buildRowGroup(schema, restOfRow);
+
           if (aboveNode.type === schema.nodes.row) {
-            // Caso 4: rowGrow di TUTTI i figli azzerato (piano confermato
-            // 2026-08-15) - i due gruppi di rapporti erano relativi a
-            // fratelli diversi (le due row originali), concatenarli senza
-            // reset produrrebbe proporzioni incoerenti.
+            // Caso 4: aboveChildren assorbe per intero (rowGrow preservato,
+            // vedi sopra), solo firstOfRow (stripped, lascia il gruppo
+            // B/C) si unisce a lui.
             const aboveChildren: ProseMirrorNode[] = [];
-            aboveNode.forEach((child) => aboveChildren.push(stripRowGrow(child)));
-            const strippedRowChildren = rowChildren.map((child) => stripRowGrow(child));
+            aboveNode.forEach((child) => aboveChildren.push(child));
             return editor
               .chain()
               .command(({ tr }) => {
-                combineIntoRow(tr, schema, { from: rangeFrom, to: rangeTo }, aboveChildren, strippedRowChildren);
+                combineIntoRow(tr, schema, { from: rangeFrom, to: rangeTo }, aboveChildren, [stripRowGrow(firstOfRow)], trailingSibling);
                 return true;
               })
               .scrollIntoView()
@@ -553,7 +577,7 @@ export const Row = Node.create({
           return editor
             .chain()
             .command(({ tr }) => {
-              combineIntoRow(tr, schema, { from: rangeFrom, to: rangeTo }, [stripRowGrow(aboveNode)], rowChildren);
+              combineIntoRow(tr, schema, { from: rangeFrom, to: rangeTo }, [stripRowGrow(aboveNode)], [stripRowGrow(firstOfRow)], trailingSibling);
               return true;
             })
             .scrollIntoView()
