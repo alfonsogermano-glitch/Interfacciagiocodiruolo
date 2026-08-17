@@ -119,19 +119,21 @@ function createEdgeAwareKeyboardShortcuts(editor: Editor) {
     // enterRowDocumentBoundary aggiunta anche qui (Fase D, piano navigazione
     // verticale confermato 2026-08-16, gap verificato dal vivo: paragrafo
     // normale sopra una row il cui primo figlio e' un box, Freccia Su/Giu'
-    // dal paragrafo produceva un GapCursor NATIVO invisibile invece della
-    // nostra pausa - stesso identico "doppio confine isolating" gia' risolto
-    // per l'orizzontale sopra, mai stata wired su questo asse). La sua
-    // DECISIONE se scattare resta axis-agnostic (nessuna logica orizzontale
-    // nel trigger, vedi il suo commento in tiptapTextBoxEdgeCursor.ts) -
-    // bastava chiamarla anche qui, in coda, stesso ordine "prova tutti gli
-    // exit, poi l'enter" di ArrowLeft/Right sopra. Il parametro axis (Fase B,
-    // stesso piano) serve invece SOLO a etichettare la pausa risultante per
-    // positionEdgeCursor - passato letterale qui perche' e' sempre noto alla
-    // chiamata quale freccia ha innescato la funzione. Dopo exitTableTopEdge
-    // (mai prima): quella resta l'unica competente sul bordo assoluto
-    // SUPERIORE di una tabella isolata (nessuna row coinvolta), nessuna
-    // sovrapposizione possibile.
+    // dal paragrafo produceva un GapCursor NATIVO invisibile - stesso
+    // identico "doppio confine isolating" gia' risolto per l'orizzontale
+    // sopra, mai stata wired su questo asse). La sua DECISIONE se scattare
+    // resta axis-agnostic (nessuna logica orizzontale nel trigger, vedi il
+    // suo commento in tiptapTextBoxEdgeCursor.ts) - bastava chiamarla anche
+    // qui, in coda, stesso ordine "prova tutti gli exit, poi l'enter" di
+    // ArrowLeft/Right sopra. Il parametro axis serve a scegliere l'AZIONE
+    // finale dentro la funzione (vedi il suo commento): per l'orizzontale
+    // etichetta ancora la pausa risultante per positionEdgeCursor, invariato;
+    // per il verticale (REVISIONE 2026-08-17, "elimina la pausa verticale")
+    // la funzione salta direttamente al testo reale invece di pausare - il
+    // fix del GapCursor invisibile resta, cambia solo la cura. Dopo
+    // exitTableTopEdge (mai prima): quella resta l'unica competente sul
+    // bordo assoluto SUPERIORE di una tabella isolata (nessuna row
+    // coinvolta), nessuna sovrapposizione possibile.
     ArrowUp: () => exitBoxBoundary(editor, 'before', 'vertical') || exitTableTopEdge(editor) || enterRowDocumentBoundary(editor, 'before', 'vertical'),
     ArrowRight: () =>
       exitBoxBoundary(editor, 'after', 'horizontal') ||

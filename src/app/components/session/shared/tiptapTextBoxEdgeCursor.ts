@@ -461,11 +461,20 @@ function pauseAtIsolatingBoundary(editor: Editor, boundaryPos: number, dir: 'bef
 // meta di riga" - stesso identico blocco che finora viveva duplicato in tre
 // punti (fallback di exitBoxBoundary, ramo row di exitTableBoundary, coda di
 // exitRowDocumentBoundary, tutti invariati qui sotto). Estratto (Fase A,
-// piano navigazione verticale confermato 2026-08-16) perche' il nuovo ramo
-// verticale di exitBoxBoundary sotto lo riusa una quarta volta - i tre punti
-// preesistenti NON sono stati toccati/fatti convergere qui in questo passo
-// (nessun bisogno funzionale, e tenerli invariati riduce il rischio di
-// regressione sull'orizzontale gia' collaudato).
+// piano navigazione verticale confermato 2026-08-16) perche' il ramo
+// verticale di exitBoxBoundary (allora nuovo) lo riusava una quarta volta -
+// i tre punti preesistenti NON sono stati toccati/fatti convergere qui in
+// quel passo (nessun bisogno funzionale, e tenerli invariati riduce il
+// rischio di regressione sull'orizzontale gia' collaudato).
+//
+// REVISIONE 2026-08-17 (richiesta esplicita, "elimina la pausa verticale"):
+// il ramo verticale di exitBoxBoundary sotto non chiama piu' questa
+// funzione (salta direttamente con Selection.near, mai una pausa) - l'unico
+// chiamante rimasto e' il fallback generico in fondo a exitBoxBoundary, che
+// riceve ancora axis 'vertical' per il caso preesistente (predata oggi) di
+// un box ISOLATO (non in una row) che esce in verticale verso un fratello
+// reale a livello documento/cella - quella pausa resta intenzionalmente
+// invariata, fuori scope per la revisione di oggi.
 function pauseOrLandAtRowBoundary(editor: Editor, pos: number, dir: 'before' | 'after', axis: 'horizontal' | 'vertical'): boolean {
   if (pauseAtIsolatingBoundary(editor, pos, dir, axis)) return true;
   const rowWrapped = measureRowWrap(editor, pos);
@@ -528,19 +537,47 @@ export function exitBoxBoundary(editor: Editor, dir: 'before' | 'after', axis: '
   // il suo commento sopra), il limite era solo qui nella chiamata.
   const parentDepth = boxDepth - 1;
   if (parentDepth >= 0) {
-    // Nuovo ramo verticale (Fase A, piano confermato 2026-08-16): se il
-    // genitore diretto del box e' una row documentale, l'uscita verticale
-    // NON deve mai considerare il fratello nella riga (quello sotto,
-    // pauseAtIsolatingBoundary(boundaryPos,...), e' un concetto orizzontale)
-    // - salta direttamente al bordo della ROW stessa nel SUO genitore
-    // (rowPos, stesso calcolo gia' usato dalla coda di
-    // exitRowDocumentBoundary per lo stesso identico bordo), riusando
-    // pauseOrLandAtRowBoundary per pausare/atterrare li'. isDocRow (non
+    // Ramo verticale (Fase A del 2026-08-16, REVISIONATO 2026-08-17 su
+    // richiesta esplicita - "elimina completamente la pausa verticale"): se
+    // il genitore diretto del box e' una row documentale, l'uscita
+    // verticale NON deve mai considerare il fratello nella riga (quello
+    // sotto, pauseAtIsolatingBoundary(boundaryPos,...), e' un concetto
+    // orizzontale) - salta direttamente al bordo della ROW stessa nel SUO
+    // genitore (rowPos, stesso calcolo gia' usato dalla coda di
+    // exitRowDocumentBoundary per lo stesso identico bordo). isDocRow (non
     // isFlexSiblingContainer): una cella di tabella resta fuori da questo
     // ramo, invariata, vedi commento sulla funzione sopra.
+    //
+    // Salto DIRETTO (Selection.near), MAI una pausa qui: fino al
+    // 2026-08-16 sera questo ramo chiamava pauseOrLandAtRowBoundary (crea
+    // una TextBoxEdgeCursor se c'e' un vicino reale) - revisionato il
+    // giorno dopo perche' Su/Giu' fra righe impilate deve comportarsi come
+    // la normale navigazione verticale di un editor di testo: un solo
+    // tasto, cursore direttamente a inizio/fine contenuto del blocco
+    // sopra/sotto, nessun Invio/pulsante da una posizione intermedia (si
+    // perde volutamente). Selection.near attraversa i confini isolating per
+    // la RICERCA di una posizione cursore valida (non e' una trasformazione
+    // strutturale, vedi il commento sul fallback generico di exitArrow piu'
+    // sotto in questo file) - se il blocco sopra/sotto e' un'altra row che
+    // inizia/finisce con un box, atterra correttamente dentro il suo primo
+    // testo reale, esattamente come l'ingresso analogo in
+    // enterRowDocumentBoundary sotto (stesso principio, stessa revisione).
+    // Nessun fallback "inserisci paragrafo" se non c'e' alcun vicino (bordo
+    // assoluto del documento): Selection.near ripiega da sola sulla
+    // direzione opposta in quel caso (comportamento nativo, innocuo qui -
+    // nessuna pausa da cui potrebbe oscillare all'infinito, a differenza
+    // del bug 2026-08-13 che riguardava la prosecuzione da un cursore finto
+    // gia' attivo, non questo salto diretto da testo reale).
     if (axis === 'vertical' && isDocRow($from.node(parentDepth))) {
       const rowPos = dir === 'before' ? $from.before(parentDepth) : $from.after(parentDepth);
-      return pauseOrLandAtRowBoundary(editor, rowPos, dir, 'vertical');
+      return editor
+        .chain()
+        .command(({ tr }) => {
+          tr.setSelection(Selection.near(tr.doc.resolve(rowPos), dir === 'after' ? 1 : -1));
+          return true;
+        })
+        .scrollIntoView()
+        .run();
     }
 
     if (pauseAtIsolatingBoundary(editor, boundaryPos, dir, axis)) return true;
@@ -1216,6 +1253,33 @@ export function enterRowDocumentBoundary(editor: Editor, dir: 'before' | 'after'
   const $boundary = doc.resolve(boundaryPos);
   const neighbor = dir === 'before' ? $boundary.nodeBefore : $boundary.nodeAfter;
   if (!neighbor || !(isDocRow(neighbor) || isTable(neighbor))) return false;
+
+  // REVISIONE 2026-08-17 (richiesta esplicita, "elimina la pausa
+  // verticale"): il rilevamento del gap (tutto cio' che precede, invariato)
+  // resta axis-agnostic per costruzione - serve identico sia per Su/Giu' sia
+  // per Sinistra/Destra, e' SOLO l'azione finale che diverge in base
+  // all'asse. Per l'orizzontale il comportamento resta quello di sempre (la
+  // pausa che risolve il GapCursor nativo invisibile, Fase D del round
+  // precedente). Per il verticale, stesso identico bug di partenza (il
+  // nativo produce un GapCursor invisibile avvicinandosi a una row/tabella
+  // il cui primo/ultimo figlio e' un box) ma la CURA cambia: invece di
+  // fermarsi in una pausa, Selection.near salta dritto alla prima posizione
+  // di testo reale dentro il vicino - lo stesso salto diretto del ramo
+  // verticale di exitBoxBoundary sopra (stessa filosofia "un solo tasto,
+  // come un editor di testo normale"), qui applicato all'INGRESSO da fuori
+  // invece che all'uscita da dentro. Nessun meta da impostare: non nasce
+  // alcuna TextBoxEdgeCursor, quindi ROW_PAUSE_AXIS_META non ha nulla da
+  // etichettare in questo ramo.
+  if (axis === 'vertical') {
+    return editor
+      .chain()
+      .command(({ tr }) => {
+        tr.setSelection(Selection.near(tr.doc.resolve(boundaryPos), dir === 'after' ? 1 : -1));
+        return true;
+      })
+      .scrollIntoView()
+      .run();
+  }
 
   return editor
     .chain()
