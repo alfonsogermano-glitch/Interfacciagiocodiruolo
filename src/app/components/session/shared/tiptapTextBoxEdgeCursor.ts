@@ -1936,12 +1936,33 @@ export const TextBoxEdgeCursorExtension = Extension.create({
           apply(tr, value): EdgeCursorRowPauseState {
             const sel = tr.selection;
             if (!(sel instanceof TextBoxEdgeCursor)) return null;
-            if (value && value.pos === sel.head) {
+            const metaDir = tr.getMeta(ROW_PAUSE_DIR_META) as 'before' | 'after' | undefined;
+            const metaAxis = tr.getMeta(ROW_PAUSE_AXIS_META) as 'horizontal' | 'vertical' | undefined;
+            // Stessa posizione NON basta piu' da sola (bug 2026-08-18,
+            // segnalato dal vivo: "Giu' da un ghost gia' fermo su Riga1 non
+            // fa nulla"): quando il bordo assoluto del documento coincide
+            // per due pause create da assi/direzioni diverse (qui: la pausa
+            // orizzontale di 'prima' e quella verticale di 'dopo' atterrano
+            // ENTRAMBE su pos 0, non essendoci altro bordo possibile),
+            // questo ramo scambiava la nuova pausa per una riconferma della
+            // vecchia e ne ignorava silenziosamente il meta dir/axis appena
+            // scritto da verticalPauseOrJump - il cursore restava "congelato"
+            // sul dir/axis originale per sempre, tasto morto ad ogni
+            // pressione successiva. meta assente (undefined, es. la sola
+            // transazione ROW_PAUSE_ADVANCE_META del ramo wrapped sotto, che
+            // non tocca DIR/AXIS_META) conta come "nessun conflitto", non
+            // "cambiato" - la riconferma del wrap resta invariata.
+            const samePause =
+              value &&
+              value.pos === sel.head &&
+              (metaDir === undefined || metaDir === value.dir) &&
+              (metaAxis === undefined || metaAxis === value.axis);
+            if (samePause) {
               return tr.getMeta(ROW_PAUSE_ADVANCE_META) ? { ...value, confirmed: true } : value;
             }
-            const dir = (tr.getMeta(ROW_PAUSE_DIR_META) as 'before' | 'after' | undefined) ?? 'after';
+            const dir = metaDir ?? 'after';
             const wrapped = tr.getMeta(ROW_PAUSE_WRAPPED_META) === true;
-            const axis = (tr.getMeta(ROW_PAUSE_AXIS_META) as 'horizontal' | 'vertical' | undefined) ?? 'horizontal';
+            const axis = metaAxis ?? 'horizontal';
             return { pos: sel.head, dir, wrapped, confirmed: false, axis };
           },
         },
@@ -2080,6 +2101,25 @@ export const TextBoxEdgeCursorExtension = Extension.create({
               if (!pauseState) return;
               const widget = view.dom.querySelector<HTMLElement>('.tiptap-textbox-edge-cursor');
               if (!widget) return;
+
+              // REVISIONE 2026-08-18 (glitch visivo segnalato dal vivo, "Su
+              // sposta il cursore fantasma di pochi pixel in GIU'"): il
+              // margin-top della regola base sotto compensa il padding
+              // interno di un BOX (scarto fra il suo bordo esterno, dove
+              // punta il `top` calcolato in JS, e l'inizio del testo dentro
+              // di esso) - corretto per l'orizzontale, dove il vicino usato
+              // per il posizionamento e' quasi sempre un box. Per il
+              // verticale (dalla revisione precedente, stesso ramo "un solo
+              // vicino" riusato per la lineetta sottile) il vicino e' spesso
+              // una row/un paragrafo senza quel padding - applicare comunque
+              // il margin-top spinge il widget ~9px piu' in basso del dovuto,
+              // percepito come "scende invece di salire". Classe modificatrice
+              // minima (SOLO margin-top:0, a differenza della vecchia
+              // --axis-vertical che ridefiniva anche width/height per la
+              // barra larga, rimossa nella revisione precedente) - la
+              // lineetta resta sottile 1px, cambia solo l'allineamento
+              // verticale.
+              widget.classList.toggle('tiptap-textbox-edge-cursor--axis-vertical', pauseState.axis === 'vertical');
 
               // preferSide riflette la fase natural/corrected della pausa
               // a-capo (bug 2026-08-05, vedi ROW_PAUSE_DIR_META sopra per
