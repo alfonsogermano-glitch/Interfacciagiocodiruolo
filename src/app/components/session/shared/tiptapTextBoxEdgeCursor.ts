@@ -1634,7 +1634,18 @@ function positionEdgeCursor(widget: HTMLElement, preferSide: 'before' | 'after')
     // vince comunque l'unico che c'e' davvero (preferSide ignorato).
     const useAfter = !!afterRect && (preferSide === 'after' || !beforeRect);
     const rect = useAfter ? afterRect! : beforeRect!;
-    top = rect.top - containerRect.top;
+    // Centrato sull'ALTEZZA del vicino, non piu' il suo top grezzo (bug
+    // 2026-08-18 notte, misurato dal vivo: ~15px "troppo in alto" quando il
+    // vicino e' una row-elemento alta per il padding dei box, ~49px, contro
+    // i ~19px fissi del widget - height/2 combacia gia' da solo quando il
+    // vicino e' una riga di testo normale, quasi identica al widget, quindi
+    // nessuna differenza visibile li' rispetto a prima). rect.height e' il
+    // vicino REALE (before/afterRect, gia' misurato sopra); l'altezza del
+    // widget stesso e' fissata da CSS (.tiptap-textbox-edge-cursor,
+    // theme.css) - letta dal vivo invece di ricalcolarla qui per non
+    // duplicare quella regola.
+    const widgetHeight = widget.getBoundingClientRect().height;
+    top = rect.top - containerRect.top + (rect.height - widgetHeight) / 2;
 
     const outerBoundary = findOuterVisibleBoundary(container);
     if (outerBoundary) {
