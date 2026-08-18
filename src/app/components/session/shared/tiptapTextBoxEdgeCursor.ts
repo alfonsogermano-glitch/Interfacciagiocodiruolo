@@ -536,9 +536,33 @@ function isVerticalDestinationElement(doc: ProseMirrorNode, boundaryPos: number,
 // container .tiptap-row-flex/.tiptap-td-flex) - evitata la query DOM
 // inutile. Ramo reale: lo stesso identico Selection.near gia' costruito
 // nella revisione precedente, invariato.
-function verticalPauseOrJump(editor: Editor, boundaryPos: number, dir: 'before' | 'after'): boolean {
+//
+// pauseAtAbsoluteBoundary (bug 2026-08-18 sera, segnalato dal vivo: "salendo
+// dall'ultima riga attraverso righe-elemento consecutive fino in cima, la
+// pressione finale si tuffa dentro il primo box invece di fermarsi
+// fantasma"): di default false, invariato per le prime tre chiamanti sopra
+// (primo ingresso da testo reale - nessun bordo "gia' superato" di cui
+// tener conto). L'UNICO chiamante che lo passa true e' la prosecuzione
+// "stessa direzione" di exitArrow: li' il vicino che si sta per superare
+// (per valutare il blocco ANCORA oltre) e' per costruzione un elemento -
+// e' il motivo stesso per cui la pausa attuale esiste. Se quel salto arriva
+// al bordo ASSOLUTO del documento (nessun vicino li', verticalDestinationEdgeItem
+// torna null, isVerticalDestinationElement quindi false "non e' un
+// elemento") il ramo reale sotto chiamava Selection.near, che senza nulla
+// da trovare nella direzione richiesta ripiega sulla direzione OPPOSTA
+// (stesso comportamento di libreria gia' documentato altrove in questo
+// file) - rientrando dritto nel box appena superato invece di restare
+// fermo al bordo. true forza qui il ramo fantasma anche quando
+// isVerticalDestinationElement e' false, ma SOLO se non c'e' alcun vicino
+// (bordo assoluto): un vicino REALE che risulta "non elemento" (es. un
+// paragrafo normale subito oltre) deve continuare a dare luogo al salto
+// vero, invariato - la guardia sotto lo verifica esplicitamente.
+function verticalPauseOrJump(editor: Editor, boundaryPos: number, dir: 'before' | 'after', pauseAtAbsoluteBoundary = false): boolean {
   const { doc } = editor.state;
-  if (isVerticalDestinationElement(doc, boundaryPos, dir)) {
+  const $boundary = doc.resolve(boundaryPos);
+  const hasNeighbor = !!(dir === 'before' ? $boundary.nodeBefore : $boundary.nodeAfter);
+  const shouldPause = isVerticalDestinationElement(doc, boundaryPos, dir) || (!hasNeighbor && pauseAtAbsoluteBoundary);
+  if (shouldPause) {
     return editor
       .chain()
       .command(({ tr }) => {
@@ -2255,7 +2279,35 @@ export const TextBoxEdgeCursorExtension = Extension.create({
         // trovera' `confirmed` gia' true e proseguira' con il
         // comportamento normale sotto (rientro o prosecuzione).
         const pauseState = textBoxEdgeCursorPluginKey.getState(editor.state);
-        if (pauseState && pauseState.pos === selection.head && pauseState.dir === dir && pauseState.wrapped && !pauseState.confirmed) {
+        // axis aggiunto al controllo (bug 2026-08-18 sera, segnalato dal
+        // vivo: "Giu' da una pausa orizzontale in a-capo non fa nulla alla
+        // prima pressione"): questa guardia decideva SOLO su pos/dir/
+        // wrapped/confirmed, mai sull'asse - ArrowDown condivide lo stesso
+        // dir:'after' di ArrowRight (idem ArrowUp/ArrowLeft con 'before'),
+        // quindi una pausa ORIZZONTALE con wrapped:true (a-capo reale fra
+        // due box della stessa riga) intercettava per errore la PRIMA
+        // freccia VERTICALE con lo stesso dir premuta da li': la
+        // transazione dispatchata sotto imposta SOLO ROW_PAUSE_ADVANCE_META
+        // (nessun tr.setSelection), quindi la selezione non si muove
+        // affatto - visibilmente un tasto morto. La freccia verticale
+        // finiva cosi' per "consumare" la conferma di un a-capo che non le
+        // apparteneva, mai eseguendo la logica verticale sotto; la SECONDA
+        // pressione trovava poi `confirmed` gia' vero e proseguiva
+        // normalmente, da cui "serve doppia pressione dove prima bastava
+        // una". wrapped resta SEMPRE false per qualunque pausa verticale
+        // (verticalPauseOrJump la imposta hardcoded, vedi il suo commento),
+        // quindi il controllo axis qui sotto non cambia in alcun modo il
+        // comportamento gia' collaudato della conferma a-capo orizzontale
+        // fra Sinistra/Destra sulla STESSA riga - interviene solo
+        // sull'incrocio spurio fra i due assi.
+        if (
+          pauseState &&
+          pauseState.pos === selection.head &&
+          pauseState.dir === dir &&
+          pauseState.axis === axis &&
+          pauseState.wrapped &&
+          !pauseState.confirmed
+        ) {
           return editor
             .chain()
             .command(({ tr }) => {
@@ -2294,7 +2346,14 @@ export const TextBoxEdgeCursorExtension = Extension.create({
             const neighbor = dir === 'before' ? $pos.nodeBefore : $pos.nodeAfter;
             if (neighbor) {
               const nextPos = dir === 'before' ? selection.head - neighbor.nodeSize : selection.head + neighbor.nodeSize;
-              return verticalPauseOrJump(editor, nextPos, dir);
+              // pauseAtAbsoluteBoundary:true (bug 2026-08-18 sera, vedi il
+              // commento completo su verticalPauseOrJump sopra) - `neighbor`
+              // qui e' per costruzione un elemento (e' il motivo per cui la
+              // pausa attuale, da cui si sta proseguendo, esiste): se oltre
+              // di lui non c'e' piu' nulla (bordo assoluto del documento),
+              // resta comunque fantasma li' invece di tuffarsi dentro di
+              // lui via Selection.near.
+              return verticalPauseOrJump(editor, nextPos, dir, true);
             }
           } else {
             return verticalPauseOrJump(editor, selection.head, dir);
