@@ -713,18 +713,6 @@
   pointer-events: none;
   animation: tiptap-textbox-edge-cursor-blink 1.05s steps(2, start) infinite;
 }
-/* Modificatore axis-vertical minimo (revisione 2026-08-18, glitch visivo
-   segnalato dal vivo): il margin-top della regola base sopra compensa il
-   padding interno di un BOX - per le pause verticali il vicino usato per il
-   posizionamento e' spesso una row/un paragrafo senza quel padding, quindi
-   va azzerato per non spingere la lineetta ~9px piu' in basso del dovuto.
-   SOLO margin-top: a differenza della vecchia versione di questa stessa
-   classe (barra larga quanto il container, rimossa nella revisione
-   precedente su richiesta esplicita), qui width/height restano quelli della
-   regola base - la lineetta resta sottile 1px identica all'orizzontale. */
-.tiptap-textbox-edge-cursor--axis-vertical {
-  margin-top: 0;
-}
 @keyframes tiptap-textbox-edge-cursor-blink {
   to {
     visibility: hidden;
