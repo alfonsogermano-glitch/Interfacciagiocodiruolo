@@ -116,15 +116,39 @@ function createEdgeAwareKeyboardShortcuts(editor: Editor) {
       exitTableBoundary(editor, 'before') ||
       exitRowDocumentBoundary(editor, 'before') ||
       enterRowDocumentBoundary(editor, 'before'),
-    // enterRowDocumentBoundary aggiunta anche qui (bug segnalato dal vivo
-    // 2026-08-19, vedi il suo commento in tiptapTextBoxEdgeCursor.ts per il
-    // dettaglio completo): Su/Giu' non la chiamavano affatto, a differenza
-    // di Sinistra/Destra sotto che la chiamano gia' da sempre - un box
+    // enterRowDocumentBoundary aggiunta (bug segnalato dal vivo 2026-08-19,
+    // vedi il suo commento in tiptapTextBoxEdgeCursor.ts per il dettaglio
+    // completo): Su/Giu' non la chiamavano affatto, a differenza di
+    // Sinistra/Destra sotto che la chiamano gia' da sempre - un box
     // isolato avvicinato dall'esterno in verticale si tuffava dentro senza
     // mai pausare al bordo. Dopo exitTableTopEdge (mai prima, stesso motivo
     // di sempre): quella resta l'unica competente sul bordo assoluto
     // SUPERIORE di una tabella isolata, nessuna sovrapposizione possibile.
-    ArrowUp: () => exitBoxBoundary(editor, 'before') || exitTableTopEdge(editor) || enterRowDocumentBoundary(editor, 'before'),
+    //
+    // exitRowDocumentBoundary aggiunta anche qui (bug gemello segnalato dal
+    // vivo 2026-08-19 sera: "primo/ultimo box di una row senza fratello su
+    // quel lato, Su/Giu' fa sparire il cursore o - al bordo assoluto del
+    // documento - lo fa uscire dal focus del browser"): exitBoxBoundary
+    // sopra, quando non trova un fratello nella row su quel lato, DEFERISCE
+    // esplicitamente a questa funzione (vedi la sua guardia
+    // "!sibling && isDocRow(...) => return false", tiptapTextBoxEdgeCursor.ts)
+    // - per Sinistra/Destra il deferral funziona gia' da sempre (sotto),
+    // per Su/Giu' non c'era nessuno ad ascoltarlo: il tasto cadeva sul
+    // GapCursor nativo di ProseMirror, che al vero bordo assoluto del
+    // documento (nessuna posizione valida oltre) sfoca il contenteditable
+    // invece di restare fermo - il "focus che scappa" segnalato dal vivo.
+    // exitRowDocumentBoundary non ha alcun parametro axis (usa la stessa
+    // isAtBoxBoundary di sempre, generica) - nessuna nuova logica, la
+    // funzione gestisce gia' da sola sia il caso "un vicino reale oltre la
+    // row" (pauseAtIsolatingBoundary, pausa li') sia il caso "nessun vicino,
+    // vero bordo assoluto" (landOrDive, pausa comunque invece di tuffarsi/
+    // sfocare). Prima di enterRowDocumentBoundary, stesso ordine esci-poi-
+    // entra della catena Sinistra/Destra.
+    ArrowUp: () =>
+      exitBoxBoundary(editor, 'before') ||
+      exitTableTopEdge(editor) ||
+      exitRowDocumentBoundary(editor, 'before') ||
+      enterRowDocumentBoundary(editor, 'before'),
     ArrowRight: () =>
       exitBoxBoundary(editor, 'after') ||
       exitFlexSiblingBoundary(editor, 'after') ||
@@ -133,9 +157,13 @@ function createEdgeAwareKeyboardShortcuts(editor: Editor) {
       exitTableBoundary(editor, 'after') ||
       exitRowDocumentBoundary(editor, 'after') ||
       enterRowDocumentBoundary(editor, 'after'),
-    // enterRowDocumentBoundary aggiunta anche qui - stesso motivo di ArrowUp
-    // sopra, simmetrico.
-    ArrowDown: () => exitBoxBoundary(editor, 'after') || enterRowDocumentBoundary(editor, 'after'),
+    // enterRowDocumentBoundary/exitRowDocumentBoundary aggiunte anche qui -
+    // stesso motivo di ArrowUp sopra, simmetrico (nessun exitTableTopEdge:
+    // resta SOLO ArrowUp per design esplicito, invariato).
+    ArrowDown: () =>
+      exitBoxBoundary(editor, 'after') ||
+      exitRowDocumentBoundary(editor, 'after') ||
+      enterRowDocumentBoundary(editor, 'after'),
     // Cancella l'intero nodo (non solo il paragrafo vuoto) quando il
     // cursore e' esattamente a inizio contenuto - equivalente esatto di
     // selezionarlo con la maniglia e premere Canc (deleteSelection su una
