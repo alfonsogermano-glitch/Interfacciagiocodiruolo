@@ -1165,7 +1165,17 @@ export function enterRowDocumentBoundary(editor: Editor, dir: 'before' | 'after'
   const boundaryPos = dir === 'before' ? $from.before(blockDepth) : $from.after(blockDepth);
   const $boundary = doc.resolve(boundaryPos);
   const neighbor = dir === 'before' ? $boundary.nodeBefore : $boundary.nodeAfter;
-  if (!neighbor || !(isDocRow(neighbor) || isTable(neighbor))) return false;
+  // isSideBySideBox aggiunta (bug segnalato dal vivo 2026-08-19: "box isolato
+  // creato in una tab vuota, uscito verso il paragrafo dopo, tornando
+  // indietro il cursore si tuffa dentro invece di pausare al bordo") - un
+  // TextBox/Collapse isolato (nessuna row/cella, genitore diretto il
+  // documento) rientrava da fuori senza mai fermarsi: isDocRow/isTable non
+  // lo riconoscevano come vicino valido, quindi la funzione tornava false e
+  // il nativo si tuffava dritto dentro. Stesso identico controllo gia' usato
+  // altrove in questo file per riconoscere un box affiancabile (vedi
+  // isSideBySideBox sopra) - nessuna nuova funzione, solo il vicino in piu'
+  // qui.
+  if (!neighbor || !(isDocRow(neighbor) || isTable(neighbor) || isSideBySideBox(neighbor))) return false;
 
   return editor
     .chain()

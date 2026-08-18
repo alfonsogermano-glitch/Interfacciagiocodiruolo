@@ -116,7 +116,15 @@ function createEdgeAwareKeyboardShortcuts(editor: Editor) {
       exitTableBoundary(editor, 'before') ||
       exitRowDocumentBoundary(editor, 'before') ||
       enterRowDocumentBoundary(editor, 'before'),
-    ArrowUp: () => exitBoxBoundary(editor, 'before') || exitTableTopEdge(editor),
+    // enterRowDocumentBoundary aggiunta anche qui (bug segnalato dal vivo
+    // 2026-08-19, vedi il suo commento in tiptapTextBoxEdgeCursor.ts per il
+    // dettaglio completo): Su/Giu' non la chiamavano affatto, a differenza
+    // di Sinistra/Destra sotto che la chiamano gia' da sempre - un box
+    // isolato avvicinato dall'esterno in verticale si tuffava dentro senza
+    // mai pausare al bordo. Dopo exitTableTopEdge (mai prima, stesso motivo
+    // di sempre): quella resta l'unica competente sul bordo assoluto
+    // SUPERIORE di una tabella isolata, nessuna sovrapposizione possibile.
+    ArrowUp: () => exitBoxBoundary(editor, 'before') || exitTableTopEdge(editor) || enterRowDocumentBoundary(editor, 'before'),
     ArrowRight: () =>
       exitBoxBoundary(editor, 'after') ||
       exitFlexSiblingBoundary(editor, 'after') ||
@@ -125,7 +133,9 @@ function createEdgeAwareKeyboardShortcuts(editor: Editor) {
       exitTableBoundary(editor, 'after') ||
       exitRowDocumentBoundary(editor, 'after') ||
       enterRowDocumentBoundary(editor, 'after'),
-    ArrowDown: () => exitBoxBoundary(editor, 'after'),
+    // enterRowDocumentBoundary aggiunta anche qui - stesso motivo di ArrowUp
+    // sopra, simmetrico.
+    ArrowDown: () => exitBoxBoundary(editor, 'after') || enterRowDocumentBoundary(editor, 'after'),
     // Cancella l'intero nodo (non solo il paragrafo vuoto) quando il
     // cursore e' esattamente a inizio contenuto - equivalente esatto di
     // selezionarlo con la maniglia e premere Canc (deleteSelection su una
