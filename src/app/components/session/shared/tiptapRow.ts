@@ -20,6 +20,7 @@ import {
   combineIntoRow,
   buildRowGroup,
   splitRowAtPause,
+  materializeParagraphAt,
 } from './tiptapTextBoxEdgeCursor';
 
 // Fase 1 del progetto "affiancamento a livello documento" (piano confermato
@@ -661,14 +662,23 @@ export const Row = Node.create({
       // (isSelectionInsideAny gia' definita in questo file) - scroll
       // orizzontale annidato/arrow-nav a doppio livello restano fuori scope.
       //
-      // Cursore a inizio del PRIMO rowItem di una row: deliberatamente FUORI
-      // scope, nessuna guardia dedicata qui - splitRowAtPause ha gia' una
-      // guardia difensiva (before.length===0) che la rende un no-op sicuro
-      // in quel caso, lasciando il comportamento nativo invariato. Non e' lo
-      // stesso caso del Backspace Caso 3/4 sopra (che gestisce quella
-      // posizione unendo col blocco SOPRA la row): il simmetrico per Invio
-      // sarebbe inserire un blocco PRIMA dell'intera row, operazione diversa
-      // e non richiesta dal bug segnalato - resta un'estensione futura.
+      // Cursore a inizio del PRIMO rowItem di una row: splitRowAtPause sopra
+      // rifiuta (before.length===0, "prima" sarebbe vuoto per costruzione -
+      // guardia difensiva gia' esistente li', non duplicata qui) - a quel
+      // punto NON si spacca la row (non avrebbe senso), si materializza un
+      // paragrafo vuoto PRIMA dell'intera row, che resta intatta con tutti i
+      // suoi figli. Stesso identico principio gia' in uso per l'Invio dalla
+      // pausa fantasma al bordo assoluto (enterAtPause,
+      // tiptapTextBoxEdgeCursor.ts) - riusa la stessa materializeParagraphAt,
+      // nessuna nuova logica di inserimento duplicata qui.
+      //
+      // "splitRowAtPause ha rifiutato" (il suo valore di ritorno, non un
+      // conteggio di figli ricalcolato qui) e' il segnale generico per
+      // qualunque numero di rowItem nella row: il rowItem corrente finisce
+      // SEMPRE nella meta' "dopo" per costruzione (boundaryPos e' il suo
+      // stesso bordo iniziale), quindi l'unica ragione per cui prova a
+      // spaccare e fallisce a questo punto e' before.length===0 - vale
+      // identico che la row abbia 2 o 50 figli, nessuna soglia hardcoded.
       Enter: (): boolean => {
         const { editor } = this;
         const { state } = editor;
@@ -684,7 +694,9 @@ export const Row = Node.create({
         const rowDepth = findAncestorDepth($from, 'row');
         if (rowDepth === null || rowDepth !== paragraphDepth - 1) return false;
 
-        return splitRowAtPause(editor, state.doc.resolve($from.before(paragraphDepth)));
+        if (splitRowAtPause(editor, state.doc.resolve($from.before(paragraphDepth)))) return true;
+
+        return materializeParagraphAt(editor, $from.before(rowDepth));
       },
     };
   },

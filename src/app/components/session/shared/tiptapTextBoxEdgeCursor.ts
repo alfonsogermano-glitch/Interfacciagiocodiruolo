@@ -1724,6 +1724,29 @@ export function splitRowAtPause(editor: Editor, $pos: ResolvedPos): boolean {
     .run();
 }
 
+// Inserisce un paragrafo vuoto a `pos` e ci entra col cursore - stesso
+// identico schema gia' in uso da tempo per l'Invio su una pausa fantasma al
+// bordo assoluto (il ramo finale di enterAtPause sotto: quando la pausa non
+// e' fra due rowItem affiancabili ma adiacente a un'unita' intera isolata -
+// row/box/tabella - materializza un paragrafo FUORI da quell'unita', non ci
+// si tuffa dentro). Estratta a funzione di modulo (round Invio-primo-
+// rowItem, piano confermato 2026-08-19) per essere riusata anche da
+// tiptapRow.ts: stesso identico principio quando un cursore VERO e' a
+// inizio del PRIMO rowItem di una row (splitRowAtPause sopra non avrebbe
+// senso li', "prima" sarebbe vuoto per costruzione) - un paragrafo vuoto
+// nasce PRIMA dell'intera row, che resta intatta con tutti i suoi figli.
+export function materializeParagraphAt(editor: Editor, pos: number): boolean {
+  return editor
+    .chain()
+    .command(({ tr }) => {
+      tr.insert(pos, editor.schema.nodes.paragraph.create());
+      tr.setSelection(Selection.near(tr.doc.resolve(pos + 1)));
+      return true;
+    })
+    .scrollIntoView()
+    .run();
+}
+
 export const TextBoxEdgeCursorExtension = Extension.create({
   name: 'textBoxEdgeCursor',
   addProseMirrorPlugins() {
@@ -2183,16 +2206,10 @@ export const TextBoxEdgeCursorExtension = Extension.create({
       // c'e' niente al suo interno da dividere qui) - comportamento
       // invariato: materializza un nuovo paragrafo vuoto e ci entra, stesso
       // identico meccanismo di sempre (Enter sopra/sotto una tabella
-      // isolata, o ora anche sopra/sotto una row isolata).
-      return editor
-        .chain()
-        .command(({ tr }) => {
-          tr.insert(pos, editor.schema.nodes.paragraph.create());
-          tr.setSelection(Selection.near(tr.doc.resolve(pos + 1)));
-          return true;
-        })
-        .scrollIntoView()
-        .run();
+      // isolata, o ora anche sopra/sotto una row isolata). materializeParagraphAt:
+      // funzione di modulo sopra (esportata, riusata da tiptapRow.ts per il
+      // simmetrico "primo rowItem" di un cursore VERO - round 2026-08-19).
+      return materializeParagraphAt(editor, pos);
     };
 
     // Backspace da una pausa unisce i due vicini reali del gap (before/
