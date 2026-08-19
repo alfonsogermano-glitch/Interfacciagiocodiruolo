@@ -1651,6 +1651,79 @@ export function insertRowItemBesideRow(
   return null;
 }
 
+// Invio su una pausa TRA DUE rowItem della stessa row (testo o box, non
+// importa) divide la row in quel punto invece di navigare in uno dei
+// due - comportamento standard "split" di un editor (piano confermato
+// 2026-08-15, sostituisce il precedente "naviga invece di
+// materializzare" del 2026-08-10 per QUESTO caso specifico). Tutto cio'
+// che precede la pausa resta nella meta' "prima" (srotolata a blocco
+// standalone se resta un solo elemento, altrimenti ancora una row coi
+// grow relativi fra i superstiti invariati - restano comunque
+// proporzionalmente validi, sono lo stesso sottoinsieme di prima),
+// tutto cio' che segue diventa la meta' "dopo", una row nuova (o un
+// blocco standalone, stessa regola) inserita subito dopo quella
+// originale. rowGrow del superstite azzerato quando esce dal contesto
+// row (1 solo elemento) - stesso principio "nessun valore fantasma" gia'
+// applicato da RowCollapseCleanup (Fase 5d, tiptapRowCollapseCleanup.ts)
+// quando un nodo lascia l'UNICA row a cui apparteneva; RowCollapseCleanup
+// stesso non interviene mai qui: scioglie solo una row con un filler
+// vuoto inserito da ProseMirror IN QUESTA transazione (identita' tracciata
+// via invertedMapping) - questa funzione non lascia mai una row sotto
+// il minimo di 2, decide gia' da sola la forma di ciascuna meta'.
+//
+// Estratta a funzione di modulo ed esportata (round Invio-da-cursore-reale,
+// piano confermato 2026-08-19, bug segnalato dal vivo: Invio a inizio testo
+// di un rowItem non-primo con un cursore VERO, non la pausa fantasma,
+// cadeva sullo splitBlock nativo di ProseMirror - nessuna nozione di "row",
+// inseriva un paragrafo vuoto in piu' come rowItem invece di spaccare la
+// row) - prima viveva solo come const locale dentro addKeyboardShortcuts()
+// di TextBoxEdgeCursorExtension sotto, chiamata solo da enterAtPause per la
+// pausa. $pos deve gia' essere risolta ESATTAMENTE al confine fra due
+// rowItem (parent === il nodo row, parentOffset === offset del confine) -
+// vale sia per la posizione della pausa fantasma (il caso originale) sia
+// per $from.before(paragraphDepth) di un cursore vero a offset 0 dentro il
+// paragrafo di un rowItem non-primo (mergeAtBackspace, tiptapRow.ts, e' il
+// simmetrico gia' esistente per Backspace) - stessa identica forma di
+// posizione in entrambi i casi, nessun adattamento necessario qui.
+export function splitRowAtPause(editor: Editor, $pos: ResolvedPos): boolean {
+  const rowDepth = $pos.depth;
+  const rowPos = $pos.before(rowDepth);
+  const splitOffset = $pos.parentOffset;
+
+  return editor
+    .chain()
+    .command(({ tr }) => {
+      const rowNode = tr.doc.nodeAt(rowPos);
+      if (!rowNode) return false;
+
+      const before: ProseMirrorNode[] = [];
+      const after: ProseMirrorNode[] = [];
+      rowNode.forEach((child, offset) => {
+        (offset < splitOffset ? before : after).push(child);
+      });
+      // Non dovrebbe potersi verificare (la pausa e' per costruzione fra
+      // due rowItem reali, quindi entrambi i lati hanno sempre almeno un
+      // elemento) - guardia difensiva, mai il ramo split invocato su una
+      // pausa che non e' davvero fra due figli della stessa row.
+      if (before.length === 0 || after.length === 0) return false;
+
+      const beforeResult = buildRowGroup(editor.schema, before);
+      const afterResult = buildRowGroup(editor.schema, after);
+
+      tr.replaceWith(rowPos, rowPos + rowNode.nodeSize, Fragment.fromArray([beforeResult, afterResult]));
+
+      // Cursore dentro il primo punto di testo valido della meta' "dopo"
+      // (stesso bias +1 di sempre in questo file per un atterraggio in
+      // avanti) - afterStart e' la posizione ESTERNA di afterResult
+      // (tr.doc.nodeAt(afterStart) === afterResult), +1 per entrarci.
+      const afterStart = rowPos + beforeResult.nodeSize;
+      tr.setSelection(Selection.near(tr.doc.resolve(afterStart + 1), 1));
+      return true;
+    })
+    .scrollIntoView()
+    .run();
+}
+
 export const TextBoxEdgeCursorExtension = Extension.create({
   name: 'textBoxEdgeCursor',
   addProseMirrorPlugins() {
@@ -2052,63 +2125,10 @@ export const TextBoxEdgeCursorExtension = Extension.create({
           .run();
       });
 
-    // Invio su una pausa TRA DUE rowItem della stessa row (testo o box, non
-    // importa) divide la row in quel punto invece di navigare in uno dei
-    // due - comportamento standard "split" di un editor (piano confermato
-    // 2026-08-15, sostituisce il precedente "naviga invece di
-    // materializzare" del 2026-08-10 per QUESTO caso specifico). Tutto cio'
-    // che precede la pausa resta nella meta' "prima" (srotolata a blocco
-    // standalone se resta un solo elemento, altrimenti ancora una row coi
-    // grow relativi fra i superstiti invariati - restano comunque
-    // proporzionalmente validi, sono lo stesso sottoinsieme di prima),
-    // tutto cio' che segue diventa la meta' "dopo", una row nuova (o un
-    // blocco standalone, stessa regola) inserita subito dopo quella
-    // originale. rowGrow del superstite azzerato quando esce dal contesto
-    // row (1 solo elemento) - stesso principio "nessun valore fantasma" gia'
-    // applicato da RowCollapseCleanup (Fase 5d, tiptapRowCollapseCleanup.ts)
-    // quando un nodo lascia l'UNICA row a cui apparteneva; RowCollapseCleanup
-    // stesso non interviene mai qui: scioglie solo una row con un filler
-    // vuoto inserito da ProseMirror IN QUESTA transazione (identita' tracciata
-    // via invertedMapping) - questa funzione non lascia mai una row sotto
-    // il minimo di 2, decide gia' da sola la forma di ciascuna meta'.
-    const splitRowAtPause = ($pos: ResolvedPos) => {
-      const rowDepth = $pos.depth;
-      const rowPos = $pos.before(rowDepth);
-      const splitOffset = $pos.parentOffset;
-
-      return editor
-        .chain()
-        .command(({ tr }) => {
-          const rowNode = tr.doc.nodeAt(rowPos);
-          if (!rowNode) return false;
-
-          const before: ProseMirrorNode[] = [];
-          const after: ProseMirrorNode[] = [];
-          rowNode.forEach((child, offset) => {
-            (offset < splitOffset ? before : after).push(child);
-          });
-          // Non dovrebbe potersi verificare (la pausa e' per costruzione fra
-          // due rowItem reali, quindi entrambi i lati hanno sempre almeno un
-          // elemento) - guardia difensiva, mai il ramo split invocato su una
-          // pausa che non e' davvero fra due figli della stessa row.
-          if (before.length === 0 || after.length === 0) return false;
-
-          const beforeResult = buildRowGroup(editor.schema, before);
-          const afterResult = buildRowGroup(editor.schema, after);
-
-          tr.replaceWith(rowPos, rowPos + rowNode.nodeSize, Fragment.fromArray([beforeResult, afterResult]));
-
-          // Cursore dentro il primo punto di testo valido della meta' "dopo"
-          // (stesso bias +1 di sempre in questo file per un atterraggio in
-          // avanti) - afterStart e' la posizione ESTERNA di afterResult
-          // (tr.doc.nodeAt(afterStart) === afterResult), +1 per entrarci.
-          const afterStart = rowPos + beforeResult.nodeSize;
-          tr.setSelection(Selection.near(tr.doc.resolve(afterStart + 1), 1));
-          return true;
-        })
-        .scrollIntoView()
-        .run();
-    };
+    // splitRowAtPause: funzione di modulo sopra (esportata, riusata da
+    // tiptapRow.ts per l'Invio da un cursore VERO a inizio di un rowItem
+    // non-primo - round 2026-08-19). Vedi il commento li' per il
+    // ragionamento completo su cosa fa lo split.
 
     // Invio su una pausa - isFlexSiblingContainer($pos.parent) distingue
     // dove si trova ESATTAMENTE $pos (non il vicino - la posizione stessa):
@@ -2128,7 +2148,7 @@ export const TextBoxEdgeCursorExtension = Extension.create({
 
       if (isFlexSiblingContainer($pos.parent)) {
         if (isDocRow($pos.parent)) {
-          return splitRowAtPause($pos);
+          return splitRowAtPause(editor, $pos);
         }
 
         // Cella di tabella - stesso identico comportamento di prima del

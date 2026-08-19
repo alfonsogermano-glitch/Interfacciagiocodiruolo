@@ -19,6 +19,7 @@ import {
   isRowItemEligible,
   combineIntoRow,
   buildRowGroup,
+  splitRowAtPause,
 } from './tiptapTextBoxEdgeCursor';
 
 // Fase 1 del progetto "affiancamento a livello documento" (piano confermato
@@ -630,6 +631,60 @@ export const Row = Node.create({
           })
           .scrollIntoView()
           .run();
+      },
+
+      // Invio a inizio contenuto di un rowItem NON PRIMO di una row esistente
+      // spacca la row in quel punto - simmetrico a Backspace sopra (che
+      // unisce un rowItem PRIMO col blocco sopra), ma per l'operazione
+      // "opposta": riusa splitRowAtPause (tiptapTextBoxEdgeCursor.ts),
+      // scritta per l'Invio sulla pausa fantasma fra due rowItem (bug
+      // segnalato dal vivo 2026-08-19: un cursore VERO a inizio testo di un
+      // rowItem, es. "Carisma" in row[Forza,Box,Destrezza,Box,vuoto,Carisma,
+      // Box], cadeva sullo splitBlock nativo invece che su questo shortcut -
+      // withCursor in TextBoxEdgeCursorExtension scarta subito qualunque
+      // selezione che non sia TextBoxEdgeCursor, quindi non intercettava mai
+      // un TextSelection reale). $from.before(paragraphDepth) e' la
+      // posizione ESATTAMENTE al confine fra il rowItem precedente e questo
+      // paragrafo - stessa identica forma di posizione della pausa fantasma
+      // che splitRowAtPause si aspetta (parent === il nodo row, parentOffset
+      // === offset del confine), nessun adattamento necessario.
+      //
+      // Guardia tabella verificata dal vivo (non solo dedotta dal commento
+      // "nessun nodo row" in tiptapTextBoxEdgeCursor.ts, che si e' rivelato
+      // descrivere solo l'assenza di un percorso UI, non un vincolo di
+      // schema): schema.nodes.row.create(...) dentro una tableCell supera
+      // sia node.check() sia editor.commands.setContent() senza errori -
+      // una row PUO' davvero annidarsi in una cella (content 'block+' della
+      // cella accetta 'row' via il suo group 'block', vedi il commento
+      // 2026-08-07 in cima a questo file). La cella resta comunque fuori
+      // scope qui, stesso identico motivo/precedente del Backspace sopra
+      // (isSelectionInsideAny gia' definita in questo file) - scroll
+      // orizzontale annidato/arrow-nav a doppio livello restano fuori scope.
+      //
+      // Cursore a inizio del PRIMO rowItem di una row: deliberatamente FUORI
+      // scope, nessuna guardia dedicata qui - splitRowAtPause ha gia' una
+      // guardia difensiva (before.length===0) che la rende un no-op sicuro
+      // in quel caso, lasciando il comportamento nativo invariato. Non e' lo
+      // stesso caso del Backspace Caso 3/4 sopra (che gestisce quella
+      // posizione unendo col blocco SOPRA la row): il simmetrico per Invio
+      // sarebbe inserire un blocco PRIMA dell'intera row, operazione diversa
+      // e non richiesta dal bug segnalato - resta un'estensione futura.
+      Enter: (): boolean => {
+        const { editor } = this;
+        const { state } = editor;
+        const { selection } = state;
+        if (!selection.empty || !(selection instanceof TextSelection)) return false;
+
+        const { $from } = selection;
+        if ($from.parent.type.name !== 'paragraph' || $from.parentOffset !== 0) return false;
+
+        if (isSelectionInsideAny(state, ['table'])) return false;
+
+        const paragraphDepth = $from.depth;
+        const rowDepth = findAncestorDepth($from, 'row');
+        if (rowDepth === null || rowDepth !== paragraphDepth - 1) return false;
+
+        return splitRowAtPause(editor, state.doc.resolve($from.before(paragraphDepth)));
       },
     };
   },
