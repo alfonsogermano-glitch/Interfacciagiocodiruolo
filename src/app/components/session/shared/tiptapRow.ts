@@ -18,7 +18,6 @@ import {
   stripRowGrow,
   isRowItemEligible,
   combineIntoRow,
-  buildRowGroup,
   splitRowAtPause,
   materializeParagraphAt,
 } from './tiptapTextBoxEdgeCursor';
@@ -539,10 +538,13 @@ export const Row = Node.create({
           // questo Backspace, unirli forzatamente cancellava quella
           // distinzione. Ora SOLO il primo figlio (A, sempre il paragrafo
           // corrente per costruzione - vedi il controllo firstChild sopra)
-          // lascia la row per unirsi ad aboveNode; il resto (buildRowGroup:
-          // row se ne restano >=2, standalone se ne resta 1) diventa un
-          // fratello NUOVO subito dopo la row appena unita - mai un ramo a
-          // parte "se resta 1 solo elemento": buildRowGroup lo gestisce gia'.
+          // lascia la row per unirsi ad aboveNode; il resto (restOfRow,
+          // passato grezzo a combineIntoRow sotto - round Backspace-su-
+          // paragrafo-vuoto, piano confermato 2026-08-19: combineIntoRow
+          // stessa decide se avvolgerlo in una row nuova, standalone se ne
+          // resta 1, o RICONGIUNGERLO invece di separarlo quando aboveNode
+          // si rivela vuoto - vedi il commento li') diventa normalmente un
+          // fratello NUOVO subito dopo la row appena unita.
           //
           // aboveNode (Caso 3 standalone, Caso 4 row) e' INVECE invariato in
           // entrambi i casi rispetto a prima - e' il blocco che il Backspace
@@ -553,7 +555,6 @@ export const Row = Node.create({
           // Caso 4 (rowGrow interno ancora valido, e' lo stesso gruppo di
           // prima con un membro in piu', non due gruppi che si fondono).
           const [firstOfRow, ...restOfRow] = rowChildren;
-          const trailingSibling = buildRowGroup(schema, restOfRow);
 
           if (aboveNode.type === schema.nodes.row) {
             // Caso 4: aboveChildren assorbe per intero (rowGrow preservato,
@@ -564,7 +565,7 @@ export const Row = Node.create({
             return editor
               .chain()
               .command(({ tr }) => {
-                combineIntoRow(tr, schema, { from: rangeFrom, to: rangeTo }, aboveChildren, [stripRowGrow(firstOfRow)], trailingSibling);
+                combineIntoRow(tr, schema, { from: rangeFrom, to: rangeTo }, aboveChildren, [stripRowGrow(firstOfRow)], restOfRow);
                 return true;
               })
               .scrollIntoView()
@@ -579,7 +580,7 @@ export const Row = Node.create({
           return editor
             .chain()
             .command(({ tr }) => {
-              combineIntoRow(tr, schema, { from: rangeFrom, to: rangeTo }, [stripRowGrow(aboveNode)], [stripRowGrow(firstOfRow)], trailingSibling);
+              combineIntoRow(tr, schema, { from: rangeFrom, to: rangeTo }, [stripRowGrow(aboveNode)], [stripRowGrow(firstOfRow)], restOfRow);
               return true;
             })
             .scrollIntoView()

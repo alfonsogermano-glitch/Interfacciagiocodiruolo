@@ -1586,19 +1586,87 @@ export function isRowItemEligible(node: ProseMirrorNode): boolean {
 // range), i tre punti d'ingresso che non lo passano (Caso 1/2 di
 // mergeAtBackspace, e il ramo "before e' standalone" di backspaceAtPause)
 // restano invariati.
+// Un paragrafo VUOTO (mai TextBox/Collapse/Table, anche se testualmente
+// vuoti - quelli sono placeholder legittimi e intenzionali, indistinguibili
+// da un vero rowItem, non un residuo) fra i nodi che si stanno unendo non
+// deve sopravvivere come nuovo rowItem - bug segnalato dal vivo 2026-08-19:
+// Invio sul primo elemento di una row (fix di ieri, materializeParagraphAt)
+// crea un paragrafo vuoto PRIMA della row; il Backspace successivo lo
+// univa cosi' com'era dentro la nuova row, dove ereditava il contorno
+// tratteggiato dei paragrafi vuoti in una row (commit 5db41f1) - un residuo
+// visibile invece di sparire come farebbe un editor normale. Stesso
+// controllo (textContent==='') gia' in uso in addElementBeside
+// (tiptapRow.ts) per lo stesso tipo di distinzione "vuoto per davvero" vs
+// "vuoto solo di testo ma con figli strutturali".
+function isEmptyParagraph(schema: Schema, node: ProseMirrorNode): boolean {
+  return node.type === schema.nodes.paragraph && node.textContent === '';
+}
+
+// trailingNodes (non piu' un nodo gia' costruito): i chiamanti (Caso 3/4 di
+// mergeAtBackspace, backspaceAtPause) passano l'array GREZZO del "resto"
+// della row che stanno lasciando, non piu' il risultato gia' avvolto da
+// buildRowGroup - necessario per il ramo "lato sinistro sparito" sotto, che
+// deve poter RICONGIUNGERE quell'array a rightSurvivors invece di tenerlo
+// separato: un nodo gia' costruito (row o standalone) non si può
+// "riaprire" per estrarne i figli senza duplicare la stessa identica
+// decisione (row se >=2, standalone se 1) che buildRowGroup gia' incapsula.
 export function combineIntoRow(
   tr: Transaction,
   schema: Schema,
   range: { from: number; to: number },
   leftNodes: ProseMirrorNode[],
   rightNodes: ProseMirrorNode[],
-  trailingSibling?: ProseMirrorNode
+  trailingNodes?: ProseMirrorNode[]
 ) {
-  const rowNode = schema.nodes.row.create(null, [...leftNodes, ...rightNodes]);
-  tr.replaceWith(range.from, range.to, trailingSibling ? Fragment.fromArray([rowNode, trailingSibling]) : rowNode);
-  const leftSize = leftNodes.reduce((sum, node) => sum + node.nodeSize, 0);
-  const joinPos = range.from + 1 + leftSize;
-  tr.setSelection(TextSelection.near(tr.doc.resolve(joinPos), -1));
+  const leftSurvivors = leftNodes.filter((node) => !isEmptyParagraph(schema, node));
+  const rightSurvivors = rightNodes.filter((node) => !isEmptyParagraph(schema, node));
+
+  // Il lato sinistro e' sparito INTERAMENTE (leftNodes non era vuoto in
+  // partenza, ma dopo il filtro non resta nulla - il caso del bug: aboveNode
+  // era solo un paragrafo vuoto) - Caso 3/4 estraggono apposta il primo
+  // figlio della row (rightNodes) per unirlo ad aboveNode, lasciando il
+  // resto (trailingNodes) come fratello separato: quella separazione ha
+  // senso SOLO quando c'e' davvero un aboveNode con cui unirsi. Se aboveNode
+  // e' vuoto non c'e' alcun join reale da fare - rightSurvivors si
+  // ricongiunge quindi con trailingNodes in un SOLO gruppo (la row torna
+  // esattamente quella di sempre, mai spaccata in due) invece di restare
+  // separato da esso. leftNodes.length>0 nella guardia distingue questo
+  // caso da Caso 1/2 (mai passano trailingNodes, quindi qui e' comunque
+  // sempre undefined) e dal caso "leftNodes era gia' vuoto in partenza"
+  // (mai successo per costruzione - vedi i chiamanti - ma la guardia resta
+  // corretta anche se succedesse).
+  const leftVanished = leftNodes.length > 0 && leftSurvivors.length === 0;
+  const survivors = leftVanished && trailingNodes ? [...rightSurvivors, ...trailingNodes] : [...leftSurvivors, ...rightSurvivors];
+  const effectiveTrailing = leftVanished ? undefined : trailingNodes;
+
+  // survivors.length===0 e' raggiungibile (non impossibile per costruzione,
+  // verificato: il rowItem da cui parte il Backspace puo' essere gia' esso
+  // stesso un placeholder vuoto - stesso identico tipo di nodo del bug
+  // sopra - simultaneamente a un aboveNode anch'esso vuoto, es. due Invio
+  // consecutivi) - buildRowGroup non si puo' chiamare con un array vuoto
+  // (mai il suo contratto, vedi commento li'), quindi niente riga costruita
+  // in quel caso: resta solo effectiveTrailing se presente (gia' incluso in
+  // survivors via leftVanished sopra se applicabile), altrimenti il range
+  // si limita a sparire.
+  const mergedNode = survivors.length > 0 ? buildRowGroup(schema, survivors) : null;
+  const trailingNode = effectiveTrailing && effectiveTrailing.length > 0 ? buildRowGroup(schema, effectiveTrailing) : null;
+  const replacementNodes = [...(mergedNode ? [mergedNode] : []), ...(trailingNode ? [trailingNode] : [])];
+  const replacement = replacementNodes.length > 0 ? Fragment.fromArray(replacementNodes) : Fragment.empty;
+  tr.replaceWith(range.from, range.to, replacement);
+
+  // leftSize sui soli SOPRAVVISSUTI (non piu' leftNodes originale): quando
+  // il lato sinistro e' stato azzerato dal filtro (il caso del bug sopra),
+  // la ricerca all'indietro da questa posizione non trova piu' nulla nel
+  // contenuto appena creato - Selection.near ricade da sola in avanti
+  // (comportamento nativo di ProseMirror, nessuna logica aggiuntiva
+  // necessaria qui), atterrando all'inizio del primo sopravvissuto reale
+  // (es. "Forza") invece che nel paragrafo vuoto ormai scomparso. Caso
+  // normale (nessun nodo filtrato) invariato: stessa identica formula/bias
+  // di sempre, stesso risultato di prima.
+  const enterOffset = mergedNode ? 1 : 0;
+  const leftSize = leftSurvivors.reduce((sum, node) => sum + node.nodeSize, 0);
+  const anchorPos = range.from + enterOffset + leftSize;
+  tr.setSelection(TextSelection.near(tr.doc.resolve(anchorPos), mergedNode ? -1 : 1));
 }
 
 // Azzera rowGrow (torna a crescita automatica uniforme) se presente - un
@@ -2295,13 +2363,13 @@ export const TextBoxEdgeCursorExtension = Extension.create({
       }
 
       let rightNodes: ProseMirrorNode[];
-      let trailingSibling: ProseMirrorNode | undefined;
+      let trailingNodes: ProseMirrorNode[] | undefined;
       if (after.type === schema.nodes.row) {
         const afterChildren: ProseMirrorNode[] = [];
         after.forEach((child) => afterChildren.push(child));
         const [firstOfAfter, ...restOfAfter] = afterChildren;
         rightNodes = [stripRowGrow(firstOfAfter)];
-        trailingSibling = buildRowGroup(schema, restOfAfter);
+        trailingNodes = restOfAfter;
       } else {
         if (!isRowItemEligible(after)) return false;
         rightNodes = [stripRowGrow(after)];
@@ -2310,7 +2378,7 @@ export const TextBoxEdgeCursorExtension = Extension.create({
       return editor
         .chain()
         .command(({ tr }) => {
-          combineIntoRow(tr, schema, { from: rangeFrom, to: rangeTo }, leftNodes, rightNodes, trailingSibling);
+          combineIntoRow(tr, schema, { from: rangeFrom, to: rangeTo }, leftNodes, rightNodes, trailingNodes);
           return true;
         })
         .scrollIntoView()
