@@ -599,6 +599,41 @@
   border: 1px dashed var(--dash-border-soft);
   border-radius: 0.25rem;
 }
+/* Paragrafo affiancato a una TextBox in una row: il TESTO appariva piu' in
+   alto del testo dentro la TextBox (bug segnalato dal vivo 2026-08-19,
+   puramente visivo - misurato con Range.getBoundingClientRect() sul testo
+   reale, non sui contenitori: scostamento di 0.5rem+1px). Causa: align-items:
+   flex-start su .tiptap-row-flex (sotto in questo file) allinea i BORDI
+   ESTERNI dei figli - il paragrafo (nessun padding) e .tiptap-textbox
+   (padding:0.5rem 0.75rem + border:1px, sopra in questo file) finiscono
+   quindi con lo stesso top di contenitore, ma il testo dentro la TextBox
+   parte padding-top+border-top piu' in basso del testo nudo del paragrafo.
+   align-items:baseline scartato come fix (proverebbe a risolvere alla
+   radice invece che compensare): romperebbe il rilevamento "stessa riga
+   visiva" in tiptapTextBoxEdgeCursor.ts (righe con
+   Math.abs(rect1.top-rect2.top)<=1), che assume flex-start per sapere se
+   due fratelli sono sulla stessa riga wrappata - centrale per la
+   navigazione del cursore finto fra i box. Compenso quindi SOLO il
+   paragrafo, con lo stesso padding-top del testo nella TextBox.
+   :has(~ .tiptap-textbox) (fratello generico, non "+" adiacente diretto):
+   sopravvive al cursore finto (.tiptap-textbox-edge-cursor) che a volte si
+   inserisce come fratello DOM temporaneo fra i due - con "+" la regola
+   smetterebbe di far match proprio mentre il cursore finto e' attivo fra
+   loro. Due regole per coprire entrambi gli ordini in una row (row[p, box]
+   e row[box, p]) - il paragrafo puo' precedere o seguire la TextBox.
+   Scope ristretto a .tiptap-row-flex (mai .tiptap-td-flex/
+   .tiptap-textbox-content/.tiptap-collapse-body, contesti diversi, ne'
+   .tiptap-collapse, struttura interna diversa - icona+header, non solo
+   testo, richiederebbe una compensazione diversa, fuori scope qui).
+   Limite noto: se la row va a capo, il paragrafo puo' finire su una riga
+   visiva diversa dalla TextBox pur avendola come fratello DOM - CSS puro
+   non distingue "stessa riga visiva" da "stesso genitore flex", quindi la
+   compensazione si applicherebbe comunque. Caso raro, non e' quello
+   segnalato. */
+.tiptap-row-flex > p:not(.tiptap-textbox-edge-cursor):has(~ .tiptap-textbox),
+.tiptap-row-flex > .tiptap-textbox ~ p:not(.tiptap-textbox-edge-cursor) {
+  padding-top: calc(0.5rem + 1px);
+}
 /* Larghezza minima di default finche' la colonna non e' stata
    ridimensionata esplicitamente (data-colwidth assente) o non e' in corso
    il trascinamento - stessa condizione usata dal CSS di riferimento di
