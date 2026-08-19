@@ -163,6 +163,30 @@ function isSelectionInsideAny(state: EditorState, typeNames: string[]): boolean 
   return isPositionInsideAny(state.selection.$from, typeNames);
 }
 
+// "Inizio contenuto" tollerante a spazi iniziali - bug segnalato dal vivo
+// 2026-08-19: testo reale " Destrezza " (spazio iniziale vero, non un
+// placeholder di test) - un click "vicino alla D" atterra a parentOffset 1,
+// non 0 (lo spazio e' un carattere reale prima del cursore), quindi la
+// guardia esatta parentOffset===0 falliva silenziosamente e sia Invio che
+// Backspace ricadevano sul comportamento nativo. Qualunque prefisso di SOLI
+// whitespace prima del cursore conta ora come "inizio", non solo
+// parentOffset===0 letterale - lo split/merge sotto usa comunque
+// $from.before(paragraphDepth) (il confine del NODO paragrafo, mai la
+// posizione esatta del cursore), quindi lo spazio iniziale/finale del testo
+// si sposta intatto col resto del paragrafo, qualunque sia l'offset preciso
+// dentro la porzione di soli spazi.
+// slice(0, parentOffset) sull'INTERO prefisso (non solo l'ultimo carattere
+// prima del cursore): un cursore genuinamente a meta' testo (es. "ab cd" a
+// offset 3, subito dopo lo spazio fra le due parole) ha un prefisso "ab "
+// che contiene testo reale, quindi /^\s*$/ fallisce correttamente - resta
+// un no-op, comportamento nativo invariato. Verificato che l'unico modo per
+// passare questo controllo e' che TUTTO cio' che precede il cursore, dentro
+// questo paragrafo, sia whitespace.
+function isAtParagraphStartIgnoringLeadingWhitespace($pos: ResolvedPos): boolean {
+  if ($pos.parent.type.name !== 'paragraph') return false;
+  return /^\s*$/.test($pos.parent.textContent.slice(0, $pos.parentOffset));
+}
+
 export const Row = Node.create({
   name: 'row',
   group: 'block',
@@ -490,7 +514,7 @@ export const Row = Node.create({
         if (!selection.empty || !(selection instanceof TextSelection)) return false;
 
         const { $from } = selection;
-        if ($from.parent.type.name !== 'paragraph' || $from.parentOffset !== 0) return false;
+        if (!isAtParagraphStartIgnoringLeadingWhitespace($from)) return false;
 
         // Cella di tabella esclusa, stesso identico motivo/precedente di
         // Case 2 in addElementBeside sopra (isSelectionInsideAny gia'
@@ -687,7 +711,7 @@ export const Row = Node.create({
         if (!selection.empty || !(selection instanceof TextSelection)) return false;
 
         const { $from } = selection;
-        if ($from.parent.type.name !== 'paragraph' || $from.parentOffset !== 0) return false;
+        if (!isAtParagraphStartIgnoringLeadingWhitespace($from)) return false;
 
         if (isSelectionInsideAny(state, ['table'])) return false;
 
