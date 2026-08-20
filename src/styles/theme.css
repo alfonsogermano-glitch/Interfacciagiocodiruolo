@@ -827,24 +827,45 @@
     visibility: hidden;
   }
 }
-/* Indicatore di drop laterale (Fase 4b, tiptapRowDrop.ts) - barra verticale
-   sul bordo del blocco target quando il drag e' in zona-soglia (affianca,
-   non impila). Deliberatamente DIVERSA da .tiptap-textbox-edge-cursor sopra
+/* Indicatore di drop laterale (Fase 4b, tiptapRowDrop.ts) - barra sul bordo
+   del blocco target quando il drag e' in zona-soglia (affianca, non
+   impila). Deliberatamente DIVERSA da .tiptap-textbox-edge-cursor sopra
    (niente blink, colore accento invece del colore testo): quella e' un
    caret - segna "il testo verrebbe digitato qui", un'attesa passiva. Questa
    e' un'affordance di drop attiva - stesso linguaggio visivo gia' usato per
    ".ProseMirror-selectednode" (outline 2px var(--dash-accent), "questo e'
    uno stato attivo dell'interfaccia"), non quello del cursore di testo.
    position:fixed impostato via JS (tiptapRowDrop.ts, showIndicator) insieme
-   a top/left/height - qui solo le proprieta' statiche, mai ricalcolate. */
+   a top/left/width/height - qui solo le proprieta' statiche, mai
+   ricalcolate.
+   Due varianti (bug/richiesta UX 2026-08-20: l'indicatore era SEMPRE
+   verticale, anche quando il drop avrebbe creato una row nuova invece di
+   affiancare dentro una gia' esistente - le due operazioni hanno esiti
+   strutturalmente diversi e meritano un'affordance visiva diversa):
+   --vertical (side-zone che affianca in una row - la STESSA o un'ALTRA gia'
+   esistente, target.rowDepth non nullo in tiptapRowDrop.ts) e --horizontal
+   (side-zone che invece avvolge il target in una row NUOVA, target.rowDepth
+   nullo e target non vuoto - vedi buildRowDropTransaction). L'elemento
+   indicatore e' RIUSATO fra un dragover e l'altro (mai ricreato, storage.
+   indicatorEl) - showIndicator scrive sempre TUTTE E QUATTRO le proprieta'
+   geometriche (mai solo quelle rilevanti per l'orientamento corrente),
+   altrimenti un cambio di zona a meta' drag lascerebbe un valore residuo
+   dell'orientamento precedente (es. una width vecchia su un indicatore
+   appena tornato verticale). */
 .tiptap-row-drop-indicator {
   position: fixed;
-  width: 3px;
-  margin-left: -1.5px;
   border-radius: 1.5px;
   background-color: var(--dash-accent);
   pointer-events: none;
   z-index: 60;
+}
+.tiptap-row-drop-indicator--vertical {
+  width: 3px;
+  margin-left: -1.5px;
+}
+.tiptap-row-drop-indicator--horizontal {
+  height: 3px;
+  margin-top: -1.5px;
 }
 
 /* Maniglia di selezione/trascinamento (TextBox e Collapse) - due tentativi

@@ -308,8 +308,8 @@ interface RowDropStorage {
   indicatorEl: HTMLElement | null;
 }
 
-// Crea (al bisogno) e posiziona la barra verticale sul bordo del blocco
-// target - stesso principio di misura-rect-reale di positionEdgeCursor
+// Crea (al bisogno) e posiziona la barra sul bordo del blocco target -
+// stesso principio di misura-rect-reale di positionEdgeCursor
 // (tiptapTextBoxEdgeCursor.ts), ma un elemento DOM gestito a mano, MAI una
 // Decoration: dragover e' un evento DOM puro, senza transazione associata -
 // pilotare una Decoration richiederebbe dispacciarne una ad ogni movimento
@@ -326,7 +326,24 @@ interface RowDropStorage {
 // dropcursor, che A LUI serve solo perche' il suo elemento deve
 // sopravvivere a uno scroll fra un dragover e l'altro senza essere
 // riposizionato - requisito che non abbiamo (si ricalcola comunque sempre).
-function showIndicator(storage: RowDropStorage, side: 'before' | 'after', rect: DOMRect) {
+//
+// affiancaRowEsistente (bug/richiesta UX 2026-08-20 - chiarita dal vivo:
+// "vertical = finisci affiancato in QUALUNQUE row gia' esistente, sia la
+// STESSA sia un'ALTRA; horizontal = solo quando nasce una row NUOVA"): il
+// chiamante (dragover sotto) passa semplicemente target.rowDepth !== null,
+// esattamente la stessa condizione gia' usata da buildRowDropTransaction
+// per scegliere il ramo "inserisci come fratello" invece di "avvolgi in
+// una row nuova" - nessuna nuova logica di rilevamento, solo la stessa
+// informazione gia' disponibile in computeSideDrop, letta un momento prima.
+// classList.toggle (non className riassegnato) mantiene la classe base
+// .tiptap-row-drop-indicator sempre presente. TUTTE E QUATTRO le proprieta'
+// geometriche (left/top/width/height) sono scritte ad ogni chiamata, mai
+// solo quelle rilevanti per l'orientamento corrente: l'elemento e' RIUSATO
+// fra un dragover e l'altro (mai ricreato), quindi un cambio di
+// orientamento a meta' drag lascerebbe altrimenti un valore residuo di
+// quello precedente (es. una width vecchia su un indicatore appena tornato
+// verticale, dove width e' normalmente lasciata al CSS).
+function showIndicator(storage: RowDropStorage, side: 'before' | 'after', rect: DOMRect, affiancaRowEsistente: boolean) {
   if (!storage.indicatorEl) {
     const el = document.createElement('div');
     el.className = 'tiptap-row-drop-indicator';
@@ -335,9 +352,19 @@ function showIndicator(storage: RowDropStorage, side: 'before' | 'after', rect: 
     storage.indicatorEl = el;
   }
   const el = storage.indicatorEl;
-  el.style.left = `${side === 'before' ? rect.left : rect.right}px`;
-  el.style.top = `${rect.top}px`;
-  el.style.height = `${rect.height}px`;
+  el.classList.toggle('tiptap-row-drop-indicator--vertical', affiancaRowEsistente);
+  el.classList.toggle('tiptap-row-drop-indicator--horizontal', !affiancaRowEsistente);
+  if (affiancaRowEsistente) {
+    el.style.left = `${side === 'before' ? rect.left : rect.right}px`;
+    el.style.top = `${rect.top}px`;
+    el.style.width = '';
+    el.style.height = `${rect.height}px`;
+  } else {
+    el.style.top = `${side === 'before' ? rect.top : rect.bottom}px`;
+    el.style.left = `${rect.left}px`;
+    el.style.height = '';
+    el.style.width = `${rect.width}px`;
+  }
 }
 
 function hideIndicator(storage: RowDropStorage) {
@@ -423,7 +450,7 @@ export const RowDropExtension = Extension.create({
               const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY });
               const result = dropPos ? computeSideDrop(view, storage.sourcePos, event.clientX, dropPos.pos) : null;
               if (result) {
-                showIndicator(storage, result.side, result.rect);
+                showIndicator(storage, result.side, result.rect, result.target.rowDepth !== null);
               } else {
                 hideIndicator(storage);
               }
