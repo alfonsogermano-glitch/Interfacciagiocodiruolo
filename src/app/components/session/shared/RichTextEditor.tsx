@@ -468,8 +468,20 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
               colonna cosi' stretta. collisionPadding aggiunge un margine di
               sicurezza dal bordo della viewport, avoidCollisions resta quello
               di default (true) per il ribaltamento automatico nei casi limite
-              (es. note aperte molto in alto nella pagina). */}
-          <PopoverContent side="top" align="start" collisionPadding={8} className="w-64" onMouseDown={(e) => e.stopPropagation()}>
+              (es. note aperte molto in alto nella pagina).
+              z-[9999] (sovrascrive lo z-50 di default di PopoverContent,
+              cn() usa tailwind-merge quindi l'ultima classe vince): bug
+              trovato dal vivo 2026-08-20 - la posizione calcolata da Radix
+              era gia' corretta (verificato con getBoundingClientRect, side e
+              align rispettati), ma il pannello Note che ospita questo editor
+              e' un SlideOverPanel con z-[900] (SlideOverPanel.tsx) - il
+              Popover, di default a z-50, veniva quindi disegnato SOTTO quel
+              pannello e risultava invisibile (elementFromPoint sullo stesso
+              punto restituiva il contenuto dell'editor, non il popover).
+              z-[9999] e' lo stesso valore gia' usato per lo stesso identico
+              motivo dai menu a tendina di NoteListRow.tsx/EntityTabBar.tsx,
+              entrambi ospitati nello stesso pannello. */}
+          <PopoverContent side="top" align="start" collisionPadding={8} className="w-64 z-[9999]" onMouseDown={(e) => e.stopPropagation()}>
             <Tabs defaultValue="url" className="gap-3">
               <TabsList className="w-full">
                 <TabsTrigger value="url">Da URL</TabsTrigger>
