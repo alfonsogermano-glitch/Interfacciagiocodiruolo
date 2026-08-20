@@ -111,6 +111,18 @@ function docsEqual(a: JSONContent | null | undefined, b: JSONContent | null | un
 // ProseMirror a rielaborare le props della view ad ogni tasto digitato.
 const TIPTAP_EDITOR_PROPS = {
   attributes: { class: 'tiptap-content' },
+  // Bug segnalato dal vivo 2026-08-20: Ctrl+Shift+R (Cmd+Shift+R su Mac,
+  // hard refresh del browser) veniva intercettato dentro il
+  // contentEditable invece di raggiungere il browser. Nessuna scorciatoia
+  // dell'editor usa questa combinazione (verificato: nessun
+  // addKeyboardShortcuts la registra), ma restituire esplicitamente false
+  // (= "non gestito da me") garantisce che ProseMirror non chiami
+  // preventDefault/stopPropagation su questo evento per nessun motivo,
+  // lasciando il comportamento nativo del browser intatto.
+  handleKeyDown(_view, event: KeyboardEvent) {
+    const isHardRefresh = (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'r';
+    if (isHardRefresh) return false;
+  },
 };
 
 function ToolbarButton({ active, disabled, onClick, label, children }: {
