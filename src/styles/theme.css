@@ -277,6 +277,29 @@
   outline-offset: 2px;
 }
 
+/* GapCursor nativo di ProseMirror (bug segnalato dal vivo 2026-08-20,
+   "appare nero con lo stile di default del browser") - forma/animazione
+   invariate, solo il colore sovrascritto con l'accent del tema. Il CSS
+   base (.ProseMirror-gapcursor/:after, border-top:1px solid black,
+   animazione ProseMirror-cursor-blink) non e' un file importato da questo
+   progetto (verificato: nessun riferimento in src/, nessun <link> - vedi
+   node_modules/prosemirror-gapcursor/style/gapcursor.css per l'originale)
+   ma un <style> iniettato A RUNTIME dal plugin stesso (verificato dal vivo,
+   document.styleSheets: sheet.href === null) quando il gap cursor scatta
+   la prima volta - arriva quindi nel DOM DOPO questo file (caricato
+   staticamente, prima del mount di React), a parita' di specificita'
+   vincerebbe l'ultimo dichiarato per ordine di sorgente. Selettore
+   scoped con .tiptap-content (0-2-1, non il semplice .ProseMirror-gapcursor
+   :after della libreria, 0-1-1) per garantire la priorita' a prescindere
+   dall'ordine di caricamento - stesso identico pattern gia' usato sopra
+   per .ProseMirror-selectednode. border-top-color (non l'intero shorthand
+   border-top, che azzererebbe anche lo spessore ereditato dalla regola
+   base) - cambia solo il colore, forma/larghezza/animazione restano quelle
+   della libreria. */
+.tiptap-content .ProseMirror-gapcursor:after {
+  border-top-color: var(--dash-accent);
+}
+
 /* Collapse (tiptapBlocks.tsx, CollapseBlock/CollapseBlockView) - il corpo si
    nasconde via CSS puro in base all'attributo data-open sul wrapper (non su
    ogni singolo figlio): un solo NodeViewContent per nodo non permette due
