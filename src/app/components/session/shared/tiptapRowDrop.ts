@@ -3,6 +3,7 @@ import { Plugin, PluginKey, NodeSelection, type Transaction, type EditorState } 
 import type { Node as ProseMirrorNode, ResolvedPos } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
 import { findAncestorDepth } from './tiptapRow';
+import { isEmptyParagraph } from './tiptapDropCleanup';
 
 // Fase 4a del progetto "affiancamento a livello documento" (piano confermato
 // 2026-08-08): drag&drop per CREARE una row trascinando un elemento accanto
@@ -183,10 +184,30 @@ function buildRowDropTransaction(
     const insertAt = side === 'before' ? mappedTargetPos : mappedTargetPos + targetNode.nodeSize;
     tr.insert(insertAt, sourceNode);
     tr.setSelection(NodeSelection.create(tr.doc, insertAt));
+  } else if (isEmptyParagraph(targetNode)) {
+    // Target non ancora in una row E vuoto (bug segnalato dal vivo
+    // 2026-08-20, riaperto dopo il primo "comportamento corretto": drop di
+    // una TextBox su un paragrafo vuoto preesistente - es. la riga bianca
+    // che il documento tiene sempre in coda - produceva row[sourceNode,
+    // targetNode] col paragrafo vuoto avvolto PERMANENTEMENTE come
+    // fratello reale, mai un placeholder "fresco" agli occhi di
+    // RowCollapseCleanup (quel controllo guarda SOLO se il nodo e' stato
+    // inserito dalla transazione corrente - vedi isFreshEmpty li',
+    // tiptapRowCollapseCleanup.ts - un nodo gia' presente in oldState non
+    // viene mai toccato, per lo stesso motivo per cui un paragrafo svuotato
+    // a mano dall'utente non collassa mai la sua row). Il bordo tratteggiato
+    // sempre visibile dei paragrafi vuoti in una row (5db41f1) rendeva
+    // percio' quel fratello vuoto un "quadrato fantasma" permanente.
+    // Sostituire il target invece di avvolgerlo e' il comportamento atteso
+    // per un drop su una riga vuota (rimpiazza, non affianca un fantasma) -
+    // NESSUNA row viene creata in questo caso, sourceNode prende
+    // esattamente il posto che aveva targetNode.
+    tr.replaceWith(mappedTargetPos, mappedTargetPos + targetNode.nodeSize, sourceNode);
+    tr.setSelection(NodeSelection.create(tr.doc, mappedTargetPos));
   } else {
-    // Non ancora in una row: avvolge target + sorgente in una row nuova,
-    // stesso schema del Caso 2 di addElementBeside (tiptapRow.ts) - side
-    // decide l'ordine dei due figli.
+    // Non ancora in una row (e non vuoto): avvolge target + sorgente in una
+    // row nuova, stesso schema del Caso 2 di addElementBeside (tiptapRow.ts) -
+    // side decide l'ordine dei due figli.
     //
     // selectPos DEVE tenere conto della profondita' in piu' introdotta dalla
     // row appena creata (bug trovato dal vivo in Fase 4c, mai esercitato
