@@ -421,24 +421,35 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         </ToolbarButton>
         {/* Immagine: un solo pulsante, due modi di inserimento dentro lo
             stesso Popover (Da URL / Da file) - vedi imagePopoverOpen/
-            insertImageFromUrl/handleFileSelected sopra. Niente Tooltip
-            component qui (a differenza degli altri ToolbarButton): nidificare
-            TooltipTrigger asChild dentro PopoverTrigger asChild intorno allo
-            stesso bottone e' un doppio Slot fragile per un guadagno minimo,
-            dato che il popover stesso e' gia' autoesplicativo una volta
-            aperto - title nativo del browser basta per l'hover. */}
+            insertImageFromUrl/handleFileSelected sopra.
+            TooltipTrigger asChild NON avvolge direttamente PopoverTrigger
+            (bug trovato dal vivo: entrambi usano @radix-ui/react-popper
+            internamente, e due Popper.Anchor annidati sullo stesso nodo DOM
+            lasciano quello piu' interno bloccato sulla posizione segnaposto
+            iniziale di Radix - transform:translate(0,-200%), mai
+            rimisurata - il tooltip risultava "aperto" ma renderizzato fuori
+            viewport, invisibile). Uno <span> intermedio disaccoppia i due
+            Popper: il Tooltip si ancora allo span (hover), il Popover
+            continua ad ancorarsi al bottone reale dentro (click) -
+            indipendenti, nessun conflitto. */}
         <Popover open={imagePopoverOpen} onOpenChange={setImagePopoverOpen}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              disabled={!editable}
-              aria-label="Immagine"
-              title="Immagine"
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md p-1.5 transition-colors text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)] ${!editable ? 'cursor-not-allowed opacity-40' : ''}`}
-            >
-              <ImageIcon className="h-4 w-4" />
-            </button>
-          </PopoverTrigger>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    disabled={!editable}
+                    aria-label="Immagine"
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md p-1.5 transition-colors text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)] ${!editable ? 'cursor-not-allowed opacity-40' : ''}`}
+                  >
+                    <ImageIcon className="h-4 w-4" />
+                  </button>
+                </PopoverTrigger>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="right">Immagine</TooltipContent>
+          </Tooltip>
           {/* onMouseDown/stopPropagation: senza, il mousedown di qualunque
               controllo qui dentro (Input incluso) risalirebbe fino al div
               radice di Toolbar (onMouseDown preventDefault, in cima a questo
@@ -446,8 +457,19 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
               l'albero dei COMPONENTI, non quello del DOM, quindi il Portal di
               PopoverContent non basta da solo a isolarlo. Stesso identico bug
               gia' documentato sopra per FontSizeSelect (l'Input perderebbe il
-              focus-on-click nativo). */}
-          <PopoverContent side="right" align="start" className="w-64" onMouseDown={(e) => e.stopPropagation()}>
+              focus-on-click nativo).
+              side="top"/collisionPadding: la colonna Toolbar e' stretta (w-11)
+              e il pulsante Immagine e' verso il fondo della sezione "Blocchi" -
+              side="right" (valore iniziale) veniva sistematicamente ribaltato
+              da Radix in "bottom" per mancanza di spazio, aprendo il popover
+              fuori dalla viewport verso il basso. align="start" (invece di
+              "center", il default) allinea il bordo del popover a quello del
+              pulsante invece che al suo centro - piu' prevedibile in una
+              colonna cosi' stretta. collisionPadding aggiunge un margine di
+              sicurezza dal bordo della viewport, avoidCollisions resta quello
+              di default (true) per il ribaltamento automatico nei casi limite
+              (es. note aperte molto in alto nella pagina). */}
+          <PopoverContent side="top" align="start" collisionPadding={8} className="w-64" onMouseDown={(e) => e.stopPropagation()}>
             <Tabs defaultValue="url" className="gap-3">
               <TabsList className="w-full">
                 <TabsTrigger value="url">Da URL</TabsTrigger>

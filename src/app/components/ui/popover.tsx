@@ -4,6 +4,7 @@ import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 
 import { cn } from "./utils";
+import { usePortalContainer } from "./portal-container";
 
 function Popover({
   ...props
@@ -23,8 +24,17 @@ function PopoverContent({
   sideOffset = 4,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+  // usePortalContainer: stesso fix gia' applicato a DropdownMenuContent
+  // (dropdown-menu.tsx) per lo stesso identico problema di classe - senza
+  // un container esplicito, il Portal di Radix monta di default su
+  // document.body, che sta FUORI dall'albero AppShell (data-dashboard-
+  // palette) da cui discendono le variabili CSS --dash-*/--color-popover
+  // per cascata. bg-popover/text-popover-foreground (classi Tailwind
+  // sotto) risolverebbero a un valore vuoto/di default fuori da quella
+  // cascata invece che al tema attivo.
+  const container = usePortalContainer();
   return (
-    <PopoverPrimitive.Portal>
+    <PopoverPrimitive.Portal container={container}>
       <PopoverPrimitive.Content
         data-slot="popover-content"
         align={align}
