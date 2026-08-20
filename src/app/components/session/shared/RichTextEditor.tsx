@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
-import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Undo2 } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Upload, Undo2 } from 'lucide-react';
 import TextAlign from '@tiptap/extension-text-align';
 import Image from '@tiptap/extension-image';
 import { MarkdownContent } from './MarkdownContent';
@@ -11,6 +11,13 @@ import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { flattenRemovedLayoutNodes } from './tiptapLegacyMigration';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
+import { useAuth } from '../../../auth/AuthContext';
+import { supabase, isSupabaseConfigured } from '../../../../lib/supabaseClient';
+
+// Limite dimensione file per l'upload da locale (bucket 'note-images',
+// Supabase Storage) - stessa soglia gia' usata per lo stesso identico
+// scopo in NewsPage.tsx, nessun motivo per un valore diverso qui.
+const MAX_IMAGE_MB = 5;
 // @tiptap/extension-underline non va importato/aggiunto qui: StarterKit lo
 // include e attiva gia' di default (verificato nel suo sorgente - "if
 // (this.options.underline !== false)"), aggiungerlo di nuovo registrerebbe
@@ -263,6 +270,50 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
 
   const boldActive = editor.isActive('bold');
 
+  // Upload immagine da file locale (bucket 'note-images', Supabase Storage) -
+  // stesso comando finale di inserimento (setImage) del pulsante "Immagine"
+  // da URL qui sotto, cambia solo la provenienza dell'URL. Path
+  // ${user.id}/... : stesso schema "cartella = proprio user id" gia' in uso
+  // per il bucket 'avatars' (SettingsModal.tsx) - la policy insert del
+  // bucket 'note-images' lo richiede.
+  const { user } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const handleFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      window.alert('Seleziona un file immagine.');
+      event.target.value = '';
+      return;
+    }
+    if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
+      window.alert(`L'immagine non può superare i ${MAX_IMAGE_MB} MB.`);
+      event.target.value = '';
+      return;
+    }
+    if (!isSupabaseConfigured || !supabase || !user) {
+      window.alert('Caricamento immagine non disponibile: utente non autenticato.');
+      event.target.value = '';
+      return;
+    }
+    setIsUploadingImage(true);
+    try {
+      const ext = file.name.split('.').pop() ?? 'jpg';
+      const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from('note-images').upload(path, file);
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from('note-images').getPublicUrl(path);
+      runCommand(() => editor.chain().focus().setImage({ src: publicUrl }).run());
+    } catch (err) {
+      console.log('Errore upload immagine nota:', err);
+      window.alert('Caricamento immagine non riuscito. Riprova.');
+    } finally {
+      setIsUploadingImage(false);
+      event.target.value = '';
+    }
+  };
+
   return (
     <div onMouseDown={(e) => e.preventDefault()} className="flex w-11 shrink-0 flex-col gap-2">
       <ToolbarSection label="Formattazione testo" defaultOpen>
@@ -344,6 +395,16 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
           if (url) editor.chain().focus().setImage({ src: url }).run();
         })}>
           <ImageIcon className="h-4 w-4" />
+        </ToolbarButton>
+        {/* Carica immagine da file locale (bucket 'note-images', Supabase
+            Storage) - alternativa al pulsante URL sopra, stesso comando
+            finale di inserimento (vedi handleFileSelected sopra).
+            input[type=file] nascosto: il click sul ToolbarButton visibile
+            apre il file picker nativo, l'upload vero parte dal suo onChange,
+            mai da un click diretto sull'input stesso. */}
+        <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileSelected} className="hidden" />
+        <ToolbarButton disabled={!editable || isUploadingImage} label="Carica immagine da file" active={false} onClick={() => fileInputRef.current?.click()}>
+          <Upload className="h-4 w-4" />
         </ToolbarButton>
       </ToolbarSection>
       {/* Sezioni future (Widget, Oggetti speciali): aggiungere qui altre
