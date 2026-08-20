@@ -2,24 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
-import { Selection } from '@tiptap/pm/state';
-import type { EditorView } from '@tiptap/pm/view';
-import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, Table as TableIcon, Undo2 } from 'lucide-react';
-import { TableKit } from '@tiptap/extension-table';
+import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Undo2 } from 'lucide-react';
+import TextAlign from '@tiptap/extension-text-align';
+import Image from '@tiptap/extension-image';
 import { MarkdownContent } from './MarkdownContent';
 import { parseLines } from './markdownHeadings';
 import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
-import { TableWithHandle } from './tiptapTableHandle';
-import { TableCellWithFlexWrapper, TableHeaderWithFlexWrapper } from './tiptapTableCellWrapper';
-import { Row, ParagraphWithRowGroup, type RowElementType } from './tiptapRow';
-import { RowDropExtension } from './tiptapRowDrop';
-import { RowResizeExtension } from './tiptapRowResize';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
-import { DropCleanup } from './tiptapDropCleanup';
-import { RowCollapseCleanup } from './tiptapRowCollapseCleanup';
-import { RowHeightSync } from './tiptapRowHeightSync';
-import { TextBoxEdgeCursorExtension, TextBoxEdgeCursor, adjacentBox, isAtRowStart, isAtRowEnd, findCellAncestorDepth } from './tiptapTextBoxEdgeCursor';
-import { TipTapTableMenu } from './TipTapTableMenu';
+import { flattenRemovedLayoutNodes } from './tiptapLegacyMigration';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 // @tiptap/extension-underline non va importato/aggiunto qui: StarterKit lo
 // include e attiva gia' di default (verificato nel suo sorgente - "if
@@ -106,84 +96,14 @@ function docsEqual(a: JSONContent | null | undefined, b: JSONContent | null | un
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-// Bug segnalato 2026-08-11 (diagnosi completa e verifica dal vivo prima di
-// questo fix, 7 punti di click incl. paragrafo vuoto IN MEZZO a una row di
-// 3): un paragrafo vuoto come figlio DIRETTO di .tiptap-row-flex ha il
-// proprio box (il tag <p>) allargato dal flex-grow:1 (theme.css), ma
-// l'unico contenuto - il <br class="ProseMirror-trailingBreak"> che
-// ProseMirror renderizza per un paragrafo vuoto - ha larghezza ZERO,
-// ancorato al bordo sinistro. Il motore nativo di hit-test click->caret
-// del browser considera clickabile solo la stretta area del contenuto
-// REALE (il <br>), non l'intero box allargato dal flex: un click nella
-// porzione "vuota" del box (centro/destra) non trova alcun contenuto li' e
-// ricade sul fratello flex piu' vicino (es. un TextBox affiancato),
-// spostando il cursore li' invece di restare nel paragrafo cliccato -
-// dall'esterno sembra "il click non fa nulla" perche' il fratello puo'
-// essere anch'esso vuoto/senza segnale visivo del caret differente.
-//
-// Un tentativo con CSS puro (padding-right sul paragrafo vuoto) e' stato
-// verificato dal vivo e SCARTATO: funziona (il padding estende davvero
-// l'area clickabile nativa in Chrome) ma solo di un valore FISSO in px -
-// una row abbastanza larga lascia comunque una dead-zone residua oltre il
-// padding - e distorce la ripartizione flex-grow fra i fratelli (misurato:
-// il fratello affiancato si restringe visibilmente quando il paragrafo
-// vuoto guadagna padding, un paragrafo vuoto e uno con testo non si
-// dividerebbero piu' lo spazio allo stesso modo).
-//
-// Risolto qui a livello di gestione click di ProseMirror invece che
-// "ingannando" l'hit-test nativo via CSS: handleClick intercetta il click
-// PRIMA che il hit-test nativo lo gestisca, usando le coordinate REALI
-// dell'evento (event.clientX/Y) contro il rect vero (getBoundingClientRect,
-// non l'hit-test) di ogni paragrafo vuoto diretto di una row - se il click
-// cade nel rect, la selezione viene posizionata li' esplicitamente
-// (Selection.near + view.posAtDOM), bypassando il problema alla radice
-// invece di provare a estendere l'area nativa. Nessun conflitto con gli
-// altri handleDOMEvents registrati nell'editor (verificato: mousedown per
-// il resize della row in tiptapRowResize.ts, dragstart/dragover per il
-// drag&drop in tiptapRowDrop.ts - eventi diversi da "click", ProseMirror
-// prova ciascun handleClick/handleDOMEvents registrato in ordine via
-// someProp finche' uno ritorna true, nessuno scarta gli altri).
-//
-// childNodes.length===1 && firstChild.nodeName==='BR': stesso identico
-// controllo "e' un paragrafo vuoto" gia' verificato dal vivo nella patch
-// runtime - un paragrafo con testo ha invece un nodo di testo come unico
-// figlio, non un BR, quindi non matcha mai qui (il click su un paragrafo
-// con contenuto reale resta gestito dall'hit-test nativo, mai intercettato
-// da questa funzione).
-function findEmptyRowParagraphAt(clientX: number, clientY: number): HTMLElement | null {
-  const candidates = document.querySelectorAll('.tiptap-row-flex > p');
-  for (const p of candidates) {
-    if (p.childNodes.length !== 1 || p.firstChild?.nodeName !== 'BR') continue;
-    const rect = p.getBoundingClientRect();
-    if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
-      return p as HTMLElement;
-    }
-  }
-  return null;
-}
-
 // Costante di modulo, non un letterale dentro il componente: useEditor (con
 // deps di default, vedi TipTapEditor) confronta l'intero oggetto opzioni ad
 // OGNI render e richiama editor.setOptions()/view.setProps() se qualcosa
 // risulta diverso per riferimento - un oggetto nuovo creato ad ogni render
 // (anche a contenuto identico) risultava sempre "diverso", forzando
 // ProseMirror a rielaborare le props della view ad ogni tasto digitato.
-// Causa concreta (verificata leggendo il sorgente di @tiptap/react) dietro
-// il flash di ridimensionamento/riga che sparisce/grassetto che non si
-// disattiva. handleClick (Fase fix 2026-08-11) aggiunto qui, non come
-// plugin ProseMirror separato: e' una sola gestione puntuale del click
-// nativo, non serve lo stato/le decorazioni di un plugin dedicato - stesso
-// principio "nessuna complessita' non giustificata" gia' seguito altrove.
 const TIPTAP_EDITOR_PROPS = {
   attributes: { class: 'tiptap-content' },
-  handleClick(view: EditorView, _pos: number, event: MouseEvent) {
-    const p = findEmptyRowParagraphAt(event.clientX, event.clientY);
-    if (!p) return false;
-    const domPos = view.posAtDOM(p, 0);
-    const $pos = view.state.doc.resolve(domPos);
-    view.dispatch(view.state.tr.setSelection(Selection.near($pos)));
-    return true;
-  },
 };
 
 function ToolbarButton({ active, disabled, onClick, label, children }: {
@@ -343,25 +263,6 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
 
   const boldActive = editor.isActive('bold');
 
-  // Fase B del consolidamento "Aggiungi elemento accanto" nei pulsanti
-  // esistenti (piano confermato 2026-08-11): ogni pulsante Blocchi sotto
-  // (Box di testo/Collapse/Tabella) prova PRIMA addElementBeside
-  // (tiptapRow.ts) - unica fonte di verita' per "quando si applica",
-  // ristretta in Fase A a TextBoxEdgeCursor attivo o nessuna row antenata
-  // (mai un cursore normale gia' dentro una row esistente). addElementBeside
-  // e' un no-op ATOMICO quando non si applica (return false, nessun
-  // dispatch, tr scartata - verificato dal vivo in Fase A: tr.doc invariato
-  // byte per byte), quindi il fallback puo' girare subito dopo senza alcun
-  // rischio di doppio inserimento o stato intermedio inconsistente. Un solo
-  // punto (qui) invece di ripetere lo stesso if/else nei 3 onClick sotto -
-  // il vecchio pulsante dedicato (DropdownMenu "Aggiungi elemento accanto")
-  // e' stato rimosso in Fase C, superfluo ora che i 3 pulsanti Blocchi
-  // coprono lo stesso comportamento.
-  const withRowAwareInsert = (type: RowElementType, fallback: () => boolean) => () =>
-    runCommand(() => {
-      if (!editor.chain().focus().addElementBeside(type).run()) fallback();
-    });
-
   return (
     <div onMouseDown={(e) => e.preventDefault()} className="flex w-11 shrink-0 flex-col gap-2">
       <ToolbarSection label="Formattazione testo" defaultOpen>
@@ -398,6 +299,21 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         <ToolbarButton disabled={!editable} label="Citazione" active={editor.isActive('blockquote')} onClick={() => runCommand(() => editor.chain().focus().toggleBlockquote().run())}>
           <Quote className="h-4 w-4" />
         </ToolbarButton>
+        {/* setTextAlign/isActive({textAlign}): TextAlign (extension registrata
+            sotto, types:['paragraph']) - active riflette l'allineamento del
+            paragrafo dove si trova il cursore, 'left' e' anche il default
+            implicito (nessun attributo scritto finche' non si sceglie
+            un'altra opzione, TextAlign lo omette dal JSON quando coincide col
+            default - vedi la sua doc). */}
+        <ToolbarButton disabled={!editable} label="Allinea a sinistra" active={editor.isActive({ textAlign: 'left' })} onClick={() => runCommand(() => editor.chain().focus().setTextAlign('left').run())}>
+          <AlignLeft className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton disabled={!editable} label="Allinea al centro" active={editor.isActive({ textAlign: 'center' })} onClick={() => runCommand(() => editor.chain().focus().setTextAlign('center').run())}>
+          <AlignCenter className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton disabled={!editable} label="Allinea a destra" active={editor.isActive({ textAlign: 'right' })} onClick={() => runCommand(() => editor.chain().focus().setTextAlign('right').run())}>
+          <AlignRight className="h-4 w-4" />
+        </ToolbarButton>
       </ToolbarSection>
       {/* Sezione separata da "Formattazione testo": Box di testo e Collapse
           sono nodi a blocco (inseriscono/racchiudono contenuto), non marchi
@@ -406,10 +322,10 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
           piano). Pulsanti "insert", non toggle: nessuno stato attivo/non
           attivo da riflettere (active sempre false). */}
       <ToolbarSection label="Blocchi" defaultOpen>
-        <ToolbarButton disabled={!editable} label="Box di testo" active={false} onClick={withRowAwareInsert('textBox', () => editor.chain().focus().setTextBox().run())}>
+        <ToolbarButton disabled={!editable} label="Box di testo" active={false} onClick={() => runCommand(() => editor.chain().focus().setTextBox().run())}>
           <Square className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton disabled={!editable} label="Collapse (espandi/comprimi)" active={false} onClick={withRowAwareInsert('collapseBlock', () => editor.chain().focus().setCollapseBlock().run())}>
+        <ToolbarButton disabled={!editable} label="Collapse (espandi/comprimi)" active={false} onClick={() => runCommand(() => editor.chain().focus().setCollapseBlock().run())}>
           <ChevronsDownUp className="h-4 w-4" />
         </ToolbarButton>
         {/* setHorizontalRule: gia' incluso in StarterKit come
@@ -418,36 +334,16 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         <ToolbarButton disabled={!editable} label="Linea orizzontale" active={false} onClick={() => runCommand(() => editor.chain().focus().setHorizontalRule().run())}>
           <SeparatorHorizontal className="h-4 w-4" />
         </ToolbarButton>
-        {/* insertTable: unica funzionalita' di questo gruppo che richiede una
-            nuova estensione (TableKit, vedi extensions sotto) - tabella 3x3
-            senza riga di intestazione (si attiva dopo dal menu contestuale
-            della tabella, vedi TipTapTableMenu.tsx). Non esiste
-            un'opzione di insertTable() per sopprimerlo: il comando
-            (node_modules/@tiptap/extension-table/src/table/table.ts) usa
-            tr.replaceSelectionWith(), che quando il cursore e' a inizio di
-            un paragrafo vuoto lascia quel paragrafo vuoto come fratello
-            prima della tabella (ProseMirror deve "chiudere" il paragrafo
-            per far posto a un nodo che non puo' esserne figlio). Il
-            .command() aggiunto qui gira nella STESSA transazione di
-            insertTable (chain condivide una sola tr, dispatch unico - vedi
-            CommandManager.createChain in @tiptap/core), quindi resta un
-            solo step di undo: risale alla tabella appena creata e, se il
-            nodo immediatamente precedente e' un paragrafo vuoto, lo
-            rimuove. */}
-        <ToolbarButton disabled={!editable} label="Tabella" active={false} onClick={withRowAwareInsert('table', () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: false }).command(({ tr, dispatch }) => {
-          const { $from } = tr.selection;
-          for (let depth = $from.depth; depth > 0; depth--) {
-            if ($from.node(depth).type.name !== 'table') continue;
-            const tablePos = $from.before(depth);
-            const nodeBefore = tr.doc.resolve(tablePos).nodeBefore;
-            if (nodeBefore?.type.name === 'paragraph' && nodeBefore.content.size === 0) {
-              if (dispatch) tr.delete(tablePos - nodeBefore.nodeSize, tablePos);
-            }
-            break;
-          }
-          return true;
-        }).run())}>
-          <TableIcon className="h-4 w-4" />
+        {/* Immagine: solo URL (nessun upload file, confermato nel piano) -
+            window.prompt e' bloccante e nativo, coerente con "niente
+            infrastruttura di storage per ora". url falsy (annullato/vuoto)
+            non dispaccia alcun comando - setImage con src vuoto inserirebbe
+            comunque un nodo immagine rotto. */}
+        <ToolbarButton disabled={!editable} label="Immagine" active={false} onClick={() => runCommand(() => {
+          const url = window.prompt('URL immagine');
+          if (url) editor.chain().focus().setImage({ src: url }).run();
+        })}>
+          <ImageIcon className="h-4 w-4" />
         </ToolbarButton>
       </ToolbarSection>
       {/* Sezioni future (Widget, Oggetti speciali): aggiungere qui altre
@@ -456,25 +352,16 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
       {/* Annulla: undo nativo di TipTap History (gia' incluso in StarterKit,
           nessuna estensione nuova) - stesso identico comando gia'
           disponibile da tastiera (Ctrl+Z), qui solo reso cliccabile. FUORI
-          da ToolbarSection come Box di testo/Tabella sopra sarebbero
+          da ToolbarSection come Box di testo/Immagine sopra sarebbero
           sbagliati li' (non e' un inserimento di contenuto).
-          disabled={!editable} SOLO - stesso identico criterio di ogni altro
-          pulsante qui sopra (Grassetto/Corsivo/...), NON piu' anche
-          editor.can().undo() come nel giro precedente (bug segnalato
-          2026-07-30: le maniglie di drag di TextBox/Collapse/Tabella
-          smettevano di rispondere all'hover dopo un click qui, recuperabile
-          solo con un altro click nel testo). editor.can().undo() e'
-          sicuro di per se' (dry-run, nessun dispatch - verificato nel
-          sorgente di @tiptap/core/CommandManager.ts), ma qui veniva
-          rivalutato ad OGNI render di Toolbar (che si ri-renderizza ad ogni
-          transazione, quindi praticamente ad ogni battuta in tutto il
-          documento) - unica differenza strutturale reale rispetto agli
-          altri pulsanti, che controllano solo un booleano semplice. undo()
-          stesso e' comunque innocuo quando non c'e' nulla da annullare
-          (verificato in prosemirror-history: buildCommand ritorna false
-          subito, nessun dispatch, nessuna eccezione) - la guardia dentro
-          l'onClick sotto evita solo la focus() sprecata in quel caso, non
-          serve per sicurezza. */}
+          disabled={!editable} SOLO, non anche editor.can().undo() (bug
+          storico legato alle vecchie maniglie di drag, non piu' rilevante
+          ma il criterio resta lo stesso: editor.can().undo() rivalutato ad
+          OGNI render di Toolbar era comunque uno spreco). undo() stesso e'
+          innocuo quando non c'e' nulla da annullare (verificato in
+          prosemirror-history: nessun dispatch, nessuna eccezione) - la
+          guardia dentro l'onClick sotto evita solo la focus() sprecata in
+          quel caso, non serve per sicurezza. */}
       <ToolbarButton disabled={!editable} label="Annulla" active={false} onClick={() => runCommand(() => {
         if (!editor.can().undo()) return;
         editor.chain().focus().undo().run();
@@ -517,7 +404,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
   // sostituisce l'INTERO documento con uno vuoto, non solo il nodo
   // incriminato (verificato nel sorgente): senza questa conversione qui,
   // aprire una vecchia nota con un titolo la svuoterebbe silenziosamente.
-  const [initialContent] = useState(() => migrateHeadingsToFontSize(richContent));
+  const [initialContent] = useState(() => flattenRemovedLayoutNodes(migrateHeadingsToFontSize(richContent)));
 
   // Contiene sia la Toolbar sia la colonna di testo (vedi il return sotto) -
   // usato SOLO dall'onBlur qui sotto per distinguere un blur genuino (click
@@ -534,79 +421,19 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
   // fermare da quel preventDefault dell'antenato).
   const toolbarWrapRef = useRef<HTMLDivElement>(null);
 
-  // Il piu' esterno dei TRE contenitori di scroll orizzontale annidati
-  // attorno a una tabella (questo wrapper, poi .tiptap-content, poi
-  // .tableWrapper per-tabella - tutti overflow-x:auto, vedi il div sotto e
-  // theme.css) - limite superiore della risalita degli antenati in
-  // onSelectionUpdate sotto, cosi' da azzerare scrollLeft solo sui
-  // contenitori che esistono per mostrare QUESTO editor, mai su un
-  // antenato di pagina non correlato piu' in alto.
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-
   const editor = useEditor({
-    // resizable: true attiva columnResizing di prosemirror-tables (gia'
-    // dentro @tiptap/extension-table, nessun codice nostro) - richiede pero'
-    // il CSS dedicato in theme.css (table-layout:fixed, .tableWrapper,
-    // .column-resize-handle, testo a capo) senza il quale le colonne
-    // resterebbero incoerenti col contenuto durante il trascinamento.
-    // table: false in TableKit - il node "table" e' registrato a parte da
-    // TableWithHandle (tiptapTableHandle.ts), esteso con selectable/
-    // draggable per la maniglia di trascinamento (stesso sistema di
-    // TextBox/CollapseBlock, vedi tiptapBlocks.tsx). tableCell/tableHeader:
-    // false allo stesso modo - registrati a parte da
-    // TableCellWithFlexWrapper/TableHeaderWithFlexWrapper
-    // (tiptapTableCellWrapper.ts, wrapper interno per affiancare
-    // TextBox/Collapse senza toccare display:table-cell della cella).
-    // TableRow resta quello di TableKit, invariato.
     // heading:false - il vecchio Node a blocco H1-H4 e' sostituito dal Mark
     // inline FontSize (tiptapFontSize.ts, applicabile a una selezione
     // parziale invece che a tutta la riga - cambio di scope confermato).
-    // DropCleanup: ripulisce il paragrafo vuoto placeholder residuo dopo il
-    // drag di TextBox/Collapse/Tabella verso una zona che ne aveva gia' uno
-    // (bug segnalato 2026-07-31, vedi tiptapDropCleanup.ts).
-    //
-    // paragraph:false - stesso trattamento di table/tableCell/tableHeader
-    // sotto: il node nativo di StarterKit e' disattivato qui e sostituito da
-    // ParagraphWithRowGroup (tiptapRow.ts), che aggiunge solo il group
-    // 'rowItem' in piu' (Fase 1 "affiancamento a livello documento", piano
-    // confermato 2026-08-07) - nessun altro comportamento cambiato.
+    // TextAlign scoped a 'paragraph' - unico tipo di blocco testuale diretto
+    // nello schema oltre a bulletList/orderedList/blockquote (che restano
+    // sempre allineati a sinistra, nessuna richiesta di estenderlo li').
     extensions: [
-      StarterKit.configure({ heading: false, paragraph: false }),
-      // table/tableCell/tableHeader disattivati qui - sostituiti da
-      // TableWithHandle (maniglia di trascinamento) e da
-      // TableCellWithFlexWrapper/TableHeaderWithFlexWrapper (wrapper interno
-      // .tiptap-td-flex per affiancare TextBox/Collapse - vedi
-      // tiptapTableCellWrapper.ts: display:flex NON puo' stare sulla cella
-      // stessa, romperebbe il layout a colonne della tabella).
-      TableKit.configure({ table: false, tableCell: false, tableHeader: false }),
-      TableWithHandle,
-      TableCellWithFlexWrapper,
-      TableHeaderWithFlexWrapper,
-      ParagraphWithRowGroup,
-      // Row: Fase 1, solo schema+rendering - la creazione via drag&drop
-      // (Fase 4a, tiptapRowDrop.ts) e via toolbar (Fase 2, comando
-      // addElementBeside sopra) sono entrambe registrate qui.
-      Row,
-      RowDropExtension,
-      // RowResizeExtension: trascinamento manuale del confine fra due
-      // rowItem affiancati (Fase 5c) - scrive rowGrow (schema Fase 5b) sui
-      // due nodi coinvolti al rilascio del mouse.
-      RowResizeExtension,
+      StarterKit.configure({ heading: false }),
       FontSize,
-      DropCleanup,
-      // RowCollapseCleanup: scioglie una row che scende a 1 (o 0) figli
-      // reali dopo un drag/backspace/Cut - vedi tiptapRowCollapseCleanup.ts
-      // (Fase 4c parte 2). Ordine ininfluente rispetto a DropCleanup:
-      // entrambe sono appendTransaction indipendenti, ProseMirror le gira
-      // tutte sulla stessa transazione dispacciata, in sequenza fra loro.
-      RowCollapseCleanup,
-      // RowHeightSync: scrive --tiptap-row-height su ogni .tiptap-row-flex
-      // (ResizeObserver dal vivo) - usata in theme.css per estendere l'area
-      // di hover dei rowItem piu' corti fino al fondo della row, vedi
-      // tiptapRowHeightSync.ts per il ragionamento completo.
-      RowHeightSync,
+      TextAlign.configure({ types: ['paragraph'] }),
+      Image,
       ...TIPTAP_BLOCK_EXTENSIONS,
-      TextBoxEdgeCursorExtension,
     ],
     content: initialContent,
     editable,
@@ -633,130 +460,12 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
       if (toolbarWrapRef.current?.contains(related)) return;
       onBlurEditor?.();
     },
-    // Bug segnalato 2026-08-06: spostandosi con le frecce dall'ultima cella
-    // di una riga di tabella alla prima cella di quella sotto, se la cella
-    // di destinazione inizia con testo semplice (nessun TextBox/Collapse,
-    // quindi nessuna delle funzioni in tiptapTextBoxEdgeCursor.ts
-    // interviene - tutte ritornano false in quel caso, per design: vedi i
-    // commenti su exitCellBoundary/exitRowBoundary li'), l'intero movimento
-    // e' gestito dal caret nativo del browser, che NON chiama mai il nostro
-    // .scrollIntoView() esplicito (presente invece in OGNI altro ramo dello
-    // stesso file). tr.scrollIntoView() richiamato qui ad ogni cambio di
-    // selezione colma il buco per i casi in cui nessun nostro codice
-    // intercetta il movimento - ma da solo NON basta (round 2): calcola il
-    // MINIMO scroll che rende visibile il cursore con un margine, mai un
-    // vero azzeramento/massimizzazione ai bordi veri della tabella.
-    //
-    // Due livelli di correzione manuale sotto, entrambi sugli stessi tre
-    // contenitori annidati (questo wrapper, .tiptap-content, .tableWrapper
-    // - vedi scrollContainerRef sopra), risalendo dal nodo DOM della
-    // posizione del cursore (view.domAtPos) fino al wrapper esterno incluso:
-    //
-    // 1) isAtRowStart/isAtRowEnd (tiptapTextBoxEdgeCursor.ts, round 2/3):
-    //    ai VERI bordi di una riga (prima/ultima cella, cursore a inizio/
-    //    fine contenuto) forzano scrollLeft esattamente al minimo (0) o al
-    //    massimo (scrollWidth-clientWidth) - piu' precisi del calcolo
-    //    generale sotto perche' non dipendono dalla geometria del momento,
-    //    danno il valore vero e proprio invariante rispetto a eventuali
-    //    arrotondamenti subpixel di getBoundingClientRect.
-    // 2) Caso generale (round 4, richiesta 2026-08-06 "ogni cambio di
-    //    cella, non solo i due estremi"): quando il cursore e' in una
-    //    cella qualunque che NON e' ne' la prima ne' l'ultima della riga
-    //    (o lo e' ma senza soddisfare le condizioni sopra, es. non a
-    //    inizio/fine contenuto), uno scrollIntoView manuale sulla CELLA
-    //    (non sul singolo carattere) - confronta il bounding rect della
-    //    cella con quello di ciascun contenitore scrollabile e sposta
-    //    scrollLeft del minimo necessario per farla rientrare per intero,
-    //    un livello alla volta (il rect della cella va rimisurato ad ogni
-    //    iterazione: scrollare un livello interno sposta la sua posizione
-    //    visiva rispetto al livello esterno successivo). Assegnare
-    //    scrollLeft su un ancestor che non ha overflow proprio e' un no-op
-    //    innocuo (il browser lo clampa da solo) - nessun bisogno di
-    //    filtrare quali dei tre siano davvero scrollabili in quel momento.
-    //    La cella si trova via findCellAncestorDepth + view.nodeDOM (stessa
-    //    identica strategia di isAtRowStart/isAtRowEnd sopra), NON via
-    //    view.domAtPos(selection.from) + closest('td, th') (usato invece
-    //    nel ramo 1, dove funziona: li' non serve individuare la CELLA,
-    //    solo un punto di partenza qualunque nel suo subtree da cui risalire
-    //    gli antenati) - bug 2026-08-06 (round 5), caso limite: entrando
-    //    all'indietro in una cella con un box come ultimo figlio, il
-    //    cursore finto atterra fra il box e la fine della cella; in quella
-    //    posizione domAtPos(pos) risolve alla shallow position piu' vicina
-    //    (side di default 0, vedi la sua doc in prosemirror-view), che per
-    //    un gap adiacente a un widget decoration puo' non essere un
-    //    discendente affidabile della cella - closest() da li' falliva in
-    //    silenzio (nessun 'td'/'th' trovato, ramo generale un no-op).
-    //    findCellAncestorDepth lavora invece sulla POSIZIONE RISOLTA
-    //    ($pos.node(depth)), non sul DOM: stessa risposta a prescindere dal
-    //    tipo di selezione (TextSelection reale o il nostro TextBoxEdgeCursor)
-    //    e da quali decorazioni siano montate in quel punto - viene poi
-    //    girata a view.nodeDOM (non domAtPos) per ottenere il vero elemento
-    //    <td>/<th>, univoco per costruzione (un nodo del documento ha
-    //    sempre un solo elemento DOM che lo rappresenta).
-    //
-    // Nessun rischio di loop in nessuno dei due casi: ne' scrollIntoView()
-    // ne' un tocco diretto a scrollLeft del DOM cambiano la selezione,
-    // quindi non ri-scatena selectionUpdate (vedi dispatchTransaction in
-    // @tiptap/core: l'evento scatta solo se selectionHasChanged).
-    onSelectionUpdate: ({ editor }) => {
-      editor.commands.scrollIntoView();
-
-      const { selection, doc } = editor.state;
-      if (!selection.empty) return;
-
-      // outerBound assente (ref non ancora montato): esce subito invece di
-      // risalire senza limite - un ciclo senza il confine sotto toccherebbe
-      // scrollLeft su QUALUNQUE antenato scrollabile fino a <html>, inclusi
-      // contenitori di pagina non correlati a questo editor.
-      const outerBound = scrollContainerRef.current;
-      if (!outerBound) return;
-
-      const atStart = isAtRowStart(doc, selection.$from);
-      // atStart escluso prima di controllare atEnd: nell'unico caso in cui
-      // potrebbero valere entrambi (riga con una sola cella, vuota - li'
-      // firstChild===lastChild===quella cella) la prima colonna vince,
-      // nessun conflitto pratico dato che con una sola colonna la tabella
-      // di norma non ha comunque overflow da nessuna delle due parti.
-      const atEnd = !atStart && isAtRowEnd(doc, selection.$from);
-
-      if (atStart || atEnd) {
-        let node: Node | null = editor.view.domAtPos(selection.from).node;
-        if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
-        let el = node as HTMLElement | null;
-        while (el) {
-          el.scrollLeft = atStart ? 0 : el.scrollWidth - el.clientWidth;
-          if (el === outerBound) break;
-          el = el.parentElement;
-        }
-        return;
-      }
-
-      const cellDepth = findCellAncestorDepth(selection.$from);
-      if (cellDepth === null) return;
-      const cellEl = editor.view.nodeDOM(selection.$from.before(cellDepth)) as HTMLElement | null;
-      if (!cellEl) return;
-
-      let ancestor = cellEl.parentElement;
-      while (ancestor) {
-        const cellRect = cellEl.getBoundingClientRect();
-        const containerRect = ancestor.getBoundingClientRect();
-        if (cellRect.left < containerRect.left) {
-          ancestor.scrollLeft = Math.round(ancestor.scrollLeft - (containerRect.left - cellRect.left));
-        } else if (cellRect.right > containerRect.right) {
-          ancestor.scrollLeft = Math.round(ancestor.scrollLeft + (cellRect.right - containerRect.right));
-        }
-        if (ancestor === outerBound) break;
-        ancestor = ancestor.parentElement;
-      }
-    },
   });
   // Nessun onTransaction manuale per aggiornare lo stato "active" della
   // barra: useEditor si iscrive gia' da solo alle transazioni e
   // ri-renderizza il componente (shouldRerenderOnTransaction e' attivo di
   // default, verificato nel sorgente) - un secondo meccanismo manuale era
   // ridondante e amplificava la frequenza dei render ad ogni tasto.
-  // onSelectionUpdate sopra e' per uno scopo diverso (scroll orizzontale
-  // della tabella, non lo stato della barra) e non compete con questo.
 
   useEffect(() => {
     if (!editor) return;
@@ -791,7 +500,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // gia' migrato in memoria, forzando un setContent superfluo (e la
     // perdita di selezione che questo effect esiste apposta per evitare) ad
     // ogni giro. Stesso motivo del rischio spiegato sopra per initialContent.
-    const migratedRichContent = migrateHeadingsToFontSize(richContent);
+    const migratedRichContent = flattenRemovedLayoutNodes(migrateHeadingsToFontSize(richContent));
 
     // Confronto STRUTTURALE col documento gia' presente nell'editor, non
     // per riferimento con l'ultimo valore emesso da noi (come prima): un
@@ -821,49 +530,8 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // nuovo documento (vedi sorgente @tiptap/core), quindi e' sicuro
     // riapplicare la stessa posizione anche se il nuovo testo e' piu' corto.
     const { from, to } = editor.state.selection;
-    // wasEdgeCursor catturato PRIMA di setContent (bug segnalato dal vivo
-    // 2026-08-13, "digitare alla pausa del bordo assoluto di una row la fa
-    // atterrare dentro la row invece che prima di essa"): setTextSelection
-    // sotto crea sempre una TextSelection - se `from` era il gap di una
-    // TextBoxEdgeCursor (una posizione FRA blocchi, mai una posizione di
-    // testo valida per costruzione), TextSelection.create/near la aggancia
-    // alla posizione di testo valida PIU' VICINA invece di lasciarla al
-    // bordo - verificato dal vivo: la pausa spariva silenziosamente,
-    // sostituita da un cursore vero dentro il box/row adiacente, pronto a
-    // ricevere il prossimo carattere digitato al posto della pausa. Questo
-    // sync esterno (autosave/realtime/refetch) puo' scattare nella finestra
-    // fra la freccia che crea la pausa e il carattere successivo (l'eco di
-    // un salvataggio precedente puo' arrivare fino a ~1200ms dopo, vedi
-    // recentLocalEditRef in useEntityTabs.ts) - il pulsante di inserimento
-    // non soffre dello stesso problema perche' e' un click sincrono,
-    // istantaneo, mai in corsa con un sync esterno.
-    const wasEdgeCursor = editor.state.selection instanceof TextBoxEdgeCursor;
     editor.commands.setContent(migratedRichContent, { emitUpdate: false });
-
-    // adjacentBox (stessa funzione che tiptapTextBoxEdgeCursor.ts usa altrove
-    // per riconoscere una pausa RIENTRABILE, non reinventata qui) verifica
-    // che `from` sia ANCORA un gap valido nel documento appena arrivato
-    // dall'esterno - un salvataggio concorrente puo' aver cambiato esattamente
-    // il vicino da cui dipendeva la pausa (es. l'altro box e' stato rimosso),
-    // nel qual caso il gap non e' piu' valido: si ricade sul comportamento di
-    // sempre (setTextSelection sotto, invariato) invece di ricreare una pausa
-    // fantasma su un bordo che non esiste piu'. Bound check esplicito prima di
-    // resolve() - from e' una posizione del VECCHIO documento, il nuovo puo'
-    // essere piu' corto, resolve() lancia RangeError fuori range.
-    const restoredEdgeCursor =
-      wasEdgeCursor && from <= editor.state.doc.content.size && adjacentBox(editor.state.doc.resolve(from));
-    if (restoredEdgeCursor) {
-      // command (non chain().scrollIntoView()) - stesso schema minimo gia'
-      // usato per settare selezioni in questo file, nessuno scroll: questo
-      // effect sincronizza un doc esterno mentre l'utente e' fermo sulla
-      // pausa, non e' una navigazione che meriti di scrollare la vista.
-      editor.commands.command(({ tr }) => {
-        tr.setSelection(new TextBoxEdgeCursor(tr.doc.resolve(from)));
-        return true;
-      });
-    } else {
-      editor.commands.setTextSelection({ from, to });
-    }
+    editor.commands.setTextSelection({ from, to });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [richContent]);
 
@@ -873,32 +541,13 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     <div ref={toolbarWrapRef} className="flex items-start gap-2">
       <Toolbar editor={editor} editable={editable} />
       <div
-        ref={scrollContainerRef}
         onClick={!editable ? onClickText : undefined}
-        // overflow-x-auto sempre presente (non delegato al solo containerClassName
-        // del chiamante, ne' alla regola .tableWrapper in theme.css): senza un
-        // vincolo di larghezza esplicito A QUESTO livello, un div a blocco senza
-        // overflow proprio non ferma mai una tabella piu' larga di lui, che risale
-        // semplicemente lungo gli antenati finche' non trova un overflow:hidden
-        // qualunque (es. il contenitore-scheda arrotondato di EntityDetailView.tsx)
-        // che la taglia via invece di scrollarla - bug verificato 2026-07-29,
-        // capitava solo dove containerClassName non impostava gia' un proprio
-        // overflow-y (che per spec CSS rende anche overflow-x implicitamente
-        // 'auto': NoteSubTabs.tsx, che usa il DEFAULT_CONTAINER_CLASS senza
-        // overflow, era il caso rotto - qui invece funziona sempre, in ogni uso).
-        // max-w-full aggiunto perche' overflow-x-auto da solo non bastava
-        // ancora (bug verificato 2026-07-29, secondo giro): senza un tetto
-        // esplicito la larghezza "intrinseca" della tabella (table-layout:fixed
-        // + larghezze di colonna calcolate via JS da TableView) puo' comunque
-        // propagarsi verso l'alto attraverso i contenitori a blocco che non
-        // hanno un vincolo di larghezza reale, facendo crescere l'intero
-        // contenitore invece di scrollare al suo interno - max-width e' un
-        // tetto assoluto, chiude la propagazione qui indipendentemente dal
-        // meccanismo esatto piu' sotto (.tiptap-content, .tableWrapper).
+        // overflow-x-auto/max-w-full: un'immagine (o qualunque contenuto)
+        // piu' larga della colonna scorre invece di far crescere l'intero
+        // contenitore/pagina.
         className={`min-w-0 flex-1 max-w-full overflow-x-auto ${!editable && onClickText ? 'cursor-text' : ''} ${containerClassName}`}
       >
         <EditorContent editor={editor} />
-        {editable && <TipTapTableMenu editor={editor} />}
       </div>
     </div>
   );

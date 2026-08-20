@@ -2,14 +2,6 @@
 
 :root {
   --font-size: 16px;
-  /* Spaziatura orizzontale condivisa fra TextBox/Collapse affiancati -
-     usata sia dal column-gap di .tiptap-td-flex/.tiptap-textbox-content/
-     .tiptap-collapse-body (tutti e tre lo stesso layout flex per
-     affiancamento, a qualunque profondita' di annidamento) sia dal
-     margine negativo di .tiptap-textbox-edge-cursor che ne annulla il
-     contributo (vedi commento li' sotto) - un solo valore invece di
-     ripeterlo in 4 punti che dovrebbero sempre restare identici. */
-  --tiptap-box-gap: 0.5rem;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
@@ -209,7 +201,9 @@
    spazio coerente tra blocchi. Il nodo "heading" (h1-h4) e' stato rimosso
    dallo schema TipTap (RichTextEditor.tsx, sostituito dal Mark inline
    FontSize) - non renderizza piu' dentro .tiptap-content, da cui la regola
-   ristretta al solo <p>. */
+   ristretta al solo <p>. text-align (TextAlign, RichTextEditor.tsx): nessuna
+   regola CSS dedicata, l'estensione scrive gia' da sola style="text-align:
+   ..." sul paragrafo quando diverso dal default (left). */
 .tiptap-content p {
   margin: 0 0 0.25rem 0;
 }
@@ -239,769 +233,39 @@
   margin-bottom: 0;
 }
 
-/* Tabella (TableKit, RichTextEditor.tsx) - il preflight di Tailwind toglie
-   bordo/spaziatura di default a table/td/th, stesso motivo di ul/ol/hr/
-   blockquote sopra: senza queste regole la griglia sarebbe invisibile,
-   indistinguibile da normale testo affiancato. */
-/* .tableWrapper: presente sempre in modifica quando la tabella e'
-   ridimensionabile (TableView di @tiptap/extension-table, vedi il
-   commento su resizable in RichTextEditor.tsx) - overflow-x:auto permette
-   uno scroll orizzontale invece di un taglio brusco quando la somma delle
-   larghezze minime delle colonne (--default-cell-min-width, impostata in
-   inline style dalla libreria) supera lo spazio disponibile. */
-/* position:relative: contesto di posizionamento per la maniglia di
-   trascinamento (.tiptap-table-handle sotto) - NIENTE piu' padding-left
-   riservato (tentativo precedente, 2026-07-30): stesso esito scartato gia'
-   visto per TextBox/Collapse, un gutter fisso allarga il box senza
-   benefici quando la maniglia puo' invece stare assoluta dentro i confini
-   gia' esistenti. box-sizing:border-box (preflight Tailwind) - qui non
-   piu' rilevante per il padding (rimosso), resta valido per gli altri usi
-   di questa regola nel file.
-   isolation:isolate: confina lo z-index della maniglia sotto (necessario
-   qui, a differenza di TextBox/Collapse - vedi quel commento) alla sola
-   sottoalbero di questo wrapper, cosi' non compete per errore con z-index
-   di elementi lontani e non correlati altrove nel documento. */
-.tiptap-content .tableWrapper {
-  position: relative;
-  isolation: isolate;
-  overflow-x: auto;
-}
-/* Maniglia di selezione/trascinamento della tabella - stesso schema appena
-   validato per TextBox/Collapse (vedi il commento su .tiptap-block-handle
-   piu' sotto per il ragionamento completo: position:absolute con top/left
-   POSITIVI, mai negativi, quindi mai oltre il bordo del wrapper - non
-   sporge, quindi non e' soggetta al rischio di clipping di un antenato con
-   overflow-y). Qui pero' serve IN PIU' uno z-index esplicito, cosa non
-   necessaria per TextBox/Collapse: .tiptap-content td/th sotto hanno
-   position:relative (serve alla libreria per posizionare la propria
-   maniglia di resize colonna dentro ogni cella) - un elemento "positioned"
-   con z-index:auto, come i td/th, PIU' AVANTI nell'ordine del DOM rispetto
-   alla nostra maniglia (che e' un fratello inserito PRIMA di <table>, vedi
-   tiptapTableHandle.ts) vince lo stacking a parita' di z-index e finisce
-   sopra per l'hit-test del browser - anche se il td e' visivamente
-   trasparente (nessun background proprio), il click ci finiva comunque
-   dentro invece che sulla maniglia (bug segnalato 2026-07-30: cliccare la
-   maniglia selezionava la cella sottostante, non la tabella). z-index:1
-   promuove la maniglia sopra quella parita', a prescindere dall'ordine nel
-   DOM. */
-.tiptap-content .tiptap-table-handle {
-  position: absolute;
-  z-index: 1;
-  top: 0.375rem;
-  left: 0.375rem;
-}
-/* :hover si propaga a TUTTI gli antenati (non solo all'elemento puntato dal
-   mouse) - un TextBox/Collapse/tabella annidato dentro una cella (schema
-   valido: tableCell content e' "block+", include table/textBox/collapseBlock
-   nel gruppo 'block' - verificato in @tiptap/extension-table e
-   tiptapBlocks.tsx) rende :hover vero anche su .tableWrapper mentre il
-   mouse e' sull'elemento interno, quindi SENZA la guardia sotto questa
-   regola e quella di .tiptap-block-handle piu' sotto scattavano insieme,
-   mostrando entrambe le maniglie invece della sola piu' interna (bug
-   segnalato 2026-07-31). :not(:has(...)) esclude il caso in cui il wrapper
-   contenga (a qualunque profondita') un altro elemento "con maniglia"
-   ATTUALMENTE in hover: se c'e', il mouse e' su quell'elemento piu' interno,
-   non sul bordo/sfondo di questa tabella, quindi la SUA maniglia (non
-   questa) deve essere l'unica visibile. Supporto :has(): baseline gia'
-   assunta dal progetto (color-mix() qui sotto in .tiptap-textbox richiede
-   Firefox 113+/Safari 16.2+, :has() e' supportato da versioni comparabili
-   o precedenti in tutti i motori principali). Selettore ">" (non piu' " ")
-   sul target: senza, la regola raggiungerebbe anche la maniglia di UNA
-   TABELLA ANNIDATA piu' in profondita' dentro la stessa cella (descendente
-   a qualunque livello), non solo la maniglia diretta di QUESTO wrapper. */
-.tiptap-content .tableWrapper:hover:not(:has(.tableWrapper:hover, .tiptap-textbox:hover, .tiptap-collapse:hover)) > .tiptap-table-handle {
-  opacity: 1;
-  pointer-events: auto;
-}
-.tiptap-content table {
-  width: 100%;
+/* Immagine (Image, RichTextEditor.tsx - solo inserimento via URL, nessun
+   upload) - max-width:100% impedisce a un'immagine piu' larga della colonna
+   di spingerla in overflow orizzontale (l'editor stesso ha comunque
+   overflow-x:auto come rete di sicurezza, vedi piu' sotto in questo file);
+   height:auto mantiene le proporzioni quando max-width scala la larghezza;
+   display:block + margin elimina lo spazio fantasma che un'immagine
+   inline (default del browser) lascerebbe sotto se stessa (stesso
+   comportamento di un'immagine dentro un contenitore a blocco ovunque
+   altro nell'app). */
+.tiptap-content img {
+  display: block;
+  max-width: 100%;
+  height: auto;
   margin: 0 0 0.5rem 0;
-  border-collapse: collapse;
-  /* Richiesto dal ridimensionamento colonne: con table-layout:auto il
-     browser ricalcola le larghezze in base al contenuto ignorando le
-     larghezze esplicite impostate trascinando una maniglia - con "fixed"
-     restano quelle scelte dall'utente, e per questo il testo lungo va
-     mandato a capo esplicitamente sotto invece di poter allargare la
-     cella. */
-  table-layout: fixed;
-}
-.tiptap-content td,
-.tiptap-content th {
-  position: relative;
-  box-sizing: border-box;
-  border: 1px solid var(--dash-border-soft);
-  padding: 0.375rem 0.5rem;
-  vertical-align: top;
-  /* Conseguenza diretta di table-layout:fixed sopra: una parola/stringa
-     piu' larga della colonna (ridotta trascinando una maniglia) andrebbe
-     altrimenti in overflow invece di andare a capo. */
-  overflow-wrap: break-word;
-}
-/* REGRESSIONE 2026-08-01 e correzione: display:flex era stato messo QUI,
-   direttamente su td/th - rompeva l'algoritmo di layout della tabella
-   (table-layout:fixed + colgroup, costruito con cura per il
-   ridimensionamento colonne): il browser decide se un elemento partecipa
-   al calcolo delle colonne in base al suo essere display:table-cell,
-   cambiarlo a flex lo fa uscire da quel calcolo (spariva ogni colonna
-   tranne la prima). td/th restano percio' display:table-cell (nativo,
-   invariato sopra) - il flex-wrap per affiancare TextBox/Collapse vive
-   invece in un CONTENITORE INTERNO aggiuntivo, .tiptap-td-flex
-   (tiptapTableCellWrapper.ts: TableCell/TableHeader estesi con un div in
-   piu' nel renderHTML, contentElement con fallback per restare compatibili
-   con l'incolla di tabelle esterne che non hanno mai visto questo
-   wrapper). column-gap SOLO orizzontale (mai row-gap): lo spazio verticale
-   fra una "riga" e la successiva resta affidato al margin-bottom di
-   ciascun blocco, gia' presente da prima - un row-gap qui raddoppierebbe
-   quello spazio. align-items:flex-start: blocchi di altezza diversa
-   affiancati non si stirano per pareggiarsi. */
-.tiptap-td-flex {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  column-gap: var(--tiptap-box-gap);
-  width: 100%;
-  /* position:relative come contesto per il cursore finto
-     (.tiptap-textbox-edge-cursor sotto, tiptapTextBoxEdgeCursor.ts -
-     position:absolute SEMPRE, calcolato dal vivo, non piu' un item flex -
-     bug 2026-08-05 "riscrivi il posizionamento in un unico calcolo JS
-     invece di regole CSS diverse per ogni caso geometrico") - nessun
-     effetto sul layout dei box reali (nessun top/left impostato qui). */
-  position: relative;
-}
-/* Ogni figlio diretto del wrapper e' un item flex (conseguenza di
-   display:flex sopra, si applica a QUALUNQUE figlio a prescindere dal
-   proprio display - "blockificazione" degli item flex, standard CSS) -
-   flex:1 1 100% qui replica il comportamento di prima (riga intera,
-   nessuna condivisione) per i blocchi "normali" (paragrafo, lista,
-   blockquote, tabella annidata, ecc.). Sovrascritto sotto SOLO per
-   TextBox/Collapse.
-   Stessa regola ripetuta per .tiptap-textbox-content e
-   .tiptap-collapse-body (bug 2026-08-02: senza questo trattamento anche
-   LI', un TextBox/Collapse annidato dentro un altro non aveva mai un
-   vero contenitore flex intorno - il cursore finto ci finiva dentro
-   comunque nei casi limite, ma senza flex ne' flex:0 0 auto ne' height
-   si applicano davvero a un elemento inline non sostituito, quindi
-   restava invisibile o sbagliato invece di essere una barra sulla stessa
-   riga - vedi .tiptap-textbox-edge-cursor sotto). Nessuna differenza di
-   comportamento per il contenuto "normale" di un box: un solo paragrafo/
-   lista dentro un TextBox continua a occupare l'intera riga esattamente
-   come prima, la condivisione della riga scatta SOLO fra due
-   TextBox/Collapse annidati fratelli, esattamente come gia' succede
-   dentro una cella di tabella.
-   .tiptap-row-flex NON e' piu' in questa lista (Fase 5a, "affiancamento a
-   livello documento" - piano confermato 2026-08-09): a livello di row
-   OGNI tipo di rowItem (paragraph/table incluse, non solo TextBox/
-   Collapse) deve affiancarsi per davvero - verificato dal vivo che con
-   flex-basis:100% due paragrafi o una tabella+paragrafo in una row NON si
-   affiancavano affatto, restavano impilati esattamente come fuori da una
-   row (la riga "condivisa" a livello di documento era di fatto vuota per
-   quei tipi). La regola per .tiptap-row-flex ora vive per intero nel
-   blocco flex:1 1 0 sotto, senza eccezioni di tipo - vedi il commento li'.
-   min-width:0 (bug 2026-08-05, "una sequenza lunga di caratteri
-   ininterrotta in una cella non va piu' a capo, esce dalla tabella"):
-   ogni item flex ha un min-width AUTOMATICO pari al proprio min-content
-   (qui, la stringa ininterrotta piu' lunga al suo interno) a meno di non
-   annullarlo esplicitamente - standard CSS, indipendente da flex-basis o
-   da qualunque overflow-wrap impostato sull'elemento stesso o su un
-   antenato. table td/th sopra hanno gia' overflow-wrap:break-word (serve
-   per table-layout:fixed), ma quella regola puo' mandare a capo un
-   testo SOLO se il box che lo contiene puo' restringersi sotto la
-   larghezza della stringa - da quando il paragrafo e' un item flex
-   (sopra), il min-width automatico glielo impediva, il testo restava
-   largo quanto la stringa e usciva dalla cella invece di andare a capo.
-   Nessun effetto sul caso comune (testo che va gia' a capo normalmente,
-   flex-basis:100% comunque presente): min-width:0 abbassa solo il
-   LIMITE INFERIORE di restringimento, mai la dimensione preferita. */
-.tiptap-td-flex > *,
-.tiptap-textbox-content > *,
-.tiptap-collapse-body > * {
-  flex: 1 1 100%;
-  min-width: 0;
-}
-/* TextBox/Collapse: flex-grow:1 permette la stessa identica meccanica in
-   ENTRAMBI i casi senza contare quanti fratelli ci sono via JS - da solo
-   su una riga, flex-grow lo fa crescere fino a riempirla (uguale a
-   prima); due o piu' sulla stessa riga, lo spazio disponibile si divide
-   automaticamente fra loro (flex-wrap nativo). NESSUN max-width (bug
-   segnalato 2026-08-02, rimosso: un box da solo su una riga mostrava
-   sempre ~20px di vuoto asimmetrico a destra). Il cap serviva quando il
-   cursore finto (tiptapTextBoxEdgeCursor.ts) era ancora posizionato con
-   position:absolute e non partecipava al flex layout, quindi bisognava
-   riservargli manualmente spazio fisico sulla riga; da quando e' un vero
-   item flex (flex:0 0 auto, vedi .tiptap-textbox-edge-cursor sotto), il
-   suo ingombro viene gia' sottratto automaticamente dall'algoritmo flex
-   quando distribuisce lo spazio libero fra i fratelli con flex-grow - la
-   riserva manuale era un residuo mai rimosso, non piu' necessaria.
-
-   flex-basis:0 (NON un valore tipo 180px) - bug importante scoperto
-   2026-08-01 ispezionando dal vivo con flex-wrap forzato a nowrap/wrap
-   via devtools: la decisione di flex-wrap se un item entra nella riga
-   corrente si basa sulla sua "hypothetical main size", che e' la
-   flex-basis clampata da min-width/max-width - NON sulla dimensione
-   raggiungibile dopo il flex-shrink. Con flex-basis:180px, due box
-   sommano 360px di hypothetical size: anche se min-width:90px li avrebbe
-   fatti stare comodi in una cella da 202px dopo il restringimento,
-   flex-wrap decideva di mandare il secondo a capo PRIMA di provare a
-   restringerli, perche' 360px > 202px gia' nella sola valutazione delle
-   basi (confermato dal vivo: con flex-wrap:nowrap forzato entrambi
-   entravano perfettamente a ~97px ciascuno - il restringimento stesso
-   funzionava sempre, era la decisione "quanti entrano in riga" a non
-   considerarlo). flex-basis:0 clampa l'hypothetical size al solo
-   min-width (90px): 2x90+gap sta quasi sempre nella riga, e flex-grow:1
-   fa comunque crescere fino a max-width quando c'e' spazio (da solo o in
-   piu' di quanti min-width permetterebbero). min-width: soglia sotto la
-   quale un box preferisce andare a capo invece di stringersi troppo -
-   passata da 90px a 64px (bug segnalato 2026-08-02: con 90px ne stavano
-   al massimo 2 per riga nelle colonne di larghezza tipica di questa
-   tabella di test, es. 202px --> 2x90+gap=188 ci sta, un terzo
-   (3x90+2gap=286) va a capo), poi abbassata a 0 (Fase 5c, resize manuale
-   del confine, piano confermato 2026-08-09, richiesta "minimo raggiungibile
-   fino a una lettera" 2026-08-14): un valore fisso qui era comunque solo
-   una soglia di TUNING per il wrap automatico, non un floor di
-   usabilita' reale (verificato dal vivo: la maniglia del box, assoluta e
-   fuori dal flusso flex, e la finestra di hit-test del resize, centrata
-   sul confine e indipendente dalla larghezza del box, restano
-   utilizzabili a qualunque larghezza) - con 0 il floor effettivo di
-   ciascun tipo torna a emergere da cio' che e' davvero irriducibile:
-   padding+bordo per TextBox/Collapse (box-sizing:border-box, ~25-26px
-   comunque, verificato dal vivo - un min-width piu' basso di questo non
-   ha alcun effetto ulteriore), il min-content del testo per un paragrafo
-   (gia' min-width:0 in una regola dedicata sotto), il cellMinWidth
-   nativo di prosemirror-tables per una tabella (25px per colonna, un
-   meccanismo completamente diverso, mai legato a questa variabile - vedi
-   .tableWrapper piu' sotto). Conseguenza diretta di flex-basis:0 sopra:
-   con min-width:0 l'hypothetical main size di ogni rowItem e' 0, quindi
-   il flex-wrap impacchetta molti piu' elementi per riga prima di andare
-   a capo rispetto a quando c'era una soglia fissa - comportamento voluto
-   di questa richiesta, verificato dal vivo che non rompe il meccanismo
-   Fase 5a (il flex-shrink successivo funziona esattamente come prima,
-   solo la soglia "quanti entrano" e' cambiata).
-   .tiptap-row-flex > * (non piu' solo .tiptap-textbox/.tiptap-collapse,
-   Fase 5a "affiancamento a livello documento" - piano confermato
-   2026-08-09): a livello di row questo trattamento si applica a
-   QUALUNQUE rowItem, non solo TextBox/Collapse - paragraph e table sono
-   rowItem alla pari (tiptapRow.ts, ROW_ITEM_TYPE_NAMES in
-   tiptapRowDrop.ts), non c'e' motivo per cui debbano affiancarsi secondo
-   regole diverse. Stesso min-width:0 per tutti (Fase 5c, resize manuale
-   del confine, piano confermato 2026-08-09 - aggiornato 2026-08-14: il
-   valore fisso di tuning usato da Fase 5a/5b e' stato rimosso apposta
-   ora che il resize manuale deve poter scendere fino al floor naturale
-   di ciascun tipo, vedi il commento su flex-basis:0 sopra per il
-   ragionamento completo). td-flex/textbox-content/collapse-body RESTANO
-   ristretti a solo TextBox/Collapse sotto: quel contesto (box annidati
-   dentro una cella o dentro un altro box) e' un problema diverso, fuori
-   scope qui.
-   :not(.tiptap-textbox-edge-cursor) su .tiptap-row-flex > * (bug segnalato
-   2026-08-10, ancora valido dopo il passaggio a min-width:0 2026-08-14):
-   il cursore finto (tiptapTextBoxEdgeCursor.ts) che nasce fra due
-   fratelli diretti della row (exitFlexSiblingBoundary, Fase 3a - non
-   ancora scritta quando questa regola e' stata introdotta in Fase 5a) e'
-   anch'esso un figlio diretto di .tiptap-row-flex, quindi ricadrebbe
-   senza volerlo in questo stesso selettore generico - il problema
-   originale (min-width:64px che vinceva su width:1px, per specifica CSS
-   min-width clampa width quando e' piu' piccolo) non si ripresenta piu'
-   con min-width:0, ma flex:1 1 0 da solo lo farebbe comunque diventare
-   un item flex che cresce/si restringe con gli altri invece di restare
-   la sottile barra verticale a larghezza fissa prevista - l'esclusione
-   resta quindi necessaria. Le pause DENTRO un box
-   (.tiptap-textbox-content/.tiptap-collapse-body) restano gia' fuori da
-   questo selettore (righe sopra, ristrette a .tiptap-textbox/.tiptap-collapse)
-   e non erano mai state affette. */
-.tiptap-td-flex > .tiptap-textbox,
-.tiptap-td-flex > .tiptap-collapse,
-.tiptap-textbox-content > .tiptap-textbox,
-.tiptap-textbox-content > .tiptap-collapse,
-.tiptap-collapse-body > .tiptap-textbox,
-.tiptap-collapse-body > .tiptap-collapse,
-.tiptap-row-flex > *:not(.tiptap-textbox-edge-cursor) {
-  flex: 1 1 0;
-  min-width: 0;
-}
-/* Paragrafi in una row: larghezza ADATTIVA al contenuto (shrink-to-fit),
-   non una quota uguale come TextBox/Collapse/Tabella sopra (richiesta
-   utente, round 2026-08-13 sera) - flex-grow:0 lo esclude dalla
-   distribuzione dello spazio libero (i fratelli con flex-grow:1 sopra si
-   dividono TUTTO lo spazio non occupato dai paragrafi, comportamento
-   flexbox nativo, nessun calcolo JS necessario), flex-shrink:1 lo lascia
-   comunque restringibile sotto pressione (riga stretta, molti elementi).
-   flex-basis:auto (non 100%, il valore del bug Fase 5a corretto sopra):
-   auto usa la dimensione shrink-to-fit del contenuto per l'hypothetical
-   main size - fondamentalmente diverso da 100% (che forzava l'intera
-   riga, mai affiancabile).
-   max-width:75% (bug verificato dal vivo, round 2026-08-13 sera: senza
-   questo, un SOLO paragrafo il cui testo - letto su una riga sola, senza
-   andare a capo - eccede la larghezza della riga reintroduce ESATTAMENTE
-   il bug Fase 5a per un motivo diverso: l'hypothetical main size con
-   basis:auto e' il MAX-CONTENT del testo, non la dimensione finale dopo
-   lo shrink - se supera la riga da solo, flex-wrap manda il fratello
-   affiancato a capo SOTTO invece di lasciarlo ristretto sulla stessa
-   riga, prima ancora di provare a restringere). Stessa clamping gia'
-   sfruttata da min-width sopra ("flex-basis clampata da min-width/
-   max-width" - Fase 5a) ma sul lato opposto: max-width:75% limita
-   l'hypothetical size del paragrafo a non oltrepassare mai i 3/4 della
-   riga, lasciando sempre margine per almeno un altro rowItem (min-width
-   64px) sulla stessa riga - il testo eccedente va a capo INTERNAMENTE
-   al paragrafo (comportamento shrink-to-fit atteso), mai piu' il
-   fratello a capo sotto. Percentuale (non un px fisso): deve restare
-   proporzionale alla riga qualunque sia la sua larghezza reale
-   (ridimensionabile).
-   min-width:0 (non 64px come sopra): un paragrafo cortissimo ("a") non
-   deve avere uno zoccolo minimo arbitrario - il testo va comunque a capo
-   normalmente alla parola (comportamento nativo di un blocco di testo),
-   la riga non trabocca per lo stesso motivo per cui non traboccava mai
-   prima che diventasse un item flex. Selettore ristretto a
-   .tiptap-row-flex (mai .tiptap-td-flex/.tiptap-textbox-content/
-   .tiptap-collapse-body): un paragrafo affiancato dentro una cella di
-   tabella o dentro un altro box resta fuori scope di questa richiesta,
-   invariato (flex:1 1 100% dal blocco piu' sopra in questo file).
-   :not(.tiptap-textbox-edge-cursor) RIPETUTO qui (bug verificato dal vivo:
-   con solo ".tiptap-row-flex > p" il paragrafo restava largo quanto un
-   item flex:1 1 0 qualunque, la regola sopra vinceva) - non per escludere
-   davvero il cursore finto (mai un <p>, e' uno <span>, gia' innocuo da
-   solo), ma per SPECIFICITA': :not(X) conta come la specificita' di X
-   stesso (una classe, 0-1-0) per la selettore Selectors L3/4 - il
-   selettore sopra e' quindi .tiptap-row-flex(0-1-0) + *:not(classe)
-   (0-1-0) = 0-2-0, che batte .tiptap-row-flex(0-1-0) + p(0-0-1) = 0-1-1
-   da solo. Ripetendo la stessa esclusione qui la specificita' sale a
-   0-2-1, che vince. */
-.tiptap-row-flex > p:not(.tiptap-textbox-edge-cursor) {
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 75%;
-}
-/* Paragrafo affiancato a una TextBox in una row: il TESTO appariva piu' in
-   alto del testo dentro la TextBox (bug segnalato dal vivo 2026-08-19,
-   puramente visivo - misurato con Range.getBoundingClientRect() sul testo
-   reale, non sui contenitori: scostamento di 0.5rem+1px). Causa: align-items:
-   flex-start su .tiptap-row-flex (sotto in questo file) allinea i BORDI
-   ESTERNI dei figli - il paragrafo (nessun padding) e .tiptap-textbox
-   (padding:0.5rem 0.75rem + border:1px, sopra in questo file) finiscono
-   quindi con lo stesso top di contenitore, ma il testo dentro la TextBox
-   parte padding-top+border-top piu' in basso del testo nudo del paragrafo.
-   align-items:baseline scartato come fix (proverebbe a risolvere alla
-   radice invece che compensare): romperebbe il rilevamento "stessa riga
-   visiva" in tiptapTextBoxEdgeCursor.ts (righe con
-   Math.abs(rect1.top-rect2.top)<=1), che assume flex-start per sapere se
-   due fratelli sono sulla stessa riga wrappata - centrale per la
-   navigazione del cursore finto fra i box. Compenso quindi SOLO il
-   paragrafo, con lo stesso padding-top del testo nella TextBox.
-   :has(~ .tiptap-textbox) (fratello generico, non "+" adiacente diretto):
-   sopravvive al cursore finto (.tiptap-textbox-edge-cursor) che a volte si
-   inserisce come fratello DOM temporaneo fra i due - con "+" la regola
-   smetterebbe di far match proprio mentre il cursore finto e' attivo fra
-   loro. Due regole per coprire entrambi gli ordini in una row (row[p, box]
-   e row[box, p]) - il paragrafo puo' precedere o seguire la TextBox.
-   Scope ristretto a .tiptap-row-flex (mai .tiptap-td-flex/
-   .tiptap-textbox-content/.tiptap-collapse-body, contesti diversi, ne'
-   .tiptap-collapse, struttura interna diversa - icona+header, non solo
-   testo, richiederebbe una compensazione diversa, fuori scope qui).
-   Limite noto: se la row va a capo, il paragrafo puo' finire su una riga
-   visiva diversa dalla TextBox pur avendola come fratello DOM - CSS puro
-   non distingue "stessa riga visiva" da "stesso genitore flex", quindi la
-   compensazione si applicherebbe comunque. Caso raro, non e' quello
-   segnalato. */
-.tiptap-row-flex > p:not(.tiptap-textbox-edge-cursor):has(~ .tiptap-textbox),
-.tiptap-row-flex > .tiptap-textbox ~ p:not(.tiptap-textbox-edge-cursor) {
-  padding-top: calc(0.5rem + 1px);
-}
-/* Estende l'hover del paragrafo affiancato a una TextBox fino a coprire il
-   column-gap adiacente (bug segnalato dal vivo 2026-08-20): flex:0 1 auto
-   (sopra in questo file) fa terminare il box del <p> esattamente al bordo
-   destro del testo reso, quindi lo spazio vuoto fra la fine del testo e la
-   TextBox e' il column-gap di .tiptap-row-flex - non appartiene al box ne'
-   del paragrafo ne' della TextBox. Ne' p:hover ne' .tiptap-textbox:hover
-   scattano li', quindi la guardia su .tiptap-row (:not(:has(..., p:hover)),
-   piu' sopra in questo file) non si disattiva e la maniglia della row resta
-   visibile mentre il mouse e' in quel gap. ::after/::before invisibili
-   (content vuoto, solo pointer-events:auto) allargano l'hit-test del
-   paragrafo esattamente della larghezza del gap (stesso --tiptap-box-gap
-   del column-gap, mai di piu': non deve mai sconfinare dentro la TextBox
-   stessa, che perderebbe hover/click per prima a chi e' sopra nello
-   stacking). position:absolute (via position:relative sul <p>, regola
-   dedicata sotto) tiene i due pseudo-elementi fuori dal flusso: non
-   allargano il box del paragrafo nel calcolo flex, restano invisibili e
-   non spostano la TextBox. Stesso sibling generico "~" (non "+" adiacente)
-   della regola padding-top sopra e per lo stesso motivo (sopravvive al
-   cursore finto tiptapTextBoxEdgeCursor.ts che a volte si inserisce come
-   fratello DOM temporaneo fra i due): la posizione (left:100% / right:100%)
-   e' comunque relativa al bordo del paragrafo stesso, quindi centra il gap
-   giusto a prescindere da cosa c'e' fisicamente nel DOM in mezzo. */
-.tiptap-row-flex > p:not(.tiptap-textbox-edge-cursor):has(~ .tiptap-textbox),
-.tiptap-row-flex > .tiptap-textbox ~ p:not(.tiptap-textbox-edge-cursor) {
-  position: relative;
-}
-.tiptap-row-flex > p:not(.tiptap-textbox-edge-cursor):has(~ .tiptap-textbox)::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 100%;
-  width: var(--tiptap-box-gap);
-  pointer-events: auto;
-}
-.tiptap-row-flex > .tiptap-textbox ~ p:not(.tiptap-textbox-edge-cursor)::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: 100%;
-  width: var(--tiptap-box-gap);
-  pointer-events: auto;
-}
-/* Larghezza minima di default finche' la colonna non e' stata
-   ridimensionata esplicitamente (data-colwidth assente) o non e' in corso
-   il trascinamento - stessa condizione usata dal CSS di riferimento di
-   prosemirror-tables, qui solo riportata sotto lo scoping .tiptap-content. */
-.tiptap-content td:not([data-colwidth]):not(.column-resize-dragging),
-.tiptap-content th:not([data-colwidth]):not(.column-resize-dragging) {
-  /* Fallback 25px: la CSS var e' impostata dalla libreria solo quando la
-     tabella e' montata con la NodeView di ridimensionamento (modifica
-     attiva) - in sola lettura (renderHTML statico, nessun resizing) la
-     var non esiste, il fallback riprende lo stesso valore di
-     cellMinWidth configurato in RichTextEditor.tsx. */
-  min-width: var(--default-cell-min-width, 25px);
-}
-.tiptap-content th {
-  background: var(--dash-surface-2);
-  font-weight: var(--font-weight-medium);
-  text-align: left;
-}
-/* :has(+ .tiptap-textbox-edge-cursor:last-child) IN PIU' (bug 2026-08-05,
-   "spazio in eccesso sotto l'elemento appena uscito verso destra, dentro
-   la stessa cella" - segnalato dal vivo): il cursore finto
-   (tiptapTextBoxEdgeCursor.ts), quando nasce subito DOPO l'ultimo box di
-   riga (uscita verso destra da un box che e' l'ultimo figlio del
-   contenitore), e' esso stesso un figlio del wrapper flex, inserito nel
-   flusso del documento SUBITO DOPO quel box - :last-child qui sopra
-   smette percio' di puntare al box reale e inizia a puntare al widget
-   (position:absolute, innocuo che riceva margin-bottom:0, ma il box VERO
-   perde silenziosamente l'annullamento del proprio margin-bottom, che i
-   margini dei flex item NON collassano mai con il bordo del contenitore -
-   quel margine torna a contare per intero nell'altezza della riga flex,
-   la spazio in eccesso segnalato). Riferimento diretto al widget (non
-   solo alla sua presenza) perche' e' l'UNICO elemento che puo' seguire un
-   box senza essere esso stesso normale contenuto di riga - qualunque
-   altro fratello reale dopo il box resta gestito dalla regola base sopra
-   (quel fratello, non il box, e' il vero :last-child in quel caso). */
-.tiptap-td-flex > *:last-child,
-.tiptap-textbox-content > *:last-child,
-.tiptap-collapse-body > *:last-child,
-.tiptap-row-flex > *:last-child,
-.tiptap-td-flex > *:has(+ .tiptap-textbox-edge-cursor:last-child),
-.tiptap-textbox-content > *:has(+ .tiptap-textbox-edge-cursor:last-child),
-.tiptap-collapse-body > *:has(+ .tiptap-textbox-edge-cursor:last-child),
-.tiptap-row-flex > *:has(+ .tiptap-textbox-edge-cursor:last-child) {
-  margin-bottom: 0;
-}
-/* Maniglia di ridimensionamento colonna (decorazione inserita da
-   columnResizing di prosemirror-tables come widget DENTRO la cella stessa,
-   solo quando il puntatore e' vicino al bordo tra due colonne). display:none
-   (primo tentativo) restava inefficace contro lo sfarfallio segnalato -
-   ipotesi verificata: ProseMirror puo' tenere traccia della geometria del
-   widget per i propri calcoli interni (mapping coordinate/cursore,
-   view.coordsAtPos usata da handleMouseMove) indipendentemente dal
-   rendering CSS - un elemento display:none non ha alcuna geometria
-   (getBoundingClientRect tutto a zero, nessun box nell'albero di
-   rendering), mentre un elemento position:absolute a dimensione zero
-   resta comunque un box reale (sia pure invisibile e senza spazio
-   occupato) che quei calcoli interni possono continuare a misurare
-   normalmente. width/height:0 + overflow:hidden garantiscono comunque
-   zero ingombro visivo e zero contributo a calcoli di overflow/layout dei
-   contenitori - il cambio del cursore sotto resta l'unico segnale visivo
-   volontario di ridimensionamento. */
-.tiptap-content .column-resize-handle {
-  position: absolute;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-.tiptap-content.resize-cursor {
-  cursor: col-resize;
+  border-radius: 0.5rem;
 }
 
 /* Box di testo (tiptapBlocks.tsx, TextBox) - stessa palette gia' usata per
-   l'avviso "Formato precedente" (RichTextEditor.tsx), coerenza visiva col
-   resto dell'app. position:relative solo come contesto di posizionamento
-   per la maniglia (.tiptap-block-handle sotto, ora assoluta). */
+   l'avviso "Formato precedente" (RichTextEditor.tsx). Nessuna maniglia,
+   nessun drag, nessun contenitore flex per affiancamento/annidamento
+   (pulizia 2026-08-20, "editor di testo ricco semplice" - rimosso l'intero
+   sistema di affiancamento a livello di row/box): il contenuto e' testo
+   normale impilato verticalmente, comportamento a blocco nativo, nessun
+   layout dedicato necessario. */
 .tiptap-textbox {
-  position: relative;
   margin: 0 0 0.5rem 0;
   padding: 0.5rem 0.75rem;
   border-radius: 0.75rem;
   border: 1px solid color-mix(in srgb, var(--dash-accent) 40%, transparent);
   background: color-mix(in srgb, var(--dash-accent) 10%, transparent);
 }
-/* Contenitore flex per affiancare TextBox/Collapse annidati DENTRO questo
-   box, esattamente come .tiptap-td-flex fa dentro una cella di tabella
-   (bug 2026-08-02: senza questo trattamento anche qui, un TextBox/Collapse
-   annidato non aveva mai un vero contenitore flex intorno, e il cursore
-   finto tiptapTextBoxEdgeCursor.ts ci finiva dentro comunque nei casi
-   limite - senza effetto utile, dato che ne' flex:0 0 auto ne' height si
-   applicano a un elemento inline non sostituito in un contenitore non
-   flex). Le regole di dettaglio (flex:1 1 100% per i blocchi "normali",
-   flex:1 1 0 + min-width:0 per TextBox/Collapse, margin-bottom
-   sull'ultimo figlio) sono condivise con .tiptap-td-flex/.tiptap-collapse-body
-   sopra/sotto - un solo blocco di regole per tutti e tre i contenitori
-   invece di tre copie che dovrebbero restare identiche. */
-.tiptap-textbox-content {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  column-gap: var(--tiptap-box-gap);
-  /* Stesso motivo di .tiptap-td-flex sopra: contesto per il cursore finto,
-     sempre position:absolute (tiptapTextBoxEdgeCursor.ts). */
-  position: relative;
-}
-
-/* Cursore finto al confine di un TextBox/Collapse (tiptapTextBoxEdgeCursor.ts)
-   - barra verticale sottile stile caret nativo, colore coerente col testo
-   (--dash-text-strong, stessa palette del resto dell'editor).
-   position:absolute SEMPRE (bug 2026-08-05, riscrittura completa): fino a
-   qui il widget era un item flex reale con margini negativi diversi per
-   ogni caso geometrico (primo/ultimo/in mezzo/annidato) che dovevano
-   annullare esattamente il column-gap del contenitore - 5 round di fix
-   successivi, ognuno dei quali ha rotto un caso diverso da quello appena
-   sistemato (l'ultimo esempio: l'approssimazione "-4px" nella correzione
-   JS per l'a-capo non era mai stata aggiornata quando il trattamento
-   degli estremi era passato da "mezzo gap" a "flush", restando
-   silenziosamente incoerente). Un solo calcolo JS (positionEdgeCursor in
-   tiptapTextBoxEdgeCursor.ts, richiamato da Plugin.view.update() ad ogni
-   cambio di posizione/conferma) misura dal vivo i box reali adiacenti
-   (getBoundingClientRect) e scrive top/left - nessuna distinzione fra i
-   casi nel codice, primo/ultimo/in mezzo/annidato/a-capo emergono
-   naturalmente dai rect misurati. Essendo fuori dal flusso flex, il
-   widget non partecipa piu' nemmeno al calcolo "quanti box entrano in
-   riga" - la classe di bug sull'a-capo che ha motivato meta' di questa
-   storia diventa strutturalmente impossibile, non solo gestita.
-   height/margin-top restano gli stessi valori CSS di sempre (mai stati
-   causa di bug, nessun motivo di spostarli in JS): height in calc()
-   sul font-size RADICE (non 1.2em, che seguirebbe un mark fontSize
-   locale se il widget finisse dentro uno span con dimensione diversa);
-   margin-top compensa lo scarto fra il bordo esterno del box (dove punta
-   il top calcolato in JS) e l'inizio del testo dentro di esso
-   (padding+bordo, uguali per TextBox e Collapse).
-   blink steps(2,start) infinite: stesso pattern del gap cursor nativo di
-   ProseMirror (style/gapcursor.css), qui su una barra verticale. */
-.tiptap-textbox-edge-cursor {
-  position: absolute;
-  height: calc(var(--font-size, 16px) * 1.2);
-  width: 1px;
-  margin-top: calc(0.5rem + 1px);
-  background-color: var(--dash-text-strong);
-  pointer-events: none;
-  animation: tiptap-textbox-edge-cursor-blink 1.05s steps(2, start) infinite;
-}
-@keyframes tiptap-textbox-edge-cursor-blink {
-  to {
-    visibility: hidden;
-  }
-}
-/* Indicatore di drop laterale (Fase 4b, tiptapRowDrop.ts) - barra sul bordo
-   del blocco target quando il drag e' in zona-soglia (affianca, non
-   impila). Deliberatamente DIVERSA da .tiptap-textbox-edge-cursor sopra
-   (niente blink, colore accento invece del colore testo): quella e' un
-   caret - segna "il testo verrebbe digitato qui", un'attesa passiva. Questa
-   e' un'affordance di drop attiva - stesso linguaggio visivo gia' usato per
-   ".ProseMirror-selectednode" (outline 2px var(--dash-accent), "questo e'
-   uno stato attivo dell'interfaccia"), non quello del cursore di testo.
-   position:fixed impostato via JS (tiptapRowDrop.ts, showIndicator) insieme
-   a top/left/width/height - qui solo le proprieta' statiche, mai
-   ricalcolate.
-   Due varianti (bug/richiesta UX 2026-08-20: l'indicatore era SEMPRE
-   verticale, anche quando il drop avrebbe creato una row nuova invece di
-   affiancare dentro una gia' esistente - le due operazioni hanno esiti
-   strutturalmente diversi e meritano un'affordance visiva diversa):
-   --vertical (side-zone che affianca in una row - la STESSA o un'ALTRA gia'
-   esistente, target.rowDepth non nullo in tiptapRowDrop.ts) e --horizontal
-   (side-zone che invece avvolge il target in una row NUOVA, target.rowDepth
-   nullo e target non vuoto - vedi buildRowDropTransaction). L'elemento
-   indicatore e' RIUSATO fra un dragover e l'altro (mai ricreato, storage.
-   indicatorEl) - showIndicator scrive sempre TUTTE E QUATTRO le proprieta'
-   geometriche (mai solo quelle rilevanti per l'orientamento corrente),
-   altrimenti un cambio di zona a meta' drag lascerebbe un valore residuo
-   dell'orientamento precedente (es. una width vecchia su un indicatore
-   appena tornato verticale). */
-.tiptap-row-drop-indicator {
-  position: fixed;
-  border-radius: 1.5px;
-  background-color: var(--dash-accent);
-  pointer-events: none;
-  z-index: 60;
-}
-.tiptap-row-drop-indicator--vertical {
-  width: 3px;
-  margin-left: -1.5px;
-}
-.tiptap-row-drop-indicator--horizontal {
-  height: 3px;
-  margin-top: -1.5px;
-}
-
-/* Maniglia di selezione/trascinamento (TextBox e Collapse) - due tentativi
-   precedenti scartati (2026-07-30): (1) flex item in riga con spazio
-   riservato -> spostava il testo fuori centro rispetto al bordo/sfondo del
-   box; (2) bordo/sfondo del box spostati su ::before per liberare lo
-   spazio -> risultato peggiore visivamente, gutter eccessivo per Collapse.
-   Qui invece la maniglia e' position:absolute DENTRO i confini del box
-   (top/left positivi, mai negativi, mai oltre il bordo) - il rischio di
-   clipping gia' documentato in passato (antenato con overflow-y, es.
-   EntityDetailView.tsx, che per spec CSS clippa implicitamente anche
-   overflow-x) riguardava SOLO contenuto che sporge OLTRE il proprio bordo:
-   un elemento assoluto ma interamente contenuto dentro il box del genitore
-   non sporge mai da nessun antenato, quindi non e' soggetto a quel
-   problema. opacity:0 + pointer-events:none di default: invisibile e
-   "trasparente" ai click finche' il blocco non e' in hover (il testo/
-   padding sotto resta sempre cliccabile per posizionare il cursore) -
-   quando visibile puo' sovrapporsi visivamente all'angolo del testo, per
-   design (e' cosi' che sta "dentro" il box senza riservargli spazio).
-   data-drag-handle e' l'attributo che @tiptap/core cerca per permettere il
-   trascinamento nativo di ProseMirror (verificato nel sorgente: senza, un
-   trascinamento che parte altrove nel nodo viene bloccato con
-   preventDefault). */
-.tiptap-block-handle {
-  position: absolute;
-  top: 0.375rem;
-  left: 0.375rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 0.875rem;
-  border-radius: 0.25rem;
-  color: var(--dash-muted);
-  font-size: 0.75rem;
-  line-height: 1;
-  cursor: grab;
-  opacity: 0;
-  pointer-events: none;
-  user-select: none;
-  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
-}
-.tiptap-block-handle:hover {
-  background: var(--dash-surface-2);
-  color: var(--dash-text-strong);
-}
-/* Stessa guardia e stesso motivo della regola gemella su .tiptap-table-handle
-   sopra (:hover si propaga agli antenati, un TextBox/Collapse puo' averne
-   un altro annidato dentro di se' - content 'block+' li accetta entrambi,
-   vedi tiptapBlocks.tsx - e lo stesso vale per un TextBox/Collapse annidato
-   dentro una cella di tabella): senza :not(:has(...)), hoverare il blocco
-   piu' interno faceva comparire anche la maniglia di QUALUNQUE box/tabella
-   antenato invece della sola piu' interna. Selettore ">" sul target per lo
-   stesso motivo li' spiegato (non raggiungere la maniglia di un box ancora
-   piu' annidato in profondita'). */
-.tiptap-textbox:hover:not(:has(.tableWrapper:hover, .tiptap-textbox:hover, .tiptap-collapse:hover)) > .tiptap-block-handle,
-.tiptap-collapse:hover:not(:has(.tableWrapper:hover, .tiptap-textbox:hover, .tiptap-collapse:hover)) > .tiptap-block-handle {
-  opacity: 1;
-  pointer-events: auto;
-}
-/* Riga a livello documento (tiptapRow.ts, Fase 1 "affiancamento a livello
-   documento", piano confermato 2026-08-07) - nessun bordo/sfondo proprio,
-   e' un puro contenitore di layout (a differenza di TextBox/Collapse, che
-   sono box visivamente distinti per design): solo position:relative come
-   contesto per la maniglia assoluta, stesso schema di .tiptap-textbox/
-   .tiptap-collapse sopra. Stessa guardia :not(:has(...)) per lo stesso
-   motivo (una row puo' avere TextBox/Collapse/tabelle annidate al suo
-   interno), PIU' `p:hover` (bug segnalato 2026-08-15, dal vivo dopo che i
-   paragrafi sono diventati rowItem con Fase 5a, 2026-08-09: un paragrafo
-   affiancato non ha mai una propria maniglia - a differenza di TextBox/
-   Collapse/tabella, elencati sopra - quindi senza questa esclusione la
-   maniglia DELLA ROW, sempre posizionata in alto a sinistra del
-   contenitore, restava visibile mentre il mouse era sopra il testo del
-   paragrafo, apparendo per errore come se fosse una maniglia del
-   paragrafo stesso). Nessun impatto sulla riga 793 sopra (maniglia DI
-   TextBox/Collapse): li' un paragrafo e' contenuto INTERNO del box, non
-   un rowItem fratello, e deve continuare a rivelare la maniglia del box
-   che lo contiene. */
-.tiptap-row {
-  position: relative;
-  margin: 0 0 0.25rem 0;
-}
-.tiptap-row:hover:not(:has(.tableWrapper:hover, .tiptap-textbox:hover, .tiptap-collapse:hover, p:hover)) > .tiptap-block-handle {
-  opacity: 1;
-  pointer-events: auto;
-}
-/* .tiptap-row-flex: stesso identico pattern di .tiptap-td-flex sopra
-   (display:flex/flex-wrap/align-items/column-gap/width/position - vedi li'
-   per il ragionamento completo su ciascuna proprieta'). Le regole di
-   dettaglio sui figli (flex:1 1 100% per i blocchi "normali", flex:1 1 0 +
-   min-width:0 per TextBox/Collapse, margin-bottom sull'ultimo figlio)
-   sono nei blocchi comma-condivisi sopra, non ripetute qui. */
-.tiptap-row-flex {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  column-gap: var(--tiptap-box-gap);
-  width: 100%;
-  position: relative;
-}
-/* Riapertura 2026-08-20 del bug "gap fantasma" gia' affrontato in d52f3af:
-   quel fix estese l'hit-test del paragrafo ORIZZONTALMENTE (il column-gap a
-   destra/sinistra, ::after/::before su p sopra in questo file). Restava
-   scoperta un'altra zona: quando il paragrafo e' il fratello piu' ALTO
-   (testo mandato a capo), lo spazio SOTTO un fratello piu' corto (TextBox/
-   Collapse/tabella) ma ancora dentro la row (l'altezza della row e' quella
-   del piu' alto, align-items:flex-start sopra) non appartiene al box di
-   NESSUNO dei due - ne' p:hover ne' .tiptap-textbox:hover vi scattano,
-   quindi la guardia sulla maniglia della row (.tiptap-row:hover:not(:has(
-   ..., p:hover)), piu' sotto in questo file) non si disattiva.
-   Perche' solo TextBox/Collapse/tableWrapper e non anche il paragrafo:
-   quando il paragrafo e' il piu' alto, il SUO ::after/::before del fix
-   orizzontale (top:0;bottom:0 relativo a se stesso, sopra in questo file)
-   arriva GIA' fino al fondo della row per costruzione - essendo lui stesso
-   il piu' alto, la propria altezza COINCIDE con quella della row, nessuna
-   estensione ulteriore necessaria. Manca solo l'area sotto al fratello PIU'
-   CORTO, entro la sua stessa colonna (mai la larghezza intera della row -
-   sconfinerebbe sopra il testo del paragrafo, rubandogli hover/click).
-   Perche' JS e non CSS puro (valutato e scartato): con align-items:
-   flex-start un ::after non puo' conoscere l'altezza di un fratello senza
-   saperla numericamente - nessun selettore/valore CSS la espone.
-   align-items:stretch nativo stirerebbe anche il box VISIBILE (bordo/
-   sfondo), non solo l'area di hover, gia' scartato per un problema simile
-   (vedi commento "gutter eccessivo per Collapse" piu' sotto in questo
-   file). --tiptap-row-height (scritta da RowHeightSync via ResizeObserver,
-   tiptapRowHeightSync.ts) espone quindi l'altezza reale della row via CSS
-   custom property. Il "100%" dentro calc() si risolve contro l'altezza
-   del box che genera il proprio ::after (il rowItem stesso, suo contesto
-   di posizionamento) - calc(var(row-height) - 100%) e' percio' ESATTAMENTE
-   il gap, per qualunque coppia di altezze, senza calcolo manuale per caso
-   specifico. max(0px, ...) clampa a 0 quando l'elemento e' lui stesso il
-   piu' alto (differenza negativa) o prima che ResizeObserver abbia scritto
-   un primo valore (var non definita, fallback 0px).
-   Estendere l'AREA DI HOVER dell'elemento stesso (non un elemento a parte)
-   basta a far scattare :hover sull'elemento originale per specifica CSS
-   (uno pseudo-elemento conta come discendente ai fini di :hover) - la
-   guardia esistente sulla maniglia della row lo riconosce gia' senza
-   bisogno di modifiche.
-   ::after (non ::before): entrambi liberi su .tiptap-textbox/.tiptap-collapse
-   (mai usati altrove per generated content), scelto ::after per coerenza
-   col resto del fix orizzontale sopra. tableWrapper incluso per
-   completezza ma verificato NON operativo (overflow-x:auto sopra in
-   questo file implica overflow-y:auto per specifica CSS quando un solo
-   asse e' non-visible, quindi qualunque contenuto - incluso questo ::after
-   - che sporge sotto il bordo del wrapper viene tagliato) - nessun danno
-   (semplicemente non estende nulla per una tabella piu' corta), ma non e'
-   il fix per quel caso, mai stato segnalato.
-   Scope ristretto a .tiptap-row-flex (mai .tiptap-td-flex/
-   .tiptap-textbox-content/.tiptap-collapse-body, stesso motivo di sempre:
-   un TextBox/Collapse annidato dentro un altro box e' un contesto diverso,
-   fuori scope qui). Paragrafo ESCLUSO deliberatamente da questa regola
-   (caso inverso, paragrafo piu' corto di un fratello box-tipo): il
-   paragrafo usa gia' ::after/::before per il fix orizzontale sopra (uno
-   dei due, a seconda che il box lo preceda o lo segua) - riusarlo anche
-   qui rischierebbe una collisione nel raro caso di row a 3 elementi con
-   paragrafo in mezzo fra due box. Caso mai segnalato dal vivo, lasciato
-   fuori scope per non introdurre un ibrido fragile. */
-.tiptap-row-flex > .tiptap-textbox::after,
-.tiptap-row-flex > .tiptap-collapse::after,
-.tiptap-row-flex > .tableWrapper::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  height: max(0px, calc(var(--tiptap-row-height, 0px) - 100%));
-  pointer-events: auto;
+.tiptap-textbox-content > *:last-child {
+  margin-bottom: 0;
 }
 
 /* Evidenziazione quando l'intero blocco (TextBox o Collapse) e' selezionato
@@ -1018,14 +282,11 @@
    ogni singolo figlio): un solo NodeViewContent per nodo non permette due
    regioni editabili separate, quindi sommario e corpo sono resi entrambi
    dentro lo stesso contentDOM e la visibilita' del solo corpo e' un
-   selettore discendente, non una condizione nella NodeView React. */
-/* Bordo/sfondo/padding tornati sul contenitore (stesso motivo di
-   .tiptap-textbox sopra: la maniglia e' ora assoluta, non e' piu' un flex
-   item, quindi non serve piu' liberarle spazio riservato). La freccina
-   resta pero' un flex item vero (a differenza della maniglia): e' un
-   controllo sempre visibile, non solo all'hover, quindi ha ancora senso
-   che occupi riga/spazio proprio - solo lei + il contenuto restano in
-   flex qui sotto. */
+   selettore discendente, non una condizione nella NodeView React. Nessuna
+   maniglia, nessun drag (pulizia 2026-08-20, stesso motivo di TextBox
+   sopra) - solo la freccina resta un flex item vero: e' un controllo
+   sempre visibile, non solo all'hover, quindi ha ancora senso che occupi
+   riga/spazio proprio. */
 .tiptap-collapse {
   position: relative;
   display: flex;
@@ -1052,30 +313,20 @@
 .tiptap-collapse-summary {
   font-weight: var(--font-weight-medium);
 }
+/* Il corpo e il sommario sono resi entrambi dentro .tiptap-collapse-content
+   (stesso contentDOM, vedi tiptapBlocks.tsx) - senza questo margine
+   negativo partirebbero allo stesso bordo sinistro del titolo. Il corpo
+   deve invece iniziare sotto la freccina, non sotto il testo del titolo:
+   -1.25rem = -(0.875rem larghezza freccina + 0.375rem gap) riporta il
+   bordo sinistro del corpo esattamente al bordo interno del riquadro
+   (dove inizia la freccina) senza toccare il bordo destro (margin-right
+   resta 0, quindi la larghezza si allarga solo verso sinistra). */
 .tiptap-collapse-body {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  column-gap: var(--tiptap-box-gap);
-  /* Stesso motivo di .tiptap-td-flex/.tiptap-textbox-content sopra:
-     contesto per il cursore finto, sempre position:absolute
-     (tiptapTextBoxEdgeCursor.ts). */
-  position: relative;
   margin-top: 0.25rem;
-  /* Il corpo e il sommario sono resi entrambi dentro .tiptap-collapse-content
-     (stesso contentDOM, vedi tiptapBlocks.tsx) - senza questo margine
-     negativo partirebbero allo stesso bordo sinistro del titolo. Il corpo
-     deve invece iniziare sotto la freccina, non sotto il testo del titolo:
-     -1.25rem = -(0.875rem larghezza freccina + 0.375rem gap) riporta il
-     bordo sinistro del corpo esattamente al bordo interno del riquadro
-     (dove inizia la freccina) senza toccare il bordo destro (margin-right
-     resta 0, quindi la larghezza si allarga solo verso sinistra). Valore
-     invariato rispetto a prima del giro con ::before: la maniglia (ora
-     assoluta) non e' mai stata parte di questo calcolo, solo
-     freccina+gap+contenuto lo sono, e la loro geometria relativa non e'
-     cambiata.
-  */
   margin-left: -1.25rem;
+}
+.tiptap-collapse-body > *:last-child {
+  margin-bottom: 0;
 }
 .tiptap-collapse[data-open='false'] .tiptap-collapse-body {
   display: none;
@@ -1087,52 +338,35 @@
    (l'outline nativo del contenteditable) annidato dentro il bordo gia'
    disegnato dal contenitore di RichTextEditor.tsx, dando l'impressione di
    due box sovrapposti invece di uno solo attorno a barra+editor.
-
-   overflow-x:auto AGGIUNTO QUI (non solo sul contenitore esterno di
-   RichTextEditor.tsx, gia' overflow-x-auto+max-w-full ma insufficiente
-   da solo - bug verificato 2026-07-29, due tentativi falliti a livello
-   esterno): ispezione DOM diretta ha misurato .tiptap-content a 280px
-   (stesso valore di due livelli superiori, quindi gia' correttamente
-   vincolato) con una tabella interna a 716px - overflow:visible di
-   default su .tiptap-content lasciava passare quell'eccedenza verso
-   l'alto senza che NESSUN antenato la intercettasse, nonostante loro
-   stessi avessero gia' overflow-x:auto: l'overflow "scorre" attraverso
-   contenitori intermedi senza un proprio overflow diverso da visible,
-   ma qui .tiptap-content stesso era quello a overflow:visible - il
-   livello dove la tabella supera DAVVERO il proprio genitore diretto,
-   non un livello piu' esterno. */
+   overflow-x:auto: rete di sicurezza per un'immagine (o qualunque altro
+   contenuto) piu' larga della colonna - scorre invece di spingere l'intero
+   contenitore/pagina in overflow. */
 .tiptap-content {
   outline: none;
   overflow-x: auto;
 }
 
 /* Scrollbar nativa ristilizzata sulla palette del tema attivo (vedi
-   l'esclusione di .tiptap-content/.tableWrapper dalla soppressione
-   globale in index.css) - senza queste regole il browser userebbe il
-   proprio grigio di sistema, stonando col resto del pannello scuro.
-   scrollbar-color copre Firefox e Chrome/Edge recenti in un colpo solo;
-   le pseudo-classi ::-webkit-scrollbar-* sotto sono il fallback
-   necessario per Chrome/Safari piu' datati dove scrollbar-color da solo
-   non basta a personalizzare spessore/aspetto. --dash-panel (stesso
-   sfondo dell'editor) per il track, --dash-border-soft (stesso colore
-   dei bordi di cella sopra) per il thumb: entrambe variabili di palette,
-   quindi seguono automaticamente il tema attivo invece di un colore
-   fisso. */
-.tiptap-content,
-.tiptap-content .tableWrapper {
+   l'esclusione di .tiptap-content dalla soppressione globale in index.css)
+   - senza queste regole il browser userebbe il proprio grigio di sistema,
+   stonando col resto del pannello scuro. scrollbar-color copre Firefox e
+   Chrome/Edge recenti in un colpo solo; le pseudo-classi
+   ::-webkit-scrollbar-* sotto sono il fallback necessario per Chrome/Safari
+   piu' datati dove scrollbar-color da solo non basta a personalizzare
+   spessore/aspetto. --dash-panel (stesso sfondo dell'editor) per il track,
+   --dash-border-soft per il thumb: entrambe variabili di palette, quindi
+   seguono automaticamente il tema attivo invece di un colore fisso. */
+.tiptap-content {
   scrollbar-color: var(--dash-border-soft) var(--dash-panel);
 }
-.tiptap-content::-webkit-scrollbar,
-.tiptap-content .tableWrapper::-webkit-scrollbar {
+.tiptap-content::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
-.tiptap-content::-webkit-scrollbar-track,
-.tiptap-content .tableWrapper::-webkit-scrollbar-track {
+.tiptap-content::-webkit-scrollbar-track {
   background: var(--dash-panel);
 }
-.tiptap-content::-webkit-scrollbar-thumb,
-.tiptap-content .tableWrapper::-webkit-scrollbar-thumb {
+.tiptap-content::-webkit-scrollbar-thumb {
   background: var(--dash-border-soft);
   border-radius: 5px;
 }

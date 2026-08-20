@@ -1,0 +1,90 @@
+import type { JSONContent } from '@tiptap/core';
+
+// Pulizia 2026-08-20 ("editor di testo ricco semplice"): rimossi dallo
+// schema i nodi "row" (affiancamento a livello documento), "table"/
+// "tableRow"/"tableCell"/"tableHeader" (tabella), e TextBox/CollapseBlock
+// non accettano piu' altri box annidati dentro di se' (solo testo/liste/
+// immagini - vedi SIMPLE_BLOCK_CONTENT in tiptapBlocks.tsx). Una nota
+// gia' salvata PRIMA di questa pulizia puo' avere un content_rich che
+// contiene ancora uno di questi nodi - stesso identico rischio gia'
+// affrontato da migrateHeadingsToFontSize (tiptapFontSize.ts) per il nodo
+// "heading" rimosso in precedenza: caricare un JSON con un tipo di nodo (o
+// una combinazione genitore/figlio) che lo schema non riconosce piu' non
+// da' un errore visibile - createNodeFromContent (@tiptap/core) cattura
+// l'eccezione in silenzio e sostituisce l'INTERO documento con uno vuoto,
+// non solo il nodo incriminato. Senza questa migrazione, aprire una nota
+// vecchia con una row o una tabella la svuoterebbe silenziosamente.
+//
+// Strategia confermata: "appiattisci row/table in paragrafi semplici
+// preservando il testo, la formattazione di affiancamento puo' andare
+// perduta" - non e' un tentativo di ricostruire l'aspetto visivo
+// (colonne/tabella), solo di salvare il CONTENUTO (testo, TextBox,
+// Collapse, liste, immagini) che altrimenti sparirebbe insieme al nodo non
+// piu' valido. Nessuna riscrittura su Supabase: la conversione avviene solo
+// in memoria ad ogni caricamento, finche' l'utente non modifica di nuovo la
+// nota (autosalvataggio la fissa gia' migrata a quel punto) - stesso
+// principio di migrateHeadingsToFontSize.
+
+// Tipi ammessi come figli diretti del documento (gruppo 'block' dello
+// schema attuale, tiptapBlocks.tsx/RichTextEditor.tsx) - "row"/"table"/
+// "tableRow"/"tableCell"/"tableHeader" ne sono deliberatamente esclusi,
+// qualunque cosa contenessero viene recuperata spacchettandoli (vedi
+// flattenToAllowed sotto).
+const DOC_LEVEL_TYPES = new Set(['paragraph', 'textBox', 'collapseBlock', 'bulletList', 'orderedList', 'blockquote', 'horizontalRule', 'image']);
+
+// Tipi ammessi DENTRO un TextBox/CollapseBody (content ristretto, mai
+// 'textBox'/'collapseBlock': un box non puo' piu' contenerne un altro,
+// stessa pulizia 2026-08-20) - identico a SIMPLE_BLOCK_CONTENT in
+// tiptapBlocks.tsx, elencato di nuovo qui come Set (non importato da li'
+// per non introdurre una dipendenza fra un modulo di sola migrazione dati e
+// le definizioni di schema vere e proprie - i due elenchi vanno tenuti
+// sincronizzati a mano se lo schema cambia ancora, stesso compromesso gia'
+// accettato da migrateHeadingsToFontSize che duplica la propria mappa
+// livello->px invece di importarla da un posto terzo).
+const SIMPLE_BLOCK_TYPES = new Set(['paragraph', 'bulletList', 'orderedList', 'blockquote', 'horizontalRule', 'image']);
+
+// Nodo per nodo: se il tipo e' ammesso nel contesto corrente (`allowed`),
+// lo tiene com'e' (ricorrendo dentro il proprio contenuto SOLO per
+// textBox/collapseBlock, gli unici due tipi ammessi che potrebbero a loro
+// volta contenere qualcosa di non piu' valido, es. un box annidato dentro
+// un altro sotto il vecchio schema, o una row/tabella annidata dentro un
+// box). Se il tipo NON e' ammesso (row/table/tableRow/tableCell/
+// tableHeader, o un box annidato dentro un altro box), lo spacchetta: i
+// suoi figli prendono il SUO posto nella lista dei fratelli, ricorsivamente
+// passati di nuovo per questa stessa funzione - una row dentro una cella di
+// una tabella dentro un'altra row si risolve correttamente senza bisogno di
+// un limite di profondita' esplicito, la ricorsione termina naturalmente
+// quando non restano piu' nodi non ammessi. Un nodo scartato senza figli
+// (raro per row/table, che hanno sempre almeno il minimo richiesto dallo
+// schema) sparisce silenziosamente - accettato, coerente con "la
+// formattazione puo' andare perduta".
+function flattenToAllowed(node: JSONContent, allowed: Set<string>): JSONContent[] {
+  const type = node.type ?? '';
+
+  if (allowed.has(type)) {
+    if (type === 'textBox') {
+      return [{ ...node, content: (node.content ?? []).flatMap((child) => flattenToAllowed(child, SIMPLE_BLOCK_TYPES)) }];
+    }
+    if (type === 'collapseBlock') {
+      // content fisso 'collapseSummary collapseBody' (tiptapBlocks.tsx) - il
+      // sommario resta invariato (solo testo inline, non ha mai potuto
+      // contenere row/table/box), solo il corpo si comporta come TextBox
+      // sopra.
+      return [{
+        ...node,
+        content: (node.content ?? []).map((child) =>
+          child.type === 'collapseBody'
+            ? { ...child, content: (child.content ?? []).flatMap((grandchild) => flattenToAllowed(grandchild, SIMPLE_BLOCK_TYPES)) }
+            : child
+        ),
+      }];
+    }
+    return [node];
+  }
+
+  return (node.content ?? []).flatMap((child) => flattenToAllowed(child, allowed));
+}
+
+export function flattenRemovedLayoutNodes(doc: JSONContent): JSONContent {
+  return { ...doc, content: (doc.content ?? []).flatMap((child) => flattenToAllowed(child, DOC_LEVEL_TYPES)) };
+}
