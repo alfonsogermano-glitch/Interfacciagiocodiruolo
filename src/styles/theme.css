@@ -210,11 +210,16 @@
 
 /* Linea orizzontale (HorizontalRule, gia' inclusa in StarterKit) - il
    preflight di Tailwind azzera bordo/margine di <hr>, stesso motivo di
-   ul/ol/heading sopra. */
+   ul/ol/heading sopra. border-top-width:2px (bug segnalato dal vivo
+   2026-08-20, "troppo sottile e difficile da cliccare" - raddoppiato da
+   1px): l'<hr> non ha padding/height propri (il preflight li azzera),
+   quindi lo spessore del bordo e' anche l'UNICA dimensione che determina
+   l'altezza del box cliccabile - raddoppiarlo raddoppia entrambi
+   contemporaneamente, nessun'altra proprieta' necessaria. */
 .tiptap-content hr {
   margin: 0.75rem 0;
   border: none;
-  border-top: 1px solid var(--dash-border-soft);
+  border-top: 2px solid var(--dash-border-soft);
 }
 
 /* Citazione (Blockquote, gia' inclusa in StarterKit) - il comportamento
