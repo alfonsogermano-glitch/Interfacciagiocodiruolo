@@ -443,16 +443,57 @@ export const RowResizeExtension = Extension.create({
               const win = view.dom.ownerDocument.defaultView ?? window;
               const session = startDragSession(view, pair, event.clientX);
 
+              // Valori di partenza (prima di QUALUNQUE mutazione di preview) per
+              // poter ripristinare lo stile inline se il gesto risulta un click
+              // fermo (sotto RESIZE_MOVE_THRESHOLD sotto) - '' se rowGrow non era
+              // mai stato impostato (nessuno stile inline, sizing auto-fit da
+              // CSS), un valore numerico se era gia' in modalita' proporzionale
+              // da un resize precedente. Mai ricalcolato via computeGrowPair
+              // (che a delta=0 introdurrebbe di nuovo l'arrotondamento a 2
+              // decimali di commitResize, la causa esatta del bug qui sotto):
+              // il valore letterale di partenza e' l'unico ripristino che
+              // garantisce zero scarto, per costruzione.
+              const originalLeftFlexGrow = pair.leftEl.style.flexGrow;
+              const originalLeftFlexBasis = pair.leftEl.style.flexBasis;
+              const originalRightFlexGrow = pair.rightEl.style.flexGrow;
+              const originalRightFlexBasis = pair.rightEl.style.flexBasis;
+
+              // Soglia minima di movimento cumulativo prima di considerare il
+              // gesto un vero trascinamento (bug segnalato dal vivo 2026-08-20:
+              // un click fermo, mousedown+mouseup sulle stesse coordinate,
+              // committava comunque un resize - commitResize arrotonda a 2
+              // decimali, un'operazione che matematicamente dovrebbe riprodurre
+              // la stessa proporzione a delta=0 ma in pratica sposta il
+              // paragrafo di ~1px, abbastanza per farlo andare a capo una volta
+              // che rowGrow lo mette in modalita' proporzionale con
+              // min-width:0). maxMovement tiene il PICCO assoluto durante
+              // l'intero gesto (non solo la posizione finale): un trascinamento
+              // vero che torna vicino al punto di partenza al rilascio resta
+              // comunque un trascinamento intenzionale, non un click. Stesso
+              // valore di HANDLE_WIDTH sopra (5px, gia' la tolleranza stabilita
+              // in questo file per "quanto vicino serve essere al confine") -
+              // nessun bisogno di una seconda costante con lo stesso significato.
+              let maxMovement = 0;
+
               setDragging(view, true);
 
               function move(moveEvent: globalThis.MouseEvent) {
                 if (moveEvent.buttons === 0) return finish(moveEvent);
+                maxMovement = Math.max(maxMovement, Math.abs(moveEvent.clientX - session.startX));
                 previewResize(session, moveEvent.clientX);
               }
               function finish(upEvent: globalThis.MouseEvent) {
                 win.removeEventListener('mousemove', move);
                 win.removeEventListener('mouseup', finish);
-                commitResize(view, session, upEvent.clientX);
+                maxMovement = Math.max(maxMovement, Math.abs(upEvent.clientX - session.startX));
+                if (maxMovement < HANDLE_WIDTH) {
+                  pair.leftEl.style.flexGrow = originalLeftFlexGrow;
+                  pair.leftEl.style.flexBasis = originalLeftFlexBasis;
+                  pair.rightEl.style.flexGrow = originalRightFlexGrow;
+                  pair.rightEl.style.flexBasis = originalRightFlexBasis;
+                } else {
+                  commitResize(view, session, upEvent.clientX);
+                }
                 setDragging(view, false);
                 setActive(view, null);
               }
