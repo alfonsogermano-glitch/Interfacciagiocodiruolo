@@ -263,6 +263,7 @@
    normale impilato verticalmente, comportamento a blocco nativo, nessun
    layout dedicato necessario. */
 .tiptap-textbox {
+  position: relative;
   margin: 0 0 0.5rem 0;
   padding: 0.5rem 0.75rem;
   border-radius: 0.75rem;
@@ -271,6 +272,46 @@
 }
 .tiptap-textbox-content > *:last-child {
   margin-bottom: 0;
+}
+
+/* Bug segnalato dal vivo 2026-08-20: click sul bordo di una CollapseBlock
+   chiusa (box basso, solo riga header) a volte non la selezionava.
+   Verificato con elementFromPoint che il margin-bottom di 0.5rem (8px) fra
+   blocchi adiacenti non appartiene a NESSUN elemento - i margini CSS non
+   sono mai hit-testabili - quindi un click li' finisce sul contenitore
+   ProseMirror nudo (.tiptap-content), che ProseMirror interpreta come
+   confine fra due nodi "isolating" e disegna un GapCursor invece di
+   selezionare uno dei due. Con il box aperto quell'8px e' una frazione
+   trascurabile dell'altezza totale (difficile centrarlo per sbaglio), con
+   il box chiuso (~41px) e' una frazione enorme del bersaglio percepito.
+   Fix: pseudo-elementi invisibili che estendono l'area cliccabile del
+   blocco dentro il proprio margine (stesso principio gia' usato nel
+   commit d52f3af per l'adiacenza paragrafo/TextBox) - il click sopra/sotto
+   il bordo visibile ricade quindi sull'elemento stesso (event.target =
+   l'host del contenitore, i pseudo-elementi non sono targetabili
+   separatamente), non piu' sul contenitore nudo. Altezza fissa 8px invece
+   di un valore derivato da --dash-* perche' il margine stesso e' un valore
+   fisso (0.5rem) qui sopra, non una custom property. Verificato dal vivo
+   che l'estensione non viene tagliata dall'overflow-x:auto/padding di
+   .tiptap-content (stessa area coinvolta nel fix del clipping
+   dell'outline). */
+.tiptap-textbox::before,
+.tiptap-textbox::after,
+.tiptap-collapse::before,
+.tiptap-collapse::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 8px;
+}
+.tiptap-textbox::before,
+.tiptap-collapse::before {
+  top: -8px;
+}
+.tiptap-textbox::after,
+.tiptap-collapse::after {
+  bottom: -8px;
 }
 
 /* Evidenziazione quando l'intero blocco (TextBox o Collapse) e' selezionato
