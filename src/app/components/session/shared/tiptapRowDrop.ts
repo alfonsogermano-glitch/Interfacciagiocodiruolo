@@ -168,6 +168,66 @@ function buildRowDropTransaction(
   const sourceNode = state.doc.nodeAt(sourcePos);
   if (!sourceNode) return null;
 
+  // Riordino DENTRO la stessa row (bug segnalato dal vivo 2026-08-20:
+  // trascinare la TextBox sul lato sinistro/destro del SUO STESSO fratello
+  // di riga "non faceva nulla" - in realta' produceva un terzo figlio
+  // fantasma). Rilevato qui, PRIMA di qualunque step sulla transazione,
+  // risolvendo sia sorgente che target contro state.doc originale (mai
+  // tr.doc post-delete, il problema stesso nasce da li'): il ramo sotto
+  // (target.rowDepth !== null) faceva sempre tr.delete(sourcePos,...) PRIMA
+  // di calcolare mappedTargetPos/insertAt - quando sorgente e target sono
+  // fratelli della STESSA row a esattamente 2 figli, quel delete lascia
+  // temporaneamente la row con 1 solo figlio, sotto il minimo
+  // content:'rowItem{2,}' - ProseMirror stesso (dentro Transform.replace,
+  // chiamato da tr.delete) soddisfa lo schema inserendo un paragrafo vuoto
+  // di riempimento PRIMA che il successivo tr.insert() rimetta dentro la
+  // sorgente, lasciando alla fine 3 figli (2 reali + 1 filler) invece di 2.
+  // RowCollapseCleanup non lo ripulisce: la sua logica gestisce solo "0 o 1
+  // figli reali rimasti accanto a un filler fresco" - con 2+ figli reali
+  // superstiti lascia esplicitamente la row invariata (vedi il commento
+  // sul quel ramo, tiptapRowCollapseCleanup.ts - un caso previsto come
+  // teoricamente possibile ma "mai verificato dal vivo", verificatosi ora).
+  //
+  // Fix: MAI passare per lo stato intermedio sotto il minimo - una sola
+  // tr.replaceWith sull'intero nodo row, con l'ordine dei figli gia'
+  // corretto, stesso conteggio di figli di prima (si toglie la sorgente e
+  // la si reinserisce nello stesso passo, mai in due step separati).
+  if (target.rowDepth !== null) {
+    const $target0 = state.doc.resolve(target.itemPos);
+    const rowPos = $target0.before(target.rowDepth);
+    const $source0 = state.doc.resolve(sourcePos);
+    const sourceRowPos =
+      $source0.depth > 0 && $source0.parent.type.name === 'row' ? $source0.before($source0.depth) : null;
+
+    if (sourceRowPos === rowPos) {
+      const rowNode = $target0.parent;
+      const children: ProseMirrorNode[] = [];
+      rowNode.forEach((child, offset) => {
+        const childPos = rowPos + 1 + offset;
+        if (childPos === sourcePos) return; // la sorgente si reinserisce sotto, mai due volte
+        if (childPos === target.itemPos) {
+          if (side === 'before') children.push(sourceNode, child);
+          else children.push(child, sourceNode);
+        } else {
+          children.push(child);
+        }
+      });
+
+      const newRowNode = rowNode.type.create(rowNode.attrs, children, rowNode.marks);
+      const tr = state.tr;
+      tr.replaceWith(rowPos, rowPos + rowNode.nodeSize, newRowNode);
+
+      let selectPos = rowPos + 1;
+      for (const child of children) {
+        if (child === sourceNode) break;
+        selectPos += child.nodeSize;
+      }
+      tr.setSelection(NodeSelection.create(tr.doc, selectPos));
+      tr.scrollIntoView();
+      return tr;
+    }
+  }
+
   const tr = state.tr;
   tr.delete(sourcePos, sourcePos + sourceNode.nodeSize);
 
@@ -177,10 +237,12 @@ function buildRowDropTransaction(
   if (!targetNode) return null;
 
   if (target.rowDepth !== null) {
-    // Gia' dentro una row esistente: il nodo trascinato si inserisce come
-    // nuovo fratello, PRIMA o DOPO l'item specifico sotto il mouse (non
-    // sempre in coda alla row, a differenza del Caso 1 di addElementBeside -
-    // qui la posizione la decide la zona rilevata, non il cursore).
+    // Gia' dentro una row esistente MA DIVERSA da quella della sorgente (il
+    // caso "stessa row" e' gia' stato intercettato ed e' tornato sopra) - il
+    // nodo trascinato si inserisce come nuovo fratello, PRIMA o DOPO l'item
+    // specifico sotto il mouse (non sempre in coda alla row, a differenza
+    // del Caso 1 di addElementBeside - qui la posizione la decide la zona
+    // rilevata, non il cursore).
     const insertAt = side === 'before' ? mappedTargetPos : mappedTargetPos + targetNode.nodeSize;
     tr.insert(insertAt, sourceNode);
     tr.setSelection(NodeSelection.create(tr.doc, insertAt));
