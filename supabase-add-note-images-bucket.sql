@@ -6,9 +6,17 @@
 -- Nessuna policy di update/delete: la feature non offre modifica/rimozione
 -- dell'immagine caricata.
 
+-- do update (non do nothing): bug reale 2026-08-20 - il bucket esisteva
+-- gia' sul progetto (creato una volta dalla dashboard con "Public bucket"
+-- disattivato) quando questo script e' stato eseguito la prima volta, "do
+-- nothing" ha lasciato la riga com'era (public:false) invece di applicare
+-- il valore voluto qui sotto - immagini caricate ma irraggiungibili
+-- (getPublicUrl restituiva un URL che rispondeva 400 "Bucket not found",
+-- il messaggio generico di Storage per un bucket privato). "do update"
+-- rende lo script idempotente E autocorrettivo se rieseguito.
 insert into storage.buckets (id, name, public)
 values ('note-images', 'note-images', true)
-on conflict (id) do nothing;
+on conflict (id) do update set public = excluded.public;
 
 create policy "note-images insert own folder"
 on storage.objects for insert to authenticated
