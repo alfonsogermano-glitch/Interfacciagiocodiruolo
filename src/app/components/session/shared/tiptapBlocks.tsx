@@ -1,6 +1,6 @@
-import { Node, mergeAttributes } from '@tiptap/core';
+import { Node, Extension, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
-import { Selection, Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
+import { Selection, NodeSelection, Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
 import { ChevronRight } from 'lucide-react';
 
 // Vero fino a qualunque profondita' (non solo il genitore immediato) che il
@@ -183,20 +183,63 @@ const CollapseBody = Node.create({
 // blocca solo l'input nativo da tastiera/contenteditable, non i dispatch
 // programmatici) - un lettore senza permesso di scrittura puo' comunque
 // espandere/comprimere per leggere.
-function CollapseBlockView({ node, updateAttributes }: NodeViewProps) {
+//
+// onMouseDown sul wrapper (bug trovato dal vivo 2026-08-20, indagine
+// approfondita nel sorgente di prosemirror-view): un plugin ProseMirror con
+// handleDOMEvents.mousedown (vedi BlockClickSelect sotto, che DA SOLO basta
+// per TextBox) non riceve MAI l'evento per un click sul bordo/sfondo del
+// Collapse - verificato empiricamente che CustomNodeViewDesc.stopEvent
+// (la classe interna che rappresenta QUALUNQUE NodeView con addNodeView,
+// incluso ReactNodeViewRenderer qui sotto) ritorna true per il mousedown
+// reale su questo nodo, e eventBelongsToView (dispatchEvent, stesso
+// sorgente) abbandona l'INTERO evento prima ancora di provare
+// handleDOMEvents di qualunque plugin - "if (node.pmViewDesc &&
+// node.pmViewDesc.stopEvent(event)) return false" durante la risalita degli
+// antenati dal target fino a view.dom. Un handler React attaccato QUI,
+// direttamente sull'elemento della NodeView, non passa mai da quel
+// controllo (e' un semplice listener nativo sull'elemento stesso, non la
+// pipeline di dispatch di ProseMirror) - stessa idea del plugin, stesso
+// controllo "click dentro .tiptap-collapse-content = vero testo, lascia
+// stare" ma a livello di componente invece che di plugin globale.
+// getPos() (fornita da ReactNodeViewRenderer, NodeViewProps) da' la
+// posizione CORRENTE del nodo (mai da ricalcolare a mano - resta valida
+// anche se il documento e' cambiato da quando la view e' stata creata,
+// verificato nel tipo pubblico: () => number | undefined).
+function CollapseBlockView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
   const open = node.attrs.open !== false;
   return (
-    <NodeViewWrapper className="tiptap-collapse" data-open={open}>
+    <NodeViewWrapper
+      className="tiptap-collapse"
+      data-open={open}
+      onMouseDown={(e) => {
+        // .tiptap-collapse-toggle esclusa insieme al contentDOM: mousedown e
+        // click sono due eventi SEPARATI (il primo bolla comunque fino a
+        // qui, lo stopPropagation della freccina sul proprio onClick sotto
+        // agisce solo sul click, non retroattivamente su questo mousedown
+        // gia' passato) - senza questa esclusione, cliccare la freccina
+        // selezionerebbe anche l'intero blocco invece di limitarsi ad
+        // aprirlo/chiuderlo.
+        if ((e.target as HTMLElement).closest('.tiptap-collapse-content, .tiptap-collapse-toggle')) return;
+        const pos = getPos();
+        if (typeof pos !== 'number') return;
+        e.preventDefault();
+        editor.view.dispatch(editor.view.state.tr.setSelection(NodeSelection.create(editor.view.state.doc, pos)).setMeta('pointer', true));
+      }}
+    >
       <button
         type="button"
         contentEditable={false}
         onClick={(e) => {
           // Il pulsante vive fuori dal contentDOM: senza stopPropagation, il
-          // click bolla fino al click-handling nativo di ProseMirror per i
-          // nodi selectable, selezionando l'intero blocco OLTRE ad aprirlo/
-          // chiuderlo - innocuo (il toggle funziona comunque) ma visivamente
-          // confuso (l'evidenziazione da selezione lampeggia ad ogni click
-          // sulla freccina).
+          // click bollerebbe fino al click-handling nativo di ProseMirror
+          // per i nodi selectable, selezionando l'intero blocco OLTRE ad
+          // aprirlo/chiuderlo - innocuo (il toggle funziona comunque) ma
+          // visivamente confuso (l'evidenziazione da selezione lampeggia ad
+          // ogni click sulla freccina). Il mousedown che precede questo
+          // click e' gestito separatamente: escluso esplicitamente
+          // dall'onMouseDown del wrapper sopra (.tiptap-collapse-toggle
+          // nel suo closest()), che altrimenti selezionerebbe il blocco un
+          // istante prima ancora che questo handler scatti.
           e.stopPropagation();
           updateAttributes({ open: !open });
         }}
@@ -276,7 +319,97 @@ declare module '@tiptap/core' {
   }
 }
 
+// Click sul bordo/sfondo di un TextBox -> seleziona l'intero blocco (bug
+// segnalato dal vivo 2026-08-20, dopo la rimozione della maniglia nella
+// pulizia "editor di testo ricco semplice": senza maniglia non c'era piu'
+// alcun modo per selezionare/cancellare un box con un click semplice). Non
+// e' un problema di selectable:true o CSS mancanti (gia' presenti su
+// entrambi i nodi/su .ProseMirror-selectednode) - e' il comportamento
+// nativo di ProseMirror stesso: un click semplice seleziona automaticamente
+// SOLO nodi atom (verificato nel sorgente, node_modules/prosemirror-view/
+// dist/index.js, selectClickedLeaf: "node.isAtom &&
+// NodeSelection.isSelectable(node)") - un'immagine funziona perche' e' un
+// nodo atom (nessun contenuto editabile dentro), TextBox no (contiene
+// paragrafi editabili veri), quindi un click ovunque cada al suo interno
+// viene sempre risolto come "posiziona il cursore di testo piu' vicino",
+// mai come selezione del nodo. Il secondo meccanismo nativo che sa
+// selezionare nodi non-atom (selectClickedNode) esiste ma scatta solo con
+// Ctrl+Click/Cmd+Click (selectNodeModifier) - non il click semplice
+// richiesto.
+//
+// SOLO TextBox qui - CollapseBlock e' gestito a parte, dall'onMouseDown
+// sul NodeViewWrapper in CollapseBlockView sopra (indagine dal vivo
+// 2026-08-20, tre round: prima provato handleClickOn, poi handleClick,
+// entrambi mai invocati per CollapseBlock - risalendo nel sorgente di
+// prosemirror-view fino a CustomNodeViewDesc.stopEvent/eventBelongsToView,
+// confermato empiricamente che il mousedown reale su un nodo con una
+// NodeView personalizzata - ReactNodeViewRenderer qui, vedi addNodeView -
+// viene marcato "stopEvent:true" e l'INTERO evento e' scartato da
+// eventBelongsToView PRIMA che qualunque handleDOMEvents di plugin possa
+// mai vederlo; TextBox non ha questo problema, renderHTML statico senza
+// NodeView, quindi handleDOMEvents.mousedown qui sotto gli basta). Un
+// singolo plugin condiviso per entrambi i tipi non sarebbe quindi mai
+// stato sufficiente - lasciato qui ristretto a TextBox per onesta' verso
+// cio' che DAVVERO fa, non per generalita' apparente.
+//
+// handleDOMEvents.mousedown (non handleClick/handleClickOn): entrambi
+// innescati dalla pipeline INTERNA di ProseMirror per il click
+// (handlers.mousedown -> LeftMouseDown), che comincia SEMPRE con "let pos =
+// view.posAtCoords(...); if (!pos) return" - handleDOMEvents e' invece un
+// listener nativo SEPARATO che dispatchEvent richiama SEMPRE per primo,
+// mai soggetto a quel gate (qui non serve per il motivo di sopra, ma resta
+// la scelta piu' robusta anche per TextBox).
+//
+// Rilevamento del box via DOM (event.target.closest), non tramite il nodo
+// risolto da ProseMirror: .tiptap-textbox-content e' il solo contentDOM di
+// TextBox (contentElement in parseHTML sopra) - un click che ricade DENTRO
+// e' realmente sul testo (return false, comportamento nativo invariato,
+// stesso identico meccanismo per cui un click nello spazio vuoto a destra
+// di un paragrafo corto posiziona comunque il cursore a fine testo, mai un
+// segnale affidabile da solo); un click FUORI (sul div esterno, bordo/
+// padding/sfondo) non lo e' mai, qualunque testo lo circondi.
+//
+// view.posAtDOM(boxEl, 0) (mai posAtCoords): risolve una posizione valida a
+// partire dal vero elemento DOM del box - la risalita per profondita' dopo
+// trova poi l'esatto nodo textBox (mai un genitore piu' esterno per
+// errore, es. un box annidato dentro un altro in un vecchio documento non
+// ancora passato dalla migrazione difensiva).
+const BlockClickSelect = Extension.create({
+  name: 'blockClickSelect',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('blockClickSelect'),
+        props: {
+          handleDOMEvents: {
+            mousedown(view, event) {
+              const target = event.target as HTMLElement | null;
+              if (!target) return false;
+              if (target.closest('.tiptap-textbox-content')) return false;
+              const boxEl = target.closest('.tiptap-textbox') as HTMLElement | null;
+              if (!boxEl) return false;
+
+              const domPos = view.posAtDOM(boxEl, 0);
+              const $pos = view.state.doc.resolve(domPos);
+              for (let depth = $pos.depth; depth >= 0; depth -= 1) {
+                if ($pos.node(depth).type.name === 'textBox') {
+                  const tr = view.state.tr.setSelection(NodeSelection.create(view.state.doc, $pos.before(depth)));
+                  tr.setMeta('pointer', true);
+                  view.dispatch(tr);
+                  event.preventDefault();
+                  return true;
+                }
+              }
+              return false;
+            },
+          },
+        },
+      }),
+    ];
+  },
+});
+
 // Estensioni da registrare in useEditor({ extensions: [...] }) - ogni tipo di
 // nodo deve comparire nell'array per entrare nello schema, inclusi i due
 // figli senza comando proprio (CollapseSummary/CollapseBody).
-export const TIPTAP_BLOCK_EXTENSIONS = [TextBox, CollapseSummary, CollapseBody, CollapseBlock];
+export const TIPTAP_BLOCK_EXTENSIONS = [TextBox, CollapseSummary, CollapseBody, CollapseBlock, BlockClickSelect];
