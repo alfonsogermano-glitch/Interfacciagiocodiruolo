@@ -569,36 +569,6 @@
   min-width: 0;
   max-width: 75%;
 }
-/* Paragrafo VUOTO in una row (bug segnalato dal vivo 2026-08-19: "il
-   cursore sembra fluttuare senza testo intorno" navigando con le frecce) -
-   la larghezza adattiva appena sopra (round 2026-08-13 sera) collassa un
-   paragrafo senza testo a 0px: nessun bordo/sfondo/area cliccabile, un
-   elemento reale del documento (secondo item della row, raggiungibile e
-   navigabile) diventa invisibile e irraggiungibile col mouse.
-   :has(> br.ProseMirror-trailingBreak:only-child) invece di :empty -
-   verificato dal vivo: ProseMirror renderizza SEMPRE un paragrafo senza
-   testo come <p><br class="ProseMirror-trailingBreak"></p>, mai <p></p>
-   nudo, quindi :empty non avrebbe MAI un match qui. Il trailingBreak e'
-   percio' l'unico segnale affidabile di "davvero senza testo" - un
-   paragrafo anche di un solo carattere ("a") non ha mai questo figlio,
-   quindi non e' MAI toccato da questa regola: la matematica del wrap
-   (max-width:75% sopra, round 2026-08-13) resta identica per qualunque
-   paragrafo con contenuto reale, per quanto corto.
-   Specificita' (0,3,2) - piu' alta della regola base (0,2,1, vedi
-   commento sopra) - vince senza bisogno di !important.
-   Bordo tratteggiato SEMPRE visibile, non solo su :hover/:focus: un
-   elemento a 0px non ha AREA su cui un hover possa mai scattare, quindi
-   qualunque variante "rivelato al passaggio del mouse" sarebbe un vicolo
-   cieco - deve essere gia' visibile perche' l'utente possa anche solo
-   trovarlo. min-width:2rem (valore indipendente dai 64px/0 discussi sopra
-   per gli altri rowItem): abbastanza per un'area cliccabile comoda,
-   abbastanza piccolo da non competere seriamente con gli altri elementi
-   della riga per lo spazio disponibile. */
-.tiptap-row-flex > p:has(> br.ProseMirror-trailingBreak:only-child) {
-  min-width: 2rem;
-  border: 1px dashed var(--dash-border-soft);
-  border-radius: 0.25rem;
-}
 /* Paragrafo affiancato a una TextBox in una row: il TESTO appariva piu' in
    alto del testo dentro la TextBox (bug segnalato dal vivo 2026-08-19,
    puramente visivo - misurato con Range.getBoundingClientRect() sul testo
