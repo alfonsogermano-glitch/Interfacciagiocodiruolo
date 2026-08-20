@@ -502,9 +502,19 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
               bordo per un pannello "galleggiante" nel tema). */}
           <PopoverContent side="top" align="start" collisionPadding={8} className="w-64 z-[9999] bg-[var(--dash-panel)] text-[var(--dash-text-strong)] border-[var(--dash-border-soft)]" onMouseDown={(e) => e.stopPropagation()}>
             <Tabs defaultValue="url" className="gap-3">
-              <TabsList className="w-full">
-                <TabsTrigger value="url">Da URL</TabsTrigger>
-                <TabsTrigger value="file">Da file</TabsTrigger>
+              {/* bg-[var(--dash-surface)]/border-[var(--dash-border-soft)]
+                  sul gruppo, data-[state=active]:bg-[var(--dash-accent)] sul
+                  singolo trigger: stesso identico pattern del selettore
+                  griglia/lista in EntityFilterToolbar.tsx (li' via stato
+                  React esplicito, qui via l'attributo data-state che Radix
+                  Tabs mette gia' da solo sul trigger attivo/inattivo -
+                  nessuno stato in piu' da tracciare). Sovrascrive i default
+                  shadcn di TabsList/TabsTrigger (bg-muted/data-[state=active]
+                  :bg-card, non legati alla palette) solo su questa istanza,
+                  ui/tabs.tsx resta invariato. */}
+              <TabsList className="w-full border border-[var(--dash-border-soft)] bg-[var(--dash-surface)]">
+                <TabsTrigger value="url" className="text-[var(--dash-muted)] data-[state=active]:bg-[var(--dash-accent)] data-[state=active]:text-[var(--dash-text-strong)]">Da URL</TabsTrigger>
+                <TabsTrigger value="file" className="text-[var(--dash-muted)] data-[state=active]:bg-[var(--dash-accent)] data-[state=active]:text-[var(--dash-text-strong)]">Da file</TabsTrigger>
               </TabsList>
               <TabsContent value="url" className="flex flex-col gap-2">
                 {/* bg-[var(--dash-input)]/border-[var(--dash-border-soft)]/
