@@ -480,8 +480,27 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
               punto restituiva il contenuto dell'editor, non il popover).
               z-[9999] e' lo stesso valore gia' usato per lo stesso identico
               motivo dai menu a tendina di NoteListRow.tsx/EntityTabBar.tsx,
-              entrambi ospitati nello stesso pannello. */}
-          <PopoverContent side="top" align="start" collisionPadding={8} className="w-64 z-[9999]" onMouseDown={(e) => e.stopPropagation()}>
+              entrambi ospitati nello stesso pannello.
+              bg-[var(--dash-panel)]/text-[var(--dash-text-strong)]/
+              border-[var(--dash-border-soft)] sovrascrivono le classi di
+              default di PopoverContent (bg-popover/text-popover-foreground/
+              border, cn() interno usa tailwind-merge quindi vincono queste):
+              bug trovato dal vivo 2026-08-20 - --popover/--popover-
+              foreground sono legate SOLO a :root (chiaro) e alla classe
+              .dark (mai applicata da nessuna parte in questa app - verificato
+              document.querySelectorAll('.dark').length === 0), non a
+              [data-dashboard-palette] come le variabili --dash-*. Il Portal
+              gia' monta correttamente dentro l'elemento con
+              [data-dashboard-palette] (usePortalContainer, vedi
+              ui/popover.tsx) - --dash-panel infatti risultava gia' risolto
+              li' al colore giusto della palette attiva - ma bg-popover
+              restava comunque bianco perche' punta a una coppia di variabili
+              che questa app non ritinteggia mai per palette. Stesse
+              variabili gia' usate per il resto di questo popover
+              (dash-muted/dash-surface-2/dash-text-strong sopra) e per
+              .tiptap-collapse in theme.css (stesso identico sfondo/testo/
+              bordo per un pannello "galleggiante" nel tema). */}
+          <PopoverContent side="top" align="start" collisionPadding={8} className="w-64 z-[9999] bg-[var(--dash-panel)] text-[var(--dash-text-strong)] border-[var(--dash-border-soft)]" onMouseDown={(e) => e.stopPropagation()}>
             <Tabs defaultValue="url" className="gap-3">
               <TabsList className="w-full">
                 <TabsTrigger value="url">Da URL</TabsTrigger>
