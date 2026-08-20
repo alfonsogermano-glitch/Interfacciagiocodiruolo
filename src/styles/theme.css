@@ -340,10 +340,32 @@
    due box sovrapposti invece di uno solo attorno a barra+editor.
    overflow-x:auto: rete di sicurezza per un'immagine (o qualunque altro
    contenuto) piu' larga della colonna - scorre invece di spingere l'intero
-   contenitore/pagina in overflow. */
+   contenitore/pagina in overflow.
+   padding:6px (bug segnalato dal vivo 2026-08-20, "il contorno di
+   selezione di TextBox/CollapseBlock e' tagliato sopra/ai lati"):
+   overflow-x:auto forza per specifica CSS anche overflow-y a "auto" quando
+   non e' esplicitamente 'visible' (le due proprieta' non sono mai
+   indipendenti se una delle due non e' visible) - .tiptap-content clippa
+   percio' su ENTRAMBI gli assi qualunque cosa esca dal proprio bordo,
+   incluso un outline (mai parte del box-model/layout, ma visivamente reso
+   comunque oltre il border-box). Verificato dal vivo (getBoundingClientRect)
+   che i blocchi a piena larghezza (TextBox/CollapseBlock, nessun margine
+   orizzontale) toccano ESATTAMENTE il bordo sinistro/destro di
+   .tiptap-content (0px di margine, essendo .tiptap-content stesso senza
+   alcun padding proprio) - l'outline di selezione (2px solid + 2px
+   outline-offset = 4px di estensione oltre il border-box su ogni lato) non
+   ha mai spazio per rendersi ai lati, e in alto per il PRIMO blocco (che
+   tocca anche il bordo superiore, nessun fratello precedente a dare
+   margine). 6px (non i 4px minimi stretti) per un piccolo margine di
+   sicurezza contro arrotondamenti subpixel (misurati valori come
+   54.074676...px nei rect reali). Overflow-x:auto resta invariato (la rete
+   di sicurezza per un'immagine piu' larga continua a funzionare, solo
+   qualche px piu' tardi) - nessuna rimozione, solo spazio in piu' perche'
+   il clip non cada esattamente sul bordo dei blocchi. */
 .tiptap-content {
   outline: none;
   overflow-x: auto;
+  padding: 6px;
 }
 
 /* Scrollbar nativa ristilizzata sulla palette del tema attivo (vedi
