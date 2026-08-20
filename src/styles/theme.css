@@ -634,6 +634,50 @@
 .tiptap-row-flex > .tiptap-textbox ~ p:not(.tiptap-textbox-edge-cursor) {
   padding-top: calc(0.5rem + 1px);
 }
+/* Estende l'hover del paragrafo affiancato a una TextBox fino a coprire il
+   column-gap adiacente (bug segnalato dal vivo 2026-08-20): flex:0 1 auto
+   (sopra in questo file) fa terminare il box del <p> esattamente al bordo
+   destro del testo reso, quindi lo spazio vuoto fra la fine del testo e la
+   TextBox e' il column-gap di .tiptap-row-flex - non appartiene al box ne'
+   del paragrafo ne' della TextBox. Ne' p:hover ne' .tiptap-textbox:hover
+   scattano li', quindi la guardia su .tiptap-row (:not(:has(..., p:hover)),
+   piu' sopra in questo file) non si disattiva e la maniglia della row resta
+   visibile mentre il mouse e' in quel gap. ::after/::before invisibili
+   (content vuoto, solo pointer-events:auto) allargano l'hit-test del
+   paragrafo esattamente della larghezza del gap (stesso --tiptap-box-gap
+   del column-gap, mai di piu': non deve mai sconfinare dentro la TextBox
+   stessa, che perderebbe hover/click per prima a chi e' sopra nello
+   stacking). position:absolute (via position:relative sul <p>, regola
+   dedicata sotto) tiene i due pseudo-elementi fuori dal flusso: non
+   allargano il box del paragrafo nel calcolo flex, restano invisibili e
+   non spostano la TextBox. Stesso sibling generico "~" (non "+" adiacente)
+   della regola padding-top sopra e per lo stesso motivo (sopravvive al
+   cursore finto tiptapTextBoxEdgeCursor.ts che a volte si inserisce come
+   fratello DOM temporaneo fra i due): la posizione (left:100% / right:100%)
+   e' comunque relativa al bordo del paragrafo stesso, quindi centra il gap
+   giusto a prescindere da cosa c'e' fisicamente nel DOM in mezzo. */
+.tiptap-row-flex > p:not(.tiptap-textbox-edge-cursor):has(~ .tiptap-textbox),
+.tiptap-row-flex > .tiptap-textbox ~ p:not(.tiptap-textbox-edge-cursor) {
+  position: relative;
+}
+.tiptap-row-flex > p:not(.tiptap-textbox-edge-cursor):has(~ .tiptap-textbox)::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: var(--tiptap-box-gap);
+  pointer-events: auto;
+}
+.tiptap-row-flex > .tiptap-textbox ~ p:not(.tiptap-textbox-edge-cursor)::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 100%;
+  width: var(--tiptap-box-gap);
+  pointer-events: auto;
+}
 /* Larghezza minima di default finche' la colonna non e' stata
    ridimensionata esplicitamente (data-colwidth assente) o non e' in corso
    il trascinamento - stessa condizione usata dal CSS di riferimento di
