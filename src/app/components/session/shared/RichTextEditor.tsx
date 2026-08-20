@@ -17,6 +17,7 @@ import { RowResizeExtension } from './tiptapRowResize';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { DropCleanup } from './tiptapDropCleanup';
 import { RowCollapseCleanup } from './tiptapRowCollapseCleanup';
+import { RowHeightSync } from './tiptapRowHeightSync';
 import { TextBoxEdgeCursorExtension, TextBoxEdgeCursor, adjacentBox, isAtRowStart, isAtRowEnd, findCellAncestorDepth } from './tiptapTextBoxEdgeCursor';
 import { TipTapTableMenu } from './TipTapTableMenu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
@@ -599,6 +600,11 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
       // entrambe sono appendTransaction indipendenti, ProseMirror le gira
       // tutte sulla stessa transazione dispacciata, in sequenza fra loro.
       RowCollapseCleanup,
+      // RowHeightSync: scrive --tiptap-row-height su ogni .tiptap-row-flex
+      // (ResizeObserver dal vivo) - usata in theme.css per estendere l'area
+      // di hover dei rowItem piu' corti fino al fondo della row, vedi
+      // tiptapRowHeightSync.ts per il ragionamento completo.
+      RowHeightSync,
       ...TIPTAP_BLOCK_EXTENSIONS,
       TextBoxEdgeCursorExtension,
     ],

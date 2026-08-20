@@ -944,6 +944,74 @@
   width: 100%;
   position: relative;
 }
+/* Riapertura 2026-08-20 del bug "gap fantasma" gia' affrontato in d52f3af:
+   quel fix estese l'hit-test del paragrafo ORIZZONTALMENTE (il column-gap a
+   destra/sinistra, ::after/::before su p sopra in questo file). Restava
+   scoperta un'altra zona: quando il paragrafo e' il fratello piu' ALTO
+   (testo mandato a capo), lo spazio SOTTO un fratello piu' corto (TextBox/
+   Collapse/tabella) ma ancora dentro la row (l'altezza della row e' quella
+   del piu' alto, align-items:flex-start sopra) non appartiene al box di
+   NESSUNO dei due - ne' p:hover ne' .tiptap-textbox:hover vi scattano,
+   quindi la guardia sulla maniglia della row (.tiptap-row:hover:not(:has(
+   ..., p:hover)), piu' sotto in questo file) non si disattiva.
+   Perche' solo TextBox/Collapse/tableWrapper e non anche il paragrafo:
+   quando il paragrafo e' il piu' alto, il SUO ::after/::before del fix
+   orizzontale (top:0;bottom:0 relativo a se stesso, sopra in questo file)
+   arriva GIA' fino al fondo della row per costruzione - essendo lui stesso
+   il piu' alto, la propria altezza COINCIDE con quella della row, nessuna
+   estensione ulteriore necessaria. Manca solo l'area sotto al fratello PIU'
+   CORTO, entro la sua stessa colonna (mai la larghezza intera della row -
+   sconfinerebbe sopra il testo del paragrafo, rubandogli hover/click).
+   Perche' JS e non CSS puro (valutato e scartato): con align-items:
+   flex-start un ::after non puo' conoscere l'altezza di un fratello senza
+   saperla numericamente - nessun selettore/valore CSS la espone.
+   align-items:stretch nativo stirerebbe anche il box VISIBILE (bordo/
+   sfondo), non solo l'area di hover, gia' scartato per un problema simile
+   (vedi commento "gutter eccessivo per Collapse" piu' sotto in questo
+   file). --tiptap-row-height (scritta da RowHeightSync via ResizeObserver,
+   tiptapRowHeightSync.ts) espone quindi l'altezza reale della row via CSS
+   custom property. Il "100%" dentro calc() si risolve contro l'altezza
+   del box che genera il proprio ::after (il rowItem stesso, suo contesto
+   di posizionamento) - calc(var(row-height) - 100%) e' percio' ESATTAMENTE
+   il gap, per qualunque coppia di altezze, senza calcolo manuale per caso
+   specifico. max(0px, ...) clampa a 0 quando l'elemento e' lui stesso il
+   piu' alto (differenza negativa) o prima che ResizeObserver abbia scritto
+   un primo valore (var non definita, fallback 0px).
+   Estendere l'AREA DI HOVER dell'elemento stesso (non un elemento a parte)
+   basta a far scattare :hover sull'elemento originale per specifica CSS
+   (uno pseudo-elemento conta come discendente ai fini di :hover) - la
+   guardia esistente sulla maniglia della row lo riconosce gia' senza
+   bisogno di modifiche.
+   ::after (non ::before): entrambi liberi su .tiptap-textbox/.tiptap-collapse
+   (mai usati altrove per generated content), scelto ::after per coerenza
+   col resto del fix orizzontale sopra. tableWrapper incluso per
+   completezza ma verificato NON operativo (overflow-x:auto sopra in
+   questo file implica overflow-y:auto per specifica CSS quando un solo
+   asse e' non-visible, quindi qualunque contenuto - incluso questo ::after
+   - che sporge sotto il bordo del wrapper viene tagliato) - nessun danno
+   (semplicemente non estende nulla per una tabella piu' corta), ma non e'
+   il fix per quel caso, mai stato segnalato.
+   Scope ristretto a .tiptap-row-flex (mai .tiptap-td-flex/
+   .tiptap-textbox-content/.tiptap-collapse-body, stesso motivo di sempre:
+   un TextBox/Collapse annidato dentro un altro box e' un contesto diverso,
+   fuori scope qui). Paragrafo ESCLUSO deliberatamente da questa regola
+   (caso inverso, paragrafo piu' corto di un fratello box-tipo): il
+   paragrafo usa gia' ::after/::before per il fix orizzontale sopra (uno
+   dei due, a seconda che il box lo preceda o lo segua) - riusarlo anche
+   qui rischierebbe una collisione nel raro caso di row a 3 elementi con
+   paragrafo in mezzo fra due box. Caso mai segnalato dal vivo, lasciato
+   fuori scope per non introdurre un ibrido fragile. */
+.tiptap-row-flex > .tiptap-textbox::after,
+.tiptap-row-flex > .tiptap-collapse::after,
+.tiptap-row-flex > .tableWrapper::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: max(0px, calc(var(--tiptap-row-height, 0px) - 100%));
+  pointer-events: auto;
+}
 
 /* Evidenziazione quando l'intero blocco (TextBox o Collapse) e' selezionato
    come NodeSelection - classe applicata automaticamente da ProseMirror
