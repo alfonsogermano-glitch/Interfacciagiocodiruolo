@@ -507,20 +507,35 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
                 <TabsTrigger value="file">Da file</TabsTrigger>
               </TabsList>
               <TabsContent value="url" className="flex flex-col gap-2">
+                {/* bg-[var(--dash-input)]/border-[var(--dash-border-soft)]/
+                    text-[var(--dash-text)]: stesso pattern gia' usato per
+                    l'input di rinomina tab in EntityTabBar.tsx e per la
+                    tendina di FontSizeSelect qui sopra - sovrascrivono i
+                    default shadcn (bg-input-background/border-input, non
+                    legati alla palette) di Input (ui/input.tsx, non
+                    modificato: stesso principio del fix precedente su
+                    PopoverContent, solo l'istanza qui cambia). */}
                 <Input
                   type="url"
                   placeholder="https://…"
                   value={imageUrlDraft}
                   onChange={(e) => setImageUrlDraft(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); insertImageFromUrl(); } }}
+                  className="border-[var(--dash-border-soft)] bg-[var(--dash-input)] text-[var(--dash-text)] placeholder:text-[var(--dash-muted)]"
                 />
-                <Button type="button" size="sm" disabled={!imageUrlDraft.trim()} onClick={insertImageFromUrl}>
+                {/* bg-[var(--dash-accent)]/text-[var(--dash-text-strong)]/
+                    hover:bg-[var(--dash-accent-2)]: stesso "pulsante pieno"
+                    gia' usato per le azioni primarie nel pannello Note (es.
+                    EntityFilterToolbar.tsx, EntityPagination.tsx) al posto
+                    del bg-primary/text-primary-foreground di default di
+                    Button (ui/button.tsx, non modificato). */}
+                <Button type="button" size="sm" disabled={!imageUrlDraft.trim()} onClick={insertImageFromUrl} className="bg-[var(--dash-accent)] text-[var(--dash-text-strong)] hover:bg-[var(--dash-accent-2)]">
                   Inserisci
                 </Button>
               </TabsContent>
               <TabsContent value="file" className="flex flex-col gap-2">
                 <p className="text-xs text-[var(--dash-muted)]">Carica un'immagine dal tuo dispositivo.</p>
-                <Button type="button" size="sm" disabled={isUploadingImage} onClick={() => { setImagePopoverOpen(false); fileInputRef.current?.click(); }}>
+                <Button type="button" size="sm" disabled={isUploadingImage} onClick={() => { setImagePopoverOpen(false); fileInputRef.current?.click(); }} className="bg-[var(--dash-accent)] text-[var(--dash-text-strong)] hover:bg-[var(--dash-accent-2)]">
                   {isUploadingImage ? 'Caricamento…' : 'Scegli file'}
                 </Button>
               </TabsContent>
