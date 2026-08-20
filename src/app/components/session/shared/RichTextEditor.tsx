@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
-import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Upload, Undo2 } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Undo2 } from 'lucide-react';
 import TextAlign from '@tiptap/extension-text-align';
 import Image from '@tiptap/extension-image';
 import { MarkdownContent } from './MarkdownContent';
@@ -11,6 +11,10 @@ import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { flattenRemovedLayoutNodes } from './tiptapLegacyMigration';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '../../ui/popover';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../ui/tabs';
+import { Button } from '../../ui/button';
+import { Input } from '../../ui/input';
 import { useAuth } from '../../../auth/AuthContext';
 import { supabase, isSupabaseConfigured } from '../../../../lib/supabaseClient';
 
@@ -282,12 +286,30 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
 
   const boldActive = editor.isActive('bold');
 
+  // Inserimento immagine: un solo pulsante "Immagine" apre un Popover con
+  // due sezioni (Tabs) - "Da URL" (comportamento gia' esistente, prima un
+  // window.prompt) e "Da file" (upload su Supabase Storage, vedi
+  // handleFileSelected sotto). imagePopoverOpen e' controllato (non
+  // affidato al default non controllato di Radix) solo per poterlo chiudere
+  // da codice dopo un inserimento riuscito o dopo aver aperto il file
+  // picker nativo - altrimenti resterebbe aperto dietro la finestra di
+  // selezione file del sistema operativo.
+  const [imagePopoverOpen, setImagePopoverOpen] = useState(false);
+  const [imageUrlDraft, setImageUrlDraft] = useState('');
+  const insertImageFromUrl = () => {
+    const url = imageUrlDraft.trim();
+    if (!url) return;
+    runCommand(() => editor.chain().focus().setImage({ src: url }).run());
+    setImageUrlDraft('');
+    setImagePopoverOpen(false);
+  };
+
   // Upload immagine da file locale (bucket 'note-images', Supabase Storage) -
-  // stesso comando finale di inserimento (setImage) del pulsante "Immagine"
-  // da URL qui sotto, cambia solo la provenienza dell'URL. Path
-  // ${user.id}/... : stesso schema "cartella = proprio user id" gia' in uso
-  // per il bucket 'avatars' (SettingsModal.tsx) - la policy insert del
-  // bucket 'note-images' lo richiede.
+  // stesso comando finale di inserimento (setImage) di insertImageFromUrl
+  // sopra, cambia solo la provenienza dell'URL. Path ${user.id}/... : stesso
+  // schema "cartella = proprio user id" gia' in uso per il bucket 'avatars'
+  // (SettingsModal.tsx) - la policy insert del bucket 'note-images' lo
+  // richiede.
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -397,27 +419,67 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         <ToolbarButton disabled={!editable} label="Linea orizzontale" active={false} onClick={() => runCommand(() => editor.chain().focus().setHorizontalRule().run())}>
           <SeparatorHorizontal className="h-4 w-4" />
         </ToolbarButton>
-        {/* Immagine: solo URL (nessun upload file, confermato nel piano) -
-            window.prompt e' bloccante e nativo, coerente con "niente
-            infrastruttura di storage per ora". url falsy (annullato/vuoto)
-            non dispaccia alcun comando - setImage con src vuoto inserirebbe
-            comunque un nodo immagine rotto. */}
-        <ToolbarButton disabled={!editable} label="Immagine" active={false} onClick={() => runCommand(() => {
-          const url = window.prompt('URL immagine');
-          if (url) editor.chain().focus().setImage({ src: url }).run();
-        })}>
-          <ImageIcon className="h-4 w-4" />
-        </ToolbarButton>
-        {/* Carica immagine da file locale (bucket 'note-images', Supabase
-            Storage) - alternativa al pulsante URL sopra, stesso comando
-            finale di inserimento (vedi handleFileSelected sopra).
-            input[type=file] nascosto: il click sul ToolbarButton visibile
-            apre il file picker nativo, l'upload vero parte dal suo onChange,
-            mai da un click diretto sull'input stesso. */}
+        {/* Immagine: un solo pulsante, due modi di inserimento dentro lo
+            stesso Popover (Da URL / Da file) - vedi imagePopoverOpen/
+            insertImageFromUrl/handleFileSelected sopra. Niente Tooltip
+            component qui (a differenza degli altri ToolbarButton): nidificare
+            TooltipTrigger asChild dentro PopoverTrigger asChild intorno allo
+            stesso bottone e' un doppio Slot fragile per un guadagno minimo,
+            dato che il popover stesso e' gia' autoesplicativo una volta
+            aperto - title nativo del browser basta per l'hover. */}
+        <Popover open={imagePopoverOpen} onOpenChange={setImagePopoverOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              disabled={!editable}
+              aria-label="Immagine"
+              title="Immagine"
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md p-1.5 transition-colors text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)] ${!editable ? 'cursor-not-allowed opacity-40' : ''}`}
+            >
+              <ImageIcon className="h-4 w-4" />
+            </button>
+          </PopoverTrigger>
+          {/* onMouseDown/stopPropagation: senza, il mousedown di qualunque
+              controllo qui dentro (Input incluso) risalirebbe fino al div
+              radice di Toolbar (onMouseDown preventDefault, in cima a questo
+              componente) - React fa risalire gli eventi dei Portal lungo
+              l'albero dei COMPONENTI, non quello del DOM, quindi il Portal di
+              PopoverContent non basta da solo a isolarlo. Stesso identico bug
+              gia' documentato sopra per FontSizeSelect (l'Input perderebbe il
+              focus-on-click nativo). */}
+          <PopoverContent side="right" align="start" className="w-64" onMouseDown={(e) => e.stopPropagation()}>
+            <Tabs defaultValue="url" className="gap-3">
+              <TabsList className="w-full">
+                <TabsTrigger value="url">Da URL</TabsTrigger>
+                <TabsTrigger value="file">Da file</TabsTrigger>
+              </TabsList>
+              <TabsContent value="url" className="flex flex-col gap-2">
+                <Input
+                  type="url"
+                  placeholder="https://…"
+                  value={imageUrlDraft}
+                  onChange={(e) => setImageUrlDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); insertImageFromUrl(); } }}
+                />
+                <Button type="button" size="sm" disabled={!imageUrlDraft.trim()} onClick={insertImageFromUrl}>
+                  Inserisci
+                </Button>
+              </TabsContent>
+              <TabsContent value="file" className="flex flex-col gap-2">
+                <p className="text-xs text-[var(--dash-muted)]">Carica un'immagine dal tuo dispositivo.</p>
+                <Button type="button" size="sm" disabled={isUploadingImage} onClick={() => { setImagePopoverOpen(false); fileInputRef.current?.click(); }}>
+                  {isUploadingImage ? 'Caricamento…' : 'Scegli file'}
+                </Button>
+              </TabsContent>
+            </Tabs>
+          </PopoverContent>
+        </Popover>
+        {/* input[type=file] nascosto FUORI dal PopoverContent (che si
+            smonta alla chiusura, portale incluso): il pulsante "Scegli file"
+            sopra chiude il popover e SUBITO DOPO chiama fileInputRef.current
+            ?.click() - se l'input fosse dentro il popover, a quel punto
+            sarebbe gia' stato rimosso dal DOM. */}
         <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileSelected} className="hidden" />
-        <ToolbarButton disabled={!editable || isUploadingImage} label="Carica immagine da file" active={false} onClick={() => fileInputRef.current?.click()}>
-          <Upload className="h-4 w-4" />
-        </ToolbarButton>
       </ToolbarSection>
       {/* Sezioni future (Widget, Oggetti speciali): aggiungere qui altre
           <ToolbarSection label="..." defaultOpen={false}>...</ToolbarSection>,
@@ -528,9 +590,21 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     // (es. la select stessa) non e' un vero abbandono dell'editor, si resta
     // in modifica; altrimenti (click fuori, Tab) e' un blur genuino, si
     // torna alla vista di sola lettura come prima.
+    //
+    // closest('[data-slot="popover-content"]') in piu' (bug trovato dal vivo
+    // 2026-08-20, popover "Immagine"): toolbarWrapRef.contains() da solo non
+    // basta per il contenuto del Popover (Input/Tabs/Button dentro il tab "Da
+    // URL"/"Da file") - Radix lo monta in un Portal fuori dal DOM di
+    // toolbarWrapRef, quindi anche se e' visivamente/logicamente "dentro" la
+    // toolbar, .contains() lo vede come esterno e onBlurEditor scattava
+    // (uscita indesiderata dalla modalita' modifica) al primo click dentro
+    // l'Input. data-slot="popover-content" e' l'attributo che
+    // PopoverContent (ui/popover.tsx) mette gia' di suo su ogni istanza,
+    // nessun marcatore nuovo da aggiungere.
     onBlur: ({ event }) => {
       const related = event.relatedTarget as Node | null;
       if (toolbarWrapRef.current?.contains(related)) return;
+      if (related instanceof Element && related.closest('[data-slot="popover-content"]')) return;
       onBlurEditor?.();
     },
   });
