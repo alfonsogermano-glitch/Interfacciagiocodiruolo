@@ -54,10 +54,25 @@ const SIMPLE_BLOCK_TYPES = new Set(['paragraph', 'bulletList', 'orderedList', 'b
 // passati di nuovo per questa stessa funzione - una row dentro una cella di
 // una tabella dentro un'altra row si risolve correttamente senza bisogno di
 // un limite di profondita' esplicito, la ricorsione termina naturalmente
-// quando non restano piu' nodi non ammessi. Un nodo scartato senza figli
-// (raro per row/table, che hanno sempre almeno il minimo richiesto dallo
-// schema) sparisce silenziosamente - accettato, coerente con "la
-// formattazione puo' andare perduta".
+// quando non restano piu' nodi non ammessi.
+//
+// Caso collapseSummary (bug trovato in fase di verifica 2026-08-20, mai
+// esercitato prima perche' l'annidamento box-in-box non era ancora
+// possibile da riprodurre dal vivo): un CollapseBlock annidato dentro una
+// TextBox/CollapseBody prima di questa pulizia finisce, salendo la
+// ricorsione, a passare anche il suo collapseSummary (il titolo) per
+// flattenToAllowed - collapseSummary non e' MAI in SIMPLE_BLOCK_TYPES (un
+// box non puo' contenerne un altro, quindi nemmeno il suo sommario), quindi
+// cadrebbe nel ramo generico sotto ("spacchetta i figli") - ma il
+// contenuto di collapseSummary e' INLINE (testo/mark), non block: i nodi
+// di testo non hanno un proprio .content array su cui la ricorsione possa
+// appoggiarsi, quindi sparirebbero silenziosamente invece di essere
+// recuperati (a differenza di collapseBody, il cui contenuto e' gia'
+// block-level e si risolve correttamente nel ramo generico). Caso speciale
+// qui: avvolge il testo del titolo in un paragrafo normale invece di
+// provare a "spacchettarlo" come se fosse block-level - preserva il testo,
+// coerente con lo stesso principio guida di questa migrazione ("la
+// formattazione puo' andare perduta, il TESTO no").
 function flattenToAllowed(node: JSONContent, allowed: Set<string>): JSONContent[] {
   const type = node.type ?? '';
 
@@ -80,6 +95,11 @@ function flattenToAllowed(node: JSONContent, allowed: Set<string>): JSONContent[
       }];
     }
     return [node];
+  }
+
+  if (type === 'collapseSummary') {
+    const text = node.content ?? [];
+    return text.length > 0 ? [{ type: 'paragraph', content: text }] : [];
   }
 
   return (node.content ?? []).flatMap((child) => flattenToAllowed(child, allowed));

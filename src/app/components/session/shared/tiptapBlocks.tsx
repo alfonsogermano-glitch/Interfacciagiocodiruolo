@@ -5,21 +5,39 @@ import { ChevronRight } from 'lucide-react';
 
 // Vero fino a qualunque profondita' (non solo il genitore immediato) che il
 // cursore sia dentro un nodo di quel tipo - usata sotto per impedire
-// l'inserimento di un blocco (TextBox/CollapseBlock) dentro il sommario di
-// un Collapse (content: 'inline*', solo testo). Bug segnalato: i comandi
+// l'inserimento di un blocco (TextBox/CollapseBlock) in un punto che il suo
+// schema non accetta. Bug critico segnalato dal vivo 2026-08-20 ("ancora
+// possibile annidare un CollapseBlock dentro una TextBox, manda l'editor in
+// blocco"): il content ristretto di TextBox/CollapseBody (SIMPLE_BLOCK_CONTENT
+// sotto) gia' ESCLUDE correttamente textBox/collapseBlock a livello di
+// schema - il buco era qui, nella guardia dei comandi, ristretta al solo
+// 'collapseSummary' (content:'inline*', solo testo) e mai estesa a
+// 'textBox'/'collapseBody' quando lo schema di ENTRAMBI e' stato ristretto
+// nella pulizia "editor di testo ricco semplice". I comandi
 // setTextBox/setCollapseBlock passano da insertContentAt, che internamente
 // chiama tr.replaceWith - a differenza della logica di "adattamento"
 // (Slice.fit) usata da drag/incolla nativi di ProseMirror, replaceWith non
 // cerca una posizione alternativa valida: se il punto d'inserimento non
 // accetta quel tipo di nodo, genera un errore invece di limitarsi a
-// rifiutare silenziosamente. Controllo esplicito qui, prima di tentare
-// l'inserimento.
+// rifiutare silenziosamente - un'eccezione non gestita durante il dispatch
+// di una transazione ProseMirror e' esattamente la classe di bug che blocca
+// l'intero editor (stato interno corrotto a meta' aggiornamento).
 function isSelectionInside(state: EditorState, typeName: string): boolean {
   const { $from } = state.selection;
   for (let depth = $from.depth; depth >= 0; depth -= 1) {
     if ($from.node(depth).type.name === typeName) return true;
   }
   return false;
+}
+
+// Guardia condivisa per ENTRAMBI i comandi setTextBox/setCollapseBlock
+// (stesso identico controllo, mai andare fuori sincrono se lo schema
+// cambia ancora): un box non puo' essere inserito dentro nessuno dei tre
+// contesti "a contenuto ristretto" - dentro un'altra TextBox o dentro un
+// CollapseBody (entrambi SIMPLE_BLOCK_CONTENT, mai textBox/collapseBlock)
+// o dentro un CollapseSummary (content:'inline*', mai alcun blocco).
+function isInsideRestrictedBox(state: EditorState): boolean {
+  return isSelectionInside(state, 'textBox') || isSelectionInside(state, 'collapseBody') || isSelectionInside(state, 'collapseSummary');
 }
 
 // Contenuto ammesso DENTRO un TextBox/CollapseBlock (pulizia 2026-08-20,
@@ -30,6 +48,11 @@ function isSelectionInside(state: EditorState, typeName: string): boolean {
 // Condiviso fra TextBox e CollapseBody sotto invece di due liste separate
 // che potrebbero divergere.
 const SIMPLE_BLOCK_CONTENT = 'paragraph | bulletList | orderedList | blockquote | horizontalRule | image';
+// Stessa lista di SIMPLE_BLOCK_CONTENT sopra ma come Set di nomi, per il
+// controllo runtime in BlockContentGuard sotto - derivata dalla stringa
+// invece di un secondo elenco scritto a mano, cosi' le due non possono mai
+// disallinearsi.
+const SIMPLE_BLOCK_TYPE_NAMES = new Set(SIMPLE_BLOCK_CONTENT.split(' | '));
 
 // Box di testo: un contenitore con bordo/sfondo distintivo attorno a blocchi
 // di testo semplice - nessuna NodeView React necessaria, puro renderHTML
@@ -62,10 +85,42 @@ export const TextBox = Node.create({
       setTextBox:
         () =>
         ({ commands, state }) => {
-          if (isSelectionInside(state, 'collapseSummary')) return false;
+          if (isInsideRestrictedBox(state)) return false;
           return commands.insertContent({ type: this.name, content: [{ type: 'paragraph' }] });
         },
     };
+  },
+  // Rete di sicurezza per trascinamento/incolla di un box dentro un altro
+  // (bug critico segnalato dal vivo 2026-08-20, vedi il commento completo
+  // su isInsideRestrictedBox sopra: la guardia dei comandi copre solo il
+  // pulsante della toolbar) - stesso identico principio gia' validato per
+  // il sommario del Collapse (filterTransaction su CollapseSummary sotto):
+  // drag-and-drop/incolla nativi passano da Slice.fit, che DI NORMA trova
+  // gia' da solo una posizione alternativa valida, ma "non e' garantito per
+  // ogni caso" (motivo originale di quel primo filterTransaction, mai
+  // cambiato). Qui in piu' rispetto al sommario: due tipi di contenitore
+  // (textBox E collapseBody, non solo collapseSummary), stesso controllo
+  // "solo tipi ammessi da SIMPLE_BLOCK_TYPE_NAMES" per entrambi.
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('boxContentGuard'),
+        filterTransaction: (tr) => {
+          if (!tr.docChanged) return true;
+          let valid = true;
+          tr.doc.descendants((node) => {
+            if (!valid) return false;
+            if (node.type.name === 'textBox' || node.type.name === 'collapseBody') {
+              node.forEach((child) => {
+                if (!SIMPLE_BLOCK_TYPE_NAMES.has(child.type.name)) valid = false;
+              });
+            }
+            return valid;
+          });
+          return valid;
+        },
+      }),
+    ];
   },
 });
 
@@ -292,7 +347,7 @@ export const CollapseBlock = Node.create({
       setCollapseBlock:
         () =>
         ({ commands, state }) => {
-          if (isSelectionInside(state, 'collapseSummary')) return false;
+          if (isInsideRestrictedBox(state)) return false;
           return commands.insertContent({
             type: this.name,
             attrs: { open: false },
