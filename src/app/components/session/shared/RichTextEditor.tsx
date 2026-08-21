@@ -9,6 +9,7 @@ import { MarkdownContent } from './MarkdownContent';
 import { parseLines } from './markdownHeadings';
 import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
+import { FontFamily, FONT_FAMILIES } from './tiptapFontFamily';
 import { flattenRemovedLayoutNodes } from './tiptapLegacyMigration';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '../../ui/popover';
@@ -213,6 +214,39 @@ function FontSizeSelect({ editor, editable, onCommand }: { editor: Editor; edita
   );
 }
 
+// Tendina font (stesso pattern/stessi motivi di FontSizeSelect appena sopra:
+// <select> nativo, stopPropagation sul mousedown per lo stesso bug
+// 2026-07-31). L'attributo del mark (editor.getAttributes('fontFamily').family)
+// e' lo STACK CSS canonico salvato da tiptapFontFamily.ts (es. '"Cinzel", serif'),
+// non il semplice label mostrato in tendina - va ritrovato il FONT_FAMILIES
+// il cui value combacia; null o nessuna corrispondenza (mark mai applicato,
+// o - stesso caso limite di parseHTML in tiptapFontFamily.ts - un valore
+// esterno non riconosciuto) ricade sul label di FONT_FAMILIES[0] (Arial).
+function FontFamilySelect({ editor, editable, onCommand }: { editor: Editor; editable: boolean; onCommand: (fn: () => void) => void }) {
+  const currentFamily = editor.getAttributes('fontFamily').family as string | undefined;
+  const currentLabel = FONT_FAMILIES.find((f) => f.value === currentFamily)?.label ?? FONT_FAMILIES[0].label;
+
+  return (
+    <select
+      disabled={!editable}
+      value={currentLabel}
+      onMouseDown={(e) => e.stopPropagation()}
+      onChange={(e) => {
+        const label = e.target.value;
+        onCommand(() => editor.chain().focus().setFontFamily(label).run());
+      }}
+      aria-label="Font"
+      className={`w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-0.5 py-1.5 text-center text-xs text-[var(--dash-text)] ${
+        editable ? '' : 'cursor-not-allowed opacity-40'
+      }`}
+    >
+      {FONT_FAMILIES.map(({ label, value }) => (
+        <option key={label} value={label} style={{ fontFamily: value }}>{label}</option>
+      ))}
+    </select>
+  );
+}
+
 // Gruppo di pulsanti della toolbar con intestazione cliccabile che
 // espande/collassa il contenuto (stile accordion verticale) - progettato per
 // essere esteso in futuro con altri gruppi (Widget, Oggetti speciali) senza
@@ -370,6 +404,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
           <Strikethrough className="h-4 w-4" />
         </ToolbarButton>
         <FontSizeSelect editor={editor} editable={editable} onCommand={runCommand} />
+        <FontFamilySelect editor={editor} editable={editable} onCommand={runCommand} />
         <ToolbarButton disabled={!editable} label="Elenco puntato" active={editor.isActive('bulletList')} onClick={() => runCommand(() => editor.chain().focus().toggleBulletList().run())}>
           <List className="h-4 w-4" />
         </ToolbarButton>
@@ -649,6 +684,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
     extensions: [
       StarterKit.configure({ heading: false }),
       FontSize,
+      FontFamily,
       TextAlign.configure({ types: ['paragraph'] }),
       Image,
       ...TIPTAP_BLOCK_EXTENSIONS,

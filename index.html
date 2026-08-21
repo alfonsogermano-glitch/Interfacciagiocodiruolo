@@ -11,6 +11,13 @@
       <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
       <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
       <link rel="manifest" href="/site.webmanifest" />
+      <!-- Google Fonts per il selettore font dell'editor note (RichTextEditor.tsx/tiptapFontFamily.ts) -
+           solo i 5 font a tema GDR/fantasy scelti (Cinzel, Uncial Antiqua, Crimson Text, Merriweather,
+           Raleway), non l'intero catalogo Google Fonts. preconnect su entrambi gli host (stylesheet +
+           file dei font veri e propri) per accorciare il round-trip prima del CSS/dei glifi. -->
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+      <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Uncial+Antiqua&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&family=Merriweather:wght@400;700&family=Raleway:wght@400;600;700&display=swap" rel="stylesheet" />
       <meta name="theme-color" content="#0a0a0d" />
       <meta name="description" content="Provides an intuitive interface for High School Cthulhu players and game masters to manage gameplay, characters, and story elements efficiently." />
       <meta name="robots" content="noindex, nofollow" />
