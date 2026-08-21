@@ -516,7 +516,12 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
                 <TabsTrigger value="url" className="text-[var(--dash-muted)] data-[state=active]:bg-[var(--dash-accent)] data-[state=active]:text-[var(--dash-text-strong)]">Da URL</TabsTrigger>
                 <TabsTrigger value="file" className="text-[var(--dash-muted)] data-[state=active]:bg-[var(--dash-accent)] data-[state=active]:text-[var(--dash-text-strong)]">Da file</TabsTrigger>
               </TabsList>
-              <TabsContent value="url" className="flex flex-col gap-2">
+              {/* min-h-[76px] su entrambi i TabsContent (Input h-9=36px +
+                  gap-2=8px + Button sm h-8=32px, l'altezza del tab "Da URL"
+                  che ha piu' contenuto) cosi' switchare tab non cambia
+                  l'altezza del Popover e i pulsanti non si spostano sotto
+                  il mouse. */}
+              <TabsContent value="url" className="flex flex-col gap-2 min-h-[76px]">
                 {/* bg-[var(--dash-input)]/border-[var(--dash-border-soft)]/
                     text-[var(--dash-text)]: stesso pattern gia' usato per
                     l'input di rinomina tab in EntityTabBar.tsx e per la
@@ -543,7 +548,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
                   Inserisci
                 </Button>
               </TabsContent>
-              <TabsContent value="file" className="flex flex-col gap-2">
+              <TabsContent value="file" className="flex flex-col gap-2 min-h-[76px]">
                 <p className="text-xs text-[var(--dash-muted)]">Carica un'immagine dal tuo dispositivo.</p>
                 <Button type="button" size="sm" disabled={isUploadingImage} onClick={() => { setImagePopoverOpen(false); fileInputRef.current?.click(); }} className="bg-[var(--dash-accent)] text-[var(--dash-text-strong)] hover:bg-[var(--dash-accent-2)]">
                   {isUploadingImage ? 'Caricamento…' : 'Scegli file'}
