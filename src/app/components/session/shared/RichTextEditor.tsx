@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
-import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Undo2, Type as FontIcon, Check, PenLine, LayoutTemplate } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Undo2, Type as FontIcon, Check, PenLine, LayoutTemplate, ListTodo } from 'lucide-react';
 import TextAlign from '@tiptap/extension-text-align';
 import Image from '@tiptap/extension-image';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
 import { MarkdownContent } from './MarkdownContent';
 import { parseLines } from './markdownHeadings';
 import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
@@ -515,6 +517,17 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         <ToolbarButton disabled={!editable} label="Linea orizzontale" active={false} onClick={() => runCommand(() => editor.chain().focus().setHorizontalRule().run())}>
           <SeparatorHorizontal className="h-4 w-4" />
         </ToolbarButton>
+        {/* toggleTaskList/isActive('taskList'): comando esposto da TaskList
+            (registrata sopra) - a differenza di Box di testo/Collapse/Linea
+            orizzontale questo E' un vero toggle (si attiva/disattiva sulla
+            selezione), stesso identico pattern di Elenco puntato/numerato in
+            "Formattazione testo" sopra, solo spostato qui perche' la lista
+            di attivita' e' concettualmente un blocco (checkbox+testo), non
+            un marchio inline. Stile checkbox/testo sbarrato in theme.css
+            (.tiptap-content ul[data-type="taskList"]). */}
+        <ToolbarButton disabled={!editable} label="Attività" active={editor.isActive('taskList')} onClick={() => runCommand(() => editor.chain().focus().toggleTaskList().run())}>
+          <ListTodo className="h-4 w-4" />
+        </ToolbarButton>
         {/* Immagine: un solo pulsante, due modi di inserimento dentro lo
             stesso Popover (Da URL / Da file) - vedi imagePopoverOpen/
             insertImageFromUrl/handleFileSelected sopra.
@@ -748,6 +761,19 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
       FontFamily,
       TextAlign.configure({ types: ['paragraph'] }),
       Image,
+      // TaskList/TaskItem (pacchetti ufficiali, non un Node custom come
+      // FontSize/FontFamily sopra): a differenza di @tiptap/extension-font-
+      // family, la loro unica dipendenza (@tiptap/extension-list) e' gia'
+      // presente in node_modules ALLA STESSA versione esatta (3.29.1),
+      // portata in dotazione da StarterKit stesso (bulletList/orderedList
+      // gia' in uso sotto sono implementati li') - installarli non aggiunge
+      // un nuovo albero di dipendenze, solo due export in piu' sulla stessa
+      // libreria gia' presente (verificato con npm view/npm pack prima di
+      // installare). nested:false (il default, esplicito qui solo per
+      // chiarezza): nessuna sotto-attivita' richiesta, task piatte come le
+      // altre liste della toolbar.
+      TaskList,
+      TaskItem.configure({ nested: false }),
       ...TIPTAP_BLOCK_EXTENSIONS,
     ],
     content: initialContent,

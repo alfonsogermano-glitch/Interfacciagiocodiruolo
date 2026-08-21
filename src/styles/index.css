@@ -83,6 +83,8 @@
   --dash-danger-bg: #3a1717;
   --dash-danger-text: #f1d3d3;
   --dash-danger-hover: #522020;
+  --dash-success-border: #3f6b3a;
+  --dash-success-bg: #16261a;
   --dash-card-shadow: rgba(138, 90, 52, 0.18);
   --dash-card-frame: #6a452f;
   --dash-card-frame-soft: #3a2a20;
@@ -107,6 +109,8 @@
   --dash-danger-bg: #4d1111;
   --dash-danger-text: #ffd7d7;
   --dash-danger-hover: #6a1b1b;
+  --dash-success-border: #3d6b42;
+  --dash-success-bg: #14231a;
   --dash-card-shadow: rgba(138, 90, 52, 0.18);
   --dash-card-frame: #6a452f;
   --dash-card-frame-soft: #3a2a20;
@@ -131,6 +135,8 @@
   --dash-danger-bg: #3a1a10;
   --dash-danger-text: #ffd8c8;
   --dash-danger-hover: #5a2415;
+  --dash-success-border: #6b8f3f;
+  --dash-success-bg: #1e2612;
   --dash-card-shadow: rgba(138, 90, 52, 0.18);
   --dash-card-frame: #6a452f;
   --dash-card-frame-soft: #3a2a20;
@@ -154,6 +160,8 @@
   --dash-danger-bg: #2a1212;
   --dash-danger-text: #ffdada;
   --dash-danger-hover: #4a1f1f;
+  --dash-success-border: #3fae74;
+  --dash-success-bg: #123423;
   --dash-card-shadow: rgba(99, 216, 154, 0.18);
   --dash-card-frame: #2f9b65;
   --dash-card-frame-soft: #244333;
@@ -178,6 +186,8 @@
   --dash-danger-bg: #241216;
   --dash-danger-text: #ffdce4;
   --dash-danger-hover: #3a1c24;
+  --dash-success-border: #2f8f6f;
+  --dash-success-bg: #10241d;
   --dash-card-shadow: rgba(117, 183, 240, 0.18);
   --dash-card-frame: #3b82c4;
   --dash-card-frame-soft: #25384f;
@@ -202,6 +212,8 @@
   --dash-danger-bg: #231313;
   --dash-danger-text: #f1d3d3;
   --dash-danger-hover: #3a1c1c;
+  --dash-success-border: #4a6b52;
+  --dash-success-bg: #1a221c;
   --dash-card-shadow: rgba(194, 184, 170, 0.14);
   --dash-card-frame: #8a8176;
   --dash-card-frame-soft: #3a3a3a;
@@ -226,6 +238,8 @@
   --dash-danger-bg: #241216;
   --dash-danger-text: #ffdce4;
   --dash-danger-hover: #3a1c24;
+  --dash-success-border: #3f9b82;
+  --dash-success-bg: #102621;
   --dash-card-shadow: rgba(155, 228, 242, 0.16);
   --dash-card-frame: #4da6bf;
   --dash-card-frame-soft: #294750;
@@ -250,6 +264,8 @@
   --dash-danger-bg: #241111;
   --dash-danger-text: #f3dede;
   --dash-danger-hover: #7a3a3a;
+  --dash-success-border: #4a8f5c;
+  --dash-success-bg: #142a1c;
   --dash-card-shadow: rgba(199, 167, 255, 0.18);
   --dash-card-frame: #8c5cc7;
   --dash-card-frame-soft: #3a2a4a;
@@ -274,6 +290,8 @@
   --dash-danger-bg: #2a1717;
   --dash-danger-text: #f3dede;
   --dash-danger-hover: #3a1c1c;
+  --dash-success-border: #3ecf7a;
+  --dash-success-bg: #12271a;
   --dash-card-shadow: rgba(99, 102, 241, 0.18);
   --dash-card-frame: #6366f1;
   --dash-card-frame-soft: #2a2b3d;

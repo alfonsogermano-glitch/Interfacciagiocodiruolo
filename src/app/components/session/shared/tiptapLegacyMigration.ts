@@ -30,7 +30,22 @@ import type { JSONContent } from '@tiptap/core';
 // "tableRow"/"tableCell"/"tableHeader" ne sono deliberatamente esclusi,
 // qualunque cosa contenessero viene recuperata spacchettandoli (vedi
 // flattenToAllowed sotto).
-const DOC_LEVEL_TYPES = new Set(['paragraph', 'textBox', 'collapseBlock', 'bulletList', 'orderedList', 'blockquote', 'horizontalRule', 'image']);
+// 'taskList' (RichTextEditor.tsx, pulsante "Attività" - @tiptap/extension-
+// task-list/task-item): bug trovato dal vivo appena aggiunta l'estensione -
+// senza questo tipo nell'elenco, flattenToAllowed la tratta come "non piu'
+// valida" e la spacchetta (ricorsivamente anche i suoi taskItem, che non
+// sono MAI un tipo ammesso da soli), esponendo solo i paragrafi di testo
+// dentro ciascun taskItem come fratelli diretti del documento - la lista di
+// attivita' spariva silenziosamente ad ogni giro di setContent (il
+// useEffect su richContent in RichTextEditor.tsx richiama SEMPRE
+// flattenRemovedLayoutNodes, non solo al caricamento iniziale). Nessuna
+// voce 'taskItem' separata necessaria: col content fisso "paragraph+" (mai
+// nested:true in questo progetto, vedi RichTextEditor.tsx) un taskItem non
+// puo' mai contenere un tipo non ammesso, quindi non richiede il proprio
+// ramo di ricorsione in flattenToAllowed (stesso motivo per cui
+// bulletList/orderedList/blockquote/horizontalRule/image, gia' in questo
+// elenco, non ne hanno uno).
+const DOC_LEVEL_TYPES = new Set(['paragraph', 'textBox', 'collapseBlock', 'bulletList', 'orderedList', 'taskList', 'blockquote', 'horizontalRule', 'image']);
 
 // Tipi ammessi DENTRO un TextBox/CollapseBody (content ristretto, mai
 // 'textBox'/'collapseBlock': un box non puo' piu' contenerne un altro,

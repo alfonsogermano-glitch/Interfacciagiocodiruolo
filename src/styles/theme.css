@@ -196,6 +196,88 @@
   padding-left: 1.5rem;
 }
 
+/* Lista di attivita' (TaskList/TaskItem, RichTextEditor.tsx - pulsante
+   "Attività" in "Blocchi") - <ul data-type="taskList"> renderizzato senza
+   list-style/padding proprio (niente pallino, la checkbox lo sostituisce
+   gia' visivamente): la specificita' dell'attributo [data-type] vince sulla
+   regola generica .tiptap-content ul sopra (disc/1.5rem), qui la si azzera
+   di proposito.
+   Ogni riga e' generata dal nodeView INTERATTIVO dell'estensione (non dal
+   renderHTML statico, mai usato quando un nodeView e' presente - verificato
+   dal vivo via editor.innerHTML): <li data-checked="true|false">
+   <label><input type=checkbox><span/></label><div>contenuto</div></li> -
+   NESSUN data-type="taskItem" sul <li> (bug trovato dal vivo: i selettori
+   scritti alla prima stesura usavano li[data-type="taskItem"], che non
+   corrisponde mai a nulla nel DOM reale - solo renderHTML lo scriverebbe,
+   ma quel branch e' scavalcato dal nodeView). Selettori qui sotto scoped
+   con il combinatore diretto ul[data-type="taskList"] > li (unico tipo di
+   li che puo' comparire li' dentro, non serve altro per restare isolati
+   dagli li' di ul/ol normali) invece dell'attributo inesistente.
+   input[type=checkbox] appearance:none + pseudo-elemento ::after per il
+   segno di spunta: la checkbox nativa del browser non e' restilizzabile
+   altrimenti (colore/bordo fissi dal tema OS), stesso principio gia' visto
+   per gli altri controlli nativi (select di FontSizeSelect ecc.) - qui pero'
+   e' il DOM stesso della libreria a generarla, niente JSX nostro da
+   modificare. --dash-success-border/--dash-success-bg (index.css, un
+   blocco per ciascuna delle 9 palette dashboard): stesso pattern gia'
+   esistente di --dash-danger-* per il rosso errori, nessuna palette aveva
+   pero' un equivalente verde prima di questa feature - scelto un tono
+   diverso per palette (piu' caldo/freddo a seconda del contesto) invece di
+   un verde fisso identico ovunque, per restare coerente con lo spirito del
+   resto del sistema di palette. */
+.tiptap-content ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+.tiptap-content ul[data-type='taskList'] > li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.tiptap-content ul[data-type='taskList'] > li > label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+.tiptap-content ul[data-type='taskList'] > li > div {
+  flex: 1;
+  min-width: 0;
+}
+.tiptap-content ul[data-type='taskList'] > li input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  border: 1px solid var(--dash-border-soft);
+  border-radius: 0.25rem;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+}
+.tiptap-content ul[data-type='taskList'] > li input[type='checkbox']:checked {
+  border-color: var(--dash-success-border);
+  background: var(--dash-success-bg);
+}
+.tiptap-content ul[data-type='taskList'] > li input[type='checkbox']:checked::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: -1px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--dash-success-border);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.tiptap-content ul[data-type='taskList'] > li[data-checked='true'] > div {
+  text-decoration: line-through;
+  color: var(--dash-muted);
+}
+
 /* Il preflight di Tailwind resetta solo font-size/font-weight sui paragrafi,
    MAI il margine di default del browser - margine fisso in rem per uno
    spazio coerente tra blocchi. Il nodo "heading" (h1-h4) e' stato rimosso
