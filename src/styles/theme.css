@@ -472,6 +472,22 @@
 .tiptap-image-popover button:not(:disabled) {
   cursor: pointer;
 }
+/* user-select:none sui testi non editabili del popover (label dei tab "Da
+   URL"/"Da file", paragrafo "Carica un'immagine..."): il testo selezionabile
+   e' l'unica differenza rimasta rispetto all'input URL. :not(input) sopra
+   impedisce solo alla REGOLA di far corrispondere l'input come selettore -
+   user-select resta comunque una proprieta' ereditata, quindi l'input
+   erediterebbe "none" dal suo <div> padre (verificato dal vivo:
+   input.matches('.tiptap-image-popover *:not(input)') === false, ma
+   getComputedStyle(input).userSelect === "none" lo stesso). Serve quindi un
+   secondo reset esplicito sull'input stesso (non basta escluderlo a monte)
+   per riportarlo al comportamento nativo normale. */
+.tiptap-image-popover *:not(input) {
+  user-select: none;
+}
+.tiptap-image-popover input {
+  user-select: text;
+}
 
 /* Scrollbar nativa ristilizzata sulla palette del tema attivo (vedi
    l'esclusione di .tiptap-content dalla soppressione globale in index.css)
