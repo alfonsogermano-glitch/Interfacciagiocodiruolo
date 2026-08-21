@@ -1,4 +1,5 @@
 import { Node } from '@tiptap/core';
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { ICON_DATA, DEFAULT_ICON_NAME } from './tiptapIconData';
 
 declare module '@tiptap/core' {
@@ -119,4 +120,37 @@ export const InlineIcon = Node.create({
   // fisica). Spostata in RichTextEditor.tsx, TIPTAP_EDITOR_PROPS.handleKeyDown
   // (view prop diretta, valutata da ProseMirror PRIMA di qualunque plugin/
   // keymap - vedi il commento li' per la verifica nel sorgente).
+  //
+  // filterTransaction QUI invece (non in handleKeyDown): diagnosi dal vivo
+  // con tastiera fisica (log temporanei in RichTextEditor.tsx, vedi storia
+  // commit) ha mostrato che al vero bordo del paragrafo (icona come
+  // ultimo/primo contenuto - handleKeyDown non ha nulla da scavalcare li',
+  // nodeAfter/nodeBefore nullo, ritorna false) il nativo non resta fermo:
+  // genera una TextSelection non vuota i cui bordi coincidono esattamente
+  // con l'icona, sincronizzata nello stato tramite una transazione propria
+  // (dal domObserver del browser, non dalla nostra keydown). Un primo
+  // tentativo la correggeva al keydown SUCCESSIVO dentro handleKeyDown -
+  // troppo tardi, quella transazione arriva PRIMA che il nostro handler
+  // legga lo stato, quindi la freccia che la genera mostra gia' il salto
+  // per una pressione intera. filterTransaction gira dentro
+  // EditorState.applyTransaction PRIMA che QUALUNQUE transazione (di
+  // qualunque origine, non solo la tastiera) venga applicata: rifiutarla
+  // qui lascia lo stato invariato, e ProseMirror risincronizza da solo la
+  // selezione DOM su quella (invariata) del modello nello stesso ciclo di
+  // updateState - nessuna pressione successiva necessaria per accorgersene.
+  addProseMirrorPlugins() {
+    const inlineIconName = this.name;
+    return [
+      new Plugin({
+        key: new PluginKey('inlineIconSpuriousRangeSelection'),
+        filterTransaction(tr) {
+          if (!tr.selectionSet) return true;
+          const sel = tr.selection;
+          if (sel.empty || !(sel instanceof TextSelection)) return true;
+          const node = sel.$from.nodeAfter;
+          return !(node && node.type.name === inlineIconName && sel.to === sel.from + node.nodeSize);
+        },
+      }),
+    ];
+  },
 });

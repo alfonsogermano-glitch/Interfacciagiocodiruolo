@@ -176,25 +176,16 @@ const TIPTAP_EDITOR_PROPS = {
         }
       }
 
-      // Caso 4 (diagnosticato dal vivo con log temporaneo, vedi storia
-      // commit): al vero bordo del paragrafo (icona come ultimo/primo
-      // contenuto, niente oltre in quella direzione - nodeAfter/nodeBefore
-      // null, quindi il ramo sopra non scatta) il nativo NON resta fermo:
-      // trasforma il caret in una TextSelection non vuota i cui bordi
-      // coincidono esattamente con quelli dell'icona (osservato: (4,4) ->
-      // (3,4) dopo una singola ArrowRight con nodeAfter nullo). Alla
-      // pressione successiva selection.empty e' false, quindi il ramo sopra
-      // (scritto solo per caret vuoti) non la riconosce, e il nativo la
-      // collassa sul bordo giusto - da cui il "rimbalzo" percepito fra le
-      // due pressioni. $from qui e' sempre risolto sul bordo INFERIORE
-      // della selezione (selection.from), quindi $from.nodeAfter e' sempre
-      // il candidato giusto indipendentemente dalla direzione della
-      // freccia che ha innescato il range.
-      if (!selection.empty && $from.nodeAfter?.type.name === InlineIcon.name && selection.to === selection.from + $from.nodeAfter.nodeSize) {
-        const targetPos = direction === 'right' ? selection.to : selection.from;
-        view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, targetPos)));
-        return true;
-      }
+      // Il caso limite del vero bordo del paragrafo (icona come
+      // ultimo/primo contenuto, nodeAfter/nodeBefore nullo qui sopra - il
+      // nativo genera li' una TextSelection-range spuria che copre
+      // esattamente l'icona) NON si corregge qui: un tentativo reattivo al
+      // keydown successivo arrivava troppo tardi (la transazione di sync
+      // selezione del browser precede la lettura dello stato in questo
+      // handler, quindi la freccia che la genera mostrava gia' il salto
+      // per una pressione intera). Bloccata alla radice da
+      // filterTransaction in tiptapInlineIcon.ts (addProseMirrorPlugins) -
+      // vedi il commento li' per i dettagli.
     }
 
     return false;
