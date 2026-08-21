@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
+import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
 import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Undo2, Type as FontIcon, Check, PenLine, LayoutTemplate, ListTodo, Shapes, Sword, Swords, Shield, Target, Crosshair, Skull, Bomb, Zap, Flame, Biohazard, Sparkles, Wand, Ghost, Eye, Moon, Sun, Feather, Scroll, Radiation, Snowflake, Compass, Map, MapPin, Mountain, Tent, Footprints, Anchor, Ship, Route, Signpost, User, Users, Crown, GraduationCap, Drama, Briefcase, Key, Gem, Coins, Pickaxe, FlaskConical, Pill, Syringe, Dice6, BookOpen, Castle, Church, Landmark, DoorOpen, Home, Store, Trees, Activity, Bell, Brain, Star, Heart, Music, Theater, Newspaper, type LucideIcon } from 'lucide-react';
@@ -128,9 +129,55 @@ const TIPTAP_EDITOR_PROPS = {
   // (= "non gestito da me") garantisce che ProseMirror non chiami
   // preventDefault/stopPropagation su questo evento per nessun motivo,
   // lasciando il comportamento nativo del browser intatto.
-  handleKeyDown(_view, event: KeyboardEvent) {
+  // Frecce attorno al nodo InlineIcon (bug segnalato dal vivo con tastiera
+  // fisica, tre casi - vedi tiptapInlineIcon.ts per la cronologia): un
+  // primo tentativo con addKeyboardShortcuts (nel Node stesso) NON
+  // funzionava con la tastiera reale - il keymap di ProseMirror applica lo
+  // shortcut ma poi il comportamento nativo per gli atom veniva comunque
+  // eseguito dopo (il cursore "rimbalzava" indietro), perche' entrambi i
+  // gestori vivono nello stesso plugin keymap e ProseMirror non garantisce
+  // che il nostro handler vinca sempre sul default lì. handleKeyDown qui
+  // (un plugin separato, valutato PRIMA della keymap dell'editor - vedi
+  // EditorView.someProp priority) risolve alla radice: return true blocca
+  // ESPLICITAMENTE ogni comportamento nativo successivo per quell'evento,
+  // niente puo' piu' sovrascriverlo.
+  handleKeyDown(view, event: KeyboardEvent) {
     const isHardRefresh = (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'r';
     if (isHardRefresh) return false;
+
+    if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+      const direction = event.key === 'ArrowRight' ? 'right' : 'left';
+      const { state } = view;
+      const { selection } = state;
+
+      // Caso: NodeSelection gia' attiva sull'icona (es. dopo un click) -
+      // la freccia la supera. selection.to/from sono gia' rispettivamente
+      // pos+nodeSize e pos del nodo selezionato.
+      if (selection instanceof NodeSelection && selection.node.type.name === InlineIcon.name) {
+        const targetPos = direction === 'right' ? selection.to : selection.from;
+        view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, targetPos)));
+        return true;
+      }
+
+      // Caso: cursore di testo semplice adiacente all'icona nella direzione
+      // di marcia - la scavalca direttamente in una sola pressione, senza
+      // mai passare da una NodeSelection intermedia (questo e' cio' che
+      // evita il caso limite dell'icona a inizio/fine paragrafo, dove il
+      // default di ProseMirror non forma nemmeno una NodeSelection).
+      // $from.nodeBefore/nodeAfter (non doc.nodeAt) restano validi anche
+      // li'.
+      if (selection.empty) {
+        const { $from } = selection;
+        const adjacentNode = direction === 'right' ? $from.nodeAfter : $from.nodeBefore;
+        if (adjacentNode && adjacentNode.type.name === InlineIcon.name) {
+          const targetPos = direction === 'right' ? $from.pos + adjacentNode.nodeSize : $from.pos - adjacentNode.nodeSize;
+          view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, targetPos)));
+          return true;
+        }
+      }
+    }
+
+    return false;
   },
 };
 
