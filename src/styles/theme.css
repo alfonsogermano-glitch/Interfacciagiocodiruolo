@@ -230,9 +230,24 @@
   padding-left: 0;
   margin: 0;
 }
+/* align-items:center sul <li> (prima versione di questa regola) centrava
+   la checkbox correttamente per un task su una riga sola (verificato dal
+   vivo via getBoundingClientRect, scarto di ~2px) ma per un task che va a
+   capo su piu' righe centrava la checkbox contro l'ALTEZZA TOTALE del
+   blocco di testo multi-riga, facendola "galleggiare" a meta' del paragrafo
+   invece di stare ancorata al testo - questo e' il "checkbox spostata"
+   segnalato dal vivo. flex-start sul <li> + margin-top calcolato sulla
+   label (stesso principio usato da Notion/GitHub/Todoist per le checklist):
+   ancora la checkbox all'inizio del blocco, poi lo spostamento verticale
+   qui sotto la centra otticamente sulla PRIMA riga di testo soltanto -
+   corretto sia per una riga sola (dove coincide quasi con align-items:
+   center) sia per piu' righe (dove ora resta ancorata in alto invece di
+   vagare a meta' testo). margin-top: (line-height 24px del paragrafo -
+   altezza 16px della checkbox) / 2 = 4px, verificato dal vivo
+   (getComputedStyle: line-height 24px, font-size 16px su .tiptap-content p). */
 .tiptap-content ul[data-type='taskList'] > li {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
 }
 .tiptap-content ul[data-type='taskList'] > li > label {
@@ -240,6 +255,7 @@
   align-items: center;
   cursor: pointer;
   user-select: none;
+  margin-top: 0.25rem;
 }
 .tiptap-content ul[data-type='taskList'] > li > div {
   flex: 1;
