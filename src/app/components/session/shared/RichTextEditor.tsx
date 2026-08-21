@@ -357,7 +357,22 @@ function IconPicker({ editor, editable, onCommand }: { editor: Editor; editable:
         <TooltipContent side="right">Icone</TooltipContent>
       </Tooltip>
       <PopoverContent side="top" align="start" collisionPadding={8} className="tiptap-icon-popover w-64 z-[9999] bg-[var(--dash-panel)] text-[var(--dash-text-strong)] border-[var(--dash-border-soft)] p-2" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="flex max-h-80 flex-col gap-3 overflow-y-auto">
+        {/* tiptap-icon-popover-scroll: la regola globale
+            *:not(.tiptap-content) in index.css nasconde la scrollbar
+            ovunque tranne che nell'editor stesso (scelta voluta li', per
+            non mostrare scrollbar di sistema fuori posto nel resto della
+            UI) - questo div PERO' ha davvero bisogno di una scrollbar
+            visibile (7 categorie/60 icone, ben oltre gli 80 di altezza
+            massima) come indizio che sotto c'e' altro da scorrere, stesso
+            identico motivo per cui .tiptap-content e' gia' esclusa da
+            quella regola. Overflow verticale REALE ma scrollbar invisibile
+            (bug segnalato dal vivo) - stessa causa, stessa exclusion,
+            aggiunta al selettore in index.css invece di una regola qui che
+            verrebbe comunque scavalcata (stessa specificita' di
+            *:not(...), ma quella regola viene DOPO theme.css nell'ordine
+            finale del cascade - vedi index.css, gli @import di
+            fonts/tailwind/theme vengono prima del resto del file). */}
+        <div className="tiptap-icon-popover-scroll flex max-h-80 flex-col gap-3 overflow-y-auto">
           {ICON_CATEGORIES.map(({ label, icons }) => (
             <div key={label}>
               <div className="mb-1 px-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--dash-muted)]">{label}</div>
@@ -379,7 +394,23 @@ function IconPicker({ editor, editable, onCommand }: { editor: Editor; editable:
                           <IconComponent className="h-4 w-4" />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent side="top">{name}</TooltipContent>
+                      {/* z-[10000] (sovrascrive lo z-[1200] di default di
+                          TooltipContent, cn() usa tailwind-merge quindi
+                          l'ultima classe vince, stesso principio gia' visto
+                          per bg-[var(--dash-panel)] ecc. sul Popover
+                          Immagine): questo tooltip appare mentre il
+                          Popover (z-[9999]) e' gia' aperto, non prima -
+                          serve superarlo, non solo il default z-50 di un
+                          Popover/menu qualunque. Basta sull'elemento
+                          Content stesso: Arrow e il div della cornice
+                          dentro TooltipContent (ui/tooltip.tsx) restano al
+                          loro z-[1200] originale, ma competono solo FRA
+                          LORO dentro lo stacking context che il Content
+                          stesso crea (essendone entrambi discendenti) - una
+                          volta che il Content e' sopra al Popover, tutto
+                          cio' che ci sta dentro lo segue automaticamente,
+                          indipendentemente dal proprio z-index locale. */}
+                      <TooltipContent side="top" className="z-[10000]">{name}</TooltipContent>
                     </Tooltip>
                   );
                 })}

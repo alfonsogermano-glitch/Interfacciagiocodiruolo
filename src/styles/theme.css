@@ -623,6 +623,32 @@
   cursor: pointer;
 }
 
+/* Scrollbar della griglia icone (tiptap-icon-popover-scroll,
+   RichTextEditor.tsx) - stesso identico ristile "sulla palette attiva" gia'
+   usato per .tiptap-content piu' sotto (scrollbar-color + fallback
+   ::-webkit-scrollbar-* per Chrome/Safari piu' datati), qui pero'
+   scrollbar-width:thin invece di lasciare il default "auto" del browser
+   (bug segnalato dal vivo: la scrollbar era proprio invisibile, non solo
+   grigia di sistema - vedi l'esclusione dedicata in index.css, la stessa
+   regola globale che gia' nasconde ogni altra scrollbar dell'app tranne
+   .tiptap-content) - un popover stretto (w-64) sta meglio con una
+   scrollbar sottile che con lo spessore "auto" pensato per l'area di testo
+   piu' ampia dell'editor. */
+.tiptap-icon-popover-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--dash-border-soft) var(--dash-panel);
+}
+.tiptap-icon-popover-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.tiptap-icon-popover-scroll::-webkit-scrollbar-track {
+  background: var(--dash-panel);
+}
+.tiptap-icon-popover-scroll::-webkit-scrollbar-thumb {
+  background: var(--dash-border-soft);
+  border-radius: 4px;
+}
+
 /* Scrollbar nativa ristilizzata sulla palette del tema attivo (vedi
    l'esclusione di .tiptap-content dalla soppressione globale in index.css)
    - senza queste regole il browser userebbe il proprio grigio di sistema,
