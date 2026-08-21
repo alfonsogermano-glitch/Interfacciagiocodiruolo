@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
-import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Undo2, Type as FontIcon, Check, Baseline, LayoutTemplate } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Undo2, Type as FontIcon, Check, PenLine, LayoutTemplate } from 'lucide-react';
 import TextAlign from '@tiptap/extension-text-align';
 import Image from '@tiptap/extension-image';
 import { MarkdownContent } from './MarkdownContent';
@@ -445,7 +445,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
 
   return (
     <div onMouseDown={(e) => e.preventDefault()} className="tiptap-toolbar flex w-11 shrink-0 flex-col gap-2">
-      <ToolbarSection label="Formattazione testo" icon={<Baseline className="h-4 w-4" />} defaultOpen>
+      <ToolbarSection label="Formattazione testo" icon={<PenLine className="h-4 w-4" />} defaultOpen>
         <ToolbarButton disabled={!editable} label="Grassetto" active={boldActive} onClick={() => runCommand(() => editor.chain().focus().toggleBold().run())}>
           <Bold className="h-4 w-4" />
         </ToolbarButton>
