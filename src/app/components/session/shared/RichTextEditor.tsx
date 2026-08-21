@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
-import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Undo2, Type as FontIcon, Check } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Undo2, Type as FontIcon, Check, Baseline, LayoutTemplate } from 'lucide-react';
 import TextAlign from '@tiptap/extension-text-align';
 import Image from '@tiptap/extension-image';
 import { MarkdownContent } from './MarkdownContent';
@@ -305,7 +305,19 @@ function FontFamilyPicker({ editor, editable, onCommand }: { editor: Editor; edi
 // L'intestazione resta sempre cliccabile anche in sola lettura/!canEdit -
 // espandere/collassare e' solo UI, non modifica nulla; solo i pulsanti di
 // formattazione dentro (ToolbarButton) si disabilitano in quel caso.
-function ToolbarSection({ label, defaultOpen, children }: { label: string; defaultOpen: boolean; children: React.ReactNode }) {
+//
+// icon (non piu' <span>{label}</span> per intero): la colonna e' w-11 (44px)
+// - il testo completo ("Formattazione testo"/"Blocchi") ci stava solo
+// troncato con l'ellissi di truncate, illeggibile (bug segnalato dal vivo).
+// Un'icona rappresentativa passata da ogni chiamata (vedi Toolbar sotto,
+// stesso principio di ToolbarButton che gia' riceve la propria icona come
+// children) occupa lo stesso spazio del testo troncato ma resta leggibile;
+// il nome per esteso resta disponibile via tooltip (TooltipContent{label}
+// sotto, invariato) e via aria-label esplicito (il bottone non ha piu' testo
+// visibile da cui uno screen reader potrebbe altrimenti derivarlo). Il
+// ChevronRight resta accanto per lo stesso indicatore di stato
+// aperto/chiuso di prima (rotate-90), solo senza piu' testo a fianco.
+function ToolbarSection({ label, icon, defaultOpen, children }: { label: string; icon: React.ReactNode; defaultOpen: boolean; children: React.ReactNode }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div>
@@ -315,10 +327,11 @@ function ToolbarSection({ label, defaultOpen, children }: { label: string; defau
             type="button"
             onClick={() => setOpen((o) => !o)}
             aria-expanded={open}
-            className="flex w-full items-center gap-0.5 rounded-md px-0.5 py-1 text-left text-[10px] font-medium uppercase tracking-wide text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]"
+            aria-label={label}
+            className="flex w-full items-center justify-center gap-0.5 rounded-md px-0.5 py-1.5 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]"
           >
+            {icon}
             <ChevronRight className={`h-3 w-3 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
-            <span className="truncate">{label}</span>
           </button>
         </TooltipTrigger>
         <TooltipContent side="right">{label}</TooltipContent>
@@ -432,7 +445,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
 
   return (
     <div onMouseDown={(e) => e.preventDefault()} className="tiptap-toolbar flex w-11 shrink-0 flex-col gap-2">
-      <ToolbarSection label="Formattazione testo" defaultOpen>
+      <ToolbarSection label="Formattazione testo" icon={<Baseline className="h-4 w-4" />} defaultOpen>
         <ToolbarButton disabled={!editable} label="Grassetto" active={boldActive} onClick={() => runCommand(() => editor.chain().focus().toggleBold().run())}>
           <Bold className="h-4 w-4" />
         </ToolbarButton>
@@ -489,7 +502,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
           concettualmente diversi, da cui la sezione dedicata (confermato nel
           piano). Pulsanti "insert", non toggle: nessuno stato attivo/non
           attivo da riflettere (active sempre false). */}
-      <ToolbarSection label="Blocchi" defaultOpen>
+      <ToolbarSection label="Blocchi" icon={<LayoutTemplate className="h-4 w-4" />} defaultOpen>
         <ToolbarButton disabled={!editable} label="Box di testo" active={false} onClick={() => runCommand(() => editor.chain().focus().setTextBox().run())}>
           <Square className="h-4 w-4" />
         </ToolbarButton>
@@ -648,7 +661,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileSelected} className="hidden" />
       </ToolbarSection>
       {/* Sezioni future (Widget, Oggetti speciali): aggiungere qui altre
-          <ToolbarSection label="..." defaultOpen={false}>...</ToolbarSection>,
+          <ToolbarSection label="..." icon={<... />} defaultOpen={false}>...</ToolbarSection>,
           nessuna modifica a ToolbarSection/ToolbarButton necessaria. */}
       {/* Annulla: undo nativo di TipTap History (gia' incluso in StarterKit,
           nessuna estensione nuova) - stesso identico comando gia'
