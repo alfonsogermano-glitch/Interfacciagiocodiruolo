@@ -489,6 +489,21 @@
   user-select: text;
 }
 
+/* .tiptap-font-popover (PopoverContent del pulsante "Font" in
+   RichTextEditor.tsx, FontFamilyPicker): stesso bug/stessa causa di
+   .tiptap-image-popover sopra (Portal fuori dall'albero DOM di
+   .tiptap-toolbar). Nessun <input> qui dentro - ogni riga della lista e' un
+   <button> - quindi nessuna eccezione :not(input) necessaria, a differenza
+   del popover Immagine. */
+.tiptap-font-popover,
+.tiptap-font-popover * {
+  cursor: default;
+  user-select: none;
+}
+.tiptap-font-popover button:not(:disabled) {
+  cursor: pointer;
+}
+
 /* Scrollbar nativa ristilizzata sulla palette del tema attivo (vedi
    l'esclusione di .tiptap-content dalla soppressione globale in index.css)
    - senza queste regole il browser userebbe il proprio grigio di sistema,

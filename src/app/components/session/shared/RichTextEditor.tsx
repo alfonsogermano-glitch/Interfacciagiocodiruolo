@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
-import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Undo2 } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Undo2, Type as FontIcon, Check } from 'lucide-react';
 import TextAlign from '@tiptap/extension-text-align';
 import Image from '@tiptap/extension-image';
 import { MarkdownContent } from './MarkdownContent';
@@ -214,36 +214,84 @@ function FontSizeSelect({ editor, editable, onCommand }: { editor: Editor; edita
   );
 }
 
-// Tendina font (stesso pattern/stessi motivi di FontSizeSelect appena sopra:
-// <select> nativo, stopPropagation sul mousedown per lo stesso bug
-// 2026-07-31). L'attributo del mark (editor.getAttributes('fontFamily').family)
-// e' lo STACK CSS canonico salvato da tiptapFontFamily.ts (es. '"Cinzel", serif'),
-// non il semplice label mostrato in tendina - va ritrovato il FONT_FAMILIES
-// il cui value combacia; null o nessuna corrispondenza (mark mai applicato,
-// o - stesso caso limite di parseHTML in tiptapFontFamily.ts - un valore
-// esterno non riconosciuto) ricade sul label di FONT_FAMILIES[0] (Arial).
-function FontFamilySelect({ editor, editable, onCommand }: { editor: Editor; editable: boolean; onCommand: (fn: () => void) => void }) {
+// Pulsante Font con Popover (stesso pattern del Popover "Immagine" piu'
+// sotto, non un <select> nativo come FontSizeSelect - una tendina nativa coi
+// nomi degli 11 font occupava troppa larghezza fissa nella colonna stretta
+// (w-11) della toolbar; un'icona singola che apre un Popover ha lo stesso
+// ingombro di ToolbarButton/il pulsante Immagine, indipendentemente da
+// quanti font ci siano in lista).
+//
+// span intermedio tra TooltipTrigger e PopoverTrigger: stesso identico
+// disaccoppiamento gia' documentato sotto per il Popover Immagine (due
+// Popper.Anchor annidati sullo stesso nodo lascerebbero il tooltip bloccato
+// sul placeholder iniziale di Radix, mai rimisurato).
+//
+// onMouseDown/stopPropagation su PopoverContent: stesso motivo di
+// FontSizeSelect/Popover Immagine - il mousedown di un pulsante nella lista
+// risalirebbe altrimenti fino al div radice di Toolbar (preventDefault li',
+// vedi Toolbar sotto), che React fa risalire lungo l'albero dei COMPONENTI
+// (non quello del DOM) quindi il Portal da solo non basta a isolarlo.
+//
+// side="top"/align="start"/collisionPadding/z-[9999]/le variabili
+// --dash-panel/--dash-text-strong/--dash-border-soft: stessi identici motivi
+// gia' documentati per il Popover Immagine sotto (colonna Toolbar stretta,
+// SlideOverPanel a z-[900], --popover/--popover-foreground non legate alla
+// palette attiva).
+//
+// classe "tiptap-font-popover": stesso bug cursor:text del Portal gia' visto
+// per "tiptap-image-popover" (theme.css) - il Portal di Radix monta FUORI
+// dall'albero DOM di .tiptap-toolbar, quindi quella regola non lo
+// raggiunge; qui pero' non c'e' nessun <input> da escludere (a differenza
+// del popover Immagine), ogni riga e' un <button>.
+function FontFamilyPicker({ editor, editable, onCommand }: { editor: Editor; editable: boolean; onCommand: (fn: () => void) => void }) {
+  const [open, setOpen] = useState(false);
   const currentFamily = editor.getAttributes('fontFamily').family as string | undefined;
   const currentLabel = FONT_FAMILIES.find((f) => f.value === currentFamily)?.label ?? FONT_FAMILIES[0].label;
 
   return (
-    <select
-      disabled={!editable}
-      value={currentLabel}
-      onMouseDown={(e) => e.stopPropagation()}
-      onChange={(e) => {
-        const label = e.target.value;
-        onCommand(() => editor.chain().focus().setFontFamily(label).run());
-      }}
-      aria-label="Font"
-      className={`w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-0.5 py-1.5 text-center text-xs text-[var(--dash-text)] ${
-        editable ? '' : 'cursor-not-allowed opacity-40'
-      }`}
-    >
-      {FONT_FAMILIES.map(({ label, value }) => (
-        <option key={label} value={label} style={{ fontFamily: value }}>{label}</option>
-      ))}
-    </select>
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex">
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                disabled={!editable}
+                aria-label="Font"
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md p-1.5 transition-colors text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)] ${!editable ? 'cursor-not-allowed opacity-40' : ''}`}
+              >
+                <FontIcon className="h-4 w-4" />
+              </button>
+            </PopoverTrigger>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="right">Font</TooltipContent>
+      </Tooltip>
+      <PopoverContent side="top" align="start" collisionPadding={8} className="tiptap-font-popover w-48 z-[9999] bg-[var(--dash-panel)] text-[var(--dash-text-strong)] border-[var(--dash-border-soft)] p-1" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="flex max-h-72 flex-col gap-0.5 overflow-y-auto">
+          {FONT_FAMILIES.map(({ label, value }) => {
+            const active = label === currentLabel;
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() => {
+                  onCommand(() => editor.chain().focus().setFontFamily(label).run());
+                  setOpen(false);
+                }}
+                className={`flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-left text-sm transition-colors hover:bg-[var(--dash-surface-2)] ${
+                  active ? 'border-[var(--dash-accent)] text-[var(--dash-text-strong)]' : 'border-transparent text-[var(--dash-text)]'
+                }`}
+                style={{ fontFamily: value }}
+              >
+                <span className="truncate">{label}</span>
+                {active && <Check className="h-3.5 w-3.5 shrink-0 text-[var(--dash-accent)]" />}
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -404,7 +452,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
           <Strikethrough className="h-4 w-4" />
         </ToolbarButton>
         <FontSizeSelect editor={editor} editable={editable} onCommand={runCommand} />
-        <FontFamilySelect editor={editor} editable={editable} onCommand={runCommand} />
+        <FontFamilyPicker editor={editor} editable={editable} onCommand={runCommand} />
         <ToolbarButton disabled={!editable} label="Elenco puntato" active={editor.isActive('bulletList')} onClick={() => runCommand(() => editor.chain().focus().toggleBulletList().run())}>
           <List className="h-4 w-4" />
         </ToolbarButton>
