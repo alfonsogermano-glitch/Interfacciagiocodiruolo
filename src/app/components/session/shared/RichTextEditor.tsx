@@ -500,7 +500,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
               (dash-muted/dash-surface-2/dash-text-strong sopra) e per
               .tiptap-collapse in theme.css (stesso identico sfondo/testo/
               bordo per un pannello "galleggiante" nel tema). */}
-          <PopoverContent side="top" align="start" collisionPadding={8} className="w-64 z-[9999] bg-[var(--dash-panel)] text-[var(--dash-text-strong)] border-[var(--dash-border-soft)]" onMouseDown={(e) => e.stopPropagation()}>
+          <PopoverContent side="top" align="start" collisionPadding={8} className="tiptap-image-popover w-64 z-[9999] bg-[var(--dash-panel)] text-[var(--dash-text-strong)] border-[var(--dash-border-soft)]" onMouseDown={(e) => e.stopPropagation()}>
             <Tabs defaultValue="url" className="gap-3">
               {/* bg-[var(--dash-surface)]/border-[var(--dash-border-soft)]
                   sul gruppo, data-[state=active]:bg-[var(--dash-accent)] sul

@@ -456,6 +456,23 @@
   cursor: pointer;
 }
 
+/* .tiptap-image-popover (PopoverContent del pulsante "Immagine" in
+   RichTextEditor.tsx): stesso bug/stessa causa di .tiptap-toolbar sopra, ma
+   la regola li' non basta a coprirlo - Radix monta il PopoverContent in un
+   Portal FUORI dall'albero DOM di .tiptap-toolbar (vedi usePortalContainer
+   in ui/popover.tsx), quindi ".tiptap-toolbar *" non lo raggiunge. Stesso
+   reset qui, con l'eccezione esplicita dell'input URL (:not(input)) che
+   deve mantenere il proprio cursor:text nativo - e' l'unico punto del
+   popover dove quel cursore e' corretto (bug segnalato dal vivo
+   2026-08-21). */
+.tiptap-image-popover,
+.tiptap-image-popover *:not(input) {
+  cursor: default;
+}
+.tiptap-image-popover button:not(:disabled) {
+  cursor: pointer;
+}
+
 /* Scrollbar nativa ristilizzata sulla palette del tema attivo (vedi
    l'esclusione di .tiptap-content dalla soppressione globale in index.css)
    - senza queste regole il browser userebbe il proprio grigio di sistema,
