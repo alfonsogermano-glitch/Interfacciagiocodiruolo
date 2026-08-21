@@ -1,4 +1,5 @@
 import { Node } from '@tiptap/core';
+import { NodeSelection } from '@tiptap/pm/state';
 import { ICON_DATA, DEFAULT_ICON_NAME } from './tiptapIconData';
 
 declare module '@tiptap/core' {
@@ -110,6 +111,57 @@ export const InlineIcon = Node.create({
         (name: string) =>
         ({ chain }) =>
           chain().focus().insertContent({ type: this.name, attrs: { name } }).run(),
+    };
+  },
+
+  // Frecce attorno al nodo (bug segnalato dal vivo, tre casi):
+  // 1) cursore di testo (TextSelection) subito PRIMA/DOPO l'icona - il
+  //    comportamento di default di ProseMirror per un atom trasforma la
+  //    PRIMA pressione di freccia in una NodeSelection sull'icona invece
+  //    di spostare il cursore oltre.
+  // 2) quella NodeSelection, se gia' presente (es. dopo un click - vedi
+  //    test "ancora selezionabile con NodeSelection" nel piano approvato),
+  //    andrebbe comunque superata dalla freccia successiva.
+  // 3) caso limite verificato dal vivo: con l'icona come PRIMO figlio del
+  //    paragrafo, ArrowLeft non forma nemmeno una NodeSelection (a
+  //    differenza del caso 1 a meta' testo) - ProseMirror la tratta come
+  //    "nessuna posizione valida a sinistra" e non fa nulla, cursore
+  //    bloccato dopo l'icona senza alcun modo di arrivare prima di essa.
+  // Un solo handler copre tutti e tre i casi (senza mai passare da una
+  // NodeSelection intermedia quando parte da un semplice cursore di testo,
+  // il caso 3 sopra: bypassarla e' proprio cio' che la evita) invece di
+  // reagire soltanto a una NodeSelection gia' esistente (coprirebbe solo
+  // il caso 2, non 1 ne' 3). Il click continua a formare una NodeSelection
+  // regolarmente (Canc/digitazione sopra la selezione la sostituiscono
+  // gia' nativamente, comportamento voluto, non toccato qui) - solo le
+  // frecce la scavalcano sempre, non la creano mai da sole.
+  addKeyboardShortcuts() {
+    const moveCursorAroundIcon = (direction: 'left' | 'right') => () => {
+      const { editor } = this;
+      const { selection } = editor.state;
+
+      // Caso 2: la selezione e' gia' una NodeSelection su questa icona
+      // (es. dopo un click) - la freccia la supera. selection.to/from di
+      // una NodeSelection sono gia' rispettivamente pos+nodeSize e pos del
+      // nodo selezionato, non serve ricalcolarli a mano.
+      if (selection instanceof NodeSelection && selection.node.type.name === this.name) {
+        return editor.commands.setTextSelection(direction === 'right' ? selection.to : selection.from);
+      }
+
+      // Casi 1 e 3: cursore di testo semplice adiacente all'icona nella
+      // direzione di marcia - la supera direttamente. $from.nodeBefore/
+      // nodeAfter (non doc.nodeAt) restano validi anche a inizio/fine
+      // paragrafo, dove non c'e' nulla oltre l'icona in quella direzione.
+      if (!selection.empty) return false;
+      const { $from } = selection;
+      const adjacentNode = direction === 'right' ? $from.nodeAfter : $from.nodeBefore;
+      if (!adjacentNode || adjacentNode.type.name !== this.name) return false;
+      const targetPos = direction === 'right' ? $from.pos + adjacentNode.nodeSize : $from.pos - adjacentNode.nodeSize;
+      return editor.commands.setTextSelection(targetPos);
+    };
+    return {
+      ArrowRight: moveCursorAroundIcon('right'),
+      ArrowLeft: moveCursorAroundIcon('left'),
     };
   },
 });
