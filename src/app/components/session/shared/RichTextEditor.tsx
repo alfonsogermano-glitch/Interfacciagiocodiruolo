@@ -349,7 +349,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
   };
 
   return (
-    <div onMouseDown={(e) => e.preventDefault()} className="flex w-11 shrink-0 flex-col gap-2">
+    <div onMouseDown={(e) => e.preventDefault()} className="tiptap-toolbar flex w-11 shrink-0 flex-col gap-2">
       <ToolbarSection label="Formattazione testo" defaultOpen>
         <ToolbarButton disabled={!editable} label="Grassetto" active={boldActive} onClick={() => runCommand(() => editor.chain().focus().toggleBold().run())}>
           <Bold className="h-4 w-4" />

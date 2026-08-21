@@ -437,6 +437,25 @@
   padding: 6px;
 }
 
+/* .tiptap-toolbar (Toolbar in RichTextEditor.tsx, colonna di pulsanti a
+   sinistra del testo) mostrava il cursore a I (cursor:text) invece della
+   normale freccia sui pulsanti/icone - il browser applica cursor:text sul
+   div contenteditable di ProseMirror (.tiptap-content) e in certi casi
+   quel cursore resta "appeso" sugli elementi vicini quando il puntatore
+   passa dalla colonna di testo alla barra. Reset esplicito a default su
+   tutta la barra e i suoi discendenti (icone SVG comprese), poi pointer
+   solo sui controlli davvero cliccabili (bottoni/select non disabilitati) -
+   quelli disabilitati (vedi cursor-not-allowed in ToolbarButton/
+   FontSizeSelect) restano con la freccia normale, non pointer. */
+.tiptap-toolbar,
+.tiptap-toolbar * {
+  cursor: default;
+}
+.tiptap-toolbar button:not(:disabled),
+.tiptap-toolbar select:not(:disabled) {
+  cursor: pointer;
+}
+
 /* Scrollbar nativa ristilizzata sulla palette del tema attivo (vedi
    l'esclusione di .tiptap-content dalla soppressione globale in index.css)
    - senza queste regole il browser userebbe il proprio grigio di sistema,
