@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
-import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Undo2, Type as FontIcon, Check, PenLine, LayoutTemplate, ListTodo } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Undo2, Type as FontIcon, Check, PenLine, LayoutTemplate, ListTodo, Shapes, Sword, Swords, Shield, Target, Crosshair, Skull, Bomb, Zap, Flame, Biohazard, Sparkles, Wand, Ghost, Eye, Moon, Sun, Feather, Scroll, Radiation, Snowflake, Compass, Map, MapPin, Mountain, Tent, Footprints, Anchor, Ship, Route, Signpost, User, Users, Crown, GraduationCap, Drama, Briefcase, Key, Gem, Coins, Pickaxe, FlaskConical, Pill, Syringe, Dice6, BookOpen, Castle, Church, Landmark, DoorOpen, Home, Store, Trees, Activity, Bell, Brain, Star, Heart, Music, Theater, Newspaper, type LucideIcon } from 'lucide-react';
 import TextAlign from '@tiptap/extension-text-align';
 import Image from '@tiptap/extension-image';
 import TaskList from '@tiptap/extension-task-list';
@@ -12,6 +12,8 @@ import { parseLines } from './markdownHeadings';
 import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
 import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { FontFamily, FONT_FAMILIES } from './tiptapFontFamily';
+import { InlineIcon } from './tiptapInlineIcon';
+import { ICON_CATEGORIES } from './tiptapIconData';
 import { flattenRemovedLayoutNodes } from './tiptapLegacyMigration';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '../../ui/popover';
@@ -297,6 +299,99 @@ function FontFamilyPicker({ editor, editable, onCommand }: { editor: Editor; edi
   );
 }
 
+// Nome -> componente React lucide-react, solo per la GRIGLIA del Popover
+// sotto (interfaccia della toolbar, React normale) - non c'entra col nodo
+// del documento inlineIcon (tiptapInlineIcon.ts), che renderizza SVG puro
+// via renderHTML/DOMOutputSpec senza mai passare da questi componenti (la
+// restrizione "niente ReactNodeViewRenderer" del piano approvato riguarda
+// SOLO il contenuto del documento TipTap, non la UI della toolbar che lo
+// inserisce). Stessa identica lista di nomi di ICON_CATEGORIES
+// (tiptapIconData.ts) - se le due divergessero un'icona apparirebbe nella
+// categoria ma senza componente per disegnarla in griglia; nessuna verifica
+// automatica dell'allineamento fra le due liste, stesso compromesso gia'
+// accettato altrove in questo file (es. SIMPLE_BLOCK_TYPES duplicato in
+// tiptapBlocks.tsx/tiptapLegacyMigration.ts) per non introdurre una
+// dipendenza fra un modulo di soli dati e uno di sola UI.
+const ICON_COMPONENTS: Record<string, LucideIcon> = {
+  Sword, Swords, Shield, Target, Crosshair, Skull, Bomb, Zap, Flame, Biohazard,
+  Sparkles, Wand, Ghost, Eye, Moon, Sun, Feather, Scroll, Radiation, Snowflake,
+  Compass, Map, MapPin, Mountain, Tent, Footprints, Anchor, Ship, Route, Signpost,
+  User, Users, Crown, GraduationCap, Drama, Briefcase,
+  Key, Gem, Coins, Pickaxe, FlaskConical, Pill, Syringe, Dice6, BookOpen,
+  Castle, Church, Landmark, DoorOpen, Home, Store, Trees,
+  Activity, Bell, Brain, Star, Heart, Music, Theater, Newspaper,
+};
+
+// Popover icone (pulsante "Icone" in "Blocchi") - stesso identico pattern
+// di FontFamilyPicker sopra (Popover controllato, span intermedio per
+// disaccoppiare Tooltip/PopoverTrigger dallo stesso bug Popper gia'
+// documentato per il Popover Immagine, onMouseDown stopPropagation,
+// side="top"/z-[9999]/variabili --dash-*). A differenza di FontFamilyPicker
+// (11 voci, lista singola) qui sono 60 icone in 7 categorie: una griglia
+// per categoria invece di una lista a colonna singola, altrimenti il
+// popover sarebbe scomodamente alto/stretto. Nessuno stato "attivo" da
+// evidenziare (a differenza del font corrente) - inserire un'icona e' un
+// comando "insert", non un toggle su una selezione di testo esistente
+// (stesso identico principio di Box di testo/Collapse/Linea orizzontale in
+// "Blocchi" sotto, tutti senza stato attivo/non attivo).
+function IconPicker({ editor, editable, onCommand }: { editor: Editor; editable: boolean; onCommand: (fn: () => void) => void }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex">
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                disabled={!editable}
+                aria-label="Icone"
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md p-1.5 transition-colors text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)] ${!editable ? 'cursor-not-allowed opacity-40' : ''}`}
+              >
+                <Shapes className="h-4 w-4" />
+              </button>
+            </PopoverTrigger>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="right">Icone</TooltipContent>
+      </Tooltip>
+      <PopoverContent side="top" align="start" collisionPadding={8} className="tiptap-icon-popover w-64 z-[9999] bg-[var(--dash-panel)] text-[var(--dash-text-strong)] border-[var(--dash-border-soft)] p-2" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="flex max-h-80 flex-col gap-3 overflow-y-auto">
+          {ICON_CATEGORIES.map(({ label, icons }) => (
+            <div key={label}>
+              <div className="mb-1 px-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--dash-muted)]">{label}</div>
+              <div className="grid grid-cols-6 gap-1">
+                {icons.map((name) => {
+                  const IconComponent = ICON_COMPONENTS[name];
+                  if (!IconComponent) return null;
+                  return (
+                    <Tooltip key={name}>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onCommand(() => editor.chain().focus().insertIcon(name).run());
+                            setOpen(false);
+                          }}
+                          className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]"
+                        >
+                          <IconComponent className="h-4 w-4" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">{name}</TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // Gruppo di pulsanti della toolbar con intestazione cliccabile che
 // espande/collassa il contenuto (stile accordion verticale) - progettato per
 // essere esteso in futuro con altri gruppi (Widget, Oggetti speciali) senza
@@ -528,6 +623,13 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         <ToolbarButton disabled={!editable} label="Attività" active={editor.isActive('taskList')} onClick={() => runCommand(() => editor.chain().focus().toggleTaskList().run())}>
           <ListTodo className="h-4 w-4" />
         </ToolbarButton>
+        {/* insertIcon: comando esposto da InlineIcon (tiptapInlineIcon.ts,
+            registrata sotto) - come Box di testo/Collapse/Linea orizzontale
+            sopra e' un comando "insert", non un toggle: nessuno stato
+            attivo/non attivo da riflettere (vedi commento su IconPicker
+            sopra), a differenza di FontFamilyPicker che invece evidenzia
+            il font corrente. */}
+        <IconPicker editor={editor} editable={editable} onCommand={runCommand} />
         {/* Immagine: un solo pulsante, due modi di inserimento dentro lo
             stesso Popover (Da URL / Da file) - vedi imagePopoverOpen/
             insertImageFromUrl/handleFileSelected sopra.
@@ -774,6 +876,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEd
       // altre liste della toolbar.
       TaskList,
       TaskItem.configure({ nested: false }),
+      InlineIcon,
       ...TIPTAP_BLOCK_EXTENSIONS,
     ],
     content: initialContent,

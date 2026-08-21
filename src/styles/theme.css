@@ -610,6 +610,19 @@
   cursor: pointer;
 }
 
+/* .tiptap-icon-popover (PopoverContent del pulsante "Icone" in
+   RichTextEditor.tsx, IconPicker): stesso identico bug/stessa causa di
+   .tiptap-font-popover sopra. Nessun <input> qui dentro (solo bottoni
+   icona per categoria), stessa assenza di eccezione :not(input). */
+.tiptap-icon-popover,
+.tiptap-icon-popover * {
+  cursor: default;
+  user-select: none;
+}
+.tiptap-icon-popover button:not(:disabled) {
+  cursor: pointer;
+}
+
 /* Scrollbar nativa ristilizzata sulla palette del tema attivo (vedi
    l'esclusione di .tiptap-content dalla soppressione globale in index.css)
    - senza queste regole il browser userebbe il proprio grigio di sistema,
