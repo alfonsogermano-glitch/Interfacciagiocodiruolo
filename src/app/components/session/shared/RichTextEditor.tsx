@@ -356,7 +356,25 @@ function IconPicker({ editor, editable, onCommand }: { editor: Editor; editable:
         </TooltipTrigger>
         <TooltipContent side="right">Icone</TooltipContent>
       </Tooltip>
-      <PopoverContent side="top" align="start" collisionPadding={8} className="tiptap-icon-popover w-64 z-[9999] bg-[var(--dash-panel)] text-[var(--dash-text-strong)] border-[var(--dash-border-soft)] p-2" onMouseDown={(e) => e.stopPropagation()}>
+      {/* onOpenAutoFocus preventDefault: bug segnalato dal vivo - la prima
+          icona (Sword) sembrava "evidenziata diversamente" dalle altre.
+          Non e' uno stile CSS applicato (verificato dal vivo: getComputedStyle
+          della prima icona e di una qualunque altra e' IDENTICO in ogni
+          proprieta', nessuna regola active/selected coinvolta) - Radix
+          sposta li' il focus da solo quando il Popover si apre (comportamento
+          di default di Popover.Content, verificato dal vivo:
+          document.activeElement === il bottone della prima icona subito
+          dopo l'apertura), e Tooltip (correttamente, per accessibilita')
+          mostra il proprio contenuto anche su focus, non solo su hover -
+          il tooltip "Sword" restava quindi visibile in permanenza sopra la
+          prima icona finche' non si spostava il mouse altrove, dando
+          l'impressione di un'icona "attiva" diversa dalle altre. Questo
+          picker serve solo per INSERIRE un'icona (nessun campo dentro su
+          cui avrebbe senso portare il focus in automatico, a differenza di
+          un form) - prevenire l'auto-focus e' la correzione giusta, non
+          uno stile da sopprimere (non ce n'era nessuno) ne' un'esclusione
+          CSS da aggiungere (non e' un'eredita' CSS). */}
+      <PopoverContent side="top" align="start" collisionPadding={8} onOpenAutoFocus={(e) => e.preventDefault()} className="tiptap-icon-popover w-64 z-[9999] bg-[var(--dash-panel)] text-[var(--dash-text-strong)] border-[var(--dash-border-soft)] p-2" onMouseDown={(e) => e.stopPropagation()}>
         {/* tiptap-icon-popover-scroll: la regola globale
             *:not(.tiptap-content) in index.css nasconde la scrollbar
             ovunque tranne che nell'editor stesso (scelta voluta li', per
