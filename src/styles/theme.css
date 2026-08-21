@@ -278,11 +278,19 @@
   border-color: var(--dash-success-border);
   background: var(--dash-success-bg);
 }
+/* inset:0 + margin:auto (invece di left/top manuali) centra geometricamente
+   il rettangolo 4x8 NON ruotato dentro il quadrato della checkbox - la
+   rotazione (transform, sotto) gira il rettangolo attorno al proprio centro
+   (transform-origin di default) SENZA spostare quel centro, quindi resta
+   centrato indipendentemente dai valori esatti di width/height, a
+   differenza di left/top fissi che vanno ricalcolati a mano ogni volta e
+   sono facili da sbagliare (bug segnalato dal vivo: la spunta risultava
+   decentrata in alto con i vecchi left:2px/top:-1px). */
 .tiptap-content ul[data-type='taskList'] > li input[type='checkbox']:checked::after {
   content: '';
   position: absolute;
-  left: 2px;
-  top: -1px;
+  inset: 0;
+  margin: auto;
   width: 4px;
   height: 8px;
   border: solid var(--dash-success-border);
