@@ -618,7 +618,7 @@ export interface Monster {
   maxFreschezza: number | null;
   audacia?: number;
   caselleFreschezzaCritiche?: number[];
-  caselleFrischezzaCruciali: number[];
+  caselleFrischezzaCruciali?: number[];
 
   attacco: 'Base' | 'Critico' | 'Estremo' | 'Impossibile' | 'Non euclideo' | '';
   difesa: 'Base' | 'Critico' | 'Estremo' | 'Impossibile' | 'Non euclideo' | '';
@@ -1243,8 +1243,8 @@ export interface Adventure {
   kind: 'intro' | 'standard' | 'final';
   isActive: boolean;
   nextAdventureIds: string[];
-  createdAt?: string;
-  updatedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export async function loadAdventures(campaignId: string): Promise<Adventure[]> {
