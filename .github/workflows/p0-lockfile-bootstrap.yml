@@ -86,27 +86,28 @@ jobs:
           if start_count == 1 and end_count >= 1:
               start_idx = text.index(start)
               end_idx = text.index(end, start_idx) + len(end)
-              old = text[start_idx:end_idx]
-              new = """    visualAssetsCachePromise = (async () => {
-      const { data, error } = await supabase
-        .from('visual_assets')
-        .select('id,campaign_id,name,type,image_data_url,thumbnail_url,created_at')
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        console.error('Errore caricamento visual assets da Supabase:', error);
-        const fallbackItems = await localVisualAssetsStorage.getAll();
-        const sortedFallback = sortVisualAssets(fallbackItems);
-        updateVisualAssetsCache(sortedFallback);
-        visualAssetsCachePromise = null;
-        return sortedFallback;
-      }
-
-      const items = sortVisualAssets((data ?? []).map(row => fromVisualAssetRow(row as VisualAssetRow)));
-      updateVisualAssetsCache(items);
-      visualAssetsCachePromise = null;
-      return items;
-    })();"""
+              new = "\n".join([
+                  "    visualAssetsCachePromise = (async () => {",
+                  "      const { data, error } = await supabase",
+                  "        .from('visual_assets')",
+                  "        .select('id,campaign_id,name,type,image_data_url,thumbnail_url,created_at')",
+                  "        .order('created_at', { ascending: true });",
+                  "",
+                  "      if (error) {",
+                  "        console.error('Errore caricamento visual assets da Supabase:', error);",
+                  "        const fallbackItems = await localVisualAssetsStorage.getAll();",
+                  "        const sortedFallback = sortVisualAssets(fallbackItems);",
+                  "        updateVisualAssetsCache(sortedFallback);",
+                  "        visualAssetsCachePromise = null;",
+                  "        return sortedFallback;",
+                  "      }",
+                  "",
+                  "      const items = sortVisualAssets((data ?? []).map(row => fromVisualAssetRow(row as VisualAssetRow)));",
+                  "      updateVisualAssetsCache(items);",
+                  "      visualAssetsCachePromise = null;",
+                  "      return items;",
+                  "    })();",
+              ])
               p.write_text(text[:start_idx] + new + text[end_idx:])
 
           Path('p0-patch-diagnostics.txt').write_text('\n'.join(report) + '\n')
