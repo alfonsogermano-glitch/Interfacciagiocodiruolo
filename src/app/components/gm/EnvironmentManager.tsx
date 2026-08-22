@@ -140,10 +140,13 @@ const LOCATION_TYPE_OPTIONS: Array<{
   { value: 'other', label: 'Altro' }
 ];
 
-function normalizeEnvironment(item: Partial<Environment>): Environment {
+function normalizeEnvironment(
+  item: Partial<Environment>,
+  fallbackCampaignId: string
+): Environment {
   return {
     id: item.id ?? generateUUID(),
-    campaignId: item.campaignId ?? campaignId,
+    campaignId: item.campaignId ?? fallbackCampaignId,
     adventureId: item.adventureId ?? null,
     parentLocationId: item.parentLocationId ?? null,
     mapLocationId: item.mapLocationId ?? null,
@@ -290,7 +293,7 @@ export function EnvironmentManager({
         const loadedEnvironments = await loadEnvironments(campaignId);
 
         const normalizedEnvironments = loadedEnvironments.map((env: any) =>
-          normalizeEnvironment(env)
+          normalizeEnvironment(env, campaignId)
           );
 
         setEnvironmentsLocal(normalizedEnvironments);

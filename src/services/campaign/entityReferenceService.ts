@@ -88,7 +88,7 @@ async function loadReferencesFromSupabase(
     return [];
   }
 
-  return normalizeReferences(data ?? [], campaignId);
+  return normalizeReferences((data ?? []) as unknown as RawReference[], campaignId);
 }
 
 async function loadReferences(

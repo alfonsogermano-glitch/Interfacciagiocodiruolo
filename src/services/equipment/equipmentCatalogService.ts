@@ -243,7 +243,7 @@ async function deleteLocalCatalogItem(
   campaignId?: string | null
 ): Promise<void> {
   if (isTauriRuntime()) {
-    await deleteTauriEntity(campaignId ?? 'global', 'equipmentCatalog', id);
+    await deleteTauriEntity('equipmentCatalog', id);
     return;
   }
 

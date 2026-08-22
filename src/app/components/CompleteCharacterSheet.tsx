@@ -154,7 +154,7 @@ export function CompleteCharacterSheet({
                       </div>
                       <div>
                         <div className="text-xs text-[#8b7355] mb-1">Prodigio</div>
-                        <div className="text-[#e8d4b8] text-sm">{character.prodigio || 'Nessuno'}</div>
+                        <div className="text-[#e8d4b8] text-sm">{character.prodigi || 'Nessuno'}</div>
                       </div>
                     </div>
                   </div>

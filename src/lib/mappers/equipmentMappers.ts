@@ -14,6 +14,13 @@ export function mapEquipmentCatalogRow(
     id: row.id,
     campaignId: row.campaign_id,
     createdBy: row.created_by,
+    imageAssetId: row.image_asset_id ?? null,
+    iconId: row.icon_id ?? null,
+    iconColor: row.icon_color ?? null,
+    linkedEnvironmentIds: row.linked_environment_ids ?? [],
+    linkedNpcIds: row.linked_npc_ids ?? [],
+    linkedMonsterIds: row.linked_monster_ids ?? [],
+    containerItemId: row.container_item_id ?? null,
 
     name: row.name,
     description: row.description,
