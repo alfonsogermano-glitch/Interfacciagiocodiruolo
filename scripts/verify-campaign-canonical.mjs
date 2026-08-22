@@ -1,7 +1,11 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const server = readFileSync('supabase/functions/server/index.tsx', 'utf8');
 const context = readFileSync('src/app/campaigns/CampaignContext.tsx', 'utf8');
+const deleteMigrationPath = 'supabase-p0-4-campaign-delete-membership.sql';
+const deleteMigration = existsSync(deleteMigrationPath)
+  ? readFileSync(deleteMigrationPath, 'utf8')
+  : '';
 
 const failures = [];
 
@@ -11,6 +15,8 @@ for (const required of [
   'deleted_at',
   'async function mirrorPlayerCampaignsKv',
   'await mirrorPlayerCampaignsKv(profileId)',
+  'async function softDeleteCampaignAndRevokeMembers',
+  'await softDeleteCampaignAndRevokeMembers(userId, campaignId)',
 ]) {
   if (!server.includes(required)) failures.push(`Edge Function missing required SQL-canonical marker: ${required}`);
 }
@@ -24,6 +30,23 @@ for (const forbidden of [
   if (server.includes(forbidden)) failures.push(`Edge Function still reads legacy KV as campaign authority: ${forbidden}`);
 }
 
+if (!deleteMigration) {
+  failures.push(`Missing P0.4 campaign delete migration: ${deleteMigrationPath}`);
+} else {
+  for (const required of [
+    'soft_delete_campaign_and_revoke_members',
+    'security definer',
+    'set search_path = public',
+    'revoke all on function public.soft_delete_campaign_and_revoke_members',
+    'grant execute on function public.soft_delete_campaign_and_revoke_members',
+    'to service_role',
+  ]) {
+    if (!deleteMigration.toLowerCase().includes(required.toLowerCase())) {
+      failures.push(`Campaign delete migration missing required marker: ${required}`);
+    }
+  }
+}
+
 if (context.includes('campaignSyncService')) {
   failures.push('CampaignContext still imports the legacy client-side campaign SQL mirror service');
 }
@@ -32,9 +55,9 @@ if (context.includes('ensureCampaignExistsInDB')) {
 }
 
 if (failures.length > 0) {
-  console.error('P0.3 canonical campaign contract failed:');
+  console.error('P0 canonical campaign contract failed:');
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
 
-console.log('P0.3 canonical campaign contract: PASS');
+console.log('P0 canonical campaign contract: PASS');
