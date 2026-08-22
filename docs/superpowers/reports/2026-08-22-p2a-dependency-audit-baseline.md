@@ -20,20 +20,73 @@ The pre-change CI baseline on Node 22 / npm 10 reports:
 
 ## RED harness
 
-P2A adds the permanent command below to the branch CI before any dependency or lockfile change:
+P2A added `npm audit --audit-level=high` before changing the dependency graph.
 
-```bash
-npm audit --audit-level=high
-```
+RED CI run `32598737715`, job `97093651538` behaved as required:
 
-The first run is expected to fail. Its purpose is to capture the exact advisory/package paths before selecting any remediation.
+- `npm ci`: success;
+- `npm audit --audit-level=high`: failure;
+- `npm run check`: skipped after the failing security gate.
+
+A second read-only diagnostic run (`32598827908`) added `npm ls nanoid postcss react-router tar vite` to establish exact dependency paths.
 
 ## Advisory classification
 
-To be filled from the failing RED CI log before any package version is changed.
-
-| Package | Severity | Installed/dependency path | Vulnerable range | Fix available | Direct/transitive | Current-major fix? | Runtime/build/tooling |
+| Package | Severity | Installed / dependency path | Vulnerable range | Selected remediation | Direct/transitive | Same-major fix? | Role |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| `nanoid` | High | `vite@6.3.5 -> postcss@8.5.15 -> nanoid@3.3.12` | `<=3.3.17` | `3.3.18` through normal lockfile audit fix | transitive | yes | build tooling |
+| `postcss` | High | `vite@6.3.5 -> postcss@8.5.15` | `<=8.5.22` | `8.5.26` through normal lockfile audit fix | transitive | yes | build tooling |
+| `react-router` | High | root direct `react-router@7.13.0` | `6.0.0 - 7.18.1` | exact `7.18.2` | direct | yes, major 7 | runtime |
+| `tar` | Critical | `@tailwindcss/vite@4.1.12 -> @tailwindcss/oxide@4.1.12 -> tar@7.5.16` | `<=7.5.20` | `7.5.22` through normal lockfile audit fix | transitive | yes | build tooling |
+| `vite` | High | root `vite@6.3.5`; also deduped beneath `@tailwindcss/vite` and `@vitejs/plugin-react` | `<=6.4.2` | exact `6.4.3` | direct | yes, major 6 | build tooling |
+
+The RED audit included multiple GHSA records across those five affected packages, including RCE/XSS/DoS/open-redirect issues in the affected React Router range and a critical tar advisory set. No `--force` remediation was required.
+
+## Candidate generation and GREEN pre-commit verification
+
+A CI workspace generated a candidate without repository write permission:
+
+```bash
+npm install --package-lock-only --save-exact react-router@7.18.2 vite@6.4.3
+npm audit fix --package-lock-only
+```
+
+The candidate then pinned every direct dependency/devDependency to its exact already-resolved lock version and retained React/ReactDOM peers at exact `18.3.1`.
+
+Candidate CI run `32598905898`, job `97094062494` verified before artifact upload:
+
+- `npm audit --audit-level=high`: success;
+- audit total: `0 vulnerabilities`;
+- clean `rm -rf node_modules && npm ci`: success;
+- clean install: 353 packages / 354 audited / `0 vulnerabilities`;
+- `npm run check`: success;
+- canonical campaign contract: PASS;
+- Vite production build: success using `vite 6.4.3`;
+- JS bundle unchanged at about 1.841 MB minified / 495.86 KB gzip;
+- only the pre-existing mixed import and chunk-size warnings remain;
+- no application source edit was required.
+
+The candidate package graph includes:
+
+- `react-router 7.18.2`;
+- `vite 6.4.3`;
+- `postcss 8.5.26`;
+- `nanoid 3.3.18`;
+- `tar 7.5.22`.
+
+`@supabase/supabase-js` was already resolved by the pre-P2A lockfile to `2.108.1`; P2A only makes that already-installed major-2 version explicit in `package.json`, so it does not introduce a Supabase client graph upgrade.
+
+## Direct version pinning
+
+The verified candidate removes floating direct declarations:
+
+- `@iconify/react`: `latest` -> exact `6.0.2` (the version already resolved by the prior lockfile);
+- `@supabase/supabase-js`: `^2.49.8` -> exact `2.108.1` (already resolved by the prior lockfile);
+- direct TipTap packages: `^3.29.1` -> exact `3.29.1`;
+- `react-easy-crop`: `^6.0.2` -> exact `6.0.2`;
+- security fixes: `react-router 7.18.2`, `vite 6.4.3`.
+
+No Vite major, React major, Recharts major, Tailwind major, TipTap major, or Supabase major change is part of P2A.
 
 ## Non-security baseline
 
@@ -45,4 +98,4 @@ The prior successful CI run confirms:
 - `npm run build`: success;
 - bundle baseline: ~1.841 MB minified / ~495.86 KB gzip.
 
-No dependency version has been changed at this point.
+The verified candidate preserves the same bundle measurements and existing build-warning profile.
