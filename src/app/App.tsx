@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { PresenceProvider } from './presence/PresenceContext';
 import LandingPage from './landing/LandingPage';
@@ -7,7 +7,7 @@ import { DeleteData } from './legal/DeleteData';
 import { SetNewPasswordModal } from './landing/SetNewPasswordModal';
 import { CampaignProvider, useCampaign } from './campaigns/CampaignContext';
 import { NotificationsProvider } from './notifications/NotificationsContext';
-import { CampaignHome, type SessionEntityOpenRequest } from './campaigns/CampaignHome';
+import type { SessionEntityOpenRequest } from './campaigns/CampaignHome';
 import type { Campaign } from './campaigns/campaignTypes';
 import { RulesetProvider } from './campaigns/RulesetContext';
 import { HomeScreen } from './home/HomeScreen';
@@ -15,29 +15,9 @@ import { AppShell } from './layout/AppShell';
 import { LeftSidebar } from './layout/LeftSidebar';
 import { GmSectionSidebar } from './layout/GmSectionSidebar';
 import { TopBar } from './layout/TopBar';
-import { SettingsModal } from './components/SettingsModal';
-import { ReportBugModal } from './components/ReportBugModal';
-import { NewsPage } from './news/NewsPage';
-import { SessionRightSidebar } from './components/session/SessionRightSidebar';
-
-import { AdventureManager } from './components/gm/AdventureManager';
-import { PlayerCharacters } from './components/gm/PlayerCharacters';
-import { MyCharactersPage } from './components/gm/MyCharactersPage';
-import { CampaignsPage } from './components/gm/CampaignsPage';
-import { NPCsManager } from './components/gm/NPCsManager';
-import { EnvironmentManager } from './components/gm/EnvironmentManager';
-import { CluesManager } from './components/gm/CluesManager';
-import { SituationsManager } from './components/gm/SituationsManager';
-import { MonstersManager } from './components/gm/MonstersManager';
-import { CombatTracker } from './components/gm/CombatTracker';
-import { GameMap } from './components/gm/GameMap';
-import { GamePhases } from './components/gm/GamePhases';
-import { EquipmentCatalogPage } from '../features/gm/pages/EquipmentCatalogPage';
-import { VisualAssetsManager } from './components/gm/VisualAssetsManager';
-import { SceneEncounterManager } from './components/gm/SceneEncounterManager';
+import { LazyFeatureFallback } from './components/LazyFeatureFallback';
 
 import { ensureCampaignBootstrap } from '../services/campaign/ensureCampaignBootstrap';
-
 
 import {
   loadDashboardSettings,
@@ -45,6 +25,68 @@ import {
   saveDashboardSettings,
   type DashboardSettings
 } from '../services/settings/dashboardSettings';
+
+const CampaignHome = lazy(() =>
+  import('./campaigns/CampaignHome').then(module => ({ default: module.CampaignHome }))
+);
+const SettingsModal = lazy(() =>
+  import('./components/SettingsModal').then(module => ({ default: module.SettingsModal }))
+);
+const ReportBugModal = lazy(() =>
+  import('./components/ReportBugModal').then(module => ({ default: module.ReportBugModal }))
+);
+const NewsPage = lazy(() =>
+  import('./news/NewsPage').then(module => ({ default: module.NewsPage }))
+);
+const SessionRightSidebar = lazy(() =>
+  import('./components/session/SessionRightSidebar').then(module => ({ default: module.SessionRightSidebar }))
+);
+
+const AdventureManager = lazy(() =>
+  import('./components/gm/AdventureManager').then(module => ({ default: module.AdventureManager }))
+);
+const PlayerCharacters = lazy(() =>
+  import('./components/gm/PlayerCharacters').then(module => ({ default: module.PlayerCharacters }))
+);
+const MyCharactersPage = lazy(() =>
+  import('./components/gm/MyCharactersPage').then(module => ({ default: module.MyCharactersPage }))
+);
+const CampaignsPage = lazy(() =>
+  import('./components/gm/CampaignsPage').then(module => ({ default: module.CampaignsPage }))
+);
+const NPCsManager = lazy(() =>
+  import('./components/gm/NPCsManager').then(module => ({ default: module.NPCsManager }))
+);
+const EnvironmentManager = lazy(() =>
+  import('./components/gm/EnvironmentManager').then(module => ({ default: module.EnvironmentManager }))
+);
+const CluesManager = lazy(() =>
+  import('./components/gm/CluesManager').then(module => ({ default: module.CluesManager }))
+);
+const SituationsManager = lazy(() =>
+  import('./components/gm/SituationsManager').then(module => ({ default: module.SituationsManager }))
+);
+const MonstersManager = lazy(() =>
+  import('./components/gm/MonstersManager').then(module => ({ default: module.MonstersManager }))
+);
+const CombatTracker = lazy(() =>
+  import('./components/gm/CombatTracker').then(module => ({ default: module.CombatTracker }))
+);
+const GameMap = lazy(() =>
+  import('./components/gm/GameMap').then(module => ({ default: module.GameMap }))
+);
+const GamePhases = lazy(() =>
+  import('./components/gm/GamePhases').then(module => ({ default: module.GamePhases }))
+);
+const VisualAssetsManager = lazy(() =>
+  import('./components/gm/VisualAssetsManager').then(module => ({ default: module.VisualAssetsManager }))
+);
+const SceneEncounterManager = lazy(() =>
+  import('./components/gm/SceneEncounterManager').then(module => ({ default: module.SceneEncounterManager }))
+);
+const EquipmentCatalogPage = lazy(() =>
+  import('../features/gm/pages/EquipmentCatalogPage').then(module => ({ default: module.EquipmentCatalogPage }))
+);
 
 type NavigationTarget = {
   tabId: string;
@@ -82,57 +124,57 @@ function Dashboard({ activeTab, navigationTarget, onNavigate, onEnterCampaign, r
 
   return (
     <div className="px-6 py-6">
+      <Suspense fallback={<LazyFeatureFallback />}>
+        {activeTab === 'phases' && <GamePhases />}
 
-      {activeTab === 'phases' && <GamePhases />}
+        {activeTab === 'adventures' && (
+          <AdventureManager campaignId={activeCampaignId} />
+        )}
 
-      {activeTab === 'adventures' && (
-        <AdventureManager campaignId={activeCampaignId} />
-      )}
+        {activeTab === 'players' && <PlayerCharacters navigationTarget={navigationTarget} />}
+        {activeTab === 'characters' && (
+          <MyCharactersPage
+            detailContext={rightSidebarContext?.kind === 'characters-detail' ? rightSidebarContext : null}
+            onOpenDetail={(entityType, id) => onChangeRightSidebarContext({ kind: 'characters-detail', entityType, id })}
+            onCloseDetail={() => onChangeRightSidebarContext(null)}
+          />
+        )}
+        {activeTab === 'campaigns' && <CampaignsPage onNavigate={onNavigate} onEnterCampaign={onEnterCampaign} />}
+        {activeTab === 'npcs' && (
+          <NPCsManager navigationTarget={navigationTarget} />
+        )}
+        {activeTab === 'map' && <GameMap />}
 
-      {activeTab === 'players' && <PlayerCharacters navigationTarget={navigationTarget} />}
-      {activeTab === 'characters' && (
-        <MyCharactersPage
-          detailContext={rightSidebarContext?.kind === 'characters-detail' ? rightSidebarContext : null}
-          onOpenDetail={(entityType, id) => onChangeRightSidebarContext({ kind: 'characters-detail', entityType, id })}
-          onCloseDetail={() => onChangeRightSidebarContext(null)}
-        />
-      )}
-      {activeTab === 'campaigns' && <CampaignsPage onNavigate={onNavigate} onEnterCampaign={onEnterCampaign} />}
-      {activeTab === 'npcs' && (
-        <NPCsManager navigationTarget={navigationTarget} />
-      )}
-      {activeTab === 'map' && <GameMap />}
+        {activeTab === 'environments' && (
+          <EnvironmentManager
+            campaignId={activeCampaignId}
+            navigationTarget={navigationTarget}
+            onNavigate={onNavigate}
+          />
+        )}
 
-      {activeTab === 'environments' && (
-        <EnvironmentManager
-          campaignId={activeCampaignId}
-          navigationTarget={navigationTarget}
-          onNavigate={onNavigate}
-        />
-      )}
+        {activeTab === 'scene-encounter' && <SceneEncounterManager />}
+        {activeTab === 'clues' && <CluesManager />}
+        {activeTab === 'situations' && <SituationsManager />}
+        {activeTab === 'monsters' && (
+          <MonstersManager
+            navigationTarget={navigationTarget}
+            onNavigate={onNavigate}
+          />
+        )}
+        {activeTab === 'combat' && <CombatTracker />}
 
-      {activeTab === 'scene-encounter' && <SceneEncounterManager />}
-      {activeTab === 'clues' && <CluesManager />}
-      {activeTab === 'situations' && <SituationsManager />}
-      {activeTab === 'monsters' && (
-        <MonstersManager
-          navigationTarget={navigationTarget}
-          onNavigate={onNavigate}
-        />
-      )}
-      {activeTab === 'combat' && <CombatTracker />}
+        {activeTab === 'equipment-catalog' && (
+          <EquipmentCatalogPage
+            campaignId={activeCampaignId}
+            onNavigate={onNavigate}
+          />
+        )}
 
-      {activeTab === 'equipment-catalog' && (
-        <EquipmentCatalogPage
-          campaignId={activeCampaignId}
-          onNavigate={onNavigate}
-        />
-      )}
-
-      {activeTab === 'visual-assets' && (
-        <VisualAssetsManager campaignId={activeCampaignId} />
-      )}
-
+        {activeTab === 'visual-assets' && (
+          <VisualAssetsManager campaignId={activeCampaignId} />
+        )}
+      </Suspense>
     </div>
   );
 }
@@ -356,16 +398,13 @@ function AuthGate() {
           />
         }
         rightSidebar={
-          // niente rail per la tab "characters": EntityDetailRail vive li',
-          // fixed, dentro MyCharactersPage stessa (vedi commento in quel file) -
-          // se montata qui come sibling flex di <main>, farebbe ricalcolare la
-          // larghezza della griglia (e quindi ricentrarla) ogni volta che il
-          // pannello dettaglio si apre/chiude.
-          view === 'dashboard' && !['characters', 'campaigns'].includes(activeGmTab) ? (
-            <GmSectionSidebar activeTab={activeGmTab} onChangeTab={changeActiveGmTab} />
-          ) : view === 'campaign-home' ? (
-            <SessionRightSidebar openCharacterRequest={sessionEntityOpenRequest} />
-          ) : null
+          <Suspense fallback={<LazyFeatureFallback />}>
+            {view === 'dashboard' && !['characters', 'campaigns'].includes(activeGmTab) ? (
+              <GmSectionSidebar activeTab={activeGmTab} onChangeTab={changeActiveGmTab} />
+            ) : view === 'campaign-home' ? (
+              <SessionRightSidebar openCharacterRequest={sessionEntityOpenRequest} />
+            ) : null}
+          </Suspense>
         }
         topbar={
           <TopBar
@@ -384,7 +423,9 @@ function AuthGate() {
             palette={dashboardSettings.palette}
           />
         ) : view === 'campaign-home' ? (
-          <CampaignHome onGoToManagement={goToManagement} onOpenSessionEntity={openSessionEntity} />
+          <Suspense fallback={<LazyFeatureFallback />}>
+            <CampaignHome onGoToManagement={goToManagement} onOpenSessionEntity={openSessionEntity} />
+          </Suspense>
         ) : (
           <Dashboard
             activeTab={activeGmTab}
@@ -398,19 +439,22 @@ function AuthGate() {
       </AppShell>
 
       {isSettingsOpen && (
-        <SettingsModal
-          draft={draftDashboardSettings}
-          onChangeDraft={setDraftDashboardSettings}
-          onSave={saveSettingsAndClose}
-          onCancel={closeSettingsWithoutSaving}
-          initialTab={settingsInitialTab}
-        />
+        <Suspense fallback={<LazyFeatureFallback />}>
+          <SettingsModal
+            draft={draftDashboardSettings}
+            onChangeDraft={setDraftDashboardSettings}
+            onSave={saveSettingsAndClose}
+            onCancel={closeSettingsWithoutSaving}
+            initialTab={settingsInitialTab}
+          />
+        </Suspense>
       )}
 
       {isReportBugOpen && (
-        <ReportBugModal onClose={() => setIsReportBugOpen(false)} palette={dashboardSettings.palette} />
+        <Suspense fallback={<LazyFeatureFallback />}>
+          <ReportBugModal onClose={() => setIsReportBugOpen(false)} palette={dashboardSettings.palette} />
+        </Suspense>
       )}
-
     </>
   );
 }
@@ -419,7 +463,13 @@ export default function App() {
   const path = window.location.pathname;
   if (path === '/privacy') return <PrivacyPolicy />;
   if (path === '/elimina-dati') return <DeleteData />;
-  if (path === '/news') return <NewsPage />;
+  if (path === '/news') {
+    return (
+      <Suspense fallback={<LazyFeatureFallback />}>
+        <NewsPage />
+      </Suspense>
+    );
+  }
 
   return (
     <AuthProvider>
