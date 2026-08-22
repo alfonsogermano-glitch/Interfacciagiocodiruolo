@@ -2842,7 +2842,7 @@ app.put("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c)
 
   const {
     sheetData, name, style, viaggio, portraitUrl,
-    portraitImageUrl, portraitSourceImageUrl, portraitCropArea,
+    portraitImageUrl, portraitSourceImageUrl, portraitCropArea, adventureId,
     portraitFrameAssetId, portraitFrameRotationDegrees,
     portraitFrameOffsetX, portraitFrameOffsetY,
     portraitFrameScaleX, portraitFrameScaleY,
@@ -2864,6 +2864,7 @@ app.put("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c)
       portrait_image_url: portraitImageUrl ?? null,
       portrait_source_image_url: portraitSourceImageUrl ?? null,
       portrait_crop_area: portraitCropArea ?? null,
+      adventure_id: adventureId ?? null,
       portrait_frame_asset_id: portraitFrameAssetId ?? null,
       portrait_frame_rotation_degrees: portraitFrameRotationDegrees ?? 0,
       portrait_frame_offset_x: portraitFrameOffsetX ?? 0,
