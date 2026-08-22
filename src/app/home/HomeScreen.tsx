@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
   Check,
   Copy,
@@ -17,7 +17,7 @@ import { useCampaign } from '../campaigns/CampaignContext';
 import { CampaignForm } from '../campaigns/CampaignSelector';
 import { type Campaign, type CampaignCreateInput, type RulesetId } from '../campaigns/campaignTypes';
 import { RulesetPickerDialog } from '../campaigns/RulesetPickerDialog';
-import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
+import { LazyFeatureFallback } from '../components/LazyFeatureFallback';
 import { CampaignBannerDisplay } from '../components/shared/CampaignBannerDisplay';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { JoinCampaignCharacterDialog } from '../components/session/shared/JoinCampaignCharacterDialog';
@@ -27,6 +27,12 @@ import {
 import type { DashboardPalette } from '../../services/settings/dashboardSettings';
 import type { Character } from '../../types/character';
 import { useJoinByCodeFlow } from '../../hooks/useJoinByCodeFlow';
+
+const CharacterCreationWizard = lazy(() =>
+  import('../components/gm/CharacterCreationWizard').then(module => ({
+    default: module.CharacterCreationWizard,
+  }))
+);
 
 interface HomeScreenProps {
   onEnterCampaign: (campaign: Campaign) => void;
@@ -304,11 +310,13 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
 
       {/* ─── Wizard creazione personaggio ─────────────────────────────────── */}
       {characterWizardRuleset && (
-        <CharacterCreationWizard
-          onClose={() => setCharacterWizardRuleset(null)}
-          onAdd={character => void handleAddCharacter(character)}
-          existingCharacters={[]}
-        />
+        <Suspense fallback={<LazyFeatureFallback />}>
+          <CharacterCreationWizard
+            onClose={() => setCharacterWizardRuleset(null)}
+            onAdd={character => void handleAddCharacter(character)}
+            existingCharacters={[]}
+          />
+        </Suspense>
       )}
 
       {/* ─── Modale: crea nuova campagna ───────────────────────────────────── */}
