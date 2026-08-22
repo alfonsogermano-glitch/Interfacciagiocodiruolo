@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
-import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
 import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Undo2, Type as FontIcon, Check, PenLine, LayoutTemplate, ListTodo, Shapes, Sword, Swords, Shield, Target, Crosshair, Skull, Bomb, Zap, Flame, Biohazard, Sparkles, Wand, Ghost, Eye, Moon, Sun, Feather, Scroll, Radiation, Snowflake, Compass, Map, MapPin, Mountain, Tent, Footprints, Anchor, Ship, Route, Signpost, User, Users, Crown, GraduationCap, Drama, Briefcase, Key, Gem, Coins, Pickaxe, FlaskConical, Pill, Syringe, Dice6, BookOpen, Castle, Church, Landmark, DoorOpen, Home, Store, Trees, Activity, Bell, Brain, Star, Heart, Music, Theater, Newspaper, type LucideIcon } from 'lucide-react';
@@ -119,77 +118,18 @@ function docsEqual(a: JSONContent | null | undefined, b: JSONContent | null | un
 // risulta diverso per riferimento - un oggetto nuovo creato ad ogni render
 // (anche a contenuto identico) risultava sempre "diverso", forzando
 // ProseMirror a rielaborare le props della view ad ogni tasto digitato.
+// Nessun handleKeyDown qui (a differenza di un tentativo precedente, vedi
+// git blame): ne' Ctrl+Shift+R (hard refresh del browser, bug dal vivo
+// 2026-08-20) ne' la navigazione attorno alle icone inline
+// (tiptapInlineIcon.ts) hanno piu' bisogno di un handler custom - senza
+// alcuna prop qui ProseMirror non intercetta MAI un tasto, il comportamento
+// nativo del browser resta intatto per definizione. Le icone inline dalla
+// riprogettazione sono un carattere ZWSP vero dentro il testo normale (con
+// un Mark che porta il nome), non un nodo atom separato - frecce/Backspace/
+// Delete le attraversano ed eliminano con lo stesso identico comportamento
+// nativo riservato a qualunque altro carattere.
 const TIPTAP_EDITOR_PROPS = {
   attributes: { class: 'tiptap-content' },
-  // Bug segnalato dal vivo 2026-08-20: Ctrl+Shift+R (Cmd+Shift+R su Mac,
-  // hard refresh del browser) veniva intercettato dentro il
-  // contentEditable invece di raggiungere il browser. Nessuna scorciatoia
-  // dell'editor usa questa combinazione (verificato: nessun
-  // addKeyboardShortcuts la registra), ma restituire esplicitamente false
-  // (= "non gestito da me") garantisce che ProseMirror non chiami
-  // preventDefault/stopPropagation su questo evento per nessun motivo,
-  // lasciando il comportamento nativo del browser intatto.
-  // Frecce attorno al nodo InlineIcon (bug segnalato dal vivo con tastiera
-  // fisica, tre casi - vedi tiptapInlineIcon.ts per la cronologia): un
-  // primo tentativo con addKeyboardShortcuts (nel Node stesso) NON
-  // funzionava con la tastiera reale - il keymap di ProseMirror applica lo
-  // shortcut ma poi il comportamento nativo per gli atom veniva comunque
-  // eseguito dopo (il cursore "rimbalzava" indietro), perche' entrambi i
-  // gestori vivono nello stesso plugin keymap e ProseMirror non garantisce
-  // che il nostro handler vinca sempre sul default lì. handleKeyDown qui
-  // (un plugin separato, valutato PRIMA della keymap dell'editor - vedi
-  // EditorView.someProp priority) risolve alla radice: return true blocca
-  // ESPLICITAMENTE ogni comportamento nativo successivo per quell'evento,
-  // niente puo' piu' sovrascriverlo.
-  handleKeyDown(view, event: KeyboardEvent) {
-    const isHardRefresh = (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'r';
-    if (isHardRefresh) return false;
-
-    if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-      const direction = event.key === 'ArrowRight' ? 'right' : 'left';
-      const { state } = view;
-      const { selection } = state;
-      const { $from } = selection;
-
-      // Caso: NodeSelection gia' attiva sull'icona (es. dopo un click) -
-      // la freccia la supera. selection.to/from sono gia' rispettivamente
-      // pos+nodeSize e pos del nodo selezionato.
-      if (selection instanceof NodeSelection && selection.node.type.name === InlineIcon.name) {
-        const targetPos = direction === 'right' ? selection.to : selection.from;
-        view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, targetPos)));
-        return true;
-      }
-
-      // Caso: cursore di testo semplice adiacente all'icona nella direzione
-      // di marcia - la scavalca direttamente in una sola pressione, senza
-      // mai passare da una NodeSelection intermedia (questo e' cio' che
-      // evita il caso limite dell'icona a inizio/fine paragrafo, dove il
-      // default di ProseMirror non forma nemmeno una NodeSelection).
-      // $from.nodeBefore/nodeAfter (non doc.nodeAt) restano validi anche
-      // li'.
-      if (selection.empty) {
-        const adjacentNode = direction === 'right' ? $from.nodeAfter : $from.nodeBefore;
-        if (adjacentNode && adjacentNode.type.name === InlineIcon.name) {
-          const targetPos = direction === 'right' ? $from.pos + adjacentNode.nodeSize : $from.pos - adjacentNode.nodeSize;
-          view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, targetPos)));
-          return true;
-        }
-      }
-
-      // Il caso limite del vero bordo del paragrafo (icona come
-      // ultimo/primo contenuto, nodeAfter/nodeBefore nullo qui sopra - il
-      // nativo genera li' una TextSelection-range spuria che copre
-      // esattamente l'icona) NON si corregge qui: un tentativo reattivo al
-      // keydown successivo arrivava troppo tardi (la transazione di sync
-      // selezione del browser precede la lettura dello stato in questo
-      // handler, quindi la freccia che la genera mostrava gia' il salto
-      // per una pressione intera). Bloccata alla radice da
-      // filterTransaction in tiptapInlineIcon.ts (addProseMirrorPlugins) -
-      // vedi il commento li' per i dettagli.
-    }
-
-    return false;
-  },
 };
 
 function ToolbarButton({ active, disabled, onClick, label, children }: {
@@ -358,12 +298,10 @@ function FontFamilyPicker({ editor, editable, onCommand }: { editor: Editor; edi
 }
 
 // Nome -> componente React lucide-react, solo per la GRIGLIA del Popover
-// sotto (interfaccia della toolbar, React normale) - non c'entra col nodo
-// del documento inlineIcon (tiptapInlineIcon.ts), che renderizza SVG puro
-// via renderHTML/DOMOutputSpec senza mai passare da questi componenti (la
-// restrizione "niente ReactNodeViewRenderer" del piano approvato riguarda
-// SOLO il contenuto del documento TipTap, non la UI della toolbar che lo
-// inserisce). Stessa identica lista di nomi di ICON_CATEGORIES
+// sotto (interfaccia della toolbar, React normale) - non c'entra col mark
+// inlineIcon (tiptapInlineIcon.ts), che disegna l'SVG nel documento tramite
+// DOM puro dentro un Decoration.widget, senza mai passare da questi
+// componenti React. Stessa identica lista di nomi di ICON_CATEGORIES
 // (tiptapIconData.ts) - se le due divergessero un'icona apparirebbe nella
 // categoria ma senza componente per disegnarla in griglia; nessuna verifica
 // automatica dell'allineamento fra le due liste, stesso compromesso gia'
