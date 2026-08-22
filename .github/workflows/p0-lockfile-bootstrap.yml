@@ -4,13 +4,16 @@ on:
   push:
     branches:
       - stabilization/p0
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   lockfile:
-    if: github.actor != 'github-actions[bot]'
+    if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,20 +36,17 @@ jobs:
           else
             echo "package-lock.json already synchronized"
           fi
+
+  typecheck-baseline:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
       - run: npm ci
-      - name: Capture TypeScript baseline
-        shell: bash
-        run: |
-          set +e
-          npm run typecheck > p0-typecheck-diagnostics.txt 2>&1
-          status=$?
-          printf "\nEXIT_CODE=%s\n" "$status" >> p0-typecheck-diagnostics.txt
-          cat p0-typecheck-diagnostics.txt
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add p0-typecheck-diagnostics.txt
-          if ! git diff --cached --quiet; then
-            git commit -m "test: capture P0 TypeScript baseline [skip ci]"
-            git push origin HEAD:stabilization/p0
-          fi
-          exit "$status"
+      - run: npm run typecheck
