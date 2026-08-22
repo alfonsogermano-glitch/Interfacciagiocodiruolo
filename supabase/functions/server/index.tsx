@@ -260,6 +260,20 @@ async function mirrorPlayerCampaignsKv(profileId: string): Promise<void> {
   await kv.set(playerCampaignsKey(profileId), canonical);
 }
 
+async function softDeleteCampaignAndRevokeMembers(
+  ownerId: string,
+  campaignId: string,
+): Promise<string[]> {
+  const { data, error } = await getAdminClient().rpc(
+    "soft_delete_campaign_and_revoke_members",
+    { p_campaign_id: campaignId, p_owner_profile_id: ownerId },
+  );
+  requireNoError(error, "Soft-delete campagna e revoca membership SQL");
+  return (data ?? [])
+    .map((row: any) => row.profile_id)
+    .filter((profileId: unknown): profileId is string => typeof profileId === "string" && profileId.length > 0);
+}
+
 async function getInviteMembershipSql(code: string): Promise<CampaignMembership | null> {
   const admin = getAdminClient();
   const normalized = code.trim().toUpperCase();
@@ -987,9 +1001,22 @@ app.delete("/make-server-771c5bfd/campaigns/:id", async (c) => {
 
     const campaignId = c.req.param("id");
     const campaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
-    const filtered = campaigns.filter((c: Campaign) => c.id !== campaignId);
+    const existing = campaigns.find((campaign: Campaign) => campaign.id === campaignId);
+    if (!existing) {
+      return c.json({ error: "Campagna non trovata o non sei il proprietario" }, 404);
+    }
+
+    // DB first and atomic: campaign soft-delete + membership revocation happen in
+    // one PostgreSQL transaction. KV is updated only afterwards as rollback data.
+    const removedProfileIds = await softDeleteCampaignAndRevokeMembers(userId, campaignId);
+    const filtered = campaigns.filter((campaign: Campaign) => campaign.id !== campaignId);
 
     await campaignStore.set(campaignsKey(userId), filtered);
+    await campaignStore.set(campaignMembersKey(campaignId), []);
+    for (const profileId of removedProfileIds) {
+      await mirrorPlayerCampaignsKv(profileId);
+    }
+
     return c.json({ success: true });
   } catch (err) {
     console.log("Errore DELETE campaign:", err);
