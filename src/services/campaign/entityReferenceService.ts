@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabaseClient';
 import { CAMPAIGN_STORAGE_KEYS } from './campaignStorageKeys';
+import { loadAdventures } from '../supabase/entitiesService';
 
 type RawReference = {
   id?: string;
@@ -179,7 +180,6 @@ export async function loadAdventureReferences(
   const resolvedCampaignId = campaignId ?? '';
 
   try {
-    const { loadAdventures } = await import('../supabase/entitiesService');
     const adventures = await loadAdventures(resolvedCampaignId);
 
     return normalizeReferences(adventures, resolvedCampaignId);
@@ -191,4 +191,3 @@ export async function loadAdventureReferences(
     );
   }
 }
-
