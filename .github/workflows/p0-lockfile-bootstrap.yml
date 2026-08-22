@@ -1,4 +1,4 @@
-name: P0 lockfile bootstrap
+name: P0 final baseline
 
 on:
   push:
@@ -21,118 +21,41 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Apply and report remaining baseline patches
+      - name: Align legacy local character contract
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
-
-          report = []
-
-          def patch(label, path, old, new):
-              p = Path(path)
-              text = p.read_text()
-              count = text.count(old)
-              report.append(f"{label}: {count}")
-              if count == 1:
-                  p.write_text(text.replace(old, new, 1))
-                  return True
-              return False
-
-          patch('left-sidebar-view', 'src/app/layout/LeftSidebar.tsx',
-                "  view: 'home' | 'dashboard';",
-                "  view: 'home' | 'dashboard' | 'campaign-home';")
-          patch('character-prodigi', 'src/app/components/CompleteCharacterSheet.tsx',
-                'character.prodigio', 'character.prodigi')
-          patch('environment-signature', 'src/app/components/gm/EnvironmentManager.tsx',
-                'function normalizeEnvironment(item: Partial<Environment>): Environment {',
-                'function normalizeEnvironment(\n  item: Partial<Environment>,\n  fallbackCampaignId: string\n): Environment {')
-          patch('environment-fallback', 'src/app/components/gm/EnvironmentManager.tsx',
-                '    campaignId: item.campaignId ?? campaignId,',
-                '    campaignId: item.campaignId ?? fallbackCampaignId,')
-          patch('environment-call', 'src/app/components/gm/EnvironmentManager.tsx',
-                '          normalizeEnvironment(env)\n',
-                '          normalizeEnvironment(env, campaignId)\n')
-          patch('owned-character-date', 'src/app/components/gm/MyCharactersPage.tsx',
-                "type OwnedCharacter = Character & { player: string; notes: string; ownerProfileId: string; campaignId: string | null; ruleset: RulesetId | null };",
-                "type OwnedCharacter = Character & { player: string; notes: string; ownerProfileId: string; campaignId: string | null; ruleset: RulesetId | null; createdAt?: string; updatedAt?: string };")
-          patch('equipment-row-links', 'src/types/database.ts',
-                '  campaign_id: string | null;\n  created_by: string | null;\n\n  name: string;',
-                '  campaign_id: string | null;\n  created_by: string | null;\n\n  image_asset_id?: string | null;\n  icon_id?: string | null;\n  icon_color?: string | null;\n  linked_environment_ids?: string[];\n  linked_npc_ids?: string[];\n  linked_monster_ids?: string[];\n  container_item_id?: string | null;\n\n  name: string;')
-          patch('equipment-mapper-links', 'src/lib/mappers/equipmentMappers.ts',
-                '    campaignId: row.campaign_id,\n    createdBy: row.created_by,\n\n    name: row.name,',
-                '    campaignId: row.campaign_id,\n    createdBy: row.created_by,\n    imageAssetId: row.image_asset_id ?? null,\n    iconId: row.icon_id ?? null,\n    iconColor: row.icon_color ?? null,\n    linkedEnvironmentIds: row.linked_environment_ids ?? [],\n    linkedNpcIds: row.linked_npc_ids ?? [],\n    linkedMonsterIds: row.linked_monster_ids ?? [],\n    containerItemId: row.container_item_id ?? null,\n\n    name: row.name,')
-          patch('main-extension', 'src/main.tsx',
-                'import App from "./app/App.tsx";',
-                'import App from "./app/App";')
-          patch('reference-boundary', 'src/services/campaign/entityReferenceService.ts',
-                '  return normalizeReferences(data ?? [], campaignId);',
-                '  return normalizeReferences((data ?? []) as unknown as RawReference[], campaignId);')
-          patch('tauri-delete-signature', 'src/services/equipment/equipmentCatalogService.ts',
-                "    await deleteTauriEntity(campaignId ?? 'global', 'equipmentCatalog', id);",
-                "    await deleteTauriEntity('equipmentCatalog', id);")
-          patch('character-owner-local', 'src/services/supabase/charactersService.ts',
-                'export async function loadCharacters(campaignId: string): Promise<(Character & {player: string; notes: string; ownerProfileId: string; ruleset: RulesetId | null})[]> {',
-                'export async function loadCharacters(campaignId: string): Promise<(Character & {player: string; notes: string; ownerProfileId?: string; ruleset: RulesetId | null})[]> {')
-
-          p = Path('src/services/storage/visualAssetsStorage.ts')
-          text = p.read_text()
-          start = "    visualAssetsCachePromise = supabase\n      .from('visual_assets')"
-          end = "        return items;\n      });"
-          start_count = text.count(start)
-          end_count = text.count(end)
-          report.append(f"visual-cache-start: {start_count}")
-          report.append(f"visual-cache-end: {end_count}")
-          if start_count == 1 and end_count >= 1:
-              start_idx = text.index(start)
-              end_idx = text.index(end, start_idx) + len(end)
-              new = "\n".join([
-                  "    visualAssetsCachePromise = (async () => {",
-                  "      const { data, error } = await supabase",
-                  "        .from('visual_assets')",
-                  "        .select('id,campaign_id,name,type,image_data_url,thumbnail_url,created_at')",
-                  "        .order('created_at', { ascending: true });",
-                  "",
-                  "      if (error) {",
-                  "        console.error('Errore caricamento visual assets da Supabase:', error);",
-                  "        const fallbackItems = await localVisualAssetsStorage.getAll();",
-                  "        const sortedFallback = sortVisualAssets(fallbackItems);",
-                  "        updateVisualAssetsCache(sortedFallback);",
-                  "        visualAssetsCachePromise = null;",
-                  "        return sortedFallback;",
-                  "      }",
-                  "",
-                  "      const items = sortVisualAssets((data ?? []).map(row => fromVisualAssetRow(row as VisualAssetRow)));",
-                  "      updateVisualAssetsCache(items);",
-                  "      visualAssetsCachePromise = null;",
-                  "      return items;",
-                  "    })();",
-              ])
-              p.write_text(text[:start_idx] + new + text[end_idx:])
-
-          Path('p0-patch-diagnostics.txt').write_text('\n'.join(report) + '\n')
+          path = Path('src/services/supabase/charactersService.ts')
+          text = path.read_text()
+          old = 'ownerProfileId?: string; ruleset: RulesetId | null})[]> {'
+          new = 'ownerProfileId?: string; ruleset?: RulesetId | null})[]> {'
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'expected one character contract occurrence, found {count}')
+          path.write_text(text.replace(old, new, 1))
           PY
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src p0-patch-diagnostics.txt
-          if ! git diff --cached --quiet; then
-            git commit -m "fix: apply remaining TypeScript baseline patches [skip ci]"
-            git push origin HEAD:stabilization/p0
-          fi
-      - name: Capture TypeScript diagnostics
+          git add src/services/supabase/charactersService.ts
+          git commit -m "fix: align local character ruleset contract [skip ci]"
+          git push origin HEAD:stabilization/p0
+      - name: Verify typecheck and build
         shell: bash
         run: |
           set +e
-          npm run typecheck > p0-typecheck-diagnostics.txt 2>&1
-          status=$?
-          echo "TYPECHECK_EXIT_CODE=$status" >> p0-typecheck-diagnostics.txt
-          cat p0-typecheck-diagnostics.txt
+          : > p0-verification.txt
+          npm run typecheck >> p0-verification.txt 2>&1
+          typecheck_status=$?
+          echo "TYPECHECK_EXIT_CODE=$typecheck_status" >> p0-verification.txt
+          npm run build >> p0-verification.txt 2>&1
+          build_status=$?
+          echo "BUILD_EXIT_CODE=$build_status" >> p0-verification.txt
+          cat p0-verification.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add p0-typecheck-diagnostics.txt
-          if ! git diff --cached --quiet; then
-            git commit -m "test: update P0 TypeScript diagnostics [skip ci]"
-            git push origin HEAD:stabilization/p0
-          fi
-          exit "$status"
+          git add p0-verification.txt
+          git commit -m "test: record P0.1 verification [skip ci]"
+          git push origin HEAD:stabilization/p0
+          if [ "$typecheck_status" -ne 0 ]; then exit "$typecheck_status"; fi
+          exit "$build_status"
