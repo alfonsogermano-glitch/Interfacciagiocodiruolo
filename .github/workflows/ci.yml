@@ -18,5 +18,55 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm ls nanoid postcss react-router tar vite
-      - run: npm audit --audit-level=high
-      - run: npm run check
+      - name: Confirm vulnerable baseline
+        run: npm audit --audit-level=high
+        continue-on-error: true
+      - name: Generate and verify P2A candidate
+        id: candidate
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --save-exact react-router@7.18.2 vite@6.4.3
+          npm audit fix --package-lock-only
+          node <<'NODE'
+          const fs = require('fs');
+          const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          for (const section of ['dependencies', 'devDependencies']) {
+            for (const name of Object.keys(p[section] || {})) {
+              const entry = lock.packages?.[`node_modules/${name}`];
+              if (!entry?.version) throw new Error(`Missing locked version for ${section}.${name}`);
+              p[section][name] = entry.version;
+            }
+          }
+          for (const [name, version] of Object.entries(p.peerDependencies || {})) {
+            if (/^(latest|[~^])/.test(version)) {
+              const entry = lock.packages?.[`node_modules/${name}`];
+              if (!entry?.version) throw new Error(`Missing locked peer version for ${name}`);
+              p.peerDependencies[name] = entry.version;
+            }
+          }
+          if (p.pnpm?.overrides?.vite) {
+            p.pnpm.overrides.vite = lock.packages['node_modules/vite'].version;
+          }
+          fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          NODE
+          npm install --package-lock-only
+          npm audit --audit-level=high
+          rm -rf node_modules
+          npm ci
+          npm run check
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p2a-candidate-package-files
+          path: |
+            package.json
+            package-lock.json
+          if-no-files-found: error
+      - name: Keep branch RED until candidate is committed
+        if: always()
+        run: |
+          echo "Candidate outcome: ${{ steps.candidate.outcome }}"
+          exit 1
