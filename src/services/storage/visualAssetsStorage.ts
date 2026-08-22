@@ -242,25 +242,26 @@ const supabaseVisualAssetsStorage: StorageAdapter<VisualAsset> = {
       return visualAssetsCachePromise;
     }
 
-    visualAssetsCachePromise = supabase
-      .from('visual_assets')
-      .select('id,campaign_id,name,type,image_data_url,thumbnail_url,created_at')
-      .order('created_at', { ascending: true })
-      .then(async ({ data, error }) => {
-        if (error) {
-          console.error('Errore caricamento visual assets da Supabase:', error);
-          const fallbackItems = await localVisualAssetsStorage.getAll();
-          const sortedFallback = sortVisualAssets(fallbackItems);
-          updateVisualAssetsCache(sortedFallback);
-          visualAssetsCachePromise = null;
-          return sortedFallback;
-        }
+    visualAssetsCachePromise = (async () => {
+      const { data, error } = await supabase
+        .from('visual_assets')
+        .select('id,campaign_id,name,type,image_data_url,thumbnail_url,created_at')
+        .order('created_at', { ascending: true });
 
-        const items = sortVisualAssets((data ?? []).map(row => fromVisualAssetRow(row as VisualAssetRow)));
-        updateVisualAssetsCache(items);
+      if (error) {
+        console.error('Errore caricamento visual assets da Supabase:', error);
+        const fallbackItems = await localVisualAssetsStorage.getAll();
+        const sortedFallback = sortVisualAssets(fallbackItems);
+        updateVisualAssetsCache(sortedFallback);
         visualAssetsCachePromise = null;
-        return items;
-      });
+        return sortedFallback;
+      }
+
+      const items = sortVisualAssets((data ?? []).map(row => fromVisualAssetRow(row as VisualAssetRow)));
+      updateVisualAssetsCache(items);
+      visualAssetsCachePromise = null;
+      return items;
+    })();
 
     return visualAssetsCachePromise;
   },

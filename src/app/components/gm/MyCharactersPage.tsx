@@ -52,7 +52,7 @@ import { generateUUID } from '../../../lib/uuid';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
-type OwnedCharacter = Character & { player: string; notes: string; ownerProfileId: string; campaignId: string | null; ruleset: RulesetId | null };
+type OwnedCharacter = Character & { player: string; notes: string; ownerProfileId: string; campaignId: string | null; ruleset: RulesetId | null; createdAt?: string; updatedAt?: string };
 type CatalogEntry = { kind: 'npc'; entity: NPC } | { kind: 'monster'; entity: Monster };
 // 'available' e' usato solo dal filtro Personaggi (i tuoi PG con
 // availableForPlayers=true) - npc/monster non lo usano mai, la loro

@@ -1,7 +1,8 @@
 import type { D20Stats } from '../../ruleset/D20StatBlock';
 import type { RulesetId } from '../../../campaigns/campaignTypes';
 import type { TokenBorderStyle, TokenBorderThickness } from '../../../../types/tokenStyle';
-export type { ImageCrop } from '../../../../types/imageCrop';
+import type { ImageCrop } from '../../../../types/imageCrop';
+export type { ImageCrop };
 
 export type Difficulty =
   | 'Base'

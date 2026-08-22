@@ -105,6 +105,7 @@ function mapRowToCharacter(row: any) {
     portraitSourceImageUrl: row.portrait_source_image_url ?? undefined,
     portraitCropArea: row.portrait_crop_area ?? undefined,
     portraitAssetId: row.portrait_asset_id ?? undefined,
+    adventureId: row.adventure_id ?? null,
     // Cornice portrait, cover 16:9 e cornice cover - colonne dedicate
     // (promosse da sheet_data, vedi supabase-add-character-npc-image-extras.sql).
     // coverImageUrl era prima in sheet_data (e specchiato nell'ormai-morta
@@ -140,7 +141,7 @@ export { mapRowToCharacter };
 /**
  * Carica tutti i personaggi di una campagna
  */
-export async function loadCharacters(campaignId: string): Promise<(Character & {player: string; notes: string; ownerProfileId: string; ruleset: RulesetId | null})[]> {
+export async function loadCharacters(campaignId: string): Promise<(Character & {player: string; notes: string; ownerProfileId?: string; ruleset?: RulesetId | null})[]> {
   if (shouldUseLocalMode()) {
     return loadLocalCharacters(campaignId);
   }
@@ -277,6 +278,7 @@ export async function saveCharacter(
     portrait_source_image_url: character.portraitSourceImageUrl ?? null,
     portrait_crop_area: character.portraitCropArea ?? null,
     portrait_asset_id: character.portraitAssetId ?? null,
+    adventure_id: character.adventureId ?? null,
     // Cornice portrait, cover 16:9 e cornice cover - colonne dedicate,
     // stessa struttura di monsters. coverImageUrl era prima specchiato
     // sulla colonna background_url (mai letta da nessun mapper): quella
@@ -631,6 +633,7 @@ export async function saveCharacterAsGm(
       portraitImageUrl: character.portraitImageUrl ?? null,
       portraitSourceImageUrl: character.portraitSourceImageUrl ?? null,
       portraitCropArea: character.portraitCropArea ?? null,
+      adventureId: character.adventureId ?? null,
       portraitFrameAssetId: character.portraitFrameAssetId ?? null,
       portraitFrameRotationDegrees: character.portraitFrameRotationDegrees ?? 0,
       portraitFrameOffsetX: character.portraitFrameOffsetX ?? 0,

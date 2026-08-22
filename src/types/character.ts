@@ -112,6 +112,9 @@ export interface Character {
   viaggio: Viaggio;
   description?: string;
 
+  // Ambito narrativo: null/assente = tutta la campagna.
+  adventureId?: string | null;
+
   // Ambiti
   ambiti: {
     Fisico: number;

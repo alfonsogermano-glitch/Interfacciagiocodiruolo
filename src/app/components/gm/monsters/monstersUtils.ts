@@ -163,7 +163,7 @@ export function createMonsterFromBase(baseId: string, campaignId = '', ownerProf
     freschezza: 0,
     maxFreschezza: base.freschezza,
     audacia: 0,
-    caselleFreschezzaCritiche: base.caselleFreschezzaCritiche ?? [],
+    caselleFreschezzaCritiche: base.caselleFrischezzaCruciali ?? [],
 
     attacco: base.attacco,
     difesa: base.difesa,
@@ -353,7 +353,7 @@ export function getMonsterCriticalBoxes(
     MONSTER_BASE_CATALOG.find(item => item.id === monster.baseMonsterId) ??
     MONSTER_BASE_CATALOG.find(item => item.name === monster.name);
 
-  return baseMonster?.caselleFreschezzaCritiche ?? [];
+  return baseMonster?.caselleFrischezzaCruciali ?? [];
 }
 
 export function calculateAudaciaGainFromFreshnessChange(

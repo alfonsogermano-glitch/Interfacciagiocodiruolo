@@ -64,6 +64,14 @@ export interface EquipmentCatalogRow {
   campaign_id: string | null;
   created_by: string | null;
 
+  image_asset_id?: string | null;
+  icon_id?: string | null;
+  icon_color?: string | null;
+  linked_environment_ids?: string[];
+  linked_npc_ids?: string[];
+  linked_monster_ids?: string[];
+  container_item_id?: string | null;
+
   name: string;
   description: string;
 
