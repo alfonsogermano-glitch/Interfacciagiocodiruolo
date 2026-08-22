@@ -140,7 +140,7 @@ export { mapRowToCharacter };
 /**
  * Carica tutti i personaggi di una campagna
  */
-export async function loadCharacters(campaignId: string): Promise<(Character & {player: string; notes: string; ownerProfileId?: string; ruleset: RulesetId | null})[]> {
+export async function loadCharacters(campaignId: string): Promise<(Character & {player: string; notes: string; ownerProfileId?: string; ruleset?: RulesetId | null})[]> {
   if (shouldUseLocalMode()) {
     return loadLocalCharacters(campaignId);
   }
