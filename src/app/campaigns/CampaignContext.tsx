@@ -2,7 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { useAuth } from '../auth/AuthContext';
 import type { Campaign, CampaignCreateInput, RulesetId } from './campaignTypes';
-import { ensureCampaignExistsInDB } from '../../services/supabase/campaignSyncService';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 const ACTIVE_CAMPAIGN_LS_KEY = 'hsc-active-campaign-id';
@@ -195,21 +194,8 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
       const first = campaigns[0];
       setActiveCampaignId(first.id);
       localStorage.setItem(ACTIVE_CAMPAIGN_LS_KEY, first.id);
-      void ensureCampaignExistsInDB(first.id, {
-        name: first.name,
-        description: first.description,
-        ruleset: first.ruleset,
-        ownerId: first.ownerId
-      });
       return;
     }
-
-    void ensureCampaignExistsInDB(active.id, {
-      name: active.name,
-      description: active.description,
-      ruleset: active.ruleset,
-      ownerId: active.ownerId
-    });
   }, [campaigns, joinedCampaigns, activeCampaignId, isLoading]);
 
   const markCampaignOpened = useCallback(async (campaignId: string) => {
@@ -248,12 +234,6 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     setActiveCampaignId(campaign.id);
     localStorage.setItem(ACTIVE_CAMPAIGN_LS_KEY, campaign.id);
     if (campaign.ownerId === session?.user?.id) {
-      void ensureCampaignExistsInDB(campaign.id, {
-        name: campaign.name,
-        description: campaign.description,
-        ruleset: campaign.ruleset,
-        ownerId: campaign.ownerId
-      });
       void markCampaignOpened(campaign.id);
     }
   }, [session, markCampaignOpened]);

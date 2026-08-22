@@ -73,6 +73,249 @@ function playerCampaignsKey(userId: string) {
   return `playerCampaigns:${userId}`;
 }
 
+
+// P0.3 — PostgreSQL e' la fonte canonica di campagne, membership e
+// codici invito. Le forme restituite restano identiche ai vecchi
+// oggetti KV per non cambiare il contratto delle route esistenti.
+function mapCampaignRow(row: any): Campaign {
+  const fallbackNow = new Date().toISOString();
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description ?? "",
+    ruleset: row.ruleset ?? "hsc",
+    ownerId: row.owner_profile_id,
+    inviteCode: row.invite_code ?? undefined,
+    createdAt: row.created_at ?? fallbackNow,
+    updatedAt: row.updated_at ?? row.created_at ?? fallbackNow,
+    lastOpenedAt: row.last_opened_at ?? undefined,
+    logoUrl: row.logo_url ?? undefined,
+    coverImageUrl: row.cover_image_url ?? undefined,
+    coverCrop: row.cover_crop ?? undefined,
+    coverRotationDegrees: row.cover_rotation_degrees ?? undefined,
+    tabOrder: row.tab_order ?? undefined,
+    tabOrderCampaignNotes: row.tab_order_campaign_notes ?? undefined,
+    tabOrderGmNotes: row.tab_order_gm_notes ?? undefined,
+    sessionActive: row.session_active ?? false,
+    sessionActivatedAt: row.session_activated_at ?? undefined,
+  };
+}
+
+function campaignToRow(campaign: Campaign, ownerId: string) {
+  return {
+    id: campaign.id,
+    name: campaign.name,
+    description: campaign.description ?? null,
+    ruleset: campaign.ruleset ?? null,
+    owner_profile_id: ownerId,
+    invite_code: campaign.inviteCode ?? null,
+    created_at: campaign.createdAt ?? new Date().toISOString(),
+    updated_at: campaign.updatedAt ?? new Date().toISOString(),
+    last_opened_at: campaign.lastOpenedAt ?? null,
+    logo_url: campaign.logoUrl ?? null,
+    cover_image_url: campaign.coverImageUrl ?? null,
+    cover_crop: campaign.coverCrop ?? null,
+    cover_rotation_degrees: campaign.coverRotationDegrees ?? null,
+    tab_order: campaign.tabOrder ?? null,
+    tab_order_campaign_notes: campaign.tabOrderCampaignNotes ?? null,
+    tab_order_gm_notes: campaign.tabOrderGmNotes ?? null,
+    session_active: campaign.sessionActive ?? false,
+    session_activated_at: campaign.sessionActivatedAt ?? null,
+    deleted_at: null,
+  };
+}
+
+function requireNoError(error: any, context: string): void {
+  if (error) throw new Error(`${context}: ${error.message ?? String(error)}`);
+}
+
+async function getOwnedCampaignsSql(ownerId: string): Promise<Campaign[]> {
+  const { data, error } = await getAdminClient()
+    .from("campaigns")
+    .select("*")
+    .eq("owner_profile_id", ownerId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true });
+  requireNoError(error, "GET campagne SQL");
+  return (data ?? []).map(mapCampaignRow);
+}
+
+async function setOwnedCampaignsSql(ownerId: string, campaigns: Campaign[]): Promise<void> {
+  const admin = getAdminClient();
+  const { data: current, error: currentError } = await admin
+    .from("campaigns")
+    .select("id")
+    .eq("owner_profile_id", ownerId)
+    .is("deleted_at", null);
+  requireNoError(currentError, "Lettura campagne correnti SQL");
+
+  if (campaigns.length > 0) {
+    const { error } = await admin
+      .from("campaigns")
+      .upsert(campaigns.map(c => campaignToRow(c, ownerId)), { onConflict: "id" });
+    requireNoError(error, "Scrittura campagne SQL");
+
+    const inviteRows = campaigns
+      .filter(c => !!c.inviteCode)
+      .map(c => ({ code: String(c.inviteCode).toUpperCase(), campaign_id: c.id }));
+    if (inviteRows.length > 0) {
+      const { error: inviteError } = await admin
+        .from("campaign_invite_codes")
+        .upsert(inviteRows, { onConflict: "code" });
+      requireNoError(inviteError, "Scrittura codici invito SQL");
+    }
+  }
+
+  const desiredIds = new Set(campaigns.map(c => c.id));
+  const idsToHide = (current ?? [])
+    .map((row: any) => row.id as string)
+    .filter((id: string) => !desiredIds.has(id));
+  if (idsToHide.length > 0) {
+    const { error } = await admin
+      .from("campaigns")
+      .update({ deleted_at: new Date().toISOString() })
+      .in("id", idsToHide)
+      .eq("owner_profile_id", ownerId);
+    requireNoError(error, "Soft-delete campagne SQL");
+  }
+}
+
+async function getCampaignMembersSql(campaignId: string): Promise<any[]> {
+  const { data, error } = await getAdminClient()
+    .from("campaign_members")
+    .select("profile_id,role,joined_at")
+    .eq("campaign_id", campaignId)
+    .order("joined_at", { ascending: true });
+  requireNoError(error, "GET membership SQL");
+  return (data ?? []).map((row: any) => ({
+    profileId: row.profile_id,
+    role: row.role,
+    joinedAt: row.joined_at,
+  }));
+}
+
+async function setCampaignMembersSql(campaignId: string, members: any[]): Promise<void> {
+  const admin = getAdminClient();
+  const { data: current, error: currentError } = await admin
+    .from("campaign_members")
+    .select("profile_id")
+    .eq("campaign_id", campaignId);
+  requireNoError(currentError, "Lettura membership correnti SQL");
+
+  if (members.length > 0) {
+    const rows = members.map(member => ({
+      campaign_id: campaignId,
+      profile_id: member.profileId,
+      role: member.role ?? "player",
+      joined_at: member.joinedAt ?? new Date().toISOString(),
+    }));
+    const { error } = await admin
+      .from("campaign_members")
+      .upsert(rows, { onConflict: "campaign_id,profile_id" });
+    requireNoError(error, "Scrittura membership SQL");
+  }
+
+  const desired = new Set(members.map(member => member.profileId));
+  const toDelete = (current ?? [])
+    .map((row: any) => row.profile_id as string)
+    .filter((id: string) => !desired.has(id));
+  if (toDelete.length > 0) {
+    const { error } = await admin
+      .from("campaign_members")
+      .delete()
+      .eq("campaign_id", campaignId)
+      .in("profile_id", toDelete);
+    requireNoError(error, "Rimozione membership SQL");
+  }
+}
+
+async function getPlayerCampaignsSql(profileId: string): Promise<CampaignMembership[]> {
+  const admin = getAdminClient();
+  const { data: memberships, error: memberError } = await admin
+    .from("campaign_members")
+    .select("campaign_id,joined_at")
+    .eq("profile_id", profileId)
+    .order("joined_at", { ascending: true });
+  requireNoError(memberError, "GET campagne giocatore SQL");
+  const campaignIds = (memberships ?? []).map((row: any) => row.campaign_id as string);
+  if (campaignIds.length === 0) return [];
+
+  const { data: campaigns, error: campaignError } = await admin
+    .from("campaigns")
+    .select("id,owner_profile_id")
+    .in("id", campaignIds)
+    .is("deleted_at", null);
+  requireNoError(campaignError, "GET proprietari campagne SQL");
+  const ownerByCampaign = new Map((campaigns ?? []).map((row: any) => [row.id, row.owner_profile_id]));
+  return campaignIds
+    .filter(id => ownerByCampaign.has(id))
+    .map(id => ({ campaignId: id, ownerId: String(ownerByCampaign.get(id)) }));
+}
+
+async function getInviteMembershipSql(code: string): Promise<CampaignMembership | null> {
+  const admin = getAdminClient();
+  const normalized = code.trim().toUpperCase();
+  const { data: invite, error: inviteError } = await admin
+    .from("campaign_invite_codes")
+    .select("campaign_id")
+    .eq("code", normalized)
+    .maybeSingle();
+  requireNoError(inviteError, "Lookup codice invito SQL");
+  if (!invite) return null;
+
+  const { data: campaign, error: campaignError } = await admin
+    .from("campaigns")
+    .select("id,owner_profile_id")
+    .eq("id", invite.campaign_id)
+    .is("deleted_at", null)
+    .maybeSingle();
+  requireNoError(campaignError, "Lookup campagna invito SQL");
+  if (!campaign) return null;
+  return { campaignId: campaign.id, ownerId: campaign.owner_profile_id };
+}
+
+async function setInviteMembershipSql(code: string, membership: CampaignMembership): Promise<void> {
+  const { error } = await getAdminClient()
+    .from("campaign_invite_codes")
+    .upsert({ code: code.trim().toUpperCase(), campaign_id: membership.campaignId }, { onConflict: "code" });
+  requireNoError(error, "Scrittura codice invito SQL");
+}
+
+const campaignStore = {
+  async get(key: string): Promise<any> {
+    if (key.startsWith("campaigns:")) {
+      return getOwnedCampaignsSql(key.slice("campaigns:".length));
+    }
+    if (key.startsWith("campaignMembers:")) {
+      return getCampaignMembersSql(key.slice("campaignMembers:".length));
+    }
+    if (key.startsWith("playerCampaigns:")) {
+      return getPlayerCampaignsSql(key.slice("playerCampaigns:".length));
+    }
+    if (key.startsWith("inviteCode:")) {
+      return getInviteMembershipSql(key.slice("inviteCode:".length));
+    }
+    throw new Error(`Chiave campaignStore non supportata: ${key}`);
+  },
+  async set(key: string, value: any): Promise<void> {
+    // PostgreSQL viene sempre scritto PRIMA del mirror KV. Un errore SQL
+    // interrompe la route: il KV non puo' mascherare un fallimento cloud.
+    if (key.startsWith("campaigns:")) {
+      await setOwnedCampaignsSql(key.slice("campaigns:".length), value ?? []);
+    } else if (key.startsWith("campaignMembers:")) {
+      await setCampaignMembersSql(key.slice("campaignMembers:".length), value ?? []);
+    } else if (key.startsWith("playerCampaigns:")) {
+      // Relazione ridondante: la membership SQL e' gia' stata riconciliata
+      // tramite campaignMembers. Manteniamo solo il vecchio snapshot KV.
+    } else if (key.startsWith("inviteCode:")) {
+      await setInviteMembershipSql(key.slice("inviteCode:".length), value);
+    } else {
+      throw new Error(`Chiave campaignStore non supportata: ${key}`);
+    }
+    await kv.set(key, value);
+  },
+};
+
 const INVITE_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 function randomInviteCode(): string {
@@ -86,7 +329,7 @@ function randomInviteCode(): string {
 async function generateUniqueInviteCode(): Promise<string> {
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = randomInviteCode();
-    const existing = await kv.get(inviteCodeKey(code));
+    const existing = await campaignStore.get(inviteCodeKey(code));
     if (!existing) return code;
   }
   // Fallback estremamente improbabile: usa un codice più lungo basato su UUID
@@ -227,19 +470,19 @@ async function addPlayerToCampaign(
   ownerId: string,
   profileId: string,
 ): Promise<void> {
-  const members = await kv.get(campaignMembersKey(campaignId)) ?? [];
+  const members = await campaignStore.get(campaignMembersKey(campaignId)) ?? [];
   if (!members.some((m: any) => m.profileId === profileId)) {
     members.push({ profileId, role: "player", joinedAt: new Date().toISOString() });
-    await kv.set(campaignMembersKey(campaignId), members);
+    await campaignStore.set(campaignMembersKey(campaignId), members);
   }
   await admin.from('campaign_members').upsert(
     { campaign_id: campaignId, profile_id: profileId, role: 'player' },
     { onConflict: 'campaign_id,profile_id' }
   );
-  const playerCampaigns = await kv.get(playerCampaignsKey(profileId)) ?? [];
+  const playerCampaigns = await campaignStore.get(playerCampaignsKey(profileId)) ?? [];
   if (!playerCampaigns.some((pc: any) => pc.campaignId === campaignId)) {
     playerCampaigns.push({ campaignId, ownerId });
-    await kv.set(playerCampaignsKey(profileId), playerCampaigns);
+    await campaignStore.set(playerCampaignsKey(profileId), playerCampaigns);
   }
   await broadcastCampaignMembersChange(admin, campaignId);
 }
@@ -276,14 +519,14 @@ async function leaveIfLastActiveCharacter(
 
   if (remaining && remaining.length > 0) return false;
 
-  const members = await kv.get(campaignMembersKey(campaignId)) ?? [];
-  await kv.set(campaignMembersKey(campaignId), members.filter((m: any) => m.profileId !== characterOwnerId));
+  const members = await campaignStore.get(campaignMembersKey(campaignId)) ?? [];
+  await campaignStore.set(campaignMembersKey(campaignId), members.filter((m: any) => m.profileId !== characterOwnerId));
   await admin.from('campaign_members').delete()
     .eq('campaign_id', campaignId)
     .eq('profile_id', characterOwnerId);
 
-  const playerCampaigns = await kv.get(playerCampaignsKey(characterOwnerId)) ?? [];
-  await kv.set(playerCampaignsKey(characterOwnerId), playerCampaigns.filter((pc: any) => pc.campaignId !== campaignId));
+  const playerCampaigns = await campaignStore.get(playerCampaignsKey(characterOwnerId)) ?? [];
+  await campaignStore.set(playerCampaignsKey(characterOwnerId), playerCampaigns.filter((pc: any) => pc.campaignId !== campaignId));
   return true;
 }
 
@@ -383,7 +626,7 @@ app.get("/make-server-771c5bfd/campaigns", async (c) => {
     const userId = await getUserIdFromToken(token);
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
-    const campaigns = await kv.get(campaignsKey(userId)) ?? [];
+    const campaigns = await campaignStore.get(campaignsKey(userId)) ?? [];
     return c.json({ campaigns });
   } catch (err) {
     console.log("Errore GET campaigns:", err);
@@ -420,9 +663,9 @@ app.post("/make-server-771c5bfd/campaigns", async (c) => {
       updatedAt: now,
     };
 
-    const existing: unknown[] = await kv.get(campaignsKey(userId)) ?? [];
-    await kv.set(campaignsKey(userId), [...existing, newCampaign]);
-    await kv.set(inviteCodeKey(inviteCode), { campaignId: newCampaign.id, ownerId: userId });
+    const existing: unknown[] = await campaignStore.get(campaignsKey(userId)) ?? [];
+    await campaignStore.set(campaignsKey(userId), [...existing, newCampaign]);
+    await campaignStore.set(inviteCodeKey(inviteCode), { campaignId: newCampaign.id, ownerId: userId });
 
     return c.json({ campaign: newCampaign }, 201);
   } catch (err) {
@@ -442,9 +685,17 @@ app.put("/make-server-771c5bfd/campaigns/:id", async (c) => {
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
     const campaignId = c.req.param("id");
-    const patch = await c.req.json();
+    const rawPatch = await c.req.json();
+  const patch: Record<string, unknown> = {};
+  for (const key of [
+    "name", "description", "ruleset", "logoUrl", "coverImageUrl",
+    "coverCrop", "coverRotationDegrees", "tabOrder",
+    "tabOrderCampaignNotes", "tabOrderGmNotes",
+  ]) {
+    if (Object.prototype.hasOwnProperty.call(rawPatch, key)) patch[key] = rawPatch[key];
+  }
 
-    const campaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const campaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
     const index = campaigns.findIndex((c: Campaign) => c.id === campaignId);
 
     if (index === -1) {
@@ -475,7 +726,7 @@ app.put("/make-server-771c5bfd/campaigns/:id", async (c) => {
     };
 
     campaigns[index] = updated;
-    await kv.set(campaignsKey(userId), campaigns);
+    await campaignStore.set(campaignsKey(userId), campaigns);
 
     return c.json({ campaign: updated });
   } catch (err) {
@@ -498,7 +749,7 @@ app.get("/make-server-771c5bfd/campaigns/:id/entity-counts", async (c) => {
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
     const campaignId = c.req.param("id");
-    const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const myCampaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
     const owns = myCampaigns.some((camp) => camp.id === campaignId);
     if (!owns) {
       return c.json({ error: "Campagna non trovata o non sei il proprietario" }, 404);
@@ -522,7 +773,7 @@ app.post("/make-server-771c5bfd/campaigns/:id/session", async (c) => {
     const campaignId = c.req.param("id");
     const { active } = await c.req.json();
 
-    const campaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const campaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
     const index = campaigns.findIndex((c: Campaign) => c.id === campaignId);
     if (index === -1) {
       return c.json({ error: "Campagna non trovata o non sei il proprietario" }, 404);
@@ -535,7 +786,7 @@ app.post("/make-server-771c5bfd/campaigns/:id/session", async (c) => {
       updatedAt: new Date().toISOString()
     };
     campaigns[index] = updated;
-    await kv.set(campaignsKey(userId), campaigns);
+    await campaignStore.set(campaignsKey(userId), campaigns);
 
     // Sincronizza anche su Postgres, per la lettura RLS lato giocatori
     await getAdminClient().from('campaigns').update({ session_active: !!active }).eq('id', campaignId);
@@ -558,7 +809,7 @@ app.post("/make-server-771c5bfd/campaigns/:id/open", async (c) => {
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
     const campaignId = c.req.param("id");
-    const existing: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const existing: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
     const idx = existing.findIndex((cmp) => cmp.id === campaignId);
     if (idx === -1) {
       return c.json({ error: "Campagna non trovata o non sei il proprietario" }, 404);
@@ -566,7 +817,7 @@ app.post("/make-server-771c5bfd/campaigns/:id/open", async (c) => {
 
     const now = new Date().toISOString();
     existing[idx] = { ...existing[idx], lastOpenedAt: now };
-    await kv.set(campaignsKey(userId), existing);
+    await campaignStore.set(campaignsKey(userId), existing);
 
     return c.json({ campaign: existing[idx] });
   } catch (err) {
@@ -586,7 +837,7 @@ app.post("/make-server-771c5bfd/campaigns/:id/invite-code", async (c) => {
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
     const campaignId = c.req.param("id");
-    const campaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const campaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
     const index = campaigns.findIndex((cmp) => cmp.id === campaignId);
     if (index === -1) {
       return c.json({ error: "Campagna non trovata o non sei il proprietario" }, 404);
@@ -598,8 +849,8 @@ app.post("/make-server-771c5bfd/campaigns/:id/invite-code", async (c) => {
 
     const inviteCode = await generateUniqueInviteCode();
     campaigns[index] = { ...campaigns[index], inviteCode, updatedAt: new Date().toISOString() };
-    await kv.set(campaignsKey(userId), campaigns);
-    await kv.set(inviteCodeKey(inviteCode), { campaignId, ownerId: userId });
+    await campaignStore.set(campaignsKey(userId), campaigns);
+    await campaignStore.set(inviteCodeKey(inviteCode), { campaignId, ownerId: userId });
 
     return c.json({ campaign: campaigns[index] });
   } catch (err) {
@@ -622,7 +873,7 @@ app.post("/make-server-771c5bfd/campaigns/:id/invite-by-name", async (c) => {
     const trimmedName = typeof displayName === "string" ? normalizeDisplayName(displayName) : "";
     if (!trimmedName) return c.json({ error: "Il nome è obbligatorio" }, 400);
 
-    const campaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const campaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
     const campaign = campaigns.find((cmp) => cmp.id === campaignId);
     if (!campaign) {
       return c.json({ error: "Campagna non trovata o non sei il proprietario" }, 404);
@@ -633,7 +884,7 @@ app.post("/make-server-771c5bfd/campaigns/:id/invite-by-name", async (c) => {
     if (!found) return c.json({ error: "Nessun utente trovato con questo nome" }, 404);
     if (found.id === userId) return c.json({ error: "Non puoi invitare te stesso" }, 400);
 
-    const members = await kv.get(campaignMembersKey(campaignId)) ?? [];
+    const members = await campaignStore.get(campaignMembersKey(campaignId)) ?? [];
     if (members.some((m: any) => m.profileId === found.id)) {
       return c.json({ error: "Questo utente è già un membro della campagna" }, 409);
     }
@@ -731,10 +982,10 @@ app.delete("/make-server-771c5bfd/campaigns/:id", async (c) => {
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
     const campaignId = c.req.param("id");
-    const campaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const campaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
     const filtered = campaigns.filter((c: Campaign) => c.id !== campaignId);
 
-    await kv.set(campaignsKey(userId), filtered);
+    await campaignStore.set(campaignsKey(userId), filtered);
     return c.json({ success: true });
   } catch (err) {
     console.log("Errore DELETE campaign:", err);
@@ -758,7 +1009,7 @@ app.post("/make-server-771c5bfd/campaigns/join", async (c) => {
       return c.json({ error: "Il codice invito è obbligatorio" }, 400);
     }
 
-    const membership: CampaignMembership | null = await kv.get(inviteCodeKey(normalizedCode));
+    const membership: CampaignMembership | null = await campaignStore.get(inviteCodeKey(normalizedCode));
     if (!membership) {
       return c.json({ error: "Codice invito non valido" }, 404);
     }
@@ -767,7 +1018,7 @@ app.post("/make-server-771c5bfd/campaigns/join", async (c) => {
       return c.json({ error: "Sei già il master di questa campagna" }, 400);
     }
 
-    const ownerCampaigns: Campaign[] = await kv.get(campaignsKey(membership.ownerId)) ?? [];
+    const ownerCampaigns: Campaign[] = await campaignStore.get(campaignsKey(membership.ownerId)) ?? [];
     const campaign = ownerCampaigns.find((cmp) => cmp.id === membership.campaignId);
     if (!campaign) {
       return c.json({ error: "Campagna non trovata" }, 404);
@@ -802,7 +1053,7 @@ app.get("/make-server-771c5bfd/campaigns/invite-preview", async (c) => {
       return c.json({ error: "Il codice invito è obbligatorio" }, 400);
     }
 
-    const membership: CampaignMembership | null = await kv.get(inviteCodeKey(normalizedCode));
+    const membership: CampaignMembership | null = await campaignStore.get(inviteCodeKey(normalizedCode));
     if (!membership) {
       return c.json({ error: "Codice invito non valido" }, 404);
     }
@@ -811,7 +1062,7 @@ app.get("/make-server-771c5bfd/campaigns/invite-preview", async (c) => {
       return c.json({ error: "Sei già il master di questa campagna" }, 400);
     }
 
-    const ownerCampaigns: Campaign[] = await kv.get(campaignsKey(membership.ownerId)) ?? [];
+    const ownerCampaigns: Campaign[] = await campaignStore.get(campaignsKey(membership.ownerId)) ?? [];
     const campaign = ownerCampaigns.find((cmp) => cmp.id === membership.campaignId);
     if (!campaign) {
       return c.json({ error: "Campagna non trovata" }, 404);
@@ -848,11 +1099,11 @@ app.get("/make-server-771c5bfd/campaigns/:id/available-characters", async (c) =>
 
     let authorized = false;
 
-    const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const myCampaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
     if (myCampaigns.some((cmp) => cmp.id === campaignId)) {
       authorized = true;
     } else {
-      const myJoined = await kv.get(playerCampaignsKey(userId)) ?? [];
+      const myJoined = await campaignStore.get(playerCampaignsKey(userId)) ?? [];
       if (myJoined.some((pc: any) => pc.campaignId === campaignId)) authorized = true;
     }
 
@@ -860,7 +1111,7 @@ app.get("/make-server-771c5bfd/campaigns/:id/available-characters", async (c) =>
       const rawCode = c.req.query("code");
       if (rawCode) {
         const normalizedCode = String(rawCode).trim().toUpperCase();
-        const membership: CampaignMembership | null = await kv.get(inviteCodeKey(normalizedCode));
+        const membership: CampaignMembership | null = await campaignStore.get(inviteCodeKey(normalizedCode));
         if (membership && membership.campaignId === campaignId) authorized = true;
       }
     }
@@ -921,7 +1172,7 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
     }
     const isCharacterOwner = character.owner_profile_id === userId;
     if (!isCharacterOwner) {
-      const myCampaignsForCheck: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+      const myCampaignsForCheck: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
       const isGmHere = character.campaign_id && myCampaignsForCheck.some((camp) => camp.id === character.campaign_id);
       if (!isGmHere) {
         return c.json({ error: "Non hai i permessi su questo personaggio" }, 403);
@@ -934,14 +1185,14 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
 
     if (inviteCode) {
       const normalizedCode = String(inviteCode).trim().toUpperCase();
-      const membership = await kv.get(inviteCodeKey(normalizedCode));
+      const membership = await campaignStore.get(inviteCodeKey(normalizedCode));
       if (!membership) {
         return c.json({ error: "Codice invito non valido" }, 404);
       }
       if (membership.ownerId === userId) {
         return c.json({ error: "Sei già il master di questa campagna" }, 400);
       }
-      const ownerCampaigns: Campaign[] = await kv.get(campaignsKey(membership.ownerId)) ?? [];
+      const ownerCampaigns: Campaign[] = await campaignStore.get(campaignsKey(membership.ownerId)) ?? [];
       const campaign = ownerCampaigns.find((cmp) => cmp.id === membership.campaignId);
       if (!campaign) {
         return c.json({ error: "Campagna non trovata" }, 404);
@@ -960,8 +1211,8 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
 
       await addPlayerToCampaign(admin, targetCampaignId, membership.ownerId, userId);
     } else if (campaignId) {
-      const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
-      const myJoined: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
+      const myCampaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
+      const myJoined: CampaignMembership[] = await campaignStore.get(playerCampaignsKey(userId)) ?? [];
       const ownedMatch = myCampaigns.find((cmp) => cmp.id === campaignId);
       const joinedMatch = myJoined.find((pc) => pc.campaignId === campaignId);
       if (!ownedMatch && !joinedMatch) {
@@ -971,7 +1222,7 @@ app.post("/make-server-771c5bfd/characters/:id/assign-campaign", async (c) => {
       if (ownedMatch) {
         targetCampaignRuleset = ownedMatch.ruleset ?? null;
       } else if (joinedMatch) {
-        const ownerCampaigns: Campaign[] = await kv.get(campaignsKey(joinedMatch.ownerId)) ?? [];
+        const ownerCampaigns: Campaign[] = await campaignStore.get(campaignsKey(joinedMatch.ownerId)) ?? [];
         targetCampaignRuleset = ownerCampaigns.find((cmp) => cmp.id === campaignId)?.ruleset ?? null;
       }
 
@@ -1188,8 +1439,8 @@ app.post("/make-server-771c5bfd/characters/:id/claim", async (c) => {
       return c.json({ error: "Questo personaggio non appartiene a una campagna" }, 400);
     }
 
-    const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
-    const myJoined: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
+    const myCampaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
+    const myJoined: CampaignMembership[] = await campaignStore.get(playerCampaignsKey(userId)) ?? [];
     const hasAccess = myCampaigns.some((cmp) => cmp.id === character.campaign_id)
       || myJoined.some((pc) => pc.campaignId === character.campaign_id);
     if (!hasAccess) {
@@ -1369,14 +1620,14 @@ app.post("/make-server-771c5bfd/characters/:id/copy-to-campaign", async (c) => {
     }
 
     const isOwnerOfCharacter = original.owner_profile_id === userId;
-    const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const myCampaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
     const isGmOfOriginCampaign = myCampaigns.some((camp) => camp.id === original.campaign_id);
     if (!isOwnerOfCharacter && !isGmOfOriginCampaign) {
       return c.json({ error: "Non hai i permessi per copiare questo personaggio" }, 403);
     }
 
     const targetOwnedCampaign = myCampaigns.find((camp) => camp.id === campaignId);
-    const myJoined: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
+    const myJoined: CampaignMembership[] = await campaignStore.get(playerCampaignsKey(userId)) ?? [];
     const targetJoinedMembership = myJoined.find((pc) => pc.campaignId === campaignId);
     if (!targetOwnedCampaign && !targetJoinedMembership) {
       return c.json({ error: "Non hai accesso alla campagna di destinazione" }, 403);
@@ -1387,7 +1638,7 @@ app.post("/make-server-771c5bfd/characters/:id/copy-to-campaign", async (c) => {
     // edge function Deno non puo' importare da src/).
     let targetCampaignRuleset: string | null = targetOwnedCampaign?.ruleset ?? null;
     if (!targetCampaignRuleset && targetJoinedMembership) {
-      const ownerCampaigns: Campaign[] = await kv.get(campaignsKey(targetJoinedMembership.ownerId)) ?? [];
+      const ownerCampaigns: Campaign[] = await campaignStore.get(campaignsKey(targetJoinedMembership.ownerId)) ?? [];
       targetCampaignRuleset = ownerCampaigns.find((cmp) => cmp.id === campaignId)?.ruleset ?? null;
     }
     if (original.ruleset && targetCampaignRuleset && original.ruleset !== targetCampaignRuleset) {
@@ -1449,7 +1700,7 @@ async function canAccessFolders(
 
 async function isGmOfCampaign(userId: string, campaignId: string | null): Promise<boolean> {
   if (!campaignId) return false;
-  const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+  const myCampaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
   return myCampaigns.some((camp) => camp.id === campaignId);
 }
 
@@ -1475,7 +1726,7 @@ async function canAccessEntityNotes(
   const isGm = await isGmOfCampaign(userId, campaignId);
   if (isGm) return true;
   if (entityType === 'campaign') {
-    const myJoined: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
+    const myJoined: CampaignMembership[] = await campaignStore.get(playerCampaignsKey(userId)) ?? [];
     const isMember = myJoined.some((pc) => pc.campaignId === campaignId);
     if (!isMember) return false;
     if (mode === 'read') {
@@ -2507,7 +2758,7 @@ app.post("/make-server-771c5bfd/notifications/:id/respond", async (c) => {
     // accept
     const campaignId = existing.data.campaignId as string;
     const inviterProfileId = existing.data.inviterProfileId as string;
-    const ownerCampaigns: Campaign[] = await kv.get(campaignsKey(inviterProfileId)) ?? [];
+    const ownerCampaigns: Campaign[] = await campaignStore.get(campaignsKey(inviterProfileId)) ?? [];
     const campaign = ownerCampaigns.find((cmp) => cmp.id === campaignId);
     if (!campaign) {
       return c.json({ error: "Campagna non trovata" }, 404);
@@ -2540,7 +2791,7 @@ app.post("/make-server-771c5bfd/campaigns/:id/remove-player", async (c) => {
     const { playerProfileId } = await c.req.json();
     if (!playerProfileId) return c.json({ error: "playerProfileId obbligatorio" }, 400);
 
-    const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const myCampaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
     const isGm = myCampaigns.some((camp) => camp.id === campaignId);
     if (!isGm) {
       return c.json({ error: "Solo il proprietario della campagna può rimuovere un giocatore" }, 403);
@@ -2556,11 +2807,11 @@ app.post("/make-server-771c5bfd/campaigns/:id/remove-player", async (c) => {
       .eq("owner_profile_id", playerProfileId);
 
     // Revoca l'appartenenza dal KV (campagna) e dal profilo del giocatore
-    const members = await kv.get(campaignMembersKey(campaignId)) ?? [];
-    await kv.set(campaignMembersKey(campaignId), members.filter((m: any) => m.profileId !== playerProfileId));
+    const members = await campaignStore.get(campaignMembersKey(campaignId)) ?? [];
+    await campaignStore.set(campaignMembersKey(campaignId), members.filter((m: any) => m.profileId !== playerProfileId));
 
-    const playerCampaigns = await kv.get(playerCampaignsKey(playerProfileId)) ?? [];
-    await kv.set(playerCampaignsKey(playerProfileId), playerCampaigns.filter((pc: any) => pc.campaignId !== campaignId));
+    const playerCampaigns = await campaignStore.get(playerCampaignsKey(playerProfileId)) ?? [];
+    await campaignStore.set(playerCampaignsKey(playerProfileId), playerCampaigns.filter((pc: any) => pc.campaignId !== campaignId));
 
     // Revoca anche su Postgres (per Presence/RLS)
     await admin.from('campaign_members').delete()
@@ -2586,11 +2837,11 @@ app.get("/make-server-771c5bfd/campaigns/joined", async (c) => {
     const userId = await getUserIdFromToken(token);
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
-    const playerCampaigns: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
+    const playerCampaigns: CampaignMembership[] = await campaignStore.get(playerCampaignsKey(userId)) ?? [];
 
     const campaigns: Campaign[] = [];
     for (const membership of playerCampaigns) {
-      const ownerCampaigns: Campaign[] = await kv.get(campaignsKey(membership.ownerId)) ?? [];
+      const ownerCampaigns: Campaign[] = await campaignStore.get(campaignsKey(membership.ownerId)) ?? [];
       const campaign = ownerCampaigns.find((cmp) => cmp.id === membership.campaignId);
       if (campaign) campaigns.push(campaign);
     }
@@ -2610,12 +2861,12 @@ app.get("/make-server-771c5bfd/campaigns/overview", async (c) => {
   const userId = await getUserIdFromToken(token);
   if (!userId) return c.json({ error: "Token non valido" }, 401);
 
-  const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+  const myCampaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
   const admin = getAdminClient();
 
   const enriched = await Promise.all(
     myCampaigns.map(async (camp) => {
-      const members = await kv.get(campaignMembersKey(camp.id)) ?? [];
+      const members = await campaignStore.get(campaignMembersKey(camp.id)) ?? [];
       const { data: chars } = await admin
         .from("characters")
         .select("id, name")
@@ -2668,13 +2919,13 @@ app.get("/make-server-771c5bfd/campaigns/:id/members", async (c) => {
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
     const campaignId = c.req.param("id");
-    const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const myCampaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
     const owns = myCampaigns.some((camp) => camp.id === campaignId);
     if (!owns) {
       return c.json({ error: "Campagna non trovata o non sei il proprietario" }, 404);
     }
 
-    const members = await kv.get(campaignMembersKey(campaignId)) ?? [];
+    const members = await campaignStore.get(campaignMembersKey(campaignId)) ?? [];
     return c.json({ members });
   } catch (err) {
     console.log("Errore GET campaigns/:id/members:", err);
@@ -2701,14 +2952,14 @@ app.get("/make-server-771c5bfd/campaigns/:id/member-names", async (c) => {
     if (!userId) return c.json({ error: "Token non valido" }, 401);
 
     const campaignId = c.req.param("id");
-    const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+    const myCampaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
     const isOwner = myCampaigns.some((camp) => camp.id === campaignId);
 
     let ownerId: string;
     if (isOwner) {
       ownerId = userId;
     } else {
-      const myJoined: CampaignMembership[] = await kv.get(playerCampaignsKey(userId)) ?? [];
+      const myJoined: CampaignMembership[] = await campaignStore.get(playerCampaignsKey(userId)) ?? [];
       const membership = myJoined.find((pc) => pc.campaignId === campaignId);
       if (!membership) {
         return c.json({ error: "Non hai accesso a questa campagna" }, 403);
@@ -2716,7 +2967,7 @@ app.get("/make-server-771c5bfd/campaigns/:id/member-names", async (c) => {
       ownerId = membership.ownerId;
     }
 
-    const members = await kv.get(campaignMembersKey(campaignId)) ?? [];
+    const members = await campaignStore.get(campaignMembersKey(campaignId)) ?? [];
     const profileIds = Array.from(
       new Set([...members.map((m: any) => m.profileId), ownerId].filter(Boolean))
     );
@@ -2760,11 +3011,11 @@ app.get("/make-server-771c5bfd/campaigns/:id/characters", async (c) => {
 
   const campaignId = c.req.param("id");
 
-  const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+  const myCampaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
   const isOwner = myCampaigns.some((camp) => camp.id === campaignId);
 
   if (!isOwner) {
-    const myJoined = await kv.get(playerCampaignsKey(userId)) ?? [];
+    const myJoined = await campaignStore.get(playerCampaignsKey(userId)) ?? [];
     const isMember = myJoined.some((pc) => pc.campaignId === campaignId);
     if (!isMember) {
       return c.json({ error: "Non hai accesso a questa campagna" }, 403);
@@ -2820,7 +3071,7 @@ app.put("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c)
   const campaignId = c.req.param("id");
   const characterId = c.req.param("characterId");
 
-  const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+  const myCampaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
   const isOwner = myCampaigns.some((camp) => camp.id === campaignId);
   if (!isOwner) {
     return c.json({ error: "Solo il proprietario della campagna può modificare i personaggi altrui" }, 403);
@@ -2928,7 +3179,7 @@ app.delete("/make-server-771c5bfd/characters/:id", async (c) => {
     const isCharacterOwner = character.owner_profile_id === userId;
     let isGm = false;
     if (!isCharacterOwner && character.campaign_id) {
-      const myCampaigns: Campaign[] = await kv.get(campaignsKey(userId)) ?? [];
+      const myCampaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
       isGm = myCampaigns.some((camp) => camp.id === character.campaign_id);
     }
     if (!isCharacterOwner && !isGm) {
@@ -2974,6 +3225,12 @@ interface Campaign {
   updatedAt: string;
   lastOpenedAt?: string;
   logoUrl?: string;
+  coverImageUrl?: string;
+  coverCrop?: unknown;
+  coverRotationDegrees?: number;
+  tabOrder?: string[];
+  tabOrderCampaignNotes?: string[];
+  tabOrderGmNotes?: string[];
   sessionActive?: boolean;
   sessionActivatedAt?: string;
 }
