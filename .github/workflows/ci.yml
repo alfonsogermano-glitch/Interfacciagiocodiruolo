@@ -17,5 +17,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm ls nanoid postcss react-router tar vite
       - run: npm audit --audit-level=high
       - run: npm run check
