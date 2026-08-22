@@ -1,3 +1,23 @@
+=== npm ci ===
+npm warn deprecated recharts@2.15.2: 1.x and 2.x branches are no longer active. Bump to Recharts v3 to receive latest features and bugfixes. See https://github.com/recharts/recharts/wiki/3.0-migration-guide
+
+added 353 packages, and audited 354 packages in 9s
+
+70 packages are looking for funding
+  run `npm fund` for details
+
+5 vulnerabilities (4 high, 1 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues, run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+NPM_CI_EXIT_CODE=0
+
+=== npm run typecheck ===
 
 > @figma/my-make-file@0.0.1 typecheck
 > tsc --noEmit
@@ -46,5 +66,4 @@ src/services/supabase/campaignService.ts(36,20): error TS2304: Cannot find name 
 src/services/supabase/charactersService.ts(145,5): error TS2322: Type 'StoredCharacter[]' is not assignable to type '(Character & { player: string; notes: string; ownerProfileId: string; ruleset: RulesetId; })[]'.
   Type 'StoredCharacter' is not assignable to type 'Character & { player: string; notes: string; ownerProfileId: string; ruleset: RulesetId; }'.
     Property 'ownerProfileId' is missing in type 'StoredCharacter' but required in type '{ player: string; notes: string; ownerProfileId: string; ruleset: RulesetId; }'.
-
-EXIT_CODE=2
+TYPECHECK_EXIT_CODE=2
