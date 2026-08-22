@@ -10,7 +10,11 @@ begin
     into v_public_direct_uid_count
   from pg_policies
   where schemaname = 'public'
-    and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) like '%auth.uid()%';
+    and replace(
+      coalesce(qual, '') || ' ' || coalesce(with_check, ''),
+      '( SELECT auth.uid() AS uid)',
+      ''
+    ) like '%auth.uid()%';
 
   if v_public_direct_uid_count <> 47 then
     raise exception 'P1B1_SCOPE_DRIFT: expected 47 public policies with direct auth.uid(), found %',
@@ -189,7 +193,11 @@ begin
     into v_public_direct_uid_count
   from pg_policies
   where schemaname = 'public'
-    and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) like '%auth.uid()%';
+    and replace(
+      coalesce(qual, '') || ' ' || coalesce(with_check, ''),
+      '( SELECT auth.uid() AS uid)',
+      ''
+    ) like '%auth.uid()%';
 
   if v_public_direct_uid_count <> 0 then
     raise exception 'P1B1_POSTCONDITION_FAILED: % public policies still contain direct auth.uid()',
