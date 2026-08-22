@@ -9,6 +9,8 @@ for (const required of [
   'function mapCampaignRow',
   'campaign_invite_codes',
   'deleted_at',
+  'async function mirrorPlayerCampaignsKv',
+  'await mirrorPlayerCampaignsKv(profileId)',
 ]) {
   if (!server.includes(required)) failures.push(`Edge Function missing required SQL-canonical marker: ${required}`);
 }
