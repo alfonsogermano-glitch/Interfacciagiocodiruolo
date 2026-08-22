@@ -1,0 +1,57 @@
+name: P0.4 Atomic Campaign Delete Patch
+
+on:
+  push:
+    paths:
+      - '.github/workflows/p0-4-delete-route-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.ref == 'refs/heads/stabilization/p0'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stabilization/p0
+          fetch-depth: 0
+
+      - name: Apply deterministic campaign delete patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('supabase/functions/server/index.tsx')
+          text = p.read_text(encoding='utf-8')
+
+          helper_anchor = 'async function getInviteMembershipSql(code: string): Promise<CampaignMembership | null> {\n'
+          helper = '''async function softDeleteCampaignAndRevokeMembers(\n  ownerId: string,\n  campaignId: string,\n): Promise<string[]> {\n  const { data, error } = await getAdminClient().rpc(\n    "soft_delete_campaign_and_revoke_members",\n    { p_campaign_id: campaignId, p_owner_profile_id: ownerId },\n  );\n  requireNoError(error, "Soft-delete campagna e revoca membership SQL");\n  return (data ?? [])\n    .map((row: any) => row.profile_id)\n    .filter((profileId: unknown): profileId is string => typeof profileId === "string" && profileId.length > 0);\n}\n\n'''
+          if text.count(helper_anchor) != 1:
+              raise SystemExit(f'helper anchor count={text.count(helper_anchor)}')
+          if 'async function softDeleteCampaignAndRevokeMembers' in text:
+              raise SystemExit('softDeleteCampaignAndRevokeMembers already present unexpectedly')
+          text = text.replace(helper_anchor, helper + helper_anchor, 1)
+
+          old = '''    const campaignId = c.req.param("id");\n    const campaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];\n    const filtered = campaigns.filter((c: Campaign) => c.id !== campaignId);\n\n    await campaignStore.set(campaignsKey(userId), filtered);\n    return c.json({ success: true });\n'''
+          new = '''    const campaignId = c.req.param("id");\n    const campaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];\n    const existing = campaigns.find((campaign: Campaign) => campaign.id === campaignId);\n    if (!existing) {\n      return c.json({ error: "Campagna non trovata o non sei il proprietario" }, 404);\n    }\n\n    // DB first and atomic: campaign soft-delete + membership revocation happen in\n    // one PostgreSQL transaction. KV is updated only afterwards as rollback data.\n    const removedProfileIds = await softDeleteCampaignAndRevokeMembers(userId, campaignId);\n    const filtered = campaigns.filter((campaign: Campaign) => campaign.id !== campaignId);\n\n    await campaignStore.set(campaignsKey(userId), filtered);\n    await campaignStore.set(campaignMembersKey(campaignId), []);\n    for (const profileId of removedProfileIds) {\n      await mirrorPlayerCampaignsKv(profileId);\n    }\n\n    return c.json({ success: true });\n'''
+          if text.count(old) != 1:
+              raise SystemExit(f'delete route anchor count={text.count(old)}')
+          text = text.replace(old, new, 1)
+
+          p.write_text(text, encoding='utf-8')
+
+      - name: Verify before commit
+        run: |
+          npm ci
+          npm run check
+          git diff --check
+
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add supabase/functions/server/index.tsx
+          git commit -m "fix: revoke campaign members atomically on delete"
+          git push origin HEAD:stabilization/p0
