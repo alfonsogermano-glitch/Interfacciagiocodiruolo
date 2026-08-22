@@ -24,12 +24,29 @@ jobs:
       - name: Commit canonical lockfile if changed
         shell: bash
         run: |
-          if git diff --quiet -- package-lock.json; then
+          if ! git diff --quiet -- package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "build: sync TypeScript lockfile [skip ci]"
+            git push origin HEAD:stabilization/p0
+          else
             echo "package-lock.json already synchronized"
-            exit 0
           fi
+      - run: npm ci
+      - name: Capture TypeScript baseline
+        shell: bash
+        run: |
+          set +e
+          npm run typecheck > p0-typecheck-diagnostics.txt 2>&1
+          status=$?
+          printf "\nEXIT_CODE=%s\n" "$status" >> p0-typecheck-diagnostics.txt
+          cat p0-typecheck-diagnostics.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "build: sync TypeScript lockfile [skip ci]"
-          git push origin HEAD:stabilization/p0
+          git add p0-typecheck-diagnostics.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "test: capture P0 TypeScript baseline [skip ci]"
+            git push origin HEAD:stabilization/p0
+          fi
+          exit "$status"
