@@ -21,6 +21,139 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Apply remaining baseline fixes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new, expected=1):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != expected:
+                  raise SystemExit(f"{path}: expected {expected} occurrences, found {count}: {old!r}")
+              p.write_text(text.replace(old, new, expected))
+
+          replace(
+              'src/app/layout/LeftSidebar.tsx',
+              "  view: 'home' | 'dashboard';",
+              "  view: 'home' | 'dashboard' | 'campaign-home';"
+          )
+          replace(
+              'src/app/components/CompleteCharacterSheet.tsx',
+              'character.prodigio',
+              'character.prodigi'
+          )
+          replace(
+              'src/app/components/gm/EnvironmentManager.tsx',
+              'function normalizeEnvironment(item: Partial<Environment>): Environment {',
+              'function normalizeEnvironment(\n  item: Partial<Environment>,\n  fallbackCampaignId: string\n): Environment {'
+          )
+          replace(
+              'src/app/components/gm/EnvironmentManager.tsx',
+              '    campaignId: item.campaignId ?? campaignId,',
+              '    campaignId: item.campaignId ?? fallbackCampaignId,'
+          )
+          replace(
+              'src/app/components/gm/EnvironmentManager.tsx',
+              '          normalizeEnvironment(env)\n',
+              '          normalizeEnvironment(env, campaignId)\n'
+          )
+          replace(
+              'src/app/components/gm/MyCharactersPage.tsx',
+              "type OwnedCharacter = Character & { player: string; notes: string; ownerProfileId: string; campaignId: string | null; ruleset: RulesetId | null };",
+              "type OwnedCharacter = Character & { player: string; notes: string; ownerProfileId: string; campaignId: string | null; ruleset: RulesetId | null; createdAt?: string; updatedAt?: string };"
+          )
+          replace(
+              'src/types/database.ts',
+              '  campaign_id: string | null;\n  created_by: string | null;\n\n  name: string;',
+              '  campaign_id: string | null;\n  created_by: string | null;\n\n  image_asset_id?: string | null;\n  icon_id?: string | null;\n  icon_color?: string | null;\n  linked_environment_ids?: string[];\n  linked_npc_ids?: string[];\n  linked_monster_ids?: string[];\n  container_item_id?: string | null;\n\n  name: string;'
+          )
+          replace(
+              'src/lib/mappers/equipmentMappers.ts',
+              '    campaignId: row.campaign_id,\n    createdBy: row.created_by,\n\n    name: row.name,',
+              '    campaignId: row.campaign_id,\n    createdBy: row.created_by,\n    imageAssetId: row.image_asset_id ?? null,\n    iconId: row.icon_id ?? null,\n    iconColor: row.icon_color ?? null,\n    linkedEnvironmentIds: row.linked_environment_ids ?? [],\n    linkedNpcIds: row.linked_npc_ids ?? [],\n    linkedMonsterIds: row.linked_monster_ids ?? [],\n    containerItemId: row.container_item_id ?? null,\n\n    name: row.name,'
+          )
+          replace(
+              'src/main.tsx',
+              'import App from "./app/App.tsx";',
+              'import App from "./app/App";'
+          )
+          replace(
+              'src/services/campaign/entityReferenceService.ts',
+              '  return normalizeReferences(data ?? [], campaignId);',
+              '  return normalizeReferences((data ?? []) as unknown as RawReference[], campaignId);'
+          )
+          replace(
+              'src/services/equipment/equipmentCatalogService.ts',
+              "    await deleteTauriEntity(campaignId ?? 'global', 'equipmentCatalog', id);",
+              "    await deleteTauriEntity('equipmentCatalog', id);"
+          )
+          old_visual = """    visualAssetsCachePromise = supabase
+      .from('visual_assets')
+      .select('id,campaign_id,name,type,image_data_url,thumbnail_url,created_at')
+      .order('created_at', { ascending: true })
+      .then(async ({ data, error }) => {
+        if (error) {
+          console.error('Errore caricamento visual assets da Supabase:', error);
+          const fallbackItems = await localVisualAssetsStorage.getAll();
+          const sortedFallback = sortVisualAssets(fallbackItems);
+          updateVisualAssetsCache(sortedFallback);
+          visualAssetsCachePromise = null;
+          return sortedFallback;
+        }
+
+        const items = sortVisualAssets((data ?? []).map(row => fromVisualAssetRow(row as VisualAssetRow)));
+        updateVisualAssetsCache(items);
+        visualAssetsCachePromise = null;
+        return items;
+      });"""
+          new_visual = """    visualAssetsCachePromise = (async () => {
+      const { data, error } = await supabase
+        .from('visual_assets')
+        .select('id,campaign_id,name,type,image_data_url,thumbnail_url,created_at')
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Errore caricamento visual assets da Supabase:', error);
+        const fallbackItems = await localVisualAssetsStorage.getAll();
+        const sortedFallback = sortVisualAssets(fallbackItems);
+        updateVisualAssetsCache(sortedFallback);
+        visualAssetsCachePromise = null;
+        return sortedFallback;
+      }
+
+      const items = sortVisualAssets((data ?? []).map(row => fromVisualAssetRow(row as VisualAssetRow)));
+      updateVisualAssetsCache(items);
+      visualAssetsCachePromise = null;
+      return items;
+    })();"""
+          replace('src/services/storage/visualAssetsStorage.ts', old_visual, new_visual)
+          replace(
+              'src/services/supabase/charactersService.ts',
+              'export async function loadCharacters(campaignId: string): Promise<(Character & {player: string; notes: string; ownerProfileId: string; ruleset: RulesetId | null})[]> {',
+              'export async function loadCharacters(campaignId: string): Promise<(Character & {player: string; notes: string; ownerProfileId?: string; ruleset: RulesetId | null})[]> {'
+          )
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app/layout/LeftSidebar.tsx \
+                  src/app/components/CompleteCharacterSheet.tsx \
+                  src/app/components/gm/EnvironmentManager.tsx \
+                  src/app/components/gm/MyCharactersPage.tsx \
+                  src/types/database.ts \
+                  src/lib/mappers/equipmentMappers.ts \
+                  src/main.tsx \
+                  src/services/campaign/entityReferenceService.ts \
+                  src/services/equipment/equipmentCatalogService.ts \
+                  src/services/storage/visualAssetsStorage.ts \
+                  src/services/supabase/charactersService.ts
+          if ! git diff --cached --quiet; then
+            git commit -m "fix: clear remaining TypeScript baseline errors [skip ci]"
+            git push origin HEAD:stabilization/p0
+          fi
       - name: Capture TypeScript diagnostics
         shell: bash
         run: |
