@@ -252,6 +252,14 @@ async function getPlayerCampaignsSql(profileId: string): Promise<CampaignMembers
     .map(id => ({ campaignId: id, ownerId: String(ownerByCampaign.get(id)) }));
 }
 
+async function mirrorPlayerCampaignsKv(profileId: string): Promise<void> {
+  // Snapshot di rollback soltanto: la relazione canonica resta campaign_members.
+  // Derivandolo da SQL dopo la scrittura evitiamo che un nuovo join lasci
+  // playerCampaigns:* indietro rispetto allo stato reale.
+  const canonical = await getPlayerCampaignsSql(profileId);
+  await kv.set(playerCampaignsKey(profileId), canonical);
+}
+
 async function getInviteMembershipSql(code: string): Promise<CampaignMembership | null> {
   const admin = getAdminClient();
   const normalized = code.trim().toUpperCase();
@@ -479,11 +487,7 @@ async function addPlayerToCampaign(
     { campaign_id: campaignId, profile_id: profileId, role: 'player' },
     { onConflict: 'campaign_id,profile_id' }
   );
-  const playerCampaigns = await campaignStore.get(playerCampaignsKey(profileId)) ?? [];
-  if (!playerCampaigns.some((pc: any) => pc.campaignId === campaignId)) {
-    playerCampaigns.push({ campaignId, ownerId });
-    await campaignStore.set(playerCampaignsKey(profileId), playerCampaigns);
-  }
+  await mirrorPlayerCampaignsKv(profileId);
   await broadcastCampaignMembersChange(admin, campaignId);
 }
 
