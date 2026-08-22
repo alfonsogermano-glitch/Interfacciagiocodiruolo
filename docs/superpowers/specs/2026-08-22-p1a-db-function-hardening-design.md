@@ -151,7 +151,7 @@ Run synthetic operations inside transactions and roll them back:
 
 1. `characters_broadcast_changes` trigger remains callable during a character write and does not block the DML because of privilege/search-path changes.
 2. `lock_characters_origins_in_campaign` still rejects changes to locked origin fields for an already-campaign-bound character.
-3. character folder validation still accepts a valid folder/type/campaign combination and rejectss an invalid one.
+3. character folder validation still accepts a valid folder/type/campaign combination and rejects an invalid one.
 4. NPC folder validation still rejects mismatched folder/type/campaign combinations.
 5. monster folder validation still rejects mismatched folder/type/campaign combinations.
 6. folder hierarchy validation still enforces parent type/campaign, cycle protection, and depth limit.
