@@ -4,16 +4,13 @@ on:
   push:
     branches:
       - stabilization/p0
-  pull_request:
-    branches:
-      - main
 
 permissions:
   contents: write
 
 jobs:
-  lockfile:
-    if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
+  baseline:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,30 +20,43 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm install --package-lock-only --ignore-scripts
-      - name: Commit canonical lockfile if changed
+      - name: Synchronize lockfile
+        shell: bash
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Capture clean-install and TypeScript baseline
         shell: bash
         run: |
-          if ! git diff --quiet -- package-lock.json; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add package-lock.json
-            git commit -m "build: sync TypeScript lockfile [skip ci]"
-            git push origin HEAD:stabilization/p0
+          set +e
+          : > p0-typecheck-diagnostics.txt
+
+          echo "=== npm ci ===" >> p0-typecheck-diagnostics.txt
+          npm ci >> p0-typecheck-diagnostics.txt 2>&1
+          ci_status=$?
+          echo "NPM_CI_EXIT_CODE=$ci_status" >> p0-typecheck-diagnostics.txt
+
+          if [ "$ci_status" -eq 0 ]; then
+            echo "" >> p0-typecheck-diagnostics.txt
+            echo "=== npm run typecheck ===" >> p0-typecheck-diagnostics.txt
+            npm run typecheck >> p0-typecheck-diagnostics.txt 2>&1
+            typecheck_status=$?
           else
-            echo "package-lock.json already synchronized"
+            typecheck_status=99
+            echo "" >> p0-typecheck-diagnostics.txt
+            echo "Typecheck skipped because npm ci failed." >> p0-typecheck-diagnostics.txt
           fi
 
-  typecheck-baseline:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck
+          echo "TYPECHECK_EXIT_CODE=$typecheck_status" >> p0-typecheck-diagnostics.txt
+          cat p0-typecheck-diagnostics.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json p0-typecheck-diagnostics.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "test: capture P0 TypeScript baseline [skip ci]"
+            git push origin HEAD:stabilization/p0
+          fi
+
+          if [ "$ci_status" -ne 0 ]; then
+            exit "$ci_status"
+          fi
+          exit "$typecheck_status"
