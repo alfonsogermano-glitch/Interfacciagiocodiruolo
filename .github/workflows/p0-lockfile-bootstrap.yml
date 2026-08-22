@@ -20,94 +20,20 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Synchronize lockfile
-        shell: bash
-        run: npm install --package-lock-only --ignore-scripts
-      - name: Apply first type-contract fixes
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          def replace(path, old, new, count=None):
-              p = Path(path)
-              text = p.read_text()
-              occurrences = text.count(old)
-              expected = count if count is not None else 1
-              if occurrences != expected:
-                  raise SystemExit(f"{path}: expected {expected} occurrences, found {occurrences}: {old!r}")
-              p.write_text(text.replace(old, new, expected))
-
-          replace(
-              'src/services/supabase/entitiesService.ts',
-              '  caselleFrischezzaCruciali: number[];',
-              '  caselleFrischezzaCruciali?: number[];'
-          )
-          replace(
-              'src/services/supabase/entitiesService.ts',
-              '  createdAt?: string;\n  updatedAt?: string;\n}\n\nexport async function loadAdventures',
-              '  createdAt: string;\n  updatedAt: string;\n}\n\nexport async function loadAdventures'
-          )
-          replace(
-              'src/app/components/gm/monsters/monstersTypes.ts',
-              "import type { TokenBorderStyle, TokenBorderThickness } from '../../../../types/tokenStyle';\nexport type { ImageCrop } from '../../../../types/imageCrop';",
-              "import type { TokenBorderStyle, TokenBorderThickness } from '../../../../types/tokenStyle';\nimport type { ImageCrop } from '../../../../types/imageCrop';\nexport type { ImageCrop };"
-          )
-          replace(
-              'src/app/components/gm/monsters/monstersUtils.ts',
-              '    caselleFreschezzaCritiche: base.caselleFreschezzaCritiche ?? [],',
-              '    caselleFreschezzaCritiche: base.caselleFrischezzaCruciali ?? [],'
-          )
-          replace(
-              'src/app/components/gm/monsters/monstersUtils.ts',
-              '  return baseMonster?.caselleFreschezzaCritiche ?? [];',
-              '  return baseMonster?.caselleFrischezzaCruciali ?? [];'
-          )
-          PY
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/services/supabase/entitiesService.ts \
-                  src/app/components/gm/monsters/monstersTypes.ts \
-                  src/app/components/gm/monsters/monstersUtils.ts
-          if ! git diff --cached --quiet; then
-            git commit -m "fix: align monster and adventure type contracts [skip ci]"
-            git push origin HEAD:stabilization/p0
-          fi
-      - name: Capture clean-install and TypeScript baseline
+      - run: npm ci
+      - name: Capture TypeScript diagnostics
         shell: bash
         run: |
           set +e
-          : > p0-typecheck-diagnostics.txt
-
-          echo "=== npm ci ===" >> p0-typecheck-diagnostics.txt
-          npm ci >> p0-typecheck-diagnostics.txt 2>&1
-          ci_status=$?
-          echo "NPM_CI_EXIT_CODE=$ci_status" >> p0-typecheck-diagnostics.txt
-
-          if [ "$ci_status" -eq 0 ]; then
-            echo "" >> p0-typecheck-diagnostics.txt
-            echo "=== npm run typecheck ===" >> p0-typecheck-diagnostics.txt
-            npm run typecheck >> p0-typecheck-diagnostics.txt 2>&1
-            typecheck_status=$?
-          else
-            typecheck_status=99
-            echo "" >> p0-typecheck-diagnostics.txt
-            echo "Typecheck skipped because npm ci failed." >> p0-typecheck-diagnostics.txt
-          fi
-
-          echo "TYPECHECK_EXIT_CODE=$typecheck_status" >> p0-typecheck-diagnostics.txt
+          npm run typecheck > p0-typecheck-diagnostics.txt 2>&1
+          status=$?
+          echo "TYPECHECK_EXIT_CODE=$status" >> p0-typecheck-diagnostics.txt
           cat p0-typecheck-diagnostics.txt
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json p0-typecheck-diagnostics.txt
+          git add p0-typecheck-diagnostics.txt
           if ! git diff --cached --quiet; then
             git commit -m "test: update P0 TypeScript diagnostics [skip ci]"
             git push origin HEAD:stabilization/p0
           fi
-
-          if [ "$ci_status" -ne 0 ]; then
-            exit "$ci_status"
-          fi
-          exit "$typecheck_status"
+          exit "$status"
