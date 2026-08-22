@@ -1,0 +1,50 @@
+
+> @figma/my-make-file@0.0.1 typecheck
+> tsc --noEmit
+
+src/app/App.tsx(348,13): error TS2322: Type '"home" | "dashboard" | "campaign-home"' is not assignable to type '"home" | "dashboard"'.
+  Type '"campaign-home"' is not assignable to type '"home" | "dashboard"'.
+src/app/components/CompleteCharacterSheet.tsx(157,76): error TS2551: Property 'prodigio' does not exist on type 'Character'. Did you mean 'prodigi'?
+src/app/components/gm/EnvironmentManager.tsx(146,36): error TS2304: Cannot find name 'campaignId'.
+src/app/components/gm/MonstersManager.tsx(97,53): error TS2345: Argument of type 'Adventure[]' is not assignable to parameter of type 'SetStateAction<Adventure[]>'.
+  Type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/services/supabase/entitiesService").Adventure[]' is not assignable to type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/types/adventure").Adventure[]'.
+    Type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/services/supabase/entitiesService").Adventure' is not assignable to type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/types/adventure").Adventure'.
+      Property 'createdAt' is optional in type 'Adventure' but required in type 'Adventure'.
+src/app/components/gm/MonstersManager.tsx(207,35): error TS2345: Argument of type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/app/components/gm/monsters/monstersTypes").Monster' is not assignable to parameter of type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/services/supabase/entitiesService").Monster'.
+  Property 'caselleFrischezzaCruciali' is missing in type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/app/components/gm/monsters/monstersTypes").Monster' but required in type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/services/supabase/entitiesService").Monster'.
+src/app/components/gm/MonstersManager.tsx(218,35): error TS2345: Argument of type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/app/components/gm/monsters/monstersTypes").Monster' is not assignable to parameter of type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/services/supabase/entitiesService").Monster'.
+  Property 'caselleFrischezzaCruciali' is missing in type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/app/components/gm/monsters/monstersTypes").Monster' but required in type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/services/supabase/entitiesService").Monster'.
+src/app/components/gm/MyCharactersPage.tsx(763,23): error TS2339: Property 'createdAt' does not exist on type 'OwnedCharacter'.
+src/app/components/gm/MyCharactersPage.tsx(764,49): error TS2339: Property 'createdAt' does not exist on type 'OwnedCharacter'.
+src/app/components/gm/MyCharactersPage.tsx(947,35): error TS2345: Argument of type 'Map<string, Adventure[]>' is not assignable to parameter of type 'SetStateAction<Map<string, Adventure[]>>'.
+  Type 'Map<string, import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/services/supabase/entitiesService").Adventure[]>' is not assignable to type 'Map<string, import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/types/adventure").Adventure[]>'.
+    Type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/services/supabase/entitiesService").Adventure[]' is not assignable to type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/types/adventure").Adventure[]'.
+      Type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/services/supabase/entitiesService").Adventure' is not assignable to type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/types/adventure").Adventure'.
+        Property 'createdAt' is optional in type 'Adventure' but required in type 'Adventure'.
+src/app/components/gm/MyCharactersPage.tsx(1043,21): error TS2345: Argument of type 'Monster' is not assignable to parameter of type 'SetStateAction<Monster>'.
+  Property 'caselleFrischezzaCruciali' is missing in type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/app/components/gm/monsters/monstersTypes").Monster' but required in type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/services/supabase/entitiesService").Monster'.
+src/app/components/gm/NPCsManager.tsx(137,53): error TS2345: Argument of type 'Adventure[]' is not assignable to parameter of type 'SetStateAction<Adventure[]>'.
+  Type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/services/supabase/entitiesService").Adventure[]' is not assignable to type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/types/adventure").Adventure[]'.
+    Type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/services/supabase/entitiesService").Adventure' is not assignable to type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/types/adventure").Adventure'.
+      Property 'createdAt' is optional in type 'Adventure' but required in type 'Adventure'.
+src/app/components/gm/monsters/monstersTypes.ts(86,18): error TS2304: Cannot find name 'ImageCrop'.
+src/app/components/gm/monsters/monstersTypes.ts(96,15): error TS2304: Cannot find name 'ImageCrop'.
+src/app/components/gm/monsters/monstersUtils.ts(166,37): error TS2551: Property 'caselleFreschezzaCritiche' does not exist on type 'MonsterBase'. Did you mean 'caselleFrischezzaCruciali'?
+src/app/components/gm/monsters/monstersUtils.ts(356,23): error TS2551: Property 'caselleFreschezzaCritiche' does not exist on type 'MonsterBase'. Did you mean 'caselleFrischezzaCruciali'?
+src/app/components/session/shared/EntityDetailView.tsx(281,29): error TS2345: Argument of type 'Adventure[]' is not assignable to parameter of type 'SetStateAction<Adventure[]>'.
+  Type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/services/supabase/entitiesService").Adventure[]' is not assignable to type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/types/adventure").Adventure[]'.
+    Type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/services/supabase/entitiesService").Adventure' is not assignable to type 'import("/home/runner/work/Interfacciagiocodiruolo/Interfacciagiocodiruolo/src/types/adventure").Adventure'.
+      Property 'createdAt' is optional in type 'Adventure' but required in type 'Adventure'.
+src/lib/mappers/equipmentMappers.ts(13,3): error TS2739: Type '{ id: string; campaignId: string; createdBy: string; name: string; description: string; type: DbEquipmentType; isVehicle: boolean; source: DbEquipmentCatalogSource; ... 7 more ...; updatedAt: string; }' is missing the following properties from type 'EquipmentCatalogItem': linkedEnvironmentIds, linkedNpcIds, linkedMonsterIds
+src/main.tsx(3,19): error TS5097: An import path can only end with a '.tsx' extension when 'allowImportingTsExtensions' is enabled.
+src/services/campaign/entityReferenceService.ts(91,30): error TS2345: Argument of type 'GenericStringError[]' is not assignable to parameter of type 'RawReference[]'.
+  Type 'GenericStringError' has no properties in common with type 'RawReference'.
+src/services/equipment/equipmentCatalogService.ts(246,73): error TS2554: Expected 2 arguments, but got 3.
+src/services/storage/visualAssetsStorage.ts(245,5): error TS2739: Type 'PromiseLike<VisualAsset[]>' is missing the following properties from type 'Promise<VisualAsset[]>': catch, finally, [Symbol.toStringTag]
+src/services/supabase/campaignService.ts(35,13): error TS2304: Cannot find name 'DEFAULT_CAMPAIGN_NAME'.
+src/services/supabase/campaignService.ts(36,20): error TS2304: Cannot find name 'DEFAULT_CAMPAIGN_DESCRIPTION'.
+src/services/supabase/charactersService.ts(145,5): error TS2322: Type 'StoredCharacter[]' is not assignable to type '(Character & { player: string; notes: string; ownerProfileId: string; ruleset: RulesetId; })[]'.
+  Type 'StoredCharacter' is not assignable to type 'Character & { player: string; notes: string; ownerProfileId: string; ruleset: RulesetId; }'.
+    Property 'ownerProfileId' is missing in type 'StoredCharacter' but required in type '{ player: string; notes: string; ownerProfileId: string; ruleset: RulesetId; }'.
+
+EXIT_CODE=2
