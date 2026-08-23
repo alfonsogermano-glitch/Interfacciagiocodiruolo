@@ -93,4 +93,14 @@ assert.match(toolbarSource, /position:\s*'fixed'/, 'toolbar must position itself
 assert.match(toolbarSource, /onMouseDown=\{\(event\) => event\.preventDefault\(\)\}/, 'toolbar mouse-down must preserve the current table cell selection');
 assert.match(toolbarSource, /if \(!editable \|\| !activeTable \|\| !position\) return null/, 'table controls must disappear outside editable active tables');
 
+const editorSource = await readFile(new URL('../src/app/components/session/shared/RichTextEditor.tsx', import.meta.url), 'utf8');
+assert.match(editorSource, /Table2/, 'Blocchi toolbar must expose the Table2 icon');
+assert.match(editorSource, /insertNoteTable\(\)/, 'Table button must invoke insertNoteTable');
+assert.match(editorSource, /\.\.\.NOTE_TABLE_EXTENSIONS/, 'Note editor must register the table extensions');
+assert.match(editorSource, /<NoteTableToolbar editor=\{editor\} editable=\{editable\}/, 'Note editor must mount the contextual table toolbar');
+assert.match(editorSource, /TextAlign\.configure\(\{ types: \['paragraph'\] \}\)/, 'alignment must remain paragraph-scoped for independent lines inside cells');
+assert.match(source, /extractTablePayloadFromHtml/, 'paste guard must recover Hollowgate structured table data from HTML');
+assert.match(source, /schema\.nodeFromJSON/, 'structured table paste must rebuild through the destination editor schema');
+assert.match(source, /replaceSelectionWith/, 'structured table paste must insert the recovered table at the current selection');
+
 console.log('Note table verification: PASS');
