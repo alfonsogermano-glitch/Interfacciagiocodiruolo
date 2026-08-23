@@ -26,4 +26,43 @@ assert.match(source, /isSelectionInside\(state, 'collapseBody'\)/, 'table insert
 assert.match(source, /handlePaste/, 'nested table paste must be guarded');
 assert.match(source, /handleDrop/, 'nested table drop must be guarded');
 
-console.log('Note table core verification: PASS');
+let clipboard;
+try {
+  clipboard = await import('../src/app/components/session/shared/noteTableClipboard.ts');
+} catch (error) {
+  if (error?.code === 'ERR_MODULE_NOT_FOUND' || String(error?.message ?? '').includes('noteTableClipboard')) {
+    assert.fail('Portable Note table clipboard not implemented yet');
+  }
+  throw error;
+}
+
+const sampleTable = {
+  type: 'table',
+  content: [
+    {
+      type: 'tableRow',
+      content: [
+        { type: 'tableHeader', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Nome' }] }] },
+        { type: 'tableCell', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Valore' }] }] },
+      ],
+    },
+  ],
+};
+
+const encoded = clipboard.encodeTablePayload(sampleTable);
+assert.equal(typeof encoded, 'string');
+assert.deepEqual(clipboard.decodeTablePayload(encoded), sampleTable, 'structured clipboard encoding must round-trip Unicode-safe JSON');
+assert.equal(clipboard.tableJSONToPlainText(sampleTable), 'Nome\tValore', 'plain-text table fallback must use tabs between cells');
+const markedHtml = clipboard.embedTablePayloadInHtml('<table><tbody><tr><th>Nome</th><td>Valore</td></tr></tbody></table>', sampleTable);
+assert.match(markedHtml, /data-hollowgate-table-clipboard="1"/);
+assert.deepEqual(clipboard.extractTablePayloadFromHtml(markedHtml), sampleTable, 'HTML marker must recover the exact Hollowgate table JSON');
+assert.equal(clipboard.HOLLOWGATE_TABLE_MIME, 'web application/x-hollowgate-table+json');
+
+const clipboardSource = await readFile(new URL('../src/app/components/session/shared/noteTableClipboard.ts', import.meta.url), 'utf8');
+assert.match(clipboardSource, /text\/html/, 'clipboard write must always include HTML');
+assert.match(clipboardSource, /text\/plain/, 'clipboard write must always include plain text');
+assert.match(clipboardSource, /ClipboardItem\.supports/, 'custom MIME must be optional and capability-checked');
+assert.match(clipboardSource, /navigator\.clipboard\.write/, 'copy must target the system\/browser clipboard');
+assert.match(clipboardSource, /DOMSerializer\.fromSchema/, 'copy HTML must be serialized from the document schema, not cloned from live toolbar DOM');
+
+console.log('Note table verification: PASS');
