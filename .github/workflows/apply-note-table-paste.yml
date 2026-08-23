@@ -1,0 +1,46 @@
+name: Apply Note Table Paste Registration
+
+on:
+  push:
+    branches:
+      - feature/note-tables
+    paths:
+      - .github/workflows/apply-note-table-paste.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feature/note-tables
+      - name: Register structured table paste extension
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/app/components/session/shared/RichTextEditor.tsx')
+          source = path.read_text()
+
+          old = "import { NOTE_TABLE_EXTENSIONS } from './tiptapNoteTable';\nimport { NoteTableToolbar } from './NoteTableToolbar';"
+          new = "import { NOTE_TABLE_EXTENSIONS } from './tiptapNoteTable';\nimport { NoteTableClipboardPaste } from './noteTableClipboard';\nimport { NoteTableToolbar } from './NoteTableToolbar';"
+          assert source.count(old) == 1, source.count(old)
+          source = source.replace(old, new)
+
+          old = "      ...NOTE_TABLE_EXTENSIONS,\n    ],"
+          new = "      ...NOTE_TABLE_EXTENSIONS,\n      NoteTableClipboardPaste,\n    ],"
+          assert source.count(old) == 1, source.count(old)
+          source = source.replace(old, new)
+
+          path.write_text(source)
+          PY
+      - name: Commit registration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app/components/session/shared/RichTextEditor.tsx
+          git commit -m "fix: register structured table clipboard paste"
+          git push origin HEAD:feature/note-tables
