@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - hardening/p2b-bundle-recharts3
+  pull_request:
 
 permissions:
   contents: write
@@ -92,7 +93,7 @@ jobs:
         run: |
           git diff --check
           git diff -- package.json package-lock.json src/app/components/ui/chart.tsx
-      - if: steps.state.outputs.already_committed == 'false'
+      - if: github.event_name == 'push' && steps.state.outputs.already_committed == 'false'
         name: Commit verified Recharts migration
         shell: bash
         run: |
