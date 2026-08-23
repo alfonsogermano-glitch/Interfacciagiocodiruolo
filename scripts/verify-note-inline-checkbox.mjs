@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { getSchema } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { EditorState } from '@tiptap/pm/state';
@@ -18,6 +19,12 @@ const { InlineCheckbox, INLINE_CHECKBOX_CHAR, setInlineCheckboxChecked } = featu
 assert.equal(INLINE_CHECKBOX_CHAR, '\u200b', 'checkbox must occupy one real text character so Backspace/Delete work natively');
 assert.ok(InlineCheckbox, 'InlineCheckbox extension must be exported');
 assert.equal(typeof setInlineCheckboxChecked, 'function', 'toggle helper must be exported');
+
+const source = await readFile(new URL('../src/app/components/session/shared/tiptapInlineCheckbox.ts', import.meta.url), 'utf8');
+assert.match(source, /border:\s*'2px solid var\(--dash-text\)'/, 'checkbox outline must be at least twice the original thickness and use the active palette text color');
+assert.match(source, /border:\s*'solid var\(--dash-text\)'/, 'checked mark must use the active palette text color');
+assert.match(source, /borderWidth:\s*'0 0\.24em 0\.24em 0'/, 'checked mark stroke must be twice the original thickness');
+assert.doesNotMatch(source, /--dash-success-/, 'standalone checkbox must not use green success palette tokens');
 
 const schema = getSchema([
   StarterKit.configure({ heading: false }),
