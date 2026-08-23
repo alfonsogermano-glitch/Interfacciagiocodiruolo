@@ -15,6 +15,7 @@ import { FontFamily, FONT_FAMILIES } from './tiptapFontFamily';
 import { InlineIcon } from './tiptapInlineIcon';
 import { InlineCheckbox } from './tiptapInlineCheckbox';
 import { NOTE_TABLE_EXTENSIONS } from './tiptapNoteTable';
+import { NoteTableClipboardPaste } from './noteTableClipboard';
 import { NoteTableToolbar } from './NoteTableToolbar';
 import { ICON_CATEGORIES } from './tiptapIconData';
 import { flattenRemovedLayoutNodes } from './tiptapLegacyMigration';
@@ -417,6 +418,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
       inlineCheckboxExtension,
       ...TIPTAP_BLOCK_EXTENSIONS,
       ...NOTE_TABLE_EXTENSIONS,
+      NoteTableClipboardPaste,
     ],
     content: initialContent,
     editable,
