@@ -76,9 +76,8 @@ function buildCheckboxWidget(
   element.setAttribute('aria-label', checked ? 'Checkbox selezionata' : 'Checkbox non selezionata');
 
   // Stile inline intenzionale: la checkbox è una Decoration.widget e non
-  // richiede un nuovo blocco CSS globale. Usa solo token --dash-* già
-  // esistenti (gli stessi dell'elemento Attività), quindi resta palette-aware
-  // senza introdurre nuovi colori hardcoded o dipendenze dal tema.
+  // richiede un nuovo blocco CSS globale. Bordo e spunta usano il colore
+  // standard del testo della palette attiva, senza stati verdi dedicati.
   Object.assign(element.style, {
     display: 'inline-block',
     boxSizing: 'border-box',
@@ -86,9 +85,9 @@ function buildCheckboxWidget(
     height: '1em',
     margin: '0 0.12em',
     verticalAlign: '-0.12em',
-    border: `1px solid ${checked ? 'var(--dash-success-border)' : 'var(--dash-border-soft)'}`,
+    border: '2px solid var(--dash-text)',
     borderRadius: '0.22em',
-    background: checked ? 'var(--dash-success-bg)' : 'transparent',
+    background: 'transparent',
     cursor: canToggle() ? 'pointer' : 'default',
     position: 'relative',
     userSelect: 'none',
@@ -102,8 +101,8 @@ function buildCheckboxWidget(
       margin: 'auto',
       width: '0.25em',
       height: '0.5em',
-      border: 'solid var(--dash-success-border)',
-      borderWidth: '0 0.12em 0.12em 0',
+      border: 'solid var(--dash-text)',
+      borderWidth: '0 0.24em 0.24em 0',
       transform: 'rotate(45deg)',
       pointerEvents: 'none',
     });
