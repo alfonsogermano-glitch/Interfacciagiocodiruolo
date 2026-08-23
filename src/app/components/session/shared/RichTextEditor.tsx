@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
-import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Undo2, Type as FontIcon, Check, PenLine, LayoutTemplate, ListTodo, Shapes, Sword, Swords, Shield, Target, Crosshair, Skull, Bomb, Zap, Flame, Biohazard, Sparkles, Wand, Ghost, Eye, Moon, Sun, Feather, Scroll, Radiation, Snowflake, Compass, Map, MapPin, Mountain, Tent, Footprints, Anchor, Ship, Route, Signpost, User, Users, Crown, GraduationCap, Drama, Briefcase, Key, Gem, Coins, Pickaxe, FlaskConical, Pill, Syringe, Dice6, BookOpen, Castle, Church, Landmark, DoorOpen, Home, Store, Trees, Activity, Bell, Brain, Star, Heart, Music, Theater, Newspaper, type LucideIcon } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, ChevronRight, Underline as UnderlineIcon, Strikethrough, Quote, SeparatorHorizontal, Square, ChevronsDownUp, AlignLeft, AlignCenter, AlignRight, Image as ImageIcon, Undo2, Type as FontIcon, Check, PenLine, LayoutTemplate, ListTodo, Shapes, Sword, Swords, Shield, Target, Crosshair, Skull, Bomb, Zap, Flame, Biohazard, Sparkles, Wand, Ghost, Eye, Moon, Sun, Feather, Scroll, Radiation, Snowflake, Compass, Map, MapPin, Mountain, Tent, Footprints, Anchor, Ship, Route, Signpost, User, Users, Crown, GraduationCap, Drama, Briefcase, Key, Gem, Coins, Pickaxe, FlaskConical, Pill, Syringe, Dice6, BookOpen, Castle, Church, Landmark, DoorOpen, Home, Store, Trees, Activity, Bell, Brain, Star, Heart, Music, Theater, Newspaper, Table2, type LucideIcon } from 'lucide-react';
 import TextAlign from '@tiptap/extension-text-align';
 import Image from '@tiptap/extension-image';
 import TaskList from '@tiptap/extension-task-list';
@@ -14,6 +14,8 @@ import { FontSize, FONT_SIZES, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFont
 import { FontFamily, FONT_FAMILIES } from './tiptapFontFamily';
 import { InlineIcon } from './tiptapInlineIcon';
 import { InlineCheckbox } from './tiptapInlineCheckbox';
+import { NOTE_TABLE_EXTENSIONS } from './tiptapNoteTable';
+import { NoteTableToolbar } from './NoteTableToolbar';
 import { ICON_CATEGORIES } from './tiptapIconData';
 import { flattenRemovedLayoutNodes } from './tiptapLegacyMigration';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
@@ -333,6 +335,7 @@ function Toolbar({ editor, editable }: { editor: Editor; editable: boolean }) {
         <ToolbarButton disabled={!editable} label="Box di testo" active={false} onClick={() => runCommand(() => editor.chain().focus().setTextBox().run())}><Square className="h-4 w-4" /></ToolbarButton>
         <ToolbarButton disabled={!editable} label="Collapse (espandi/comprimi)" active={false} onClick={() => runCommand(() => editor.chain().focus().setCollapseBlock().run())}><ChevronsDownUp className="h-4 w-4" /></ToolbarButton>
         <ToolbarButton disabled={!editable} label="Linea orizzontale" active={false} onClick={() => runCommand(() => editor.chain().focus().setHorizontalRule().run())}><SeparatorHorizontal className="h-4 w-4" /></ToolbarButton>
+        <ToolbarButton disabled={!editable || editor.isActive('table')} label="Tabella" active={false} onClick={() => runCommand(() => editor.chain().focus().insertNoteTable().run())}><Table2 className="h-4 w-4" /></ToolbarButton>
         <ToolbarButton disabled={!editable} label="Attività" active={editor.isActive('taskList')} onClick={() => runCommand(() => editor.chain().focus().toggleTaskList().run())}><ListTodo className="h-4 w-4" /></ToolbarButton>
         <ToolbarButton disabled={!editable} label="Checkbox" active={false} onClick={() => runCommand(() => editor.chain().focus().insertInlineCheckbox().run())}>
           <span className="relative block h-4 w-4">
@@ -413,6 +416,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
       InlineIcon,
       inlineCheckboxExtension,
       ...TIPTAP_BLOCK_EXTENSIONS,
+      ...NOTE_TABLE_EXTENSIONS,
     ],
     content: initialContent,
     editable,
@@ -459,6 +463,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
       >
         <EditorContent editor={editor} />
       </div>
+      <NoteTableToolbar editor={editor} editable={editable} />
     </div>
   );
 }
