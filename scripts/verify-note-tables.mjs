@@ -5,7 +5,8 @@ let feature;
 try {
   feature = await import('../src/app/components/session/shared/tiptapNoteTable.ts');
 } catch (error) {
-  if (error?.code === 'ERR_MODULE_NOT_FOUND' || String(error?.message ?? '').includes('tiptapNoteTable')) {
+  const missingUrl = String(error?.url ?? '');
+  if (error?.code === 'ERR_MODULE_NOT_FOUND' && missingUrl.endsWith('/tiptapNoteTable.ts')) {
     assert.fail('Note table core not implemented yet');
   }
   throw error;
@@ -30,7 +31,8 @@ let clipboard;
 try {
   clipboard = await import('../src/app/components/session/shared/noteTableClipboard.ts');
 } catch (error) {
-  if (error?.code === 'ERR_MODULE_NOT_FOUND' || String(error?.message ?? '').includes('noteTableClipboard')) {
+  const missingUrl = String(error?.url ?? '');
+  if (error?.code === 'ERR_MODULE_NOT_FOUND' && missingUrl.endsWith('/noteTableClipboard.ts')) {
     assert.fail('Portable Note table clipboard not implemented yet');
   }
   throw error;
@@ -97,10 +99,11 @@ const editorSource = await readFile(new URL('../src/app/components/session/share
 assert.match(editorSource, /Table2/, 'Blocchi toolbar must expose the Table2 icon');
 assert.match(editorSource, /insertNoteTable\(\)/, 'Table button must invoke insertNoteTable');
 assert.match(editorSource, /\.\.\.NOTE_TABLE_EXTENSIONS/, 'Note editor must register the table extensions');
+assert.match(editorSource, /NoteTableClipboardPaste/, 'Note editor must register the structured clipboard paste extension');
 assert.match(editorSource, /<NoteTableToolbar editor=\{editor\} editable=\{editable\}/, 'Note editor must mount the contextual table toolbar');
 assert.match(editorSource, /TextAlign\.configure\(\{ types: \['paragraph'\] \}\)/, 'alignment must remain paragraph-scoped for independent lines inside cells');
-assert.match(source, /extractTablePayloadFromHtml/, 'paste guard must recover Hollowgate structured table data from HTML');
-assert.match(source, /schema\.nodeFromJSON/, 'structured table paste must rebuild through the destination editor schema');
-assert.match(source, /replaceSelectionWith/, 'structured table paste must insert the recovered table at the current selection');
+assert.match(clipboardSource, /extractTablePayloadFromHtml/, 'clipboard paste extension must recover Hollowgate structured table data from HTML');
+assert.match(clipboardSource, /schema\.nodeFromJSON/, 'structured table paste must rebuild through the destination editor schema');
+assert.match(clipboardSource, /replaceSelectionWith/, 'structured table paste must insert the recovered table at the current selection');
 
 console.log('Note table verification: PASS');
