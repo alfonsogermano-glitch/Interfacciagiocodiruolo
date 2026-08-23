@@ -1,0 +1,66 @@
+name: Apply Note Table Styles
+
+on:
+  push:
+    branches:
+      - feature/note-tables
+    paths:
+      - .github/workflows/apply-note-table-styles.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feature/note-tables
+      - name: Append isolated Note table styles
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/styles/theme.css')
+          source = path.read_text()
+          marker = '/* Note tables */'
+          assert marker not in source
+          css = r'''
+
+/* Note tables */
+.tiptap-content table.tiptap-note-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  color: var(--dash-text);
+}
+
+.tiptap-content .tiptap-note-table-cell,
+.tiptap-content .tiptap-note-table-header {
+  min-width: 3rem;
+  padding: 0.4rem 0.5rem;
+  vertical-align: top;
+  border: 1px solid var(--dash-border-soft);
+}
+
+.tiptap-content .tiptap-note-table-header {
+  background: var(--dash-surface-2);
+  color: var(--dash-text-strong);
+  font-weight: 600;
+}
+
+.tiptap-content .tiptap-note-table-cell > *:last-child,
+.tiptap-content .tiptap-note-table-header > *:last-child {
+  margin-bottom: 0;
+}
+'''
+          path.write_text(source.rstrip() + css + '\n')
+          PY
+      - name: Commit styles
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/styles/theme.css
+          git commit -m "style: add responsive palette-aware note tables"
+          git push origin HEAD:feature/note-tables
