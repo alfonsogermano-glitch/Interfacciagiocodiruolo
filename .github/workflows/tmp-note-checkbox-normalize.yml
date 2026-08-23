@@ -1,0 +1,102 @@
+name: Temporary checkbox diff normalizer
+
+on:
+  push:
+    branches:
+      - feature/note-inline-checkbox
+    paths:
+      - .tmp-note-checkbox-normalize-trigger
+
+permissions:
+  contents: write
+
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: feature/note-inline-checkbox
+      - name: Rebuild RichTextEditor from main with minimal checkbox changes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          base = '6f9468e7aa65d758f799a5c9558192ad5165f3c4'
+          path = Path('src/app/components/session/shared/RichTextEditor.tsx')
+          text = subprocess.check_output(['git', 'show', f'{base}:{path.as_posix()}'], text=True)
+
+          def replace_once(old, new, label):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly 1 match, found {count}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              "import { InlineIcon } from './tiptapInlineIcon';\n",
+              "import { InlineIcon } from './tiptapInlineIcon';\nimport { InlineCheckbox } from './tiptapInlineCheckbox';\n",
+              'import',
+          )
+
+          activity = '''        <ToolbarButton disabled={!editable} label="Attività" active={editor.isActive('taskList')} onClick={() => runCommand(() => editor.chain().focus().toggleTaskList().run())}>
+          <ListTodo className="h-4 w-4" />
+        </ToolbarButton>
+'''
+          checkbox = activity + '''        {/* Checkbox autonoma: elemento inline senza testo proprio. Come le icone
+            inline occupa un singolo carattere nel documento, quindi più
+            inserimenti consecutivi si allineano naturalmente e Backspace/
+            Delete la rimuovono come una lettera. */}
+        <ToolbarButton disabled={!editable} label="Checkbox" active={false} onClick={() => runCommand(() => editor.chain().focus().insertInlineCheckbox().run())}>
+          <span className="relative block h-4 w-4">
+            <Square className="absolute inset-0 h-4 w-4" />
+            <Check className="absolute left-[3px] top-[3px] h-2.5 w-2.5" />
+          </span>
+        </ToolbarButton>
+'''
+          replace_once(activity, checkbox, 'toolbar checkbox')
+
+          replace_once(
+              "function TipTapEditor({ richContent, onChangeRich, editable, autoFocus, onBlurEditor, onClickText, containerClassName }: {\n  richContent: JSONContent; onChangeRich: (json: JSONContent) => void; editable: boolean; autoFocus: boolean;\n",
+              "function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineCheckbox, autoFocus, onBlurEditor, onClickText, containerClassName }: {\n  richContent: JSONContent; onChangeRich: (json: JSONContent) => void; editable: boolean; canToggleInlineCheckbox: boolean; autoFocus: boolean;\n",
+              'TipTapEditor props',
+          )
+
+          replace_once(
+              "  const toolbarWrapRef = useRef<HTMLDivElement>(null);\n\n  const editor = useEditor({\n",
+              "  const toolbarWrapRef = useRef<HTMLDivElement>(null);\n\n  // Il permesso di spunta è distinto da editor.editable: una nota può essere\n  // in sola lettura temporanea ma la checkbox deve restare utilizzabile. Il\n  // ref mantiene stabile l'estensione TipTap e legge sempre il permesso\n  // corrente senza ricreare le options dell'editor ad ogni render.\n  const canToggleInlineCheckboxRef = useRef(canToggleInlineCheckbox);\n  canToggleInlineCheckboxRef.current = canToggleInlineCheckbox;\n  const [inlineCheckboxExtension] = useState(() => InlineCheckbox.configure({\n    canToggle: () => canToggleInlineCheckboxRef.current,\n  }));\n\n  const editor = useEditor({\n",
+              'permission extension',
+          )
+
+          replace_once(
+              "      InlineIcon,\n      ...TIPTAP_BLOCK_EXTENSIONS,\n",
+              "      InlineIcon,\n      inlineCheckboxExtension,\n      ...TIPTAP_BLOCK_EXTENSIONS,\n",
+              'extension registration',
+          )
+
+          replace_once(
+              "        editable={!disabled && isEditing}\n        autoFocus={isEditing}\n",
+              "        editable={!disabled && isEditing}\n        canToggleInlineCheckbox={!disabled}\n        autoFocus={isEditing}\n",
+              'existing-note permission',
+          )
+
+          replace_once(
+              "      editable\n      autoFocus\n",
+              "      editable\n      canToggleInlineCheckbox\n      autoFocus\n",
+              'new-note permission',
+          )
+
+          path.write_text(text, encoding='utf-8')
+          PY
+          git diff --check
+      - name: Commit minimal editor diff
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app/components/session/shared/RichTextEditor.tsx
+          git commit -m "refactor: minimize inline checkbox editor diff"
+          git push origin HEAD:feature/note-inline-checkbox
