@@ -41,8 +41,8 @@ function getInlineCheckboxMark(state: EditorState, pos: number) {
 }
 
 /** Aggiorna una sola checkbox, anche quando più checkbox consecutive sono
- * state fuse da ProseMirror nello stesso text node. Il range è sempre un
- * solo carattere: i vicini non vengono toccati. */
+ * fuse da ProseMirror nello stesso text node. Il range è sempre un solo
+ * carattere: i vicini non vengono toccati. */
 export function setInlineCheckboxChecked(
   state: EditorState,
   dispatch: ((transaction: Transaction) => void) | undefined,
@@ -75,6 +75,41 @@ function buildCheckboxWidget(
   element.setAttribute('aria-checked', String(checked));
   element.setAttribute('aria-label', checked ? 'Checkbox selezionata' : 'Checkbox non selezionata');
 
+  // Stile inline intenzionale: la checkbox è una Decoration.widget e non
+  // richiede un nuovo blocco CSS globale. Usa solo token --dash-* già
+  // esistenti (gli stessi dell'elemento Attività), quindi resta palette-aware
+  // senza introdurre nuovi colori hardcoded o dipendenze dal tema.
+  Object.assign(element.style, {
+    display: 'inline-block',
+    boxSizing: 'border-box',
+    width: '1em',
+    height: '1em',
+    margin: '0 0.12em',
+    verticalAlign: '-0.12em',
+    border: `1px solid ${checked ? 'var(--dash-success-border)' : 'var(--dash-border-soft)'}`,
+    borderRadius: '0.22em',
+    background: checked ? 'var(--dash-success-bg)' : 'transparent',
+    cursor: canToggle() ? 'pointer' : 'default',
+    position: 'relative',
+    userSelect: 'none',
+  });
+
+  if (checked) {
+    const checkmark = document.createElement('span');
+    Object.assign(checkmark.style, {
+      position: 'absolute',
+      inset: '0',
+      margin: 'auto',
+      width: '0.25em',
+      height: '0.5em',
+      border: 'solid var(--dash-success-border)',
+      borderWidth: '0 0.12em 0.12em 0',
+      transform: 'rotate(45deg)',
+      pointerEvents: 'none',
+    });
+    element.appendChild(checkmark);
+  }
+
   const interactive = canToggle();
   element.dataset.interactive = String(interactive);
   if (interactive) {
@@ -82,6 +117,16 @@ function buildCheckboxWidget(
   } else {
     element.setAttribute('aria-disabled', 'true');
   }
+
+  element.addEventListener('focus', () => {
+    if (!canToggle()) return;
+    element.style.outline = '2px solid var(--dash-accent)';
+    element.style.outlineOffset = '2px';
+  });
+  element.addEventListener('blur', () => {
+    element.style.outline = '';
+    element.style.outlineOffset = '';
+  });
 
   const toggle = () => {
     if (!canToggle()) return;
