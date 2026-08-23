@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - hardening/p2b-bundle-recharts3
+  pull_request:
 
 permissions:
   contents: read
