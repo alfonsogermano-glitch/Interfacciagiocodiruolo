@@ -2,6 +2,7 @@ import { Extension, type Extensions } from '@tiptap/core';
 import { TableKit, TableCell, TableHeader } from '@tiptap/extension-table';
 import type { Node as PMNode, ResolvedPos, Slice } from '@tiptap/pm/model';
 import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
+import { extractTablePayloadFromHtml } from './noteTableClipboard';
 
 /**
  * Blocks allowed directly inside a Note table cell/header.
@@ -31,6 +32,15 @@ function isResolvedInside($pos: ResolvedPos, typeName: string): boolean {
 
 function isSelectionInside(state: EditorState, typeName: string): boolean {
   return isResolvedInside(state.selection.$from, typeName);
+}
+
+function isSelectionInsideTableRestrictedContainer(state: EditorState): boolean {
+  return (
+    isSelectionInside(state, 'table') ||
+    isSelectionInside(state, 'textBox') ||
+    isSelectionInside(state, 'collapseBody') ||
+    isSelectionInside(state, 'collapseSummary')
+  );
 }
 
 export interface ActiveNoteTable {
@@ -107,18 +117,44 @@ export const NoteTableCommands = Extension.create({
       new Plugin({
         key: new PluginKey('noteTableNestingGuard'),
         props: {
-          handlePaste: (view, _event, slice) => {
+          handlePaste: (view, event, slice) => {
+            const html = event.clipboardData?.getData('text/html') ?? '';
+            const structuredTable = extractTablePayloadFromHtml(html);
+
+            if (structuredTable) {
+              // A copied Hollowgate table is portable across Note/editor/browser
+              // tabs, but never allowed to become a nested table/container.
+              if (isSelectionInsideTableRestrictedContainer(view.state)) return true;
+
+              try {
+                const tableNode = view.state.schema.nodeFromJSON(structuredTable);
+                tableNode.check();
+                if (tableNode.type.name !== 'table') return false;
+                const transaction = view.state.tr.replaceSelectionWith(tableNode).scrollIntoView();
+                view.dispatch(transaction);
+                return true;
+              } catch {
+                // Invalid/stale structured metadata must not block the normal
+                // HTML/plain-text paste fallback supplied by the clipboard.
+                return false;
+              }
+            }
+
             if (!sliceContainsTable(slice)) return false;
-            // Never create a table inside the currently active table. Consume
-            // the paste without changing the document; ordinary non-table
-            // paste remains untouched.
-            return isSelectionInside(view.state, 'table');
+            // Conventional HTML table pastes obey the same nesting boundary.
+            return isSelectionInsideTableRestrictedContainer(view.state);
           },
           handleDrop: (view, event, slice) => {
             if (!sliceContainsTable(slice)) return false;
             const target = view.posAtCoords({ left: event.clientX, top: event.clientY });
             if (!target) return false;
-            return isResolvedInside(view.state.doc.resolve(target.pos), 'table');
+            const $target = view.state.doc.resolve(target.pos);
+            return (
+              isResolvedInside($target, 'table') ||
+              isResolvedInside($target, 'textBox') ||
+              isResolvedInside($target, 'collapseBody') ||
+              isResolvedInside($target, 'collapseSummary')
+            );
           },
         },
       }),
