@@ -24,6 +24,7 @@ const source = await readFile(new URL('../src/app/components/session/shared/tipt
 assert.match(source, /border:\s*'2px solid var\(--dash-text\)'/, 'checkbox outline must remain 2px and use the active palette text color');
 assert.match(source, /border:\s*'solid var\(--dash-text\)'/, 'checked mark must use the active palette text color');
 assert.match(source, /borderWidth:\s*'0 0\.12em 0\.12em 0'/, 'checked mark stroke must remain thin for legibility');
+assert.match(source, /transform:\s*'translateY\(-0\.04em\) rotate\(45deg\)'/, 'checked mark must receive the approved slight upward optical offset');
 assert.doesNotMatch(source, /--dash-success-/, 'standalone checkbox must not use green success palette tokens');
 
 const schema = getSchema([
