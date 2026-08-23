@@ -64,6 +64,11 @@ jobs:
           assert text.count(old) == 1
           text = text.replace(old, new, 1)
 
+          old = '              key={item.dataKey}\n'
+          new = '              key={`${item.name ?? String(item.dataKey ?? "value")}-${index}`}\n'
+          assert text.count(old) == 1
+          text = text.replace(old, new, 1)
+
           old = '''}: React.ComponentProps<"div"> &\n  Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> & {\n    hideIcon?: boolean;\n    nameKey?: string;\n  }) {'''
           new = '''}: React.ComponentProps<"div"> & {\n  payload?: ReadonlyArray<LegendPayload>;\n  verticalAlign?: "top" | "middle" | "bottom";\n  hideIcon?: boolean;\n  nameKey?: string;\n}) {'''
           assert text.count(old) == 1
