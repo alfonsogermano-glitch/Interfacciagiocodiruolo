@@ -103,7 +103,7 @@ function buildCheckboxWidget(
       height: '0.5em',
       border: 'solid var(--dash-text)',
       borderWidth: '0 0.12em 0.12em 0',
-      transform: 'rotate(45deg)',
+      transform: 'translateY(-0.04em) rotate(45deg)',
       pointerEvents: 'none',
     });
     element.appendChild(checkmark);
