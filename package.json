@@ -8,7 +8,8 @@
     "dev": "vite",
     "typecheck": "tsc --noEmit",
     "verify:campaign-canonical": "node scripts/verify-campaign-canonical.mjs",
-    "check": "npm run typecheck && npm run verify:campaign-canonical && npm run build"
+    "verify:note-inline-checkbox": "node --experimental-strip-types scripts/verify-note-inline-checkbox.mjs",
+    "check": "npm run typecheck && npm run verify:campaign-canonical && npm run verify:note-inline-checkbox && npm run build"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
