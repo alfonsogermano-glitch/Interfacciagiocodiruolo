@@ -1,5 +1,6 @@
-import type { Editor, JSONContent } from '@tiptap/core';
+import { Extension, type Editor, type JSONContent } from '@tiptap/core';
 import { DOMSerializer, type Node as PMNode } from '@tiptap/pm/model';
+import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
 
 export const HOLLOWGATE_TABLE_MIME = 'web application/x-hollowgate-table+json';
 const TABLE_CLIPBOARD_MARKER = 'data-hollowgate-table-clipboard="1"';
@@ -84,6 +85,65 @@ function serializeTableToHtml(editor: Editor, tableNode: PMNode): string {
   container.appendChild(rendered);
   return container.innerHTML;
 }
+
+function isSelectionInside(state: EditorState, typeName: string): boolean {
+  const { $from } = state.selection;
+  for (let depth = $from.depth; depth >= 0; depth -= 1) {
+    if ($from.node(depth).type.name === typeName) return true;
+  }
+  return false;
+}
+
+function isRestrictedTablePasteDestination(state: EditorState): boolean {
+  return (
+    isSelectionInside(state, 'table') ||
+    isSelectionInside(state, 'textBox') ||
+    isSelectionInside(state, 'collapseBody') ||
+    isSelectionInside(state, 'collapseSummary')
+  );
+}
+
+/**
+ * Recover the exact Hollowgate table JSON from the HTML clipboard marker.
+ * This extension is intentionally separate from the table schema/guard
+ * extension so both modules remain independently testable and the core table
+ * module has no local runtime import dependency.
+ */
+export const NoteTableClipboardPaste = Extension.create({
+  name: 'noteTableClipboardPaste',
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('noteTableStructuredClipboardPaste'),
+        props: {
+          handlePaste: (view, event) => {
+            const html = event.clipboardData?.getData('text/html') ?? '';
+            const structuredTable = extractTablePayloadFromHtml(html);
+            if (!structuredTable) return false;
+
+            // Never allow a copied table to become nested in another table or
+            // in the existing restricted container blocks.
+            if (isRestrictedTablePasteDestination(view.state)) return true;
+
+            try {
+              const tableNode = view.state.schema.nodeFromJSON(structuredTable);
+              tableNode.check();
+              if (tableNode.type.name !== 'table') return false;
+              const transaction = view.state.tr.replaceSelectionWith(tableNode).scrollIntoView();
+              view.dispatch(transaction);
+              return true;
+            } catch {
+              // Stale/invalid structured metadata must not block the normal
+              // HTML/plain-text paste fallback that is also on the clipboard.
+              return false;
+            }
+          },
+        },
+      }),
+    ];
+  },
+});
 
 /**
  * Copy a complete Note table to the system/browser clipboard.
