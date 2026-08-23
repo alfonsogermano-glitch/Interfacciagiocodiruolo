@@ -21,9 +21,9 @@ assert.ok(InlineCheckbox, 'InlineCheckbox extension must be exported');
 assert.equal(typeof setInlineCheckboxChecked, 'function', 'toggle helper must be exported');
 
 const source = await readFile(new URL('../src/app/components/session/shared/tiptapInlineCheckbox.ts', import.meta.url), 'utf8');
-assert.match(source, /border:\s*'2px solid var\(--dash-text\)'/, 'checkbox outline must be at least twice the original thickness and use the active palette text color');
+assert.match(source, /border:\s*'2px solid var\(--dash-text\)'/, 'checkbox outline must remain 2px and use the active palette text color');
 assert.match(source, /border:\s*'solid var\(--dash-text\)'/, 'checked mark must use the active palette text color');
-assert.match(source, /borderWidth:\s*'0 0\.24em 0\.24em 0'/, 'checked mark stroke must be twice the original thickness');
+assert.match(source, /borderWidth:\s*'0 0\.12em 0\.12em 0'/, 'checked mark stroke must remain thin for legibility');
 assert.doesNotMatch(source, /--dash-success-/, 'standalone checkbox must not use green success palette tokens');
 
 const schema = getSchema([
