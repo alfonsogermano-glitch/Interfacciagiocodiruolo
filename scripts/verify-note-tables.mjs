@@ -65,4 +65,32 @@ assert.match(clipboardSource, /ClipboardItem\.supports/, 'custom MIME must be op
 assert.match(clipboardSource, /navigator\.clipboard\.write/, 'copy must target the system\/browser clipboard');
 assert.match(clipboardSource, /DOMSerializer\.fromSchema/, 'copy HTML must be serialized from the document schema, not cloned from live toolbar DOM');
 
+let toolbarSource;
+try {
+  toolbarSource = await readFile(new URL('../src/app/components/session/shared/NoteTableToolbar.tsx', import.meta.url), 'utf8');
+} catch (error) {
+  if (error?.code === 'ENOENT') assert.fail('Contextual Note table toolbar not implemented yet');
+  throw error;
+}
+
+for (const command of [
+  'addRowBefore',
+  'addRowAfter',
+  'addColumnBefore',
+  'addColumnAfter',
+  'toggleHeaderRow',
+  'toggleHeaderColumn',
+  'deleteRow',
+  'deleteColumn',
+  'deleteTable',
+]) {
+  assert.match(toolbarSource, new RegExp(command), `contextual toolbar must expose ${command}`);
+}
+assert.match(toolbarSource, /writeTableToClipboard/, 'contextual toolbar must expose Copy table through the system clipboard helper');
+assert.match(toolbarSource, /findActiveTable/, 'toolbar activation must derive from the current ProseMirror selection');
+assert.match(toolbarSource, /selectionUpdate/, 'toolbar must track selection changes');
+assert.match(toolbarSource, /position:\s*'fixed'/, 'toolbar must position itself beside the rendered active table');
+assert.match(toolbarSource, /onMouseDown=\{\(event\) => event\.preventDefault\(\)\}/, 'toolbar mouse-down must preserve the current table cell selection');
+assert.match(toolbarSource, /if \(!editable \|\| !activeTable \|\| !position\) return null/, 'table controls must disappear outside editable active tables');
+
 console.log('Note table verification: PASS');
