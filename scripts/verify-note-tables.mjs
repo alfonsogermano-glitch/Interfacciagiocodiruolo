@@ -106,4 +106,12 @@ assert.match(clipboardSource, /extractTablePayloadFromHtml/, 'clipboard paste ex
 assert.match(clipboardSource, /schema\.nodeFromJSON/, 'structured table paste must rebuild through the destination editor schema');
 assert.match(clipboardSource, /replaceSelectionWith/, 'structured table paste must insert the recovered table at the current selection');
 
+const css = await readFile(new URL('../src/styles/theme.css', import.meta.url), 'utf8');
+const noteTableCss = css.includes('/* Note tables */') ? css.slice(css.indexOf('/* Note tables */')) : '';
+assert.match(noteTableCss, /\.tiptap-content table\.tiptap-note-table[\s\S]*?width:\s*100%/, 'Note table must fill the available Note width');
+assert.match(noteTableCss, /border:\s*1px solid var\(--dash-border-soft\)/, 'Note table cells must use the active palette border token');
+assert.match(noteTableCss, /\.tiptap-note-table-header[\s\S]*?background:\s*var\(--dash-surface-2\)/, 'header cells must use the active palette secondary surface');
+assert.match(noteTableCss, /color:\s*var\(--dash-text\)/, 'table text must follow the active palette text color');
+assert.doesNotMatch(noteTableCss, /#[0-9a-f]{3,8}/i, 'Note table styling must not hard-code palette colors');
+
 console.log('Note table verification: PASS');
