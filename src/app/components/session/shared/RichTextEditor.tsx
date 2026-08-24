@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { JSONContent } from '@tiptap/core';
@@ -25,6 +25,7 @@ import { NoteSelectionToolbar } from './NoteSelectionToolbar';
 import { NoteContainerNotice } from './NoteContainerNotice';
 import { flattenRemovedLayoutNodes } from './tiptapLegacyMigration';
 import type { NoteContainerRejection } from './noteContainerPolicy';
+import './noteEditorViewport.css';
 
 interface RichTextEditorProps {
   legacyContent: string;
@@ -33,6 +34,7 @@ interface RichTextEditorProps {
   disabled: boolean;
   placeholder?: string;
   className?: string;
+  fillViewport?: boolean;
   autoFocusOnSelect?: boolean;
   onAutoFocusConsumed?: () => void;
 }
@@ -69,6 +71,63 @@ function docsEqual(a: JSONContent | null | undefined, b: JSONContent | null | un
 }
 
 const TIPTAP_EDITOR_PROPS = { attributes: { class: 'tiptap-content' } };
+const NOTE_VIEWPORT_BOTTOM_GAP = 16;
+const NOTE_VIEWPORT_MIN_HEIGHT = 256;
+
+function useViewportFillHeight(ref: RefObject<HTMLDivElement | null>, enabled: boolean): number | null {
+  const [height, setHeight] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    if (!enabled) {
+      setHeight(null);
+      return;
+    }
+
+    let frame = 0;
+    const update = () => {
+      const node = ref.current;
+      if (!node) return;
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      const top = node.getBoundingClientRect().top;
+      const next = Math.max(NOTE_VIEWPORT_MIN_HEIGHT, Math.floor(viewportHeight - top - NOTE_VIEWPORT_BOTTOM_GAP));
+      setHeight((current) => current === next ? current : next);
+    };
+    const scheduleUpdate = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(update);
+    };
+
+    update();
+    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduleUpdate);
+    if (ref.current?.parentElement) resizeObserver?.observe(ref.current.parentElement);
+    window.addEventListener('resize', scheduleUpdate);
+    window.visualViewport?.addEventListener('resize', scheduleUpdate);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', scheduleUpdate);
+      window.visualViewport?.removeEventListener('resize', scheduleUpdate);
+    };
+  }, [enabled, ref]);
+
+  return height;
+}
+
+function NoteViewportFrame({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const height = useViewportFillHeight(ref, enabled);
+  if (!enabled) return <>{children}</>;
+  return (
+    <div
+      ref={ref}
+      data-note-viewport-fill="true"
+      className="min-h-[16rem] max-w-full"
+      style={height === null ? undefined : { height: `${height}px` }}
+    >
+      {children}
+    </div>
+  );
+}
 
 function PermanentUndo({ editor, editable }: { editor: Editor; editable: boolean }) {
   const [, refresh] = useState(0);
@@ -94,7 +153,7 @@ function PermanentUndo({ editor, editable }: { editor: Editor; editable: boolean
   );
 }
 
-function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineCheckbox, autoFocus, onBlurEditor, onClickText, containerClassName }: {
+function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineCheckbox, autoFocus, onBlurEditor, onClickText, containerClassName, fillViewport }: {
   richContent: JSONContent;
   onChangeRich: (json: JSONContent) => void;
   editable: boolean;
@@ -103,6 +162,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
   onBlurEditor?: () => void;
   onClickText?: () => void;
   containerClassName: string;
+  fillViewport: boolean;
 }) {
   const [initialContent] = useState(() => flattenRemovedLayoutNodes(migrateHeadingsToFontSize(richContent)));
   const editorShellRef = useRef<HTMLDivElement>(null);
@@ -185,10 +245,11 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
   if (!editor) return null;
 
   return (
-    <div ref={editorShellRef} className="relative max-w-full">
+    <div ref={editorShellRef} className={`relative max-w-full ${fillViewport ? 'h-full' : ''}`}>
       <div
         onClick={!editable ? onClickText : undefined}
-        className={`max-w-full overflow-x-auto ${!editable && onClickText ? 'cursor-text' : ''} ${containerClassName}`}
+        style={fillViewport ? { height: '100%' } : undefined}
+        className={`max-w-full ${fillViewport ? 'h-full overflow-auto tiptap-viewport-scroll' : 'overflow-x-auto'} ${!editable && onClickText ? 'cursor-text' : ''} ${containerClassName}`}
       >
         <EditorContent editor={editor} />
       </div>
@@ -203,32 +264,43 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
 
 const DEFAULT_CONTAINER_CLASS = 'min-h-[3rem] rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3';
 
-export function RichTextEditor({ legacyContent, richContent, onChangeRich, disabled, placeholder, className, autoFocusOnSelect, onAutoFocusConsumed }: RichTextEditorProps) {
+export function RichTextEditor({ legacyContent, richContent, onChangeRich, disabled, placeholder, className, fillViewport = true, autoFocusOnSelect, onAutoFocusConsumed }: RichTextEditorProps) {
   const [isEditing, setIsEditing] = useState(() => !!autoFocusOnSelect && !disabled);
   useEffect(() => { if (autoFocusOnSelect) onAutoFocusConsumed?.(); }, []);
   const hasLegacyToProtect = richContent === null && legacyContent.trim() !== '';
   const containerClassName = className ?? DEFAULT_CONTAINER_CLASS;
 
   if (richContent !== null) {
-    return <TipTapEditor richContent={richContent} onChangeRich={onChangeRich} editable={!disabled && isEditing} canToggleInlineCheckbox={!disabled} autoFocus={isEditing} onBlurEditor={() => setIsEditing(false)} onClickText={!disabled ? () => setIsEditing(true) : undefined} containerClassName={containerClassName} />;
+    return (
+      <NoteViewportFrame enabled={fillViewport}>
+        <TipTapEditor richContent={richContent} onChangeRich={onChangeRich} editable={!disabled && isEditing} canToggleInlineCheckbox={!disabled} autoFocus={isEditing} onBlurEditor={() => setIsEditing(false)} onClickText={!disabled ? () => setIsEditing(true) : undefined} containerClassName={containerClassName} fillViewport={fillViewport} />
+      </NoteViewportFrame>
+    );
   }
 
+  const viewportClassName = fillViewport ? 'h-full overflow-auto tiptap-viewport-scroll' : '';
   const viewBlock = (
-    <div onClick={() => { if (!disabled) setIsEditing(true); }} className={`${!disabled ? 'cursor-text' : ''} ${containerClassName}`}>
+    <div onClick={() => { if (!disabled) setIsEditing(true); }} style={fillViewport ? { height: '100%' } : undefined} className={`${!disabled ? 'cursor-text' : ''} ${viewportClassName} ${containerClassName}`}>
       {legacyContent ? <MarkdownContent content={legacyContent} /> : <span className="text-sm text-[var(--dash-muted)]">{placeholder ?? 'Scrivi qui...'}</span>}
     </div>
   );
 
-  if (disabled || !isEditing) return viewBlock;
+  if (disabled || !isEditing) return <NoteViewportFrame enabled={fillViewport}>{viewBlock}</NoteViewportFrame>;
   if (hasLegacyToProtect) {
     return (
-      <div className={containerClassName}>
-        <div className="mb-2 rounded-lg border border-[var(--dash-accent)]/40 bg-[var(--dash-accent)]/10 px-3 py-2 text-xs text-[var(--dash-text)]">Formato precedente — modifica per aggiornare al nuovo editor.</div>
-        <MarkdownContent content={legacyContent} />
-        <button type="button" onClick={() => onChangeRich(legacyToTipTapDoc(legacyContent))} className="mt-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-3 py-1.5 text-xs font-medium text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)]">Modifica con il nuovo editor</button>
-      </div>
+      <NoteViewportFrame enabled={fillViewport}>
+        <div style={fillViewport ? { height: '100%' } : undefined} className={`${viewportClassName} ${containerClassName}`}>
+          <div className="mb-2 rounded-lg border border-[var(--dash-accent)]/40 bg-[var(--dash-accent)]/10 px-3 py-2 text-xs text-[var(--dash-text)]">Formato precedente — modifica per aggiornare al nuovo editor.</div>
+          <MarkdownContent content={legacyContent} />
+          <button type="button" onClick={() => onChangeRich(legacyToTipTapDoc(legacyContent))} className="mt-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-3 py-1.5 text-xs font-medium text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)]">Modifica con il nuovo editor</button>
+        </div>
+      </NoteViewportFrame>
     );
   }
 
-  return <TipTapEditor richContent={{ type: 'doc', content: [{ type: 'paragraph' }] }} onChangeRich={onChangeRich} editable canToggleInlineCheckbox autoFocus onBlurEditor={() => setIsEditing(false)} containerClassName={containerClassName} />;
+  return (
+    <NoteViewportFrame enabled={fillViewport}>
+      <TipTapEditor richContent={{ type: 'doc', content: [{ type: 'paragraph' }] }} onChangeRich={onChangeRich} editable canToggleInlineCheckbox autoFocus onBlurEditor={() => setIsEditing(false)} containerClassName={containerClassName} fillViewport={fillViewport} />
+    </NoteViewportFrame>
+  );
 }

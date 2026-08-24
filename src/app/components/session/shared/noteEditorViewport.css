@@ -1,0 +1,28 @@
+.tiptap-viewport-scroll {
+  scrollbar-width: thin !important;
+  scrollbar-color: var(--dash-accent-2) var(--dash-panel) !important;
+}
+
+.tiptap-viewport-scroll::-webkit-scrollbar {
+  display: block !important;
+  width: 10px !important;
+  height: 10px !important;
+}
+
+.tiptap-viewport-scroll::-webkit-scrollbar-track {
+  background: var(--dash-panel);
+}
+
+.tiptap-viewport-scroll::-webkit-scrollbar-thumb {
+  background: var(--dash-accent-2);
+  border: 2px solid var(--dash-panel);
+  border-radius: 999px;
+}
+
+.tiptap-viewport-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--dash-accent);
+}
+
+.tiptap-viewport-scroll::-webkit-scrollbar-corner {
+  background: var(--dash-panel);
+}
