@@ -19,6 +19,7 @@ import { FONT_FAMILIES } from './tiptapFontFamily';
 import { ICON_CATEGORIES } from './tiptapIconData';
 import { useAuth } from '../../../auth/AuthContext';
 import { supabase, isSupabaseConfigured } from '../../../../lib/supabaseClient';
+import './noteContextualMenus.css';
 
 const MAX_IMAGE_MB = 5;
 
@@ -88,7 +89,7 @@ export function NoteFontFamilyPicker({ trigger, open, onOpenChange, onChoose }: 
     <Popover open={open} onOpenChange={onOpenChange}>
       <PickerTooltip trigger={<PopoverTrigger asChild>{trigger}</PopoverTrigger>} label="Font" />
       <PopoverContent data-note-contextual-picker="true" side="top" align="start" collisionPadding={8} className="tiptap-font-popover w-52 z-[9999] border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 text-[var(--dash-text)]" onOpenAutoFocus={(e) => e.preventDefault()}>
-        <div className="flex max-h-72 flex-col gap-0.5 overflow-y-auto">
+        <div className="tiptap-font-popover-scroll flex max-h-72 flex-col gap-0.5 overflow-y-scroll pr-1">
           {FONT_FAMILIES.map(({ label, value }) => (
             <button key={label} type="button" onClick={() => { onChoose(label); onOpenChange(false); }} className="rounded-md px-2 py-1.5 text-left text-sm hover:bg-[var(--dash-surface-2)]" style={{ fontFamily: value }}>{label}</button>
           ))}

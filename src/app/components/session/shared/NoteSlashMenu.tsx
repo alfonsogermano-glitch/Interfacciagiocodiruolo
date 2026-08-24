@@ -56,8 +56,8 @@ function commandButton(command: NoteCommandDescriptor, disabled: boolean, highli
         disabled
           ? 'cursor-not-allowed text-[var(--dash-muted)] opacity-35'
           : highlighted
-            ? 'cursor-pointer bg-[var(--dash-surface-2)] text-[var(--dash-text-strong)]'
-            : 'cursor-pointer text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]'
+            ? 'cursor-pointer bg-[var(--dash-accent)] text-[var(--dash-text-strong)] ring-1 ring-inset ring-[var(--dash-accent-2)]'
+            : 'cursor-pointer text-[var(--dash-text)] hover:bg-[var(--dash-accent)] hover:text-[var(--dash-text-strong)] hover:ring-1 hover:ring-inset hover:ring-[var(--dash-accent-2)]'
       }`}
     >
       <Icon className="h-4 w-4" />

@@ -1,0 +1,23 @@
+/* The app hides most native scrollbars globally. The Font picker is an exception:
+   its scrollbar is an affordance that more font choices exist below the fold. */
+.tiptap-font-popover-scroll {
+  scrollbar-width: thin !important;
+  scrollbar-color: var(--dash-accent-2) var(--dash-panel);
+  scrollbar-gutter: stable;
+  -ms-overflow-style: auto !important;
+}
+.tiptap-font-popover-scroll::-webkit-scrollbar {
+  display: block !important;
+  width: 8px;
+}
+.tiptap-font-popover-scroll::-webkit-scrollbar-track {
+  background: var(--dash-panel);
+}
+.tiptap-font-popover-scroll::-webkit-scrollbar-thumb {
+  background: var(--dash-accent-2);
+  border-radius: 4px;
+  border: 2px solid var(--dash-panel);
+}
+.tiptap-font-popover-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--dash-accent);
+}

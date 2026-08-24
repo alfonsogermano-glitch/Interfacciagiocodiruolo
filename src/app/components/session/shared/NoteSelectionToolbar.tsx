@@ -152,7 +152,7 @@ export function NoteSelectionToolbar({ editor, editable }: Props) {
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => !command.secondaryPicker && runImmediate(command)}
         className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
-          command.isActive(editor) ? 'bg-[var(--dash-surface-2)] text-[var(--dash-text-strong)]' : 'text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]'
+          command.isActive(editor) ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)] ring-1 ring-inset ring-[var(--dash-accent-2)]' : 'text-[var(--dash-muted)] hover:bg-[var(--dash-accent)] hover:text-[var(--dash-text-strong)] hover:ring-1 hover:ring-inset hover:ring-[var(--dash-accent-2)]'
         } ${disabled ? 'cursor-not-allowed opacity-35' : ''}`}
       >
         <Icon className="h-4 w-4" />

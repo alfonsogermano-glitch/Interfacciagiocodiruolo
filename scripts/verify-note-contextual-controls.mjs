@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const read = (name) => readFile(new URL(`../src/app/components/session/shared/${name}`, import.meta.url), 'utf8');
-const [commands, slash, selection, pickers, richClipboard, editor, slashPlugin] = await Promise.all([
+const [commands, slash, selection, pickers, richClipboard, editor, slashPlugin, menuCss] = await Promise.all([
   read('noteEditorCommands.ts'), read('NoteSlashMenu.tsx'), read('NoteSelectionToolbar.tsx'),
   read('NoteContextualPickers.tsx'), read('tiptapNoteRichClipboard.ts'), read('RichTextEditor.tsx'), read('tiptapNoteSlashMenu.ts'),
+  read('noteContextualMenus.css'),
 ]);
 
 assert.match(commands, /id: 'horizontalRule'[\s\S]*icon: Minus/, 'horizontal rule must use Lucide Minus');
@@ -35,6 +36,15 @@ assert.match(pickers, /onPointerEnter/, 'picker tooltip opens from pointer enter
 assert.match(pickers, /onPointerLeave/, 'picker tooltip closes independently of Popover');
 assert.match(pickers, /createPortal/, 'picker tooltip must portal palette-aware');
 assert.match(pickers, /position|fixed/, 'picker tooltip is fixed-position UI');
+assert.match(pickers, /tiptap-font-popover-scroll[\s\S]*overflow-y-scroll/, 'font list must expose an always-visible vertical scroll affordance');
+assert.match(pickers, /import '\.\/noteContextualMenus\.css'/, 'contextual picker scrollbar styles must be loaded with the picker');
+assert.match(menuCss, /\.tiptap-font-popover-scroll[\s\S]*scrollbar-width:\s*thin\s*!important[\s\S]*scrollbar-color:\s*var\(--dash-accent-2\)\s+var\(--dash-panel\)/, 'font scrollbar must override global suppression and use the active palette accent');
+assert.match(menuCss, /::-webkit-scrollbar[\s\S]*display:\s*block\s*!important/, 'font scrollbar must override global WebKit scrollbar suppression');
+
+assert.match(selection, /command\.isActive\(editor\) \? 'bg-\[var\(--dash-accent\)\][^']*ring-\[var\(--dash-accent-2\)\]/, 'selection toolbar active formatting must use palette accent with a visible accent ring');
+assert.match(selection, /hover:bg-\[var\(--dash-accent\)\]/, 'selection toolbar hover must use palette accent');
+assert.match(slash, /highlighted[\s\S]*bg-\[var\(--dash-accent\)\][^']*ring-\[var\(--dash-accent-2\)\]/, 'Slash highlighted command must use palette accent with a visible accent ring');
+assert.match(slash, /hover:bg-\[var\(--dash-accent\)\]/, 'Slash hover must use palette accent');
 assert.doesNotMatch(pickers, /<PopoverTrigger asChild><PickerTooltip/, 'picker tooltip must not swallow Popover trigger events');
 assert.match(pickers, /<PickerTooltip trigger=\{<PopoverTrigger asChild>\{trigger\}<\/PopoverTrigger>\} label="Dimensione testo" \/>/, 'font-size picker must attach PopoverTrigger directly to the real button');
 assert.match(pickers, /<PickerTooltip trigger=\{<PopoverTrigger asChild>\{trigger\}<\/PopoverTrigger>\} label="Font" \/>/, 'font-family picker must attach PopoverTrigger directly to the real button');
