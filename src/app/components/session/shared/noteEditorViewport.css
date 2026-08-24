@@ -1,6 +1,10 @@
 .tiptap-viewport-scroll {
   scrollbar-width: thin !important;
   scrollbar-color: var(--dash-accent-2) var(--dash-panel) !important;
+  overscroll-behavior: contain;
+  border-bottom-width: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
 }
 
 .tiptap-viewport-scroll::-webkit-scrollbar {
