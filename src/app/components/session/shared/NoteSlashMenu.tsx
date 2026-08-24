@@ -52,7 +52,7 @@ function commandButton(command: NoteCommandDescriptor, disabled: boolean, highli
         onActivate();
       }}
       onMouseEnter={onHover}
-      className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-center transition-colors ${
+      className={`flex min-h-12 w-full flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-center transition-colors ${
         disabled
           ? 'cursor-not-allowed text-[var(--dash-muted)] opacity-35'
           : highlighted
