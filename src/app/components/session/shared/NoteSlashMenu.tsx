@@ -239,9 +239,18 @@ export function NoteSlashMenu({ editor, editable }: NoteSlashMenuProps) {
       className="tiptap-slash-menu w-[248px] max-h-[min(70vh,420px)] overflow-y-auto rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-2 shadow-lg"
     >
       {(['text', 'block'] as const).map((group) => (
-        <div key={group} className="mb-2 last:mb-0">
-          <div className="mb-1 px-1 text-[10px] font-medium uppercase tracking-wide text-[var(--dash-muted)]">{group === 'text' ? 'Testo' : 'Blocchi'}</div>
-          <div className="grid grid-cols-4 gap-1">
+        <div
+          key={group}
+          data-note-slash-section="true"
+          className="mb-3 overflow-hidden rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] last:mb-0"
+        >
+          <div
+            data-note-slash-section-header="true"
+            className="border-b border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--dash-text-strong)]"
+          >
+            {group === 'text' ? 'Testo' : 'Blocchi'}
+          </div>
+          <div data-note-slash-section-grid="true" className="grid grid-cols-4 auto-rows-fr gap-1 p-1.5">
             {commands.map((command, index) => command.group === group ? renderCommand(command, index) : null)}
           </div>
         </div>
