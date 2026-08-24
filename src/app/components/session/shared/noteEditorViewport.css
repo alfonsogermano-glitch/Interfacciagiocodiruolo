@@ -26,3 +26,10 @@
 .tiptap-viewport-scroll::-webkit-scrollbar-corner {
   background: var(--dash-panel);
 }
+
+/* L'ultimo blocco non deve anticipare l'overflow verticale con il proprio
+   margine inferiore: lo scroll deve iniziare solo quando nasce davvero una
+   riga/blocco oltre l'altezza visibile dell'editor. */
+.tiptap-viewport-scroll .tiptap-content > :last-child {
+  margin-bottom: 0 !important;
+}
