@@ -5,7 +5,7 @@ import { usePortalContainer } from '../../ui/portal-container';
 import {
   NOTE_COMMANDS,
   canRunNoteCommand,
-  runImmediateNoteCommand,
+  runSlashNoteCommand,
   runSecondaryNoteCommand,
   type NoteCommandDescriptor,
   type NoteCommandId,
@@ -128,11 +128,9 @@ export function NoteSlashMenu({ editor, editable }: NoteSlashMenuProps) {
   const execute = useCallback((command: NoteCommandDescriptor) => {
     if (!canRunNoteCommand(editor, command) || command.secondaryPicker) return;
     const slashPos = getNoteSlashPosition(editor.state);
-    if (slashPos === null || !removeNoteSlashTrigger(editor, slashPos)) {
+    if (slashPos === null || !runSlashNoteCommand(editor, command.id, slashPos)) {
       closeNoteSlashMenu(editor);
-      return;
     }
-    runImmediateNoteCommand(editor, command.id);
   }, [editor]);
 
   const activate = useCallback((command: NoteCommandDescriptor) => {

@@ -113,6 +113,45 @@ export function runImmediateNoteCommand(editor: Editor, id: NoteCommandId): bool
   return command.run(editor);
 }
 
+export function runSlashNoteCommand(editor: Editor, id: NoteCommandId, slashPos: number): boolean {
+  const command = NOTE_COMMAND_BY_ID.get(id);
+  if (
+    !command
+    || command.secondaryPicker
+    || !command.run
+    || !canRunNoteCommand(editor, command)
+    || slashPos < 0
+    || slashPos >= editor.state.doc.content.size
+    || editor.state.doc.textBetween(slashPos, slashPos + 1, '', '') !== '/'
+  ) return false;
+
+  const chain = editor.chain().deleteRange({ from: slashPos, to: slashPos + 1 });
+  switch (id) {
+    case 'bold': return chain.toggleBold().run();
+    case 'italic': return chain.toggleItalic().run();
+    case 'underline': return chain.toggleUnderline().run();
+    case 'strike': return chain.toggleStrike().run();
+    case 'bulletList': return chain.toggleBulletList().run();
+    case 'orderedList': return chain.toggleOrderedList().run();
+    case 'blockquote': return chain.toggleBlockquote().run();
+    case 'alignLeft': return chain.setTextAlign('left').run();
+    case 'alignCenter': return chain.setTextAlign('center').run();
+    case 'alignRight': return chain.setTextAlign('right').run();
+    case 'textBox': return chain.setTextBox().run();
+    case 'collapse': return chain.setCollapseBlock().run();
+    case 'horizontalRule': return chain.setHorizontalRule().run();
+    case 'table': return chain.insertNoteTable().run();
+    case 'taskList': return chain.toggleTaskList().run();
+    case 'checkbox': return chain.insertInlineCheckbox().run();
+    case 'undo': return chain.undo().run();
+    case 'fontSize':
+    case 'fontFamily':
+    case 'image':
+    case 'inlineIcon':
+      return false;
+  }
+}
+
 export function runSecondaryNoteCommand(editor: Editor, value: NoteSecondaryValue): boolean {
   if (!editor.isEditable) return false;
   switch (value.commandId) {

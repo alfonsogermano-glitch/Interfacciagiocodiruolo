@@ -21,6 +21,9 @@ assert.match(slash, /if \(disabled\) \{[\s\S]*preventDefault\(\)[\s\S]*stopPropa
 assert.match(slash, /event\.key === 'Escape' \|\| event\.key === 'Backspace' \|\| event\.key === 'Delete'/, 'Slash close keys must preserve literal slash');
 assert.match(slashPlugin, /insertText\('\/'/, 'Slash plugin must insert a literal slash trigger');
 assert.match(slashPlugin, /type: 'close'/, 'Slash menu close must be metadata-only unless command is executed');
+assert.match(commands, /runSlashNoteCommand[\s\S]*deleteRange\(\{ from: slashPos, to: slashPos \+ 1 \}\)[\s\S]*case 'collapse':[\s\S]*setCollapseBlock\(\)\.run\(\)/, 'Slash-trigger deletion and Collapse insertion must stay in one TipTap chain');
+assert.match(slash, /runSlashNoteCommand\(editor, command\.id, slashPos\)/, 'Slash menu must execute structural commands atomically with slash deletion');
+assert.doesNotMatch(slash, /removeNoteSlashTrigger\(editor, slashPos\)[\s\S]*runImmediateNoteCommand/, 'Slash menu must not dispatch slash deletion before the immediate command');
 
 assert.match(selection, /captureNoteSelection/, 'selection toolbar must snapshot exact selection');
 assert.match(selection, /restoreNoteSelection/, 'selection toolbar must restore selection before commands');
