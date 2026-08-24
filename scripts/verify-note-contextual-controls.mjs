@@ -45,6 +45,7 @@ assert.match(selection, /command\.isActive\(editor\) \? 'bg-\[var\(--dash-accent
 assert.match(selection, /hover:bg-\[var\(--dash-accent\)\]/, 'selection toolbar hover must use palette accent');
 assert.match(slash, /highlighted[\s\S]*bg-\[var\(--dash-accent\)\][^']*ring-\[var\(--dash-accent-2\)\]/, 'Slash highlighted command must use palette accent with a visible accent ring');
 assert.match(slash, /hover:bg-\[var\(--dash-accent\)\]/, 'Slash hover must use palette accent');
+assert.match(slash, /className=\{`flex min-h-12 w-full flex-col/, 'Slash command buttons must fill their grid cell so picker icons stay centered');
 assert.doesNotMatch(pickers, /<PopoverTrigger asChild><PickerTooltip/, 'picker tooltip must not swallow Popover trigger events');
 assert.match(pickers, /<PickerTooltip trigger=\{<PopoverTrigger asChild>\{trigger\}<\/PopoverTrigger>\} label="Dimensione testo" \/>/, 'font-size picker must attach PopoverTrigger directly to the real button');
 assert.match(pickers, /<PickerTooltip trigger=\{<PopoverTrigger asChild>\{trigger\}<\/PopoverTrigger>\} label="Font" \/>/, 'font-family picker must attach PopoverTrigger directly to the real button');
