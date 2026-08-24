@@ -35,6 +35,9 @@ assert.match(pickers, /onPointerEnter/, 'picker tooltip opens from pointer enter
 assert.match(pickers, /onPointerLeave/, 'picker tooltip closes independently of Popover');
 assert.match(pickers, /createPortal/, 'picker tooltip must portal palette-aware');
 assert.match(pickers, /position|fixed/, 'picker tooltip is fixed-position UI');
+assert.doesNotMatch(pickers, /<PopoverTrigger asChild><PickerTooltip/, 'picker tooltip must not swallow Popover trigger events');
+assert.match(pickers, /<PickerTooltip trigger=\{<PopoverTrigger asChild>\{trigger\}<\/PopoverTrigger>\} label="Dimensione testo" \/>/, 'font-size picker must attach PopoverTrigger directly to the real button');
+assert.match(pickers, /<PickerTooltip trigger=\{<PopoverTrigger asChild>\{trigger\}<\/PopoverTrigger>\} label="Font" \/>/, 'font-family picker must attach PopoverTrigger directly to the real button');
 
 assert.match(richClipboard, /application\/x-hollowgate-note\+json/, 'rich clipboard custom representation must remain');
 assert.match(richClipboard, /data-hollowgate-note-clipboard/, 'rich clipboard HTML marker must remain');

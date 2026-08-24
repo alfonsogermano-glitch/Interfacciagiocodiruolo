@@ -71,7 +71,7 @@ function PickerTooltip({ trigger, label }: { trigger: ReactNode; label: string }
 export function NoteFontSizePicker({ trigger, open, onOpenChange, onChoose }: PickerBaseProps & { onChoose: (size: number) => void }) {
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild><PickerTooltip trigger={trigger} label="Dimensione testo" /></PopoverTrigger>
+      <PickerTooltip trigger={<PopoverTrigger asChild>{trigger}</PopoverTrigger>} label="Dimensione testo" />
       <PopoverContent data-note-contextual-picker="true" side="top" align="start" collisionPadding={8} className="w-40 z-[9999] border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 text-[var(--dash-text)]" onOpenAutoFocus={(e) => e.preventDefault()}>
         <div className="grid grid-cols-3 gap-1">
           {FONT_SIZES.map((size) => (
@@ -86,7 +86,7 @@ export function NoteFontSizePicker({ trigger, open, onOpenChange, onChoose }: Pi
 export function NoteFontFamilyPicker({ trigger, open, onOpenChange, onChoose }: PickerBaseProps & { onChoose: (label: string) => void }) {
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild><PickerTooltip trigger={trigger} label="Font" /></PopoverTrigger>
+      <PickerTooltip trigger={<PopoverTrigger asChild>{trigger}</PopoverTrigger>} label="Font" />
       <PopoverContent data-note-contextual-picker="true" side="top" align="start" collisionPadding={8} className="tiptap-font-popover w-52 z-[9999] border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 text-[var(--dash-text)]" onOpenAutoFocus={(e) => e.preventDefault()}>
         <div className="flex max-h-72 flex-col gap-0.5 overflow-y-auto">
           {FONT_FAMILIES.map(({ label, value }) => (
@@ -101,7 +101,7 @@ export function NoteFontFamilyPicker({ trigger, open, onOpenChange, onChoose }: 
 export function NoteInlineIconPicker({ trigger, open, onOpenChange, onChoose }: PickerBaseProps & { onChoose: (name: string) => void }) {
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild><PickerTooltip trigger={trigger} label="Icone" /></PopoverTrigger>
+      <PickerTooltip trigger={<PopoverTrigger asChild>{trigger}</PopoverTrigger>} label="Icone" />
       <PopoverContent data-note-contextual-picker="true" side="top" align="start" collisionPadding={8} className="tiptap-icon-popover w-64 z-[9999] border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-2 text-[var(--dash-text)]" onOpenAutoFocus={(e) => e.preventDefault()}>
         <div className="tiptap-icon-popover-scroll flex max-h-80 flex-col gap-3 overflow-y-auto">
           {ICON_CATEGORIES.map(({ label, icons }) => (
@@ -181,7 +181,7 @@ export function NoteImagePicker({ trigger, open, onOpenChange, onChoose }: Picke
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild><PickerTooltip trigger={trigger} label="Immagine" /></PopoverTrigger>
+      <PickerTooltip trigger={<PopoverTrigger asChild>{trigger}</PopoverTrigger>} label="Immagine" />
       <PopoverContent data-note-contextual-picker="true" side="top" align="start" collisionPadding={8} className="tiptap-image-popover w-64 z-[9999] border-[var(--dash-border-soft)] bg-[var(--dash-panel)] text-[var(--dash-text)]" onOpenAutoFocus={(e) => e.preventDefault()}>
         <Tabs defaultValue="url" className="gap-3">
           <TabsList className="w-full border border-[var(--dash-border-soft)] bg-[var(--dash-surface)]">
