@@ -1,6 +1,7 @@
 import { Extension, type Editor, type JSONContent } from '@tiptap/core';
 import { DOMSerializer, type Node as PMNode } from '@tiptap/pm/model';
-import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { canInsertStructuralSubtree, type NoteContainerRejection } from './noteContainerPolicy';
 
 export const HOLLOWGATE_TABLE_MIME = 'web application/x-hollowgate-table+json';
 const TABLE_CLIPBOARD_MARKER = 'data-hollowgate-table-clipboard="1"';
@@ -86,31 +87,18 @@ function serializeTableToHtml(editor: Editor, tableNode: PMNode): string {
   return container.innerHTML;
 }
 
-function isSelectionInside(state: EditorState, typeName: string): boolean {
-  const { $from } = state.selection;
-  for (let depth = $from.depth; depth >= 0; depth -= 1) {
-    if ($from.node(depth).type.name === typeName) return true;
-  }
-  return false;
-}
-
-function isRestrictedTablePasteDestination(state: EditorState): boolean {
-  return (
-    isSelectionInside(state, 'table') ||
-    isSelectionInside(state, 'textBox') ||
-    isSelectionInside(state, 'collapseBody') ||
-    isSelectionInside(state, 'collapseSummary')
-  );
-}
-
 /**
  * Recover the exact Hollowgate table JSON from the HTML clipboard marker.
  * This extension is intentionally separate from the table schema/guard
  * extension so both modules remain independently testable and the core table
  * module has no local runtime import dependency.
  */
-export const NoteTableClipboardPaste = Extension.create({
+export const NoteTableClipboardPaste = Extension.create<{ onReject?: (reason: NoteContainerRejection) => void }>({
   name: 'noteTableClipboardPaste',
+
+  addOptions() {
+    return { onReject: undefined };
+  },
 
   addProseMirrorPlugins() {
     return [
@@ -122,14 +110,19 @@ export const NoteTableClipboardPaste = Extension.create({
             const structuredTable = extractTablePayloadFromHtml(html);
             if (!structuredTable) return false;
 
-            // Never allow a copied table to become nested in another table or
-            // in the existing restricted container blocks.
-            if (isRestrictedTablePasteDestination(view.state)) return true;
-
             try {
               const tableNode = view.state.schema.nodeFromJSON(structuredTable);
               tableNode.check();
               if (tableNode.type.name !== 'table') return false;
+
+              const decision = canInsertStructuralSubtree(view.state.selection.$from, tableNode);
+              if (!decision.allowed && 'reason' in decision) {
+                this.options.onReject?.(decision.reason);
+                event.preventDefault();
+                return true;
+              }
+
+              event.preventDefault();
               const transaction = view.state.tr.replaceSelectionWith(tableNode).scrollIntoView();
               view.dispatch(transaction);
               return true;

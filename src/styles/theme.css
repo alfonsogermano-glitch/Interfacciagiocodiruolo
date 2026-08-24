@@ -673,3 +673,74 @@
   background: var(--dash-border-soft);
   border-radius: 5px;
 }
+
+/* Note contextual controls */
+.tiptap-slash-menu,
+.tiptap-slash-menu *,
+.tiptap-selection-toolbar,
+.tiptap-selection-toolbar * {
+  cursor: default;
+  user-select: none;
+}
+.tiptap-slash-menu button:not(:disabled),
+.tiptap-selection-toolbar button:not(:disabled) {
+  cursor: pointer;
+}
+.tiptap-slash-menu button[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+.tiptap-slash-menu {
+  scrollbar-width: thin;
+  scrollbar-color: var(--dash-border-soft) var(--dash-panel);
+}
+.tiptap-slash-menu::-webkit-scrollbar { width: 8px; }
+.tiptap-slash-menu::-webkit-scrollbar-track { background: var(--dash-panel); }
+.tiptap-slash-menu::-webkit-scrollbar-thumb {
+  background: var(--dash-border-soft);
+  border-radius: 4px;
+}
+
+/* Note tables */
+.tiptap-note-table {
+  table-layout: fixed;
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 100% !important;
+  color: color-mix(in srgb, var(--dash-text) 82%, var(--dash-muted));
+  outline: 1px solid color-mix(in srgb, var(--dash-text) 45%, var(--dash-border-soft));
+  outline-offset: -1px;
+}
+.tiptap-content .tiptap-note-table-cell,
+.tiptap-content .tiptap-note-table-header {
+  min-width: 3rem;
+  height: 2.75rem;
+  padding: 0.4rem 0.5rem;
+  vertical-align: middle;
+  border: 1px solid color-mix(in srgb, var(--dash-text) 45%, var(--dash-border-soft));
+  background: color-mix(in srgb, var(--dash-surface-2) 38%, transparent);
+  cursor: text;
+  transition: background-color 0.12s, box-shadow 0.12s;
+}
+.tiptap-content .tiptap-note-table-cell:hover,
+.tiptap-content .tiptap-note-table-header:hover {
+  background: color-mix(in srgb, var(--dash-accent) 10%, var(--dash-surface-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dash-accent) 70%, transparent);
+}
+.tiptap-content .tiptap-note-table-header {
+  background: color-mix(in srgb, var(--dash-accent) 22%, var(--dash-surface-2));
+  color: var(--dash-text-strong);
+  font-weight: 600;
+}
+.tiptap-content .tiptap-note-table-cell > p,
+.tiptap-content .tiptap-note-table-header > p { min-height: 1.5rem; }
+.tiptap-content .tiptap-note-table-cell > *:last-child,
+.tiptap-content .tiptap-note-table-header > *:last-child { margin-bottom: 0; }
+.tiptap-content table.tiptap-note-table[data-grid-visible='false'] { outline: none; }
+.tiptap-content table.tiptap-note-table[data-grid-visible='false'] .tiptap-note-table-cell,
+.tiptap-content table.tiptap-note-table[data-grid-visible='false'] .tiptap-note-table-header,
+.tiptap-content table.tiptap-note-table[data-grid-visible='false'] .tiptap-note-table-cell:hover,
+.tiptap-content table.tiptap-note-table[data-grid-visible='false'] .tiptap-note-table-header:hover {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
