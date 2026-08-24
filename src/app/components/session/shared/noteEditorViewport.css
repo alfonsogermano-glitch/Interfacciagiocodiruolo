@@ -27,6 +27,14 @@
   background: var(--dash-panel);
 }
 
+/* In modalita viewport il contenitore esterno gestisce entrambi gli assi di
+   scroll. TipTap resta visibile e conserva solo il padding di sicurezza
+   sopra/ai lati: il padding inferiore non deve anticipare l'overflow. */
+.tiptap-viewport-scroll .tiptap-content {
+  overflow: visible !important;
+  padding: 6px 6px 0 !important;
+}
+
 /* L'ultimo blocco non deve anticipare l'overflow verticale con il proprio
    margine inferiore: lo scroll deve iniziare solo quando nasce davvero una
    riga/blocco oltre l'altezza visibile dell'editor. */

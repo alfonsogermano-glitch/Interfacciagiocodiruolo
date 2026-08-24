@@ -24,6 +24,8 @@ assert.match(editor, /fillViewport = true/, 'Note editor must fill the viewport 
 assert.match(editor, /style=\{fillViewport \? \{ height: '100%' \} : undefined\}/, 'viewport-fill must override legacy fixed-height utility classes');
 assert.match(viewportCss, /\.tiptap-viewport-scroll[\s\S]*scrollbar-color:\s*var\(--dash-accent-2\)\s+var\(--dash-panel\)/, 'editor scrollbars must use the active palette');
 assert.match(viewportCss, /::-webkit-scrollbar[\s\S]*width:\s*10px[\s\S]*height:\s*10px/, 'editor must expose visible vertical and horizontal WebKit scrollbars');
+assert.match(viewportCss, /\.tiptap-viewport-scroll \.tiptap-content\s*\{[\s\S]*overflow:\s*visible\s*!important/, 'viewport TipTap must not create a nested scroll container');
+assert.match(viewportCss, /\.tiptap-viewport-scroll \.tiptap-content\s*\{[\s\S]*padding:\s*6px\s+6px\s+0(?:px)?\s*!important/, 'viewport TipTap must keep top/side safety padding but remove trailing bottom padding');
 assert.match(viewportCss, /\.tiptap-viewport-scroll \.tiptap-content > :last-child\s*\{[\s\S]*margin-bottom:\s*0\s*!important/, 'viewport editor last block must not create premature vertical overflow');
 
 console.log('Note viewport fill verification: PASS');
