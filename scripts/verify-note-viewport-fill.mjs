@@ -14,6 +14,9 @@ const [editor, viewportCss] = await Promise.all([
 assert.match(editor, /fillViewport\?: boolean/, 'RichTextEditor must expose viewport-fill mode');
 assert.match(editor, /getBoundingClientRect\(\)\.top/, 'viewport-fill height must be derived from the editor position in the viewport');
 assert.match(editor, /visualViewport\?\.height\s*\?\?\s*window\.innerHeight/, 'viewport-fill must respect the visual viewport when available');
+assert.match(editor, /const NOTE_VIEWPORT_OVERSCAN = 48;/, 'viewport-fill must extend 48px below the visible viewport');
+assert.match(editor, /viewportHeight - top \+ NOTE_VIEWPORT_OVERSCAN/, 'viewport-fill height must include the lower overscan instead of stopping at the screen edge');
+assert.doesNotMatch(editor, /NOTE_VIEWPORT_BOTTOM_GAP/, 'viewport-fill must not reserve a visible bottom gap');
 assert.match(editor, /new ResizeObserver\(scheduleUpdate\)/, 'viewport-fill must react when surrounding layout changes');
 assert.match(editor, /addEventListener\('resize', scheduleUpdate\)/, 'viewport-fill must recalculate on viewport resize');
 assert.doesNotMatch(editor, /addEventListener\('scroll', scheduleUpdate/, 'viewport-fill height must not grow while the page itself scrolls');

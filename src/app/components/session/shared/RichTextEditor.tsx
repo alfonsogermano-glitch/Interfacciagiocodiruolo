@@ -71,7 +71,7 @@ function docsEqual(a: JSONContent | null | undefined, b: JSONContent | null | un
 }
 
 const TIPTAP_EDITOR_PROPS = { attributes: { class: 'tiptap-content' } };
-const NOTE_VIEWPORT_BOTTOM_GAP = 16;
+const NOTE_VIEWPORT_OVERSCAN = 48;
 const NOTE_VIEWPORT_MIN_HEIGHT = 256;
 
 function useViewportFillHeight(ref: RefObject<HTMLDivElement | null>, enabled: boolean): number | null {
@@ -89,7 +89,7 @@ function useViewportFillHeight(ref: RefObject<HTMLDivElement | null>, enabled: b
       if (!node) return;
       const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
       const top = node.getBoundingClientRect().top;
-      const next = Math.max(NOTE_VIEWPORT_MIN_HEIGHT, Math.floor(viewportHeight - top - NOTE_VIEWPORT_BOTTOM_GAP));
+      const next = Math.max(NOTE_VIEWPORT_MIN_HEIGHT, Math.floor(viewportHeight - top + NOTE_VIEWPORT_OVERSCAN));
       setHeight((current) => current === next ? current : next);
     };
     const scheduleUpdate = () => {
