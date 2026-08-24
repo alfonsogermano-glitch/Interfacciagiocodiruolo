@@ -17,5 +17,15 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Pack local workspace
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/note-tables'
+        run: tar --exclude=.git -czf /tmp/hollowgate-note-tables-workspace.tgz .
+      - name: Upload local workspace
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/note-tables'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hollowgate-note-tables-workspace
+          path: /tmp/hollowgate-note-tables-workspace.tgz
+          retention-days: 1
       - run: npm audit --audit-level=high
       - run: npm run check
