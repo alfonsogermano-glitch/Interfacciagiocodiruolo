@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { Schema } from '@tiptap/pm/model';
+import { EditorState, NodeSelection, TextSelection } from '@tiptap/pm/state';
 import {
   analyzeStructuralSubtree,
   canInsertNoteContainer,
   canInsertStructuralSubtree,
   getStructuralDepth,
   validateNoteContainerDocument,
+  validateStructuralReplacement,
 } from '../src/app/components/session/shared/noteContainerPolicy.ts';
 import { readFile } from 'node:fs/promises';
 
@@ -84,6 +86,76 @@ assert.equal(analyzeStructuralSubtree(box([collapse([p('x')])])).maxRelativeDept
 assert.deepEqual(validateNoteContainerDocument(depth2), { allowed: true });
 const invalidDepth3 = doc([box([collapse([box([p('x')])])])]);
 assert.deepEqual(validateNoteContainerDocument(invalidDepth3), { allowed: false, reason: 'max-depth' });
+
+
+
+// Partial selections inside a structural container carry open wrapper nodes in
+// their Slice (for example textBox -> paragraph -> inline checkbox/text). Those
+// wrappers are context, not content to re-insert. Validation must therefore be
+// based on the document produced by replaceSelection, not the raw Slice tree.
+const partialSource = doc([box([p('X')])]);
+let partialTextPos = null;
+partialSource.descendants((node, pos) => {
+  if (partialTextPos === null && node.isText) partialTextPos = pos;
+});
+assert.notEqual(partialTextPos, null);
+const partialSlice = TextSelection.create(partialSource, partialTextPos, partialTextPos + 1).content();
+assert.equal(partialSlice.openStart, 2, 'fixture must reproduce the open TextBox/paragraph wrapper context');
+assert.equal(partialSlice.openEnd, 2, 'fixture must reproduce the open TextBox/paragraph wrapper context');
+
+const partialTargetDoc = doc([box([p('AB')])]);
+let partialTargetPos = null;
+partialTargetDoc.descendants((node, pos) => {
+  if (partialTargetPos === null && node.isText) partialTargetPos = pos + 1;
+});
+assert.notEqual(partialTargetPos, null);
+const partialTargetState = EditorState.create({
+  schema,
+  doc: partialTargetDoc,
+  selection: TextSelection.create(partialTargetDoc, partialTargetPos),
+});
+assert.deepEqual(
+  validateStructuralReplacement(partialTargetState, partialSlice),
+  { allowed: true },
+  'copying one inline character from inside a TextBox must not be mistaken for copying the TextBox itself',
+);
+const partialResult = partialTargetState.tr.replaceSelection(partialSlice).doc;
+assert.equal(partialResult.textContent, 'AXB', 'partial paste must insert only the selected inline content');
+assert.equal(analyzeStructuralSubtree(partialResult).maxRelativeDepth, 1, 'partial paste must not create a nested TextBox');
+
+// The opposite case must remain protected: a complete structural node really
+// is pasted as a structural node, so inserting it at depth 2 must still fail.
+const wholeBoxSlice = NodeSelection.create(partialSource, 0).content();
+assert.equal(wholeBoxSlice.openStart, 0, 'whole TextBox selection must remain a closed structural slice');
+const wholeTargetDoc = doc([box([collapse([p('deep')])])]);
+let wholeTargetPos = null;
+wholeTargetDoc.descendants((node, pos) => {
+  if (wholeTargetPos === null && node.isText) wholeTargetPos = pos;
+});
+assert.notEqual(wholeTargetPos, null);
+const wholeTargetState = EditorState.create({
+  schema,
+  doc: wholeTargetDoc,
+  selection: TextSelection.create(wholeTargetDoc, wholeTargetPos),
+});
+assert.deepEqual(
+  validateStructuralReplacement(wholeTargetState, wholeBoxSlice),
+  { allowed: false, reason: 'max-depth' },
+  'copying a whole TextBox must still respect structural nesting limits',
+);
+
+const guardSource = await readFile(new URL('../src/app/components/session/shared/tiptapNoteContainerGuard.ts', import.meta.url), 'utf8');
+assert.match(
+  guardSource,
+  /handlePaste:[\s\S]*validateStructuralReplacement\(view\.state, slice\)/,
+  'normal paste guard must validate the document produced by replacing the current selection',
+);
+const richClipboardSource = await readFile(new URL('../src/app/components/session/shared/tiptapNoteRichClipboard.ts', import.meta.url), 'utf8');
+assert.match(
+  richClipboardSource,
+  /handlePaste:[\s\S]*validateStructuralReplacement\(view\.state, slice\)/,
+  'rich clipboard paste must validate the replacement result instead of raw open Slice wrappers',
+);
 
 const blocks = await readFile(new URL('../src/app/components/session/shared/tiptapBlocks.tsx', import.meta.url), 'utf8');
 assert.match(blocks, /NOTE_CONTAINER_BLOCK_CONTENT[\s\S]*textBox[\s\S]*collapseBlock[\s\S]*table/, 'TextBox/CollapseBody schema must allow structural children');

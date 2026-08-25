@@ -5,6 +5,7 @@ import {
   analyzeStructuralSubtree,
   canInsertStructuralSubtree,
   validateNoteContainerDocument,
+  validateStructuralReplacement,
   type NoteContainerDecision,
   type NoteContainerRejection,
 } from './noteContainerPolicy';
@@ -38,7 +39,7 @@ export const NoteContainerGuard = Extension.create<{ onReject?: (reason: NoteCon
         props: {
           handlePaste: (view, _event, slice) => {
             if (!view.editable) return true;
-            const decision = validateStructuralSlice(view.state.selection.$from, slice);
+            const decision = validateStructuralReplacement(view.state, slice);
             if (decision.allowed) return false;
             if ('reason' in decision) onReject?.(decision.reason);
             return true;

@@ -2,8 +2,7 @@ import { Extension } from '@tiptap/core';
 import { DOMSerializer, Slice } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
-import { validateStructuralSlice } from './tiptapNoteContainerGuard';
-import type { NoteContainerRejection } from './noteContainerPolicy';
+import { validateStructuralReplacement, type NoteContainerRejection } from './noteContainerPolicy';
 
 const MIME = 'application/x-hollowgate-note+json';
 const CLIPBOARD_ATTR = 'data-hollowgate-note-clipboard="1"';
@@ -102,7 +101,7 @@ export const NoteRichClipboard = Extension.create<{ onReject?: (reason: NoteCont
           if (!json) return false;
           try {
             const slice = Slice.fromJSON(view.state.schema, json as any);
-            const decision = validateStructuralSlice(view.state.selection.$from, slice);
+            const decision = validateStructuralReplacement(view.state, slice);
             if (!decision.allowed && 'reason' in decision) {
               this.options.onReject?.(decision.reason);
               event.preventDefault();

@@ -1,4 +1,5 @@
-import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model';
+import type { Node as PMNode, ResolvedPos, Slice } from '@tiptap/pm/model';
+import type { EditorState } from '@tiptap/pm/state';
 
 export type NoteStructuralContainer = 'textBox' | 'collapseBlock' | 'table';
 export type NoteContainerRejection = 'max-depth' | 'table-in-table' | 'collapse-summary';
@@ -78,6 +79,17 @@ export function canInsertStructuralSubtree($target: ResolvedPos, node: PMNode): 
     return { allowed: false, reason: 'max-depth' };
   }
   return { allowed: true };
+}
+
+
+/**
+ * Validate the exact document ProseMirror would produce for the current
+ * selection and Slice. Open Slice wrappers are context only, so inspecting the
+ * raw Slice tree can mistake a partial selection inside TextBox/Collapse for
+ * copying the structural container itself.
+ */
+export function validateStructuralReplacement(state: EditorState, slice: Slice): NoteContainerDecision {
+  return validateNoteContainerDocument(state.tr.replaceSelection(slice).doc);
 }
 
 export function validateNoteContainerDocument(doc: PMNode): NoteContainerDecision {
