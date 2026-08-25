@@ -6,12 +6,21 @@ const clipboardSource = await readFile(new URL('../src/app/components/session/sh
 const toolbarSource = await readFile(new URL('../src/app/components/session/shared/NoteTableToolbar.tsx', import.meta.url), 'utf8');
 const editorSource = await readFile(new URL('../src/app/components/session/shared/RichTextEditor.tsx', import.meta.url), 'utf8');
 const css = await readFile(new URL('../src/styles/theme.css', import.meta.url), 'utf8');
+const resizeCss = await readFile(new URL('../src/app/components/session/shared/noteTableResize.css', import.meta.url), 'utf8');
 
 assert.match(tableSource, /NOTE_TABLE_CELL_CONTENT[\s\S]*textBox[\s\S]*collapseBlock/, 'cells must allow TextBox and Collapse');
 assert.doesNotMatch(tableSource.match(/NOTE_TABLE_CELL_CONTENT\s*=\s*[\s\S]*?;/)?.[0] ?? '', /\|\s*table\b/, 'cells must exclude nested tables');
 assert.match(tableSource, /canInsertNoteContainer\(state\.selection\.\$from, 'table'\)/, 'table insertion must use central container policy');
 assert.match(tableSource, /insertTable\(\{ rows: 3, cols: 3, withHeaderRow: false \}\)/, 'table insertion must be 3x3');
-assert.match(tableSource, /View:\s*null/, 'TableView must be disabled so gridVisible attributes update live');
+assert.match(tableSource, /import ['"]\.\/noteTableResize\.css['"]/, 'table resize styles must be loaded with the table extension');
+assert.match(tableSource, /resizable:\s*true/, 'Note tables must enable native mouse column resizing');
+assert.match(tableSource, /NOTE_TABLE_CELL_MIN_WIDTH\s*=\s*48/, 'column resizing must preserve the existing 3rem minimum width');
+assert.match(tableSource, /cellMinWidth:\s*NOTE_TABLE_CELL_MIN_WIDTH/, 'TipTap resize must use the Hollowgate minimum width');
+assert.match(tableSource, /View:\s*HollowgateTableView/, 'resizable tables must use the Hollowgate TableView');
+assert.match(tableSource, /class HollowgateTableView extends TableView/, 'custom TableView must preserve Hollowgate table styling and live attributes');
+assert.match(tableSource, /setAttribute\('data-grid-visible'/, 'custom TableView must update grid visibility live after table transactions');
+assert.match(tableSource, /columnResizingPluginKey/, 'resize bootstrap must coordinate with the native TipTap resize plugin');
+assert.match(tableSource, /activeHandle[\s\S]*bootstrapRenderedColumnWidths/, 'starting a drag must freeze all rendered column widths before resizing one column');
 assert.match(tableSource, /gridVisible/, 'table schema must persist grid visibility');
 assert.match(tableSource, /toggleNoteTableGrid/, 'table commands must expose grid visibility toggle');
 
@@ -41,10 +50,14 @@ assert.match(editorSource, /TextAlign\.configure\(\{ types: \['paragraph'\] \}\)
 
 const tableCss = css.slice(css.indexOf('/* Note tables */'));
 assert.ok(tableCss.length > 0, 'Note table CSS must live in theme.css, not a temporary workflow');
-assert.match(tableCss, /\.tiptap-note-table[\s\S]*width:\s*100%/, 'tables must be responsive to Note width');
+assert.match(tableCss, /\.tiptap-note-table[\s\S]*width:\s*100%/, 'unresized tables must initially fill the Note width');
+assert.match(resizeCss, /table\.tiptap-note-table[\s\S]*min-width:\s*0\s*!important/, 'fixed column widths must override the legacy 100% minimum and shrink the whole table');
+assert.match(resizeCss, /\.column-resize-handle[\s\S]*var\(--dash-accent/, 'column resize handle must be visible and palette-aware');
+assert.match(resizeCss, /resize-cursor[\s\S]*col-resize/, 'column boundaries must expose the horizontal resize cursor');
 assert.match(tableCss, /--dash-border-soft/, 'table borders must follow active palette');
 assert.match(tableCss, /data-grid-visible='false'/, 'grid-hidden state must have CSS');
 assert.match(tableCss, /border-color:\s*transparent/, 'hidden grid must remove cell borders');
 assert.doesNotMatch(tableCss, /#[0-9a-f]{3,8}/i, 'table CSS must not hard-code palette colors');
+assert.doesNotMatch(resizeCss, /#[0-9a-f]{3,8}/i, 'table resize CSS must not hard-code palette colors');
 
 console.log('Note table verification: PASS');

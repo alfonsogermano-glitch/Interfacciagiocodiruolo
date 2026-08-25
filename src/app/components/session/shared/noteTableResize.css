@@ -1,0 +1,32 @@
+/* Resizing delle colonne delle tabelle Note.
+   Le tabelle non ancora ridimensionate continuano a riempire la Nota tramite
+   la regola storica in theme.css. Quando TipTap assegna larghezze esplicite
+   alle colonne, questo override rimuove solo il minimo al 100% così la
+   larghezza totale della tabella può seguire la somma delle colonne. */
+.tiptap-content table.tiptap-note-table {
+  min-width: 0 !important;
+}
+
+.tiptap-content .tiptap-note-table-cell,
+.tiptap-content .tiptap-note-table-header {
+  box-sizing: border-box;
+  position: relative;
+}
+
+.tiptap-content .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: 0;
+  z-index: 20;
+  width: 4px;
+  background: color-mix(in srgb, var(--dash-accent) 78%, var(--dash-accent-2));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--dash-panel) 35%, transparent);
+  pointer-events: none;
+}
+
+.tiptap-content.resize-cursor,
+.tiptap-content.resize-cursor .tiptap-note-table-cell,
+.tiptap-content.resize-cursor .tiptap-note-table-header {
+  cursor: col-resize !important;
+}
