@@ -1,3 +1,4 @@
+import './noteInlineRadioInteraction';
 import type { Editor } from '@tiptap/react';
 import type { LucideIcon } from 'lucide-react';
 import {
