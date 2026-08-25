@@ -17,9 +17,25 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import { usePortalContainer } from '../../ui/portal-container';
 import { findActiveTable, type ActiveNoteTable } from './tiptapNoteTable';
 import { writeTableToClipboard } from './noteTableClipboard';
+import { getNoteTableToolbarLeft } from './noteTableToolbarPosition';
 
 interface NoteTableToolbarProps { editor: Editor; editable: boolean }
 interface ToolbarPosition { top: number; left: number }
+
+function findRenderedNoteTable(dom: Node | null): HTMLTableElement | null {
+  const element = dom instanceof HTMLElement ? dom : dom?.parentElement;
+  if (!element) return null;
+  if (element instanceof HTMLTableElement && element.classList.contains('tiptap-note-table')) return element;
+  return element.querySelector('table.tiptap-note-table');
+}
+
+function findHorizontalScrollViewport(element: HTMLElement): HTMLElement | null {
+  for (let current = element.parentElement; current; current = current.parentElement) {
+    const overflowX = window.getComputedStyle(current).overflowX;
+    if (overflowX === 'auto' || overflowX === 'scroll') return current;
+  }
+  return null;
+}
 
 function TableActionButton({ label, disabled, onClick, children }: { label: string; disabled?: boolean; onClick: () => void; children: ReactNode }) {
   return (
@@ -68,14 +84,21 @@ export function NoteTableToolbar({ editor, editable }: NoteTableToolbarProps) {
     const nextActiveTable = findActiveTable(editor.state);
     if (!nextActiveTable) { setActiveTable(null); setPosition(null); return; }
     const dom = editor.view.nodeDOM(nextActiveTable.pos);
-    const element = dom instanceof HTMLElement ? dom : dom?.parentElement;
-    if (!element) { setActiveTable(nextActiveTable); setPosition(null); return; }
-    const rect = element.getBoundingClientRect();
+    const table = findRenderedNoteTable(dom);
+    if (!table) { setActiveTable(nextActiveTable); setPosition(null); return; }
+    const rect = table.getBoundingClientRect();
     if (rect.bottom < 0 || rect.top > window.innerHeight) { setActiveTable(nextActiveTable); setPosition(null); return; }
-    const toolbarWidth = 40;
-    const gap = 8;
-    const rightSide = rect.right + gap;
-    const left = rightSide + toolbarWidth <= window.innerWidth - 8 ? rightSide : Math.max(8, rect.left - toolbarWidth - gap);
+    const horizontalViewport = findHorizontalScrollViewport(table);
+    const visibleRect = horizontalViewport?.getBoundingClientRect() ?? rect;
+    const hasHorizontalOverflow = horizontalViewport
+      ? rect.width > horizontalViewport.clientWidth + 1
+      : false;
+    const left = getNoteTableToolbarLeft({
+      tableBounds: { left: rect.left, right: rect.right },
+      visibleBounds: { left: visibleRect.left, right: visibleRect.right },
+      hasHorizontalOverflow,
+      viewportWidth: window.innerWidth,
+    });
     const top = Math.max(8, Math.min(rect.top, window.innerHeight - 400));
     setActiveTable(nextActiveTable);
     setPosition({ top, left });
