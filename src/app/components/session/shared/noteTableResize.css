@@ -13,6 +13,19 @@
   position: relative;
 }
 
+.tiptap-content .selectedCell {
+  background: color-mix(in srgb, var(--dash-accent) 24%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--dash-accent) 82%, transparent);
+}
+
+/* La griglia nascosta azzera background e box-shadow in theme.css: una
+   CellSelection deve restare leggibile anche in quella modalità. */
+.tiptap-content table.tiptap-note-table[data-grid-visible='false'] .tiptap-note-table-cell.selectedCell,
+.tiptap-content table.tiptap-note-table[data-grid-visible='false'] .tiptap-note-table-header.selectedCell {
+  background: color-mix(in srgb, var(--dash-accent) 24%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--dash-accent) 82%, transparent);
+}
+
 .tiptap-content .column-resize-handle {
   position: absolute;
   top: 0;

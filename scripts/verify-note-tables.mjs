@@ -26,6 +26,10 @@ assert.match(tableSource, /setAttribute\('data-grid-visible'/, 'custom TableView
 assert.match(tableSource, /columnResizingPluginKey/, 'resize bootstrap must coordinate with the native TipTap resize plugin');
 assert.match(tableSource, /activeHandle[\s\S]*bootstrapRenderedColumnWidths/, 'starting a drag must freeze all rendered column widths before resizing one column');
 assert.match(tableSource, /gridVisible/, 'table schema must persist grid visibility');
+assert.match(resizeCss, /\.tiptap-content \.selectedCell/, 'selected table cells must have a dedicated visible state');
+assert.match(resizeCss, /\.selectedCell[\s\S]*background:\s*color-mix\([^;]*var\(--dash-accent\)/, 'selected cells must use the active palette accent as a translucent fill');
+assert.match(resizeCss, /\.selectedCell[\s\S]*box-shadow:\s*inset/, 'selected cells must have an inner accent edge so selection remains visible with the grid hidden');
+assert.match(resizeCss, /data-grid-visible=['\"]false['\"][^\{]*\.selectedCell/, 'selected cells must remain visibly styled when the table grid is hidden');
 assert.match(tableSource, /toggleNoteTableGrid/, 'table commands must expose grid visibility toggle');
 
 assert.match(clipboardSource, /data-hollowgate-table-clipboard/, 'portable structured table marker must remain');
