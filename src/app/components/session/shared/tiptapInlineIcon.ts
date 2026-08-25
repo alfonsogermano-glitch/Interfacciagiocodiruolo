@@ -23,11 +23,10 @@ declare module '@tiptap/core' {
 // frecce, Backspace, Delete, selezione lo trattano nativamente senza alcun
 // codice custom di navigazione. Il disegno dell'SVG e' un layer puramente
 // visivo separato (Decoration.widget, sotto), che non introduce alcuna
-// posizione di documento ne' alcun nodo DOM editabile: prosemirror-view
-// imposta da solo contenteditable="false" sul DOM del widget
-// (WidgetViewDesc, node_modules/prosemirror-view/dist/index.js), che e'
-// esattamente perche' il browser lo salta per il posizionamento del cursore
-// senza che serva chiederglielo esplicitamente.
+// posizione di documento ne' alcun nodo DOM editabile. ProseMirror imposta
+// contenteditable="false" sul DOM del widget; sotto usiamo pero uno span HTML
+// come involucro dell'SVG, cosi Chromium conserva anche la geometria visiva
+// della posizione del caret precedente quando l'icona apre una riga.
 const ZWSP = '​';
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -48,8 +47,8 @@ function buildIconSvg(iconName: string): SVGSVGElement {
   svg.setAttribute('stroke-width', '2');
   svg.setAttribute('stroke-linecap', 'round');
   svg.setAttribute('stroke-linejoin', 'round');
-  svg.style.display = 'inline-block';
-  svg.style.verticalAlign = '-0.125em';
+  svg.style.display = 'block';
+  svg.style.pointerEvents = 'none';
   svg.setAttribute('data-icon-name', iconName);
   for (const [tag, attrs] of primitives) {
     const el = document.createElementNS(SVG_NS, tag);
@@ -57,6 +56,24 @@ function buildIconSvg(iconName: string): SVGSVGElement {
     svg.appendChild(el);
   }
   return svg;
+}
+
+// Wrapper HTML intenzionale: Checkbox e Radio usano un elemento inline HTML
+// davanti al loro carattere ZWSP e il browser riesce a mostrare correttamente
+// anche la posizione del caret precedente quando il controllo apre la riga.
+// Un SVG usato direttamente come Decoration.widget non espone la stessa
+// geometria del caret nei browser Chromium. Manteniamo quindi l'SVG puramente
+// grafico dentro uno span 1em, senza introdurre nuove posizioni nel documento.
+function buildIconWidget(iconName: string): HTMLSpanElement {
+  const widget = document.createElement('span');
+  widget.className = 'tiptap-inline-icon-widget';
+  widget.style.display = 'inline-block';
+  widget.style.width = '1em';
+  widget.style.height = '1em';
+  widget.style.verticalAlign = '-0.125em';
+  widget.style.userSelect = 'text';
+  widget.appendChild(buildIconSvg(iconName));
+  return widget;
 }
 
 export const InlineIcon = Mark.create({
@@ -132,7 +149,7 @@ export const InlineIcon = Mark.create({
               if (!mark) return;
               const iconName = mark.attrs.name as string;
               for (let offset = 0; offset < node.nodeSize; offset++) {
-                decorations.push(Decoration.widget(pos + offset, () => buildIconSvg(iconName), { side: 0 }));
+                decorations.push(Decoration.widget(pos + offset, () => buildIconWidget(iconName), { side: 0 }));
               }
             });
             return DecorationSet.create(state.doc, decorations);
