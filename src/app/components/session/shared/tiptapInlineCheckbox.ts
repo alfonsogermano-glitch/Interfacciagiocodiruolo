@@ -25,6 +25,11 @@ export interface InlineCheckboxOptions {
 // di testo, non un Node atom speciale da selezionare o gestire a mano.
 export const INLINE_CHECKBOX_CHAR = '\u200b';
 
+export function isInlineCheckboxSelected(state: EditorState, pos: number): boolean {
+  const { selection } = state;
+  return !selection.empty && selection.from <= pos && selection.to >= pos + 1;
+}
+
 function getInlineCheckboxMark(state: EditorState, pos: number) {
   const markType = state.schema.marks.inlineCheckbox;
   if (!markType || pos < 0 || pos >= state.doc.content.size) return null;
@@ -66,13 +71,16 @@ function buildCheckboxWidget(
   view: EditorView,
   getPos: () => number | undefined,
   checked: boolean,
+  selected: boolean,
   canToggle: () => boolean,
 ): HTMLElement {
   const element = document.createElement('span');
   element.className = 'tiptap-inline-checkbox-widget';
   element.dataset.checked = String(checked);
+  element.dataset.selected = String(selected);
   element.setAttribute('role', 'checkbox');
   element.setAttribute('aria-checked', String(checked));
+  element.setAttribute('aria-selected', String(selected));
   element.setAttribute('aria-label', checked ? 'Checkbox selezionata' : 'Checkbox non selezionata');
 
   // Stile inline intenzionale: la checkbox è una Decoration.widget e non
@@ -87,10 +95,11 @@ function buildCheckboxWidget(
     verticalAlign: '-0.12em',
     border: '2px solid var(--dash-text)',
     borderRadius: '0.22em',
-    background: 'transparent',
+    background: selected ? 'color-mix(in srgb, var(--dash-accent) 18%, transparent)' : 'transparent',
     cursor: canToggle() ? 'pointer' : 'default',
     position: 'relative',
-    userSelect: 'none',
+    userSelect: view.editable ? 'text' : 'none',
+    boxShadow: selected ? '0 0 0 2px var(--dash-accent)' : 'none',
   });
 
   if (checked) {
@@ -111,9 +120,9 @@ function buildCheckboxWidget(
 
   const interactive = canToggle();
   element.dataset.interactive = String(interactive);
-  if (interactive) {
+  if (interactive && !view.editable) {
     element.tabIndex = 0;
-  } else {
+  } else if (!interactive) {
     element.setAttribute('aria-disabled', 'true');
   }
 
@@ -136,11 +145,12 @@ function buildCheckboxWidget(
     setInlineCheckboxChecked(view.state, (transaction) => view.dispatch(transaction), pos, !Boolean(currentMark.attrs.checked));
   };
 
-  // Il click sulla checkbox non deve diventare anche un click sul contenitore
-  // read-only della nota (che altrimenti entrerebbe in modalità modifica).
-  // preventDefault sul mousedown mantiene inoltre il focus dell'editor quando
-  // si sta già scrivendo, evitando un blur solo per aver spuntato una casella.
+  // In modifica il mousedown deve raggiungere ProseMirror: così la checkbox
+  // partecipa alla selezione nativa (drag e Shift+frecce) come il carattere
+  // inline che rappresenta. Fuori modifica continuiamo invece a bloccarlo per
+  // evitare che il click-to-toggle attivi anche la modalità di editing.
   element.addEventListener('mousedown', (event) => {
+    if (view.editable) return;
     event.preventDefault();
     event.stopPropagation();
   });
@@ -221,10 +231,12 @@ export const InlineCheckbox = Mark.create<InlineCheckboxOptions>({
               const checked = Boolean(mark.attrs.checked);
               for (let offset = 0; offset < node.nodeSize; offset++) {
                 if (node.text.charAt(offset) !== INLINE_CHECKBOX_CHAR) continue;
+                const checkboxPos = pos + offset;
+                const selected = isInlineCheckboxSelected(state, checkboxPos);
                 decorations.push(
                   Decoration.widget(
-                    pos + offset,
-                    (view, getPos) => buildCheckboxWidget(view, getPos, checked, canToggle),
+                    checkboxPos,
+                    (view, getPos) => buildCheckboxWidget(view, getPos, checked, selected, canToggle),
                     { side: 0 },
                   ),
                 );
