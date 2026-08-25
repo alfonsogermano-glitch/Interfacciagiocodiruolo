@@ -6,6 +6,7 @@ import type { NoteContainerRejection } from './noteContainerPolicy';
 export const NOTE_CONTAINER_REJECTION_MESSAGES: Record<NoteContainerRejection, string> = {
   'max-depth': 'Impossibile inserire: profondità massima dei contenitori raggiunta.',
   'table-in-table': 'Non è possibile inserire una tabella dentro un’altra tabella.',
+  'table-clipboard-in-table': 'Non è possibile incollare celle o tabelle dentro un’altra tabella.',
   'collapse-summary': 'Il titolo del Collapse può contenere solo testo.',
 };
 

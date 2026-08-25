@@ -2,7 +2,7 @@ import type { Node as PMNode, ResolvedPos, Slice } from '@tiptap/pm/model';
 import type { EditorState } from '@tiptap/pm/state';
 
 export type NoteStructuralContainer = 'textBox' | 'collapseBlock' | 'table';
-export type NoteContainerRejection = 'max-depth' | 'table-in-table' | 'collapse-summary';
+export type NoteContainerRejection = 'max-depth' | 'table-in-table' | 'table-clipboard-in-table' | 'collapse-summary';
 export type NoteContainerDecision = { allowed: true } | { allowed: false; reason: NoteContainerRejection };
 
 const STRUCTURAL_TYPES = new Set<NoteStructuralContainer>(['textBox', 'collapseBlock', 'table']);
@@ -24,6 +24,13 @@ export function isInsideNoteTable($pos: ResolvedPos): boolean {
     if ($pos.node(depth).type.name === 'table') return true;
   }
   return false;
+}
+
+export function validateTableClipboardTarget($target: ResolvedPos, isTableClipboard: boolean): NoteContainerDecision {
+  if (isTableClipboard && isInsideNoteTable($target)) {
+    return { allowed: false, reason: 'table-clipboard-in-table' };
+  }
+  return { allowed: true };
 }
 
 export function isInsideCollapseSummary($pos: ResolvedPos): boolean {

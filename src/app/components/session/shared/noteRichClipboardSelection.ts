@@ -11,6 +11,10 @@ function singleSelectedCellContent(selection: CellSelection): Slice | null {
   return new Slice(cell.content, 0, 0);
 }
 
+export function isRichClipboardTableSelection(state: EditorState): boolean {
+  return state.selection instanceof CellSelection;
+}
+
 /**
  * A one-cell CellSelection is only an editing affordance: copying it should
  * place the contents of that cell on the rich clipboard, not the surrounding

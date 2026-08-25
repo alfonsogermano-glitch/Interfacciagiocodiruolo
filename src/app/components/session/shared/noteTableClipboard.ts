@@ -1,7 +1,7 @@
 import { Extension, type Editor, type JSONContent } from '@tiptap/core';
 import { DOMSerializer, type Node as PMNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
-import { canInsertStructuralSubtree, type NoteContainerRejection } from './noteContainerPolicy';
+import { canInsertStructuralSubtree, validateTableClipboardTarget, type NoteContainerRejection } from './noteContainerPolicy';
 
 export const HOLLOWGATE_TABLE_MIME = 'web application/x-hollowgate-table+json';
 const TABLE_CLIPBOARD_MARKER = 'data-hollowgate-table-clipboard="1"';
@@ -114,6 +114,13 @@ export const NoteTableClipboardPaste = Extension.create<{ onReject?: (reason: No
               const tableNode = view.state.schema.nodeFromJSON(structuredTable);
               tableNode.check();
               if (tableNode.type.name !== 'table') return false;
+
+              const tableClipboardDecision = validateTableClipboardTarget(view.state.selection.$from, true);
+              if (!tableClipboardDecision.allowed && 'reason' in tableClipboardDecision) {
+                this.options.onReject?.(tableClipboardDecision.reason);
+                event.preventDefault();
+                return true;
+              }
 
               const decision = canInsertStructuralSubtree(view.state.selection.$from, tableNode);
               if (!decision.allowed && 'reason' in decision) {

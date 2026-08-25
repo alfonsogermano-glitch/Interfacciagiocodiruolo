@@ -2,14 +2,14 @@ import { Extension } from '@tiptap/core';
 import { DOMSerializer, Slice } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
-import { getRichClipboardSlice } from './noteRichClipboardSelection';
-import { validateStructuralReplacement, type NoteContainerRejection } from './noteContainerPolicy';
+import { getRichClipboardSlice, isRichClipboardTableSelection } from './noteRichClipboardSelection';
+import { validateStructuralReplacement, validateTableClipboardTarget, type NoteContainerRejection } from './noteContainerPolicy';
 
 const MIME = 'application/x-hollowgate-note+json';
 const CLIPBOARD_ATTR = 'data-hollowgate-note-clipboard="1"';
 const SLICE_ATTR = 'data-hollowgate-note-slice';
 
-type SliceJSON = { content: unknown[]; openStart?: number; openEnd?: number };
+type SliceJSON = { content: unknown[]; openStart?: number; openEnd?: number; tableSelection?: boolean };
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
@@ -29,7 +29,8 @@ function isSliceJSON(value: unknown): value is SliceJSON {
   const candidate = value as SliceJSON;
   return Array.isArray(candidate.content)
     && (candidate.openStart === undefined || typeof candidate.openStart === 'number')
-    && (candidate.openEnd === undefined || typeof candidate.openEnd === 'number');
+    && (candidate.openEnd === undefined || typeof candidate.openEnd === 'number')
+    && (candidate.tableSelection === undefined || typeof candidate.tableSelection === 'boolean');
 }
 function encodeSlice(slice: SliceJSON): string {
   if (!isSliceJSON(slice)) throw new Error('Invalid Hollowgate Note slice');
@@ -60,7 +61,11 @@ function serializeFragment(view: EditorView, slice: Slice): string {
 function copySelection(view: EditorView, event: ClipboardEvent): boolean {
   if (!event.clipboardData || view.state.selection.empty) return false;
   const slice = getRichClipboardSlice(view.state);
-  const json = slice.toJSON() as SliceJSON;
+  const tableSelection = isRichClipboardTableSelection(view.state);
+  const json = {
+    ...(slice.toJSON() as SliceJSON),
+    ...(tableSelection ? { tableSelection: true } : {}),
+  };
   if (!json) return false;
   event.clipboardData.setData('text/html', wrapHTML(serializeFragment(view, slice), json));
   event.clipboardData.setData('text/plain', slice.content.textBetween(0, slice.content.size, '\n', '\n'));
@@ -101,7 +106,17 @@ export const NoteRichClipboard = Extension.create<{ onReject?: (reason: NoteCont
           const json = readClipboard(event);
           if (!json) return false;
           try {
-            const slice = Slice.fromJSON(view.state.schema, json as any);
+            const tableClipboardDecision = validateTableClipboardTarget(view.state.selection.$from, json.tableSelection === true);
+            if (!tableClipboardDecision.allowed && 'reason' in tableClipboardDecision) {
+              this.options.onReject?.(tableClipboardDecision.reason);
+              event.preventDefault();
+              return true;
+            }
+            const slice = Slice.fromJSON(view.state.schema, {
+              content: json.content,
+              openStart: json.openStart,
+              openEnd: json.openEnd,
+            } as any);
             const decision = validateStructuralReplacement(view.state, slice);
             if (!decision.allowed && 'reason' in decision) {
               this.options.onReject?.(decision.reason);
