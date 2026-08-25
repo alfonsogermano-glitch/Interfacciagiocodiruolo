@@ -7,6 +7,7 @@ import {
   AlignRight,
   Bold,
   ChevronsDownUp,
+  CircleDot,
   Image,
   Italic,
   List,
@@ -28,7 +29,7 @@ import { canInsertNoteContainer } from './noteContainerPolicy';
 export type NoteCommandId =
   | 'bold' | 'italic' | 'underline' | 'strike' | 'fontSize' | 'fontFamily'
   | 'bulletList' | 'orderedList' | 'blockquote' | 'alignLeft' | 'alignCenter' | 'alignRight'
-  | 'textBox' | 'collapse' | 'horizontalRule' | 'table' | 'taskList' | 'checkbox'
+  | 'textBox' | 'collapse' | 'horizontalRule' | 'table' | 'taskList' | 'checkbox' | 'radio'
   | 'image' | 'inlineIcon' | 'undo';
 
 export type NoteCommandGroup = 'text' | 'block' | 'history';
@@ -93,6 +94,8 @@ export const NOTE_COMMANDS: readonly NoteCommandDescriptor[] = [
     canRun: (e) => e.can().toggleTaskList(), isActive: (e) => e.isActive('taskList'), run: (e) => e.chain().focus().toggleTaskList().run() },
   { id: 'checkbox', label: 'Checkbox', group: 'block', icon: SquareCheckBig, selectionEligible: false,
     canRun: (e) => e.can().insertInlineCheckbox(), isActive: () => false, run: (e) => e.chain().focus().insertInlineCheckbox().run() },
+  { id: 'radio', label: 'Radio button', group: 'block', icon: CircleDot, selectionEligible: false,
+    canRun: (e) => e.can().insertInlineRadio(), isActive: () => false, run: (e) => e.chain().focus().insertInlineRadio().run() },
   { id: 'image', label: 'Immagine', group: 'block', icon: Image, selectionEligible: false, secondaryPicker: 'image',
     canRun: (e) => e.can().setImage({ src: 'about:blank' }), isActive: () => false },
   { id: 'inlineIcon', label: 'Icone', group: 'block', icon: Shapes, selectionEligible: false, secondaryPicker: 'inlineIcon',
@@ -143,6 +146,7 @@ export function runSlashNoteCommand(editor: Editor, id: NoteCommandId, slashPos:
     case 'table': return chain.insertNoteTable().run();
     case 'taskList': return chain.toggleTaskList().run();
     case 'checkbox': return chain.insertInlineCheckbox().run();
+    case 'radio': return chain.insertInlineRadio().run();
     case 'undo': return chain.undo().run();
     case 'fontSize':
     case 'fontFamily':
