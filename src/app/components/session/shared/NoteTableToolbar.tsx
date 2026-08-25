@@ -118,6 +118,25 @@ export function NoteTableToolbar({ editor, editable }: NoteTableToolbarProps) {
     };
   }, [editor, refresh]);
 
+  const activeTablePos = activeTable?.pos ?? null;
+  useEffect(() => {
+    if (!editable || activeTablePos === null || typeof ResizeObserver === 'undefined') return;
+    const dom = editor.view.nodeDOM(activeTablePos);
+    const table = findRenderedNoteTable(dom);
+    if (!table) return;
+
+    let frame = 0;
+    const resizeObserver = new ResizeObserver(() => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(refresh);
+    });
+    resizeObserver.observe(table);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+    };
+  }, [editor, editable, activeTablePos, refresh]);
+
   const run = (command: () => void) => { command(); refresh(); };
   const copyActiveTable = async () => {
     const current = findActiveTable(editor.state);
