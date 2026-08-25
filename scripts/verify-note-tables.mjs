@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { Schema } from '@tiptap/pm/model';
+import { EditorState, TextSelection } from '@tiptap/pm/state';
+import { CellSelection, TableMap, tableNodes } from '@tiptap/pm/tables';
 
 const tableSource = await readFile(new URL('../src/app/components/session/shared/tiptapNoteTable.ts', import.meta.url), 'utf8');
 const clipboardSource = await readFile(new URL('../src/app/components/session/shared/noteTableClipboard.ts', import.meta.url), 'utf8');
+const richClipboardSource = await readFile(new URL('../src/app/components/session/shared/tiptapNoteRichClipboard.ts', import.meta.url), 'utf8');
 const toolbarSource = await readFile(new URL('../src/app/components/session/shared/NoteTableToolbar.tsx', import.meta.url), 'utf8');
 const editorSource = await readFile(new URL('../src/app/components/session/shared/RichTextEditor.tsx', import.meta.url), 'utf8');
 const css = await readFile(new URL('../src/styles/theme.css', import.meta.url), 'utf8');
@@ -30,6 +34,7 @@ assert.match(clipboardSource, /text\/plain/, 'clipboard must include plain text'
 assert.match(clipboardSource, /navigator\.clipboard\.write/, 'table copy must use browser clipboard');
 assert.match(clipboardSource, /canInsertStructuralSubtree/, 'structured table paste must use central policy');
 assert.match(clipboardSource, /event\.preventDefault\(\)[\s\S]*return true/, 'rejected structured paste must be handled atomically');
+assert.match(richClipboardSource, /getRichClipboardSlice\(view\.state\)/, 'rich copy must normalize a single-cell CellSelection before serialization');
 
 for (const command of ['addRowBefore','addRowAfter','addColumnBefore','addColumnAfter','toggleHeaderRow','toggleHeaderColumn','deleteRow','deleteColumn','deleteTable','toggleNoteTableGrid']) {
   assert.match(toolbarSource, new RegExp(command), `table toolbar must expose ${command}`);
@@ -59,5 +64,100 @@ assert.match(tableCss, /data-grid-visible='false'/, 'grid-hidden state must have
 assert.match(tableCss, /border-color:\s*transparent/, 'hidden grid must remove cell borders');
 assert.doesNotMatch(tableCss, /#[0-9a-f]{3,8}/i, 'table CSS must not hard-code palette colors');
 assert.doesNotMatch(resizeCss, /#[0-9a-f]{3,8}/i, 'table resize CSS must not hard-code palette colors');
+
+
+// A single-cell CellSelection is a request to copy the cell's contents, not
+// the table structure that ProseMirror uses as selection context. The rich
+// clipboard must strip table_row/table_cell wrappers before serializing it.
+const clipboardSelectionFeature = await import('../src/app/components/session/shared/noteRichClipboardSelection.ts');
+const { getRichClipboardSlice } = clipboardSelectionFeature;
+assert.equal(typeof getRichClipboardSlice, 'function', 'rich clipboard must expose the single-cell normalization helper');
+
+const behavioralTableNodes = tableNodes({ tableGroup: 'block', cellContent: 'block+' });
+const behavioralSchema = new Schema({
+  nodes: {
+    doc: { content: 'block+' },
+    paragraph: { group: 'block', content: 'inline*' },
+    text: { group: 'inline' },
+    ...behavioralTableNodes,
+  },
+});
+const bp = (text = '') => behavioralSchema.nodes.paragraph.create(null, text ? behavioralSchema.text(text) : undefined);
+const bcell = (text) => behavioralSchema.nodes.table_cell.create(null, [bp(text)]);
+const brow = (...texts) => behavioralSchema.nodes.table_row.create(null, texts.map(bcell));
+const btable = (...rows) => behavioralSchema.nodes.table.create(null, rows);
+const sourceTable = btable(brow('A', 'B'), brow('C', 'D'));
+const sourceDoc = behavioralSchema.nodes.doc.create(null, [sourceTable, bp('outside')]);
+const sourceCellPositions = [];
+const sourceTextPositions = new Map();
+sourceDoc.descendants((node, pos) => {
+  if (node.type.spec.tableRole === 'cell') sourceCellPositions.push(pos);
+  if (node.isText && node.text) sourceTextPositions.set(node.text, pos);
+});
+assert.equal(sourceCellPositions.length, 4, 'fixture must expose a 2x2 table');
+const singleCellSelection = new CellSelection(
+  sourceDoc.resolve(sourceCellPositions[0]),
+  sourceDoc.resolve(sourceCellPositions[0]),
+);
+const rawCellSlice = singleCellSelection.content();
+assert.equal(rawCellSlice.openStart, 1, 'fixture must reproduce ProseMirror single-cell table wrappers');
+assert.equal(rawCellSlice.content.firstChild?.type.spec.tableRole, 'row', 'raw single-cell selection must carry a table row wrapper');
+const sourceState = EditorState.create({ schema: behavioralSchema, doc: sourceDoc, selection: singleCellSelection });
+const copiedCellSlice = getRichClipboardSlice(sourceState);
+assert.equal(copiedCellSlice.openStart, 0, 'single-cell copy must become a closed content slice');
+assert.equal(copiedCellSlice.openEnd, 0, 'single-cell copy must become a closed content slice');
+assert.equal(copiedCellSlice.content.childCount, 1, 'single-cell copy must contain only the cell block content');
+assert.equal(copiedCellSlice.content.firstChild?.type.name, 'paragraph', 'single-cell copy must strip row/cell wrappers');
+assert.equal(copiedCellSlice.content.textBetween(0, copiedCellSlice.content.size), 'A', 'single-cell copy must preserve the cell content');
+
+// Pasting that normalized slice outside a table must insert ordinary content,
+// not cause ProseMirror to synthesize a 1x1 table around the copied cell.
+const outsideTextPos = sourceTextPositions.get('outside');
+assert.equal(typeof outsideTextPos, 'number');
+const outsideState = EditorState.create({
+  schema: behavioralSchema,
+  doc: sourceDoc,
+  selection: TextSelection.create(sourceDoc, outsideTextPos + 3),
+});
+const outsideResult = outsideState.tr.replaceSelection(copiedCellSlice).doc;
+let outsideTableCount = 0;
+outsideResult.descendants((node) => { if (node.type.spec.tableRole === 'table') outsideTableCount += 1; });
+assert.equal(outsideTableCount, 1, 'pasting one copied cell outside a table must not create a new 1x1 table');
+assert.equal(outsideResult.firstChild?.type.spec.tableRole, 'table', 'the original table must remain present');
+assert.ok(outsideResult.textContent.includes('outAside'), 'outside paste must insert the copied content as ordinary document content');
+
+// Pasting into another cell must not add/move cells. Only the chosen target
+// cell may gain the copied block; every adjacent cell must retain its content.
+const targetTextPos = sourceTextPositions.get('D');
+assert.equal(typeof targetTextPos, 'number');
+const targetState = EditorState.create({
+  schema: behavioralSchema,
+  doc: sourceDoc,
+  selection: TextSelection.create(sourceDoc, targetTextPos + 1),
+});
+const targetResult = targetState.tr.replaceSelection(copiedCellSlice).doc;
+const resultTable = targetResult.firstChild;
+assert.ok(resultTable && resultTable.type.spec.tableRole === 'table', 'result must still begin with the original table');
+const resultMap = TableMap.get(resultTable);
+assert.equal(resultMap.width, 2, 'single-cell content paste must not add or shift columns');
+assert.equal(resultMap.height, 2, 'single-cell content paste must not add or shift rows');
+const resultCellTexts = [];
+const visitedResultCells = new Set();
+for (const relativePos of resultMap.map) {
+  if (visitedResultCells.has(relativePos)) continue;
+  visitedResultCells.add(relativePos);
+  resultCellTexts.push(resultTable.nodeAt(relativePos)?.textContent ?? '');
+}
+assert.deepEqual(resultCellTexts, ['A', 'B', 'C', 'DA'], 'only the chosen destination cell may receive the copied content');
+
+// Multi-cell selections remain genuine table selections; this normalization is
+// intentionally limited to exactly one selected cell.
+const multiCellSelection = new CellSelection(
+  sourceDoc.resolve(sourceCellPositions[0]),
+  sourceDoc.resolve(sourceCellPositions[1]),
+);
+const multiState = EditorState.create({ schema: behavioralSchema, doc: sourceDoc, selection: multiCellSelection });
+const multiSlice = getRichClipboardSlice(multiState);
+assert.equal(multiSlice.content.firstChild?.type.spec.tableRole, 'row', 'multi-cell copy must retain table selection structure');
 
 console.log('Note table verification: PASS');

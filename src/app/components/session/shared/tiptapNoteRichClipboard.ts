@@ -2,6 +2,7 @@ import { Extension } from '@tiptap/core';
 import { DOMSerializer, Slice } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
+import { getRichClipboardSlice } from './noteRichClipboardSelection';
 import { validateStructuralReplacement, type NoteContainerRejection } from './noteContainerPolicy';
 
 const MIME = 'application/x-hollowgate-note+json';
@@ -58,7 +59,7 @@ function serializeFragment(view: EditorView, slice: Slice): string {
 }
 function copySelection(view: EditorView, event: ClipboardEvent): boolean {
   if (!event.clipboardData || view.state.selection.empty) return false;
-  const slice = view.state.selection.content();
+  const slice = getRichClipboardSlice(view.state);
   const json = slice.toJSON() as SliceJSON;
   if (!json) return false;
   event.clipboardData.setData('text/html', wrapHTML(serializeFragment(view, slice), json));
