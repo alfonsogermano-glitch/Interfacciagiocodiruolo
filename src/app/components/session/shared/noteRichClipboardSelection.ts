@@ -12,7 +12,8 @@ function singleSelectedCellContent(selection: CellSelection): Slice | null {
 }
 
 export function isRichClipboardTableSelection(state: EditorState): boolean {
-  return state.selection instanceof CellSelection;
+  return state.selection instanceof CellSelection
+    && state.selection.$anchorCell.pos !== state.selection.$headCell.pos;
 }
 
 /**
