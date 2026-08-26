@@ -14,26 +14,30 @@ Allow an editable campaign note to have zero or one Lucide icon displayed immedi
 - The icon is metadata, not part of the note title string and not part of the TipTap document.
 - Duplicating a note preserves its title icon. Entity-level duplication of notes preserves it as well.
 - Existing notes remain valid with no icon.
-- Realtime updates must propagate title-icon changes through the existing `entity_notes` broadcast flow.
+- Realtime updates must propagate title-icon changes through the existing `entity_notes` database/broadcast flow.
 
-## Data model
+## Data model and write boundary
 
-Add nullable `entity_notes.title_icon text`. `NULL` means no title icon. The database column itself enforces the one-icon-per-note invariant; the server accepts only `null` or a short non-empty string.
+Add nullable `entity_notes.title_icon text`. `NULL` means no title icon. The scalar database column itself enforces the one-icon-per-note invariant.
 
-Client JSON uses `title_icon` on `EntityCustomTab`; write requests use `titleIcon` consistently with the existing camelCase REST request fields (`tabName`, `folderId`, `contentRich`, `tabOrder`).
+Expose one narrowly scoped PostgreSQL RPC, `set_entity_note_title_icon(p_note_id uuid, p_title_icon text)`, rather than widening every generic note-update call. The RPC is `SECURITY DEFINER`, validates authentication and icon length, and reproduces the same campaign-note write rule already used by the application: the campaign GM may edit any note; a campaign member may edit only a note whose `owner_profile_id` is their own. Deleted notes and non-campaign entity tabs are rejected.
+
+This keeps the existing generic note REST endpoint and its large authorization surface unchanged while still updating the canonical `entity_notes` row, so existing database realtime/broadcast behavior remains the source of synchronization.
 
 ## UI architecture
 
 Extract the current curated Lucide registry/grid into a small shared note-icon component so the inline rich-text picker and the note-title picker cannot drift to different icon sets.
 
-`NoteListRow` owns only the title-picker open/anchor state and invokes `tabs.handleSetNoteTitleIcon(note.id, value)`. The title icon is rendered from the shared registry immediately before `note.tab_name`; the existing hidden/private status glyphs remain status metadata and are not folded into the title.
+`NoteListRow` owns title-picker open/anchor state and a small optimistic local title-icon state synchronized from the note row. Selecting/removing calls a focused `setNoteTitleIcon` service; success reloads the canonical note list and failure rolls the local icon back.
 
-## Persistence and failure behavior
+The title icon is rendered from the shared registry immediately before `note.tab_name`; the existing hidden/private status glyphs remain status metadata and are not folded into the title.
 
-`useEntityTabs.handleSetNoteTitleIcon` follows the existing optimistic-update pattern used by visibility/folder/hide changes: remember previous value, update local state, `PUT /notes/:id`, align to the server response on success, and roll back on failure.
+## Duplication
 
-The server validates `titleIcon`, maps it to `title_icon`, and returns the updated row through the existing `select('*')` path. Existing GET/POST behavior is otherwise unchanged.
+The reusable note duplication service becomes the single place that preserves `title_icon` during both entity-level duplication and the `Duplica` action for a single note. The actual note/sub-tab creation continues to use the existing protected REST endpoints; after each new note row is created, the focused RPC copies the optional title icon.
+
+`NoteListRow` delegates `Duplica` to this service, reloads the note list, and selects the returned copy id. This avoids duplicating client-side state mutation logic and keeps the existing note/sub-tab copy semantics.
 
 ## Verification
 
-Add a repository verification script wired into `npm run check` that verifies the cross-layer contract: migration, server write mapping/validation, client type/mapping/handler, duplication preservation, shared icon catalog usage, kebab action, removal action, and title rendering.
+Add a repository verification script wired into `npm run check` that verifies the cross-layer contract: migration/RPC authorization and validation, shared setter service, duplication preservation, shared icon catalog usage, kebab action, replacement/removal, and title rendering.
