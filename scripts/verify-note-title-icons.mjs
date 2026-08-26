@@ -46,7 +46,9 @@ expectContains(iconGrid, 'Rimuovi icona', 'shared removal action');
 
 const pickers = read('src/app/components/session/shared/NoteContextualPickers.tsx');
 expectContains(pickers, "import { NoteIconGrid } from './NoteIconGrid';", 'inline picker shared grid import');
+expectContains(pickers, "import './noteContextualMenus.css';", 'shared contextual menu stylesheet import');
 expectContains(pickers, '<NoteIconGrid', 'inline picker shared grid usage');
+expectContains(pickers, 'tiptap-icon-popover', 'inline icon picker shared shell hook');
 
 const row = read('src/app/components/session/shared/NoteListRow.tsx');
 expectContains(row, "key: 'icon'", 'note kebab icon action');
@@ -57,5 +59,15 @@ expectContains(row, 'NOTE_ICON_COMPONENTS[titleIcon]', 'note title icon renderin
 expectContains(row, 'selectedName={titleIcon}', 'current title icon selection');
 expectContains(row, 'updateTitleIcon(null)', 'note title icon removal');
 expectContains(row, 'gap-2', 'title icon visual spacing');
+expectContains(row, 'tiptap-icon-popover', 'title icon picker shared shell hook');
+
+const contextualMenuCss = read('src/app/components/session/shared/noteContextualMenus.css');
+expectContains(contextualMenuCss, '.tiptap-icon-popover:not([data-side])', 'title icon picker offset selector');
+expectContains(contextualMenuCss, 'transform: translateX(8px);', 'title icon picker border gap');
+expectContains(contextualMenuCss, '.tiptap-icon-popover-scroll > div:not(.border-t)', 'icon category card styling');
+expectContains(contextualMenuCss, 'background: var(--dash-surface);', 'icon category card surface');
+expectContains(contextualMenuCss, 'background: var(--dash-surface-2);', 'icon category header surface');
+expectContains(contextualMenuCss, 'button[aria-pressed="true"]', 'selected icon accent state');
+expectContains(contextualMenuCss, 'box-shadow: inset 0 0 0 1px var(--dash-accent-2);', 'icon accent ring');
 
 console.log('verify-note-title-icons: OK');
