@@ -12,7 +12,8 @@
     "verify:note-tables": "node --experimental-strip-types scripts/verify-note-tables.mjs",
     "verify:note-table-container-gap": "node --experimental-strip-types scripts/verify-note-table-container-gap.mjs",
     "verify:note-table-gap-layout": "node scripts/verify-note-table-gap-layout.mjs",
-    "check": "npm run typecheck && npm run verify:campaign-canonical && npm run verify:note-inline-checkbox && npm run verify:note-tables && npm run verify:note-table-container-gap && npm run verify:note-table-gap-layout && npm run verify:note-contextual-controls && npm run verify:note-container-nesting && npm run verify:note-viewport-fill && npm run build",
+    "verify:note-title-icons": "node scripts/verify-note-title-icons.mjs",
+    "check": "npm run typecheck && npm run verify:campaign-canonical && npm run verify:note-inline-checkbox && npm run verify:note-tables && npm run verify:note-table-container-gap && npm run verify:note-table-gap-layout && npm run verify:note-contextual-controls && npm run verify:note-container-nesting && npm run verify:note-viewport-fill && npm run verify:note-title-icons && npm run build",
     "verify:note-contextual-controls": "node --experimental-strip-types scripts/verify-note-contextual-controls.mjs",
     "verify:note-container-nesting": "node --experimental-strip-types scripts/verify-note-container-nesting.mjs",
     "verify:note-viewport-fill": "node --experimental-strip-types scripts/verify-note-viewport-fill.mjs"
