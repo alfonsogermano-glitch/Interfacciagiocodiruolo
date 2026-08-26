@@ -10,7 +10,8 @@
     "verify:campaign-canonical": "node scripts/verify-campaign-canonical.mjs",
     "verify:note-inline-checkbox": "node --experimental-strip-types scripts/verify-note-inline-checkbox.mjs",
     "verify:note-tables": "node --experimental-strip-types scripts/verify-note-tables.mjs",
-    "check": "npm run typecheck && npm run verify:campaign-canonical && npm run verify:note-inline-checkbox && npm run verify:note-tables && npm run verify:note-contextual-controls && npm run verify:note-container-nesting && npm run verify:note-viewport-fill && npm run build",
+    "verify:note-table-container-gap": "node --experimental-strip-types scripts/verify-note-table-container-gap.mjs",
+    "check": "npm run typecheck && npm run verify:campaign-canonical && npm run verify:note-inline-checkbox && npm run verify:note-tables && npm run verify:note-table-container-gap && npm run verify:note-contextual-controls && npm run verify:note-container-nesting && npm run verify:note-viewport-fill && npm run build",
     "verify:note-contextual-controls": "node --experimental-strip-types scripts/verify-note-contextual-controls.mjs",
     "verify:note-container-nesting": "node --experimental-strip-types scripts/verify-note-container-nesting.mjs",
     "verify:note-viewport-fill": "node --experimental-strip-types scripts/verify-note-viewport-fill.mjs"

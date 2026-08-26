@@ -1,10 +1,12 @@
 import { Extension, type Extensions } from '@tiptap/core';
 import { TableKit, TableCell, TableHeader, TableView } from '@tiptap/extension-table';
+import { GapCursor } from '@tiptap/pm/gapcursor';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { Plugin, type EditorState } from '@tiptap/pm/state';
 import { TableMap, columnResizingPluginKey } from '@tiptap/pm/tables';
 import type { EditorView } from '@tiptap/pm/view';
 import { canInsertNoteContainer } from './noteContainerPolicy';
+import { getNoteTableContainerGapTarget } from './noteTableContainerGapCursor';
 import './noteTableResize.css';
 
 export const NOTE_TABLE_CELL_CONTENT =
@@ -145,6 +147,109 @@ const NoteTableResizeBootstrap = Extension.create({
   },
 });
 
+interface DirectTableContainer {
+  node: PMNode;
+  pos: number;
+  parentRole: unknown;
+  childIndex: number;
+  childCount: number;
+}
+
+function directTableContainerFromDOM(view: EditorView, element: HTMLElement): DirectTableContainer | null {
+  const domPos = view.posAtDOM(element, 0);
+  const $pos = view.state.doc.resolve(domPos);
+  const directNode = $pos.nodeAfter;
+
+  if (directNode && (directNode.type.name === 'textBox' || directNode.type.name === 'collapseBlock')) {
+    const parentRole = $pos.parent.type.spec.tableRole;
+    if (parentRole === 'cell' || parentRole === 'header_cell') {
+      return {
+        node: directNode,
+        pos: domPos,
+        parentRole,
+        childIndex: $pos.index(),
+        childCount: $pos.parent.childCount,
+      };
+    }
+  }
+
+  for (let depth = $pos.depth; depth >= 1; depth -= 1) {
+    const node = $pos.node(depth);
+    if (node.type.name !== 'textBox' && node.type.name !== 'collapseBlock') continue;
+    const parent = $pos.node(depth - 1);
+    const parentRole = parent.type.spec.tableRole;
+    if (parentRole !== 'cell' && parentRole !== 'header_cell') return null;
+    return {
+      node,
+      pos: $pos.before(depth),
+      parentRole,
+      childIndex: $pos.index(depth - 1),
+      childCount: parent.childCount,
+    };
+  }
+
+  return null;
+}
+
+function setTableContainerGapCursor(view: EditorView, event: MouseEvent): boolean {
+  if (!view.editable || event.button !== 0) return false;
+  const target = event.target;
+  if (!(target instanceof Element)) return false;
+  const element = target.closest('.tiptap-textbox, .tiptap-collapse') as HTMLElement | null;
+  if (!element) return false;
+
+  const container = directTableContainerFromDOM(view, element);
+  if (!container) return false;
+  const rect = element.getBoundingClientRect();
+  const side = getNoteTableContainerGapTarget({
+    containerType: container.node.type.name,
+    parentRole: container.parentRole,
+    childIndex: container.childIndex,
+    childCount: container.childCount,
+    clientY: event.clientY,
+    top: rect.top,
+    bottom: rect.bottom,
+  });
+  if (!side) return false;
+
+  const gapPos = side === 'before' ? container.pos : container.pos + container.node.nodeSize;
+  const $gap = view.state.doc.resolve(gapPos);
+  if (!GapCursor.valid($gap)) return false;
+
+  event.preventDefault();
+  event.stopPropagation();
+  view.dispatch(
+    view.state.tr
+      .setSelection(new GapCursor($gap))
+      .setMeta('pointer', true)
+      .scrollIntoView(),
+  );
+  return true;
+}
+
+const NoteTableContainerGapCursor = Extension.create({
+  name: 'noteTableContainerGapCursor',
+  priority: 1100,
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        view: (view) => {
+          const onMouseDown = (event: MouseEvent) => {
+            setTableContainerGapCursor(view, event);
+          };
+          view.dom.addEventListener('mousedown', onMouseDown, true);
+          return {
+            destroy() {
+              view.dom.removeEventListener('mousedown', onMouseDown, true);
+            },
+          };
+        },
+      }),
+    ];
+  },
+});
+
 export function findActiveTable(state: EditorState): ActiveNoteTable | null {
   const { $from } = state.selection;
   for (let depth = $from.depth; depth >= 1; depth -= 1) {
@@ -208,6 +313,7 @@ export const NoteTableCommands = Extension.create({
 });
 
 export const NOTE_TABLE_EXTENSIONS: Extensions = [
+  NoteTableContainerGapCursor,
   NoteTableResizeBootstrap,
   TableKit.configure({
     table: {
