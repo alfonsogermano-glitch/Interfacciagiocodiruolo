@@ -22,8 +22,8 @@ expectContains(migration, 'add column if not exists title_icon text', 'migration
 expectContains(migration, 'entity_notes_title_icon_length_check', 'migration constraint');
 expectContains(migration, 'set_entity_note_title_icon', 'title icon RPC');
 expectContains(migration, 'auth.uid()', 'RPC authentication');
-expectContains(migration, "from campaigns", 'RPC GM permission');
-expectContains(migration, "from campaign_members", 'RPC membership permission');
+expectContains(migration, 'from public.campaigns', 'RPC GM permission');
+expectContains(migration, 'from public.campaign_members', 'RPC membership permission');
 expectContains(migration, 'owner_profile_id', 'RPC note-owner permission');
 expectContains(migration, 'grant execute on function public.set_entity_note_title_icon', 'RPC authenticated grant');
 
@@ -31,14 +31,11 @@ const titleIconService = read('src/services/supabase/noteTitleIconService.ts');
 expectContains(titleIconService, "supabase.rpc('set_entity_note_title_icon'", 'setter RPC call');
 expectContains(titleIconService, 'p_note_id: noteId', 'setter note id');
 expectContains(titleIconService, 'p_title_icon: titleIcon', 'setter icon value');
-
-const duplicateService = read('src/services/supabase/entityNotesService.ts');
-expectContains(duplicateService, 'title_icon: string | null;', 'entity duplication row type');
-expectContains(duplicateService, 'setNoteTitleIcon(createData.note.id, note.title_icon)', 'entity duplication title icon');
-expectContains(duplicateService, 'export async function duplicateSingleEntityNote', 'single note duplication helper');
-expectContains(duplicateService, 'contentRich: source.content_rich', 'single note rich-content preservation');
-expectContains(duplicateService, 'setNoteTitleIcon(createData.note.id, source.title_icon)', 'single note title icon preservation');
-expectContains(duplicateService, "duplicateEntityNotes('note', source.id", 'single note sub-tab preservation');
+expectContains(titleIconService, 'export async function duplicateCampaignNoteWithTitleIcon', 'single note duplication helper');
+expectContains(titleIconService, 'contentRich: source.content_rich', 'single note rich-content preservation');
+expectContains(titleIconService, 'setNoteTitleIcon(createData.note.id, source.title_icon)', 'single note title icon preservation');
+expectContains(titleIconService, "'note',", 'single note sub-tab entity type');
+expectContains(titleIconService, 'source.id,', 'single note sub-tab source');
 
 const iconGrid = read('src/app/components/session/shared/NoteIconGrid.tsx');
 expectContains(iconGrid, "import { ICON_CATEGORIES } from './tiptapIconData';", 'shared categories source');
@@ -53,10 +50,11 @@ expectContains(pickers, '<NoteIconGrid', 'inline picker shared grid usage');
 const row = read('src/app/components/session/shared/NoteListRow.tsx');
 expectContains(row, "key: 'icon'", 'note kebab icon action');
 expectContains(row, "label: 'Icona'", 'note kebab icon label');
-expectContains(row, 'setNoteTitleIcon(note.id, name)', 'note title icon selection');
-expectContains(row, 'setNoteTitleIcon(note.id, null)', 'note title icon removal');
-expectContains(row, 'duplicateSingleEntityNote(', 'note duplicate delegation');
+expectContains(row, 'setNoteTitleIcon(note.id, nextIcon)', 'note title icon selection/removal');
+expectContains(row, 'duplicateCampaignNoteWithTitleIcon(', 'note duplicate delegation');
 expectContains(row, 'NOTE_ICON_COMPONENTS[titleIcon]', 'note title icon rendering lookup');
+expectContains(row, 'selectedName={titleIcon}', 'current title icon selection');
+expectContains(row, 'updateTitleIcon(null)', 'note title icon removal');
 expectContains(row, 'gap-2', 'title icon visual spacing');
 
 console.log('verify-note-title-icons: OK');
