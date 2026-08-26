@@ -14,8 +14,8 @@ assert.match(
 
 assert.match(
   css,
-  /\.tiptap-content \.tiptap-note-table-cell\s*>\s*:is\(\.tiptap-textbox,\s*\.tiptap-collapse\)\s*\+\s*\.ProseMirror-gapcursor::after,[\s\S]*?\.tiptap-content \.tiptap-note-table-header\s*>\s*:is\(\.tiptap-textbox,\s*\.tiptap-collapse\)\s*\+\s*\.ProseMirror-gapcursor::after\s*\{[\s\S]*?top:\s*0\.4rem\s*;/,
-  'the GapCursor after a table TextBox/Collapse must be visually centered in the lower cell padding without changing layout',
+  /\.tiptap-content \.tiptap-note-table-cell\s*>\s*:is\(\.tiptap-textbox,\s*\.tiptap-collapse\)\s*\+\s*\.ProseMirror-gapcursor::after,[\s\S]*?\.tiptap-content \.tiptap-note-table-header\s*>\s*:is\(\.tiptap-textbox,\s*\.tiptap-collapse\)\s*\+\s*\.ProseMirror-gapcursor::after\s*\{[\s\S]*?top:\s*0\s*;/,
+  'the lower GapCursor must sit at the structural boundary without being pushed onto the cell border',
 );
 
 console.log('Note table GapCursor layout verification: PASS');

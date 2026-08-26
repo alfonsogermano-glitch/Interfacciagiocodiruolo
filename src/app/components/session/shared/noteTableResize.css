@@ -56,12 +56,12 @@
   margin-bottom: 0;
 }
 
-/* Il GapCursor successivo a un contenitore strutturale resta fuori dal flusso:
-   spostiamo solo il segno visivo nel centro del padding inferiore della cella,
-   senza reintrodurre margin/padding e quindi senza layout shift. */
+/* Il GapCursor successivo a un contenitore strutturale resta fuori dal flusso.
+   Manteniamo il segno visivo sul boundary del nodo (top: 0): l'offset positivo
+   lo portava fino al bordo della cella. Nessun margin/padding, quindi nessun layout shift. */
 .tiptap-content .tiptap-note-table-cell
   > :is(.tiptap-textbox, .tiptap-collapse) + .ProseMirror-gapcursor::after,
 .tiptap-content .tiptap-note-table-header
   > :is(.tiptap-textbox, .tiptap-collapse) + .ProseMirror-gapcursor::after {
-  top: 0.4rem;
+  top: 0;
 }
