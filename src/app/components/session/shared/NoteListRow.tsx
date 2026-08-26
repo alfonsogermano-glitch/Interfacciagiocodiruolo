@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Pencil, EyeOff, Eye, Trash2, Copy, FolderInput, Lock, Globe } from 'lucide-react';
+import { Pencil, EyeOff, Eye, Trash2, Copy, FolderInput, Lock, Globe, Shapes } from 'lucide-react';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { usePortalContainer } from '../../ui/portal-container';
+import { useAuth } from '../../../auth/AuthContext';
 import { EntityKebabMenu, type EntityKebabMenuColors } from './EntityKebabMenu';
+import { NoteIconGrid, NOTE_ICON_COMPONENTS } from './NoteIconGrid';
 import type { UseEntityTabsResult, EntityCustomTab } from './useEntityTabs';
+import {
+  duplicateCampaignNoteWithTitleIcon,
+  setNoteTitleIcon,
+  type CampaignNoteDuplicateSource,
+} from '../../../../services/supabase/noteTitleIconService';
 
 interface NoteListRowProps {
   note: EntityCustomTab;
@@ -30,6 +37,13 @@ interface NoteListRowProps {
   onSelect: () => void;
 }
 
+type RuntimeCampaignNote = EntityCustomTab & {
+  /** Campi presenti perche' la GET note usa select('*'), anche se la vecchia
+   *  interfaccia condivisa non li esponeva esplicitamente. */
+  campaign_id?: string | null;
+  title_icon?: string | null;
+};
+
 /**
  * Riga verticale per una nota nella lista a sinistra (SessionNotesPanel.tsx),
  * al posto della pillola orizzontale che EntityTabBar disegnava prima per le
@@ -44,9 +58,24 @@ interface NoteListRowProps {
  */
 export function NoteListRow({ note, tabs, canEdit, isGm, folders, colors, isSelected, onSelect }: NoteListRowProps) {
   const portalContainer = usePortalContainer();
+  const { session } = useAuth();
   const rowRef = useRef<HTMLDivElement | null>(null);
+  const runtimeNote = note as RuntimeCampaignNote;
+  const canonicalTitleIcon = runtimeNote.title_icon ?? null;
+
   const [moveMenuOpen, setMoveMenuOpen] = useState(false);
   const [moveMenuAnchor, setMoveMenuAnchor] = useState<{ top: number; left: number } | null>(null);
+  const [iconMenuOpen, setIconMenuOpen] = useState(false);
+  const [iconMenuAnchor, setIconMenuAnchor] = useState<{ top: number; left: number } | null>(null);
+  // Stato locale ottimistico: la sorgente canonica resta entity_notes e viene
+  // riallineata con reloadCustomTabs dopo la RPC. In questo modo la scelta e'
+  // visibile immediatamente senza dover allargare useEntityTabs con logica
+  // specifica della sola colonna Note.
+  const [titleIcon, setTitleIcon] = useState<string | null>(canonicalTitleIcon);
+
+  useEffect(() => {
+    setTitleIcon(canonicalTitleIcon);
+  }, [canonicalTitleIcon]);
 
   useEffect(() => {
     if (!moveMenuOpen) return;
@@ -55,7 +84,67 @@ export function NoteListRow({ note, tabs, canEdit, isGm, folders, colors, isSele
     return () => document.removeEventListener('click', close);
   }, [moveMenuOpen]);
 
+  useEffect(() => {
+    if (!iconMenuOpen) return;
+    const close = () => setIconMenuOpen(false);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [iconMenuOpen]);
+
   const isRenaming = tabs.renamingTabId === note.id;
+  const TitleIconComponent = titleIcon ? NOTE_ICON_COMPONENTS[titleIcon] : null;
+
+  const openIconMenu = () => {
+    const rect = rowRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const popupWidth = 272;
+    const popupHeight = 360;
+    setIconMenuAnchor({
+      top: Math.max(8, Math.min(rect.top, window.innerHeight - popupHeight - 8)),
+      left: Math.max(8, Math.min(rect.right + 8, window.innerWidth - popupWidth - 8)),
+    });
+    setIconMenuOpen(true);
+  };
+
+  const updateTitleIcon = async (nextIcon: string | null) => {
+    const previousIcon = titleIcon;
+    setTitleIcon(nextIcon);
+    setIconMenuOpen(false);
+    try {
+      await setNoteTitleIcon(note.id, nextIcon);
+      await tabs.reloadCustomTabs();
+    } catch (error) {
+      console.error('Errore aggiornamento icona titolo nota:', error);
+      setTitleIcon(previousIcon);
+    }
+  };
+
+  const duplicateNote = async () => {
+    const campaignId = runtimeNote.campaign_id;
+    const accessToken = session?.access_token;
+    if (!campaignId || !accessToken) {
+      console.error('Impossibile duplicare la nota: campagna o sessione mancanti');
+      return;
+    }
+
+    const source: CampaignNoteDuplicateSource = {
+      id: note.id,
+      tab_name: note.tab_name,
+      content: note.content ?? '',
+      content_rich: note.content_rich,
+      hidden: note.hidden,
+      folder_id: note.folder_id,
+      title_icon: titleIcon,
+    };
+
+    try {
+      const duplicateId = await duplicateCampaignNoteWithTitleIcon(source, campaignId, accessToken);
+      await tabs.reloadCustomTabs();
+      tabs.setCurrentTab(duplicateId);
+    } catch (error) {
+      console.error('Errore duplicazione nota:', error);
+    }
+  };
 
   return (
     <div
@@ -94,7 +183,10 @@ export function NoteListRow({ note, tabs, canEdit, isGm, folders, colors, isSele
               confonderle con la stessa icona renderebbe ambiguo quale delle
               due si sta guardando. */}
           {note.visibility === 'private' && <Lock className="mt-0.5 h-3 w-3 shrink-0" />}
-          <span className="whitespace-normal break-words">{note.tab_name}</span>
+          <span className="flex min-w-0 items-start gap-2">
+            {TitleIconComponent && <TitleIconComponent className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />}
+            <span className="whitespace-normal break-words">{note.tab_name}</span>
+          </span>
         </button>
       )}
 
@@ -109,6 +201,12 @@ export function NoteListRow({ note, tabs, canEdit, isGm, folders, colors, isSele
                 icon: <Pencil className="h-4 w-4" />,
                 label: 'Rinomina',
                 onClick: () => { tabs.setRenamingTabId(note.id); tabs.setRenameDraft(note.tab_name); },
+              },
+              {
+                key: 'icon',
+                icon: <Shapes className="h-4 w-4" />,
+                label: 'Icona',
+                onClick: openIconMenu,
               },
               {
                 key: 'visibility',
@@ -129,7 +227,7 @@ export function NoteListRow({ note, tabs, canEdit, isGm, folders, colors, isSele
                 key: 'duplicate',
                 icon: <Copy className="h-4 w-4" />,
                 label: 'Duplica',
-                onClick: () => tabs.handleDuplicateCustomTab(note.id),
+                onClick: () => { void duplicateNote(); },
               },
               {
                 key: 'move',
@@ -154,6 +252,22 @@ export function NoteListRow({ note, tabs, canEdit, isGm, folders, colors, isSele
             ]}
           />
         </div>
+      )}
+
+      {iconMenuOpen && iconMenuAnchor && createPortal(
+        <div
+          data-note-contextual-picker="true"
+          onClick={(e) => e.stopPropagation()}
+          style={{ position: 'fixed', top: iconMenuAnchor.top, left: iconMenuAnchor.left }}
+          className="tiptap-icon-popover z-[9999] w-64 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-2 text-[var(--dash-text)] shadow-xl"
+        >
+          <NoteIconGrid
+            selectedName={titleIcon}
+            onChoose={(name) => { void updateTitleIcon(name); }}
+            onRemove={titleIcon ? () => { void updateTitleIcon(null); } : undefined}
+          />
+        </div>,
+        portalContainer ?? document.body
       )}
 
       {moveMenuOpen && moveMenuAnchor && createPortal(
