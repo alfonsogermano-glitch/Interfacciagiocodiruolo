@@ -23,6 +23,18 @@ function expectNotContains(source, needle, label) {
   }
 }
 
+function expectRuleContains(source, selector, needle, label) {
+  const selectorIndex = source.indexOf(selector);
+  if (selectorIndex < 0) {
+    throw new Error(`${label}: missing selector ${JSON.stringify(selector)}`);
+  }
+  const blockStart = source.indexOf('{', selectorIndex);
+  const blockEnd = blockStart >= 0 ? source.indexOf('}', blockStart) : -1;
+  if (blockStart < 0 || blockEnd < 0 || !source.slice(blockStart, blockEnd).includes(needle)) {
+    throw new Error(`${label}: expected ${JSON.stringify(needle)} inside ${JSON.stringify(selector)}`);
+  }
+}
+
 const migration = read('supabase-add-note-title-icon.sql');
 expectContains(migration, 'add column if not exists title_icon text', 'migration column');
 expectContains(migration, 'entity_notes_title_icon_length_check', 'migration constraint');
@@ -82,6 +94,8 @@ expectContains(contextualMenuCss, '[data-note-icon-category-header="true"]', 'ex
 expectContains(contextualMenuCss, '[data-note-icon-grid="true"]', 'explicit icon grid selector');
 expectContains(contextualMenuCss, '[data-note-icon-button="true"]', 'explicit icon button selector');
 expectContains(contextualMenuCss, '[data-note-icon-glyph="true"]', 'explicit glyph selector');
+expectRuleContains(contextualMenuCss, '.tiptap-icon-popover [data-note-icon-category="true"]', 'flex-shrink: 0;', 'icon categories must not collapse inside picker scroll');
+expectRuleContains(contextualMenuCss, '.tiptap-icon-popover [data-note-icon-remove="true"]', 'flex-shrink: 0;', 'remove action must not collapse inside picker scroll');
 expectContains(contextualMenuCss, 'visibility: visible;', 'glyph visibility guard');
 expectContains(contextualMenuCss, 'stroke: currentColor;', 'Lucide stroke guard');
 expectContains(contextualMenuCss, 'background: var(--dash-surface);', 'icon category card surface');

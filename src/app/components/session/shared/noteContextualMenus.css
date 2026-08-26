@@ -43,6 +43,7 @@
 /* Explicit semantic hooks from NoteIconGrid.tsx. Do not style these panels
    by DOM position: Radix Tooltip may change its internal structure. */
 .tiptap-icon-popover [data-note-icon-remove="true"] {
+  flex-shrink: 0;
   border: 1px solid var(--dash-border-soft);
   border-radius: 0.5rem;
   background: var(--dash-surface);
@@ -58,6 +59,7 @@
 }
 
 .tiptap-icon-popover [data-note-icon-category="true"] {
+  flex-shrink: 0;
   overflow: hidden;
   border: 1px solid var(--dash-border-soft);
   border-radius: 0.5rem;
