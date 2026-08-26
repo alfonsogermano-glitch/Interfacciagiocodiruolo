@@ -55,3 +55,13 @@
   > :is(.tiptap-textbox, .tiptap-collapse):has(+ .ProseMirror-gapcursor) {
   margin-bottom: 0;
 }
+
+/* Il GapCursor successivo a un contenitore strutturale resta fuori dal flusso:
+   spostiamo solo il segno visivo nel centro del padding inferiore della cella,
+   senza reintrodurre margin/padding e quindi senza layout shift. */
+.tiptap-content .tiptap-note-table-cell
+  > :is(.tiptap-textbox, .tiptap-collapse) + .ProseMirror-gapcursor::after,
+.tiptap-content .tiptap-note-table-header
+  > :is(.tiptap-textbox, .tiptap-collapse) + .ProseMirror-gapcursor::after {
+  top: 0.4rem;
+}
