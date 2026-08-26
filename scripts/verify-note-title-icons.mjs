@@ -25,6 +25,7 @@ expectContains(migration, 'auth.uid()', 'RPC authentication');
 expectContains(migration, 'from public.campaigns', 'RPC GM permission');
 expectContains(migration, 'from public.campaign_members', 'RPC membership permission');
 expectContains(migration, 'owner_profile_id', 'RPC note-owner permission');
+expectContains(migration, 'revoke execute on function public.set_entity_note_title_icon(uuid, text) from anon', 'RPC anon revoke');
 expectContains(migration, 'grant execute on function public.set_entity_note_title_icon', 'RPC authenticated grant');
 
 const titleIconService = read('src/services/supabase/noteTitleIconService.ts');
