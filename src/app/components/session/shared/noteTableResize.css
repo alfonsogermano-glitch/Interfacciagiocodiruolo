@@ -56,12 +56,21 @@
   margin-bottom: 0;
 }
 
-/* Il GapCursor successivo a un contenitore strutturale resta fuori dal flusso.
-   Manteniamo il segno visivo sul boundary del nodo (top: 0): l'offset positivo
-   lo portava fino al bordo della cella. Nessun margin/padding, quindi nessun layout shift. */
+/* Il padding verticale della cella è 0.4rem. Per rendere i due GapCursor
+   geometricamente simmetrici, la riga viene portata a metà di quel padding
+   sopra/sotto il boundary del contenitore. Il -0.5px centra la riga stessa
+   (border-top: 1px), non il suo bordo superiore. Nessuna proprietà di flusso
+   viene modificata, quindi l'altezza della cella resta stabile. */
 .tiptap-content .tiptap-note-table-cell
   > :is(.tiptap-textbox, .tiptap-collapse) + .ProseMirror-gapcursor::after,
 .tiptap-content .tiptap-note-table-header
   > :is(.tiptap-textbox, .tiptap-collapse) + .ProseMirror-gapcursor::after {
-  top: 0;
+  top: calc(0.2rem - 0.5px);
+}
+
+.tiptap-content .tiptap-note-table-cell
+  > .ProseMirror-gapcursor:has(+ :is(.tiptap-textbox, .tiptap-collapse))::after,
+.tiptap-content .tiptap-note-table-header
+  > .ProseMirror-gapcursor:has(+ :is(.tiptap-textbox, .tiptap-collapse))::after {
+  top: calc(-0.2rem - 0.5px);
 }

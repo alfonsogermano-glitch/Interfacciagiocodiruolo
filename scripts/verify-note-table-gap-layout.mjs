@@ -14,8 +14,14 @@ assert.match(
 
 assert.match(
   css,
-  /\.tiptap-content \.tiptap-note-table-cell\s*>\s*:is\(\.tiptap-textbox,\s*\.tiptap-collapse\)\s*\+\s*\.ProseMirror-gapcursor::after,[\s\S]*?\.tiptap-content \.tiptap-note-table-header\s*>\s*:is\(\.tiptap-textbox,\s*\.tiptap-collapse\)\s*\+\s*\.ProseMirror-gapcursor::after\s*\{[\s\S]*?top:\s*0\s*;/,
-  'the lower GapCursor must sit at the structural boundary without being pushed onto the cell border',
+  /:is\(\.tiptap-textbox,\s*\.tiptap-collapse\)\s*\+\s*\.ProseMirror-gapcursor::after[\s\S]*?top:\s*calc\(0\.2rem\s*-\s*0\.5px\)\s*;/,
+  'the lower GapCursor line must be centered halfway through the 0.4rem lower cell padding',
 );
 
-console.log('Note table GapCursor layout verification: PASS');
+assert.match(
+  css,
+  /\.ProseMirror-gapcursor:has\(\+\s*:is\(\.tiptap-textbox,\s*\.tiptap-collapse\)\)::after[\s\S]*?top:\s*calc\(-0\.2rem\s*-\s*0\.5px\)\s*;/,
+  'the upper GapCursor line must be centered halfway through the 0.4rem upper cell padding',
+);
+
+console.log('Note table GapCursor symmetric layout verification: PASS');
