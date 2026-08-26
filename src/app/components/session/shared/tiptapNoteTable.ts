@@ -6,7 +6,7 @@ import { Plugin, type EditorState } from '@tiptap/pm/state';
 import { TableMap, columnResizingPluginKey } from '@tiptap/pm/tables';
 import type { EditorView } from '@tiptap/pm/view';
 import { canInsertNoteContainer } from './noteContainerPolicy';
-import { getNoteTableContainerGapTarget } from './noteTableContainerGapCursor';
+import { getNoteTableContainerArrowSelection, getNoteTableContainerGapTarget, isValidNoteTableGapCursor } from './noteTableContainerGapCursor';
 import './noteTableResize.css';
 
 export const NOTE_TABLE_CELL_CONTENT =
@@ -214,7 +214,7 @@ function setTableContainerGapCursor(view: EditorView, event: MouseEvent): boolea
 
   const gapPos = side === 'before' ? container.pos : container.pos + container.node.nodeSize;
   const $gap = view.state.doc.resolve(gapPos);
-  if (!GapCursor.valid($gap)) return false;
+  if (!isValidNoteTableGapCursor($gap)) return false;
 
   event.preventDefault();
   event.stopPropagation();
@@ -224,6 +224,25 @@ function setTableContainerGapCursor(view: EditorView, event: MouseEvent): boolea
       .setMeta('pointer', true)
       .scrollIntoView(),
   );
+  return true;
+}
+
+
+function setTableContainerGapCursorFromArrow(view: EditorView, event: KeyboardEvent): boolean {
+  if (!view.editable || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
+  const dir = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : null;
+  if (!dir) return false;
+
+  const selection = getNoteTableContainerArrowSelection(
+    view.state,
+    dir,
+    (direction) => view.endOfTextblock(direction),
+  );
+  if (!selection || selection.eq(view.state.selection)) return false;
+
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  view.dispatch(view.state.tr.setSelection(selection).scrollIntoView());
   return true;
 }
 
@@ -238,10 +257,15 @@ const NoteTableContainerGapCursor = Extension.create({
           const onMouseDown = (event: MouseEvent) => {
             setTableContainerGapCursor(view, event);
           };
+          const onKeyDown = (event: KeyboardEvent) => {
+            setTableContainerGapCursorFromArrow(view, event);
+          };
           view.dom.addEventListener('mousedown', onMouseDown, true);
+          view.dom.addEventListener('keydown', onKeyDown, true);
           return {
             destroy() {
               view.dom.removeEventListener('mousedown', onMouseDown, true);
+              view.dom.removeEventListener('keydown', onKeyDown, true);
             },
           };
         },
