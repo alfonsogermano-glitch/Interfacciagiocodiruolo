@@ -56,11 +56,10 @@
   margin-bottom: 0;
 }
 
-/* Il padding verticale della cella è 0.4rem. Per rendere i due GapCursor
-   geometricamente simmetrici, la riga viene portata a metà di quel padding
-   sopra/sotto il boundary del contenitore. Il -0.5px centra la riga stessa
-   (border-top: 1px), non il suo bordo superiore. Nessuna proprietà di flusso
-   viene modificata, quindi l'altezza della cella resta stabile. */
+/* Il padding verticale della cella è 0.4rem. Il cursore inferiore è già
+   centrato a metà padding. Il widget superiore viene renderizzato circa 1px
+   più in alto rispetto al riferimento inferiore, quindi compensiamo quel
+   disallineamento mantenendo invariato tutto il flusso/layout della cella. */
 .tiptap-content .tiptap-note-table-cell
   > :is(.tiptap-textbox, .tiptap-collapse) + .ProseMirror-gapcursor::after,
 .tiptap-content .tiptap-note-table-header
@@ -72,5 +71,5 @@
   > .ProseMirror-gapcursor:has(+ :is(.tiptap-textbox, .tiptap-collapse))::after,
 .tiptap-content .tiptap-note-table-header
   > .ProseMirror-gapcursor:has(+ :is(.tiptap-textbox, .tiptap-collapse))::after {
-  top: calc(-0.2rem - 0.5px);
+  top: calc(-0.2rem + 0.5px);
 }
