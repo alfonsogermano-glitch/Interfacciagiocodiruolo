@@ -40,34 +40,31 @@
   gap: 0.75rem;
 }
 
-.tiptap-icon-popover-scroll > button:first-child {
-  width: 100%;
+/* Explicit semantic hooks from NoteIconGrid.tsx. Do not style these panels
+   by DOM position: Radix Tooltip may change its internal structure. */
+.tiptap-icon-popover [data-note-icon-remove="true"] {
   border: 1px solid var(--dash-border-soft);
   border-radius: 0.5rem;
   background: var(--dash-surface);
   padding: 0.5rem 0.625rem;
+  color: var(--dash-text);
   transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
 }
 
-.tiptap-icon-popover-scroll > button:first-child:hover {
+.tiptap-icon-popover [data-note-icon-remove="true"]:hover {
   background: var(--dash-accent);
   color: var(--dash-text-strong);
   box-shadow: inset 0 0 0 1px var(--dash-accent-2);
 }
 
-.tiptap-icon-popover-scroll > button:first-child + .border-t {
-  display: none;
-}
-
-.tiptap-icon-popover-scroll > div:not(.border-t) {
+.tiptap-icon-popover [data-note-icon-category="true"] {
   overflow: hidden;
   border: 1px solid var(--dash-border-soft);
   border-radius: 0.5rem;
   background: var(--dash-surface);
 }
 
-.tiptap-icon-popover-scroll > div:not(.border-t) > div:first-child {
-  margin-bottom: 0;
+.tiptap-icon-popover [data-note-icon-category-header="true"] {
   border-bottom: 1px solid var(--dash-border-soft);
   background: var(--dash-surface-2);
   padding: 0.375rem 0.5rem;
@@ -76,18 +73,28 @@
   letter-spacing: 0.12em;
 }
 
-.tiptap-icon-popover-scroll > div:not(.border-t) > .grid {
+.tiptap-icon-popover [data-note-icon-grid="true"] {
   padding: 0.375rem;
 }
 
-.tiptap-icon-popover-scroll > div:not(.border-t) button {
-  color: var(--dash-text);
+.tiptap-icon-popover [data-note-icon-button="true"] {
+  color: var(--dash-text-strong);
   transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
 }
 
-.tiptap-icon-popover-scroll > div:not(.border-t) button:hover,
-.tiptap-icon-popover-scroll > div:not(.border-t) button[aria-pressed="true"] {
+.tiptap-icon-popover [data-note-icon-button="true"]:hover,
+.tiptap-icon-popover [data-note-icon-button="true"][aria-pressed="true"] {
   background: var(--dash-accent);
   color: var(--dash-text-strong);
   box-shadow: inset 0 0 0 1px var(--dash-accent-2);
+}
+
+/* Lucide draws with currentColor. Keep the glyph visible explicitly instead
+   of relying on color inheritance through Radix TooltipTrigger/asChild. */
+.tiptap-icon-popover [data-note-icon-glyph="true"] {
+  display: block;
+  visibility: visible;
+  opacity: 1;
+  color: var(--dash-text-strong);
+  stroke: currentColor;
 }

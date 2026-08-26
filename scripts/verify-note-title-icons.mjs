@@ -17,6 +17,12 @@ function expectContains(source, needle, label) {
   }
 }
 
+function expectNotContains(source, needle, label) {
+  if (source.includes(needle)) {
+    throw new Error(`${label}: expected not to find ${JSON.stringify(needle)}`);
+  }
+}
+
 const migration = read('supabase-add-note-title-icon.sql');
 expectContains(migration, 'add column if not exists title_icon text', 'migration column');
 expectContains(migration, 'entity_notes_title_icon_length_check', 'migration constraint');
@@ -43,6 +49,13 @@ expectContains(iconGrid, "import { ICON_CATEGORIES } from './tiptapIconData';", 
 expectContains(iconGrid, 'export const NOTE_ICON_COMPONENTS', 'shared icon registry');
 expectContains(iconGrid, 'export function NoteIconGrid', 'shared icon grid');
 expectContains(iconGrid, 'Rimuovi icona', 'shared removal action');
+expectContains(iconGrid, 'data-note-icon-remove="true"', 'explicit removal styling hook');
+expectContains(iconGrid, 'data-note-icon-category="true"', 'explicit category styling hook');
+expectContains(iconGrid, 'data-note-icon-category-header="true"', 'explicit category-header styling hook');
+expectContains(iconGrid, 'data-note-icon-grid="true"', 'explicit icon-grid styling hook');
+expectContains(iconGrid, 'data-note-icon-button="true"', 'explicit icon-button styling hook');
+expectContains(iconGrid, 'data-note-icon-glyph="true"', 'explicit Lucide glyph styling hook');
+expectContains(iconGrid, 'text-[var(--dash-text-strong)]', 'explicit visible icon color');
 
 const pickers = read('src/app/components/session/shared/NoteContextualPickers.tsx');
 expectContains(pickers, "import { NoteIconGrid } from './NoteIconGrid';", 'inline picker shared grid import');
@@ -64,10 +77,18 @@ expectContains(row, 'tiptap-icon-popover', 'title icon picker shared shell hook'
 const contextualMenuCss = read('src/app/components/session/shared/noteContextualMenus.css');
 expectContains(contextualMenuCss, '.tiptap-icon-popover:not([data-side])', 'title icon picker offset selector');
 expectContains(contextualMenuCss, 'transform: translateX(8px);', 'title icon picker border gap');
-expectContains(contextualMenuCss, '.tiptap-icon-popover-scroll > div:not(.border-t)', 'icon category card styling');
+expectContains(contextualMenuCss, '[data-note-icon-category="true"]', 'explicit icon category selector');
+expectContains(contextualMenuCss, '[data-note-icon-category-header="true"]', 'explicit icon category header selector');
+expectContains(contextualMenuCss, '[data-note-icon-grid="true"]', 'explicit icon grid selector');
+expectContains(contextualMenuCss, '[data-note-icon-button="true"]', 'explicit icon button selector');
+expectContains(contextualMenuCss, '[data-note-icon-glyph="true"]', 'explicit glyph selector');
+expectContains(contextualMenuCss, 'visibility: visible;', 'glyph visibility guard');
+expectContains(contextualMenuCss, 'stroke: currentColor;', 'Lucide stroke guard');
 expectContains(contextualMenuCss, 'background: var(--dash-surface);', 'icon category card surface');
 expectContains(contextualMenuCss, 'background: var(--dash-surface-2);', 'icon category header surface');
-expectContains(contextualMenuCss, 'button[aria-pressed="true"]', 'selected icon accent state');
+expectContains(contextualMenuCss, '[aria-pressed="true"]', 'selected icon accent state');
 expectContains(contextualMenuCss, 'box-shadow: inset 0 0 0 1px var(--dash-accent-2);', 'icon accent ring');
+expectNotContains(contextualMenuCss, '.tiptap-icon-popover-scroll > div:not(.border-t)', 'no DOM-structure-dependent category selector');
+expectNotContains(contextualMenuCss, '.tiptap-icon-popover-scroll > button:first-child', 'no DOM-position-dependent removal selector');
 
 console.log('verify-note-title-icons: OK');

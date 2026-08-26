@@ -35,31 +35,35 @@ interface NoteIconGridProps {
  * - picker inline dentro il contenuto rich text;
  * - picker dell'icona titolo nella colonna Note.
  *
- * `onRemove` e `selectedName` sono opzionali cosi' il picker inline mantiene
- * esattamente il comportamento precedente, mentre quello del titolo puo'
- * evidenziare la scelta corrente e rimuoverla.
+ * I data-attribute qui sotto sono intenzionali: il CSS del picker non deve
+ * dedurre la semantica dalla struttura DOM interna di Radix Tooltip. In questo
+ * modo categorie, griglie e trigger restano stilizzabili senza rischiare di
+ * nascondere o alterare i glifi Lucide.
  */
 export function NoteIconGrid({ onChoose, selectedName = null, onRemove }: NoteIconGridProps) {
   return (
     <div className="tiptap-icon-popover-scroll flex max-h-80 flex-col gap-3 overflow-y-auto">
       {selectedName && onRemove && (
-        <>
-          <button
-            type="button"
-            onClick={onRemove}
-            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
-          >
-            <X className="h-4 w-4" />
-            Rimuovi icona
-          </button>
-          <div className="border-t border-[var(--dash-border-soft)]" />
-        </>
+        <button
+          type="button"
+          data-note-icon-remove="true"
+          onClick={onRemove}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-[var(--dash-text)]"
+        >
+          <X className="h-4 w-4 shrink-0 text-[var(--dash-text-strong)]" aria-hidden="true" />
+          Rimuovi icona
+        </button>
       )}
 
       {ICON_CATEGORIES.map(({ label, icons }) => (
-        <div key={label}>
-          <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-[var(--dash-muted)]">{label}</div>
-          <div className="grid grid-cols-6 gap-1">
+        <div key={label} data-note-icon-category="true">
+          <div
+            data-note-icon-category-header="true"
+            className="text-[10px] font-medium uppercase tracking-wide text-[var(--dash-muted)]"
+          >
+            {label}
+          </div>
+          <div data-note-icon-grid="true" className="grid grid-cols-6 gap-1">
             {icons.map((name) => {
               const IconComponent = NOTE_ICON_COMPONENTS[name];
               if (!IconComponent) return null;
@@ -69,13 +73,18 @@ export function NoteIconGrid({ onChoose, selectedName = null, onRemove }: NoteIc
                   <TooltipTrigger asChild>
                     <button
                       type="button"
+                      data-note-icon-button="true"
                       aria-pressed={isSelected}
                       onClick={() => onChoose(name)}
-                      className={`flex h-8 w-8 items-center justify-center rounded-md hover:bg-[var(--dash-surface-2)] ${
-                        isSelected ? 'bg-[var(--dash-surface-2)] text-[var(--dash-text-strong)]' : ''
+                      className={`flex h-8 w-8 items-center justify-center rounded-md text-[var(--dash-text-strong)] ${
+                        isSelected ? 'bg-[var(--dash-surface-2)]' : ''
                       }`}
                     >
-                      <IconComponent className="h-4 w-4" />
+                      <IconComponent
+                        data-note-icon-glyph="true"
+                        className="h-4 w-4 text-[var(--dash-text-strong)]"
+                        aria-hidden="true"
+                      />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="z-[10001]">{name}</TooltipContent>
