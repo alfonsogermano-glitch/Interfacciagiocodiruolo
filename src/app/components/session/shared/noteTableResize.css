@@ -43,3 +43,15 @@
 .tiptap-content.resize-cursor .tiptap-note-table-header {
   cursor: col-resize !important;
 }
+
+/* ProseMirror rende il GapCursor come widget sibling. Quando il cursore è
+   dopo un TextBox/Collapse che riempie la cella, il widget gli fa perdere
+   temporaneamente lo stato :last-child e riattiva il margin-bottom: 0.5rem
+   definito in theme.css. Manteniamo il margine a zero solo in quello stato
+   DOM, così ArrowUp/ArrowDown non fanno variare l'altezza della cella. */
+.tiptap-content .tiptap-note-table-cell
+  > :is(.tiptap-textbox, .tiptap-collapse):has(+ .ProseMirror-gapcursor),
+.tiptap-content .tiptap-note-table-header
+  > :is(.tiptap-textbox, .tiptap-collapse):has(+ .ProseMirror-gapcursor) {
+  margin-bottom: 0;
+}
