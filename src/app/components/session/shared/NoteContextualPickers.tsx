@@ -1,37 +1,18 @@
 import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import type { LucideIcon } from 'lucide-react';
-import {
-  Activity, Anchor, Bell, Biohazard, Bomb, BookOpen, Brain, Briefcase, Castle, Church, Coins,
-  Compass, Crosshair, Crown, Dice6, DoorOpen, Drama, Eye, Feather, Flame, FlaskConical, Footprints,
-  Gem, Ghost, GraduationCap, Heart, Home, Key, Landmark, Map, MapPin, Moon, Mountain, Music, Newspaper,
-  Pickaxe, Pill, Radiation, Route, Scroll, Shield, Ship, Signpost, Skull, Snowflake, Sparkles, Star,
-  Store, Sun, Sword, Swords, Syringe, Target, Tent, Theater, Trees, User, Users, Wand, Zap,
-} from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '../../ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import { usePortalContainer } from '../../ui/portal-container';
 import { FONT_SIZES } from './tiptapFontSize';
 import { FONT_FAMILIES } from './tiptapFontFamily';
-import { ICON_CATEGORIES } from './tiptapIconData';
+import { NoteIconGrid } from './NoteIconGrid';
 import { useAuth } from '../../../auth/AuthContext';
 import { supabase, isSupabaseConfigured } from '../../../../lib/supabaseClient';
 import './noteContextualMenus.css';
 
 const MAX_IMAGE_MB = 5;
-
-const ICON_COMPONENTS: Record<string, LucideIcon> = {
-  Sword, Swords, Shield, Target, Crosshair, Skull, Bomb, Zap, Flame, Biohazard,
-  Sparkles, Wand, Ghost, Eye, Moon, Sun, Feather, Scroll, Radiation, Snowflake,
-  Compass, Map, MapPin, Mountain, Tent, Footprints, Anchor, Ship, Route, Signpost,
-  User, Users, Crown, GraduationCap, Drama, Briefcase,
-  Key, Gem, Coins, Pickaxe, FlaskConical, Pill, Syringe, Dice6, BookOpen,
-  Castle, Church, Landmark, DoorOpen, Home, Store, Trees,
-  Activity, Bell, Brain, Star, Heart, Music, Theater, Newspaper,
-};
 
 interface PickerBaseProps {
   trigger: ReactElement;
@@ -104,27 +85,7 @@ export function NoteInlineIconPicker({ trigger, open, onOpenChange, onChoose }: 
     <Popover open={open} onOpenChange={onOpenChange}>
       <PickerTooltip trigger={<PopoverTrigger asChild>{trigger}</PopoverTrigger>} label="Icone" />
       <PopoverContent data-note-contextual-picker="true" side="top" align="start" collisionPadding={8} className="tiptap-icon-popover w-64 z-[9999] border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-2 text-[var(--dash-text)]" onOpenAutoFocus={(e) => e.preventDefault()}>
-        <div className="tiptap-icon-popover-scroll flex max-h-80 flex-col gap-3 overflow-y-auto">
-          {ICON_CATEGORIES.map(({ label, icons }) => (
-            <div key={label}>
-              <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-[var(--dash-muted)]">{label}</div>
-              <div className="grid grid-cols-6 gap-1">
-                {icons.map((name) => {
-                  const IconComponent = ICON_COMPONENTS[name];
-                  if (!IconComponent) return null;
-                  return (
-                    <Tooltip key={name}>
-                      <TooltipTrigger asChild>
-                        <button type="button" onClick={() => { onChoose(name); onOpenChange(false); }} className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-[var(--dash-surface-2)]"><IconComponent className="h-4 w-4" /></button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="z-[10001]">{name}</TooltipContent>
-                    </Tooltip>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
+        <NoteIconGrid onChoose={(name) => { onChoose(name); onOpenChange(false); }} />
       </PopoverContent>
     </Popover>
   );
