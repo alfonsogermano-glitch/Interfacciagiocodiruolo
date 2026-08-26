@@ -102,5 +102,10 @@ begin
 end;
 $$;
 
+-- Supabase applica default privileges anche ai ruoli API (`anon`,
+-- `authenticated`, `service_role`) quando viene creata una funzione. Il solo
+-- REVOKE FROM PUBLIC non elimina quindi l'ACL esplicita di `anon`: va revocata
+-- direttamente prima di concedere l'esecuzione al solo ruolo autenticato.
 revoke all on function public.set_entity_note_title_icon(uuid, text) from public;
+revoke execute on function public.set_entity_note_title_icon(uuid, text) from anon;
 grant execute on function public.set_entity_note_title_icon(uuid, text) to authenticated;
