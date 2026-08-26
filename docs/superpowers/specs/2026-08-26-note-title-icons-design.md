@@ -12,7 +12,7 @@ Allow an editable campaign note to have zero or one Lucide icon displayed immedi
 - When an icon exists, the picker offers `Rimuovi icona`.
 - The icon is rendered immediately before the title text with visual spacing equivalent to roughly two spaces. The spacing is layout/CSS, not characters stored in `tab_name`.
 - The icon is metadata, not part of the note title string and not part of the TipTap document.
-- Duplicating a note preserves its title icon. Entity-level duplication of notes preserves it as well.
+- Duplicating a campaign note preserves its title icon and its existing sub-tabs.
 - Existing notes remain valid with no icon.
 - Realtime updates must propagate title-icon changes through the existing `entity_notes` database/broadcast flow.
 
@@ -34,10 +34,8 @@ The title icon is rendered from the shared registry immediately before `note.tab
 
 ## Duplication
 
-The reusable note duplication service becomes the single place that preserves `title_icon` during both entity-level duplication and the `Duplica` action for a single note. The actual note/sub-tab creation continues to use the existing protected REST endpoints; after each new note row is created, the focused RPC copies the optional title icon.
-
-`NoteListRow` delegates `Duplica` to this service, reloads the note list, and selects the returned copy id. This avoids duplicating client-side state mutation logic and keeps the existing note/sub-tab copy semantics.
+The `Duplica` action for a campaign note uses a focused helper that keeps the previous duplication semantics: create the copy, preserve rich/legacy content, hidden/folder state and sub-tabs, then copy the optional `title_icon` through the dedicated RPC. Other entity-tab duplication flows are unchanged because title icons are intentionally a feature only of the first-level campaign Notes column.
 
 ## Verification
 
-Add a repository verification script wired into `npm run check` that verifies the cross-layer contract: migration/RPC authorization and validation, shared setter service, duplication preservation, shared icon catalog usage, kebab action, replacement/removal, and title rendering.
+Add a repository verification script wired into `npm run check` that verifies the cross-layer contract: migration/RPC authorization and validation, shared setter service, direct campaign-note duplication preservation, shared icon catalog usage, kebab action, replacement/removal, and title rendering.
