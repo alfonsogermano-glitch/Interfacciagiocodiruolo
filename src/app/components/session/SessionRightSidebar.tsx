@@ -17,11 +17,15 @@ const ICONS: { id: SessionPanelId; label: string; icon: typeof FileText; enabled
 const NOTES_PANEL_STORAGE_KEY = 'hollowgate.notes.panel-width';
 const NOTES_PANEL_DEFAULT_WIDTH = 1024;
 const NOTES_PANEL_MIN_WIDTH = 640;
+const LEFT_SIDEBAR_WIDTH = 100;
 const SESSION_RAIL_WIDTH = 80;
 const NOTES_PANEL_VIEWPORT_GAP = 16;
 
 function clampNotesPanelWidth(width: number, viewportWidth: number) {
-  const maxWidth = Math.max(320, viewportWidth - SESSION_RAIL_WIDTH - NOTES_PANEL_VIEWPORT_GAP);
+  const maxWidth = Math.max(
+    0,
+    viewportWidth - LEFT_SIDEBAR_WIDTH - SESSION_RAIL_WIDTH - NOTES_PANEL_VIEWPORT_GAP,
+  );
   const minWidth = Math.min(NOTES_PANEL_MIN_WIDTH, maxWidth);
   return Math.min(Math.max(width, minWidth), maxWidth);
 }

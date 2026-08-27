@@ -28,9 +28,14 @@ assert.match(source, /className="min-w-0 flex-1 overflow-auto p-4"/, 'detail pan
 assert.match(sessionRightSidebar, /NOTES_PANEL_STORAGE_KEY\s*=\s*'hollowgate\.notes\.panel-width'/, 'outer notes panel width must have its own storage key');
 assert.match(sessionRightSidebar, /NOTES_PANEL_DEFAULT_WIDTH\s*=\s*1024/, 'outer notes panel must start at the old 5xl width');
 assert.match(sessionRightSidebar, /NOTES_PANEL_MIN_WIDTH\s*=\s*640/, 'outer notes panel must keep a usable minimum width');
-assert.match(sessionRightSidebar, /viewportWidth - SESSION_RAIL_WIDTH - NOTES_PANEL_VIEWPORT_GAP/, 'outer notes panel maximum must follow viewport width');
+assert.match(sessionRightSidebar, /LEFT_SIDEBAR_WIDTH\s*=\s*100/, 'outer notes resize must reserve the 100px global left sidebar');
+assert.match(sessionRightSidebar, /viewportWidth - LEFT_SIDEBAR_WIDTH - SESSION_RAIL_WIDTH - NOTES_PANEL_VIEWPORT_GAP/, 'outer notes maximum must reserve left sidebar, right rail, and safety gap');
+assert.match(sessionRightSidebar, /Math\.max\(\s*0,\s*viewportWidth - LEFT_SIDEBAR_WIDTH - SESSION_RAIL_WIDTH - NOTES_PANEL_VIEWPORT_GAP,?\s*\)/, 'narrow viewports must not restore an overlap-producing minimum maximum width');
+assert.doesNotMatch(sessionRightSidebar, /Math\.max\(320,\s*viewportWidth - SESSION_RAIL_WIDTH - NOTES_PANEL_VIEWPORT_GAP\)/, 'old viewport-only maximum must not return');
 assert.match(sessionRightSidebar, /localStorage\.getItem\(NOTES_PANEL_STORAGE_KEY\)/, 'outer notes width must be restored locally');
+assert.match(sessionRightSidebar, /return clampNotesPanelWidth\(candidate, window\.innerWidth\)/, 'restored outer width must be clamped against the current viewport');
 assert.match(sessionRightSidebar, /localStorage\.setItem\(NOTES_PANEL_STORAGE_KEY/, 'outer notes width must persist locally');
+assert.match(sessionRightSidebar, /setNotesPanelWidth\(\(currentWidth\) => clampNotesPanelWidth\(currentWidth, window\.innerWidth\)\)/, 'viewport resize must recover an oversized panel automatically');
 assert.match(sessionRightSidebar, /setPointerCapture\(event\.pointerId\)/, 'outer resize must use pointer capture');
 assert.match(sessionRightSidebar, /releasePointerCapture\(event\.pointerId\)/, 'outer resize must release pointer capture');
 assert.match(sessionRightSidebar, /startWidth \+ \(resize\.startX - event\.clientX\)/, 'dragging left must enlarge the notes panel');
