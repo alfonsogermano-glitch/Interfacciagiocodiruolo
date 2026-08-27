@@ -1,0 +1,25 @@
+/* SessionCharactersPanel mantiene il markup storico; questo shell applica
+   larghezza dinamica e contenimento verticale senza alterare la logica delle schede. */
+[data-session-characters-resizable='true'] {
+  min-height: 0;
+  max-height: 100%;
+}
+
+[data-session-characters-resizable='true'] > div:first-child {
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+[data-session-characters-resizable='true'] > div:first-child > div:first-child {
+  width: var(--characters-list-width) !important;
+  min-width: 0;
+  max-height: 100%;
+}
+
+[data-session-characters-resizable='true'] > div:first-child > div:nth-child(2) {
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+}

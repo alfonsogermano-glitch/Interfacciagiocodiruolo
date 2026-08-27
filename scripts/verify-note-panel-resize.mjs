@@ -5,9 +5,11 @@ const source = await readFile(
   new URL('../src/app/components/session/SessionNotesPanel.tsx', import.meta.url),
   'utf8',
 );
-const [sessionRightSidebar, slideOverPanel] = await Promise.all([
+const [sessionRightSidebar, slideOverPanel, sessionCharactersPanel, sessionPanelResizeCss] = await Promise.all([
   readFile(new URL('../src/app/components/session/SessionRightSidebar.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/components/session/SlideOverPanel.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/app/components/session/SessionCharactersPanel.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/app/components/session/sessionPanelResize.css', import.meta.url), 'utf8'),
 ]);
 
 assert.match(source, /NOTES_SIDEBAR_DEFAULT_WIDTH\s*=\s*256/, 'default note sidebar width must remain 256px');
@@ -35,18 +37,52 @@ assert.doesNotMatch(sessionRightSidebar, /Math\.max\(320,\s*viewportWidth - SESS
 assert.match(sessionRightSidebar, /localStorage\.getItem\(NOTES_PANEL_STORAGE_KEY\)/, 'outer notes width must be restored locally');
 assert.match(sessionRightSidebar, /return clampNotesPanelWidth\(candidate, window\.innerWidth\)/, 'restored outer width must be clamped against the current viewport');
 assert.match(sessionRightSidebar, /localStorage\.setItem\(NOTES_PANEL_STORAGE_KEY/, 'outer notes width must persist locally');
-assert.match(sessionRightSidebar, /setNotesPanelWidth\(\(currentWidth\) => clampNotesPanelWidth\(currentWidth, window\.innerWidth\)\)/, 'viewport resize must recover an oversized panel automatically');
-assert.match(sessionRightSidebar, /setPointerCapture\(event\.pointerId\)/, 'outer resize must use pointer capture');
-assert.match(sessionRightSidebar, /releasePointerCapture\(event\.pointerId\)/, 'outer resize must release pointer capture');
-assert.match(sessionRightSidebar, /startWidth \+ \(resize\.startX - event\.clientX\)/, 'dragging left must enlarge the notes panel');
+assert.match(sessionRightSidebar, /setNotesPanelWidth\(\(currentWidth\) => clampNotesPanelWidth\(currentWidth, window\.innerWidth\)\)/, 'viewport resize must recover an oversized notes panel automatically');
 assert.match(sessionRightSidebar, /data-note-panel-resizer="true"/, 'notes panel must expose a dedicated outer resize handle');
-assert.match(sessionRightSidebar, /panelWidth=\{openPanel === 'notes' \? notesPanelWidth : undefined\}/, 'custom width must apply only to notes');
-assert.match(sessionRightSidebar, /widthClassName=\{openPanel === 'notes' \? 'max-w-none' : undefined\}/, 'notes alone must bypass the shared max-w-5xl cap');
-assert.match(sessionRightSidebar, /leftResizeHandle=\{openPanel === 'notes' \? notesPanelResizeHandle : undefined\}/, 'outer resize handle must exist only for notes');
+
+assert.match(sessionRightSidebar, /CHARACTERS_PANEL_STORAGE_KEY\s*=\s*'hollowgate\.characters\.panel-width'/, 'Schede outer width must have its own storage key');
+assert.match(sessionRightSidebar, /CHARACTERS_PANEL_DEFAULT_WIDTH\s*=\s*1024/, 'Schede outer panel must preserve the old 5xl starting width');
+assert.match(sessionRightSidebar, /CHARACTERS_PANEL_MIN_WIDTH\s*=\s*640/, 'Schede outer panel must keep a usable minimum width');
+assert.match(sessionRightSidebar, /viewportWidth - LEFT_SIDEBAR_WIDTH - SESSION_RAIL_WIDTH - CHARACTERS_PANEL_VIEWPORT_GAP/, 'Schede outer maximum must reserve left sidebar, right rail, and safety gap');
+assert.match(sessionRightSidebar, /localStorage\.getItem\(CHARACTERS_PANEL_STORAGE_KEY\)/, 'Schede outer width must be restored locally');
+assert.match(sessionRightSidebar, /localStorage\.setItem\(CHARACTERS_PANEL_STORAGE_KEY/, 'Schede outer width must persist locally');
+assert.match(sessionRightSidebar, /setCharactersPanelWidth\(\(currentWidth\) => clampCharactersPanelWidth\(currentWidth, window\.innerWidth\)\)/, 'viewport resize must recover an oversized Schede panel automatically');
+assert.match(sessionRightSidebar, /data-character-panel-resizer="true"/, 'Schede panel must expose a dedicated outer resize handle');
+assert.match(sessionRightSidebar, /handleCharactersPanelResizePointerMove/, 'Schede outer drag must have a pointer move handler');
+assert.match(sessionRightSidebar, /resize\.startWidth \+ \(resize\.startX - event\.clientX\)/, 'dragging Schede outer border left must enlarge the panel');
+
+assert.match(sessionRightSidebar, /CHARACTERS_SIDEBAR_STORAGE_KEY\s*=\s*'hollowgate\.characters\.sidebar-width'/, 'Schede list width must persist independently');
+assert.match(sessionRightSidebar, /CHARACTERS_SIDEBAR_DEFAULT_WIDTH\s*=\s*256/, 'Schede list must preserve the current 256px starting width');
+assert.match(sessionRightSidebar, /CHARACTERS_SIDEBAR_MIN_WIDTH\s*=\s*192/, 'Schede list must keep a usable minimum width');
+assert.match(sessionRightSidebar, /CHARACTERS_DETAIL_MIN_WIDTH\s*=\s*360/, 'Schede detail must retain meaningful minimum room');
+assert.match(sessionRightSidebar, /panelWidth - CHARACTERS_DETAIL_MIN_WIDTH/, 'Schede list maximum must depend on available panel width');
+assert.match(sessionRightSidebar, /localStorage\.getItem\(CHARACTERS_SIDEBAR_STORAGE_KEY\)/, 'Schede list width must be restored locally');
+assert.match(sessionRightSidebar, /localStorage\.setItem\(CHARACTERS_SIDEBAR_STORAGE_KEY/, 'Schede list width must persist locally');
+assert.match(sessionRightSidebar, /setCharactersSidebarWidth\(\(currentWidth\) => clampCharactersSidebarWidth\(currentWidth, charactersPanelWidth\)\)/, 'Schede list must re-clamp when the outer panel changes width');
+assert.match(sessionRightSidebar, /data-character-sidebar-resizer="true"/, 'Schede list must expose its own internal resize handle');
+assert.match(sessionRightSidebar, /resize\.startWidth \+ \(event\.clientX - resize\.startX\)/, 'dragging Schede internal divider right must enlarge the list');
+assert.match(sessionRightSidebar, /data-session-characters-resizable="true"/, 'Schede must render inside a dedicated resizable shell');
+assert.match(sessionRightSidebar, /--characters-list-width/, 'Schede shell must receive the dynamic list width CSS variable');
+assert.match(sessionRightSidebar, /resizablePanelOpen = openPanel === 'notes' \|\| openPanel === 'characters'/, 'both Notes and Schede must bypass the shared max-width only while active');
+assert.match(sessionRightSidebar, /openPanel === 'characters' \? charactersPanelWidth/, 'Schede outer width must be selected independently from Notes');
+assert.match(sessionRightSidebar, /openPanel === 'characters' \? charactersPanelResizeHandle/, 'Schede outer resize handle must be selected independently from Notes');
+
+assert.match(sessionCharactersPanel, /className="w-64 shrink-0 overflow-y-auto/, 'legacy Schede list marker must remain identifiable for the scoped CSS override');
+assert.match(sessionPanelResizeCss, /\[data-session-characters-resizable='true'\] > div:first-child > div:first-child/, 'scoped CSS must target only the Schede list column');
+assert.match(sessionPanelResizeCss, /width:\s*var\(--characters-list-width\)\s*!important/, 'Schede list width must follow the dynamic CSS variable');
+assert.match(sessionPanelResizeCss, /\[data-session-characters-resizable='true'\] > div:first-child > div:nth-child\(2\)/, 'scoped CSS must identify the Schede detail pane');
+assert.match(sessionPanelResizeCss, /min-height:\s*0/, 'Schede shell must allow flex descendants to shrink vertically');
+assert.match(sessionPanelResizeCss, /max-height:\s*100%/, 'Schede content must stay within the panel height');
+assert.match(sessionPanelResizeCss, /overflow-y:\s*auto/, 'Schede detail must scroll internally instead of extending below the viewport');
+
 assert.match(slideOverPanel, /panelWidth\?: number;/, 'SlideOverPanel must accept an optional explicit width');
 assert.match(slideOverPanel, /leftResizeHandle\?: React\.ReactNode;/, 'SlideOverPanel must accept an optional left resize handle');
 assert.match(slideOverPanel, /width: panelWidth/, 'SlideOverPanel must apply the optional explicit width');
 assert.match(slideOverPanel, /\{leftResizeHandle\}/, 'SlideOverPanel must render the optional left resize handle');
-assert.match(slideOverPanel, /widthClassName = 'w-full max-w-5xl'/, 'default Schede panel width contract must remain unchanged');
+assert.match(slideOverPanel, /fixed top-12 bottom-0 z-\[900\] flex min-h-0 flex-col/, 'SlideOverPanel must allow its fixed top/bottom bounds to constrain flex content');
+assert.match(slideOverPanel, /className="min-h-0 flex-1 overflow-hidden"/, 'SlideOverPanel content slot must allow internal scrolling without growing below the viewport');
+assert.match(slideOverPanel, /widthClassName = 'w-full max-w-5xl'/, 'default shared panel width contract must remain available for non-resizable panels');
+assert.match(sessionRightSidebar, /setPointerCapture\(event\.pointerId\)/, 'all resize gestures must use pointer capture');
+assert.match(sessionRightSidebar, /releasePointerCapture\(event\.pointerId\)/, 'all resize gestures must release pointer capture');
 
-console.log('Note panel resize verification: PASS');
+console.log('Session panel resize verification: PASS');

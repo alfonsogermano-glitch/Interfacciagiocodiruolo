@@ -44,7 +44,7 @@ export function SlideOverPanel({
 
   return (
     <div
-      className={`fixed top-12 bottom-0 z-[900] flex flex-col shadow-2xl transition-transform duration-300 ease-out ${widthClassName}`}
+      className={`fixed top-12 bottom-0 z-[900] flex min-h-0 flex-col shadow-2xl transition-transform duration-300 ease-out ${widthClassName}`}
       style={{
         right: rightOffset,
         width: panelWidth,
@@ -56,7 +56,7 @@ export function SlideOverPanel({
       }}
     >
       {leftResizeHandle}
-      <div className="flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
         {children}
       </div>
     </div>
