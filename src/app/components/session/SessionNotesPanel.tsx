@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Plus, FolderPlus, RotateCcw, Trash2 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
@@ -19,6 +19,28 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 // contesto realmente attivo).
 type NotesScope = 'gm' | 'shared' | 'trash';
 
+const NOTES_SIDEBAR_STORAGE_KEY = 'hollowgate.notes.sidebar-width';
+const NOTES_SIDEBAR_DEFAULT_WIDTH = 256;
+const NOTES_SIDEBAR_MIN_WIDTH = 192;
+const NOTES_DETAIL_MIN_WIDTH = 360;
+
+function clampNotesSidebarWidth(width: number, containerWidth: number) {
+  const maxWidth = Math.max(NOTES_SIDEBAR_MIN_WIDTH, containerWidth - NOTES_DETAIL_MIN_WIDTH);
+  return Math.min(Math.max(width, NOTES_SIDEBAR_MIN_WIDTH), maxWidth);
+}
+
+function readStoredNotesSidebarWidth() {
+  if (typeof window === 'undefined') return NOTES_SIDEBAR_DEFAULT_WIDTH;
+  try {
+    const stored = window.localStorage.getItem(NOTES_SIDEBAR_STORAGE_KEY);
+    if (stored === null) return NOTES_SIDEBAR_DEFAULT_WIDTH;
+    const parsed = Number(stored);
+    return Number.isFinite(parsed) ? parsed : NOTES_SIDEBAR_DEFAULT_WIDTH;
+  } catch {
+    return NOTES_SIDEBAR_DEFAULT_WIDTH;
+  }
+}
+
 // Prima di questa versione, la navigazione delle note era un EntityTabBar
 // orizzontale sopra il contenuto, con la colonna sinistra ridotta a due
 // bottoni che smontavano/rimontavano l'intero pannello al cambio scope. Ora
@@ -31,6 +53,10 @@ export function SessionNotesPanel() {
   const { activeCampaignId, activeCampaign, updateCampaign } = useCampaign();
   const isOwner = activeCampaign?.ownerId === user?.id;
 
+  const notesPanelRef = useRef<HTMLDivElement | null>(null);
+  const sidebarResizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(readStoredNotesSidebarWidth);
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [activeScope, setActiveScope] = useState<NotesScope>('shared');
   const [openSections, setOpenSections] = useState({ shared: true, gm: true, trash: false });
   const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false);
@@ -51,6 +77,67 @@ export function SessionNotesPanel() {
   useEffect(() => {
     if ((activeScope === 'gm' || activeScope === 'trash') && !isOwner) setActiveScope('shared');
   }, [isOwner]);
+
+  // Mantiene la larghezza valida anche se cambia lo spazio disponibile
+  // (ridimensionamento finestra/sidebar globale). Il dettaglio conserva una
+  // quota minima significativa invece di poter essere schiacciato a zero.
+  useEffect(() => {
+    const panel = notesPanelRef.current;
+    if (!panel || typeof ResizeObserver === 'undefined') return;
+
+    const clampToPanel = () => {
+      const containerWidth = panel.getBoundingClientRect().width;
+      if (containerWidth <= 0) return;
+      setSidebarWidth((currentWidth) => clampNotesSidebarWidth(currentWidth, containerWidth));
+    };
+
+    clampToPanel();
+    const observer = new ResizeObserver(clampToPanel);
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(NOTES_SIDEBAR_STORAGE_KEY, String(Math.round(sidebarWidth)));
+    } catch {
+      // localStorage puo' essere indisponibile (privacy mode/storage bloccato):
+      // il resize continua a funzionare per la sessione corrente.
+    }
+  }, [sidebarWidth]);
+
+  const handleSidebarResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || !notesPanelRef.current) return;
+    event.preventDefault();
+    sidebarResizeRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: sidebarWidth,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsResizingSidebar(true);
+  };
+
+  const handleSidebarResizePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const resize = sidebarResizeRef.current;
+    const panel = notesPanelRef.current;
+    if (!resize || resize.pointerId !== event.pointerId || !panel) return;
+
+    const containerWidth = panel.getBoundingClientRect().width;
+    const requestedWidth = resize.startWidth + (event.clientX - resize.startX);
+    setSidebarWidth(clampNotesSidebarWidth(requestedWidth, containerWidth));
+  };
+
+  const finishSidebarResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    const resize = sidebarResizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    sidebarResizeRef.current = null;
+    setIsResizingSidebar(false);
+  };
 
   const sharedSection = useCampaignNotesSection({
     campaignId: activeCampaignId,
@@ -185,8 +272,16 @@ export function SessionNotesPanel() {
 
   return (
     <>
-      <div className="flex h-full select-none">
-        <div className="w-64 shrink-0 overflow-y-auto border-r border-[var(--dash-border-soft)] py-3">
+      <div
+        ref={notesPanelRef}
+        data-note-split-panel="true"
+        className={`flex h-full min-w-0 select-none ${isResizingSidebar ? 'cursor-col-resize' : ''}`}
+      >
+        <div
+          data-note-sidebar="true"
+          style={{ width: sidebarWidth }}
+          className="shrink-0 overflow-y-auto py-3"
+        >
           {isOwner && (
             <>
               <SectionHeader
@@ -271,7 +366,34 @@ export function SessionNotesPanel() {
           )}
         </div>
 
-        <div className="flex-1 overflow-auto p-4">
+        <div
+          data-note-sidebar-resizer="true"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Ridimensiona lista note"
+          aria-valuemin={NOTES_SIDEBAR_MIN_WIDTH}
+          aria-valuenow={Math.round(sidebarWidth)}
+          onPointerDown={handleSidebarResizePointerDown}
+          onPointerMove={handleSidebarResizePointerMove}
+          onPointerUp={finishSidebarResize}
+          onPointerCancel={finishSidebarResize}
+          onLostPointerCapture={() => {
+            sidebarResizeRef.current = null;
+            setIsResizingSidebar(false);
+          }}
+          style={{ width: 9, marginLeft: -4, marginRight: -4, touchAction: 'none' }}
+          className="group relative z-20 shrink-0 cursor-col-resize"
+        >
+          <div
+            className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${
+              isResizingSidebar
+                ? 'bg-[var(--dash-accent)]'
+                : 'bg-[var(--dash-border-soft)] group-hover:bg-[var(--dash-accent)]'
+            }`}
+          />
+        </div>
+
+        <div className="min-w-0 flex-1 overflow-auto p-4">
           {isOwner && activeScope === 'trash' ? (
             // activeScope (non openSections.trash) e' la fonte di verita'
             // per "cosa mostra il pannello destro adesso": openSections.trash
