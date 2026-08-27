@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MessageSquare, FileText, StickyNote, Dices } from 'lucide-react';
 import { SlideOverPanel } from './SlideOverPanel';
 import { SessionCharactersPanel } from './SessionCharactersPanel';
@@ -14,6 +14,30 @@ const ICONS: { id: SessionPanelId; label: string; icon: typeof FileText; enabled
   { id: 'dice', label: 'Dadi', icon: Dices, enabled: false },
 ];
 
+const NOTES_PANEL_STORAGE_KEY = 'hollowgate.notes.panel-width';
+const NOTES_PANEL_DEFAULT_WIDTH = 1024;
+const NOTES_PANEL_MIN_WIDTH = 640;
+const SESSION_RAIL_WIDTH = 80;
+const NOTES_PANEL_VIEWPORT_GAP = 16;
+
+function clampNotesPanelWidth(width: number, viewportWidth: number) {
+  const maxWidth = Math.max(320, viewportWidth - SESSION_RAIL_WIDTH - NOTES_PANEL_VIEWPORT_GAP);
+  const minWidth = Math.min(NOTES_PANEL_MIN_WIDTH, maxWidth);
+  return Math.min(Math.max(width, minWidth), maxWidth);
+}
+
+function readStoredNotesPanelWidth() {
+  if (typeof window === 'undefined') return NOTES_PANEL_DEFAULT_WIDTH;
+  try {
+    const stored = window.localStorage.getItem(NOTES_PANEL_STORAGE_KEY);
+    const parsed = stored === null ? NOTES_PANEL_DEFAULT_WIDTH : Number(stored);
+    const candidate = Number.isFinite(parsed) ? parsed : NOTES_PANEL_DEFAULT_WIDTH;
+    return clampNotesPanelWidth(candidate, window.innerWidth);
+  } catch {
+    return clampNotesPanelWidth(NOTES_PANEL_DEFAULT_WIDTH, window.innerWidth);
+  }
+}
+
 interface SessionRightSidebarProps {
   // Comando esterno (da CampaignHome.tsx via App.tsx) per aprire il
   // pannello "Schede" con un'entita' specifica gia' selezionata - stesso
@@ -23,6 +47,9 @@ interface SessionRightSidebarProps {
 
 export function SessionRightSidebar({ openCharacterRequest = null }: SessionRightSidebarProps) {
   const [openPanel, setOpenPanel] = useState<SessionPanelId | null>(null);
+  const notesPanelResizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
+  const [notesPanelWidth, setNotesPanelWidth] = useState(readStoredNotesPanelWidth);
+  const [isResizingNotesPanel, setIsResizingNotesPanel] = useState(false);
 
   const togglePanel = (id: SessionPanelId) => {
     setOpenPanel(prev => (prev === id ? null : id));
@@ -32,6 +59,80 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
     if (!openCharacterRequest) return;
     setOpenPanel('characters');
   }, [openCharacterRequest?.requestId]);
+
+  useEffect(() => {
+    const clampToViewport = () => {
+      setNotesPanelWidth((currentWidth) => clampNotesPanelWidth(currentWidth, window.innerWidth));
+    };
+    window.addEventListener('resize', clampToViewport);
+    return () => window.removeEventListener('resize', clampToViewport);
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(NOTES_PANEL_STORAGE_KEY, String(Math.round(notesPanelWidth)));
+    } catch {
+      // Il resize continua a funzionare anche se lo storage locale e' bloccato.
+    }
+  }, [notesPanelWidth]);
+
+  const handleNotesPanelResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    notesPanelResizeRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: notesPanelWidth,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsResizingNotesPanel(true);
+  };
+
+  const handleNotesPanelResizePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const resize = notesPanelResizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    const requestedWidth = resize.startWidth + (resize.startX - event.clientX);
+    setNotesPanelWidth(clampNotesPanelWidth(requestedWidth, window.innerWidth));
+  };
+
+  const finishNotesPanelResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    const resize = notesPanelResizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    notesPanelResizeRef.current = null;
+    setIsResizingNotesPanel(false);
+  };
+
+  const notesPanelResizeHandle = (
+    <div
+      data-note-panel-resizer="true"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Ridimensiona finestra note"
+      aria-valuemin={NOTES_PANEL_MIN_WIDTH}
+      aria-valuenow={Math.round(notesPanelWidth)}
+      onPointerDown={handleNotesPanelResizePointerDown}
+      onPointerMove={handleNotesPanelResizePointerMove}
+      onPointerUp={finishNotesPanelResize}
+      onPointerCancel={finishNotesPanelResize}
+      onLostPointerCapture={() => {
+        notesPanelResizeRef.current = null;
+        setIsResizingNotesPanel(false);
+      }}
+      style={{ left: -4, width: 9, touchAction: 'none' }}
+      className="group absolute inset-y-0 z-30 cursor-col-resize"
+    >
+      <div
+        className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${
+          isResizingNotesPanel
+            ? 'bg-[var(--dash-accent)]'
+            : 'bg-transparent group-hover:bg-[var(--dash-accent)]'
+        }`}
+      />
+    </div>
+  );
 
   return (
     <>
@@ -60,6 +161,9 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
       <SlideOverPanel
         isOpen={openPanel !== null}
         onClose={() => setOpenPanel(null)}
+        widthClassName={openPanel === 'notes' ? 'max-w-none' : undefined}
+        panelWidth={openPanel === 'notes' ? notesPanelWidth : undefined}
+        leftResizeHandle={openPanel === 'notes' ? notesPanelResizeHandle : undefined}
       >
         {openPanel === 'characters' && <SessionCharactersPanel initialSelection={openCharacterRequest} />}
         {openPanel === 'notes' && <SessionNotesPanel />}
