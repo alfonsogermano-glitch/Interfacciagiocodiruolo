@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const read = (name) => readFile(new URL(`../src/app/components/session/shared/${name}`, import.meta.url), 'utf8');
-const [commands, slash, selection, pickers, richClipboard, editor, slashPlugin, menuCss] = await Promise.all([
+const readSession = (name) => readFile(new URL(`../src/app/components/session/${name}`, import.meta.url), 'utf8');
+const [commands, slash, selection, pickers, richClipboard, editor, slashPlugin, menuCss, entityTabBar, noteSubTabs, noteListRow, trashRow, sessionNotesPanel] = await Promise.all([
   read('noteEditorCommands.ts'), read('NoteSlashMenu.tsx'), read('NoteSelectionToolbar.tsx'),
   read('NoteContextualPickers.tsx'), read('tiptapNoteRichClipboard.ts'), read('RichTextEditor.tsx'), read('tiptapNoteSlashMenu.ts'),
-  read('noteContextualMenus.css'),
+  read('noteContextualMenus.css'), read('EntityTabBar.tsx'), read('NoteSubTabs.tsx'), read('NoteListRow.tsx'), read('TrashRow.tsx'),
+  readSession('SessionNotesPanel.tsx'),
 ]);
 
 assert.match(commands, /id: 'horizontalRule'[\s\S]*icon: Minus/, 'horizontal rule must use Lucide Minus');
@@ -59,5 +61,20 @@ const order = ['containerGuardExtension','tableClipboardExtension','richClipboar
 assert.ok(order.every((index) => index >= 0) && order.every((index, i) => i === 0 || index > order[i - 1]), 'guard/table clipboard/rich clipboard/slash registration order must remain');
 assert.match(editor, /PermanentUndo/, 'Undo must remain permanent outside Slash menu');
 assert.match(editor, /absolute right-2 top-2/, 'Undo must stay top-right');
+
+assert.match(noteListRow, /title="Spostare questa nota nel cestino\?"/, 'top-level note soft-delete dialog title must describe moving to trash');
+assert.match(noteListRow, /confirmLabel="Sposta nel cestino"/, 'top-level note soft-delete confirmation must say Sposta nel cestino');
+assert.match(entityTabBar, /deleteConfirmTitle\?: string;/, 'EntityTabBar must support a contextual delete dialog title');
+assert.match(entityTabBar, /deleteConfirmLabel\?: string;/, 'EntityTabBar must support a contextual delete confirmation label');
+assert.match(entityTabBar, /deleteConfirmTitle = 'Eliminare questa tab\?'/, 'hard-delete tab title must remain the default');
+assert.match(entityTabBar, /deleteConfirmLabel = 'Elimina'/, 'hard-delete tab confirmation must remain the default');
+assert.match(entityTabBar, /title=\{deleteConfirmTitle\}/, 'EntityTabBar dialog must use the contextual title');
+assert.match(entityTabBar, /confirmLabel=\{deleteConfirmLabel\}/, 'EntityTabBar dialog must use the contextual confirmation label');
+assert.match(noteSubTabs, /deleteConfirmTitle="Spostare questa tab nel cestino\?"/, 'note sub-tab soft-delete title must describe moving to trash');
+assert.match(noteSubTabs, /deleteConfirmLabel="Sposta nel cestino"/, 'note sub-tab soft-delete confirmation must say Sposta nel cestino');
+assert.match(trashRow, /confirmLabel="Elimina definitivamente"/, 'single trash purge must use final deletion wording');
+assert.doesNotMatch(trashRow, /confirmLabel="Elimina per sempre"/, 'obsolete single-purge wording must not return');
+assert.match(sessionNotesPanel, /title="Svuotare il cestino\?"[\s\S]*confirmLabel="Elimina definitivamente"/, 'empty-trash confirmation must use final deletion wording');
+assert.doesNotMatch(sessionNotesPanel, /confirmLabel="Svuota per sempre"/, 'obsolete empty-trash wording must not return');
 
 console.log('Note contextual controls verification: PASS');

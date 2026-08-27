@@ -307,7 +307,7 @@ export function SessionNotesPanel() {
         <ConfirmDialog
           title="Svuotare il cestino?"
           message="Tutti gli elementi nel cestino verranno eliminati per sempre. Questa azione non è reversibile."
-          confirmLabel="Svuota per sempre"
+          confirmLabel="Elimina definitivamente"
           onConfirm={() => { setConfirmEmptyTrash(false); trash.emptyTrash(); }}
           onCancel={() => setConfirmEmptyTrash(false)}
         />

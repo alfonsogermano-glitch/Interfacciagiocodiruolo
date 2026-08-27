@@ -68,7 +68,7 @@ export function TrashRow({ name, typeLabel, scopeLabel, onRestore, onPurge, onSe
         <ConfirmDialog
           title="Eliminare definitivamente?"
           message={`"${name}" verrà eliminato per sempre. Questa azione non è reversibile.`}
-          confirmLabel="Elimina per sempre"
+          confirmLabel="Elimina definitivamente"
           onConfirm={() => { setConfirmPurge(false); onPurge(); }}
           onCancel={() => setConfirmPurge(false)}
         />

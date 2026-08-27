@@ -25,6 +25,12 @@ interface EntityTabBarProps {
    *  diverso perche' il "cosa succede davvero" dipende dal chiamante, non
    *  da EntityTabBar stesso. */
   deleteConfirmMessage?: (tabName: string) => string;
+  /** Titolo del ConfirmDialog - il default resta quello degli hard-delete.
+   *  Le sotto-tab delle Note lo sovrascrivono con "Spostare ... nel cestino?". */
+  deleteConfirmTitle?: string;
+  /** Etichetta del pulsante di conferma - default "Elimina" per gli
+   *  hard-delete; le sotto-tab delle Note usano "Sposta nel cestino". */
+  deleteConfirmLabel?: string;
   /** Etichetta della voce "Elimina" nel menu ⋮ - assente = "Elimina"
    *  (default, PG/PNG/Mostro, hard-delete immediato invariato). Le sotto-tab
    *  di una nota (NoteSubTabs.tsx) passano "Sposta nel cestino", stesso
@@ -32,7 +38,16 @@ interface EntityTabBarProps {
   deleteMenuLabel?: string;
 }
 
-export function EntityTabBar({ canEdit, tabs, tabIndicators = {}, onAddTab, deleteConfirmMessage, deleteMenuLabel = 'Elimina' }: EntityTabBarProps) {
+export function EntityTabBar({
+  canEdit,
+  tabs,
+  tabIndicators = {},
+  onAddTab,
+  deleteConfirmMessage,
+  deleteConfirmTitle = 'Eliminare questa tab?',
+  deleteConfirmLabel = 'Elimina',
+  deleteMenuLabel = 'Elimina',
+}: EntityTabBarProps) {
   const portalContainer = usePortalContainer();
   // Il menu ⋮ e' portato fuori dal DOM locale con position:fixed alle
   // coordinate del bottone al click, per non finire tagliato dall'
@@ -217,13 +232,13 @@ export function EntityTabBar({ canEdit, tabs, tabIndicators = {}, onAddTab, dele
 
       {confirmDeleteTabId && (
         <ConfirmDialog
-          title="Eliminare questa tab?"
+          title={deleteConfirmTitle}
           message={
             deleteConfirmMessage
               ? deleteConfirmMessage(customTabs.find(t => t.id === confirmDeleteTabId)?.tab_name ?? '')
               : `"${customTabs.find(t => t.id === confirmDeleteTabId)?.tab_name}" e tutto il suo contenuto andranno persi. L'azione non è reversibile.`
           }
-          confirmLabel="Elimina"
+          confirmLabel={deleteConfirmLabel}
           onConfirm={() => handleDeleteCustomTab(confirmDeleteTabId)}
           onCancel={() => setConfirmDeleteTabId(null)}
         />
