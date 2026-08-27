@@ -24,6 +24,8 @@ const cardShellCss = sessionPanelResizeCss.match(
 )?.[1] ?? '';
 assert.match(cardShellCss, /height:\s*100%/, 'Schede entity card must continue filling the available detail height');
 assert.match(cardShellCss, /overflow:\s*hidden/, 'Schede entity card border must remain fixed while its content scrolls');
+assert.match(cardShellCss, /border-bottom-left-radius:\s*0/, 'Schede entity card must have a square bottom-left corner');
+assert.match(cardShellCss, /border-bottom-right-radius:\s*0/, 'Schede entity card must have a square bottom-right corner');
 
 const cardContentCss = sessionPanelResizeCss.match(
   /\[data-session-characters-resizable='true'\] > div:first-child > div:nth-child\(2\) > div:not\(\.fixed\) > div:first-child \{([^}]*)\}/,

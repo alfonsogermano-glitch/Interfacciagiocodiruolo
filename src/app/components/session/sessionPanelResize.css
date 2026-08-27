@@ -32,6 +32,8 @@
   min-height: 0;
   max-height: 100%;
   overflow: hidden;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 [data-session-characters-resizable='true'] > div:first-child > div:nth-child(2) > div:not(.fixed) > div:first-child {
