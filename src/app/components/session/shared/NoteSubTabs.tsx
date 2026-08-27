@@ -97,6 +97,7 @@ export function NoteSubTabs({ note, campaignId, accessToken, canEdit, onPersistS
           onChangeRich={(json) => nestedTabs.handleCustomTabRichContentChange(selectedSubTab.id, json)}
           disabled={!canEdit}
           placeholder="Scrivi qui..."
+          className="min-h-[3rem] rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-3"
           autoFocusOnSelect={nestedTabs.pendingFocusTabId === selectedSubTab.id}
           onAutoFocusConsumed={() => nestedTabs.clearPendingFocusTab(selectedSubTab.id)}
         />
