@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "generate:note-icons": "node --experimental-strip-types scripts/extract-lucide-icons.mjs",
+    "generate:note-icons": "node scripts/extract-lucide-icons.mjs",
     "prebuild": "npm run generate:note-icons",
     "build": "vite build",
     "predev": "npm run generate:note-icons",
