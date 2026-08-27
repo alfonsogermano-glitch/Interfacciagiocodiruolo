@@ -22,6 +22,7 @@
   min-height: 0;
   max-height: 100%;
   overflow: hidden;
+  padding-bottom: 0;
 }
 
 /* Come le card nel blocco Note: il bordo della scheda resta sempre dentro
