@@ -208,15 +208,18 @@ export function NoteListRow({ note, tabs, canEdit, isGm, folders, colors, isSele
                 label: 'Icona',
                 onClick: openIconMenu,
               },
-              {
+              // Per i giocatori la privacy e' l'unico asse di visibilita':
+              // possono rendere privata/pubblica una propria nota, ma non
+              // spostarla tra Note della Campagna e Note del GM.
+              ...(!isGm ? [{
                 key: 'visibility',
                 icon: note.visibility === 'private' ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />,
                 label: note.visibility === 'private' ? 'Rendi visibile a tutti' : 'Rendi visibile solo a me e al GM',
                 onClick: () => tabs.handleSetNoteVisibility(note.id, note.visibility === 'private' ? 'all' : 'private'),
-              },
-              // "Nascondi" sposta la nota tra sezione Campagna/GM - resta
-              // un'azione esclusivamente GM anche per un giocatore che
-              // modifica una nota propria (canEdit=true non basta qui).
+              }] : []),
+              // Per il GM l'asse corretto e' Campagna <-> GM: "Nascondi"
+              // e "Mostra" sostituiscono del tutto la voce privacy, che per
+              // il proprietario della campagna sarebbe ridondante/ambigua.
               ...(isGm ? [{
                 key: 'hide',
                 icon: note.hidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />,

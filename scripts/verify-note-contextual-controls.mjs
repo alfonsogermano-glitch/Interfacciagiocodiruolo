@@ -77,4 +77,8 @@ assert.doesNotMatch(trashRow, /confirmLabel="Elimina per sempre"/, 'obsolete sin
 assert.match(sessionNotesPanel, /title="Svuotare il cestino\?"[\s\S]*confirmLabel="Elimina definitivamente"/, 'empty-trash confirmation must use final deletion wording');
 assert.doesNotMatch(sessionNotesPanel, /confirmLabel="Svuota per sempre"/, 'obsolete empty-trash wording must not return');
 
+assert.match(noteListRow, /\.\.\.\(!isGm \? \[\{[\s\S]*?key: 'visibility'[\s\S]*?\}\] : \[\]\),/, 'players alone must receive the private/public visibility action');
+assert.match(noteListRow, /\.\.\.\(isGm \? \[\{[\s\S]*?key: 'hide'[\s\S]*?\}\] : \[\]\),/, 'GM alone must receive the hide/show action');
+assert.doesNotMatch(noteListRow, /\n\s*\{\n\s*key: 'visibility',[\s\S]*?handleSetNoteVisibility/, 'visibility action must not remain unconditional for GM');
+
 console.log('Note contextual controls verification: PASS');
