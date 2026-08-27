@@ -21,5 +21,21 @@
   min-width: 0;
   min-height: 0;
   max-height: 100%;
+  overflow: hidden;
+}
+
+/* Come le card nel blocco Note: il bordo della scheda resta sempre dentro
+   la viewport del pannello, mentre scorre solo il contenuto interno. */
+[data-session-characters-resizable='true'] > div:first-child > div:nth-child(2) > div:not(.fixed) {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+[data-session-characters-resizable='true'] > div:first-child > div:nth-child(2) > div:not(.fixed) > div:first-child {
+  height: 100%;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }

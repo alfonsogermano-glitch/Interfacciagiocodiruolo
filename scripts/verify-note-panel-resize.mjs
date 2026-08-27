@@ -70,10 +70,30 @@ assert.match(sessionRightSidebar, /openPanel === 'characters' \? charactersPanel
 assert.match(sessionCharactersPanel, /className="w-64 shrink-0 overflow-y-auto/, 'legacy Schede list marker must remain identifiable for the scoped CSS override');
 assert.match(sessionPanelResizeCss, /\[data-session-characters-resizable='true'\] > div:first-child > div:first-child/, 'scoped CSS must target only the Schede list column');
 assert.match(sessionPanelResizeCss, /width:\s*var\(--characters-list-width\)\s*!important/, 'Schede list width must follow the dynamic CSS variable');
-assert.match(sessionPanelResizeCss, /\[data-session-characters-resizable='true'\] > div:first-child > div:nth-child\(2\)/, 'scoped CSS must identify the Schede detail pane');
-assert.match(sessionPanelResizeCss, /min-height:\s*0/, 'Schede shell must allow flex descendants to shrink vertically');
-assert.match(sessionPanelResizeCss, /max-height:\s*100%/, 'Schede content must stay within the panel height');
-assert.match(sessionPanelResizeCss, /overflow-y:\s*auto/, 'Schede detail must scroll internally instead of extending below the viewport');
+
+const charactersDetailPaneCss = sessionPanelResizeCss.match(
+  /\[data-session-characters-resizable='true'\] > div:first-child > div:nth-child\(2\) \{([^}]*)\}/,
+)?.[1] ?? '';
+assert.match(charactersDetailPaneCss, /min-height:\s*0/, 'Schede detail pane must be allowed to shrink vertically');
+assert.match(charactersDetailPaneCss, /max-height:\s*100%/, 'Schede detail pane must stay within the panel height');
+assert.match(charactersDetailPaneCss, /overflow:\s*hidden/, 'Schede detail pane must keep the full card border inside the viewport');
+assert.doesNotMatch(charactersDetailPaneCss, /overflow-y:\s*auto/, 'outer Schede detail pane must not scroll the whole entity card');
+
+const charactersCardShellCss = sessionPanelResizeCss.match(
+  /\[data-session-characters-resizable='true'\] > div:first-child > div:nth-child\(2\) > div:not\(\.fixed\) \{([^}]*)\}/,
+)?.[1] ?? '';
+assert.match(charactersCardShellCss, /height:\s*100%/, 'Schede entity card shell must fill the visible panel height');
+assert.match(charactersCardShellCss, /min-height:\s*0/, 'Schede entity card shell must be allowed to shrink');
+assert.match(charactersCardShellCss, /max-height:\s*100%/, 'Schede entity card shell must not extend below the panel');
+assert.match(charactersCardShellCss, /overflow:\s*hidden/, 'Schede entity card shell must preserve its visible bottom border');
+
+const charactersCardContentCss = sessionPanelResizeCss.match(
+  /\[data-session-characters-resizable='true'\] > div:first-child > div:nth-child\(2\) > div:not\(\.fixed\) > div:first-child \{([^}]*)\}/,
+)?.[1] ?? '';
+assert.match(charactersCardContentCss, /height:\s*100%/, 'Schede entity content must inherit the visible card height');
+assert.match(charactersCardContentCss, /min-height:\s*0/, 'Schede entity content must be allowed to shrink');
+assert.match(charactersCardContentCss, /overflow-y:\s*auto/, 'only the inner Schede entity content must scroll vertically');
+assert.match(charactersCardContentCss, /overscroll-behavior:\s*contain/, 'Schede entity scrolling must stay inside the card');
 
 assert.match(slideOverPanel, /panelWidth\?: number;/, 'SlideOverPanel must accept an optional explicit width');
 assert.match(slideOverPanel, /leftResizeHandle\?: React\.ReactNode;/, 'SlideOverPanel must accept an optional left resize handle');
