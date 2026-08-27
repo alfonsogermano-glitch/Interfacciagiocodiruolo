@@ -1,28 +1,14 @@
-import type { LucideIcon } from 'lucide-react';
-import {
-  Activity, Anchor, Bell, Biohazard, Bomb, BookOpen, Brain, Briefcase, Castle, Church, Coins,
-  Compass, Crosshair, Crown, Dice6, DoorOpen, Drama, Eye, Feather, Flame, FlaskConical, Footprints,
-  Gem, Ghost, GraduationCap, Heart, Home, Key, Landmark, Map, MapPin, Moon, Mountain, Music, Newspaper,
-  Pickaxe, Pill, Radiation, Route, Scroll, Shield, Ship, Signpost, Skull, Snowflake, Sparkles, Star,
-  Store, Sun, Sword, Swords, Syringe, Target, Tent, Theater, Trees, User, Users, Wand, X, Zap,
-} from 'lucide-react';
+import { createElement, useEffect, useMemo, useState, type ComponentType, type SVGProps } from 'react';
+import { Search, X } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import { ICON_CATEGORIES } from './tiptapIconData';
-
-/**
- * Unica registry React per il subset Lucide curato delle Note. Il dato delle
- * categorie/nome resta tiptapIconData.ts, condiviso anche dal nodo TipTap;
- * questo mapping aggiunge soltanto i componenti React necessari ai picker.
- */
-export const NOTE_ICON_COMPONENTS: Record<string, LucideIcon> = {
-  Sword, Swords, Shield, Target, Crosshair, Skull, Bomb, Zap, Flame, Biohazard,
-  Sparkles, Wand, Ghost, Eye, Moon, Sun, Feather, Scroll, Radiation, Snowflake,
-  Compass, Map, MapPin, Mountain, Tent, Footprints, Anchor, Ship, Route, Signpost,
-  User, Users, Crown, GraduationCap, Drama, Briefcase,
-  Key, Gem, Coins, Pickaxe, FlaskConical, Pill, Syringe, Dice6, BookOpen,
-  Castle, Church, Landmark, DoorOpen, Home, Store, Trees,
-  Activity, Bell, Brain, Star, Heart, Music, Theater, Newspaper,
-};
+import { ICON_DATA, ICON_META } from './tiptapIconData';
+import {
+  NOTE_ICON_RECENTS_STORAGE_KEY,
+  readRecentIconNames,
+  recordRecentIconName,
+  searchNoteIcons,
+} from './noteIconCatalogUtils';
 
 interface NoteIconGridProps {
   onChoose: (name: string) => void;
@@ -30,70 +16,205 @@ interface NoteIconGridProps {
   onRemove?: () => void;
 }
 
-/**
- * Griglia condivisa dai due punti di inserimento icone:
- * - picker inline dentro il contenuto rich text;
- * - picker dell'icona titolo nella colonna Note.
- *
- * I data-attribute qui sotto sono intenzionali: il CSS del picker non deve
- * dedurre la semantica dalla struttura DOM interna di Radix Tooltip. In questo
- * modo categorie, griglie e trigger restano stilizzabili senza rischiare di
- * nascondere o alterare i glifi Lucide.
- */
-export function NoteIconGrid({ onChoose, selectedName = null, onRemove }: NoteIconGridProps) {
+interface NoteIconGlyphProps extends SVGProps<SVGSVGElement> {
+  name: string;
+}
+
+const RECENTS_EVENT = 'hollowgate:note-recent-icons-changed';
+const CATALOG_ENTRIES = ICON_CATEGORIES.flatMap((section) =>
+  section.icons.map((name) => ICON_META[name]).filter(Boolean),
+);
+const VALID_ICON_NAMES = new Set(CATALOG_ENTRIES.map((icon) => icon.name));
+
+export function NoteIconGlyph({ name, ...svgProps }: NoteIconGlyphProps) {
+  const primitives = ICON_DATA[name];
+  if (!primitives) return null;
+
   return (
-    <div className="tiptap-icon-popover-scroll flex max-h-80 flex-col gap-3 overflow-y-auto">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      data-icon-name={name}
+      data-note-icon-glyph="true"
+      {...svgProps}
+    >
+      {primitives.map(([tag, attrs], index) =>
+        createElement(tag, { ...attrs, key: `${name}-${index}` }),
+      )}
+    </svg>
+  );
+}
+
+// Adapter di compatibilità per i consumer titolo già esistenti (NoteListRow).
+// Non è una registry curata: ogni componente viene derivato on-demand dagli
+// stessi raw SVG di ICON_DATA, quindi non duplica più il catalogo Lucide.
+type CatalogIconComponent = ComponentType<SVGProps<SVGSVGElement>>;
+
+export const NOTE_ICON_COMPONENTS = new Proxy(
+  {} as Record<string, CatalogIconComponent>,
+  {
+    get(_target, property) {
+      if (typeof property !== 'string' || !ICON_DATA[property]) return undefined;
+      const CatalogIcon: CatalogIconComponent = (props) => (
+        <NoteIconGlyph name={property} {...props} />
+      );
+      return CatalogIcon;
+    },
+  },
+);
+
+export function NoteIconGrid({ onChoose, selectedName = null, onRemove }: NoteIconGridProps) {
+  const [query, setQuery] = useState('');
+  const [recentNames, setRecentNames] = useState<string[]>(() =>
+    readRecentIconNames(VALID_ICON_NAMES),
+  );
+
+  const searchResults = useMemo(
+    () => searchNoteIcons(CATALOG_ENTRIES, query),
+    [query],
+  );
+  const hasSearch = query.trim().length > 0;
+
+  useEffect(() => {
+    const refresh = () => setRecentNames(readRecentIconNames(VALID_ICON_NAMES));
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === NOTE_ICON_RECENTS_STORAGE_KEY) refresh();
+    };
+    const onRecentChange = (event: Event) => {
+      const detail = (event as CustomEvent<string[]>).detail;
+      setRecentNames(Array.isArray(detail) ? detail : readRecentIconNames(VALID_ICON_NAMES));
+    };
+
+    window.addEventListener('storage', onStorage);
+    window.addEventListener(RECENTS_EVENT, onRecentChange);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(RECENTS_EVENT, onRecentChange);
+    };
+  }, []);
+
+  const choose = (name: string) => {
+    const next = recordRecentIconName(name, VALID_ICON_NAMES);
+    setRecentNames(next);
+    window.dispatchEvent(new CustomEvent<string[]>(RECENTS_EVENT, { detail: next }));
+    onChoose(name);
+  };
+
+  const renderIconButton = (name: string) => {
+    const meta = ICON_META[name];
+    if (!meta || !ICON_DATA[name]) return null;
+
+    const isSelected = selectedName === name;
+    return (
+      <Tooltip key={name}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            data-note-icon-button="true"
+            onClick={() => choose(name)}
+            aria-label={meta.label}
+            aria-pressed={isSelected}
+            data-note-icon-name={name}
+            className={`flex h-8 w-8 items-center justify-center rounded-md border text-[var(--dash-text-strong)] transition-colors ${
+              isSelected
+                ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/15'
+                : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] hover:bg-[var(--dash-surface-2)]'
+            }`}
+          >
+            <NoteIconGlyph name={name} className="h-4 w-4 text-[var(--dash-text-strong)]" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={4}>{meta.label}</TooltipContent>
+      </Tooltip>
+    );
+  };
+
+  const recentIcons = recentNames.filter((name) => ICON_META[name] && ICON_DATA[name]);
+
+  return (
+    <div className="tiptap-icon-popover-scroll flex max-h-80 min-h-0 flex-col gap-2 overflow-y-auto">
+      <div className="relative shrink-0">
+        <Search
+          className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--dash-muted)]"
+          aria-hidden="true"
+        />
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Cerca icona..."
+          aria-label="Cerca icona"
+          data-note-icon-search="true"
+          className="h-8 w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-input)] pl-8 pr-2 text-xs text-[var(--dash-text)] outline-none placeholder:text-[var(--dash-muted)] focus:border-[var(--dash-accent)]"
+        />
+      </div>
+
       {selectedName && onRemove && (
         <button
           type="button"
           data-note-icon-remove="true"
           onClick={onRemove}
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-[var(--dash-text)]"
+          className="flex h-8 shrink-0 items-center gap-2 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 text-xs text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]"
         >
-          <X className="h-4 w-4 shrink-0 text-[var(--dash-text-strong)]" aria-hidden="true" />
+          <X className="h-3.5 w-3.5" />
           Rimuovi icona
         </button>
       )}
 
-      {ICON_CATEGORIES.map(({ label, icons }) => (
-        <div key={label} data-note-icon-category="true">
+      {hasSearch ? (
+        <div data-note-icon-results="true">
           <div
             data-note-icon-category-header="true"
-            className="text-[10px] font-medium uppercase tracking-wide text-[var(--dash-muted)]"
+            className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--dash-muted)]"
           >
-            {label}
+            Risultati
           </div>
-          <div data-note-icon-grid="true" className="grid grid-cols-6 gap-1">
-            {icons.map((name) => {
-              const IconComponent = NOTE_ICON_COMPONENTS[name];
-              if (!IconComponent) return null;
-              const isSelected = selectedName === name;
-              return (
-                <Tooltip key={name}>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      data-note-icon-button="true"
-                      aria-pressed={isSelected}
-                      onClick={() => onChoose(name)}
-                      className={`flex h-8 w-8 items-center justify-center rounded-md text-[var(--dash-text-strong)] ${
-                        isSelected ? 'bg-[var(--dash-surface-2)]' : ''
-                      }`}
-                    >
-                      <IconComponent
-                        data-note-icon-glyph="true"
-                        className="h-4 w-4 text-[var(--dash-text-strong)]"
-                        aria-hidden="true"
-                      />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="z-[10001]">{name}</TooltipContent>
-                </Tooltip>
-              );
-            })}
-          </div>
+          {searchResults.length > 0 ? (
+            <div data-note-icon-grid="true" className="grid grid-cols-6 gap-1.5">
+              {searchResults.map((icon) => renderIconButton(icon.name))}
+            </div>
+          ) : (
+            <div className="rounded-md border border-dashed border-[var(--dash-border-soft)] px-2 py-3 text-center text-xs text-[var(--dash-muted)]">
+              Nessuna icona trovata.
+            </div>
+          )}
         </div>
-      ))}
+      ) : (
+        <>
+          {recentIcons.length > 0 && (
+            <div data-note-icon-category="true" data-note-icon-recents="true">
+              <div
+                data-note-icon-category-header="true"
+                className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--dash-muted)]"
+              >
+                Recenti
+              </div>
+              <div data-note-icon-grid="true" className="grid grid-cols-6 gap-1.5">
+                {recentIcons.map(renderIconButton)}
+              </div>
+            </div>
+          )}
+
+          {ICON_CATEGORIES.map((section) => (
+            <div key={section.label} data-note-icon-category="true">
+              <div
+                data-note-icon-category-header="true"
+                className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--dash-muted)]"
+              >
+                {section.label}
+              </div>
+              <div data-note-icon-grid="true" className="grid grid-cols-6 gap-1.5">
+                {section.icons.map(renderIconButton)}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }

@@ -4,8 +4,12 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "generate:note-icons": "node --experimental-strip-types scripts/extract-lucide-icons.mjs",
+    "prebuild": "npm run generate:note-icons",
     "build": "vite build",
+    "predev": "npm run generate:note-icons",
     "dev": "vite",
+    "pretypecheck": "npm run generate:note-icons",
     "typecheck": "tsc --noEmit",
     "verify:campaign-canonical": "node scripts/verify-campaign-canonical.mjs",
     "verify:note-inline-checkbox": "node --experimental-strip-types scripts/verify-note-inline-checkbox.mjs",
@@ -13,8 +17,9 @@
     "verify:note-table-container-gap": "node --experimental-strip-types scripts/verify-note-table-container-gap.mjs",
     "verify:note-table-gap-layout": "node scripts/verify-note-table-gap-layout.mjs",
     "verify:note-title-icons": "node scripts/verify-note-title-icons.mjs",
+    "verify:note-icon-catalog": "node --experimental-strip-types scripts/verify-note-icon-catalog.mjs",
     "verify:note-panel-resize": "node scripts/verify-note-panel-resize.mjs",
-    "check": "npm run typecheck && npm run verify:campaign-canonical && npm run verify:note-inline-checkbox && npm run verify:note-tables && npm run verify:note-table-container-gap && npm run verify:note-table-gap-layout && npm run verify:note-contextual-controls && npm run verify:note-container-nesting && npm run verify:note-viewport-fill && npm run verify:note-title-icons && npm run verify:note-panel-resize && npm run build",
+    "check": "npm run typecheck && npm run verify:campaign-canonical && npm run verify:note-inline-checkbox && npm run verify:note-tables && npm run verify:note-table-container-gap && npm run verify:note-table-gap-layout && npm run verify:note-contextual-controls && npm run verify:note-container-nesting && npm run verify:note-viewport-fill && npm run verify:note-title-icons && npm run verify:note-icon-catalog && npm run verify:note-panel-resize && npm run build",
     "verify:note-contextual-controls": "node --experimental-strip-types scripts/verify-note-contextual-controls.mjs",
     "verify:note-container-nesting": "node --experimental-strip-types scripts/verify-note-container-nesting.mjs",
     "verify:note-viewport-fill": "node --experimental-strip-types scripts/verify-note-viewport-fill.mjs"
@@ -101,16 +106,10 @@
     "react-dom": "18.3.1"
   },
   "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "react-dom": {
-      "optional": true
-    }
+    "react": { "optional": true },
+    "react-dom": { "optional": true }
   },
   "pnpm": {
-    "overrides": {
-      "vite": "6.4.3"
-    }
+    "overrides": { "vite": "6.4.3" }
   }
 }
