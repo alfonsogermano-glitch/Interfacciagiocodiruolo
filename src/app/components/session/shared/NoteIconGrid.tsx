@@ -129,7 +129,7 @@ export function NoteIconGrid({ onChoose, selectedName = null, onRemove }: NoteIc
             <NoteIconGlyph name={name} className="h-4 w-4 text-[var(--dash-text-strong)]" />
           </button>
         </TooltipTrigger>
-        <TooltipContent side="top" sideOffset={4}>{meta.label}</TooltipContent>
+        <TooltipContent side="top" sideOffset={4} className="z-[10000]">{meta.label}</TooltipContent>
       </Tooltip>
     );
   };
