@@ -1,6 +1,7 @@
 import { Dices, Trash2, X } from 'lucide-react';
 import { useDiceSession } from './DiceSessionContext';
 import { DiceRollHistoryCard } from './DiceRollHistoryCard';
+import { Dice3DOverlay } from './Dice3DOverlay';
 
 export function DiceRollHistoryDrawer() {
   const {
@@ -11,21 +12,17 @@ export function DiceRollHistoryDrawer() {
     setHistoryOpen,
   } = useDiceSession();
 
-  if (!historyOpen) {
-    return (
-      <button
-        type="button"
-        data-dice-history-toggle
-        onClick={() => setHistoryOpen(true)}
-        aria-label="Mostra storico tiri"
-        className="fixed bottom-5 left-28 z-[940] flex h-11 w-11 items-center justify-center rounded-full border border-[var(--dash-border)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)] shadow-xl transition-transform hover:scale-105"
-      >
-        <Dices className="h-5 w-5" />
-      </button>
-    );
-  }
-
-  return (
+  const drawer = !historyOpen ? (
+    <button
+      type="button"
+      data-dice-history-toggle
+      onClick={() => setHistoryOpen(true)}
+      aria-label="Mostra storico tiri"
+      className="fixed bottom-5 left-28 z-[940] flex h-11 w-11 items-center justify-center rounded-full border border-[var(--dash-border)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)] shadow-xl transition-transform hover:scale-105"
+    >
+      <Dices className="h-5 w-5" />
+    </button>
+  ) : (
     <section
       data-dice-history-drawer
       className="fixed bottom-5 left-28 z-[940] flex max-h-[65vh] w-[min(26rem,calc(100vw-8rem))] flex-col overflow-hidden rounded-2xl border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 shadow-2xl backdrop-blur-md"
@@ -81,5 +78,12 @@ export function DiceRollHistoryDrawer() {
         )}
       </div>
     </section>
+  );
+
+  return (
+    <>
+      <Dice3DOverlay />
+      {drawer}
+    </>
   );
 }
