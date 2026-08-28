@@ -15,6 +15,12 @@ create table if not exists public.dice_formulas (
 create index if not exists dice_formulas_campaign_owner_updated_idx
   on public.dice_formulas (campaign_id, owner_profile_id, updated_at desc);
 
+-- Dedicated leading index also covers the owner_profile_id FK efficiently
+-- during profile deletes/updates; the composite index above starts with
+-- campaign_id and therefore cannot serve this FK lookup by itself.
+create index if not exists dice_formulas_owner_profile_idx
+  on public.dice_formulas (owner_profile_id);
+
 alter table public.dice_formulas enable row level security;
 
 grant select, insert, update, delete on public.dice_formulas to authenticated;
