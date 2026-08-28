@@ -42,8 +42,8 @@ export async function sendSecretRollToGm(campaignId: string, result: RollResult)
 
   try {
     const response = await channel.httpSend('dice_roll', result);
-    if (response !== 'ok') {
-      throw new Error(`Secret dice broadcast failed: ${String(response)}`);
+    if (!response.success) {
+      throw new Error(`Secret dice broadcast failed: ${response.error}`);
     }
   } finally {
     await supabase.removeChannel(channel);
