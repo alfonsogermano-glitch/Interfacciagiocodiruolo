@@ -19,8 +19,23 @@ import { supabase } from '../../app/auth/AuthContext';
 // subscribe), e il canale viene chiuso per davvero solo quando l'ultimo
 // consumer se ne va.
 
-type BroadcastEvent = 'INSERT' | 'UPDATE' | 'DELETE' | 'session_change' | 'members_change' | 'notes_change';
-const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = ['INSERT', 'UPDATE', 'DELETE', 'session_change', 'members_change', 'notes_change'];
+type BroadcastEvent =
+  | 'INSERT'
+  | 'UPDATE'
+  | 'DELETE'
+  | 'session_change'
+  | 'members_change'
+  | 'notes_change'
+  | 'dice_roll';
+const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = [
+  'INSERT',
+  'UPDATE',
+  'DELETE',
+  'session_change',
+  'members_change',
+  'notes_change',
+  'dice_roll',
+];
 
 type BroadcastHandler = (msg: any) => void;
 type PresenceHandler = (state: Record<string, any>) => void;
