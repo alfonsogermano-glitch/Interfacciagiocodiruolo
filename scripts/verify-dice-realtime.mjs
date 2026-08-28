@@ -45,9 +45,12 @@ assert.ok(session.includes("visibility === 'public'"), 'public transport must en
 assert.ok(session.includes("visibility === 'secret'"), 'secret transport must enforce secret visibility');
 assert.ok(session.includes('seenRollIds'), 'DiceSessionContext must deduplicate by result id');
 
-const clearBody = session.match(/const clearLocalHistory[\s\S]*?\n  }, \[\]\);/)?.[0] ?? '';
+const clearStart = session.indexOf('const clearLocalHistory = useCallback(() => {');
+const clearEnd = clearStart >= 0 ? session.indexOf('\n  }, [', clearStart) : -1;
+const clearBody = clearStart >= 0 && clearEnd > clearStart ? session.slice(clearStart, clearEnd) : '';
 assert.ok(clearBody, 'clearLocalHistory implementation not found');
-assert.ok(!/(send|httpSend|supabase)/.test(clearBody), 'Clear must remain local-only');
+assert.ok(clearBody.includes('setEntries([])'), 'Clear must erase only this client session ledger');
+assert.ok(!/(sendSecretRollToGm|publicChannel\.send|httpSend|supabase)/.test(clearBody), 'Clear must remain local-only');
 
 assert.ok(historyCard.includes('EyeOff'), 'secret history cards must use the EyeOff icon');
 assert.ok(historyCard.includes("result.visibility === 'secret'"), 'secret indicator must be visibility-driven');
