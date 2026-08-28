@@ -1,4 +1,4 @@
-import { projectRollTo3D } from './dice3dProjection.ts';
+import { projectRollTo3D, type Dice3DProjectionChunk } from './dice3dProjection.ts';
 import { Dice3DAbortError, type Dice3DRenderer } from './dice3dTypes.ts';
 import type { RollResult } from './diceTypes.ts';
 
@@ -17,6 +17,16 @@ let containerSequence = 0;
 
 function throwIfAborted(signal: AbortSignal) {
   if (signal.aborted) throw new Dice3DAbortError();
+}
+
+export function buildSimultaneousDice3DNotation(chunks: Dice3DProjectionChunk[]): string | null {
+  if (chunks.length === 0) return null;
+
+  const diceSets = chunks.map((chunk) => `${chunk.values.length}d${chunk.sides}`);
+  const values = chunks.flatMap((chunk) => chunk.values);
+  if (values.length === 0) return null;
+
+  return `${diceSets.join('+')}@${values.join(',')}`;
 }
 
 export class HollowgateDice3DRenderer implements Dice3DRenderer {
@@ -53,13 +63,12 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
     if (!this.box) throw new Error('Dice 3D renderer not initialized');
 
     const chunks = projectRollTo3D(result);
-    if (chunks.length === 0) return;
+    const notation = buildSimultaneousDice3DNotation(chunks);
+    if (!notation) return;
 
-    for (const chunk of chunks) {
-      throwIfAborted(signal);
-      await this.box.roll(chunk.notation);
-      throwIfAborted(signal);
-    }
+    throwIfAborted(signal);
+    await this.box.roll(notation);
+    throwIfAborted(signal);
   }
 
   clear(): void {
