@@ -14,3 +14,15 @@ export interface Dice3DRenderer {
   clear(): void;
   dispose(): void;
 }
+
+export class Dice3DAbortError extends Error {
+  constructor() {
+    super('Dice 3D animation aborted');
+    this.name = 'Dice3DAbortError';
+  }
+}
+
+export function isDice3DAbortError(error: unknown): error is Dice3DAbortError {
+  return error instanceof Dice3DAbortError ||
+    (error instanceof Error && error.name === 'Dice3DAbortError');
+}
