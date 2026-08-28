@@ -19,6 +19,10 @@ alter table public.dice_formulas enable row level security;
 
 grant select, insert, update, delete on public.dice_formulas to authenticated;
 
+-- IMPORTANT: campaign members cannot SELECT the campaigns row itself because
+-- campaigns_select_own is owner-only. Membership therefore has to be checked
+-- as a sibling OR branch, not nested inside an EXISTS over campaigns.
+
 drop policy if exists "dice_formulas_select_own_campaign" on public.dice_formulas;
 create policy "dice_formulas_select_own_campaign"
 on public.dice_formulas
@@ -26,20 +30,20 @@ for select
 to authenticated
 using (
   owner_profile_id = (select auth.uid())
-  and exists (
-    select 1
-    from public.campaigns c
-    where c.id = dice_formulas.campaign_id
-      and c.deleted_at is null
-      and (
-        c.owner_profile_id = (select auth.uid())::text
-        or exists (
-          select 1
-          from public.campaign_members cm
-          where cm.campaign_id = c.id
-            and cm.profile_id = (select auth.uid())::text
-        )
-      )
+  and (
+    exists (
+      select 1
+      from public.campaigns c
+      where c.id = dice_formulas.campaign_id
+        and c.deleted_at is null
+        and c.owner_profile_id = (select auth.uid())::text
+    )
+    or exists (
+      select 1
+      from public.campaign_members cm
+      where cm.campaign_id = dice_formulas.campaign_id
+        and cm.profile_id = (select auth.uid())::text
+    )
   )
 );
 
@@ -50,20 +54,20 @@ for insert
 to authenticated
 with check (
   owner_profile_id = (select auth.uid())
-  and exists (
-    select 1
-    from public.campaigns c
-    where c.id = dice_formulas.campaign_id
-      and c.deleted_at is null
-      and (
-        c.owner_profile_id = (select auth.uid())::text
-        or exists (
-          select 1
-          from public.campaign_members cm
-          where cm.campaign_id = c.id
-            and cm.profile_id = (select auth.uid())::text
-        )
-      )
+  and (
+    exists (
+      select 1
+      from public.campaigns c
+      where c.id = dice_formulas.campaign_id
+        and c.deleted_at is null
+        and c.owner_profile_id = (select auth.uid())::text
+    )
+    or exists (
+      select 1
+      from public.campaign_members cm
+      where cm.campaign_id = dice_formulas.campaign_id
+        and cm.profile_id = (select auth.uid())::text
+    )
   )
 );
 
@@ -77,20 +81,20 @@ using (
 )
 with check (
   owner_profile_id = (select auth.uid())
-  and exists (
-    select 1
-    from public.campaigns c
-    where c.id = dice_formulas.campaign_id
-      and c.deleted_at is null
-      and (
-        c.owner_profile_id = (select auth.uid())::text
-        or exists (
-          select 1
-          from public.campaign_members cm
-          where cm.campaign_id = c.id
-            and cm.profile_id = (select auth.uid())::text
-        )
-      )
+  and (
+    exists (
+      select 1
+      from public.campaigns c
+      where c.id = dice_formulas.campaign_id
+        and c.deleted_at is null
+        and c.owner_profile_id = (select auth.uid())::text
+    )
+    or exists (
+      select 1
+      from public.campaign_members cm
+      where cm.campaign_id = dice_formulas.campaign_id
+        and cm.profile_id = (select auth.uid())::text
+    )
   )
 );
 
