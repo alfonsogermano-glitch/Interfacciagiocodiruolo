@@ -7,6 +7,7 @@ function read(path) {
 
 const registry = read('src/services/realtime/campaignChannel.ts');
 const session = read('src/app/components/session/dice/DiceSessionContext.tsx');
+const historyCard = read('src/app/components/session/dice/DiceRollHistoryCard.tsx');
 const helperPath = new URL('../src/services/realtime/diceRealtime.ts', import.meta.url);
 const helper = fs.existsSync(helperPath) ? fs.readFileSync(helperPath, 'utf8') : '';
 const relayPath = new URL('../supabase/functions/dice-secret-roll/index.ts', import.meta.url);
@@ -47,5 +48,9 @@ assert.ok(session.includes('seenRollIds'), 'DiceSessionContext must deduplicate 
 const clearBody = session.match(/const clearLocalHistory[\s\S]*?\n  }, \[\]\);/)?.[0] ?? '';
 assert.ok(clearBody, 'clearLocalHistory implementation not found');
 assert.ok(!/(send|httpSend|supabase)/.test(clearBody), 'Clear must remain local-only');
+
+assert.ok(historyCard.includes('EyeOff'), 'secret history cards must use the EyeOff icon');
+assert.ok(historyCard.includes("result.visibility === 'secret'"), 'secret indicator must be visibility-driven');
+assert.ok(historyCard.includes('Segreto'), 'secret history cards must be labeled Segreto');
 
 console.log('Dice realtime verification passed.');
