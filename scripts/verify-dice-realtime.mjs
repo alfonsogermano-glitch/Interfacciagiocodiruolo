@@ -9,6 +9,8 @@ const registry = read('src/services/realtime/campaignChannel.ts');
 const session = read('src/app/components/session/dice/DiceSessionContext.tsx');
 const helperPath = new URL('../src/services/realtime/diceRealtime.ts', import.meta.url);
 const helper = fs.existsSync(helperPath) ? fs.readFileSync(helperPath, 'utf8') : '';
+const relayPath = new URL('../supabase/functions/dice-secret-roll/index.ts', import.meta.url);
+const relay = fs.existsSync(relayPath) ? fs.readFileSync(relayPath, 'utf8') : '';
 
 for (const event of ['INSERT', 'UPDATE', 'DELETE', 'session_change', 'members_change', 'notes_change', 'dice_roll']) {
   assert.ok(registry.includes(`'${event}'`), `campaignChannel missing event ${event}`);
@@ -17,15 +19,24 @@ assert.ok(registry.includes('const registry = new Map'), 'campaign channel regis
 assert.ok(registry.includes('refCount'), 'campaign channel refCount must remain');
 assert.ok(registry.includes('useCampaignChannel'), 'public rolls must reuse useCampaignChannel');
 
-assert.ok(helper.includes('dice-gm:${campaignId}'), 'secret helper must target dice-gm:{campaignId}');
-assert.ok(helper.includes('private: true'), 'secret helper channel must be private');
-assert.ok(helper.includes("httpSend('dice_roll', result)"), 'secret helper must use httpSend');
-assert.ok(helper.includes('removeChannel(channel)'), 'secret send-only channel must always be removed');
-assert.ok(!/sendSecretRollToGm[\s\S]*?\.subscribe\(/.test(helper), 'secret send helper must never subscribe');
+assert.ok(helper.includes('dice-secret-roll'), 'secret helper must call the authenticated relay Edge Function');
+assert.ok(helper.includes('Authorization'), 'secret helper must authenticate the relay request');
 assert.ok(helper.includes('isRollResultPayload'), 'remote payloads must be validated');
+assert.ok(!helper.includes('dice-gm:'), 'player clients must not open a secret GM realtime topic');
+assert.ok(!helper.includes("httpSend('dice_roll'"), 'player clients must not broadcast secret payloads directly');
+
+assert.ok(relay.includes(".from('campaigns')"), 'relay must resolve the campaign owner');
+assert.ok(relay.includes(".from('campaign_members')"), 'relay must verify player membership');
+assert.ok(relay.includes("result.visibility !== 'secret'"), 'relay must reject non-secret payloads');
+assert.ok(relay.includes('result.rollerId !== user.id'), 'relay must bind roller identity to JWT user');
+assert.ok(relay.includes('owner_profile_id === user.id'), 'relay must reject GM secret network sends');
+assert.ok(relay.includes('profile:${ownerProfileId}'), 'relay must target only the GM personal realtime topic');
+assert.ok(relay.includes("httpSend('dice_roll', result)"), 'relay must broadcast the canonical result to the GM');
+assert.ok(!/\.from\(['\"]dice_(roll|history|results)/.test(relay), 'relay must not persist roll results');
 
 assert.ok(session.includes('useCampaignChannel'), 'DiceSessionContext must receive/send public campaign rolls');
-assert.ok(session.includes('useRealtimeChannel'), 'DiceSessionContext must subscribe to GM private topic');
+assert.ok(session.includes('useRealtimeChannel'), 'DiceSessionContext must subscribe to the GM personal topic');
+assert.ok(session.includes('profile:${user.id}'), 'GM secret reception must use the current GM personal topic');
 assert.ok(session.includes("dice_roll"), 'DiceSessionContext must handle dice_roll');
 assert.ok(session.includes('sendSecretRollToGm'), 'DiceSessionContext must route secret player rolls privately');
 assert.ok(session.includes('activeCampaign?.ownerId === user?.id'), 'DiceSessionContext must derive GM role from campaign owner');
