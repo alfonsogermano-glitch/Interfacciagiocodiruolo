@@ -43,7 +43,7 @@ function result(diceGroups: RollDiceGroup[]): RollResult {
 }
 
 assert.deepEqual(
-  projectRollTo3D(result([group('d20', 20, [{ face: 17 }, { face: 4 })])),
+  projectRollTo3D(result([group('d20', 20, [{ face: 17 }, { face: 4 }])])),
   [{ sides: 20, values: [17, 4], notation: '2d20@17,4' }],
 );
 
