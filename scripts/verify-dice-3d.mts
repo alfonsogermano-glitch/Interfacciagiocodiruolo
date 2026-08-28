@@ -61,10 +61,23 @@ const standard = projectRollTo3D(result([
   group('d20', 20, [{ face: 19 }]),
   group('d100', 100, [{ face: 73 }]),
 ]));
-assert.deepEqual(standard.map((chunk) => chunk.sides), [4, 6, 8, 10, 12, 20, 100]);
+assert.deepEqual(standard.map((chunk) => chunk.sides), [4, 6, 8, 10, 12, 20, 100, 10]);
 assert.deepEqual(standard.map((chunk) => chunk.notation), [
-  '1d4@3', '1d6@6', '1d8@7', '1d10@9', '1d12@11', '1d20@19', '1d100@73',
+  '1d4@3', '1d6@6', '1d8@7', '1d10@9', '1d12@11', '1d20@19', '1d100@70', '1d10@3',
 ]);
+
+const percentile = projectRollTo3D(result([
+  group('percentile', 100, [
+    { face: 73 },
+    { face: 7 },
+    { face: 20 },
+    { face: 100 },
+  ]),
+]));
+assert.deepEqual(percentile, [
+  { sides: 100, values: [70, 100, 20, 100], notation: '4d100@70,100,20,100' },
+  { sides: 10, values: [3, 7, 10, 10], notation: '4d10@3,7,10,10' },
+], 'd100 must render as percentile tens + units dice, including 00/0 edge cases');
 
 assert.deepEqual(
   projectRollTo3D(result([
@@ -101,6 +114,17 @@ if (typeof combineNotation === 'function') {
     '1d20+2d12+1d6@12,7,2,4',
     'mixed dice types must be rolled together in one deterministic 3D throw',
   );
+
+  const percentileWithNativeD10 = projectRollTo3D(result([
+    group('native-d10', 10, [{ face: 9 }]),
+    group('percentile-d100', 100, [{ face: 73 }]),
+    group('native-d6', 6, [{ face: 4 }]),
+  ]));
+  assert.equal(
+    combineNotation(percentileWithNativeD10),
+    '2d10+1d100+1d6@9,3,70,4',
+    'percentile unit dice must not shift predetermined outcomes when a real d10 is also present',
+  );
 }
 
 const renderer = read('src/app/components/session/dice/dice3dRenderer.ts');
@@ -111,7 +135,15 @@ const drawer = read('src/app/components/session/dice/DiceRollHistoryDrawer.tsx')
 assert.ok(renderer.includes("await import('@3d-dice/dice-box-threejs')"), '3D package must be lazy-loaded');
 assert.ok(!/^import\s+.*['\"]@3d-dice\/dice-box-threejs['\"]/m.test(renderer), '3D package must not be eagerly imported');
 assert.ok(renderer.includes('projectRollTo3D(result)'), 'renderer must use canonical roll projection');
-assert.ok(!renderer.includes('for (const chunk of chunks)'), 'mixed dice types must not be animated sequentially');
+assert.equal(
+  (renderer.match(/this\.box\.roll\(/g) ?? []).length,
+  1,
+  'renderer must issue exactly one 3D roll call per canonical result',
+);
+assert.ok(
+  !renderer.includes('this.box.roll(chunk.notation)'),
+  'mixed dice types must not be animated sequentially',
+);
 
 assert.ok(overlay.includes('data-dice-3d-overlay'), '3D overlay host marker missing');
 assert.ok(overlay.includes('pointer-events-none'), '3D overlay must not intercept pointer input');
