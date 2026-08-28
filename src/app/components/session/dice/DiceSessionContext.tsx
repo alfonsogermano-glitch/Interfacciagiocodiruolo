@@ -79,13 +79,12 @@ export function DiceSessionProvider({ children }: { children: React.ReactNode })
   const isGm = activeCampaign?.ownerId === user?.id;
 
   const revealRoll = useCallback((resultId: string) => {
-    let revealed = false;
-    setEntries((current) => current.map((entry) => {
-      if (entry.result.id !== resultId || entry.revealState === 'revealed') return entry;
-      revealed = true;
-      return { ...entry, revealState: 'revealed' };
-    }));
-    if (revealed) setHistoryOpen(true);
+    setEntries((current) => current.map((entry) =>
+      entry.result.id === resultId && entry.revealState !== 'revealed'
+        ? { ...entry, revealState: 'revealed' }
+        : entry,
+    ));
+    setHistoryOpen(true);
   }, []);
 
   const stopActiveAnimation = useCallback((revealInterrupted: boolean) => {
@@ -275,8 +274,9 @@ export function DiceSessionProvider({ children }: { children: React.ReactNode })
   }, [rolls, submitLocalRoll]);
 
   const clearLocalHistory = useCallback(() => {
+    stopActiveAnimation(false);
     setEntries([]);
-  }, []);
+  }, [stopActiveAnimation]);
 
   const value = useMemo<DiceSessionValue>(() => ({
     rolls,
