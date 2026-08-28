@@ -42,7 +42,7 @@ export async function sendSecretRollToGm(campaignId: string, result: RollResult)
 
   try {
     const response = await channel.httpSend('dice_roll', result);
-    if (!response.success) {
+    if (response.success === false) {
       throw new Error(`Secret dice broadcast failed: ${response.error}`);
     }
   } finally {
