@@ -92,6 +92,17 @@ const mixed = projectRollTo3D(result([
 ]));
 assert.deepEqual(mixed.map((chunk) => chunk.notation), ['1d20@12', '2d12@7,2', '1d6@4']);
 
+const rendererModule = await import('../src/app/components/session/dice/dice3dRenderer.ts');
+const combineNotation = (rendererModule as Record<string, unknown>).buildSimultaneousDice3DNotation;
+assert.equal(typeof combineNotation, 'function', 'mixed dice rolls must expose one combined predetermined notation');
+if (typeof combineNotation === 'function') {
+  assert.equal(
+    combineNotation(mixed),
+    '1d20+2d12+1d6@12,7,2,4',
+    'mixed dice types must be rolled together in one deterministic 3D throw',
+  );
+}
+
 const renderer = read('src/app/components/session/dice/dice3dRenderer.ts');
 const overlay = read('src/app/components/session/dice/Dice3DOverlay.tsx');
 const session = read('src/app/components/session/dice/DiceSessionContext.tsx');
@@ -100,7 +111,7 @@ const drawer = read('src/app/components/session/dice/DiceRollHistoryDrawer.tsx')
 assert.ok(renderer.includes("await import('@3d-dice/dice-box-threejs')"), '3D package must be lazy-loaded');
 assert.ok(!/^import\s+.*['\"]@3d-dice\/dice-box-threejs['\"]/m.test(renderer), '3D package must not be eagerly imported');
 assert.ok(renderer.includes('projectRollTo3D(result)'), 'renderer must use canonical roll projection');
-assert.ok(renderer.includes('chunk.notation'), 'renderer must roll predetermined notation');
+assert.ok(!renderer.includes('for (const chunk of chunks)'), 'mixed dice types must not be animated sequentially');
 
 assert.ok(overlay.includes('data-dice-3d-overlay'), '3D overlay host marker missing');
 assert.ok(overlay.includes('pointer-events-none'), '3D overlay must not intercept pointer input');
