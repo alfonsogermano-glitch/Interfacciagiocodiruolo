@@ -38,7 +38,7 @@ function percentileUnits(face: number): number {
  * into two physical dice: d100 for the tens digit and d10 for the units digit.
  */
 export function projectRollTo3D(result: RollResult): Dice3DProjectionChunk[] {
-  return result.diceGroups.flatMap((group) => {
+  return result.diceGroups.flatMap((group): Dice3DProjectionChunk[] => {
     if (!isSupportedSides(group.sides) || group.rolls.length === 0) return [];
 
     const values = group.rolls.map((die) => die.face);
