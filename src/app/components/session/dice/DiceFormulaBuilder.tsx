@@ -87,7 +87,7 @@ export function DiceFormulaBuilder({ items, itemErrors, onChange }: DiceFormulaB
               <Plus className="h-4 w-4" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" className="min-w-48">
+          <DropdownMenuContent align="center" className="z-[1000] min-w-48">
             <DropdownMenuItem onClick={() => append('compare')}>Compare</DropdownMenuItem>
             <DropdownMenuItem onClick={() => append('dice')}>Dice</DropdownMenuItem>
             <DropdownMenuItem onClick={() => append('drop')}>Drop</DropdownMenuItem>
