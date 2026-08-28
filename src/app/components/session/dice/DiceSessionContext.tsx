@@ -119,14 +119,19 @@ export function DiceSessionProvider({ children }: { children: React.ReactNode })
     void (async () => {
       try {
         await renderer.init(container);
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted) {
+          renderer.dispose();
+          return;
+        }
         await renderer.play(result, controller.signal);
         await delay(DICE_SETTLED_HOLD_MS, controller.signal);
         if (controller.signal.aborted || activeAnimationRollIdRef.current !== result.id) return;
         revealRoll(result.id);
         renderer.clear();
       } catch (error) {
-        if (!isAbortError(error) && activeAnimationRollIdRef.current === result.id) {
+        if (isAbortError(error)) {
+          renderer.dispose();
+        } else if (activeAnimationRollIdRef.current === result.id) {
           console.error('Animazione dadi 3D non disponibile:', error);
           revealRoll(result.id);
           renderer.clear();
