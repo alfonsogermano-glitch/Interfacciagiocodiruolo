@@ -3,6 +3,9 @@ import { MessageSquare, FileText, StickyNote, Dices } from 'lucide-react';
 import { SlideOverPanel } from './SlideOverPanel';
 import { SessionCharactersPanel } from './SessionCharactersPanel';
 import { SessionNotesPanel } from './SessionNotesPanel';
+import { SessionDicePanel } from './dice/SessionDicePanel';
+import { DiceRollHistoryDrawer } from './dice/DiceRollHistoryDrawer';
+import { DiceSessionProvider } from './dice/DiceSessionContext';
 import type { SessionEntityOpenRequest } from '../../campaigns/CampaignHome';
 import './sessionPanelResize.css';
 
@@ -12,7 +15,7 @@ const ICONS: { id: SessionPanelId; label: string; icon: typeof FileText; enabled
   { id: 'chat', label: 'Chat', icon: MessageSquare, enabled: false },
   { id: 'characters', label: 'Schede', icon: FileText, enabled: true },
   { id: 'notes', label: 'Note', icon: StickyNote, enabled: true },
-  { id: 'dice', label: 'Dadi', icon: Dices, enabled: false },
+  { id: 'dice', label: 'Dadi', icon: Dices, enabled: true },
 ];
 
 const NOTES_PANEL_STORAGE_KEY = 'hollowgate.notes.panel-width';
@@ -335,48 +338,53 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
     openPanel === 'notes' ? notesPanelResizeHandle : openPanel === 'characters' ? charactersPanelResizeHandle : undefined;
 
   return (
-    <>
-      <aside className="relative z-[950] flex h-full w-20 shrink-0 flex-col items-center gap-1 border-l border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
-        {ICONS.map(({ id, label, icon: Icon, enabled }) => (
-          <button
-            key={id}
-            type="button"
-            disabled={!enabled}
-            onClick={() => enabled && togglePanel(id)}
-            aria-label={label}
-            className={`flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2 text-center text-[11px] transition-colors ${
-              openPanel === id
-                ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
-                : enabled
-                  ? 'text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]'
-                  : 'text-[var(--dash-muted)] opacity-40 cursor-not-allowed'
-            }`}
-          >
-            <Icon className="h-[18px] w-[18px]" />
-            {label}
-          </button>
-        ))}
-      </aside>
+    <DiceSessionProvider>
+      <>
+        <aside className="relative z-[950] flex h-full w-20 shrink-0 flex-col items-center gap-1 border-l border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
+          {ICONS.map(({ id, label, icon: Icon, enabled }) => (
+            <button
+              key={id}
+              type="button"
+              disabled={!enabled}
+              onClick={() => enabled && togglePanel(id)}
+              aria-label={label}
+              className={`flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2 text-center text-[11px] transition-colors ${
+                openPanel === id
+                  ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
+                  : enabled
+                    ? 'text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]'
+                    : 'text-[var(--dash-muted)] opacity-40 cursor-not-allowed'
+              }`}
+            >
+              <Icon className="h-[18px] w-[18px]" />
+              {label}
+            </button>
+          ))}
+        </aside>
 
-      <SlideOverPanel
-        isOpen={openPanel !== null}
-        onClose={() => setOpenPanel(null)}
-        widthClassName={resizablePanelOpen ? 'max-w-none' : undefined}
-        panelWidth={activePanelWidth}
-        leftResizeHandle={activePanelResizeHandle}
-      >
-        {openPanel === 'characters' && (
-          <div
-            data-session-characters-resizable="true"
-            className="relative h-full min-h-0 overflow-hidden"
-            style={{ '--characters-list-width': `${charactersSidebarWidth}px` } as CSSProperties}
-          >
-            <SessionCharactersPanel initialSelection={openCharacterRequest} />
-            {charactersSidebarResizeHandle}
-          </div>
-        )}
-        {openPanel === 'notes' && <SessionNotesPanel />}
-      </SlideOverPanel>
-    </>
+        <SlideOverPanel
+          isOpen={openPanel !== null}
+          onClose={() => setOpenPanel(null)}
+          widthClassName={resizablePanelOpen ? 'max-w-none' : undefined}
+          panelWidth={activePanelWidth}
+          leftResizeHandle={activePanelResizeHandle}
+        >
+          {openPanel === 'characters' && (
+            <div
+              data-session-characters-resizable="true"
+              className="relative h-full min-h-0 overflow-hidden"
+              style={{ '--characters-list-width': `${charactersSidebarWidth}px` } as CSSProperties}
+            >
+              <SessionCharactersPanel initialSelection={openCharacterRequest} />
+              {charactersSidebarResizeHandle}
+            </div>
+          )}
+          {openPanel === 'notes' && <SessionNotesPanel />}
+          {openPanel === 'dice' && <SessionDicePanel />}
+        </SlideOverPanel>
+
+        <DiceRollHistoryDrawer />
+      </>
+    </DiceSessionProvider>
   );
 }
