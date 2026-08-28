@@ -4,8 +4,22 @@ import { useAuth } from '../../../auth/AuthContext';
 import { useCampaign } from '../../../campaigns/CampaignContext';
 import { useCampaignChannel, useRealtimeChannel } from '../../../../services/realtime/campaignChannel';
 import { isRollResultPayload, sendSecretRollToGm } from '../../../../services/realtime/diceRealtime';
+import { HollowgateDice3DRenderer } from './dice3dRenderer.ts';
+import { projectRollTo3D } from './dice3dProjection.ts';
+import { isDice3DAbortError } from './dice3dTypes.ts';
 import { rollDiceFormula } from './diceEngine.ts';
 import type { DiceRollRequest, RollResult } from './diceTypes.ts';
+
+const DICE_3D_ENABLED_KEY = 'hollowgate.dice.3d-enabled';
+const DICE_SETTLED_HOLD_MS = 1000;
+
+type RevealState = 'pending' | 'animating' | 'revealed';
+
+interface SessionRollEntry {
+  result: RollResult;
+  revealState: RevealState;
+  receivedAt: number;
+}
 
 interface DiceSessionValue {
   rolls: RollResult[];
@@ -14,31 +28,158 @@ interface DiceSessionValue {
   clearLocalHistory: () => void;
   historyOpen: boolean;
   setHistoryOpen: (open: boolean) => void;
+  animationsEnabled: boolean;
+  setAnimationsEnabled: (enabled: boolean) => void;
+  setAnimationContainer: (container: HTMLElement | null) => void;
 }
 
 const DiceSessionContext = createContext<DiceSessionValue | null>(null);
 
+function readAnimationsEnabled(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    return window.localStorage.getItem(DICE_3D_ENABLED_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+function delay(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'));
+      return;
+    }
+    const timeout = window.setTimeout(resolve, ms);
+    signal.addEventListener('abort', () => {
+      window.clearTimeout(timeout);
+      reject(new DOMException('Aborted', 'AbortError'));
+    }, { once: true });
+  });
+}
+
+function isAbortError(error: unknown): boolean {
+  return isDice3DAbortError(error) ||
+    (error instanceof DOMException && error.name === 'AbortError') ||
+    (error instanceof Error && error.name === 'AbortError');
+}
+
 export function DiceSessionProvider({ children }: { children: React.ReactNode }) {
   const { user, session } = useAuth();
   const { activeCampaign } = useCampaign();
-  const [rolls, setRolls] = useState<RollResult[]>([]);
+  const [entries, setEntries] = useState<SessionRollEntry[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [animationsEnabledState, setAnimationsEnabledState] = useState(readAnimationsEnabled);
+  const animationsEnabledRef = useRef(animationsEnabledState);
   const seenRollIds = useRef(new Set<string>());
+  const animationContainerRef = useRef<HTMLElement | null>(null);
+  const rendererRef = useRef<HollowgateDice3DRenderer | null>(null);
+  const activeAnimationRollIdRef = useRef<string | null>(null);
+  const activeAbortControllerRef = useRef<AbortController | null>(null);
   const isGm = activeCampaign?.ownerId === user?.id;
+
+  const revealRoll = useCallback((resultId: string) => {
+    let revealed = false;
+    setEntries((current) => current.map((entry) => {
+      if (entry.result.id !== resultId || entry.revealState === 'revealed') return entry;
+      revealed = true;
+      return { ...entry, revealState: 'revealed' };
+    }));
+    if (revealed) setHistoryOpen(true);
+  }, []);
+
+  const stopActiveAnimation = useCallback((revealInterrupted: boolean) => {
+    const activeId = activeAnimationRollIdRef.current;
+    if (revealInterrupted && activeId) revealRoll(activeId);
+    activeAbortControllerRef.current?.abort();
+    activeAbortControllerRef.current = null;
+    activeAnimationRollIdRef.current = null;
+    rendererRef.current?.dispose();
+    rendererRef.current = null;
+  }, [revealRoll]);
+
+  const playAnimation = useCallback((result: RollResult) => {
+    const container = animationContainerRef.current;
+    if (!animationsEnabledRef.current || !container || projectRollTo3D(result).length === 0) {
+      revealRoll(result.id);
+      return;
+    }
+
+    // No queue: the newest roll always replaces the current folklore animation.
+    stopActiveAnimation(true);
+
+    const controller = new AbortController();
+    const renderer = new HollowgateDice3DRenderer();
+    activeAnimationRollIdRef.current = result.id;
+    activeAbortControllerRef.current = controller;
+    rendererRef.current = renderer;
+    setEntries((current) => current.map((entry) =>
+      entry.result.id === result.id ? { ...entry, revealState: 'animating' } : entry,
+    ));
+
+    void (async () => {
+      try {
+        await renderer.init(container);
+        if (controller.signal.aborted) return;
+        await renderer.play(result, controller.signal);
+        await delay(DICE_SETTLED_HOLD_MS, controller.signal);
+        if (controller.signal.aborted || activeAnimationRollIdRef.current !== result.id) return;
+        revealRoll(result.id);
+        renderer.clear();
+      } catch (error) {
+        if (!isAbortError(error) && activeAnimationRollIdRef.current === result.id) {
+          console.error('Animazione dadi 3D non disponibile:', error);
+          revealRoll(result.id);
+          renderer.clear();
+        }
+      } finally {
+        if (activeAnimationRollIdRef.current === result.id) {
+          activeAnimationRollIdRef.current = null;
+          activeAbortControllerRef.current = null;
+        }
+      }
+    })();
+  }, [revealRoll, stopActiveAnimation]);
 
   const ingestRoll = useCallback((result: RollResult): boolean => {
     if (seenRollIds.current.has(result.id)) return false;
     seenRollIds.current.add(result.id);
-    setRolls((current) => [...current, result]);
-    setHistoryOpen(true);
+    setEntries((current) => [
+      ...current,
+      { result, revealState: 'pending', receivedAt: Date.now() },
+    ]);
+    playAnimation(result);
     return true;
-  }, []);
+  }, [playAnimation]);
+
+  const setAnimationContainer = useCallback((container: HTMLElement | null) => {
+    animationContainerRef.current = container;
+    if (!container) stopActiveAnimation(true);
+  }, [stopActiveAnimation]);
+
+  const setAnimationsEnabled = useCallback((enabled: boolean) => {
+    animationsEnabledRef.current = enabled;
+    setAnimationsEnabledState(enabled);
+    try {
+      window.localStorage.setItem(DICE_3D_ENABLED_KEY, String(enabled));
+    } catch {
+      // Preference persistence is optional; rolling must keep working.
+    }
+    if (!enabled) stopActiveAnimation(true);
+  }, [stopActiveAnimation]);
 
   useEffect(() => {
+    animationsEnabledRef.current = animationsEnabledState;
+  }, [animationsEnabledState]);
+
+  useEffect(() => {
+    stopActiveAnimation(false);
     seenRollIds.current.clear();
-    setRolls([]);
+    setEntries([]);
     setHistoryOpen(false);
-  }, [activeCampaign?.id]);
+  }, [activeCampaign?.id, stopActiveAnimation]);
+
+  useEffect(() => () => stopActiveAnimation(false), [stopActiveAnimation]);
 
   const publicChannel = useCampaignChannel(activeCampaign?.id, {
     onBroadcast: {
@@ -116,6 +257,11 @@ export function DiceSessionProvider({ children }: { children: React.ReactNode })
     return result;
   }, [buildResult, dispatchRoll, ingestRoll]);
 
+  const rolls = useMemo(
+    () => entries.filter((entry) => entry.revealState === 'revealed').map((entry) => entry.result),
+    [entries],
+  );
+
   const reroll = useCallback((resultId: string): RollResult | null => {
     const previous = rolls.find((roll) => roll.id === resultId);
     if (!previous) return null;
@@ -129,7 +275,7 @@ export function DiceSessionProvider({ children }: { children: React.ReactNode })
   }, [rolls, submitLocalRoll]);
 
   const clearLocalHistory = useCallback(() => {
-    setRolls([]);
+    setEntries([]);
   }, []);
 
   const value = useMemo<DiceSessionValue>(() => ({
@@ -139,7 +285,19 @@ export function DiceSessionProvider({ children }: { children: React.ReactNode })
     clearLocalHistory,
     historyOpen,
     setHistoryOpen,
-  }), [rolls, submitLocalRoll, reroll, clearLocalHistory, historyOpen]);
+    animationsEnabled: animationsEnabledState,
+    setAnimationsEnabled,
+    setAnimationContainer,
+  }), [
+    rolls,
+    submitLocalRoll,
+    reroll,
+    clearLocalHistory,
+    historyOpen,
+    animationsEnabledState,
+    setAnimationsEnabled,
+    setAnimationContainer,
+  ]);
 
   return (
     <DiceSessionContext.Provider value={value}>
