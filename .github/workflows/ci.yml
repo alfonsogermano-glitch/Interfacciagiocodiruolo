@@ -16,6 +16,16 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Generate dice 3D lockfile
+        if: github.ref == 'refs/heads/feat/dice-system'
+        run: npm install --package-lock-only --ignore-scripts --save-exact @3d-dice/dice-box-threejs@0.0.12
+      - name: Upload dice 3D lockfile
+        if: github.ref == 'refs/heads/feat/dice-system'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hollowgate-dice-3d-lockfile
+          path: package-lock.json
+          retention-days: 1
       - run: npm ci
       - name: Pack local workspace
         if: github.event_name == 'pull_request' && github.head_ref == 'feature/note-tables'
