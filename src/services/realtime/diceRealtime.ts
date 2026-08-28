@@ -1,5 +1,7 @@
-import { supabase } from '../../app/auth/AuthContext';
+import { projectId } from '/utils/supabase/info';
 import type { RollResult } from '../../app/components/session/dice/diceTypes.ts';
+
+const SECRET_DICE_RELAY_URL = `https://${projectId}.supabase.co/functions/v1/dice-secret-roll`;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -34,18 +36,28 @@ export function isRollResultPayload(value: unknown): value is RollResult {
   return true;
 }
 
-export async function sendSecretRollToGm(campaignId: string, result: RollResult): Promise<void> {
-  await supabase.realtime.setAuth();
-  const channel = supabase.channel(`dice-gm:${campaignId}`, {
-    config: { private: true },
+export async function sendSecretRollToGm(
+  campaignId: string,
+  result: RollResult,
+  accessToken: string,
+): Promise<void> {
+  const response = await fetch(SECRET_DICE_RELAY_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ campaignId, result }),
   });
 
-  try {
-    const response = await channel.httpSend('dice_roll', result);
-    if (response.success === false) {
-      throw new Error(`Secret dice broadcast failed: ${response.error}`);
+  if (!response.ok) {
+    let detail = '';
+    try {
+      const data = await response.json();
+      detail = typeof data?.error === 'string' ? `: ${data.error}` : '';
+    } catch {
+      // La risposta HTTP è già sufficiente per segnalare l'errore.
     }
-  } finally {
-    await supabase.removeChannel(channel);
+    throw new Error(`Secret dice relay failed (${response.status})${detail}`);
   }
 }
