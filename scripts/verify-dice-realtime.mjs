@@ -29,7 +29,7 @@ assert.ok(relay.includes(".from('campaigns')"), 'relay must resolve the campaign
 assert.ok(relay.includes(".from('campaign_members')"), 'relay must verify player membership');
 assert.ok(relay.includes("result.visibility !== 'secret'"), 'relay must reject non-secret payloads');
 assert.ok(relay.includes('result.rollerId !== user.id'), 'relay must bind roller identity to JWT user');
-assert.ok(relay.includes('owner_profile_id === user.id'), 'relay must reject GM secret network sends');
+assert.ok(relay.includes('ownerProfileId === user.id'), 'relay must reject GM secret network sends');
 assert.ok(relay.includes('profile:${ownerProfileId}'), 'relay must target only the GM personal realtime topic');
 assert.ok(relay.includes("httpSend('dice_roll', result)"), 'relay must broadcast the canonical result to the GM');
 assert.ok(!/\.from\(['\"]dice_(roll|history|results)/.test(relay), 'relay must not persist roll results');
