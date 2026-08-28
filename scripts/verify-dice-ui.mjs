@@ -14,6 +14,11 @@ const sidebar = read('src/app/components/session/SessionRightSidebar.tsx');
 
 assert.match(toolbar, /QUICK_DICE_SIDES\s*=\s*\[4, 6, 8, 10, 12, 20, 100\]/);
 assert.ok(builder.includes('data-dice-modifier-add'));
+assert.match(
+  builder,
+  /<DropdownMenuContent[^>]*className="[^"]*z-\[1000\][^"]*"/,
+  'dice modifier menu must render above the z-[900] dice slide-over panel',
+);
 for (const family of ['compare', 'dice', 'drop', 'exploding', 'keep', 'modifier']) {
   assert.ok(builder.includes(`append('${family}')`), `Missing modifier menu family: ${family}`);
 }
