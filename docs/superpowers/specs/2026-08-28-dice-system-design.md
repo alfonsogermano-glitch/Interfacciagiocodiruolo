@@ -242,9 +242,9 @@ Nuova tabella Supabase proposta:
 
 ```sql
 dice_formulas (
-  id uuid primary key,
+  id uuid primary key default gen_random_uuid(),
   campaign_id uuid not null references campaigns(id) on delete cascade,
-  owner_profile_id text not null references profiles(id) on delete cascade,
+  owner_profile_id uuid not null references profiles(id) on delete cascade,
   name text not null,
   items jsonb not null,
   is_secret boolean not null default false,
@@ -252,6 +252,8 @@ dice_formulas (
   updated_at timestamptz not null default now()
 )
 ```
+
+`profiles.id` e' `uuid` nel database di produzione; per questo `owner_profile_id` e' `uuid`. Le tabelle storiche `campaigns.owner_profile_id` e `campaign_members.profile_id` restano `text` e nei relativi controlli vengono confrontate con `auth.uid()::text` come gia' avviene nelle policy esistenti.
 
 RLS:
 
