@@ -22,9 +22,25 @@ function throwIfAborted(signal: AbortSignal) {
 export function buildSimultaneousDice3DNotation(chunks: Dice3DProjectionChunk[]): string | null {
   if (chunks.length === 0) return null;
 
-  const diceSets = chunks.map((chunk) => `${chunk.values.length}d${chunk.sides}`);
-  const values = chunks.flatMap((chunk) => chunk.values);
-  if (values.length === 0) return null;
+  // DiceNotation merges repeated sets of the same die type. Mirror that here
+  // before flattening forced values so their positions always stay aligned,
+  // including percentile d100 unit dice mixed with ordinary d10 rolls.
+  const grouped = new Map<number, number[]>();
+  for (const chunk of chunks) {
+    if (chunk.values.length === 0) continue;
+    const values = grouped.get(chunk.sides);
+    if (values) values.push(...chunk.values);
+    else grouped.set(chunk.sides, [...chunk.values]);
+  }
+
+  if (grouped.size === 0) return null;
+
+  const diceSets: string[] = [];
+  const values: number[] = [];
+  for (const [sides, faces] of grouped) {
+    diceSets.push(`${faces.length}d${sides}`);
+    values.push(...faces);
+  }
 
   return `${diceSets.join('+')}@${values.join(',')}`;
 }
