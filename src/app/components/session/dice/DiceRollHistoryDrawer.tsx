@@ -10,6 +10,8 @@ export function DiceRollHistoryDrawer() {
     clearLocalHistory,
     historyOpen,
     setHistoryOpen,
+    animationsEnabled,
+    setAnimationsEnabled,
   } = useDiceSession();
 
   const drawer = !historyOpen ? (
@@ -38,6 +40,20 @@ export function DiceRollHistoryDrawer() {
           )}
         </div>
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            data-dice-3d-toggle
+            aria-pressed={animationsEnabled}
+            onClick={() => setAnimationsEnabled(!animationsEnabled)}
+            title="Animazione dadi 3D"
+            className={`rounded-md px-2 py-1.5 text-[11px] font-semibold transition-colors ${
+              animationsEnabled
+                ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
+                : 'bg-[var(--dash-surface-2)] text-[var(--dash-muted)]'
+            }`}
+          >
+            3D {animationsEnabled ? 'ON' : 'OFF'}
+          </button>
           <button
             type="button"
             data-dice-history-clear
