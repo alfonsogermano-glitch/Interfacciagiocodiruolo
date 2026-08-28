@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { projectRollTo3D } from '../src/app/components/session/dice/dice3dProjection.ts';
 import type { RollDiceGroup, RollResult } from '../src/app/components/session/dice/diceTypes.ts';
+
+function read(path: string): string {
+  return fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+}
 
 function group(itemId: string, sides: number, faces: Array<{ face: number; contribution?: number; active?: boolean; source?: 'base' | 'explosion' }>): RollDiceGroup {
   const rolls = faces.map((entry, index) => ({
@@ -87,4 +92,29 @@ const mixed = projectRollTo3D(result([
 ]));
 assert.deepEqual(mixed.map((chunk) => chunk.notation), ['1d20@12', '2d12@7,2', '1d6@4']);
 
-console.log('Dice 3D projection verification passed.');
+const renderer = read('src/app/components/session/dice/dice3dRenderer.ts');
+const overlay = read('src/app/components/session/dice/Dice3DOverlay.tsx');
+const session = read('src/app/components/session/dice/DiceSessionContext.tsx');
+const drawer = read('src/app/components/session/dice/DiceRollHistoryDrawer.tsx');
+
+assert.ok(renderer.includes("await import('@3d-dice/dice-box-threejs')"), '3D package must be lazy-loaded');
+assert.ok(!/^import\s+.*['\"]@3d-dice\/dice-box-threejs['\"]/m.test(renderer), '3D package must not be eagerly imported');
+assert.ok(renderer.includes('projectRollTo3D(result)'), 'renderer must use canonical roll projection');
+assert.ok(renderer.includes('chunk.notation'), 'renderer must roll predetermined notation');
+
+assert.ok(overlay.includes('data-dice-3d-overlay'), '3D overlay host marker missing');
+assert.ok(overlay.includes('pointer-events-none'), '3D overlay must not intercept pointer input');
+assert.ok(overlay.includes('fixed inset-0'), '3D overlay must cover the session viewport');
+
+for (const revealState of ['pending', 'animating', 'revealed']) {
+  assert.ok(session.includes(`'${revealState}'`), `missing reveal state ${revealState}`);
+}
+assert.ok(session.includes('stopActiveAnimation(true)'), 'new rolls must interrupt/reveal the previous animation');
+assert.ok(session.includes('DICE_SETTLED_HOLD_MS = 1000'), 'settled dice should remain visible before reveal');
+assert.ok(session.includes("hollowgate.dice.3d-enabled"), '3D preference key missing');
+assert.ok(session.includes("entry.revealState === 'revealed'"), 'history must expose only revealed roll results');
+assert.ok(session.includes('renderer.dispose();'), 'aborted renderer must be disposed');
+assert.ok(drawer.includes('data-dice-3d-toggle'), '3D on/off control missing');
+assert.ok(drawer.includes('<Dice3DOverlay />'), '3D overlay must remain mounted with the session roll UI');
+
+console.log('Dice 3D verification passed.');
