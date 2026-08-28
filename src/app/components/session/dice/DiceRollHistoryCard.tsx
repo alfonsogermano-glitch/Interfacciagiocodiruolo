@@ -1,4 +1,4 @@
-import { Dices, RotateCcw } from 'lucide-react';
+import { Dices, EyeOff, RotateCcw } from 'lucide-react';
 import type { RollComparisonResult, RollResult } from './diceTypes.ts';
 
 function CompareOutcome({ result }: { result: RollComparisonResult }) {
@@ -54,7 +54,19 @@ export function DiceRollHistoryCard({ result, onReroll }: DiceRollHistoryCardPro
               <div className="truncate text-sm font-semibold text-[var(--dash-text-strong)]">
                 {result.rollerName}
               </div>
-              <div className="truncate text-xs text-[var(--dash-muted)]">{result.formulaName}</div>
+              <div className="flex min-w-0 items-center gap-2">
+                <div className="truncate text-xs text-[var(--dash-muted)]">{result.formulaName}</div>
+                {result.visibility === 'secret' && (
+                  <span
+                    data-dice-roll-secret
+                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--dash-border)] bg-[var(--dash-input)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--dash-muted)]"
+                    title="Tiro segreto"
+                  >
+                    <EyeOff className="h-3 w-3" />
+                    Segreto
+                  </span>
+                )}
+              </div>
             </div>
             <div className="text-right">
               <div className="text-[10px] uppercase tracking-wide text-[var(--dash-muted)]">Totale</div>
