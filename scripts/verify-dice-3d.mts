@@ -135,7 +135,15 @@ const drawer = read('src/app/components/session/dice/DiceRollHistoryDrawer.tsx')
 assert.ok(renderer.includes("await import('@3d-dice/dice-box-threejs')"), '3D package must be lazy-loaded');
 assert.ok(!/^import\s+.*['\"]@3d-dice\/dice-box-threejs['\"]/m.test(renderer), '3D package must not be eagerly imported');
 assert.ok(renderer.includes('projectRollTo3D(result)'), 'renderer must use canonical roll projection');
-assert.ok(!renderer.includes('for (const chunk of chunks)'), 'mixed dice types must not be animated sequentially');
+assert.equal(
+  (renderer.match(/this\.box\.roll\(/g) ?? []).length,
+  1,
+  'renderer must issue exactly one 3D roll call per canonical result',
+);
+assert.ok(
+  !renderer.includes('this.box.roll(chunk.notation)'),
+  'mixed dice types must not be animated sequentially',
+);
 
 assert.ok(overlay.includes('data-dice-3d-overlay'), '3D overlay host marker missing');
 assert.ok(overlay.includes('pointer-events-none'), '3D overlay must not intercept pointer input');
