@@ -11,6 +11,7 @@ const row = read('src/app/components/session/dice/DiceFormulaRow.tsx');
 const panel = read('src/app/components/session/dice/SessionDicePanel.tsx');
 const saved = read('src/app/components/session/dice/SavedDiceFormulaCard.tsx');
 const sidebar = read('src/app/components/session/SessionRightSidebar.tsx');
+const historyDrawer = read('src/app/components/session/dice/DiceRollHistoryDrawer.tsx');
 const historyCard = read('src/app/components/session/dice/DiceRollHistoryCard.tsx');
 const summary = read('src/app/components/session/dice/diceResultSummary.ts');
 
@@ -44,7 +45,17 @@ assert.match(sidebar, /id: 'dice',[\s\S]*?enabled: true/);
 assert.ok(sidebar.includes('SessionDicePanel'));
 assert.ok(sidebar.includes('DiceSessionProvider'));
 assert.ok(sidebar.includes('DiceRollHistoryDrawer'));
+assert.ok(historyDrawer.includes("import { useEffect, useRef } from 'react'"), 'dice history must use React hooks for autoscroll');
+assert.ok(historyDrawer.includes('const scrollContainerRef = useRef<HTMLDivElement>(null);'), 'dice history must keep a ref to its scroll container');
+assert.ok(historyDrawer.includes('data-dice-history-scroll'), 'dice history must expose its scroll container');
+assert.ok(historyDrawer.includes('scrollContainer.scrollTop = scrollContainer.scrollHeight;'), 'new dice rolls must scroll the history to the newest result');
+assert.ok(historyDrawer.includes('[historyOpen, rolls.length]'), 'autoscroll must run when history opens or a roll is appended');
+assert.ok(historyDrawer.includes('max-h-[58vh]'), 'dice history must use the compact max height');
+assert.ok(historyDrawer.includes('w-[min(22rem,calc(100vw-8rem))]'), 'dice history must use the compact width');
 assert.ok(historyCard.includes('formatPrimaryRollResult(result)'), 'history must use the Keep-aware result summary');
+assert.ok(historyCard.includes('p-2 shadow-md'), 'dice history cards must use compact padding');
+assert.ok(historyCard.includes('h-7 w-7'), 'dice history avatar must use the compact size');
+assert.ok(historyCard.includes('text-lg font-bold'), 'dice history primary result must use the compact size');
 assert.ok(summary.includes("item.kind === 'keep'"), 'Keep presence must control N (total) formatting');
 assert.ok(summary.includes('die.active && die.keepMatched === true'), 'Keep count must include only final active Keep matches');
 
