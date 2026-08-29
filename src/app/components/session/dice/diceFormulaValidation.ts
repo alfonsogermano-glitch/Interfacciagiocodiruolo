@@ -55,14 +55,23 @@ export function validateDiceFormula(items: readonly DiceFormulaItem[]): DiceForm
         break;
       }
 
-      case 'keep':
-      case 'drop': {
+      case 'keep': {
         if (!activeDiceGroup) {
+          addIssue('missing_active_dice_group', 'Keep richiede un gruppo di dadi attivo.', item.id);
+        }
+        if (!isPositiveInteger(item.count)) {
           addIssue(
-            'missing_active_dice_group',
-            `${item.kind === 'keep' ? 'Keep' : 'Drop'} richiede un gruppo di dadi attivo.`,
+            'invalid_keep_threshold',
+            'La soglia Keep deve essere un intero maggiore o uguale a 1.',
             item.id,
           );
+        }
+        break;
+      }
+
+      case 'drop': {
+        if (!activeDiceGroup) {
+          addIssue('missing_active_dice_group', 'Drop richiede un gruppo di dadi attivo.', item.id);
         }
         if (!isPositiveInteger(item.count)) {
           addIssue(
