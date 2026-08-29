@@ -343,7 +343,18 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
           (id) => id !== activeCampaign.ownerId && !knownIds.has(id)
         );
 
+        const gmAssignedCharacters = (charsByOwner.get(activeCampaign.ownerId) ?? [])
+          .filter((ch) => !ch.availableForPlayers);
+
         setPlayerRows([
+          ...(gmAssignedCharacters.length > 0
+            ? [{
+                profileId: activeCampaign.ownerId,
+                displayName: memberNamesData.ownerDisplayName ?? 'Game Master',
+                joinedAt: null,
+                characters: gmAssignedCharacters,
+              }]
+            : []),
           ...members.map((m) => ({ profileId: m.profileId, displayName: m.displayName, joinedAt: m.joinedAt, characters: charsByOwner.get(m.profileId) ?? [] })),
           ...orphanOwnerIds.map((id) => ({ profileId: id, displayName: null, joinedAt: null, characters: charsByOwner.get(id) ?? [] })),
         ]);
@@ -786,7 +797,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     try {
       const accessToken = session?.access_token ?? publicAnonKey;
       await setCharacterAvailableForPlayers(ch.id, nextAvailable, SERVER_BASE, accessToken);
-      if (!nextAvailable) setPlayersReloadToken((t) => t + 1);
+      setPlayersReloadToken((t) => t + 1);
     } catch (err) {
       console.error('Errore aggiornamento disponibilità personaggio:', err);
       setAvailablePremades((prev) => prev.map((c) => (c.id === ch.id ? ch : c)));
@@ -1028,7 +1039,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       });
     }
 
-    if (isOwner && row) {
+    if (isOwner && row && row.profileId !== activeCampaign?.ownerId) {
       items.push({
         key: 'remove-player',
         icon: <Users className="h-4 w-4" />,
