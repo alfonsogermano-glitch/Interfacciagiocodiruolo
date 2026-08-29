@@ -25,6 +25,18 @@ assert.ok(helper.includes('Authorization'), 'secret helper must authenticate the
 assert.ok(helper.includes('isRollResultPayload'), 'remote payloads must be validated');
 assert.ok(!helper.includes('dice-gm:'), 'player clients must not open a secret GM realtime topic');
 assert.ok(!helper.includes("httpSend('dice_roll'"), 'player clients must not broadcast secret payloads directly');
+for (const token of ['keepMatched', 'groupItemId', 'scope']) {
+  assert.ok(helper.includes(token), `client RollResult validator must validate ${token}`);
+  assert.ok(relay.includes(token), `secret relay RollResult validator must validate ${token}`);
+}
+assert.ok(
+  helper.includes("value.scope !== 'dice' && value.scope !== 'total'"),
+  'client validator must reject unknown arithmetic scopes',
+);
+assert.ok(
+  relay.includes("value.scope !== 'dice' && value.scope !== 'total'"),
+  'secret relay validator must reject unknown arithmetic scopes',
+);
 
 assert.ok(relay.includes(".from('campaigns')"), 'relay must resolve the campaign owner');
 assert.ok(relay.includes(".from('campaign_members')"), 'relay must verify player membership');
@@ -44,6 +56,7 @@ assert.ok(session.includes('activeCampaign?.ownerId === user?.id'), 'DiceSession
 assert.ok(session.includes("visibility === 'public'"), 'public transport must enforce public visibility');
 assert.ok(session.includes("visibility === 'secret'"), 'secret transport must enforce secret visibility');
 assert.ok(session.includes('seenRollIds'), 'DiceSessionContext must deduplicate by result id');
+assert.ok(session.includes('previous.sourceItems.map'), 'reroll must continue rebuilding from canonical sourceItems');
 
 const clearStart = session.indexOf('const clearLocalHistory = useCallback(() => {');
 const clearEnd = clearStart >= 0 ? session.indexOf('\n  }, [', clearStart) : -1;

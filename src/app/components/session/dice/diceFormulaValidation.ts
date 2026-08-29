@@ -126,8 +126,6 @@ export function validateDiceFormula(items: readonly DiceFormulaItem[]): DiceForm
         if (item.operation === 'divide' && item.value === 0) {
           addIssue('division_by_zero', 'Non e possibile dividere per zero.', item.id);
         }
-        activeDiceGroup = false;
-        explodingSeenInGroup = false;
         break;
       }
     }

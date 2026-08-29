@@ -2,6 +2,8 @@ import { formatDiceFormula } from './diceFormulaText.ts';
 import { validateDiceFormula } from './diceFormulaValidation.ts';
 import type {
   DiceFormulaItem,
+  DiceKeepWhich,
+  DiceModifierOperation,
   DiceRng,
   DiceRollIdentity,
   DiceRollRequest,
@@ -58,15 +60,59 @@ function compareValue(value: number, operator: 'gte' | 'lte' | 'eq', target: num
 
 function applyKeepThreshold(
   group: RollDiceGroup,
-  which: 'highest' | 'lowest' | 'equal',
+  which: DiceKeepWhich,
   threshold: number,
 ): void {
   for (const die of activeRolls(group)) {
-    if (which === 'highest') die.active = die.contribution >= threshold;
-    else if (which === 'lowest') die.active = die.contribution <= threshold;
-    else die.active = die.contribution === threshold;
+    const matches = which === 'highest'
+      ? die.contribution >= threshold
+      : which === 'lowest'
+        ? die.contribution <= threshold
+        : die.contribution === threshold;
+    die.active = matches;
+    if (matches) die.keepMatched = true;
   }
   refreshGroup(group);
+}
+
+function modifierTargetsActiveDice(items: readonly DiceFormulaItem[], modifierIndex: number): boolean {
+  for (let index = modifierIndex + 1; index < items.length; index += 1) {
+    const next = items[index];
+    if (next.kind === 'dice') return false;
+    if (next.kind === 'keep') return true;
+    if (next.kind === 'compare' && !next.total) return true;
+  }
+  return false;
+}
+
+function applyArithmeticValue(
+  before: number,
+  operation: DiceModifierOperation,
+  value: number,
+): number {
+  let after: number;
+  switch (operation) {
+    case 'add':
+      after = before + value;
+      break;
+    case 'subtract':
+      after = before - value;
+      break;
+    case 'multiply':
+      after = before * value;
+      break;
+    case 'divide':
+      if (value === 0) throw new DiceRollError('Non e possibile dividere per zero.');
+      after = before / value;
+      break;
+    case 'exponent':
+      after = before ** value;
+      break;
+  }
+  if (!Number.isFinite(after)) {
+    throw new DiceRollError('Il modificatore ha prodotto un risultato numerico non valido.');
+  }
+  return after;
 }
 
 function applyDropSelection(
@@ -132,7 +178,8 @@ export function rollDiceFormula(
     total += group.contribution - before;
   };
 
-  for (const item of input.request.items) {
+  for (let itemIndex = 0; itemIndex < input.request.items.length; itemIndex += 1) {
+    const item = input.request.items[itemIndex];
     switch (item.kind) {
       case 'dice': {
         const group: RollDiceGroup = {
@@ -280,38 +327,39 @@ export function rollDiceFormula(
       }
 
       case 'modifier': {
+        const perDie = activeGroup !== null && modifierTargetsActiveDice(input.request.items, itemIndex);
+
+        if (perDie && activeGroup) {
+          const group = activeGroup;
+          const before = group.contribution;
+          for (const die of activeRolls(group)) {
+            die.contribution = applyArithmeticValue(die.contribution, item.operation, item.value);
+          }
+          refreshGroup(group);
+          const after = group.contribution;
+          total += after - before;
+          arithmeticSteps.push({
+            itemId: item.id,
+            operation: item.operation,
+            value: item.value,
+            before,
+            after,
+            scope: 'dice',
+            groupItemId: group.itemId,
+          });
+          break;
+        }
+
         const before = total;
-        switch (item.operation) {
-          case 'add':
-            total = before + item.value;
-            break;
-          case 'subtract':
-            total = before - item.value;
-            break;
-          case 'multiply':
-            total = before * item.value;
-            break;
-          case 'divide':
-            if (item.value === 0) throw new DiceRollError('Non e possibile dividere per zero.');
-            total = before / item.value;
-            break;
-          case 'exponent':
-            total = before ** item.value;
-            break;
-        }
-
-        if (!Number.isFinite(total)) {
-          throw new DiceRollError('Il modificatore ha prodotto un risultato numerico non valido.');
-        }
-
+        total = applyArithmeticValue(before, item.operation, item.value);
         arithmeticSteps.push({
           itemId: item.id,
           operation: item.operation,
           value: item.value,
           before,
           after: total,
+          scope: 'total',
         });
-        activeGroup = null;
         break;
       }
     }

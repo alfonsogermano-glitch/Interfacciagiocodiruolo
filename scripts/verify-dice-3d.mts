@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import { projectRollTo3D } from '../src/app/components/session/dice/dice3dProjection.ts';
 import type { RollDiceGroup, RollResult } from '../src/app/components/session/dice/diceTypes.ts';
+import fs from 'node:fs';
 
 function read(path: string): string {
   return fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -97,6 +97,15 @@ const processed = projectRollTo3D(result([
   ]),
 ]));
 assert.deepEqual(processed, [{ sides: 6, values: [1, 6, 6, 3], notation: '4d6@1,6,6,3' }]);
+
+const modifiedFaceProjection = projectRollTo3D(result([
+  group('modified-d20', 20, [{ face: 12, contribution: 15 }]),
+]));
+assert.deepEqual(
+  modifiedFaceProjection,
+  [{ sides: 20, values: [12], notation: '1d20@12' }],
+  '3D projection must use natural face even when contextual arithmetic changes contribution',
+);
 
 const mixed = projectRollTo3D(result([
   group('first', 20, [{ face: 12 }]),
