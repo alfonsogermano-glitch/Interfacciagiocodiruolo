@@ -87,6 +87,11 @@ assert.ok(historyCard.includes('h-7 w-7'), 'dice history avatar must use the com
 assert.ok(historyCard.includes('text-xl font-bold'), 'dice history primary result must be slightly larger');
 assert.ok(historyCard.includes('break-words text-sm'), 'player names must wrap instead of being truncated');
 assert.ok(historyCard.includes('break-words text-xs'), 'long roll titles must wrap and remain readable');
+assert.match(
+  historyCard,
+  /\(result\.formulaId \|\| result\.visibility === 'secret'\) && \([\s\S]*?result\.formulaId && \([\s\S]*?\{result\.formulaName\}/,
+  'dice history must hide the formula-name row for unsaved public rolls while keeping saved formula names under the player',
+);
 assert.ok(!historyCard.includes('truncate'), 'dice history must not truncate long player names or roll titles');
 assert.ok(historyCard.includes('text-[11px]'), 'dice details must use the slightly larger compact text size');
 assert.ok(summary.includes("item.kind === 'keep'"), 'Keep presence must control N (total) formatting');
