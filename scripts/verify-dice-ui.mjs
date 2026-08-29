@@ -76,6 +76,11 @@ assert.match(
   /data-dice-history-drawer[\s\S]*?className="[^"]*cursor-default[^"]*"/,
   'dice history must keep the default cursor over non-interactive content',
 );
+assert.match(
+  historyDrawer,
+  /data-dice-history-clear[\s\S]*?<Trash2[^>]*\/>[\s\S]*?Pulisci/,
+  'dice history clear action must use the Italian label Pulisci',
+);
 assert.ok(historyCard.includes('formatPrimaryRollResult(result)'), 'history must use the Keep-aware result summary');
 assert.ok(historyCard.includes('p-2 shadow-md'), 'dice history cards must use compact padding');
 assert.ok(historyCard.includes('h-7 w-7'), 'dice history avatar must use the compact size');

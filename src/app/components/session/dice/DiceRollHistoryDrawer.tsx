@@ -218,7 +218,7 @@ export function DiceRollHistoryDrawer() {
             className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10px] text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] disabled:opacity-40"
           >
             <Trash2 className="h-3 w-3" />
-            Clear
+            Pulisci
           </button>
           <button
             type="button"
