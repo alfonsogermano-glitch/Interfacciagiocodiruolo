@@ -1001,6 +1001,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
         key: 'available-for-players',
         icon: <UserCog className="h-4 w-4" />,
         label: 'Disponibile per i giocatori',
+        labelClassName: ch.availableForPlayers ? undefined : 'opacity-50',
         onClick: () => handleToggleCharacterAvailable(ch),
         keepOpenAfterClick: true,
         trailing: <Switch checked={ch.availableForPlayers} className="pointer-events-none" />,
