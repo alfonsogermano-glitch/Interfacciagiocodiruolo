@@ -10,6 +10,11 @@ function compareToken(item: Extract<DiceFormulaItem, { kind: 'compare' }>): stri
   return `${item.total ? 'T' : ''}${operator}${formatNumber(item.target)}`;
 }
 
+function keepToken(item: Extract<DiceFormulaItem, { kind: 'keep' }>): string {
+  const operator = item.which === 'highest' ? '>=' : item.which === 'lowest' ? '<=' : '=';
+  return `k${operator}${formatNumber(item.count)}`;
+}
+
 function modifierToken(item: Extract<DiceFormulaItem, { kind: 'modifier' }>): string {
   const value = formatNumber(item.value);
   switch (item.operation) {
@@ -39,7 +44,7 @@ export function formatDiceFormula(items: readonly DiceFormulaItem[]): string {
         break;
       }
       case 'keep':
-        text += `${item.which === 'highest' ? 'kh' : 'kl'}${item.count}`;
+        text += keepToken(item);
         break;
       case 'drop':
         text += `${item.which === 'highest' ? 'dh' : 'dl'}${item.count}`;
