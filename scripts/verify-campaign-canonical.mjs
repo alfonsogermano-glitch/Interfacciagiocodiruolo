@@ -83,8 +83,8 @@ if (!entityKebabMenu.includes('<span className={item.labelClassName}>{item.label
   failures.push('EntityKebabMenu must apply labelClassName only to the label text');
 }
 
-if (!campaignHome.includes("labelClassName: ch.availableForPlayers ? undefined : 'opacity-50'")) {
-  failures.push('CampaignHome must dim Disponibile per i giocatori when the switch is off');
+if (!campaignHome.includes("labelClassName: ch.availableForPlayers ? undefined : 'text-[var(--dash-muted)] opacity-40'")) {
+  failures.push('CampaignHome must make the OFF Disponibile per i giocatori label clearly muted and lower-opacity');
 }
 
 if (failures.length > 0) {
