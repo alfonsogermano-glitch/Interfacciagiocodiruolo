@@ -26,6 +26,8 @@ assert.ok(row.includes('data-dice-formula-row'));
 assert.ok(row.includes('Sposta su'));
 assert.ok(row.includes('Sposta giu'));
 assert.ok(row.includes('draggable'));
+assert.ok(row.includes('<option value="equal">Equal</option>'), 'Keep must expose an Equal option');
+assert.ok(row.includes('ariaLabel="Valore soglia Keep"'), 'Keep numeric control must be a threshold, not a result count');
 for (const hook of ['data-dice-roll-builder', 'data-dice-save-formula', 'data-dice-clear-builder']) {
   assert.ok(panel.includes(hook), `Missing builder action hook: ${hook}`);
 }
