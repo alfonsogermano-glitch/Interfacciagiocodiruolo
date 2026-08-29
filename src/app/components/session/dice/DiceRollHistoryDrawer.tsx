@@ -179,7 +179,7 @@ export function DiceRollHistoryDrawer() {
   ) : (
     <section
       data-dice-history-drawer
-      className="fixed bottom-5 left-28 z-[940] flex max-h-[58vh] w-fit min-w-[18rem] max-w-[min(24rem,calc(100vw-8rem))] flex-col overflow-hidden rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 shadow-2xl backdrop-blur-md"
+      className="fixed bottom-5 left-28 z-[940] flex max-h-[58vh] w-fit min-w-[18rem] max-w-[min(24rem,calc(100vw-8rem))] cursor-default select-none flex-col overflow-hidden rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 shadow-2xl backdrop-blur-md"
     >
       <header className="flex shrink-0 items-center justify-between gap-2 border-b border-[var(--dash-border)] px-2.5 py-1.5">
         <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--dash-text-strong)]">
