@@ -1,5 +1,6 @@
 import { Dices, EyeOff, RotateCcw } from 'lucide-react';
 import type { RollComparisonResult, RollResult } from './diceTypes.ts';
+import { formatPrimaryRollResult } from './diceResultSummary.ts';
 
 function CompareOutcome({ result }: { result: RollComparisonResult }) {
   if (result.success !== undefined) {
@@ -70,7 +71,7 @@ export function DiceRollHistoryCard({ result, onReroll }: DiceRollHistoryCardPro
             </div>
             <div className="text-right">
               <div className="text-[10px] uppercase tracking-wide text-[var(--dash-muted)]">Totale</div>
-              <div className="text-2xl font-bold leading-none text-[var(--dash-text-strong)]">{result.total}</div>
+              <div className="text-2xl font-bold leading-none text-[var(--dash-text-strong)]">{formatPrimaryRollResult(result)}</div>
             </div>
           </div>
 

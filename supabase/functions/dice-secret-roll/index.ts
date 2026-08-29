@@ -18,6 +18,38 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isRollDiePayload(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (typeof value.id !== "string" || value.id.length === 0) return false;
+  if (typeof value.groupItemId !== "string" || value.groupItemId.length === 0) return false;
+  if (typeof value.sides !== "number" || !Number.isFinite(value.sides)) return false;
+  if (typeof value.face !== "number" || !Number.isFinite(value.face)) return false;
+  if (typeof value.contribution !== "number" || !Number.isFinite(value.contribution)) return false;
+  if (typeof value.active !== "boolean") return false;
+  if (value.keepMatched !== undefined && typeof value.keepMatched !== "boolean") return false;
+  return true;
+}
+
+function isDiceGroupPayload(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (typeof value.itemId !== "string" || value.itemId.length === 0) return false;
+  if (!Array.isArray(value.rolls) || !value.rolls.every(isRollDiePayload)) return false;
+  if (!Array.isArray(value.activeRollIds) || !value.activeRollIds.every((id) => typeof id === "string")) return false;
+  if (typeof value.contribution !== "number" || !Number.isFinite(value.contribution)) return false;
+  return true;
+}
+
+function isArithmeticStepPayload(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (typeof value.itemId !== "string" || value.itemId.length === 0) return false;
+  if (value.scope !== 'dice' && value.scope !== 'total') return false;
+  if (value.scope === 'dice' && (typeof value.groupItemId !== "string" || value.groupItemId.length === 0)) return false;
+  if (value.scope === 'total' && value.groupItemId !== undefined) return false;
+  if (typeof value.before !== "number" || !Number.isFinite(value.before)) return false;
+  if (typeof value.after !== "number" || !Number.isFinite(value.after)) return false;
+  return true;
+}
+
 function isRollResultPayload(value: unknown): value is Record<string, unknown> & {
   id: string;
   campaignId: string;
@@ -37,8 +69,8 @@ function isRollResultPayload(value: unknown): value is Record<string, unknown> &
   if (typeof value.total !== "number" || !Number.isFinite(value.total)) return false;
   if (typeof value.createdAt !== "number" || !Number.isFinite(value.createdAt)) return false;
   if (!Array.isArray(value.sourceItems)) return false;
-  if (!Array.isArray(value.diceGroups)) return false;
-  if (!Array.isArray(value.arithmeticSteps)) return false;
+  if (!Array.isArray(value.diceGroups) || !value.diceGroups.every(isDiceGroupPayload)) return false;
+  if (!Array.isArray(value.arithmeticSteps) || !value.arithmeticSteps.every(isArithmeticStepPayload)) return false;
   if (!Array.isArray(value.comparisons)) return false;
   return true;
 }

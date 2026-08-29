@@ -84,6 +84,7 @@ export interface RollDie {
   explosionDepth: number;
   chainId: string;
   parentRollId?: string;
+  keepMatched?: boolean;
 }
 
 export interface RollDiceGroup {
@@ -101,6 +102,8 @@ export interface RollArithmeticStep {
   value: number;
   before: number;
   after: number;
+  scope: 'dice' | 'total';
+  groupItemId?: string;
 }
 
 export interface RollComparisonResult {
