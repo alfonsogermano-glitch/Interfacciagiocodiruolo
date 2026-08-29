@@ -707,6 +707,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                 key: 'available-for-players',
                 icon: <UserCog className="h-4 w-4" />,
                 label: 'Disponibile per i giocatori',
+                labelClassName: char.availableForPlayers ? undefined : 'text-[var(--dash-muted)] opacity-40',
                 onClick: () => handleToggleCharacterAvailable(char),
                 // Il menu resta aperto dopo il click: e' un toggle, non
                 // un'azione one-shot come Modifica/Duplica - l'utente si
