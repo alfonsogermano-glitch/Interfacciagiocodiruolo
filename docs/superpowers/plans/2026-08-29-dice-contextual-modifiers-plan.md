@@ -4,7 +4,7 @@
 
 **Goal:** Make mathematical modifiers automatically operate on individual dice when a later Keep or per-die Compare needs those values, otherwise keep their existing total-level behavior, and show Keep results as `N (total)`.
 
-**Architecture:** Keep the persisted `DiceFormulaItem` model unchanged and infer modifier scope at roll time with a bounded look-ahead that stops at the next Dice item. Extend the canonical `RollResult` with per-die Keep provenance and arithmetic-step scope metadata, derive the display summary from that canonical result, and keep 3D rendering based only on natural die faces. Strengthen both client and secret-relay Realtime validators so the same canonical shape is trusted everywhere.
+**Architecture:** Keep the persisted `DiceFormulaItem` model unchanged and infer modifier scope at roll time with a bounded look-ahead that stops at the next Dice item. Extend the canonical `RollResult` with per-die Keep provenance and arithmetic-step scope metadata, derive the visible summary from that canonical result, and preserve 3D rendering from natural die faces only. Strengthen both client and secret-relay Realtime validators so public and secret delivery accept the same canonical shape.
 
 **Tech Stack:** React 18.3.1, TypeScript 5.7.3, Vite 6.4.3, Supabase JS 2.108.1, Supabase Edge Functions/Deno, `@3d-dice/dice-box-threejs` 0.0.12, Node verification scripts.
 
@@ -22,23 +22,23 @@
 - Compare with `total: false` triggers per-die scope; Compare with `total: true` does not.
 - A new Dice item is a hard look-ahead boundary.
 - Reroll must continue to rebuild from immutable `sourceItems`.
-- Implementation work must be delivered as one effective code commit/push after local/full verification; do not create RED-test, preview, export, or checkpoint commits.
+- Implementation work must be delivered as one effective code commit/push after full verification; do not create RED-test, preview, export, or checkpoint commits.
 - Before merge, run the complete `npm run check` suite and verify zero failures.
 
 ---
 
-### Task 1: Lock the contextual modifier semantics with RED engine tests
+### Task 1: Lock contextual modifier semantics with RED engine tests
 
 **Files:**
 - Modify: `scripts/verify-dice-engine.mts`
 
 **Interfaces:**
 - Consumes: `validateDiceFormula(items)`, `rollDiceFormula(input, rng)`, `RollResult`.
-- Produces: executable regression cases that define modifier scope, order, boundaries, Keep provenance, and arithmetic metadata.
+- Produces: deterministic regression cases for modifier scope, arithmetic order, Dice boundaries, Keep provenance, Drop interaction, Compare behavior, and Exploding behavior.
 
-- [ ] **Step 1: Change the validation expectation for Modifier -> Keep**
+- [ ] **Step 1: Make Modifier -> Keep valid in the expected contract**
 
-Replace the existing assertion that expects `[d6, add2, keep1]` to be invalid with:
+Replace the current assertion for `[d6, add2, keep1]` with:
 
 ```ts
 assert.equal(
@@ -48,9 +48,7 @@ assert.equal(
 );
 ```
 
-- [ ] **Step 2: Add deterministic contextual-modifier cases**
-
-Append cases equivalent to the following, using the existing `roll()` and queued RNG helpers:
+- [ ] **Step 2: Add the three primary examples**
 
 ```ts
 const totalOnlyModifier = roll([
@@ -60,6 +58,7 @@ const totalOnlyModifier = roll([
 assert.equal(totalOnlyModifier.total, 43);
 assert.deepEqual(totalOnlyModifier.diceGroups[0].rolls.map((die) => die.contribution), [12, 15, 10, 3]);
 assert.equal(totalOnlyModifier.arithmeticSteps[0].scope, 'total');
+assert.equal(totalOnlyModifier.arithmeticSteps[0].groupItemId, undefined);
 
 const modifierBeforeKeep = roll([
   { id: 'd', kind: 'dice', sides: 20, quantity: 4 },
@@ -89,7 +88,7 @@ assert.deepEqual(
 assert.equal(modifierAfterKeep.arithmeticSteps[0].scope, 'total');
 ```
 
-- [ ] **Step 3: Add per-die Compare and total Compare cases**
+- [ ] **Step 3: Add Compare scope cases**
 
 ```ts
 const perDieComparedAfterModifier = roll([
@@ -99,6 +98,7 @@ const perDieComparedAfterModifier = roll([
 ], [12, 15, 3, 9]);
 assert.deepEqual(perDieComparedAfterModifier.comparisons[0].comparedValues, [15, 18, 6, 12]);
 assert.equal(perDieComparedAfterModifier.comparisons[0].successes, 2);
+assert.equal(perDieComparedAfterModifier.comparisons[0].failures, 2);
 assert.equal(perDieComparedAfterModifier.arithmeticSteps[0].scope, 'dice');
 
 const totalComparedAfterModifier = roll([
@@ -108,12 +108,11 @@ const totalComparedAfterModifier = roll([
 ], [12, 15, 10, 3]);
 assert.equal(totalComparedAfterModifier.total, 43);
 assert.deepEqual(totalComparedAfterModifier.comparisons[0].comparedValues, [43]);
+assert.equal(totalComparedAfterModifier.comparisons[0].success, true);
 assert.equal(totalComparedAfterModifier.arithmeticSteps[0].scope, 'total');
 ```
 
-- [ ] **Step 4: Add sequencing and next-Dice boundary cases**
-
-Cover all five arithmetic operations through the shared arithmetic helper, and explicitly test two sequential modifiers before Keep plus a new-Dice boundary:
+- [ ] **Step 4: Cover all arithmetic operations in per-die scope**
 
 ```ts
 const sequentialPerDie = roll([
@@ -126,6 +125,36 @@ assert.deepEqual(sequentialPerDie.diceGroups[0].rolls.map((die) => die.contribut
 assert.equal(sequentialPerDie.total, 48);
 assert.deepEqual(sequentialPerDie.arithmeticSteps.map((step) => step.scope), ['dice', 'dice']);
 
+const perDieSubtract = roll([
+  { id: 'd', kind: 'dice', sides: 20, quantity: 2 },
+  { id: 'm', kind: 'modifier', operation: 'subtract', value: 2 },
+  { id: 'k', kind: 'keep', which: 'highest', count: 5 },
+], [7, 6]);
+assert.deepEqual(perDieSubtract.diceGroups[0].rolls.map((die) => die.contribution), [5, 4]);
+assert.equal(perDieSubtract.total, 5);
+
+const perDieDivide = roll([
+  { id: 'd', kind: 'dice', sides: 20, quantity: 2 },
+  { id: 'm', kind: 'modifier', operation: 'divide', value: 2 },
+  { id: 'k', kind: 'keep', which: 'highest', count: 5 },
+], [10, 8]);
+assert.deepEqual(perDieDivide.diceGroups[0].rolls.map((die) => die.contribution), [5, 4]);
+assert.equal(perDieDivide.total, 5);
+
+const perDieExponent = roll([
+  { id: 'd', kind: 'dice', sides: 20, quantity: 2 },
+  { id: 'm', kind: 'modifier', operation: 'exponent', value: 2 },
+  { id: 'k', kind: 'keep', which: 'highest', count: 20 },
+], [5, 4]);
+assert.deepEqual(perDieExponent.diceGroups[0].rolls.map((die) => die.contribution), [25, 16]);
+assert.equal(perDieExponent.total, 25);
+```
+
+Add, multiply, subtract, divide, and exponent are now all covered in per-die scope. The existing arithmetic test continues covering aggregate chaining.
+
+- [ ] **Step 5: Add the next-Dice boundary test**
+
+```ts
 const nextDiceBoundary = roll([
   { id: 'd20', kind: 'dice', sides: 20, quantity: 1 },
   { id: 'm', kind: 'modifier', operation: 'add', value: 3 },
@@ -134,10 +163,13 @@ const nextDiceBoundary = roll([
 ], [10, 3, 5]);
 assert.equal(nextDiceBoundary.diceGroups[0].rolls[0].contribution, 10);
 assert.equal(nextDiceBoundary.arithmeticSteps[0].scope, 'total');
-assert.deepEqual(nextDiceBoundary.diceGroups[1].rolls.filter((die) => die.active).map((die) => die.contribution), [5]);
+assert.deepEqual(
+  nextDiceBoundary.diceGroups[1].rolls.filter((die) => die.active).map((die) => die.contribution),
+  [5],
+);
 ```
 
-- [ ] **Step 5: Add Keep provenance / Drop interaction / zero-success cases**
+- [ ] **Step 6: Add Keep provenance, Drop interaction, and zero-success tests**
 
 ```ts
 const keepThenDrop = roll([
@@ -145,18 +177,55 @@ const keepThenDrop = roll([
   { id: 'k', kind: 'keep', which: 'highest', count: 10 },
   { id: 'drop', kind: 'drop', which: 'highest', count: 1 },
 ], [12, 15, 8]);
-assert.equal(keepThenDrop.diceGroups[0].rolls.filter((die) => die.active && die.keepMatched).length, 1);
+assert.equal(
+  keepThenDrop.diceGroups[0].rolls.filter((die) => die.active && die.keepMatched === true).length,
+  1,
+);
 
 const zeroKeep = roll([
   { id: 'd', kind: 'dice', sides: 20, quantity: 2 },
   { id: 'k', kind: 'keep', which: 'highest', count: 15 },
   { id: 'm', kind: 'modifier', operation: 'add', value: 3 },
 ], [4, 6]);
-assert.equal(zeroKeep.diceGroups[0].rolls.filter((die) => die.active && die.keepMatched).length, 0);
+assert.equal(
+  zeroKeep.diceGroups[0].rolls.filter((die) => die.active && die.keepMatched === true).length,
+  0,
+);
 assert.equal(zeroKeep.total, 3);
 ```
 
-- [ ] **Step 6: Run the engine verifier and confirm RED for the intended reasons**
+- [ ] **Step 7: Add exact Exploding/natural-face tests**
+
+A contribution that reaches the die maximum must not create a fake explosion:
+
+```ts
+const modifiedToMaximumDoesNotExplode = roll([
+  { id: 'd', kind: 'dice', sides: 20, quantity: 1 },
+  { id: 'm', kind: 'modifier', operation: 'add', value: 3 },
+  { id: 'x', kind: 'exploding', mode: 'explode' },
+  { id: 'c', kind: 'compare', operator: 'gte', target: 20, total: false },
+], [17]);
+assert.equal(modifiedToMaximumDoesNotExplode.diceGroups[0].rolls.length, 1);
+assert.equal(modifiedToMaximumDoesNotExplode.diceGroups[0].rolls[0].face, 17);
+assert.equal(modifiedToMaximumDoesNotExplode.diceGroups[0].rolls[0].contribution, 20);
+assert.equal(modifiedToMaximumDoesNotExplode.comparisons[0].success, true);
+```
+
+A natural maximum must still explode, and a Modifier that ran before the explosion must not retroactively modify the new die:
+
+```ts
+const naturalMaximumStillExplodes = roll([
+  { id: 'd', kind: 'dice', sides: 20, quantity: 1 },
+  { id: 'm', kind: 'modifier', operation: 'add', value: 3 },
+  { id: 'x', kind: 'exploding', mode: 'explode' },
+  { id: 'c', kind: 'compare', operator: 'gte', target: 20, total: false },
+], [20, 4]);
+assert.deepEqual(naturalMaximumStillExplodes.diceGroups[0].rolls.map((die) => die.face), [20, 4]);
+assert.deepEqual(naturalMaximumStillExplodes.diceGroups[0].rolls.map((die) => die.contribution), [23, 4]);
+assert.equal(naturalMaximumStillExplodes.diceGroups[0].rolls.length, 2);
+```
+
+- [ ] **Step 8: Run the engine verifier and confirm RED for the intended reasons**
 
 Run:
 
@@ -164,7 +233,7 @@ Run:
 npm run verify:dice-engine
 ```
 
-Expected: FAIL because current validation rejects Modifier -> Keep and current Modifier always mutates only the aggregate total / lacks `scope`, `groupItemId`, and `keepMatched` metadata. Do not commit or push this RED state.
+Expected: FAIL because the current validator closes the active group at Modifier, current Modifier always operates on aggregate total, and current result types do not expose `scope`, `groupItemId`, or `keepMatched`. Do not commit or push this RED state.
 
 ---
 
@@ -178,19 +247,32 @@ Expected: FAIL because current validation rejects Modifier -> Keep and current M
 
 **Interfaces:**
 - Produces: `RollDie.keepMatched?: boolean`.
-- Produces: `RollArithmeticStep.scope: 'dice' | 'total'` and optional `groupItemId?: string`.
-- Produces internal helpers equivalent to `modifierTargetsActiveDice(...)` and `applyArithmeticValue(...)`.
+- Produces: `RollArithmeticStep.scope: 'dice' | 'total'` and `RollArithmeticStep.groupItemId?: string`.
+- Produces internal helpers `modifierTargetsActiveDice(items, modifierIndex)` and `applyArithmeticValue(before, operation, value)`.
 
 - [ ] **Step 1: Extend the canonical result types**
 
-In `diceTypes.ts`, extend the existing interfaces exactly as follows:
+Keep every current `RollDie` field and add one optional field:
 
 ```ts
 export interface RollDie {
-  // existing fields
+  id: string;
+  groupItemId: string;
+  sides: number;
+  face: number;
+  contribution: number;
+  active: boolean;
+  source: 'base' | 'explosion';
+  explosionDepth: number;
+  chainId: string;
+  parentRollId?: string;
   keepMatched?: boolean;
 }
+```
 
+Replace the current arithmetic-step interface with:
+
+```ts
 export interface RollArithmeticStep {
   itemId: string;
   operation: DiceModifierOperation;
@@ -202,22 +284,29 @@ export interface RollArithmeticStep {
 }
 ```
 
-Do not add scope to `DiceFormulaItem`; it is inferred at roll time.
+Do not add scope to `DiceFormulaItem`.
 
 - [ ] **Step 2: Keep the active Dice group open across Modifier validation**
 
-In `diceFormulaValidation.ts`, retain all existing modifier number/division checks but remove only these state resets from the `modifier` case:
+In the `modifier` branch of `diceFormulaValidation.ts`, retain these checks:
 
 ```ts
-activeDiceGroup = false;
-explodingSeenInGroup = false;
+if (!hasNumericTotal) {
+  addIssue('missing_total', 'Il modificatore richiede un totale numerico precedente.', item.id);
+}
+if (!Number.isFinite(item.value)) {
+  addIssue('invalid_modifier_value', 'Il valore del modificatore deve essere un numero finito.', item.id);
+}
+if (item.operation === 'divide' && item.value === 0) {
+  addIssue('division_by_zero', 'Non e possibile dividere per zero.', item.id);
+}
 ```
 
-A new Dice item remains the event that changes the active group and resets `explodingSeenInGroup`.
+Delete the two current assignments `activeDiceGroup = false` and `explodingSeenInGroup = false`. Dice remains the only item that opens/replaces a group and resets the per-group Exploding flag.
 
-- [ ] **Step 3: Add a bounded look-ahead helper**
+- [ ] **Step 3: Add the bounded look-ahead helper**
 
-In `diceEngine.ts`, add:
+Add this exact helper to `diceEngine.ts`:
 
 ```ts
 function modifierTargetsActiveDice(items: readonly DiceFormulaItem[], modifierIndex: number): boolean {
@@ -231,11 +320,9 @@ function modifierTargetsActiveDice(items: readonly DiceFormulaItem[], modifierIn
 }
 ```
 
-This intentionally ignores Drop, Exploding, and Compare Totale.
+- [ ] **Step 4: Add one scalar arithmetic helper for both scopes**
 
-- [ ] **Step 4: Centralize scalar arithmetic**
-
-Add one helper used by both total-level and per-die modifiers:
+Import `DiceModifierOperation` from `diceTypes.ts` and add:
 
 ```ts
 function applyArithmeticValue(
@@ -245,14 +332,22 @@ function applyArithmeticValue(
 ): number {
   let after: number;
   switch (operation) {
-    case 'add': after = before + value; break;
-    case 'subtract': after = before - value; break;
-    case 'multiply': after = before * value; break;
+    case 'add':
+      after = before + value;
+      break;
+    case 'subtract':
+      after = before - value;
+      break;
+    case 'multiply':
+      after = before * value;
+      break;
     case 'divide':
       if (value === 0) throw new DiceRollError('Non e possibile dividere per zero.');
       after = before / value;
       break;
-    case 'exponent': after = before ** value; break;
+    case 'exponent':
+      after = before ** value;
+      break;
   }
   if (!Number.isFinite(after)) {
     throw new DiceRollError('Il modificatore ha prodotto un risultato numerico non valido.');
@@ -261,14 +356,16 @@ function applyArithmeticValue(
 }
 ```
 
-Import `DiceModifierOperation` as a type if needed.
-
 - [ ] **Step 5: Mark dice that pass Keep**
 
-Update `applyKeepThreshold` so each currently active die is tested against the threshold, becomes inactive when it fails, and receives `keepMatched = true` when it passes:
+Import `DiceKeepWhich` and replace `applyKeepThreshold` with:
 
 ```ts
-function applyKeepThreshold(group: RollDiceGroup, which: DiceKeepWhich, threshold: number): void {
+function applyKeepThreshold(
+  group: RollDiceGroup,
+  which: DiceKeepWhich,
+  threshold: number,
+): void {
   for (const die of activeRolls(group)) {
     const matches = which === 'highest'
       ? die.contribution >= threshold
@@ -282,59 +379,71 @@ function applyKeepThreshold(group: RollDiceGroup, which: DiceKeepWhich, threshol
 }
 ```
 
-Do not reactivate dice excluded by an earlier Keep/Drop.
+Only currently active dice are considered, so a later Keep cannot reactivate a die filtered out earlier.
 
-- [ ] **Step 6: Execute Modifier using the inferred scope**
+- [ ] **Step 6: Iterate formula items with an index**
 
-Change the main formula loop to iterate with an index so the current modifier can look ahead:
+Replace:
+
+```ts
+for (const item of input.request.items) {
+```
+
+with:
 
 ```ts
 for (let itemIndex = 0; itemIndex < input.request.items.length; itemIndex += 1) {
   const item = input.request.items[itemIndex];
-  // existing switch
+```
+
+Keep the existing switch body under the indexed loop.
+
+- [ ] **Step 7: Execute Modifier using inferred scope**
+
+Replace the current `case 'modifier'` body with this behavior:
+
+```ts
+case 'modifier': {
+  const perDie = activeGroup !== null && modifierTargetsActiveDice(input.request.items, itemIndex);
+
+  if (perDie && activeGroup) {
+    const group = activeGroup;
+    const before = group.contribution;
+    for (const die of activeRolls(group)) {
+      die.contribution = applyArithmeticValue(die.contribution, item.operation, item.value);
+    }
+    refreshGroup(group);
+    const after = group.contribution;
+    total += after - before;
+    arithmeticSteps.push({
+      itemId: item.id,
+      operation: item.operation,
+      value: item.value,
+      before,
+      after,
+      scope: 'dice',
+      groupItemId: group.itemId,
+    });
+    break;
+  }
+
+  const before = total;
+  total = applyArithmeticValue(before, item.operation, item.value);
+  arithmeticSteps.push({
+    itemId: item.id,
+    operation: item.operation,
+    value: item.value,
+    before,
+    after: total,
+    scope: 'total',
+  });
+  break;
 }
 ```
 
-For a Modifier with an active group and `modifierTargetsActiveDice(...) === true`:
+Do not clear `activeGroup` after a Modifier.
 
-```ts
-const group = activeGroup;
-const before = group.contribution;
-for (const die of activeRolls(group)) {
-  die.contribution = applyArithmeticValue(die.contribution, item.operation, item.value);
-}
-refreshGroup(group);
-const after = group.contribution;
-total += after - before;
-arithmeticSteps.push({
-  itemId: item.id,
-  operation: item.operation,
-  value: item.value,
-  before,
-  after,
-  scope: 'dice',
-  groupItemId: group.itemId,
-});
-```
-
-For all other Modifiers, preserve aggregate behavior with the same scalar helper:
-
-```ts
-const before = total;
-total = applyArithmeticValue(before, item.operation, item.value);
-arithmeticSteps.push({
-  itemId: item.id,
-  operation: item.operation,
-  value: item.value,
-  before,
-  after: total,
-  scope: 'total',
-});
-```
-
-Do not set `activeGroup = null` after either scope.
-
-- [ ] **Step 7: Run engine tests GREEN**
+- [ ] **Step 8: Run engine tests GREEN**
 
 Run:
 
@@ -343,13 +452,13 @@ npm run verify:dice-engine
 npm run typecheck
 ```
 
-Expected: PASS. The deterministic cases must prove `4d20 +3` = 43, `4d20 +3 k>=15` = 33 with contributions `[15,18,6,12]`, `4d20 k>=15 +3` = 35, per-die Compare sees modified contributions, total Compare does not force per-die scope, and new Dice is a boundary.
+Expected: PASS with all deterministic examples from Task 1.
 
 Do not commit yet.
 
 ---
 
-### Task 3: Derive and render `N (total)` without duplicating roll logic
+### Task 3: Derive and render `N (total)` from the canonical result
 
 **Files:**
 - Create: `src/app/components/session/dice/diceResultSummary.ts`
@@ -360,11 +469,16 @@ Do not commit yet.
 **Interfaces:**
 - Produces: `getKeepCount(result: RollResult): number`.
 - Produces: `formatPrimaryRollResult(result: RollResult): string`.
-- Consumes: `sourceItems`, `diceGroups[].rolls[].active`, `keepMatched`, `total`.
 
-- [ ] **Step 1: Add RED tests for summary formatting**
+- [ ] **Step 1: Add RED summary assertions**
 
-Import the new helper from `diceResultSummary.ts` in `verify-dice-engine.mts` and assert:
+At the top of `verify-dice-engine.mts`, add:
+
+```ts
+import { formatPrimaryRollResult } from '../src/app/components/session/dice/diceResultSummary.ts';
+```
+
+After the Task 1 roll fixtures, add:
 
 ```ts
 assert.equal(formatPrimaryRollResult(totalOnlyModifier), '43');
@@ -373,11 +487,11 @@ assert.equal(formatPrimaryRollResult(modifierAfterKeep), '2 (35)');
 assert.equal(formatPrimaryRollResult(zeroKeep), '0 (3)');
 ```
 
-Run `npm run verify:dice-engine` and expect FAIL because the helper does not exist. Do not commit/push RED.
+Run `npm run verify:dice-engine` and expect FAIL because `diceResultSummary.ts` does not exist. Do not commit/push RED.
 
 - [ ] **Step 2: Implement the pure summary helper**
 
-Create `diceResultSummary.ts`:
+Create `diceResultSummary.ts` with exactly:
 
 ```ts
 import type { RollResult } from './diceTypes.ts';
@@ -389,7 +503,9 @@ function formatResultNumber(value: number): string {
 
 export function getKeepCount(result: RollResult): number {
   return result.diceGroups.reduce(
-    (count, group) => count + group.rolls.filter((die) => die.active && die.keepMatched === true).length,
+    (count, group) => count + group.rolls.filter(
+      (die) => die.active && die.keepMatched === true,
+    ).length,
     0,
   );
 }
@@ -401,30 +517,48 @@ export function formatPrimaryRollResult(result: RollResult): string {
 }
 ```
 
-The existence of Keep in `sourceItems`, not a non-zero count, controls whether parentheses are shown; this guarantees `0 (3)`.
+- [ ] **Step 3: Render the helper in history**
 
-- [ ] **Step 3: Use the summary in history**
+Add this import to `DiceRollHistoryCard.tsx`:
 
-In `DiceRollHistoryCard.tsx`, import `formatPrimaryRollResult` and replace only the displayed `{result.total}` with:
+```ts
+import { formatPrimaryRollResult } from './diceResultSummary.ts';
+```
+
+Replace only:
+
+```tsx
+{result.total}
+```
+
+inside the main total display with:
 
 ```tsx
 {formatPrimaryRollResult(result)}
 ```
 
-Keep the label `Totale`, die chips, natural faces, contribution parentheses, comparison output, secret indicator, and reroll button unchanged.
+Keep the `Totale` label, natural-face chips, contribution parentheses, Compare output, secret badge, and reroll UI unchanged.
 
-- [ ] **Step 4: Add UI guards**
+- [ ] **Step 4: Add UI guards and explicitly forbid scope controls**
 
-Extend `verify-dice-ui.mjs` to read `DiceRollHistoryCard.tsx` and `diceResultSummary.ts` and require:
+In `verify-dice-ui.mjs`, read the history card and summary helper:
 
 ```js
-assert.ok(historyCard.includes('formatPrimaryRollResult(result)'), 'history must use the canonical Keep-aware result summary');
-assert.ok(summary.includes("item.kind === 'keep'"), 'Keep presence must control N (total) formatting');
-assert.ok(summary.includes('die.active && die.keepMatched === true'), 'Keep count must include only final active Keep matches');
-assert.ok(!row.includes('Singolo dado'), 'Modifier UI must not add a per-die scope control');
+const historyCard = read('src/app/components/session/dice/DiceRollHistoryCard.tsx');
+const summary = read('src/app/components/session/dice/diceResultSummary.ts');
 ```
 
-- [ ] **Step 5: Run engine + UI checks GREEN**
+Add:
+
+```js
+assert.ok(historyCard.includes('formatPrimaryRollResult(result)'), 'history must use the Keep-aware result summary');
+assert.ok(summary.includes("item.kind === 'keep'"), 'Keep presence must control N (total) formatting');
+assert.ok(summary.includes('die.active && die.keepMatched === true'), 'Keep count must include only final active Keep matches');
+assert.ok(!row.includes('Singolo dado'), 'Modifier UI must not add a per-die radio/checkbox');
+assert.ok(!row.includes('data-dice-modifier-scope'), 'Modifier UI must not expose an explicit scope control');
+```
+
+- [ ] **Step 5: Run summary/UI verification GREEN**
 
 Run:
 
@@ -440,19 +574,19 @@ Do not commit yet.
 
 ---
 
-### Task 4: Protect the natural-face / 3D invariant
+### Task 4: Protect the natural-face and 3D invariants
 
 **Files:**
 - Modify: `scripts/verify-dice-3d.mts`
-- Read-only behavior dependency: `src/app/components/session/dice/dice3dProjection.ts`
+- Test dependency: `src/app/components/session/dice/dice3dProjection.ts`
 
 **Interfaces:**
-- Consumes: canonical `RollResult` from `rollDiceFormula` and `projectRollTo3D(result)`.
-- Produces: regression proof that per-die arithmetic cannot change the visual 3D face.
+- Consumes: `projectRollTo3D(result)`.
+- Produces: regression proof that contextual `contribution` values never replace physical `face` values in 3D.
 
-- [ ] **Step 1: Add a deterministic modified-die projection test**
+- [ ] **Step 1: Add the exact modified-face projection test**
 
-Import `rollDiceFormula` and a deterministic RNG (or construct a `RollResult` whose `face` and `contribution` differ) and assert the projection uses natural face:
+Append:
 
 ```ts
 const modifiedFaceProjection = projectRollTo3D(result([
@@ -461,28 +595,22 @@ const modifiedFaceProjection = projectRollTo3D(result([
 assert.deepEqual(
   modifiedFaceProjection,
   [{ sides: 20, values: [12], notation: '1d20@12' }],
-  '3D projection must use natural face even when a contextual modifier changes contribution',
+  '3D projection must use natural face even when contextual arithmetic changes contribution',
 );
 ```
 
-Also keep the existing penetrating/excluded-die projection checks.
+This is independent of active/kept status and complements the existing penetrating and discarded-die tests.
 
-- [ ] **Step 2: Add an explosion regression in the engine verifier**
-
-Use a d20 natural `17` plus contextual `+3` followed by a per-die condition and Exploding in an order that proves contribution `20` alone does not cause an explosion; separately preserve the existing natural-max explosion test. The assertion must inspect `rolls.length` and natural `face`, not just total.
-
-- [ ] **Step 3: Run 3D and engine verification**
+- [ ] **Step 2: Run 3D verification**
 
 Run:
 
 ```bash
-npm run verify:dice-engine
 npm run verify:dice-3d
+npm run verify:dice-engine
 ```
 
-Expected: PASS, with all deterministic 3D notations still based on `face`.
-
-Do not modify `dice3dProjection.ts` unless the new test exposes a real regression; its current `group.rolls.map((die) => die.face)` behavior already satisfies the design.
+Expected: PASS. Do not change `dice3dProjection.ts` if this test passes; its current `group.rolls.map((die) => die.face)` behavior is the intended implementation.
 
 Do not commit yet.
 
@@ -498,33 +626,34 @@ Do not commit yet.
 
 **Interfaces:**
 - Consumes: `RollDie.keepMatched?: boolean`, `RollArithmeticStep.scope`, `RollArithmeticStep.groupItemId?`.
-- Produces: client and Edge validators that reject malformed new metadata while accepting valid contextual roll results.
+- Produces: equivalent client and Edge validation of contextual metadata.
 
-- [ ] **Step 1: Add RED static/behavioral guards for the new validator fields**
+- [ ] **Step 1: Add RED guards for contextual metadata**
 
-Extend `verify-dice-realtime.mjs` so both client helper and relay source must mention and validate `keepMatched`, `scope`, `dice`, `total`, and `groupItemId`. Also retain all existing privacy assertions for campaign/public and GM-secret routing.
-
-Required guards include at least:
+In `verify-dice-realtime.mjs`, add:
 
 ```js
 for (const token of ['keepMatched', 'groupItemId', 'scope']) {
   assert.ok(helper.includes(token), `client RollResult validator must validate ${token}`);
   assert.ok(relay.includes(token), `secret relay RollResult validator must validate ${token}`);
 }
-assert.ok(helper.includes("scope !== 'dice'") || helper.includes("scope === 'dice'"));
-assert.ok(helper.includes("scope !== 'total'") || helper.includes("scope === 'total'"));
-assert.ok(session.includes('previous.sourceItems.map'), 'reroll must continue rebuilding from canonical sourceItems');
+assert.ok(helper.includes("value.scope !== 'dice' && value.scope !== 'total'"));
+assert.ok(relay.includes("value.scope !== 'dice' && value.scope !== 'total'"));
+assert.ok(session.includes('previous.sourceItems.map'), 'reroll must continue rebuilding from sourceItems');
 ```
 
-Run `npm run verify:dice-realtime` and expect FAIL because current validators only check the top-level arrays. Do not commit/push RED.
+Run `npm run verify:dice-realtime` and expect FAIL because the current validators only validate the top-level arrays. Do not commit/push RED.
 
-- [ ] **Step 2: Add focused nested validators on the client**
+- [ ] **Step 2: Add client nested validators**
 
-In `src/services/realtime/diceRealtime.ts`, add small helpers rather than one monolithic function. The minimum semantics are:
+In `src/services/realtime/diceRealtime.ts`, keep `isRecord` and add:
 
 ```ts
 function isRollDiePayload(value: unknown): boolean {
   if (!isRecord(value)) return false;
+  if (typeof value.id !== 'string' || value.id.length === 0) return false;
+  if (typeof value.groupItemId !== 'string' || value.groupItemId.length === 0) return false;
+  if (typeof value.sides !== 'number' || !Number.isFinite(value.sides)) return false;
   if (typeof value.face !== 'number' || !Number.isFinite(value.face)) return false;
   if (typeof value.contribution !== 'number' || !Number.isFinite(value.contribution)) return false;
   if (typeof value.active !== 'boolean') return false;
@@ -532,8 +661,18 @@ function isRollDiePayload(value: unknown): boolean {
   return true;
 }
 
+function isDiceGroupPayload(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (typeof value.itemId !== 'string' || value.itemId.length === 0) return false;
+  if (!Array.isArray(value.rolls) || !value.rolls.every(isRollDiePayload)) return false;
+  if (!Array.isArray(value.activeRollIds) || !value.activeRollIds.every((id) => typeof id === 'string')) return false;
+  if (typeof value.contribution !== 'number' || !Number.isFinite(value.contribution)) return false;
+  return true;
+}
+
 function isArithmeticStepPayload(value: unknown): boolean {
   if (!isRecord(value)) return false;
+  if (typeof value.itemId !== 'string' || value.itemId.length === 0) return false;
   if (value.scope !== 'dice' && value.scope !== 'total') return false;
   if (value.scope === 'dice' && (typeof value.groupItemId !== 'string' || value.groupItemId.length === 0)) return false;
   if (value.scope === 'total' && value.groupItemId !== undefined) return false;
@@ -543,19 +682,53 @@ function isArithmeticStepPayload(value: unknown): boolean {
 }
 ```
 
-Validate every die inside every dice group and every arithmetic step in `isRollResultPayload`. Preserve the existing top-level campaign/user/visibility checks.
+Then strengthen the existing top-level array checks to:
 
-- [ ] **Step 3: Mirror the canonical metadata validation in the secret Edge Function**
+```ts
+if (!Array.isArray(value.diceGroups) || !value.diceGroups.every(isDiceGroupPayload)) return false;
+if (!Array.isArray(value.arithmeticSteps) || !value.arithmeticSteps.every(isArithmeticStepPayload)) return false;
+```
 
-Add equivalent Deno-safe helpers to `supabase/functions/dice-secret-roll/index.ts`. Keep all existing security behavior unchanged:
+Retain the existing `sourceItems`, `comparisons`, visibility, campaign/user IDs, total, and timestamp checks.
 
-- JWT identity binds `result.rollerId`;
-- campaign membership is checked;
-- GM secret rolls remain local;
-- relay sends only to `profile:${ownerProfileId}`;
-- no dice result persistence.
+- [ ] **Step 3: Mirror the same contextual validation in the secret Edge Function**
 
-- [ ] **Step 4: Run Realtime verification GREEN**
+Add Deno-safe `isRollDiePayload`, `isDiceGroupPayload`, and `isArithmeticStepPayload` functions to `supabase/functions/dice-secret-roll/index.ts` with the same checks from Step 2, then replace its two shallow checks with:
+
+```ts
+if (!Array.isArray(value.diceGroups) || !value.diceGroups.every(isDiceGroupPayload)) return false;
+if (!Array.isArray(value.arithmeticSteps) || !value.arithmeticSteps.every(isArithmeticStepPayload)) return false;
+```
+
+Do not alter these existing security conditions:
+
+```ts
+if (result.campaignId !== campaignId) return json({ error: "Campaign mismatch" }, 400);
+if (result.visibility !== 'secret') return json({ error: "Only secret rolls may use this relay" }, 400);
+if (result.rollerId !== user.id) return json({ error: "Roller mismatch" }, 403);
+if (ownerProfileId === user.id) {
+  return json({ error: "GM secret rolls must remain local" }, 400);
+}
+```
+
+Keep membership validation and `profile:${ownerProfileId}` relay routing unchanged.
+
+- [ ] **Step 4: Verify reroll still rebuilds from source definition only**
+
+`DiceSessionContext.tsx` must retain this structure:
+
+```ts
+return submitLocalRoll({
+  items: previous.sourceItems.map((item) => ({ ...item })) as DiceRollRequest['items'],
+  formulaId: previous.formulaId,
+  formulaName: previous.formulaName,
+  visibility: previous.visibility,
+});
+```
+
+Do not add prior `diceGroups`, `contribution`, `keepMatched`, `arithmeticSteps`, or `total` to reroll input.
+
+- [ ] **Step 5: Run Realtime verification GREEN**
 
 Run:
 
@@ -564,26 +737,22 @@ npm run verify:dice-realtime
 npm run typecheck
 ```
 
-Expected: PASS.
-
-- [ ] **Step 5: Verify reroll needs no implementation change**
-
-Confirm `DiceSessionContext.tsx` still builds rerolls from cloned `previous.sourceItems` and feeds them back through `submitLocalRoll` / `rollDiceFormula`. Do not copy `contribution`, `keepMatched`, arithmetic steps, or prior total into a reroll.
+Expected: PASS while all pre-existing secret-roll privacy assertions remain green.
 
 Do not commit yet.
 
 ---
 
-### Task 6: Full verification, one implementation commit, PR, merge, Edge deploy, and production verification
+### Task 6: Full verification, one implementation commit, PR, merge, Supabase function deploy, and production verification
 
 **Files:**
-- All files changed by Tasks 1-5.
+- All implementation/test files changed in Tasks 1-5.
 - No unrelated files.
 
 **Interfaces:**
-- Produces: one reviewed branch state ready for `main`, then production Vercel + Supabase Edge Function consistency.
+- Produces: one implementation commit, one PR, a `main` merge SHA, matching Vercel deployment, and matching production `dice-secret-roll` Edge Function.
 
-- [ ] **Step 1: Run the complete repository gate from a clean working tree state**
+- [ ] **Step 1: Run the complete repository gate**
 
 Run:
 
@@ -593,39 +762,34 @@ npm audit --audit-level=high
 npm run check
 ```
 
-Expected:
-- install succeeds;
-- audit reports no high-or-greater vulnerability failure;
-- typecheck succeeds;
-- `verify:dice-engine`, `verify:dice-ui`, `verify:dice-realtime`, `verify:dice-3d` all succeed;
-- all unrelated existing verification scripts succeed;
-- Vite production build succeeds.
+Expected: install success, no audit failure at high severity, TypeScript success, every Dice verifier success, every unrelated verifier success, and Vite production build success.
 
-- [ ] **Step 2: Inspect the final diff against the approved spec**
+- [ ] **Step 2: Perform a spec acceptance diff review**
 
-Verify explicitly:
+Confirm all fourteen conditions explicitly:
 
-1. no Modifier radio/checkbox was added;
-2. no database schema/migration file changed;
-3. `4d20 +3` stays total-level;
-4. `4d20 +3 k>=15` is per-die and displays `2 (33)` for `12,15,3,9`;
-5. `4d20 k>=15 +3` displays `2 (35)` for `16,16,12,7`;
+1. no Modifier radio/checkbox exists;
+2. no database schema or migration changed;
+3. `4d20 +3` stays aggregate and returns `43` for `12,15,10,3`;
+4. `4d20 +3 k>=15` produces contributions `15,18,6,12` and summary `2 (33)` for `12,15,3,9`;
+5. `4d20 k>=15 +3` produces `2 (35)` for `16,16,12,7`;
 6. per-die Compare sees contextual contributions;
-7. total Compare keeps modifiers total-level;
-8. new Dice stops modifier look-ahead;
-9. Drop does not trigger scope and can remove Keep-counted dice;
-10. Exploding remains face-based;
-11. 3D remains face-based;
-12. Realtime validates the extended canonical result;
-13. reroll is still sourceItems-based;
-14. history uses `N (total)` only when Keep exists.
+7. total Compare leaves Modifier aggregate;
+8. new Dice terminates look-ahead;
+9. all five arithmetic operations work in per-die scope;
+10. Drop does not trigger scope and can remove a Keep-counted die;
+11. Exploding uses natural `face`, including the `17 +3` no-fake-explosion case;
+12. 3D uses natural `face` when `contribution` differs;
+13. public/client and secret/Edge Realtime validators accept and validate contextual metadata;
+14. reroll remains based solely on `sourceItems`.
 
 - [ ] **Step 3: Create the single effective implementation commit**
 
-Stage only the actual implementation/test files plus this approved plan if it is not already committed. Use one implementation commit such as:
+Stage only these implementation/test paths:
 
 ```bash
-git add src/app/components/session/dice/diceTypes.ts \
+git add \
+  src/app/components/session/dice/diceTypes.ts \
   src/app/components/session/dice/diceFormulaValidation.ts \
   src/app/components/session/dice/diceEngine.ts \
   src/app/components/session/dice/diceResultSummary.ts \
@@ -640,45 +804,48 @@ git add src/app/components/session/dice/diceTypes.ts \
 git commit -m "feat: add contextual dice modifiers"
 ```
 
-Do not create separate RED/GREEN/checkpoint commits.
+Do not create separate test/fix/checkpoint commits.
 
-- [ ] **Step 4: Push branch and require green CI**
+- [ ] **Step 4: Push the implementation SHA and require green branch CI**
 
-Push `feat/dice-contextual-modifiers`. Confirm GitHub Actions runs the same full `npm run check` gate successfully on the exact implementation SHA.
+Push `feat/dice-contextual-modifiers`. Confirm GitHub Actions finishes `success` for the exact implementation SHA and that its `npm run check` step passed.
 
-- [ ] **Step 5: Open PR to `main`**
+- [ ] **Step 5: Open the PR**
 
-PR title:
+Use title:
 
 ```text
 feat: add contextual dice modifiers
 ```
 
-PR body must summarize the contextual scope rule, Keep `N (total)` result format, unchanged persisted formula shape, natural-face 3D invariant, Realtime validation update, and RED/GREEN/full-check evidence.
+The PR body must state:
+
+- Modifier scope is inferred from future Keep/per-die Compare before the next Dice;
+- the persisted formula shape is unchanged;
+- Keep history display is `N (total)`;
+- natural `face` remains authoritative for 3D and Exploding;
+- public and secret Realtime validators understand the extended canonical result;
+- branch CI is green.
 
 - [ ] **Step 6: Merge only after PR CI is green**
 
-Use a normal merge consistent with the current repository workflow. Record the resulting `main` merge SHA.
+Merge into `main` using the repository's normal merge method. Record the resulting `main` merge SHA.
 
 - [ ] **Step 7: Deploy the updated secret relay**
 
-Because `supabase/functions/dice-secret-roll/index.ts` changes, deploy function `dice-secret-roll` to production Supabase project `njcnkovruynhtsgzgrxi` using the repository source after merge. No SQL migration is involved.
+Deploy `supabase/functions/dice-secret-roll/index.ts` as Edge Function `dice-secret-roll` to production Supabase project `njcnkovruynhtsgzgrxi`. This is a function deployment only; do not run a SQL migration.
 
-Verify the deployed function is active and that its source/revision corresponds to the merged validator logic before calling the rollout complete.
+- [ ] **Step 8: Verify production on the merge SHA**
 
-- [ ] **Step 8: Verify production gates**
+Require all three before declaring completion:
 
-On the merge SHA:
-
-- GitHub Actions `main` CI must be `success`;
-- Vercel status must be `success` for the same merge SHA;
-- Supabase `dice-secret-roll` deployment must be successful.
-
-Only after all three are confirmed report the feature as deployed.
+```text
+GitHub Actions main CI: success
+Vercel deployment for the same main merge SHA: success
+Supabase dice-secret-roll deployment: success
+```
 
 ## Final Acceptance Examples
-
-The implementation is complete only when these examples are all true:
 
 ```text
 4d20 +3
