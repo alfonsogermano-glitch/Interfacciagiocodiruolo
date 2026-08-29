@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 const server = readFileSync('supabase/functions/server/index.tsx', 'utf8');
 const context = readFileSync('src/app/campaigns/CampaignContext.tsx', 'utf8');
 const campaignHome = readFileSync('src/app/campaigns/CampaignHome.tsx', 'utf8');
+const myCharactersPage = readFileSync('src/app/components/gm/MyCharactersPage.tsx', 'utf8');
 const entityKebabMenu = readFileSync('src/app/components/session/shared/EntityKebabMenu.tsx', 'utf8');
 const deleteMigrationPath = 'supabase-p0-4-campaign-delete-membership.sql';
 const deleteMigration = existsSync(deleteMigrationPath)
@@ -85,6 +86,10 @@ if (!entityKebabMenu.includes('<span className={item.labelClassName}>{item.label
 
 if (!campaignHome.includes("labelClassName: ch.availableForPlayers ? undefined : 'text-[var(--dash-muted)] opacity-40'")) {
   failures.push('CampaignHome must make the OFF Disponibile per i giocatori label clearly muted and lower-opacity');
+}
+
+if (!myCharactersPage.includes("labelClassName: char.availableForPlayers ? undefined : 'text-[var(--dash-muted)] opacity-40'")) {
+  failures.push('MyCharactersPage must make the OFF Disponibile per i giocatori label clearly muted and lower-opacity');
 }
 
 if (failures.length > 0) {
