@@ -7,6 +7,7 @@ export interface EntityKebabMenuItem {
   key: string;
   icon: React.ReactNode;
   label: string;
+  labelClassName?: string;
   onClick: () => void;
   danger?: boolean;
   /** Riga non interattiva (stile attenuato, click ignorato) - usata per
@@ -212,7 +213,7 @@ export function EntityKebabMenu({
                   item.disabled ? 'cursor-not-allowed opacity-50' : 'hover:opacity-75'
                 } ${item.danger ? 'text-red-300' : ''}`}
               >
-                {item.icon} {item.label}
+                {item.icon} <span className={item.labelClassName}>{item.label}</span>
                 {item.trailing && <span className="ml-auto">{item.trailing}</span>}
               </button>
             );

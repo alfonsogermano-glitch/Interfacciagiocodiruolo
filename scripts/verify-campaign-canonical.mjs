@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 const server = readFileSync('supabase/functions/server/index.tsx', 'utf8');
 const context = readFileSync('src/app/campaigns/CampaignContext.tsx', 'utf8');
 const campaignHome = readFileSync('src/app/campaigns/CampaignHome.tsx', 'utf8');
+const entityKebabMenu = readFileSync('src/app/components/session/shared/EntityKebabMenu.tsx', 'utf8');
 const deleteMigrationPath = 'supabase-p0-4-campaign-delete-membership.sql';
 const deleteMigration = existsSync(deleteMigrationPath)
   ? readFileSync(deleteMigrationPath, 'utf8')
@@ -72,6 +73,18 @@ if (!campaignHome.includes('isOwner && row && row.profileId !== activeCampaign?.
 
 if (!campaignHome.includes('await setCharacterAvailableForPlayers(ch.id, nextAvailable, SERVER_BASE, accessToken);\n      setPlayersReloadToken((t) => t + 1);')) {
   failures.push('CampaignHome must reload character grouping after either availability toggle direction');
+}
+
+if (!entityKebabMenu.includes('labelClassName?: string;')) {
+  failures.push('EntityKebabMenu must support an optional labelClassName for state-aware menu labels');
+}
+
+if (!entityKebabMenu.includes('<span className={item.labelClassName}>{item.label}</span>')) {
+  failures.push('EntityKebabMenu must apply labelClassName only to the label text');
+}
+
+if (!campaignHome.includes("labelClassName: ch.availableForPlayers ? undefined : 'opacity-50'")) {
+  failures.push('CampaignHome must dim Disponibile per i giocatori when the switch is off');
 }
 
 if (failures.length > 0) {
