@@ -6,6 +6,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../../ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import { formatDiceFormula } from './diceFormulaText.ts';
 import type { SavedDiceFormula } from './diceTypes.ts';
 
@@ -49,18 +50,22 @@ export function SavedDiceFormulaCard({
       </button>
 
       <div className="flex shrink-0 items-center gap-0.5 border-l border-[var(--dash-border)] px-1.5">
-        <button
-          type="button"
-          data-dice-visibility-toggle
-          aria-label={formula.isSecret ? 'Tiro segreto: rendi pubblico' : 'Tiro pubblico: rendi segreto'}
-          title={formula.isSecret ? 'Tiro segreto' : 'Tiro pubblico'}
-          onClick={onToggleSecret}
-          className={`rounded-md p-2 transition-colors hover:bg-[var(--dash-surface-2)] ${
-            formula.isSecret ? 'text-[var(--dash-muted)]' : 'text-[var(--dash-accent)]'
-          }`}
-        >
-          {formula.isSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              data-dice-visibility-toggle
+              aria-label={formula.isSecret ? 'Tiro segreto: rendi pubblico' : 'Tiro pubblico: rendi segreto'}
+              onClick={onToggleSecret}
+              className={`rounded-md p-2 transition-colors hover:bg-[var(--dash-surface-2)] ${
+                formula.isSecret ? 'text-[var(--dash-muted)]' : 'text-[var(--dash-accent)]'
+              }`}
+            >
+              {formula.isSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{formula.isSecret ? 'Tiro segreto' : 'Tiro pubblico'}</TooltipContent>
+        </Tooltip>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
