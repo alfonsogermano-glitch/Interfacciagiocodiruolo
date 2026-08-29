@@ -51,11 +51,20 @@ assert.ok(historyDrawer.includes('data-dice-history-scroll'), 'dice history must
 assert.ok(historyDrawer.includes('scrollContainer.scrollTop = scrollContainer.scrollHeight;'), 'new dice rolls must scroll the history to the newest result');
 assert.ok(historyDrawer.includes('[historyOpen, rolls.length]'), 'autoscroll must run when history opens or a roll is appended');
 assert.ok(historyDrawer.includes('max-h-[58vh]'), 'dice history must use the compact max height');
-assert.ok(historyDrawer.includes('w-[min(22rem,calc(100vw-8rem))]'), 'dice history must use the compact width');
+assert.ok(historyDrawer.includes('w-fit'), 'dice history must size itself to its content');
+assert.ok(historyDrawer.includes('min-w-[18rem]'), 'dice history must keep a narrow default minimum width');
+assert.ok(historyDrawer.includes('max-w-[min(24rem,calc(100vw-8rem))]'), 'dice history must expand only up to its responsive maximum');
+assert.ok(historyDrawer.includes('[scrollbar-gutter:stable]'), 'dice history must reserve room for the scrollbar');
+assert.ok(historyDrawer.includes('[scrollbar-width:thin]'), 'dice history must expose a thin native scrollbar');
+assert.ok(historyDrawer.includes('[&::-webkit-scrollbar-thumb]'), 'dice history must style a visible WebKit scrollbar thumb');
 assert.ok(historyCard.includes('formatPrimaryRollResult(result)'), 'history must use the Keep-aware result summary');
 assert.ok(historyCard.includes('p-2 shadow-md'), 'dice history cards must use compact padding');
 assert.ok(historyCard.includes('h-7 w-7'), 'dice history avatar must use the compact size');
-assert.ok(historyCard.includes('text-lg font-bold'), 'dice history primary result must use the compact size');
+assert.ok(historyCard.includes('text-xl font-bold'), 'dice history primary result must be slightly larger');
+assert.ok(historyCard.includes('break-words text-sm'), 'player names must wrap instead of being truncated');
+assert.ok(historyCard.includes('break-words text-xs'), 'long roll titles must wrap and remain readable');
+assert.ok(!historyCard.includes('truncate'), 'dice history must not truncate long player names or roll titles');
+assert.ok(historyCard.includes('text-[11px]'), 'dice details must use the slightly larger compact text size');
 assert.ok(summary.includes("item.kind === 'keep'"), 'Keep presence must control N (total) formatting');
 assert.ok(summary.includes('die.active && die.keepMatched === true'), 'Keep count must include only final active Keep matches');
 
