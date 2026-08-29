@@ -6,6 +6,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { Dices, Trash2, X } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import { useDiceSession } from './DiceSessionContext';
 import { DiceRollHistoryCard } from './DiceRollHistoryCard';
 import { Dice3DOverlay } from './Dice3DOverlay';
@@ -191,20 +192,24 @@ export function DiceRollHistoryDrawer() {
           )}
         </div>
         <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            data-dice-3d-toggle
-            aria-pressed={animationsEnabled}
-            onClick={() => setAnimationsEnabled(!animationsEnabled)}
-            title="Animazione dadi 3D"
-            className={`rounded-md px-1.5 py-1 text-[10px] font-semibold transition-colors ${
-              animationsEnabled
-                ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
-                : 'bg-[var(--dash-surface-2)] text-[var(--dash-muted)]'
-            }`}
-          >
-            3D {animationsEnabled ? 'ON' : 'OFF'}
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                data-dice-3d-toggle
+                aria-pressed={animationsEnabled}
+                onClick={() => setAnimationsEnabled(!animationsEnabled)}
+                className={`rounded-md px-1.5 py-1 text-[10px] font-semibold transition-colors ${
+                  animationsEnabled
+                    ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
+                    : 'bg-[var(--dash-surface-2)] text-[var(--dash-muted)]'
+                }`}
+              >
+                3D {animationsEnabled ? 'ON' : 'OFF'}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Animazione dadi 3D</TooltipContent>
+          </Tooltip>
           <button
             type="button"
             data-dice-history-clear

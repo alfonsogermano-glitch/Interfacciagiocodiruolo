@@ -75,4 +75,26 @@ assert.ok(historyCard.includes('text-[11px]'), 'dice details must use the slight
 assert.ok(summary.includes("item.kind === 'keep'"), 'Keep presence must control N (total) formatting');
 assert.ok(summary.includes('die.active && die.keepMatched === true'), 'Keep count must include only final active Keep matches');
 
+assert.ok(historyCard.includes('data-dice-player-actions'), 'history must expose the portrait/action column');
+assert.ok(historyCard.includes('data-dice-reroll'), 'history must expose the reroll action');
+assert.ok(
+  historyCard.indexOf('data-dice-player-actions') < historyCard.indexOf('data-dice-reroll'),
+  'reroll must live inside the player portrait/action column',
+);
+assert.match(
+  historyCard,
+  /data-dice-reroll[\s\S]*?className="[^"]*mt-auto[^"]*"/,
+  'reroll must sit at the bottom under the player portrait',
+);
+
+for (const [name, source] of [
+  ['DiceRollHistoryCard', historyCard],
+  ['DiceRollHistoryDrawer', historyDrawer],
+  ['DiceFormulaRow', row],
+  ['SavedDiceFormulaCard', saved],
+]) {
+  assert.doesNotMatch(source, /\stitle=/, `${name} must not use browser-native title tooltips`);
+  assert.ok(source.includes('TooltipContent'), `${name} must use the palette-aware Tooltip component`);
+}
+
 console.log('Dice UI verification passed.');
