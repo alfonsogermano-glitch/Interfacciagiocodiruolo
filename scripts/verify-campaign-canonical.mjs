@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 
 const server = readFileSync('supabase/functions/server/index.tsx', 'utf8');
 const context = readFileSync('src/app/campaigns/CampaignContext.tsx', 'utf8');
+const campaignHome = readFileSync('src/app/campaigns/CampaignHome.tsx', 'utf8');
 const deleteMigrationPath = 'supabase-p0-4-campaign-delete-membership.sql';
 const deleteMigration = existsSync(deleteMigrationPath)
   ? readFileSync(deleteMigrationPath, 'utf8')
@@ -52,6 +53,25 @@ if (context.includes('campaignSyncService')) {
 }
 if (context.includes('ensureCampaignExistsInDB')) {
   failures.push('CampaignContext still invokes ensureCampaignExistsInDB');
+}
+
+for (const required of [
+  'const gmAssignedCharacters =',
+  '.filter((ch) => !ch.availableForPlayers)',
+  'profileId: activeCampaign.ownerId',
+  'characters: gmAssignedCharacters',
+]) {
+  if (!campaignHome.includes(required)) {
+    failures.push(`CampaignHome must keep assigned GM-owned PCs in Personaggi: ${required}`);
+  }
+}
+
+if (!campaignHome.includes('isOwner && row && row.profileId !== activeCampaign?.ownerId')) {
+  failures.push('CampaignHome must never offer Rimuovi giocatore on the synthetic GM row');
+}
+
+if (!campaignHome.includes('await setCharacterAvailableForPlayers(ch.id, nextAvailable, SERVER_BASE, accessToken);\n      setPlayersReloadToken((t) => t + 1);')) {
+  failures.push('CampaignHome must reload character grouping after either availability toggle direction');
 }
 
 if (failures.length > 0) {
