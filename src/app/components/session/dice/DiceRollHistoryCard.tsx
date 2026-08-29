@@ -73,25 +73,29 @@ export function DiceRollHistoryCard({ result, onReroll }: DiceRollHistoryCardPro
               <div className="break-words text-sm font-semibold leading-tight text-[var(--dash-text-strong)]">
                 {result.rollerName}
               </div>
-              <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5">
-                <div className="min-w-[8rem] flex-1 break-words text-xs leading-tight text-[var(--dash-muted)]">
-                  {result.formulaName}
+              {(result.formulaId || result.visibility === 'secret') && (
+                <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5">
+                  {result.formulaId && (
+                    <div className="min-w-[8rem] flex-1 break-words text-xs leading-tight text-[var(--dash-muted)]">
+                      {result.formulaName}
+                    </div>
+                  )}
+                  {result.visibility === 'secret' && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span
+                          data-dice-roll-secret
+                          className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-[var(--dash-border)] bg-[var(--dash-input)] px-1 py-0.5 text-[10px] font-medium leading-none text-[var(--dash-muted)]"
+                        >
+                          <EyeOff className="h-2.5 w-2.5" />
+                          Segreto
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>Tiro segreto</TooltipContent>
+                    </Tooltip>
+                  )}
                 </div>
-                {result.visibility === 'secret' && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span
-                        data-dice-roll-secret
-                        className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-[var(--dash-border)] bg-[var(--dash-input)] px-1 py-0.5 text-[10px] font-medium leading-none text-[var(--dash-muted)]"
-                      >
-                        <EyeOff className="h-2.5 w-2.5" />
-                        Segreto
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>Tiro segreto</TooltipContent>
-                  </Tooltip>
-                )}
-              </div>
+              )}
             </div>
             <div className="shrink-0 text-right">
               <div className="text-[10px] uppercase leading-none tracking-wide text-[var(--dash-muted)]">Totale</div>
