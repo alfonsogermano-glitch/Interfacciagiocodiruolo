@@ -66,6 +66,16 @@ assert.ok(historyDrawer.includes('[scrollbar-width:none]'), 'native Firefox scro
 assert.ok(historyDrawer.includes('[&::-webkit-scrollbar]:hidden'), 'native WebKit scrollbar must be hidden behind the custom scrollbar');
 assert.ok(!historyDrawer.includes('cursor-grab'), 'dice history scrollbar must not switch to the grab cursor');
 assert.ok(!historyDrawer.includes('cursor-grabbing'), 'dice history scrollbar must not switch to the grabbing cursor');
+assert.match(
+  historyDrawer,
+  /data-dice-history-drawer[\s\S]*?className="[^"]*select-none[^"]*"/,
+  'dice history must prevent mouse text selection',
+);
+assert.match(
+  historyDrawer,
+  /data-dice-history-drawer[\s\S]*?className="[^"]*cursor-default[^"]*"/,
+  'dice history must keep the default cursor over non-interactive content',
+);
 assert.ok(historyCard.includes('formatPrimaryRollResult(result)'), 'history must use the Keep-aware result summary');
 assert.ok(historyCard.includes('p-2 shadow-md'), 'dice history cards must use compact padding');
 assert.ok(historyCard.includes('h-7 w-7'), 'dice history avatar must use the compact size');
