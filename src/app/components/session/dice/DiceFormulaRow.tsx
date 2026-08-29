@@ -162,10 +162,32 @@ export function DiceFormulaRow({
           </>
         )}
 
-        {(item.kind === 'keep' || item.kind === 'drop') && (
+        {item.kind === 'keep' && (
           <>
             <select
-              aria-label={item.kind === 'keep' ? 'Risultati da mantenere' : 'Risultati da scartare'}
+              aria-label="Risultati da mantenere"
+              value={item.which}
+              onChange={(event) => update({ which: event.target.value as 'highest' | 'lowest' | 'equal' })}
+              className={`${fieldClass} min-w-28`}
+            >
+              <option value="highest">Highest</option>
+              <option value="lowest">Lowest</option>
+              <option value="equal">Equal</option>
+            </select>
+            <NumericStepper
+              value={item.count}
+              min={1}
+              integer
+              ariaLabel="Valore soglia Keep"
+              onChange={(count) => update({ count })}
+            />
+          </>
+        )}
+
+        {item.kind === 'drop' && (
+          <>
+            <select
+              aria-label="Risultati da scartare"
               value={item.which}
               onChange={(event) => update({ which: event.target.value as 'highest' | 'lowest' })}
               className={`${fieldClass} min-w-28`}

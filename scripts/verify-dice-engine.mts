@@ -16,10 +16,17 @@ const complexItems: DiceFormulaItem[] = [
   { id: 'i', kind: 'modifier', operation: 'add', value: 3 },
 ];
 
-assert.equal(formatDiceFormula(complexItems), '2d20+2d12!p>=3+1d3dh1!kh1+3');
+assert.equal(formatDiceFormula(complexItems), '2d20+2d12!p>=3+1d3dh1!k>=1+3');
 assert.equal(
   formatDiceFormula([{ id: 'x', kind: 'compare', operator: 'lte', target: 15, total: true }]),
   'T<=15',
+);
+assert.equal(
+  formatDiceFormula([
+    { id: 'd', kind: 'dice', sides: 20, quantity: 4 },
+    { id: 'k', kind: 'keep', which: 'equal', count: 15 } as unknown as DiceFormulaItem,
+  ]),
+  '4d20k=15',
 );
 
 const d6: DiceFormulaItem = { id: 'd6', kind: 'dice', sides: 6, quantity: 1 };
@@ -76,14 +83,37 @@ function roll(items: DiceFormulaItem[], values: number[]) {
 
 assert.equal(roll([{ id: 'd', kind: 'dice', sides: 6, quantity: 2 }], [3, 5]).total, 8);
 
-const keepResult = roll([
-  { id: 'd', kind: 'dice', sides: 6, quantity: 4 },
-  { id: 'k', kind: 'keep', which: 'highest', count: 2 },
-], [1, 6, 4, 2]);
-assert.equal(keepResult.total, 10);
+const keepHighest = roll([
+  { id: 'd', kind: 'dice', sides: 20, quantity: 4 },
+  { id: 'k', kind: 'keep', which: 'highest', count: 15 },
+], [4, 15, 17, 12]);
+assert.equal(keepHighest.total, 32);
 assert.deepEqual(
-  keepResult.diceGroups[0].rolls.filter((die) => die.active).map((die) => die.contribution).sort((a, b) => b - a),
-  [6, 4],
+  keepHighest.diceGroups[0].rolls.filter((die) => die.active).map((die) => die.contribution),
+  [15, 17],
+  'Keep Highest 15 must keep only results >= 15',
+);
+
+const keepLowest = roll([
+  { id: 'd', kind: 'dice', sides: 20, quantity: 4 },
+  { id: 'k', kind: 'keep', which: 'lowest', count: 15 },
+], [4, 15, 17, 12]);
+assert.equal(keepLowest.total, 31);
+assert.deepEqual(
+  keepLowest.diceGroups[0].rolls.filter((die) => die.active).map((die) => die.contribution),
+  [4, 15, 12],
+  'Keep Lowest 15 must keep only results <= 15',
+);
+
+const keepEqual = roll([
+  { id: 'd', kind: 'dice', sides: 20, quantity: 4 },
+  { id: 'k', kind: 'keep', which: 'equal', count: 15 } as unknown as DiceFormulaItem,
+], [4, 15, 17, 15]);
+assert.equal(keepEqual.total, 30);
+assert.deepEqual(
+  keepEqual.diceGroups[0].rolls.filter((die) => die.active).map((die) => die.contribution),
+  [15, 15],
+  'Keep Equal 15 must keep only results equal to 15',
 );
 
 assert.equal(roll([

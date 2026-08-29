@@ -56,9 +56,21 @@ function compareValue(value: number, operator: 'gte' | 'lte' | 'eq', target: num
   return value === target;
 }
 
-function applySelection(
+function applyKeepThreshold(
   group: RollDiceGroup,
-  kind: 'keep' | 'drop',
+  which: 'highest' | 'lowest' | 'equal',
+  threshold: number,
+): void {
+  for (const die of activeRolls(group)) {
+    if (which === 'highest') die.active = die.contribution >= threshold;
+    else if (which === 'lowest') die.active = die.contribution <= threshold;
+    else die.active = die.contribution === threshold;
+  }
+  refreshGroup(group);
+}
+
+function applyDropSelection(
+  group: RollDiceGroup,
   which: 'highest' | 'lowest',
   count: number,
 ): void {
@@ -72,13 +84,8 @@ function applySelection(
   });
 
   const selected = new Set(indexed.slice(0, Math.min(count, indexed.length)).map(({ die }) => die.id));
-
-  if (kind === 'keep') {
-    for (const die of candidates) die.active = selected.has(die.id);
-  } else {
-    for (const die of candidates) {
-      if (selected.has(die.id)) die.active = false;
-    }
+  for (const die of candidates) {
+    if (selected.has(die.id)) die.active = false;
   }
   refreshGroup(group);
 }
@@ -160,11 +167,18 @@ export function rollDiceFormula(
         break;
       }
 
-      case 'keep':
-      case 'drop': {
-        if (!activeGroup) throw new DiceRollError(`${item.kind} senza gruppo di dadi attivo.`);
+      case 'keep': {
+        if (!activeGroup) throw new DiceRollError('keep senza gruppo di dadi attivo.');
         const before = activeGroup.contribution;
-        applySelection(activeGroup, item.kind, item.which, item.count);
+        applyKeepThreshold(activeGroup, item.which, item.count);
+        total += activeGroup.contribution - before;
+        break;
+      }
+
+      case 'drop': {
+        if (!activeGroup) throw new DiceRollError('drop senza gruppo di dadi attivo.');
+        const before = activeGroup.contribution;
+        applyDropSelection(activeGroup, item.which, item.count);
         total += activeGroup.contribution - before;
         break;
       }
