@@ -92,6 +92,22 @@ if (!myCharactersPage.includes("labelClassName: char.availableForPlayers ? undef
   failures.push('MyCharactersPage must make the OFF Disponibile per i giocatori label clearly muted and lower-opacity');
 }
 
+for (const [source, sourceName, idExpression] of [
+  [myCharactersPage, 'MyCharactersPage', 'char.id'],
+  [campaignHome, 'CampaignHome', 'ch.id'],
+]) {
+  for (const required of [
+    'const availabilityToggleLocksRef = useRef<Set<string>>(new Set());',
+    `if (availabilityToggleLocksRef.current.has(${idExpression})) return;`,
+    `availabilityToggleLocksRef.current.add(${idExpression});`,
+    `finally {\n      availabilityToggleLocksRef.current.delete(${idExpression});\n    }`,
+  ]) {
+    if (!source.includes(required)) {
+      failures.push(`${sourceName} must ignore repeated availability clicks while the same character update is pending: ${required}`);
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error('P0 canonical campaign contract failed:');
   for (const failure of failures) console.error(`- ${failure}`);

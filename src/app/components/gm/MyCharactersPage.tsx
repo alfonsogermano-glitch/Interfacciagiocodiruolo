@@ -243,6 +243,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   // ============= Personaggi giocanti =============
 
   const [characters, setCharacters] = useState<OwnedCharacter[]>([]);
+  const availabilityToggleLocksRef = useRef<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   // Distingue il primissimo caricamento (dove lo spinner a piena griglia ha
   // senso, non c'e' ancora nulla da mostrare) da ogni refresh successivo di
@@ -536,6 +537,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   // Non passa da persistCharacter/saveCharacter di proposito (vedi
   // charactersService.ts): quella pipeline non tocca questi due campi.
   const handleToggleCharacterAvailable = async (char: OwnedCharacter) => {
+    if (availabilityToggleLocksRef.current.has(char.id)) return;
+    availabilityToggleLocksRef.current.add(char.id);
     const nextAvailable = !char.availableForPlayers;
     setCharacters(prev => prev.map(c => (c.id === char.id
       ? { ...c, availableForPlayers: nextAvailable, claimableOrigin: nextAvailable ? true : c.claimableOrigin }
@@ -546,6 +549,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     } catch (err) {
       console.error('Errore aggiornamento disponibilità personaggio:', err);
       setCharacters(prev => prev.map(c => (c.id === char.id ? char : c)));
+    } finally {
+      availabilityToggleLocksRef.current.delete(char.id);
     }
   };
 

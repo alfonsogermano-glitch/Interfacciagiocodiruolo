@@ -202,6 +202,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   const [isCopyingEntity, setIsCopyingEntity] = useState(false);
   const [copyEntityError, setCopyEntityError] = useState<string | null>(null);
 
+  const availabilityToggleLocksRef = useRef<Set<string>>(new Set());
   const lookupSeqRef = useRef(0);
   const isOwner = activeCampaign?.ownerId === user?.id;
   const sessionActive = localSessionActive ?? !!activeCampaign?.sessionActive;
@@ -792,6 +793,8 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   // update ottimistico locale (stesso schema di MyCharactersPage.tsx),
   // rollback su errore.
   const handleToggleCharacterAvailable = async (ch: PlayerCharacterSummary) => {
+    if (availabilityToggleLocksRef.current.has(ch.id)) return;
+    availabilityToggleLocksRef.current.add(ch.id);
     const nextAvailable = !ch.availableForPlayers;
     setAvailablePremades((prev) => prev.map((c) => (c.id === ch.id ? { ...c, availableForPlayers: nextAvailable } : c)));
     try {
@@ -801,6 +804,8 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     } catch (err) {
       console.error('Errore aggiornamento disponibilità personaggio:', err);
       setAvailablePremades((prev) => prev.map((c) => (c.id === ch.id ? ch : c)));
+    } finally {
+      availabilityToggleLocksRef.current.delete(ch.id);
     }
   };
 
