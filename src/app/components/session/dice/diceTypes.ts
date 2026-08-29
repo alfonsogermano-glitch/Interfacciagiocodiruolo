@@ -1,4 +1,5 @@
-export type DiceKeepDropWhich = 'highest' | 'lowest';
+export type DiceKeepWhich = 'highest' | 'lowest' | 'equal';
+export type DiceDropWhich = 'highest' | 'lowest';
 export type DiceExplodingMode = 'explode' | 'compound' | 'penetrate';
 export type DiceCompareOperator = 'gte' | 'lte' | 'eq';
 export type DiceModifierOperation = 'add' | 'subtract' | 'multiply' | 'divide' | 'exponent';
@@ -14,13 +15,14 @@ export type DiceFormulaItem =
   | {
       id: string;
       kind: 'keep';
-      which: DiceKeepDropWhich;
+      which: DiceKeepWhich;
+      /** Threshold value: highest keeps >=, lowest keeps <=, equal keeps ===. */
       count: number;
     }
   | {
       id: string;
       kind: 'drop';
-      which: DiceKeepDropWhich;
+      which: DiceDropWhich;
       count: number;
     }
   | {
