@@ -1,4 +1,5 @@
 import { ArrowDown, ArrowUp, GripVertical, Minus, Plus, Trash2 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import type { DiceFormulaItem } from './diceTypes.ts';
 
 const fieldClass =
@@ -111,18 +112,22 @@ export function DiceFormulaRow({
       }`}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span
-          draggable
-          onDragStart={(event) => {
-            event.dataTransfer.effectAllowed = 'move';
-            event.dataTransfer.setData('text/plain', item.id);
-          }}
-          aria-label="Trascina per riordinare"
-          title="Trascina per riordinare"
-          className="cursor-grab rounded p-1 text-[var(--dash-muted)] active:cursor-grabbing"
-        >
-          <GripVertical className="h-4 w-4" />
-        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', item.id);
+              }}
+              aria-label="Trascina per riordinare"
+              className="cursor-grab rounded p-1 text-[var(--dash-muted)] active:cursor-grabbing"
+            >
+              <GripVertical className="h-4 w-4" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>Trascina per riordinare</TooltipContent>
+        </Tooltip>
 
         <select
           aria-label="Tipo elemento formula"
@@ -270,35 +275,47 @@ export function DiceFormulaRow({
         )}
 
         <div className="ml-auto flex items-center gap-0.5">
-          <button
-            type="button"
-            onClick={onMoveUp}
-            disabled={!canMoveUp}
-            aria-label="Sposta su"
-            title="Sposta su"
-            className="rounded p-1.5 text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] disabled:opacity-25"
-          >
-            <ArrowUp className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={onMoveDown}
-            disabled={!canMoveDown}
-            aria-label="Sposta giu"
-            title="Sposta giu"
-            className="rounded p-1.5 text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] disabled:opacity-25"
-          >
-            <ArrowDown className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={onRemove}
-            aria-label="Rimuovi elemento"
-            title="Rimuovi elemento"
-            className="rounded p-1.5 text-[var(--dash-muted)] hover:bg-red-500/10 hover:text-red-400"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onMoveUp}
+                disabled={!canMoveUp}
+                aria-label="Sposta su"
+                className="rounded p-1.5 text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] disabled:opacity-25"
+              >
+                <ArrowUp className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Sposta su</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onMoveDown}
+                disabled={!canMoveDown}
+                aria-label="Sposta giu"
+                className="rounded p-1.5 text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] disabled:opacity-25"
+              >
+                <ArrowDown className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Sposta giu</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={onRemove}
+                aria-label="Rimuovi elemento"
+                className="rounded p-1.5 text-[var(--dash-muted)] hover:bg-red-500/10 hover:text-red-400"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Rimuovi elemento</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
