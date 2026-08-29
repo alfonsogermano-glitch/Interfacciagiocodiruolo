@@ -270,7 +270,7 @@ export function DiceRollHistoryDrawer() {
               onPointerMove={handleScrollbarPointerMove}
               onPointerUp={stopScrollbarDrag}
               onPointerCancel={stopScrollbarDrag}
-              className="pointer-events-auto absolute left-0.5 right-0.5 top-0 touch-none cursor-grab rounded-full bg-[var(--dash-accent)] shadow-md transition-[background-color] hover:bg-[var(--dash-accent-hover)] active:cursor-grabbing"
+              className="pointer-events-auto absolute left-0.5 right-0.5 top-0 touch-none rounded-full bg-[var(--dash-accent)] shadow-md transition-[background-color] hover:bg-[var(--dash-accent-hover)]"
               style={{
                 height: `${scrollbar.thumbHeight}px`,
                 transform: `translateY(${scrollbar.thumbTop}px)`,
