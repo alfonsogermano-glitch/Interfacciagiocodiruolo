@@ -53,6 +53,9 @@ assert.ok(historyDrawer.includes('max-h-[58vh]'), 'dice history must use the com
 assert.ok(historyDrawer.includes('w-fit'), 'dice history must size itself to its content');
 assert.ok(historyDrawer.includes('min-w-[18rem]'), 'dice history must keep a narrow default minimum width');
 assert.ok(historyDrawer.includes('max-w-[min(24rem,calc(100vw-8rem))]'), 'dice history must expand only up to its responsive maximum');
+assert.ok(historyDrawer.includes('className="relative flex min-h-0 flex-1 overflow-hidden"'), 'custom scrollbar wrapper must participate in flex sizing so the scroll viewport can shrink');
+assert.match(historyDrawer, /className="[^"]*min-h-0[^"]*flex-1[^"]*overflow-y-auto[^"]*"/, 'scroll viewport must itself be a shrinking flex child');
+assert.doesNotMatch(historyDrawer, /className="h-full min-h-0 overflow-y-auto/, 'scroll viewport must not depend on h-full inside a max-height-only drawer');
 assert.ok(historyDrawer.includes('data-dice-history-scrollbar-track'), 'dice history must render its own scrollbar track');
 assert.ok(historyDrawer.includes('data-dice-history-scrollbar-thumb'), 'dice history must render its own scrollbar thumb');
 assert.ok(historyDrawer.includes('scrollContainer.scrollHeight > scrollContainer.clientHeight'), 'custom scrollbar must appear only when the history overflows');

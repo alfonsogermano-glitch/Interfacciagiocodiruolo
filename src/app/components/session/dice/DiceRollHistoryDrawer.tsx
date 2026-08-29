@@ -226,12 +226,12 @@ export function DiceRollHistoryDrawer() {
         </div>
       </header>
 
-      <div className="relative min-h-0 flex-1 overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <div
           ref={scrollContainerRef}
           data-dice-history-scroll
           onScroll={syncScrollbar}
-          className="h-full min-h-0 overflow-y-auto p-1.5 pr-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="min-h-0 flex-1 overflow-y-auto p-1.5 pr-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <div ref={scrollContentRef}>
             {rolls.length === 0 ? (
