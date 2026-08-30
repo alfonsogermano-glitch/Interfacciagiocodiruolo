@@ -87,13 +87,46 @@ export function DiceFormulaBuilder({ items, itemErrors, onChange }: DiceFormulaB
               <Plus className="h-4 w-4" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" className="z-[1000] min-w-48">
-            <DropdownMenuItem onClick={() => append('compare')}>Confronto</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => append('dice')}>Dado</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => append('drop')}>Scarta</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => append('exploding')}>Esplosione</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => append('keep')}>Mantieni</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => append('modifier')}>Modificatore</DropdownMenuItem>
+          <DropdownMenuContent
+            align="center"
+            className="z-[1000] min-w-48 !bg-[var(--dash-panel)] !border-[var(--dash-border)] !text-[var(--dash-text)]"
+          >
+            <DropdownMenuItem
+              className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]"
+              onClick={() => append('compare')}
+            >
+              Confronto
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]"
+              onClick={() => append('dice')}
+            >
+              Dado
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]"
+              onClick={() => append('drop')}
+            >
+              Scarta
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]"
+              onClick={() => append('exploding')}
+            >
+              Esplosione
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]"
+              onClick={() => append('keep')}
+            >
+              Mantieni
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]"
+              onClick={() => append('modifier')}
+            >
+              Modificatore
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
