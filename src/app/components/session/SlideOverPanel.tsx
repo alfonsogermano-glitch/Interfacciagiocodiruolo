@@ -44,6 +44,7 @@ export function SlideOverPanel({
 
   return (
     <div
+      data-session-slide-over="true"
       className={`fixed top-12 bottom-0 z-[900] flex min-h-0 flex-col shadow-2xl transition-transform duration-300 ease-out ${widthClassName}`}
       style={{
         right: rightOffset,

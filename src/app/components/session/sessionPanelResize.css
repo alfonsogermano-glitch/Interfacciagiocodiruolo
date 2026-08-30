@@ -42,3 +42,52 @@
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+
+/* Tablet e mobile: il pannello resta dentro la viewport senza cambiare il desktop. */
+@media (max-width: 1023px) {
+  [data-session-slide-over='true'] {
+    left: 0;
+    width: calc(100vw - 5rem) !important;
+    max-width: calc(100vw - 5rem) !important;
+    overflow-x: hidden;
+  }
+
+  [data-note-panel-resizer='true'],
+  [data-character-panel-resizer='true'] {
+    display: none;
+  }
+}
+
+/* Telefoni stretti: lista e dettaglio si impilano invece di uscire a sinistra. */
+@media (max-width: 767px) {
+  [data-note-split-panel='true'],
+  [data-session-characters-resizable='true'] > div:first-child {
+    flex-direction: column;
+  }
+
+  [data-note-sidebar='true'],
+  [data-session-characters-resizable='true'] > div:first-child > div:first-child {
+    width: 100% !important;
+    max-height: 38%;
+    min-height: 7.5rem;
+    flex-shrink: 0;
+    overflow-y: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--dash-border-soft);
+  }
+
+  [data-note-sidebar-resizer='true'],
+  [data-character-sidebar-resizer='true'] {
+    display: none;
+  }
+
+  [data-note-split-panel='true'] > div:last-child,
+  [data-session-characters-resizable='true'] > div:first-child > div:nth-child(2) {
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 0%;
+    max-height: none;
+    overflow-x: hidden;
+  }
+}
