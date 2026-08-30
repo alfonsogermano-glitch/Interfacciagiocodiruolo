@@ -35,7 +35,7 @@ export function DiceToolbar({ items, onAddDie }: DiceToolbarProps) {
                 <DiceTypeIcon sides={sides}
                   className={
                     sides === 100
-                      ? 'h-11 w-14 transition-transform group-hover:scale-110'
+                      ? 'h-11 w-16 transition-transform group-hover:scale-110'
                       : 'h-12 w-12 transition-transform group-hover:scale-110'
                   }
                 />
