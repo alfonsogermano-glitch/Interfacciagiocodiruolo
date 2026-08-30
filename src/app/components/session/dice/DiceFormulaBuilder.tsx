@@ -91,42 +91,12 @@ export function DiceFormulaBuilder({ items, itemErrors, onChange }: DiceFormulaB
             align="center"
             className="z-[1000] min-w-48 !bg-[var(--dash-panel)] !border-[var(--dash-border)] !text-[var(--dash-text)]"
           >
-            <DropdownMenuItem
-              className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]"
-              onClick={() => append('compare')}
-            >
-              Confronto
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]"
-              onClick={() => append('dice')}
-            >
-              Dado
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]"
-              onClick={() => append('drop')}
-            >
-              Scarta
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]"
-              onClick={() => append('exploding')}
-            >
-              Esplosione
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]"
-              onClick={() => append('keep')}
-            >
-              Mantieni
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]"
-              onClick={() => append('modifier')}
-            >
-              Modificatore
-            </DropdownMenuItem>
+            <DropdownMenuItem className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]" onClick={() => append('compare')}>Confronto</DropdownMenuItem>
+            <DropdownMenuItem className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]" onClick={() => append('dice')}>Dado</DropdownMenuItem>
+            <DropdownMenuItem className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]" onClick={() => append('drop')}>Scarta</DropdownMenuItem>
+            <DropdownMenuItem className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]" onClick={() => append('exploding')}>Esplosione</DropdownMenuItem>
+            <DropdownMenuItem className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]" onClick={() => append('keep')}>Mantieni</DropdownMenuItem>
+            <DropdownMenuItem className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]" onClick={() => append('modifier')}>Modificatore</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
