@@ -205,7 +205,7 @@ export function DiceRollHistoryDrawer() {
                     : 'bg-[var(--dash-surface-2)] text-[var(--dash-muted)]'
                 }`}
               >
-                3D {animationsEnabled ? 'ON' : 'OFF'}
+                3D {animationsEnabled ? 'ATTIVA' : 'DISATTIVA'}
               </button>
             </TooltipTrigger>
             <TooltipContent>Animazione dadi 3D</TooltipContent>
