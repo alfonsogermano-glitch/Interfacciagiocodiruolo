@@ -43,12 +43,12 @@
   overscroll-behavior: contain;
 }
 
-/* Tablet e mobile: il pannello resta dentro la viewport senza cambiare il desktop. */
+/* Tablet e mobile: il pannello resta tra la sidebar globale e la rail di sessione. */
 @media (max-width: 1023px) {
   [data-session-slide-over='true'] {
-    left: 0;
-    width: calc(100vw - 5rem) !important;
-    max-width: calc(100vw - 5rem) !important;
+    left: 100px;
+    width: calc(100vw - 100px - 5rem) !important;
+    max-width: calc(100vw - 100px - 5rem) !important;
     overflow-x: hidden;
   }
 
