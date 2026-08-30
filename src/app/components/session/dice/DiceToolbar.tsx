@@ -32,10 +32,10 @@ export function DiceToolbar({ items, onAddDie }: DiceToolbarProps) {
                     {quantity}
                   </span>
                 )}
-                <DiceTypeIcon sides={sides} className="h-9 w-9 transition-transform group-hover:-rotate-3 group-hover:scale-105" />
+                <DiceTypeIcon sides={sides} className={sides === 100 ? 'h-9 w-11 transition-transform group-hover:-rotate-3 group-hover:scale-105' : 'h-9 w-9 transition-transform group-hover:-rotate-3 group-hover:scale-105'} />
               </button>
             </TooltipTrigger>
-            <TooltipContent>{`Dado da ${sides} facce (d${sides})`}</TooltipContent>
+            <TooltipContent>{`d${sides}`}</TooltipContent>
           </Tooltip>
         );
       })}
