@@ -26,8 +26,8 @@ assert.ok(toolbar.includes('<TooltipContent>{`d${sides}`}</TooltipContent>'), 'q
 assert.doesNotMatch(toolbar, /Dado da \$\{sides\} facce/, 'quick-die tooltip must not repeat the long die description');
 assert.doesNotMatch(toolbar, /<Dices\b/, 'quick-die buttons must not reuse the generic two-d6 icon');
 assert.doesNotMatch(toolbar, /<span[^>]*>\s*d\{sides\}\s*<\/span>/, 'quick-die buttons must not show a redundant text label under the icon');
-assert.ok(diceTypeIcon.includes('data-die-style="polymath-outline"'), 'dice icons must use the clean Polymath-inspired outline treatment');
-assert.ok(diceTypeIcon.includes('<text'), 'Polymath-style dice must place the identifying value inside the die');
+assert.ok(diceTypeIcon.includes('data-die-style="faceted-3d"'), 'dice icons must use the faceted 3D treatment');
+assert.ok(diceTypeIcon.includes('data-die-facets'), 'faceted dice must render internal face lines');
 for (const sides of [4, 6, 8, 10, 12, 20, 100]) {
   assert.ok(diceTypeIcon.includes(`data-die-shape="d${sides}"`), `Missing dedicated d${sides} vector shape`);
 }
