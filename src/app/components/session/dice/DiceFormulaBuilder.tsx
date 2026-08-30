@@ -88,12 +88,12 @@ export function DiceFormulaBuilder({ items, itemErrors, onChange }: DiceFormulaB
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="center" className="z-[1000] min-w-48">
-            <DropdownMenuItem onClick={() => append('compare')}>Compare</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => append('dice')}>Dice</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => append('drop')}>Drop</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => append('exploding')}>Exploding</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => append('keep')}>Keep</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => append('modifier')}>Modifier</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => append('compare')}>Confronto</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => append('dice')}>Dado</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => append('drop')}>Scarta</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => append('exploding')}>Esplosione</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => append('keep')}>Mantieni</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => append('modifier')}>Modificatore</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

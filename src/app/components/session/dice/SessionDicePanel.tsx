@@ -7,11 +7,11 @@ import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import {
   createDiceFormula,
   deleteDiceFormula,
-  duplicateDiceFormula,
   loadDiceFormulas,
   updateDiceFormula,
 } from '../../../../services/supabase/diceFormulasService';
 import { DiceFormulaBuilder } from './DiceFormulaBuilder';
+import { resolveUniqueDiceFormulaName } from './diceFormulaNames.ts';
 import { formatDiceFormula } from './diceFormulaText.ts';
 import { validateDiceFormula } from './diceFormulaValidation.ts';
 import { DiceToolbar } from './DiceToolbar';
@@ -19,7 +19,7 @@ import { SavedDiceFormulaCard } from './SavedDiceFormulaCard';
 import { useDiceSession } from './DiceSessionContext';
 import type { DiceFormulaItem, SavedDiceFormula } from './diceTypes.ts';
 
-const DEFAULT_FORMULA_NAME = 'Untitled dice formula';
+const DEFAULT_FORMULA_NAME = 'Formula senza nome';
 
 function cloneItems(items: DiceFormulaItem[]): DiceFormulaItem[] {
   return items.map((item) => ({ ...item })) as DiceFormulaItem[];
@@ -114,16 +114,23 @@ export function SessionDicePanel() {
     if (!user?.id || !activeCampaign?.id || !validation.valid || saving) return;
     setSaving(true);
     try {
+      const uniqueName = resolveUniqueDiceFormulaName(
+        name,
+        formulas
+          .filter((formula) => formula.id !== editingId)
+          .map((formula) => formula.name),
+      );
+
       const saved = editingId
         ? await updateDiceFormula(editingId, {
-            name,
+            name: uniqueName,
             items: cloneItems(items),
             isSecret: editingIsSecret,
           })
         : await createDiceFormula({
             campaignId: activeCampaign.id,
             ownerProfileId: user.id,
-            name,
+            name: uniqueName,
             items: cloneItems(items),
             isSecret: false,
           });
@@ -183,8 +190,19 @@ export function SessionDicePanel() {
   };
 
   const duplicateFormula = async (formula: SavedDiceFormula) => {
+    if (!user?.id || !activeCampaign?.id) return;
     try {
-      const duplicate = await duplicateDiceFormula(formula);
+      const duplicateName = resolveUniqueDiceFormulaName(
+        `Copia di ${formula.name}`,
+        formulas.map((item) => item.name),
+      );
+      const duplicate = await createDiceFormula({
+        campaignId: activeCampaign.id,
+        ownerProfileId: user.id,
+        name: duplicateName,
+        items: cloneItems(formula.items),
+        isSecret: formula.isSecret,
+      });
       setFormulas((current) => [duplicate, ...current]);
       toast.success('Formula duplicata.');
     } catch (error) {
@@ -211,7 +229,7 @@ export function SessionDicePanel() {
   return (
     <div data-session-dice-panel className="flex h-full min-h-0 flex-col text-[var(--dash-text)]">
       <div className="shrink-0 border-b border-[var(--dash-border)] px-6 py-5">
-        <h1 className="text-xl font-semibold text-[var(--dash-text-strong)]">Dice formulas</h1>
+        <h1 className="text-xl font-semibold text-[var(--dash-text-strong)]">Formule dei dadi</h1>
         <div className="mt-4">
           <DiceToolbar items={items} onAddDie={addQuickDie} />
         </div>
@@ -257,7 +275,7 @@ export function SessionDicePanel() {
               className="inline-flex items-center gap-2 rounded-lg bg-[var(--dash-accent)] px-4 py-2 text-sm font-semibold text-[var(--dash-text-strong)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Play className="h-4 w-4" />
-              Roll
+              Tira
             </button>
             <button
               type="button"
@@ -267,7 +285,7 @@ export function SessionDicePanel() {
               className="inline-flex items-center gap-2 rounded-lg border border-[var(--dash-border)] bg-[var(--dash-surface)] px-4 py-2 text-sm text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Save formula
+              Salva formula
             </button>
             <button
               type="button"
@@ -276,7 +294,7 @@ export function SessionDicePanel() {
               className="inline-flex items-center gap-2 rounded-lg border border-[var(--dash-border)] px-4 py-2 text-sm text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
             >
               <Trash2 className="h-4 w-4" />
-              Clear
+              Svuota
             </button>
           </div>
         </section>
