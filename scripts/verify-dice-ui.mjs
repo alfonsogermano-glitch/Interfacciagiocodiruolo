@@ -26,13 +26,11 @@ assert.ok(toolbar.includes('<TooltipContent>{`d${sides}`}</TooltipContent>'), 'q
 assert.doesNotMatch(toolbar, /Dado da \$\{sides\} facce/, 'quick-die tooltip must not repeat the long die description');
 assert.doesNotMatch(toolbar, /<Dices\b/, 'quick-die buttons must not reuse the generic two-d6 icon');
 assert.doesNotMatch(toolbar, /<span[^>]*>\s*d\{sides\}\s*<\/span>/, 'quick-die buttons must not show a redundant text label under the icon');
-assert.ok(diceTypeIcon.includes('data-die-style="wireframe-polyhedral"'), 'dice icons must use the clear wireframe polyhedral treatment');
-assert.ok(diceTypeIcon.includes('data-die-wireframe-edges'), 'wireframe dice must render simplified internal polyhedral edges');
+assert.ok(diceTypeIcon.includes('<img'), 'dice icons must render standalone image assets');
+assert.ok(diceTypeIcon.includes('data-die-image'), 'dice image assets must expose a stable UI hook');
 for (const sides of [4, 6, 8, 10, 12, 20, 100]) {
-  assert.ok(diceTypeIcon.includes(`data-die-shape="d${sides}"`), `Missing dedicated d${sides} vector shape`);
+  assert.ok(diceTypeIcon.includes(`./assets/dice-d${sides}.svg`), `Missing dedicated d${sides} image asset import`);
 }
-assert.ok(diceTypeIcon.includes('data-die-percentile-tens'), 'd100 must render a dedicated tens d10');
-assert.ok(diceTypeIcon.includes('data-die-percentile-units'), 'd100 must render a dedicated units d10');
 assert.ok(builder.includes('data-dice-modifier-add'));
 assert.match(
   builder,
