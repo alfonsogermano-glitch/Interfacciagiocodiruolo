@@ -22,12 +22,17 @@ assert.ok(diceTypeIcon, 'dice toolbar must provide a dedicated DiceTypeIcon comp
 assert.ok(toolbar.includes("import { DiceTypeIcon } from './DiceTypeIcon';"), 'dice toolbar must use the dedicated die icon component');
 assert.ok(toolbar.includes('TooltipContent'), 'quick dice buttons must use palette-aware tooltips');
 assert.ok(toolbar.includes('<DiceTypeIcon sides={sides}'), 'each quick-die button must render the shape matching its side count');
-assert.ok(toolbar.includes('Dado da ${sides} facce (d${sides})'), 'quick-die tooltip must identify the die type');
+assert.ok(toolbar.includes('<TooltipContent>{`d${sides}`}</TooltipContent>'), 'quick-die tooltip must contain only the compact dX label');
+assert.doesNotMatch(toolbar, /Dado da \$\{sides\} facce/, 'quick-die tooltip must not repeat the long die description');
 assert.doesNotMatch(toolbar, /<Dices\b/, 'quick-die buttons must not reuse the generic two-d6 icon');
 assert.doesNotMatch(toolbar, /<span[^>]*>\s*d\{sides\}\s*<\/span>/, 'quick-die buttons must not show a redundant text label under the icon');
+assert.ok(diceTypeIcon.includes('data-die-style="polymath-outline"'), 'dice icons must use the clean Polymath-inspired outline treatment');
+assert.ok(diceTypeIcon.includes('<text'), 'Polymath-style dice must place the identifying value inside the die');
 for (const sides of [4, 6, 8, 10, 12, 20, 100]) {
   assert.ok(diceTypeIcon.includes(`data-die-shape="d${sides}"`), `Missing dedicated d${sides} vector shape`);
 }
+assert.ok(diceTypeIcon.includes('data-die-percentile-tens'), 'd100 must render a dedicated tens d10');
+assert.ok(diceTypeIcon.includes('data-die-percentile-units'), 'd100 must render a dedicated units d10');
 assert.ok(builder.includes('data-dice-modifier-add'));
 assert.match(
   builder,
