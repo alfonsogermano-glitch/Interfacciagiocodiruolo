@@ -24,7 +24,7 @@ export function DiceToolbar({ items, onAddDie }: DiceToolbarProps) {
                 type="button"
                 data-dice-quick-side={sides}
                 onClick={() => onAddDie(sides)}
-                className="group relative flex h-16 min-w-16 items-center justify-center rounded-lg border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 text-[var(--dash-text)] transition-colors hover:border-[var(--dash-accent)] hover:bg-[var(--dash-surface-2)]"
+                className="group relative flex h-16 min-w-16 items-center justify-center rounded-lg border border-[var(--dash-border)] bg-[var(--dash-surface)] px-2 text-[var(--dash-text)] transition-colors hover:border-[var(--dash-accent)] hover:bg-[var(--dash-surface-2)]"
                 aria-label={`Aggiungi d${sides}`}
               >
                 {quantity > 0 && (
@@ -32,7 +32,13 @@ export function DiceToolbar({ items, onAddDie }: DiceToolbarProps) {
                     {quantity}
                   </span>
                 )}
-                <DiceTypeIcon sides={sides} className={sides === 100 ? 'h-9 w-11 transition-transform group-hover:-rotate-3 group-hover:scale-105' : 'h-9 w-9 transition-transform group-hover:-rotate-3 group-hover:scale-105'} />
+                <DiceTypeIcon sides={sides}
+                  className={
+                    sides === 100
+                      ? 'h-11 w-14 transition-transform group-hover:scale-110'
+                      : 'h-12 w-12 transition-transform group-hover:scale-110'
+                  }
+                />
               </button>
             </TooltipTrigger>
             <TooltipContent>{`d${sides}`}</TooltipContent>
