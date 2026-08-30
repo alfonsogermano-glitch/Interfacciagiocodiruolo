@@ -27,7 +27,11 @@ const DICE_FILTER_BY_SIDES = {
   10: 'brightness(0) saturate(100%) invert(67%) sepia(35%) saturate(1270%) hue-rotate(158deg) brightness(96%) contrast(88%)',
   12: 'brightness(0) saturate(100%) invert(49%) sepia(84%) saturate(1020%) hue-rotate(230deg) brightness(93%) contrast(90%)',
   20: 'brightness(0) saturate(100%) invert(58%) sepia(84%) saturate(1164%) hue-rotate(343deg) brightness(96%) contrast(86%)',
-  100: 'brightness(0) saturate(100%) invert(60%) sepia(49%) saturate(1660%) hue-rotate(194deg) brightness(97%) contrast(93%)',
+} as const;
+
+const D100_FILTERS = {
+  ten: 'brightness(0) saturate(100%) invert(42%) sepia(97%) saturate(2010%) hue-rotate(300deg) brightness(101%) contrast(96%)',
+  zero: 'brightness(0) saturate(100%) invert(78%) sepia(6%) saturate(410%) hue-rotate(178deg) brightness(91%) contrast(87%)',
 } as const;
 
 const suppliedDieClassName = 'object-contain opacity-95';
@@ -39,21 +43,21 @@ export function DiceTypeIcon({ sides, className }: DiceTypeIconProps) {
         aria-hidden="true"
         data-die-image="d100"
         data-die-source="user-svg"
-        className={`${className ?? ''} inline-flex items-center justify-center gap-2`}
+        className={`${className ?? ''} inline-flex items-center justify-center gap-[3px]`}
       >
         <img
           src={diceD10}
           alt=""
           draggable={false}
           className={`h-7 w-7 shrink-0 ${suppliedDieClassName}`}
-          style={{ filter: DICE_FILTER_BY_SIDES[10] }}
+          style={{ filter: D100_FILTERS.ten }}
         />
         <img
           src={diceD10Zero}
           alt=""
           draggable={false}
           className={`h-7 w-7 shrink-0 ${suppliedDieClassName}`}
-          style={{ filter: DICE_FILTER_BY_SIDES[100] }}
+          style={{ filter: D100_FILTERS.zero }}
         />
       </span>
     );

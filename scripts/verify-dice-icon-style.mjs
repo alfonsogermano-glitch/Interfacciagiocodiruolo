@@ -19,7 +19,7 @@ assert.ok(icon.includes('data-die-source="user-svg"'), 'quick dice must identify
 assert.doesNotMatch(icon, /\.png['"]/, 'quick dice must stop using generated PNG renders');
 assert.ok(icon.includes('DICE_FILTER_BY_SIDES'), 'quick dice must define a distinct color filter by die type');
 assert.ok(icon.includes('style={{ filter:'), 'quick dice must apply their assigned color filter to the supplied SVG image');
-for (const sides of [4, 6, 8, 10, 12, 20, 100]) {
+for (const sides of [4, 6, 8, 10, 12, 20]) {
   assert.ok(icon.includes(`${sides}: 'brightness(0) saturate(100%)`), `Missing distinct color filter for d${sides}`);
 }
 
@@ -37,7 +37,19 @@ assert.ok(icon.includes('src={diceD10}'), 'd100 must place the die showing 10 fi
 assert.ok(icon.includes('src={diceD10Zero}'), 'd100 must place the die showing 0 second');
 assert.ok(icon.indexOf('src={diceD10}') < icon.indexOf('src={diceD10Zero}'), 'd100 must render 10 before 0');
 assert.ok(icon.includes('data-die-image="d100"'), 'd100 composition must keep a stable UI hook');
-assert.ok(icon.includes('gap-2'), 'd100 dice must have a clearly visible gap between 10 and 0');
+assert.ok(icon.includes('gap-[3px]'), 'd100 dice must sit close together with a small visible gap');
 assert.doesNotMatch(icon, /-ml-\d/, 'd100 dice must not overlap through negative margin');
+assert.doesNotMatch(icon, /\bgap-2\b/, 'd100 dice must no longer use the wider 8px gap');
 
-console.log('Dice supplied SVG color filter and spacing verification passed.');
+const standardFilterEntries = [...icon.matchAll(/\s(4|6|8|10|12|20): '([^']+)'/g)];
+const standardFilters = new Set(standardFilterEntries.map((match) => match[2]));
+const d100Filters = icon.match(/const D100_FILTERS = \{[\s\S]*?ten: '([^']+)'[\s\S]*?zero: '([^']+)'/);
+assert.ok(d100Filters, 'd100 must define two dedicated color filters');
+const [, d100TenFilter, d100ZeroFilter] = d100Filters;
+assert.notEqual(d100TenFilter, d100ZeroFilter, 'the two d100 dice must use different colors');
+assert.ok(!standardFilters.has(d100TenFilter), 'd100 ten die color must be unique from every standard die');
+assert.ok(!standardFilters.has(d100ZeroFilter), 'd100 zero die color must be unique from every standard die');
+assert.ok(icon.includes('style={{ filter: D100_FILTERS.ten }}'), 'd100 ten die must use its dedicated color');
+assert.ok(icon.includes('style={{ filter: D100_FILTERS.zero }}'), 'd100 zero die must use its dedicated color');
+
+console.log('Dice supplied SVG color filter and d100 spacing verification passed.');
