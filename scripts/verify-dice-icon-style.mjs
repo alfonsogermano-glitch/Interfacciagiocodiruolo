@@ -2,34 +2,35 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const icon = fs.readFileSync(new URL('../src/app/components/session/dice/DiceTypeIcon.tsx', import.meta.url), 'utf8');
-const diceSides = [4, 6, 8, 10, 12, 20, 100];
-const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-assert.ok(icon.includes('<img'), 'quick dice must render dedicated image assets');
-assert.doesNotMatch(icon, /<svg\b/, 'DiceTypeIcon must not draw inline geometry');
-assert.ok(icon.includes('DICE_IMAGE_BY_SIDES'), 'DiceTypeIcon must map every die type to a dedicated rendered asset');
-assert.ok(icon.includes('data-die-image'), 'dice images must expose a stable UI hook');
-assert.ok(icon.includes('data-die-render="realistic-3d"'), 'dice assets must use the realistic 3D render treatment');
-assert.ok(icon.includes('data-die-numbered="true"'), 'realistic dice renders must visibly include face numbers');
-assert.doesNotMatch(icon, /\.svg['"]/, 'realistic dice renders must replace the previous flat SVG icon assets');
+const userAssets = [
+  ['dice-d4.svg', 'd4-4'],
+  ['dice-d6.svg', 'd6-6'],
+  ['dice-d8.svg', 'd8-8'],
+  ['dice-d10.svg', 'd10-10'],
+  ['dice-d10-zero.svg', 'd10-0'],
+  ['dice-d12.svg', 'd12-12'],
+  ['dice-d20.svg', 'd20-20'],
+];
 
-for (const sides of diceSides) {
-  const assetName = `dice-d${sides}.png`;
-  assert.ok(icon.includes(`./assets/${assetName}`), `Missing rendered image import for d${sides}`);
+assert.ok(icon.includes('<img'), 'quick dice must render the supplied SVG image assets');
+assert.doesNotMatch(icon, /<svg\b/, 'DiceTypeIcon must not redraw the supplied dice inline');
+assert.ok(icon.includes('data-die-source="user-svg"'), 'quick dice must identify the supplied SVG set as their source');
+assert.doesNotMatch(icon, /\.png['"]/, 'quick dice must stop using the generated PNG renders');
 
+for (const [assetName, title] of userAssets) {
+  assert.ok(icon.includes(`./assets/${assetName}`), `Missing supplied asset import ${assetName}`);
   const assetUrl = new URL(`../src/app/components/session/dice/assets/${assetName}`, import.meta.url);
-  assert.ok(fs.existsSync(assetUrl), `Missing rendered image asset ${assetName}`);
-
-  const asset = fs.readFileSync(assetUrl);
-  assert.ok(asset.subarray(0, 8).equals(pngSignature), `${assetName} must be a real PNG render`);
-  assert.ok(asset.length > 2000, `${assetName} must contain a substantive rendered image, not a placeholder`);
-
-  const width = asset.readUInt32BE(16);
-  const height = asset.readUInt32BE(20);
-  const colorType = asset[25];
-  const hasTransparency = colorType === 4 || colorType === 6 || (colorType === 3 && asset.includes(Buffer.from('tRNS')));
-  assert.ok(width >= 96 && height >= 96, `${assetName} must be at least 2x the rendered toolbar size for crisp display`);
-  assert.ok(hasTransparency, `${assetName} must preserve transparency around the rendered die`);
+  assert.ok(fs.existsSync(assetUrl), `Missing supplied SVG asset ${assetName}`);
+  const asset = fs.readFileSync(assetUrl, 'utf8');
+  assert.ok(asset.includes(`<title>${title}</title>`), `${assetName} must be the exact supplied ${title} artwork`);
+  assert.ok(asset.includes('viewBox="0 0 36 36"'), `${assetName} must preserve the supplied 36x36 viewBox`);
 }
 
-console.log('Dice realistic render asset verification passed.');
+assert.ok(icon.includes("if (sides === 100)"), 'd100 must have a dedicated two-die composition');
+assert.ok(icon.includes('src={diceD10}'), 'd100 must place the die showing 10 first');
+assert.ok(icon.includes('src={diceD10Zero}'), 'd100 must place the die showing 0 second');
+assert.ok(icon.indexOf('src={diceD10}') < icon.indexOf('src={diceD10Zero}'), 'd100 must render 10 before 0');
+assert.ok(icon.includes('data-die-image="d100"'), 'd100 composition must keep a stable UI hook');
+
+console.log('Dice supplied SVG asset verification passed.');

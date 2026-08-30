@@ -28,10 +28,12 @@ assert.doesNotMatch(toolbar, /<Dices\b/, 'quick-die buttons must not reuse the g
 assert.doesNotMatch(toolbar, /<span[^>]*>\s*d\{sides\}\s*<\/span>/, 'quick-die buttons must not show a redundant text label under the icon');
 assert.ok(diceTypeIcon.includes('<img'), 'dice icons must render standalone image assets');
 assert.ok(diceTypeIcon.includes('data-die-image'), 'dice image assets must expose a stable UI hook');
-assert.ok(diceTypeIcon.includes('data-die-render="realistic-3d"'), 'quick dice must use the realistic 3D render treatment');
-for (const sides of [4, 6, 8, 10, 12, 20, 100]) {
-  assert.ok(diceTypeIcon.includes(`./assets/dice-d${sides}.png`), `Missing dedicated d${sides} rendered image asset import`);
+assert.ok(diceTypeIcon.includes('data-die-source="user-svg"'), 'quick dice must use the supplied SVG artwork');
+for (const sides of [4, 6, 8, 10, 12, 20]) {
+  assert.ok(diceTypeIcon.includes(`./assets/dice-d${sides}.svg`), `Missing supplied d${sides} SVG asset import`);
 }
+assert.ok(diceTypeIcon.includes('./assets/dice-d10-zero.svg'), 'd100 must include the supplied zero-face d10 SVG');
+assert.ok(diceTypeIcon.includes('data-die-image="d100"'), 'd100 must expose its composed image hook');
 assert.ok(builder.includes('data-dice-modifier-add'));
 assert.match(
   builder,
