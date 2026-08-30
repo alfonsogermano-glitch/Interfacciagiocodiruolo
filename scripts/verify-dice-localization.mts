@@ -118,6 +118,7 @@ assert.equal(
 
 assert.ok(panel.includes('resolveUniqueDiceFormulaName'), 'save flow must use the unique-name helper');
 assert.ok(panel.includes('formula.id !== editingId'), 'editing a formula must exclude itself from duplicate-name checks');
-assert.ok(panel.includes('resolveUniqueDiceFormulaName(`Copia di ${formula.name}`'), 'duplicate flow must also generate a unique name');
+assert.ok(panel.includes('const duplicateName = resolveUniqueDiceFormulaName('), 'duplicate flow must use the unique-name helper');
+assert.ok(panel.includes('`Copia di ${formula.name}`'), 'duplicate flow must derive its base name from the source formula');
 
 console.log('Dice Italian localization and unique-name verification passed.');
