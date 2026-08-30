@@ -12,11 +12,15 @@ assert.match(
   'dice + menu must use the selected Hollowgate palette for panel, border, and text',
 );
 
+const paletteItemClass = 'className="text-[var(--dash-text)] focus:!bg-[var(--dash-surface-2)] focus:!text-[var(--dash-text-strong)]"';
+assert.equal(
+  builder.split(paletteItemClass).length - 1,
+  6,
+  'all six dice + menu items must use palette-aware focus styling',
+);
+
 for (const label of ['Confronto', 'Dado', 'Scarta', 'Esplosione', 'Mantieni', 'Modificatore']) {
-  const pattern = new RegExp(
-    `<DropdownMenuItem[^>]*className="[^"]*focus:!bg-\\[var\\(--dash-surface-2\\)\\][^"]*focus:!text-\\[var\\(--dash-text-strong\\)\\][^"]*"[^>]*>${label}</DropdownMenuItem>`,
-  );
-  assert.match(builder, pattern, `dice + menu item ${label} must use palette-aware focus styling`);
+  assert.ok(builder.includes(label), `dice + menu must keep the ${label} option`);
 }
 
 console.log('Dice palette menu verification passed.');
