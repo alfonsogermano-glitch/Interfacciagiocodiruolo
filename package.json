@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "verify:dice-engine": "node --experimental-strip-types scripts/verify-dice-engine.mts",
     "verify:dice-ui": "node scripts/verify-dice-ui.mjs",
+    "verify:dice-palette-menu": "node scripts/verify-dice-palette-menu.mjs",
     "verify:dice-localization": "node --experimental-strip-types scripts/verify-dice-localization.mts",
     "verify:dice-icon-style": "node scripts/verify-dice-icon-style.mjs",
     "verify:dice-realtime": "node scripts/verify-dice-realtime.mjs",
@@ -25,7 +26,7 @@
     "verify:note-title-icons": "node scripts/verify-note-title-icons.mjs",
     "verify:note-icon-catalog": "node --experimental-strip-types scripts/verify-note-icon-catalog.mjs",
     "verify:note-panel-resize": "node scripts/verify-note-panel-resize.mjs",
-    "check": "npm run typecheck && npm run verify:dice-engine && npm run verify:dice-ui && npm run verify:dice-localization && npm run verify:dice-icon-style && npm run verify:dice-realtime && npm run verify:dice-3d && npm run verify:campaign-canonical && npm run verify:note-inline-checkbox && npm run verify:note-tables && npm run verify:note-table-container-gap && npm run verify:note-table-gap-layout && npm run verify:note-contextual-controls && npm run verify:note-container-nesting && npm run verify:note-viewport-fill && npm run verify:note-title-icons && npm run verify:note-icon-catalog && npm run verify:note-panel-resize && npm run build",
+    "check": "npm run typecheck && npm run verify:dice-engine && npm run verify:dice-ui && npm run verify:dice-palette-menu && npm run verify:dice-localization && npm run verify:dice-icon-style && npm run verify:dice-realtime && npm run verify:dice-3d && npm run verify:campaign-canonical && npm run verify:note-inline-checkbox && npm run verify:note-tables && npm run verify:note-table-container-gap && npm run verify:note-table-gap-layout && npm run verify:note-contextual-controls && npm run verify:note-container-nesting && npm run verify:note-viewport-fill && npm run verify:note-title-icons && npm run verify:note-icon-catalog && npm run verify:note-panel-resize && npm run build",
     "verify:note-contextual-controls": "node --experimental-strip-types scripts/verify-note-contextual-controls.mjs",
     "verify:note-container-nesting": "node --experimental-strip-types scripts/verify-note-container-nesting.mjs",
     "verify:note-viewport-fill": "node --experimental-strip-types scripts/verify-note-viewport-fill.mjs"
