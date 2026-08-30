@@ -102,7 +102,7 @@ function applyArithmeticValue(
       after = before * value;
       break;
     case 'divide':
-      if (value === 0) throw new DiceRollError('Non e possibile dividere per zero.');
+      if (value === 0) throw new DiceRollError('Non è possibile dividere per zero.');
       after = before / value;
       break;
     case 'exponent':
@@ -215,7 +215,7 @@ export function rollDiceFormula(
       }
 
       case 'keep': {
-        if (!activeGroup) throw new DiceRollError('keep senza gruppo di dadi attivo.');
+        if (!activeGroup) throw new DiceRollError('Mantieni senza gruppo di dadi attivo.');
         const before = activeGroup.contribution;
         applyKeepThreshold(activeGroup, item.which, item.count);
         total += activeGroup.contribution - before;
@@ -223,7 +223,7 @@ export function rollDiceFormula(
       }
 
       case 'drop': {
-        if (!activeGroup) throw new DiceRollError('drop senza gruppo di dadi attivo.');
+        if (!activeGroup) throw new DiceRollError('Scarta senza gruppo di dadi attivo.');
         const before = activeGroup.contribution;
         applyDropSelection(activeGroup, item.which, item.count);
         total += activeGroup.contribution - before;
@@ -231,7 +231,7 @@ export function rollDiceFormula(
       }
 
       case 'exploding': {
-        if (!activeGroup) throw new DiceRollError('Exploding senza gruppo di dadi attivo.');
+        if (!activeGroup) throw new DiceRollError('Esplosione senza gruppo di dadi attivo.');
         const group = activeGroup;
         const before = group.contribution;
         const starters = activeRolls(group).slice();
@@ -247,7 +247,7 @@ export function rollDiceFormula(
           while (currentFace === group.sides) {
             if (explosionCount >= MAX_EXPLOSIONS_PER_CHAIN) {
               throw new DiceRollError(
-                `Una catena Exploding ha superato ${MAX_EXPLOSIONS_PER_CHAIN} rilanci.`,
+                `Una catena di esplosioni ha superato ${MAX_EXPLOSIONS_PER_CHAIN} rilanci.`,
               );
             }
 
@@ -298,7 +298,7 @@ export function rollDiceFormula(
           break;
         }
 
-        if (!activeGroup) throw new DiceRollError('Compare per dado senza gruppo di dadi attivo.');
+        if (!activeGroup) throw new DiceRollError('Confronto per dado senza gruppo di dadi attivo.');
         const values = activeRolls(activeGroup).map((die) => die.contribution);
         const outcomes = values.map((value) => compareValue(value, item.operator, item.target));
 

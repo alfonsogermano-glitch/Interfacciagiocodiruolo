@@ -135,12 +135,12 @@ export function DiceFormulaRow({
           onChange={(event) => onChange(defaultItemForKind(item.id, event.target.value as DiceFormulaItem['kind']))}
           className={`${fieldClass} min-w-28`}
         >
-          <option value="compare">Compare</option>
-          <option value="dice">Dice</option>
-          <option value="drop">Drop</option>
-          <option value="exploding">Exploding</option>
-          <option value="keep">Keep</option>
-          <option value="modifier">Modifier</option>
+          <option value="compare">Confronto</option>
+          <option value="dice">Dado</option>
+          <option value="drop">Scarta</option>
+          <option value="exploding">Esplosione</option>
+          <option value="keep">Mantieni</option>
+          <option value="modifier">Modificatore</option>
         </select>
 
         {item.kind === 'dice' && (
@@ -161,7 +161,7 @@ export function DiceFormulaRow({
               value={item.quantity}
               min={1}
               integer
-              ariaLabel="Quantita dadi"
+              ariaLabel="Quantità dadi"
               onChange={(quantity) => update({ quantity })}
             />
           </>
@@ -175,15 +175,15 @@ export function DiceFormulaRow({
               onChange={(event) => update({ which: event.target.value as 'highest' | 'lowest' | 'equal' })}
               className={`${fieldClass} min-w-28`}
             >
-              <option value="highest">Highest</option>
-              <option value="lowest">Lowest</option>
-              <option value="equal">Equal</option>
+              <option value="highest">Maggiore o uguale</option>
+              <option value="lowest">Minore o uguale</option>
+              <option value="equal">Uguale</option>
             </select>
             <NumericStepper
               value={item.count}
               min={1}
               integer
-              ariaLabel="Valore soglia Keep"
+              ariaLabel="Soglia Mantieni"
               onChange={(count) => update({ count })}
             />
           </>
@@ -197,8 +197,8 @@ export function DiceFormulaRow({
               onChange={(event) => update({ which: event.target.value as 'highest' | 'lowest' })}
               className={`${fieldClass} min-w-28`}
             >
-              <option value="highest">Highest</option>
-              <option value="lowest">Lowest</option>
+              <option value="highest">Più alti</option>
+              <option value="lowest">Più bassi</option>
             </select>
             <NumericStepper
               value={item.count}
@@ -212,14 +212,14 @@ export function DiceFormulaRow({
 
         {item.kind === 'exploding' && (
           <select
-            aria-label="Modalita exploding"
+            aria-label="Modalità esplosione"
             value={item.mode}
             onChange={(event) => update({ mode: event.target.value as 'explode' | 'compound' | 'penetrate' })}
             className={`${fieldClass} min-w-56`}
           >
-            <option value="explode">Explode highest value</option>
-            <option value="compound">Compound additional rolls</option>
-            <option value="penetrate">Penetrate additional rolls</option>
+            <option value="explode">Esplodi sul valore massimo</option>
+            <option value="compound">Somma i rilanci aggiuntivi</option>
+            <option value="penetrate">Rilanci penetranti</option>
           </select>
         )}
 
@@ -231,9 +231,9 @@ export function DiceFormulaRow({
               onChange={(event) => update({ operator: event.target.value as 'gte' | 'lte' | 'eq' })}
               className={`${fieldClass} min-w-48`}
             >
-              <option value="gte">Greater than or equal to</option>
-              <option value="lte">Less than or equal to</option>
-              <option value="eq">Equals</option>
+              <option value="gte">Maggiore o uguale a</option>
+              <option value="lte">Minore o uguale a</option>
+              <option value="eq">Uguale a</option>
             </select>
             <NumericStepper
               value={item.target}
@@ -260,11 +260,11 @@ export function DiceFormulaRow({
               onChange={(event) => update({ operation: event.target.value as typeof item.operation })}
               className={`${fieldClass} min-w-28`}
             >
-              <option value="add">Add</option>
-              <option value="divide">Divide</option>
-              <option value="exponent">Exponent</option>
-              <option value="multiply">Multiply</option>
-              <option value="subtract">Subtract</option>
+              <option value="add">Somma</option>
+              <option value="divide">Dividi</option>
+              <option value="exponent">Potenza</option>
+              <option value="multiply">Moltiplica</option>
+              <option value="subtract">Sottrai</option>
             </select>
             <NumericStepper
               value={item.value}
@@ -295,13 +295,13 @@ export function DiceFormulaRow({
                 type="button"
                 onClick={onMoveDown}
                 disabled={!canMoveDown}
-                aria-label="Sposta giu"
+                aria-label="Sposta giù"
                 className="rounded p-1.5 text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] disabled:opacity-25"
               >
                 <ArrowDown className="h-4 w-4" />
               </button>
             </TooltipTrigger>
-            <TooltipContent>Sposta giu</TooltipContent>
+            <TooltipContent>Sposta giù</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>

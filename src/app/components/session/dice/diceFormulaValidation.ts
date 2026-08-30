@@ -38,13 +38,13 @@ export function validateDiceFormula(items: readonly DiceFormulaItem[]): DiceForm
           addIssue('invalid_die_sides', 'Il dado deve avere almeno 2 facce intere.', item.id);
         }
         if (!isPositiveInteger(item.quantity)) {
-          addIssue('invalid_die_quantity', 'La quantita di dadi deve essere almeno 1.', item.id);
+          addIssue('invalid_die_quantity', 'La quantità di dadi deve essere almeno 1.', item.id);
         } else {
           requestedDiceCount += item.quantity;
           if (requestedDiceCount > MAX_DICE_PER_ROLL) {
             addIssue(
               'too_many_dice',
-              `Una formula non puo richiedere piu di ${MAX_DICE_PER_ROLL} dadi.`,
+              `Una formula non può richiedere più di ${MAX_DICE_PER_ROLL} dadi.`,
               item.id,
             );
           }
@@ -57,12 +57,12 @@ export function validateDiceFormula(items: readonly DiceFormulaItem[]): DiceForm
 
       case 'keep': {
         if (!activeDiceGroup) {
-          addIssue('missing_active_dice_group', 'Keep richiede un gruppo di dadi attivo.', item.id);
+          addIssue('missing_active_dice_group', 'Mantieni richiede un gruppo di dadi attivo.', item.id);
         }
         if (!isPositiveInteger(item.count)) {
           addIssue(
             'invalid_keep_threshold',
-            'La soglia Keep deve essere un intero maggiore o uguale a 1.',
+            'La soglia di Mantieni deve essere un intero maggiore o uguale a 1.',
             item.id,
           );
         }
@@ -71,7 +71,7 @@ export function validateDiceFormula(items: readonly DiceFormulaItem[]): DiceForm
 
       case 'drop': {
         if (!activeDiceGroup) {
-          addIssue('missing_active_dice_group', 'Drop richiede un gruppo di dadi attivo.', item.id);
+          addIssue('missing_active_dice_group', 'Scarta richiede un gruppo di dadi attivo.', item.id);
         }
         if (!isPositiveInteger(item.count)) {
           addIssue(
@@ -85,12 +85,12 @@ export function validateDiceFormula(items: readonly DiceFormulaItem[]): DiceForm
 
       case 'exploding': {
         if (!activeDiceGroup) {
-          addIssue('missing_active_dice_group', 'Exploding richiede un gruppo di dadi attivo.', item.id);
+          addIssue('missing_active_dice_group', 'Esplosione richiede un gruppo di dadi attivo.', item.id);
         }
         if (explodingSeenInGroup) {
           addIssue(
             'duplicate_exploding',
-            'E consentito un solo modificatore Exploding per gruppo di dadi.',
+            'È consentito un solo modificatore Esplosione per gruppo di dadi.',
             item.id,
           );
         }
@@ -104,12 +104,12 @@ export function validateDiceFormula(items: readonly DiceFormulaItem[]): DiceForm
         }
         if (item.total) {
           if (!hasNumericTotal) {
-            addIssue('missing_total', 'Compare Totale richiede un totale numerico precedente.', item.id);
+            addIssue('missing_total', 'Confronto sul totale richiede un totale numerico precedente.', item.id);
           }
         } else if (!activeDiceGroup) {
           addIssue(
             'missing_active_dice_group',
-            'Compare per dado richiede un gruppo di dadi attivo.',
+            'Confronto per dado richiede un gruppo di dadi attivo.',
             item.id,
           );
         }
@@ -124,7 +124,7 @@ export function validateDiceFormula(items: readonly DiceFormulaItem[]): DiceForm
           addIssue('invalid_modifier_value', 'Il valore del modificatore deve essere un numero finito.', item.id);
         }
         if (item.operation === 'divide' && item.value === 0) {
-          addIssue('division_by_zero', 'Non e possibile dividere per zero.', item.id);
+          addIssue('division_by_zero', 'Non è possibile dividere per zero.', item.id);
         }
         break;
       }

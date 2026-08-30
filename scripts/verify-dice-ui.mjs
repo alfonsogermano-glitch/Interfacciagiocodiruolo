@@ -45,10 +45,10 @@ for (const family of ['compare', 'dice', 'drop', 'exploding', 'keep', 'modifier'
 }
 assert.ok(row.includes('data-dice-formula-row'));
 assert.ok(row.includes('Sposta su'));
-assert.ok(row.includes('Sposta giu'));
+assert.ok(row.includes('Sposta giù'));
 assert.ok(row.includes('draggable'));
-assert.ok(row.includes('<option value="equal">Equal</option>'), 'Keep must expose an Equal option');
-assert.ok(row.includes('ariaLabel="Valore soglia Keep"'), 'Keep numeric control must be a threshold, not a result count');
+assert.ok(row.includes('<option value="equal">Uguale</option>'), 'Keep must expose an Equal option');
+assert.ok(row.includes('ariaLabel="Soglia Mantieni"'), 'Keep numeric control must be a threshold, not a result count');
 assert.ok(!row.includes('Singolo dado'), 'Modifier UI must not add a per-die scope control');
 assert.ok(!row.includes('data-dice-modifier-scope'), 'Modifier UI must not expose an explicit scope control');
 for (const hook of ['data-dice-roll-builder', 'data-dice-save-formula', 'data-dice-clear-builder']) {
