@@ -52,9 +52,25 @@ export interface SavedDiceFormula {
   items: DiceFormulaItem[];
   isSecret: boolean;
   iconName?: string | null;
+  folderId: string | null;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 }
+
+export interface DiceFormulaFolder {
+  id: string;
+  campaignId: string;
+  ownerProfileId: string;
+  name: string;
+  iconName?: string | null;
+  parentFolderId: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DiceLibraryNodeType = 'formula' | 'folder';
 
 export interface DiceRollRequest {
   items: DiceFormulaItem[];

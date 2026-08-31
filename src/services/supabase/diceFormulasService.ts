@@ -13,6 +13,8 @@ interface DiceFormulaRow {
   items: unknown;
   is_secret: boolean;
   icon_name: string | null;
+  folder_id: string | null;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 }
@@ -24,6 +26,7 @@ export interface CreateDiceFormulaInput {
   items: DiceFormulaItem[];
   isSecret?: boolean;
   iconName?: string | null;
+  folderId?: string | null;
 }
 
 export interface UpdateDiceFormulaPatch {
@@ -42,6 +45,8 @@ function mapRow(row: DiceFormulaRow): SavedDiceFormula {
     items: Array.isArray(row.items) ? row.items as DiceFormulaItem[] : [],
     isSecret: row.is_secret,
     iconName: row.icon_name,
+    folderId: row.folder_id,
+    sortOrder: row.sort_order,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -55,22 +60,17 @@ function validatedName(name: string): string {
 
 function assertValidItems(items: DiceFormulaItem[]): void {
   const validation = validateDiceFormula(items);
-  if (!validation.valid) {
-    throw new Error(validation.issues.map((issue) => issue.message).join(' '));
-  }
+  if (!validation.valid) throw new Error(validation.issues.map((issue) => issue.message).join(' '));
 }
 
-export async function loadDiceFormulas(
-  campaignId: string,
-  ownerProfileId: string,
-): Promise<SavedDiceFormula[]> {
+export async function loadDiceFormulas(campaignId: string, ownerProfileId: string): Promise<SavedDiceFormula[]> {
   const { data, error } = await supabase
     .from('dice_formulas')
     .select('*')
     .eq('campaign_id', campaignId)
     .eq('owner_profile_id', ownerProfileId)
-    .order('updated_at', { ascending: false });
-
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true });
   if (error) throw new Error(`Errore caricamento formule dadi: ${error.message}`);
   return (data ?? []).map((row) => mapRow(row as DiceFormulaRow));
 }
@@ -78,7 +78,6 @@ export async function loadDiceFormulas(
 export async function createDiceFormula(input: CreateDiceFormulaInput): Promise<SavedDiceFormula> {
   assertValidItems(input.items);
   const name = validatedName(input.name);
-
   const { data, error } = await supabase
     .from('dice_formulas')
     .insert({
@@ -88,47 +87,28 @@ export async function createDiceFormula(input: CreateDiceFormulaInput): Promise<
       items: input.items,
       is_secret: input.isSecret ?? false,
       icon_name: input.iconName ?? null,
+      folder_id: input.folderId ?? null,
+      sort_order: -1,
     })
     .select('*')
     .single();
-
   if (error) throw new Error(`Errore salvataggio formula dadi: ${error.message}`);
   return mapRow(data as DiceFormulaRow);
 }
 
-export async function updateDiceFormula(
-  id: string,
-  patch: UpdateDiceFormulaPatch,
-): Promise<SavedDiceFormula> {
-  const payload: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-  };
-
+export async function updateDiceFormula(id: string, patch: UpdateDiceFormulaPatch): Promise<SavedDiceFormula> {
+  const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (patch.name !== undefined) payload.name = validatedName(patch.name);
-  if (patch.items !== undefined) {
-    assertValidItems(patch.items);
-    payload.items = patch.items;
-  }
+  if (patch.items !== undefined) { assertValidItems(patch.items); payload.items = patch.items; }
   if (patch.isSecret !== undefined) payload.is_secret = patch.isSecret;
   if (patch.iconName !== undefined) payload.icon_name = patch.iconName;
-
-  const { data, error } = await supabase
-    .from('dice_formulas')
-    .update(payload)
-    .eq('id', id)
-    .select('*')
-    .single();
-
+  const { data, error } = await supabase.from('dice_formulas').update(payload).eq('id', id).select('*').single();
   if (error) throw new Error(`Errore aggiornamento formula dadi: ${error.message}`);
   return mapRow(data as DiceFormulaRow);
 }
 
 export async function deleteDiceFormula(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('dice_formulas')
-    .delete()
-    .eq('id', id);
-
+  const { error } = await supabase.from('dice_formulas').delete().eq('id', id);
   if (error) throw new Error(`Errore eliminazione formula dadi: ${error.message}`);
 }
 
@@ -140,5 +120,6 @@ export async function duplicateDiceFormula(formula: SavedDiceFormula): Promise<S
     items: formula.items.map((item) => ({ ...item })) as DiceFormulaItem[],
     isSecret: formula.isSecret,
     iconName: formula.iconName,
+    folderId: formula.folderId,
   });
 }
