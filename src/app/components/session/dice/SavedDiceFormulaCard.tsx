@@ -77,7 +77,7 @@ export function SavedDiceFormulaCard({
               <MoreVertical className="h-4 w-4" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-48">
+          <DropdownMenuContent align="end" className="z-[1000] min-w-48">
             <DropdownMenuItem data-dice-formula-edit onClick={onEdit}>
               <Pencil className="mr-2 h-4 w-4" />
               Modifica formula
