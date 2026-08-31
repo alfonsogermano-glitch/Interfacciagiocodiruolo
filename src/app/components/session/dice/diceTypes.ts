@@ -60,6 +60,7 @@ export interface DiceRollRequest {
   items: DiceFormulaItem[];
   formulaId?: string;
   formulaName: string;
+  formulaIconName?: string;
   visibility: DiceVisibility;
 }
 
@@ -126,6 +127,7 @@ export interface RollResult {
   rollerAvatarUrl?: string;
   formulaId?: string;
   formulaName: string;
+  formulaIconName?: string;
   formulaText: string;
   visibility: DiceVisibility;
   /** Immutable source definition used for reroll; never replaced by rolled values. */

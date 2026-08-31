@@ -161,6 +161,7 @@ export function SessionDicePanel() {
         items: cloneItems(formula.items),
         formulaId: formula.id,
         formulaName: formula.name,
+        formulaIconName: formula.iconName ?? undefined,
         visibility: formula.isSecret ? 'secret' : 'public',
       });
     } catch (error) {

@@ -1,5 +1,6 @@
 import { Dices, EyeOff, RotateCcw } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
+import { NoteIconGlyph } from '../shared/NoteIconGrid';
 import type { RollComparisonResult, RollResult } from './diceTypes.ts';
 import { formatPrimaryRollResult } from './diceResultSummary.ts';
 
@@ -76,8 +77,15 @@ export function DiceRollHistoryCard({ result, onReroll }: DiceRollHistoryCardPro
               {(result.formulaId || result.visibility === 'secret') && (
                 <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5">
                   {result.formulaId && (
-                    <div className="min-w-[8rem] flex-1 break-words text-xs leading-tight text-[var(--dash-muted)]">
-                      {result.formulaName}
+                    <div className="flex min-w-[8rem] flex-1 items-center gap-1.5 break-words text-xs leading-tight text-[var(--dash-muted)]">
+                      {result.formulaIconName && (
+                        <NoteIconGlyph
+                          name={result.formulaIconName}
+                          data-dice-roll-formula-icon
+                          className="h-3.5 w-3.5 shrink-0 text-[var(--dash-accent)]"
+                        />
+                      )}
+                      <span className="min-w-0 break-words">{result.formulaName}</span>
                     </div>
                   )}
                   {result.visibility === 'secret' && (

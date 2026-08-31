@@ -7,6 +7,8 @@ function read(path) {
 
 const card = read('src/app/components/session/dice/SavedDiceFormulaCard.tsx');
 const panel = read('src/app/components/session/dice/SessionDicePanel.tsx');
+const historyCard = read('src/app/components/session/dice/DiceRollHistoryCard.tsx');
+const context = read('src/app/components/session/dice/DiceSessionContext.tsx');
 const types = read('src/app/components/session/dice/diceTypes.ts');
 const service = read('src/services/supabase/diceFormulasService.ts');
 
@@ -40,6 +42,7 @@ assert.match(card, /formula\.iconName\s*\?\s*\([\s\S]*?<NoteIconGlyph[\s\S]*?:\s
 assert.ok(card.includes('onRemove={formula.iconName ? removeIcon : undefined}'), 'chosen saved dice icons must be removable');
 
 assert.ok(types.includes('iconName?: string | null;'), 'saved dice formula type must carry an optional persisted icon');
+assert.equal((types.match(/formulaIconName\?: string;/g) ?? []).length, 2, 'roll request and roll result must both carry an optional custom formula icon');
 assert.ok(service.includes('icon_name: string | null;'), 'Supabase row mapping must include icon_name');
 assert.ok(service.includes('iconName?: string | null;'), 'formula write contracts must allow setting or clearing an icon');
 assert.ok(service.includes('iconName: row.icon_name'), 'formula loads must map icon_name to iconName');
@@ -51,5 +54,17 @@ assert.ok(panel.includes('const setFormulaIcon = async'), 'dice panel must own i
 assert.ok(panel.includes("updateDiceFormula(formula.id, { iconName })"), 'dice panel must persist icon changes through the formula service');
 assert.ok(panel.includes('iconName: formula.iconName'), 'manual formula duplication must preserve icons');
 assert.ok(panel.includes('onIconChange={(iconName) => { void setFormulaIcon(formula, iconName); }}'), 'saved formula cards must wire icon changes back to the panel');
+assert.ok(panel.includes('formulaIconName: formula.iconName ?? undefined'), 'saved formula rolls must pass only a custom icon to the roll request');
 
-console.log('Saved dice formula menu and icon verification passed.');
+assert.ok(context.includes('formulaIconName: request.formulaIconName'), 'roll results must preserve the custom formula icon for realtime chat');
+assert.ok(context.includes('formulaIconName: previous.formulaIconName'), 'rerolls must preserve the original formula icon');
+assert.ok(historyCard.includes("import { NoteIconGlyph } from '../shared/NoteIconGrid';"), 'roll chat must reuse the shared Hollowgate icon renderer');
+assert.ok(historyCard.includes('result.formulaIconName &&'), 'roll chat must render an icon only when a custom icon exists');
+assert.ok(historyCard.includes('data-dice-roll-formula-icon'), 'roll chat custom icons must expose a stable regression target');
+assert.match(
+  historyCard,
+  /result\.formulaIconName\s*&&\s*\([\s\S]*?<NoteIconGlyph[\s\S]*?name=\{result\.formulaIconName\}/,
+  'roll chat must show the selected custom icon next to the saved formula name',
+);
+
+console.log('Saved dice formula menu, icon picker, and roll chat icon verification passed.');

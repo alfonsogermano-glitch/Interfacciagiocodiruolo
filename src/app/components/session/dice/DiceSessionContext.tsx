@@ -215,7 +215,7 @@ export function DiceSessionProvider({ children }: { children: React.ReactNode })
       throw new Error('Per tirare i dadi devi essere dentro una campagna con un utente autenticato.');
     }
 
-    return rollDiceFormula({
+    const result = rollDiceFormula({
       identity: {
         campaignId: activeCampaign.id,
         rollerId: user.id,
@@ -224,6 +224,11 @@ export function DiceSessionProvider({ children }: { children: React.ReactNode })
       },
       request,
     });
+
+    return {
+      ...result,
+      formulaIconName: request.formulaIconName,
+    };
   }, [activeCampaign, user]);
 
   const dispatchRoll = useCallback((result: RollResult) => {
@@ -274,6 +279,7 @@ export function DiceSessionProvider({ children }: { children: React.ReactNode })
       items: previous.sourceItems.map((item) => ({ ...item })) as DiceRollRequest['items'],
       formulaId: previous.formulaId,
       formulaName: previous.formulaName,
+      formulaIconName: previous.formulaIconName,
       visibility: previous.visibility,
     });
   }, [rolls, submitLocalRoll]);
