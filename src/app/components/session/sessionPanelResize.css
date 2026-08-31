@@ -43,6 +43,18 @@
   overscroll-behavior: contain;
 }
 
+/* Dice formula: mantiene i campi numerici editabili ma nasconde gli spinner nativi del browser. */
+[data-dice-formula-row] input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+[data-dice-formula-row] input[type='number']::-webkit-inner-spin-button,
+[data-dice-formula-row] input[type='number']::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
 /* Tablet e mobile: il pannello resta tra la sidebar globale e la rail di sessione. */
 @media (max-width: 1023px) {
   [data-session-slide-over='true'] {
