@@ -1,4 +1,5 @@
-import { Copy, Dices, Eye, EyeOff, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Copy, Dices, Eye, EyeOff, MoreVertical, Pencil, Shapes, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -6,7 +7,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../../ui/dropdown-menu';
+import { Popover, PopoverAnchor, PopoverContent } from '../../ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
+import { NoteIconGlyph, NoteIconGrid } from '../shared/NoteIconGrid';
 import { formatDiceFormula } from './diceFormulaText.ts';
 import type { SavedDiceFormula } from './diceTypes.ts';
 
@@ -17,7 +20,10 @@ interface SavedDiceFormulaCardProps {
   onEdit: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  onIconChange: (iconName: string | null) => void;
 }
+
+const menuItemClass = 'focus:bg-[var(--dash-surface-2)] focus:text-[var(--dash-text-strong)]';
 
 export function SavedDiceFormulaCard({
   formula,
@@ -26,7 +32,20 @@ export function SavedDiceFormulaCard({
   onEdit,
   onDuplicate,
   onDelete,
+  onIconChange,
 }: SavedDiceFormulaCardProps) {
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
+
+  const chooseIcon = (iconName: string) => {
+    onIconChange(iconName);
+    setIconPickerOpen(false);
+  };
+
+  const removeIcon = () => {
+    onIconChange(null);
+    setIconPickerOpen(false);
+  };
+
   return (
     <article
       data-saved-dice-formula
@@ -39,7 +58,11 @@ export function SavedDiceFormulaCard({
         aria-label={`Tira ${formula.name}`}
       >
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] text-[var(--dash-accent)]">
-          <Dices className="h-5 w-5" />
+          {formula.iconName ? (
+            <NoteIconGlyph name={formula.iconName} className="h-5 w-5" />
+          ) : (
+            <Dices className="h-5 w-5" />
+          )}
         </span>
         <span className="min-w-0">
           <span className="block truncate text-sm font-semibold text-[var(--dash-text-strong)]">{formula.name}</span>
@@ -67,32 +90,59 @@ export function SavedDiceFormulaCard({
           <TooltipContent>{formula.isSecret ? 'Tiro segreto' : 'Tiro pubblico'}</TooltipContent>
         </Tooltip>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label="Menu formula"
-              className="rounded-md p-2 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
+        <Popover open={iconPickerOpen} onOpenChange={setIconPickerOpen}>
+          <DropdownMenu>
+            <PopoverAnchor asChild>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Menu formula"
+                  className="rounded-md p-2 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+            </PopoverAnchor>
+            <DropdownMenuContent
+              align="end"
+              className="z-[1000] min-w-48 border-[var(--dash-border)] bg-[var(--dash-panel)] text-[var(--dash-text)]"
             >
-              <MoreVertical className="h-4 w-4" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="z-[1000] min-w-48">
-            <DropdownMenuItem data-dice-formula-edit onClick={onEdit}>
-              <Pencil className="mr-2 h-4 w-4" />
-              Modifica formula
-            </DropdownMenuItem>
-            <DropdownMenuItem data-dice-formula-duplicate onClick={onDuplicate}>
-              <Copy className="mr-2 h-4 w-4" />
-              Duplica formula
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem data-dice-formula-delete onClick={onDelete} className="text-red-400 focus:text-red-400">
-              <Trash2 className="mr-2 h-4 w-4" />
-              Elimina formula
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <DropdownMenuItem data-dice-formula-edit onClick={onEdit} className={menuItemClass}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Modifica
+              </DropdownMenuItem>
+              <DropdownMenuItem data-dice-formula-duplicate onClick={onDuplicate} className={menuItemClass}>
+                <Copy className="mr-2 h-4 w-4" />
+                Duplica
+              </DropdownMenuItem>
+              <DropdownMenuItem data-dice-formula-icon onSelect={() => setIconPickerOpen(true)} className={menuItemClass}>
+                <Shapes className="mr-2 h-4 w-4" />
+                Icona
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-[var(--dash-border)]" />
+              <DropdownMenuItem
+                data-dice-formula-delete
+                onClick={onDelete}
+                className="text-red-400 focus:bg-[var(--dash-surface-2)] focus:text-red-400"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Elimina
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <PopoverContent
+            side="left"
+            align="end"
+            sideOffset={8}
+            className="z-[1100] w-80 border-[var(--dash-border)] bg-[var(--dash-panel)] p-3 text-[var(--dash-text)]"
+          >
+            <NoteIconGrid
+              selectedName={formula.iconName ?? null}
+              onChoose={chooseIcon}
+              onRemove={formula.iconName ? removeIcon : undefined}
+            />
+          </PopoverContent>
+        </Popover>
       </div>
     </article>
   );

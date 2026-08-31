@@ -51,6 +51,7 @@ export interface SavedDiceFormula {
   name: string;
   items: DiceFormulaItem[];
   isSecret: boolean;
+  iconName?: string | null;
   createdAt: string;
   updatedAt: string;
 }

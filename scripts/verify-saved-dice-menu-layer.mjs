@@ -1,15 +1,48 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const source = fs.readFileSync(
-  new URL('../src/app/components/session/dice/SavedDiceFormulaCard.tsx', import.meta.url),
-  'utf8',
-);
+function read(path) {
+  return fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+}
+
+const card = read('src/app/components/session/dice/SavedDiceFormulaCard.tsx');
+const panel = read('src/app/components/session/dice/SessionDicePanel.tsx');
+const types = read('src/app/components/session/dice/diceTypes.ts');
+const service = read('src/services/supabase/diceFormulasService.ts');
 
 assert.match(
-  source,
-  /<DropdownMenuContent[^>]*className="[^"]*z-\[1000\][^"]*"/,
+  card,
+  /<DropdownMenuContent[\s\S]*?className="[^"]*z-\[1000\][^"]*"/,
   'saved dice formula menu must render above the z-[900] dice slide-over panel',
 );
+assert.ok(card.includes('bg-[var(--dash-panel)]'), 'saved dice menu must use the active dashboard panel palette');
+assert.ok(card.includes('border-[var(--dash-border)]'), 'saved dice menu must use the active dashboard border palette');
+assert.ok(card.includes('text-[var(--dash-text)]'), 'saved dice menu must use the active dashboard text palette');
+assert.ok(card.includes('focus:bg-[var(--dash-surface-2)]'), 'saved dice menu focus states must follow the active palette');
 
-console.log('Saved dice formula menu layering verification passed.');
+for (const label of ['Modifica', 'Duplica', 'Icona', 'Elimina']) {
+  assert.match(card, new RegExp(`\\n\\s*${label}\\n`), `saved dice menu must expose the short label ${label}`);
+}
+assert.doesNotMatch(card, /\n\s*(Modifica|Duplica|Elimina) formula\n/, 'saved dice menu labels must not repeat the word formula');
+
+assert.ok(card.includes("import { NoteIconGlyph, NoteIconGrid } from '../shared/NoteIconGrid';"), 'saved dice cards must reuse the shared Hollowgate icon catalog');
+assert.ok(card.includes('data-dice-formula-icon'), 'saved dice menu must expose the icon action');
+assert.ok(card.includes('<NoteIconGrid'), 'saved dice icon action must open the shared icon picker');
+assert.ok(card.includes('z-[1100]'), 'saved dice icon picker must render above the dice panel and its menu');
+assert.match(card, /formula\.iconName\s*\?\s*\([\s\S]*?<NoteIconGlyph[\s\S]*?:\s*\([\s\S]*?<Dices/, 'saved dice cards must show the chosen icon and keep Dices as the fallback');
+assert.ok(card.includes('onRemove={formula.iconName ? removeIcon : undefined}'), 'chosen saved dice icons must be removable');
+
+assert.ok(types.includes('iconName?: string | null;'), 'saved dice formula type must carry an optional persisted icon');
+assert.ok(service.includes('icon_name: string | null;'), 'Supabase row mapping must include icon_name');
+assert.ok(service.includes('iconName?: string | null;'), 'formula write contracts must allow setting or clearing an icon');
+assert.ok(service.includes('iconName: row.icon_name'), 'formula loads must map icon_name to iconName');
+assert.ok(service.includes('icon_name: input.iconName ?? null'), 'formula creates must persist the chosen icon');
+assert.ok(service.includes('payload.icon_name = patch.iconName'), 'formula updates must persist icon changes');
+assert.ok(service.includes('iconName: formula.iconName'), 'formula duplication must preserve the chosen icon');
+
+assert.ok(panel.includes('const setFormulaIcon = async'), 'dice panel must own icon persistence and rollback');
+assert.ok(panel.includes("updateDiceFormula(formula.id, { iconName })"), 'dice panel must persist icon changes through the formula service');
+assert.ok(panel.includes('iconName: formula.iconName'), 'manual formula duplication must preserve icons');
+assert.ok(panel.includes('onIconChange={(iconName) => { void setFormulaIcon(formula, iconName); }}'), 'saved formula cards must wire icon changes back to the panel');
+
+console.log('Saved dice formula menu and icon verification passed.');

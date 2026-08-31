@@ -189,6 +189,23 @@ export function SessionDicePanel() {
     }
   };
 
+  const setFormulaIcon = async (formula: SavedDiceFormula, iconName: string | null) => {
+    setFormulas((current) => current.map((item) =>
+      item.id === formula.id ? { ...item, iconName } : item,
+    ));
+
+    try {
+      const updated = await updateDiceFormula(formula.id, { iconName });
+      upsertFormula(updated);
+    } catch (error) {
+      console.error(error);
+      setFormulas((current) => current.map((item) =>
+        item.id === formula.id ? formula : item,
+      ));
+      toast.error('Impossibile cambiare l\'icona della formula.');
+    }
+  };
+
   const duplicateFormula = async (formula: SavedDiceFormula) => {
     if (!user?.id || !activeCampaign?.id) return;
     try {
@@ -202,6 +219,7 @@ export function SessionDicePanel() {
         name: duplicateName,
         items: cloneItems(formula.items),
         isSecret: formula.isSecret,
+        iconName: formula.iconName,
       });
       setFormulas((current) => [duplicate, ...current]);
       toast.success('Formula duplicata.');
@@ -321,6 +339,7 @@ export function SessionDicePanel() {
                   onEdit={() => editFormula(formula)}
                   onDuplicate={() => { void duplicateFormula(formula); }}
                   onDelete={() => setDeleteTarget(formula)}
+                  onIconChange={(iconName) => { void setFormulaIcon(formula, iconName); }}
                 />
               ))}
             </div>

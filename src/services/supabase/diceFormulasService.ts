@@ -12,6 +12,7 @@ interface DiceFormulaRow {
   name: string;
   items: unknown;
   is_secret: boolean;
+  icon_name: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -22,12 +23,14 @@ export interface CreateDiceFormulaInput {
   name: string;
   items: DiceFormulaItem[];
   isSecret?: boolean;
+  iconName?: string | null;
 }
 
 export interface UpdateDiceFormulaPatch {
   name?: string;
   items?: DiceFormulaItem[];
   isSecret?: boolean;
+  iconName?: string | null;
 }
 
 function mapRow(row: DiceFormulaRow): SavedDiceFormula {
@@ -38,6 +41,7 @@ function mapRow(row: DiceFormulaRow): SavedDiceFormula {
     name: row.name,
     items: Array.isArray(row.items) ? row.items as DiceFormulaItem[] : [],
     isSecret: row.is_secret,
+    iconName: row.icon_name,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -83,6 +87,7 @@ export async function createDiceFormula(input: CreateDiceFormulaInput): Promise<
       name,
       items: input.items,
       is_secret: input.isSecret ?? false,
+      icon_name: input.iconName ?? null,
     })
     .select('*')
     .single();
@@ -105,6 +110,7 @@ export async function updateDiceFormula(
     payload.items = patch.items;
   }
   if (patch.isSecret !== undefined) payload.is_secret = patch.isSecret;
+  if (patch.iconName !== undefined) payload.icon_name = patch.iconName;
 
   const { data, error } = await supabase
     .from('dice_formulas')
@@ -133,5 +139,6 @@ export async function duplicateDiceFormula(formula: SavedDiceFormula): Promise<S
     name: `Copia di ${formula.name}`,
     items: formula.items.map((item) => ({ ...item })) as DiceFormulaItem[],
     isSecret: formula.isSecret,
+    iconName: formula.iconName,
   });
 }
