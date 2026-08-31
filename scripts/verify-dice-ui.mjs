@@ -52,8 +52,9 @@ assert.ok(row.includes('INTERACTIVE_DRAG_SELECTOR'), 'formula row drag must expl
 assert.ok(row.includes('input, select, button'), 'inputs, selects and buttons must not initiate row dragging');
 assert.ok(row.includes('setDragImage'), 'formula row dragging must use a visual drag image');
 assert.ok(row.includes('data-dice-drag-ghost'), 'drag image must be a full-row ghost clone');
-assert.ok(row.includes("ghost.style.opacity = '0.68'"), 'drag ghost must be translucent');
-assert.ok(row.includes("isDragging ? 'opacity-40'"), 'source row must become translucent while dragging');
+assert.ok(row.includes("ghost.style.opacity = '0.95'"), 'drag ghost must stay clearly visible');
+assert.ok(row.includes('window.getComputedStyle(event.currentTarget)'), 'drag ghost must preserve the active palette');
+assert.ok(row.includes("isDragging ? 'opacity-65'"), 'source row must remain readable while dragging');
 assert.ok(row.includes('data-dice-drop-position'), 'formula rows must expose before/after drop feedback');
 assert.ok(row.includes('data-dice-drop-indicator'), 'formula rows must render an insertion indicator');
 assert.ok(row.includes('event.clientY'), 'drop placement must follow the pointer vertical position');

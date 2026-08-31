@@ -130,6 +130,7 @@ export function DiceFormulaRow({
 
         clearDragGhost();
         const sourceRect = event.currentTarget.getBoundingClientRect();
+        const sourceStyle = window.getComputedStyle(event.currentTarget);
         const ghost = event.currentTarget.cloneNode(true) as HTMLElement;
         ghost.setAttribute('data-dice-drag-ghost', 'true');
         ghost.removeAttribute('data-dice-drop-position');
@@ -137,7 +138,15 @@ export function DiceFormulaRow({
         ghost.style.left = '-10000px';
         ghost.style.top = '-10000px';
         ghost.style.width = `${sourceRect.width}px`;
-        ghost.style.opacity = '0.68';
+        for (const property of ['--dash-surface', '--dash-input', '--dash-text', '--dash-muted', '--dash-border', '--dash-border-soft', '--dash-surface-2', '--dash-accent']) {
+          const value = sourceStyle.getPropertyValue(property);
+          if (value) ghost.style.setProperty(property, value);
+        }
+        ghost.style.backgroundColor = sourceStyle.backgroundColor;
+        ghost.style.color = sourceStyle.color;
+        ghost.style.borderColor = sourceStyle.borderColor;
+        ghost.style.opacity = '0.95';
+        ghost.style.boxShadow = '0 12px 32px rgba(0, 0, 0, 0.28)';
         ghost.style.pointerEvents = 'none';
         ghost.style.zIndex = '9999';
         document.body.appendChild(ghost);
@@ -171,7 +180,7 @@ export function DiceFormulaRow({
         if (draggedId && draggedId !== item.id) onDropItem(draggedId, item.id, position);
       }}
       className={`relative cursor-grab rounded-lg border bg-[var(--dash-surface)] p-2.5 transition-opacity active:cursor-grabbing ${
-        isDragging ? 'opacity-40' : 'opacity-100'
+        isDragging ? 'opacity-65' : 'opacity-100'
       } ${errors.length > 0 ? 'border-red-500/70' : 'border-[var(--dash-border)]'}`}
     >
       {dropPosition && (
