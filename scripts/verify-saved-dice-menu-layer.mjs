@@ -29,27 +29,15 @@ assert.ok(card.includes("import { NoteIconGlyph, NoteIconGrid } from '../shared/
 assert.ok(card.includes('data-dice-formula-icon'), 'saved dice menu must expose the icon action');
 assert.ok(card.includes('<NoteIconGrid'), 'saved dice icon action must open the shared icon picker');
 assert.ok(card.includes('z-[1100]'), 'saved dice icon picker must render above the dice panel and its menu');
+assert.doesNotMatch(card, /from '\.\.\/\.\.\/ui\/popover'/, 'saved dice icon picker must not use Radix Popover lifecycle');
+assert.ok(card.includes("import { createPortal } from 'react-dom';"), 'saved dice icon picker must use a plain React portal');
+assert.ok(card.includes("import { usePortalContainer } from '../../ui/portal-container';"), 'saved dice icon picker must stay inside the active palette portal container');
+assert.ok(card.includes("document.addEventListener('pointerdown'"), 'saved dice icon picker must own outside-click dismissal');
+assert.ok(card.includes("event.key === 'Escape'"), 'saved dice icon picker must own Escape dismissal');
+assert.doesNotMatch(card, /requestAnimationFrame/, 'saved dice icon picker must not depend on timing hacks');
+assert.ok(card.includes('data-dice-icon-picker'), 'saved dice icon picker must expose a stable regression target');
 assert.match(card, /formula\.iconName\s*\?\s*\([\s\S]*?<NoteIconGlyph[\s\S]*?:\s*\([\s\S]*?<Dices/, 'saved dice cards must show the chosen icon and keep Dices as the fallback');
 assert.ok(card.includes('onRemove={formula.iconName ? removeIcon : undefined}'), 'chosen saved dice icons must be removable');
-
-assert.ok(card.includes('const [menuOpen, setMenuOpen] = useState(false);'), 'dropdown and icon picker must have independent open state');
-assert.ok(card.includes('window.requestAnimationFrame(() => setIconPickerOpen(true));'), 'icon picker must open after dropdown focus restoration completes');
-assert.ok(card.includes('<DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>'), 'formula menu must be explicitly controlled');
-assert.match(
-  card,
-  /<PopoverAnchor asChild>\s*<span[^>]*>\s*<DropdownMenu open=/,
-  'icon picker must use a persistent DOM anchor outside the dropdown lifecycle',
-);
-assert.doesNotMatch(
-  card,
-  /<DropdownMenu>\s*<PopoverAnchor asChild>\s*<DropdownMenuTrigger/,
-  'icon picker must not anchor directly to the closing dropdown trigger',
-);
-assert.match(
-  card,
-  /data-saved-dice-formula[\s\S]*?className="[^"]*caret-transparent[^"]*"/,
-  'saved formula static content must not show a blinking text caret',
-);
 
 assert.ok(types.includes('iconName?: string | null;'), 'saved dice formula type must carry an optional persisted icon');
 assert.ok(service.includes('icon_name: string | null;'), 'Supabase row mapping must include icon_name');
