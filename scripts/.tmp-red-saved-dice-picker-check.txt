@@ -1,0 +1,1 @@
+RED verifier (temporary marker only, not for main): saved dice icon picker must not use Radix Popover; it must use createPortal/usePortalContainer and explicit pointerdown/Escape dismissal.
