@@ -145,6 +145,13 @@ export function DiceFormulaRow({
 
         {item.kind === 'dice' && (
           <>
+            <NumericStepper
+              value={item.quantity}
+              min={1}
+              integer
+              ariaLabel="Quantità dadi"
+              onChange={(quantity) => update({ quantity })}
+            />
             <label className="flex h-9 items-center overflow-hidden rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] text-sm text-[var(--dash-text)]">
               <span className="border-r border-[var(--dash-border)] px-2 font-semibold">D</span>
               <input
@@ -157,13 +164,6 @@ export function DiceFormulaRow({
                 className="h-full w-20 bg-transparent px-2 outline-none"
               />
             </label>
-            <NumericStepper
-              value={item.quantity}
-              min={1}
-              integer
-              ariaLabel="Quantità dadi"
-              onChange={(quantity) => update({ quantity })}
-            />
           </>
         )}
 
