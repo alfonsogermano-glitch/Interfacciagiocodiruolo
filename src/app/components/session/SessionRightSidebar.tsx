@@ -24,6 +24,9 @@ const NOTES_PANEL_MIN_WIDTH = 640;
 const CHARACTERS_PANEL_STORAGE_KEY = 'hollowgate.characters.panel-width';
 const CHARACTERS_PANEL_DEFAULT_WIDTH = 1024;
 const CHARACTERS_PANEL_MIN_WIDTH = 640;
+const DICE_PANEL_STORAGE_KEY = 'hollowgate.dice.panel-width';
+const DICE_PANEL_DEFAULT_WIDTH = 1024;
+const DICE_PANEL_MIN_WIDTH = 640;
 const CHARACTERS_SIDEBAR_STORAGE_KEY = 'hollowgate.characters.sidebar-width';
 const CHARACTERS_SIDEBAR_DEFAULT_WIDTH = 256;
 const CHARACTERS_SIDEBAR_MIN_WIDTH = 192;
@@ -32,6 +35,7 @@ const LEFT_SIDEBAR_WIDTH = 100;
 const SESSION_RAIL_WIDTH = 80;
 const NOTES_PANEL_VIEWPORT_GAP = 16;
 const CHARACTERS_PANEL_VIEWPORT_GAP = 16;
+const DICE_PANEL_VIEWPORT_GAP = 16;
 
 function clampNotesPanelWidth(width: number, viewportWidth: number) {
   const maxWidth = Math.max(
@@ -48,6 +52,15 @@ function clampCharactersPanelWidth(width: number, viewportWidth: number) {
     viewportWidth - LEFT_SIDEBAR_WIDTH - SESSION_RAIL_WIDTH - CHARACTERS_PANEL_VIEWPORT_GAP,
   );
   const minWidth = Math.min(CHARACTERS_PANEL_MIN_WIDTH, maxWidth);
+  return Math.min(Math.max(width, minWidth), maxWidth);
+}
+
+function clampDicePanelWidth(width: number, viewportWidth: number) {
+  const maxWidth = Math.max(
+    0,
+    viewportWidth - LEFT_SIDEBAR_WIDTH - SESSION_RAIL_WIDTH - DICE_PANEL_VIEWPORT_GAP,
+  );
+  const minWidth = Math.min(DICE_PANEL_MIN_WIDTH, maxWidth);
   return Math.min(Math.max(width, minWidth), maxWidth);
 }
 
@@ -80,6 +93,18 @@ function readStoredCharactersPanelWidth() {
   }
 }
 
+function readStoredDicePanelWidth() {
+  if (typeof window === 'undefined') return DICE_PANEL_DEFAULT_WIDTH;
+  try {
+    const stored = window.localStorage.getItem(DICE_PANEL_STORAGE_KEY);
+    const parsed = stored === null ? DICE_PANEL_DEFAULT_WIDTH : Number(stored);
+    const candidate = Number.isFinite(parsed) ? parsed : DICE_PANEL_DEFAULT_WIDTH;
+    return clampDicePanelWidth(candidate, window.innerWidth);
+  } catch {
+    return clampDicePanelWidth(DICE_PANEL_DEFAULT_WIDTH, window.innerWidth);
+  }
+}
+
 function readStoredCharactersSidebarWidth() {
   if (typeof window === 'undefined') return CHARACTERS_SIDEBAR_DEFAULT_WIDTH;
   try {
@@ -103,12 +128,15 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
   const [openPanel, setOpenPanel] = useState<SessionPanelId | null>(null);
   const notesPanelResizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const charactersPanelResizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
+  const dicePanelResizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const charactersSidebarResizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const [notesPanelWidth, setNotesPanelWidth] = useState(readStoredNotesPanelWidth);
   const [charactersPanelWidth, setCharactersPanelWidth] = useState(readStoredCharactersPanelWidth);
+  const [dicePanelWidth, setDicePanelWidth] = useState(readStoredDicePanelWidth);
   const [charactersSidebarWidth, setCharactersSidebarWidth] = useState(readStoredCharactersSidebarWidth);
   const [isResizingNotesPanel, setIsResizingNotesPanel] = useState(false);
   const [isResizingCharactersPanel, setIsResizingCharactersPanel] = useState(false);
+  const [isResizingDicePanel, setIsResizingDicePanel] = useState(false);
   const [isResizingCharactersSidebar, setIsResizingCharactersSidebar] = useState(false);
 
   const togglePanel = (id: SessionPanelId) => {
@@ -124,6 +152,7 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
     const clampToViewport = () => {
       setNotesPanelWidth((currentWidth) => clampNotesPanelWidth(currentWidth, window.innerWidth));
       setCharactersPanelWidth((currentWidth) => clampCharactersPanelWidth(currentWidth, window.innerWidth));
+      setDicePanelWidth((currentWidth) => clampDicePanelWidth(currentWidth, window.innerWidth));
     };
     window.addEventListener('resize', clampToViewport);
     return () => window.removeEventListener('resize', clampToViewport);
@@ -148,6 +177,14 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
       // Il resize continua a funzionare anche se lo storage locale e' bloccato.
     }
   }, [charactersPanelWidth]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(DICE_PANEL_STORAGE_KEY, String(Math.round(dicePanelWidth)));
+    } catch {
+      // Il resize continua a funzionare anche se lo storage locale e' bloccato.
+    }
+  }, [dicePanelWidth]);
 
   useEffect(() => {
     try {
@@ -213,6 +250,35 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
     }
     charactersPanelResizeRef.current = null;
     setIsResizingCharactersPanel(false);
+  };
+
+  const handleDicePanelResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    dicePanelResizeRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: dicePanelWidth,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsResizingDicePanel(true);
+  };
+
+  const handleDicePanelResizePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const resize = dicePanelResizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    const requestedWidth = resize.startWidth + (resize.startX - event.clientX);
+    setDicePanelWidth(clampDicePanelWidth(requestedWidth, window.innerWidth));
+  };
+
+  const finishDicePanelResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    const resize = dicePanelResizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    dicePanelResizeRef.current = null;
+    setIsResizingDicePanel(false);
   };
 
   const handleCharactersSidebarResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -302,6 +368,35 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
     </div>
   );
 
+  const dicePanelResizeHandle = (
+    <div
+      data-dice-panel-resizer="true"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Ridimensiona finestra dadi"
+      aria-valuemin={DICE_PANEL_MIN_WIDTH}
+      aria-valuenow={Math.round(dicePanelWidth)}
+      onPointerDown={handleDicePanelResizePointerDown}
+      onPointerMove={handleDicePanelResizePointerMove}
+      onPointerUp={finishDicePanelResize}
+      onPointerCancel={finishDicePanelResize}
+      onLostPointerCapture={() => {
+        dicePanelResizeRef.current = null;
+        setIsResizingDicePanel(false);
+      }}
+      style={{ left: -4, width: 9, touchAction: 'none' }}
+      className="group absolute inset-y-0 z-30 cursor-col-resize"
+    >
+      <div
+        className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${
+          isResizingDicePanel
+            ? 'bg-[var(--dash-accent)]'
+            : 'bg-transparent group-hover:bg-[var(--dash-accent)]'
+        }`}
+      />
+    </div>
+  );
+
   const charactersSidebarResizeHandle = (
     <div
       data-character-sidebar-resizer="true"
@@ -331,11 +426,11 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
     </div>
   );
 
-  const resizablePanelOpen = openPanel === 'notes' || openPanel === 'characters';
+  const resizablePanelOpen = openPanel === 'notes' || openPanel === 'characters' || openPanel === 'dice';
   const activePanelWidth =
-    openPanel === 'notes' ? notesPanelWidth : openPanel === 'characters' ? charactersPanelWidth : undefined;
+    openPanel === 'notes' ? notesPanelWidth : openPanel === 'characters' ? charactersPanelWidth : openPanel === 'dice' ? dicePanelWidth : undefined;
   const activePanelResizeHandle =
-    openPanel === 'notes' ? notesPanelResizeHandle : openPanel === 'characters' ? charactersPanelResizeHandle : undefined;
+    openPanel === 'notes' ? notesPanelResizeHandle : openPanel === 'characters' ? charactersPanelResizeHandle : openPanel === 'dice' ? dicePanelResizeHandle : undefined;
 
   return (
     <DiceSessionProvider>
