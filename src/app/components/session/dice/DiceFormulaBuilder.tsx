@@ -43,13 +43,15 @@ export function DiceFormulaBuilder({ items, itemErrors, onChange }: DiceFormulaB
     onChange(next);
   };
 
-  const moveDraggedBefore = (draggedId: string, targetId: string) => {
+  const moveDragged = (draggedId: string, targetId: string, position: 'before' | 'after') => {
     const from = items.findIndex((item) => item.id === draggedId);
     const target = items.findIndex((item) => item.id === targetId);
     if (from < 0 || target < 0 || from === target) return;
+
     const next = [...items];
     const [dragged] = next.splice(from, 1);
-    const insertionIndex = next.findIndex((item) => item.id === targetId);
+    const targetIndex = next.findIndex((item) => item.id === targetId);
+    const insertionIndex = position === 'after' ? targetIndex + 1 : targetIndex;
     next.splice(insertionIndex, 0, dragged);
     onChange(next);
   };
@@ -71,7 +73,7 @@ export function DiceFormulaBuilder({ items, itemErrors, onChange }: DiceFormulaB
           onRemove={() => removeItem(item.id)}
           onMoveUp={() => moveBy(index, -1)}
           onMoveDown={() => moveBy(index, 1)}
-          onDropItem={moveDraggedBefore}
+          onDropItem={moveDragged}
         />
       ))}
 

@@ -1,9 +1,12 @@
-import { ArrowDown, ArrowUp, GripVertical, Minus, Plus, Trash2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { ArrowDown, ArrowUp, Minus, Plus, Trash2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import type { DiceFormulaItem } from './diceTypes.ts';
 
 const fieldClass =
   'h-9 rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 text-sm text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]';
+const INTERACTIVE_DRAG_SELECTOR = 'input, select, button, a, textarea, [contenteditable="true"], [role="button"], label';
+type DropPosition = 'before' | 'after';
 
 function defaultItemForKind(id: string, kind: DiceFormulaItem['kind']): DiceFormulaItem {
   switch (kind) {
@@ -76,7 +79,7 @@ interface DiceFormulaRowProps {
   onRemove: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
-  onDropItem: (draggedId: string, targetId: string) => void;
+  onDropItem: (draggedId: string, targetId: string, position: DropPosition) => void;
 }
 
 export function DiceFormulaRow({
@@ -90,45 +93,97 @@ export function DiceFormulaRow({
   onMoveDown,
   onDropItem,
 }: DiceFormulaRowProps) {
+  const [dropPosition, setDropPosition] = useState<DropPosition | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragGhostRef = useRef<HTMLElement | null>(null);
+
   const update = <T extends DiceFormulaItem>(patch: Partial<T>) => {
     onChange({ ...item, ...patch } as DiceFormulaItem);
+  };
+
+  const clearDragGhost = () => {
+    dragGhostRef.current?.remove();
+    dragGhostRef.current = null;
+  };
+
+  const getDropPosition = (clientY: number, element: HTMLElement): DropPosition => {
+    const rect = element.getBoundingClientRect();
+    return clientY < rect.top + rect.height / 2 ? 'before' : 'after';
   };
 
   return (
     <div
       data-dice-formula-row
       data-dice-formula-kind={item.kind}
+      data-dice-drop-position={dropPosition ?? undefined}
+      draggable
+      aria-grabbed={isDragging}
+      onDragStart={(event) => {
+        const target = event.target as HTMLElement;
+        if (target.closest(INTERACTIVE_DRAG_SELECTOR)) {
+          event.preventDefault();
+          return;
+        }
+
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', item.id);
+
+        clearDragGhost();
+        const sourceRect = event.currentTarget.getBoundingClientRect();
+        const ghost = event.currentTarget.cloneNode(true) as HTMLElement;
+        ghost.setAttribute('data-dice-drag-ghost', 'true');
+        ghost.removeAttribute('data-dice-drop-position');
+        ghost.style.position = 'fixed';
+        ghost.style.left = '-10000px';
+        ghost.style.top = '-10000px';
+        ghost.style.width = `${sourceRect.width}px`;
+        ghost.style.opacity = '0.68';
+        ghost.style.pointerEvents = 'none';
+        ghost.style.zIndex = '9999';
+        document.body.appendChild(ghost);
+        dragGhostRef.current = ghost;
+
+        const offsetX = Math.min(Math.max(event.clientX - sourceRect.left, 0), sourceRect.width);
+        const offsetY = Math.min(Math.max(event.clientY - sourceRect.top, 0), sourceRect.height);
+        event.dataTransfer.setDragImage(ghost, offsetX, offsetY);
+        setIsDragging(true);
+      }}
+      onDragEnd={() => {
+        setIsDragging(false);
+        setDropPosition(null);
+        clearDragGhost();
+      }}
       onDragOver={(event) => {
         event.preventDefault();
         event.dataTransfer.dropEffect = 'move';
+        setDropPosition(getDropPosition(event.clientY, event.currentTarget));
+      }}
+      onDragLeave={(event) => {
+        const relatedTarget = event.relatedTarget;
+        if (relatedTarget instanceof Node && event.currentTarget.contains(relatedTarget)) return;
+        setDropPosition(null);
       }}
       onDrop={(event) => {
         event.preventDefault();
         const draggedId = event.dataTransfer.getData('text/plain');
-        if (draggedId && draggedId !== item.id) onDropItem(draggedId, item.id);
+        const position = getDropPosition(event.clientY, event.currentTarget);
+        setDropPosition(null);
+        if (draggedId && draggedId !== item.id) onDropItem(draggedId, item.id, position);
       }}
-      className={`rounded-lg border bg-[var(--dash-surface)] p-2.5 ${
-        errors.length > 0 ? 'border-red-500/70' : 'border-[var(--dash-border)]'
-      }`}
+      className={`relative cursor-grab rounded-lg border bg-[var(--dash-surface)] p-2.5 transition-opacity active:cursor-grabbing ${
+        isDragging ? 'opacity-40' : 'opacity-100'
+      } ${errors.length > 0 ? 'border-red-500/70' : 'border-[var(--dash-border)]'}`}
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span
-              draggable
-              onDragStart={(event) => {
-                event.dataTransfer.effectAllowed = 'move';
-                event.dataTransfer.setData('text/plain', item.id);
-              }}
-              aria-label="Trascina per riordinare"
-              className="cursor-grab rounded p-1 text-[var(--dash-muted)] active:cursor-grabbing"
-            >
-              <GripVertical className="h-4 w-4" />
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>Trascina per riordinare</TooltipContent>
-        </Tooltip>
+      {dropPosition && (
+        <div
+          data-dice-drop-indicator={dropPosition}
+          className={`pointer-events-none absolute left-2 right-2 z-20 h-0.5 rounded-full bg-[var(--dash-accent)] shadow-[0_0_8px_var(--dash-accent)] ${
+            dropPosition === 'before' ? '-top-[6px]' : '-bottom-[6px]'
+          }`}
+        />
+      )}
 
+      <div className="flex flex-wrap items-center gap-2">
         <select
           aria-label="Tipo elemento formula"
           value={item.kind}
