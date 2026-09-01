@@ -4,45 +4,60 @@ export type DiceExplodingMode = 'explode' | 'compound' | 'penetrate';
 export type DiceCompareOperator = 'gte' | 'lte' | 'eq';
 export type DiceModifierOperation = 'add' | 'subtract' | 'multiply' | 'divide' | 'exponent';
 export type DiceVisibility = 'public' | 'secret';
+export type CustomDieSides = 4 | 6 | 8 | 10 | 12 | 20 | 100;
+export type CustomDiePhysicalRole = 'single' | 'tens' | 'units';
+
+export type CustomDieFaceVisual =
+  | { kind: 'icon'; iconName: string }
+  | { kind: 'image'; assetPath: string; publicUrl: string };
+
+export interface CustomDieFace {
+  index: number;
+  role: CustomDiePhysicalRole;
+  visual: CustomDieFaceVisual;
+  label?: string | null;
+  numericValue: number | null;
+}
+
+export interface SavedCustomDie {
+  id: string;
+  campaignId: string;
+  ownerProfileId: string;
+  name: string;
+  sides: CustomDieSides;
+  faces: CustomDieFace[];
+  bodyColor: string;
+  symbolColor: string;
+  iconName?: string | null;
+  folderId: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomDieRollSnapshot {
+  id: string;
+  name: string;
+  sides: CustomDieSides;
+  faces: CustomDieFace[];
+  bodyColor: string;
+  symbolColor: string;
+  iconName?: string | null;
+  updatedAt?: string;
+}
 
 export type DiceFormulaItem =
-  | {
-      id: string;
-      kind: 'dice';
-      sides: number;
-      quantity: number;
-    }
-  | {
-      id: string;
-      kind: 'keep';
-      which: DiceKeepWhich;
-      /** Threshold value: highest keeps >=, lowest keeps <=, equal keeps ===. */
-      count: number;
-    }
-  | {
-      id: string;
-      kind: 'drop';
-      which: DiceDropWhich;
-      count: number;
-    }
-  | {
-      id: string;
-      kind: 'exploding';
-      mode: DiceExplodingMode;
-    }
-  | {
-      id: string;
-      kind: 'compare';
-      operator: DiceCompareOperator;
-      target: number;
-      total: boolean;
-    }
-  | {
-      id: string;
-      kind: 'modifier';
-      operation: DiceModifierOperation;
-      value: number;
-    };
+  | { id: string; kind: 'dice'; sides: number; quantity: number }
+  | { id: string; kind: 'custom-die'; customDieId: string; quantity: number }
+  | { id: string; kind: 'keep'; which: DiceKeepWhich; count: number }
+  | { id: string; kind: 'drop'; which: DiceDropWhich; count: number }
+  | { id: string; kind: 'exploding'; mode: DiceExplodingMode }
+  | { id: string; kind: 'compare'; operator: DiceCompareOperator; target: number; total: boolean }
+  | { id: string; kind: 'modifier'; operation: DiceModifierOperation; value: number };
+
+export type ResolvedDiceFormulaItem =
+  | Exclude<DiceFormulaItem, { kind: 'custom-die' }>
+  | { id: string; kind: 'custom-die'; customDieId: string; quantity: number; customDie: CustomDieRollSnapshot };
 
 export interface SavedDiceFormula {
   id: string;
@@ -70,10 +85,10 @@ export interface DiceFormulaFolder {
   updatedAt: string;
 }
 
-export type DiceLibraryNodeType = 'formula' | 'folder';
+export type DiceLibraryNodeType = 'formula' | 'custom-die' | 'folder';
 
 export interface DiceRollRequest {
-  items: DiceFormulaItem[];
+  items: ResolvedDiceFormulaItem[];
   formulaId?: string;
   formulaName: string;
   formulaIconName?: string;
@@ -93,16 +108,19 @@ export interface RollDie {
   id: string;
   groupItemId: string;
   sides: number;
-  /** Natural face shown by the physical die. */
   face: number;
-  /** Numeric contribution after effects such as penetrating explosions. */
-  contribution: number;
+  contribution: number | null;
   active: boolean;
   source: 'base' | 'explosion';
   explosionDepth: number;
   chainId: string;
   parentRollId?: string;
   keepMatched?: boolean;
+  customDieId?: string;
+  customDieName?: string;
+  customFace?: CustomDieFace;
+  physicalRole?: CustomDiePhysicalRole;
+  logicalRollIndex?: number;
 }
 
 export interface RollDiceGroup {
@@ -111,7 +129,10 @@ export interface RollDiceGroup {
   requestedQuantity: number;
   rolls: RollDie[];
   activeRollIds: string[];
-  contribution: number;
+  contribution: number | null;
+  customDieId?: string;
+  customDieName?: string;
+  customDieSnapshot?: CustomDieRollSnapshot;
 }
 
 export interface RollArithmeticStep {
@@ -146,23 +167,13 @@ export interface RollResult {
   formulaIconName?: string;
   formulaText: string;
   visibility: DiceVisibility;
-  /** Immutable source definition used for reroll; never replaced by rolled values. */
-  sourceItems: DiceFormulaItem[];
+  sourceItems: ResolvedDiceFormulaItem[];
   diceGroups: RollDiceGroup[];
   arithmeticSteps: RollArithmeticStep[];
   comparisons: RollComparisonResult[];
-  total: number;
+  total: number | null;
   createdAt: number;
 }
 
-export interface DiceFormulaValidationIssue {
-  itemId?: string;
-  code: string;
-  message: string;
-}
-
-export interface DiceFormulaValidationResult {
-  valid: boolean;
-  issues: DiceFormulaValidationIssue[];
-  itemErrors: Record<string, string[]>;
-}
+export interface DiceFormulaValidationIssue { itemId?: string; code: string; message: string; }
+export interface DiceFormulaValidationResult { valid: boolean; issues: DiceFormulaValidationIssue[]; itemErrors: Record<string, string[]>; }

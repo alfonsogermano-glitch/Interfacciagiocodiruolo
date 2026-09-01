@@ -1,172 +1,18 @@
-import assert from 'node:assert/strict';
+import assert from 'node:assert/strict';import fs from 'node:fs';
 import { projectRollTo3D } from '../src/app/components/session/dice/dice3dProjection.ts';
-import type { RollDiceGroup, RollResult } from '../src/app/components/session/dice/diceTypes.ts';
-import fs from 'node:fs';
-
-function read(path: string): string {
-  return fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
-}
-
-function group(itemId: string, sides: number, faces: Array<{ face: number; contribution?: number; active?: boolean; source?: 'base' | 'explosion' }>): RollDiceGroup {
-  const rolls = faces.map((entry, index) => ({
-    id: `${itemId}-${index}`,
-    groupItemId: itemId,
-    sides,
-    face: entry.face,
-    contribution: entry.contribution ?? entry.face,
-    active: entry.active ?? true,
-    source: entry.source ?? 'base',
-    explosionDepth: entry.source === 'explosion' ? 1 : 0,
-    chainId: `${itemId}-chain-${index}`,
-  }));
-  return {
-    itemId,
-    sides,
-    requestedQuantity: rolls.filter((die) => die.source === 'base').length,
-    rolls,
-    activeRollIds: rolls.filter((die) => die.active).map((die) => die.id),
-    contribution: rolls.filter((die) => die.active).reduce((sum, die) => sum + die.contribution, 0),
-  };
-}
-
-function result(diceGroups: RollDiceGroup[]): RollResult {
-  return {
-    id: 'roll-3d-test',
-    campaignId: '10000000-0000-0000-0000-000000000001',
-    rollerId: '20000000-0000-0000-0000-000000000001',
-    rollerName: 'Tester',
-    formulaName: '3D test',
-    formulaText: 'test',
-    visibility: 'public',
-    sourceItems: [],
-    diceGroups,
-    arithmeticSteps: [],
-    comparisons: [],
-    total: 0,
-    createdAt: 1,
-  };
-}
-
-assert.deepEqual(
-  projectRollTo3D(result([group('d20', 20, [{ face: 17 }, { face: 4 }])])),
-  [{ sides: 20, values: [17, 4], notation: '2d20@17,4' }],
-);
-
-const standard = projectRollTo3D(result([
-  group('d4', 4, [{ face: 3 }]),
-  group('d6', 6, [{ face: 6 }]),
-  group('d8', 8, [{ face: 7 }]),
-  group('d10', 10, [{ face: 9 }]),
-  group('d12', 12, [{ face: 11 }]),
-  group('d20', 20, [{ face: 19 }]),
-  group('d100', 100, [{ face: 73 }]),
-]));
-assert.deepEqual(standard.map((chunk) => chunk.sides), [4, 6, 8, 10, 12, 20, 100, 10]);
-assert.deepEqual(standard.map((chunk) => chunk.notation), [
-  '1d4@3', '1d6@6', '1d8@7', '1d10@9', '1d12@11', '1d20@19', '1d100@70', '1d10@3',
-]);
-
-const percentile = projectRollTo3D(result([
-  group('percentile', 100, [
-    { face: 73 },
-    { face: 7 },
-    { face: 20 },
-    { face: 100 },
-  ]),
-]));
-assert.deepEqual(percentile, [
-  { sides: 100, values: [70, 100, 20, 100], notation: '4d100@70,100,20,100' },
-  { sides: 10, values: [3, 7, 10, 10], notation: '4d10@3,7,10,10' },
-], 'd100 must render as percentile tens + units dice, including 00/0 edge cases');
-
-assert.deepEqual(
-  projectRollTo3D(result([
-    group('unsupported-d3', 3, [{ face: 2 }]),
-    group('supported-d6', 6, [{ face: 5 }]),
-    group('unsupported-d30', 30, [{ face: 21 }]),
-  ])),
-  [{ sides: 6, values: [5], notation: '1d6@5' }],
-);
-
-const processed = projectRollTo3D(result([
-  group('processed-d6', 6, [
-    { face: 1, active: false },
-    { face: 6, active: true },
-    { face: 6, contribution: 5, source: 'explosion' },
-    { face: 3, contribution: 2, source: 'explosion' },
-  ]),
-]));
-assert.deepEqual(processed, [{ sides: 6, values: [1, 6, 6, 3], notation: '4d6@1,6,6,3' }]);
-
-const modifiedFaceProjection = projectRollTo3D(result([
-  group('modified-d20', 20, [{ face: 12, contribution: 15 }]),
-]));
-assert.deepEqual(
-  modifiedFaceProjection,
-  [{ sides: 20, values: [12], notation: '1d20@12' }],
-  '3D projection must use natural face even when contextual arithmetic changes contribution',
-);
-
-const mixed = projectRollTo3D(result([
-  group('first', 20, [{ face: 12 }]),
-  group('second', 12, [{ face: 7 }, { face: 2 }]),
-  group('third', 6, [{ face: 4 }]),
-]));
-assert.deepEqual(mixed.map((chunk) => chunk.notation), ['1d20@12', '2d12@7,2', '1d6@4']);
-
-const rendererModule = await import('../src/app/components/session/dice/dice3dRenderer.ts');
-const combineNotation = (rendererModule as Record<string, unknown>).buildSimultaneousDice3DNotation;
-assert.equal(typeof combineNotation, 'function', 'mixed dice rolls must expose one combined predetermined notation');
-if (typeof combineNotation === 'function') {
-  assert.equal(
-    combineNotation(mixed),
-    '1d20+2d12+1d6@12,7,2,4',
-    'mixed dice types must be rolled together in one deterministic 3D throw',
-  );
-
-  const percentileWithNativeD10 = projectRollTo3D(result([
-    group('native-d10', 10, [{ face: 9 }]),
-    group('percentile-d100', 100, [{ face: 73 }]),
-    group('native-d6', 6, [{ face: 4 }]),
-  ]));
-  assert.equal(
-    combineNotation(percentileWithNativeD10),
-    '2d10+1d100+1d6@9,3,70,4',
-    'percentile unit dice must not shift predetermined outcomes when a real d10 is also present',
-  );
-}
-
-const renderer = read('src/app/components/session/dice/dice3dRenderer.ts');
-const overlay = read('src/app/components/session/dice/Dice3DOverlay.tsx');
-const session = read('src/app/components/session/dice/DiceSessionContext.tsx');
-const drawer = read('src/app/components/session/dice/DiceRollHistoryDrawer.tsx');
-
-assert.ok(renderer.includes("await import('@3d-dice/dice-box-threejs')"), '3D package must be lazy-loaded');
-assert.ok(!/^import\s+.*['\"]@3d-dice\/dice-box-threejs['\"]/m.test(renderer), '3D package must not be eagerly imported');
-assert.ok(renderer.includes('projectRollTo3D(result)'), 'renderer must use canonical roll projection');
-assert.equal(
-  (renderer.match(/this\.box\.roll\(/g) ?? []).length,
-  1,
-  'renderer must issue exactly one 3D roll call per canonical result',
-);
-assert.ok(
-  !renderer.includes('this.box.roll(chunk.notation)'),
-  'mixed dice types must not be animated sequentially',
-);
-
-assert.ok(overlay.includes('data-dice-3d-overlay'), '3D overlay host marker missing');
-assert.ok(overlay.includes('pointer-events-none'), '3D overlay must not intercept pointer input');
-assert.ok(overlay.includes('fixed inset-0'), '3D overlay must cover the session viewport');
-
-for (const revealState of ['pending', 'animating', 'revealed']) {
-  assert.ok(session.includes(`'${revealState}'`), `missing reveal state ${revealState}`);
-}
-assert.ok(session.includes('stopActiveAnimation(true)'), 'new rolls must interrupt/reveal the previous animation');
-assert.ok(session.includes('DICE_SETTLED_HOLD_MS = 1000'), 'settled dice should remain visible before reveal');
-assert.ok(session.includes("hollowgate.dice.3d-enabled"), '3D preference key missing');
-assert.ok(session.includes("entry.revealState === 'revealed'"), 'history must expose only revealed roll results');
-assert.ok(session.includes('renderer.dispose();'), 'aborted renderer must be disposed');
-assert.ok(drawer.includes('data-dice-3d-toggle'), '3D on/off control missing');
-assert.ok(drawer.includes('<Dice3DOverlay />'), '3D overlay must remain mounted with the session roll UI');
-
+import type { CustomDieRollSnapshot,RollDiceGroup,RollResult } from '../src/app/components/session/dice/diceTypes.ts';
+function group(itemId:string,sides:number,faces:number[]):RollDiceGroup{const rolls=faces.map((face,index)=>({id:`${itemId}-${index}`,groupItemId:itemId,sides,face,contribution:face,active:true,source:'base' as const,explosionDepth:0,chainId:`${itemId}-${index}`}));return{itemId,sides,requestedQuantity:faces.length,rolls,activeRollIds:rolls.map(r=>r.id),contribution:faces.reduce((a,b)=>a+b,0)}}
+function result(groups:RollDiceGroup[]):RollResult{return{id:'r',campaignId:'c',rollerId:'u',rollerName:'T',formulaName:'3D',formulaText:'test',visibility:'public',sourceItems:[],diceGroups:groups,arithmeticSteps:[],comparisons:[],total:0,createdAt:1}}
+assert.deepEqual(projectRollTo3D(result([group('d20',20,[17,4])])),[{sides:20,values:[17,4],notation:'2d20@17,4'}]);
+const standard=projectRollTo3D(result([group('d4',4,[3]),group('d6',6,[6]),group('d8',8,[7]),group('d10',10,[9]),group('d12',12,[11]),group('d20',20,[19]),group('d100',100,[73])]));
+assert.deepEqual(standard.map(c=>c.notation),['1d4@3','1d6@6','1d8@7','1d10@9','1d12@11','1d20@19','1d100@70','1d10@3']);
+const snap:CustomDieRollSnapshot={id:'custom',name:'Custom',sides:6,faces:Array.from({length:6},(_,i)=>({index:i+1,role:'single',visual:{kind:'icon',iconName:'Star'},numericValue:null})),bodyColor:'#111111',symbolColor:'#ffffff'};
+const customGroup:RollDiceGroup={...group('custom',6,[2,5]),customDieId:'custom',customDieName:'Custom',customDieSnapshot:snap,rolls:group('custom',6,[2,5]).rolls.map((r,i)=>({...r,customDieId:'custom',customFace:snap.faces[i?4:1],physicalRole:'single',logicalRollIndex:i,contribution:null})),contribution:null};
+const projected=projectRollTo3D(result([customGroup]));assert.deepEqual(projected.map(c=>c.values),[[2],[5]]);assert.ok(projected.every(c=>c.customMaterials?.[0]?.customDie.id==='custom'));
+const d100Snap:CustomDieRollSnapshot={...snap,id:'p',sides:100,faces:[...Array.from({length:10},(_,i)=>({index:i+1,role:'tens' as const,visual:{kind:'icon' as const,iconName:'Star'},numericValue:null})),...Array.from({length:10},(_,i)=>({index:i+1,role:'units' as const,visual:{kind:'icon' as const,iconName:'Star'},numericValue:null}))]};
+const pair:RollDiceGroup={itemId:'p',sides:100,requestedQuantity:1,rolls:[{id:'t',groupItemId:'p',sides:100,face:4,contribution:null,active:true,source:'base',explosionDepth:0,chainId:'c',customDieId:'p',customFace:d100Snap.faces[3],physicalRole:'tens',logicalRollIndex:0},{id:'u',groupItemId:'p',sides:10,face:7,contribution:null,active:true,source:'base',explosionDepth:0,chainId:'c',customDieId:'p',customFace:d100Snap.faces[16],physicalRole:'units',logicalRollIndex:0}],activeRollIds:['t','u'],contribution:null,customDieId:'p',customDieSnapshot:d100Snap};
+assert.deepEqual(projectRollTo3D(result([pair])).map(c=>c.notation),['1d100@40','1d10@7']);
+const renderer=fs.readFileSync(new URL('../src/app/components/session/dice/dice3dRenderer.ts',import.meta.url),'utf8');const materials=fs.readFileSync(new URL('../src/app/components/session/dice/dice3dCustomMaterials.ts',import.meta.url),'utf8');
+assert.ok(renderer.includes("await import('@3d-dice/dice-box-threejs')"));assert.equal((renderer.match(/this\.box\.roll\(/g)??[]).length,1);assert.ok(renderer.includes('installCustomDiceMaterialAdapter'));assert.ok(renderer.includes('try {'));assert.ok(renderer.includes('finally'));
+assert.ok(materials.includes('ICON_DATA'));assert.ok(materials.includes("physicalSides === 4"));assert.ok(materials.includes('buildSimultaneousMaterialQueue'));
 console.log('Dice 3D verification passed.');

@@ -1,3 +1,4 @@
+import { buildSimultaneousMaterialQueue, installCustomDiceMaterialAdapter } from './dice3dCustomMaterials.ts';
 import { projectRollTo3D, type Dice3DProjectionChunk } from './dice3dProjection.ts';
 import { Dice3DAbortError, type Dice3DRenderer } from './dice3dTypes.ts';
 import type { RollResult } from './diceTypes.ts';
@@ -6,13 +7,9 @@ type DiceBoxInstance = {
   initialize: () => Promise<void>;
   roll: (notation: string) => Promise<unknown>;
   clearDice: () => void;
+  DiceFactory?: unknown;
 };
-
-type DiceBoxConstructor = new (
-  selector: string,
-  options?: Record<string, unknown>,
-) => DiceBoxInstance;
-
+type DiceBoxConstructor = new (selector: string, options?: Record<string, unknown>) => DiceBoxInstance;
 let containerSequence = 0;
 
 function throwIfAborted(signal: AbortSignal) {
@@ -21,27 +18,19 @@ function throwIfAborted(signal: AbortSignal) {
 
 export function buildSimultaneousDice3DNotation(chunks: Dice3DProjectionChunk[]): string | null {
   if (chunks.length === 0) return null;
-
-  // DiceNotation merges repeated sets of the same die type. Mirror that here
-  // before flattening forced values so their positions always stay aligned,
-  // including percentile d100 unit dice mixed with ordinary d10 rolls.
   const grouped = new Map<number, number[]>();
   for (const chunk of chunks) {
     if (chunk.values.length === 0) continue;
     const values = grouped.get(chunk.sides);
-    if (values) values.push(...chunk.values);
-    else grouped.set(chunk.sides, [...chunk.values]);
+    if (values) values.push(...chunk.values); else grouped.set(chunk.sides, [...chunk.values]);
   }
-
   if (grouped.size === 0) return null;
-
   const diceSets: string[] = [];
   const values: number[] = [];
   for (const [sides, faces] of grouped) {
     diceSets.push(`${faces.length}d${sides}`);
     values.push(...faces);
   }
-
   return `${diceSets.join('+')}@${values.join(',')}`;
 }
 
@@ -52,16 +41,13 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
 
   async init(container: HTMLElement): Promise<void> {
     if (this.box && this.container === container) return;
-
     this.dispose();
     this.container = container;
-
     if (!container.id) {
       containerSequence += 1;
       container.id = `hollowgate-dice-3d-${containerSequence}`;
     }
     this.selector = `#${container.id}`;
-
     const module = await import('@3d-dice/dice-box-threejs');
     const DiceBox = (module.default ?? module) as unknown as DiceBoxConstructor;
     const box = new DiceBox(this.selector, {
@@ -77,24 +63,32 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
 
   async play(result: RollResult, signal: AbortSignal): Promise<void> {
     if (!this.box) throw new Error('Dice 3D renderer not initialized');
-
     const chunks = projectRollTo3D(result);
     const notation = buildSimultaneousDice3DNotation(chunks);
     if (!notation) return;
 
-    throwIfAborted(signal);
-    await this.box.roll(notation);
-    throwIfAborted(signal);
-  }
-
-  clear(): void {
+    let restoreCustomMaterials: (() => void) | null = null;
     try {
-      this.box?.clearDice();
-    } catch {
-      // Clearing is best-effort: failure must never affect canonical results.
+      const materialQueue = buildSimultaneousMaterialQueue(chunks);
+      if (materialQueue.some(Boolean)) {
+        try {
+          restoreCustomMaterials = await installCustomDiceMaterialAdapter(this.box, materialQueue);
+        } catch (error) {
+          // Presentation-only fallback: the canonical result remains authoritative.
+          console.error('Texture 3D del dado Custom non disponibile, uso il materiale standard:', error);
+        }
+      }
+      throwIfAborted(signal);
+      await this.box.roll(notation);
+      throwIfAborted(signal);
+    } finally {
+      restoreCustomMaterials?.();
     }
   }
 
+  clear(): void {
+    try { this.box?.clearDice(); } catch { /* presentation-only */ }
+  }
   dispose(): void {
     this.clear();
     this.box = null;
