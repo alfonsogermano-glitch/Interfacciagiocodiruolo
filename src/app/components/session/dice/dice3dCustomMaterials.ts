@@ -27,6 +27,9 @@ export interface PreparedCustomDiceMaterial {
   labels: unknown[];
 }
 
+const CUSTOM_FACE_TEXTURE_SIZE = 256;
+const CUSTOM_FACE_TEXTURE_PADDING = 12;
+
 function escapeXml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;',
@@ -57,10 +60,34 @@ function loadImage(source: string): Promise<HTMLImageElement> {
   });
 }
 
+export async function normalizeCustomFaceImage(image: HTMLImageElement): Promise<HTMLImageElement> {
+  const canvas = document.createElement('canvas');
+  canvas.width = CUSTOM_FACE_TEXTURE_SIZE;
+  canvas.height = CUSTOM_FACE_TEXTURE_SIZE;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Impossibile preparare la texture del dado Custom.');
+
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  if (sourceWidth <= 0 || sourceHeight <= 0) throw new Error('Dimensioni immagine del dado Custom non valide.');
+
+  const drawableSize = CUSTOM_FACE_TEXTURE_SIZE - (CUSTOM_FACE_TEXTURE_PADDING * 2);
+  const scale = Math.min(drawableSize / sourceWidth, drawableSize / sourceHeight);
+  const drawWidth = Math.max(1, sourceWidth * scale);
+  const drawHeight = Math.max(1, sourceHeight * scale);
+  const drawX = (CUSTOM_FACE_TEXTURE_SIZE - drawWidth) / 2;
+  const drawY = (CUSTOM_FACE_TEXTURE_SIZE - drawHeight) / 2;
+
+  context.clearRect(0, 0, CUSTOM_FACE_TEXTURE_SIZE, CUSTOM_FACE_TEXTURE_SIZE);
+  context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+  return loadImage(canvas.toDataURL('image/png'));
+}
+
 async function faceImage(face: CustomDieFace, symbolColor: string): Promise<HTMLImageElement> {
-  return loadImage(face.visual.kind === 'icon'
+  const source = await loadImage(face.visual.kind === 'icon'
     ? buildCustomIconSvgDataUrl(face.visual.iconName, symbolColor)
     : face.visual.publicUrl);
+  return normalizeCustomFaceImage(source);
 }
 
 function facesForRole(snapshot: CustomDieRollSnapshot, role: CustomDiePhysicalRole): CustomDieFace[] {

@@ -43,6 +43,10 @@ assert.ok(materials.includes('ICON_DATA[iconName]'),'custom 3D icon textures mus
 assert.ok(materials.includes('width="256" height="256" viewBox="-2 -2 28 28" preserveAspectRatio="xMidYMid meet"'),'custom icon textures must have square intrinsic dimensions and controlled padding');
 assert.ok(iconData.includes('"Sword"'),'Sword must exist in the generated icon catalog');
 assert.ok(iconData.includes('"points": "14.5 17.5 3 6 3 3 6 3 17.5 14.5"'),'Sword catalog geometry must preserve the Lucide sword shape');
+assert.ok(materials.includes('const CUSTOM_FACE_TEXTURE_PADDING = 12;'),'custom face textures must reserve a visible internal safety margin');
+assert.ok(materials.includes('const scale = Math.min(drawableSize / sourceWidth, drawableSize / sourceHeight);'),'custom face images must preserve aspect ratio while fitting inside the safe area');
+assert.ok(materials.includes('const drawX = (CUSTOM_FACE_TEXTURE_SIZE - drawWidth) / 2;') && materials.includes('const drawY = (CUSTOM_FACE_TEXTURE_SIZE - drawHeight) / 2;'),'custom face images must be centered on both axes');
+assert.ok(materials.includes('return normalizeCustomFaceImage(source);'),'icons and uploaded images must use the same normalization pipeline');
 assert.ok(materials.includes('preset.normals = [];'),'custom 3D faces must disable stock numeric normal maps');
 assert.ok(materials.includes('preset.normals = originalNormals;'),'custom 3D face normal maps must be restored after material creation');
 assert.ok(session.includes('historyOpenRef')); assert.ok(session.includes('setHistoryUnread(true)')); assert.ok(!/revealRoll[\s\S]{0,500}setHistoryOpen\(true\)/.test(session),'revealRoll must not open history');
