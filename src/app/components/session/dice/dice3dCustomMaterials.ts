@@ -5,6 +5,7 @@ import type { CustomDieFace, CustomDiePhysicalRole, CustomDieRollSnapshot } from
 type DicePresetLike = {
   shape: string;
   labels: unknown[];
+  normals?: unknown[];
 };
 
 type DiceFactoryLike = {
@@ -32,7 +33,7 @@ function escapeXml(value: string): string {
   })[character] ?? character);
 }
 
-function iconSvgDataUrl(iconName: string, color: string): string {
+export function buildCustomIconSvgDataUrl(iconName: string, color: string): string {
   const primitives = ICON_DATA[iconName];
   if (!primitives) throw new Error(`Icona Hollowgate non disponibile: ${iconName}.`);
   const body = primitives.map(([tag, attrs]) => {
@@ -42,7 +43,7 @@ function iconSvgDataUrl(iconName: string, color: string): string {
     }).join(' ');
     return `<${tag} ${serialized}/>`;
   }).join('');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${escapeXml(color)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-2 -2 28 28" preserveAspectRatio="xMidYMid meet" fill="none" stroke="${escapeXml(color)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
@@ -58,7 +59,7 @@ function loadImage(source: string): Promise<HTMLImageElement> {
 
 async function faceImage(face: CustomDieFace, symbolColor: string): Promise<HTMLImageElement> {
   return loadImage(face.visual.kind === 'icon'
-    ? iconSvgDataUrl(face.visual.iconName, symbolColor)
+    ? buildCustomIconSvgDataUrl(face.visual.iconName, symbolColor)
     : face.visual.publicUrl);
 }
 
@@ -134,6 +135,7 @@ export async function installCustomDiceMaterialAdapter(
     if (!ready) return originalCreate(type);
 
     const originalLabels = preset.labels;
+    const originalNormals = preset.normals;
     const originalSetMaterialInfo = typedFactory.setMaterialInfo?.bind(typedFactory);
     const originalColors = {
       dice_color: typedFactory.dice_color,
@@ -144,6 +146,7 @@ export async function installCustomDiceMaterialAdapter(
     };
 
     preset.labels = ready.labels;
+    preset.normals = [];
     typedFactory.materials_cache = {};
     if (originalSetMaterialInfo) {
       typedFactory.setMaterialInfo = () => {
@@ -160,6 +163,7 @@ export async function installCustomDiceMaterialAdapter(
       return originalCreate(type);
     } finally {
       preset.labels = originalLabels;
+      preset.normals = originalNormals;
       if (originalSetMaterialInfo) typedFactory.setMaterialInfo = originalSetMaterialInfo;
       Object.assign(typedFactory, originalColors);
     }
