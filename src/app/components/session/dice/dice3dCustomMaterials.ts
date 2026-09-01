@@ -25,7 +25,16 @@ type DiceFactoryLike = {
   materials_cache?: Record<string, unknown>;
 };
 
-type DiceBoxWithFactory = { DiceFactory?: unknown };
+type DiceColorLike = {
+  getHex?: () => number;
+  set?: (value: number | string) => unknown;
+};
+
+type DiceBoxWithFactory = {
+  DiceFactory?: unknown;
+  light?: { color?: DiceColorLike };
+  light_amb?: { color?: DiceColorLike; groundColor?: DiceColorLike };
+};
 
 export interface PreparedCustomDiceMaterial {
   descriptor: Dice3DCustomMaterial;
@@ -33,7 +42,11 @@ export interface PreparedCustomDiceMaterial {
 }
 
 const CUSTOM_FACE_TEXTURE_SIZE = 256;
-const CUSTOM_FACE_TEXTURE_PADDING = 12;
+// dice-box-threejs paints HTMLImageElement labels across the whole texture canvas,
+// while normal labels use ts / (1 + 2 * margin) with margin=1: one third of it.
+const CUSTOM_FACE_STANDARD_CONTENT_RATIO = 1 / 3;
+// d4 has its own image-placement path and already shrinks custom images internally.
+const CUSTOM_FACE_D4_CONTENT_RATIO = 0.9;
 
 function escapeXml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({
@@ -51,7 +64,7 @@ export function buildCustomIconSvgDataUrl(iconName: string, color: string): stri
     }).join(' ');
     return `<${tag} ${serialized}/>`;
   }).join('');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-2 -2 28 28" preserveAspectRatio="xMidYMid meet" fill="none" stroke="${escapeXml(color)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" fill="none" stroke="${escapeXml(color)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
@@ -65,7 +78,10 @@ function loadImage(source: string): Promise<HTMLImageElement> {
   });
 }
 
-export async function normalizeCustomFaceImage(image: HTMLImageElement): Promise<HTMLImageElement> {
+export async function normalizeCustomFaceImage(
+  image: HTMLImageElement,
+  contentRatio = CUSTOM_FACE_STANDARD_CONTENT_RATIO,
+): Promise<HTMLImageElement> {
   const canvas = document.createElement('canvas');
   canvas.width = CUSTOM_FACE_TEXTURE_SIZE;
   canvas.height = CUSTOM_FACE_TEXTURE_SIZE;
@@ -76,7 +92,7 @@ export async function normalizeCustomFaceImage(image: HTMLImageElement): Promise
   const sourceHeight = image.naturalHeight || image.height;
   if (sourceWidth <= 0 || sourceHeight <= 0) throw new Error('Dimensioni immagine del dado Custom non valide.');
 
-  const drawableSize = CUSTOM_FACE_TEXTURE_SIZE - (CUSTOM_FACE_TEXTURE_PADDING * 2);
+  const drawableSize = CUSTOM_FACE_TEXTURE_SIZE * contentRatio;
   const scale = Math.min(drawableSize / sourceWidth, drawableSize / sourceHeight);
   const drawWidth = Math.max(1, sourceWidth * scale);
   const drawHeight = Math.max(1, sourceHeight * scale);
@@ -88,11 +104,18 @@ export async function normalizeCustomFaceImage(image: HTMLImageElement): Promise
   return loadImage(canvas.toDataURL('image/png'));
 }
 
-async function faceImage(face: CustomDieFace, symbolColor: string): Promise<HTMLImageElement> {
+async function faceImage(
+  face: CustomDieFace,
+  symbolColor: string,
+  physicalSides: number,
+): Promise<HTMLImageElement> {
   const source = await loadImage(face.visual.kind === 'icon'
     ? buildCustomIconSvgDataUrl(face.visual.iconName, symbolColor)
     : face.visual.publicUrl);
-  return normalizeCustomFaceImage(source);
+  return normalizeCustomFaceImage(
+    source,
+    physicalSides === 4 ? CUSTOM_FACE_D4_CONTENT_RATIO : CUSTOM_FACE_STANDARD_CONTENT_RATIO,
+  );
 }
 
 function facesForRole(snapshot: CustomDieRollSnapshot, role: CustomDiePhysicalRole): CustomDieFace[] {
@@ -106,8 +129,10 @@ export async function buildCustomFaceLabels(
   snapshot: CustomDieRollSnapshot,
   role: CustomDiePhysicalRole,
 ): Promise<unknown[]> {
-  const images = await Promise.all(facesForRole(snapshot, role).map((face) => faceImage(face, snapshot.symbolColor)));
   const physicalSides = snapshot.sides === 100 ? 10 : snapshot.sides;
+  const images = await Promise.all(
+    facesForRole(snapshot, role).map((face) => faceImage(face, snapshot.symbolColor, physicalSides)),
+  );
   if (physicalSides === 4) {
     const [a, b, c, d] = images;
     return [
@@ -152,6 +177,17 @@ export async function installCustomDiceMaterialAdapter(
       prepared.set(key, { descriptor, labels: await buildCustomFaceLabels(descriptor.customDie, descriptor.role) });
     }
   }
+
+  // The upstream scene uses a warm spotlight and a yellow hemisphere light.
+  // Neutralize them only for rolls containing Custom dice, then restore them.
+  const originalLighting = {
+    spot: box.light?.color?.getHex?.(),
+    hemisphereSky: box.light_amb?.color?.getHex?.(),
+    hemisphereGround: box.light_amb?.groundColor?.getHex?.(),
+  };
+  box.light?.color?.set?.(0xffffff);
+  box.light_amb?.color?.set?.(0xffffff);
+  box.light_amb?.groundColor?.set?.(0x676771);
 
   const typedFactory = factory as DiceFactoryLike;
   const originalCreate = typedFactory.create.bind(typedFactory);
@@ -214,5 +250,8 @@ export async function installCustomDiceMaterialAdapter(
 
   return () => {
     typedFactory.create = originalCreate;
+    if (originalLighting.spot !== undefined) box.light?.color?.set?.(originalLighting.spot);
+    if (originalLighting.hemisphereSky !== undefined) box.light_amb?.color?.set?.(originalLighting.hemisphereSky);
+    if (originalLighting.hemisphereGround !== undefined) box.light_amb?.groundColor?.set?.(originalLighting.hemisphereGround);
   };
 }
