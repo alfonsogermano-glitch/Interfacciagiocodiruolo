@@ -34,6 +34,7 @@ assert.ok(floating.includes('{customEntries.map((entry,i)=>'),'custom summary mu
 assert.ok(!floating.includes('{entries.length>0&&'),'standard dice must not create a separate selection summary');
 assert.ok(!floating.includes('{entries.map((entry,i)=>'),'standard dice must not be rendered in the selection summary');
 assert.ok(floating.includes('h-6 w-6 shrink-0 items-center justify-center rounded-full'),'dice history toggle must be 24px');
+assert.ok(/data-dice-quick-palette className="[^"]*select-none[^"]*caret-transparent/.test(floating),'quick roll palette must hide the text caret and disable accidental text selection');
 assert.ok(session.includes('historyOpenRef')); assert.ok(session.includes('setHistoryUnread(true)')); assert.ok(!/revealRoll[\s\S]{0,500}setHistoryOpen\(true\)/.test(session),'revealRoll must not open history');
 for(const hook of ['data-custom-die-configurator','data-custom-die-face','data-custom-die-upload']) assert.ok(configurator.includes(hook));
 assert.ok(tree.includes("node.kind==='custom-die'")); assert.ok(panel.includes('setCustomDice(previousCustomDice)'));
