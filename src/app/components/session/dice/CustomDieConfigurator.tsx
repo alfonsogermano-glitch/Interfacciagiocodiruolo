@@ -8,8 +8,8 @@ import type { CustomDieFace, CustomDieSides, SavedCustomDie } from './diceTypes.
 
 const SIDES: CustomDieSides[]=[4,6,8,10,12,20,100];
 function blankFaces(sides:CustomDieSides):CustomDieFace[]{
- if(sides===100)return [...Array.from({length:10},(_,i)=>({index:i+1,role:'tens' as const,visual:{kind:'icon' as const,iconName:'Star'},label:`Decine ${i+1}`,numericValue:null})),...Array.from({length:10},(_,i)=>({index:i+1,role:'units' as const,visual:{kind:'icon' as const,iconName:'Star'},label:`Unità ${i+1}`,numericValue:null}))];
- return Array.from({length:sides},(_,i)=>({index:i+1,role:'single' as const,visual:{kind:'icon' as const,iconName:'Star'},label:`Faccia ${i+1}`,numericValue:null}));
+ if(sides===100)return [...Array.from({length:10},(_,i)=>({index:i+1,role:'tens' as const,visual:{kind:'icon' as const,iconName:'Star'},label:'',numericValue:null})),...Array.from({length:10},(_,i)=>({index:i+1,role:'units' as const,visual:{kind:'icon' as const,iconName:'Star'},label:'',numericValue:null}))];
+ return Array.from({length:sides},(_,i)=>({index:i+1,role:'single' as const,visual:{kind:'icon' as const,iconName:'Star'},label:'',numericValue:null}));
 }
 export function CustomDieConfigurator({campaignId,ownerProfileId,initial,onSave,onCancel}:{campaignId:string;ownerProfileId:string;initial?:SavedCustomDie|null;onSave:(draft:{id:string;name:string;sides:CustomDieSides;faces:CustomDieFace[];bodyColor:string;symbolColor:string})=>Promise<void>;onCancel:()=>void}){
  const pendingAssets=useRef(new Set<string>()); const [id]=useState(()=>initial?.id??crypto.randomUUID()); const [name,setName]=useState(initial?.name??'Nuovo dado Custom'); const [sides,setSides]=useState<CustomDieSides>(initial?.sides??6); const [faces,setFaces]=useState<CustomDieFace[]>(()=>initial?initial.faces.map(f=>({...f,visual:{...f.visual}})):blankFaces(6)); const [bodyColor,setBodyColor]=useState(initial?.bodyColor??'#20242f'); const [symbolColor,setSymbolColor]=useState(initial?.symbolColor??'#ffffff'); const [iconFace,setIconFace]=useState<number|null>(null); const [busy,setBusy]=useState(false);
