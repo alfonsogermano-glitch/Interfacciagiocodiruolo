@@ -19,6 +19,10 @@ export interface CustomDieFace {
   numericValue: number | null;
 }
 
+export interface RollCustomDieFace extends CustomDieFace {
+  symbolColor?: string;
+}
+
 export interface SavedCustomDie {
   id: string;
   campaignId: string;
@@ -118,7 +122,7 @@ export interface RollDie {
   keepMatched?: boolean;
   customDieId?: string;
   customDieName?: string;
-  customFace?: CustomDieFace;
+  customFace?: RollCustomDieFace;
   physicalRole?: CustomDiePhysicalRole;
   logicalRollIndex?: number;
 }

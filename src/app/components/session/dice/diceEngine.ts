@@ -2,6 +2,7 @@ import { formatDiceFormula } from './diceFormulaText.ts';
 import { getCustomDieFace, isCustomDieFullyNumeric } from './diceCustomDie.ts';
 import { validateDiceFormula } from './diceFormulaValidation.ts';
 import type {
+  CustomDieFace,
   DiceKeepWhich,
   DiceModifierOperation,
   DiceRng,
@@ -10,6 +11,7 @@ import type {
   ResolvedDiceFormulaItem,
   RollComparisonResult,
   RollDiceGroup,
+  RollCustomDieFace,
   RollDie,
   RollResult,
 } from './diceTypes.ts';
@@ -34,6 +36,14 @@ function cloneItems(items: readonly ResolvedDiceFormulaItem[]): ResolvedDiceForm
   return items.map((item) => item.kind === 'custom-die'
     ? { ...item, customDie: { ...item.customDie, faces: item.customDie.faces.map((face) => ({ ...face, visual: { ...face.visual } })) } }
     : { ...item }) as ResolvedDiceFormulaItem[];
+}
+
+function snapshotRolledCustomFace(face: CustomDieFace, symbolColor: string): RollCustomDieFace {
+  return {
+    ...face,
+    visual: { ...face.visual },
+    ...(face.visual.kind === 'icon' ? { symbolColor } : {}),
+  };
 }
 
 function logicalRolls(group: RollDiceGroup): RollDie[] {
@@ -152,11 +162,11 @@ export function rollDiceFormula(input: RollDiceFormulaInput, rng: DiceRng = cryp
             const tensFace = getCustomDieFace(die, 'tens', tensIndex); const unitsFace = getCustomDieFace(die, 'units', unitsIndex);
             const pairValue = fullyNumeric ? (tensFace.numericValue as number) + (unitsFace.numericValue as number) : null;
             const chainId = `${item.id}:chain${logicalIndex + 1}`;
-            group.rolls.push({ id: nextRollId(item.id), groupItemId: item.id, sides: 100, face: tensIndex, contribution: pairValue, active: true, source: 'base', explosionDepth: 0, chainId, customDieId: die.id, customDieName: die.name, customFace: { ...tensFace, visual: { ...tensFace.visual } }, physicalRole: 'tens', logicalRollIndex: logicalIndex });
-            group.rolls.push({ id: nextRollId(item.id), groupItemId: item.id, sides: 10, face: unitsIndex, contribution: fullyNumeric ? 0 : null, active: true, source: 'base', explosionDepth: 0, chainId, customDieId: die.id, customDieName: die.name, customFace: { ...unitsFace, visual: { ...unitsFace.visual } }, physicalRole: 'units', logicalRollIndex: logicalIndex });
+            group.rolls.push({ id: nextRollId(item.id), groupItemId: item.id, sides: 100, face: tensIndex, contribution: pairValue, active: true, source: 'base', explosionDepth: 0, chainId, customDieId: die.id, customDieName: die.name, customFace: snapshotRolledCustomFace(tensFace, die.symbolColor), physicalRole: 'tens', logicalRollIndex: logicalIndex });
+            group.rolls.push({ id: nextRollId(item.id), groupItemId: item.id, sides: 10, face: unitsIndex, contribution: fullyNumeric ? 0 : null, active: true, source: 'base', explosionDepth: 0, chainId, customDieId: die.id, customDieName: die.name, customFace: snapshotRolledCustomFace(unitsFace, die.symbolColor), physicalRole: 'units', logicalRollIndex: logicalIndex });
           } else {
             const faceIndex = rollFace(die.sides); const customFace = getCustomDieFace(die, 'single', faceIndex); const id = nextRollId(item.id);
-            group.rolls.push({ id, groupItemId: item.id, sides: die.sides, face: faceIndex, contribution: customFace.numericValue, active: true, source: 'base', explosionDepth: 0, chainId: `${item.id}:chain${logicalIndex + 1}`, customDieId: die.id, customDieName: die.name, customFace: { ...customFace, visual: { ...customFace.visual } }, physicalRole: 'single', logicalRollIndex: logicalIndex });
+            group.rolls.push({ id, groupItemId: item.id, sides: die.sides, face: faceIndex, contribution: customFace.numericValue, active: true, source: 'base', explosionDepth: 0, chainId: `${item.id}:chain${logicalIndex + 1}`, customDieId: die.id, customDieName: die.name, customFace: snapshotRolledCustomFace(customFace, die.symbolColor), physicalRole: 'single', logicalRollIndex: logicalIndex });
           }
         }
         refreshGroup(group); addGroupToTotal(group); diceGroups.push(group); activeGroup = group; break;
@@ -194,7 +204,7 @@ export function rollDiceFormula(input: RollDiceFormulaInput, rng: DiceRng = cryp
               contribution = item.mode === 'penetrate' ? face - 1 : face;
               continueExplosion = face === group.sides;
             }
-            const extra: RollDie = { id, groupItemId: group.itemId, sides: group.sides, face, contribution, active: item.mode !== 'compound', source: 'explosion', explosionDepth, chainId: starter.chainId, parentRollId, customDieId: customItem?.kind === 'custom-die' ? customItem.customDie.id : undefined, customDieName: customItem?.kind === 'custom-die' ? customItem.customDie.name : undefined, customFace: customFace ? { ...customFace, visual: { ...customFace.visual } } : undefined, physicalRole: customFace ? 'single' : undefined };
+            const extra: RollDie = { id, groupItemId: group.itemId, sides: group.sides, face, contribution, active: item.mode !== 'compound', source: 'explosion', explosionDepth, chainId: starter.chainId, parentRollId, customDieId: customItem?.kind === 'custom-die' ? customItem.customDie.id : undefined, customDieName: customItem?.kind === 'custom-die' ? customItem.customDie.name : undefined, customFace: customFace && customItem?.kind === 'custom-die' ? snapshotRolledCustomFace(customFace, customItem.customDie.symbolColor) : undefined, physicalRole: customFace ? 'single' : undefined };
             group.rolls.push(extra);
             if (item.mode === 'compound') starter.contribution = (starter.contribution ?? 0) + contribution;
             parentRollId = id;
