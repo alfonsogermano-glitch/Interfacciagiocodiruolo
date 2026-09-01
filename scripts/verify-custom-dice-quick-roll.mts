@@ -47,6 +47,12 @@ assert.ok(materials.includes('const CUSTOM_FACE_TEXTURE_PADDING = 12;'),'custom 
 assert.ok(materials.includes('const scale = Math.min(drawableSize / sourceWidth, drawableSize / sourceHeight);'),'custom face images must preserve aspect ratio while fitting inside the safe area');
 assert.ok(materials.includes('const drawX = (CUSTOM_FACE_TEXTURE_SIZE - drawWidth) / 2;') && materials.includes('const drawY = (CUSTOM_FACE_TEXTURE_SIZE - drawHeight) / 2;'),'custom face images must be centered on both axes');
 assert.ok(materials.includes('return normalizeCustomFaceImage(source);'),'icons and uploaded images must use the same normalization pipeline');
+assert.ok(configurator.includes("const hasIconFaces=faces.some(face=>face.visual.kind==='icon'); const hasImageFaces=faces.some(face=>face.visual.kind==='image');"),'custom configurator must track icon and uploaded-image faces separately');
+assert.ok(configurator.includes('disabled={!hasIconFaces}'),'symbol color picker must disable only when every face is an uploaded image');
+assert.ok(configurator.includes('Utilizzabile solo per le icone'),'mixed custom dice must explain that symbol color only affects icons');
+assert.ok(materials.includes("const neutralTexture = { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' };"),'custom dice must neutralize inherited theme textures');
+assert.ok(materials.includes("typedFactory.dice_material = 'none';") && materials.includes("typedFactory.dice_material_rand = 'none';"),'custom dice must neutralize inherited theme materials');
+assert.ok(materials.includes('typedFactory.material_options = { ...typedFactory.material_options, color: 0xffffff };'),'custom dice material must not tint the selected body color');
 assert.ok(materials.includes('preset.normals = [];'),'custom 3D faces must disable stock numeric normal maps');
 assert.ok(materials.includes('preset.normals = originalNormals;'),'custom 3D face normal maps must be restored after material creation');
 assert.ok(session.includes('historyOpenRef')); assert.ok(session.includes('setHistoryUnread(true)')); assert.ok(!/revealRoll[\s\S]{0,500}setHistoryOpen\(true\)/.test(session),'revealRoll must not open history');

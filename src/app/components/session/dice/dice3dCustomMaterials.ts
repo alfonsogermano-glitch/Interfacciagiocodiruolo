@@ -17,6 +17,11 @@ type DiceFactoryLike = {
   edge_color_rand?: string;
   label_color_rand?: string;
   label_outline_rand?: string;
+  dice_texture?: unknown;
+  dice_texture_rand?: unknown;
+  dice_material?: unknown;
+  dice_material_rand?: unknown;
+  material_options?: Record<string, unknown>;
   materials_cache?: Record<string, unknown>;
 };
 
@@ -170,6 +175,11 @@ export async function installCustomDiceMaterialAdapter(
       edge_color_rand: typedFactory.edge_color_rand,
       label_color_rand: typedFactory.label_color_rand,
       label_outline_rand: typedFactory.label_outline_rand,
+      dice_texture: typedFactory.dice_texture,
+      dice_texture_rand: typedFactory.dice_texture_rand,
+      dice_material: typedFactory.dice_material,
+      dice_material_rand: typedFactory.dice_material_rand,
+      material_options: typedFactory.material_options,
     };
 
     preset.labels = ready.labels;
@@ -183,6 +193,12 @@ export async function installCustomDiceMaterialAdapter(
         typedFactory.edge_color_rand = descriptor.customDie.bodyColor;
         typedFactory.label_color_rand = descriptor.customDie.symbolColor;
         typedFactory.label_outline_rand = descriptor.customDie.symbolColor;
+        const neutralTexture = { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' };
+        typedFactory.dice_texture = neutralTexture;
+        typedFactory.dice_texture_rand = neutralTexture;
+        typedFactory.dice_material = 'none';
+        typedFactory.dice_material_rand = 'none';
+        typedFactory.material_options = { ...typedFactory.material_options, color: 0xffffff };
       };
     }
 
