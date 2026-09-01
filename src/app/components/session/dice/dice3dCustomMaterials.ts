@@ -42,9 +42,10 @@ export interface PreparedCustomDiceMaterial {
 }
 
 const CUSTOM_FACE_TEXTURE_SIZE = 256;
-// dice-box-threejs paints HTMLImageElement labels across the whole texture canvas,
-// while normal labels use ts / (1 + 2 * margin) with margin=1: one third of it.
-const CUSTOM_FACE_STANDARD_CONTENT_RATIO = 1 / 3;
+// HTMLImageElement labels are stretched over the whole upstream texture canvas.
+// Keep custom artwork inside a centered safe area large enough to stay readable
+// while leaving a clear border from the physical face edges.
+const CUSTOM_FACE_STANDARD_CONTENT_RATIO = 0.52;
 // d4 has its own image-placement path and already shrinks custom images internally.
 const CUSTOM_FACE_D4_CONTENT_RATIO = 0.9;
 
