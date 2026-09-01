@@ -11,12 +11,19 @@ const engine = read('src/app/components/session/dice/diceEngine.ts');
 const types = read('src/app/components/session/dice/diceTypes.ts');
 
 assert.ok(
-  faceResult.includes("symbolColor?:string") && faceResult.includes("style={{color:symbolColor}}"),
-  'Custom die icon results must use the saved symbol color instead of inheriting the chat palette',
+  faceResult.includes('symbolColor?: string;') && faceResult.includes("stroke={symbolColor || 'currentColor'}"),
+  'Custom die icon results must use an explicit saved symbol stroke instead of inheriting the chat palette',
 );
 assert.ok(
-  historyCard.includes('symbolColor={die.customFace.symbolColor??group.customDieSnapshot?.symbolColor}'),
-  'Dice history must prefer the color carried by the rolled face and only fall back to the group snapshot',
+  faceResult.includes('bodyColor?: string;') &&
+  faceResult.includes('backgroundColor: bodyColor') &&
+  faceResult.includes('data-custom-die-face-image'),
+  'Custom die chat results must render both icons and transparent face images over the saved die body color',
+);
+assert.ok(
+  historyCard.includes('symbolColor={die.customFace.symbolColor??group.customDieSnapshot?.symbolColor}') &&
+  historyCard.includes('bodyColor={group.customDieSnapshot?.bodyColor}'),
+  'Dice history must pass both the custom symbol color and the custom die body color to the face renderer',
 );
 assert.ok(
   types.includes('export interface RollCustomDieFace extends CustomDieFace') && types.includes('symbolColor?: string;'),

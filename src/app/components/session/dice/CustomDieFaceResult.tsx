@@ -1,4 +1,66 @@
 import { useState } from 'react';
 import { NoteIconGlyph } from '../shared/NoteIconGrid';
 import type { CustomDieFace } from './diceTypes.ts';
-export function CustomDieFaceResult({face,className='h-4 w-4',symbolColor}:{face:CustomDieFace;className?:string;symbolColor?:string}){const[broken,setBroken]=useState(false);if(face.visual.kind==='icon')return <NoteIconGlyph data-custom-die-face-result name={face.visual.iconName} className={className} style={{color:symbolColor}}/>;if(!broken)return <img data-custom-die-face-result src={face.visual.publicUrl} alt={face.label??''} onError={()=>setBroken(true)} className={`${className} rounded object-contain`}/>;return <span data-custom-die-face-result className="text-[10px] font-bold">{face.label?.slice(0,1)??'?'}</span>}
+
+export function CustomDieFaceResult({
+  face,
+  className = 'h-4 w-4',
+  symbolColor,
+  bodyColor,
+}: {
+  face: CustomDieFace;
+  className?: string;
+  symbolColor?: string;
+  bodyColor?: string;
+}) {
+  const [broken, setBroken] = useState(false);
+  const surfaceClass = `${className} inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[3px]`;
+
+  if (face.visual.kind === 'icon') {
+    return (
+      <span
+        data-custom-die-face-result
+        data-custom-die-face-surface
+        className={surfaceClass}
+        style={{ backgroundColor: bodyColor }}
+      >
+        <NoteIconGlyph
+          name={face.visual.iconName}
+          className="h-[78%] w-[78%]"
+          stroke={symbolColor || 'currentColor'}
+          style={{ color: symbolColor }}
+        />
+      </span>
+    );
+  }
+
+  if (!broken) {
+    return (
+      <span
+        data-custom-die-face-result
+        data-custom-die-face-surface
+        className={surfaceClass}
+        style={{ backgroundColor: bodyColor }}
+      >
+        <img
+          data-custom-die-face-image
+          src={face.visual.publicUrl}
+          alt={face.label ?? ''}
+          onError={() => setBroken(true)}
+          className="h-full w-full object-contain p-px"
+        />
+      </span>
+    );
+  }
+
+  return (
+    <span
+      data-custom-die-face-result
+      data-custom-die-face-surface
+      className={`${surfaceClass} text-[10px] font-bold`}
+      style={{ backgroundColor: bodyColor }}
+    >
+      {face.label?.slice(0, 1) ?? '?'}
+    </span>
+  );
+}
