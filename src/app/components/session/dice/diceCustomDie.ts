@@ -1,5 +1,6 @@
 import type {
   CustomDieFace,
+  CustomDieFaceVisual,
   CustomDiePhysicalRole,
   CustomDieRollSnapshot,
   CustomDieSides,
@@ -51,6 +52,25 @@ export function validateCustomDieDefinition(
   }
 
   return { valid: issues.length === 0, issues: [...new Set(issues)] };
+}
+
+export function copyCustomDieFaceVisual(
+  faces: readonly CustomDieFace[],
+  sourcePosition: number,
+  targetPosition: number,
+): CustomDieFace[] {
+  const source = faces[sourcePosition];
+  const target = faces[targetPosition];
+  if (!source || !target) throw new RangeError('Posizione faccia custom non valida.');
+  if (sourcePosition === targetPosition) return faces.slice() as CustomDieFace[];
+  return faces.map((face, position) => position === targetPosition
+    ? { ...face, visual: { ...source.visual } as CustomDieFaceVisual }
+    : face
+  );
+}
+
+export function isCustomDieImageAssetUsed(faces: readonly CustomDieFace[], assetPath: string): boolean {
+  return faces.some((face) => face.visual.kind === 'image' && face.visual.assetPath === assetPath);
 }
 
 export function isCustomDieFullyNumeric(die: Pick<SavedCustomDie, 'faces'> | CustomDieRollSnapshot): boolean {
