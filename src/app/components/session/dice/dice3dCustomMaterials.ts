@@ -52,6 +52,8 @@ const CUSTOM_FACE_TEXT_CONTENT_RATIO = 0.72;
 // d4 has its own image-placement path and already shrinks custom images internally.
 const CUSTOM_FACE_D4_CONTENT_RATIO = 0.9;
 const CUSTOM_FACE_D4_TEXT_CONTENT_RATIO = 0.95;
+const CUSTOM_FACE_D4_TEXT_WRAP_THRESHOLD = 30;
+const CUSTOM_FACE_D4_TEXT_CENTER_Y = 62;
 
 function escapeXml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({
@@ -76,6 +78,63 @@ export function buildCustomIconSvgDataUrl(iconName: string, color: string): stri
 export function buildCustomTextSvgDataUrl(text: string, color: string): string {
   const layout = layoutCustomDieFaceText(text);
   const body = layout.lines.map((line, index) => `<text x="50" y="${layout.lineYs[index]}" text-anchor="middle" dominant-baseline="central" font-size="${layout.fontSize}" font-weight="700" font-family="Arial, Helvetica, sans-serif" fill="${escapeXml(color)}">${escapeXml(line)}</text>`).join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">${body}</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function splitCustomD4TextLine(value: string): string | null {
+  const characters = [...value];
+  if (characters.length < 2) return null;
+
+  const midpoint = characters.length / 2;
+  let splitIndex = Math.ceil(midpoint);
+  let consumeWhitespace = false;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  characters.forEach((character, index) => {
+    if (index === 0 || index === characters.length - 1 || !/\s/.test(character)) return;
+    const distance = Math.abs(index - midpoint);
+    if (distance >= bestDistance) return;
+    splitIndex = index;
+    consumeWhitespace = true;
+    bestDistance = distance;
+  });
+
+  const firstLine = characters.slice(0, splitIndex).join('').trimEnd();
+  const secondLine = characters.slice(splitIndex + (consumeWhitespace ? 1 : 0)).join('').trimStart();
+  return firstLine && secondLine ? `${firstLine}\n${secondLine}` : null;
+}
+
+export function layoutCustomD4FaceText(text: string) {
+  const normalizedText = text.replace(/\r\n?/g, '\n');
+  let layout = layoutCustomDieFaceText(normalizedText);
+
+  // dice-box-threejs paints three labels around the three d4 vertices. A word
+  // that is merely scaled to fit one line becomes unreadably small in that slot,
+  // so prefer a balanced two-line block before it drops below a readable size.
+  if (!normalizedText.includes('\n') && layout.lines.length === 1 && layout.fontSize < CUSTOM_FACE_D4_TEXT_WRAP_THRESHOLD) {
+    const balancedText = splitCustomD4TextLine(layout.lines[0]);
+    if (balancedText) layout = layoutCustomDieFaceText(balancedText);
+  }
+
+  const singleLine = layout.lines.length === 1;
+  const fontSize = Math.min(
+    singleLine ? 56 : 36,
+    Math.round(layout.fontSize * (singleLine ? 1.16 : 1.1)),
+  );
+  const lineYs = singleLine
+    ? [CUSTOM_FACE_D4_TEXT_CENTER_Y]
+    : [
+      CUSTOM_FACE_D4_TEXT_CENTER_Y - fontSize * 0.55,
+      CUSTOM_FACE_D4_TEXT_CENTER_Y + fontSize * 0.55,
+    ];
+
+  return { ...layout, fontSize, lineYs };
+}
+
+export function buildCustomD4TextSvgDataUrl(text: string, color: string): string {
+  const layout = layoutCustomD4FaceText(text);
+  const body = layout.lines.map((line, index) => `<text x="50" y="${layout.lineYs[index]}" text-anchor="middle" dominant-baseline="central" font-size="${layout.fontSize}" font-weight="800" font-family="Arial, Helvetica, sans-serif" fill="${escapeXml(color)}">${escapeXml(line)}</text>`).join('');
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">${body}</svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
@@ -124,7 +183,9 @@ async function faceImage(
   const sourceUrl = face.visual.kind === 'icon'
     ? buildCustomIconSvgDataUrl(face.visual.iconName, symbolColor)
     : face.visual.kind === 'text'
-      ? buildCustomTextSvgDataUrl(face.visual.text, symbolColor)
+      ? (physicalSides === 4
+        ? buildCustomD4TextSvgDataUrl(face.visual.text, symbolColor)
+        : buildCustomTextSvgDataUrl(face.visual.text, symbolColor))
       : face.visual.publicUrl;
   const source = await loadImage(sourceUrl);
   const contentRatio = face.visual.kind === 'text'
