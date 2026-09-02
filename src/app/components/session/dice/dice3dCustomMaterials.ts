@@ -9,10 +9,44 @@ type DicePresetLike = {
   normals?: unknown[];
 };
 
+type DiceTextMaterialDiceLike = {
+  shape?: string;
+};
+
+type DiceTextureCanvasLike = {
+  width: number;
+  height: number;
+  getContext: (contextId: '2d') => CanvasRenderingContext2D | null;
+};
+
+type DiceTextureLike = {
+  image?: DiceTextureCanvasLike;
+  needsUpdate?: boolean;
+};
+
+type DiceTextMaterialResultLike = {
+  composite?: DiceTextureLike;
+  bump?: DiceTextureLike | null;
+};
+
+type DiceCreateTextMaterial = (
+  diceobj: DiceTextMaterialDiceLike,
+  labels: unknown[],
+  index: number,
+  size: number,
+  margin: number,
+  texture?: unknown,
+  forecolor?: string,
+  outlinecolor?: string,
+  backcolor?: string,
+  allowcache?: boolean,
+) => DiceTextMaterialResultLike;
+
 type DiceFactoryLike = {
   create: (type: string) => unknown;
   get: (type: string) => DicePresetLike | null;
   setMaterialInfo?: () => void;
+  createTextMaterial?: DiceCreateTextMaterial;
   dice_color?: string;
   dice_color_rand?: string;
   edge_color_rand?: string;
@@ -38,6 +72,11 @@ type DiceBoxWithFactory = {
   swapDiceFace_D4?: (dicemesh: unknown, result: unknown) => unknown;
 };
 
+type CustomD4TextLabel = {
+  kind: 'hollowgate-custom-d4-text';
+  text: string;
+};
+
 export interface PreparedCustomDiceMaterial {
   descriptor: Dice3DCustomMaterial;
   labels: unknown[];
@@ -53,6 +92,9 @@ const CUSTOM_FACE_TEXT_CONTENT_RATIO = 0.72;
 const CUSTOM_FACE_D4_CONTENT_RATIO = 0.9;
 const CUSTOM_FACE_D4_TEXT_WRAP_THRESHOLD = 30;
 const CUSTOM_FACE_D4_TEXT_CENTER_Y = 62;
+const D4_UPSTREAM_IMAGE_X = 100 / 256;
+const D4_UPSTREAM_IMAGE_Y = 25 / 256;
+const D4_UPSTREAM_IMAGE_SIZE = 60 / 256;
 
 function escapeXml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({
@@ -131,11 +173,54 @@ export function layoutCustomD4FaceText(text: string) {
   return { ...layout, fontSize, lineYs };
 }
 
-export function buildCustomD4TextSvgDataUrl(text: string, color: string): string {
-  const layout = layoutCustomD4FaceText(text);
-  const body = layout.lines.map((line, index) => `<text x="50" y="${layout.lineYs[index]}" text-anchor="middle" dominant-baseline="central" font-size="${layout.fontSize}" font-weight="800" font-family="Arial, Helvetica, sans-serif" fill="${escapeXml(color)}">${escapeXml(line)}</text>`).join('');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">${body}</svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+function isCustomD4TextLabel(value: unknown): value is CustomD4TextLabel {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<CustomD4TextLabel>;
+  return candidate.kind === 'hollowgate-custom-d4-text' && typeof candidate.text === 'string';
+}
+
+function drawCustomD4TextLabels(
+  material: DiceTextMaterialResultLike,
+  labels: readonly unknown[],
+  color: string,
+): void {
+  const canvas = material.composite?.image;
+  if (!canvas || typeof canvas.getContext !== 'function' || canvas.width <= 0) return;
+  const context = canvas.getContext('2d');
+  if (!context) return;
+
+  const textureSize = canvas.width;
+  const rotationX = textureSize / 2;
+  const rotationY = textureSize / 2;
+  const slotX = textureSize * D4_UPSTREAM_IMAGE_X;
+  const slotY = textureSize * D4_UPSTREAM_IMAGE_Y;
+  const slotSize = textureSize * D4_UPSTREAM_IMAGE_SIZE;
+  const textX = slotX + slotSize / 2;
+
+  context.save();
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillStyle = color;
+
+  labels.forEach((label) => {
+    if (isCustomD4TextLabel(label)) {
+      const layout = layoutCustomD4FaceText(label.text);
+      const fontSize = Math.max(1, (layout.fontSize / 100) * slotSize);
+      context.font = `800 ${fontSize}px Arial, Helvetica, sans-serif`;
+      layout.lines.forEach((line, lineIndex) => {
+        const lineY = layout.lineYs[lineIndex] ?? 50;
+        const textY = slotY + (lineY / 100) * slotSize;
+        context.fillText(line, textX, textY);
+      });
+    }
+
+    context.translate(rotationX, rotationY);
+    context.rotate(Math.PI * 2 / 3);
+    context.translate(-rotationX, -rotationY);
+  });
+
+  context.restore();
+  if (material.composite) material.composite.needsUpdate = true;
 }
 
 function loadImage(source: string): Promise<HTMLImageElement> {
@@ -174,25 +259,21 @@ export async function normalizeCustomFaceImage(
   return loadImage(canvas.toDataURL('image/png'));
 }
 
-async function faceImage(
+async function faceLabel(
   face: CustomDieFace,
   symbolColor: string,
   physicalSides: number,
-): Promise<HTMLImageElement> {
+): Promise<unknown> {
+  if (physicalSides === 4 && face.visual.kind === 'text') {
+    return { kind: 'hollowgate-custom-d4-text', text: face.visual.text } satisfies CustomD4TextLabel;
+  }
+
   const sourceUrl = face.visual.kind === 'icon'
     ? buildCustomIconSvgDataUrl(face.visual.iconName, symbolColor)
     : face.visual.kind === 'text'
-      ? (physicalSides === 4
-        ? buildCustomD4TextSvgDataUrl(face.visual.text, symbolColor)
-        : buildCustomTextSvgDataUrl(face.visual.text, symbolColor))
+      ? buildCustomTextSvgDataUrl(face.visual.text, symbolColor)
       : face.visual.publicUrl;
   const source = await loadImage(sourceUrl);
-
-  // The d4 renderer already places each label into its triangular vertex slot.
-  // Keep custom text SVG-backed until that final draw so it is rasterized only
-  // once at the actual texture resolution instead of SVG -> PNG -> d4 canvas.
-  if (physicalSides === 4 && face.visual.kind === 'text') return source;
-
   const contentRatio = face.visual.kind === 'text'
     ? CUSTOM_FACE_TEXT_CONTENT_RATIO
     : (physicalSides === 4 ? CUSTOM_FACE_D4_CONTENT_RATIO : CUSTOM_FACE_STANDARD_CONTENT_RATIO);
@@ -211,11 +292,11 @@ export async function buildCustomFaceLabels(
   role: CustomDiePhysicalRole,
 ): Promise<unknown[]> {
   const physicalSides = snapshot.sides === 100 ? 10 : snapshot.sides;
-  const images = await Promise.all(
-    facesForRole(snapshot, role).map((face) => faceImage(face, snapshot.symbolColor, physicalSides)),
+  const labels = await Promise.all(
+    facesForRole(snapshot, role).map((face) => faceLabel(face, snapshot.symbolColor, physicalSides)),
   );
   if (physicalSides === 4) {
-    const [a, b, c, d] = images;
+    const [a, b, c, d] = labels;
     return [
       [[], [0, 0, 0], [b, d, c], [a, c, d], [b, a, d], [a, b, c]],
       [[], [0, 0, 0], [b, c, d], [c, a, d], [b, d, a], [c, b, a]],
@@ -223,7 +304,7 @@ export async function buildCustomFaceLabels(
       [[], [0, 0, 0], [d, b, c], [a, d, c], [d, a, b], [a, c, b]],
     ];
   }
-  return physicalSides === 10 ? ['', ...images] : ['', '', ...images];
+  return physicalSides === 10 ? ['', ...labels] : ['', '', ...labels];
 }
 
 export function buildSimultaneousMaterialQueue(chunks: Dice3DProjectionChunk[]): Array<Dice3DCustomMaterial | null> {
@@ -301,8 +382,66 @@ export async function installCustomDiceMaterialAdapter(
 
   const typedFactory = factory as DiceFactoryLike;
   const originalCreate = typedFactory.create.bind(typedFactory);
+  const originalCreateTextMaterial = typedFactory.createTextMaterial;
   const originalSwapDiceFaceD4 = box.swapDiceFace_D4;
   const customD4Meshes = new WeakMap<object, PreparedCustomDiceMaterial>();
+
+  if (originalCreateTextMaterial) {
+    typedFactory.createTextMaterial = (
+      diceobj,
+      labels,
+      index,
+      size,
+      margin,
+      texture,
+      forecolor,
+      outlinecolor,
+      backcolor,
+      allowcache,
+    ) => {
+      const current = diceobj.shape === 'd4' && Array.isArray(labels[index])
+        ? labels[index] as unknown[]
+        : null;
+      if (!current?.some(isCustomD4TextLabel)) {
+        return originalCreateTextMaterial.call(
+          typedFactory,
+          diceobj,
+          labels,
+          index,
+          size,
+          margin,
+          texture,
+          forecolor,
+          outlinecolor,
+          backcolor,
+          allowcache,
+        );
+      }
+
+      const sanitizedLabels = labels.slice();
+      sanitizedLabels[index] = current.map((label) => isCustomD4TextLabel(label) ? '' : label);
+      const material = originalCreateTextMaterial.call(
+        typedFactory,
+        diceobj,
+        sanitizedLabels,
+        index,
+        size,
+        margin,
+        texture,
+        forecolor,
+        outlinecolor,
+        backcolor,
+        false,
+      );
+      drawCustomD4TextLabels(
+        material,
+        current,
+        forecolor ?? typedFactory.label_color_rand ?? '#ffffff',
+      );
+      return material;
+    };
+  }
+
   let queueIndex = 0;
   typedFactory.create = (type: string) => {
     const descriptor = queue[queueIndex++] ?? null;
@@ -380,6 +519,7 @@ export async function installCustomDiceMaterialAdapter(
 
   return () => {
     typedFactory.create = originalCreate;
+    if (originalCreateTextMaterial) typedFactory.createTextMaterial = originalCreateTextMaterial;
     if (originalSwapDiceFaceD4) box.swapDiceFace_D4 = originalSwapDiceFaceD4;
     if (originalLighting.spot !== undefined) box.light?.color?.set?.(originalLighting.spot);
     if (originalLighting.hemisphereSky !== undefined) box.light_amb?.color?.set?.(originalLighting.hemisphereSky);
