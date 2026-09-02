@@ -20,6 +20,11 @@ for(const hook of ['data-saved-dice-formula','data-dice-visibility-toggle','data
 for(const hook of ['data-dice-history-drawer','data-dice-history-scroll','data-dice-history-scrollbar-track','data-dice-history-scrollbar-thumb','data-dice-3d-toggle','data-dice-history-clear']) assert.ok(history.includes(hook));
 assert.ok(history.includes('Pulisci')); assert.ok(history.includes('scrollContainer.scrollTop = scrollContainer.scrollHeight')); assert.ok(history.includes('max-h-[58vh]')); assert.ok(history.includes('min-w-[18rem]')); assert.ok(history.includes('max-w-[min(24rem,calc(100vw-8rem))]')); assert.ok(history.includes('<DiceQuickRollFloating />'));
 assert.ok(card.includes('formatPrimaryRollResult(result)')); assert.ok(card.includes('data-dice-player-actions')); assert.ok(card.includes('data-dice-reroll')); assert.ok(card.includes("result.visibility === 'secret'")); assert.ok(card.includes('Segreto')); assert.ok(card.includes('CustomDieFaceResult'));
+assert.ok(card.includes("import { DiceTypeIcon } from './DiceTypeIcon';"), 'dice history must reuse the matching standard die artwork');
+assert.ok(card.includes('CHAT_DIE_SIDES = [4, 6, 8, 10, 12, 20, 100]'), 'dice history must recognize every standard Hollowgate die shape');
+assert.ok(card.includes('className="h-[18px] w-[18px]"'), 'custom die face results must be slightly larger in the chat');
+assert.ok(card.includes('<StandardDieResult sides={die.sides} face={die.face} contribution={die.contribution}/>'), 'standard numeric results must render their specific die icon');
+assert.ok(!card.includes('<Dices className="h-2.5 w-2.5"/>d{die.sides}:'), 'standard numeric results must not use the generic two-dice icon plus dXX label');
 for(const hook of ['data-dice-quick-roll-floating','data-dice-quick-toggle','data-dice-history-toggle','data-dice-history-unread','data-dice-quick-palette']) assert.ok(quick.includes(hook));
 for(const hook of ['data-custom-die-configurator','data-custom-die-face','data-custom-die-upload']) assert.ok(custom.includes(hook));
 console.log('Dice UI verification passed.');
