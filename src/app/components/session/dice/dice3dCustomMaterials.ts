@@ -35,6 +35,7 @@ type DiceBoxWithFactory = {
   DiceFactory?: unknown;
   light?: { color?: DiceColorLike };
   light_amb?: { color?: DiceColorLike; groundColor?: DiceColorLike };
+  swapDiceFace_D4?: (dicemesh: unknown, result: unknown) => unknown;
 };
 
 export interface PreparedCustomDiceMaterial {
@@ -170,6 +171,35 @@ export function buildSimultaneousMaterialQueue(chunks: Dice3DProjectionChunk[]):
   return [...grouped.values()].flat();
 }
 
+function captureFactoryMaterialState(factory: DiceFactoryLike) {
+  return {
+    dice_color: factory.dice_color,
+    dice_color_rand: factory.dice_color_rand,
+    edge_color_rand: factory.edge_color_rand,
+    label_color_rand: factory.label_color_rand,
+    label_outline_rand: factory.label_outline_rand,
+    dice_texture: factory.dice_texture,
+    dice_texture_rand: factory.dice_texture_rand,
+    dice_material: factory.dice_material,
+    dice_material_rand: factory.dice_material_rand,
+    material_options: factory.material_options,
+  };
+}
+
+function applyCustomFactoryMaterialState(factory: DiceFactoryLike, descriptor: Dice3DCustomMaterial) {
+  factory.dice_color = descriptor.customDie.bodyColor;
+  factory.dice_color_rand = descriptor.customDie.bodyColor;
+  factory.edge_color_rand = descriptor.customDie.bodyColor;
+  factory.label_color_rand = descriptor.customDie.symbolColor;
+  factory.label_outline_rand = descriptor.customDie.symbolColor;
+  const neutralTexture = { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' };
+  factory.dice_texture = neutralTexture;
+  factory.dice_texture_rand = neutralTexture;
+  factory.dice_material = 'none';
+  factory.dice_material_rand = 'none';
+  factory.material_options = { ...factory.material_options, color: 0xffffff };
+}
+
 export async function installCustomDiceMaterialAdapter(
   box: DiceBoxWithFactory,
   queue: Array<Dice3DCustomMaterial | null>,
@@ -205,6 +235,8 @@ export async function installCustomDiceMaterialAdapter(
 
   const typedFactory = factory as DiceFactoryLike;
   const originalCreate = typedFactory.create.bind(typedFactory);
+  const originalSwapDiceFaceD4 = box.swapDiceFace_D4;
+  const customD4Meshes = new WeakMap<object, PreparedCustomDiceMaterial>();
   let queueIndex = 0;
   typedFactory.create = (type: string) => {
     const descriptor = queue[queueIndex++] ?? null;
@@ -219,18 +251,7 @@ export async function installCustomDiceMaterialAdapter(
     const originalLabels = preset.labels;
     const originalNormals = preset.normals;
     const originalSetMaterialInfo = typedFactory.setMaterialInfo?.bind(typedFactory);
-    const originalColors = {
-      dice_color: typedFactory.dice_color,
-      dice_color_rand: typedFactory.dice_color_rand,
-      edge_color_rand: typedFactory.edge_color_rand,
-      label_color_rand: typedFactory.label_color_rand,
-      label_outline_rand: typedFactory.label_outline_rand,
-      dice_texture: typedFactory.dice_texture,
-      dice_texture_rand: typedFactory.dice_texture_rand,
-      dice_material: typedFactory.dice_material,
-      dice_material_rand: typedFactory.dice_material_rand,
-      material_options: typedFactory.material_options,
-    };
+    const originalColors = captureFactoryMaterialState(typedFactory);
 
     preset.labels = ready.labels;
     preset.normals = [];
@@ -238,22 +259,16 @@ export async function installCustomDiceMaterialAdapter(
     if (originalSetMaterialInfo) {
       typedFactory.setMaterialInfo = () => {
         originalSetMaterialInfo();
-        typedFactory.dice_color = descriptor.customDie.bodyColor;
-        typedFactory.dice_color_rand = descriptor.customDie.bodyColor;
-        typedFactory.edge_color_rand = descriptor.customDie.bodyColor;
-        typedFactory.label_color_rand = descriptor.customDie.symbolColor;
-        typedFactory.label_outline_rand = descriptor.customDie.symbolColor;
-        const neutralTexture = { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' };
-        typedFactory.dice_texture = neutralTexture;
-        typedFactory.dice_texture_rand = neutralTexture;
-        typedFactory.dice_material = 'none';
-        typedFactory.dice_material_rand = 'none';
-        typedFactory.material_options = { ...typedFactory.material_options, color: 0xffffff };
+        applyCustomFactoryMaterialState(typedFactory, descriptor);
       };
     }
 
     try {
-      return originalCreate(type);
+      const mesh = originalCreate(type);
+      if (preset.shape === 'd4' && mesh && typeof mesh === 'object') {
+        customD4Meshes.set(mesh as object, ready);
+      }
+      return mesh;
     } finally {
       preset.labels = originalLabels;
       preset.normals = originalNormals;
@@ -262,8 +277,44 @@ export async function installCustomDiceMaterialAdapter(
     }
   };
 
+  // dice-box-threejs 0.0.12 has a d4-only forced-result path. After the
+  // simulation it can call swapDiceFace_D4(), which regenerates materials
+  // directly without calling setMaterialInfo(). Reapply the exact Custom
+  // material state for that mesh so the forced remap cannot fall back to an
+  // undefined/stale random texture state.
+  if (typeof originalSwapDiceFaceD4 === 'function') {
+    box.swapDiceFace_D4 = (dicemesh: unknown, result: unknown) => {
+      const ready = dicemesh && typeof dicemesh === 'object'
+        ? customD4Meshes.get(dicemesh as object)
+        : undefined;
+      if (!ready) return originalSwapDiceFaceD4.call(box, dicemesh, result);
+
+      const preset = typedFactory.get('d4');
+      if (!preset) return originalSwapDiceFaceD4.call(box, dicemesh, result);
+
+      const originalLabels = preset.labels;
+      const originalNormals = preset.normals;
+      const originalColors = captureFactoryMaterialState(typedFactory);
+      const originalSetMaterialInfo = typedFactory.setMaterialInfo?.bind(typedFactory);
+
+      try {
+        originalSetMaterialInfo?.();
+        preset.labels = ready.labels;
+        preset.normals = [];
+        typedFactory.materials_cache = {};
+        applyCustomFactoryMaterialState(typedFactory, ready.descriptor);
+        return originalSwapDiceFaceD4.call(box, dicemesh, result);
+      } finally {
+        preset.labels = originalLabels;
+        preset.normals = originalNormals;
+        Object.assign(typedFactory, originalColors);
+      }
+    };
+  }
+
   return () => {
     typedFactory.create = originalCreate;
+    if (originalSwapDiceFaceD4) box.swapDiceFace_D4 = originalSwapDiceFaceD4;
     if (originalLighting.spot !== undefined) box.light?.color?.set?.(originalLighting.spot);
     if (originalLighting.hemisphereSky !== undefined) box.light_amb?.color?.set?.(originalLighting.hemisphereSky);
     if (originalLighting.hemisphereGround !== undefined) box.light_amb?.groundColor?.set?.(originalLighting.hemisphereGround);
