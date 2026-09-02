@@ -5,7 +5,7 @@ import { NoteIconGrid, NoteIconGlyph } from '../shared/NoteIconGrid';
 import { Popover, PopoverContent, PopoverTrigger } from '../../ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import { CustomDieTextFace } from './CustomDieTextFace';
-import { copyCustomDieFaceVisual, expectedCustomDieFaceCount, isCustomDieImageAssetUsed, validateCustomDieDefinition } from './diceCustomDie.ts';
+import { copyCustomDieFaceVisual, expectedCustomDieFaceCount, isCustomDieImageAssetUsed, normalizeCustomDieFaceTextInput, validateCustomDieDefinition } from './diceCustomDie.ts';
 import { toggleCustomDieLibraryIconFace } from './diceCustomDieLibraryIcon.ts';
 import { removeDiceFaceAsset, uploadDiceFaceAsset } from '../../../../services/supabase/diceFaceAssetService';
 import type { CustomDieFace, CustomDieFaceVisual, CustomDieSides, SavedCustomDie } from './diceTypes.ts';
@@ -288,7 +288,19 @@ export function CustomDieConfigurator({
                     </Tooltip>
                   </div>
 
-                  {face.visual.kind === 'text' && <input data-custom-die-text-input placeholder="Testo faccia" value={face.visual.text} onChange={(event) => replaceFaceVisual(pos, { kind: 'text', text: event.target.value })} className="mt-2 w-full rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 py-1.5 text-center text-xs text-[var(--dash-text)] [caret-color:auto]" />}
+                  {face.visual.kind === 'text' && (
+                    <textarea
+                      data-custom-die-text-input
+                      rows={2}
+                      placeholder="Testo faccia"
+                      value={face.visual.text}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && face.visual.text.includes('\n')) event.preventDefault();
+                      }}
+                      onChange={(event) => replaceFaceVisual(pos, { kind: 'text', text: normalizeCustomDieFaceTextInput(event.target.value) })}
+                      className="mt-2 block h-12 w-full resize-none rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 py-1.5 text-center text-xs leading-4 text-[var(--dash-text)] [caret-color:auto]"
+                    />
+                  )}
                   <input placeholder="Etichetta" value={face.label ?? ''} onChange={(event) => patchFace(pos, { label: event.target.value })} className="mt-2 w-full rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 py-1.5 text-xs text-[var(--dash-text)] [caret-color:auto]" />
                   <div data-custom-die-value-stepper className="mt-2 flex items-stretch">
                     <button type="button" data-custom-die-value-increment aria-label="Aumenta valore" onClick={() => stepFaceValue(pos, 1)} className="w-8 shrink-0 rounded-l-md border border-r-0 border-[var(--dash-border)] bg-[var(--dash-input)] text-sm font-semibold text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]">+</button>

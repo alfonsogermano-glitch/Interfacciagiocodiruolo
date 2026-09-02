@@ -73,8 +73,32 @@ function truncateCustomDieText(value: string, maxUnits: number): string {
   return result.trimEnd() ? `${result.trimEnd()}${ellipsis}` : ellipsis;
 }
 
+export function normalizeCustomDieFaceTextInput(rawText: string): string {
+  const normalized = rawText.replace(/\r\n?/g, '\n');
+  const lines = normalized.split('\n');
+  if (lines.length <= 2) return normalized;
+  const secondLine = lines.slice(1).filter((line) => line.length > 0).join(' ');
+  return `${lines[0]}\n${secondLine}`;
+}
+
 export function layoutCustomDieFaceText(rawText: string): CustomDieTextLayout {
-  const text = rawText.trim().replace(/\s+/g, ' ');
+  const normalizedInput = normalizeCustomDieFaceTextInput(rawText);
+  if (normalizedInput.includes('\n')) {
+    const [rawFirstLine = '', rawSecondLine = ''] = normalizedInput.split('\n', 2);
+    const rawLines = [rawFirstLine, rawSecondLine].map((line) => line.trim().replace(/\s+/g, ' '));
+    if (!rawLines[0] && !rawLines[1]) return { lines: [''], fontSize: 34, lineYs: [50] };
+    const maxLineUnits = CUSTOM_DIE_TEXT_WIDTH / CUSTOM_DIE_TEXT_MIN_DOUBLE_FONT;
+    const lines = rawLines.map((line) => truncateCustomDieText(line, maxLineUnits));
+    const widestLine = Math.max(...lines.map(customDieTextUnits), 1);
+    const fontSize = Math.max(CUSTOM_DIE_TEXT_MIN_DOUBLE_FONT, Math.min(
+      CUSTOM_DIE_TEXT_MAX_DOUBLE_FONT,
+      Math.floor(CUSTOM_DIE_TEXT_WIDTH / widestLine),
+    ));
+    const offset = fontSize * 0.58;
+    return { lines, fontSize, lineYs: [50 - offset, 50 + offset] };
+  }
+
+  const text = normalizedInput.trim().replace(/\s+/g, ' ');
   if (!text) return { lines: [''], fontSize: 34, lineYs: [50] };
 
   const singleFont = Math.max(1, Math.min(
