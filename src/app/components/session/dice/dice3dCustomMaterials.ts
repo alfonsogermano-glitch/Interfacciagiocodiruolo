@@ -92,9 +92,13 @@ const CUSTOM_FACE_TEXT_CONTENT_RATIO = 0.72;
 const CUSTOM_FACE_D4_CONTENT_RATIO = 0.9;
 const CUSTOM_FACE_D4_TEXT_WRAP_THRESHOLD = 30;
 const CUSTOM_FACE_D4_TEXT_CENTER_Y = 62;
-const D4_UPSTREAM_IMAGE_X = 100 / 256;
-const D4_UPSTREAM_IMAGE_Y = 25 / 256;
-const D4_UPSTREAM_IMAGE_SIZE = 60 / 256;
+// Match dice-box-threejs' native d4 text geometry: 24pt per 128 texture pixels,
+// centered horizontally and placed 30% above the texture midpoint.
+const D4_NATIVE_TEXT_FONT_PT_PER_TEXTURE_PIXEL = 24 / 128;
+const D4_NATIVE_TEXT_Y_RATIO = 0.2;
+const D4_CUSTOM_TEXT_MAX_WIDTH_RATIO = 0.4;
+const D4_CUSTOM_DOUBLE_LINE_SCALE = 0.58;
+const D4_CUSTOM_DOUBLE_LINE_GAP = 0.46;
 
 function escapeXml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({
@@ -192,10 +196,10 @@ function drawCustomD4TextLabels(
   const textureSize = canvas.width;
   const rotationX = textureSize / 2;
   const rotationY = textureSize / 2;
-  const slotX = textureSize * D4_UPSTREAM_IMAGE_X;
-  const slotY = textureSize * D4_UPSTREAM_IMAGE_Y;
-  const slotSize = textureSize * D4_UPSTREAM_IMAGE_SIZE;
-  const textX = slotX + slotSize / 2;
+  const textX = rotationX;
+  const textCenterY = textureSize * D4_NATIVE_TEXT_Y_RATIO;
+  const nativeFontPt = textureSize * D4_NATIVE_TEXT_FONT_PT_PER_TEXTURE_PIXEL;
+  const maxTextWidth = textureSize * D4_CUSTOM_TEXT_MAX_WIDTH_RATIO;
 
   context.save();
   context.textAlign = 'center';
@@ -205,11 +209,28 @@ function drawCustomD4TextLabels(
   labels.forEach((label) => {
     if (isCustomD4TextLabel(label)) {
       const layout = layoutCustomD4FaceText(label.text);
-      const fontSize = Math.max(1, (layout.fontSize / 100) * slotSize);
-      context.font = `800 ${fontSize}px Arial, Helvetica, sans-serif`;
+      const singleLine = layout.lines.length === 1;
+      const layoutScale = singleLine
+        ? Math.min(1, layout.fontSize / 56)
+        : Math.min(1, layout.fontSize / 36) * D4_CUSTOM_DOUBLE_LINE_SCALE;
+      let fontPt = Math.max(1, nativeFontPt * layoutScale);
+      context.font = `800 ${fontPt}pt Arial, Helvetica, sans-serif`;
+
+      const widestLine = Math.max(
+        1,
+        ...layout.lines.map((line) => context.measureText(line).width),
+      );
+      if (widestLine > maxTextWidth) {
+        fontPt *= maxTextWidth / widestLine;
+        context.font = `800 ${fontPt}pt Arial, Helvetica, sans-serif`;
+      }
+
+      const fontPx = fontPt * (4 / 3);
+      const lineOffset = singleLine ? 0 : fontPx * D4_CUSTOM_DOUBLE_LINE_GAP;
       layout.lines.forEach((line, lineIndex) => {
-        const lineY = layout.lineYs[lineIndex] ?? 50;
-        const textY = slotY + (lineY / 100) * slotSize;
+        const textY = singleLine
+          ? textCenterY
+          : textCenterY + (lineIndex === 0 ? -lineOffset : lineOffset);
         context.fillText(line, textX, textY);
       });
     }
