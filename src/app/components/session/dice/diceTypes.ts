@@ -18,6 +18,7 @@ export interface CustomDieFace {
   visual: CustomDieFaceVisual;
   label?: string | null;
   numericValue: number | null;
+  isLibraryIcon?: boolean;
 }
 
 export interface RollCustomDieFace extends CustomDieFace {
