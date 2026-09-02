@@ -56,6 +56,7 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
       theme_colorset: 'white',
       theme_material: 'plastic',
       theme_surface: 'green-felt',
+      strength: 1.7,
     });
     await box.initialize();
     this.box = box;
