@@ -67,11 +67,25 @@ function Tooltip({
 
 function TooltipTrigger({
   onClick,
+  onFocus,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
   return (
     <TooltipPrimitive.Trigger
       data-slot="tooltip-trigger"
+      onFocus={event => {
+        onFocus?.(event);
+        if (event.defaultPrevented) return;
+
+        // Radix Tooltip apre anche sul focus. Quando un Popover viene aperto
+        // col mouse, Radix puo' spostare programmaticamente il focus sul primo
+        // controllo interno: quel focus non rappresenta un'intenzione
+        // dell'utente di leggere il tooltip. Manteniamo invece il focus da
+        // tastiera, riconoscibile tramite :focus-visible.
+        if (!(event.currentTarget as HTMLElement).matches(':focus-visible')) {
+          event.preventDefault();
+        }
+      }}
       onClick={event => {
         onClick?.(event);
         // Radix tiene il tooltip visibile finche' il trigger ha il focus
@@ -109,7 +123,7 @@ function TooltipContent({
           color: colors.text,
         }}
         className={cn(
-          "animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-[1200] w-fit origin-(--radix-tooltip-content-transform-origin) rounded-md px-3 py-1.5 text-xs text-balance shadow-lg",
+          "pointer-events-none animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-[1200] w-fit origin-(--radix-tooltip-content-transform-origin) rounded-md px-3 py-1.5 text-xs text-balance shadow-lg",
           className,
         )}
         {...props}
