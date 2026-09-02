@@ -182,17 +182,24 @@ export function CustomDieConfigurator({
                 >
                   <div className="mb-2 flex items-center justify-between">
                     <div className="flex min-w-0 items-center gap-1.5">
-                      <button
-                        type="button"
-                        role="radio"
-                        aria-checked={face.isLibraryIcon === true}
-                        aria-label={face.isLibraryIcon ? `Rimuovi ${faceLabel} come icona del dado Custom` : `Usa ${faceLabel} come icona del dado Custom`}
-                        data-custom-die-library-icon-radio
-                        onClick={() => toggleLibraryIconFace(pos)}
-                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${face.isLibraryIcon ? 'border-[var(--dash-accent)]' : 'border-[var(--dash-border)]'} hover:border-[var(--dash-accent)]`}
-                      >
-                        {face.isLibraryIcon && <span className="h-2 w-2 rounded-full bg-[var(--dash-accent)]" />}
-                      </button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            role="radio"
+                            aria-checked={face.isLibraryIcon === true}
+                            aria-label={face.isLibraryIcon ? `Rimuovi ${faceLabel} come icona del dado Custom` : `Usa ${faceLabel} come icona del dado Custom`}
+                            data-custom-die-library-icon-radio
+                            onClick={() => toggleLibraryIconFace(pos)}
+                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${face.isLibraryIcon ? 'border-[var(--dash-accent)]' : 'border-[var(--dash-border)]'} hover:border-[var(--dash-accent)]`}
+                          >
+                            {face.isLibraryIcon && <span className="h-2 w-2 rounded-full bg-[var(--dash-accent)]" />}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {face.isLibraryIcon ? 'Rimuovi questa faccia come icona del dado Custom' : 'Usa questa faccia come icona del dado Custom nella libreria'}
+                        </TooltipContent>
+                      </Tooltip>
                       <span className="truncate text-xs font-semibold text-[var(--dash-text-strong)]">{faceLabel}</span>
                     </div>
                     <Tooltip>
