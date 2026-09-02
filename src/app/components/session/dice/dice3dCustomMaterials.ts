@@ -51,7 +51,6 @@ const CUSTOM_FACE_STANDARD_CONTENT_RATIO = 0.52;
 const CUSTOM_FACE_TEXT_CONTENT_RATIO = 0.72;
 // d4 has its own image-placement path and already shrinks custom images internally.
 const CUSTOM_FACE_D4_CONTENT_RATIO = 0.9;
-const CUSTOM_FACE_D4_TEXT_CONTENT_RATIO = 0.95;
 const CUSTOM_FACE_D4_TEXT_WRAP_THRESHOLD = 30;
 const CUSTOM_FACE_D4_TEXT_CENTER_Y = 62;
 
@@ -188,8 +187,14 @@ async function faceImage(
         : buildCustomTextSvgDataUrl(face.visual.text, symbolColor))
       : face.visual.publicUrl;
   const source = await loadImage(sourceUrl);
+
+  // The d4 renderer already places each label into its triangular vertex slot.
+  // Keep custom text SVG-backed until that final draw so it is rasterized only
+  // once at the actual texture resolution instead of SVG -> PNG -> d4 canvas.
+  if (physicalSides === 4 && face.visual.kind === 'text') return source;
+
   const contentRatio = face.visual.kind === 'text'
-    ? (physicalSides === 4 ? CUSTOM_FACE_D4_TEXT_CONTENT_RATIO : CUSTOM_FACE_TEXT_CONTENT_RATIO)
+    ? CUSTOM_FACE_TEXT_CONTENT_RATIO
     : (physicalSides === 4 ? CUSTOM_FACE_D4_CONTENT_RATIO : CUSTOM_FACE_STANDARD_CONTENT_RATIO);
   return normalizeCustomFaceImage(source, contentRatio);
 }
