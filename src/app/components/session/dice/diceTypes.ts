@@ -9,7 +9,8 @@ export type CustomDiePhysicalRole = 'single' | 'tens' | 'units';
 
 export type CustomDieFaceVisual =
   | { kind: 'icon'; iconName: string }
-  | { kind: 'image'; assetPath: string; publicUrl: string };
+  | { kind: 'image'; assetPath: string; publicUrl: string }
+  | { kind: 'text'; text: string };
 
 export interface CustomDieFace {
   index: number;

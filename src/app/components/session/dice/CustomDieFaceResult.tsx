@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { NoteIconGlyph } from '../shared/NoteIconGrid';
+import { CustomDieTextFace } from './CustomDieTextFace';
 import type { CustomDieFace } from './diceTypes.ts';
 
 export function CustomDieFaceResult({
@@ -30,6 +31,20 @@ export function CustomDieFaceResult({
           stroke={symbolColor || 'currentColor'}
           style={{ color: symbolColor }}
         />
+      </span>
+    );
+  }
+
+  if (face.visual.kind === 'text') {
+    return (
+      <span
+        data-custom-die-face-result
+        data-custom-die-face-surface
+        data-custom-die-text-result
+        className={surfaceClass}
+        style={{ backgroundColor: bodyColor, color: symbolColor }}
+      >
+        <CustomDieTextFace text={face.visual.text} color={symbolColor} />
       </span>
     );
   }

@@ -1,4 +1,5 @@
 import { ICON_DATA } from '../shared/tiptapIconData';
+import { layoutCustomDieFaceText } from './diceCustomDie.ts';
 import type { Dice3DCustomMaterial, Dice3DProjectionChunk } from './dice3dProjection.ts';
 import type { CustomDieFace, CustomDiePhysicalRole, CustomDieRollSnapshot } from './diceTypes.ts';
 
@@ -46,8 +47,10 @@ const CUSTOM_FACE_TEXTURE_SIZE = 256;
 // Keep custom artwork inside a centered safe area large enough to stay readable
 // while leaving a clear border from the physical face edges.
 const CUSTOM_FACE_STANDARD_CONTENT_RATIO = 0.52;
+const CUSTOM_FACE_TEXT_CONTENT_RATIO = 0.72;
 // d4 has its own image-placement path and already shrinks custom images internally.
 const CUSTOM_FACE_D4_CONTENT_RATIO = 0.9;
+const CUSTOM_FACE_D4_TEXT_CONTENT_RATIO = 0.95;
 
 function escapeXml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({
@@ -66,6 +69,13 @@ export function buildCustomIconSvgDataUrl(iconName: string, color: string): stri
     return `<${tag} ${serialized}/>`;
   }).join('');
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" fill="none" stroke="${escapeXml(color)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+export function buildCustomTextSvgDataUrl(text: string, color: string): string {
+  const layout = layoutCustomDieFaceText(text);
+  const body = layout.lines.map((line, index) => `<text x="50" y="${layout.lineYs[index]}" text-anchor="middle" dominant-baseline="central" font-size="${layout.fontSize}" font-weight="700" font-family="Arial, Helvetica, sans-serif" fill="${escapeXml(color)}">${escapeXml(line)}</text>`).join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">${body}</svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
@@ -110,13 +120,16 @@ async function faceImage(
   symbolColor: string,
   physicalSides: number,
 ): Promise<HTMLImageElement> {
-  const source = await loadImage(face.visual.kind === 'icon'
+  const sourceUrl = face.visual.kind === 'icon'
     ? buildCustomIconSvgDataUrl(face.visual.iconName, symbolColor)
-    : face.visual.publicUrl);
-  return normalizeCustomFaceImage(
-    source,
-    physicalSides === 4 ? CUSTOM_FACE_D4_CONTENT_RATIO : CUSTOM_FACE_STANDARD_CONTENT_RATIO,
-  );
+    : face.visual.kind === 'text'
+      ? buildCustomTextSvgDataUrl(face.visual.text, symbolColor)
+      : face.visual.publicUrl;
+  const source = await loadImage(sourceUrl);
+  const contentRatio = face.visual.kind === 'text'
+    ? (physicalSides === 4 ? CUSTOM_FACE_D4_TEXT_CONTENT_RATIO : CUSTOM_FACE_TEXT_CONTENT_RATIO)
+    : (physicalSides === 4 ? CUSTOM_FACE_D4_CONTENT_RATIO : CUSTOM_FACE_STANDARD_CONTENT_RATIO);
+  return normalizeCustomFaceImage(source, contentRatio);
 }
 
 function facesForRole(snapshot: CustomDieRollSnapshot, role: CustomDiePhysicalRole): CustomDieFace[] {
