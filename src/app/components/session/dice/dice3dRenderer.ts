@@ -1,4 +1,5 @@
 import { buildSimultaneousMaterialQueue, installCustomDiceMaterialAdapter } from './dice3dCustomMaterials.ts';
+import { boostDice3DSpin, DICE_3D_THROW_STRENGTH, type Dice3DNotationVectors } from './dice3dMotion.ts';
 import { projectRollTo3D, type Dice3DProjectionChunk } from './dice3dProjection.ts';
 import { Dice3DAbortError, type Dice3DRenderer } from './dice3dTypes.ts';
 import type { RollResult } from './diceTypes.ts';
@@ -8,12 +9,19 @@ type DiceBoxInstance = {
   roll: (notation: string) => Promise<unknown>;
   clearDice: () => void;
   DiceFactory?: unknown;
+  getNotationVectors?: (...args: unknown[]) => unknown;
 };
 type DiceBoxConstructor = new (selector: string, options?: Record<string, unknown>) => DiceBoxInstance;
 let containerSequence = 0;
 
 function throwIfAborted(signal: AbortSignal) {
   if (signal.aborted) throw new Dice3DAbortError();
+}
+
+function installDice3DSpinAdapter(box: DiceBoxInstance) {
+  const original = box.getNotationVectors?.bind(box);
+  if (!original) return;
+  box.getNotationVectors = (...args: unknown[]) => boostDice3DSpin(original(...args) as Dice3DNotationVectors);
 }
 
 export function buildSimultaneousDice3DNotation(chunks: Dice3DProjectionChunk[]): string | null {
@@ -56,9 +64,10 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
       theme_colorset: 'white',
       theme_material: 'plastic',
       theme_surface: 'green-felt',
-      strength: 1.7,
+      strength: DICE_3D_THROW_STRENGTH,
     });
     await box.initialize();
+    installDice3DSpinAdapter(box);
     this.box = box;
   }
 
