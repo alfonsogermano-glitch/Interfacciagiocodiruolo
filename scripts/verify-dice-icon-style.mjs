@@ -3,6 +3,9 @@ import fs from 'node:fs';
 
 const icon = fs.readFileSync(new URL('../src/app/components/session/dice/DiceTypeIcon.tsx', import.meta.url), 'utf8');
 const styled = fs.readFileSync(new URL('../src/app/components/session/dice/StyledStandardDieIcon.tsx', import.meta.url), 'utf8');
+const appearance = fs.readFileSync(new URL('../src/app/components/session/dice/dice3dAppearanceMaterials.ts', import.meta.url), 'utf8');
+const effects = fs.readFileSync(new URL('../src/app/components/session/dice/dice3dSkinEffects.ts', import.meta.url), 'utf8');
+const textures = fs.readFileSync(new URL('../src/app/components/session/dice/dice3dSkinTextures.ts', import.meta.url), 'utf8');
 
 const userAssets = [
   ['dice-d4.svg', 'd4-4'],
@@ -38,9 +41,10 @@ assert.ok(icon.includes('src={diceD10}'), 'd100 must place the die showing 10 fi
 assert.ok(icon.includes('src={diceD10Zero}'), 'd100 must place the die showing 0 second');
 assert.ok(icon.indexOf('src={diceD10}') < icon.indexOf('src={diceD10Zero}'), 'd100 must render 10 before 0');
 assert.ok(icon.includes('data-die-image="d100"'), 'd100 composition must keep a stable UI hook');
-assert.ok(icon.includes('gap-[3px]'), 'd100 dice must sit close together with a small visible gap');
+assert.ok(icon.includes('gap-[4px]'), 'd100 dice must keep a small explicit gap');
+assert.ok(icon.includes("const d100ChildClassName = 'h-full min-h-0 min-w-0 w-[calc(50%_-_2px)] flex-none'"), 'each d100 child must own an explicit half-width instead of competing through intrinsic flex sizing');
+assert.doesNotMatch(icon, /source=\{diceD10Raw\}[^\n]*className="[^"]*flex-1/, 'personalized d100 children must not use intrinsic flex-1 sizing');
 assert.doesNotMatch(icon, /-ml-\d/, 'd100 dice must not overlap through negative margin');
-assert.doesNotMatch(icon, /\bgap-2\b/, 'd100 dice must no longer use the wider 8px gap');
 
 const standardFilterEntries = [...icon.matchAll(/\s(4|6|8|10|12|20): '([^']+)'/g)];
 const standardFilters = new Set(standardFilterEntries.map((match) => match[2]));
@@ -65,35 +69,41 @@ assert.ok(styled.includes('<foreignObject'), 'styled standard dice must keep the
 assert.ok(styled.includes('data-dice-skin-surface'), 'styled standard dice must expose a stable exact-surface hook');
 assert.doesNotMatch(styled, /overflow-hidden rounded-md border border-black\/15/, 'quick-roll and chat dice must not add an extra framed square around the die');
 assert.ok(styled.includes('data-styled-standard-d100'), 'styled d100 must keep a dedicated two-die composition');
+assert.ok(styled.includes("const d100SurfaceClassName = 'h-full min-w-0 w-[calc(50%_-_2px)] flex-none'"), 'd100 skin surfaces must use the same explicit half-width as their SVG overlays');
+assert.ok(styled.includes('gap-[4px]'), 'd100 skin surfaces and SVG overlays must share the same gap');
 assert.ok(styled.includes('overflow-visible'), 'styled d100 and standard dice must not clip their SVG artwork at the sides');
 
-const effects = fs.readFileSync(new URL('../src/app/components/session/dice/dice3dSkinEffects.ts', import.meta.url), 'utf8');
-const textures = fs.readFileSync(new URL('../src/app/components/session/dice/dice3dSkinTextures.ts', import.meta.url), 'utf8');
+assert.ok(appearance.includes('readableOutlineColor'), '3D labels must receive an automatic contrasting outline');
+assert.ok(appearance.includes('factory.label_outline = outlineColor') && appearance.includes('factory.label_outline_rand = outlineColor'), 'standard 3D numbers must use the contrasting outline');
+assert.ok(appearance.includes('const isEdgeMaterial = materialIndex === 0'), 'static skin material changes must distinguish edge material from face materials');
+assert.doesNotMatch(appearance, /for \(const material of materialsOf\(mesh as MeshLike\)\)/, 'static skin styling must not apply the same strength to every face material');
+
 assert.doesNotMatch(
   effects,
   /material\.emissive\.set\(entry\.descriptor\.appearance\.bodyColor\)/,
   'animated skins must not pulse the entire die emissive color and flash the die white',
 );
-assert.ok(
-  effects.includes("entry.descriptor.preserveFaceColors ? 0.35 : 1") &&
-    effects.includes('material.roughness') &&
-    effects.includes('material.shininess'),
-  'animated skins must retain bounded material animation while keeping uploaded Custom face colors stable',
-);
 assert.ok(effects.includes("import * as THREE from 'three'"), '3D skin effects must use the Three.js runtime already used by dice-box');
 assert.ok(effects.includes('new THREE.Points'), '3D skin effects must include visible particle fields');
 assert.ok(effects.includes('new THREE.LineSegments'), 'Lightning must include visible bolt geometry instead of only emissive flicker');
-assert.ok(effects.includes('new THREE.TorusGeometry'), 'Arcane must include a visible orbiting ring effect');
-assert.ok(effects.includes('private particleBudget = 96'), '3D effects must enforce a bounded per-roll particle budget');
-assert.ok(effects.includes('getDice3DSkinEffectProfile'), 'animated skins must use a skin-specific animation profile');
-assert.ok(effects.includes('material.emissive.set(profile.emissiveColor)'), 'animated skins must apply a bounded skin-specific glow instead of a body-color flash');
+assert.ok(effects.includes('new THREE.TorusGeometry'), 'energy skins must include visible orbiting halo geometry');
+assert.ok(effects.includes('new THREE.OctahedronGeometry'), 'Ice must include visible crystalline geometry');
+assert.ok(effects.includes('new THREE.SphereGeometry'), 'Poison must include visible bubble geometry');
+assert.ok(effects.includes('new THREE.TetrahedronGeometry'), 'Stone must include visible fragment geometry');
+assert.ok(effects.includes('private particleBudget = 144'), '3D effects must enforce a stronger but bounded per-roll particle budget');
+assert.ok(effects.includes('const isEdgeMaterial = materialIndex === 0'), 'animated material pulses must distinguish the edge from readable face materials');
+assert.ok(effects.includes('const faceMaterialFactor = entry.descriptor.preserveFaceColors ? 0 : 0.06'), 'animated face-material changes must be strongly suppressed to preserve content readability');
+assert.ok(effects.includes('lightningBolts: 5'), 'Lightning must use a visibly stronger bolt profile');
 assert.ok(effects.includes('baseline.emissiveIntensity'), 'animated skin glow must restore the original emissive intensity after the roll');
 assert.ok(effects.includes('baseline.emissiveHex'), 'animated skin glow must restore the original emissive color after the roll');
+
 assert.ok(textures.includes('const TEXTURE_SIZE = 512'), '3D skin textures must use a higher-resolution deterministic canvas');
 assert.ok(textures.includes('bumpCanvas') && textures.includes('bump: bumpCanvas'), '3D skins must supply bump information to dice-box');
+assert.doesNotMatch(textures, /appearance\.skinId === 'metal' \? 'metal' : 'none'/, 'Metal must not switch dice-box to the black-prone MeshStandard metal preset');
+assert.ok(textures.includes("material: 'none'"), 'Metal must keep the neutral color-preserving material path');
 for (const skin of ['fire', 'ice', 'lightning', 'poison', 'stone', 'metal', 'obsidian', 'arcane']) {
   assert.ok(effects.includes(`case '${skin}'`), `missing animated effect profile for ${skin}`);
   assert.ok(textures.includes(`case '${skin}'`), `missing strengthened static texture for ${skin}`);
 }
 
-console.log('Dice supplied SVG geometry, exact skin surfaces, unclipped d100, stronger static textures, and visible 3D effects verification passed.');
+console.log('Dice d100 sizing, face readability, color-preserving metal, and stronger 3D effects verification passed.');

@@ -58,16 +58,26 @@ function captureFactoryState(factory: DiceFactoryLike) {
   };
 }
 
+function readableOutlineColor(color: string): string {
+  const normalized = /^#[0-9a-f]{6}$/i.test(color) ? color.slice(1) : 'ffffff';
+  const red = Number.parseInt(normalized.slice(0, 2), 16) / 255;
+  const green = Number.parseInt(normalized.slice(2, 4), 16) / 255;
+  const blue = Number.parseInt(normalized.slice(4, 6), 16) / 255;
+  const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+  return luminance > 0.58 ? '#10131a' : '#ffffff';
+}
+
 function applyAppearanceFactoryState(factory: DiceFactoryLike, descriptor: Dice3DAppearanceDescriptor) {
   const appearance = descriptor.appearance;
+  const outlineColor = readableOutlineColor(appearance.symbolColor);
   factory.dice_color = appearance.bodyColor;
   factory.dice_color_rand = appearance.bodyColor;
   factory.edge_color = appearance.bodyColor;
   factory.edge_color_rand = appearance.bodyColor;
   factory.label_color = appearance.symbolColor;
   factory.label_color_rand = appearance.symbolColor;
-  factory.label_outline = appearance.symbolColor;
-  factory.label_outline_rand = appearance.symbolColor;
+  factory.label_outline = outlineColor;
+  factory.label_outline_rand = outlineColor;
 
   let texture;
   try {
@@ -88,59 +98,94 @@ function materialsOf(mesh: MeshLike): MaterialLike[] {
   return Array.isArray(mesh.material) ? mesh.material : [mesh.material];
 }
 
+function blendValue(current: number, target: number, factor: number): number {
+  return current + (target - current) * factor;
+}
+
+function edgeGlowColor(skinId: Dice3DAppearanceDescriptor['appearance']['skinId']): string | null {
+  switch (skinId) {
+    case 'fire': return '#ff5518';
+    case 'lightning': return '#42dcff';
+    case 'poison': return '#62d94d';
+    case 'obsidian': return '#8158e8';
+    case 'arcane': return '#b958f2';
+    default: return null;
+  }
+}
+
 function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescriptor) {
   if (!mesh || typeof mesh !== 'object') return;
   const skinId = descriptor.appearance.skinId;
   if (skinId === 'none') return;
 
-  for (const material of materialsOf(mesh as MeshLike)) {
+  materialsOf(mesh as MeshLike).forEach((material, materialIndex) => {
+    const isEdgeMaterial = materialIndex === 0;
+    const faceFactor = descriptor.preserveFaceColors ? 0 : 0.1;
+    const strength = isEdgeMaterial ? 1 : faceFactor;
+
+    const applyRoughness = (target: number) => {
+      if (typeof material.roughness === 'number') material.roughness = blendValue(material.roughness, target, strength);
+    };
+    const applyMetalness = (target: number) => {
+      if (typeof material.metalness === 'number') material.metalness = blendValue(material.metalness, target, strength);
+    };
+    const applyShininess = (target: number) => {
+      if (typeof material.shininess === 'number') material.shininess = blendValue(material.shininess, target, strength);
+    };
+
     switch (skinId) {
       case 'fire':
-        if (typeof material.roughness === 'number') material.roughness = 0.72;
-        if (typeof material.shininess === 'number') material.shininess = 22;
+        applyRoughness(0.62);
+        applyShininess(34);
         break;
       case 'ice':
-        if (typeof material.roughness === 'number') material.roughness = 0.18;
-        if (typeof material.metalness === 'number') material.metalness = 0.05;
-        if (typeof material.shininess === 'number') material.shininess = 90;
+        applyRoughness(0.2);
+        applyMetalness(0.04);
+        applyShininess(104);
         break;
       case 'lightning':
-        if (typeof material.roughness === 'number') material.roughness = 0.3;
-        if (typeof material.shininess === 'number') material.shininess = 72;
+        applyRoughness(0.28);
+        applyShininess(88);
         break;
       case 'poison':
-        if (typeof material.roughness === 'number') material.roughness = 0.48;
-        if (typeof material.shininess === 'number') material.shininess = 38;
+        applyRoughness(0.46);
+        applyShininess(48);
         break;
       case 'stone':
-        if (typeof material.roughness === 'number') material.roughness = 0.95;
-        if (typeof material.metalness === 'number') material.metalness = 0;
-        if (typeof material.shininess === 'number') material.shininess = 3;
+        applyRoughness(0.94);
+        applyMetalness(0);
+        applyShininess(5);
         break;
       case 'metal':
-        if (typeof material.roughness === 'number') material.roughness = 0.24;
-        if (typeof material.metalness === 'number') material.metalness = 0.88;
-        if (typeof material.shininess === 'number') material.shininess = 110;
+        // Keep the neutral Phong material so the selected body/symbol colors stay intact.
+        applyRoughness(0.26);
+        applyMetalness(0.16);
+        applyShininess(138);
         break;
       case 'obsidian':
-        if (typeof material.roughness === 'number') material.roughness = 0.16;
-        if (typeof material.metalness === 'number') material.metalness = 0.22;
-        if (typeof material.shininess === 'number') material.shininess = 120;
+        applyRoughness(0.18);
+        applyMetalness(0.12);
+        applyShininess(118);
         break;
       case 'arcane':
-        if (typeof material.roughness === 'number') material.roughness = 0.32;
-        if (typeof material.shininess === 'number') material.shininess = 80;
+        applyRoughness(0.3);
+        applyShininess(88);
         break;
     }
 
-    if (!descriptor.preserveFaceColors && material.emissive && typeof material.emissive.set === 'function') {
-      if (['fire', 'lightning', 'poison', 'obsidian', 'arcane'].includes(skinId)) {
-        material.emissive.set(descriptor.appearance.bodyColor);
-        if (typeof material.emissiveIntensity === 'number') material.emissiveIntensity = 0.06;
-      }
+    const glowColor = edgeGlowColor(skinId);
+    if (
+      isEdgeMaterial
+      && !descriptor.preserveFaceColors
+      && glowColor
+      && material.emissive
+      && typeof material.emissive.set === 'function'
+    ) {
+      material.emissive.set(glowColor);
+      if (typeof material.emissiveIntensity === 'number') material.emissiveIntensity = 0.08;
     }
     material.needsUpdate = true;
-  }
+  });
 }
 
 export function buildSimultaneousAppearanceQueue(

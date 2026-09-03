@@ -171,27 +171,29 @@ function drawPattern(
       break;
     }
     case 'metal': {
+      // Keep the selected body color visible: this layer only adds brushed highlights.
       const gradient = context.createLinearGradient(0, 0, size, 0);
-      gradient.addColorStop(0, 'rgba(0,0,0,.34)');
-      gradient.addColorStop(0.18, 'rgba(255,255,255,.08)');
-      gradient.addColorStop(0.42, 'rgba(255,255,255,.22)');
-      gradient.addColorStop(0.52, 'rgba(255,255,255,.72)');
-      gradient.addColorStop(0.61, 'rgba(255,255,255,.16)');
-      gradient.addColorStop(1, 'rgba(0,0,0,.3)');
+      gradient.addColorStop(0, 'rgba(255,255,255,.06)');
+      gradient.addColorStop(0.18, 'rgba(255,255,255,.18)');
+      gradient.addColorStop(0.42, 'rgba(255,255,255,.32)');
+      gradient.addColorStop(0.52, 'rgba(255,255,255,.68)');
+      gradient.addColorStop(0.62, 'rgba(255,255,255,.26)');
+      gradient.addColorStop(0.82, 'rgba(255,255,255,.12)');
+      gradient.addColorStop(1, 'rgba(0,0,0,.08)');
       context.fillStyle = gradient;
       context.fillRect(0, 0, size, size);
-      context.strokeStyle = 'rgba(255,255,255,.34)';
-      context.lineWidth = size / 220;
+      context.strokeStyle = 'rgba(255,255,255,.2)';
+      context.lineWidth = size / 235;
       for (let y = 0; y < size; y += size / 20) {
         context.beginPath();
         context.moveTo(0, y);
-        context.lineTo(size, y + size / 30);
+        context.lineTo(size, y + size / 34);
         context.stroke();
-        bump.strokeStyle = y % (size / 10) < 1 ? '#d6d6d6' : '#969696';
-        bump.lineWidth = size / 220;
+        bump.strokeStyle = y % (size / 10) < 1 ? '#c8c8c8' : '#9a9a9a';
+        bump.lineWidth = size / 235;
         bump.beginPath();
         bump.moveTo(0, y);
-        bump.lineTo(size, y + size / 30);
+        bump.lineTo(size, y + size / 34);
         bump.stroke();
       }
       break;
@@ -262,7 +264,9 @@ export function getDice3DTextureDescriptor(appearance: DiceAppearance): Dice3DTe
     texture: canvas,
     bump: bumpCanvas,
     composite: 'source-over',
-    material: appearance.skinId === 'metal' ? 'metal' : 'none',
+    // Using dice-box's built-in metal MeshStandard preset darkens the whole face map,
+    // including labels and uploaded artwork. Keep the neutral color-preserving path.
+    material: 'none',
   };
   cache.set(key, descriptor);
   return descriptor;

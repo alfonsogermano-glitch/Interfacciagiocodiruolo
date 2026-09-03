@@ -12,6 +12,8 @@ export const DICE_SILHOUETTE_PATHS: Record<Exclude<CustomDieSides, 100>, string>
   20: 'M18.5 .134l14.722 8.5a1 1 0 0 1 .5.866v17a1 1 0 0 1-.5.866l-14.722 8.5a1 1 0 0 1-1 0l-14.722-8.5a1 1 0 0 1-.5-.866v-17a1 1 0 0 1 .5-.866L17.5.134a1 1 0 0 1 1 0z',
 };
 
+const d100SurfaceClassName = 'h-full min-w-0 w-[calc(50%_-_2px)] flex-none';
+
 function DieSkinSurface({
   sides,
   appearance,
@@ -73,10 +75,10 @@ export function StyledStandardDieIcon({
       <span
         data-styled-standard-d100
         data-dice-skin={appearance.skinId}
-        className={`${className} relative inline-flex shrink-0 items-center justify-center gap-[3px] overflow-visible`}
+        className={`${className} relative inline-flex shrink-0 items-center justify-center gap-[4px] overflow-visible`}
       >
-        <DieSkinSurface sides={10} appearance={appearance} className="h-full min-w-0 flex-1" />
-        <DieSkinSurface sides={10} appearance={appearance} className="h-full min-w-0 flex-1" />
+        <DieSkinSurface sides={10} appearance={appearance} className={d100SurfaceClassName} />
+        <DieSkinSurface sides={10} appearance={appearance} className={d100SurfaceClassName} />
         <DiceTypeIcon
           sides={100}
           color={appearance.symbolColor}

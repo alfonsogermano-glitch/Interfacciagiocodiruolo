@@ -52,6 +52,7 @@ const D100_FILTERS = {
 } as const;
 
 const suppliedDieClassName = 'object-contain opacity-95';
+const d100ChildClassName = 'h-full min-h-0 min-w-0 w-[calc(50%_-_2px)] flex-none';
 const tintedSvgCache = new Map<string, string>();
 
 function tintedSvgDataUrl(source: string, color: string): string {
@@ -97,10 +98,10 @@ export function DiceTypeIcon({ sides, className, color }: DiceTypeIconProps) {
           aria-hidden="true"
           data-die-image="d100"
           data-die-source="user-svg"
-          className={`${className ?? ''} inline-flex items-center justify-center gap-[3px]`}
+          className={`${className ?? ''} inline-flex items-center justify-center gap-[4px] overflow-visible`}
         >
-          <TintedDieImage source={diceD10Raw} color={color} className="h-full min-h-0 flex-1" />
-          <TintedDieImage source={diceD10ZeroRaw} color={color} className="h-full min-h-0 flex-1" />
+          <TintedDieImage source={diceD10Raw} color={color} className={d100ChildClassName} />
+          <TintedDieImage source={diceD10ZeroRaw} color={color} className={d100ChildClassName} />
         </span>
       );
     }
@@ -119,20 +120,20 @@ export function DiceTypeIcon({ sides, className, color }: DiceTypeIconProps) {
         aria-hidden="true"
         data-die-image="d100"
         data-die-source="user-svg"
-        className={`${className ?? ''} inline-flex items-center justify-center gap-[3px]`}
+        className={`${className ?? ''} inline-flex items-center justify-center gap-[4px] overflow-visible`}
       >
         <img
           src={diceD10}
           alt=""
           draggable={false}
-          className={`h-7 w-7 shrink-0 ${suppliedDieClassName}`}
+          className={`${d100ChildClassName} ${suppliedDieClassName}`}
           style={{ filter: D100_FILTERS.ten }}
         />
         <img
           src={diceD10Zero}
           alt=""
           draggable={false}
-          className={`h-7 w-7 shrink-0 ${suppliedDieClassName}`}
+          className={`${d100ChildClassName} ${suppliedDieClassName}`}
           style={{ filter: D100_FILTERS.zero }}
         />
       </span>
