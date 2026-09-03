@@ -71,17 +71,11 @@ function drawFirePhotoTexture(
 
   context.save();
   drawImageCover(context, fireImage, size);
-  context.globalCompositeOperation = 'color';
-  context.globalAlpha = 0.46;
+  context.globalCompositeOperation = 'source-over';
+  context.globalAlpha = 0.34;
   context.fillStyle = bodyColor;
   context.fillRect(0, 0, size, size);
-  context.globalCompositeOperation = 'source-over';
   context.globalAlpha = 1;
-  const glow = context.createRadialGradient(size * 0.5, size * 0.52, 0, size * 0.5, size * 0.52, size * 0.72);
-  glow.addColorStop(0, 'rgba(255, 144, 36, 0.12)');
-  glow.addColorStop(1, 'rgba(0, 0, 0, 0.08)');
-  context.fillStyle = glow;
-  context.fillRect(0, 0, size, size);
   context.restore();
 
   bump.save();
@@ -244,7 +238,6 @@ function drawPattern(
       break;
     }
     case 'metal': {
-      // Keep the selected body color visible: this layer only adds brushed highlights.
       const gradient = context.createLinearGradient(0, 0, size, 0);
       gradient.addColorStop(0, 'rgba(255,255,255,.06)');
       gradient.addColorStop(0.18, 'rgba(255,255,255,.18)');
@@ -337,8 +330,6 @@ export function getDice3DTextureDescriptor(appearance: DiceAppearance): Dice3DTe
     texture: canvas,
     bump: bumpCanvas,
     composite: 'source-over',
-    // Using dice-box's built-in metal MeshStandard preset darkens the whole face map,
-    // including labels and uploaded artwork. Keep the neutral color-preserving path.
     material: 'none',
   };
   cache.set(key, descriptor);

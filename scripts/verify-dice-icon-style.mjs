@@ -66,10 +66,13 @@ assert.ok(skinSurface.includes('illustrative?: boolean'), 'Skin swatches must su
 assert.ok(skinSurface.includes('DiceSkinPreviewArt'), 'Skin swatches must use the shared illustrative art renderer');
 
 for (const skin of ['fire', 'ice', 'lightning', 'poison', 'stone', 'metal', 'obsidian', 'arcane']) {
-  assert.ok(previewArt.includes(`data-dice-skin-preview-art="${skin}"`), `Missing illustrative 2D preview art for ${skin}`);
   assert.ok(effects.includes(`case '${skin}'`), `missing animated effect profile for ${skin}`);
   assert.ok(textures.includes(`case '${skin}'`), `missing strengthened static texture for ${skin}`);
 }
+for (const skin of ['ice', 'lightning', 'poison', 'stone', 'metal', 'obsidian', 'arcane']) {
+  assert.ok(previewArt.includes(`data-dice-skin-preview-art="${skin}"`), `Missing illustrative 2D preview art for ${skin}`);
+}
+assert.ok(previewArt.includes("case 'fire':\n      return null;"), 'Fire must not overlay the old illustrative art on its photographic texture');
 assert.ok(previewArt.includes("mix(bodyColor, '#ffffff'") && previewArt.includes("mix(bodyColor, '#000000'"), 'Illustrative art must derive light and dark tones from the chosen die color');
 
 assert.ok(fireTextureData.includes("data:image/webp;base64,"), 'Fire skin must embed the supplied rock/lava texture');
@@ -77,10 +80,13 @@ assert.ok(skins.includes("FIRE_TEXTURE_DATA_URL"), '2D fire skin must import the
 assert.ok(skins.includes('url("${FIRE_TEXTURE_DATA_URL}")'), '2D fire skin must render the supplied image in menus and previews');
 assert.ok(textures.includes("FIRE_TEXTURE_DATA_URL"), '3D fire skin must import the same supplied texture');
 assert.ok(textures.includes('drawImageCover(context, fireImage, size)'), '3D fire skin must paint the supplied texture onto the die canvas');
-assert.ok(textures.includes("context.globalCompositeOperation = 'color'"), '3D fire texture must remain tintable by the chosen die color');
+assert.ok(textures.includes("context.globalCompositeOperation = 'source-over';\n  context.globalAlpha = 0.34;"), '3D fire tint must match the source-over 2D preview tint');
+assert.doesNotMatch(textures, /globalCompositeOperation = 'color'[\s\S]{0,80}globalAlpha = 0\.46/, '3D fire must not use the old mismatched color blend');
 assert.ok(textures.includes('drawImageCover(bump, fireImage, size)'), '3D fire skin must derive bump detail from the supplied texture');
 
-assert.ok(appearance.includes('readableOutlineColor'), '3D standard labels must retain automatic contrasting outlines');
+assert.ok(appearance.includes('getReadable3DLabelColor'), '3D standard labels must automatically preserve contrast on textured faces');
+assert.ok(appearance.includes('MIN_TEXTURED_LABEL_CONTRAST'), 'Textured 3D labels must enforce a minimum contrast target');
+assert.ok(appearance.includes('factory.label_color = labelColor') && appearance.includes('factory.label_color_rand = labelColor'), '3D standard labels must use the readable corrected color');
 assert.ok(appearance.includes('factory.label_outline = outlineColor') && appearance.includes('factory.label_outline_rand = outlineColor'), '3D standard labels must apply the contrasting outline');
 assert.ok(appearance.includes("if (!descriptor.custom && appearance.skinId !== 'metal')"), 'Custom dice must keep a neutral face texture so skin patterns cannot obscure text, icons, or images');
 assert.ok(projection.includes('custom: true') && projection.includes('preserveFaceColors: true'), 'Every Custom die must preserve face colors while skin effects animate');
@@ -105,4 +111,4 @@ assert.ok(textures.includes('bumpCanvas') && textures.includes('bump: bumpCanvas
 assert.doesNotMatch(textures, /appearance\.skinId === 'metal' \? 'metal' : 'none'/, 'Metal must not return to the black-prone MeshStandard metal preset');
 assert.ok(textures.includes("material: 'none'"), 'Metal must keep the neutral color-preserving material path');
 
-console.log('Dice exact shapes, illustrative skin previews, supplied Fire texture, readable faces, Arcane-only rings, and 3D skin verification passed.');
+console.log('Dice exact shapes, coherent Fire texture previews, readable faces, Arcane-only rings, and 3D skin verification passed.');

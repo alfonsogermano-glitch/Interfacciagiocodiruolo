@@ -35,13 +35,7 @@ export function DiceSkinPreviewArt({ skinId, bodyColor, className }: { skinId: D
 
   switch (skinId) {
     case 'fire':
-      return (
-        <g data-dice-skin-preview-art="fire" className={className}>
-          <path d="M4 36C2 29 8 26 8 20c5 4 5-4 10-14 2 8 9 12 7 20 4-3 8 1 7 10Z" fill={colors.deep} opacity="0.72" />
-          <path d="M10 36c-1-5 4-8 4-13 4 3 3-4 7-9 1 6 7 10 4 16 3-1 5 2 4 6Z" fill={colors.light} opacity="0.9" />
-          <path d="M16 36c-1-4 3-6 3-10 3 2 2-3 5-6 0 5 4 7 3 11 2 0 3 2 2 5Z" fill={colors.bright} opacity="0.95" />
-        </g>
-      );
+      return null;
     case 'ice':
       return (
         <g data-dice-skin-preview-art="ice" className={className} fill="none" strokeLinecap="round" strokeLinejoin="round">

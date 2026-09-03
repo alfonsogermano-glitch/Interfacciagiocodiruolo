@@ -26,6 +26,7 @@ type MaterialLike = { roughness?: number; metalness?: number; shininess?: number
 type MeshLike = { material?: MaterialLike | MaterialLike[] };
 
 const NEUTRAL_TEXTURE = { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' } as const;
+const MIN_TEXTURED_LABEL_CONTRAST = 5;
 
 function captureFactoryState(factory: DiceFactoryLike) {
   return {
@@ -36,24 +37,84 @@ function captureFactoryState(factory: DiceFactoryLike) {
   };
 }
 
-function readableOutlineColor(color: string): string {
+function parseHexColor(color: string): [number, number, number] {
   const normalized = /^#[0-9a-f]{6}$/i.test(color) ? color.slice(1) : 'ffffff';
-  const red = Number.parseInt(normalized.slice(0, 2), 16) / 255;
-  const green = Number.parseInt(normalized.slice(2, 4), 16) / 255;
-  const blue = Number.parseInt(normalized.slice(4, 6), 16) / 255;
-  const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
-  return luminance > 0.58 ? '#080b10' : '#ffffff';
+  return [
+    Number.parseInt(normalized.slice(0, 2), 16),
+    Number.parseInt(normalized.slice(2, 4), 16),
+    Number.parseInt(normalized.slice(4, 6), 16),
+  ];
+}
+
+function colorToHex(red: number, green: number, blue: number): string {
+  const part = (value: number) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, '0');
+  return `#${part(red)}${part(green)}${part(blue)}`;
+}
+
+function mixHexColor(base: string, target: string, amount: number): string {
+  const from = parseHexColor(base);
+  const to = parseHexColor(target);
+  return colorToHex(
+    from[0] + (to[0] - from[0]) * amount,
+    from[1] + (to[1] - from[1]) * amount,
+    from[2] + (to[2] - from[2]) * amount,
+  );
+}
+
+function relativeLuminance(color: string): number {
+  const channels = parseHexColor(color).map((channel) => {
+    const value = channel / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function contrastRatio(a: string, b: string): number {
+  const light = Math.max(relativeLuminance(a), relativeLuminance(b));
+  const dark = Math.min(relativeLuminance(a), relativeLuminance(b));
+  return (light + 0.05) / (dark + 0.05);
+}
+
+function estimatedTexturedBackground(bodyColor: string, skinId: Dice3DAppearanceDescriptor['appearance']['skinId']): string {
+  switch (skinId) {
+    case 'fire': return mixHexColor(bodyColor, '#000000', 0.58);
+    case 'obsidian': return mixHexColor(bodyColor, '#000000', 0.52);
+    case 'stone': return mixHexColor(bodyColor, '#000000', 0.2);
+    default: return bodyColor;
+  }
+}
+
+export function getReadable3DLabelColor(
+  symbolColor: string,
+  bodyColor: string,
+  skinId: Dice3DAppearanceDescriptor['appearance']['skinId'],
+): string {
+  if (skinId === 'none') return symbolColor;
+  const background = estimatedTexturedBackground(bodyColor, skinId);
+  if (contrastRatio(symbolColor, background) >= MIN_TEXTURED_LABEL_CONTRAST) return symbolColor;
+
+  const target = relativeLuminance(background) < 0.42 ? '#ffffff' : '#080b10';
+  for (const amount of [0.45, 0.6, 0.75, 0.9, 1]) {
+    const candidate = mixHexColor(symbolColor, target, amount);
+    if (contrastRatio(candidate, background) >= MIN_TEXTURED_LABEL_CONTRAST) return candidate;
+  }
+  return target;
+}
+
+function readableOutlineColor(color: string): string {
+  return relativeLuminance(color) > 0.58 ? '#080b10' : '#ffffff';
 }
 
 function applyAppearanceFactoryState(factory: DiceFactoryLike, descriptor: Dice3DAppearanceDescriptor) {
   const appearance = descriptor.appearance;
-  const outlineColor = readableOutlineColor(appearance.symbolColor);
+  const labelColor = getReadable3DLabelColor(appearance.symbolColor, appearance.bodyColor, appearance.skinId);
+  const outlineColor = readableOutlineColor(labelColor);
   factory.dice_color = appearance.bodyColor;
   factory.dice_color_rand = appearance.bodyColor;
   factory.edge_color = appearance.bodyColor;
   factory.edge_color_rand = appearance.bodyColor;
-  factory.label_color = appearance.symbolColor;
-  factory.label_color_rand = appearance.symbolColor;
+  factory.label_color = labelColor;
+  factory.label_color_rand = labelColor;
   factory.label_outline = outlineColor;
   factory.label_outline_rand = outlineColor;
 
