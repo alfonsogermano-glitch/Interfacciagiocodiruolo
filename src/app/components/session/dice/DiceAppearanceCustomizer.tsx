@@ -3,7 +3,7 @@ import { Loader2, Palette, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Switch } from '../../ui/switch';
 import { DiceSkinSurface } from './DiceSkinSurface';
-import { DiceTypeIcon } from './DiceTypeIcon';
+import { StyledStandardDieIcon } from './StyledStandardDieIcon';
 import { useDiceAppearance } from './DiceAppearanceContext';
 import { DICE_SKINS } from './diceSkins.ts';
 import type { CustomDieSides, StandardDieAppearance } from './diceTypes.ts';
@@ -79,10 +79,13 @@ export function DiceAppearanceCustomizer({ onClose }: { onClose: () => void }) {
 
             <div className="rounded-xl border border-[var(--dash-border)] bg-[var(--dash-surface)] p-4">
               <div className="mb-3 text-center text-xs text-[var(--dash-muted)]">Anteprima d{selected.sides}</div>
-              <div className="flex justify-center">
-                <DiceSkinSurface appearance={selected} className="flex h-28 w-28 items-center justify-center rounded-2xl border border-black/20 p-3 shadow-xl">
-                  <DiceTypeIcon sides={selected.sides} color={selected.symbolColor} className="h-full w-full" />
-                </DiceSkinSurface>
+              <div data-dice-appearance-main-preview className="flex min-h-28 items-center justify-center overflow-visible">
+                <StyledStandardDieIcon
+                  sides={selected.sides}
+                  appearance={selected}
+                  previewSkinArt
+                  className={selected.sides === 100 ? 'h-24 w-44' : 'h-24 w-24'}
+                />
               </div>
             </div>
 
@@ -122,7 +125,11 @@ export function DiceAppearanceCustomizer({ onClose }: { onClose: () => void }) {
                       onClick={() => patchSelected({ skinId: skin.id })}
                       className={`rounded-xl border p-2 text-left ${selected.skinId === skin.id ? 'border-[var(--dash-accent)] ring-1 ring-[var(--dash-accent)]/40' : 'border-[var(--dash-border)] hover:bg-[var(--dash-surface-2)]'}`}
                     >
-                      <DiceSkinSurface appearance={preview} className="mb-1.5 block h-10 w-full rounded-md border border-black/15" />
+                      <DiceSkinSurface
+                        appearance={preview}
+                        illustrative
+                        className="mb-1.5 block h-10 w-full rounded-md border border-black/15"
+                      />
                       <div className="text-[11px] font-semibold text-[var(--dash-text-strong)]">{skin.label}</div>
                       <div className="truncate text-[9px] text-[var(--dash-muted)]">{skin.description}</div>
                     </button>

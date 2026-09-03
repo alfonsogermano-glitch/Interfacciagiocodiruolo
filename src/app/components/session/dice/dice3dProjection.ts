@@ -54,7 +54,7 @@ function customAppearance(snapshot: CustomDieRollSnapshot): Dice3DAppearanceDesc
       effectsEnabled: snapshot.effectsEnabled ?? false,
     },
     custom: true,
-    preserveFaceColors: snapshot.faces.some((face) => face.visual.kind === 'image'),
+    preserveFaceColors: true,
   };
 }
 
