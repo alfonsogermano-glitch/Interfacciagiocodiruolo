@@ -1,3 +1,4 @@
+import { buildSimultaneousAppearanceQueue, installDiceAppearanceAdapter } from './dice3dAppearanceMaterials.ts';
 import { buildSimultaneousMaterialQueue, installCustomDiceMaterialAdapter } from './dice3dCustomMaterials.ts';
 import { boostDice3DSpin, DICE_3D_THROW_STRENGTH, type Dice3DNotationVectors } from './dice3dMotion.ts';
 import { projectRollTo3D, type Dice3DProjectionChunk } from './dice3dProjection.ts';
@@ -11,6 +12,7 @@ type DiceBoxInstance = {
   DiceFactory?: unknown;
   getNotationVectors?: (...args: unknown[]) => unknown;
 };
+
 type DiceBoxConstructor = new (selector: string, options?: Record<string, unknown>) => DiceBoxInstance;
 let containerSequence = 0;
 
@@ -30,7 +32,8 @@ export function buildSimultaneousDice3DNotation(chunks: Dice3DProjectionChunk[])
   for (const chunk of chunks) {
     if (chunk.values.length === 0) continue;
     const values = grouped.get(chunk.sides);
-    if (values) values.push(...chunk.values); else grouped.set(chunk.sides, [...chunk.values]);
+    if (values) values.push(...chunk.values);
+    else grouped.set(chunk.sides, [...chunk.values]);
   }
   if (grouped.size === 0) return null;
   const diceSets: string[] = [];
@@ -78,27 +81,50 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
     if (!notation) return;
 
     let restoreCustomMaterials: (() => void) | null = null;
+    let restoreAppearance: (() => void) | null = null;
+    let stopAppearanceEffects: (() => void) | null = null;
+    const stopEffectsOnAbort = () => stopAppearanceEffects?.();
     try {
+      const appearanceQueue = buildSimultaneousAppearanceQueue(chunks);
+      if (appearanceQueue.some(Boolean)) {
+        try {
+          const installed = installDiceAppearanceAdapter(this.box, appearanceQueue);
+          restoreAppearance = installed.restore;
+          stopAppearanceEffects = () => installed.effects.stop();
+          installed.effects.start();
+          signal.addEventListener('abort', stopEffectsOnAbort, { once: true });
+        } catch (error) {
+          console.error('Personalizzazione 3D dei dadi non disponibile, uso il materiale base:', error);
+        }
+      }
+
       const materialQueue = buildSimultaneousMaterialQueue(chunks);
       if (materialQueue.some(Boolean)) {
         try {
           restoreCustomMaterials = await installCustomDiceMaterialAdapter(this.box, materialQueue);
         } catch (error) {
-          // Presentation-only fallback: the canonical result remains authoritative.
           console.error('Texture 3D del dado Custom non disponibile, uso il materiale standard:', error);
         }
       }
+
       throwIfAborted(signal);
       await this.box.roll(notation);
       throwIfAborted(signal);
     } finally {
+      signal.removeEventListener('abort', stopEffectsOnAbort);
       restoreCustomMaterials?.();
+      restoreAppearance?.();
     }
   }
 
   clear(): void {
-    try { this.box?.clearDice(); } catch { /* presentation-only */ }
+    try {
+      this.box?.clearDice();
+    } catch {
+      // Presentation-only.
+    }
   }
+
   dispose(): void {
     this.clear();
     this.box = null;

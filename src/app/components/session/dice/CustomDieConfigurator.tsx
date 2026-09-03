@@ -3,12 +3,14 @@ import { ImagePlus, Save, Shapes, Type, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { NoteIconGrid, NoteIconGlyph } from '../shared/NoteIconGrid';
 import { Popover, PopoverContent, PopoverTrigger } from '../../ui/popover';
+import { Switch } from '../../ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import { CustomDieTextFace } from './CustomDieTextFace';
 import { copyCustomDieFaceVisual, expectedCustomDieFaceCount, isCustomDieImageAssetUsed, normalizeCustomDieFaceTextInput, validateCustomDieDefinition } from './diceCustomDie.ts';
 import { toggleCustomDieLibraryIconFace } from './diceCustomDieLibraryIcon.ts';
+import { DICE_SKINS, getDiceSkinBackgroundImage } from './diceSkins.ts';
 import { removeDiceFaceAsset, uploadDiceFaceAsset } from '../../../../services/supabase/diceFaceAssetService';
-import type { CustomDieFace, CustomDieFaceVisual, CustomDieSides, SavedCustomDie } from './diceTypes.ts';
+import type { CustomDieFace, CustomDieFaceVisual, CustomDieSides, DiceSkinId, SavedCustomDie } from './diceTypes.ts';
 
 const SIDES: CustomDieSides[] = [4, 6, 8, 10, 12, 20, 100];
 
@@ -22,17 +24,9 @@ function blankFaces(sides: CustomDieSides): CustomDieFace[] {
   return Array.from({ length: sides }, (_, i) => ({ index: i + 1, role: 'single' as const, visual: { kind: 'icon' as const, iconName: 'Star' }, label: '', numericValue: null }));
 }
 
-export function CustomDieConfigurator({
-  campaignId,
-  ownerProfileId,
-  initial,
-  onSave,
-  onCancel,
-}: {
-  campaignId: string;
-  ownerProfileId: string;
-  initial?: SavedCustomDie | null;
-  onSave: (draft: { id: string; name: string; sides: CustomDieSides; faces: CustomDieFace[]; bodyColor: string; symbolColor: string }) => Promise<void>;
+export function CustomDieConfigurator({ campaignId, ownerProfileId, initial, onSave, onCancel }: {
+  campaignId: string; ownerProfileId: string; initial?: SavedCustomDie | null;
+  onSave: (draft: { id: string; name: string; sides: CustomDieSides; faces: CustomDieFace[]; bodyColor: string; symbolColor: string; skinId: DiceSkinId; effectsEnabled: boolean }) => Promise<void>;
   onCancel: () => void;
 }) {
   const pendingAssets = useRef(new Set<string>());
@@ -40,297 +34,51 @@ export function CustomDieConfigurator({
   const [name, setName] = useState(initial?.name ?? 'Nuovo dado Custom');
   const [sides, setSides] = useState<CustomDieSides>(initial?.sides ?? 6);
   const [faces, setFaces] = useState<CustomDieFace[]>(() => initial ? initial.faces.map((face) => ({ ...face, visual: { ...face.visual } })) : blankFaces(6));
-  const facesRef = useRef(faces);
-  facesRef.current = faces;
+  const facesRef = useRef(faces); facesRef.current = faces;
   const dragSourceFace = useRef<number | null>(null);
   const [dragTargetFace, setDragTargetFace] = useState<number | null>(null);
   const [bodyColor, setBodyColor] = useState(initial?.bodyColor ?? '#20242f');
   const [symbolColor, setSymbolColor] = useState(initial?.symbolColor ?? '#ffffff');
+  const [skinId, setSkinId] = useState<DiceSkinId>(initial?.skinId ?? 'none');
+  const [effectsEnabled, setEffectsEnabled] = useState(initial?.effectsEnabled ?? false);
   const [iconFace, setIconFace] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
-
   const validation = useMemo(() => validateCustomDieDefinition({ name, sides, faces } as SavedCustomDie), [name, sides, faces]);
   const hasSymbolFaces = faces.some((face) => face.visual.kind === 'icon' || face.visual.kind === 'text');
   const hasImageFaces = faces.some((face) => face.visual.kind === 'image');
+  const skinBackground = getDiceSkinBackgroundImage(skinId, bodyColor);
 
-  const removePending = async (path: string) => {
-    if (!pendingAssets.current.has(path)) return;
-    pendingAssets.current.delete(path);
-    try {
-      await removeDiceFaceAsset(path);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const cancel = () => {
-    for (const path of pendingAssets.current) void removeDiceFaceAsset(path);
-    pendingAssets.current.clear();
-    onCancel();
-  };
-
-  const changeSides = (next: CustomDieSides) => {
-    if (next === sides) return;
-    if (faces.some((face) => face.visual.kind === 'image') && !confirm('Cambiare geometria rimuoverà le immagini già assegnate alle facce. Continuare?')) return;
-    for (const face of faces) if (face.visual.kind === 'image') void removePending(face.visual.assetPath);
-    const nextFaces = blankFaces(next);
-    facesRef.current = nextFaces;
-    setSides(next);
-    setFaces(nextFaces);
-  };
-
-  const patchFace = (pos: number, patch: Partial<CustomDieFace>) => setFaces((current) => {
-    const next = current.map((face, index) => index === pos ? { ...face, ...patch } : face);
-    facesRef.current = next;
-    return next;
-  });
-
-  const stepFaceValue = (pos: number, delta: number) => {
-    const current = facesRef.current[pos]?.numericValue;
-    patchFace(pos, { numericValue: (current ?? 0) + delta });
-  };
-
-  const replaceFaceVisual = (pos: number, visual: CustomDieFaceVisual) => {
-    const current = facesRef.current;
-    const previous = current[pos]?.visual;
-    if (!previous) return;
-    const next = current.map((face, index) => index === pos ? { ...face, visual: { ...visual } } : face);
-    facesRef.current = next;
-    setFaces(next);
-    if (
-      previous.kind === 'image'
-      && (visual.kind !== 'image' || visual.assetPath !== previous.assetPath)
-      && !isCustomDieImageAssetUsed(next, previous.assetPath)
-    ) void removePending(previous.assetPath);
-  };
-
-  const copyFaceVisual = (sourcePos: number, targetPos: number) => {
-    if (sourcePos === targetPos) return;
-    const current = facesRef.current;
-    const previous = current[targetPos]?.visual;
-    const next = copyCustomDieFaceVisual(current, sourcePos, targetPos);
-    facesRef.current = next;
-    setFaces(next);
-    if (previous?.kind === 'image' && !isCustomDieImageAssetUsed(next, previous.assetPath)) void removePending(previous.assetPath);
-  };
-
-  const toggleLibraryIconFace = (pos: number) => {
-    const next = toggleCustomDieLibraryIconFace(facesRef.current, pos);
-    facesRef.current = next;
-    setFaces(next);
-  };
-
+  const removePending = async (path: string) => { if (!pendingAssets.current.has(path)) return; pendingAssets.current.delete(path); try { await removeDiceFaceAsset(path); } catch (error) { console.error(error); } };
+  const cancel = () => { for (const path of pendingAssets.current) void removeDiceFaceAsset(path); pendingAssets.current.clear(); onCancel(); };
+  const changeSides = (next: CustomDieSides) => { if (next === sides) return; if (faces.some((face) => face.visual.kind === 'image') && !confirm('Cambiare geometria rimuoverà le immagini già assegnate alle facce. Continuare?')) return; for (const face of faces) if (face.visual.kind === 'image') void removePending(face.visual.assetPath); const nextFaces = blankFaces(next); facesRef.current = nextFaces; setSides(next); setFaces(nextFaces); };
+  const patchFace = (pos: number, patch: Partial<CustomDieFace>) => setFaces((current) => { const next = current.map((face, index) => index === pos ? { ...face, ...patch } : face); facesRef.current = next; return next; });
+  const stepFaceValue = (pos: number, delta: number) => { const current = facesRef.current[pos]?.numericValue; patchFace(pos, { numericValue: (current ?? 0) + delta }); };
+  const replaceFaceVisual = (pos: number, visual: CustomDieFaceVisual) => { const current = facesRef.current; const previous = current[pos]?.visual; if (!previous) return; const next = current.map((face, index) => index === pos ? { ...face, visual: { ...visual } } : face); facesRef.current = next; setFaces(next); if (previous.kind === 'image' && (visual.kind !== 'image' || visual.assetPath !== previous.assetPath) && !isCustomDieImageAssetUsed(next, previous.assetPath)) void removePending(previous.assetPath); };
+  const copyFaceVisual = (sourcePos: number, targetPos: number) => { if (sourcePos === targetPos) return; const current = facesRef.current; const previous = current[targetPos]?.visual; const next = copyCustomDieFaceVisual(current, sourcePos, targetPos); facesRef.current = next; setFaces(next); if (previous?.kind === 'image' && !isCustomDieImageAssetUsed(next, previous.assetPath)) void removePending(previous.assetPath); };
+  const toggleLibraryIconFace = (pos: number) => { const next = toggleCustomDieLibraryIconFace(facesRef.current, pos); facesRef.current = next; setFaces(next); };
   const faceVisualButtonClass = (selected: boolean) => `flex h-8 flex-1 items-center justify-center rounded-md border transition-colors ${selected ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)] text-[var(--dash-accent)]' : 'border-[var(--dash-border)] text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]'}`;
 
-  return (
-    <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/60 p-4 caret-transparent" data-custom-die-configurator>
-      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[var(--dash-border)] bg-[var(--dash-panel)] shadow-2xl">
-        <header className="flex items-center gap-3 border-b border-[var(--dash-border)] p-4">
-          <div className="min-w-0 flex-1">
-            <div className="text-lg font-semibold text-[var(--dash-text-strong)]">Dado Custom</div>
-            <div className="text-xs text-[var(--dash-muted)]">{expectedCustomDieFaceCount(sides)} facce fisiche configurabili</div>
-          </div>
-          <button onClick={cancel} className="rounded p-2 text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]"><X className="h-4 w-4" /></button>
-        </header>
-
-        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[260px_1fr]">
-          <aside className="space-y-4">
-            <label className="block text-xs text-[var(--dash-muted)]">
-              Nome
-              <input value={name} onChange={(event) => setName(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)] outline-none [caret-color:auto]" />
-            </label>
-            <div>
-              <div className="mb-1 text-xs text-[var(--dash-muted)]">Geometria</div>
-              <div className="flex flex-wrap gap-1">
-                {SIDES.map((value) => <button key={value} onClick={() => changeSides(value)} className={`rounded-md border px-2 py-1 text-xs ${value === sides ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)] text-[var(--dash-text-strong)]' : 'border-[var(--dash-border)] text-[var(--dash-muted)]'}`}>d{value}</button>)}
-              </div>
-            </div>
-            <label className="block text-xs text-[var(--dash-muted)]">
-              Colore corpo
-              <input type="color" value={bodyColor} onChange={(event) => setBodyColor(event.target.value)} className="mt-1 h-9 w-full" />
-            </label>
-            <label className={`block text-xs text-[var(--dash-muted)] ${!hasSymbolFaces ? 'opacity-50' : ''}`}>
-              Colore simboli
-              <input type="color" value={symbolColor} disabled={!hasSymbolFaces} onChange={(event) => setSymbolColor(event.target.value)} className="mt-1 h-9 w-full disabled:cursor-not-allowed" />
-              {hasImageFaces && <span className="mt-1 block text-[10px] text-[var(--dash-muted)]">Utilizzabile per icone e testo</span>}
-            </label>
-            {!validation.valid && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2 text-xs text-red-300">{validation.issues.join(' ')}</div>}
-          </aside>
-
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {faces.map((face, pos) => {
-              const faceLabel = sides === 100 ? `${face.role === 'tens' ? 'Decine' : 'Unità'} ${face.index}` : `Faccia ${face.index}`;
-              return (
-                <div
-                  key={`${face.role}:${face.index}`}
-                  data-custom-die-face
-                  data-custom-die-face-drop-target={dragTargetFace === pos ? 'true' : undefined}
-                  onDragOver={(event) => {
-                    const source = dragSourceFace.current;
-                    if (source === null || source === pos) return;
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = 'copy';
-                    if (dragTargetFace !== pos) setDragTargetFace(pos);
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    const source = dragSourceFace.current;
-                    if (source !== null && source !== pos) copyFaceVisual(source, pos);
-                    setDragTargetFace(null);
-                  }}
-                  className={`rounded-xl border bg-[var(--dash-surface)] p-3 transition-shadow ${dragTargetFace === pos ? 'border-[var(--dash-accent)] ring-2 ring-[var(--dash-accent)]/30' : 'border-[var(--dash-border)]'}`}
-                >
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            role="radio"
-                            aria-checked={face.isLibraryIcon === true}
-                            aria-label={face.isLibraryIcon ? `Rimuovi ${faceLabel} come icona del dado Custom` : `Usa ${faceLabel} come icona del dado Custom`}
-                            data-custom-die-library-icon-radio
-                            onClick={() => toggleLibraryIconFace(pos)}
-                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${face.isLibraryIcon ? 'border-[var(--dash-accent)]' : 'border-[var(--dash-border)]'} hover:border-[var(--dash-accent)]`}
-                          >
-                            {face.isLibraryIcon && <span className="h-2 w-2 rounded-full bg-[var(--dash-accent)]" />}
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {face.isLibraryIcon ? 'Rimuovi questa faccia come icona del dado Custom' : 'Usa questa faccia come icona del dado Custom nella libreria'}
-                        </TooltipContent>
-                      </Tooltip>
-                      <span className="truncate text-xs font-semibold text-[var(--dash-text-strong)]">{faceLabel}</span>
-                    </div>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span
-                          draggable
-                          data-custom-die-face-drag-source
-                          onDragStart={(event) => {
-                            dragSourceFace.current = pos;
-                            setDragTargetFace(null);
-                            event.dataTransfer.effectAllowed = 'copy';
-                            event.dataTransfer.setData('text/plain', String(pos));
-                          }}
-                          onDragEnd={() => {
-                            dragSourceFace.current = null;
-                            setDragTargetFace(null);
-                          }}
-                          className="flex h-8 w-8 cursor-grab items-center justify-center overflow-hidden rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] active:cursor-grabbing"
-                          style={{ color: symbolColor, backgroundColor: bodyColor }}
-                        >
-                          {face.visual.kind === 'icon'
-                            ? <NoteIconGlyph name={face.visual.iconName} className="h-5 w-5" />
-                            : face.visual.kind === 'text'
-                              ? <CustomDieTextFace text={face.visual.text} color={symbolColor} />
-                              : <img draggable={false} data-custom-die-image-preview src={face.visual.publicUrl} className="h-full w-full object-contain p-0.5" />}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>Trascina su un’altra faccia per copiare immagine, icona o testo</TooltipContent>
-                    </Tooltip>
-                  </div>
-
-                  <div className="flex gap-1">
-                    <Popover open={iconFace === pos} onOpenChange={(popoverOpen) => setIconFace(popoverOpen ? pos : null)}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="flex flex-1">
-                            <PopoverTrigger asChild>
-                              <button type="button" aria-label="Scegli icona" className={faceVisualButtonClass(face.visual.kind === 'icon')}><Shapes className="h-4 w-4" /></button>
-                            </PopoverTrigger>
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>Scegli icona</TooltipContent>
-                      </Tooltip>
-                      <PopoverContent data-custom-die-icon-picker side="bottom" align="start" sideOffset={6} collisionPadding={12} className="z-[1300] max-h-[70vh] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto border-[var(--dash-border)] bg-[var(--dash-panel)] p-2 text-[var(--dash-text)] shadow-2xl">
-                        <NoteIconGrid selectedName={face.visual.kind === 'icon' ? face.visual.iconName : null} onChoose={(iconName) => { replaceFaceVisual(pos, { kind: 'icon', iconName }); setIconFace(null); }} />
-                      </PopoverContent>
-                    </Popover>
-
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <label aria-label="Carica immagine" className={`${faceVisualButtonClass(face.visual.kind === 'image')} cursor-pointer`}>
-                          <ImagePlus className="h-4 w-4" />
-                          <input
-                            data-custom-die-upload
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={async (event) => {
-                              const file = event.target.files?.[0];
-                              if (!file) return;
-                              setBusy(true);
-                              try {
-                                const uploaded = await uploadDiceFaceAsset({ campaignId, ownerProfileId, customDieId: id, file });
-                                pendingAssets.current.add(uploaded.assetPath);
-                                replaceFaceVisual(pos, { kind: 'image', ...uploaded });
-                                setIconFace(null);
-                              } catch (error) {
-                                console.error(error);
-                                toast.error(error instanceof Error ? error.message : 'Impossibile caricare l’immagine.');
-                              } finally {
-                                setBusy(false);
-                                event.currentTarget.value = '';
-                              }
-                            }}
-                          />
-                        </label>
-                      </TooltipTrigger>
-                      <TooltipContent>Carica immagine</TooltipContent>
-                    </Tooltip>
-
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button type="button" aria-label="Inserisci testo" data-custom-die-text-select onClick={() => { setIconFace(null); replaceFaceVisual(pos, { kind: 'text', text: face.visual.kind === 'text' ? face.visual.text : '' }); }} className={faceVisualButtonClass(face.visual.kind === 'text')}><Type className="h-4 w-4" /></button>
-                      </TooltipTrigger>
-                      <TooltipContent>Inserisci testo</TooltipContent>
-                    </Tooltip>
-                  </div>
-
-                  {face.visual.kind === 'text' && (
-                    <textarea
-                      data-custom-die-text-input
-                      rows={2}
-                      placeholder="Testo faccia"
-                      value={face.visual.text}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' && face.visual.text.includes('\n')) event.preventDefault();
-                      }}
-                      onChange={(event) => replaceFaceVisual(pos, { kind: 'text', text: normalizeCustomDieFaceTextInput(event.target.value) })}
-                      className="mt-2 block h-12 w-full resize-none rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 py-1.5 text-center text-xs leading-4 text-[var(--dash-text)] [caret-color:auto]"
-                    />
-                  )}
-                  <input placeholder="Etichetta" value={face.label ?? ''} onChange={(event) => patchFace(pos, { label: event.target.value })} className="mt-2 w-full rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 py-1.5 text-xs text-[var(--dash-text)] [caret-color:auto]" />
-                  <div data-custom-die-value-stepper className="mt-2 flex items-stretch">
-                    <button type="button" data-custom-die-value-increment aria-label="Aumenta valore" onClick={() => stepFaceValue(pos, 1)} className="w-8 shrink-0 rounded-l-md border border-r-0 border-[var(--dash-border)] bg-[var(--dash-input)] text-sm font-semibold text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]">+</button>
-                    <input type="number" step="any" placeholder="Valore" value={face.numericValue ?? ''} onChange={(event) => patchFace(pos, { numericValue: event.target.value === '' ? null : Number(event.target.value) })} className="min-w-0 flex-1 appearance-none rounded-none border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 py-1.5 text-center text-xs text-[var(--dash-text)] outline-none [caret-color:auto] [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none" />
-                    <button type="button" data-custom-die-value-decrement aria-label="Diminuisci valore" onClick={() => stepFaceValue(pos, -1)} className="w-8 shrink-0 rounded-r-md border border-l-0 border-[var(--dash-border)] bg-[var(--dash-input)] text-sm font-semibold text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]">-</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <footer className="flex justify-end gap-2 border-t border-[var(--dash-border)] p-4">
-          <button onClick={cancel} className="rounded-lg border border-[var(--dash-border)] px-4 py-2 text-sm text-[var(--dash-muted)]">Annulla</button>
-          <button
-            disabled={!validation.valid || busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                await onSave({ id, name: name.trim(), sides, faces, bodyColor, symbolColor });
-              } finally {
-                setBusy(false);
-              }
-            }}
-            className="inline-flex items-center gap-2 rounded-lg bg-[var(--dash-accent)] px-4 py-2 text-sm font-semibold text-[var(--dash-text-strong)] disabled:opacity-40"
-          >
-            <Save className="h-4 w-4" />{busy ? 'Salvataggio…' : 'Salva dado'}
-          </button>
-        </footer>
-      </div>
-    </div>
-  );
+  return <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/60 p-4 caret-transparent" data-custom-die-configurator><div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[var(--dash-border)] bg-[var(--dash-panel)] shadow-2xl">
+    <header className="flex items-center gap-3 border-b border-[var(--dash-border)] p-4"><div className="min-w-0 flex-1"><div className="text-lg font-semibold text-[var(--dash-text-strong)]">Dado Custom</div><div className="text-xs text-[var(--dash-muted)]">{expectedCustomDieFaceCount(sides)} facce fisiche configurabili</div></div><button onClick={cancel} className="rounded p-2 text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]"><X className="h-4 w-4" /></button></header>
+    <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[260px_1fr]"><aside className="space-y-4">
+      <label className="block text-xs text-[var(--dash-muted)]">Nome<input value={name} onChange={(event) => setName(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)] outline-none [caret-color:auto]" /></label>
+      <div><div className="mb-1 text-xs text-[var(--dash-muted)]">Geometria</div><div className="flex flex-wrap gap-1">{SIDES.map((value) => <button key={value} onClick={() => changeSides(value)} className={`rounded-md border px-2 py-1 text-xs ${value === sides ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)] text-[var(--dash-text-strong)]' : 'border-[var(--dash-border)] text-[var(--dash-muted)]'}`}>d{value}</button>)}</div></div>
+      <label className="block text-xs text-[var(--dash-muted)]">Colore corpo<input type="color" value={bodyColor} onChange={(event) => setBodyColor(event.target.value)} className="mt-1 h-9 w-full" /></label>
+      <label className={`block text-xs text-[var(--dash-muted)] ${!hasSymbolFaces ? 'opacity-50' : ''}`}>Colore simboli<input type="color" value={symbolColor} disabled={!hasSymbolFaces} onChange={(event) => setSymbolColor(event.target.value)} className="mt-1 h-9 w-full disabled:cursor-not-allowed" />{hasImageFaces && <span className="mt-1 block text-[10px] text-[var(--dash-muted)]">Utilizzabile per icone e testo</span>}</label>
+      <div data-custom-die-skin-controls><div className="mb-1 text-xs text-[var(--dash-muted)]">Skin</div><div className="grid grid-cols-3 gap-1">{DICE_SKINS.map((skin) => <button key={skin.id} type="button" data-custom-die-skin={skin.id} aria-pressed={skinId === skin.id} title={skin.label} onClick={() => setSkinId(skin.id)} className={`overflow-hidden rounded-md border p-1 ${skinId === skin.id ? 'border-[var(--dash-accent)] ring-1 ring-[var(--dash-accent)]/30' : 'border-[var(--dash-border)]'}`}><span className="block h-6 rounded-sm" style={{ backgroundColor: bodyColor, backgroundImage: getDiceSkinBackgroundImage(skin.id, bodyColor), backgroundSize: 'cover' }} /><span className="mt-0.5 block truncate text-[8px] text-[var(--dash-muted)]">{skin.label}</span></button>)}</div></div>
+      <label className="flex items-center justify-between gap-2 rounded-lg border border-[var(--dash-border)] bg-[var(--dash-surface)] px-2 py-2"><span className="text-xs text-[var(--dash-muted)]">Effetti animati</span><Switch data-custom-die-effects checked={effectsEnabled} onCheckedChange={setEffectsEnabled} /></label>
+      {!validation.valid && <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2 text-xs text-red-300">{validation.issues.join(' ')}</div>}
+    </aside>
+    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{faces.map((face, pos) => { const faceLabel = sides === 100 ? `${face.role === 'tens' ? 'Decine' : 'Unità'} ${face.index}` : `Faccia ${face.index}`; return <div key={`${face.role}:${face.index}`} data-custom-die-face data-custom-die-face-drop-target={dragTargetFace === pos ? 'true' : undefined} onDragOver={(event) => { const source = dragSourceFace.current; if (source === null || source === pos) return; event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; if (dragTargetFace !== pos) setDragTargetFace(pos); }} onDrop={(event) => { event.preventDefault(); const source = dragSourceFace.current; if (source !== null && source !== pos) copyFaceVisual(source, pos); setDragTargetFace(null); }} className={`rounded-xl border bg-[var(--dash-surface)] p-3 transition-shadow ${dragTargetFace === pos ? 'border-[var(--dash-accent)] ring-2 ring-[var(--dash-accent)]/30' : 'border-[var(--dash-border)]'}`}>
+      <div className="mb-2 flex items-center justify-between"><div className="flex min-w-0 items-center gap-1.5"><Tooltip><TooltipTrigger asChild><button type="button" role="radio" aria-checked={face.isLibraryIcon === true} aria-label={face.isLibraryIcon ? `Rimuovi ${faceLabel} come icona del dado Custom` : `Usa ${faceLabel} come icona del dado Custom`} data-custom-die-library-icon-radio onClick={() => toggleLibraryIconFace(pos)} className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${face.isLibraryIcon ? 'border-[var(--dash-accent)]' : 'border-[var(--dash-border)]'} hover:border-[var(--dash-accent)]`}>{face.isLibraryIcon && <span className="h-2 w-2 rounded-full bg-[var(--dash-accent)]" />}</button></TooltipTrigger><TooltipContent>{face.isLibraryIcon ? 'Rimuovi questa faccia come icona del dado Custom' : 'Usa questa faccia come icona del dado Custom nella libreria'}</TooltipContent></Tooltip><span className="truncate text-xs font-semibold text-[var(--dash-text-strong)]">{faceLabel}</span></div>
+      <Tooltip><TooltipTrigger asChild><span draggable data-custom-die-face-drag-source onDragStart={(event) => { dragSourceFace.current = pos; setDragTargetFace(null); event.dataTransfer.effectAllowed = 'copy'; event.dataTransfer.setData('text/plain', String(pos)); }} onDragEnd={() => { dragSourceFace.current = null; setDragTargetFace(null); }} className="flex h-8 w-8 cursor-grab items-center justify-center overflow-hidden rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] active:cursor-grabbing" style={{ color: symbolColor, backgroundColor: bodyColor, backgroundImage: skinBackground, backgroundSize: 'cover' }}>{face.visual.kind === 'icon' ? <NoteIconGlyph name={face.visual.iconName} className="h-5 w-5" /> : face.visual.kind === 'text' ? <CustomDieTextFace text={face.visual.text} color={symbolColor} /> : <img draggable={false} data-custom-die-image-preview data-custom-die-image-untinted src={face.visual.publicUrl} className="h-full w-full object-contain p-0.5" />}</span></TooltipTrigger><TooltipContent>Trascina su un’altra faccia per copiare immagine, icona o testo</TooltipContent></Tooltip></div>
+      <div className="flex gap-1"><Popover open={iconFace === pos} onOpenChange={(popoverOpen) => setIconFace(popoverOpen ? pos : null)}><Tooltip><TooltipTrigger asChild><span className="flex flex-1"><PopoverTrigger asChild><button type="button" aria-label="Scegli icona" className={faceVisualButtonClass(face.visual.kind === 'icon')}><Shapes className="h-4 w-4" /></button></PopoverTrigger></span></TooltipTrigger><TooltipContent>Scegli icona</TooltipContent></Tooltip><PopoverContent data-custom-die-icon-picker side="bottom" align="start" sideOffset={6} collisionPadding={12} className="z-[1300] max-h-[70vh] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto border-[var(--dash-border)] bg-[var(--dash-panel)] p-2 text-[var(--dash-text)] shadow-2xl"><NoteIconGrid selectedName={face.visual.kind === 'icon' ? face.visual.iconName : null} onChoose={(iconName) => { replaceFaceVisual(pos, { kind: 'icon', iconName }); setIconFace(null); }} /></PopoverContent></Popover>
+      <Tooltip><TooltipTrigger asChild><label aria-label="Carica immagine" className={`${faceVisualButtonClass(face.visual.kind === 'image')} cursor-pointer`}><ImagePlus className="h-4 w-4" /><input data-custom-die-upload type="file" accept="image/*" className="hidden" onChange={async (event) => { const file = event.target.files?.[0]; if (!file) return; setBusy(true); try { const uploaded = await uploadDiceFaceAsset({ campaignId, ownerProfileId, customDieId: id, file }); pendingAssets.current.add(uploaded.assetPath); replaceFaceVisual(pos, { kind: 'image', ...uploaded }); setIconFace(null); } catch (error) { console.error(error); toast.error(error instanceof Error ? error.message : 'Impossibile caricare l’immagine.'); } finally { setBusy(false); event.currentTarget.value = ''; } }} /></label></TooltipTrigger><TooltipContent>Carica immagine</TooltipContent></Tooltip>
+      <Tooltip><TooltipTrigger asChild><button type="button" aria-label="Inserisci testo" data-custom-die-text-select onClick={() => { setIconFace(null); replaceFaceVisual(pos, { kind: 'text', text: face.visual.kind === 'text' ? face.visual.text : '' }); }} className={faceVisualButtonClass(face.visual.kind === 'text')}><Type className="h-4 w-4" /></button></TooltipTrigger><TooltipContent>Inserisci testo</TooltipContent></Tooltip></div>
+      {face.visual.kind === 'text' && <textarea data-custom-die-text-input rows={2} placeholder="Testo faccia" value={face.visual.text} onKeyDown={(event) => { if (event.key === 'Enter' && face.visual.text.includes('\n')) event.preventDefault(); }} onChange={(event) => replaceFaceVisual(pos, { kind: 'text', text: normalizeCustomDieFaceTextInput(event.target.value) })} className="mt-2 block h-12 w-full resize-none rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 py-1.5 text-center text-xs leading-4 text-[var(--dash-text)] [caret-color:auto]" />}
+      <input placeholder="Etichetta" value={face.label ?? ''} onChange={(event) => patchFace(pos, { label: event.target.value })} className="mt-2 w-full rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 py-1.5 text-xs text-[var(--dash-text)] [caret-color:auto]" />
+      <div data-custom-die-value-stepper className="mt-2 flex items-stretch"><button type="button" data-custom-die-value-increment aria-label="Aumenta valore" onClick={() => stepFaceValue(pos, 1)} className="w-8 shrink-0 rounded-l-md border border-r-0 border-[var(--dash-border)] bg-[var(--dash-input)] text-sm font-semibold text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]">+</button><input type="number" step="any" placeholder="Valore" value={face.numericValue ?? ''} onChange={(event) => patchFace(pos, { numericValue: event.target.value === '' ? null : Number(event.target.value) })} className="min-w-0 flex-1 appearance-none rounded-none border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 py-1.5 text-center text-xs text-[var(--dash-text)] outline-none [caret-color:auto] [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none" /><button type="button" data-custom-die-value-decrement aria-label="Diminuisci valore" onClick={() => stepFaceValue(pos, -1)} className="w-8 shrink-0 rounded-r-md border border-l-0 border-[var(--dash-border)] bg-[var(--dash-input)] text-sm font-semibold text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]">-</button></div>
+    </div>; })}</div></div>
+    <footer className="flex justify-end gap-2 border-t border-[var(--dash-border)] p-4"><button onClick={cancel} className="rounded-lg border border-[var(--dash-border)] px-4 py-2 text-sm text-[var(--dash-muted)]">Annulla</button><button disabled={!validation.valid || busy} onClick={async () => { setBusy(true); try { await onSave({ id, name: name.trim(), sides, faces, bodyColor, symbolColor, skinId, effectsEnabled }); } finally { setBusy(false); } }} className="inline-flex items-center gap-2 rounded-lg bg-[var(--dash-accent)] px-4 py-2 text-sm font-semibold text-[var(--dash-text-strong)] disabled:opacity-40"><Save className="h-4 w-4" />{busy ? 'Salvataggio…' : 'Salva dado'}</button></footer>
+  </div></div>;
 }

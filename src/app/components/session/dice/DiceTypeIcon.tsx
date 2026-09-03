@@ -9,6 +9,7 @@ import diceD20 from './assets/dice-d20.svg';
 interface DiceTypeIconProps {
   sides: 4 | 6 | 8 | 10 | 12 | 20 | 100;
   className?: string;
+  color?: string;
 }
 
 const DICE_IMAGE_BY_SIDES = {
@@ -36,7 +37,58 @@ const D100_FILTERS = {
 
 const suppliedDieClassName = 'object-contain opacity-95';
 
-export function DiceTypeIcon({ sides, className }: DiceTypeIconProps) {
+function MaskedDie({
+  source,
+  color,
+  className,
+}: {
+  source: string;
+  color: string;
+  className: string;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={className}
+      style={{
+        backgroundColor: color,
+        WebkitMaskImage: `url(${source})`,
+        maskImage: `url(${source})`,
+        WebkitMaskRepeat: 'no-repeat',
+        maskRepeat: 'no-repeat',
+        WebkitMaskPosition: 'center',
+        maskPosition: 'center',
+        WebkitMaskSize: 'contain',
+        maskSize: 'contain',
+      }}
+    />
+  );
+}
+
+export function DiceTypeIcon({ sides, className, color }: DiceTypeIconProps) {
+  if (color) {
+    if (sides === 100) {
+      return (
+        <span
+          aria-hidden="true"
+          data-die-image="d100"
+          data-die-source="user-svg"
+          className={`${className ?? ''} inline-flex items-center justify-center gap-[3px]`}
+        >
+          <MaskedDie source={diceD10} color={color} className="h-full min-h-0 flex-1" />
+          <MaskedDie source={diceD10Zero} color={color} className="h-full min-h-0 flex-1" />
+        </span>
+      );
+    }
+    return (
+      <MaskedDie
+        source={DICE_IMAGE_BY_SIDES[sides]}
+        color={color}
+        className={`${className ?? ''} inline-block`}
+      />
+    );
+  }
+
   if (sides === 100) {
     return (
       <span

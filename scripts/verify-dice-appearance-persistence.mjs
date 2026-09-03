@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+function read(path){return fs.readFileSync(new URL(`../${path}`, import.meta.url),'utf8')}
+const migration=read('supabase/migrations/20260903090000_dice_standard_styles_and_custom_skins.sql');
+const standard=read('src/services/supabase/diceStandardStyleService.ts');
+const custom=read('src/services/supabase/diceCustomDiceService.ts');
+assert.ok(migration.includes('create table if not exists public.dice_standard_styles'));
+assert.ok(/primary key \(campaign_id, owner_profile_id, sides\)/.test(migration));
+assert.ok(migration.includes('sides in (4,6,8,10,12,20,100)'));
+for(const skin of ['none','fire','ice','lightning','poison','stone','metal','obsidian','arcane']) assert.ok(migration.includes(`'${skin}'`),`missing skin ${skin}`);
+assert.ok(migration.includes('enable row level security'));
+for(const op of ['select','insert','update','delete']) assert.ok(migration.includes(`dice_standard_styles_${op}`),`missing ${op} policy`);
+assert.ok(migration.includes("add column if not exists skin_id text not null default 'none'"));
+assert.ok(migration.includes('add column if not exists effects_enabled boolean not null default false'));
+for(const field of ['body_color','symbol_color','skin_id','effects_enabled']) assert.ok(standard.includes(field),`standard service missing ${field}`);
+assert.ok(standard.includes(".upsert(payload, { onConflict: 'campaign_id,owner_profile_id,sides' })"));
+assert.ok(custom.includes("skinId: row.skin_id ?? 'none'"));
+assert.ok(custom.includes('effectsEnabled: row.effects_enabled ?? false'));
+assert.ok(custom.includes("skin_id: input.skinId ?? 'none'"));
+assert.ok(custom.includes('effects_enabled: input.effectsEnabled ?? false'));
+assert.ok(custom.includes('payload.skin_id = patch.skinId'));
+assert.ok(custom.includes('payload.effects_enabled = patch.effectsEnabled'));
+assert.ok(custom.includes("skinId: die.skinId ?? 'none'"));
+assert.ok(custom.includes('effectsEnabled: die.effectsEnabled ?? false'));
+console.log('verify-dice-appearance-persistence: PASS');

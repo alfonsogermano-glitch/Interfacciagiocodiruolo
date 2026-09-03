@@ -192,6 +192,8 @@ export function toCustomDieRollSnapshot(die: SavedCustomDie): CustomDieRollSnaps
     })) as CustomDieFace[],
     bodyColor: die.bodyColor,
     symbolColor: die.symbolColor,
+    skinId: die.skinId ?? 'none',
+    effectsEnabled: die.effectsEnabled ?? false,
     iconName: die.iconName ?? null,
     updatedAt: die.updatedAt,
   };

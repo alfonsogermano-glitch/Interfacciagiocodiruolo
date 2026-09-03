@@ -6,6 +6,18 @@ export type DiceModifierOperation = 'add' | 'subtract' | 'multiply' | 'divide' |
 export type DiceVisibility = 'public' | 'secret';
 export type CustomDieSides = 4 | 6 | 8 | 10 | 12 | 20 | 100;
 export type CustomDiePhysicalRole = 'single' | 'tens' | 'units';
+export type DiceSkinId = 'none' | 'fire' | 'ice' | 'lightning' | 'poison' | 'stone' | 'metal' | 'obsidian' | 'arcane';
+
+export interface DiceAppearance {
+  bodyColor: string;
+  symbolColor: string;
+  skinId: DiceSkinId;
+  effectsEnabled: boolean;
+}
+
+export interface StandardDieAppearance extends DiceAppearance {
+  sides: CustomDieSides;
+}
 
 export type CustomDieFaceVisual =
   | { kind: 'icon'; iconName: string }
@@ -34,6 +46,8 @@ export interface SavedCustomDie {
   faces: CustomDieFace[];
   bodyColor: string;
   symbolColor: string;
+  skinId?: DiceSkinId;
+  effectsEnabled?: boolean;
   iconName?: string | null;
   folderId: string | null;
   sortOrder: number;
@@ -48,6 +62,8 @@ export interface CustomDieRollSnapshot {
   faces: CustomDieFace[];
   bodyColor: string;
   symbolColor: string;
+  skinId?: DiceSkinId;
+  effectsEnabled?: boolean;
   iconName?: string | null;
   updatedAt?: string;
 }
@@ -136,6 +152,7 @@ export interface RollDiceGroup {
   rolls: RollDie[];
   activeRollIds: string[];
   contribution: number | null;
+  appearance?: DiceAppearance;
   customDieId?: string;
   customDieName?: string;
   customDieSnapshot?: CustomDieRollSnapshot;
