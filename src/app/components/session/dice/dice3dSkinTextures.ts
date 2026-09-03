@@ -8,135 +8,237 @@ export interface Dice3DTextureDescriptor {
   material: 'none' | 'metal';
 }
 
+const TEXTURE_SIZE = 512;
 const cache = new Map<string, Dice3DTextureDescriptor>();
 
-function drawCracks(context: CanvasRenderingContext2D, size: number, color: string) {
-  context.strokeStyle = color;
-  context.lineWidth = Math.max(2, size / 90);
-  for (let i = 0; i < 8; i += 1) {
-    const x = ((i * 47) % 91) / 100 * size;
-    const y = ((i * 31 + 11) % 89) / 100 * size;
-    context.beginPath();
-    context.moveTo(x, y);
-    context.lineTo(x + size * 0.13, y + size * 0.08);
-    context.lineTo(x + size * 0.06, y + size * 0.18);
-    context.stroke();
-  }
+function resetContext(context: CanvasRenderingContext2D, size: number) {
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.globalAlpha = 1;
+  context.globalCompositeOperation = 'source-over';
+  context.shadowBlur = 0;
+  context.shadowColor = 'transparent';
+  context.clearRect(0, 0, size, size);
 }
 
-function drawPattern(canvas: HTMLCanvasElement, skinId: DiceSkinId) {
-  const context = canvas.getContext('2d');
-  if (!context) return;
-  const size = canvas.width;
-  context.clearRect(0, 0, size, size);
+function drawCracks(
+  context: CanvasRenderingContext2D,
+  size: number,
+  color: string,
+  lineWidth: number,
+  alpha = 1,
+) {
+  context.save();
+  context.globalAlpha = alpha;
+  context.strokeStyle = color;
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+  context.lineWidth = lineWidth;
+  for (let i = 0; i < 10; i += 1) {
+    const x = (((i * 47) % 91) / 100) * size;
+    const y = (((i * 31 + 11) % 89) / 100) * size;
+    context.beginPath();
+    context.moveTo(x, y);
+    context.lineTo(x + size * 0.14, y + size * 0.07);
+    context.lineTo(x + size * 0.07, y + size * 0.17);
+    context.lineTo(x + size * 0.18, y + size * 0.24);
+    context.stroke();
+  }
+  context.restore();
+}
+
+function drawPattern(
+  textureCanvas: HTMLCanvasElement,
+  bumpCanvas: HTMLCanvasElement,
+  skinId: DiceSkinId,
+) {
+  const context = textureCanvas.getContext('2d');
+  const bump = bumpCanvas.getContext('2d');
+  if (!context || !bump) return;
+  const size = textureCanvas.width;
+  resetContext(context, size);
+  resetContext(bump, size);
 
   switch (skinId) {
     case 'none':
       break;
     case 'fire': {
-      context.globalAlpha = 0.75;
-      drawCracks(context, size, '#ffffff');
-      context.globalAlpha = 0.22;
-      context.fillStyle = '#000000';
-      for (let i = 0; i < 14; i += 1) {
+      context.save();
+      context.shadowColor = 'rgba(255,115,28,.95)';
+      context.shadowBlur = size / 38;
+      drawCracks(context, size, 'rgba(255,214,112,.96)', size / 58, 1);
+      context.restore();
+      drawCracks(context, size, 'rgba(70,12,0,.9)', size / 105, 1);
+      drawCracks(bump, size, '#303030', size / 72, 1);
+      for (let i = 0; i < 18; i += 1) {
+        const x = (((i * 37) % 97) / 100) * size;
+        const y = (((i * 61) % 91) / 100) * size;
+        const radius = size * (0.012 + (i % 4) * 0.004);
+        context.fillStyle = i % 3 === 0 ? 'rgba(255,238,170,.8)' : 'rgba(65,8,0,.48)';
         context.beginPath();
-        context.arc(((i * 37) % 97) / 100 * size, ((i * 61) % 91) / 100 * size, size * (0.02 + (i % 3) * 0.008), 0, Math.PI * 2);
+        context.arc(x, y, radius, 0, Math.PI * 2);
         context.fill();
       }
       break;
     }
     case 'ice': {
-      context.globalAlpha = 0.38;
-      context.strokeStyle = '#ffffff';
-      context.lineWidth = Math.max(1, size / 130);
-      for (let i = -size; i < size * 2; i += size / 5) {
+      context.save();
+      context.strokeStyle = 'rgba(226,252,255,.86)';
+      context.lineWidth = size / 92;
+      context.shadowColor = 'rgba(113,225,255,.7)';
+      context.shadowBlur = size / 50;
+      for (let i = -size; i < size * 2; i += size / 6) {
         context.beginPath();
         context.moveTo(i, 0);
         context.lineTo(i + size, size);
         context.stroke();
       }
-      context.globalAlpha = 0.2;
-      drawCracks(context, size, '#000000');
+      context.restore();
+      drawCracks(context, size, 'rgba(38,112,148,.48)', size / 145, 1);
+      drawCracks(bump, size, '#777777', size / 115, 1);
+      for (let i = 0; i < 9; i += 1) {
+        const cx = (((i * 53 + 13) % 101) / 100) * size;
+        const cy = (((i * 29 + 7) % 97) / 100) * size;
+        context.strokeStyle = 'rgba(255,255,255,.58)';
+        context.lineWidth = size / 180;
+        context.beginPath();
+        context.moveTo(cx - size * 0.05, cy);
+        context.lineTo(cx, cy - size * 0.07);
+        context.lineTo(cx + size * 0.05, cy);
+        context.lineTo(cx, cy + size * 0.07);
+        context.closePath();
+        context.stroke();
+      }
       break;
     }
     case 'lightning': {
-      context.globalAlpha = 0.8;
-      context.strokeStyle = '#ffffff';
-      context.lineWidth = Math.max(2, size / 80);
-      for (let i = 0; i < 4; i += 1) {
-        const x = size * (0.12 + i * 0.22);
+      context.save();
+      context.shadowColor = 'rgba(110,229,255,1)';
+      context.shadowBlur = size / 34;
+      for (let i = 0; i < 5; i += 1) {
+        const x = size * (0.08 + i * 0.2);
+        context.strokeStyle = 'rgba(245,253,255,.98)';
+        context.lineWidth = size / 52;
         context.beginPath();
-        context.moveTo(x, 0);
-        context.lineTo(x + size * 0.08, size * 0.28);
-        context.lineTo(x - size * 0.02, size * 0.52);
-        context.lineTo(x + size * 0.11, size);
+        context.moveTo(x, -size * 0.04);
+        context.lineTo(x + size * 0.09, size * 0.25);
+        context.lineTo(x - size * 0.025, size * 0.5);
+        context.lineTo(x + size * 0.12, size * 1.04);
         context.stroke();
+      }
+      context.restore();
+      for (let i = 0; i < 5; i += 1) {
+        const x = size * (0.08 + i * 0.2);
+        bump.strokeStyle = '#5b5b5b';
+        bump.lineWidth = size / 80;
+        bump.beginPath();
+        bump.moveTo(x, 0);
+        bump.lineTo(x + size * 0.09, size * 0.25);
+        bump.lineTo(x - size * 0.025, size * 0.5);
+        bump.lineTo(x + size * 0.12, size);
+        bump.stroke();
       }
       break;
     }
     case 'poison': {
-      for (let i = 0; i < 16; i += 1) {
-        context.globalAlpha = 0.16 + (i % 4) * 0.04;
-        context.fillStyle = i % 2 ? '#ffffff' : '#000000';
+      for (let i = 0; i < 22; i += 1) {
+        const x = (((i * 43) % 97) / 100) * size;
+        const y = (((i * 29 + 17) % 93) / 100) * size;
+        const radius = size * (0.018 + (i % 5) * 0.007);
+        context.fillStyle = i % 3 === 0 ? 'rgba(209,255,145,.62)' : 'rgba(17,61,12,.5)';
         context.beginPath();
-        context.arc(((i * 43) % 97) / 100 * size, ((i * 29 + 17) % 93) / 100 * size, size * (0.025 + (i % 5) * 0.006), 0, Math.PI * 2);
+        context.arc(x, y, radius, 0, Math.PI * 2);
         context.fill();
+        bump.strokeStyle = '#686868';
+        bump.lineWidth = size / 150;
+        bump.beginPath();
+        bump.arc(x, y, radius, 0, Math.PI * 2);
+        bump.stroke();
       }
       break;
     }
     case 'stone': {
-      for (let i = 0; i < 80; i += 1) {
-        context.globalAlpha = 0.08 + (i % 5) * 0.02;
-        context.fillStyle = i % 2 ? '#ffffff' : '#000000';
-        const radius = size * (0.004 + (i % 4) * 0.002);
-        context.fillRect(((i * 53) % 101) / 100 * size, ((i * 71 + 9) % 103) / 100 * size, radius, radius);
+      for (let i = 0; i < 150; i += 1) {
+        const x = (((i * 53) % 101) / 100) * size;
+        const y = (((i * 71 + 9) % 103) / 100) * size;
+        const radius = size * (0.003 + (i % 4) * 0.0018);
+        context.fillStyle = i % 2 ? 'rgba(255,255,255,.2)' : 'rgba(0,0,0,.34)';
+        context.fillRect(x, y, radius * 2, radius * 2);
+        bump.fillStyle = i % 2 ? '#c8c8c8' : '#595959';
+        bump.fillRect(x, y, radius * 2, radius * 2);
       }
+      drawCracks(context, size, 'rgba(0,0,0,.28)', size / 165, 1);
+      drawCracks(bump, size, '#676767', size / 130, 1);
       break;
     }
     case 'metal': {
       const gradient = context.createLinearGradient(0, 0, size, 0);
-      gradient.addColorStop(0, 'rgba(0,0,0,.18)');
-      gradient.addColorStop(0.45, 'rgba(255,255,255,.08)');
-      gradient.addColorStop(0.55, 'rgba(255,255,255,.42)');
-      gradient.addColorStop(1, 'rgba(0,0,0,.2)');
+      gradient.addColorStop(0, 'rgba(0,0,0,.34)');
+      gradient.addColorStop(0.18, 'rgba(255,255,255,.08)');
+      gradient.addColorStop(0.42, 'rgba(255,255,255,.22)');
+      gradient.addColorStop(0.52, 'rgba(255,255,255,.72)');
+      gradient.addColorStop(0.61, 'rgba(255,255,255,.16)');
+      gradient.addColorStop(1, 'rgba(0,0,0,.3)');
       context.fillStyle = gradient;
       context.fillRect(0, 0, size, size);
-      context.globalAlpha = 0.18;
-      context.strokeStyle = '#ffffff';
-      for (let y = 0; y < size; y += size / 16) {
+      context.strokeStyle = 'rgba(255,255,255,.34)';
+      context.lineWidth = size / 220;
+      for (let y = 0; y < size; y += size / 20) {
         context.beginPath();
         context.moveTo(0, y);
-        context.lineTo(size, y + size / 24);
+        context.lineTo(size, y + size / 30);
         context.stroke();
+        bump.strokeStyle = y % (size / 10) < 1 ? '#d6d6d6' : '#969696';
+        bump.lineWidth = size / 220;
+        bump.beginPath();
+        bump.moveTo(0, y);
+        bump.lineTo(size, y + size / 30);
+        bump.stroke();
       }
       break;
     }
     case 'obsidian': {
-      context.globalAlpha = 0.42;
-      context.fillStyle = '#000000';
+      context.fillStyle = 'rgba(0,0,0,.48)';
       context.fillRect(0, 0, size, size);
-      context.globalAlpha = 0.45;
-      drawCracks(context, size, '#ffffff');
+      context.save();
+      context.shadowColor = 'rgba(146,91,255,.8)';
+      context.shadowBlur = size / 48;
+      drawCracks(context, size, 'rgba(201,176,255,.75)', size / 78, 1);
+      context.restore();
+      drawCracks(context, size, 'rgba(36,10,54,.95)', size / 145, 1);
+      drawCracks(bump, size, '#4c4c4c', size / 92, 1);
       break;
     }
     case 'arcane': {
-      context.globalAlpha = 0.45;
-      context.strokeStyle = '#ffffff';
-      context.lineWidth = Math.max(1, size / 100);
-      context.beginPath();
-      context.arc(size / 2, size / 2, size * 0.27, 0, Math.PI * 2);
-      context.stroke();
-      context.beginPath();
-      context.moveTo(size * 0.2, size * 0.5);
-      context.lineTo(size * 0.8, size * 0.5);
-      context.moveTo(size * 0.5, size * 0.2);
-      context.lineTo(size * 0.5, size * 0.8);
-      context.stroke();
+      context.save();
+      context.translate(size / 2, size / 2);
+      context.strokeStyle = 'rgba(236,207,255,.78)';
+      context.shadowColor = 'rgba(181,84,255,.9)';
+      context.shadowBlur = size / 44;
+      context.lineWidth = size / 105;
+      for (const radius of [0.18, 0.29, 0.4]) {
+        context.beginPath();
+        context.arc(0, 0, size * radius, 0, Math.PI * 2);
+        context.stroke();
+      }
+      for (let i = 0; i < 6; i += 1) {
+        const angle = (Math.PI * 2 * i) / 6;
+        context.beginPath();
+        context.moveTo(Math.cos(angle) * size * 0.12, Math.sin(angle) * size * 0.12);
+        context.lineTo(Math.cos(angle) * size * 0.43, Math.sin(angle) * size * 0.43);
+        context.stroke();
+      }
+      context.restore();
+      bump.strokeStyle = '#797979';
+      bump.lineWidth = size / 125;
+      bump.beginPath();
+      bump.arc(size / 2, size / 2, size * 0.29, 0, Math.PI * 2);
+      bump.stroke();
       break;
     }
   }
 
   context.globalAlpha = 1;
+  bump.globalAlpha = 1;
 }
 
 export function getDice3DTextureDescriptor(appearance: DiceAppearance): Dice3DTextureDescriptor {
@@ -148,14 +250,17 @@ export function getDice3DTextureDescriptor(appearance: DiceAppearance): Dice3DTe
   if (cached) return cached;
 
   const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
-  drawPattern(canvas, appearance.skinId);
+  canvas.width = TEXTURE_SIZE;
+  canvas.height = TEXTURE_SIZE;
+  const bumpCanvas = document.createElement('canvas');
+  bumpCanvas.width = TEXTURE_SIZE;
+  bumpCanvas.height = TEXTURE_SIZE;
+  drawPattern(canvas, bumpCanvas, appearance.skinId);
 
   const descriptor: Dice3DTextureDescriptor = {
     name: `hollowgate-${appearance.skinId}-${appearance.bodyColor}`,
     texture: canvas,
-    bump: null,
+    bump: bumpCanvas,
     composite: 'source-over',
     material: appearance.skinId === 'metal' ? 'metal' : 'none',
   };

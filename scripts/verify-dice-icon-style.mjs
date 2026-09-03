@@ -58,13 +58,17 @@ assert.ok(icon.includes('tintedSvgDataUrl'), 'personalized dice must build a col
 assert.ok(icon.includes('data-die-colored-image'), 'personalized dice must expose a stable regression hook');
 assert.doesNotMatch(icon, /\b(?:WebkitMaskImage|maskImage)\b/, 'personalized dice must not degrade into solid rectangles when CSS masks fail');
 
-assert.ok(styled.includes('DICE_FACE_CLIP_BY_SIDES'), 'styled standard dice must clip the skin to the die silhouette');
-assert.ok(styled.includes('data-dice-skin-face'), 'styled standard dice must paint the skin directly on the die face');
+assert.doesNotMatch(styled, /DICE_FACE_CLIP_BY_SIDES|clipPath\s*[,}]/, 'styled dice must not return to approximate CSS clip-path silhouettes');
+assert.ok(styled.includes('DICE_SILHOUETTE_PATHS'), 'styled standard dice must use SVG-viewBox silhouette paths that scale with the supplied artwork');
+assert.ok(styled.includes('<clipPath'), 'styled standard dice must clip the skin inside SVG coordinates');
+assert.ok(styled.includes('<foreignObject'), 'styled standard dice must keep the existing skin background generator inside the exact SVG silhouette');
+assert.ok(styled.includes('data-dice-skin-surface'), 'styled standard dice must expose a stable exact-surface hook');
 assert.doesNotMatch(styled, /overflow-hidden rounded-md border border-black\/15/, 'quick-roll and chat dice must not add an extra framed square around the die');
 assert.ok(styled.includes('data-styled-standard-d100'), 'styled d100 must keep a dedicated two-die composition');
-assert.ok(styled.includes('overflow-visible'), 'styled d100 must not clip the two percentile dice at the sides');
+assert.ok(styled.includes('overflow-visible'), 'styled d100 and standard dice must not clip their SVG artwork at the sides');
 
 const effects = fs.readFileSync(new URL('../src/app/components/session/dice/dice3dSkinEffects.ts', import.meta.url), 'utf8');
+const textures = fs.readFileSync(new URL('../src/app/components/session/dice/dice3dSkinTextures.ts', import.meta.url), 'utf8');
 assert.doesNotMatch(
   effects,
   /material\.emissive\.set\(entry\.descriptor\.appearance\.bodyColor\)/,
@@ -74,14 +78,22 @@ assert.ok(
   effects.includes("entry.descriptor.preserveFaceColors ? 0.35 : 1") &&
     effects.includes('material.roughness') &&
     effects.includes('material.shininess'),
-  'animated skins must use a bounded surface shimmer while keeping uploaded Custom face colors stable',
+  'animated skins must retain bounded material animation while keeping uploaded Custom face colors stable',
 );
+assert.ok(effects.includes("import * as THREE from 'three'"), '3D skin effects must use the Three.js runtime already used by dice-box');
+assert.ok(effects.includes('new THREE.Points'), '3D skin effects must include visible particle fields');
+assert.ok(effects.includes('new THREE.LineSegments'), 'Lightning must include visible bolt geometry instead of only emissive flicker');
+assert.ok(effects.includes('new THREE.TorusGeometry'), 'Arcane must include a visible orbiting ring effect');
+assert.ok(effects.includes('private particleBudget = 96'), '3D effects must enforce a bounded per-roll particle budget');
 assert.ok(effects.includes('getDice3DSkinEffectProfile'), 'animated skins must use a skin-specific animation profile');
-assert.ok(effects.includes('material.emissive.set(profile.emissiveColor)'), 'animated skins must apply a visible skin-specific glow instead of an imperceptible material-only pulse');
+assert.ok(effects.includes('material.emissive.set(profile.emissiveColor)'), 'animated skins must apply a bounded skin-specific glow instead of a body-color flash');
 assert.ok(effects.includes('baseline.emissiveIntensity'), 'animated skin glow must restore the original emissive intensity after the roll');
 assert.ok(effects.includes('baseline.emissiveHex'), 'animated skin glow must restore the original emissive color after the roll');
+assert.ok(textures.includes('const TEXTURE_SIZE = 512'), '3D skin textures must use a higher-resolution deterministic canvas');
+assert.ok(textures.includes('bumpCanvas') && textures.includes('bump: bumpCanvas'), '3D skins must supply bump information to dice-box');
 for (const skin of ['fire', 'ice', 'lightning', 'poison', 'stone', 'metal', 'obsidian', 'arcane']) {
   assert.ok(effects.includes(`case '${skin}'`), `missing animated effect profile for ${skin}`);
+  assert.ok(textures.includes(`case '${skin}'`), `missing strengthened static texture for ${skin}`);
 }
 
-console.log('Dice supplied SVG color filter, die-shaped skins, unclipped d100, and visible 3D skin effect verification passed.');
+console.log('Dice supplied SVG geometry, exact skin surfaces, unclipped d100, stronger static textures, and visible 3D effects verification passed.');
