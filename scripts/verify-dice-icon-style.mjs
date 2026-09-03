@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const icon = fs.readFileSync(new URL('../src/app/components/session/dice/DiceTypeIcon.tsx', import.meta.url), 'utf8');
+const styled = fs.readFileSync(new URL('../src/app/components/session/dice/StyledStandardDieIcon.tsx', import.meta.url), 'utf8');
 
 const userAssets = [
   ['dice-d4.svg', 'd4-4'],
@@ -57,6 +58,12 @@ assert.ok(icon.includes('tintedSvgDataUrl'), 'personalized dice must build a col
 assert.ok(icon.includes('data-die-colored-image'), 'personalized dice must expose a stable regression hook');
 assert.doesNotMatch(icon, /\b(?:WebkitMaskImage|maskImage)\b/, 'personalized dice must not degrade into solid rectangles when CSS masks fail');
 
+assert.ok(styled.includes('DICE_FACE_CLIP_BY_SIDES'), 'styled standard dice must clip the skin to the die silhouette');
+assert.ok(styled.includes('data-dice-skin-face'), 'styled standard dice must paint the skin directly on the die face');
+assert.doesNotMatch(styled, /overflow-hidden rounded-md border border-black\/15/, 'quick-roll and chat dice must not add an extra framed square around the die');
+assert.ok(styled.includes('data-styled-standard-d100'), 'styled d100 must keep a dedicated two-die composition');
+assert.ok(styled.includes('overflow-visible'), 'styled d100 must not clip the two percentile dice at the sides');
+
 const effects = fs.readFileSync(new URL('../src/app/components/session/dice/dice3dSkinEffects.ts', import.meta.url), 'utf8');
 assert.doesNotMatch(
   effects,
@@ -69,5 +76,12 @@ assert.ok(
     effects.includes('material.shininess'),
   'animated skins must use a bounded surface shimmer while keeping uploaded Custom face colors stable',
 );
+assert.ok(effects.includes('getDice3DSkinEffectProfile'), 'animated skins must use a skin-specific animation profile');
+assert.ok(effects.includes('material.emissive.set(profile.emissiveColor)'), 'animated skins must apply a visible skin-specific glow instead of an imperceptible material-only pulse');
+assert.ok(effects.includes('baseline.emissiveIntensity'), 'animated skin glow must restore the original emissive intensity after the roll');
+assert.ok(effects.includes('baseline.emissiveHex'), 'animated skin glow must restore the original emissive color after the roll');
+for (const skin of ['fire', 'ice', 'lightning', 'poison', 'stone', 'metal', 'obsidian', 'arcane']) {
+  assert.ok(effects.includes(`case '${skin}'`), `missing animated effect profile for ${skin}`);
+}
 
-console.log('Dice supplied SVG color filter, personalized icon, d100 spacing, and 3D flash regression verification passed.');
+console.log('Dice supplied SVG color filter, die-shaped skins, unclipped d100, and visible 3D skin effect verification passed.');
