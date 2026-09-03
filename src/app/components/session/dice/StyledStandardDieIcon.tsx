@@ -112,9 +112,9 @@ function DieOuterGlow({
         d={DICE_SILHOUETTE_PATHS[sides]}
         fill="none"
         stroke={glow}
-        strokeWidth="0.62"
+        strokeWidth="0.5"
         vectorEffect="non-scaling-stroke"
-        style={{ filter: `drop-shadow(0 0 1.8px ${glow})` }}
+        style={{ filter: `drop-shadow(0 0 1.55px ${glow})` }}
       />
     </svg>
   );
@@ -179,6 +179,7 @@ function PercentileFace({
   previewSkinArt: boolean;
 }) {
   const readableSymbolColor = getReadableDiceSymbolColor(appearance.symbolColor, appearance.bodyColor, appearance.skinId);
+  const textured = appearance.skinId !== 'none';
   return (
     <span className="relative inline-flex h-[84%] aspect-square shrink-0 items-center justify-center overflow-visible">
       <DieOuterGlow sides={10} appearance={appearance} className="pointer-events-none absolute inset-0 h-full w-full" />
@@ -189,7 +190,15 @@ function PercentileFace({
         className="pointer-events-none absolute inset-0 h-full w-full"
       />
       <span className="pointer-events-none absolute inset-0">
-        <DiceTypeIcon sides={10} percentileFace={face} color={readableSymbolColor} className="h-full w-full" />
+        <DiceTypeIcon
+          sides={10}
+          percentileFace={face}
+          color={textured ? undefined : readableSymbolColor}
+          structureColor={textured ? appearance.bodyColor : undefined}
+          labelColor={textured ? readableSymbolColor : undefined}
+          thinStructure={textured}
+          className="h-full w-full"
+        />
       </span>
     </span>
   );
@@ -207,6 +216,7 @@ export function StyledStandardDieIcon({
   previewSkinArt?: boolean;
 }) {
   const readableSymbolColor = getReadableDiceSymbolColor(appearance.symbolColor, appearance.bodyColor, appearance.skinId);
+  const textured = appearance.skinId !== 'none';
   const effectivePreviewSkinArt = previewSkinArt || className === 'h-9 w-9' || className === 'h-9 w-14';
 
   if (sides === 100) {
@@ -242,7 +252,14 @@ export function StyledStandardDieIcon({
         className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
       />
       <span className="pointer-events-none absolute inset-0">
-        <DiceTypeIcon sides={sides} color={readableSymbolColor} className="h-full w-full overflow-visible" />
+        <DiceTypeIcon
+          sides={sides}
+          color={textured ? undefined : readableSymbolColor}
+          structureColor={textured ? appearance.bodyColor : undefined}
+          labelColor={textured ? readableSymbolColor : undefined}
+          thinStructure={textured}
+          className="h-full w-full overflow-visible"
+        />
       </span>
     </span>
   );
