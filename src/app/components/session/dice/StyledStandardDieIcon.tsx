@@ -12,98 +12,42 @@ export const DICE_SILHOUETTE_PATHS: Record<Exclude<CustomDieSides, 100>, string>
   20: 'M18.5 .134l14.722 8.5a1 1 0 0 1 .5.866v17a1 1 0 0 1-.5.866l-14.722 8.5a1 1 0 0 1-1 0l-14.722-8.5a1 1 0 0 1-.5-.866v-17a1 1 0 0 1 .5-.866L17.5.134a1 1 0 0 1 1 0z',
 };
 
-const d100SurfaceClassName = 'h-full min-w-0 w-[calc(50%_-_2px)] flex-none';
-
-function DieSkinSurface({
-  sides,
-  appearance,
-  className = '',
-}: {
-  sides: Exclude<CustomDieSides, 100>;
-  appearance: DiceAppearance;
-  className?: string;
-}) {
+function DieSkinSurface({ sides, appearance, className = '' }: { sides: Exclude<CustomDieSides, 100>; appearance: DiceAppearance; className?: string }) {
   const clipId = `dice-surface-${useId().replace(/:/g, '')}`;
   const backgroundImage = getDiceSkinBackgroundImage(appearance.skinId, appearance.bodyColor);
-
   return (
-    <svg
-      aria-hidden="true"
-      data-dice-skin-surface={`d${sides}`}
-      data-dice-skin={appearance.skinId}
-      viewBox="0 0 36 36"
-      preserveAspectRatio="xMidYMid meet"
-      className={className}
-    >
-      <defs>
-        <clipPath id={clipId}>
-          <path d={DICE_SILHOUETTE_PATHS[sides]} />
-        </clipPath>
-      </defs>
+    <svg aria-hidden="true" data-dice-skin-surface={`d${sides}`} data-dice-skin={appearance.skinId} viewBox="0 0 36 36" preserveAspectRatio="xMidYMid meet" className={className}>
+      <defs><clipPath id={clipId}><path d={DICE_SILHOUETTE_PATHS[sides]} /></clipPath></defs>
       <g clipPath={`url(#${clipId})`}>
         <rect width="36" height="36" fill={appearance.bodyColor} />
-        {backgroundImage && (
-          <foreignObject x="0" y="0" width="36" height="36">
-            <div
-              data-dice-skin-pattern
-              style={{
-                width: '100%',
-                height: '100%',
-                backgroundImage,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-              }}
-            />
-          </foreignObject>
-        )}
+        {backgroundImage && <foreignObject x="0" y="0" width="36" height="36"><div data-dice-skin-pattern style={{ width: '100%', height: '100%', backgroundImage, backgroundSize: 'cover', backgroundPosition: 'center' }} /></foreignObject>}
       </g>
     </svg>
   );
 }
 
-export function StyledStandardDieIcon({
-  sides,
-  appearance,
-  className = 'h-9 w-9',
-}: {
-  sides: CustomDieSides;
-  appearance: DiceAppearance;
-  className?: string;
-}) {
+function PercentileFace({ face, appearance }: { face: 'ten' | 'zero'; appearance: DiceAppearance }) {
+  return (
+    <span className="relative inline-flex h-[84%] aspect-square shrink-0 items-center justify-center overflow-visible">
+      <DieSkinSurface sides={10} appearance={appearance} className="pointer-events-none absolute inset-0 h-full w-full" />
+      <DiceTypeIcon sides={10} percentileFace={face} color={appearance.symbolColor} className="pointer-events-none absolute inset-0 h-full w-full drop-shadow-[0_0_1px_rgba(0,0,0,0.85)]" />
+    </span>
+  );
+}
+
+export function StyledStandardDieIcon({ sides, appearance, className = 'h-9 w-9' }: { sides: CustomDieSides; appearance: DiceAppearance; className?: string }) {
   if (sides === 100) {
     return (
-      <span
-        data-styled-standard-d100
-        data-dice-skin={appearance.skinId}
-        className={`${className} relative inline-flex shrink-0 items-center justify-center gap-[4px] overflow-visible`}
-      >
-        <DieSkinSurface sides={10} appearance={appearance} className={d100SurfaceClassName} />
-        <DieSkinSurface sides={10} appearance={appearance} className={d100SurfaceClassName} />
-        <DiceTypeIcon
-          sides={100}
-          color={appearance.symbolColor}
-          className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
-        />
+      <span data-styled-standard-d100 data-dice-skin={appearance.skinId} className={`${className} relative inline-flex !w-auto shrink-0 items-center justify-center gap-[4px] overflow-visible`}>
+        <PercentileFace face="ten" appearance={appearance} />
+        <PercentileFace face="zero" appearance={appearance} />
       </span>
     );
   }
-
   return (
-    <span
-      data-styled-standard-die={`d${sides}`}
-      data-dice-skin={appearance.skinId}
-      className={`${className} relative inline-flex shrink-0 items-center justify-center overflow-visible`}
-    >
-      <DieSkinSurface
-        sides={sides}
-        appearance={appearance}
-        className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
-      />
-      <DiceTypeIcon
-        sides={sides}
-        color={appearance.symbolColor}
-        className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
-      />
+    <span data-styled-standard-die={`d${sides}`} data-dice-skin={appearance.skinId} className={`${className} relative inline-flex shrink-0 items-center justify-center overflow-visible`}>
+      <DieSkinSurface sides={sides} appearance={appearance} className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" />
+      <DiceTypeIcon sides={sides} color={appearance.symbolColor} className="pointer-events-none absolute inset-0 h-full w-full overflow-visible drop-shadow-[0_0_1px_rgba(0,0,0,0.85)]" />
     </span>
   );
 }

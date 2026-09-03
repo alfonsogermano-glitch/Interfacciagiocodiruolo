@@ -17,6 +17,7 @@ interface DiceTypeIconProps {
   sides: 4 | 6 | 8 | 10 | 12 | 20 | 100;
   className?: string;
   color?: string;
+  percentileFace?: 'ten' | 'zero';
 }
 
 const DICE_IMAGE_BY_SIDES = {
@@ -52,7 +53,7 @@ const D100_FILTERS = {
 } as const;
 
 const suppliedDieClassName = 'object-contain opacity-95';
-const d100ChildClassName = 'h-full min-h-0 min-w-0 w-[calc(50%_-_2px)] flex-none';
+const d100ChildClassName = 'h-full aspect-square min-h-0 min-w-0 shrink-0';
 const tintedSvgCache = new Map<string, string>();
 
 function tintedSvgDataUrl(source: string, color: string): string {
@@ -90,7 +91,25 @@ function TintedDieImage({
   );
 }
 
-export function DiceTypeIcon({ sides, className, color }: DiceTypeIconProps) {
+export function DiceTypeIcon({ sides, className, color, percentileFace }: DiceTypeIconProps) {
+  if (sides === 10 && percentileFace) {
+    const rawSource = percentileFace === 'zero' ? diceD10ZeroRaw : diceD10Raw;
+    const imageSource = percentileFace === 'zero' ? diceD10Zero : diceD10;
+    if (color) {
+      return <TintedDieImage source={rawSource} color={color} className={`${className ?? ''} inline-block`} />;
+    }
+    return (
+      <img
+        src={imageSource}
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        data-die-source="user-svg"
+        className={`${className ?? ''} ${suppliedDieClassName}`}
+      />
+    );
+  }
+
   if (color) {
     if (sides === 100) {
       return (
@@ -98,7 +117,7 @@ export function DiceTypeIcon({ sides, className, color }: DiceTypeIconProps) {
           aria-hidden="true"
           data-die-image="d100"
           data-die-source="user-svg"
-          className={`${className ?? ''} inline-flex items-center justify-center gap-[4px] overflow-visible`}
+          className={`${className ?? ''} inline-flex !w-auto items-center justify-center gap-[4px] overflow-visible`}
         >
           <TintedDieImage source={diceD10Raw} color={color} className={d100ChildClassName} />
           <TintedDieImage source={diceD10ZeroRaw} color={color} className={d100ChildClassName} />
@@ -120,7 +139,7 @@ export function DiceTypeIcon({ sides, className, color }: DiceTypeIconProps) {
         aria-hidden="true"
         data-die-image="d100"
         data-die-source="user-svg"
-        className={`${className ?? ''} inline-flex items-center justify-center gap-[4px] overflow-visible`}
+        className={`${className ?? ''} inline-flex !w-auto items-center justify-center gap-[4px] overflow-visible`}
       >
         <img
           src={diceD10}

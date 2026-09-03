@@ -1,5 +1,6 @@
 import { getDice3DTextureDescriptor } from './dice3dSkinTextures.ts';
 import { Dice3DSkinEffectController } from './dice3dSkinEffects.ts';
+import { installDice3DVisualBoost } from './dice3dVisualBoost.ts';
 import type { Dice3DAppearanceDescriptor, Dice3DProjectionChunk } from './dice3dProjection.ts';
 
 type DiceFactoryLike = {
@@ -20,40 +21,17 @@ type DiceFactoryLike = {
   material_options?: Record<string, unknown>;
 };
 
-type DiceBoxLike = {
-  DiceFactory?: unknown;
-  swapDiceFace_D4?: (dicemesh: unknown, result: unknown) => unknown;
-};
+type DiceBoxLike = { DiceFactory?: unknown; swapDiceFace_D4?: (dicemesh: unknown, result: unknown) => unknown };
+type MaterialLike = { roughness?: number; metalness?: number; shininess?: number; opacity?: number; transparent?: boolean; emissive?: { set?: (value: string | number) => unknown }; emissiveIntensity?: number; needsUpdate?: boolean };
+type MeshLike = { material?: MaterialLike | MaterialLike[] };
 
-type MaterialLike = {
-  roughness?: number;
-  metalness?: number;
-  shininess?: number;
-  opacity?: number;
-  transparent?: boolean;
-  emissive?: { set?: (value: string | number) => unknown };
-  emissiveIntensity?: number;
-  needsUpdate?: boolean;
-};
-
-type MeshLike = {
-  material?: MaterialLike | MaterialLike[];
-};
+const NEUTRAL_TEXTURE = { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' } as const;
 
 function captureFactoryState(factory: DiceFactoryLike) {
   return {
-    dice_color: factory.dice_color,
-    dice_color_rand: factory.dice_color_rand,
-    edge_color: factory.edge_color,
-    edge_color_rand: factory.edge_color_rand,
-    label_color: factory.label_color,
-    label_color_rand: factory.label_color_rand,
-    label_outline: factory.label_outline,
-    label_outline_rand: factory.label_outline_rand,
-    dice_texture: factory.dice_texture,
-    dice_texture_rand: factory.dice_texture_rand,
-    dice_material: factory.dice_material,
-    dice_material_rand: factory.dice_material_rand,
+    dice_color: factory.dice_color, dice_color_rand: factory.dice_color_rand, edge_color: factory.edge_color, edge_color_rand: factory.edge_color_rand,
+    label_color: factory.label_color, label_color_rand: factory.label_color_rand, label_outline: factory.label_outline, label_outline_rand: factory.label_outline_rand,
+    dice_texture: factory.dice_texture, dice_texture_rand: factory.dice_texture_rand, dice_material: factory.dice_material, dice_material_rand: factory.dice_material_rand,
     material_options: factory.material_options,
   };
 }
@@ -64,7 +42,7 @@ function readableOutlineColor(color: string): string {
   const green = Number.parseInt(normalized.slice(2, 4), 16) / 255;
   const blue = Number.parseInt(normalized.slice(4, 6), 16) / 255;
   const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
-  return luminance > 0.58 ? '#10131a' : '#ffffff';
+  return luminance > 0.58 ? '#080b10' : '#ffffff';
 }
 
 function applyAppearanceFactoryState(factory: DiceFactoryLike, descriptor: Dice3DAppearanceDescriptor) {
@@ -79,17 +57,15 @@ function applyAppearanceFactoryState(factory: DiceFactoryLike, descriptor: Dice3
   factory.label_outline = outlineColor;
   factory.label_outline_rand = outlineColor;
 
-  let texture;
-  try {
-    texture = getDice3DTextureDescriptor(appearance);
-  } catch (error) {
-    console.error('Texture skin 3D non disponibile, uso il materiale neutro:', error);
-    texture = { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' } as const;
+  let texture: unknown = NEUTRAL_TEXTURE;
+  if (appearance.skinId !== 'metal') {
+    try { texture = getDice3DTextureDescriptor(appearance); }
+    catch (error) { console.error('Texture skin 3D non disponibile, uso il materiale neutro:', error); }
   }
   factory.dice_texture = texture;
   factory.dice_texture_rand = texture;
-  factory.dice_material = texture.material;
-  factory.dice_material_rand = texture.material;
+  factory.dice_material = 'none';
+  factory.dice_material_rand = 'none';
   factory.material_options = { ...factory.material_options, color: 0xffffff };
 }
 
@@ -98,18 +74,10 @@ function materialsOf(mesh: MeshLike): MaterialLike[] {
   return Array.isArray(mesh.material) ? mesh.material : [mesh.material];
 }
 
-function blendValue(current: number, target: number, factor: number): number {
-  return current + (target - current) * factor;
-}
-
+function blendValue(current: number, target: number, factor: number): number { return current + (target - current) * factor; }
 function edgeGlowColor(skinId: Dice3DAppearanceDescriptor['appearance']['skinId']): string | null {
   switch (skinId) {
-    case 'fire': return '#ff5518';
-    case 'lightning': return '#42dcff';
-    case 'poison': return '#62d94d';
-    case 'obsidian': return '#8158e8';
-    case 'arcane': return '#b958f2';
-    default: return null;
+    case 'fire': return '#ff5518'; case 'lightning': return '#42dcff'; case 'poison': return '#62d94d'; case 'obsidian': return '#8158e8'; case 'arcane': return '#b958f2'; default: return null;
   }
 }
 
@@ -117,80 +85,38 @@ function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescri
   if (!mesh || typeof mesh !== 'object') return;
   const skinId = descriptor.appearance.skinId;
   if (skinId === 'none') return;
-
   materialsOf(mesh as MeshLike).forEach((material, materialIndex) => {
     const isEdgeMaterial = materialIndex === 0;
-    const faceFactor = descriptor.preserveFaceColors ? 0 : 0.1;
-    const strength = isEdgeMaterial ? 1 : faceFactor;
-
-    const applyRoughness = (target: number) => {
-      if (typeof material.roughness === 'number') material.roughness = blendValue(material.roughness, target, strength);
-    };
-    const applyMetalness = (target: number) => {
-      if (typeof material.metalness === 'number') material.metalness = blendValue(material.metalness, target, strength);
-    };
-    const applyShininess = (target: number) => {
-      if (typeof material.shininess === 'number') material.shininess = blendValue(material.shininess, target, strength);
-    };
-
-    switch (skinId) {
-      case 'fire':
-        applyRoughness(0.62);
-        applyShininess(34);
-        break;
-      case 'ice':
-        applyRoughness(0.2);
-        applyMetalness(0.04);
-        applyShininess(104);
-        break;
-      case 'lightning':
-        applyRoughness(0.28);
-        applyShininess(88);
-        break;
-      case 'poison':
-        applyRoughness(0.46);
-        applyShininess(48);
-        break;
-      case 'stone':
-        applyRoughness(0.94);
-        applyMetalness(0);
-        applyShininess(5);
-        break;
-      case 'metal':
-        // Keep the neutral Phong material so the selected body/symbol colors stay intact.
-        applyRoughness(0.26);
-        applyMetalness(0.16);
-        applyShininess(138);
-        break;
-      case 'obsidian':
-        applyRoughness(0.18);
-        applyMetalness(0.12);
-        applyShininess(118);
-        break;
-      case 'arcane':
-        applyRoughness(0.3);
-        applyShininess(88);
-        break;
+    const strength = isEdgeMaterial ? 1 : 0;
+    const applyRoughness = (target: number) => { if (typeof material.roughness === 'number') material.roughness = blendValue(material.roughness, target, strength); };
+    const applyMetalness = (target: number) => { if (typeof material.metalness === 'number') material.metalness = blendValue(material.metalness, target, strength); };
+    const applyShininess = (target: number) => { if (typeof material.shininess === 'number') material.shininess = blendValue(material.shininess, target, strength); };
+    if (!isEdgeMaterial) {
+      if (typeof material.opacity === 'number') material.opacity = 1;
+      material.transparent = false;
+      material.needsUpdate = true;
+      return;
     }
-
+    switch (skinId) {
+      case 'fire': applyRoughness(0.58); applyShininess(46); break;
+      case 'ice': applyRoughness(0.16); applyMetalness(0.03); applyShininess(126); break;
+      case 'lightning': applyRoughness(0.22); applyShininess(112); break;
+      case 'poison': applyRoughness(0.4); applyShininess(62); break;
+      case 'stone': applyRoughness(0.96); applyMetalness(0); applyShininess(4); break;
+      case 'metal': applyRoughness(0.18); applyMetalness(0.08); applyShininess(170); break;
+      case 'obsidian': applyRoughness(0.14); applyMetalness(0.08); applyShininess(142); break;
+      case 'arcane': applyRoughness(0.25); applyShininess(104); break;
+    }
     const glowColor = edgeGlowColor(skinId);
-    if (
-      isEdgeMaterial
-      && !descriptor.preserveFaceColors
-      && glowColor
-      && material.emissive
-      && typeof material.emissive.set === 'function'
-    ) {
+    if (glowColor && material.emissive && typeof material.emissive.set === 'function') {
       material.emissive.set(glowColor);
-      if (typeof material.emissiveIntensity === 'number') material.emissiveIntensity = 0.08;
+      if (typeof material.emissiveIntensity === 'number') material.emissiveIntensity = 0.11;
     }
     material.needsUpdate = true;
   });
 }
 
-export function buildSimultaneousAppearanceQueue(
-  chunks: Dice3DProjectionChunk[],
-): Array<Dice3DAppearanceDescriptor | null> {
+export function buildSimultaneousAppearanceQueue(chunks: Dice3DProjectionChunk[]): Array<Dice3DAppearanceDescriptor | null> {
   const grouped = new Map<number, Array<Dice3DAppearanceDescriptor | null>>();
   for (const chunk of chunks) {
     const appearances = chunk.appearances ?? chunk.values.map(() => null);
@@ -201,44 +127,34 @@ export function buildSimultaneousAppearanceQueue(
   return [...grouped.values()].flat();
 }
 
-export function installDiceAppearanceAdapter(
-  box: DiceBoxLike,
-  queue: Array<Dice3DAppearanceDescriptor | null>,
-): { restore: () => void; effects: Dice3DSkinEffectController } {
+export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice3DAppearanceDescriptor | null>): { restore: () => void; effects: Dice3DSkinEffectController } {
   const candidateFactory = box.DiceFactory;
-  if (!candidateFactory || typeof candidateFactory !== 'object') {
-    throw new Error('Il renderer 3D non espone il factory richiesto per la personalizzazione.');
-  }
+  if (!candidateFactory || typeof candidateFactory !== 'object') throw new Error('Il renderer 3D non espone il factory richiesto per la personalizzazione.');
   const factory = candidateFactory as DiceFactoryLike;
-  if (typeof factory.create !== 'function') {
-    throw new Error('Il renderer 3D non espone il factory richiesto per la personalizzazione.');
-  }
+  if (typeof factory.create !== 'function') throw new Error('Il renderer 3D non espone il factory richiesto per la personalizzazione.');
 
   const originalCreate = factory.create.bind(factory);
   const originalSetMaterialInfo = factory.setMaterialInfo?.bind(factory);
   const previousSwapD4 = box.swapDiceFace_D4;
   const d4Appearance = new WeakMap<object, Dice3DAppearanceDescriptor>();
   const effects = new Dice3DSkinEffectController();
+  const visualBoostCleanups: Array<() => void> = [];
   let queueIndex = 0;
 
   factory.create = (type: string) => {
     const descriptor = queue[queueIndex++] ?? null;
     if (!descriptor) return originalCreate(type);
-
     const originalState = captureFactoryState(factory);
     const currentSetMaterialInfo = factory.setMaterialInfo?.bind(factory);
     if (currentSetMaterialInfo) {
-      factory.setMaterialInfo = () => {
-        currentSetMaterialInfo();
-        applyAppearanceFactoryState(factory, descriptor);
-      };
+      factory.setMaterialInfo = () => { currentSetMaterialInfo(); applyAppearanceFactoryState(factory, descriptor); };
     }
-
     try {
       applyAppearanceFactoryState(factory, descriptor);
       const mesh = originalCreate(type);
       applyStaticSkinToMesh(mesh, descriptor);
       effects.registerMesh(mesh, descriptor);
+      visualBoostCleanups.push(installDice3DVisualBoost(mesh, descriptor));
       if (type === 'd4' && mesh && typeof mesh === 'object') d4Appearance.set(mesh as object, descriptor);
       return mesh;
     } finally {
@@ -249,20 +165,15 @@ export function installDiceAppearanceAdapter(
 
   if (typeof previousSwapD4 === 'function') {
     box.swapDiceFace_D4 = (dicemesh: unknown, result: unknown) => {
-      const descriptor = dicemesh && typeof dicemesh === 'object'
-        ? d4Appearance.get(dicemesh as object)
-        : undefined;
+      const descriptor = dicemesh && typeof dicemesh === 'object' ? d4Appearance.get(dicemesh as object) : undefined;
       if (!descriptor) return previousSwapD4.call(box, dicemesh, result);
-
       const originalState = captureFactoryState(factory);
       try {
         applyAppearanceFactoryState(factory, descriptor);
         const swapped = previousSwapD4.call(box, dicemesh, result);
         applyStaticSkinToMesh(dicemesh, descriptor);
         return swapped;
-      } finally {
-        Object.assign(factory, originalState);
-      }
+      } finally { Object.assign(factory, originalState); }
     };
   }
 
@@ -272,6 +183,7 @@ export function installDiceAppearanceAdapter(
       factory.create = originalCreate;
       if (originalSetMaterialInfo) factory.setMaterialInfo = originalSetMaterialInfo;
       if (previousSwapD4) box.swapDiceFace_D4 = previousSwapD4;
+      visualBoostCleanups.splice(0).forEach((cleanup) => cleanup());
       effects.stop();
     },
   };
