@@ -333,31 +333,17 @@ function createParticleVisual(
       const flash = Math.sin(elapsed * 29) > -0.05 || Math.sin(elapsed * 13.7) > 0.65;
       boltMaterial.opacity = flash ? 1 : 0.32;
     });
-    addOrbitingTorus(group, updaters, radius, '#63e8ff', 0.34, 3.2, Math.PI / 2.4, 0.018);
   }
 
   switch (skinId) {
-    case 'fire':
-      addOrbitingTorus(group, updaters, radius, '#ff6a22', 0.3, 1.9, Math.PI / 2.9, 0.026);
-      addOrbitingTorus(group, updaters, radius * 1.02, '#ffc052', 0.2, -1.35, Math.PI / 1.9, 0.016);
-      break;
     case 'ice':
       addIceCrystals(group, updaters, radius);
-      addOrbitingTorus(group, updaters, radius, '#b9f6ff', 0.2, 0.72, Math.PI / 2.2, 0.015);
       break;
     case 'poison':
       addPoisonBubbles(group, updaters, radius);
       break;
     case 'stone':
       addStoneFragments(group, updaters, radius);
-      break;
-    case 'metal':
-      addOrbitingTorus(group, updaters, radius, '#ffffff', 0.42, 3.4, Math.PI / 2.55, 0.014);
-      addOrbitingTorus(group, updaters, radius * 1.025, '#a9d6ff', 0.22, -2.15, Math.PI / 1.85, 0.01);
-      break;
-    case 'obsidian':
-      addOrbitingTorus(group, updaters, radius, '#a873ff', 0.36, 1.25, Math.PI / 2.6, 0.02);
-      addOrbitingTorus(group, updaters, radius * 1.015, '#6a35d2', 0.2, -0.86, Math.PI / 1.95, 0.013);
       break;
   }
 

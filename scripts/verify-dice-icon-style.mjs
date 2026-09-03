@@ -86,7 +86,10 @@ assert.doesNotMatch(
 assert.ok(effects.includes("import * as THREE from 'three'"), '3D skin effects must use the Three.js runtime already used by dice-box');
 assert.ok(effects.includes('new THREE.Points'), '3D skin effects must include visible particle fields');
 assert.ok(effects.includes('new THREE.LineSegments'), 'Lightning must include visible bolt geometry instead of only emissive flicker');
-assert.ok(effects.includes('new THREE.TorusGeometry'), 'energy skins must include visible orbiting halo geometry');
+assert.ok(effects.includes('new THREE.TorusGeometry'), 'Arcane must keep its visible orbiting ring geometry');
+const orbitingRingCalls = effects.match(/addOrbitingTorus\(group/g) ?? [];
+assert.equal(orbitingRingCalls.length, 1, 'only Arcane may create an orbiting torus around the die');
+assert.ok(effects.includes("if (profile.arcaneRing) {\n    addOrbitingTorus(group"), 'the single orbiting ring must remain gated by the Arcane profile');
 assert.ok(effects.includes('new THREE.OctahedronGeometry'), 'Ice must include visible crystalline geometry');
 assert.ok(effects.includes('new THREE.SphereGeometry'), 'Poison must include visible bubble geometry');
 assert.ok(effects.includes('new THREE.TetrahedronGeometry'), 'Stone must include visible fragment geometry');
@@ -106,4 +109,4 @@ for (const skin of ['fire', 'ice', 'lightning', 'poison', 'stone', 'metal', 'obs
   assert.ok(textures.includes(`case '${skin}'`), `missing strengthened static texture for ${skin}`);
 }
 
-console.log('Dice d100 sizing, face readability, color-preserving metal, and stronger 3D effects verification passed.');
+console.log('Dice d100 sizing, face readability, Arcane-only rings, color-preserving metal, and stronger 3D effects verification passed.');
