@@ -167,7 +167,9 @@ export function DiceQuickRollFloating() {
                             <CustomDieLibraryIcon die={die} size="compact" />
                           </button>
                         </TooltipTrigger>
-                        <TooltipContent side="top">{die.name} · d{die.sides}</TooltipContent>
+                        <TooltipContent side="top" className="!animate-none">
+                          {die.name} · d{die.sides}
+                        </TooltipContent>
                       </Tooltip>
                     ))}
                   </div>
