@@ -22,8 +22,9 @@ export function DiceSkinSurface({
       style={{
         backgroundColor: appearance.bodyColor,
         backgroundImage: getDiceSkinBackgroundImage(appearance.skinId, appearance.bodyColor),
-        backgroundSize: 'cover',
+        backgroundSize: appearance.skinId === 'fire' ? '138%' : 'cover',
         backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
       }}
     >
       {illustrative && appearance.skinId !== 'none' && (

@@ -26,7 +26,7 @@ type MaterialLike = { roughness?: number; metalness?: number; shininess?: number
 type MeshLike = { material?: MaterialLike | MaterialLike[] };
 
 const NEUTRAL_TEXTURE = { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' } as const;
-const MIN_TEXTURED_LABEL_CONTRAST = 5;
+const MIN_TEXTURED_LABEL_CONTRAST = 7;
 
 function captureFactoryState(factory: DiceFactoryLike) {
   return {
@@ -77,7 +77,7 @@ function contrastRatio(a: string, b: string): number {
 
 function estimatedTexturedBackground(bodyColor: string, skinId: Dice3DAppearanceDescriptor['appearance']['skinId']): string {
   switch (skinId) {
-    case 'fire': return mixHexColor(bodyColor, '#000000', 0.58);
+    case 'fire': return mixHexColor('#202329', bodyColor, 0.18);
     case 'obsidian': return mixHexColor(bodyColor, '#000000', 0.52);
     case 'stone': return mixHexColor(bodyColor, '#000000', 0.2);
     default: return bodyColor;
