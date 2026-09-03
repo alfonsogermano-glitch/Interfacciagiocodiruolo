@@ -70,11 +70,18 @@ function drawFirePhotoTexture(
   if (!fireImage?.complete || fireImage.naturalWidth <= 0) return false;
 
   context.save();
+  context.filter = 'brightness(1.18) saturate(1.04)';
   drawImageCover(context, fireImage, size);
+  context.filter = 'none';
   context.globalCompositeOperation = 'source-over';
   context.globalAlpha = 0.34;
   context.fillStyle = bodyColor;
   context.fillRect(0, 0, size, size);
+  context.globalCompositeOperation = 'screen';
+  context.globalAlpha = 0.1;
+  context.fillStyle = '#f3c5aa';
+  context.fillRect(0, 0, size, size);
+  context.globalCompositeOperation = 'source-over';
   context.globalAlpha = 1;
   context.restore();
 
