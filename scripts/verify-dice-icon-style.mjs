@@ -6,6 +6,8 @@ const styled = fs.readFileSync(new URL('../src/app/components/session/dice/Style
 const customizer = fs.readFileSync(new URL('../src/app/components/session/dice/DiceAppearanceCustomizer.tsx', import.meta.url), 'utf8');
 const skinSurface = fs.readFileSync(new URL('../src/app/components/session/dice/DiceSkinSurface.tsx', import.meta.url), 'utf8');
 const previewArt = fs.readFileSync(new URL('../src/app/components/session/dice/DiceSkinPreviewArt.tsx', import.meta.url), 'utf8');
+const skins = fs.readFileSync(new URL('../src/app/components/session/dice/diceSkins.ts', import.meta.url), 'utf8');
+const fireTextureData = fs.readFileSync(new URL('../src/app/components/session/dice/fireTextureData.ts', import.meta.url), 'utf8');
 const appearance = fs.readFileSync(new URL('../src/app/components/session/dice/dice3dAppearanceMaterials.ts', import.meta.url), 'utf8');
 const projection = fs.readFileSync(new URL('../src/app/components/session/dice/dice3dProjection.ts', import.meta.url), 'utf8');
 const effects = fs.readFileSync(new URL('../src/app/components/session/dice/dice3dSkinEffects.ts', import.meta.url), 'utf8');
@@ -70,6 +72,14 @@ for (const skin of ['fire', 'ice', 'lightning', 'poison', 'stone', 'metal', 'obs
 }
 assert.ok(previewArt.includes("mix(bodyColor, '#ffffff'") && previewArt.includes("mix(bodyColor, '#000000'"), 'Illustrative art must derive light and dark tones from the chosen die color');
 
+assert.ok(fireTextureData.includes("data:image/webp;base64,"), 'Fire skin must embed the supplied rock/lava texture');
+assert.ok(skins.includes("FIRE_TEXTURE_DATA_URL"), '2D fire skin must import the supplied rock/lava texture');
+assert.ok(skins.includes('url("${FIRE_TEXTURE_DATA_URL}")'), '2D fire skin must render the supplied image in menus and previews');
+assert.ok(textures.includes("FIRE_TEXTURE_DATA_URL"), '3D fire skin must import the same supplied texture');
+assert.ok(textures.includes('drawImageCover(context, fireImage, size)'), '3D fire skin must paint the supplied texture onto the die canvas');
+assert.ok(textures.includes("context.globalCompositeOperation = 'color'"), '3D fire texture must remain tintable by the chosen die color');
+assert.ok(textures.includes('drawImageCover(bump, fireImage, size)'), '3D fire skin must derive bump detail from the supplied texture');
+
 assert.ok(appearance.includes('readableOutlineColor'), '3D standard labels must retain automatic contrasting outlines');
 assert.ok(appearance.includes('factory.label_outline = outlineColor') && appearance.includes('factory.label_outline_rand = outlineColor'), '3D standard labels must apply the contrasting outline');
 assert.ok(appearance.includes("if (!descriptor.custom && appearance.skinId !== 'metal')"), 'Custom dice must keep a neutral face texture so skin patterns cannot obscure text, icons, or images');
@@ -95,4 +105,4 @@ assert.ok(textures.includes('bumpCanvas') && textures.includes('bump: bumpCanvas
 assert.doesNotMatch(textures, /appearance\.skinId === 'metal' \? 'metal' : 'none'/, 'Metal must not return to the black-prone MeshStandard metal preset');
 assert.ok(textures.includes("material: 'none'"), 'Metal must keep the neutral color-preserving material path');
 
-console.log('Dice exact shapes, illustrative skin previews, readable faces, Arcane-only rings, and 3D skin verification passed.');
+console.log('Dice exact shapes, illustrative skin previews, supplied Fire texture, readable faces, Arcane-only rings, and 3D skin verification passed.');

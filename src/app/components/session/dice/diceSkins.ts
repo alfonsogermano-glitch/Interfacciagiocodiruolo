@@ -1,3 +1,4 @@
+import { FIRE_TEXTURE_DATA_URL } from './fireTextureData.ts';
 import type { DiceSkinId } from './diceTypes.ts';
 
 export interface DiceSkinDefinition {
@@ -49,6 +50,11 @@ function mix(base: string, target: string, amount: number): string {
   return `#${toHex(a[0] + (b[0] - a[0]) * amount)}${toHex(a[1] + (b[1] - a[1]) * amount)}${toHex(a[2] + (b[2] - a[2]) * amount)}`;
 }
 
+function rgba(base: string, alpha: number): string {
+  const [red, green, blue] = parseHex(base);
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
 export function getDiceSkinBackgroundImage(skinId: DiceSkinId, bodyColor: string): string | undefined {
   const light = mix(bodyColor, '#ffffff', 0.42);
   const bright = mix(bodyColor, '#ffffff', 0.7);
@@ -59,7 +65,7 @@ export function getDiceSkinBackgroundImage(skinId: DiceSkinId, bodyColor: string
     case 'none':
       return undefined;
     case 'fire':
-      return `radial-gradient(circle at 22% 72%, ${bright} 0 4%, transparent 5%), radial-gradient(circle at 72% 28%, ${light} 0 3%, transparent 4%), repeating-linear-gradient(132deg, transparent 0 8px, ${deep} 9px 11px, transparent 12px 18px)`;
+      return `linear-gradient(${rgba(bodyColor, 0.34)}, ${rgba(bodyColor, 0.34)}), url("${FIRE_TEXTURE_DATA_URL}")`;
     case 'ice':
       return `linear-gradient(135deg, ${light}55 0 18%, transparent 19% 48%, ${bright}55 49% 54%, transparent 55%), repeating-linear-gradient(45deg, transparent 0 9px, ${dark}33 10px 11px, transparent 12px 18px)`;
     case 'lightning':

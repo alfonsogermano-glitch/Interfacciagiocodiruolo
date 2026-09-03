@@ -1,3 +1,4 @@
+import { FIRE_TEXTURE_DATA_URL } from './fireTextureData.ts';
 import type { DiceAppearance, DiceSkinId } from './diceTypes.ts';
 
 export interface Dice3DTextureDescriptor {
@@ -11,13 +12,83 @@ export interface Dice3DTextureDescriptor {
 const TEXTURE_SIZE = 512;
 const cache = new Map<string, Dice3DTextureDescriptor>();
 
+const fireTextureImage: HTMLImageElement | null = typeof Image === 'undefined'
+  ? null
+  : (() => {
+    const image = new Image();
+    image.decoding = 'async';
+    image.src = FIRE_TEXTURE_DATA_URL;
+    image.addEventListener('load', () => {
+      for (const key of cache.keys()) {
+        if (key.startsWith('fire:')) cache.delete(key);
+      }
+    }, { once: true });
+    return image;
+  })();
+
 function resetContext(context: CanvasRenderingContext2D, size: number) {
   context.setTransform(1, 0, 0, 1, 0, 0);
   context.globalAlpha = 1;
   context.globalCompositeOperation = 'source-over';
   context.shadowBlur = 0;
   context.shadowColor = 'transparent';
+  context.filter = 'none';
   context.clearRect(0, 0, size, size);
+}
+
+function drawImageCover(
+  context: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  size: number,
+) {
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  if (sourceWidth <= 0 || sourceHeight <= 0) return;
+
+  const sourceRatio = sourceWidth / sourceHeight;
+  let sourceX = 0;
+  let sourceY = 0;
+  let cropWidth = sourceWidth;
+  let cropHeight = sourceHeight;
+  if (sourceRatio > 1) {
+    cropWidth = sourceHeight;
+    sourceX = (sourceWidth - cropWidth) / 2;
+  } else if (sourceRatio < 1) {
+    cropHeight = sourceWidth;
+    sourceY = (sourceHeight - cropHeight) / 2;
+  }
+  context.drawImage(image, sourceX, sourceY, cropWidth, cropHeight, 0, 0, size, size);
+}
+
+function drawFirePhotoTexture(
+  context: CanvasRenderingContext2D,
+  bump: CanvasRenderingContext2D,
+  size: number,
+  bodyColor: string,
+): boolean {
+  const fireImage = fireTextureImage;
+  if (!fireImage?.complete || fireImage.naturalWidth <= 0) return false;
+
+  context.save();
+  drawImageCover(context, fireImage, size);
+  context.globalCompositeOperation = 'color';
+  context.globalAlpha = 0.46;
+  context.fillStyle = bodyColor;
+  context.fillRect(0, 0, size, size);
+  context.globalCompositeOperation = 'source-over';
+  context.globalAlpha = 1;
+  const glow = context.createRadialGradient(size * 0.5, size * 0.52, 0, size * 0.5, size * 0.52, size * 0.72);
+  glow.addColorStop(0, 'rgba(255, 144, 36, 0.12)');
+  glow.addColorStop(1, 'rgba(0, 0, 0, 0.08)');
+  context.fillStyle = glow;
+  context.fillRect(0, 0, size, size);
+  context.restore();
+
+  bump.save();
+  bump.filter = 'grayscale(1) contrast(1.55)';
+  drawImageCover(bump, fireImage, size);
+  bump.restore();
+  return true;
 }
 
 function drawCracks(
@@ -50,6 +121,7 @@ function drawPattern(
   textureCanvas: HTMLCanvasElement,
   bumpCanvas: HTMLCanvasElement,
   skinId: DiceSkinId,
+  bodyColor: string,
 ) {
   const context = textureCanvas.getContext('2d');
   const bump = bumpCanvas.getContext('2d');
@@ -62,6 +134,7 @@ function drawPattern(
     case 'none':
       break;
     case 'fire': {
+      if (drawFirePhotoTexture(context, bump, size, bodyColor)) break;
       context.save();
       context.shadowColor = 'rgba(255,115,28,.95)';
       context.shadowBlur = size / 38;
@@ -257,7 +330,7 @@ export function getDice3DTextureDescriptor(appearance: DiceAppearance): Dice3DTe
   const bumpCanvas = document.createElement('canvas');
   bumpCanvas.width = TEXTURE_SIZE;
   bumpCanvas.height = TEXTURE_SIZE;
-  drawPattern(canvas, bumpCanvas, appearance.skinId);
+  drawPattern(canvas, bumpCanvas, appearance.skinId, appearance.bodyColor);
 
   const descriptor: Dice3DTextureDescriptor = {
     name: `hollowgate-${appearance.skinId}-${appearance.bodyColor}`,
