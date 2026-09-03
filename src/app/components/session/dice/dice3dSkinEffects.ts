@@ -1,8 +1,6 @@
 import type { Dice3DAppearanceDescriptor } from './dice3dProjection.ts';
 
 type MaterialLike = {
-  emissive?: { set?: (value: string | number) => unknown };
-  emissiveIntensity?: number;
   roughness?: number;
   metalness?: number;
   shininess?: number;
@@ -21,7 +19,6 @@ interface RegisteredMesh {
 }
 
 interface MaterialBaseline {
-  emissiveIntensity?: number;
   roughness?: number;
   metalness?: number;
   shininess?: number;
@@ -69,28 +66,32 @@ export class Dice3DSkinEffectController {
     const frame = (now: number) => {
       const elapsed = (now - this.startedAt) / 1000;
       for (const entry of this.entries) {
-        const amplitude = effectAmplitude(entry.descriptor.appearance.skinId);
+        const baseAmplitude = effectAmplitude(entry.descriptor.appearance.skinId);
+        const amplitude = baseAmplitude * (entry.descriptor.preserveFaceColors ? 0.35 : 1);
         const wave = (Math.sin(elapsed * (entry.descriptor.appearance.skinId === 'lightning' ? 13 : 5)) + 1) / 2;
+
         for (const material of materialsOf(entry.mesh)) {
           if (!this.baselines.has(material as object)) {
             this.baselines.set(material as object, {
-              emissiveIntensity: material.emissiveIntensity,
               roughness: material.roughness,
               metalness: material.metalness,
               shininess: material.shininess,
               opacity: material.opacity,
             });
           }
+
           const baseline = this.baselines.get(material as object)!;
-          if (!entry.descriptor.preserveFaceColors && material.emissive && typeof material.emissive.set === 'function') {
-            material.emissive.set(entry.descriptor.appearance.bodyColor);
-            if (typeof material.emissiveIntensity === 'number') {
-              material.emissiveIntensity = Math.max(0, (baseline.emissiveIntensity ?? 0) + wave * amplitude);
-            }
-          } else if (typeof material.roughness === 'number') {
-            material.roughness = Math.max(0.05, Math.min(1, (baseline.roughness ?? material.roughness) - wave * amplitude * 0.18));
-          } else if (typeof material.shininess === 'number') {
-            material.shininess = Math.max(1, (baseline.shininess ?? material.shininess) + wave * amplitude * 30);
+          if (typeof material.roughness === 'number') {
+            material.roughness = Math.max(
+              0.05,
+              Math.min(1, (baseline.roughness ?? material.roughness) - wave * amplitude * 0.12),
+            );
+          }
+          if (typeof material.shininess === 'number') {
+            material.shininess = Math.max(
+              1,
+              (baseline.shininess ?? material.shininess) + wave * amplitude * 18,
+            );
           }
           material.needsUpdate = true;
         }
@@ -109,7 +110,6 @@ export class Dice3DSkinEffectController {
       for (const material of materialsOf(entry.mesh)) {
         const baseline = this.baselines.get(material as object);
         if (!baseline) continue;
-        if (baseline.emissiveIntensity !== undefined) material.emissiveIntensity = baseline.emissiveIntensity;
         if (baseline.roughness !== undefined) material.roughness = baseline.roughness;
         if (baseline.metalness !== undefined) material.metalness = baseline.metalness;
         if (baseline.shininess !== undefined) material.shininess = baseline.shininess;

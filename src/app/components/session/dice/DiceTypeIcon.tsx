@@ -5,6 +5,13 @@ import diceD10 from './assets/dice-d10.svg';
 import diceD10Zero from './assets/dice-d10-zero.svg';
 import diceD12 from './assets/dice-d12.svg';
 import diceD20 from './assets/dice-d20.svg';
+import diceD4Raw from './assets/dice-d4.svg?raw';
+import diceD6Raw from './assets/dice-d6.svg?raw';
+import diceD8Raw from './assets/dice-d8.svg?raw';
+import diceD10Raw from './assets/dice-d10.svg?raw';
+import diceD10ZeroRaw from './assets/dice-d10-zero.svg?raw';
+import diceD12Raw from './assets/dice-d12.svg?raw';
+import diceD20Raw from './assets/dice-d20.svg?raw';
 
 interface DiceTypeIconProps {
   sides: 4 | 6 | 8 | 10 | 12 | 20 | 100;
@@ -19,6 +26,15 @@ const DICE_IMAGE_BY_SIDES = {
   10: diceD10,
   12: diceD12,
   20: diceD20,
+} as const;
+
+const DICE_RAW_BY_SIDES = {
+  4: diceD4Raw,
+  6: diceD6Raw,
+  8: diceD8Raw,
+  10: diceD10Raw,
+  12: diceD12Raw,
+  20: diceD20Raw,
 } as const;
 
 const DICE_FILTER_BY_SIDES = {
@@ -36,8 +52,22 @@ const D100_FILTERS = {
 } as const;
 
 const suppliedDieClassName = 'object-contain opacity-95';
+const tintedSvgCache = new Map<string, string>();
 
-function MaskedDie({
+function tintedSvgDataUrl(source: string, color: string): string {
+  const key = `${color}\n${source}`;
+  const cached = tintedSvgCache.get(key);
+  if (cached) return cached;
+
+  const safeColor = /^#[0-9a-f]{6}$/i.test(color) ? color : '#000000';
+  const svgOpenTag = ['<', 'svg '].join('');
+  const tinted = source.replace(svgOpenTag, `${svgOpenTag}fill="${safeColor}" `);
+  const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(tinted)}`;
+  tintedSvgCache.set(key, dataUrl);
+  return dataUrl;
+}
+
+function TintedDieImage({
   source,
   color,
   className,
@@ -47,20 +77,14 @@ function MaskedDie({
   className: string;
 }) {
   return (
-    <span
+    <img
+      src={tintedSvgDataUrl(source, color)}
+      alt=""
       aria-hidden="true"
-      className={className}
-      style={{
-        backgroundColor: color,
-        WebkitMaskImage: `url(${source})`,
-        maskImage: `url(${source})`,
-        WebkitMaskRepeat: 'no-repeat',
-        maskRepeat: 'no-repeat',
-        WebkitMaskPosition: 'center',
-        maskPosition: 'center',
-        WebkitMaskSize: 'contain',
-        maskSize: 'contain',
-      }}
+      draggable={false}
+      data-die-colored-image
+      data-die-source="user-svg"
+      className={`${className} ${suppliedDieClassName}`}
     />
   );
 }
@@ -75,14 +99,14 @@ export function DiceTypeIcon({ sides, className, color }: DiceTypeIconProps) {
           data-die-source="user-svg"
           className={`${className ?? ''} inline-flex items-center justify-center gap-[3px]`}
         >
-          <MaskedDie source={diceD10} color={color} className="h-full min-h-0 flex-1" />
-          <MaskedDie source={diceD10Zero} color={color} className="h-full min-h-0 flex-1" />
+          <TintedDieImage source={diceD10Raw} color={color} className="h-full min-h-0 flex-1" />
+          <TintedDieImage source={diceD10ZeroRaw} color={color} className="h-full min-h-0 flex-1" />
         </span>
       );
     }
     return (
-      <MaskedDie
-        source={DICE_IMAGE_BY_SIDES[sides]}
+      <TintedDieImage
+        source={DICE_RAW_BY_SIDES[sides]}
         color={color}
         className={`${className ?? ''} inline-block`}
       />

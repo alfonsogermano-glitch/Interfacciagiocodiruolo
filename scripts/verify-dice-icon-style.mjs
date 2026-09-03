@@ -52,4 +52,22 @@ assert.ok(!standardFilters.has(d100ZeroFilter), 'd100 zero die color must be uni
 assert.ok(icon.includes('style={{ filter: D100_FILTERS.ten }}'), 'd100 ten die must use its dedicated color');
 assert.ok(icon.includes('style={{ filter: D100_FILTERS.zero }}'), 'd100 zero die must use its dedicated color');
 
-console.log('Dice supplied SVG color filter and d100 spacing verification passed.');
+assert.ok(icon.includes('.svg?raw'), 'personalized dice must use the supplied SVG artwork as raw source for exact recoloring');
+assert.ok(icon.includes('tintedSvgDataUrl'), 'personalized dice must build a colored SVG image instead of relying on CSS masking');
+assert.ok(icon.includes('data-die-colored-image'), 'personalized dice must expose a stable regression hook');
+assert.doesNotMatch(icon, /\b(?:WebkitMaskImage|maskImage)\b/, 'personalized dice must not degrade into solid rectangles when CSS masks fail');
+
+const effects = fs.readFileSync(new URL('../src/app/components/session/dice/dice3dSkinEffects.ts', import.meta.url), 'utf8');
+assert.doesNotMatch(
+  effects,
+  /material\.emissive\.set\(entry\.descriptor\.appearance\.bodyColor\)/,
+  'animated skins must not pulse the entire die emissive color and flash the die white',
+);
+assert.ok(
+  effects.includes("entry.descriptor.preserveFaceColors ? 0.35 : 1") &&
+    effects.includes('material.roughness') &&
+    effects.includes('material.shininess'),
+  'animated skins must use a bounded surface shimmer while keeping uploaded Custom face colors stable',
+);
+
+console.log('Dice supplied SVG color filter, personalized icon, d100 spacing, and 3D flash regression verification passed.');
