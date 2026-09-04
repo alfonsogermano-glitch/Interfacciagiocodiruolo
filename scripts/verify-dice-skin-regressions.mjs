@@ -1,3 +1,4 @@
+// TDD RED: this test must fail against the current production implementation.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
