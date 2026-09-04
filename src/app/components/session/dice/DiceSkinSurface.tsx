@@ -31,6 +31,7 @@ export function DiceSkinSurface({
         backgroundSize: backgroundImage ? getDiceTextureBackgroundSize(appearance.textureScale) : 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
+        backgroundOrigin: appearance.skinId === 'ice' ? 'border-box' : undefined,
       }}
     >
       {illustrative && appearance.skinId !== 'none' && (
