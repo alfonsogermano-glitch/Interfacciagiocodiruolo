@@ -20,6 +20,7 @@ function parseHexColor(color: string): [number, number, number] {
   return [
     Number.parseInt(normalized.slice(0, 2), 16),
     Number.parseInt(normalized.slice(2, 4), 16),
+    Number.parseInt(normalized.slice(4, 6), 16),
   ];
 }
 
