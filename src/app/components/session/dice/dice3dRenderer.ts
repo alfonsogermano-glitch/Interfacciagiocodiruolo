@@ -49,6 +49,12 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
   private box: DiceBoxInstance | null = null;
   private container: HTMLElement | null = null;
   private selector: string | null = null;
+  private restoreAppearanceEffects: (() => void) | null = null;
+
+  private releaseAppearanceEffects(): void {
+    this.restoreAppearanceEffects?.();
+    this.restoreAppearanceEffects = null;
+  }
 
   async init(container: HTMLElement): Promise<void> {
     if (this.box && this.container === container) return;
@@ -81,16 +87,14 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
     if (!notation) return;
 
     let restoreCustomMaterials: (() => void) | null = null;
-    let restoreAppearance: (() => void) | null = null;
-    let stopAppearanceEffects: (() => void) | null = null;
-    const stopEffectsOnAbort = () => stopAppearanceEffects?.();
+    this.releaseAppearanceEffects();
+    const stopEffectsOnAbort = () => this.releaseAppearanceEffects();
     try {
       const appearanceQueue = buildSimultaneousAppearanceQueue(chunks);
       if (appearanceQueue.some(Boolean)) {
         try {
           const installed = installDiceAppearanceAdapter(this.box, appearanceQueue);
-          restoreAppearance = installed.restore;
-          stopAppearanceEffects = () => installed.effects.stop();
+          this.restoreAppearanceEffects = installed.restore;
           installed.effects.start();
           signal.addEventListener('abort', stopEffectsOnAbort, { once: true });
         } catch (error) {
@@ -113,7 +117,7 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
     } finally {
       signal.removeEventListener('abort', stopEffectsOnAbort);
       restoreCustomMaterials?.();
-      restoreAppearance?.();
+      if (signal.aborted) this.releaseAppearanceEffects();
     }
   }
 
@@ -122,6 +126,8 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
       this.box?.clearDice();
     } catch {
       // Presentation-only.
+    } finally {
+      this.releaseAppearanceEffects();
     }
   }
 

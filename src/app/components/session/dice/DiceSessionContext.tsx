@@ -14,6 +14,7 @@ import type { DiceRollRequest, RollResult } from './diceTypes.ts';
 
 const DICE_3D_ENABLED_KEY = 'hollowgate.dice.3d-enabled';
 const DICE_SETTLED_HOLD_MS = 1000;
+const DICE_ANIMATED_SETTLED_HOLD_MS = 3000;
 
 type RevealState = 'pending' | 'animating' | 'revealed';
 
@@ -117,10 +118,14 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
 
   const playAnimation = useCallback((result: RollResult) => {
     const container = animationContainerRef.current;
-    if (!animationsEnabledRef.current || !container || projectRollTo3D(result).length === 0) {
+    const chunks = projectRollTo3D(result);
+    if (!animationsEnabledRef.current || !container || chunks.length === 0) {
       revealRoll(result.id);
       return;
     }
+    const settledHoldMs = chunks.some((chunk) => chunk.appearances?.some((descriptor) => descriptor?.appearance.effectsEnabled))
+      ? DICE_ANIMATED_SETTLED_HOLD_MS
+      : DICE_SETTLED_HOLD_MS;
 
     stopActiveAnimation(true);
     const controller = new AbortController();
@@ -140,7 +145,7 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
           return;
         }
         await renderer.play(result, controller.signal);
-        await delay(DICE_SETTLED_HOLD_MS, controller.signal);
+        await delay(settledHoldMs, controller.signal);
         if (controller.signal.aborted || activeAnimationRollIdRef.current !== result.id) return;
         revealRoll(result.id);
         renderer.clear();

@@ -16,7 +16,7 @@ type MeshLike = {
   remove: (child: unknown) => void;
 };
 
-const FIRE_TEXTURE_EMISSIVE_PULSE = 0.12;
+const FIRE_TEXTURE_EMISSIVE_PULSE = 0.38;
 
 function radiusOf(mesh: MeshLike): number {
   if (!mesh.geometry) return 1;
@@ -86,23 +86,33 @@ export function installDice3DVisualBoost(
   );
   group.add(pointLight);
 
-  group.onBeforeRender = () => {
-    const seconds = performance.now() / 1000;
-    const pulse = (Math.sin(seconds * (skin === 'lightning' ? 18 : 6)) + 1) / 2;
-    pointLight.intensity = (skin === 'lightning' ? 0.55 : 0.35) + pulse * (skin === 'lightning' ? 0.75 : 0.42);
+  let raf: number | null = null;
+  const startedAt = performance.now();
+  const frame = (now: number) => {
+    const seconds = (now - startedAt) / 1000;
+    const pulse = (Math.sin(seconds * (skin === 'lightning' ? 18 : 7.2)) + 1) / 2;
+    const flicker = skin === 'fire'
+      ? Math.min(1, pulse * 0.72 + ((Math.sin(seconds * 17.3) + 1) / 2) * 0.28)
+      : pulse;
+    pointLight.intensity = skin === 'lightning'
+      ? 0.55 + pulse * 0.75
+      : skin === 'fire'
+        ? 0.5 + flicker * 0.9
+        : 0.35 + pulse * 0.42;
 
     if (fireFaceBaselines.length > 0) {
-      const texturePulse = (Math.sin(seconds * 2.6) + 1) / 2;
+      const texturePulse = Math.min(1, ((Math.sin(seconds * 3.4) + 1) / 2) * 0.76 + flicker * 0.24);
       for (const { material, emissiveIntensity } of fireFaceBaselines) {
         material.emissiveIntensity = emissiveIntensity + texturePulse * FIRE_TEXTURE_EMISSIVE_PULSE;
-        material.needsUpdate = true;
       }
     }
+    raf = window.requestAnimationFrame(frame);
   };
 
   typedMesh.add(group);
+  raf = window.requestAnimationFrame(frame);
   return () => {
-    group.onBeforeRender = null;
+    if (raf !== null) window.cancelAnimationFrame(raf);
     for (const { material, emissiveIntensity } of fireFaceBaselines) {
       material.emissiveIntensity = emissiveIntensity;
       material.needsUpdate = true;
