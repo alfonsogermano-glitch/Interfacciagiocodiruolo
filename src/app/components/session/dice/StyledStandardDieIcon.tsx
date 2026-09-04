@@ -20,7 +20,6 @@ function parseHexColor(color: string): [number, number, number] {
   return [
     Number.parseInt(normalized.slice(0, 2), 16),
     Number.parseInt(normalized.slice(2, 4), 16),
-    Number.parseInt(normalized.slice(4, 6), 16),
   ];
 }
 
@@ -76,7 +75,7 @@ export function getReadableDiceSymbolColor(
   if (skinId === 'none') return symbolColor;
   if (skinId === 'fire' || skinId === 'ice') return symbolColor;
   const background = estimatedSkinBackground(bodyColor, skinId);
-  const minimumContrast = skinId === 'fire' ? 7 : 5.5;
+  const minimumContrast = 5.5;
   if (contrastRatio(symbolColor, background) >= minimumContrast) return symbolColor;
 
   const target = relativeLuminance(background) < 0.44 ? '#ffffff' : '#080b10';
