@@ -16,7 +16,7 @@ type MeshLike = {
   remove: (child: unknown) => void;
 };
 
-const FIRE_TEXTURE_EMISSIVE_PULSE = 0.38;
+const FIRE_TEXTURE_EMISSIVE_PULSE = 0.48;
 
 function radiusOf(mesh: MeshLike): number {
   if (!mesh.geometry) return 1;
@@ -50,6 +50,10 @@ function boostLightColor(skin: Dice3DAppearanceDescriptor['appearance']['skinId'
   }
 }
 
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
 export function installDice3DVisualBoost(
   mesh: unknown,
   descriptor: Dice3DAppearanceDescriptor,
@@ -80,8 +84,8 @@ export function installDice3DVisualBoost(
 
   const pointLight = new THREE.PointLight(
     lightColor,
-    skin === 'lightning' ? 0.85 : 0.55,
-    radius * 4.5,
+    skin === 'lightning' ? 0.85 : 0.65,
+    radius * 4.9,
     2,
   );
   group.add(pointLight);
@@ -90,20 +94,24 @@ export function installDice3DVisualBoost(
   const startedAt = performance.now();
   const frame = (now: number) => {
     const seconds = (now - startedAt) / 1000;
-    const pulse = (Math.sin(seconds * (skin === 'lightning' ? 18 : 7.2)) + 1) / 2;
-    const flicker = skin === 'fire'
-      ? Math.min(1, pulse * 0.72 + ((Math.sin(seconds * 17.3) + 1) / 2) * 0.28)
-      : pulse;
+    const fast = (Math.sin(seconds * 15.7) + 1) / 2;
+    const medium = (Math.sin(seconds * 5.1 + 0.9) + 1) / 2;
+    const slow = (Math.sin(seconds * 1.9 + 2.2) + 1) / 2;
+    const rollingPulse = skin === 'fire'
+      ? clamp01(0.2 + slow * 0.24 + medium * 0.3 + fast * 0.26 + ((Math.sin(seconds * 29.4 + 0.6) + 1) / 2) * 0.14)
+      : clamp01(0.18 + slow * 0.32 + medium * 0.24);
+
     pointLight.intensity = skin === 'lightning'
-      ? 0.55 + pulse * 0.75
+      ? 0.55 + rollingPulse * 0.75
       : skin === 'fire'
-        ? 0.5 + flicker * 0.9
-        : 0.35 + pulse * 0.42;
+        ? 0.6 + rollingPulse * 1.12
+        : 0.35 + rollingPulse * 0.42;
 
     if (fireFaceBaselines.length > 0) {
-      const texturePulse = Math.min(1, ((Math.sin(seconds * 3.4) + 1) / 2) * 0.76 + flicker * 0.24);
+      const magmaPulse = clamp01(0.24 + slow * 0.28 + medium * 0.24 + fast * 0.18 + ((Math.sin(seconds * 10.3 + 1.7) + 1) / 2) * 0.14);
       for (const { material, emissiveIntensity } of fireFaceBaselines) {
-        material.emissiveIntensity = emissiveIntensity + texturePulse * FIRE_TEXTURE_EMISSIVE_PULSE;
+        material.emissiveIntensity = emissiveIntensity + magmaPulse * FIRE_TEXTURE_EMISSIVE_PULSE;
+        material.needsUpdate = true;
       }
     }
     raf = window.requestAnimationFrame(frame);
