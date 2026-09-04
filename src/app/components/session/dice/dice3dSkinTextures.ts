@@ -1,4 +1,5 @@
 import { FIRE_TEXTURE_DATA_URL } from './fireTextureData.ts';
+import { normalizeDiceTextureScale } from './diceTextureScale.ts';
 import type { DiceAppearance, DiceSkinId } from './diceTypes.ts';
 
 export interface Dice3DTextureDescriptor {
@@ -10,7 +11,6 @@ export interface Dice3DTextureDescriptor {
 }
 
 const TEXTURE_SIZE = 512;
-const FIRE_TEXTURE_ZOOM = 1.38;
 const cache = new Map<string, Dice3DTextureDescriptor>();
 
 const fireTextureImage: HTMLImageElement | null = typeof Image === 'undefined'
@@ -84,7 +84,7 @@ function drawFirePhotoTexture(
 
   context.save();
   context.filter = 'brightness(1.18) saturate(1.04)';
-  drawImageCover(context, fireImage, size, FIRE_TEXTURE_ZOOM);
+  drawImageCover(context, fireImage, size);
   context.filter = 'none';
   context.globalCompositeOperation = 'source-over';
   context.globalAlpha = 0.34;
@@ -100,7 +100,7 @@ function drawFirePhotoTexture(
 
   bump.save();
   bump.filter = 'grayscale(1) contrast(1.55)';
-  drawImageCover(bump, fireImage, size, FIRE_TEXTURE_ZOOM);
+  drawImageCover(bump, fireImage, size);
   bump.restore();
   return true;
 }
@@ -131,11 +131,24 @@ function drawCracks(
   context.restore();
 }
 
+function applyTextureZoom(
+  context: CanvasRenderingContext2D,
+  bump: CanvasRenderingContext2D,
+  size: number,
+  textureScale: number | undefined,
+) {
+  const zoom = normalizeDiceTextureScale(textureScale) / 100;
+  const offset = (size - size * zoom) / 2;
+  context.setTransform(zoom, 0, 0, zoom, offset, offset);
+  bump.setTransform(zoom, 0, 0, zoom, offset, offset);
+}
+
 function drawPattern(
   textureCanvas: HTMLCanvasElement,
   bumpCanvas: HTMLCanvasElement,
   skinId: DiceSkinId,
   bodyColor: string,
+  textureScale?: number,
 ) {
   const context = textureCanvas.getContext('2d');
   const bump = bumpCanvas.getContext('2d');
@@ -143,6 +156,7 @@ function drawPattern(
   const size = textureCanvas.width;
   resetContext(context, size);
   resetContext(bump, size);
+  applyTextureZoom(context, bump, size, textureScale);
 
   switch (skinId) {
     case 'none':
@@ -333,7 +347,8 @@ export function getDice3DTextureDescriptor(appearance: DiceAppearance): Dice3DTe
   if (appearance.skinId === 'none') {
     return { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' };
   }
-  const key = `${appearance.skinId}:${appearance.bodyColor}`;
+  const textureScale = normalizeDiceTextureScale(appearance.textureScale);
+  const key = `${appearance.skinId}:${appearance.bodyColor}:${textureScale}`;
   const cached = cache.get(key);
   if (cached) return cached;
 
@@ -343,10 +358,10 @@ export function getDice3DTextureDescriptor(appearance: DiceAppearance): Dice3DTe
   const bumpCanvas = document.createElement('canvas');
   bumpCanvas.width = TEXTURE_SIZE;
   bumpCanvas.height = TEXTURE_SIZE;
-  drawPattern(canvas, bumpCanvas, appearance.skinId, appearance.bodyColor);
+  drawPattern(canvas, bumpCanvas, appearance.skinId, appearance.bodyColor, textureScale);
 
   const descriptor: Dice3DTextureDescriptor = {
-    name: `hollowgate-${appearance.skinId}-${appearance.bodyColor}`,
+    name: `hollowgate-${appearance.skinId}-${appearance.bodyColor}-${textureScale}`,
     texture: canvas,
     bump: bumpCanvas,
     composite: 'source-over',

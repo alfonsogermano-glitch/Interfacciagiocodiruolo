@@ -7,6 +7,7 @@ const customizer = fs.readFileSync(new URL('../src/app/components/session/dice/D
 const skinSurface = fs.readFileSync(new URL('../src/app/components/session/dice/DiceSkinSurface.tsx', import.meta.url), 'utf8');
 const previewArt = fs.readFileSync(new URL('../src/app/components/session/dice/DiceSkinPreviewArt.tsx', import.meta.url), 'utf8');
 const skins = fs.readFileSync(new URL('../src/app/components/session/dice/diceSkins.ts', import.meta.url), 'utf8');
+const textureScale = fs.readFileSync(new URL('../src/app/components/session/dice/diceTextureScale.ts', import.meta.url), 'utf8');
 const fireTextureData = fs.readFileSync(new URL('../src/app/components/session/dice/fireTextureData.ts', import.meta.url), 'utf8');
 const appearance = fs.readFileSync(new URL('../src/app/components/session/dice/dice3dAppearanceMaterials.ts', import.meta.url), 'utf8');
 const projection = fs.readFileSync(new URL('../src/app/components/session/dice/dice3dProjection.ts', import.meta.url), 'utf8');
@@ -61,13 +62,19 @@ assert.ok(styled.includes('thinStructure={textured}'), 'only textured dice must 
 assert.ok(styled.includes('h-[84%] aspect-square'), 'd100 percentile faces must stay square in every layout');
 assert.ok(styled.includes('data-styled-standard-d100'), 'styled d100 must keep its dedicated two-face composition');
 assert.ok(styled.includes('overflow-visible'), 'styled d100 and standard dice must not clip artwork at the sides');
+assert.ok(styled.includes('getDiceTextureBackgroundSize(appearance.textureScale)'), 'main dice previews must use the saved texture zoom');
 
 assert.ok(customizer.includes('StyledStandardDieIcon'), 'Customizer main preview must use the same exact die renderer as quick-roll');
 assert.ok(customizer.includes("selected.sides === 100 ? 'h-24 w-44' : 'h-24 w-24'"), 'Customizer d100 preview must have a dedicated wide layout');
 assert.ok(customizer.includes('data-dice-appearance-main-preview'), 'Customizer must expose a stable main preview hook');
 assert.ok(customizer.includes('illustrative'), 'Customizer skin cards must use illustrative swatches');
+assert.ok(customizer.includes('data-dice-appearance-texture-scale'), 'Customizer must expose the 100-200% texture zoom control');
+assert.ok(customizer.indexOf('data-dice-appearance-texture-scale') < customizer.indexOf('data-dice-appearance-apply-all'), 'Texture zoom control must sit above Apply to all');
+assert.ok(customizer.includes('textureScale: selected.textureScale'), 'Apply to all must copy the selected texture zoom');
 assert.ok(skinSurface.includes('illustrative?: boolean'), 'Skin swatches must support illustrative preview art');
 assert.ok(skinSurface.includes('DiceSkinPreviewArt'), 'Skin swatches must use the shared illustrative art renderer');
+assert.ok(skinSurface.includes('getDiceTextureBackgroundSize(appearance.textureScale)'), 'Skin swatches must react live to the same texture zoom');
+assert.ok(textureScale.includes('MIN_DICE_TEXTURE_SCALE = 100') && textureScale.includes('MAX_DICE_TEXTURE_SCALE = 200') && textureScale.includes('DEFAULT_DICE_TEXTURE_SCALE = 138'), 'Texture zoom must use the approved 100-200% range with 138% compatibility default');
 
 for (const skin of ['fire', 'ice', 'lightning', 'poison', 'stone', 'metal', 'obsidian', 'arcane']) {
   assert.ok(effects.includes(`case '${skin}'`), `missing animated effect profile for ${skin}`);
@@ -83,11 +90,14 @@ assert.ok(fireTextureData.includes("data:image/webp;base64,"), 'Fire skin must e
 assert.ok(skins.includes("FIRE_TEXTURE_DATA_URL"), '2D fire skin must import the supplied rock/lava texture');
 assert.ok(skins.includes('url("${FIRE_TEXTURE_DATA_URL}")'), '2D fire skin must render the supplied image in menus and previews');
 assert.ok(textures.includes("FIRE_TEXTURE_DATA_URL"), '3D fire skin must import the same supplied texture');
-assert.ok(textures.includes('const FIRE_TEXTURE_ZOOM = 1.38'), '3D Fire must match the 138% crop used by 2D previews');
-assert.ok(textures.includes('drawImageCover(context, fireImage, size, FIRE_TEXTURE_ZOOM)'), '3D fire skin must paint the supplied texture with the readable preview crop');
+assert.doesNotMatch(textures, /FIRE_TEXTURE_ZOOM/, '3D Fire must not retain a separate hardcoded crop');
+assert.ok(textures.includes('normalizeDiceTextureScale(appearance.textureScale)'), '3D textures must use the saved user zoom');
+assert.ok(textures.includes('applyTextureZoom(context, bump, size, textureScale)'), '3D color and bump textures must receive the same zoom');
+assert.ok(textures.includes('drawImageCover(context, fireImage, size)'), '3D fire skin must paint the supplied texture through the shared zoom transform');
 assert.ok(textures.includes("context.globalCompositeOperation = 'source-over';\n  context.globalAlpha = 0.34;"), '3D fire tint must match the source-over 2D preview tint');
 assert.doesNotMatch(textures, /globalCompositeOperation = 'color'[\s\S]{0,80}globalAlpha = 0\.46/, '3D fire must not use the old mismatched color blend');
-assert.ok(textures.includes('drawImageCover(bump, fireImage, size, FIRE_TEXTURE_ZOOM)'), '3D fire skin must derive bump detail from the supplied texture using the same crop');
+assert.ok(textures.includes('drawImageCover(bump, fireImage, size)'), '3D fire skin must derive bump detail from the supplied texture using the shared zoom');
+assert.ok(textures.includes('`${appearance.skinId}:${appearance.bodyColor}:${textureScale}`'), '3D texture cache must keep different zoom values independent');
 
 assert.ok(appearance.includes('getReadable3DLabelColor'), '3D standard labels must automatically preserve contrast on textured faces');
 assert.ok(appearance.includes('MIN_TEXTURED_LABEL_CONTRAST'), 'Textured 3D labels must enforce a minimum contrast target');
@@ -120,4 +130,4 @@ assert.ok(textures.includes('bumpCanvas') && textures.includes('bump: bumpCanvas
 assert.doesNotMatch(textures, /appearance\.skinId === 'metal' \? 'metal' : 'none'/, 'Metal must not return to the black-prone MeshStandard metal preset');
 assert.ok(textures.includes("material: 'none'"), 'Metal must keep the neutral color-preserving material path');
 
-console.log('Dice exact shapes, thin body-colored structure, high-contrast labels, coherent Fire texture previews and 3D material fidelity, Arcane-only rings, and 3D skin verification passed.');
+console.log('Dice exact shapes, thin body-colored structure, high-contrast labels, shared 100-200% texture zoom, coherent Fire texture previews and 3D material fidelity, Arcane-only rings, and 3D skin verification passed.');

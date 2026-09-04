@@ -13,10 +13,12 @@ export interface DiceAppearance {
   symbolColor: string;
   skinId: DiceSkinId;
   effectsEnabled: boolean;
+  textureScale?: number;
 }
 
 export interface StandardDieAppearance extends DiceAppearance {
   sides: CustomDieSides;
+  textureScale: number;
 }
 
 export type CustomDieFaceVisual =

@@ -2,6 +2,7 @@ import { useId } from 'react';
 import { DiceSkinPreviewArt } from './DiceSkinPreviewArt';
 import { DiceTypeIcon } from './DiceTypeIcon';
 import { getDiceSkinBackgroundImage } from './diceSkins.ts';
+import { getDiceTextureBackgroundSize } from './diceTextureScale.ts';
 import type { DiceAppearance, CustomDieSides } from './diceTypes.ts';
 
 export const DICE_SILHOUETTE_PATHS: Record<Exclude<CustomDieSides, 100>, string> = {
@@ -154,7 +155,7 @@ function DieSkinSurface({
                 width: '100%',
                 height: '100%',
                 backgroundImage,
-                backgroundSize: appearance.skinId === 'fire' ? '138%' : 'cover',
+                backgroundSize: getDiceTextureBackgroundSize(appearance.textureScale),
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
               }}

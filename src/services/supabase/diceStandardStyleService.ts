@@ -1,4 +1,5 @@
 import { supabase } from '../../app/auth/AuthContext';
+import { normalizeDiceTextureScale } from '../../app/components/session/dice/diceTextureScale.ts';
 import type { CustomDieSides, StandardDieAppearance } from '../../app/components/session/dice/diceTypes.ts';
 
 interface StandardDieStyleRow {
@@ -9,6 +10,7 @@ interface StandardDieStyleRow {
   symbol_color: string;
   skin_id: StandardDieAppearance['skinId'];
   effects_enabled: boolean;
+  texture_scale: number;
 }
 
 function mapRow(row: StandardDieStyleRow): StandardDieAppearance {
@@ -18,6 +20,7 @@ function mapRow(row: StandardDieStyleRow): StandardDieAppearance {
     symbolColor: row.symbol_color,
     skinId: row.skin_id,
     effectsEnabled: row.effects_enabled,
+    textureScale: normalizeDiceTextureScale(row.texture_scale),
   };
 }
 
@@ -49,6 +52,7 @@ export async function saveStandardDiceStyles(
     symbol_color: style.symbolColor,
     skin_id: style.skinId,
     effects_enabled: style.effectsEnabled,
+    texture_scale: normalizeDiceTextureScale(style.textureScale),
     updated_at: updatedAt,
   }));
   const { data, error } = await supabase

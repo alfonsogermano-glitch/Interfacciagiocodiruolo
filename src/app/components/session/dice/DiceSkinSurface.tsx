@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { DiceSkinPreviewArt } from './DiceSkinPreviewArt';
 import { getDiceSkinBackgroundImage } from './diceSkins.ts';
+import { getDiceTextureBackgroundSize } from './diceTextureScale.ts';
 import type { DiceAppearance } from './diceTypes.ts';
 
 export function DiceSkinSurface({
@@ -14,6 +15,7 @@ export function DiceSkinSurface({
   children?: ReactNode;
   illustrative?: boolean;
 }) {
+  const backgroundImage = getDiceSkinBackgroundImage(appearance.skinId, appearance.bodyColor);
   return (
     <span
       data-dice-skin={appearance.skinId}
@@ -21,8 +23,8 @@ export function DiceSkinSurface({
       className={`${illustrative ? 'relative overflow-hidden' : ''} ${className}`}
       style={{
         backgroundColor: appearance.bodyColor,
-        backgroundImage: getDiceSkinBackgroundImage(appearance.skinId, appearance.bodyColor),
-        backgroundSize: appearance.skinId === 'fire' ? '138%' : 'cover',
+        backgroundImage,
+        backgroundSize: backgroundImage ? getDiceTextureBackgroundSize(appearance.textureScale) : 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
       }}

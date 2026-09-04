@@ -6,6 +6,7 @@ import { DiceSkinSurface } from './DiceSkinSurface';
 import { StyledStandardDieIcon } from './StyledStandardDieIcon';
 import { useDiceAppearance } from './DiceAppearanceContext';
 import { DICE_SKINS } from './diceSkins.ts';
+import { MAX_DICE_TEXTURE_SCALE, MIN_DICE_TEXTURE_SCALE } from './diceTextureScale.ts';
 import type { CustomDieSides, StandardDieAppearance } from './diceTypes.ts';
 
 const STANDARD_SIDES: readonly CustomDieSides[] = [4, 6, 8, 10, 12, 20, 100] as const;
@@ -37,6 +38,7 @@ export function DiceAppearanceCustomizer({ onClose }: { onClose: () => void }) {
       symbolColor: selected.symbolColor,
       skinId: selected.skinId,
       effectsEnabled: selected.effectsEnabled,
+      textureScale: selected.textureScale,
     })));
   };
 
@@ -88,6 +90,29 @@ export function DiceAppearanceCustomizer({ onClose }: { onClose: () => void }) {
                 />
               </div>
             </div>
+
+            <label className="block rounded-xl border border-[var(--dash-border)] bg-[var(--dash-surface)] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-semibold uppercase tracking-wide text-[var(--dash-muted)]">Zoom texture</span>
+                <span data-dice-appearance-texture-scale-value className="text-xs font-semibold tabular-nums text-[var(--dash-text-strong)]">{selected.textureScale}%</span>
+              </div>
+              <input
+                data-dice-appearance-texture-scale
+                aria-label="Zoom texture"
+                type="range"
+                min={MIN_DICE_TEXTURE_SCALE}
+                max={MAX_DICE_TEXTURE_SCALE}
+                step={1}
+                value={selected.textureScale}
+                onChange={(event) => patchSelected({ textureScale: Number(event.target.value) })}
+                className="mt-2 w-full cursor-pointer"
+                style={{ accentColor: 'var(--dash-accent)' }}
+              />
+              <div className="mt-1 flex justify-between text-[9px] text-[var(--dash-muted)]">
+                <span>{MIN_DICE_TEXTURE_SCALE}%</span>
+                <span>{MAX_DICE_TEXTURE_SCALE}%</span>
+              </div>
+            </label>
 
             <button
               type="button"
