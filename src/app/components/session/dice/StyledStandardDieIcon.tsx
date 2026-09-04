@@ -74,6 +74,7 @@ export function getReadableDiceSymbolColor(
   skinId: DiceAppearance['skinId'],
 ): string {
   if (skinId === 'none') return symbolColor;
+  if (skinId === 'fire' || skinId === 'ice') return symbolColor;
   const background = estimatedSkinBackground(bodyColor, skinId);
   const minimumContrast = skinId === 'fire' ? 7 : 5.5;
   if (contrastRatio(symbolColor, background) >= minimumContrast) return symbolColor;
