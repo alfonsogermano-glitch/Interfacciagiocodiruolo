@@ -12,7 +12,6 @@ const css = fs.readFileSync(cssUrl, 'utf8');
 const skinSurface = fs.readFileSync(new URL('src/app/components/session/dice/DiceSkinSurface.tsx', root), 'utf8');
 const styled = fs.readFileSync(new URL('src/app/components/session/dice/StyledStandardDieIcon.tsx', root), 'utf8');
 const boost = fs.readFileSync(new URL('src/app/components/session/dice/dice3dVisualBoost.ts', root), 'utf8');
-
 const renderer = fs.readFileSync(new URL('src/app/components/session/dice/dice3dRenderer.ts', root), 'utf8');
 const session = fs.readFileSync(new URL('src/app/components/session/dice/DiceSessionContext.tsx', root), 'utf8');
 
@@ -26,7 +25,7 @@ assert.ok(styled.includes('<DiceFireAnimatedOverlay appearance={appearance} />')
 assert.ok(boost.includes("skin === 'fire' && !descriptor.custom"), '3D Fire texture pulse must stay on standard Fire dice');
 assert.ok(boost.includes('material.emissiveMap') && boost.includes('FIRE_TEXTURE_EMISSIVE_PULSE'), '3D Fire must pulse the photographic emissive map itself');
 assert.ok(boost.includes('const FIRE_TEXTURE_EMISSIVE_PULSE = 0.38'), '3D Fire texture pulse must be visibly stronger');
-assert.oi(boost.includes('window.requestAnimationFrame(frame)') && boost.includes('window.cancelAnimationFrame(raf)'), '3D Fire pulse must run on its own animation loop while dice are rolling');
+assert.ok(boost.includes('window.requestAnimationFrame(frame)') && boost.includes('window.cancelAnimationFrame(raf)'), '3D Fire pulse must run on its own animation loop while dice are rolling');
 assert.doesNotMatch(boost, /group\.onBeforeRender\s*=/, '3D Fire pulse must not depend on Group.onBeforeRender');
 assert.ok(renderer.includes('private releaseAppearanceEffects') && renderer.includes('this.releaseAppearanceEffects();'), 'renderer must retain appearance effects until the dice are actually cleared');
 assert.doesNotMatch(renderer, /finally\s*\{[^}]*restoreAppearance\?\.\(\)/s, 'renderer must not stop appearance effects immediately when roll() settles');
