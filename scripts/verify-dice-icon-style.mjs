@@ -83,10 +83,11 @@ assert.ok(fireTextureData.includes("data:image/webp;base64,"), 'Fire skin must e
 assert.ok(skins.includes("FIRE_TEXTURE_DATA_URL"), '2D fire skin must import the supplied rock/lava texture');
 assert.ok(skins.includes('url("${FIRE_TEXTURE_DATA_URL}")'), '2D fire skin must render the supplied image in menus and previews');
 assert.ok(textures.includes("FIRE_TEXTURE_DATA_URL"), '3D fire skin must import the same supplied texture');
-assert.ok(textures.includes('drawImageCover(context, fireImage, size)'), '3D fire skin must paint the supplied texture onto the die canvas');
+assert.ok(textures.includes('const FIRE_TEXTURE_ZOOM = 1.38'), '3D Fire must match the 138% crop used by 2D previews');
+assert.ok(textures.includes('drawImageCover(context, fireImage, size, FIRE_TEXTURE_ZOOM)'), '3D fire skin must paint the supplied texture with the readable preview crop');
 assert.ok(textures.includes("context.globalCompositeOperation = 'source-over';\n  context.globalAlpha = 0.34;"), '3D fire tint must match the source-over 2D preview tint');
 assert.doesNotMatch(textures, /globalCompositeOperation = 'color'[\s\S]{0,80}globalAlpha = 0\.46/, '3D fire must not use the old mismatched color blend');
-assert.ok(textures.includes('drawImageCover(bump, fireImage, size)'), '3D fire skin must derive bump detail from the supplied texture');
+assert.ok(textures.includes('drawImageCover(bump, fireImage, size, FIRE_TEXTURE_ZOOM)'), '3D fire skin must derive bump detail from the supplied texture using the same crop');
 
 assert.ok(appearance.includes('getReadable3DLabelColor'), '3D standard labels must automatically preserve contrast on textured faces');
 assert.ok(appearance.includes('MIN_TEXTURED_LABEL_CONTRAST'), 'Textured 3D labels must enforce a minimum contrast target');
@@ -95,6 +96,10 @@ assert.ok(appearance.includes('factory.label_outline = outlineColor') && appeara
 assert.ok(appearance.includes("if (!descriptor.custom && appearance.skinId !== 'metal')"), 'Custom dice must keep a neutral face texture so skin patterns cannot obscure text, icons, or images');
 assert.ok(projection.includes('custom: true') && projection.includes('preserveFaceColors: true'), 'Every Custom die must preserve face colors while skin effects animate');
 assert.ok(appearance.includes('const isEdgeMaterial = materialIndex === 0'), 'Static 3D skin material changes must stay on edge material rather than readable face materials');
+assert.ok(appearance.includes('factory.material_options = { ...factory.material_options, color: 0xffffff }'), 'Textured 3D faces must keep a neutral material color to prevent bodyColor double multiplication');
+assert.ok(appearance.includes('material.color?.set?.(0xffffff)'), 'Fire face materials must remain neutral after dice-box creates the MeshPhong materials');
+assert.ok(appearance.includes('material.emissiveMap = material.map') && appearance.includes('const FIRE_FACE_EMISSIVE_INTENSITY = 0.18'), 'Fire faces must preserve photographic brightness with a restrained texture-derived emissive contribution');
+assert.ok(appearance.includes('const TEXTURED_FACE_ANISOTROPY = 8') && appearance.includes('material.map.anisotropy = Math.max'), 'Fire face maps must use bounded anisotropic filtering for oblique detail');
 
 assert.doesNotMatch(
   effects,
@@ -115,4 +120,4 @@ assert.ok(textures.includes('bumpCanvas') && textures.includes('bump: bumpCanvas
 assert.doesNotMatch(textures, /appearance\.skinId === 'metal' \? 'metal' : 'none'/, 'Metal must not return to the black-prone MeshStandard metal preset');
 assert.ok(textures.includes("material: 'none'"), 'Metal must keep the neutral color-preserving material path');
 
-console.log('Dice exact shapes, thin body-colored structure, high-contrast labels, coherent Fire texture previews, Arcane-only rings, and 3D skin verification passed.');
+console.log('Dice exact shapes, thin body-colored structure, high-contrast labels, coherent Fire texture previews and 3D material fidelity, Arcane-only rings, and 3D skin verification passed.');

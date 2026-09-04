@@ -22,11 +22,27 @@ type DiceFactoryLike = {
 };
 
 type DiceBoxLike = { DiceFactory?: unknown; swapDiceFace_D4?: (dicemesh: unknown, result: unknown) => unknown };
-type MaterialLike = { roughness?: number; metalness?: number; shininess?: number; opacity?: number; transparent?: boolean; emissive?: { set?: (value: string | number) => unknown }; emissiveIntensity?: number; needsUpdate?: boolean };
+type ColorLike = { set?: (value: string | number) => unknown };
+type TextureLike = { anisotropy?: number; generateMipmaps?: boolean; needsUpdate?: boolean };
+type MaterialLike = {
+  color?: ColorLike;
+  map?: TextureLike | null;
+  roughness?: number;
+  metalness?: number;
+  shininess?: number;
+  opacity?: number;
+  transparent?: boolean;
+  emissive?: ColorLike;
+  emissiveMap?: TextureLike | null;
+  emissiveIntensity?: number;
+  needsUpdate?: boolean;
+};
 type MeshLike = { material?: MaterialLike | MaterialLike[] };
 
 const NEUTRAL_TEXTURE = { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' } as const;
 const MIN_TEXTURED_LABEL_CONTRAST = 7;
+const FIRE_FACE_EMISSIVE_INTENSITY = 0.18;
+const TEXTURED_FACE_ANISOTROPY = 8;
 
 function captureFactoryState(factory: DiceFactoryLike) {
   return {
@@ -135,6 +151,21 @@ function materialsOf(mesh: MeshLike): MaterialLike[] {
   return Array.isArray(mesh.material) ? mesh.material : [mesh.material];
 }
 
+function preserveFireFaceTexture(material: MaterialLike) {
+  material.color?.set?.(0xffffff);
+  if (!material.map) return;
+
+  material.map.anisotropy = Math.max(material.map.anisotropy ?? 1, TEXTURED_FACE_ANISOTROPY);
+  material.map.generateMipmaps = true;
+  material.map.needsUpdate = true;
+
+  if (material.emissive?.set) {
+    material.emissive.set(0xffffff);
+    material.emissiveMap = material.map;
+    material.emissiveIntensity = FIRE_FACE_EMISSIVE_INTENSITY;
+  }
+}
+
 function blendValue(current: number, target: number, factor: number): number { return current + (target - current) * factor; }
 function edgeGlowColor(skinId: Dice3DAppearanceDescriptor['appearance']['skinId']): string | null {
   switch (skinId) {
@@ -153,6 +184,7 @@ function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescri
     const applyMetalness = (target: number) => { if (typeof material.metalness === 'number') material.metalness = blendValue(material.metalness, target, strength); };
     const applyShininess = (target: number) => { if (typeof material.shininess === 'number') material.shininess = blendValue(material.shininess, target, strength); };
     if (!isEdgeMaterial) {
+      if (skinId === 'fire' && !descriptor.custom) preserveFireFaceTexture(material);
       if (typeof material.opacity === 'number') material.opacity = 1;
       material.transparent = false;
       material.needsUpdate = true;

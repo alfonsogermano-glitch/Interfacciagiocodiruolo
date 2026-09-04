@@ -10,6 +10,7 @@ export interface Dice3DTextureDescriptor {
 }
 
 const TEXTURE_SIZE = 512;
+const FIRE_TEXTURE_ZOOM = 1.38;
 const cache = new Map<string, Dice3DTextureDescriptor>();
 
 const fireTextureImage: HTMLImageElement | null = typeof Image === 'undefined'
@@ -40,6 +41,7 @@ function drawImageCover(
   context: CanvasRenderingContext2D,
   image: HTMLImageElement,
   size: number,
+  zoom = 1,
 ) {
   const sourceWidth = image.naturalWidth || image.width;
   const sourceHeight = image.naturalHeight || image.height;
@@ -57,6 +59,17 @@ function drawImageCover(
     cropHeight = sourceWidth;
     sourceY = (sourceHeight - cropHeight) / 2;
   }
+
+  const normalizedZoom = Math.max(1, zoom);
+  if (normalizedZoom > 1) {
+    const zoomedWidth = cropWidth / normalizedZoom;
+    const zoomedHeight = cropHeight / normalizedZoom;
+    sourceX += (cropWidth - zoomedWidth) / 2;
+    sourceY += (cropHeight - zoomedHeight) / 2;
+    cropWidth = zoomedWidth;
+    cropHeight = zoomedHeight;
+  }
+
   context.drawImage(image, sourceX, sourceY, cropWidth, cropHeight, 0, 0, size, size);
 }
 
@@ -71,7 +84,7 @@ function drawFirePhotoTexture(
 
   context.save();
   context.filter = 'brightness(1.18) saturate(1.04)';
-  drawImageCover(context, fireImage, size);
+  drawImageCover(context, fireImage, size, FIRE_TEXTURE_ZOOM);
   context.filter = 'none';
   context.globalCompositeOperation = 'source-over';
   context.globalAlpha = 0.34;
@@ -87,7 +100,7 @@ function drawFirePhotoTexture(
 
   bump.save();
   bump.filter = 'grayscale(1) contrast(1.55)';
-  drawImageCover(bump, fireImage, size);
+  drawImageCover(bump, fireImage, size, FIRE_TEXTURE_ZOOM);
   bump.restore();
   return true;
 }
