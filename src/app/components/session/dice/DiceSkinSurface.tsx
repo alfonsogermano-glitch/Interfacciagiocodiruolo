@@ -20,6 +20,7 @@ export function DiceSkinSurface({
   const backgroundImage = getDiceSkinBackgroundImage(appearance.skinId, appearance.bodyColor);
   const animatedFire = isAnimatedFireAppearance(appearance);
   const animatedIce = isAnimatedIceAppearance(appearance);
+  const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice';
   return (
     <span
       data-dice-skin={appearance.skinId}
@@ -31,7 +32,7 @@ export function DiceSkinSurface({
         backgroundSize: backgroundImage ? getDiceTextureBackgroundSize(appearance.textureScale) : 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
-        backgroundOrigin: appearance.skinId === 'ice' ? 'border-box' : undefined,
+        backgroundOrigin: photographicSkin ? 'border-box' : undefined,
       }}
     >
       {illustrative && appearance.skinId !== 'none' && (
