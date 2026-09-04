@@ -136,7 +136,10 @@ function applyAppearanceFactoryState(factory: DiceFactoryLike, descriptor: Dice3
 
   let texture: unknown = NEUTRAL_TEXTURE;
   if (!descriptor.custom && appearance.skinId !== 'metal') {
-    try { texture = getDice3DTextureDescriptor(appearance); }
+    const textureAppearance = appearance.skinId === 'ice'
+      ? { ...appearance, bodyColor: '#ffffff' }
+      : appearance;
+    try { texture = getDice3DTextureDescriptor(textureAppearance); }
     catch (error) { console.error('Texture skin 3D non disponibile, uso il materiale neutro:', error); }
   }
   factory.dice_texture = texture;
@@ -166,6 +169,15 @@ function preserveFireFaceTexture(material: MaterialLike) {
   }
 }
 
+function preserveIceFaceTexture(material: MaterialLike) {
+  material.color?.set?.(0xffffff);
+  if (!material.map) return;
+
+  material.map.anisotropy = Math.max(material.map.anisotropy ?? 1, TEXTURED_FACE_ANISOTROPY);
+  material.map.generateMipmaps = true;
+  material.map.needsUpdate = true;
+}
+
 function blendValue(current: number, target: number, factor: number): number { return current + (target - current) * factor; }
 function edgeGlowColor(skinId: Dice3DAppearanceDescriptor['appearance']['skinId']): string | null {
   switch (skinId) {
@@ -185,6 +197,7 @@ function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescri
     const applyShininess = (target: number) => { if (typeof material.shininess === 'number') material.shininess = blendValue(material.shininess, target, strength); };
     if (!isEdgeMaterial) {
       if (skinId === 'fire' && !descriptor.custom) preserveFireFaceTexture(material);
+      if (skinId === 'ice' && !descriptor.custom) preserveIceFaceTexture(material);
       if (typeof material.opacity === 'number') material.opacity = 1;
       material.transparent = false;
       material.needsUpdate = true;
