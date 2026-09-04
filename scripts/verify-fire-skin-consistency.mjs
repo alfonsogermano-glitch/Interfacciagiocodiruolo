@@ -30,6 +30,7 @@ assert.ok(textures.includes('const textureScale = normalizeDiceTextureScale(appe
 assert.ok(textures.includes('applyTextureZoom(context, bump, size, textureScale)'), '3D color and bump canvases must share the selected zoom');
 assert.ok(textures.includes('`${appearance.skinId}:${appearance.bodyColor}:${textureScale}`'), '3D texture cache must distinguish different zoom values');
 assert.ok(textures.includes('drawImageCover(context, fireImage, size)') && textures.includes('drawImageCover(bump, fireImage, size)'), 'Fire source photo must use the shared canvas zoom rather than a second crop');
+assert.ok(textures.includes("context.filter = 'brightness(1.24) saturate(1.12)'"), '3D Fire must keep the approved slightly brighter and more vivid photographic filter');
 assert.ok(textures.includes("context.globalCompositeOperation = 'source-over';\n  context.globalAlpha = 0.34;"), '3D Fire must keep the source-over body-color tint');
 assert.ok(appearance.includes('factory.material_options = { ...factory.material_options, color: 0xffffff }'), 'Textured faces must keep a neutral white material color so bodyColor is not multiplied twice');
 assert.ok(appearance.includes("if (skinId === 'fire' && !descriptor.custom) preserveFireFaceTexture(material);"), 'Standard Fire faces must use the dedicated photographic-material preservation path');

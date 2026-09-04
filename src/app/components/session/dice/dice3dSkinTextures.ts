@@ -83,7 +83,7 @@ function drawFirePhotoTexture(
   if (!fireImage?.complete || fireImage.naturalWidth <= 0) return false;
 
   context.save();
-  context.filter = 'brightness(1.18) saturate(1.04)';
+  context.filter = 'brightness(1.24) saturate(1.12)';
   drawImageCover(context, fireImage, size);
   context.filter = 'none';
   context.globalCompositeOperation = 'source-over';
