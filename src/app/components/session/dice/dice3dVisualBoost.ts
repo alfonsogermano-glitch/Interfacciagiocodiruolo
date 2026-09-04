@@ -3,17 +3,31 @@
 import * as THREE from 'three';
 import type { Dice3DAppearanceDescriptor } from './dice3dProjection.ts';
 
+type MaterialLike = {
+  emissiveMap?: unknown;
+  emissiveIntensity?: number;
+  needsUpdate?: boolean;
+};
+
 type MeshLike = {
+  material?: MaterialLike | MaterialLike[];
   geometry?: { boundingSphere?: { radius?: number } | null; computeBoundingSphere?: () => void };
   add: (child: unknown) => void;
   remove: (child: unknown) => void;
 };
+
+const FIRE_TEXTURE_EMISSIVE_PULSE = 0.12;
 
 function radiusOf(mesh: MeshLike): number {
   if (!mesh.geometry) return 1;
   if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere?.();
   const radius = mesh.geometry.boundingSphere?.radius;
   return typeof radius === 'number' && Number.isFinite(radius) && radius > 0 ? radius : 1;
+}
+
+function materialsOf(mesh: MeshLike): MaterialLike[] {
+  if (!mesh.material) return [];
+  return Array.isArray(mesh.material) ? mesh.material : [mesh.material];
 }
 
 function disposeGroup(group: any) {
@@ -53,6 +67,12 @@ export function installDice3DVisualBoost(
   if (!lightColor) return () => undefined;
 
   const typedMesh = mesh as MeshLike;
+  const fireFaceBaselines = skin === 'fire' && !descriptor.custom
+    ? materialsOf(typedMesh)
+      .slice(1)
+      .filter((material) => material.emissiveMap && typeof material.emissiveIntensity === 'number')
+      .map((material) => ({ material, emissiveIntensity: material.emissiveIntensity as number }))
+    : [];
   const radius = radiusOf(typedMesh);
   const group = new THREE.Group();
   group.name = `hollowgate-strong-skin-${skin}`;
@@ -70,11 +90,23 @@ export function installDice3DVisualBoost(
     const seconds = performance.now() / 1000;
     const pulse = (Math.sin(seconds * (skin === 'lightning' ? 18 : 6)) + 1) / 2;
     pointLight.intensity = (skin === 'lightning' ? 0.55 : 0.35) + pulse * (skin === 'lightning' ? 0.75 : 0.42);
+
+    if (fireFaceBaselines.length > 0) {
+      const texturePulse = (Math.sin(seconds * 2.6) + 1) / 2;
+      for (const { material, emissiveIntensity } of fireFaceBaselines) {
+        material.emissiveIntensity = emissiveIntensity + texturePulse * FIRE_TEXTURE_EMISSIVE_PULSE;
+        material.needsUpdate = true;
+      }
+    }
   };
 
   typedMesh.add(group);
   return () => {
     group.onBeforeRender = null;
+    for (const { material, emissiveIntensity } of fireFaceBaselines) {
+      material.emissiveIntensity = emissiveIntensity;
+      material.needsUpdate = true;
+    }
     typedMesh.remove(group);
     disposeGroup(group);
   };

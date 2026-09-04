@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { DiceFireAnimatedOverlay } from './DiceFireAnimatedOverlay';
 import { DiceSkinPreviewArt } from './DiceSkinPreviewArt';
 import { DiceTypeIcon } from './DiceTypeIcon';
 import { getDiceSkinBackgroundImage } from './diceSkins.ts';
@@ -158,8 +159,12 @@ function DieSkinSurface({
                 backgroundSize: getDiceTextureBackgroundSize(appearance.textureScale),
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
+                position: 'relative',
+                overflow: 'hidden',
               }}
-            />
+            >
+              <DiceFireAnimatedOverlay appearance={appearance} />
+            </div>
           </foreignObject>
         )}
         {previewSkinArt && appearance.skinId !== 'none' && (

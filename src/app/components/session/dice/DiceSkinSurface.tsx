@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { DiceFireAnimatedOverlay, isAnimatedFireAppearance } from './DiceFireAnimatedOverlay';
 import { DiceSkinPreviewArt } from './DiceSkinPreviewArt';
 import { getDiceSkinBackgroundImage } from './diceSkins.ts';
 import { getDiceTextureBackgroundSize } from './diceTextureScale.ts';
@@ -16,11 +17,12 @@ export function DiceSkinSurface({
   illustrative?: boolean;
 }) {
   const backgroundImage = getDiceSkinBackgroundImage(appearance.skinId, appearance.bodyColor);
+  const animatedFire = isAnimatedFireAppearance(appearance);
   return (
     <span
       data-dice-skin={appearance.skinId}
       data-dice-skin-illustrative={illustrative || undefined}
-      className={`${illustrative ? 'relative overflow-hidden' : ''} ${className}`}
+      className={`${illustrative || animatedFire ? 'relative overflow-hidden' : ''} ${className}`}
       style={{
         backgroundColor: appearance.bodyColor,
         backgroundImage,
@@ -34,6 +36,7 @@ export function DiceSkinSurface({
           <DiceSkinPreviewArt skinId={appearance.skinId} bodyColor={appearance.bodyColor} />
         </svg>
       )}
+      <DiceFireAnimatedOverlay appearance={appearance} />
       {children}
     </span>
   );

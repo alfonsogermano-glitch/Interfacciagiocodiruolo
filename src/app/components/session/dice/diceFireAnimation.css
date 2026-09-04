@@ -1,0 +1,78 @@
+.hollowgate-fire-animation {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.hollowgate-fire-animation__texture {
+  position: absolute;
+  inset: 0;
+  background-position: center;
+  background-repeat: no-repeat;
+  mix-blend-mode: screen;
+  opacity: 0.08;
+  filter: brightness(1.08) saturate(1.22);
+  animation: hollowgate-fire-texture-breathe 2.8s ease-in-out infinite;
+  will-change: opacity, filter;
+}
+
+.hollowgate-fire-animation__glow {
+  position: absolute;
+  inset: -24%;
+  background:
+    radial-gradient(circle at 34% 68%, rgba(255, 186, 78, 0.34) 0 10%, rgba(255, 91, 20, 0.16) 22%, transparent 48%),
+    radial-gradient(circle at 72% 30%, rgba(255, 222, 137, 0.22) 0 7%, rgba(255, 88, 15, 0.1) 24%, transparent 43%);
+  mix-blend-mode: screen;
+  opacity: 0.18;
+  animation: hollowgate-fire-glow-drift 3.6s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+
+@keyframes hollowgate-fire-texture-breathe {
+  0%, 100% {
+    opacity: 0.07;
+    filter: brightness(1.06) saturate(1.18);
+  }
+  48% {
+    opacity: 0.22;
+    filter: brightness(1.34) saturate(1.62);
+  }
+  68% {
+    opacity: 0.15;
+    filter: brightness(1.2) saturate(1.42);
+  }
+}
+
+@keyframes hollowgate-fire-glow-drift {
+  0% {
+    transform: translate3d(-3%, 2%, 0) scale(0.94);
+    opacity: 0.14;
+  }
+  52% {
+    transform: translate3d(3%, -2%, 0) scale(1.04);
+    opacity: 0.34;
+  }
+  100% {
+    transform: translate3d(-1%, -4%, 0) scale(0.98);
+    opacity: 0.22;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hollowgate-fire-animation__texture,
+  .hollowgate-fire-animation__glow {
+    animation: none;
+  }
+
+  .hollowgate-fire-animation__texture {
+    opacity: 0.1;
+    filter: brightness(1.12) saturate(1.28);
+  }
+
+  .hollowgate-fire-animation__glow {
+    opacity: 0.1;
+    transform: none;
+  }
+}
