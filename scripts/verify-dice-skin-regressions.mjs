@@ -1,4 +1,4 @@
-// TDD RED: this test must fail against the current production implementation.
+// Regression coverage for photographic Fire/Ice rendering and user-selected colors.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
