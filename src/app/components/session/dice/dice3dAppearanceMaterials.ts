@@ -42,6 +42,7 @@ type MeshLike = { material?: MaterialLike | MaterialLike[] };
 const NEUTRAL_TEXTURE = { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' } as const;
 const MIN_TEXTURED_LABEL_CONTRAST = 7;
 const FIRE_FACE_EMISSIVE_INTENSITY = 0.18;
+const ICE_FACE_EMISSIVE_INTENSITY = 0.34;
 const TEXTURED_FACE_ANISOTROPY = 8;
 
 function captureFactoryState(factory: DiceFactoryLike) {
@@ -106,6 +107,7 @@ export function getReadable3DLabelColor(
   skinId: Dice3DAppearanceDescriptor['appearance']['skinId'],
 ): string {
   if (skinId === 'none') return symbolColor;
+  if (skinId === 'fire' || skinId === 'ice') return symbolColor;
   const background = estimatedTexturedBackground(bodyColor, skinId);
   if (contrastRatio(symbolColor, background) >= MIN_TEXTURED_LABEL_CONTRAST) return symbolColor;
 
@@ -136,10 +138,7 @@ function applyAppearanceFactoryState(factory: DiceFactoryLike, descriptor: Dice3
 
   let texture: unknown = NEUTRAL_TEXTURE;
   if (!descriptor.custom && appearance.skinId !== 'metal') {
-    const textureAppearance = appearance.skinId === 'ice'
-      ? { ...appearance, bodyColor: '#ffffff' }
-      : appearance;
-    try { texture = getDice3DTextureDescriptor(textureAppearance); }
+    try { texture = getDice3DTextureDescriptor(appearance); }
     catch (error) { console.error('Texture skin 3D non disponibile, uso il materiale neutro:', error); }
   }
   factory.dice_texture = texture;
@@ -176,6 +175,9 @@ function preserveIceFaceTexture(material: MaterialLike) {
   material.map.anisotropy = Math.max(material.map.anisotropy ?? 1, TEXTURED_FACE_ANISOTROPY);
   material.map.generateMipmaps = true;
   material.map.needsUpdate = true;
+  material.emissive?.set?.(0xffffff);
+  material.emissiveMap = material.map;
+  material.emissiveIntensity = ICE_FACE_EMISSIVE_INTENSITY;
 }
 
 function blendValue(current: number, target: number, factor: number): number { return current + (target - current) * factor; }

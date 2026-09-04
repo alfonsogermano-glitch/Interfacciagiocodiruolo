@@ -82,20 +82,16 @@ function drawFirePhotoTexture(context: CanvasRenderingContext2D, bump: CanvasRen
   return true;
 }
 
-function drawIcePhotoTexture(context: CanvasRenderingContext2D, bump: CanvasRenderingContext2D, size: number, bodyColor: string): boolean {
+function drawIcePhotoTexture(context: CanvasRenderingContext2D, bump: CanvasRenderingContext2D, size: number): boolean {
   const image = iceTextureImage;
   if (!image?.complete || image.naturalWidth <= 0) return false;
   context.save();
-  context.filter = 'brightness(1.05) saturate(1.08) contrast(1.08)';
+  context.filter = 'brightness(1.08) saturate(1.1) contrast(1.08)';
   drawImageCover(context, image, size);
   context.filter = 'none';
-  context.globalCompositeOperation = 'source-over';
-  context.globalAlpha = 0.10;
-  context.fillStyle = bodyColor;
-  context.fillRect(0, 0, size, size);
   context.globalCompositeOperation = 'screen';
-  context.globalAlpha = 0.08;
-  context.fillStyle = '#d9f8ff';
+  context.globalAlpha = 0.05;
+  context.fillStyle = '#e5fbff';
   context.fillRect(0, 0, size, size);
   context.restore();
   bump.save();
@@ -161,7 +157,9 @@ function drawPattern(textureCanvas: HTMLCanvasElement, bumpCanvas: HTMLCanvasEle
       break;
     }
     case 'ice': {
-      if (drawIcePhotoTexture(context, bump, size, bodyColor)) break;
+      if (drawIcePhotoTexture(context, bump, size)) break;
+      context.fillStyle = '#78cde4';
+      context.fillRect(0, 0, size, size);
       context.save();
       context.strokeStyle = 'rgba(226,252,255,.86)'; context.lineWidth = size / 92;
       context.shadowColor = 'rgba(113,225,255,.7)'; context.shadowBlur = size / 50;

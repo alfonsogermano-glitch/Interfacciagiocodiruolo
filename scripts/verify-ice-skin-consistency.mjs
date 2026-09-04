@@ -36,18 +36,19 @@ assert.equal(
   'f85c9884c37ae4b0d526755353fe63117fab288f2788504724bf86faf7d5851c',
   'Ice texture must match the exact optimized image generated from the user-provided ice photograph',
 );
-assert.ok(surface.includes("backgroundOrigin: appearance.skinId === 'ice' ? 'border-box' : undefined"), 'Ice swatch must paint below its border without body-color slivers');
+assert.ok(surface.includes("const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice';"), 'Fire and Ice swatches must share photographic full-coverage handling');
+assert.ok(surface.includes("backgroundOrigin: photographicSkin ? 'border-box' : undefined"), 'Photographic swatches must paint below their border without body-color slivers');
 
 assert.ok(textures.includes('const iceTextureImage = createTextureImage(ICE_TEXTURE_DATA_URL'), '3D Ice must load the same photographic texture');
-assert.ok(textures.includes('drawIcePhotoTexture(context, bump, size, bodyColor)'), '3D Ice must render the photographic source');
+assert.ok(textures.includes('drawIcePhotoTexture(context, bump, size)'), '3D Ice must render the photographic source without body-color tinting');
+assert.ok(!/drawIcePhotoTexture\([^)]*bodyColor/.test(textures), '3D Ice photographic renderer must not accept bodyColor tinting');
 assert.ok(textures.includes('applyTextureZoom(context, bump, size, textureScale)'), '3D Ice must use the shared textureScale pipeline');
 assert.ok(textures.includes('`${appearance.skinId}:${appearance.bodyColor}:${textureScale}`'), '3D texture cache must include textureScale');
-assert.ok(materials.includes("const textureAppearance = appearance.skinId === 'ice'"), '3D Ice must create its photographic map from a neutral color source');
-assert.ok(materials.includes("? { ...appearance, bodyColor: '#ffffff' }"), '3D Ice texture generation must not bake the user body color into the photographic faces');
-assert.ok(materials.includes('getDice3DTextureDescriptor(textureAppearance)'), '3D Ice must use the neutralized appearance for texture generation');
+assert.ok(materials.includes('getDice3DTextureDescriptor(appearance)'), '3D Ice must use the photographic descriptor directly');
 assert.ok(materials.includes('function preserveIceFaceTexture(material: MaterialLike)'), '3D Ice must explicitly preserve the photographic face colors');
 assert.ok(materials.includes("if (skinId === 'ice' && !descriptor.custom) preserveIceFaceTexture(material);"), '3D Ice face materials must be neutralized after dice creation');
 assert.ok(materials.includes('material.color?.set?.(0xffffff);'), 'Photographic face materials must use a neutral white multiplier');
+assert.ok(materials.includes('material.emissiveMap = material.map;'), 'Ice photographic faces must resist the warm renderer lights');
 assert.ok(materials.includes('factory.edge_color = appearance.bodyColor;'), 'The user body color must remain on the die edges');
 assert.ok(customizer.includes('textureScale: selected.textureScale'), 'Apply to all must keep textureScale');
 assert.ok(appearance.includes('textureScale: normalizeDiceTextureScale'), 'roll snapshots must normalize and preserve textureScale');
