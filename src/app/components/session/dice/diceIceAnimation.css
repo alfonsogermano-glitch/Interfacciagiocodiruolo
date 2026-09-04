@@ -1,0 +1,120 @@
+.hollowgate-ice-animation {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+  isolation: isolate;
+}
+
+.hollowgate-ice-animation__texture,
+.hollowgate-ice-animation__frost,
+.hollowgate-ice-animation__crystals,
+.hollowgate-ice-animation__shimmer {
+  position: absolute;
+  inset: 0;
+  will-change: transform, opacity, filter, background-position;
+}
+
+.hollowgate-ice-animation__texture {
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.hollowgate-ice-animation__texture--under {
+  mix-blend-mode: soft-light;
+  opacity: 0.38;
+  filter: brightness(1.08) saturate(1.02) contrast(1.16);
+  animation: hollowgate-ice-refraction-under 16s ease-in-out infinite alternate;
+}
+
+.hollowgate-ice-animation__texture--over {
+  mix-blend-mode: screen;
+  opacity: 0.2;
+  filter: brightness(1.3) saturate(0.94) contrast(1.1) blur(0.25px);
+  animation: hollowgate-ice-refraction-over 12s ease-in-out infinite alternate;
+}
+
+.hollowgate-ice-animation__frost {
+  inset: -14%;
+  background:
+    radial-gradient(ellipse at 12% 82%, rgba(228, 252, 255, 0.42) 0 8%, rgba(131, 224, 246, 0.13) 24%, transparent 50%),
+    radial-gradient(ellipse at 88% 14%, rgba(247, 255, 255, 0.36) 0 7%, rgba(143, 229, 249, 0.12) 25%, transparent 52%),
+    linear-gradient(125deg, transparent 25%, rgba(211, 249, 255, 0.12) 47%, transparent 68%);
+  mix-blend-mode: screen;
+  opacity: 0.34;
+  animation: hollowgate-ice-frost-drift 14s ease-in-out infinite alternate;
+}
+
+.hollowgate-ice-animation__crystals {
+  inset: -8%;
+  background:
+    radial-gradient(circle at 23% 29%, rgba(255, 255, 255, 0.94) 0 0.055rem, transparent 0.14rem),
+    radial-gradient(circle at 72% 18%, rgba(218, 250, 255, 0.88) 0 0.045rem, transparent 0.13rem),
+    radial-gradient(circle at 82% 68%, rgba(255, 255, 255, 0.9) 0 0.05rem, transparent 0.14rem),
+    radial-gradient(circle at 39% 78%, rgba(202, 245, 255, 0.84) 0 0.045rem, transparent 0.13rem),
+    radial-gradient(circle at 58% 45%, rgba(255, 255, 255, 0.82) 0 0.04rem, transparent 0.12rem),
+    radial-gradient(circle at 12% 52%, rgba(220, 250, 255, 0.78) 0 0.04rem, transparent 0.12rem),
+    radial-gradient(circle at 91% 40%, rgba(255, 255, 255, 0.76) 0 0.045rem, transparent 0.13rem);
+  mix-blend-mode: screen;
+  opacity: 0.24;
+  animation: hollowgate-ice-crystal-twinkle 6.2s ease-in-out infinite;
+}
+
+.hollowgate-ice-animation__shimmer {
+  inset: -42%;
+  background: linear-gradient(112deg, transparent 35%, rgba(208, 247, 255, 0.08) 43%, rgba(255, 255, 255, 0.52) 49%, rgba(148, 231, 255, 0.2) 55%, transparent 65%);
+  mix-blend-mode: screen;
+  opacity: 0.42;
+  animation: hollowgate-ice-shimmer-sweep 7.8s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+@keyframes hollowgate-ice-refraction-under {
+  0% { background-position: 46% 52%; transform: translate3d(-1.5%, 1%, 0) scale(1.03); }
+  100% { background-position: 54% 48%; transform: translate3d(1.5%, -1%, 0) scale(1.045); }
+}
+
+@keyframes hollowgate-ice-refraction-over {
+  0% { background-position: 53% 47%; transform: translate3d(1%, -0.5%, 0) scale(1.045); }
+  100% { background-position: 47% 53%; transform: translate3d(-1%, 0.5%, 0) scale(1.06); }
+}
+
+@keyframes hollowgate-ice-frost-drift {
+  0% { transform: translate3d(-2%, 1%, 0); opacity: 0.28; }
+  100% { transform: translate3d(2%, -1%, 0); opacity: 0.4; }
+}
+
+@keyframes hollowgate-ice-crystal-twinkle {
+  0%, 100% { opacity: 0.16; filter: brightness(1); }
+  28% { opacity: 0.34; filter: brightness(1.55); }
+  62% { opacity: 0.21; filter: brightness(1.16); }
+  84% { opacity: 0.4; filter: brightness(1.75); }
+}
+
+@keyframes hollowgate-ice-shimmer-sweep {
+  0%, 18% { transform: translate3d(-44%, 0, 0) rotate(1deg); opacity: 0; }
+  35% { opacity: 0.24; }
+  52% { transform: translate3d(7%, -1%, 0) rotate(1deg); opacity: 0.46; }
+  72% { opacity: 0.18; }
+  88%, 100% { transform: translate3d(44%, 1%, 0) rotate(1deg); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hollowgate-ice-animation__texture,
+  .hollowgate-ice-animation__frost,
+  .hollowgate-ice-animation__crystals,
+  .hollowgate-ice-animation__shimmer {
+    animation: none;
+    transform: none;
+  }
+
+  .hollowgate-ice-animation__texture--under { opacity: 0.3; }
+  .hollowgate-ice-animation__texture--over { opacity: 0.11; }
+  .hollowgate-ice-animation__frost { opacity: 0.22; }
+  .hollowgate-ice-animation__crystals { opacity: 0.14; }
+  .hollowgate-ice-animation__shimmer { opacity: 0.08; }
+}
+
+[data-dice-skin-preview-art="ice"] {
+  display: none;
+}

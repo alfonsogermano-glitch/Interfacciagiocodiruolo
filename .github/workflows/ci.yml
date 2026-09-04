@@ -28,5 +28,7 @@ jobs:
           path: /tmp/hollowgate-note-tables-workspace.tgz
           retention-days: 1
       - run: node scripts/verify-fire-animation.mjs
-      - run: npm audit --audit-level=high
+      - run: node scripts/verify-ice-skin-consistency.mjs
+      - run: node scripts/verify-ice-animation.mjs
       - run: npm run check
+      - run: npm audit --audit-level=high

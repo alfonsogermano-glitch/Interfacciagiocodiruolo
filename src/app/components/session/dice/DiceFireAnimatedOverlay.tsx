@@ -1,3 +1,4 @@
+import { DiceIceAnimatedOverlay } from './DiceIceAnimatedOverlay';
 import { FIRE_TEXTURE_DATA_URL } from './fireTextureData.ts';
 import { getDiceTextureBackgroundSize } from './diceTextureScale.ts';
 import type { DiceAppearance } from './diceTypes.ts';
@@ -8,6 +9,7 @@ export function isAnimatedFireAppearance(appearance: DiceAppearance): boolean {
 }
 
 export function DiceFireAnimatedOverlay({ appearance }: { appearance: DiceAppearance }) {
+  if (appearance.skinId === 'ice') return <DiceIceAnimatedOverlay appearance={appearance} />;
   if (appearance.skinId !== 'fire' || !appearance.effectsEnabled) return null;
 
   const textureStyle = {
