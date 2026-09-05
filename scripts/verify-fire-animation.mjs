@@ -37,6 +37,7 @@ assert.ok(boost.includes('window.requestAnimationFrame(frame)') && boost.include
 assert.doesNotMatch(boost, /group\.onBeforeRender\s*=/, '3D Fire pulse must not depend on Group.onBeforeRender');
 assert.ok(renderer.includes('private releaseAppearanceEffects') && renderer.includes('this.releaseAppearanceEffects();'), 'renderer must retain appearance effects until the dice are actually cleared');
 assert.doesNotMatch(renderer, /finally\s*\{[^}]*restoreAppearance\?\.\(\)/s, 'renderer must not stop appearance effects immediately when roll() settles');
-assert.ok(session.includes('DICE_ANIMATED_SETTLED_HOLD_MS = 3000'), 'animated dice must remain visible for three seconds after settling');
+assert.ok(renderer.includes('this.startSettledRenderLoop();') && renderer.includes('this.stopSettledRenderLoop();'), 'Fire effects must keep rendering throughout the settled hold and stop only on clear');
+assert.ok(session.includes('DICE_ANIMATED_SETTLED_HOLD_MS = 2000'), 'animated dice must remain visible for two seconds after settling');
 assert.ok(session.includes('descriptor?.appearance.effectsEnabled'), 'settled hold must detect whether animated effects are active');
 console.log('Animated Fire skin verification passed.');

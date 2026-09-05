@@ -1,4 +1,4 @@
-// Regression coverage for photographic Fire/Ice rendering and user-selected colors.
+// Regression coverage for photographic Fire/Ice rendering, user-selected colors, and settled 3D effects.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
@@ -7,6 +7,8 @@ const surface = fs.readFileSync(new URL('src/app/components/session/dice/DiceSki
 const icon = fs.readFileSync(new URL('src/app/components/session/dice/StyledStandardDieIcon.tsx', root), 'utf8');
 const materials = fs.readFileSync(new URL('src/app/components/session/dice/dice3dAppearanceMaterials.ts', root), 'utf8');
 const textures = fs.readFileSync(new URL('src/app/components/session/dice/dice3dSkinTextures.ts', root), 'utf8');
+const session = fs.readFileSync(new URL('src/app/components/session/dice/DiceSessionContext.tsx', root), 'utf8');
+const renderer = fs.readFileSync(new URL('src/app/components/session/dice/dice3dRenderer.ts', root), 'utf8');
 
 const failures = [];
 const expect = (condition, message) => { if (!condition) failures.push(message); };
@@ -37,6 +39,27 @@ expect(iceMaterialFn.includes('material.emissive?.set?.(0xffffff)'), 'Ice faces 
 expect(iceMaterialFn.includes('material.emissiveMap = material.map'), 'Ice faces must use their photographic map as emissiveMap to resist warm scene lighting');
 expect(iceMaterialFn.includes('ICE_FACE_EMISSIVE_INTENSITY'), 'Ice face emissive intensity must be explicit and stable');
 
+expect(
+  session.includes('const DICE_ANIMATED_SETTLED_HOLD_MS = 2000;'),
+  'Animated dice must remain settled for 2000 ms, one second less than before',
+);
+expect(
+  renderer.includes('private settledRenderRaf: number | null = null;'),
+  '3D renderer must own a settled-phase RAF so effects keep rendering after physics stop',
+);
+expect(
+  renderer.includes('this.startSettledRenderLoop();'),
+  '3D renderer must start the settled redraw loop after an effects-enabled roll finishes',
+);
+expect(
+  renderer.includes('box.renderer.render(box.scene, box.camera);'),
+  'Settled redraw loop must render the Three.js scene while effects continue updating',
+);
+expect(
+  renderer.includes('this.stopSettledRenderLoop();'),
+  'Settled redraw loop must be stopped when the dice are cleared or replaced',
+);
+
 if (failures.length) {
   throw new assert.AssertionError({
     message: `Dice skin regressions still present:\n- ${failures.join('\n- ')}`,
@@ -46,4 +69,4 @@ if (failures.length) {
   });
 }
 
-console.log('Fire/Ice swatch coverage, exact number colors, and neutral Ice 3D color verification passed.');
+console.log('Fire/Ice rendering, exact colors, neutral Ice 3D color, and settled-effect lifecycle verification passed.');

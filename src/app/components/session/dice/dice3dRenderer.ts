@@ -11,6 +11,9 @@ type DiceBoxInstance = {
   clearDice: () => void;
   DiceFactory?: unknown;
   getNotationVectors?: (...args: unknown[]) => unknown;
+  renderer?: { render: (scene: unknown, camera: unknown) => void };
+  scene?: unknown;
+  camera?: unknown;
 };
 
 type DiceBoxConstructor = new (selector: string, options?: Record<string, unknown>) => DiceBoxInstance;
@@ -50,10 +53,36 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
   private container: HTMLElement | null = null;
   private selector: string | null = null;
   private restoreAppearanceEffects: (() => void) | null = null;
+  private settledRenderRaf: number | null = null;
 
   private releaseAppearanceEffects(): void {
     this.restoreAppearanceEffects?.();
     this.restoreAppearanceEffects = null;
+  }
+
+  private stopSettledRenderLoop(): void {
+    if (typeof window !== 'undefined' && this.settledRenderRaf !== null) {
+      window.cancelAnimationFrame(this.settledRenderRaf);
+    }
+    this.settledRenderRaf = null;
+  }
+
+  private startSettledRenderLoop(): void {
+    this.stopSettledRenderLoop();
+    if (typeof window === 'undefined') return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+
+    const frame = () => {
+      const box = this.box;
+      if (!box?.renderer || box.scene === undefined || box.camera === undefined) {
+        this.settledRenderRaf = null;
+        return;
+      }
+      box.renderer.render(box.scene, box.camera);
+      this.settledRenderRaf = window.requestAnimationFrame(frame);
+    };
+
+    this.settledRenderRaf = window.requestAnimationFrame(frame);
   }
 
   async init(container: HTMLElement): Promise<void> {
@@ -87,10 +116,13 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
     if (!notation) return;
 
     let restoreCustomMaterials: (() => void) | null = null;
+    let keepEffectsRendering = false;
+    this.stopSettledRenderLoop();
     this.releaseAppearanceEffects();
     const stopEffectsOnAbort = () => this.releaseAppearanceEffects();
     try {
       const appearanceQueue = buildSimultaneousAppearanceQueue(chunks);
+      keepEffectsRendering = appearanceQueue.some((descriptor) => descriptor?.appearance.effectsEnabled);
       if (appearanceQueue.some(Boolean)) {
         try {
           const installed = installDiceAppearanceAdapter(this.box, appearanceQueue);
@@ -114,6 +146,7 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
       throwIfAborted(signal);
       await this.box.roll(notation);
       throwIfAborted(signal);
+      if (keepEffectsRendering) this.startSettledRenderLoop();
     } finally {
       signal.removeEventListener('abort', stopEffectsOnAbort);
       restoreCustomMaterials?.();
@@ -122,6 +155,7 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
   }
 
   clear(): void {
+    this.stopSettledRenderLoop();
     try {
       this.box?.clearDice();
     } catch {
