@@ -28,13 +28,13 @@ const encoded = chunks.map((content, index) => {
   return match[1];
 }).join('');
 const image = Buffer.from(encoded, 'base64');
-assert.equal(image.length, 54_284, 'Ice texture must match the optimized user-provided photographic WebP payload');
+assert.equal(image.length, 44_108, 'Ice texture must match the optimized bright user-provided photographic WebP payload');
 assert.equal(image.subarray(0, 4).toString('ascii'), 'RIFF', 'Ice texture must be a RIFF image');
 assert.equal(image.subarray(8, 12).toString('ascii'), 'WEBP', 'Ice texture must be a WebP image');
 assert.equal(
   createHash('sha256').update(image).digest('hex'),
-  'f85c9884c37ae4b0d526755353fe63117fab288f2788504724bf86faf7d5851c',
-  'Ice texture must match the exact optimized image generated from the user-provided ice photograph',
+  '7ddacb18f866baeff79e6a789e67e2516a8fd7cd65a5423bb5029306bfe02bfb',
+  'Ice texture must match the exact optimized image generated from the user-provided bright ice photograph',
 );
 assert.ok(surface.includes("const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice';"), 'Fire and Ice swatches must share photographic full-coverage handling');
 assert.ok(surface.includes("backgroundOrigin: photographicSkin ? 'border-box' : undefined"), 'Photographic swatches must paint below their border without body-color slivers');
