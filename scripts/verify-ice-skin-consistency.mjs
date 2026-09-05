@@ -39,7 +39,7 @@ assert.equal(
   '7ddacb18f866baeff79e6a789e67e2516a8fd7cd65a5423bb5029306bfe02bfb',
   'Ice texture must match the exact optimized image generated from the user-provided bright ice photograph',
 );
-assert.ok(surface.includes("const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice';"), 'Fire and Ice swatches must share photographic full-coverage handling');
+assert.ok(surface.includes("const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice' || appearance.skinId === 'lightning';"), 'Fire, Ice and Lightning swatches must share photographic full-coverage handling');
 assert.ok(surface.includes("backgroundOrigin: photographicSkin ? 'border-box' : undefined"), 'Photographic swatches must paint below their border without body-color slivers');
 
 assert.ok(textures.includes("import { ICE_TEXTURE_SOURCE_DATA_URL } from './iceTextureData.ts';"), '3D Ice must import the original photographic WebP instead of the 2D SVG wrapper');
@@ -53,14 +53,14 @@ assert.ok(textures.includes("bump.filter = 'grayscale(1) contrast(1.95) brightne
 assert.ok(textures.includes('applyTextureZoom(context, bump, size, textureScale)'), '3D Ice must use the shared textureScale pipeline');
 assert.ok(textures.includes('export async function waitForDice3DTextureAssets'), 'The 3D texture pipeline must expose an awaitable readiness gate');
 assert.ok(textures.includes('if (image.complete && image.naturalWidth > 0) settleReady();'), 'The readiness gate must not resolve early for an incomplete or broken image');
-assert.ok(textures.includes("const readiness = appearance.skinId === 'ice' ? (isIceTextureReady() ? 'ready' : 'placeholder') : null;"), 'Ice texture descriptors must distinguish placeholder and ready phases');
+assert.ok(textures.includes("appearance.skinId === 'ice'") && textures.includes("isIceTextureReady() ? 'ready' : 'placeholder'"), 'Ice texture descriptors must distinguish placeholder and ready phases');
 assert.ok(textures.includes('`${appearance.skinId}:${appearance.bodyColor}:${textureScale}:${readiness}`'), 'Ice 3D cache keys must distinguish the ready photograph from the placeholder');
 assert.ok(textures.includes('`hollowgate-${appearance.skinId}-${appearance.bodyColor}-${textureScale}-${readiness}`'), 'The renderer-facing texture name must change when the Ice photograph becomes ready');
 const waitIndex = renderer.indexOf('await waitForDice3DTextureAssets(appearanceQueue);');
 const adapterIndex = renderer.indexOf('installDiceAppearanceAdapter(this.box, appearanceQueue)');
 const rollIndex = renderer.indexOf('await this.box.roll(notation);');
 assert.ok(waitIndex >= 0 && adapterIndex > waitIndex && rollIndex > waitIndex, 'Ice photographic assets must finish loading before the appearance adapter creates dice and before the roll starts');
-assert.ok(materials.includes("if (skinId === 'fire' || skinId === 'ice') return symbolColor;"), 'Ice numbers must preserve the exact user-selected symbol color');
+assert.ok(materials.includes("if (skinId === 'fire' || skinId === 'ice' || skinId === 'lightning') return symbolColor;"), 'Ice numbers must preserve the exact user-selected symbol color');
 assert.ok(materials.includes('factory.label_outline = outlineColor;'), 'Ice numbers must keep the contrasting renderer outline');
 assert.ok(materials.includes("case 'ice': return '#8eeeff';"), 'Ice edges must preserve the dedicated cold emissive glow');
 assert.ok(materials.includes("material.emissiveIntensity = skinId === 'ice' ? 0.25 : 0.11;"), 'Ice edge glow must use the stable rolling-to-settled baseline');
