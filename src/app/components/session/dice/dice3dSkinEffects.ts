@@ -72,7 +72,7 @@ export function getDice3DSkinEffectProfile(
     case 'fire':
       return { frequency: 6.8, emissiveColor: '#ff5b14', emissiveBase: 0.05, emissivePulse: 0.26, roughnessPulse: 0.16, metalnessPulse: 0, shininessPulse: 42, particleColor: '#ffb347', particleCount: 16, particleOpacity: 0.98, particleSize: 0.13, orbitSpeed: 2.35, lightningBolts: 0, arcaneRing: false };
     case 'ice':
-      return { frequency: 4.1, emissiveColor: '#70eaff', emissiveBase: 0.025, emissivePulse: 0.14, roughnessPulse: 0.13, metalnessPulse: 0.025, shininessPulse: 56, particleColor: '#e5fbff', particleCount: 12, particleOpacity: 0.84, particleSize: 0.105, orbitSpeed: 1.0, lightningBolts: 0, arcaneRing: false };
+      return { frequency: 4.1, emissiveColor: '#70eaff', emissiveBase: 0.25, emissivePulse: 0, roughnessPulse: 0, metalnessPulse: 0, shininessPulse: 0, particleColor: '#e5fbff', particleCount: 12, particleOpacity: 0.84, particleSize: 0.105, orbitSpeed: 1.0, lightningBolts: 0, arcaneRing: false };
     case 'lightning':
       return { frequency: 15.5, emissiveColor: '#43dcff', emissiveBase: 0.04, emissivePulse: 0.4, roughnessPulse: 0.2, metalnessPulse: 0.02, shininessPulse: 74, particleColor: '#d2faff', particleCount: 10, particleOpacity: 1, particleSize: 0.105, orbitSpeed: 3.25, lightningBolts: 5, arcaneRing: false };
     case 'poison':
