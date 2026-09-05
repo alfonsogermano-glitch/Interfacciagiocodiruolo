@@ -31,7 +31,7 @@ function createTextureImage(dataUrl: string, cachePrefix: string): TextureImageR
   }, { once: true });
   image.addEventListener('error', settleReady, { once: true });
   image.src = dataUrl;
-  if (image.complete) settleReady();
+  if (image.complete && image.naturalWidth > 0) settleReady();
   return { image, ready };
 }
 
