@@ -105,7 +105,7 @@ function drawIcePhotoTexture(context: CanvasRenderingContext2D, bump: CanvasRend
   const image = iceTextureImage;
   if (!image?.complete || image.naturalWidth <= 0) return false;
   context.save();
-  context.filter = 'brightness(1.16) saturate(1.16) contrast(1.14)';
+  context.filter = 'brightness(1.22) saturate(1.16) contrast(1.14)';
   drawImageCover(context, image, size);
   context.filter = 'none';
   context.globalCompositeOperation = 'screen';
