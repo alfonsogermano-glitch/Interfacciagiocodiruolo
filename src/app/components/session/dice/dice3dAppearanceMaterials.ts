@@ -95,6 +95,7 @@ function contrastRatio(a: string, b: string): number {
 function estimatedTexturedBackground(bodyColor: string, skinId: Dice3DAppearanceDescriptor['appearance']['skinId']): string {
   switch (skinId) {
     case 'fire': return mixHexColor('#202329', bodyColor, 0.18);
+    case 'ice': return mixHexColor('#a8dbe5', bodyColor, 0.12);
     case 'obsidian': return mixHexColor(bodyColor, '#000000', 0.52);
     case 'stone': return mixHexColor(bodyColor, '#000000', 0.2);
     default: return bodyColor;
@@ -107,7 +108,7 @@ export function getReadable3DLabelColor(
   skinId: Dice3DAppearanceDescriptor['appearance']['skinId'],
 ): string {
   if (skinId === 'none') return symbolColor;
-  if (skinId === 'fire' || skinId === 'ice') return symbolColor;
+  if (skinId === 'fire') return symbolColor;
   const background = estimatedTexturedBackground(bodyColor, skinId);
   if (contrastRatio(symbolColor, background) >= MIN_TEXTURED_LABEL_CONTRAST) return symbolColor;
 
@@ -171,7 +172,7 @@ function preserveFireFaceTexture(material: MaterialLike) {
 function blendValue(current: number, target: number, factor: number): number { return current + (target - current) * factor; }
 function edgeGlowColor(skinId: Dice3DAppearanceDescriptor['appearance']['skinId']): string | null {
   switch (skinId) {
-    case 'fire': return '#ff5518'; case 'lightning': return '#42dcff'; case 'poison': return '#62d94d'; case 'obsidian': return '#8158e8'; case 'arcane': return '#b958f2'; default: return null;
+    case 'fire': return '#ff5518'; case 'ice': return '#8eeeff'; case 'lightning': return '#42dcff'; case 'poison': return '#62d94d'; case 'obsidian': return '#8158e8'; case 'arcane': return '#b958f2'; default: return null;
   }
 }
 
@@ -205,7 +206,7 @@ function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescri
     const glowColor = edgeGlowColor(skinId);
     if (glowColor && material.emissive && typeof material.emissive.set === 'function') {
       material.emissive.set(glowColor);
-      if (typeof material.emissiveIntensity === 'number') material.emissiveIntensity = 0.11;
+      if (typeof material.emissiveIntensity === 'number') material.emissiveIntensity = skinId === 'ice' ? 0.18 : 0.11;
     }
     material.needsUpdate = true;
   });
