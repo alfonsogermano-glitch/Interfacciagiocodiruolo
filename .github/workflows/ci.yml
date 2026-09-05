@@ -30,6 +30,7 @@ jobs:
       - run: node scripts/verify-fire-animation.mjs
       - run: node scripts/verify-ice-skin-consistency.mjs
       - run: node scripts/verify-ice-animation.mjs
+      - run: node scripts/verify-lightning-skin-consistency.mjs
       - run: node scripts/verify-dice-skin-regressions.mjs
       - run: npm run verify:dice-surface-profiles
       - run: npm run check
