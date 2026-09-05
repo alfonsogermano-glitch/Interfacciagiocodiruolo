@@ -31,28 +31,48 @@ expect(
   '3D Fire/Ice/Lightning numbers must preserve the exact user-selected symbol color',
 );
 expect(
+  materials.includes("import { applyDice3DSurfaceProfile, getDice3DSurfaceProfile } from './dice3dSurfaceProfiles.ts';"),
+  '3D label highlighting must reuse the shared surface-profile classification',
+);
+expect(
   materials.includes('const DICE_SKIN_LABEL_OUTLINE_WIDTH = 8;'),
-  'Skinned 3D dice must use a stronger shared label outline than the renderer default',
+  'Lit skinned dice must keep the existing shared outline minimum',
 );
 expect(
-  materials.includes('function runWithDice3DLabelOutlineBoost'),
-  '3D dice must centralize label-outline boosting for current and future skins',
+  materials.includes('const PHOTO_UNLIT_LABEL_OUTLINE_MIN_WIDTH = 18;'),
+  'Photo-unlit dice must enforce a visibly stronger outline minimum after texture downscaling',
 );
 expect(
-  materials.includes('Math.max(previousLineWidth, DICE_SKIN_LABEL_OUTLINE_WIDTH)'),
-  'Shared outline boosting must preserve thicker renderer strokes while enforcing the skin minimum',
+  materials.includes('const PHOTO_UNLIT_LABEL_OUTLINE_MAX_WIDTH = 32;'),
+  'Photo-unlit outline scaling must have a safe upper bound',
+);
+expect(
+  materials.includes('const PHOTO_UNLIT_LABEL_OUTLINE_FONT_RATIO = 0.09;'),
+  'Photo-unlit outlines must scale proportionally with the renderer font size',
+);
+expect(
+  materials.includes('function dice3DLabelOutlineWidth'),
+  '3D dice must centralize proportional label-outline sizing',
+);
+expect(
+  materials.includes("getDice3DSurfaceProfile(descriptor.appearance.skinId) !== 'photo-unlit'"),
+  'Ice, Lightning and future photo-unlit skins must inherit the stronger proportional outline automatically',
+);
+expect(
+  materials.includes('Number.parseFloat(context.font)'),
+  'Photo-unlit label-outline sizing must derive from the actual canvas font size',
+);
+expect(
+  materials.includes('runWithDice3DLabelOutlineBoost(descriptor, () => originalCreate(type))'),
+  'Standard skinned dice creation must render labels through the profile-aware outline boost',
+);
+expect(
+  materials.includes('runWithDice3DLabelOutlineBoost(descriptor, () => previousSwapD4.call(box, dicemesh, result))'),
+  'D4 face swaps must retain the same profile-aware label outline',
 );
 expect(
   materials.includes("!descriptor.custom && descriptor.appearance.skinId !== 'none'"),
-  'Shared outline boosting must apply automatically to every standard current/future skin while leaving unskinned/custom dice untouched',
-);
-expect(
-  materials.includes('runWithDice3DLabelOutlineBoost(() => originalCreate(type))'),
-  'Standard skinned dice creation must render labels through the shared stronger outline',
-);
-expect(
-  materials.includes('runWithDice3DLabelOutlineBoost(() => previousSwapD4.call(box, dicemesh, result))'),
-  'D4 face swaps must retain the same stronger skinned-label outline',
+  'Shared outline boosting must leave unskinned/custom dice untouched',
 );
 
 const iceTextureFn = textures.match(/function drawIcePhotoTexture[\s\S]*?\n}\n/)?.[0] ?? '';
@@ -66,7 +86,6 @@ expect(!/drawLightningPhotoTexture\([^)]*bodyColor/.test(textures), 'Lightning t
 
 const iceMaterialFn = materials.match(/function preserveIceFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
 expect(iceMaterialFn === '', 'Ice must not emulate an unlit surface by mutating a lit Phong material');
-expect(materials.includes("import { applyDice3DSurfaceProfile } from './dice3dSurfaceProfiles.ts';"), 'The appearance adapter must use the shared surface-profile pipeline');
 expect(materials.includes('applyDice3DSurfaceProfile(mesh, descriptor);'), 'Every standard die must apply its declared surface profile');
 expect(profiles.includes("ice: 'photo-unlit'"), 'Ice must declare the reusable photo-unlit profile');
 expect(profiles.includes("lightning: 'photo-unlit'"), 'Lightning must reuse the photo-unlit profile for stable vivid faces');
@@ -105,4 +124,4 @@ if (failures.length) {
   });
 }
 
-console.log('Fire/Ice/Lightning rendering, exact colors, shared highlighted 3D labels, photo-unlit profiles, and settled-effect lifecycle verification passed.');
+console.log('Fire/Ice/Lightning rendering, exact colors, proportional photo-unlit labels, shared surface profiles, and settled-effect lifecycle verification passed.');
