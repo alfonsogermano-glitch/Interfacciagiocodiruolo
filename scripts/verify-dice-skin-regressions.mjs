@@ -1,4 +1,4 @@
-// Regression coverage for photographic Fire/Ice/Lightning rendering, user-selected colors, and settled 3D effects.
+// Regression coverage for photographic Fire/Ice/Lightning rendering, user-selected colors, highlighted 3D labels, and settled effects.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
@@ -29,6 +29,30 @@ expect(
 expect(
   materials.includes("if (skinId === 'fire' || skinId === 'ice' || skinId === 'lightning') return symbolColor;"),
   '3D Fire/Ice/Lightning numbers must preserve the exact user-selected symbol color',
+);
+expect(
+  materials.includes('const DICE_SKIN_LABEL_OUTLINE_WIDTH = 8;'),
+  'Skinned 3D dice must use a stronger shared label outline than the renderer default',
+);
+expect(
+  materials.includes('function runWithDice3DLabelOutlineBoost'),
+  '3D dice must centralize label-outline boosting for current and future skins',
+);
+expect(
+  materials.includes('Math.max(previousLineWidth, DICE_SKIN_LABEL_OUTLINE_WIDTH)'),
+  'Shared outline boosting must preserve thicker renderer strokes while enforcing the skin minimum',
+);
+expect(
+  materials.includes("!descriptor.custom && descriptor.appearance.skinId !== 'none'"),
+  'Shared outline boosting must apply automatically to every standard current/future skin while leaving unskinned/custom dice untouched',
+);
+expect(
+  materials.includes('runWithDice3DLabelOutlineBoost(() => originalCreate(type))'),
+  'Standard skinned dice creation must render labels through the shared stronger outline',
+);
+expect(
+  materials.includes('runWithDice3DLabelOutlineBoost(() => previousSwapD4.call(box, dicemesh, result))'),
+  'D4 face swaps must retain the same stronger skinned-label outline',
 );
 
 const iceTextureFn = textures.match(/function drawIcePhotoTexture[\s\S]*?\n}\n/)?.[0] ?? '';
@@ -81,4 +105,4 @@ if (failures.length) {
   });
 }
 
-console.log('Fire/Ice/Lightning rendering, exact colors, shared photo-unlit profiles, and settled-effect lifecycle verification passed.');
+console.log('Fire/Ice/Lightning rendering, exact colors, shared highlighted 3D labels, photo-unlit profiles, and settled-effect lifecycle verification passed.');
