@@ -17,6 +17,7 @@ type MeshLike = {
 };
 
 const FIRE_TEXTURE_EMISSIVE_PULSE = 0.48;
+const ICE_LIGHT_INTENSITY = 0.56;
 
 function radiusOf(mesh: MeshLike): number {
   if (!mesh.geometry) return 1;
@@ -84,7 +85,7 @@ export function installDice3DVisualBoost(
 
   const pointLight = new THREE.PointLight(
     lightColor,
-    skin === 'lightning' ? 0.85 : 0.65,
+    skin === 'ice' ? ICE_LIGHT_INTENSITY : skin === 'lightning' ? 0.85 : 0.65,
     radius * 4.9,
     2,
   );
@@ -105,7 +106,9 @@ export function installDice3DVisualBoost(
       ? 0.55 + rollingPulse * 0.75
       : skin === 'fire'
         ? 0.6 + rollingPulse * 1.12
-        : 0.35 + rollingPulse * 0.42;
+        : skin === 'ice'
+          ? ICE_LIGHT_INTENSITY
+          : 0.35 + rollingPulse * 0.42;
 
     if (fireFaceBaselines.length > 0) {
       const magmaPulse = clamp01(0.24 + slow * 0.28 + medium * 0.24 + fast * 0.18 + ((Math.sin(seconds * 10.3 + 1.7) + 1) / 2) * 0.14);
