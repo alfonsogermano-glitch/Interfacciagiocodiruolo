@@ -60,8 +60,8 @@ const waitIndex = renderer.indexOf('await waitForDice3DTextureAssets(appearanceQ
 const adapterIndex = renderer.indexOf('installDiceAppearanceAdapter(this.box, appearanceQueue)');
 const rollIndex = renderer.indexOf('await this.box.roll(notation);');
 assert.ok(waitIndex >= 0 && adapterIndex > waitIndex && rollIndex > waitIndex, 'Ice photographic assets must finish loading before the appearance adapter creates dice and before the roll starts');
-assert.ok(materials.includes("case 'ice': return mixHexColor('#a8dbe5', bodyColor, 0.12);"), 'Ice label contrast must be evaluated against the bright photographic face instead of raw body color');
-assert.ok(materials.includes("if (skinId === 'fire') return symbolColor;"), 'Fire labels must remain untouched while Ice labels enter the contrast guard');
+assert.ok(materials.includes("if (skinId === 'fire' || skinId === 'ice') return symbolColor;"), 'Ice numbers must preserve the exact user-selected symbol color');
+assert.ok(materials.includes('factory.label_outline = outlineColor;'), 'Ice numbers must keep the contrasting renderer outline');
 assert.ok(materials.includes("case 'ice': return '#8eeeff';"), 'Ice edges must receive a dedicated cold emissive glow');
 assert.ok(materials.includes("material.emissiveIntensity = skinId === 'ice' ? 0.18 : 0.11;"), 'Ice edge glow must be stronger than the generic static skin glow without becoming neon');
 assert.ok(materials.includes('getDice3DTextureDescriptor(appearance)'), '3D Ice must use the photographic descriptor directly');
@@ -75,4 +75,4 @@ assert.ok(customizer.includes('textureScale: selected.textureScale'), 'Apply to 
 assert.ok(appearance.includes('textureScale: normalizeDiceTextureScale'), 'roll snapshots must normalize and preserve textureScale');
 assert.ok(service.includes('texture_scale: normalizeDiceTextureScale(style.textureScale)'), 'Supabase persistence must preserve textureScale');
 assert.ok(fire.includes('FIRE_TEXTURE_CHUNK_0'), 'Fire texture pipeline must remain intact');
-console.log('Ice photographic texture, direct 3D loading, cache readiness, brighter face polish, label contrast, cold edge glow, and shared 2D/3D zoom verification passed.');
+console.log('Ice photographic texture, direct 3D loading, cache readiness, brighter face polish, preserved symbol color, cold edge glow, and shared 2D/3D zoom verification passed.');
