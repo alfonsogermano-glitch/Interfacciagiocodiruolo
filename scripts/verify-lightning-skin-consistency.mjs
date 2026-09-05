@@ -33,11 +33,27 @@ assert.ok(data.includes('export const LIGHTNING_TEXTURE_DATA_URL = LIGHTNING_TEX
 assert.ok(chunks.every((content, index) => content.includes(`LIGHTNING_TEXTURE_CHUNK_${index}`)), 'Every Lightning texture chunk must export its indexed payload');
 assert.ok(Array.from({ length: 8 }, (_, index) => data.includes(`LIGHTNING_TEXTURE_CHUNK_${index}`)).every(Boolean), 'Lightning texture data must assemble every embedded chunk');
 
-const encoded = chunks.map((content, index) => {
+const expectedChunkHashes = [
+  '13175888f13a1345b642ffd57b3b7771f2fd812f6b18ad1ebf4cb34b08a7b59b',
+  'c9c52c1e83a0d181b5c4a193977372561f710cbf2db8fd8ee2f51c6ac52c0f44',
+  '348cec3137ba963ef49b4c9479d360b2f5c1d6e5c4672ec46c2352f5591ff96f',
+  'b4936225957df42577d605e09e58366d6dde71685045ab58ea88467509b3fc5c',
+  'b68afff3ce60e01d7d3e449da3d874c7d6e006193f2740d4474994cdaf1bf474',
+  '41f602bc734bbb79cf73cbd39f210522545f5d9d68ba25710c7082f5df9250b5',
+  '8e223605b23350f20007174281d991f5e76e367f5b87b01b76a79dfcca96e91d',
+  '61c2b317dac8551ad88c6bf653e193fd8b0f432bff2f1ace42dfc400054a59e8',
+];
+const encodedChunks = chunks.map((content, index) => {
   const match = content.match(new RegExp(`LIGHTNING_TEXTURE_CHUNK_${index}\\s*=\\s*['\"]([^'\"]+)['\"]`));
   assert.ok(match, `Lightning texture chunk ${index} must contain base64 payload`);
+  assert.equal(
+    createHash('sha256').update(match[1]).digest('hex'),
+    expectedChunkHashes[index],
+    `Lightning texture chunk ${index} must match the approved asset`,
+  );
   return match[1];
-}).join('');
+});
+const encoded = encodedChunks.join('');
 const image = Buffer.from(encoded, 'base64');
 assert.equal(image.length, 74_492, 'Lightning texture must match the optimized 512px production WebP payload');
 assert.equal(image.subarray(0, 4).toString('ascii'), 'RIFF', 'Lightning texture must be a RIFF image');
