@@ -44,6 +44,7 @@ const NEUTRAL_TEXTURE = { name: 'none', texture: null, bump: null, composite: 's
 const MIN_TEXTURED_LABEL_CONTRAST = 7;
 const FIRE_FACE_EMISSIVE_INTENSITY = 0.18;
 const TEXTURED_FACE_ANISOTROPY = 8;
+const DICE_SKIN_LABEL_OUTLINE_WIDTH = 8;
 
 function captureFactoryState(factory: DiceFactoryLike) {
   return {
@@ -52,6 +53,37 @@ function captureFactoryState(factory: DiceFactoryLike) {
     dice_texture: factory.dice_texture, dice_texture_rand: factory.dice_texture_rand, dice_material: factory.dice_material, dice_material_rand: factory.dice_material_rand,
     material_options: factory.material_options,
   };
+}
+
+function runWithDice3DLabelOutlineBoost<T>(work: () => T): T {
+  if (typeof CanvasRenderingContext2D === 'undefined') return work();
+  const prototype = CanvasRenderingContext2D.prototype;
+  const originalStrokeText = prototype.strokeText;
+  prototype.strokeText = function (
+    this: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    maxWidth?: number,
+  ): void {
+    const previousLineWidth = this.lineWidth;
+    this.lineWidth = Math.max(previousLineWidth, DICE_SKIN_LABEL_OUTLINE_WIDTH);
+    try {
+      if (typeof maxWidth === 'number') originalStrokeText.call(this, text, x, y, maxWidth);
+      else originalStrokeText.call(this, text, x, y);
+    } finally {
+      this.lineWidth = previousLineWidth;
+    }
+  };
+  try {
+    return work();
+  } finally {
+    prototype.strokeText = originalStrokeText;
+  }
+}
+
+function shouldBoostDice3DLabelOutline(descriptor: Dice3DAppearanceDescriptor): boolean {
+  return !descriptor.custom && descriptor.appearance.skinId !== 'none';
 }
 
 function parseHexColor(color: string): [number, number, number] {
@@ -246,7 +278,9 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
     }
     try {
       applyAppearanceFactoryState(factory, descriptor);
-      const mesh = originalCreate(type);
+      const mesh = shouldBoostDice3DLabelOutline(descriptor)
+        ? runWithDice3DLabelOutlineBoost(() => originalCreate(type))
+        : originalCreate(type);
       applyStaticSkinToMesh(mesh, descriptor);
       applyDice3DSurfaceProfile(mesh, descriptor);
       effects.registerMesh(mesh, descriptor);
@@ -266,7 +300,9 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
       const originalState = captureFactoryState(factory);
       try {
         applyAppearanceFactoryState(factory, descriptor);
-        const swapped = previousSwapD4.call(box, dicemesh, result);
+        const swapped = shouldBoostDice3DLabelOutline(descriptor)
+          ? runWithDice3DLabelOutlineBoost(() => previousSwapD4.call(box, dicemesh, result))
+          : previousSwapD4.call(box, dicemesh, result);
         applyStaticSkinToMesh(dicemesh, descriptor);
         applyDice3DSurfaceProfile(dicemesh, descriptor);
         return swapped;
