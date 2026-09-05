@@ -6,6 +6,7 @@ const root = new URL('../', import.meta.url);
 const surface = fs.readFileSync(new URL('src/app/components/session/dice/DiceSkinSurface.tsx', root), 'utf8');
 const icon = fs.readFileSync(new URL('src/app/components/session/dice/StyledStandardDieIcon.tsx', root), 'utf8');
 const materials = fs.readFileSync(new URL('src/app/components/session/dice/dice3dAppearanceMaterials.ts', root), 'utf8');
+const profiles = fs.readFileSync(new URL('src/app/components/session/dice/dice3dSurfaceProfiles.ts', root), 'utf8');
 const textures = fs.readFileSync(new URL('src/app/components/session/dice/dice3dSkinTextures.ts', root), 'utf8');
 const session = fs.readFileSync(new URL('src/app/components/session/dice/DiceSessionContext.tsx', root), 'utf8');
 const renderer = fs.readFileSync(new URL('src/app/components/session/dice/dice3dRenderer.ts', root), 'utf8');
@@ -35,11 +36,10 @@ expect(!iceTextureFn.includes('fillStyle = bodyColor'), 'Ice 3D photographic tex
 expect(!/drawIcePhotoTexture\([^)]*bodyColor/.test(textures), 'Ice texture renderer must not accept bodyColor tinting');
 
 const iceMaterialFn = materials.match(/function preserveIceFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
-expect(iceMaterialFn.includes('material.color?.set?.(0x000000)'), 'Ice face diffuse color must be black so scene lighting cannot multiply or tint the photograph');
-expect(iceMaterialFn.includes('material.emissive?.set?.(0xffffff)'), 'Ice faces must use neutral-white emissive color');
-expect(iceMaterialFn.includes('material.emissiveMap = material.map'), 'Ice faces must use their photographic map as emissiveMap to resist warm scene lighting');
-expect(iceMaterialFn.includes('material.emissiveIntensity = 1'), 'Ice photographic emissive map must retain its source brightness');
-expect(iceMaterialFn.includes('material.toneMapped = false'), 'Ice photographic faces must bypass scene tone mapping');
+expect(iceMaterialFn === '', 'Ice must not emulate an unlit surface by mutating a lit Phong material');
+expect(materials.includes("import { applyDice3DSurfaceProfile } from './dice3dSurfaceProfiles.ts';"), 'The appearance adapter must use the shared surface-profile pipeline');
+expect(materials.includes('applyDice3DSurfaceProfile(mesh, descriptor);'), 'Every standard die must apply its declared surface profile');
+expect(profiles.includes("ice: 'photo-unlit'"), 'Ice must declare the reusable photo-unlit profile');
 
 const fireMaterialFn = materials.match(/function preserveFireFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
 expect(fireMaterialFn.includes('material.color?.set?.(0xffffff)'), 'Fire face diffuse behavior must remain unchanged');
@@ -75,4 +75,4 @@ if (failures.length) {
   });
 }
 
-console.log('Fire/Ice rendering, exact colors, neutral Ice 3D color, and settled-effect lifecycle verification passed.');
+console.log('Fire/Ice rendering, exact colors, shared Ice 3D surface profile, and settled-effect lifecycle verification passed.');

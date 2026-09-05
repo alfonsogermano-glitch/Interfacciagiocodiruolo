@@ -8,6 +8,7 @@ const data = fs.readFileSync(new URL('src/app/components/session/dice/iceTexture
 const chunks = Array.from({ length: 6 }, (_, index) => fs.readFileSync(new URL(`src/app/components/session/dice/iceTextureChunk${index}.ts`, root), 'utf8'));
 const textures = fs.readFileSync(new URL('src/app/components/session/dice/dice3dSkinTextures.ts', root), 'utf8');
 const materials = fs.readFileSync(new URL('src/app/components/session/dice/dice3dAppearanceMaterials.ts', root), 'utf8');
+const profiles = fs.readFileSync(new URL('src/app/components/session/dice/dice3dSurfaceProfiles.ts', root), 'utf8');
 const customizer = fs.readFileSync(new URL('src/app/components/session/dice/DiceAppearanceCustomizer.tsx', root), 'utf8');
 const surface = fs.readFileSync(new URL('src/app/components/session/dice/DiceSkinSurface.tsx', root), 'utf8');
 const appearance = fs.readFileSync(new URL('src/app/components/session/dice/diceAppearance.ts', root), 'utf8');
@@ -45,14 +46,11 @@ assert.ok(!/drawIcePhotoTexture\([^)]*bodyColor/.test(textures), '3D Ice photogr
 assert.ok(textures.includes('applyTextureZoom(context, bump, size, textureScale)'), '3D Ice must use the shared textureScale pipeline');
 assert.ok(textures.includes('`${appearance.skinId}:${appearance.bodyColor}:${textureScale}`'), '3D texture cache must include textureScale');
 assert.ok(materials.includes('getDice3DTextureDescriptor(appearance)'), '3D Ice must use the photographic descriptor directly');
-assert.ok(materials.includes('function preserveIceFaceTexture(material: MaterialLike)'), '3D Ice must explicitly preserve the photographic face colors');
-assert.ok(materials.includes("if (skinId === 'ice' && !descriptor.custom) preserveIceFaceTexture(material);"), '3D Ice face materials must be neutralized after dice creation');
+assert.ok(!materials.includes('function preserveIceFaceTexture(material: MaterialLike)'), '3D Ice must not rely on per-skin Phong mutations');
 const fireMaterialFn = materials.match(/function preserveFireFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
 assert.ok(fireMaterialFn.includes('material.color?.set?.(0xffffff);'), 'Fire photographic face materials must retain their neutral white multiplier');
-assert.ok(materials.includes('material.emissiveMap = material.map;'), 'Ice photographic faces must resist the warm renderer lights');
-assert.ok(materials.includes('material.color?.set?.(0x000000);'), 'Ice photographic faces must disable the light-dependent diffuse contribution');
-assert.ok(materials.includes('material.emissiveIntensity = 1;'), 'Ice photographic faces must preserve the source brightness through their emissive map');
-assert.ok(materials.includes('material.toneMapped = false;'), 'Ice photographic faces must bypass scene tone mapping');
+assert.ok(profiles.includes("ice: 'photo-unlit'"), 'Ice photographic faces must use the shared unlit profile');
+assert.ok(profiles.includes('new THREE.MeshBasicMaterial'), 'The unlit profile must use a genuinely light-independent material');
 assert.ok(materials.includes('factory.edge_color = appearance.bodyColor;'), 'The user body color must remain on the die edges');
 assert.ok(customizer.includes('textureScale: selected.textureScale'), 'Apply to all must keep textureScale');
 assert.ok(appearance.includes('textureScale: normalizeDiceTextureScale'), 'roll snapshots must normalize and preserve textureScale');

@@ -1,5 +1,6 @@
 import { getDice3DTextureDescriptor } from './dice3dSkinTextures.ts';
 import { Dice3DSkinEffectController } from './dice3dSkinEffects.ts';
+import { applyDice3DSurfaceProfile } from './dice3dSurfaceProfiles.ts';
 import { installDice3DVisualBoost } from './dice3dVisualBoost.ts';
 import type { Dice3DAppearanceDescriptor, Dice3DProjectionChunk } from './dice3dProjection.ts';
 
@@ -35,7 +36,6 @@ type MaterialLike = {
   emissive?: ColorLike;
   emissiveMap?: TextureLike | null;
   emissiveIntensity?: number;
-  toneMapped?: boolean;
   needsUpdate?: boolean;
 };
 type MeshLike = { material?: MaterialLike | MaterialLike[] };
@@ -168,19 +168,6 @@ function preserveFireFaceTexture(material: MaterialLike) {
   }
 }
 
-function preserveIceFaceTexture(material: MaterialLike) {
-  material.color?.set?.(0x000000);
-  if (!material.map) return;
-
-  material.map.anisotropy = Math.max(material.map.anisotropy ?? 1, TEXTURED_FACE_ANISOTROPY);
-  material.map.generateMipmaps = true;
-  material.map.needsUpdate = true;
-  material.emissive?.set?.(0xffffff);
-  material.emissiveMap = material.map;
-  material.emissiveIntensity = 1;
-  material.toneMapped = false;
-}
-
 function blendValue(current: number, target: number, factor: number): number { return current + (target - current) * factor; }
 function edgeGlowColor(skinId: Dice3DAppearanceDescriptor['appearance']['skinId']): string | null {
   switch (skinId) {
@@ -200,7 +187,6 @@ function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescri
     const applyShininess = (target: number) => { if (typeof material.shininess === 'number') material.shininess = blendValue(material.shininess, target, strength); };
     if (!isEdgeMaterial) {
       if (skinId === 'fire' && !descriptor.custom) preserveFireFaceTexture(material);
-      if (skinId === 'ice' && !descriptor.custom) preserveIceFaceTexture(material);
       if (typeof material.opacity === 'number') material.opacity = 1;
       material.transparent = false;
       material.needsUpdate = true;
@@ -262,6 +248,7 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
       applyAppearanceFactoryState(factory, descriptor);
       const mesh = originalCreate(type);
       applyStaticSkinToMesh(mesh, descriptor);
+      applyDice3DSurfaceProfile(mesh, descriptor);
       effects.registerMesh(mesh, descriptor);
       visualBoostCleanups.push(installDice3DVisualBoost(mesh, descriptor));
       if (type === 'd4' && mesh && typeof mesh === 'object') d4Appearance.set(mesh as object, descriptor);
@@ -281,6 +268,7 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
         applyAppearanceFactoryState(factory, descriptor);
         const swapped = previousSwapD4.call(box, dicemesh, result);
         applyStaticSkinToMesh(dicemesh, descriptor);
+        applyDice3DSurfaceProfile(dicemesh, descriptor);
         return swapped;
       } finally { Object.assign(factory, originalState); }
     };
