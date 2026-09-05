@@ -32,8 +32,9 @@ assert.ok(data.includes('export const LIGHTNING_TEXTURE_SOURCE_DATA_URL = `data:
 assert.ok(data.includes('export const LIGHTNING_TEXTURE_DATA_URL = LIGHTNING_TEXTURE_SOURCE_DATA_URL;'), 'Lightning 2D and 3D must share the same square photographic source');
 assert.ok(chunks.every((content, index) => content.includes(`LIGHTNING_TEXTURE_CHUNK_${index}`)), 'Every Lightning texture chunk must export its indexed payload');
 assert.ok(Array.from({ length: 8 }, (_, index) => data.includes(`LIGHTNING_TEXTURE_CHUNK_${index}`)).every(Boolean), 'Lightning texture data must assemble every embedded chunk');
-assert.ok(data.includes("LIGHTNING_TEXTURE_CHUNK_5.replace(\n  'VYX5wW2NtoaU4',\n  'VYX5wW2NatoaU4',\n)"), 'Lightning assembly must restore the one transport-dropped base64 character deterministically');
-assert.ok(data.includes('LIGHTNING_TEXTURE_CHUNK_5_APPROVED'), 'Lightning source must assemble the normalized approved chunk 5 payload');
+assert.ok(data.includes("LIGHTNING_TEXTURE_CHUNK_5.replace(\n  'VYX5wW2NtoaU4',\n  'VYX5wW2NatoaU4',\n)"), 'Lightning assembly must restore the transport-dropped chunk 5 base64 character deterministically');
+assert.ok(data.includes("LIGHTNING_TEXTURE_CHUNK_6.replace(\n  '7UfxYISE8N',\n  '7UfxISE8N',\n)"), 'Lightning assembly must remove the transport-inserted chunk 6 base64 character deterministically');
+assert.ok(data.includes('LIGHTNING_TEXTURE_CHUNK_5_APPROVED') && data.includes('LIGHTNING_TEXTURE_CHUNK_6_APPROVED'), 'Lightning source must assemble both normalized approved shard payloads');
 
 const expectedChunkHashes = [
   '13175888f13a1345b642ffd57b3b7771f2fd812f6b18ad1ebf4cb34b08a7b59b',
@@ -48,9 +49,9 @@ const expectedChunkHashes = [
 const encodedChunks = chunks.map((content, index) => {
   const match = content.match(new RegExp(`LIGHTNING_TEXTURE_CHUNK_${index}\\s*=\\s*['\"]([^'\"]+)['\"]`));
   assert.ok(match, `Lightning texture chunk ${index} must contain base64 payload`);
-  const encodedChunk = index === 5
-    ? match[1].replace('VYX5wW2NtoaU4', 'VYX5wW2NatoaU4')
-    : match[1];
+  let encodedChunk = match[1];
+  if (index === 5) encodedChunk = encodedChunk.replace('VYX5wW2NtoaU4', 'VYX5wW2NatoaU4');
+  if (index === 6) encodedChunk = encodedChunk.replace('7UfxYISE8N', '7UfxISE8N');
   assert.equal(
     createHash('sha256').update(encodedChunk).digest('hex'),
     expectedChunkHashes[index],
