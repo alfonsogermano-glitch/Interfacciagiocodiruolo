@@ -14,7 +14,7 @@ import type { DiceRollRequest, RollResult } from './diceTypes.ts';
 
 const DICE_3D_ENABLED_KEY = 'hollowgate.dice.3d-enabled';
 const DICE_SETTLED_HOLD_MS = 1000;
-const DICE_ANIMATED_SETTLED_HOLD_MS = 3000;
+const DICE_ANIMATED_SETTLED_HOLD_MS = 2000;
 
 type RevealState = 'pending' | 'animating' | 'revealed';
 
