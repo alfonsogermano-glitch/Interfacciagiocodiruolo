@@ -31,6 +31,18 @@ assert.equal(iceMesh.material[1].toneMapped, false, 'Ice faces must bypass tone 
 assert.equal(iceMesh.material[1].depthTest, false, 'Ice faces must preserve upstream depth behavior');
 assert.equal(iceMesh.material[1].depthWrite, false, 'Ice faces must preserve upstream depth writes');
 
+const lightningTexture = new THREE.Texture();
+const lightningEdge = new THREE.MeshPhongMaterial({ color: '#4cdcff' });
+const lightningFace = new THREE.MeshPhongMaterial({ color: '#ffffff', map: lightningTexture });
+const lightningMesh = { material: [lightningEdge, lightningFace] };
+assert.equal(getDice3DSurfaceProfile('lightning'), 'photo-unlit');
+applyDice3DSurfaceProfile(lightningMesh, { appearance: appearance('lightning'), custom: false });
+assert.equal(lightningMesh.material[0], lightningEdge, 'Lightning must preserve its electric edge material');
+assert.ok(lightningMesh.material[1] instanceof THREE.MeshBasicMaterial, 'Lightning photographic faces must use a genuinely unlit material');
+assert.equal(lightningMesh.material[1].map, lightningTexture, 'Lightning faces must preserve the photographic composite map');
+assert.equal(lightningMesh.material[1].toneMapped, false, 'Lightning faces must bypass tone mapping for stable vivid color');
+assert.equal(lightningMesh.material[1].color.getHex(), 0xffffff, 'Lightning faces must keep a neutral white texture multiplier');
+
 const fireEdge = new THREE.MeshPhongMaterial({ color: '#c63d35' });
 const fireFace = new THREE.MeshPhongMaterial({ color: '#ffffff', map: texture });
 const fireMesh = { material: [fireEdge, fireFace] };
@@ -44,4 +56,4 @@ const customMesh = { material: [fireEdge, customFace] };
 applyDice3DSurfaceProfile(customMesh, { appearance: appearance('ice'), custom: true });
 assert.equal(customMesh.material[1], customFace, 'Custom dice must remain outside standard-skin profiles');
 
-console.log('Shared 3D surface profiles preserve Ice photography, Fire lighting, edges, and Custom materials.');
+console.log('Shared 3D surface profiles preserve Ice/Lightning photography, Fire lighting, edges, and Custom materials.');
