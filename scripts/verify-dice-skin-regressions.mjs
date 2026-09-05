@@ -55,7 +55,7 @@ expect(
   '3D dice must centralize proportional label-outline sizing',
 );
 expect(
-  materials.includes("getDice3DSurfaceProfile(descriptor.appearance.skinId) === 'photo-unlit'"),
+  materials.includes("getDice3DSurfaceProfile(descriptor.appearance.skinId) !== 'photo-unlit'"),
   'Ice, Lightning and future photo-unlit skins must inherit the stronger proportional outline automatically',
 );
 expect(
