@@ -1,6 +1,6 @@
 import { getDice3DTextureDescriptor } from './dice3dSkinTextures.ts';
 import { Dice3DSkinEffectController } from './dice3dSkinEffects.ts';
-import { applyDice3DSurfaceProfile } from './dice3dSurfaceProfiles.ts';
+import { applyDice3DSurfaceProfile, getDice3DSurfaceProfile } from './dice3dSurfaceProfiles.ts';
 import { installDice3DVisualBoost } from './dice3dVisualBoost.ts';
 import type { Dice3DAppearanceDescriptor, Dice3DProjectionChunk } from './dice3dProjection.ts';
 
@@ -45,6 +45,9 @@ const MIN_TEXTURED_LABEL_CONTRAST = 7;
 const FIRE_FACE_EMISSIVE_INTENSITY = 0.18;
 const TEXTURED_FACE_ANISOTROPY = 8;
 const DICE_SKIN_LABEL_OUTLINE_WIDTH = 8;
+const PHOTO_UNLIT_LABEL_OUTLINE_MIN_WIDTH = 18;
+const PHOTO_UNLIT_LABEL_OUTLINE_MAX_WIDTH = 32;
+const PHOTO_UNLIT_LABEL_OUTLINE_FONT_RATIO = 0.09;
 
 function captureFactoryState(factory: DiceFactoryLike) {
   return {
@@ -55,7 +58,22 @@ function captureFactoryState(factory: DiceFactoryLike) {
   };
 }
 
-function runWithDice3DLabelOutlineBoost<T>(work: () => T): T {
+function dice3DLabelOutlineWidth(
+  context: CanvasRenderingContext2D,
+  descriptor: Dice3DAppearanceDescriptor,
+): number {
+  if (getDice3DSurfaceProfile(descriptor.appearance.skinId) !== 'photo-unlit') return DICE_SKIN_LABEL_OUTLINE_WIDTH;
+  const fontSize = Number.parseFloat(context.font);
+  const proportionalWidth = Number.isFinite(fontSize)
+    ? fontSize * PHOTO_UNLIT_LABEL_OUTLINE_FONT_RATIO
+    : PHOTO_UNLIT_LABEL_OUTLINE_MIN_WIDTH;
+  return Math.min(
+    PHOTO_UNLIT_LABEL_OUTLINE_MAX_WIDTH,
+    Math.max(PHOTO_UNLIT_LABEL_OUTLINE_MIN_WIDTH, proportionalWidth),
+  );
+}
+
+function runWithDice3DLabelOutlineBoost<T>(descriptor: Dice3DAppearanceDescriptor, work: () => T): T {
   if (typeof CanvasRenderingContext2D === 'undefined') return work();
   const prototype = CanvasRenderingContext2D.prototype;
   const originalStrokeText = prototype.strokeText;
@@ -67,7 +85,7 @@ function runWithDice3DLabelOutlineBoost<T>(work: () => T): T {
     maxWidth?: number,
   ): void {
     const previousLineWidth = this.lineWidth;
-    this.lineWidth = Math.max(previousLineWidth, DICE_SKIN_LABEL_OUTLINE_WIDTH);
+    this.lineWidth = Math.max(previousLineWidth, dice3DLabelOutlineWidth(this, descriptor));
     try {
       if (typeof maxWidth === 'number') originalStrokeText.call(this, text, x, y, maxWidth);
       else originalStrokeText.call(this, text, x, y);
@@ -279,7 +297,7 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
     try {
       applyAppearanceFactoryState(factory, descriptor);
       const mesh = shouldBoostDice3DLabelOutline(descriptor)
-        ? runWithDice3DLabelOutlineBoost(() => originalCreate(type))
+        ? runWithDice3DLabelOutlineBoost(descriptor, () => originalCreate(type))
         : originalCreate(type);
       applyStaticSkinToMesh(mesh, descriptor);
       applyDice3DSurfaceProfile(mesh, descriptor);
@@ -301,7 +319,7 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
       try {
         applyAppearanceFactoryState(factory, descriptor);
         const swapped = shouldBoostDice3DLabelOutline(descriptor)
-          ? runWithDice3DLabelOutlineBoost(() => previousSwapD4.call(box, dicemesh, result))
+          ? runWithDice3DLabelOutlineBoost(descriptor, () => previousSwapD4.call(box, dicemesh, result))
           : previousSwapD4.call(box, dicemesh, result);
         applyStaticSkinToMesh(dicemesh, descriptor);
         applyDice3DSurfaceProfile(dicemesh, descriptor);
