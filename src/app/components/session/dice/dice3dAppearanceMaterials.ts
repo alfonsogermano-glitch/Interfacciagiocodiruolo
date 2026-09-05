@@ -35,6 +35,7 @@ type MaterialLike = {
   emissive?: ColorLike;
   emissiveMap?: TextureLike | null;
   emissiveIntensity?: number;
+  toneMapped?: boolean;
   needsUpdate?: boolean;
 };
 type MeshLike = { material?: MaterialLike | MaterialLike[] };
@@ -42,7 +43,6 @@ type MeshLike = { material?: MaterialLike | MaterialLike[] };
 const NEUTRAL_TEXTURE = { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' } as const;
 const MIN_TEXTURED_LABEL_CONTRAST = 7;
 const FIRE_FACE_EMISSIVE_INTENSITY = 0.18;
-const ICE_FACE_EMISSIVE_INTENSITY = 0.34;
 const TEXTURED_FACE_ANISOTROPY = 8;
 
 function captureFactoryState(factory: DiceFactoryLike) {
@@ -169,7 +169,7 @@ function preserveFireFaceTexture(material: MaterialLike) {
 }
 
 function preserveIceFaceTexture(material: MaterialLike) {
-  material.color?.set?.(0xffffff);
+  material.color?.set?.(0x000000);
   if (!material.map) return;
 
   material.map.anisotropy = Math.max(material.map.anisotropy ?? 1, TEXTURED_FACE_ANISOTROPY);
@@ -177,7 +177,8 @@ function preserveIceFaceTexture(material: MaterialLike) {
   material.map.needsUpdate = true;
   material.emissive?.set?.(0xffffff);
   material.emissiveMap = material.map;
-  material.emissiveIntensity = ICE_FACE_EMISSIVE_INTENSITY;
+  material.emissiveIntensity = 1;
+  material.toneMapped = false;
 }
 
 function blendValue(current: number, target: number, factor: number): number { return current + (target - current) * factor; }

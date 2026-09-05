@@ -35,9 +35,15 @@ expect(!iceTextureFn.includes('fillStyle = bodyColor'), 'Ice 3D photographic tex
 expect(!/drawIcePhotoTexture\([^)]*bodyColor/.test(textures), 'Ice texture renderer must not accept bodyColor tinting');
 
 const iceMaterialFn = materials.match(/function preserveIceFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
+expect(iceMaterialFn.includes('material.color?.set?.(0x000000)'), 'Ice face diffuse color must be black so scene lighting cannot multiply or tint the photograph');
 expect(iceMaterialFn.includes('material.emissive?.set?.(0xffffff)'), 'Ice faces must use neutral-white emissive color');
 expect(iceMaterialFn.includes('material.emissiveMap = material.map'), 'Ice faces must use their photographic map as emissiveMap to resist warm scene lighting');
-expect(iceMaterialFn.includes('ICE_FACE_EMISSIVE_INTENSITY'), 'Ice face emissive intensity must be explicit and stable');
+expect(iceMaterialFn.includes('material.emissiveIntensity = 1'), 'Ice photographic emissive map must retain its source brightness');
+expect(iceMaterialFn.includes('material.toneMapped = false'), 'Ice photographic faces must bypass scene tone mapping');
+
+const fireMaterialFn = materials.match(/function preserveFireFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
+expect(fireMaterialFn.includes('material.color?.set?.(0xffffff)'), 'Fire face diffuse behavior must remain unchanged');
+expect(!fireMaterialFn.includes('material.toneMapped = false'), 'Ice lighting isolation must not change Fire tone mapping');
 
 expect(
   session.includes('const DICE_ANIMATED_SETTLED_HOLD_MS = 2000;'),

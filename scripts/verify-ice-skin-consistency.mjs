@@ -47,8 +47,12 @@ assert.ok(textures.includes('`${appearance.skinId}:${appearance.bodyColor}:${tex
 assert.ok(materials.includes('getDice3DTextureDescriptor(appearance)'), '3D Ice must use the photographic descriptor directly');
 assert.ok(materials.includes('function preserveIceFaceTexture(material: MaterialLike)'), '3D Ice must explicitly preserve the photographic face colors');
 assert.ok(materials.includes("if (skinId === 'ice' && !descriptor.custom) preserveIceFaceTexture(material);"), '3D Ice face materials must be neutralized after dice creation');
-assert.ok(materials.includes('material.color?.set?.(0xffffff);'), 'Photographic face materials must use a neutral white multiplier');
+const fireMaterialFn = materials.match(/function preserveFireFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
+assert.ok(fireMaterialFn.includes('material.color?.set?.(0xffffff);'), 'Fire photographic face materials must retain their neutral white multiplier');
 assert.ok(materials.includes('material.emissiveMap = material.map;'), 'Ice photographic faces must resist the warm renderer lights');
+assert.ok(materials.includes('material.color?.set?.(0x000000);'), 'Ice photographic faces must disable the light-dependent diffuse contribution');
+assert.ok(materials.includes('material.emissiveIntensity = 1;'), 'Ice photographic faces must preserve the source brightness through their emissive map');
+assert.ok(materials.includes('material.toneMapped = false;'), 'Ice photographic faces must bypass scene tone mapping');
 assert.ok(materials.includes('factory.edge_color = appearance.bodyColor;'), 'The user body color must remain on the die edges');
 assert.ok(customizer.includes('textureScale: selected.textureScale'), 'Apply to all must keep textureScale');
 assert.ok(appearance.includes('textureScale: normalizeDiceTextureScale'), 'roll snapshots must normalize and preserve textureScale');
