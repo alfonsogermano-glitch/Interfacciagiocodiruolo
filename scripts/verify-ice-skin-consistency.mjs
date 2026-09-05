@@ -63,7 +63,7 @@ assert.ok(waitIndex >= 0 && adapterIndex > waitIndex && rollIndex > waitIndex, '
 assert.ok(materials.includes("if (skinId === 'fire' || skinId === 'ice') return symbolColor;"), 'Ice numbers must preserve the exact user-selected symbol color');
 assert.ok(materials.includes('factory.label_outline = outlineColor;'), 'Ice numbers must keep the contrasting renderer outline');
 assert.ok(materials.includes("case 'ice': return '#8eeeff';"), 'Ice edges must preserve the dedicated cold emissive glow');
-assert.ok(materials.includes("material.emissiveIntensity = skinId === 'ice' ? 0.18 : 0.11;"), 'Ice edge glow must remain unchanged during the brightness micro-pass');
+assert.ok(materials.includes("material.emissiveIntensity = skinId === 'ice' ? 0.25 : 0.11;"), 'Ice edge glow must use the stable rolling-to-settled baseline');
 assert.ok(materials.includes('getDice3DTextureDescriptor(appearance)'), '3D Ice must use the photographic descriptor directly');
 assert.ok(!materials.includes('function preserveIceFaceTexture(material: MaterialLike)'), '3D Ice must not rely on per-skin Phong mutations');
 const fireMaterialFn = materials.match(/function preserveFireFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
@@ -75,4 +75,4 @@ assert.ok(customizer.includes('textureScale: selected.textureScale'), 'Apply to 
 assert.ok(appearance.includes('textureScale: normalizeDiceTextureScale'), 'roll snapshots must normalize and preserve textureScale');
 assert.ok(service.includes('texture_scale: normalizeDiceTextureScale(style.textureScale)'), 'Supabase persistence must preserve textureScale');
 assert.ok(fire.includes('FIRE_TEXTURE_CHUNK_0'), 'Fire texture pipeline must remain intact');
-console.log('Ice photographic texture, direct 3D loading, cache readiness, final brightness lift, preserved symbol color, cold edge glow, and shared 2D/3D zoom verification passed.');
+console.log('Ice photographic texture, direct 3D loading, cache readiness, final brightness lift, stable edge glow, preserved symbol color, and shared 2D/3D zoom verification passed.');

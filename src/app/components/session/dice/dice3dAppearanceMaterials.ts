@@ -205,7 +205,7 @@ function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescri
     const glowColor = edgeGlowColor(skinId);
     if (glowColor && material.emissive && typeof material.emissive.set === 'function') {
       material.emissive.set(glowColor);
-      if (typeof material.emissiveIntensity === 'number') material.emissiveIntensity = skinId === 'ice' ? 0.18 : 0.11;
+      if (typeof material.emissiveIntensity === 'number') material.emissiveIntensity = skinId === 'ice' ? 0.25 : 0.11;
     }
     material.needsUpdate = true;
   });
