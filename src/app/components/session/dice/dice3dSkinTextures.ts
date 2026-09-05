@@ -1,5 +1,5 @@
 import { FIRE_TEXTURE_DATA_URL } from './fireTextureData.ts';
-import { ICE_TEXTURE_DATA_URL } from './iceTextureData.ts';
+import { ICE_TEXTURE_SOURCE_DATA_URL } from './iceTextureData.ts';
 import { normalizeDiceTextureScale } from './diceTextureScale.ts';
 import type { DiceAppearance, DiceSkinId } from './diceTypes.ts';
 
@@ -11,24 +11,43 @@ export interface Dice3DTextureDescriptor {
   material: 'none' | 'metal';
 }
 
+type Dice3DTextureAssetRequest = { appearance: DiceAppearance; custom: boolean } | null;
+type TextureImageResource = { image: HTMLImageElement | null; ready: Promise<void> };
+
 const TEXTURE_SIZE = 512;
 const cache = new Map<string, Dice3DTextureDescriptor>();
 
-function createTextureImage(dataUrl: string, cachePrefix: string): HTMLImageElement | null {
-  if (typeof Image === 'undefined') return null;
+function createTextureImage(dataUrl: string, cachePrefix: string): TextureImageResource {
+  if (typeof Image === 'undefined') return { image: null, ready: Promise.resolve() };
   const image = new Image();
   image.decoding = 'async';
-  image.src = dataUrl;
+  let settleReady: () => void = () => {};
+  const ready = new Promise<void>((resolve) => { settleReady = resolve; });
   image.addEventListener('load', () => {
     for (const key of cache.keys()) {
       if (key.startsWith(`${cachePrefix}:`)) cache.delete(key);
     }
+    settleReady();
   }, { once: true });
-  return image;
+  image.addEventListener('error', settleReady, { once: true });
+  image.src = dataUrl;
+  if (image.complete && image.naturalWidth > 0) settleReady();
+  return { image, ready };
 }
 
-const fireTextureImage = createTextureImage(FIRE_TEXTURE_DATA_URL, 'fire');
-const iceTextureImage = createTextureImage(ICE_TEXTURE_DATA_URL, 'ice');
+const fireTextureResource = createTextureImage(FIRE_TEXTURE_DATA_URL, 'fire');
+const iceTextureResource = createTextureImage(ICE_TEXTURE_SOURCE_DATA_URL, 'ice');
+const fireTextureImage = fireTextureResource.image;
+const iceTextureImage = iceTextureResource.image;
+
+function isIceTextureReady(): boolean {
+  return Boolean(iceTextureImage?.complete && iceTextureImage.naturalWidth > 0);
+}
+
+export async function waitForDice3DTextureAssets(descriptors: readonly Dice3DTextureAssetRequest[]): Promise<void> {
+  if (!descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'ice')) return;
+  await iceTextureResource.ready;
+}
 
 function resetContext(context: CanvasRenderingContext2D, size: number) {
   context.setTransform(1, 0, 0, 1, 0, 0);
@@ -246,13 +265,15 @@ function drawPattern(textureCanvas: HTMLCanvasElement, bumpCanvas: HTMLCanvasEle
 export function getDice3DTextureDescriptor(appearance: DiceAppearance): Dice3DTextureDescriptor {
   if (appearance.skinId === 'none') return { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' };
   const textureScale = normalizeDiceTextureScale(appearance.textureScale);
-  const key = `${appearance.skinId}:${appearance.bodyColor}:${textureScale}`;
+  const readiness = appearance.skinId === 'ice' ? (isIceTextureReady() ? 'ready' : 'placeholder') : null;
+  const key = readiness ? `${appearance.skinId}:${appearance.bodyColor}:${textureScale}:${readiness}` : `${appearance.skinId}:${appearance.bodyColor}:${textureScale}`;
   const cached = cache.get(key);
   if (cached) return cached;
   const canvas = document.createElement('canvas'); canvas.width = TEXTURE_SIZE; canvas.height = TEXTURE_SIZE;
   const bumpCanvas = document.createElement('canvas'); bumpCanvas.width = TEXTURE_SIZE; bumpCanvas.height = TEXTURE_SIZE;
   drawPattern(canvas, bumpCanvas, appearance.skinId, appearance.bodyColor, textureScale);
-  const descriptor: Dice3DTextureDescriptor = { name: `hollowgate-${appearance.skinId}-${appearance.bodyColor}-${textureScale}`, texture: canvas, bump: bumpCanvas, composite: 'source-over', material: 'none' };
+  const name = readiness ? `hollowgate-${appearance.skinId}-${appearance.bodyColor}-${textureScale}-${readiness}` : `hollowgate-${appearance.skinId}-${appearance.bodyColor}-${textureScale}`;
+  const descriptor: Dice3DTextureDescriptor = { name, texture: canvas, bump: bumpCanvas, composite: 'source-over', material: 'none' };
   cache.set(key, descriptor);
   return descriptor;
 }

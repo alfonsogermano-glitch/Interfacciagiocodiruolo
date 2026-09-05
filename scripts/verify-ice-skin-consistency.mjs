@@ -9,6 +9,7 @@ const chunks = Array.from({ length: 6 }, (_, index) => fs.readFileSync(new URL(`
 const textures = fs.readFileSync(new URL('src/app/components/session/dice/dice3dSkinTextures.ts', root), 'utf8');
 const materials = fs.readFileSync(new URL('src/app/components/session/dice/dice3dAppearanceMaterials.ts', root), 'utf8');
 const profiles = fs.readFileSync(new URL('src/app/components/session/dice/dice3dSurfaceProfiles.ts', root), 'utf8');
+const renderer = fs.readFileSync(new URL('src/app/components/session/dice/dice3dRenderer.ts', root), 'utf8');
 const customizer = fs.readFileSync(new URL('src/app/components/session/dice/DiceAppearanceCustomizer.tsx', root), 'utf8');
 const surface = fs.readFileSync(new URL('src/app/components/session/dice/DiceSkinSurface.tsx', root), 'utf8');
 const appearance = fs.readFileSync(new URL('src/app/components/session/dice/diceAppearance.ts', root), 'utf8');
@@ -17,9 +18,10 @@ const fire = fs.readFileSync(new URL('src/app/components/session/dice/fireTextur
 
 assert.ok(skins.includes('ICE_TEXTURE_DATA_URL'), '2D Ice must use the official photographic texture');
 assert.ok(data.includes('data:image/webp;base64'), 'Ice texture source must remain the embedded user photograph');
-assert.ok(data.includes('viewBox="0 0 512 512"'), 'Ice texture must expose a square surface for die-shaped previews');
-assert.ok(data.includes('preserveAspectRatio="xMidYMid slice"'), 'Ice texture must crop with cover semantics without distorting the photograph');
-assert.ok(data.includes('data:image/svg+xml;charset=utf-8'), 'Ice texture must use the square SVG wrapper in 2D and 3D');
+assert.ok(data.includes('export const ICE_TEXTURE_SOURCE_DATA_URL = `data:image/webp;base64,'), 'Ice must expose the original WebP source separately for direct 3D loading');
+assert.ok(data.includes('viewBox=\"0 0 512 512\"'), 'Ice texture must expose a square surface for die-shaped previews');
+assert.ok(data.includes('preserveAspectRatio=\"xMidYMid slice\"'), 'Ice texture must crop with cover semantics without distorting the photograph');
+assert.ok(data.includes('data:image/svg+xml;charset=utf-8'), 'Ice texture must keep the square SVG wrapper for 2D previews');
 assert.ok(chunks.every((content, index) => content.includes(`ICE_TEXTURE_CHUNK_${index}`)), 'All Ice texture chunks must exist');
 assert.ok(Array.from({ length: 6 }, (_, index) => data.includes(`ICE_TEXTURE_CHUNK_${index}`)).every(Boolean), 'Ice texture data must assemble every embedded chunk');
 
@@ -40,11 +42,20 @@ assert.equal(
 assert.ok(surface.includes("const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice';"), 'Fire and Ice swatches must share photographic full-coverage handling');
 assert.ok(surface.includes("backgroundOrigin: photographicSkin ? 'border-box' : undefined"), 'Photographic swatches must paint below their border without body-color slivers');
 
-assert.ok(textures.includes('const iceTextureImage = createTextureImage(ICE_TEXTURE_DATA_URL'), '3D Ice must load the same photographic texture');
+assert.ok(textures.includes("import { ICE_TEXTURE_SOURCE_DATA_URL } from './iceTextureData.ts';"), '3D Ice must import the original photographic WebP instead of the 2D SVG wrapper');
+assert.ok(textures.includes("createTextureImage(ICE_TEXTURE_SOURCE_DATA_URL, 'ice')"), '3D Ice must load the user photograph directly');
 assert.ok(textures.includes('drawIcePhotoTexture(context, bump, size)'), '3D Ice must render the photographic source without body-color tinting');
-assert.ok(!/drawIcePhotoTexture\([^)]*bodyColor/.test(textures), '3D Ice photographic renderer must not accept bodyColor tinting');
+assert.ok(!/drawIcePhotoTexture\([^)]*bodyColor/.test(textures), 'Ice 3D photographic renderer must not accept bodyColor tinting');
 assert.ok(textures.includes('applyTextureZoom(context, bump, size, textureScale)'), '3D Ice must use the shared textureScale pipeline');
-assert.ok(textures.includes('`${appearance.skinId}:${appearance.bodyColor}:${textureScale}`'), '3D texture cache must include textureScale');
+assert.ok(textures.includes('export async function waitForDice3DTextureAssets'), 'The 3D texture pipeline must expose an awaitable readiness gate');
+assert.ok(textures.includes('if (image.complete && image.naturalWidth > 0) settleReady();'), 'The readiness gate must not resolve early for an incomplete or broken image');
+assert.ok(textures.includes("const readiness = appearance.skinId === 'ice' ? (isIceTextureReady() ? 'ready' : 'placeholder') : null;"), 'Ice texture descriptors must distinguish placeholder and ready phases');
+assert.ok(textures.includes('`${appearance.skinId}:${appearance.bodyColor}:${textureScale}:${readiness}`'), 'Ice 3D cache keys must distinguish the ready photograph from the placeholder');
+assert.ok(textures.includes('`hollowgate-${appearance.skinId}-${appearance.bodyColor}-${textureScale}-${readiness}`'), 'The renderer-facing texture name must change when the Ice photograph becomes ready');
+const waitIndex = renderer.indexOf('await waitForDice3DTextureAssets(appearanceQueue);');
+const adapterIndex = renderer.indexOf('installDiceAppearanceAdapter(this.box, appearanceQueue)');
+const rollIndex = renderer.indexOf('await this.box.roll(notation);');
+assert.ok(waitIndex >= 0 && adapterIndex > waitIndex && rollIndex > waitIndex, 'Ice photographic assets must finish loading before the appearance adapter creates dice and before the roll starts');
 assert.ok(materials.includes('getDice3DTextureDescriptor(appearance)'), '3D Ice must use the photographic descriptor directly');
 assert.ok(!materials.includes('function preserveIceFaceTexture(material: MaterialLike)'), '3D Ice must not rely on per-skin Phong mutations');
 const fireMaterialFn = materials.match(/function preserveFireFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
@@ -56,4 +67,4 @@ assert.ok(customizer.includes('textureScale: selected.textureScale'), 'Apply to 
 assert.ok(appearance.includes('textureScale: normalizeDiceTextureScale'), 'roll snapshots must normalize and preserve textureScale');
 assert.ok(service.includes('texture_scale: normalizeDiceTextureScale(style.textureScale)'), 'Supabase persistence must preserve textureScale');
 assert.ok(fire.includes('FIRE_TEXTURE_CHUNK_0'), 'Fire texture pipeline must remain intact');
-console.log('Ice photographic texture, neutral 3D face colors, edge-color preservation, and shared 2D/3D zoom verification passed.');
+console.log('Ice photographic texture, direct 3D loading, cache readiness, pre-roll wait, edge-color preservation, and shared 2D/3D zoom verification passed.');

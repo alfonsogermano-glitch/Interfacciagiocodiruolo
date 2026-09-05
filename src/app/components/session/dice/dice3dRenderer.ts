@@ -2,6 +2,7 @@ import { buildSimultaneousAppearanceQueue, installDiceAppearanceAdapter } from '
 import { buildSimultaneousMaterialQueue, installCustomDiceMaterialAdapter } from './dice3dCustomMaterials.ts';
 import { boostDice3DSpin, DICE_3D_THROW_STRENGTH, type Dice3DNotationVectors } from './dice3dMotion.ts';
 import { projectRollTo3D, type Dice3DProjectionChunk } from './dice3dProjection.ts';
+import { waitForDice3DTextureAssets } from './dice3dSkinTextures.ts';
 import { Dice3DAbortError, type Dice3DRenderer } from './dice3dTypes.ts';
 import type { RollResult } from './diceTypes.ts';
 
@@ -122,6 +123,9 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
     const stopEffectsOnAbort = () => this.releaseAppearanceEffects();
     try {
       const appearanceQueue = buildSimultaneousAppearanceQueue(chunks);
+      throwIfAborted(signal);
+      await waitForDice3DTextureAssets(appearanceQueue);
+      throwIfAborted(signal);
       keepEffectsRendering = appearanceQueue.some((descriptor) => descriptor?.appearance.effectsEnabled);
       if (appearanceQueue.some(Boolean)) {
         try {
