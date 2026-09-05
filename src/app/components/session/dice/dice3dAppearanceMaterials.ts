@@ -95,7 +95,6 @@ function contrastRatio(a: string, b: string): number {
 function estimatedTexturedBackground(bodyColor: string, skinId: Dice3DAppearanceDescriptor['appearance']['skinId']): string {
   switch (skinId) {
     case 'fire': return mixHexColor('#202329', bodyColor, 0.18);
-    case 'ice': return mixHexColor('#a8dbe5', bodyColor, 0.12);
     case 'obsidian': return mixHexColor(bodyColor, '#000000', 0.52);
     case 'stone': return mixHexColor(bodyColor, '#000000', 0.2);
     default: return bodyColor;
@@ -108,7 +107,7 @@ export function getReadable3DLabelColor(
   skinId: Dice3DAppearanceDescriptor['appearance']['skinId'],
 ): string {
   if (skinId === 'none') return symbolColor;
-  if (skinId === 'fire') return symbolColor;
+  if (skinId === 'fire' || skinId === 'ice') return symbolColor;
   const background = estimatedTexturedBackground(bodyColor, skinId);
   if (contrastRatio(symbolColor, background) >= MIN_TEXTURED_LABEL_CONTRAST) return symbolColor;
 
