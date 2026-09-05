@@ -1,0 +1,70 @@
+.hollowgate-lightning-animation {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.hollowgate-lightning-animation > span {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hollowgate-lightning-animation__texture {
+  opacity: 0.22;
+  mix-blend-mode: screen;
+  filter: brightness(1.25) saturate(1.1) contrast(1.08);
+  transform-origin: center;
+  animation: hollowgate-lightning-texture-drift 2.4s ease-in-out infinite alternate;
+}
+
+.hollowgate-lightning-animation__flash {
+  background:
+    radial-gradient(circle at 28% 38%, rgba(220, 250, 255, 0.48) 0 4%, transparent 18%),
+    radial-gradient(circle at 65% 50%, rgba(246, 218, 255, 0.44) 0 4%, transparent 19%),
+    linear-gradient(118deg, transparent 0 38%, rgba(225, 251, 255, 0.54) 40%, transparent 42% 62%, rgba(255, 225, 251, 0.4) 64%, transparent 66%);
+  mix-blend-mode: screen;
+  opacity: 0.08;
+  animation: hollowgate-lightning-flash 1.18s steps(1, end) infinite;
+}
+
+.hollowgate-lightning-animation__arcs {
+  background:
+    linear-gradient(72deg, transparent 0 27%, rgba(207, 248, 255, 0.36) 28% 29%, transparent 30% 54%, rgba(255, 219, 252, 0.3) 55% 56%, transparent 57%),
+    linear-gradient(132deg, transparent 0 43%, rgba(225, 246, 255, 0.3) 44% 45%, transparent 46%);
+  mix-blend-mode: screen;
+  opacity: 0.16;
+  animation: hollowgate-lightning-arcs 1.65s ease-in-out infinite alternate;
+}
+
+@keyframes hollowgate-lightning-texture-drift {
+  0% { transform: scale(1.015) translate3d(-0.4%, 0.3%, 0); opacity: 0.14; }
+  45% { transform: scale(1.035) translate3d(0.5%, -0.35%, 0); opacity: 0.25; }
+  100% { transform: scale(1.02) translate3d(-0.2%, -0.25%, 0); opacity: 0.18; }
+}
+
+@keyframes hollowgate-lightning-flash {
+  0%, 14%, 22%, 58%, 66%, 100% { opacity: 0.04; }
+  15%, 17%, 59%, 61% { opacity: 0.38; }
+  18%, 20%, 62%, 64% { opacity: 0.16; }
+}
+
+@keyframes hollowgate-lightning-arcs {
+  0% { opacity: 0.08; transform: translate3d(-0.4%, 0, 0); }
+  55% { opacity: 0.22; transform: translate3d(0.35%, -0.25%, 0); }
+  100% { opacity: 0.12; transform: translate3d(0, 0.3%, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hollowgate-lightning-animation__texture,
+  .hollowgate-lightning-animation__flash,
+  .hollowgate-lightning-animation__arcs {
+    animation: none;
+  }
+
+  .hollowgate-lightning-animation__texture { opacity: 0.14; }
+  .hollowgate-lightning-animation__flash { opacity: 0.06; }
+  .hollowgate-lightning-animation__arcs { opacity: 0.1; }
+}

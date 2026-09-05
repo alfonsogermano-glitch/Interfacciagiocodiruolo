@@ -1,5 +1,6 @@
 import { FIRE_TEXTURE_DATA_URL } from './fireTextureData.ts';
 import { ICE_TEXTURE_DATA_URL } from './iceTextureData.ts';
+import { LIGHTNING_TEXTURE_DATA_URL } from './lightningTextureData.ts';
 import type { DiceSkinId } from './diceTypes.ts';
 
 export interface DiceSkinDefinition {
@@ -70,7 +71,7 @@ export function getDiceSkinBackgroundImage(skinId: DiceSkinId, bodyColor: string
     case 'ice':
       return `linear-gradient(${rgba(bodyColor, 0.10)}, ${rgba(bodyColor, 0.10)}), url("${ICE_TEXTURE_DATA_URL}")`;
     case 'lightning':
-      return `linear-gradient(118deg, transparent 0 26%, ${bright} 27% 30%, transparent 31% 46%, ${light} 47% 49%, transparent 50%), radial-gradient(circle at 66% 65%, ${bright}66 0 5%, transparent 6%)`;
+      return `url("${LIGHTNING_TEXTURE_DATA_URL}")`;
     case 'poison':
       return `radial-gradient(circle at 26% 32%, ${light}99 0 8%, transparent 9%), radial-gradient(circle at 68% 70%, ${dark}88 0 11%, transparent 12%), radial-gradient(circle at 82% 24%, ${bright}77 0 5%, transparent 6%)`;
     case 'stone':

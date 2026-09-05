@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { DiceFireAnimatedOverlay } from './DiceFireAnimatedOverlay';
+import { DiceLightningAnimatedOverlay } from './DiceLightningAnimatedOverlay';
 import { DiceSkinPreviewArt } from './DiceSkinPreviewArt';
 import { DiceTypeIcon } from './DiceTypeIcon';
 import { getDiceSkinBackgroundImage } from './diceSkins.ts';
@@ -74,7 +75,7 @@ export function getReadableDiceSymbolColor(
   skinId: DiceAppearance['skinId'],
 ): string {
   if (skinId === 'none') return symbolColor;
-  if (skinId === 'fire' || skinId === 'ice') return symbolColor;
+  if (skinId === 'fire' || skinId === 'ice' || skinId === 'lightning') return symbolColor;
   const background = estimatedSkinBackground(bodyColor, skinId);
   const minimumContrast = 5.5;
   if (contrastRatio(symbolColor, background) >= minimumContrast) return symbolColor;
@@ -165,6 +166,7 @@ function DieSkinSurface({
               }}
             >
               <DiceFireAnimatedOverlay appearance={appearance} />
+              <DiceLightningAnimatedOverlay appearance={appearance} />
             </div>
           </foreignObject>
         )}

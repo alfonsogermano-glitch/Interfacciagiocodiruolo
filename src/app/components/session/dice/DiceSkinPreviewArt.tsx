@@ -45,13 +45,7 @@ export function DiceSkinPreviewArt({ skinId, bodyColor, className }: { skinId: D
         </g>
       );
     case 'lightning':
-      return (
-        <g data-dice-skin-preview-art="lightning" className={className} fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <path d="m22 1-12 18h8l-5 16 15-21h-8Z" fill={colors.bright} opacity="0.96" />
-          <path d="m22 1-12 18h8l-5 16 15-21h-8Z" stroke={colors.deep} strokeWidth="1.4" opacity="0.88" />
-          <path d="m4 9 5 3-4 4m24 8 4 2-4 4M27 5l3 2-3 3" stroke={colors.light} strokeWidth="1.5" opacity="0.9" />
-        </g>
-      );
+      return null;
     case 'poison':
       return (
         <g data-dice-skin-preview-art="poison" className={className}>

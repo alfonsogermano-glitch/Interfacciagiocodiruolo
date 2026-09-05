@@ -1,5 +1,6 @@
 import { FIRE_TEXTURE_DATA_URL } from './fireTextureData.ts';
 import { ICE_TEXTURE_SOURCE_DATA_URL } from './iceTextureData.ts';
+import { LIGHTNING_TEXTURE_SOURCE_DATA_URL } from './lightningTextureData.ts';
 import { normalizeDiceTextureScale } from './diceTextureScale.ts';
 import type { DiceAppearance, DiceSkinId } from './diceTypes.ts';
 
@@ -37,16 +38,29 @@ function createTextureImage(dataUrl: string, cachePrefix: string): TextureImageR
 
 const fireTextureResource = createTextureImage(FIRE_TEXTURE_DATA_URL, 'fire');
 const iceTextureResource = createTextureImage(ICE_TEXTURE_SOURCE_DATA_URL, 'ice');
+const lightningTextureResource = createTextureImage(LIGHTNING_TEXTURE_SOURCE_DATA_URL, 'lightning');
 const fireTextureImage = fireTextureResource.image;
 const iceTextureImage = iceTextureResource.image;
+const lightningTextureImage = lightningTextureResource.image;
 
 function isIceTextureReady(): boolean {
   return Boolean(iceTextureImage?.complete && iceTextureImage.naturalWidth > 0);
 }
 
+function isLightningTextureReady(): boolean {
+  return Boolean(lightningTextureImage?.complete && lightningTextureImage.naturalWidth > 0);
+}
+
 export async function waitForDice3DTextureAssets(descriptors: readonly Dice3DTextureAssetRequest[]): Promise<void> {
-  if (!descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'ice')) return;
-  await iceTextureResource.ready;
+  const pending: Promise<void>[] = [];
+  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'ice')) {
+    pending.push(iceTextureResource.ready);
+  }
+  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'lightning')) {
+    pending.push(lightningTextureResource.ready);
+  }
+  if (pending.length === 0) return;
+  await Promise.all(pending);
 }
 
 function resetContext(context: CanvasRenderingContext2D, size: number) {
@@ -115,6 +129,25 @@ function drawIcePhotoTexture(context: CanvasRenderingContext2D, bump: CanvasRend
   context.restore();
   bump.save();
   bump.filter = 'grayscale(1) contrast(1.95) brightness(.96)';
+  drawImageCover(bump, image, size);
+  bump.restore();
+  return true;
+}
+
+function drawLightningPhotoTexture(context: CanvasRenderingContext2D, bump: CanvasRenderingContext2D, size: number): boolean {
+  const image = lightningTextureImage;
+  if (!image?.complete || image.naturalWidth <= 0) return false;
+  context.save();
+  context.filter = 'brightness(1.16) saturate(1.12) contrast(1.10)';
+  drawImageCover(context, image, size);
+  context.filter = 'none';
+  context.globalCompositeOperation = 'screen';
+  context.globalAlpha = 0.045;
+  context.fillStyle = '#e3faff';
+  context.fillRect(0, 0, size, size);
+  context.restore();
+  bump.save();
+  bump.filter = 'grayscale(1) contrast(2.05) brightness(.94)';
   drawImageCover(bump, image, size);
   bump.restore();
   return true;
@@ -191,6 +224,7 @@ function drawPattern(textureCanvas: HTMLCanvasElement, bumpCanvas: HTMLCanvasEle
       break;
     }
     case 'lightning': {
+      if (drawLightningPhotoTexture(context, bump, size)) break;
       context.save(); context.shadowColor = 'rgba(110,229,255,1)'; context.shadowBlur = size / 34;
       for (let i = 0; i < 5; i += 1) {
         const x = size * (0.08 + i * 0.2);
@@ -265,7 +299,9 @@ function drawPattern(textureCanvas: HTMLCanvasElement, bumpCanvas: HTMLCanvasEle
 export function getDice3DTextureDescriptor(appearance: DiceAppearance): Dice3DTextureDescriptor {
   if (appearance.skinId === 'none') return { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' };
   const textureScale = normalizeDiceTextureScale(appearance.textureScale);
-  const readiness = appearance.skinId === 'ice' ? (isIceTextureReady() ? 'ready' : 'placeholder') : null;
+  const readiness = appearance.skinId === 'ice'
+    ? (isIceTextureReady() ? 'ready' : 'placeholder')
+    : appearance.skinId === 'lightning' ? (isLightningTextureReady() ? 'ready' : 'placeholder') : null;
   const key = readiness ? `${appearance.skinId}:${appearance.bodyColor}:${textureScale}:${readiness}` : `${appearance.skinId}:${appearance.bodyColor}:${textureScale}`;
   const cached = cache.get(key);
   if (cached) return cached;
