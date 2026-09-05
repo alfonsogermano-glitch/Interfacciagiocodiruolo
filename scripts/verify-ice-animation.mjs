@@ -37,6 +37,7 @@ assert.ok(effects.includes("case 'ice':") && effects.includes('addIceCrystals(gr
 assert.ok(effects.includes('window.requestAnimationFrame(frame)') && effects.includes('window.cancelAnimationFrame(this.raf)'), '3D Ice controller must animate independently during rolling and clean up');
 assert.ok(boost.includes("case 'ice': return '#8eeeff'"), '3D Ice must keep the cold moving light boost');
 assert.ok(renderer.includes('private releaseAppearanceEffects') && renderer.includes('this.releaseAppearanceEffects();'), '3D effects must remain alive until clear/abort');
-assert.ok(session.includes('DICE_ANIMATED_SETTLED_HOLD_MS = 3000'), 'animated Ice must remain visible for three seconds after settling');
-assert.ok(session.includes('descriptor?.appearance.effectsEnabled'), 'three-second hold must be tied to effectsEnabled');
+assert.ok(renderer.includes('this.startSettledRenderLoop();') && renderer.includes('this.stopSettledRenderLoop();'), 'Ice effects must keep rendering throughout the settled hold and stop only on clear');
+assert.ok(session.includes('DICE_ANIMATED_SETTLED_HOLD_MS = 2000'), 'animated Ice must remain visible for two seconds after settling');
+assert.ok(session.includes('descriptor?.appearance.effectsEnabled'), 'two-second hold must be tied to effectsEnabled');
 console.log('Animated Ice 2D/3D lifecycle verification passed.');
