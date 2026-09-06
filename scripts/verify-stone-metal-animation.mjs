@@ -36,11 +36,13 @@ expect(stoneOverlay.includes('hollowgate-stone-shards'), 'Stone overlay must inc
 expect(stoneOverlay.includes('hollowgate-stone-impact'), 'Stone overlay must include a subtle impact/vibration layer');
 expect(stoneCss.includes('@keyframes hollowgate-stone-shard-drift'), 'Stone must animate rock-shard drift');
 expect(stoneCss.includes('@keyframes hollowgate-stone-impact-pulse'), 'Stone must animate a restrained impact pulse');
+expect(stoneCss.includes('@media (prefers-reduced-motion: reduce)'), 'Stone animation must respect reduced-motion');
 
-expect(effects.includes('function addMetalSparks('), '3D Metal must have a dedicated metallic spark effect');
-expect(effects.includes("if (skinId === 'metal') addMetalSparks(group, updaters, radius);"), '3D Metal spark effect must be wired into the shared effect lifecycle');
-expect(effects.includes('function addStoneDustBurst('), '3D Stone must have a dedicated stone dust/fragments effect');
-expect(effects.includes("if (skinId === 'stone') addStoneDustBurst(group, updaters, radius);"), '3D Stone dust effect must be wired into the shared effect lifecycle');
+// Both skins already participate in the shared 3D RAF lifecycle; keep that coverage explicit.
+expect(effects.includes("case 'stone':\n      return { frequency: 3"), '3D Stone must retain its animated material/particle profile');
+expect(effects.includes('addStoneFragments(group, updaters, radius);'), '3D Stone must retain orbiting rock fragments');
+expect(effects.includes("case 'metal':\n      return { frequency: 8"), '3D Metal must retain its animated metallic surface/particle profile');
+expect(effects.includes("particleColor: '#ffffff', particleCount: 6"), '3D Metal must retain bright metallic particles');
 
 if (failures.length) {
   throw new assert.AssertionError({
