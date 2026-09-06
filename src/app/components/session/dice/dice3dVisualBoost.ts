@@ -3,7 +3,10 @@
 import * as THREE from 'three';
 import type { Dice3DAppearanceDescriptor } from './dice3dProjection.ts';
 
+type ColorLike = { set?: (value: string | number) => unknown; getHex?: () => number };
 type MaterialLike = {
+  map?: unknown;
+  emissive?: ColorLike;
   emissiveMap?: unknown;
   emissiveIntensity?: number;
   needsUpdate?: boolean;
@@ -16,7 +19,16 @@ type MeshLike = {
   remove: (child: unknown) => void;
 };
 
+type FacePulseBaseline = {
+  material: MaterialLike;
+  emissiveMap: unknown;
+  emissiveIntensity: number;
+  emissiveHex?: number;
+};
+
 const FIRE_TEXTURE_EMISSIVE_PULSE = 0.48;
+const STONE_FACE_EMISSIVE_PULSE = 0.16;
+const METAL_FACE_EMISSIVE_PULSE = 0.34;
 const ICE_LIGHT_INTENSITY = 0.56;
 
 function radiusOf(mesh: MeshLike): number {
@@ -79,6 +91,24 @@ export function installDice3DVisualBoost(
       .filter((material) => material.emissiveMap && typeof material.emissiveIntensity === 'number')
       .map((material) => ({ material, emissiveIntensity: material.emissiveIntensity as number }))
     : [];
+  const facePulseBaselines: FacePulseBaseline[] = (skin === 'stone' || skin === 'metal') && !descriptor.custom
+    ? materialsOf(typedMesh)
+      .slice(1)
+      .filter((material) => material.map && material.emissive && typeof material.emissiveIntensity === 'number')
+      .map((material) => ({
+        material,
+        emissiveMap: material.emissiveMap,
+        emissiveIntensity: material.emissiveIntensity as number,
+        emissiveHex: material.emissive?.getHex?.(),
+      }))
+    : [];
+
+  for (const { material } of facePulseBaselines) {
+    material.emissiveMap = material.map;
+    material.emissive?.set?.(skin === 'metal' ? '#dceeff' : '#c9bda9');
+    material.needsUpdate = true;
+  }
+
   const radius = radiusOf(typedMesh);
   const group = new THREE.Group();
   group.name = `hollowgate-strong-skin-${skin}`;
@@ -86,7 +116,7 @@ export function installDice3DVisualBoost(
 
   const pointLight = new THREE.PointLight(
     lightColor,
-    skin === 'ice' ? ICE_LIGHT_INTENSITY : skin === 'lightning' ? 0.85 : skin === 'poison' ? 0.82 : skin === 'stone' ? 0.42 : 0.65,
+    skin === 'ice' ? ICE_LIGHT_INTENSITY : skin === 'lightning' ? 0.85 : skin === 'poison' ? 0.82 : skin === 'stone' ? 0.58 : skin === 'metal' ? 0.82 : 0.65,
     radius * 4.9,
     2,
   );
@@ -103,6 +133,16 @@ export function installDice3DVisualBoost(
       ? clamp01(0.2 + slow * 0.24 + medium * 0.3 + fast * 0.26 + ((Math.sin(seconds * 29.4 + 0.6) + 1) / 2) * 0.14)
       : clamp01(0.18 + slow * 0.32 + medium * 0.24);
 
+    if (skin === 'stone' || skin === 'metal') {
+      const orbitRadius = skin === 'metal' ? radius * 1.62 : radius * 1.48;
+      const orbitSpeed = skin === 'metal' ? 1.72 : 0.92;
+      pointLight.position.set(
+        Math.cos(seconds * orbitSpeed) * orbitRadius,
+        Math.sin(seconds * orbitSpeed * 0.83 + 0.6) * orbitRadius * 0.72,
+        Math.sin(seconds * orbitSpeed * 1.17 + 1.1) * orbitRadius * 0.86,
+      );
+    }
+
     pointLight.intensity = skin === 'lightning'
       ? 0.55 + rollingPulse * 0.75
       : skin === 'fire'
@@ -112,8 +152,10 @@ export function installDice3DVisualBoost(
           : skin === 'poison'
             ? 0.52 + rollingPulse * 0.6
             : skin === 'stone'
-              ? 0.28 + rollingPulse * 0.24
-              : 0.35 + rollingPulse * 0.42;
+              ? 0.44 + rollingPulse * 0.38
+              : skin === 'metal'
+                ? 0.54 + rollingPulse * 0.76
+                : 0.35 + rollingPulse * 0.42;
 
     if (fireFaceBaselines.length > 0) {
       const magmaPulse = clamp01(0.24 + slow * 0.28 + medium * 0.24 + fast * 0.18 + ((Math.sin(seconds * 10.3 + 1.7) + 1) / 2) * 0.14);
@@ -122,6 +164,18 @@ export function installDice3DVisualBoost(
         material.needsUpdate = true;
       }
     }
+
+    if (facePulseBaselines.length > 0) {
+      const facePulse = skin === 'metal'
+        ? clamp01(0.18 + medium * 0.48 + fast * 0.34)
+        : clamp01(0.18 + slow * 0.5 + medium * 0.32);
+      const pulseStrength = skin === 'metal' ? METAL_FACE_EMISSIVE_PULSE : STONE_FACE_EMISSIVE_PULSE;
+      for (const { material, emissiveIntensity } of facePulseBaselines) {
+        material.emissiveIntensity = emissiveIntensity + 0.02 + facePulse * pulseStrength;
+        material.needsUpdate = true;
+      }
+    }
+
     raf = window.requestAnimationFrame(frame);
   };
 
@@ -131,6 +185,12 @@ export function installDice3DVisualBoost(
     if (raf !== null) window.cancelAnimationFrame(raf);
     for (const { material, emissiveIntensity } of fireFaceBaselines) {
       material.emissiveIntensity = emissiveIntensity;
+      material.needsUpdate = true;
+    }
+    for (const { material, emissiveMap, emissiveIntensity, emissiveHex } of facePulseBaselines) {
+      material.emissiveMap = emissiveMap;
+      material.emissiveIntensity = emissiveIntensity;
+      if (emissiveHex !== undefined) material.emissive?.set?.(emissiveHex);
       material.needsUpdate = true;
     }
     typedMesh.remove(group);
