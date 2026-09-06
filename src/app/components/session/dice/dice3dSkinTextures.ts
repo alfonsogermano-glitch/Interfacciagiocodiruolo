@@ -167,12 +167,12 @@ function drawPoisonPhotoTexture(context: CanvasRenderingContext2D, bump: CanvasR
   const image = poisonTextureImage;
   if (!image?.complete || image.naturalWidth <= 0) return false;
   context.save();
-  context.filter = 'brightness(1.20) saturate(1.18) contrast(1.10)';
+  context.filter = 'brightness(1.32) saturate(1.26) contrast(1.06)';
   drawImageCover(context, image, size);
   context.filter = 'none';
   context.globalCompositeOperation = 'screen';
-  context.globalAlpha = 0.045;
-  context.fillStyle = '#c8ff8a';
+  context.globalAlpha = 0.075;
+  context.fillStyle = '#b7ff4a';
   context.fillRect(0, 0, size, size);
   context.restore();
   bump.save();

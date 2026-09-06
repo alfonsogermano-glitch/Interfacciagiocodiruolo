@@ -90,7 +90,7 @@ assert.ok(textures.includes("import { POISON_TEXTURE_SOURCE_DATA_URL } from './p
 assert.ok(textures.includes("createTextureImage(POISON_TEXTURE_SOURCE_DATA_URL, 'poison')"), '3D Poison must preload the photograph through the shared readiness pipeline');
 assert.ok(textures.includes('drawPoisonPhotoTexture(context, bump, size)'), '3D Poison must render the photographic source');
 assert.ok(!/drawPoisonPhotoTexture\([^)]*bodyColor/.test(textures), 'Poison photograph must not be tinted by bodyColor');
-assert.ok(textures.includes("context.filter = 'brightness(1.20) saturate(1.18) contrast(1.10)'"), 'Poison photo faces must receive a vivid but controlled lift');
+assert.ok(textures.includes("context.filter = 'brightness(1.32) saturate(1.26) contrast(1.06)'"), 'Poison photo faces must receive the brighter lime-forward polish');
 assert.ok(textures.includes("bump.filter = 'grayscale(1) contrast(1.90) brightness(.88)'"), 'Poison bump must derive from the photograph');
 assert.ok(textures.includes("descriptor.appearance.skinId === 'poison'"), 'The readiness gate must wait for Poison rolls');
 assert.ok(textures.includes("appearance.skinId === 'poison' ? (isPoisonTextureReady() ? 'ready' : 'placeholder')"), 'Poison descriptors must distinguish placeholder and ready phases');
@@ -105,9 +105,9 @@ assert.ok(profiles.includes("poison: 'photo-unlit'"), 'Poison photographic faces
 assert.ok(materials.includes("skinId === 'fire' || getDice3DSurfaceProfile(skinId) === 'photo-unlit'"), 'Fire and every photo-unlit skin must preserve the exact user-selected symbol color');
 assert.ok(materials.includes("case 'poison': return '#62d94d';"), 'Poison edges must keep their dedicated toxic-green emissive color');
 assert.ok(effects.includes("case 'poison':") && effects.includes('addPoisonBubbles(group, updaters, radius);'), 'Poison must retain its dedicated animated 3D bubbles');
-assert.ok(boost.includes("case 'poison': return '#7fea55';"), 'Poison must retain its toxic-green moving-light boost');
+assert.ok(boost.includes("case 'poison': return '#a6ff4f';"), 'Poison must retain its brighter toxic-green moving-light boost');
 assert.ok(profileTest.includes("getDice3DSurfaceProfile('poison'), 'photo-unlit'"), 'Surface-profile verification must cover Poison');
 assert.ok(renderer.includes('this.startSettledRenderLoop();') && renderer.includes('this.stopSettledRenderLoop();'), 'Poison effects must continue rendering throughout the settled hold');
 assert.ok(ci.includes('node scripts/verify-poison-skin-consistency.mjs'), 'CI must run the Poison photographic-skin regression test');
 
-console.log('Poison photographic 2D/3D texture, readiness cache, vivid unlit faces, exact symbols, and toxic animated effects verification passed.');
+console.log('Poison photographic 2D/3D texture, readiness cache, brighter unlit faces, exact symbols, and toxic animated effects verification passed.');

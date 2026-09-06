@@ -44,7 +44,7 @@ function boostLightColor(skin: Dice3DAppearanceDescriptor['appearance']['skinId'
     case 'fire': return '#ff641f';
     case 'ice': return '#8eeeff';
     case 'lightning': return '#55e6ff';
-    case 'poison': return '#7fea55';
+    case 'poison': return '#a6ff4f';
     case 'metal': return '#d5ecff';
     case 'obsidian': return '#9a69ff';
     default: return null;
@@ -85,7 +85,7 @@ export function installDice3DVisualBoost(
 
   const pointLight = new THREE.PointLight(
     lightColor,
-    skin === 'ice' ? ICE_LIGHT_INTENSITY : skin === 'lightning' ? 0.85 : 0.65,
+    skin === 'ice' ? ICE_LIGHT_INTENSITY : skin === 'lightning' ? 0.85 : skin === 'poison' ? 0.82 : 0.65,
     radius * 4.9,
     2,
   );
@@ -108,7 +108,9 @@ export function installDice3DVisualBoost(
         ? 0.6 + rollingPulse * 1.12
         : skin === 'ice'
           ? ICE_LIGHT_INTENSITY
-          : 0.35 + rollingPulse * 0.42;
+          : skin === 'poison'
+            ? 0.52 + rollingPulse * 0.6
+            : 0.35 + rollingPulse * 0.42;
 
     if (fireFaceBaselines.length > 0) {
       const magmaPulse = clamp01(0.24 + slow * 0.28 + medium * 0.24 + fast * 0.18 + ((Math.sin(seconds * 10.3 + 1.7) + 1) / 2) * 0.14);

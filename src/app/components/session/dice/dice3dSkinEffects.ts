@@ -76,7 +76,7 @@ export function getDice3DSkinEffectProfile(
     case 'lightning':
       return { frequency: 15.5, emissiveColor: '#43dcff', emissiveBase: 0.04, emissivePulse: 0.4, roughnessPulse: 0.2, metalnessPulse: 0.02, shininessPulse: 74, particleColor: '#d2faff', particleCount: 10, particleOpacity: 1, particleSize: 0.105, orbitSpeed: 3.25, lightningBolts: 5, arcaneRing: false };
     case 'poison':
-      return { frequency: 5.4, emissiveColor: '#69df52', emissiveBase: 0.03, emissivePulse: 0.2, roughnessPulse: 0.13, metalnessPulse: 0, shininessPulse: 34, particleColor: '#9aff72', particleCount: 14, particleOpacity: 0.9, particleSize: 0.14, orbitSpeed: 1.2, lightningBolts: 0, arcaneRing: false };
+      return { frequency: 6.6, emissiveColor: '#7dff4d', emissiveBase: 0.08, emissivePulse: 0.32, roughnessPulse: 0.16, metalnessPulse: 0, shininessPulse: 42, particleColor: '#b4ff68', particleCount: 20, particleOpacity: 0.96, particleSize: 0.13, orbitSpeed: 1.7, lightningBolts: 0, arcaneRing: false };
     case 'stone':
       return { frequency: 3, emissiveColor: null, emissiveBase: 0, emissivePulse: 0, roughnessPulse: 0.07, metalnessPulse: 0, shininessPulse: 10, particleColor: '#d8d1c4', particleCount: 9, particleOpacity: 0.58, particleSize: 0.08, orbitSpeed: 0.5, lightningBolts: 0, arcaneRing: false };
     case 'metal':
@@ -187,24 +187,24 @@ function addPoisonBubbles(
   radius: number,
 ) {
   const bubbles: any[] = [];
-  for (let index = 0; index < 5; index += 1) {
-    const material = createGlowMaterial(index % 2 ? '#87ff64' : '#c8ff73', 0.34);
+  for (let index = 0; index < 8; index += 1) {
+    const material = createGlowMaterial(index % 2 ? '#9aff63' : '#d8ff79', 0.44);
     const bubble = new THREE.Mesh(new THREE.SphereGeometry(radius * (0.06 + index * 0.008), 8, 6), material);
     group.add(bubble);
     bubbles.push({ bubble, material, phase: index * 1.17 });
   }
   updaters.push((elapsed, wave) => {
     bubbles.forEach(({ bubble, material, phase }, index) => {
-      const angle = phase + elapsed * (0.62 + index * 0.05);
-      const orbit = radius * (1.18 + (index % 3) * 0.08);
+      const angle = phase + elapsed * (0.82 + index * 0.07);
+      const orbit = radius * (1.16 + (index % 3) * 0.08);
       bubble.position.set(
         Math.cos(angle) * orbit,
         Math.sin(angle) * orbit,
-        Math.sin(elapsed * 1.2 + phase) * radius * 0.55,
+        Math.sin(elapsed * 1.65 + phase) * radius * 0.62,
       );
-      const scale = 0.78 + wave * 0.4 + Math.sin(elapsed * 2 + phase) * 0.08;
+      const scale = 0.72 + wave * 0.58 + Math.sin(elapsed * 2.8 + phase) * 0.12;
       bubble.scale.setScalar(scale);
-      material.opacity = 0.24 + wave * 0.28;
+      material.opacity = 0.3 + wave * 0.42;
     });
   });
 }
@@ -281,9 +281,11 @@ function createParticleVisual(
         const angle = phase.angle + elapsed * phase.speed;
         const outward = skinId === 'fire'
           ? 1.12 + ((elapsed * 0.7 + index / Math.max(1, particleCount)) % 1) * 0.48
+          : skinId === 'poison'
+          ? 1.16 + Math.sin(elapsed * phase.pulse * 1.35 + index) * 0.17
           : 1.18 + Math.sin(elapsed * phase.pulse + index) * 0.12;
         const verticalDrift = skinId === 'poison'
-          ? Math.sin(elapsed * 1.7 + index * 0.7) * 0.42
+          ? Math.sin(elapsed * 2.2 + index * 0.7) * 0.52
           : phase.elevation + Math.sin(elapsed * phase.pulse + index * 0.3) * 0.16;
         positions[index * 3] = Math.cos(angle) * radius * outward;
         positions[index * 3 + 1] = Math.sin(angle) * radius * outward;
