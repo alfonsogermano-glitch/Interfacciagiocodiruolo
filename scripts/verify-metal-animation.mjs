@@ -7,6 +7,7 @@ const cssPath = new URL('src/app/components/session/dice/diceMetalAnimation.css'
 const surface = fs.readFileSync(new URL('src/app/components/session/dice/DiceSkinSurface.tsx', root), 'utf8');
 const icon = fs.readFileSync(new URL('src/app/components/session/dice/StyledStandardDieIcon.tsx', root), 'utf8');
 const effects = fs.readFileSync(new URL('src/app/components/session/dice/dice3dSkinEffects.ts', root), 'utf8');
+const renderer = fs.readFileSync(new URL('src/app/components/session/dice/dice3dRenderer.ts', root), 'utf8');
 
 assert.ok(fs.existsSync(overlayPath), 'Metal must have a dedicated 2D animated overlay component');
 assert.ok(fs.existsSync(cssPath), 'Metal must have dedicated animation CSS');
@@ -28,5 +29,9 @@ assert.ok(effects.includes('particleCount: 12'), 'Metal 3D effect must emit enou
 assert.ok(effects.includes('orbitSpeed: 3.2'), 'Metal 3D sparks must move crisply');
 assert.ok(effects.includes('function addMetalSparks('), 'Metal must have a dedicated 3D spark effect');
 assert.ok(effects.includes('addMetalSparks(group, updaters, radius);'), 'Metal 3D spark effect must be wired into the visual effect switch');
+assert.ok(renderer.includes("descriptor.appearance.skinId === 'stone' || descriptor.appearance.skinId === 'metal'"), 'Renderer must explicitly classify Metal as requiring active rolling renders');
+const metalRollingRender = renderer.indexOf('if (needsRollingEffectsRender) this.startSettledRenderLoop();');
+const rollCall = renderer.indexOf('await this.box.roll(notation);');
+assert.ok(metalRollingRender >= 0 && rollCall > metalRollingRender, 'Metal rolling effect render loop must start before the physical 3D roll');
 
-console.log('Metal 2D/3D shimmer, sweep and sparks verification passed.');
+console.log('Metal 2D/3D shimmer, sweep, sparks and rolling render lifecycle verification passed.');
