@@ -5,6 +5,7 @@ import { DiceLightningAnimatedOverlay, isAnimatedLightningAppearance } from './D
 import { DicePoisonAnimatedOverlay, isAnimatedPoisonAppearance } from './DicePoisonAnimatedOverlay';
 import { DiceStoneAnimatedOverlay, isAnimatedStoneAppearance } from './DiceStoneAnimatedOverlay';
 import { DiceMetalAnimatedOverlay, isAnimatedMetalAppearance } from './DiceMetalAnimatedOverlay';
+import { DiceObsidianAnimatedOverlay, isAnimatedObsidianAppearance } from './DiceObsidianAnimatedOverlay';
 import { DiceSkinPreviewArt } from './DiceSkinPreviewArt';
 import { getDiceSkinBackgroundImage } from './diceSkins.ts';
 import { getDiceTextureBackgroundSize } from './diceTextureScale.ts';
@@ -28,12 +29,13 @@ export function DiceSkinSurface({
   const animatedPoison = isAnimatedPoisonAppearance(appearance);
   const animatedStone = isAnimatedStoneAppearance(appearance);
   const animatedMetal = isAnimatedMetalAppearance(appearance);
-  const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice' || appearance.skinId === 'lightning' || appearance.skinId === 'poison' || appearance.skinId === 'stone' || appearance.skinId === 'metal';
+  const animatedObsidian = isAnimatedObsidianAppearance(appearance);
+  const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice' || appearance.skinId === 'lightning' || appearance.skinId === 'poison' || appearance.skinId === 'stone' || appearance.skinId === 'metal' || appearance.skinId === 'obsidian';
   return (
     <span
       data-dice-skin={appearance.skinId}
       data-dice-skin-illustrative={illustrative || undefined}
-      className={`${illustrative || animatedFire || animatedIce || animatedLightning || animatedPoison || animatedStone || animatedMetal ? 'relative overflow-hidden' : ''} ${className}`}
+      className={`${illustrative || animatedFire || animatedIce || animatedLightning || animatedPoison || animatedStone || animatedMetal || animatedObsidian ? 'relative overflow-hidden' : ''} ${className}`}
       style={{
         backgroundColor: appearance.bodyColor,
         backgroundImage,
@@ -53,6 +55,7 @@ export function DiceSkinSurface({
       <DicePoisonAnimatedOverlay appearance={appearance} />
       <DiceStoneAnimatedOverlay appearance={appearance} />
       <DiceMetalAnimatedOverlay appearance={appearance} />
+      <DiceObsidianAnimatedOverlay appearance={appearance} />
       {children}
     </span>
   );
