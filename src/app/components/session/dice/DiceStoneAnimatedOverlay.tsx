@@ -18,6 +18,9 @@ export function DiceStoneAnimatedOverlay({ appearance }: { appearance: DiceAppea
       />
       <span className="hollowgate-stone-dust hollowgate-stone-dust-a absolute inset-[-16%]" />
       <span className="hollowgate-stone-dust hollowgate-stone-dust-b absolute inset-[-12%]" />
+      <span className="hollowgate-stone-shards hollowgate-stone-shards-a absolute inset-[-10%]" />
+      <span className="hollowgate-stone-shards hollowgate-stone-shards-b absolute inset-[-8%]" />
+      <span className="hollowgate-stone-impact absolute inset-0" />
       <span className="hollowgate-stone-grit absolute inset-0" />
     </span>
   );
