@@ -43,6 +43,18 @@ assert.equal(lightningMesh.material[1].map, lightningTexture, 'Lightning faces m
 assert.equal(lightningMesh.material[1].toneMapped, false, 'Lightning faces must bypass tone mapping for stable vivid color');
 assert.equal(lightningMesh.material[1].color.getHex(), 0xffffff, 'Lightning faces must keep a neutral white texture multiplier');
 
+const poisonTexture = new THREE.Texture();
+const poisonEdge = new THREE.MeshPhongMaterial({ color: '#62d94d' });
+const poisonFace = new THREE.MeshPhongMaterial({ color: '#ffffff', map: poisonTexture });
+const poisonMesh = { material: [poisonEdge, poisonFace] };
+assert.equal(getDice3DSurfaceProfile('poison'), 'photo-unlit');
+applyDice3DSurfaceProfile(poisonMesh, { appearance: appearance('poison'), custom: false });
+assert.equal(poisonMesh.material[0], poisonEdge, 'Poison must preserve its toxic-green edge material');
+assert.ok(poisonMesh.material[1] instanceof THREE.MeshBasicMaterial, 'Poison photographic faces must use a genuinely unlit material');
+assert.equal(poisonMesh.material[1].map, poisonTexture, 'Poison faces must preserve the photographic composite map');
+assert.equal(poisonMesh.material[1].toneMapped, false, 'Poison faces must bypass tone mapping for stable vivid color');
+assert.equal(poisonMesh.material[1].color.getHex(), 0xffffff, 'Poison faces must keep a neutral white texture multiplier');
+
 const fireEdge = new THREE.MeshPhongMaterial({ color: '#c63d35' });
 const fireFace = new THREE.MeshPhongMaterial({ color: '#ffffff', map: texture });
 const fireMesh = { material: [fireEdge, fireFace] };
@@ -56,4 +68,4 @@ const customMesh = { material: [fireEdge, customFace] };
 applyDice3DSurfaceProfile(customMesh, { appearance: appearance('ice'), custom: true });
 assert.equal(customMesh.material[1], customFace, 'Custom dice must remain outside standard-skin profiles');
 
-console.log('Shared 3D surface profiles preserve Ice/Lightning photography, Fire lighting, edges, and Custom materials.');
+console.log('Shared 3D surface profiles preserve Ice/Lightning/Poison photography, Fire lighting, edges, and Custom materials.');

@@ -1,4 +1,4 @@
-// Regression coverage for photographic Fire/Ice/Lightning rendering, user-selected colors, highlighted 3D labels, and settled effects.
+// Regression coverage for photographic Fire/Ice/Lightning/Poison rendering, user-selected colors, highlighted 3D labels, and settled effects.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
@@ -15,20 +15,20 @@ const failures = [];
 const expect = (condition, message) => { if (!condition) failures.push(message); };
 
 expect(
-  surface.includes("const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice' || appearance.skinId === 'lightning';"),
-  'Fire, Ice and Lightning swatches must share photographic-skin border-box handling',
+  surface.includes("const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice' || appearance.skinId === 'lightning' || appearance.skinId === 'poison';"),
+  'Fire, Ice, Lightning and Poison swatches must share photographic-skin border-box handling',
 );
 expect(
   surface.includes("backgroundOrigin: photographicSkin ? 'border-box' : undefined"),
   'Photographic skin backgrounds must originate from the border box to avoid color slivers',
 );
 expect(
-  icon.includes("if (skinId === 'fire' || skinId === 'ice' || skinId === 'lightning') return symbolColor;"),
-  '2D Fire/Ice/Lightning numbers must preserve the exact user-selected symbol color',
+  icon.includes("if (skinId === 'fire' || skinId === 'ice' || skinId === 'lightning' || skinId === 'poison') return symbolColor;"),
+  '2D Fire/Ice/Lightning/Poison numbers must preserve the exact user-selected symbol color',
 );
 expect(
-  materials.includes("if (skinId === 'fire' || skinId === 'ice' || skinId === 'lightning') return symbolColor;"),
-  '3D Fire/Ice/Lightning numbers must preserve the exact user-selected symbol color',
+  materials.includes("if (skinId === 'fire' || getDice3DSurfaceProfile(skinId) === 'photo-unlit') return symbolColor;"),
+  '3D Fire and every photo-unlit skin must preserve the exact user-selected symbol color',
 );
 expect(
   materials.includes("import { applyDice3DSurfaceProfile, getDice3DSurfaceProfile } from './dice3dSurfaceProfiles.ts';"),
@@ -56,7 +56,7 @@ expect(
 );
 expect(
   materials.includes("getDice3DSurfaceProfile(descriptor.appearance.skinId) !== 'photo-unlit'"),
-  'Ice, Lightning and future photo-unlit skins must inherit the stronger proportional outline automatically',
+  'Ice, Lightning, Poison and future photo-unlit skins must inherit the stronger proportional outline automatically',
 );
 expect(
   materials.includes('Number.parseFloat(context.font)'),
@@ -84,11 +84,17 @@ expect(lightningTextureFn.length > 0, 'Lightning must have a dedicated photograp
 expect(!lightningTextureFn.includes('fillStyle = bodyColor'), 'Lightning 3D photographic texture must not be tinted by bodyColor');
 expect(!/drawLightningPhotoTexture\([^)]*bodyColor/.test(textures), 'Lightning texture renderer must not accept bodyColor tinting');
 
+const poisonTextureFn = textures.match(/function drawPoisonPhotoTexture[\s\S]*?\n}\n/)?.[0] ?? '';
+expect(poisonTextureFn.length > 0, 'Poison must have a dedicated photographic 3D texture renderer');
+expect(!poisonTextureFn.includes('fillStyle = bodyColor'), 'Poison 3D photographic texture must not be tinted by bodyColor');
+expect(!/drawPoisonPhotoTexture\([^)]*bodyColor/.test(textures), 'Poison texture renderer must not accept bodyColor tinting');
+
 const iceMaterialFn = materials.match(/function preserveIceFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
 expect(iceMaterialFn === '', 'Ice must not emulate an unlit surface by mutating a lit Phong material');
 expect(materials.includes('applyDice3DSurfaceProfile(mesh, descriptor);'), 'Every standard die must apply its declared surface profile');
 expect(profiles.includes("ice: 'photo-unlit'"), 'Ice must declare the reusable photo-unlit profile');
 expect(profiles.includes("lightning: 'photo-unlit'"), 'Lightning must reuse the photo-unlit profile for stable vivid faces');
+expect(profiles.includes("poison: 'photo-unlit'"), 'Poison must reuse the photo-unlit profile for stable vivid faces');
 
 const fireMaterialFn = materials.match(/function preserveFireFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
 expect(fireMaterialFn.includes('material.color?.set?.(0xffffff)'), 'Fire face diffuse behavior must remain unchanged');
@@ -124,4 +130,4 @@ if (failures.length) {
   });
 }
 
-console.log('Fire/Ice/Lightning rendering, exact colors, proportional photo-unlit labels, shared surface profiles, and settled-effect lifecycle verification passed.');
+console.log('Fire/Ice/Lightning/Poison rendering, exact colors, proportional photo-unlit labels, shared surface profiles, and settled-effect lifecycle verification passed.');
