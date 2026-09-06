@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { DiceFireAnimatedOverlay, isAnimatedFireAppearance } from './DiceFireAnimatedOverlay';
 import { isAnimatedIceAppearance } from './DiceIceAnimatedOverlay';
 import { DiceLightningAnimatedOverlay, isAnimatedLightningAppearance } from './DiceLightningAnimatedOverlay';
+import { DicePoisonAnimatedOverlay, isAnimatedPoisonAppearance } from './DicePoisonAnimatedOverlay';
 import { DiceSkinPreviewArt } from './DiceSkinPreviewArt';
 import { getDiceSkinBackgroundImage } from './diceSkins.ts';
 import { getDiceTextureBackgroundSize } from './diceTextureScale.ts';
@@ -22,12 +23,13 @@ export function DiceSkinSurface({
   const animatedFire = isAnimatedFireAppearance(appearance);
   const animatedIce = isAnimatedIceAppearance(appearance);
   const animatedLightning = isAnimatedLightningAppearance(appearance);
-  const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice' || appearance.skinId === 'lightning';
+  const animatedPoison = isAnimatedPoisonAppearance(appearance);
+  const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice' || appearance.skinId === 'lightning' || appearance.skinId === 'poison';
   return (
     <span
       data-dice-skin={appearance.skinId}
       data-dice-skin-illustrative={illustrative || undefined}
-      className={`${illustrative || animatedFire || animatedIce || animatedLightning ? 'relative overflow-hidden' : ''} ${className}`}
+      className={`${illustrative || animatedFire || animatedIce || animatedLightning || animatedPoison ? 'relative overflow-hidden' : ''} ${className}`}
       style={{
         backgroundColor: appearance.bodyColor,
         backgroundImage,
@@ -44,6 +46,7 @@ export function DiceSkinSurface({
       )}
       <DiceFireAnimatedOverlay appearance={appearance} />
       <DiceLightningAnimatedOverlay appearance={appearance} />
+      <DicePoisonAnimatedOverlay appearance={appearance} />
       {children}
     </span>
   );
