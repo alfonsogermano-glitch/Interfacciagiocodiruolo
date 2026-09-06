@@ -43,8 +43,8 @@ assert.ok(
 
 assert.ok(boost.includes("case 'poison': return '#a6ff4f';"), 'Poison moving light must use a brighter acidic green');
 assert.ok(
-  boost.includes("skin === 'poison' ? 0.82")
-    && boost.includes("skin === 'poison'\n          ? 0.52 + rollingPulse * 0.6"),
+  /skin === 'poison'\s*\? 0\.82/.test(boost)
+    && /skin === 'poison'\s*\? 0\.52 \+ rollingPulse \* 0\.6/.test(boost),
   'Poison moving light must be stronger during rolls and settled animation',
 );
 
