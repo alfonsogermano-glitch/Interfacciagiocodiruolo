@@ -62,7 +62,8 @@ function dice3DLabelOutlineWidth(
   context: CanvasRenderingContext2D,
   descriptor: Dice3DAppearanceDescriptor,
 ): number {
-  if (getDice3DSurfaceProfile(descriptor.appearance.skinId) !== 'photo-unlit') return DICE_SKIN_LABEL_OUTLINE_WIDTH;
+  const skinId = descriptor.appearance.skinId;
+  if (getDice3DSurfaceProfile(skinId) !== 'photo-unlit' && skinId !== 'stone') return DICE_SKIN_LABEL_OUTLINE_WIDTH;
   const fontSize = Number.parseFloat(context.font);
   const proportionalWidth = Number.isFinite(fontSize)
     ? fontSize * PHOTO_UNLIT_LABEL_OUTLINE_FONT_RATIO
@@ -157,7 +158,7 @@ export function getReadable3DLabelColor(
   skinId: Dice3DAppearanceDescriptor['appearance']['skinId'],
 ): string {
   if (skinId === 'none') return symbolColor;
-  if (skinId === 'fire' || getDice3DSurfaceProfile(skinId) === 'photo-unlit') return symbolColor;
+  if (skinId === 'fire' || skinId === 'stone' || getDice3DSurfaceProfile(skinId) === 'photo-unlit') return symbolColor;
   const background = estimatedTexturedBackground(bodyColor, skinId);
   if (contrastRatio(symbolColor, background) >= MIN_TEXTURED_LABEL_CONTRAST) return symbolColor;
 
@@ -218,6 +219,17 @@ function preserveFireFaceTexture(material: MaterialLike) {
   }
 }
 
+function preserveStoneFaceTexture(material: MaterialLike) {
+  material.color?.set?.(0xffffff);
+  if (!material.map) return;
+  material.map.anisotropy = Math.max(material.map.anisotropy ?? 1, TEXTURED_FACE_ANISOTROPY);
+  material.map.generateMipmaps = true;
+  material.map.needsUpdate = true;
+  material.roughness = 0.9;
+  material.metalness = 0;
+  material.shininess = 8;
+}
+
 function blendValue(current: number, target: number, factor: number): number { return current + (target - current) * factor; }
 function edgeGlowColor(skinId: Dice3DAppearanceDescriptor['appearance']['skinId']): string | null {
   switch (skinId) {
@@ -237,6 +249,7 @@ function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescri
     const applyShininess = (target: number) => { if (typeof material.shininess === 'number') material.shininess = blendValue(material.shininess, target, strength); };
     if (!isEdgeMaterial) {
       if (skinId === 'fire' && !descriptor.custom) preserveFireFaceTexture(material);
+      if (skinId === 'stone' && !descriptor.custom) preserveStoneFaceTexture(material);
       if (typeof material.opacity === 'number') material.opacity = 1;
       material.transparent = false;
       material.needsUpdate = true;
