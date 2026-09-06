@@ -1,6 +1,7 @@
 import { FIRE_TEXTURE_DATA_URL } from './fireTextureData.ts';
 import { ICE_TEXTURE_SOURCE_DATA_URL } from './iceTextureData.ts';
 import { LIGHTNING_TEXTURE_SOURCE_DATA_URL } from './lightningTextureData.ts';
+import { METAL_TEXTURE_SOURCE_DATA_URL } from './metalTextureData.ts';
 import { POISON_TEXTURE_SOURCE_DATA_URL } from './poisonTextureData.ts';
 import { STONE_TEXTURE_SOURCE_DATA_URL } from './stoneTextureData.ts';
 import { normalizeDiceTextureScale } from './diceTextureScale.ts';
@@ -43,11 +44,13 @@ const iceTextureResource = createTextureImage(ICE_TEXTURE_SOURCE_DATA_URL, 'ice'
 const lightningTextureResource = createTextureImage(LIGHTNING_TEXTURE_SOURCE_DATA_URL, 'lightning');
 const poisonTextureResource = createTextureImage(POISON_TEXTURE_SOURCE_DATA_URL, 'poison');
 const stoneTextureResource = createTextureImage(STONE_TEXTURE_SOURCE_DATA_URL, 'stone');
+const metalTextureResource = createTextureImage(METAL_TEXTURE_SOURCE_DATA_URL, 'metal');
 const fireTextureImage = fireTextureResource.image;
 const iceTextureImage = iceTextureResource.image;
 const lightningTextureImage = lightningTextureResource.image;
 const poisonTextureImage = poisonTextureResource.image;
 const stoneTextureImage = stoneTextureResource.image;
+const metalTextureImage = metalTextureResource.image;
 
 function isIceTextureReady(): boolean {
   return Boolean(iceTextureImage?.complete && iceTextureImage.naturalWidth > 0);
@@ -65,6 +68,10 @@ function isStoneTextureReady(): boolean {
   return Boolean(stoneTextureImage?.complete && stoneTextureImage.naturalWidth > 0);
 }
 
+function isMetalTextureReady(): boolean {
+  return Boolean(metalTextureImage?.complete && metalTextureImage.naturalWidth > 0);
+}
+
 export async function waitForDice3DTextureAssets(descriptors: readonly Dice3DTextureAssetRequest[]): Promise<void> {
   const pending: Promise<void>[] = [];
   if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'ice')) {
@@ -78,6 +85,9 @@ export async function waitForDice3DTextureAssets(descriptors: readonly Dice3DTex
   }
   if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'stone')) {
     pending.push(stoneTextureResource.ready);
+  }
+  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'metal')) {
+    pending.push(metalTextureResource.ready);
   }
   if (pending.length === 0) return;
   await Promise.all(pending);
@@ -211,6 +221,25 @@ function drawStonePhotoTexture(context: CanvasRenderingContext2D, bump: CanvasRe
   return true;
 }
 
+function drawMetalPhotoTexture(context: CanvasRenderingContext2D, bump: CanvasRenderingContext2D, size: number): boolean {
+  const image = metalTextureImage;
+  if (!image?.complete || image.naturalWidth <= 0) return false;
+  context.save();
+  context.filter = 'brightness(1.10) saturate(.92) contrast(1.12)';
+  drawImageCover(context, image, size);
+  context.filter = 'none';
+  context.globalCompositeOperation = 'screen';
+  context.globalAlpha = 0.035;
+  context.fillStyle = '#e6edf2';
+  context.fillRect(0, 0, size, size);
+  context.restore();
+  bump.save();
+  bump.filter = 'grayscale(1) contrast(1.85) brightness(.92)';
+  drawImageCover(bump, image, size);
+  bump.restore();
+  return true;
+}
+
 function drawCracks(context: CanvasRenderingContext2D, size: number, color: string, lineWidth: number, alpha = 1) {
   context.save();
   context.globalAlpha = alpha;
@@ -320,6 +349,7 @@ function drawPattern(textureCanvas: HTMLCanvasElement, bumpCanvas: HTMLCanvasEle
       drawCracks(bump, size, '#676767', size / 130); break;
     }
     case 'metal': {
+      if (drawMetalPhotoTexture(context, bump, size)) break;
       const gradient = context.createLinearGradient(0, 0, size, 0);
       gradient.addColorStop(0, 'rgba(255,255,255,.06)'); gradient.addColorStop(0.18, 'rgba(255,255,255,.18)');
       gradient.addColorStop(0.42, 'rgba(255,255,255,.32)'); gradient.addColorStop(0.52, 'rgba(255,255,255,.68)');
@@ -365,7 +395,9 @@ export function getDice3DTextureDescriptor(appearance: DiceAppearance): Dice3DTe
       ? (isLightningTextureReady() ? 'ready' : 'placeholder')
       : appearance.skinId === 'poison'
         ? (isPoisonTextureReady() ? 'ready' : 'placeholder')
-        : appearance.skinId === 'stone' ? (isStoneTextureReady() ? 'ready' : 'placeholder') : null;
+        : appearance.skinId === 'stone'
+          ? (isStoneTextureReady() ? 'ready' : 'placeholder')
+          : appearance.skinId === 'metal' ? (isMetalTextureReady() ? 'ready' : 'placeholder') : null;
   const key = readiness ? `${appearance.skinId}:${appearance.bodyColor}:${textureScale}:${readiness}` : `${appearance.skinId}:${appearance.bodyColor}:${textureScale}`;
   const cached = cache.get(key);
   if (cached) return cached;

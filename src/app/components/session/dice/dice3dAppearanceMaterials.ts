@@ -63,7 +63,7 @@ function dice3DLabelOutlineWidth(
   descriptor: Dice3DAppearanceDescriptor,
 ): number {
   const skinId = descriptor.appearance.skinId;
-  if (getDice3DSurfaceProfile(skinId) !== 'photo-unlit' && skinId !== 'stone') return DICE_SKIN_LABEL_OUTLINE_WIDTH;
+  if (getDice3DSurfaceProfile(skinId) !== 'photo-unlit' && skinId !== 'stone' && skinId !== 'metal') return DICE_SKIN_LABEL_OUTLINE_WIDTH;
   const fontSize = Number.parseFloat(context.font);
   const proportionalWidth = Number.isFinite(fontSize)
     ? fontSize * PHOTO_UNLIT_LABEL_OUTLINE_FONT_RATIO
@@ -158,7 +158,7 @@ export function getReadable3DLabelColor(
   skinId: Dice3DAppearanceDescriptor['appearance']['skinId'],
 ): string {
   if (skinId === 'none') return symbolColor;
-  if (skinId === 'fire' || skinId === 'stone' || getDice3DSurfaceProfile(skinId) === 'photo-unlit') return symbolColor;
+  if (skinId === 'fire' || skinId === 'stone' || skinId === 'metal' || getDice3DSurfaceProfile(skinId) === 'photo-unlit') return symbolColor;
   const background = estimatedTexturedBackground(bodyColor, skinId);
   if (contrastRatio(symbolColor, background) >= MIN_TEXTURED_LABEL_CONTRAST) return symbolColor;
 
@@ -188,7 +188,7 @@ function applyAppearanceFactoryState(factory: DiceFactoryLike, descriptor: Dice3
   factory.label_outline_rand = outlineColor;
 
   let texture: unknown = NEUTRAL_TEXTURE;
-  if (!descriptor.custom && appearance.skinId !== 'metal') {
+  if (!descriptor.custom) {
     try { texture = getDice3DTextureDescriptor(appearance); }
     catch (error) { console.error('Texture skin 3D non disponibile, uso il materiale neutro:', error); }
   }
@@ -230,6 +230,17 @@ function preserveStoneFaceTexture(material: MaterialLike) {
   material.shininess = 8;
 }
 
+function preserveMetalFaceTexture(material: MaterialLike) {
+  material.color?.set?.(0xffffff);
+  if (!material.map) return;
+  material.map.anisotropy = Math.max(material.map.anisotropy ?? 1, TEXTURED_FACE_ANISOTROPY);
+  material.map.generateMipmaps = true;
+  material.map.needsUpdate = true;
+  material.roughness = 0.46;
+  material.metalness = 0.58;
+  material.shininess = 64;
+}
+
 function blendValue(current: number, target: number, factor: number): number { return current + (target - current) * factor; }
 function edgeGlowColor(skinId: Dice3DAppearanceDescriptor['appearance']['skinId']): string | null {
   switch (skinId) {
@@ -250,6 +261,7 @@ function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescri
     if (!isEdgeMaterial) {
       if (skinId === 'fire' && !descriptor.custom) preserveFireFaceTexture(material);
       if (skinId === 'stone' && !descriptor.custom) preserveStoneFaceTexture(material);
+      if (skinId === 'metal' && !descriptor.custom) preserveMetalFaceTexture(material);
       if (typeof material.opacity === 'number') material.opacity = 1;
       material.transparent = false;
       material.needsUpdate = true;
@@ -261,7 +273,7 @@ function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescri
       case 'lightning': applyRoughness(0.22); applyShininess(112); break;
       case 'poison': applyRoughness(0.4); applyShininess(62); break;
       case 'stone': applyRoughness(0.96); applyMetalness(0); applyShininess(4); break;
-      case 'metal': applyRoughness(0.18); applyMetalness(0.08); applyShininess(170); break;
+      case 'metal': applyRoughness(0.34); applyMetalness(0.72); applyShininess(96); break;
       case 'obsidian': applyRoughness(0.14); applyMetalness(0.08); applyShininess(142); break;
       case 'arcane': applyRoughness(0.25); applyShininess(104); break;
     }

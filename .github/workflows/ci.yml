@@ -34,6 +34,7 @@ jobs:
       - run: node scripts/verify-poison-skin-consistency.mjs
       - run: node scripts/verify-poison-polish.mjs
       - run: node scripts/verify-stone-skin-consistency.mjs
+      - run: node scripts/verify-metal-skin-consistency.mjs
       - run: node scripts/verify-dice-skin-regressions.mjs
       - run: npm run verify:dice-surface-profiles
       - run: npm run check

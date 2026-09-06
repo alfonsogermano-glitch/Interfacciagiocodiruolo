@@ -13,7 +13,7 @@ const SURFACE_PROFILES: Record<DiceSkinId, Dice3DSurfaceProfile> = {
   lightning: 'photo-unlit',
   poison: 'photo-unlit',
   stone: 'photo-lit',
-  metal: 'physical',
+  metal: 'photo-lit',
   obsidian: 'physical',
   arcane: 'photo-lit',
 };

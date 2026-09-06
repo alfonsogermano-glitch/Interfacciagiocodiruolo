@@ -1,4 +1,4 @@
-// Regression coverage for photographic Fire/Ice/Lightning/Poison/Stone rendering, user-selected colors, highlighted 3D labels, and settled effects.
+// Regression coverage for photographic Fire/Ice/Lightning/Poison/Stone/Metal rendering, user-selected colors, highlighted 3D labels, and settled effects.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
@@ -15,20 +15,20 @@ const failures = [];
 const expect = (condition, message) => { if (!condition) failures.push(message); };
 
 expect(
-  surface.includes("const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice' || appearance.skinId === 'lightning' || appearance.skinId === 'poison' || appearance.skinId === 'stone';"),
-  'Fire, Ice, Lightning, Poison and Stone swatches must share photographic-skin border-box handling',
+  surface.includes("const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice' || appearance.skinId === 'lightning' || appearance.skinId === 'poison' || appearance.skinId === 'stone' || appearance.skinId === 'metal';"),
+  'Fire, Ice, Lightning, Poison, Stone and Metal swatches must share photographic-skin border-box handling',
 );
 expect(
   surface.includes("backgroundOrigin: photographicSkin ? 'border-box' : undefined"),
   'Photographic skin backgrounds must originate from the border box to avoid color slivers',
 );
 expect(
-  icon.includes("if (skinId === 'fire' || skinId === 'ice' || skinId === 'lightning' || skinId === 'poison' || skinId === 'stone') return symbolColor;"),
-  '2D Fire/Ice/Lightning/Poison/Stone numbers must preserve the exact user-selected symbol color',
+  icon.includes("if (skinId === 'fire' || skinId === 'ice' || skinId === 'lightning' || skinId === 'poison' || skinId === 'stone' || skinId === 'metal') return symbolColor;"),
+  '2D Fire/Ice/Lightning/Poison/Stone/Metal numbers must preserve the exact user-selected symbol color',
 );
 expect(
-  materials.includes("if (skinId === 'fire' || skinId === 'stone' || getDice3DSurfaceProfile(skinId) === 'photo-unlit') return symbolColor;"),
-  '3D Fire, Stone and every photo-unlit skin must preserve the exact user-selected symbol color',
+  materials.includes("if (skinId === 'fire' || skinId === 'stone' || skinId === 'metal' || getDice3DSurfaceProfile(skinId) === 'photo-unlit') return symbolColor;"),
+  '3D Fire, Stone, Metal and every photo-unlit skin must preserve the exact user-selected symbol color',
 );
 expect(
   materials.includes("import { applyDice3DSurfaceProfile, getDice3DSurfaceProfile } from './dice3dSurfaceProfiles.ts';"),
@@ -55,8 +55,8 @@ expect(
   '3D dice must centralize proportional label-outline sizing',
 );
 expect(
-  materials.includes("getDice3DSurfaceProfile(skinId) !== 'photo-unlit' && skinId !== 'stone'"),
-  'Ice, Lightning, Poison, Stone and future photo-unlit skins must inherit the stronger proportional outline',
+  materials.includes("getDice3DSurfaceProfile(skinId) !== 'photo-unlit' && skinId !== 'stone' && skinId !== 'metal'"),
+  'Ice, Lightning, Poison, Stone, Metal and future photo-unlit skins must inherit the stronger proportional outline',
 );
 expect(
   materials.includes('Number.parseFloat(context.font)'),
@@ -94,6 +94,11 @@ expect(stoneTextureFn.length > 0, 'Stone must have a dedicated photographic 3D t
 expect(!stoneTextureFn.includes('fillStyle = bodyColor'), 'Stone 3D photographic texture must preserve the rock photograph instead of bodyColor tinting');
 expect(!/drawStonePhotoTexture\([^)]*bodyColor/.test(textures), 'Stone texture renderer must not accept bodyColor tinting');
 
+const metalTextureFn = textures.match(/function drawMetalPhotoTexture[\s\S]*?\n}\n/)?.[0] ?? '';
+expect(metalTextureFn.length > 0, 'Metal must have a dedicated photographic 3D texture renderer');
+expect(!metalTextureFn.includes('fillStyle = bodyColor'), 'Metal 3D photographic texture must preserve the metal photograph instead of bodyColor tinting');
+expect(!/drawMetalPhotoTexture\([^)]*bodyColor/.test(textures), 'Metal texture renderer must not accept bodyColor tinting');
+
 const iceMaterialFn = materials.match(/function preserveIceFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
 expect(iceMaterialFn === '', 'Ice must not emulate an unlit surface by mutating a lit Phong material');
 expect(materials.includes('applyDice3DSurfaceProfile(mesh, descriptor);'), 'Every standard die must apply its declared surface profile');
@@ -101,6 +106,7 @@ expect(profiles.includes("ice: 'photo-unlit'"), 'Ice must declare the reusable p
 expect(profiles.includes("lightning: 'photo-unlit'"), 'Lightning must reuse the photo-unlit profile for stable vivid faces');
 expect(profiles.includes("poison: 'photo-unlit'"), 'Poison must reuse the photo-unlit profile for stable vivid faces');
 expect(profiles.includes("stone: 'photo-lit'"), 'Stone must keep scene lighting for believable rocky depth');
+expect(profiles.includes("metal: 'photo-lit'"), 'Metal must keep scene lighting for believable metallic depth');
 
 const fireMaterialFn = materials.match(/function preserveFireFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
 expect(fireMaterialFn.includes('material.color?.set?.(0xffffff)'), 'Fire face diffuse behavior must remain unchanged');
@@ -110,6 +116,11 @@ const stoneMaterialFn = materials.match(/function preserveStoneFaceTexture[\s\S]
 expect(stoneMaterialFn.includes('material.color?.set?.(0xffffff)'), 'Stone faces must keep a neutral white multiplier over the photograph');
 expect(stoneMaterialFn.includes('material.roughness = 0.9'), 'Stone photographic faces must remain strongly matte');
 expect(stoneMaterialFn.includes('material.metalness = 0'), 'Stone photographic faces must remain non-metallic');
+
+const metalMaterialFn = materials.match(/function preserveMetalFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
+expect(metalMaterialFn.includes('material.color?.set?.(0xffffff)'), 'Metal faces must keep a neutral white multiplier over the photograph');
+expect(metalMaterialFn.includes('material.roughness = 0.46'), 'Metal photographic faces must retain controlled roughness');
+expect(metalMaterialFn.includes('material.metalness = 0.58'), 'Metal photographic faces must retain physically metallic response');
 
 expect(
   session.includes('const DICE_ANIMATED_SETTLED_HOLD_MS = 2000;'),
@@ -141,4 +152,4 @@ if (failures.length) {
   });
 }
 
-console.log('Fire/Ice/Lightning/Poison/Stone rendering, exact colors, proportional photographic labels, shared surface profiles, and settled-effect lifecycle verification passed.');
+console.log('Fire/Ice/Lightning/Poison/Stone/Metal rendering, exact colors, proportional photographic labels, shared surface profiles, and settled-effect lifecycle verification passed.');
