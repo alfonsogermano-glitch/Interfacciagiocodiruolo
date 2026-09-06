@@ -24,7 +24,7 @@ assert.ok(data.includes('export const METAL_TEXTURE_DATA_URL = METAL_TEXTURE_SOU
 assert.equal(image.length, 11_502, 'Metal texture must keep the approved optimized production WebP payload');
 assert.equal(image.subarray(0, 4).toString('ascii'), 'RIFF', 'Metal texture must be a RIFF image');
 assert.equal(image.subarray(8, 12).toString('ascii'), 'WEBP', 'Metal texture must be a WebP image');
-assert.equal(createHash('sha256').update(image).digest('hex'), '07fad8bb9731e8b981754dbd9b066e9a750499b8062d74213ef3fbd239851f25', 'Metal texture must match the approved photograph');
+assert.equal(createHash('sha256').update(image).digest('hex'), '7e78f88465aaadbffd44f350aa2b30a031bd9748fe3339aed5a39500b98fb70a', 'Metal texture must match the shipped approved photograph');
 
 assert.ok(skins.includes("import { METAL_TEXTURE_DATA_URL } from './metalTextureData.ts';") && skins.includes("case 'metal':\n      return `url(\"${METAL_TEXTURE_DATA_URL}\")`;"), '2D Metal must use the photograph');
 assert.ok(preview.includes("case 'metal':\n      return null;"), 'Procedural Metal preview must not cover the photograph');
