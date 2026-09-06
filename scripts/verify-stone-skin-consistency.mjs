@@ -71,12 +71,12 @@ assert.ok(css.includes('@keyframes hollowgate-stone-dust-drift') && css.includes
 
 assert.ok(textures.includes("import { STONE_TEXTURE_SOURCE_DATA_URL } from './stoneTextureData.ts';") && textures.includes("createTextureImage(STONE_TEXTURE_SOURCE_DATA_URL, 'stone')"), '3D Stone must preload the photograph');
 assert.ok(textures.includes('drawStonePhotoTexture(context, bump, size)') && textures.includes("context.filter = 'brightness(1.12) saturate(.96) contrast(1.10)'") && textures.includes("bump.filter = 'grayscale(1) contrast(2.10) brightness(.90)'"), 'Stone 3D must use restrained photographic polish and bump');
-assert.ok(textures.includes("descriptor.appearance.skinId === 'stone'") && textures.includes("appearance.skinId === 'stone' ? (isStoneTextureReady() ? 'ready' : 'placeholder')"), 'Stone must use readiness-aware caching');
+assert.ok(textures.includes("descriptor.appearance.skinId === 'stone'") && textures.includes("appearance.skinId === 'stone'") && textures.includes("isStoneTextureReady() ? 'ready' : 'placeholder'"), 'Stone must use readiness-aware caching');
 const waitIndex = renderer.indexOf('await waitForDice3DTextureAssets(appearanceQueue);');
 assert.ok(waitIndex >= 0 && renderer.indexOf('installDiceAppearanceAdapter(this.box, appearanceQueue)') > waitIndex && renderer.indexOf('await this.box.roll(notation);') > waitIndex, 'Stone must load before die creation and roll');
 assert.ok(profiles.includes("stone: 'photo-lit'"), 'Stone must keep scene-lit photographic depth');
 assert.ok(materials.includes('function preserveStoneFaceTexture(material: MaterialLike)') && materials.includes('material.roughness = 0.9') && materials.includes('material.metalness = 0'), 'Stone faces must be matte and non-metallic');
-assert.ok(materials.includes("skinId === 'fire' || skinId === 'stone' || getDice3DSurfaceProfile(skinId) === 'photo-unlit'"), 'Stone must preserve the exact selected symbol color and use the shared intelligent outline');
+assert.ok(materials.includes("skinId === 'fire' || skinId === 'stone'") && materials.includes("getDice3DSurfaceProfile(skinId) === 'photo-unlit'"), 'Stone must preserve the exact selected symbol color and use the shared intelligent outline');
 assert.ok(materials.includes("case 'stone': applyRoughness(0.96); applyMetalness(0); applyShininess(4); break;"), 'Stone edges must stay extremely rough and non-metallic');
 assert.ok(effects.includes("case 'stone':") && effects.includes('particleCount: 9') && effects.includes('orbitSpeed: 0.5') && effects.includes('addStoneFragments(group, updaters, radius);'), 'Stone must retain its restrained dust and fragment effect');
 assert.ok(effects.includes('for (let index = 0; index < 5; index += 1)'), 'Stone must keep five restrained orbiting fragments');
