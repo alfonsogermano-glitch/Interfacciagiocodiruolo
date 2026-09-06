@@ -3,6 +3,7 @@ import { DiceFireAnimatedOverlay } from './DiceFireAnimatedOverlay';
 import { DiceLightningAnimatedOverlay } from './DiceLightningAnimatedOverlay';
 import { DicePoisonAnimatedOverlay } from './DicePoisonAnimatedOverlay';
 import { DiceStoneAnimatedOverlay } from './DiceStoneAnimatedOverlay';
+import { DiceMetalAnimatedOverlay } from './DiceMetalAnimatedOverlay';
 import { DiceSkinPreviewArt } from './DiceSkinPreviewArt';
 import { DiceTypeIcon } from './DiceTypeIcon';
 import { getDiceSkinBackgroundImage } from './diceSkins.ts';
@@ -171,6 +172,7 @@ function DieSkinSurface({
               <DiceLightningAnimatedOverlay appearance={appearance} />
               <DicePoisonAnimatedOverlay appearance={appearance} />
               <DiceStoneAnimatedOverlay appearance={appearance} />
+              <DiceMetalAnimatedOverlay appearance={appearance} />
             </div>
           </foreignObject>
         )}
