@@ -69,8 +69,8 @@ assert.ok(profiles.includes("stone: 'photo-lit'"), 'Stone must keep scene-lit ph
 assert.ok(materials.includes('function preserveStoneFaceTexture(material: MaterialLike)') && materials.includes('material.roughness = 0.9') && materials.includes('material.metalness = 0'), 'Stone faces must be matte and non-metallic');
 assert.ok(materials.includes("skinId === 'fire' || skinId === 'stone' || getDice3DSurfaceProfile(skinId) === 'photo-unlit'"), 'Stone must preserve the exact selected symbol color and use the shared intelligent outline');
 assert.ok(materials.includes("case 'stone': applyRoughness(0.96); applyMetalness(0); applyShininess(4); break;"), 'Stone edges must stay extremely rough and non-metallic');
-assert.ok(effects.includes('particleCount: 12') && effects.includes('orbitSpeed: 0.72') && effects.includes('addStoneFragments(group, updaters, radius);'), 'Stone must have restrained dust and fragments');
-assert.ok(effects.includes('for (let index = 0; index < 7; index += 1)'), 'Stone must use seven restrained orbiting fragments');
+assert.ok(effects.includes("case 'stone':") && effects.includes('particleCount: 9') && effects.includes('orbitSpeed: 0.5') && effects.includes('addStoneFragments(group, updaters, radius);'), 'Stone must retain its restrained dust and fragment effect');
+assert.ok(effects.includes('for (let index = 0; index < 5; index += 1)'), 'Stone must keep five restrained orbiting fragments');
 assert.ok(boost.includes("case 'stone': return '#d8c7a8';"), 'Stone must have a subtle warm mineral moving light');
 assert.ok(profileTest.includes("getDice3DSurfaceProfile('stone'), 'photo-lit'"), 'Surface-profile verification must cover Stone');
 assert.ok(ci.includes('node scripts/verify-stone-skin-consistency.mjs'), 'CI must run the Stone photographic regression test');
