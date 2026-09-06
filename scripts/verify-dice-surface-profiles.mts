@@ -83,9 +83,19 @@ assert.equal(metalMesh.material[0], metalEdge, 'Metal must preserve its metallic
 assert.equal(metalMesh.material[1], metalFace, 'Metal must keep its existing scene-lit photographic face material');
 assert.equal(metalMesh.material[1].map, metalTexture, 'Metal must preserve the photographic map');
 
+const obsidianTexture = new THREE.Texture();
+const obsidianEdge = new THREE.MeshPhongMaterial({ color: '#16141b' });
+const obsidianFace = new THREE.MeshPhongMaterial({ color: '#ffffff', map: obsidianTexture });
+const obsidianMesh = { material: [obsidianEdge, obsidianFace] };
+assert.equal(getDice3DSurfaceProfile('obsidian'), 'photo-lit');
+applyDice3DSurfaceProfile(obsidianMesh, { appearance: appearance('obsidian'), custom: false });
+assert.equal(obsidianMesh.material[0], obsidianEdge, 'Obsidian must preserve its dark glass edge material');
+assert.equal(obsidianMesh.material[1], obsidianFace, 'Obsidian must keep its scene-lit photographic face material');
+assert.equal(obsidianMesh.material[1].map, obsidianTexture, 'Obsidian must preserve the photographic map');
+
 const customFace = new THREE.MeshPhongMaterial({ map: texture });
 const customMesh = { material: [fireEdge, customFace] };
 applyDice3DSurfaceProfile(customMesh, { appearance: appearance('ice'), custom: true });
 assert.equal(customMesh.material[1], customFace, 'Custom dice must remain outside standard-skin profiles');
 
-console.log('Shared 3D surface profiles preserve Ice/Lightning/Poison photography, Fire/Stone/Metal lighting, edges, and Custom materials.');
+console.log('Shared 3D surface profiles preserve Ice/Lightning/Poison photography, Fire/Stone/Metal/Obsidian lighting, edges, and Custom materials.');
