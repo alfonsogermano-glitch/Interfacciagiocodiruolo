@@ -26,7 +26,7 @@ export function DiceSkinSurface({
   const animatedLightning = isAnimatedLightningAppearance(appearance);
   const animatedPoison = isAnimatedPoisonAppearance(appearance);
   const animatedStone = isAnimatedStoneAppearance(appearance);
-  const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice' || appearance.skinId === 'lightning' || appearance.skinId === 'poison' || appearance.skinId === 'stone';
+  const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice' || appearance.skinId === 'lightning' || appearance.skinId === 'poison' || appearance.skinId === 'stone' || appearance.skinId === 'metal';
   return (
     <span
       data-dice-skin={appearance.skinId}
