@@ -9,10 +9,14 @@ export function DiceMetalAnimatedOverlay({ appearance }: { appearance: DiceAppea
   if (!isAnimatedMetalAppearance(appearance)) return null;
   return (
     <span aria-hidden="true" className="hollowgate-metal-overlay pointer-events-none absolute inset-0 overflow-hidden">
+      <span className="hollowgate-metal-sheen absolute inset-0" />
       <span className="hollowgate-metal-sweep absolute inset-[-35%]" />
-      <span className="hollowgate-metal-sparks hollowgate-metal-sparks-a absolute inset-[-18%]" />
-      <span className="hollowgate-metal-sparks hollowgate-metal-sparks-b absolute inset-[-14%]" />
-      <span className="hollowgate-metal-glint absolute inset-0" />
+      <span className="hollowgate-metal-spark hollowgate-metal-spark-a absolute" />
+      <span className="hollowgate-metal-spark hollowgate-metal-spark-b absolute" />
+      <span className="hollowgate-metal-spark hollowgate-metal-spark-c absolute" />
+      <span className="hollowgate-metal-spark hollowgate-metal-spark-d absolute" />
+      <span className="hollowgate-metal-spark hollowgate-metal-spark-e absolute" />
+      <span className="hollowgate-metal-spark hollowgate-metal-spark-f absolute" />
     </span>
   );
 }

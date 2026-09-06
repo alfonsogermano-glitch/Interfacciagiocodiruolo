@@ -16,12 +16,16 @@ export function DiceStoneAnimatedOverlay({ appearance }: { appearance: DiceAppea
         className="hollowgate-stone-texture absolute inset-0"
         style={{ backgroundImage: `url("${STONE_TEXTURE_DATA_URL}")`, backgroundSize }}
       />
-      <span className="hollowgate-stone-dust hollowgate-stone-dust-a absolute inset-[-16%]" />
-      <span className="hollowgate-stone-dust hollowgate-stone-dust-b absolute inset-[-12%]" />
-      <span className="hollowgate-stone-shards hollowgate-stone-shards-a absolute inset-[-10%]" />
-      <span className="hollowgate-stone-shards hollowgate-stone-shards-b absolute inset-[-8%]" />
-      <span className="hollowgate-stone-impact absolute inset-0" />
+      <span className="hollowgate-stone-impact absolute inset-[-10%]" />
+      <span className="hollowgate-stone-dust hollowgate-stone-dust-a absolute inset-[-20%]" />
+      <span className="hollowgate-stone-dust hollowgate-stone-dust-b absolute inset-[-16%]" />
       <span className="hollowgate-stone-grit absolute inset-0" />
+      <span className="hollowgate-stone-shard hollowgate-stone-shard-a absolute" />
+      <span className="hollowgate-stone-shard hollowgate-stone-shard-b absolute" />
+      <span className="hollowgate-stone-shard hollowgate-stone-shard-c absolute" />
+      <span className="hollowgate-stone-shard hollowgate-stone-shard-d absolute" />
+      <span className="hollowgate-stone-shard hollowgate-stone-shard-e absolute" />
+      <span className="hollowgate-stone-shard hollowgate-stone-shard-f absolute" />
     </span>
   );
 }
