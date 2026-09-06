@@ -5,6 +5,7 @@ const root = new URL('../', import.meta.url);
 const overlayPath = new URL('src/app/components/session/dice/DiceMetalAnimatedOverlay.tsx', root);
 const cssPath = new URL('src/app/components/session/dice/diceMetalAnimation.css', root);
 const surface = fs.readFileSync(new URL('src/app/components/session/dice/DiceSkinSurface.tsx', root), 'utf8');
+const icon = fs.readFileSync(new URL('src/app/components/session/dice/StyledStandardDieIcon.tsx', root), 'utf8');
 const effects = fs.readFileSync(new URL('src/app/components/session/dice/dice3dSkinEffects.ts', root), 'utf8');
 
 assert.ok(fs.existsSync(overlayPath), 'Metal must have a dedicated 2D animated overlay component');
@@ -18,6 +19,7 @@ assert.ok(overlay.includes('hollowgate-metal-spark'), 'Metal overlay must includ
 assert.ok(surface.includes("import { DiceMetalAnimatedOverlay, isAnimatedMetalAppearance } from './DiceMetalAnimatedOverlay';"), 'Dice surface must wire the Metal overlay');
 assert.ok(surface.includes('const animatedMetal = isAnimatedMetalAppearance(appearance);'), 'Dice surface must classify animated Metal');
 assert.ok(surface.includes('<DiceMetalAnimatedOverlay appearance={appearance} />'), 'Dice surface must render the Metal overlay');
+assert.ok(icon.includes("import { DiceMetalAnimatedOverlay } from './DiceMetalAnimatedOverlay';") && icon.includes('<DiceMetalAnimatedOverlay appearance={appearance} />'), 'Standard die icons must render Metal animation');
 assert.ok(css.includes('@keyframes hollowgate-metal-sweep'), 'Metal reflective sweep must animate');
 assert.ok(css.includes('@keyframes hollowgate-metal-spark-flash'), 'Metal sparks must animate');
 assert.ok(css.includes('@media (prefers-reduced-motion: reduce)'), 'Metal animation must respect reduced motion');
