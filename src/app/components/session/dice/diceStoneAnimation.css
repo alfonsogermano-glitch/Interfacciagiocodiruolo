@@ -1,0 +1,62 @@
+.hollowgate-stone-overlay {
+  border-radius: inherit;
+  mix-blend-mode: normal;
+}
+
+.hollowgate-stone-texture {
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.12;
+  filter: brightness(1.08) contrast(1.04);
+  animation: hollowgate-stone-texture-settle 4.8s ease-in-out infinite alternate;
+}
+
+.hollowgate-stone-dust {
+  background-image:
+    radial-gradient(circle at 18% 32%, rgba(235, 224, 201, .68) 0 1.2%, transparent 1.8%),
+    radial-gradient(circle at 68% 22%, rgba(174, 158, 132, .58) 0 .9%, transparent 1.5%),
+    radial-gradient(circle at 82% 74%, rgba(231, 218, 190, .6) 0 1%, transparent 1.7%),
+    radial-gradient(circle at 37% 81%, rgba(136, 125, 109, .5) 0 1.1%, transparent 1.8%);
+  opacity: .34;
+  filter: blur(.25px);
+  animation: hollowgate-stone-dust-drift 3.8s ease-in-out infinite alternate;
+}
+
+.hollowgate-stone-dust-b {
+  opacity: .22;
+  transform: rotate(37deg) scale(.92);
+  animation-duration: 5.1s;
+  animation-direction: alternate-reverse;
+}
+
+.hollowgate-stone-grit {
+  background-image:
+    radial-gradient(circle at 28% 16%, rgba(255, 244, 221, .65) 0 .7%, transparent 1.2%),
+    radial-gradient(circle at 74% 46%, rgba(91, 83, 72, .6) 0 .75%, transparent 1.25%),
+    radial-gradient(circle at 46% 68%, rgba(229, 211, 177, .58) 0 .65%, transparent 1.15%);
+  opacity: .28;
+  animation: hollowgate-stone-grit-pulse 2.9s ease-in-out infinite alternate;
+}
+
+@keyframes hollowgate-stone-texture-settle {
+  from { opacity: .08; filter: brightness(1.04) contrast(1.02); }
+  to { opacity: .15; filter: brightness(1.12) contrast(1.06); }
+}
+
+@keyframes hollowgate-stone-dust-drift {
+  from { transform: translate3d(-3%, 2%, 0) rotate(-3deg) scale(.96); }
+  to { transform: translate3d(4%, -5%, 0) rotate(4deg) scale(1.05); }
+}
+
+@keyframes hollowgate-stone-grit-pulse {
+  from { opacity: .18; transform: scale(.98); }
+  to { opacity: .36; transform: scale(1.025); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hollowgate-stone-texture,
+  .hollowgate-stone-dust,
+  .hollowgate-stone-grit {
+    animation: none !important;
+  }
+}
