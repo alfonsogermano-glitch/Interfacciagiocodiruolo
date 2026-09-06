@@ -2,6 +2,7 @@ import { FIRE_TEXTURE_DATA_URL } from './fireTextureData.ts';
 import { ICE_TEXTURE_DATA_URL } from './iceTextureData.ts';
 import { LIGHTNING_TEXTURE_DATA_URL } from './lightningTextureData.ts';
 import { METAL_TEXTURE_DATA_URL } from './metalTextureData.ts';
+import { OBSIDIAN_TEXTURE_DATA_URL } from './obsidianTextureData.ts';
 import { POISON_TEXTURE_DATA_URL } from './poisonTextureData.ts';
 import { STONE_TEXTURE_DATA_URL } from './stoneTextureData.ts';
 import type { DiceSkinId } from './diceTypes.ts';
@@ -63,8 +64,6 @@ function rgba(base: string, alpha: number): string {
 export function getDiceSkinBackgroundImage(skinId: DiceSkinId, bodyColor: string): string | undefined {
   const light = mix(bodyColor, '#ffffff', 0.42);
   const bright = mix(bodyColor, '#ffffff', 0.7);
-  const dark = mix(bodyColor, '#000000', 0.5);
-  const deep = mix(bodyColor, '#000000', 0.72);
 
   switch (skinId) {
     case 'none':
@@ -82,7 +81,7 @@ export function getDiceSkinBackgroundImage(skinId: DiceSkinId, bodyColor: string
     case 'metal':
       return `url("${METAL_TEXTURE_DATA_URL}")`;
     case 'obsidian':
-      return `linear-gradient(142deg, ${deep}aa 0 38%, transparent 39% 56%, ${light}66 57% 60%, transparent 61%), radial-gradient(circle at 70% 25%, ${bright}44 0 5%, transparent 6%)`;
+      return `url("${OBSIDIAN_TEXTURE_DATA_URL}")`;
     case 'arcane':
       return `radial-gradient(circle at 50% 50%, transparent 0 22%, ${bright}88 23% 25%, transparent 26% 38%, ${light}66 39% 41%, transparent 42%), linear-gradient(45deg, transparent 0 46%, ${bright}77 47% 52%, transparent 53%)`;
   }
