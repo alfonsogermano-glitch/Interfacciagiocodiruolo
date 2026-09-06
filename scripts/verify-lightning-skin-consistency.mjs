@@ -91,7 +91,7 @@ assert.ok(!/drawLightningPhotoTexture\([^)]*bodyColor/.test(textures), 'Lightnin
 assert.ok(textures.includes("context.filter = 'brightness(1.16) saturate(1.12) contrast(1.10)'"), 'Lightning photo faces must receive a restrained vividness lift');
 assert.ok(textures.includes("bump.filter = 'grayscale(1) contrast(2.05) brightness(.94)'"), 'Lightning bump must derive from the photograph');
 assert.ok(textures.includes("descriptor.appearance.skinId === 'lightning'"), 'The readiness gate must wait for Lightning rolls');
-assert.ok(textures.includes("appearance.skinId === 'lightning' ? (isLightningTextureReady() ? 'ready' : 'placeholder')"), 'Lightning descriptors must distinguish placeholder and ready phases');
+assert.ok(textures.includes("appearance.skinId === 'lightning'") && textures.includes("isLightningTextureReady() ? 'ready' : 'placeholder'"), 'Lightning descriptors must distinguish placeholder and ready phases');
 assert.ok(textures.includes('`${appearance.skinId}:${appearance.bodyColor}:${textureScale}:${readiness}`'), 'Lightning ready and placeholder descriptors must use separate cache keys');
 assert.ok(textures.includes('`hollowgate-${appearance.skinId}-${appearance.bodyColor}-${textureScale}-${readiness}`'), 'Renderer-facing Lightning texture names must differ across readiness phases');
 
@@ -101,7 +101,7 @@ const rollIndex = renderer.indexOf('await this.box.roll(notation);');
 assert.ok(waitIndex >= 0 && adapterIndex > waitIndex && rollIndex > waitIndex, 'Lightning photographic assets must load before die creation and roll start');
 assert.ok(profiles.includes("lightning: 'photo-unlit'"), 'Lightning photographic faces must remain vivid and stable independently of scene lighting');
 assert.ok(profiles.includes('new THREE.MeshBasicMaterial'), 'The photographic unlit profile must use a genuinely light-independent material');
-assert.ok(materials.includes("skinId === 'fire' || skinId === 'ice' || skinId === 'lightning'"), 'Lightning numbers must preserve the exact user-selected symbol color');
+assert.ok(materials.includes("skinId === 'fire' || getDice3DSurfaceProfile(skinId) === 'photo-unlit'"), 'Lightning and every photo-unlit skin must preserve the exact user-selected symbol color');
 assert.ok(materials.includes("case 'lightning': return '#42dcff';"), 'Lightning edges must keep their dedicated cyan emissive color');
 assert.ok(effects.includes("case 'lightning':") && effects.includes('lightningBolts: 5'), 'Lightning must retain its dedicated animated 3D bolts');
 assert.ok(boost.includes("case 'lightning': return '#55e6ff';"), 'Lightning must retain its cold electric moving-light boost');
