@@ -4,6 +4,7 @@ import { DiceLightningAnimatedOverlay } from './DiceLightningAnimatedOverlay';
 import { DicePoisonAnimatedOverlay } from './DicePoisonAnimatedOverlay';
 import { DiceStoneAnimatedOverlay } from './DiceStoneAnimatedOverlay';
 import { DiceMetalAnimatedOverlay } from './DiceMetalAnimatedOverlay';
+import { DiceObsidianAnimatedOverlay } from './DiceObsidianAnimatedOverlay';
 import { DiceSkinPreviewArt } from './DiceSkinPreviewArt';
 import { DiceTypeIcon } from './DiceTypeIcon';
 import { getDiceSkinBackgroundImage } from './diceSkins.ts';
@@ -78,7 +79,7 @@ export function getReadableDiceSymbolColor(
   skinId: DiceAppearance['skinId'],
 ): string {
   if (skinId === 'none') return symbolColor;
-  if (skinId === 'fire' || skinId === 'ice' || skinId === 'lightning' || skinId === 'poison' || skinId === 'stone' || skinId === 'metal') return symbolColor;
+  if (skinId === 'fire' || skinId === 'ice' || skinId === 'lightning' || skinId === 'poison' || skinId === 'stone' || skinId === 'metal' || skinId === 'obsidian') return symbolColor;
   const background = estimatedSkinBackground(bodyColor, skinId);
   const minimumContrast = 5.5;
   if (contrastRatio(symbolColor, background) >= minimumContrast) return symbolColor;
@@ -173,6 +174,7 @@ function DieSkinSurface({
               <DicePoisonAnimatedOverlay appearance={appearance} />
               <DiceStoneAnimatedOverlay appearance={appearance} />
               <DiceMetalAnimatedOverlay appearance={appearance} />
+              <DiceObsidianAnimatedOverlay appearance={appearance} />
             </div>
           </foreignObject>
         )}

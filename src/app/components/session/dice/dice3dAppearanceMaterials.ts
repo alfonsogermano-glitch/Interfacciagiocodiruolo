@@ -63,7 +63,7 @@ function dice3DLabelOutlineWidth(
   descriptor: Dice3DAppearanceDescriptor,
 ): number {
   const skinId = descriptor.appearance.skinId;
-  if (getDice3DSurfaceProfile(skinId) !== 'photo-unlit' && skinId !== 'stone' && skinId !== 'metal') return DICE_SKIN_LABEL_OUTLINE_WIDTH;
+  if (getDice3DSurfaceProfile(skinId) !== 'photo-unlit' && skinId !== 'stone' && skinId !== 'metal' && skinId !== 'obsidian') return DICE_SKIN_LABEL_OUTLINE_WIDTH;
   const fontSize = Number.parseFloat(context.font);
   const proportionalWidth = Number.isFinite(fontSize)
     ? fontSize * PHOTO_UNLIT_LABEL_OUTLINE_FONT_RATIO
@@ -158,7 +158,7 @@ export function getReadable3DLabelColor(
   skinId: Dice3DAppearanceDescriptor['appearance']['skinId'],
 ): string {
   if (skinId === 'none') return symbolColor;
-  if (skinId === 'fire' || skinId === 'stone' || skinId === 'metal' || getDice3DSurfaceProfile(skinId) === 'photo-unlit') return symbolColor;
+  if (skinId === 'fire' || skinId === 'stone' || skinId === 'metal' || skinId === 'obsidian' || getDice3DSurfaceProfile(skinId) === 'photo-unlit') return symbolColor;
   const background = estimatedTexturedBackground(bodyColor, skinId);
   if (contrastRatio(symbolColor, background) >= MIN_TEXTURED_LABEL_CONTRAST) return symbolColor;
 
@@ -241,6 +241,17 @@ function preserveMetalFaceTexture(material: MaterialLike) {
   material.shininess = 64;
 }
 
+function preserveObsidianFaceTexture(material: MaterialLike) {
+  material.color?.set?.(0xffffff);
+  if (!material.map) return;
+  material.map.anisotropy = Math.max(material.map.anisotropy ?? 1, TEXTURED_FACE_ANISOTROPY);
+  material.map.generateMipmaps = true;
+  material.map.needsUpdate = true;
+  material.roughness = 0.18;
+  material.metalness = 0.08;
+  material.shininess = 138;
+}
+
 function blendValue(current: number, target: number, factor: number): number { return current + (target - current) * factor; }
 function edgeGlowColor(skinId: Dice3DAppearanceDescriptor['appearance']['skinId']): string | null {
   switch (skinId) {
@@ -262,6 +273,7 @@ function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescri
       if (skinId === 'fire' && !descriptor.custom) preserveFireFaceTexture(material);
       if (skinId === 'stone' && !descriptor.custom) preserveStoneFaceTexture(material);
       if (skinId === 'metal' && !descriptor.custom) preserveMetalFaceTexture(material);
+      if (skinId === 'obsidian' && !descriptor.custom) preserveObsidianFaceTexture(material);
       if (typeof material.opacity === 'number') material.opacity = 1;
       material.transparent = false;
       material.needsUpdate = true;

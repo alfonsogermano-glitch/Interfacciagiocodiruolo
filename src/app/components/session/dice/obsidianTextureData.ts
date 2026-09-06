@@ -1,0 +1,7 @@
+import { OBSIDIAN_TEXTURE_CHUNK_0 } from './obsidianTextureChunk0.ts';
+import { OBSIDIAN_TEXTURE_CHUNK_1 } from './obsidianTextureChunk1.ts';
+
+const OBSIDIAN_TEXTURE_BASE64 = `${OBSIDIAN_TEXTURE_CHUNK_0}${OBSIDIAN_TEXTURE_CHUNK_1}`;
+
+export const OBSIDIAN_TEXTURE_SOURCE_DATA_URL = `data:image/webp;base64,${OBSIDIAN_TEXTURE_BASE64}`;
+export const OBSIDIAN_TEXTURE_DATA_URL = OBSIDIAN_TEXTURE_SOURCE_DATA_URL;

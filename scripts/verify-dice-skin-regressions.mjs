@@ -1,4 +1,4 @@
-// Regression coverage for photographic Fire/Ice/Lightning/Poison/Stone/Metal rendering, user-selected colors, highlighted 3D labels, and settled effects.
+// Regression coverage for photographic Fire/Ice/Lightning/Poison/Stone/Metal/Obsidian rendering, user-selected colors, highlighted 3D labels, and settled effects.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
@@ -14,66 +14,39 @@ const renderer = fs.readFileSync(new URL('src/app/components/session/dice/dice3d
 const failures = [];
 const expect = (condition, message) => { if (!condition) failures.push(message); };
 
-expect(
-  surface.includes("const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice' || appearance.skinId === 'lightning' || appearance.skinId === 'poison' || appearance.skinId === 'stone' || appearance.skinId === 'metal';"),
-  'Fire, Ice, Lightning, Poison, Stone and Metal swatches must share photographic-skin border-box handling',
-);
+for (const skin of ['fire', 'ice', 'lightning', 'poison', 'stone', 'metal', 'obsidian']) {
+  expect(surface.includes(`appearance.skinId === '${skin}'`), `${skin} must share photographic-skin border-box handling`);
+}
 expect(
   surface.includes("backgroundOrigin: photographicSkin ? 'border-box' : undefined"),
   'Photographic skin backgrounds must originate from the border box to avoid color slivers',
 );
+for (const skin of ['fire', 'ice', 'lightning', 'poison', 'stone', 'metal', 'obsidian']) {
+  expect(icon.includes(`skinId === '${skin}'`), `2D ${skin} numbers must preserve the exact user-selected symbol color`);
+}
+for (const skin of ['fire', 'stone', 'metal', 'obsidian']) {
+  expect(materials.includes(`skinId === '${skin}'`), `3D ${skin} must preserve the exact user-selected symbol color`);
+}
 expect(
-  icon.includes("if (skinId === 'fire' || skinId === 'ice' || skinId === 'lightning' || skinId === 'poison' || skinId === 'stone' || skinId === 'metal') return symbolColor;"),
-  '2D Fire/Ice/Lightning/Poison/Stone/Metal numbers must preserve the exact user-selected symbol color',
-);
-expect(
-  materials.includes("if (skinId === 'fire' || skinId === 'stone' || skinId === 'metal' || getDice3DSurfaceProfile(skinId) === 'photo-unlit') return symbolColor;"),
-  '3D Fire, Stone, Metal and every photo-unlit skin must preserve the exact user-selected symbol color',
+  materials.includes("getDice3DSurfaceProfile(skinId) === 'photo-unlit'"),
+  'Every photo-unlit skin must preserve the exact user-selected 3D symbol color',
 );
 expect(
   materials.includes("import { applyDice3DSurfaceProfile, getDice3DSurfaceProfile } from './dice3dSurfaceProfiles.ts';"),
   '3D label highlighting must reuse the shared surface-profile classification',
 );
-expect(
-  materials.includes('const DICE_SKIN_LABEL_OUTLINE_WIDTH = 8;'),
-  'Lit skinned dice must keep the existing shared outline minimum',
-);
-expect(
-  materials.includes('const PHOTO_UNLIT_LABEL_OUTLINE_MIN_WIDTH = 18;'),
-  'Photographic dice requiring stronger highlighting must enforce a visibly stronger outline minimum after texture downscaling',
-);
-expect(
-  materials.includes('const PHOTO_UNLIT_LABEL_OUTLINE_MAX_WIDTH = 32;'),
-  'Photographic outline scaling must have a safe upper bound',
-);
-expect(
-  materials.includes('const PHOTO_UNLIT_LABEL_OUTLINE_FONT_RATIO = 0.09;'),
-  'Photographic outlines must scale proportionally with the renderer font size',
-);
-expect(
-  materials.includes('function dice3DLabelOutlineWidth'),
-  '3D dice must centralize proportional label-outline sizing',
-);
-expect(
-  materials.includes("getDice3DSurfaceProfile(skinId) !== 'photo-unlit' && skinId !== 'stone' && skinId !== 'metal'"),
-  'Ice, Lightning, Poison, Stone, Metal and future photo-unlit skins must inherit the stronger proportional outline',
-);
-expect(
-  materials.includes('Number.parseFloat(context.font)'),
-  'Photographic label-outline sizing must derive from the actual canvas font size',
-);
-expect(
-  materials.includes('runWithDice3DLabelOutlineBoost(descriptor, () => originalCreate(type))'),
-  'Standard skinned dice creation must render labels through the profile-aware outline boost',
-);
-expect(
-  materials.includes('runWithDice3DLabelOutlineBoost(descriptor, () => previousSwapD4.call(box, dicemesh, result))'),
-  'D4 face swaps must retain the same profile-aware label outline',
-);
-expect(
-  materials.includes("!descriptor.custom && descriptor.appearance.skinId !== 'none'"),
-  'Shared outline boosting must leave unskinned/custom dice untouched',
-);
+expect(materials.includes('const DICE_SKIN_LABEL_OUTLINE_WIDTH = 8;'), 'Lit skinned dice must keep the existing shared outline minimum');
+expect(materials.includes('const PHOTO_UNLIT_LABEL_OUTLINE_MIN_WIDTH = 18;'), 'Photographic dice requiring stronger highlighting must enforce a visibly stronger outline minimum after texture downscaling');
+expect(materials.includes('const PHOTO_UNLIT_LABEL_OUTLINE_MAX_WIDTH = 32;'), 'Photographic outline scaling must have a safe upper bound');
+expect(materials.includes('const PHOTO_UNLIT_LABEL_OUTLINE_FONT_RATIO = 0.09;'), 'Photographic outlines must scale proportionally with the renderer font size');
+expect(materials.includes('function dice3DLabelOutlineWidth'), '3D dice must centralize proportional label-outline sizing');
+for (const skin of ['stone', 'metal', 'obsidian']) {
+  expect(materials.includes(`skinId !== '${skin}'`), `${skin} must inherit the stronger proportional photographic outline`);
+}
+expect(materials.includes('Number.parseFloat(context.font)'), 'Photographic label-outline sizing must derive from the actual canvas font size');
+expect(materials.includes('runWithDice3DLabelOutlineBoost(descriptor, () => originalCreate(type))'), 'Standard skinned dice creation must render labels through the profile-aware outline boost');
+expect(materials.includes('runWithDice3DLabelOutlineBoost(descriptor, () => previousSwapD4.call(box, dicemesh, result))'), 'D4 face swaps must retain the same profile-aware label outline');
+expect(materials.includes("!descriptor.custom && descriptor.appearance.skinId !== 'none'"), 'Shared outline boosting must leave unskinned/custom dice untouched');
 
 const iceTextureFn = textures.match(/function drawIcePhotoTexture[\s\S]*?\n}\n/)?.[0] ?? '';
 expect(!iceTextureFn.includes('fillStyle = bodyColor'), 'Ice 3D photographic texture must not be tinted by bodyColor');
@@ -99,6 +72,11 @@ expect(metalTextureFn.length > 0, 'Metal must have a dedicated photographic 3D t
 expect(!metalTextureFn.includes('fillStyle = bodyColor'), 'Metal 3D photographic texture must preserve the metal photograph instead of bodyColor tinting');
 expect(!/drawMetalPhotoTexture\([^)]*bodyColor/.test(textures), 'Metal texture renderer must not accept bodyColor tinting');
 
+const obsidianTextureFn = textures.match(/function drawObsidianPhotoTexture[\s\S]*?\n}\n/)?.[0] ?? '';
+expect(obsidianTextureFn.length > 0, 'Obsidian must have a dedicated photographic 3D texture renderer');
+expect(!obsidianTextureFn.includes('fillStyle = bodyColor'), 'Obsidian 3D photographic texture must preserve the glass photograph instead of bodyColor tinting');
+expect(!/drawObsidianPhotoTexture\([^)]*bodyColor/.test(textures), 'Obsidian texture renderer must not accept bodyColor tinting');
+
 const iceMaterialFn = materials.match(/function preserveIceFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
 expect(iceMaterialFn === '', 'Ice must not emulate an unlit surface by mutating a lit Phong material');
 expect(materials.includes('applyDice3DSurfaceProfile(mesh, descriptor);'), 'Every standard die must apply its declared surface profile');
@@ -107,6 +85,7 @@ expect(profiles.includes("lightning: 'photo-unlit'"), 'Lightning must reuse the 
 expect(profiles.includes("poison: 'photo-unlit'"), 'Poison must reuse the photo-unlit profile for stable vivid faces');
 expect(profiles.includes("stone: 'photo-lit'"), 'Stone must keep scene lighting for believable rocky depth');
 expect(profiles.includes("metal: 'photo-lit'"), 'Metal must keep scene lighting for believable metallic depth');
+expect(profiles.includes("obsidian: 'photo-lit'"), 'Obsidian must keep scene lighting for believable glossy glass depth');
 
 const fireMaterialFn = materials.match(/function preserveFireFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
 expect(fireMaterialFn.includes('material.color?.set?.(0xffffff)'), 'Fire face diffuse behavior must remain unchanged');
@@ -122,26 +101,17 @@ expect(metalMaterialFn.includes('material.color?.set?.(0xffffff)'), 'Metal faces
 expect(metalMaterialFn.includes('material.roughness = 0.46'), 'Metal photographic faces must retain controlled roughness');
 expect(metalMaterialFn.includes('material.metalness = 0.58'), 'Metal photographic faces must retain physically metallic response');
 
-expect(
-  session.includes('const DICE_ANIMATED_SETTLED_HOLD_MS = 2000;'),
-  'Animated dice must remain settled for 2000 ms, one second less than before',
-);
-expect(
-  renderer.includes('private settledRenderRaf: number | null = null;'),
-  '3D renderer must own a settled-phase RAF so effects keep rendering after physics stop',
-);
-expect(
-  renderer.includes('this.startSettledRenderLoop();'),
-  '3D renderer must start the settled redraw loop after an effects-enabled roll finishes',
-);
-expect(
-  renderer.includes('box.renderer.render(box.scene, box.camera);'),
-  'Settled redraw loop must render the Three.js scene while effects continue updating',
-);
-expect(
-  renderer.includes('this.stopSettledRenderLoop();'),
-  'Settled redraw loop must be stopped when the dice are cleared or replaced',
-);
+const obsidianMaterialFn = materials.match(/function preserveObsidianFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
+expect(obsidianMaterialFn.includes('material.color?.set?.(0xffffff)'), 'Obsidian faces must keep a neutral white multiplier over the photograph');
+expect(obsidianMaterialFn.includes('material.roughness = 0.18'), 'Obsidian photographic faces must remain glossy');
+expect(obsidianMaterialFn.includes('material.metalness = 0.08'), 'Obsidian photographic faces must remain glasslike rather than metallic');
+expect(!obsidianMaterialFn.includes('emissiveMap'), 'Obsidian photograph must not be driven as an emissive map');
+
+expect(session.includes('const DICE_ANIMATED_SETTLED_HOLD_MS = 2000;'), 'Animated dice must remain settled for 2000 ms, one second less than before');
+expect(renderer.includes('private settledRenderRaf: number | null = null;'), '3D renderer must own a settled-phase RAF so effects keep rendering after physics stop');
+expect(renderer.includes('this.startSettledRenderLoop();'), '3D renderer must start the settled redraw loop after an effects-enabled roll finishes');
+expect(renderer.includes('box.renderer.render(box.scene, box.camera);'), 'Settled redraw loop must render the Three.js scene while effects continue updating');
+expect(renderer.includes('this.stopSettledRenderLoop();'), 'Settled redraw loop must be stopped when the dice are cleared or replaced');
 
 if (failures.length) {
   throw new assert.AssertionError({
@@ -152,4 +122,4 @@ if (failures.length) {
   });
 }
 
-console.log('Fire/Ice/Lightning/Poison/Stone/Metal rendering, exact colors, proportional photographic labels, shared surface profiles, and settled-effect lifecycle verification passed.');
+console.log('Fire/Ice/Lightning/Poison/Stone/Metal/Obsidian rendering, exact colors, proportional photographic labels, shared surface profiles, and settled-effect lifecycle verification passed.');
