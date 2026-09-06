@@ -38,6 +38,7 @@ jobs:
       - run: node scripts/verify-metal-skin-consistency.mjs
       - run: node scripts/verify-metal-animation.mjs
       - run: node scripts/verify-stone-metal-face-animation.mjs
+      - run: node scripts/verify-metal-visibility-regression.mjs
       - run: node scripts/verify-vercel-preview-policy.mjs
       - run: node scripts/verify-dice-skin-regressions.mjs
       - run: npm run verify:dice-surface-profiles
