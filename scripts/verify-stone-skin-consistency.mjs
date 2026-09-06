@@ -6,7 +6,7 @@ const root = new URL('../', import.meta.url);
 const dataUrl = new URL('src/app/components/session/dice/stoneTextureData.ts', root);
 const overlayUrl = new URL('src/app/components/session/dice/DiceStoneAnimatedOverlay.tsx', root);
 const cssUrl = new URL('src/app/components/session/dice/diceStoneAnimation.css', root);
-const chunkUrls = Array.from({ length: 4 }, (_, index) => new URL(`src/app/components/session/dice/stoneTextureChunk${index}.ts`, root));
+const chunkUrls = Array.from({ length: 13 }, (_, index) => new URL(`src/app/components/session/dice/stoneTextureChunk${index}.ts`, root));
 
 assert.ok(fs.existsSync(dataUrl), 'Stone texture data module must exist');
 assert.ok(chunkUrls.every((url) => fs.existsSync(url)), 'All Stone texture chunks must exist');
@@ -33,13 +33,22 @@ const ci = fs.readFileSync(new URL('.github/workflows/ci.yml', root), 'utf8');
 assert.ok(data.includes('export const STONE_TEXTURE_SOURCE_DATA_URL = `data:image/webp;base64,'), 'Stone must expose the optimized WebP source for direct 3D loading');
 assert.ok(data.includes('export const STONE_TEXTURE_DATA_URL = STONE_TEXTURE_SOURCE_DATA_URL;'), 'Stone 2D and 3D must share the same photographic source');
 assert.ok(chunks.every((content, index) => content.includes(`STONE_TEXTURE_CHUNK_${index}`)), 'Every Stone texture chunk must export its indexed payload');
-assert.ok(Array.from({ length: 4 }, (_, index) => data.includes(`STONE_TEXTURE_CHUNK_${index}`)).every(Boolean), 'Stone texture data must assemble every embedded chunk');
+assert.ok(Array.from({ length: 13 }, (_, index) => data.includes(`STONE_TEXTURE_CHUNK_${index}`)).every(Boolean), 'Stone texture data must assemble every embedded chunk');
 
 const expectedChunkHashes = [
-  'd90b8a82c5635109d430c1cc78e28642a6ba899d6e012bffa2ed6b3fea72cbbb',
-  '3c764f9069e8169219117ea3d60d8a5409ba4e8ccc27d734a1fcfa8ebf124842',
-  '8b9922dc2d5110e5b2719b85b3674660339ec78aba38c5735c2f3eb29c08896e',
-  'e86cc0041f59e2effa2b804fe795faa003eafd87e440ffb528dba94936bbe9cf',
+  '18c13d479dd157bb61d4b510f8cd3e3e149458ac7bf8d85bbb31f5becb2aa391',
+  '96551c89c37fa247c02842d552438865dc374856cbb0dc94ab27b92a5da6f99a',
+  '1fed300b31b754559021232d2997b803a86312782c2aee4f42a76b4f9f6952a8',
+  '9b3e059ff4d2acbdd88eb4593773fe8f6a6c41df1e35e2723ca7f8e82697fc0a',
+  '038a49c500b2b862be823a4a154e66a47be17bd1129a04788607f0ce7a638b37',
+  '771cb92ec07fc5c785b754844704b4cba002045e28a485f9175eeef59fe1f2c2',
+  '3bfb21fbf7e175f6ca77be56ab4f18e083ce40d3ba4bdc7caa9cf8ac0c8370b8',
+  'd0e9cd22e2e69232cd1b9ea3f02d3af19cab3da687a55cfc63d087f42118cd32',
+  '7c26606e486ee182c1ce532392934304a8dd35f2bc93aad1851f0dbcbfaecee5',
+  'ca9258b85949ab55ff26f0b7f76c3b6a1e99e73cf0e12bcd343fdf22437652c9',
+  '0440e49ef86d83ab36b64f5dc5d4d0281b30cf6afaab1f6cc3ea268079d360cc',
+  '8ca2af5b1a358bd743328fdbccce425d0ef8eb26be66840d54c50d845535ed43',
+  'b84203a5ee076bc8b50b971c965587fc372847bf85be275cf885f8b990971b6b',
 ];
 const encodedChunks = chunks.map((content, index) => {
   const match = content.match(new RegExp(`STONE_TEXTURE_CHUNK_${index}\\s*=\\s*['\"]([^'\"]+)['\"]`));
