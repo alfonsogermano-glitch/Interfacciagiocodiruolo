@@ -53,14 +53,7 @@ export function DiceSkinPreviewArt({ skinId, bodyColor, className }: { skinId: D
     case 'metal':
       return null;
     case 'obsidian':
-      return (
-        <g data-dice-skin-preview-art="obsidian" className={className}>
-          <path d="M0 0h36v36H0Z" fill={colors.deep} opacity="0.62" />
-          <path d="M0 28 10 4l8 11L29 1l7 9-9 12 9 14H8Z" fill={colors.dark} opacity="0.58" />
-          <path d="m3 31 11-17 4 5L31 4" fill="none" stroke={colors.bright} strokeWidth="1.55" opacity="0.82" />
-          <path d="m14 14 3 6-5 8m15-15-4 7 5 7" fill="none" stroke={colors.light} strokeWidth="0.9" opacity="0.72" />
-        </g>
-      );
+      return null;
     case 'arcane':
       return (
         <g data-dice-skin-preview-art="arcane" className={className} fill="none" strokeLinecap="round" strokeLinejoin="round">
