@@ -2,6 +2,7 @@ import { FIRE_TEXTURE_DATA_URL } from './fireTextureData.ts';
 import { ICE_TEXTURE_SOURCE_DATA_URL } from './iceTextureData.ts';
 import { LIGHTNING_TEXTURE_SOURCE_DATA_URL } from './lightningTextureData.ts';
 import { METAL_TEXTURE_SOURCE_DATA_URL } from './metalTextureData.ts';
+import { OBSIDIAN_TEXTURE_SOURCE_DATA_URL } from './obsidianTextureData.ts';
 import { POISON_TEXTURE_SOURCE_DATA_URL } from './poisonTextureData.ts';
 import { STONE_TEXTURE_SOURCE_DATA_URL } from './stoneTextureData.ts';
 import { normalizeDiceTextureScale } from './diceTextureScale.ts';
@@ -45,12 +46,14 @@ const lightningTextureResource = createTextureImage(LIGHTNING_TEXTURE_SOURCE_DAT
 const poisonTextureResource = createTextureImage(POISON_TEXTURE_SOURCE_DATA_URL, 'poison');
 const stoneTextureResource = createTextureImage(STONE_TEXTURE_SOURCE_DATA_URL, 'stone');
 const metalTextureResource = createTextureImage(METAL_TEXTURE_SOURCE_DATA_URL, 'metal');
+const obsidianTextureResource = createTextureImage(OBSIDIAN_TEXTURE_SOURCE_DATA_URL, 'obsidian');
 const fireTextureImage = fireTextureResource.image;
 const iceTextureImage = iceTextureResource.image;
 const lightningTextureImage = lightningTextureResource.image;
 const poisonTextureImage = poisonTextureResource.image;
 const stoneTextureImage = stoneTextureResource.image;
 const metalTextureImage = metalTextureResource.image;
+const obsidianTextureImage = obsidianTextureResource.image;
 
 function isIceTextureReady(): boolean {
   return Boolean(iceTextureImage?.complete && iceTextureImage.naturalWidth > 0);
@@ -72,23 +75,18 @@ function isMetalTextureReady(): boolean {
   return Boolean(metalTextureImage?.complete && metalTextureImage.naturalWidth > 0);
 }
 
+function isObsidianTextureReady(): boolean {
+  return Boolean(obsidianTextureImage?.complete && obsidianTextureImage.naturalWidth > 0);
+}
+
 export async function waitForDice3DTextureAssets(descriptors: readonly Dice3DTextureAssetRequest[]): Promise<void> {
   const pending: Promise<void>[] = [];
-  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'ice')) {
-    pending.push(iceTextureResource.ready);
-  }
-  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'lightning')) {
-    pending.push(lightningTextureResource.ready);
-  }
-  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'poison')) {
-    pending.push(poisonTextureResource.ready);
-  }
-  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'stone')) {
-    pending.push(stoneTextureResource.ready);
-  }
-  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'metal')) {
-    pending.push(metalTextureResource.ready);
-  }
+  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'ice')) pending.push(iceTextureResource.ready);
+  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'lightning')) pending.push(lightningTextureResource.ready);
+  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'poison')) pending.push(poisonTextureResource.ready);
+  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'stone')) pending.push(stoneTextureResource.ready);
+  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'metal')) pending.push(metalTextureResource.ready);
+  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'obsidian')) pending.push(obsidianTextureResource.ready);
   if (pending.length === 0) return;
   await Promise.all(pending);
 }
@@ -240,6 +238,25 @@ function drawMetalPhotoTexture(context: CanvasRenderingContext2D, bump: CanvasRe
   return true;
 }
 
+function drawObsidianPhotoTexture(context: CanvasRenderingContext2D, bump: CanvasRenderingContext2D, size: number): boolean {
+  const image = obsidianTextureImage;
+  if (!image?.complete || image.naturalWidth <= 0) return false;
+  context.save();
+  context.filter = 'brightness(1.12) saturate(.92) contrast(1.16)';
+  drawImageCover(context, image, size);
+  context.filter = 'none';
+  context.globalCompositeOperation = 'screen';
+  context.globalAlpha = 0.025;
+  context.fillStyle = '#d7d0ee';
+  context.fillRect(0, 0, size, size);
+  context.restore();
+  bump.save();
+  bump.filter = 'grayscale(1) contrast(2.25) brightness(.82)';
+  drawImageCover(bump, image, size);
+  bump.restore();
+  return true;
+}
+
 function drawCracks(context: CanvasRenderingContext2D, size: number, color: string, lineWidth: number, alpha = 1) {
   context.save();
   context.globalAlpha = alpha;
@@ -364,6 +381,7 @@ function drawPattern(textureCanvas: HTMLCanvasElement, bumpCanvas: HTMLCanvasEle
       break;
     }
     case 'obsidian': {
+      if (drawObsidianPhotoTexture(context, bump, size)) break;
       context.fillStyle = 'rgba(0,0,0,.48)'; context.fillRect(0, 0, size, size);
       context.save(); context.shadowColor = 'rgba(146,91,255,.8)'; context.shadowBlur = size / 48;
       drawCracks(context, size, 'rgba(201,176,255,.75)', size / 78); context.restore();
@@ -397,7 +415,9 @@ export function getDice3DTextureDescriptor(appearance: DiceAppearance): Dice3DTe
         ? (isPoisonTextureReady() ? 'ready' : 'placeholder')
         : appearance.skinId === 'stone'
           ? (isStoneTextureReady() ? 'ready' : 'placeholder')
-          : appearance.skinId === 'metal' ? (isMetalTextureReady() ? 'ready' : 'placeholder') : null;
+          : appearance.skinId === 'metal'
+            ? (isMetalTextureReady() ? 'ready' : 'placeholder')
+            : appearance.skinId === 'obsidian' ? (isObsidianTextureReady() ? 'ready' : 'placeholder') : null;
   const key = readiness ? `${appearance.skinId}:${appearance.bodyColor}:${textureScale}:${readiness}` : `${appearance.skinId}:${appearance.bodyColor}:${textureScale}`;
   const cached = cache.get(key);
   if (cached) return cached;
