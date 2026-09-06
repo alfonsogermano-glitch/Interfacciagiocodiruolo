@@ -46,7 +46,7 @@ assert.ok(icon.includes("skinId === 'obsidian'"), 'Obsidian must preserve exact 
 assert.ok(preview.includes("case 'obsidian':\n      return null;"), 'Procedural Obsidian preview art must not cover the photograph');
 assert.ok(surface.includes('DiceObsidianAnimatedOverlay') && icon.includes('DiceObsidianAnimatedOverlay'), 'Obsidian animated overlay must be wired into both 2D surfaces');
 assert.ok(fs.existsSync(new URL('DiceObsidianAnimatedOverlay.tsx', diceDir)) && fs.existsSync(new URL('diceObsidianAnimation.css', diceDir)), 'Obsidian must ship a dedicated 2D animated overlay');
-assert.ok(effects.includes("case 'obsidian':") && effects.includes("particleColor: '#c7b6ff'"), 'Obsidian must keep dedicated 3D shard/glint particles');
+assert.ok(effects.includes("case 'obsidian':") && effects.includes("particleColor: '#be92ff'"), 'Obsidian must keep its dedicated 3D shard/glint particles');
 assert.ok(ci.includes('node scripts/verify-obsidian-skin-consistency.mjs'), 'CI must run the Obsidian photographic regression test');
 
 console.log('Obsidian photographic 2D/3D texture, readiness cache, glossy material, readable labels and animated effects verification passed.');
