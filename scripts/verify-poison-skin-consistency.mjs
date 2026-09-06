@@ -93,7 +93,7 @@ assert.ok(!/drawPoisonPhotoTexture\([^)]*bodyColor/.test(textures), 'Poison phot
 assert.ok(textures.includes("context.filter = 'brightness(1.32) saturate(1.26) contrast(1.06)'"), 'Poison photo faces must receive the brighter lime-forward polish');
 assert.ok(textures.includes("bump.filter = 'grayscale(1) contrast(1.90) brightness(.88)'"), 'Poison bump must derive from the photograph');
 assert.ok(textures.includes("descriptor.appearance.skinId === 'poison'"), 'The readiness gate must wait for Poison rolls');
-assert.ok(textures.includes("appearance.skinId === 'poison' ? (isPoisonTextureReady() ? 'ready' : 'placeholder')"), 'Poison descriptors must distinguish placeholder and ready phases');
+assert.ok(textures.includes("appearance.skinId === 'poison'") && textures.includes("isPoisonTextureReady() ? 'ready' : 'placeholder'"), 'Poison descriptors must distinguish placeholder and ready phases');
 assert.ok(textures.includes('`${appearance.skinId}:${appearance.bodyColor}:${textureScale}:${readiness}`'), 'Poison ready and placeholder descriptors must use separate cache keys');
 assert.ok(textures.includes('`hollowgate-${appearance.skinId}-${appearance.bodyColor}-${textureScale}-${readiness}`'), 'Renderer-facing Poison texture names must differ across readiness phases');
 
@@ -102,7 +102,7 @@ const adapterIndex = renderer.indexOf('installDiceAppearanceAdapter(this.box, ap
 const rollIndex = renderer.indexOf('await this.box.roll(notation);');
 assert.ok(waitIndex >= 0 && adapterIndex > waitIndex && rollIndex > waitIndex, 'Poison photographic assets must load before die creation and roll start');
 assert.ok(profiles.includes("poison: 'photo-unlit'"), 'Poison photographic faces must remain vivid and stable independently of scene lighting');
-assert.ok(materials.includes("skinId === 'fire' || getDice3DSurfaceProfile(skinId) === 'photo-unlit'"), 'Fire and every photo-unlit skin must preserve the exact user-selected symbol color');
+assert.ok(materials.includes("getDice3DSurfaceProfile(skinId) === 'photo-unlit'") && materials.includes('return symbolColor;'), 'Fire and every photo-unlit skin must preserve the exact user-selected symbol color');
 assert.ok(materials.includes("case 'poison': return '#62d94d';"), 'Poison edges must keep their dedicated toxic-green emissive color');
 assert.ok(effects.includes("case 'poison':") && effects.includes('addPoisonBubbles(group, updaters, radius);'), 'Poison must retain its dedicated animated 3D bubbles');
 assert.ok(boost.includes("case 'poison': return '#a6ff4f';"), 'Poison must retain its brighter toxic-green moving-light boost');

@@ -1,4 +1,4 @@
-// Regression coverage for photographic Fire/Ice/Lightning/Poison rendering, user-selected colors, highlighted 3D labels, and settled effects.
+// Regression coverage for photographic Fire/Ice/Lightning/Poison/Stone rendering, user-selected colors, highlighted 3D labels, and settled effects.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
@@ -15,20 +15,20 @@ const failures = [];
 const expect = (condition, message) => { if (!condition) failures.push(message); };
 
 expect(
-  surface.includes("const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice' || appearance.skinId === 'lightning' || appearance.skinId === 'poison';"),
-  'Fire, Ice, Lightning and Poison swatches must share photographic-skin border-box handling',
+  surface.includes("const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice' || appearance.skinId === 'lightning' || appearance.skinId === 'poison' || appearance.skinId === 'stone';"),
+  'Fire, Ice, Lightning, Poison and Stone swatches must share photographic-skin border-box handling',
 );
 expect(
   surface.includes("backgroundOrigin: photographicSkin ? 'border-box' : undefined"),
   'Photographic skin backgrounds must originate from the border box to avoid color slivers',
 );
 expect(
-  icon.includes("if (skinId === 'fire' || skinId === 'ice' || skinId === 'lightning' || skinId === 'poison') return symbolColor;"),
-  '2D Fire/Ice/Lightning/Poison numbers must preserve the exact user-selected symbol color',
+  icon.includes("if (skinId === 'fire' || skinId === 'ice' || skinId === 'lightning' || skinId === 'poison' || skinId === 'stone') return symbolColor;"),
+  '2D Fire/Ice/Lightning/Poison/Stone numbers must preserve the exact user-selected symbol color',
 );
 expect(
-  materials.includes("if (skinId === 'fire' || getDice3DSurfaceProfile(skinId) === 'photo-unlit') return symbolColor;"),
-  '3D Fire and every photo-unlit skin must preserve the exact user-selected symbol color',
+  materials.includes("if (skinId === 'fire' || skinId === 'stone' || getDice3DSurfaceProfile(skinId) === 'photo-unlit') return symbolColor;"),
+  '3D Fire, Stone and every photo-unlit skin must preserve the exact user-selected symbol color',
 );
 expect(
   materials.includes("import { applyDice3DSurfaceProfile, getDice3DSurfaceProfile } from './dice3dSurfaceProfiles.ts';"),
@@ -40,27 +40,27 @@ expect(
 );
 expect(
   materials.includes('const PHOTO_UNLIT_LABEL_OUTLINE_MIN_WIDTH = 18;'),
-  'Photo-unlit dice must enforce a visibly stronger outline minimum after texture downscaling',
+  'Photographic dice requiring stronger highlighting must enforce a visibly stronger outline minimum after texture downscaling',
 );
 expect(
   materials.includes('const PHOTO_UNLIT_LABEL_OUTLINE_MAX_WIDTH = 32;'),
-  'Photo-unlit outline scaling must have a safe upper bound',
+  'Photographic outline scaling must have a safe upper bound',
 );
 expect(
   materials.includes('const PHOTO_UNLIT_LABEL_OUTLINE_FONT_RATIO = 0.09;'),
-  'Photo-unlit outlines must scale proportionally with the renderer font size',
+  'Photographic outlines must scale proportionally with the renderer font size',
 );
 expect(
   materials.includes('function dice3DLabelOutlineWidth'),
   '3D dice must centralize proportional label-outline sizing',
 );
 expect(
-  materials.includes("getDice3DSurfaceProfile(descriptor.appearance.skinId) !== 'photo-unlit'"),
-  'Ice, Lightning, Poison and future photo-unlit skins must inherit the stronger proportional outline automatically',
+  materials.includes("getDice3DSurfaceProfile(skinId) !== 'photo-unlit' && skinId !== 'stone'"),
+  'Ice, Lightning, Poison, Stone and future photo-unlit skins must inherit the stronger proportional outline',
 );
 expect(
   materials.includes('Number.parseFloat(context.font)'),
-  'Photo-unlit label-outline sizing must derive from the actual canvas font size',
+  'Photographic label-outline sizing must derive from the actual canvas font size',
 );
 expect(
   materials.includes('runWithDice3DLabelOutlineBoost(descriptor, () => originalCreate(type))'),
@@ -89,16 +89,27 @@ expect(poisonTextureFn.length > 0, 'Poison must have a dedicated photographic 3D
 expect(!poisonTextureFn.includes('fillStyle = bodyColor'), 'Poison 3D photographic texture must not be tinted by bodyColor');
 expect(!/drawPoisonPhotoTexture\([^)]*bodyColor/.test(textures), 'Poison texture renderer must not accept bodyColor tinting');
 
+const stoneTextureFn = textures.match(/function drawStonePhotoTexture[\s\S]*?\n}\n/)?.[0] ?? '';
+expect(stoneTextureFn.length > 0, 'Stone must have a dedicated photographic 3D texture renderer');
+expect(!stoneTextureFn.includes('fillStyle = bodyColor'), 'Stone 3D photographic texture must preserve the rock photograph instead of bodyColor tinting');
+expect(!/drawStonePhotoTexture\([^)]*bodyColor/.test(textures), 'Stone texture renderer must not accept bodyColor tinting');
+
 const iceMaterialFn = materials.match(/function preserveIceFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
 expect(iceMaterialFn === '', 'Ice must not emulate an unlit surface by mutating a lit Phong material');
 expect(materials.includes('applyDice3DSurfaceProfile(mesh, descriptor);'), 'Every standard die must apply its declared surface profile');
 expect(profiles.includes("ice: 'photo-unlit'"), 'Ice must declare the reusable photo-unlit profile');
 expect(profiles.includes("lightning: 'photo-unlit'"), 'Lightning must reuse the photo-unlit profile for stable vivid faces');
 expect(profiles.includes("poison: 'photo-unlit'"), 'Poison must reuse the photo-unlit profile for stable vivid faces');
+expect(profiles.includes("stone: 'photo-lit'"), 'Stone must keep scene lighting for believable rocky depth');
 
 const fireMaterialFn = materials.match(/function preserveFireFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
 expect(fireMaterialFn.includes('material.color?.set?.(0xffffff)'), 'Fire face diffuse behavior must remain unchanged');
 expect(!fireMaterialFn.includes('material.toneMapped = false'), 'Photo-unlit isolation must not change Fire tone mapping');
+
+const stoneMaterialFn = materials.match(/function preserveStoneFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
+expect(stoneMaterialFn.includes('material.color?.set?.(0xffffff)'), 'Stone faces must keep a neutral white multiplier over the photograph');
+expect(stoneMaterialFn.includes('material.roughness = 0.9'), 'Stone photographic faces must remain strongly matte');
+expect(stoneMaterialFn.includes('material.metalness = 0'), 'Stone photographic faces must remain non-metallic');
 
 expect(
   session.includes('const DICE_ANIMATED_SETTLED_HOLD_MS = 2000;'),
@@ -130,4 +141,4 @@ if (failures.length) {
   });
 }
 
-console.log('Fire/Ice/Lightning/Poison rendering, exact colors, proportional photo-unlit labels, shared surface profiles, and settled-effect lifecycle verification passed.');
+console.log('Fire/Ice/Lightning/Poison/Stone rendering, exact colors, proportional photographic labels, shared surface profiles, and settled-effect lifecycle verification passed.');

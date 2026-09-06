@@ -49,13 +49,7 @@ export function DiceSkinPreviewArt({ skinId, bodyColor, className }: { skinId: D
     case 'poison':
       return null;
     case 'stone':
-      return (
-        <g data-dice-skin-preview-art="stone" className={className} fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M0 7 11 4l5 7 8-5 12 6v24H0Z" fill={colors.dark} opacity="0.28" />
-          <path d="m5 2 6 10-4 8 8 4-4 10M22 1l-3 9 6 6-4 7 8 11M3 27l9-4m13-7 9-3" stroke={colors.deep} strokeWidth="1.4" opacity="0.82" />
-          <path d="m12 12 5 2-2 5m10-3 3 4-4 3" stroke={colors.light} strokeWidth="0.85" opacity="0.75" />
-        </g>
-      );
+      return null;
     case 'metal':
       return (
         <g data-dice-skin-preview-art="metal" className={className}>

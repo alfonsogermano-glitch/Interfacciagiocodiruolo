@@ -63,9 +63,19 @@ applyDice3DSurfaceProfile(fireMesh, { appearance: appearance('fire'), custom: fa
 assert.equal(fireMesh.material[0], fireEdge, 'Fire must preserve its edge material');
 assert.equal(fireMesh.material[1], fireFace, 'Fire must preserve its existing lit face material');
 
+const stoneTexture = new THREE.Texture();
+const stoneEdge = new THREE.MeshPhongMaterial({ color: '#857b68' });
+const stoneFace = new THREE.MeshPhongMaterial({ color: '#ffffff', map: stoneTexture });
+const stoneMesh = { material: [stoneEdge, stoneFace] };
+assert.equal(getDice3DSurfaceProfile('stone'), 'photo-lit');
+applyDice3DSurfaceProfile(stoneMesh, { appearance: appearance('stone'), custom: false });
+assert.equal(stoneMesh.material[0], stoneEdge, 'Stone must preserve its rough edge material');
+assert.equal(stoneMesh.material[1], stoneFace, 'Stone must keep its existing scene-lit photographic face material');
+assert.equal(stoneMesh.material[1].map, stoneTexture, 'Stone must preserve the photographic map');
+
 const customFace = new THREE.MeshPhongMaterial({ map: texture });
 const customMesh = { material: [fireEdge, customFace] };
 applyDice3DSurfaceProfile(customMesh, { appearance: appearance('ice'), custom: true });
 assert.equal(customMesh.material[1], customFace, 'Custom dice must remain outside standard-skin profiles');
 
-console.log('Shared 3D surface profiles preserve Ice/Lightning/Poison photography, Fire lighting, edges, and Custom materials.');
+console.log('Shared 3D surface profiles preserve Ice/Lightning/Poison photography, Fire/Stone lighting, edges, and Custom materials.');

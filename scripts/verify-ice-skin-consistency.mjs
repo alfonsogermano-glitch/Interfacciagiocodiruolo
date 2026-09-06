@@ -60,7 +60,7 @@ const waitIndex = renderer.indexOf('await waitForDice3DTextureAssets(appearanceQ
 const adapterIndex = renderer.indexOf('installDiceAppearanceAdapter(this.box, appearanceQueue)');
 const rollIndex = renderer.indexOf('await this.box.roll(notation);');
 assert.ok(waitIndex >= 0 && adapterIndex > waitIndex && rollIndex > waitIndex, 'Ice photographic assets must finish loading before the appearance adapter creates dice and before the roll starts');
-assert.ok(materials.includes("if (skinId === 'fire' || getDice3DSurfaceProfile(skinId) === 'photo-unlit') return symbolColor;"), 'Ice numbers must preserve the exact user-selected symbol color through the shared photo-unlit profile');
+assert.ok(materials.includes("getDice3DSurfaceProfile(skinId) === 'photo-unlit'") && materials.includes('return symbolColor;'), 'Ice numbers must preserve the exact user-selected symbol color through the shared photo-unlit profile');
 assert.ok(materials.includes('factory.label_outline = outlineColor;'), 'Ice numbers must keep the contrasting renderer outline');
 assert.ok(materials.includes("case 'ice': return '#8eeeff';"), 'Ice edges must preserve the dedicated cold emissive glow');
 assert.ok(materials.includes("material.emissiveIntensity = skinId === 'ice' ? 0.25 : 0.11;"), 'Ice edge glow must use the stable rolling-to-settled baseline');
