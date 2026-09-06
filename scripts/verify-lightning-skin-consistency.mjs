@@ -101,7 +101,7 @@ const rollIndex = renderer.indexOf('await this.box.roll(notation);');
 assert.ok(waitIndex >= 0 && adapterIndex > waitIndex && rollIndex > waitIndex, 'Lightning photographic assets must load before die creation and roll start');
 assert.ok(profiles.includes("lightning: 'photo-unlit'"), 'Lightning photographic faces must remain vivid and stable independently of scene lighting');
 assert.ok(profiles.includes('new THREE.MeshBasicMaterial'), 'The photographic unlit profile must use a genuinely light-independent material');
-assert.ok(materials.includes("skinId === 'fire' || getDice3DSurfaceProfile(skinId) === 'photo-unlit'"), 'Lightning and every photo-unlit skin must preserve the exact user-selected symbol color');
+assert.ok(materials.includes("getDice3DSurfaceProfile(skinId) === 'photo-unlit'") && materials.includes('return symbolColor;'), 'Lightning and every photo-unlit skin must preserve the exact user-selected symbol color');
 assert.ok(materials.includes("case 'lightning': return '#42dcff';"), 'Lightning edges must keep their dedicated cyan emissive color');
 assert.ok(effects.includes("case 'lightning':") && effects.includes('lightningBolts: 5'), 'Lightning must retain its dedicated animated 3D bolts');
 assert.ok(boost.includes("case 'lightning': return '#55e6ff';"), 'Lightning must retain its cold electric moving-light boost');
