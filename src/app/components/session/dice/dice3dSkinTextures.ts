@@ -1,6 +1,7 @@
 import { FIRE_TEXTURE_DATA_URL } from './fireTextureData.ts';
 import { ICE_TEXTURE_SOURCE_DATA_URL } from './iceTextureData.ts';
 import { LIGHTNING_TEXTURE_SOURCE_DATA_URL } from './lightningTextureData.ts';
+import { POISON_TEXTURE_SOURCE_DATA_URL } from './poisonTextureData.ts';
 import { normalizeDiceTextureScale } from './diceTextureScale.ts';
 import type { DiceAppearance, DiceSkinId } from './diceTypes.ts';
 
@@ -39,9 +40,11 @@ function createTextureImage(dataUrl: string, cachePrefix: string): TextureImageR
 const fireTextureResource = createTextureImage(FIRE_TEXTURE_DATA_URL, 'fire');
 const iceTextureResource = createTextureImage(ICE_TEXTURE_SOURCE_DATA_URL, 'ice');
 const lightningTextureResource = createTextureImage(LIGHTNING_TEXTURE_SOURCE_DATA_URL, 'lightning');
+const poisonTextureResource = createTextureImage(POISON_TEXTURE_SOURCE_DATA_URL, 'poison');
 const fireTextureImage = fireTextureResource.image;
 const iceTextureImage = iceTextureResource.image;
 const lightningTextureImage = lightningTextureResource.image;
+const poisonTextureImage = poisonTextureResource.image;
 
 function isIceTextureReady(): boolean {
   return Boolean(iceTextureImage?.complete && iceTextureImage.naturalWidth > 0);
@@ -51,6 +54,10 @@ function isLightningTextureReady(): boolean {
   return Boolean(lightningTextureImage?.complete && lightningTextureImage.naturalWidth > 0);
 }
 
+function isPoisonTextureReady(): boolean {
+  return Boolean(poisonTextureImage?.complete && poisonTextureImage.naturalWidth > 0);
+}
+
 export async function waitForDice3DTextureAssets(descriptors: readonly Dice3DTextureAssetRequest[]): Promise<void> {
   const pending: Promise<void>[] = [];
   if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'ice')) {
@@ -58,6 +65,9 @@ export async function waitForDice3DTextureAssets(descriptors: readonly Dice3DTex
   }
   if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'lightning')) {
     pending.push(lightningTextureResource.ready);
+  }
+  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'poison')) {
+    pending.push(poisonTextureResource.ready);
   }
   if (pending.length === 0) return;
   await Promise.all(pending);
@@ -153,6 +163,25 @@ function drawLightningPhotoTexture(context: CanvasRenderingContext2D, bump: Canv
   return true;
 }
 
+function drawPoisonPhotoTexture(context: CanvasRenderingContext2D, bump: CanvasRenderingContext2D, size: number): boolean {
+  const image = poisonTextureImage;
+  if (!image?.complete || image.naturalWidth <= 0) return false;
+  context.save();
+  context.filter = 'brightness(1.20) saturate(1.18) contrast(1.10)';
+  drawImageCover(context, image, size);
+  context.filter = 'none';
+  context.globalCompositeOperation = 'screen';
+  context.globalAlpha = 0.045;
+  context.fillStyle = '#c8ff8a';
+  context.fillRect(0, 0, size, size);
+  context.restore();
+  bump.save();
+  bump.filter = 'grayscale(1) contrast(1.90) brightness(.88)';
+  drawImageCover(bump, image, size);
+  bump.restore();
+  return true;
+}
+
 function drawCracks(context: CanvasRenderingContext2D, size: number, color: string, lineWidth: number, alpha = 1) {
   context.save();
   context.globalAlpha = alpha;
@@ -236,6 +265,7 @@ function drawPattern(textureCanvas: HTMLCanvasElement, bumpCanvas: HTMLCanvasEle
       context.restore(); break;
     }
     case 'poison': {
+      if (drawPoisonPhotoTexture(context, bump, size)) break;
       for (let i = 0; i < 22; i += 1) {
         const x = (((i * 43) % 97) / 100) * size;
         const y = (((i * 29 + 17) % 93) / 100) * size;
@@ -301,7 +331,9 @@ export function getDice3DTextureDescriptor(appearance: DiceAppearance): Dice3DTe
   const textureScale = normalizeDiceTextureScale(appearance.textureScale);
   const readiness = appearance.skinId === 'ice'
     ? (isIceTextureReady() ? 'ready' : 'placeholder')
-    : appearance.skinId === 'lightning' ? (isLightningTextureReady() ? 'ready' : 'placeholder') : null;
+    : appearance.skinId === 'lightning'
+      ? (isLightningTextureReady() ? 'ready' : 'placeholder')
+      : appearance.skinId === 'poison' ? (isPoisonTextureReady() ? 'ready' : 'placeholder') : null;
   const key = readiness ? `${appearance.skinId}:${appearance.bodyColor}:${textureScale}:${readiness}` : `${appearance.skinId}:${appearance.bodyColor}:${textureScale}`;
   const cached = cache.get(key);
   if (cached) return cached;
