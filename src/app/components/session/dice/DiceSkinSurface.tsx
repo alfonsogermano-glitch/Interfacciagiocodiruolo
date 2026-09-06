@@ -4,6 +4,7 @@ import { isAnimatedIceAppearance } from './DiceIceAnimatedOverlay';
 import { DiceLightningAnimatedOverlay, isAnimatedLightningAppearance } from './DiceLightningAnimatedOverlay';
 import { DicePoisonAnimatedOverlay, isAnimatedPoisonAppearance } from './DicePoisonAnimatedOverlay';
 import { DiceStoneAnimatedOverlay, isAnimatedStoneAppearance } from './DiceStoneAnimatedOverlay';
+import { DiceMetalAnimatedOverlay, isAnimatedMetalAppearance } from './DiceMetalAnimatedOverlay';
 import { DiceSkinPreviewArt } from './DiceSkinPreviewArt';
 import { getDiceSkinBackgroundImage } from './diceSkins.ts';
 import { getDiceTextureBackgroundSize } from './diceTextureScale.ts';
@@ -26,12 +27,13 @@ export function DiceSkinSurface({
   const animatedLightning = isAnimatedLightningAppearance(appearance);
   const animatedPoison = isAnimatedPoisonAppearance(appearance);
   const animatedStone = isAnimatedStoneAppearance(appearance);
+  const animatedMetal = isAnimatedMetalAppearance(appearance);
   const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice' || appearance.skinId === 'lightning' || appearance.skinId === 'poison' || appearance.skinId === 'stone' || appearance.skinId === 'metal';
   return (
     <span
       data-dice-skin={appearance.skinId}
       data-dice-skin-illustrative={illustrative || undefined}
-      className={`${illustrative || animatedFire || animatedIce || animatedLightning || animatedPoison || animatedStone ? 'relative overflow-hidden' : ''} ${className}`}
+      className={`${illustrative || animatedFire || animatedIce || animatedLightning || animatedPoison || animatedStone || animatedMetal ? 'relative overflow-hidden' : ''} ${className}`}
       style={{
         backgroundColor: appearance.bodyColor,
         backgroundImage,
@@ -50,6 +52,7 @@ export function DiceSkinSurface({
       <DiceLightningAnimatedOverlay appearance={appearance} />
       <DicePoisonAnimatedOverlay appearance={appearance} />
       <DiceStoneAnimatedOverlay appearance={appearance} />
+      <DiceMetalAnimatedOverlay appearance={appearance} />
       {children}
     </span>
   );

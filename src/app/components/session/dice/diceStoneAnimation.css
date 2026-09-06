@@ -6,56 +6,89 @@
 .hollowgate-stone-texture {
   background-position: center;
   background-repeat: no-repeat;
-  opacity: 0.12;
-  filter: brightness(1.08) contrast(1.04);
-  animation: hollowgate-stone-texture-settle 4.8s ease-in-out infinite alternate;
+  opacity: .14;
+  filter: brightness(1.1) contrast(1.06);
+  animation: hollowgate-stone-texture-settle 3.6s ease-in-out infinite alternate;
 }
 
 .hollowgate-stone-dust {
   background-image:
-    radial-gradient(circle at 18% 32%, rgba(235, 224, 201, .68) 0 1.2%, transparent 1.8%),
-    radial-gradient(circle at 68% 22%, rgba(174, 158, 132, .58) 0 .9%, transparent 1.5%),
-    radial-gradient(circle at 82% 74%, rgba(231, 218, 190, .6) 0 1%, transparent 1.7%),
-    radial-gradient(circle at 37% 81%, rgba(136, 125, 109, .5) 0 1.1%, transparent 1.8%);
-  opacity: .34;
-  filter: blur(.25px);
-  animation: hollowgate-stone-dust-drift 3.8s ease-in-out infinite alternate;
+    radial-gradient(circle at 18% 32%, rgba(235,224,201,.72) 0 1.4%, transparent 2.1%),
+    radial-gradient(circle at 68% 22%, rgba(174,158,132,.64) 0 1.1%, transparent 1.7%),
+    radial-gradient(circle at 82% 74%, rgba(231,218,190,.68) 0 1.2%, transparent 1.9%),
+    radial-gradient(circle at 37% 81%, rgba(136,125,109,.58) 0 1.3%, transparent 2%);
+  opacity: .48;
+  filter: blur(.2px);
+  animation: hollowgate-stone-dust-drift 2.7s ease-in-out infinite alternate;
 }
 
 .hollowgate-stone-dust-b {
-  opacity: .22;
+  opacity: .32;
   transform: rotate(37deg) scale(.92);
-  animation-duration: 5.1s;
+  animation-duration: 3.9s;
   animation-direction: alternate-reverse;
+}
+
+.hollowgate-stone-shards {
+  background-image:
+    conic-gradient(from 18deg at 20% 24%, transparent 0 42deg, rgba(188,174,151,.78) 43deg 61deg, transparent 62deg 360deg),
+    conic-gradient(from 210deg at 72% 34%, transparent 0 36deg, rgba(111,102,90,.68) 37deg 58deg, transparent 59deg 360deg),
+    conic-gradient(from 95deg at 58% 78%, transparent 0 28deg, rgba(222,207,181,.7) 29deg 48deg, transparent 49deg 360deg);
+  opacity: .36;
+  animation: hollowgate-stone-shard-drift 2.35s ease-in-out infinite alternate;
+}
+
+.hollowgate-stone-shards-b {
+  opacity: .24;
+  transform: rotate(29deg) scale(.9);
+  animation-duration: 3.2s;
+  animation-direction: alternate-reverse;
+}
+
+.hollowgate-stone-impact {
+  box-shadow: inset 0 0 0 1px rgba(224,209,182,.16), inset 0 0 12px rgba(96,87,74,.18);
+  animation: hollowgate-stone-impact-pulse 1.8s ease-in-out infinite alternate;
 }
 
 .hollowgate-stone-grit {
   background-image:
-    radial-gradient(circle at 28% 16%, rgba(255, 244, 221, .65) 0 .7%, transparent 1.2%),
-    radial-gradient(circle at 74% 46%, rgba(91, 83, 72, .6) 0 .75%, transparent 1.25%),
-    radial-gradient(circle at 46% 68%, rgba(229, 211, 177, .58) 0 .65%, transparent 1.15%);
-  opacity: .28;
-  animation: hollowgate-stone-grit-pulse 2.9s ease-in-out infinite alternate;
+    radial-gradient(circle at 28% 16%, rgba(255,244,221,.75) 0 .8%, transparent 1.4%),
+    radial-gradient(circle at 74% 46%, rgba(91,83,72,.68) 0 .85%, transparent 1.35%),
+    radial-gradient(circle at 46% 68%, rgba(229,211,177,.66) 0 .75%, transparent 1.25%);
+  opacity: .38;
+  animation: hollowgate-stone-grit-pulse 2.2s ease-in-out infinite alternate;
 }
 
 @keyframes hollowgate-stone-texture-settle {
-  from { opacity: .08; filter: brightness(1.04) contrast(1.02); }
-  to { opacity: .15; filter: brightness(1.12) contrast(1.06); }
+  from { opacity: .1; filter: brightness(1.06) contrast(1.03); }
+  to { opacity: .18; filter: brightness(1.15) contrast(1.08); }
 }
 
 @keyframes hollowgate-stone-dust-drift {
-  from { transform: translate3d(-3%, 2%, 0) rotate(-3deg) scale(.96); }
-  to { transform: translate3d(4%, -5%, 0) rotate(4deg) scale(1.05); }
+  from { transform: translate3d(-5%, 3%, 0) rotate(-4deg) scale(.94); }
+  to { transform: translate3d(6%, -7%, 0) rotate(5deg) scale(1.08); }
+}
+
+@keyframes hollowgate-stone-shard-drift {
+  from { transform: translate3d(-4%, 4%, 0) rotate(-5deg) scale(.94); opacity: .2; }
+  to { transform: translate3d(5%, -5%, 0) rotate(6deg) scale(1.06); opacity: .46; }
+}
+
+@keyframes hollowgate-stone-impact-pulse {
+  from { transform: scale(.985); opacity: .28; }
+  to { transform: scale(1.018); opacity: .62; }
 }
 
 @keyframes hollowgate-stone-grit-pulse {
-  from { opacity: .18; transform: scale(.98); }
-  to { opacity: .36; transform: scale(1.025); }
+  from { opacity: .22; transform: scale(.97); }
+  to { opacity: .46; transform: scale(1.035); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .hollowgate-stone-texture,
   .hollowgate-stone-dust,
+  .hollowgate-stone-shards,
+  .hollowgate-stone-impact,
   .hollowgate-stone-grit {
     animation: none !important;
   }
