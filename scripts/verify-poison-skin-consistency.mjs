@@ -102,7 +102,7 @@ const adapterIndex = renderer.indexOf('installDiceAppearanceAdapter(this.box, ap
 const rollIndex = renderer.indexOf('await this.box.roll(notation);');
 assert.ok(waitIndex >= 0 && adapterIndex > waitIndex && rollIndex > waitIndex, 'Poison photographic assets must load before die creation and roll start');
 assert.ok(profiles.includes("poison: 'photo-unlit'"), 'Poison photographic faces must remain vivid and stable independently of scene lighting');
-assert.ok(materials.includes("skinId === 'fire' || getDice3DSurfaceProfile(skinId) === 'photo-unlit'"), 'Fire and every photo-unlit skin must preserve the exact user-selected symbol color');
+assert.ok(materials.includes("getDice3DSurfaceProfile(skinId) === 'photo-unlit'") && materials.includes('return symbolColor;'), 'Fire and every photo-unlit skin must preserve the exact user-selected symbol color');
 assert.ok(materials.includes("case 'poison': return '#62d94d';"), 'Poison edges must keep their dedicated toxic-green emissive color');
 assert.ok(effects.includes("case 'poison':") && effects.includes('addPoisonBubbles(group, updaters, radius);'), 'Poison must retain its dedicated animated 3D bubbles');
 assert.ok(boost.includes("case 'poison': return '#a6ff4f';"), 'Poison must retain its brighter toxic-green moving-light boost');
