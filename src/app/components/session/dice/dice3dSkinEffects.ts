@@ -78,9 +78,9 @@ export function getDice3DSkinEffectProfile(
     case 'poison':
       return { frequency: 6.6, emissiveColor: '#7dff4d', emissiveBase: 0.08, emissivePulse: 0.32, roughnessPulse: 0.16, metalnessPulse: 0, shininessPulse: 42, particleColor: '#b4ff68', particleCount: 20, particleOpacity: 0.96, particleSize: 0.13, orbitSpeed: 1.7, lightningBolts: 0, arcaneRing: false };
     case 'stone':
-      return { frequency: 3, emissiveColor: null, emissiveBase: 0, emissivePulse: 0, roughnessPulse: 0.07, metalnessPulse: 0, shininessPulse: 10, particleColor: '#d8d1c4', particleCount: 9, particleOpacity: 0.58, particleSize: 0.08, orbitSpeed: 0.5, lightningBolts: 0, arcaneRing: false };
+      return { frequency: 4.2, emissiveColor: null, emissiveBase: 0, emissivePulse: 0, roughnessPulse: 0.1, metalnessPulse: 0, shininessPulse: 14, particleColor: '#d8d1c4', particleCount: 14, particleOpacity: 0.72, particleSize: 0.095, orbitSpeed: 0.85, lightningBolts: 0, arcaneRing: false };
     case 'metal':
-      return { frequency: 8, emissiveColor: null, emissiveBase: 0, emissivePulse: 0, roughnessPulse: 0.28, metalnessPulse: 0.05, shininessPulse: 94, particleColor: '#ffffff', particleCount: 6, particleOpacity: 0.96, particleSize: 0.075, orbitSpeed: 2.7, lightningBolts: 0, arcaneRing: false };
+      return { frequency: 9.5, emissiveColor: null, emissiveBase: 0, emissivePulse: 0, roughnessPulse: 0.32, metalnessPulse: 0.07, shininessPulse: 110, particleColor: '#ffffff', particleCount: 12, particleOpacity: 1, particleSize: 0.082, orbitSpeed: 3.2, lightningBolts: 0, arcaneRing: false };
     case 'obsidian':
       return { frequency: 5, emissiveColor: '#9568ff', emissiveBase: 0.035, emissivePulse: 0.22, roughnessPulse: 0.16, metalnessPulse: 0.03, shininessPulse: 58, particleColor: '#be92ff', particleCount: 11, particleOpacity: 0.86, particleSize: 0.1, orbitSpeed: 1.15, lightningBolts: 0, arcaneRing: false };
     case 'arcane':
@@ -215,24 +215,54 @@ function addStoneFragments(
   radius: number,
 ) {
   const fragments: any[] = [];
-  for (let index = 0; index < 5; index += 1) {
-    const material = createGlowMaterial(index % 2 ? '#d2cabd' : '#999083', 0.42, false);
+  for (let index = 0; index < 8; index += 1) {
+    const material = createGlowMaterial(index % 2 ? '#d2cabd' : '#999083', 0.48, false);
     const fragment = new THREE.Mesh(new THREE.TetrahedronGeometry(radius * (0.06 + (index % 3) * 0.012), 0), material);
     group.add(fragment);
     fragments.push({ fragment, material, phase: index * 1.43 });
   }
   updaters.push((elapsed, wave) => {
     fragments.forEach(({ fragment, material, phase }, index) => {
-      const angle = phase + elapsed * (0.28 + index * 0.025);
-      const orbit = radius * (1.14 + (index % 2) * 0.12);
+      const angle = phase + elapsed * (0.48 + index * 0.035);
+      const orbit = radius * (1.14 + (index % 2) * 0.14);
       fragment.position.set(
         Math.cos(angle) * orbit,
         Math.sin(angle) * orbit,
-        Math.sin(angle * 1.7 + phase) * radius * 0.48,
+        Math.sin(angle * 1.7 + phase) * radius * 0.58,
       );
-      fragment.rotation.x = elapsed * 0.38 + phase;
-      fragment.rotation.z = elapsed * 0.3 + index;
-      material.opacity = 0.32 + wave * 0.16;
+      fragment.rotation.x = elapsed * 0.72 + phase;
+      fragment.rotation.z = elapsed * 0.58 + index;
+      material.opacity = 0.36 + wave * 0.28;
+    });
+  });
+}
+
+function addMetalSparks(
+  group: any,
+  updaters: Array<(elapsed: number, wave: number) => void>,
+  radius: number,
+) {
+  const sparks: any[] = [];
+  for (let index = 0; index < 6; index += 1) {
+    const material = createGlowMaterial(index % 2 ? '#ffffff' : '#cfe8ff', 0.68);
+    const spark = new THREE.Mesh(new THREE.OctahedronGeometry(radius * (0.035 + (index % 2) * 0.012), 0), material);
+    group.add(spark);
+    sparks.push({ spark, material, phase: index * 1.07 });
+  }
+  updaters.push((elapsed, wave) => {
+    sparks.forEach(({ spark, material, phase }, index) => {
+      const angle = phase + elapsed * (2.4 + index * 0.18);
+      const orbit = radius * (1.12 + (index % 3) * 0.08);
+      spark.position.set(
+        Math.cos(angle) * orbit,
+        Math.sin(angle) * orbit,
+        Math.sin(elapsed * 3.1 + phase) * radius * 0.62,
+      );
+      const flash = Math.max(0, Math.sin(elapsed * (8.4 + index * 0.55) + phase));
+      spark.scale.setScalar(0.55 + flash * 0.75);
+      spark.rotation.x = elapsed * 3.2 + phase;
+      spark.rotation.y = elapsed * 2.7 + index;
+      material.opacity = 0.22 + flash * 0.7 + wave * 0.12;
     });
   });
 }
@@ -346,6 +376,9 @@ function createParticleVisual(
       break;
     case 'stone':
       addStoneFragments(group, updaters, radius);
+      break;
+    case 'metal':
+      addMetalSparks(group, updaters, radius);
       break;
   }
 
