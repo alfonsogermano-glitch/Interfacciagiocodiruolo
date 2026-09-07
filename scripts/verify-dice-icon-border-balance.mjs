@@ -6,8 +6,8 @@ const styled = fs.readFileSync(new URL('../src/app/components/session/dice/Style
 const customizer = fs.readFileSync(new URL('../src/app/components/session/dice/DiceAppearanceCustomizer.tsx', import.meta.url), 'utf8');
 
 assert.ok(
-  icon.includes('operator="erode" radius="0.22"'),
-  'textured dice internal structure must use the balanced 0.22 erosion rather than the over-thinned 0.30 treatment',
+  icon.includes('operator="erode" radius="0.27"'),
+  'textured dice internal structure must use the balanced 0.27 erosion between the previous 0.24 and over-thin 0.30 treatments',
 );
 assert.doesNotMatch(
   icon,
