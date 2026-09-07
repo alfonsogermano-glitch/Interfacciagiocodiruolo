@@ -60,6 +60,7 @@ const DICE_SKIN_LABEL_OUTLINE_WIDTH = 8;
 const PHOTO_UNLIT_LABEL_OUTLINE_MIN_WIDTH = 18;
 const PHOTO_UNLIT_LABEL_OUTLINE_MAX_WIDTH = 32;
 const PHOTO_UNLIT_LABEL_OUTLINE_FONT_RATIO = 0.09;
+const OBSIDIAN_OUTER_OUTLINE_EXTRA_WIDTH = 14;
 const REFLECTIVE_OUTPUT_FRAGMENT_CHUNKS = ['#include <colorspace_fragment>', '#include <encodings_fragment>'] as const;
 const REFLECTIVE_LABEL_SHIELD_CACHE_KEY = 'hollowgate-reflective-label-shield-v1';
 const reflectiveLabelMasks = new WeakMap<HTMLCanvasElement, HTMLCanvasElement>();
@@ -132,6 +133,10 @@ function runWithDice3DLabelOutlineBoost<T>(descriptor: Dice3DAppearanceDescripto
   const originalStrokeText = prototype.strokeText;
   const originalClearRect = prototype.clearRect;
   const protectReflectiveLabel = isReflectiveStandardDescriptor(descriptor);
+  const obsidianDualOutline = !descriptor.custom && descriptor.appearance.skinId === 'obsidian';
+  const obsidianLabelColor = getReadable3DLabelColor(descriptor.appearance.symbolColor, descriptor.appearance.bodyColor, descriptor.appearance.skinId);
+  const obsidianOutlineColor = readableOutlineColor(obsidianLabelColor);
+  const obsidianOuterOutlineColor = readableOutlineColor(obsidianOutlineColor);
 
   prototype.clearRect = function (
     this: CanvasRenderingContext2D,
@@ -184,8 +189,17 @@ function runWithDice3DLabelOutlineBoost<T>(descriptor: Dice3DAppearanceDescripto
     maxWidth?: number,
   ): void {
     const previousLineWidth = this.lineWidth;
+    const previousStrokeStyle = this.strokeStyle;
     this.lineWidth = Math.max(previousLineWidth, dice3DLabelOutlineWidth(this, descriptor));
     try {
+      if (obsidianDualOutline) {
+        this.lineWidth = this.lineWidth + OBSIDIAN_OUTER_OUTLINE_EXTRA_WIDTH;
+        this.strokeStyle = obsidianOuterOutlineColor;
+        if (typeof maxWidth === 'number') originalStrokeText.call(this, text, x, y, maxWidth);
+        else originalStrokeText.call(this, text, x, y);
+        this.lineWidth = Math.max(previousLineWidth, dice3DLabelOutlineWidth(this, descriptor));
+        this.strokeStyle = previousStrokeStyle;
+      }
       if (typeof maxWidth === 'number') originalStrokeText.call(this, text, x, y, maxWidth);
       else originalStrokeText.call(this, text, x, y);
       if (protectReflectiveLabel) {
@@ -194,6 +208,13 @@ function runWithDice3DLabelOutlineBoost<T>(descriptor: Dice3DAppearanceDescripto
           maskContext.save();
           try {
             copyTextMaskState(this, maskContext);
+            if (obsidianDualOutline) {
+              maskContext.lineWidth = this.lineWidth + OBSIDIAN_OUTER_OUTLINE_EXTRA_WIDTH;
+              maskContext.strokeStyle = obsidianOuterOutlineColor;
+              if (typeof maxWidth === 'number') originalStrokeText.call(maskContext, text, x, y, maxWidth);
+              else originalStrokeText.call(maskContext, text, x, y);
+              maskContext.lineWidth = this.lineWidth;
+            }
             maskContext.strokeStyle = '#ffffff';
             if (typeof maxWidth === 'number') originalStrokeText.call(maskContext, text, x, y, maxWidth);
             else originalStrokeText.call(maskContext, text, x, y);
@@ -204,6 +225,7 @@ function runWithDice3DLabelOutlineBoost<T>(descriptor: Dice3DAppearanceDescripto
       }
     } finally {
       this.lineWidth = previousLineWidth;
+      this.strokeStyle = previousStrokeStyle;
     }
   };
   try {

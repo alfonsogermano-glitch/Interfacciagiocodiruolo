@@ -41,6 +41,7 @@ jobs:
       - run: node scripts/verify-metal-visibility-regression.mjs
       - run: node scripts/verify-obsidian-skin-consistency.mjs
       - run: node scripts/verify-reflective-label-protection.mjs
+      - run: node scripts/verify-obsidian-dual-outline.mjs
       - run: node scripts/verify-vercel-preview-policy.mjs
       - run: node scripts/verify-dice-skin-regressions.mjs
       - run: npm run verify:dice-surface-profiles
