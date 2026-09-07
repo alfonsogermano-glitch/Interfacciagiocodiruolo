@@ -26,7 +26,7 @@ type FacePulseBaseline = {
   emissiveHex?: number;
 };
 
-const FIRE_TEXTURE_EMISSIVE_PULSE = 0.48;
+const FIRE_TEXTURE_EMISSIVE_PULSE = 0.32;
 const STONE_FACE_EMISSIVE_PULSE = 0.16;
 const ICE_LIGHT_INTENSITY = 0.56;
 
@@ -157,9 +157,9 @@ export function installDice3DVisualBoost(
                 : 0.35 + rollingPulse * 0.42;
 
     if (fireFaceBaselines.length > 0) {
-      const magmaPulse = clamp01(0.24 + slow * 0.28 + medium * 0.24 + fast * 0.18 + ((Math.sin(seconds * 10.3 + 1.7) + 1) / 2) * 0.14);
+      const magmaBreath = (Math.sin(seconds * 2.15 - 0.35) + 1) / 2;
       for (const { material, emissiveIntensity } of fireFaceBaselines) {
-        material.emissiveIntensity = emissiveIntensity + magmaPulse * FIRE_TEXTURE_EMISSIVE_PULSE;
+        material.emissiveIntensity = emissiveIntensity + 0.03 + magmaBreath * FIRE_TEXTURE_EMISSIVE_PULSE;
         material.needsUpdate = true;
       }
     }

@@ -22,18 +22,10 @@ export function DiceFireAnimatedOverlay({ appearance }: { appearance: DiceAppear
   return (
     <span aria-hidden="true" data-dice-fire-animated-overlay className="hollowgate-fire-animation">
       <span
-        data-dice-fire-animated-texture-under
-        className="hollowgate-fire-animation__texture hollowgate-fire-animation__texture--under"
+        data-dice-fire-vein-pulse
+        className="hollowgate-fire-animation__veins"
         style={textureStyle}
       />
-      <span
-        data-dice-fire-animated-texture-over
-        className="hollowgate-fire-animation__texture hollowgate-fire-animation__texture--over"
-        style={textureStyle}
-      />
-      <span data-dice-fire-animated-hotspots className="hollowgate-fire-animation__hotspots" />
-      <span data-dice-fire-animated-embers className="hollowgate-fire-animation__embers" />
-      <span data-dice-fire-animated-glow className="hollowgate-fire-animation__glow" />
     </span>
   );
 }
