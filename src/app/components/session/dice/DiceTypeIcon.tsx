@@ -119,7 +119,7 @@ function twoToneSvgDataUrl(
   });
   if (thinFilter) {
     styled = styled.replace(/(<title>[^<]*<\/title>)/, `$1${thinFilter}`);
-    const exactOutline = `<path d="${DICE_OUTLINE_BY_SIDES[sides]}" fill="none" stroke="${safeStructureColor}" stroke-width="0.46" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
+    const exactOutline = `<path d="${DICE_OUTLINE_BY_SIDES[sides]}" fill="none" stroke="${safeStructureColor}" stroke-width="0.46" stroke-linejoin="round"/>`;
     styled = styled.replace('</svg>', `${exactOutline}</svg>`);
   }
 

@@ -27,9 +27,10 @@ assert.doesNotMatch(
   /stroke-width="0\.52"/,
   'textured dice must not retain the slightly too-heavy 0.52 outer silhouette stroke',
 );
-assert.ok(
-  icon.includes('vector-effect="non-scaling-stroke"'),
-  'the exact outer silhouette stroke must remain visually stable at quick-roll and personalization preview sizes',
+assert.doesNotMatch(
+  icon,
+  /vector-effect="non-scaling-stroke"/,
+  'the exact outer silhouette must scale with the die so the large personalization preview keeps the true perimeter visually dominant',
 );
 assert.ok(
   styled.includes('h-[76%] aspect-square'),
@@ -46,11 +47,11 @@ assert.ok(
 );
 assert.ok(
   customizer.includes('<StyledStandardDieIcon') && customizer.includes('previewSkinArt') && customizer.includes("className={selected.sides === 100 ? 'h-24 w-44' : 'h-24 w-24'}"),
-  'the personalization main preview must stay on the shared StyledStandardDieIcon path so the exact-edge outline is identical there',
+  'the personalization main preview must stay on the shared StyledStandardDieIcon path so the exact-edge outline scales with the large preview',
 );
 assert.ok(
   styled.includes('thinStructure={textured}'),
   'all textured standard-die render sizes must continue through the same two-tone structure path',
 );
 
-console.log('Dice exact-edge colored outline, refined thin outer stroke, shared personalization preview, and compact d100 verification passed.');
+console.log('Dice exact-edge outline scaling, refined thin outer stroke, shared personalization preview, and compact d100 verification passed.');
