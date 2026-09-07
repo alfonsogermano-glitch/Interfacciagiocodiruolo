@@ -9,8 +9,8 @@ assert.ok(source.includes('reflectiveLabelMasks'), 'label mask must be captured 
 assert.ok(source.includes('originalFillText'), 'label fill must be mirrored into the protection mask');
 assert.ok(source.includes('originalStrokeText'), 'label outline must be mirrored into the protection mask');
 assert.ok(source.includes('reflectiveLabelMask'), 'the face shader must receive a dedicated label mask');
-assert.ok(source.includes("'#include <colorspace_fragment>'"), 'label protection must run after lighting/tone mapping/color conversion');
-assert.ok(source.includes('texture2D(reflectiveLabelMask, vMapUv).r'), 'shader must sample the dedicated label mask');
+assert.ok(source.includes("'#include <colorspace_fragment>'") && source.includes("'#include <encodings_fragment>'"), 'label protection must support current and legacy Three.js output chunks');
+assert.ok(source.includes('texture2D(reflectiveLabelMask, vMapUv).a'), 'shader must sample the anti-aliased alpha from the dedicated label mask');
 assert.ok(source.includes('texture2D(map, vMapUv).rgb'), 'protected pixels must reuse the original user-colored face texel');
 assert.ok(source.includes('gl_FragColor.rgb = mix('), 'protected label pixels must override the lit/specular result');
 assert.ok(source.includes('protectReflectiveDiceLabelFromLighting(material, descriptor)'), 'standard reflective faces must install the label shield');
