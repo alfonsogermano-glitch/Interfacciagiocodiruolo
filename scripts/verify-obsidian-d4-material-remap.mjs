@@ -12,7 +12,7 @@ assert.ok(d4Block.includes('originalSetMaterialInfo?.();'), 'd4 forced-result re
 assert.ok(d4Block.includes('factory.materials_cache = {};'), 'd4 forced-result remap must invalidate stale material cache before rebuilding faces');
 assert.ok(d4Block.indexOf('originalSetMaterialInfo?.();') < d4Block.indexOf('applyAppearanceFactoryState(factory, descriptor);'), 'd4 material initialization must happen before the exact appearance is reapplied');
 assert.ok(d4Block.indexOf('factory.materials_cache = {};') < d4Block.indexOf('const swapped = shouldBoostDice3DLabelOutline(descriptor)'), 'd4 material cache must be cleared before upstream face regeneration');
-assert.ok(d4Block.includes('applyStaticSkinToMesh(dicemesh, descriptor);'), 'd4 remap must restore static skin material tuning after upstream regeneration');
+assert.ok(d4Block.includes("applyStaticSkinToMesh(dicemesh, descriptor, 'd4');"), 'd4 remap must restore static skin material tuning through the d4-safe path after upstream regeneration');
 assert.ok(d4Block.includes('applyDice3DSurfaceProfile(dicemesh, descriptor);'), 'd4 remap must restore the configured surface profile after upstream regeneration');
 
 console.log('Obsidian standard d4 forced-result material remap verification passed.');

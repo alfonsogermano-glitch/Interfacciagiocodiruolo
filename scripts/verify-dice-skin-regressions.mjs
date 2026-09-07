@@ -45,8 +45,8 @@ for (const skin of ['stone', 'metal', 'obsidian']) {
   expect(materials.includes(`skinId !== '${skin}'`), `${skin} must inherit the stronger proportional photographic outline`);
 }
 expect(materials.includes('Number.parseFloat(context.font)'), 'Photographic label-outline sizing must derive from the actual canvas font size');
-expect(materials.includes('runWithDice3DLabelOutlineBoost(descriptor, () => originalCreate(type))'), 'Standard skinned dice creation must render labels through the profile-aware outline boost');
-expect(materials.includes('runWithDice3DLabelOutlineBoost(descriptor, () => previousSwapD4.call(box, dicemesh, result))'), 'D4 face swaps must retain the same profile-aware label outline');
+expect(materials.includes('runWithDice3DLabelOutlineBoost(descriptor, type, () => originalCreate(type))'), 'Standard skinned dice creation must render labels through the profile-aware outline boost with dice-type awareness');
+expect(materials.includes("runWithDice3DLabelOutlineBoost(descriptor, 'd4', () => previousSwapD4.call(box, dicemesh, result))"), 'D4 face swaps must retain the same profile-aware label outline while staying on the d4-safe path');
 expect(materials.includes("!descriptor.custom && descriptor.appearance.skinId !== 'none'"), 'Shared outline boosting must leave unskinned/custom dice untouched');
 
 const iceTextureFn = textures.match(/function drawIcePhotoTexture[\s\S]*?\n}\n/)?.[0] ?? '';

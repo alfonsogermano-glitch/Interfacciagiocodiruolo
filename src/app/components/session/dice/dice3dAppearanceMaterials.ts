@@ -97,6 +97,12 @@ function isReflectiveStandardDescriptor(descriptor: Dice3DAppearanceDescriptor):
   return skinId === 'metal' || skinId === 'obsidian';
 }
 
+function shouldProtectReflectiveDiceLabel(descriptor: Dice3DAppearanceDescriptor, diceType?: string): boolean {
+  if (!isReflectiveStandardDescriptor(descriptor)) return false;
+  if (descriptor.appearance.skinId === 'obsidian' && diceType === 'd4') return false;
+  return true;
+}
+
 function reflectiveMaskContext(source: CanvasRenderingContext2D): CanvasRenderingContext2D | null {
   if (typeof document === 'undefined' || typeof HTMLCanvasElement === 'undefined') return null;
   const sourceCanvas = source.canvas;
@@ -127,13 +133,13 @@ function copyTextMaskState(source: CanvasRenderingContext2D, target: CanvasRende
   target.shadowColor = 'transparent';
 }
 
-function runWithDice3DLabelOutlineBoost<T>(descriptor: Dice3DAppearanceDescriptor, work: () => T): T {
+function runWithDice3DLabelOutlineBoost<T>(descriptor: Dice3DAppearanceDescriptor, diceType: string | undefined, work: () => T): T {
   if (typeof CanvasRenderingContext2D === 'undefined') return work();
   const prototype = CanvasRenderingContext2D.prototype;
   const originalFillText = prototype.fillText;
   const originalStrokeText = prototype.strokeText;
   const originalClearRect = prototype.clearRect;
-  const protectReflectiveLabel = isReflectiveStandardDescriptor(descriptor);
+  const protectReflectiveLabel = shouldProtectReflectiveDiceLabel(descriptor, diceType);
   const obsidianDualOutline = !descriptor.custom && descriptor.appearance.skinId === 'obsidian';
   const obsidianLabelColor = getReadable3DLabelColor(descriptor.appearance.symbolColor, descriptor.appearance.bodyColor, descriptor.appearance.skinId);
   const obsidianOutlineColor = readableOutlineColor(obsidianLabelColor);
@@ -341,9 +347,8 @@ function materialsOf(mesh: MeshLike): MaterialLike[] {
   return Array.isArray(mesh.material) ? mesh.material : [mesh.material];
 }
 
-function protectReflectiveDiceLabelFromLighting(material: MaterialLike, descriptor: Dice3DAppearanceDescriptor): void {
-  const skinId = descriptor.appearance.skinId;
-  if (descriptor.custom || (skinId !== 'metal' && skinId !== 'obsidian')) return;
+function protectReflectiveDiceLabelFromLighting(material: MaterialLike, descriptor: Dice3DAppearanceDescriptor, diceType?: string): void {
+  if (!shouldProtectReflectiveDiceLabel(descriptor, diceType)) return;
   if (!material.map || typeof material.map.clone !== 'function') return;
   if (typeof HTMLCanvasElement === 'undefined' || !(material.map.image instanceof HTMLCanvasElement)) return;
   const maskCanvas = reflectiveLabelMasks.get(material.map.image);
@@ -430,7 +435,7 @@ function edgeGlowColor(skinId: Dice3DAppearanceDescriptor['appearance']['skinId'
   }
 }
 
-function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescriptor) {
+function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescriptor, diceType?: string) {
   if (!mesh || typeof mesh !== 'object') return;
   const skinId = descriptor.appearance.skinId;
   if (skinId === 'none') return;
@@ -445,7 +450,7 @@ function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescri
       if (skinId === 'stone' && !descriptor.custom) preserveStoneFaceTexture(material);
       if (skinId === 'metal' && !descriptor.custom) preserveMetalFaceTexture(material);
       if (skinId === 'obsidian' && !descriptor.custom) preserveObsidianFaceTexture(material);
-      protectReflectiveDiceLabelFromLighting(material, descriptor);
+      protectReflectiveDiceLabelFromLighting(material, descriptor, diceType);
       if (typeof material.opacity === 'number') material.opacity = 1;
       material.transparent = false;
       material.needsUpdate = true;
@@ -506,9 +511,9 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
     try {
       applyAppearanceFactoryState(factory, descriptor);
       const mesh = shouldBoostDice3DLabelOutline(descriptor)
-        ? runWithDice3DLabelOutlineBoost(descriptor, () => originalCreate(type))
+        ? runWithDice3DLabelOutlineBoost(descriptor, type, () => originalCreate(type))
         : originalCreate(type);
-      applyStaticSkinToMesh(mesh, descriptor);
+      applyStaticSkinToMesh(mesh, descriptor, type);
       applyDice3DSurfaceProfile(mesh, descriptor);
       effects.registerMesh(mesh, descriptor);
       visualBoostCleanups.push(installDice3DVisualBoost(mesh, descriptor));
@@ -530,9 +535,9 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
         factory.materials_cache = {};
         applyAppearanceFactoryState(factory, descriptor);
         const swapped = shouldBoostDice3DLabelOutline(descriptor)
-          ? runWithDice3DLabelOutlineBoost(descriptor, () => previousSwapD4.call(box, dicemesh, result))
+          ? runWithDice3DLabelOutlineBoost(descriptor, 'd4', () => previousSwapD4.call(box, dicemesh, result))
           : previousSwapD4.call(box, dicemesh, result);
-        applyStaticSkinToMesh(dicemesh, descriptor);
+        applyStaticSkinToMesh(dicemesh, descriptor, 'd4');
         applyDice3DSurfaceProfile(dicemesh, descriptor);
         return swapped;
       } finally { Object.assign(factory, originalState); }
