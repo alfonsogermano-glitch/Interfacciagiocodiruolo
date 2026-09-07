@@ -41,6 +41,15 @@ const DICE_RAW_BY_SIDES = {
   20: diceD20Raw,
 } as const;
 
+const DICE_EDGE_MASK_PATHS: Record<4 | 6 | 8 | 10 | 12 | 20, string> = {
+  4: 'M18.433 1.75l14.722 25.5a.5.5 0 0 1-.433.75H3.278a.5.5 0 0 1-.433-.75l14.722-25.5a.5.5 0 0 1 .866 0z',
+  6: 'M5 5h26v26H5V5z',
+  8: 'M18.5 1L34 9.949v17.898l-15.5 8.949L3 27.846V9.95L18.5 1z',
+  10: 'M18 .15L35 13.85V25.2L18 35.85L1 25.2V13.85L18 .15z',
+  12: 'M17.691 35.951l-9.992-3.247a1 1 0 0 1-.5-.363l-6.176-8.5a1 1 0 0 1-.191-.588V12.747a1 1 0 0 1 .191-.588l6.176-8.5a1 1 0 0 1 .5-.363L17.69.049a1 1 0 0 1 .618 0L28.3 3.296a1 1 0 0 1 .5.363l6.176 8.5a1 1 0 0 1 .191.588v10.506a1 1 0 0 1-.191.588l-6.176 8.5a1 1 0 0 1-.5.363l-9.992 3.247a1 1 0 0 1-.618 0z',
+  20: 'M18.5.134l14.722 8.5a1 1 0 0 1 .5.866v17a1 1 0 0 1-.5.866l-14.722 8.5a1 1 0 0 1-1 0l-14.722-8.5a1 1 0 0 1-.5-.866v-17a1 1 0 0 1 .5-.866L17.5.134a1 1 0 0 1 1 0z',
+};
+
 const DICE_FILTER_BY_SIDES = {
   4: 'brightness(0) saturate(100%) invert(82%) sepia(81%) saturate(709%) hue-rotate(348deg) brightness(101%) contrast(92%)',
   6: 'brightness(0) saturate(100%) invert(47%) sepia(80%) saturate(2916%) hue-rotate(333deg) brightness(100%) contrast(89%)',
@@ -93,8 +102,8 @@ function twoToneSvgDataUrl(
   const pathMatches = source.match(/<path\b[^>]*\/>/g) ?? [];
   if (pathMatches.length < 2) return tintedSvgDataUrl(source, safeLabelColor);
 
-  const thinFilter = thinStructure
-    ? '<defs><filter id="hg-thin-structure" x="-4" y="-4" width="44" height="44" filterUnits="userSpaceOnUse"><feMorphology in="SourceGraphic" operator="erode" radius="0.27"/></filter></defs>'
+  const thinDefs = thinStructure
+    ? `<defs><filter id="hg-thin-structure" x="-4" y="-4" width="44" height="44" filterUnits="userSpaceOnUse"><feMorphology in="SourceGraphic" operator="erode" radius="0.27"/></filter><filter id="hg-edge-inset" x="-4" y="-4" width="44" height="44" filterUnits="userSpaceOnUse"><feMorphology in="SourceGraphic" operator="erode" radius="2"/></filter><mask id="hg-internal-structure-mask" x="0" y="0" width="36" height="36" maskUnits="userSpaceOnUse"><path d="${DICE_EDGE_MASK_PATHS[sides]}" fill="white" filter="url(#hg-edge-inset)"/></mask></defs>`
     : '';
   let pathIndex = 0;
   const lastPathIndex = pathMatches.length - 1;
@@ -103,13 +112,15 @@ function twoToneSvgDataUrl(
     pathIndex += 1;
     const cleanedAttributes = attributes
       .replace(/\sfill="[^"]*"/g, '')
-      .replace(/\sfilter="[^"]*"/g, '');
+      .replace(/\sfilter="[^"]*"/g, '')
+      .replace(/\smask="[^"]*"/g, '');
     const fill = isLabel ? safeLabelColor : safeStructureColor;
     const filter = !isLabel && thinStructure ? ' filter="url(#hg-thin-structure)"' : '';
-    return `<path fill="${fill}"${filter}${cleanedAttributes}/>`;
+    const mask = !isLabel && thinStructure ? ' mask="url(#hg-internal-structure-mask)"' : '';
+    return `<path fill="${fill}"${filter}${mask}${cleanedAttributes}/>`;
   });
-  if (thinFilter) {
-    styled = styled.replace(/(<title>[^<]*<\/title>)/, `$1${thinFilter}`);
+  if (thinDefs) {
+    styled = styled.replace(/(<title>[^<]*<\/title>)/, `$1${thinDefs}`);
   }
 
   const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(styled)}`;
