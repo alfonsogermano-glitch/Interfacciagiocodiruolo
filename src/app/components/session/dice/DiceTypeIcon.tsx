@@ -41,6 +41,15 @@ const DICE_RAW_BY_SIDES = {
   20: diceD20Raw,
 } as const;
 
+const DICE_OUTLINE_BY_SIDES: Record<4 | 6 | 8 | 10 | 12 | 20, string> = {
+  4: 'M18.433 1.75l14.722 25.5a.5.5 0 0 1-.433.75H3.278a.5.5 0 0 1-.433-.75l14.722-25.5a.5.5 0 0 1 .866 0z',
+  6: 'M5 5h26v26H5V5z',
+  8: 'M18.5 1L34 9.949v17.898l-15.5 8.949L3 27.846V9.95L18.5 1z',
+  10: 'M18 .15L35 13.85V25.2L18 35.85L1 25.2V13.85L18 .15z',
+  12: 'M17.691 35.951l-9.992-3.247a1 1 0 0 1-.5-.363l-6.176-8.5a1 1 0 0 1-.191-.588V12.747a1 1 0 0 1 .191-.588l6.176-8.5a1 1 0 0 1 .5-.363L17.69.049a1 1 0 0 1 .618 0L28.3 3.296a1 1 0 0 1 .5.363l6.176 8.5a1 1 0 0 1-.191.588v10.506a1 1 0 0 1-.191.588l-6.176 8.5a1 1 0 0 1-.5.363l-9.992 3.247a1 1 0 0 1-.618 0z',
+  20: 'M18.5.134l14.722 8.5a1 1 0 0 1 .5.866v17a1 1 0 0 1-.5.866l-14.722 8.5a1 1 0 0 1-1 0l-14.722-8.5a1 1 0 0 1-.5-.866v-17a1 1 0 0 1 .5-.866L17.5.134a1 1 0 0 1 1 0z',
+};
+
 const DICE_FILTER_BY_SIDES = {
   4: 'brightness(0) saturate(100%) invert(82%) sepia(81%) saturate(709%) hue-rotate(348deg) brightness(101%) contrast(92%)',
   6: 'brightness(0) saturate(100%) invert(47%) sepia(80%) saturate(2916%) hue-rotate(333deg) brightness(100%) contrast(89%)',
@@ -79,13 +88,14 @@ function tintedSvgDataUrl(source: string, color: string): string {
 
 function twoToneSvgDataUrl(
   source: string,
+  sides: 4 | 6 | 8 | 10 | 12 | 20,
   structureColor: string,
   labelColor: string,
   thinStructure: boolean,
 ): string {
   const safeStructureColor = safeHex(structureColor);
   const safeLabelColor = safeHex(labelColor, '#ffffff');
-  const key = `${safeStructureColor}\n${safeLabelColor}\n${thinStructure}\n${source}`;
+  const key = `${sides}\n${safeStructureColor}\n${safeLabelColor}\n${thinStructure}\n${source}`;
   const cached = twoToneSvgCache.get(key);
   if (cached) return cached;
 
@@ -93,7 +103,7 @@ function twoToneSvgDataUrl(
   if (pathMatches.length < 2) return tintedSvgDataUrl(source, safeLabelColor);
 
   const thinFilter = thinStructure
-    ? '<defs><filter id="hg-thin-structure" x="-4" y="-4" width="44" height="44" filterUnits="userSpaceOnUse"><feMorphology in="SourceGraphic" operator="erode" radius="0.30"/></filter></defs>'
+    ? '<defs><filter id="hg-thin-structure" x="-4" y="-4" width="44" height="44" filterUnits="userSpaceOnUse"><feMorphology in="SourceGraphic" operator="erode" radius="0.27"/></filter></defs>'
     : '';
   let pathIndex = 0;
   const lastPathIndex = pathMatches.length - 1;
@@ -109,6 +119,8 @@ function twoToneSvgDataUrl(
   });
   if (thinFilter) {
     styled = styled.replace(/(<title>[^<]*<\/title>)/, `$1${thinFilter}`);
+    const exactOutline = `<path d="${DICE_OUTLINE_BY_SIDES[sides]}" fill="none" stroke="${safeStructureColor}" stroke-width="0.52" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
+    styled = styled.replace('</svg>', `${exactOutline}</svg>`);
   }
 
   const dataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(styled)}`;
@@ -140,12 +152,14 @@ function TintedDieImage({
 
 function TwoToneDieImage({
   source,
+  sides,
   structureColor,
   labelColor,
   thinStructure,
   className,
 }: {
   source: string;
+  sides: 4 | 6 | 8 | 10 | 12 | 20;
   structureColor: string;
   labelColor: string;
   thinStructure: boolean;
@@ -153,7 +167,7 @@ function TwoToneDieImage({
 }) {
   return (
     <img
-      src={twoToneSvgDataUrl(source, structureColor, labelColor, thinStructure)}
+      src={twoToneSvgDataUrl(source, sides, structureColor, labelColor, thinStructure)}
       alt=""
       aria-hidden="true"
       draggable={false}
@@ -182,6 +196,7 @@ export function DiceTypeIcon({
       return (
         <TwoToneDieImage
           source={rawSource}
+          sides={10}
           structureColor={structureColor!}
           labelColor={labelColor!}
           thinStructure={thinStructure}
@@ -213,14 +228,15 @@ export function DiceTypeIcon({
           data-die-source="user-svg"
           className={`${className ?? ''} inline-flex !w-auto items-center justify-center gap-[3px] overflow-visible`}
         >
-          <TwoToneDieImage source={diceD10Raw} structureColor={structureColor!} labelColor={labelColor!} thinStructure={thinStructure} className={d100ChildClassName} />
-          <TwoToneDieImage source={diceD10ZeroRaw} structureColor={structureColor!} labelColor={labelColor!} thinStructure={thinStructure} className={d100ChildClassName} />
+          <TwoToneDieImage source={diceD10Raw} sides={10} structureColor={structureColor!} labelColor={labelColor!} thinStructure={thinStructure} className={d100ChildClassName} />
+          <TwoToneDieImage source={diceD10ZeroRaw} sides={10} structureColor={structureColor!} labelColor={labelColor!} thinStructure={thinStructure} className={d100ChildClassName} />
         </span>
       );
     }
     return (
       <TwoToneDieImage
         source={DICE_RAW_BY_SIDES[sides]}
+        sides={sides}
         structureColor={structureColor!}
         labelColor={labelColor!}
         thinStructure={thinStructure}

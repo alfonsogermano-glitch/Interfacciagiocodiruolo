@@ -200,7 +200,7 @@ function PercentileFace({
   const readableSymbolColor = getReadableDiceSymbolColor(appearance.symbolColor, appearance.bodyColor, appearance.skinId);
   const textured = appearance.skinId !== 'none';
   return (
-    <span className="relative inline-flex h-[80%] aspect-square shrink-0 items-center justify-center overflow-visible">
+    <span className="relative inline-flex h-[76%] aspect-square shrink-0 items-center justify-center overflow-visible">
       <DieOuterGlow sides={10} appearance={appearance} className="pointer-events-none absolute inset-0 h-full w-full" />
       <DieSkinSurface
         sides={10}
