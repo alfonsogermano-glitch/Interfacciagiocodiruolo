@@ -21,5 +21,17 @@ assert.ok(
   styled.includes("appearance.skinId !== 'none' && ("),
   'the shared exact perimeter must be limited to textured skins so unskinned dice stay unchanged',
 );
+assert.ok(
+  icon.includes('hg-internal-structure-mask') && icon.includes('DICE_OUTLINE_BY_SIDES'),
+  'the rasterized internal-structure layer must explicitly mask away its duplicate outer shell using the real die silhouette',
+);
+assert.ok(
+  icon.includes('mask="url(#hg-internal-structure-mask)"'),
+  'textured internal structure must apply the edge-suppression mask so the eroded legacy perimeter cannot appear one pixel inside the real outline',
+);
+assert.ok(
+  icon.includes('stroke-width="4"'),
+  'the edge-suppression mask must clear the full legacy outer shell before the exact 0.46 perimeter is drawn by the skin SVG',
+);
 
-console.log('Dice personalization preview exact edge registration verification passed.');
+console.log('Dice personalization preview exact edge registration and duplicate-outline suppression verification passed.');
