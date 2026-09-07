@@ -93,7 +93,7 @@ function twoToneSvgDataUrl(
   if (pathMatches.length < 2) return tintedSvgDataUrl(source, safeLabelColor);
 
   const thinFilter = thinStructure
-    ? '<defs><filter id="hg-thin-structure" x="-4" y="-4" width="44" height="44" filterUnits="userSpaceOnUse"><feMorphology in="SourceGraphic" operator="erode" radius="0.24"/></filter></defs>'
+    ? '<defs><filter id="hg-thin-structure" x="-4" y="-4" width="44" height="44" filterUnits="userSpaceOnUse"><feMorphology in="SourceGraphic" operator="erode" radius="0.30"/></filter></defs>'
     : '';
   let pathIndex = 0;
   const lastPathIndex = pathMatches.length - 1;
@@ -260,20 +260,8 @@ export function DiceTypeIcon({
         data-die-source="user-svg"
         className={`${className ?? ''} inline-flex !w-auto items-center justify-center gap-[3px] overflow-visible`}
       >
-        <img
-          src={diceD10}
-          alt=""
-          draggable={false}
-          className={`${d100ChildClassName} ${suppliedDieClassName}`}
-          style={{ filter: D100_FILTERS.ten }}
-        />
-        <img
-          src={diceD10Zero}
-          alt=""
-          draggable={false}
-          className={`${d100ChildClassName} ${suppliedDieClassName}`}
-          style={{ filter: D100_FILTERS.zero }}
-        />
+        <img src={diceD10} alt="" aria-hidden="true" draggable={false} className={`${d100ChildClassName} ${suppliedDieClassName}`} />
+        <img src={diceD10Zero} alt="" aria-hidden="true" draggable={false} className={`${d100ChildClassName} ${suppliedDieClassName}`} />
       </span>
     );
   }
@@ -284,7 +272,6 @@ export function DiceTypeIcon({
       alt=""
       aria-hidden="true"
       draggable={false}
-      data-die-image={`d${sides}`}
       data-die-source="user-svg"
       className={`${className ?? ''} ${suppliedDieClassName}`}
       style={{ filter: DICE_FILTER_BY_SIDES[sides] }}
