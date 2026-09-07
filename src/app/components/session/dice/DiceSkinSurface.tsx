@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { DiceArcaneAnimatedOverlay, isAnimatedArcaneAppearance } from './DiceArcaneAnimatedOverlay';
 import { DiceFireAnimatedOverlay, isAnimatedFireAppearance } from './DiceFireAnimatedOverlay';
 import { isAnimatedIceAppearance } from './DiceIceAnimatedOverlay';
 import { DiceLightningAnimatedOverlay, isAnimatedLightningAppearance } from './DiceLightningAnimatedOverlay';
@@ -30,12 +31,13 @@ export function DiceSkinSurface({
   const animatedStone = isAnimatedStoneAppearance(appearance);
   const animatedMetal = isAnimatedMetalAppearance(appearance);
   const animatedObsidian = isAnimatedObsidianAppearance(appearance);
-  const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice' || appearance.skinId === 'lightning' || appearance.skinId === 'poison' || appearance.skinId === 'stone' || appearance.skinId === 'metal' || appearance.skinId === 'obsidian';
+  const animatedArcane = isAnimatedArcaneAppearance(appearance);
+  const photographicSkin = appearance.skinId === 'fire' || appearance.skinId === 'ice' || appearance.skinId === 'lightning' || appearance.skinId === 'poison' || appearance.skinId === 'stone' || appearance.skinId === 'metal' || appearance.skinId === 'obsidian' || appearance.skinId === 'arcane';
   return (
     <span
       data-dice-skin={appearance.skinId}
       data-dice-skin-illustrative={illustrative || undefined}
-      className={`${illustrative || animatedFire || animatedIce || animatedLightning || animatedPoison || animatedStone || animatedMetal || animatedObsidian ? 'relative overflow-hidden' : ''} ${className}`}
+      className={`${illustrative || animatedFire || animatedIce || animatedLightning || animatedPoison || animatedStone || animatedMetal || animatedObsidian || animatedArcane ? 'relative overflow-hidden' : ''} ${className}`}
       style={{
         backgroundColor: appearance.bodyColor,
         backgroundImage,
@@ -56,6 +58,7 @@ export function DiceSkinSurface({
       <DiceStoneAnimatedOverlay appearance={appearance} />
       <DiceMetalAnimatedOverlay appearance={appearance} />
       <DiceObsidianAnimatedOverlay appearance={appearance} />
+      <DiceArcaneAnimatedOverlay appearance={appearance} />
       {children}
     </span>
   );

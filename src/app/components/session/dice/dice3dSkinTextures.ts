@@ -1,3 +1,4 @@
+import { ARCANE_TEXTURE_SOURCE_DATA_URL } from './arcaneTextureData.ts';
 import { FIRE_TEXTURE_DATA_URL } from './fireTextureData.ts';
 import { ICE_TEXTURE_SOURCE_DATA_URL } from './iceTextureData.ts';
 import { LIGHTNING_TEXTURE_SOURCE_DATA_URL } from './lightningTextureData.ts';
@@ -40,6 +41,7 @@ function createTextureImage(dataUrl: string, cachePrefix: string): TextureImageR
   return { image, ready };
 }
 
+const arcaneTextureResource = createTextureImage(ARCANE_TEXTURE_SOURCE_DATA_URL, 'arcane');
 const fireTextureResource = createTextureImage(FIRE_TEXTURE_DATA_URL, 'fire');
 const iceTextureResource = createTextureImage(ICE_TEXTURE_SOURCE_DATA_URL, 'ice');
 const lightningTextureResource = createTextureImage(LIGHTNING_TEXTURE_SOURCE_DATA_URL, 'lightning');
@@ -47,6 +49,7 @@ const poisonTextureResource = createTextureImage(POISON_TEXTURE_SOURCE_DATA_URL,
 const stoneTextureResource = createTextureImage(STONE_TEXTURE_SOURCE_DATA_URL, 'stone');
 const metalTextureResource = createTextureImage(METAL_TEXTURE_SOURCE_DATA_URL, 'metal');
 const obsidianTextureResource = createTextureImage(OBSIDIAN_TEXTURE_SOURCE_DATA_URL, 'obsidian');
+const arcaneTextureImage = arcaneTextureResource.image;
 const fireTextureImage = fireTextureResource.image;
 const iceTextureImage = iceTextureResource.image;
 const lightningTextureImage = lightningTextureResource.image;
@@ -54,6 +57,10 @@ const poisonTextureImage = poisonTextureResource.image;
 const stoneTextureImage = stoneTextureResource.image;
 const metalTextureImage = metalTextureResource.image;
 const obsidianTextureImage = obsidianTextureResource.image;
+
+function isArcaneTextureReady(): boolean {
+  return Boolean(arcaneTextureImage?.complete && arcaneTextureImage.naturalWidth > 0);
+}
 
 function isIceTextureReady(): boolean {
   return Boolean(iceTextureImage?.complete && iceTextureImage.naturalWidth > 0);
@@ -81,6 +88,7 @@ function isObsidianTextureReady(): boolean {
 
 export async function waitForDice3DTextureAssets(descriptors: readonly Dice3DTextureAssetRequest[]): Promise<void> {
   const pending: Promise<void>[] = [];
+  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'arcane')) pending.push(arcaneTextureResource.ready);
   if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'ice')) pending.push(iceTextureResource.ready);
   if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'lightning')) pending.push(lightningTextureResource.ready);
   if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'poison')) pending.push(poisonTextureResource.ready);
@@ -257,6 +265,25 @@ function drawObsidianPhotoTexture(context: CanvasRenderingContext2D, bump: Canva
   return true;
 }
 
+function drawArcanePhotoTexture(context: CanvasRenderingContext2D, bump: CanvasRenderingContext2D, size: number): boolean {
+  const image = arcaneTextureImage;
+  if (!image?.complete || image.naturalWidth <= 0) return false;
+  context.save();
+  context.filter = 'brightness(1.16) saturate(1.20) contrast(1.10)';
+  drawImageCover(context, image, size);
+  context.filter = 'none';
+  context.globalCompositeOperation = 'screen';
+  context.globalAlpha = 0.04;
+  context.fillStyle = '#f3b8ff';
+  context.fillRect(0, 0, size, size);
+  context.restore();
+  bump.save();
+  bump.filter = 'grayscale(1) contrast(1.85) brightness(.94)';
+  drawImageCover(bump, image, size);
+  bump.restore();
+  return true;
+}
+
 function drawCracks(context: CanvasRenderingContext2D, size: number, color: string, lineWidth: number, alpha = 1) {
   context.save();
   context.globalAlpha = alpha;
@@ -388,6 +415,7 @@ function drawPattern(textureCanvas: HTMLCanvasElement, bumpCanvas: HTMLCanvasEle
       drawCracks(context, size, 'rgba(36,10,54,.95)', size / 145); drawCracks(bump, size, '#4c4c4c', size / 92); break;
     }
     case 'arcane': {
+      if (drawArcanePhotoTexture(context, bump, size)) break;
       context.save(); context.translate(size / 2, size / 2);
       context.strokeStyle = 'rgba(236,207,255,.78)'; context.shadowColor = 'rgba(181,84,255,.9)'; context.shadowBlur = size / 44; context.lineWidth = size / 105;
       for (const radius of [0.18, 0.29, 0.4]) { context.beginPath(); context.arc(0, 0, size * radius, 0, Math.PI * 2); context.stroke(); }
@@ -417,7 +445,11 @@ export function getDice3DTextureDescriptor(appearance: DiceAppearance): Dice3DTe
           ? (isStoneTextureReady() ? 'ready' : 'placeholder')
           : appearance.skinId === 'metal'
             ? (isMetalTextureReady() ? 'ready' : 'placeholder')
-            : appearance.skinId === 'obsidian' ? (isObsidianTextureReady() ? 'ready' : 'placeholder') : null;
+            : appearance.skinId === 'obsidian'
+              ? (isObsidianTextureReady() ? 'ready' : 'placeholder')
+              : appearance.skinId === 'arcane'
+                ? (isArcaneTextureReady() ? 'ready' : 'placeholder')
+                : null;
   const key = readiness ? `${appearance.skinId}:${appearance.bodyColor}:${textureScale}:${readiness}` : `${appearance.skinId}:${appearance.bodyColor}:${textureScale}`;
   const cached = cache.get(key);
   if (cached) return cached;

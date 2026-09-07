@@ -17,7 +17,7 @@ const SURFACE_PROFILES: Record<DiceSkinId, Dice3DSurfaceProfile> = {
   stone: 'photo-lit',
   metal: 'photo-lit',
   obsidian: 'photo-lit',
-  arcane: 'photo-lit',
+  arcane: 'photo-unlit',
 };
 
 type MeshWithMaterials = { material?: any | any[] };
