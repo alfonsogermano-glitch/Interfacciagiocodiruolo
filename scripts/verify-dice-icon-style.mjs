@@ -33,7 +33,7 @@ assert.ok(icon.includes('.svg?raw'), 'personalized dice must use the supplied SV
 assert.ok(icon.includes('tintedSvgDataUrl'), 'personalized dice must retain single-color SVG rendering for non-textured dice');
 assert.ok(icon.includes('twoToneSvgDataUrl'), 'textured dice must support separate structure and label colors');
 assert.ok(icon.includes('data-die-two-tone-image'), 'two-tone textured dice must expose a stable rendering hook');
-assert.ok(icon.includes('feMorphology') && icon.includes('operator="erode"') && icon.includes('radius="0.24"'), 'textured die structure must be subtly thinner without shrinking the central number');
+assert.ok(icon.includes('feMorphology') && icon.includes('operator="erode"') && icon.includes('radius="0.30"'), 'textured die structure must use the slimmer shared border treatment without shrinking the central number');
 assert.doesNotMatch(icon, /\b(?:WebkitMaskImage|maskImage)\b/, 'personalized dice must not return to fragile CSS masks');
 
 for (const [assetName, title] of userAssets) {
@@ -130,4 +130,4 @@ assert.ok(textures.includes('bumpCanvas') && textures.includes('bump: bumpCanvas
 assert.doesNotMatch(textures, /appearance\.skinId === 'metal' \? 'metal' : 'none'/, 'Metal must not return to the black-prone MeshStandard metal preset');
 assert.ok(textures.includes("material: 'none'"), 'Metal must keep the neutral color-preserving material path');
 
-console.log('Dice exact shapes, slimmer body-colored structure, high-contrast labels, shared 100-200% texture zoom, coherent Fire texture previews and 3D material fidelity, Arcane-only rings, and 3D skin verification passed.');
+console.log('Dice exact shapes, slimmer body-colored structure across quick-roll and personalization previews, high-contrast labels, shared 100-200% texture zoom, coherent Fire texture previews and 3D material fidelity, Arcane-only rings, and 3D skin verification passed.');
