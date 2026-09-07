@@ -200,7 +200,7 @@ function PercentileFace({
   const readableSymbolColor = getReadableDiceSymbolColor(appearance.symbolColor, appearance.bodyColor, appearance.skinId);
   const textured = appearance.skinId !== 'none';
   return (
-    <span className="relative inline-flex h-[84%] aspect-square shrink-0 items-center justify-center overflow-visible">
+    <span className="relative inline-flex h-[80%] aspect-square shrink-0 items-center justify-center overflow-visible">
       <DieOuterGlow sides={10} appearance={appearance} className="pointer-events-none absolute inset-0 h-full w-full" />
       <DieSkinSurface
         sides={10}
@@ -244,7 +244,7 @@ export function StyledStandardDieIcon({
         data-styled-standard-d100
         data-dice-skin={appearance.skinId}
         data-dice-skin-preview={effectivePreviewSkinArt || undefined}
-        className={`${className} relative inline-flex !w-auto shrink-0 items-center justify-center gap-[4px] overflow-visible`}
+        className={`${className} relative inline-flex !w-auto shrink-0 items-center justify-center gap-[3px] overflow-visible`}
       >
         <PercentileFace face="ten" appearance={appearance} previewSkinArt={effectivePreviewSkinArt} />
         <PercentileFace face="zero" appearance={appearance} previewSkinArt={effectivePreviewSkinArt} />
