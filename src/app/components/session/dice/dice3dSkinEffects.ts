@@ -82,7 +82,7 @@ export function getDice3DSkinEffectProfile(
     case 'metal':
       return { frequency: 9.5, emissiveColor: null, emissiveBase: 0, emissivePulse: 0, roughnessPulse: 0.32, metalnessPulse: 0.07, shininessPulse: 110, particleColor: '#ffffff', particleCount: 12, particleOpacity: 1, particleSize: 0.082, orbitSpeed: 3.2, lightningBolts: 0, arcaneRing: false };
     case 'obsidian':
-      return { frequency: 5, emissiveColor: '#9568ff', emissiveBase: 0.035, emissivePulse: 0.22, roughnessPulse: 0.16, metalnessPulse: 0.03, shininessPulse: 58, particleColor: '#be92ff', particleCount: 11, particleOpacity: 0.86, particleSize: 0.1, orbitSpeed: 1.15, lightningBolts: 0, arcaneRing: false };
+      return { frequency: 5, emissiveColor: '#9568ff', emissiveBase: 0.035, emissivePulse: 0.22, roughnessPulse: 0.16, metalnessPulse: 0.03, shininessPulse: 58, particleColor: '#c7b6ff', particleCount: 11, particleOpacity: 0.86, particleSize: 0.1, orbitSpeed: 1.15, lightningBolts: 0, arcaneRing: false };
     case 'arcane':
       return { frequency: 7.1, emissiveColor: '#c05cff', emissiveBase: 0.035, emissivePulse: 0.25, roughnessPulse: 0.15, metalnessPulse: 0.03, shininessPulse: 45, particleColor: '#e2a6ff', particleCount: 12, particleOpacity: 0.9, particleSize: 0.085, orbitSpeed: 1.55, lightningBolts: 0, arcaneRing: true };
     default:
