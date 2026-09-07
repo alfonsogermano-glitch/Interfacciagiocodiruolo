@@ -1,3 +1,4 @@
+import { ARCANE_TEXTURE_DATA_URL } from './arcaneTextureData.ts';
 import { FIRE_TEXTURE_DATA_URL } from './fireTextureData.ts';
 import { ICE_TEXTURE_DATA_URL } from './iceTextureData.ts';
 import { LIGHTNING_TEXTURE_DATA_URL } from './lightningTextureData.ts';
@@ -46,25 +47,12 @@ function parseHex(value: string): [number, number, number] {
   ];
 }
 
-function toHex(value: number): string {
-  return Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, '0');
-}
-
-function mix(base: string, target: string, amount: number): string {
-  const a = parseHex(base);
-  const b = parseHex(target);
-  return `#${toHex(a[0] + (b[0] - a[0]) * amount)}${toHex(a[1] + (b[1] - a[1]) * amount)}${toHex(a[2] + (b[2] - a[2]) * amount)}`;
-}
-
 function rgba(base: string, alpha: number): string {
   const [red, green, blue] = parseHex(base);
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
 export function getDiceSkinBackgroundImage(skinId: DiceSkinId, bodyColor: string): string | undefined {
-  const light = mix(bodyColor, '#ffffff', 0.42);
-  const bright = mix(bodyColor, '#ffffff', 0.7);
-
   switch (skinId) {
     case 'none':
       return undefined;
@@ -83,6 +71,6 @@ export function getDiceSkinBackgroundImage(skinId: DiceSkinId, bodyColor: string
     case 'obsidian':
       return `url("${OBSIDIAN_TEXTURE_DATA_URL}")`;
     case 'arcane':
-      return `radial-gradient(circle at 50% 50%, transparent 0 22%, ${bright}88 23% 25%, transparent 26% 38%, ${light}66 39% 41%, transparent 42%), linear-gradient(45deg, transparent 0 46%, ${bright}77 47% 52%, transparent 53%)`;
+      return `url("${ARCANE_TEXTURE_DATA_URL}")`;
   }
 }
