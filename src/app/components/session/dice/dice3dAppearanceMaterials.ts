@@ -20,6 +20,7 @@ type DiceFactoryLike = {
   dice_material?: unknown;
   dice_material_rand?: unknown;
   material_options?: Record<string, unknown>;
+  materials_cache?: Record<string, unknown>;
 };
 
 type DiceBoxLike = { DiceFactory?: unknown; swapDiceFace_D4?: (dicemesh: unknown, result: unknown) => unknown };
@@ -525,6 +526,8 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
       if (!descriptor) return previousSwapD4.call(box, dicemesh, result);
       const originalState = captureFactoryState(factory);
       try {
+        originalSetMaterialInfo?.();
+        factory.materials_cache = {};
         applyAppearanceFactoryState(factory, descriptor);
         const swapped = shouldBoostDice3DLabelOutline(descriptor)
           ? runWithDice3DLabelOutlineBoost(descriptor, () => previousSwapD4.call(box, dicemesh, result))
