@@ -56,6 +56,7 @@ type MeshLike = { material?: MaterialLike | MaterialLike[] };
 const NEUTRAL_TEXTURE = { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' } as const;
 const MIN_TEXTURED_LABEL_CONTRAST = 7;
 const FIRE_FACE_EMISSIVE_INTENSITY = 0.18;
+const OBSIDIAN_LABEL_EMISSIVE_INTENSITY = 0.72;
 const TEXTURED_FACE_ANISOTROPY = 8;
 const DICE_SKIN_LABEL_OUTLINE_WIDTH = 8;
 const PHOTO_UNLIT_LABEL_OUTLINE_MIN_WIDTH = 18;
@@ -103,6 +104,10 @@ function shouldProtectReflectiveDiceLabel(descriptor: Dice3DAppearanceDescriptor
   return true;
 }
 
+function shouldCaptureReflectiveLabelMask(descriptor: Dice3DAppearanceDescriptor): boolean {
+  return isReflectiveStandardDescriptor(descriptor);
+}
+
 function reflectiveMaskContext(source: CanvasRenderingContext2D): CanvasRenderingContext2D | null {
   if (typeof document === 'undefined' || typeof HTMLCanvasElement === 'undefined') return null;
   const sourceCanvas = source.canvas;
@@ -140,6 +145,7 @@ function runWithDice3DLabelOutlineBoost<T>(descriptor: Dice3DAppearanceDescripto
   const originalStrokeText = prototype.strokeText;
   const originalClearRect = prototype.clearRect;
   const protectReflectiveLabel = shouldProtectReflectiveDiceLabel(descriptor, diceType);
+  const captureReflectiveLabelMask = shouldCaptureReflectiveLabelMask(descriptor);
   const obsidianDualOutline = !descriptor.custom && descriptor.appearance.skinId === 'obsidian';
   const obsidianLabelColor = getReadable3DLabelColor(descriptor.appearance.symbolColor, descriptor.appearance.bodyColor, descriptor.appearance.skinId);
   const obsidianOutlineColor = readableOutlineColor(obsidianLabelColor);
@@ -153,7 +159,7 @@ function runWithDice3DLabelOutlineBoost<T>(descriptor: Dice3DAppearanceDescripto
     height: number,
   ): void {
     originalClearRect.call(this, x, y, width, height);
-    if (!protectReflectiveLabel) return;
+    if (!captureReflectiveLabelMask) return;
     const maskContext = reflectiveMaskContext(this);
     if (!maskContext) return;
     maskContext.save();
@@ -174,7 +180,7 @@ function runWithDice3DLabelOutlineBoost<T>(descriptor: Dice3DAppearanceDescripto
   ): void {
     if (typeof maxWidth === 'number') originalFillText.call(this, text, x, y, maxWidth);
     else originalFillText.call(this, text, x, y);
-    if (!protectReflectiveLabel) return;
+    if (!captureReflectiveLabelMask) return;
     const maskContext = reflectiveMaskContext(this);
     if (!maskContext) return;
     maskContext.save();
@@ -209,7 +215,7 @@ function runWithDice3DLabelOutlineBoost<T>(descriptor: Dice3DAppearanceDescripto
       }
       if (typeof maxWidth === 'number') originalStrokeText.call(this, text, x, y, maxWidth);
       else originalStrokeText.call(this, text, x, y);
-      if (protectReflectiveLabel) {
+      if (captureReflectiveLabelMask) {
         const maskContext = reflectiveMaskContext(this);
         if (maskContext) {
           maskContext.save();
@@ -380,6 +386,43 @@ function protectReflectiveDiceLabelFromLighting(material: MaterialLike, descript
   material.needsUpdate = true;
 }
 
+function applyObsidianLabelEmission(material: MaterialLike, descriptor: Dice3DAppearanceDescriptor): void {
+  if (descriptor.appearance.skinId !== 'obsidian' || descriptor.custom) return;
+  if (!material.map || typeof material.map.clone !== 'function') return;
+  if (typeof document === 'undefined' || typeof HTMLCanvasElement === 'undefined') return;
+  if (!(material.map.image instanceof HTMLCanvasElement)) return;
+  if (!material.emissive?.set) return;
+  if (material.userData?.hollowgateObsidianLabelEmission === true) return;
+
+  const sourceCanvas = material.map.image;
+  const maskCanvas = reflectiveLabelMasks.get(sourceCanvas);
+  if (!maskCanvas) return;
+
+  const emissiveCanvas = document.createElement('canvas');
+  emissiveCanvas.width = sourceCanvas.width;
+  emissiveCanvas.height = sourceCanvas.height;
+  const emissiveContext = emissiveCanvas.getContext('2d', { alpha: true });
+  if (!emissiveContext) return;
+  emissiveContext.clearRect(0, 0, emissiveCanvas.width, emissiveCanvas.height);
+  emissiveContext.drawImage(sourceCanvas, 0, 0);
+  emissiveContext.globalCompositeOperation = 'destination-in';
+  emissiveContext.drawImage(maskCanvas, 0, 0);
+  emissiveContext.globalCompositeOperation = 'source-over';
+
+  const emissiveTexture = material.map.clone();
+  emissiveTexture.image = emissiveCanvas;
+  emissiveTexture.anisotropy = material.map.anisotropy;
+  emissiveTexture.generateMipmaps = material.map.generateMipmaps;
+  emissiveTexture.needsUpdate = true;
+
+  material.emissive?.set?.(0xffffff);
+  material.emissiveMap = emissiveTexture;
+  material.emissiveIntensity = OBSIDIAN_LABEL_EMISSIVE_INTENSITY;
+  material.userData = { ...material.userData, hollowgateObsidianLabelEmission: true };
+  material.addEventListener?.('dispose', () => emissiveTexture.dispose?.());
+  material.needsUpdate = true;
+}
+
 function preserveFireFaceTexture(material: MaterialLike) {
   material.color?.set?.(0xffffff);
   if (!material.map) return;
@@ -450,6 +493,7 @@ function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescri
       if (skinId === 'stone' && !descriptor.custom) preserveStoneFaceTexture(material);
       if (skinId === 'metal' && !descriptor.custom) preserveMetalFaceTexture(material);
       if (skinId === 'obsidian' && !descriptor.custom) preserveObsidianFaceTexture(material);
+      applyObsidianLabelEmission(material, descriptor);
       protectReflectiveDiceLabelFromLighting(material, descriptor, diceType);
       if (typeof material.opacity === 'number') material.opacity = 1;
       material.transparent = false;
