@@ -93,7 +93,7 @@ function twoToneSvgDataUrl(
   if (pathMatches.length < 2) return tintedSvgDataUrl(source, safeLabelColor);
 
   const thinFilter = thinStructure
-    ? '<defs><filter id="hg-thin-structure" x="-4" y="-4" width="44" height="44" filterUnits="userSpaceOnUse"><feMorphology in="SourceGraphic" operator="erode" radius="0.18"/></filter></defs>'
+    ? '<defs><filter id="hg-thin-structure" x="-4" y="-4" width="44" height="44" filterUnits="userSpaceOnUse"><feMorphology in="SourceGraphic" operator="erode" radius="0.24"/></filter></defs>'
     : '';
   let pathIndex = 0;
   const lastPathIndex = pathMatches.length - 1;
@@ -211,7 +211,7 @@ export function DiceTypeIcon({
           aria-hidden="true"
           data-die-image="d100"
           data-die-source="user-svg"
-          className={`${className ?? ''} inline-flex !w-auto items-center justify-center gap-[4px] overflow-visible`}
+          className={`${className ?? ''} inline-flex !w-auto items-center justify-center gap-[3px] overflow-visible`}
         >
           <TwoToneDieImage source={diceD10Raw} structureColor={structureColor!} labelColor={labelColor!} thinStructure={thinStructure} className={d100ChildClassName} />
           <TwoToneDieImage source={diceD10ZeroRaw} structureColor={structureColor!} labelColor={labelColor!} thinStructure={thinStructure} className={d100ChildClassName} />
@@ -236,7 +236,7 @@ export function DiceTypeIcon({
           aria-hidden="true"
           data-die-image="d100"
           data-die-source="user-svg"
-          className={`${className ?? ''} inline-flex !w-auto items-center justify-center gap-[4px] overflow-visible`}
+          className={`${className ?? ''} inline-flex !w-auto items-center justify-center gap-[3px] overflow-visible`}
         >
           <TintedDieImage source={diceD10Raw} color={color} className={d100ChildClassName} />
           <TintedDieImage source={diceD10ZeroRaw} color={color} className={d100ChildClassName} />
@@ -258,7 +258,7 @@ export function DiceTypeIcon({
         aria-hidden="true"
         data-die-image="d100"
         data-die-source="user-svg"
-        className={`${className ?? ''} inline-flex !w-auto items-center justify-center gap-[4px] overflow-visible`}
+        className={`${className ?? ''} inline-flex !w-auto items-center justify-center gap-[3px] overflow-visible`}
       >
         <img
           src={diceD10}
