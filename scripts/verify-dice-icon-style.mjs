@@ -33,7 +33,8 @@ assert.ok(icon.includes('.svg?raw'), 'personalized dice must use the supplied SV
 assert.ok(icon.includes('tintedSvgDataUrl'), 'personalized dice must retain single-color SVG rendering for non-textured dice');
 assert.ok(icon.includes('twoToneSvgDataUrl'), 'textured dice must support separate structure and label colors');
 assert.ok(icon.includes('data-die-two-tone-image'), 'two-tone textured dice must expose a stable rendering hook');
-assert.ok(icon.includes('feMorphology') && icon.includes('operator="erode"') && icon.includes('radius="0.30"'), 'textured die structure must use the slimmer shared border treatment without shrinking the central number');
+assert.ok(icon.includes('feMorphology') && icon.includes('operator="erode"') && icon.includes('radius="0.27"'), 'textured die internal structure must use the balanced shared thinning treatment without shrinking the central number');
+assert.ok(icon.includes('DICE_OUTLINE_BY_SIDES') && icon.includes('stroke-width="0.52"') && icon.includes('vector-effect="non-scaling-stroke"'), 'textured dice must restore a thin exact-edge silhouette after internal structure thinning');
 assert.doesNotMatch(icon, /\b(?:WebkitMaskImage|maskImage)\b/, 'personalized dice must not return to fragile CSS masks');
 
 for (const [assetName, title] of userAssets) {
@@ -59,7 +60,7 @@ assert.ok(styled.includes("className === 'h-9 w-9' || className === 'h-9 w-14'")
 assert.ok(styled.includes('structureColor={textured ? appearance.bodyColor : undefined}'), 'textured dice structure must use the selected die body color');
 assert.ok(styled.includes('labelColor={textured ? readableSymbolColor : undefined}'), 'central die numbers must keep an independent high-contrast color');
 assert.ok(styled.includes('thinStructure={textured}'), 'only textured dice must use the thinner structure treatment');
-assert.ok(styled.includes('h-[80%] aspect-square'), 'd100 percentile faces must stay square and fit comfortably in every layout');
+assert.ok(styled.includes('h-[76%] aspect-square'), 'd100 percentile faces must stay square and fit comfortably in every layout');
 assert.ok(styled.includes('data-styled-standard-d100'), 'styled d100 must keep its dedicated two-face composition');
 assert.ok(styled.includes('overflow-visible'), 'styled d100 and standard dice must not clip artwork at the sides');
 assert.ok(styled.includes('getDiceTextureBackgroundSize(appearance.textureScale)'), 'main dice previews must use the saved texture zoom');
@@ -130,4 +131,4 @@ assert.ok(textures.includes('bumpCanvas') && textures.includes('bump: bumpCanvas
 assert.doesNotMatch(textures, /appearance\.skinId === 'metal' \? 'metal' : 'none'/, 'Metal must not return to the black-prone MeshStandard metal preset');
 assert.ok(textures.includes("material: 'none'"), 'Metal must keep the neutral color-preserving material path');
 
-console.log('Dice exact shapes, slimmer body-colored structure across quick-roll and personalization previews, high-contrast labels, shared 100-200% texture zoom, coherent Fire texture previews and 3D material fidelity, Arcane-only rings, and 3D skin verification passed.');
+console.log('Dice exact shapes, balanced body-colored structure with exact-edge outlines across quick-roll and personalization previews, high-contrast labels, shared 100-200% texture zoom, coherent Fire texture previews and 3D material fidelity, Arcane-only rings, and 3D skin verification passed.');
