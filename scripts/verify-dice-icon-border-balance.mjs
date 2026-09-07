@@ -14,23 +14,23 @@ assert.doesNotMatch(
   /operator="erode" radius="0\.30"/,
   'textured dice must not retain the over-thinned 0.30 erosion',
 );
-assert.ok(
-  icon.includes('const DICE_OUTLINE_BY_SIDES'),
-  'textured dice must have an exact silhouette outline map independent from the eroded internal structure',
-);
-assert.ok(
-  icon.includes('stroke="${safeStructureColor}"') && icon.includes('stroke-width="0.46"'),
-  'textured dice must redraw the outer silhouette at the true die edge with the refined 0.46 stroke',
-);
 assert.doesNotMatch(
   icon,
-  /stroke-width="0\.52"/,
+  /const DICE_OUTLINE_BY_SIDES|const exactOutline =/,
+  'the exact silhouette outline must not be embedded in the separately rasterized DiceTypeIcon layer',
+);
+assert.ok(
+  styled.includes('data-dice-exact-outline') && styled.includes('strokeWidth="0.46"'),
+  'textured dice must redraw the true outer silhouette in the same SVG as the photographic skin using the refined 0.46 stroke',
+);
+assert.ok(
+  styled.includes('d={DICE_SILHOUETTE_PATHS[sides]}'),
+  'the exact colored outline must share the identical silhouette path used by the skin clipping surface',
+);
+assert.doesNotMatch(
+  styled,
+  /strokeWidth="0\.52"/,
   'textured dice must not retain the slightly too-heavy 0.52 outer silhouette stroke',
-);
-assert.doesNotMatch(
-  icon,
-  /vector-effect="non-scaling-stroke"/,
-  'the exact outer silhouette must scale with the die so the large personalization preview keeps the true perimeter visually dominant',
 );
 assert.ok(
   styled.includes('h-[76%] aspect-square'),
@@ -47,11 +47,11 @@ assert.ok(
 );
 assert.ok(
   customizer.includes('<StyledStandardDieIcon') && customizer.includes('previewSkinArt') && customizer.includes("className={selected.sides === 100 ? 'h-24 w-44' : 'h-24 w-24'}"),
-  'the personalization main preview must stay on the shared StyledStandardDieIcon path so the exact-edge outline scales with the large preview',
+  'the personalization main preview must stay on the shared StyledStandardDieIcon path so the exact-edge outline shares the skin SVG at large size',
 );
 assert.ok(
   styled.includes('thinStructure={textured}'),
   'all textured standard-die render sizes must continue through the same two-tone structure path',
 );
 
-console.log('Dice exact-edge outline scaling, refined thin outer stroke, shared personalization preview, and compact d100 verification passed.');
+console.log('Dice exact-edge SVG registration, refined thin outer stroke, shared personalization preview, and compact d100 verification passed.');
