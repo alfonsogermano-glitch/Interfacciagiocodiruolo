@@ -184,6 +184,16 @@ function DieSkinSurface({
           <DiceSkinPreviewArt skinId={appearance.skinId} bodyColor={appearance.bodyColor} />
         )}
       </g>
+      {appearance.skinId !== 'none' && (
+        <path
+          data-dice-exact-outline={`d${sides}`}
+          d={DICE_SILHOUETTE_PATHS[sides]}
+          fill="none"
+          stroke={appearance.bodyColor}
+          strokeWidth="0.46"
+          strokeLinejoin="round"
+        />
+      )}
     </svg>
   );
 }
