@@ -43,8 +43,8 @@ assert.ok(icon.includes("skinId === 'arcane'"), 'Arcane must preserve the exact 
 assert.ok(preview.includes("case 'arcane':\n      return null;"), 'Procedural Arcane preview art must not cover the photograph');
 assert.ok(surface.includes('DiceArcaneAnimatedOverlay') && icon.includes('DiceArcaneAnimatedOverlay'), 'Arcane animated overlay must be wired into both 2D surfaces');
 assert.ok(fs.existsSync(new URL('DiceArcaneAnimatedOverlay.tsx', diceDir)) && fs.existsSync(new URL('diceArcaneAnimation.css', diceDir)), 'Arcane must ship a dedicated 2D animated overlay');
-assert.ok(effects.includes("case 'arcane':") && effects.includes("particleColor: '#f1b6ff'"), 'Arcane must use dedicated magenta-violet particles');
-assert.ok(effects.includes('function addArcaneSigils(') && effects.includes("case 'arcane':\n      addArcaneSigils(group, updaters, radius);"), 'Arcane must add dedicated orbiting sigils in 3D');
+assert.ok(effects.includes("case 'arcane':") && effects.includes("particleColor: '#e2a6ff'") && effects.includes('arcaneRing: true'), 'Arcane must keep dedicated magenta-violet particles and magical ring');
+assert.ok(effects.includes('if (profile.arcaneRing)') && effects.includes("addOrbitingTorus(group, updaters, radius, '#c36cff'"), 'Arcane must render a dedicated orbiting 3D magic ring');
 assert.ok(ci.includes('node scripts/verify-arcane-skin-consistency.mjs'), 'CI must run the Arcane photographic regression test');
 
 console.log('Arcane photographic 2D/3D texture, exact labels, vivid unlit faces and magical effects verification passed.');
