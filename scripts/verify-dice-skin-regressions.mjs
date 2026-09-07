@@ -8,6 +8,7 @@ const icon = fs.readFileSync(new URL('src/app/components/session/dice/StyledStan
 const materials = fs.readFileSync(new URL('src/app/components/session/dice/dice3dAppearanceMaterials.ts', root), 'utf8');
 const profiles = fs.readFileSync(new URL('src/app/components/session/dice/dice3dSurfaceProfiles.ts', root), 'utf8');
 const textures = fs.readFileSync(new URL('src/app/components/session/dice/dice3dSkinTextures.ts', root), 'utf8');
+const effects = fs.readFileSync(new URL('src/app/components/session/dice/dice3dSkinEffects.ts', root), 'utf8');
 const session = fs.readFileSync(new URL('src/app/components/session/dice/DiceSessionContext.tsx', root), 'utf8');
 const renderer = fs.readFileSync(new URL('src/app/components/session/dice/dice3dRenderer.ts', root), 'utf8');
 
@@ -112,6 +113,13 @@ expect(renderer.includes('private settledRenderRaf: number | null = null;'), '3D
 expect(renderer.includes('this.startSettledRenderLoop();'), '3D renderer must start the settled redraw loop after an effects-enabled roll finishes');
 expect(renderer.includes('box.renderer.render(box.scene, box.camera);'), 'Settled redraw loop must render the Three.js scene while effects continue updating');
 expect(renderer.includes('this.stopSettledRenderLoop();'), 'Settled redraw loop must be stopped when the dice are cleared or replaced');
+expect(effects.includes('const REFLECTIVE_SETTLE_DURATION_MS = 320;'), 'Metal and Obsidian must fade into their anti-glare result state instead of snapping');
+expect(effects.includes("skinId === 'metal' || skinId === 'obsidian'"), 'Only Metal and Obsidian must receive the reflective settled-face treatment');
+expect(effects.includes('? { roughness: 0.68, metalness: 0.38, shininess: 26 }'), 'Metal settled faces must reduce specular washout while retaining a metallic response');
+expect(effects.includes(': { roughness: 0.42, metalness: 0.03, shininess: 44 }'), 'Obsidian settled faces must reduce the white reflection while retaining glassy depth');
+expect(effects.includes('settle(): void'), '3D skin effects must expose an explicit settled transition');
+expect(renderer.includes('if (installed) installed.effects.settle();'), 'Renderer must trigger the anti-glare transition only after the physical roll resolves');
+expect(renderer.indexOf('await this.box.roll(notation)') < renderer.indexOf('if (installed) installed.effects.settle();'), 'Anti-glare transition must begin after dice physics stop');
 
 if (failures.length) {
   throw new assert.AssertionError({
@@ -122,4 +130,4 @@ if (failures.length) {
   });
 }
 
-console.log('Fire/Ice/Lightning/Poison/Stone/Metal/Obsidian rendering, exact colors, proportional photographic labels, shared surface profiles, and settled-effect lifecycle verification passed.');
+console.log('Fire/Ice/Lightning/Poison/Stone/Metal/Obsidian rendering, exact colors, proportional photographic labels, shared surface profiles, and settled anti-glare lifecycle verification passed.');
