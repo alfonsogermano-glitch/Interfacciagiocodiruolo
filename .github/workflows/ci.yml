@@ -44,6 +44,7 @@ jobs:
       - run: node scripts/verify-obsidian-dual-outline.mjs
       - run: node scripts/verify-obsidian-d4-material-remap.mjs
       - run: node scripts/verify-obsidian-d4-shield-bypass.mjs
+      - run: node scripts/verify-obsidian-label-brightness.mjs
       - run: node scripts/verify-vercel-preview-policy.mjs
       - run: node scripts/verify-dice-skin-regressions.mjs
       - run: npm run verify:dice-surface-profiles
