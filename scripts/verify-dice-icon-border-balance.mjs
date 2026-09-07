@@ -19,8 +19,13 @@ assert.ok(
   'textured dice must have an exact silhouette outline map independent from the eroded internal structure',
 );
 assert.ok(
-  icon.includes('stroke="${safeStructureColor}"') && icon.includes('stroke-width="0.52"'),
-  'textured dice must redraw the outer silhouette at the true die edge with a thin 0.52 stroke',
+  icon.includes('stroke="${safeStructureColor}"') && icon.includes('stroke-width="0.46"'),
+  'textured dice must redraw the outer silhouette at the true die edge with the refined 0.46 stroke',
+);
+assert.doesNotMatch(
+  icon,
+  /stroke-width="0\.52"/,
+  'textured dice must not retain the slightly too-heavy 0.52 outer silhouette stroke',
 );
 assert.ok(
   icon.includes('vector-effect="non-scaling-stroke"'),
@@ -48,4 +53,4 @@ assert.ok(
   'all textured standard-die render sizes must continue through the same two-tone structure path',
 );
 
-console.log('Dice exact-edge colored outline, balanced internal structure, shared personalization preview, and compact d100 verification passed.');
+console.log('Dice exact-edge colored outline, refined thin outer stroke, shared personalization preview, and compact d100 verification passed.');
