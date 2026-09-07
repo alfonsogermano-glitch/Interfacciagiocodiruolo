@@ -117,6 +117,7 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
     if (!notation) return;
 
     let restoreCustomMaterials: (() => void) | null = null;
+    let installed: ReturnType<typeof installDiceAppearanceAdapter> | null = null;
     let keepEffectsRendering = false;
     let needsRollingEffectsRender = false;
     this.stopSettledRenderLoop();
@@ -132,7 +133,7 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
         && (descriptor.appearance.skinId === 'stone' || descriptor.appearance.skinId === 'metal'));
       if (appearanceQueue.some(Boolean)) {
         try {
-          const installed = installDiceAppearanceAdapter(this.box, appearanceQueue);
+          installed = installDiceAppearanceAdapter(this.box, appearanceQueue);
           this.restoreAppearanceEffects = installed.restore;
           installed.effects.start();
           signal.addEventListener('abort', stopEffectsOnAbort, { once: true });
@@ -154,6 +155,7 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
       if (needsRollingEffectsRender) this.startSettledRenderLoop();
       await this.box.roll(notation);
       throwIfAborted(signal);
+      if (installed) installed.effects.settle();
       if (keepEffectsRendering) this.startSettledRenderLoop();
     } finally {
       signal.removeEventListener('abort', stopEffectsOnAbort);
