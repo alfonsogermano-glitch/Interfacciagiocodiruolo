@@ -30,6 +30,7 @@ type FireFaceBaseline = {
   material: MaterialLike;
   emissiveMap: unknown;
   emissiveIntensity: number;
+  emissiveHex?: number;
 };
 
 type FacePulseBaseline = {
@@ -136,6 +137,7 @@ export function installDice3DVisualBoost(
         material,
         emissiveMap: material.emissiveMap,
         emissiveIntensity: material.emissiveIntensity as number,
+        emissiveHex: material.emissive?.getHex?.(),
       }))
     : [];
   const facePulseBaselines: FacePulseBaseline[] = skin === 'stone' && !descriptor.custom
@@ -176,6 +178,7 @@ export function installDice3DVisualBoost(
         fireFrameTexture.needsUpdate = true;
         for (const { material, emissiveIntensity } of fireFaceBaselines) {
           material.emissiveMap = fireFrameTexture;
+          material.emissive?.set?.('#ff5a18');
           material.emissiveIntensity = emissiveIntensity + FIRE_FRAME_EMISSIVE_LIFT;
           material.needsUpdate = true;
         }
@@ -238,7 +241,9 @@ export function installDice3DVisualBoost(
                 : 0.35 + rollingPulse * 0.42;
 
     if (fireFrameContext && fireFrameTexture && fireFrameAtlasImage?.complete && fireFrameAtlasImage.naturalWidth > 0) {
-      const frameIndex = Math.floor((now - startedAt) / FIRE_FRAME_DURATION_MS) % FIRE_FRAME_COUNT;
+      const pingPongLength = FIRE_FRAME_COUNT * 2 - 2;
+      const sequenceIndex = Math.floor((now - startedAt) / FIRE_FRAME_DURATION_MS) % pingPongLength;
+      const frameIndex = sequenceIndex < FIRE_FRAME_COUNT ? sequenceIndex : pingPongLength - sequenceIndex;
       if (frameIndex !== lastFireFrameIndex) {
         drawFireAtlasFrame(fireFrameContext, fireFrameAtlasImage, frameIndex);
         fireFrameTexture.needsUpdate = true;
@@ -262,9 +267,10 @@ export function installDice3DVisualBoost(
   return () => {
     if (raf !== null) window.cancelAnimationFrame(raf);
     if (onFireAtlasLoad && fireFrameAtlasImage) fireFrameAtlasImage.removeEventListener('load', onFireAtlasLoad);
-    for (const { material, emissiveMap, emissiveIntensity } of fireFaceBaselines) {
+    for (const { material, emissiveMap, emissiveIntensity, emissiveHex } of fireFaceBaselines) {
       material.emissiveMap = emissiveMap;
       material.emissiveIntensity = emissiveIntensity;
+      if (emissiveHex !== undefined) material.emissive?.set?.(emissiveHex);
       material.needsUpdate = true;
     }
     fireFrameTexture?.dispose?.();

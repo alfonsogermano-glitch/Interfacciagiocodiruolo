@@ -20,11 +20,13 @@ assert.ok(overlay.includes("appearance.skinId !== 'fire' || !appearance.effectsE
 assert.ok(overlay.includes('normalizeDiceTextureScale(appearance.textureScale)'), 'animated Fire frames must retain the selected texture zoom');
 assert.ok(data.includes('FIRE_FRAME_COUNT = 10'), 'Fire animation must use exactly ten supplied frames');
 assert.ok(data.includes('FIRE_FRAME_DURATION_MS = 140'), 'Fire frame timing must remain deliberate and stable');
+assert.ok(data.includes('FIRE_FRAME_PING_PONG_SEQUENCE'), 'Fire animation must document the forward/reverse loop');
 assert.ok(overlay.includes('data-dice-fire-frame-sequence'), 'Fire surface must render the supplied frame sequence');
 assert.ok(overlay.includes('FIRE_FRAME_ATLAS_DATA_URL'), 'Fire 2D animation must use the shared frame atlas');
 assert.doesNotMatch(overlay, /data-dice-fire-vein-pulse|data-dice-fire-animated-texture-under|data-dice-fire-animated-texture-over/, 'old procedural/duplicated Fire texture animation must be removed');
-assert.ok(css.includes('@keyframes hollowgate-fire-frame-loop'), 'Fire surface must step through the ten-frame loop');
-assert.ok(css.includes('steps(1, end)'), 'Fire frame changes must be discrete without crossfading the stone texture');
+assert.ok(css.includes('@keyframes hollowgate-fire-frame-loop'), 'Fire surface must step through the supplied frame loop');
+assert.ok(css.includes('2.52s steps(1, end) infinite'), 'Fire surface must ping-pong through 18 discrete steps at 140ms each');
+assert.ok(css.includes('sepia(1)') && css.includes('saturate(7.5)'), 'Fire mask must remain orange/red instead of washing the skin to white');
 assert.doesNotMatch(css, /hollowgate-fire-vein-breathe|hollowgate-fire-flow-under|hollowgate-fire-flow-over|hollowgate-fire-hotspots|hollowgate-fire-embers-rise|hollowgate-fire-glow-drift/, 'old procedural Fire face effects must not remain');
 assert.ok(css.includes('mix-blend-mode: screen'), 'frame sequence should brighten the supplied lava veins over the stable photograph');
 assert.ok(css.includes('@media (prefers-reduced-motion: reduce)'), 'Fire preview animation must respect reduced motion');
@@ -32,8 +34,10 @@ assert.ok(skinSurface.includes('<DiceFireAnimatedOverlay appearance={appearance}
 assert.ok(styled.includes('<DiceFireAnimatedOverlay appearance={appearance} />'), 'shared standard die previews must render the Fire frame animation');
 assert.ok(boost.includes("skin === 'fire' && !descriptor.custom"), '3D Fire frame animation must stay on standard Fire dice');
 assert.ok(boost.includes('FIRE_FRAME_ATLAS_DATA_URL') && boost.includes('FIRE_FRAME_COUNT'), '3D Fire must consume the same ten-frame atlas');
-assert.ok(boost.includes('drawFireAtlasFrame') && boost.includes('frameIndex = Math.floor'), '3D Fire must discretely advance the emissive lava frame');
+assert.ok(boost.includes('drawFireAtlasFrame') && boost.includes('const sequenceIndex = Math.floor'), '3D Fire must discretely advance the emissive lava frame');
+assert.ok(boost.includes('frameIndex = sequenceIndex < FIRE_FRAME_COUNT ? sequenceIndex : pingPongLength - sequenceIndex'), '3D Fire must reverse after frame 10 instead of jumping straight back to frame 1');
 assert.ok(boost.includes('material.emissiveMap = fireFrameTexture'), '3D Fire must animate lava via the emissive map without replacing labels or base photography');
+assert.ok(boost.includes("material.emissive?.set?.('#ff5a18')"), '3D animated lava mask must emit warm orange rather than white');
 assert.ok(boost.includes("? 0.6 + rollingPulse * 1.12"), 'external Fire point-light animation must remain unchanged');
 assert.ok(boost.includes('window.requestAnimationFrame(frame)') && boost.includes('window.cancelAnimationFrame(raf)'), '3D Fire frames must keep rendering while dice are active');
 assert.doesNotMatch(boost, /group\.onBeforeRender\s*=/, '3D Fire animation must not depend on Group.onBeforeRender');
@@ -42,4 +46,4 @@ assert.doesNotMatch(renderer, /finally\s*\{[^}]*restoreAppearance\?\.\(\)/s, 're
 assert.ok(renderer.includes('this.startSettledRenderLoop();') && renderer.includes('this.stopSettledRenderLoop();'), 'Fire effects must keep rendering throughout the settled hold and stop only on clear');
 assert.ok(session.includes('DICE_ANIMATED_SETTLED_HOLD_MS = 2000'), 'animated dice must remain visible for two seconds after settling');
 assert.ok(session.includes('descriptor?.appearance.effectsEnabled'), 'settled hold must detect whether animated effects are active');
-console.log('Fire supplied 10-frame 2D/3D skin animation verification passed.');
+console.log('Fire supplied 10-frame ping-pong 2D/3D skin animation verification passed.');
