@@ -15,24 +15,33 @@
   background-repeat: no-repeat;
   background-position: 0% 0%;
   mix-blend-mode: screen;
-  opacity: 0.72;
+  opacity: 0.58;
+  filter: sepia(1) saturate(7.5) hue-rotate(335deg) brightness(.92) contrast(1.08);
   transform: scale(var(--fire-frame-scale, 1));
   transform-origin: center;
   will-change: background-position;
-  animation: hollowgate-fire-frame-loop 1.4s steps(1, end) infinite;
+  animation: hollowgate-fire-frame-loop 2.52s steps(1, end) infinite;
 }
 
 @keyframes hollowgate-fire-frame-loop {
-  0%, 9.999% { background-position: 0% 0%; }
-  10%, 19.999% { background-position: 25% 0%; }
-  20%, 29.999% { background-position: 50% 0%; }
-  30%, 39.999% { background-position: 75% 0%; }
-  40%, 49.999% { background-position: 100% 0%; }
-  50%, 59.999% { background-position: 0% 100%; }
-  60%, 69.999% { background-position: 25% 100%; }
-  70%, 79.999% { background-position: 50% 100%; }
-  80%, 89.999% { background-position: 75% 100%; }
-  90%, 99.999% { background-position: 100% 100%; }
+  0%, 5.555% { background-position: 0% 0%; }
+  5.556%, 11.111% { background-position: 25% 0%; }
+  11.112%, 16.666% { background-position: 50% 0%; }
+  16.667%, 22.222% { background-position: 75% 0%; }
+  22.223%, 27.777% { background-position: 100% 0%; }
+  27.778%, 33.333% { background-position: 0% 100%; }
+  33.334%, 38.888% { background-position: 25% 100%; }
+  38.889%, 44.444% { background-position: 50% 100%; }
+  44.445%, 49.999% { background-position: 75% 100%; }
+  50%, 55.555% { background-position: 100% 100%; }
+  55.556%, 61.111% { background-position: 75% 100%; }
+  61.112%, 66.666% { background-position: 50% 100%; }
+  66.667%, 72.222% { background-position: 25% 100%; }
+  72.223%, 77.777% { background-position: 0% 100%; }
+  77.778%, 83.333% { background-position: 100% 0%; }
+  83.334%, 88.888% { background-position: 75% 0%; }
+  88.889%, 94.444% { background-position: 50% 0%; }
+  94.445%, 99.999% { background-position: 25% 0%; }
   100% { background-position: 0% 0%; }
 }
 
@@ -40,5 +49,6 @@
   .hollowgate-fire-animation__frames {
     animation: none;
     background-position: 0% 0%;
+    opacity: 0.42;
   }
 }
