@@ -124,5 +124,6 @@
   },
   "peerDependencies": { "react": "18.3.1", "react-dom": "18.3.1" },
   "peerDependenciesMeta": { "react": { "optional": true }, "react-dom": { "optional": true } },
-  "pnpm": { "overrides": { "vite": "6.4.3" } }
+  "pnpm": { "overrides": { "vite": "6.4.3" } },
+  "overrides": { "browserslist": "4.28.9" }
 }

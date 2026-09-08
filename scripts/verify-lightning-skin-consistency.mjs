@@ -92,8 +92,8 @@ assert.ok(textures.includes("context.filter = 'brightness(1.16) saturate(1.12) c
 assert.ok(textures.includes("bump.filter = 'grayscale(1) contrast(2.05) brightness(.94)'"), 'Lightning bump must derive from the photograph');
 assert.ok(textures.includes("descriptor.appearance.skinId === 'lightning'"), 'The readiness gate must wait for Lightning rolls');
 assert.ok(textures.includes("appearance.skinId === 'lightning'") && textures.includes("isLightningTextureReady() ? 'ready' : 'placeholder'"), 'Lightning descriptors must distinguish placeholder and ready phases');
-assert.ok(textures.includes('`${appearance.skinId}:${appearance.bodyColor}:${textureScale}:${readiness}`'), 'Lightning ready and placeholder descriptors must use separate cache keys');
-assert.ok(textures.includes('`hollowgate-${appearance.skinId}-${appearance.bodyColor}-${textureScale}-${readiness}`'), 'Renderer-facing Lightning texture names must differ across readiness phases');
+assert.ok(textures.includes('`${appearance.skinId}:${textureScale}:${readiness}`'), 'Lightning ready and placeholder descriptors must use separate cache keys');
+assert.ok(textures.includes('`hollowgate-${appearance.skinId}-${textureScale}-${readiness}`'), 'Renderer-facing Lightning texture names must differ across readiness phases');
 
 const waitIndex = renderer.indexOf('await waitForDice3DTextureAssets(appearanceQueue);');
 const adapterIndex = renderer.indexOf('installDiceAppearanceAdapter(this.box, appearanceQueue)');

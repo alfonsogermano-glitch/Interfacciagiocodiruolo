@@ -54,8 +54,8 @@ assert.ok(textures.includes('applyTextureZoom(context, bump, size, textureScale)
 assert.ok(textures.includes('export async function waitForDice3DTextureAssets'), 'The 3D texture pipeline must expose an awaitable readiness gate');
 assert.ok(textures.includes('if (image.complete && image.naturalWidth > 0) settleReady();'), 'The readiness gate must not resolve early for an incomplete or broken image');
 assert.ok(textures.includes("appearance.skinId === 'ice'") && textures.includes("isIceTextureReady() ? 'ready' : 'placeholder'"), 'Ice texture descriptors must distinguish placeholder and ready phases');
-assert.ok(textures.includes('`${appearance.skinId}:${appearance.bodyColor}:${textureScale}:${readiness}`'), 'Ice 3D cache keys must distinguish the ready photograph from the placeholder');
-assert.ok(textures.includes('`hollowgate-${appearance.skinId}-${appearance.bodyColor}-${textureScale}-${readiness}`'), 'The renderer-facing texture name must change when the Ice photograph becomes ready');
+assert.ok(textures.includes('`${appearance.skinId}:${textureScale}:${readiness}`'), 'Ice 3D cache keys must distinguish the ready photograph from the placeholder');
+assert.ok(textures.includes('`hollowgate-${appearance.skinId}-${textureScale}-${readiness}`'), 'The renderer-facing texture name must change when the Ice photograph becomes ready');
 const waitIndex = renderer.indexOf('await waitForDice3DTextureAssets(appearanceQueue);');
 const adapterIndex = renderer.indexOf('installDiceAppearanceAdapter(this.box, appearanceQueue)');
 const rollIndex = renderer.indexOf('await this.box.roll(notation);');
