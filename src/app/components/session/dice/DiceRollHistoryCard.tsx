@@ -31,9 +31,9 @@ function StandardDieResult({
     <>
       {isChatDieSides(sides)
         ? appearance
-          ? <StyledStandardDieIcon sides={sides} appearance={appearance} className={sides === 100 ? 'h-[20px] w-[38px]' : 'h-[20px] w-[20px]'} />
-          : <DiceTypeIcon sides={sides} className={sides === 100 ? 'h-[20px] !gap-px [&>img]:!h-[20px] [&>img]:!w-[20px]' : 'h-[20px] w-[20px]'} />
-        : <><Dices className="h-[20px] w-[20px]" /><span>d{sides}</span></>}
+          ? <StyledStandardDieIcon sides={sides} appearance={appearance} className={sides === 100 ? 'h-[24px] w-[46px]' : 'h-[24px] w-[24px]'} />
+          : <DiceTypeIcon sides={sides} className={sides === 100 ? 'h-[24px] !gap-px [&>img]:!h-[24px] [&>img]:!w-[24px]' : 'h-[24px] w-[24px]'} />
+        : <><Dices className="h-[24px] w-[24px]" /><span>d{sides}</span></>}
       <span>: {face}</span>
       {contribution !== face && <span className="text-[10px]">({contribution})</span>}
     </>
@@ -107,7 +107,7 @@ export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; 
             )}
           </div>
           <div className="mt-1 break-words whitespace-pre-wrap rounded bg-[var(--dash-input)] px-1.5 py-0.5 font-mono text-[11px] leading-tight text-[var(--dash-text)]">{result.formulaText}</div>
-          <div className="mt-1 flex flex-wrap gap-1">
+          <div className="mt-1 grid grid-cols-3 gap-1">
             {result.diceGroups.flatMap((group) => group.rolls.map((die) => {
               const tooltip = `${die.customDieName ?? (die.source === 'explosion' ? 'Rilancio esplosivo' : `d${die.sides}`)}${die.active ? '' : ' - escluso'}`;
               const liveStandardAppearance = !die.customFace
@@ -118,12 +118,12 @@ export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; 
               return (
                 <Tooltip key={die.id}>
                   <TooltipTrigger asChild>
-                    <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] leading-none ${die.active ? 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] text-[var(--dash-text)]' : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-muted)] line-through opacity-60'}`}>
+                    <span className={`inline-flex w-full min-w-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] leading-none ${die.active ? 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] text-[var(--dash-text)]' : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-muted)] line-through opacity-60'}`}>
                       {die.customFace
                         ? <>
                           <CustomDieFaceResult
                             face={die.customFace}
-                            className="h-[20px] w-[20px]"
+                            className="h-[24px] w-[24px]"
                             symbolColor={die.customFace.symbolColor ?? group.customDieSnapshot?.symbolColor}
                             bodyColor={group.customDieSnapshot?.bodyColor}
                             skinId={group.customDieSnapshot?.skinId ?? 'none'}
