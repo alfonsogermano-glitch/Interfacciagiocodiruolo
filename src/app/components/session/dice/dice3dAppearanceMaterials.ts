@@ -321,8 +321,9 @@ function applyAppearanceFactoryState(factory: DiceFactoryLike, descriptor: Dice3
   const appearance = descriptor.appearance;
   const labelColor = getReadable3DLabelColor(appearance.symbolColor, appearance.bodyColor, appearance.skinId);
   const outlineColor = readableOutlineColor(labelColor);
-  factory.dice_color = appearance.bodyColor;
-  factory.dice_color_rand = appearance.bodyColor;
+  const faceColor = !descriptor.custom && appearance.skinId !== 'none' ? '#ffffff' : appearance.bodyColor;
+  factory.dice_color = faceColor;
+  factory.dice_color_rand = faceColor;
   factory.edge_color = appearance.bodyColor;
   factory.edge_color_rand = appearance.bodyColor;
   factory.label_color = labelColor;
