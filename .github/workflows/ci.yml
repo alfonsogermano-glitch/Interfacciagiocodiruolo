@@ -49,6 +49,7 @@ jobs:
       - run: node scripts/verify-arcane-skin-consistency.mjs
       - run: node scripts/verify-dice-icon-border-balance.mjs
       - run: node scripts/verify-dice-preview-edge-registration.mjs
+      - run: node scripts/verify-dice-skin-body-color-isolation.mjs
       - run: node scripts/verify-vercel-preview-policy.mjs
       - run: node scripts/verify-dice-skin-regressions.mjs
       - run: npm run verify:dice-surface-profiles
