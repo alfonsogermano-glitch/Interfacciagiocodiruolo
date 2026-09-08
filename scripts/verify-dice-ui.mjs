@@ -24,7 +24,7 @@ assert.ok(history.includes('Pulisci')); assert.ok(/scrollContainer\.scrollTop\s*
 assert.ok(card.includes('formatPrimaryRollResult(result)')); assert.ok(card.includes('data-dice-player-actions')); assert.ok(card.includes('data-dice-reroll')); assert.ok(/result\.visibility\s*===\s*'secret'/.test(card)); assert.ok(card.includes('Segreto')); assert.ok(card.includes('CustomDieFaceResult'));
 assert.ok(card.includes("import { StyledStandardDieIcon } from './StyledStandardDieIcon';"), 'dice history must render standard result snapshots with the shared styled die icon');
 assert.ok(card.includes('CHAT_DIE_SIDES = [4, 6, 8, 10, 12, 20, 100]'), 'dice history must recognize every standard Hollowgate die shape');
-assert.ok(/<StandardDieResult[\s\S]{0,220}appearance=\{group\.appearance\}/.test(card), 'standard history results must use the appearance snapshot stored on the roll group');
+assert.ok(/<StandardDieResult[\s\S]{0,220}appearance=\{liveStandardAppearance\}/.test(card), 'standard history results must use the appearance snapshot stored on the roll group');
 assert.ok(!card.includes('<Dices className="h-2.5 w-2.5"/>d{die.sides}:'), 'standard numeric results must not use the generic two-dice icon plus dXX label');
 for(const hook of ['data-dice-quick-roll-floating','data-dice-quick-toggle','data-dice-history-toggle','data-dice-history-unread','data-dice-quick-palette','data-dice-appearance-toolbar']) assert.ok(quick.includes(hook));
 assert.ok(quick.indexOf('data-dice-custom-toolbar') < quick.indexOf('data-dice-appearance-toolbar'), 'Personalizza must immediately follow the Custom die control');

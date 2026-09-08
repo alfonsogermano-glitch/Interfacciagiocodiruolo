@@ -33,7 +33,7 @@ assert.ok(icon.includes('.svg?raw'), 'personalized dice must use the supplied SV
 assert.ok(icon.includes('tintedSvgDataUrl'), 'personalized dice must retain single-color SVG rendering for non-textured dice');
 assert.ok(icon.includes('twoToneSvgDataUrl'), 'textured dice must support separate structure and label colors');
 assert.ok(icon.includes('data-die-two-tone-image'), 'two-tone textured dice must expose a stable rendering hook');
-assert.ok(icon.includes('feMorphology') && icon.includes('operator="erode"') && icon.includes('radius="0.30"'), 'textured die structure must use the slimmer shared border treatment without shrinking the central number');
+assert.ok(icon.includes('feMorphology') && icon.includes('operator="erode"') && icon.includes('radius="0.27"'), 'textured die structure must use the slimmer shared border treatment without shrinking the central number');
 assert.doesNotMatch(icon, /\b(?:WebkitMaskImage|maskImage)\b/, 'personalized dice must not return to fragile CSS masks');
 
 for (const [assetName, title] of userAssets) {
@@ -59,7 +59,7 @@ assert.ok(styled.includes("className === 'h-9 w-9' || className === 'h-9 w-14'")
 assert.ok(styled.includes('structureColor={textured ? appearance.bodyColor : undefined}'), 'textured dice structure must use the selected die body color');
 assert.ok(styled.includes('labelColor={textured ? readableSymbolColor : undefined}'), 'central die numbers must keep an independent high-contrast color');
 assert.ok(styled.includes('thinStructure={textured}'), 'only textured dice must use the thinner structure treatment');
-assert.ok(styled.includes('h-[80%] aspect-square'), 'd100 percentile faces must stay square and fit comfortably in every layout');
+assert.ok(styled.includes('h-[76%] aspect-square'), 'd100 percentile faces must stay square and fit comfortably in every layout');
 assert.ok(styled.includes('data-styled-standard-d100'), 'styled d100 must keep its dedicated two-face composition');
 assert.ok(styled.includes('overflow-visible'), 'styled d100 and standard dice must not clip artwork at the sides');
 assert.ok(styled.includes('getDiceTextureBackgroundSize(appearance.textureScale)'), 'main dice previews must use the saved texture zoom');
@@ -80,10 +80,11 @@ for (const skin of ['fire', 'ice', 'lightning', 'poison', 'stone', 'metal', 'obs
   assert.ok(effects.includes(`case '${skin}'`), `missing animated effect profile for ${skin}`);
   assert.ok(textures.includes(`case '${skin}'`), `missing strengthened static texture for ${skin}`);
 }
-for (const skin of ['ice', 'lightning', 'poison', 'stone', 'metal', 'obsidian', 'arcane']) {
+for (const skin of ['ice']) {
   assert.ok(previewArt.includes(`data-dice-skin-preview-art="${skin}"`), `Missing illustrative 2D preview art for ${skin}`);
 }
-assert.ok(previewArt.includes("case 'fire':\n      return null;"), 'Fire must not overlay the old illustrative art on its photographic texture');
+assert.doesNotMatch(previewArt, /data-dice-skin-preview-art="(?!ice")/, 'Illustrative 2D preview art must stay limited to ice now that photographic textures cover the other skins');
+assert.ok(/case 'fire':\r?\n\s*return null;/.test(previewArt), 'Fire must not overlay the old illustrative art on its photographic texture');
 assert.ok(previewArt.includes("mix(bodyColor, '#ffffff'") && previewArt.includes("mix(bodyColor, '#000000'"), 'Illustrative art must derive light and dark tones from the chosen die color');
 
 assert.ok(fireTextureData.includes("data:image/webp;base64,"), 'Fire skin must embed the supplied rock/lava texture');
@@ -94,16 +95,16 @@ assert.doesNotMatch(textures, /FIRE_TEXTURE_ZOOM/, '3D Fire must not retain a se
 assert.ok(textures.includes('normalizeDiceTextureScale(appearance.textureScale)'), '3D textures must use the saved user zoom');
 assert.ok(textures.includes('applyTextureZoom(context, bump, size, textureScale)'), '3D color and bump textures must receive the same zoom');
 assert.ok(textures.includes('drawImageCover(context, fireImage, size)'), '3D fire skin must paint the supplied texture through the shared zoom transform');
-assert.ok(textures.includes("context.globalCompositeOperation = 'source-over';\n  context.globalAlpha = 0.34;"), '3D fire tint must match the source-over 2D preview tint');
+assert.doesNotMatch(textures, /globalCompositeOperation = 'source-over'[\s\S]{0,80}globalAlpha = 0\.34/, '3D fire must not tint photographic faces with the die body color');
 assert.doesNotMatch(textures, /globalCompositeOperation = 'color'[\s\S]{0,80}globalAlpha = 0\.46/, '3D fire must not use the old mismatched color blend');
 assert.ok(textures.includes('drawImageCover(bump, fireImage, size)'), '3D fire skin must derive bump detail from the supplied texture using the shared zoom');
-assert.ok(textures.includes('`${appearance.skinId}:${appearance.bodyColor}:${textureScale}`'), '3D texture cache must keep different zoom values independent');
+assert.ok(textures.includes('`${appearance.skinId}:${textureScale}${readiness ? `:${readiness}` : \'\'}`') || textures.includes('`${appearance.skinId}:${textureScale}`'), '3D texture cache must keep different zoom values independent and must not depend on bodyColor');
 
 assert.ok(appearance.includes('getReadable3DLabelColor'), '3D standard labels must automatically preserve contrast on textured faces');
 assert.ok(appearance.includes('MIN_TEXTURED_LABEL_CONTRAST'), 'Textured 3D labels must enforce a minimum contrast target');
 assert.ok(appearance.includes('factory.label_color = labelColor') && appearance.includes('factory.label_color_rand = labelColor'), '3D standard labels must use the readable corrected color');
 assert.ok(appearance.includes('factory.label_outline = outlineColor') && appearance.includes('factory.label_outline_rand = outlineColor'), '3D standard labels must apply the contrasting outline');
-assert.ok(appearance.includes("if (!descriptor.custom && appearance.skinId !== 'metal')"), 'Custom dice must keep a neutral face texture so skin patterns cannot obscure text, icons, or images');
+assert.ok(appearance.includes("return !descriptor.custom && descriptor.appearance.skinId !== 'none';"), 'Custom dice must keep a neutral face texture so skin patterns cannot obscure text, icons, or images');
 assert.ok(projection.includes('custom: true') && projection.includes('preserveFaceColors: true'), 'Every Custom die must preserve face colors while skin effects animate');
 assert.ok(appearance.includes('const isEdgeMaterial = materialIndex === 0'), 'Static 3D skin material changes must stay on edge material rather than readable face materials');
 assert.ok(appearance.includes('factory.material_options = { ...factory.material_options, color: 0xffffff }'), 'Textured 3D faces must keep a neutral material color to prevent bodyColor double multiplication');
@@ -121,7 +122,7 @@ assert.ok(effects.includes('new THREE.LineSegments'), 'Lightning must include vi
 assert.ok(effects.includes('new THREE.TorusGeometry'), 'Arcane must keep its visible orbiting ring geometry');
 const orbitingRingCalls = effects.match(/addOrbitingTorus\(group/g) ?? [];
 assert.equal(orbitingRingCalls.length, 1, 'only Arcane may create an orbiting torus around the die');
-assert.ok(effects.includes("if (profile.arcaneRing) {\n    addOrbitingTorus(group"), 'the single orbiting ring must remain gated by Arcane');
+assert.ok(/if \(profile\.arcaneRing\) \{\r?\n\s*addOrbitingTorus\(group/.test(effects), 'the single orbiting ring must remain gated by Arcane');
 assert.ok(effects.includes('const faceMaterialFactor = entry.descriptor.preserveFaceColors ? 0 : 0.06'), 'Custom face-material animation must be fully suppressed for readability');
 assert.ok(effects.includes('private particleBudget = 144'), '3D effects must retain a bounded particle budget');
 

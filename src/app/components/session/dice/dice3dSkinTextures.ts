@@ -128,17 +128,13 @@ function drawImageCover(context: CanvasRenderingContext2D, image: HTMLImageEleme
   context.drawImage(image, sourceX, sourceY, cropWidth, cropHeight, 0, 0, size, size);
 }
 
-function drawFirePhotoTexture(context: CanvasRenderingContext2D, bump: CanvasRenderingContext2D, size: number, bodyColor: string): boolean {
+function drawFirePhotoTexture(context: CanvasRenderingContext2D, bump: CanvasRenderingContext2D, size: number): boolean {
   const fireImage = fireTextureImage;
   if (!fireImage?.complete || fireImage.naturalWidth <= 0) return false;
   context.save();
   context.filter = 'brightness(1.24) saturate(1.12)';
   drawImageCover(context, fireImage, size);
   context.filter = 'none';
-  context.globalCompositeOperation = 'source-over';
-  context.globalAlpha = 0.34;
-  context.fillStyle = bodyColor;
-  context.fillRect(0, 0, size, size);
   context.globalCompositeOperation = 'screen';
   context.globalAlpha = 0.1;
   context.fillStyle = '#f3c5aa';
@@ -311,7 +307,7 @@ function applyTextureZoom(context: CanvasRenderingContext2D, bump: CanvasRenderi
   bump.setTransform(zoom, 0, 0, zoom, offset, offset);
 }
 
-function drawPattern(textureCanvas: HTMLCanvasElement, bumpCanvas: HTMLCanvasElement, skinId: DiceSkinId, bodyColor: string, textureScale?: number) {
+function drawPattern(textureCanvas: HTMLCanvasElement, bumpCanvas: HTMLCanvasElement, skinId: DiceSkinId, textureScale?: number) {
   const context = textureCanvas.getContext('2d');
   const bump = bumpCanvas.getContext('2d');
   if (!context || !bump) return;
@@ -323,7 +319,7 @@ function drawPattern(textureCanvas: HTMLCanvasElement, bumpCanvas: HTMLCanvasEle
   switch (skinId) {
     case 'none': break;
     case 'fire': {
-      if (drawFirePhotoTexture(context, bump, size, bodyColor)) break;
+      if (drawFirePhotoTexture(context, bump, size)) break;
       context.save();
       context.shadowColor = 'rgba(255,115,28,.95)'; context.shadowBlur = size / 38;
       drawCracks(context, size, 'rgba(255,214,112,.96)', size / 58);
@@ -450,13 +446,13 @@ export function getDice3DTextureDescriptor(appearance: DiceAppearance): Dice3DTe
               : appearance.skinId === 'arcane'
                 ? (isArcaneTextureReady() ? 'ready' : 'placeholder')
                 : null;
-  const key = readiness ? `${appearance.skinId}:${appearance.bodyColor}:${textureScale}:${readiness}` : `${appearance.skinId}:${appearance.bodyColor}:${textureScale}`;
+  const key = readiness ? `${appearance.skinId}:${textureScale}:${readiness}` : `${appearance.skinId}:${textureScale}`;
   const cached = cache.get(key);
   if (cached) return cached;
   const canvas = document.createElement('canvas'); canvas.width = TEXTURE_SIZE; canvas.height = TEXTURE_SIZE;
   const bumpCanvas = document.createElement('canvas'); bumpCanvas.width = TEXTURE_SIZE; bumpCanvas.height = TEXTURE_SIZE;
-  drawPattern(canvas, bumpCanvas, appearance.skinId, appearance.bodyColor, textureScale);
-  const name = readiness ? `hollowgate-${appearance.skinId}-${appearance.bodyColor}-${textureScale}-${readiness}` : `hollowgate-${appearance.skinId}-${appearance.bodyColor}-${textureScale}`;
+  drawPattern(canvas, bumpCanvas, appearance.skinId, textureScale);
+  const name = readiness ? `hollowgate-${appearance.skinId}-${textureScale}-${readiness}` : `hollowgate-${appearance.skinId}-${textureScale}`;
   const descriptor: Dice3DTextureDescriptor = { name, texture: canvas, bump: bumpCanvas, composite: 'source-over', material: 'none' };
   cache.set(key, descriptor);
   return descriptor;

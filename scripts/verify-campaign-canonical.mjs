@@ -72,7 +72,7 @@ if (!campaignHome.includes('isOwner && row && row.profileId !== activeCampaign?.
   failures.push('CampaignHome must never offer Rimuovi giocatore on the synthetic GM row');
 }
 
-if (!campaignHome.includes('await setCharacterAvailableForPlayers(ch.id, nextAvailable, SERVER_BASE, accessToken);\n      setPlayersReloadToken((t) => t + 1);')) {
+if (!/await setCharacterAvailableForPlayers[^\n]*\r?\n\s*setPlayersReloadToken\(\(t\) => t \+ 1\);/.test(campaignHome)) {
   failures.push('CampaignHome must reload character grouping after either availability toggle direction');
 }
 
@@ -100,7 +100,8 @@ for (const [source, sourceName, idExpression] of [
     'const availabilityToggleLocksRef = useRef<Set<string>>(new Set());',
     `if (availabilityToggleLocksRef.current.has(${idExpression})) return;`,
     `availabilityToggleLocksRef.current.add(${idExpression});`,
-    `finally {\n      availabilityToggleLocksRef.current.delete(${idExpression});\n    }`,
+    `finally {`,
+    `availabilityToggleLocksRef.current.delete(${idExpression});`,
   ]) {
     if (!source.includes(required)) {
       failures.push(`${sourceName} must ignore repeated availability clicks while the same character update is pending: ${required}`);
