@@ -13,6 +13,7 @@ assert.ok(history.includes("skinId={group.customDieSnapshot?.skinId ?? 'none'}")
 assert.ok(library.includes("const skinId = die.skinId ?? 'none'"));
 assert.ok(library.includes('data-custom-die-image-untinted'));
 assert.ok(result.includes('data-custom-die-image-untinted'));
+assert.ok(library.includes('data-custom-die-library-d100-pair'),'custom d100 must keep the fixed two-die (tens + units) library icon');
 for(const source of [library,result]) {
   const imageMatches=[...source.matchAll(/<img[\s\S]*?>/g)].map((m)=>m[0]);
   assert.ok(imageMatches.length>0);
