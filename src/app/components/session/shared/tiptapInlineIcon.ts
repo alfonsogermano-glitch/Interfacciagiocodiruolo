@@ -72,7 +72,6 @@ function buildIconWidget(iconName: string): HTMLSpanElement {
   widget.style.height = '1em';
   widget.style.verticalAlign = '-0.125em';
   widget.style.userSelect = 'text';
-  widget.style.pointerEvents = 'none';
   widget.appendChild(buildIconSvg(iconName));
   return widget;
 }
