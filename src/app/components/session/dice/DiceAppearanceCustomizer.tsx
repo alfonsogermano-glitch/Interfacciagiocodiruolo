@@ -17,7 +17,7 @@ function cloneStyles(styles: readonly StandardDieAppearance[]) {
 
 export function DiceAppearanceCustomizer({ onClose }: { onClose: () => void }) {
   const { styles, saveStyles } = useDiceAppearance();
-  const [selectedSides, setSelectedSides] = useState<CustomDieSides>(20);
+  const [selectedSides, setSelectedSides] = useState<CustomDieSides>(4);
   const [draft, setDraft] = useState<StandardDieAppearance[]>(() => cloneStyles(styles));
   const [busy, setBusy] = useState(false);
 
