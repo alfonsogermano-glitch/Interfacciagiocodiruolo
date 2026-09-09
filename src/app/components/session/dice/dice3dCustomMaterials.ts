@@ -1,7 +1,8 @@
 import { ICON_DATA } from '../shared/tiptapIconData';
+import { getDice3DTextureDescriptor } from './dice3dSkinTextures.ts';
 import { layoutCustomDieFaceText } from './diceCustomDie.ts';
 import type { Dice3DCustomMaterial, Dice3DProjectionChunk } from './dice3dProjection.ts';
-import type { CustomDieFace, CustomDiePhysicalRole, CustomDieRollSnapshot } from './diceTypes.ts';
+import type { CustomDieFace, CustomDiePhysicalRole, CustomDieRollSnapshot, DiceAppearance } from './diceTypes.ts';
 
 type DicePresetLike = {
   shape: string;
@@ -355,14 +356,24 @@ function captureFactoryMaterialState(factory: DiceFactoryLike) {
 }
 
 function applyCustomFactoryMaterialState(factory: DiceFactoryLike, descriptor: Dice3DCustomMaterial) {
-  factory.dice_color = descriptor.customDie.bodyColor;
-  factory.dice_color_rand = descriptor.customDie.bodyColor;
+  const appearance: DiceAppearance = {
+    bodyColor: descriptor.customDie.bodyColor,
+    symbolColor: descriptor.customDie.symbolColor,
+    skinId: descriptor.customDie.skinId ?? 'none',
+    effectsEnabled: descriptor.customDie.effectsEnabled ?? false,
+    textureScale: descriptor.customDie.textureScale,
+  };
+  const faceColor = appearance.skinId === 'none' ? appearance.bodyColor : '#ffffff';
+  factory.dice_color = faceColor;
+  factory.dice_color_rand = faceColor;
   factory.edge_color_rand = descriptor.customDie.bodyColor;
   factory.label_color_rand = descriptor.customDie.symbolColor;
   factory.label_outline_rand = descriptor.customDie.symbolColor;
-  const neutralTexture = { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' };
-  factory.dice_texture = neutralTexture;
-  factory.dice_texture_rand = neutralTexture;
+  let diceTexture: unknown = { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' };
+  try { diceTexture = getDice3DTextureDescriptor(appearance); }
+  catch (error) { console.error('Texture skin 3D non disponibile, uso il materiale neutro:', error); }
+  factory.dice_texture = diceTexture;
+  factory.dice_texture_rand = diceTexture;
   factory.dice_material = 'none';
   factory.dice_material_rand = 'none';
   factory.material_options = { ...factory.material_options, color: 0xffffff };

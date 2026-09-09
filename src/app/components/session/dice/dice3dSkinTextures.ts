@@ -88,13 +88,13 @@ function isObsidianTextureReady(): boolean {
 
 export async function waitForDice3DTextureAssets(descriptors: readonly Dice3DTextureAssetRequest[]): Promise<void> {
   const pending: Promise<void>[] = [];
-  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'arcane')) pending.push(arcaneTextureResource.ready);
-  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'ice')) pending.push(iceTextureResource.ready);
-  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'lightning')) pending.push(lightningTextureResource.ready);
-  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'poison')) pending.push(poisonTextureResource.ready);
-  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'stone')) pending.push(stoneTextureResource.ready);
-  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'metal')) pending.push(metalTextureResource.ready);
-  if (descriptors.some((descriptor) => descriptor && !descriptor.custom && descriptor.appearance.skinId === 'obsidian')) pending.push(obsidianTextureResource.ready);
+  if (descriptors.some((descriptor) => descriptor && descriptor.appearance.skinId === 'arcane')) pending.push(arcaneTextureResource.ready);
+  if (descriptors.some((descriptor) => descriptor && descriptor.appearance.skinId === 'ice')) pending.push(iceTextureResource.ready);
+  if (descriptors.some((descriptor) => descriptor && descriptor.appearance.skinId === 'lightning')) pending.push(lightningTextureResource.ready);
+  if (descriptors.some((descriptor) => descriptor && descriptor.appearance.skinId === 'poison')) pending.push(poisonTextureResource.ready);
+  if (descriptors.some((descriptor) => descriptor && descriptor.appearance.skinId === 'stone')) pending.push(stoneTextureResource.ready);
+  if (descriptors.some((descriptor) => descriptor && descriptor.appearance.skinId === 'metal')) pending.push(metalTextureResource.ready);
+  if (descriptors.some((descriptor) => descriptor && descriptor.appearance.skinId === 'obsidian')) pending.push(obsidianTextureResource.ready);
   if (pending.length === 0) return;
   await Promise.all(pending);
 }

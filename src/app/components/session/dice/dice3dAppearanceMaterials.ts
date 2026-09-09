@@ -332,10 +332,8 @@ function applyAppearanceFactoryState(factory: DiceFactoryLike, descriptor: Dice3
   factory.label_outline_rand = outlineColor;
 
   let texture: unknown = NEUTRAL_TEXTURE;
-  if (!descriptor.custom) {
-    try { texture = getDice3DTextureDescriptor(appearance); }
-    catch (error) { console.error('Texture skin 3D non disponibile, uso il materiale neutro:', error); }
-  }
+  try { texture = getDice3DTextureDescriptor(appearance); }
+  catch (error) { console.error('Texture skin 3D non disponibile, uso il materiale neutro:', error); }
   factory.dice_texture = texture;
   factory.dice_texture_rand = texture;
   factory.dice_material = 'none';

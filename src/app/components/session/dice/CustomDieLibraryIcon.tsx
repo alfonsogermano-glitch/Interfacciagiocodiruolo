@@ -1,10 +1,9 @@
 import { Dices } from 'lucide-react';
 import { NoteIconGlyph } from '../shared/NoteIconGrid';
 import { CustomDieTextFace } from './CustomDieTextFace';
+import { DiceSkinSurface } from './DiceSkinSurface';
 import { getCustomDieLibraryIconFace } from './diceCustomDieLibraryIcon.ts';
-import { getDiceSkinBackgroundImage } from './diceSkins.ts';
-import { getDiceTextureBackgroundSize } from './diceTextureScale.ts';
-import type { SavedCustomDie } from './diceTypes.ts';
+import type { DiceAppearance, SavedCustomDie } from './diceTypes.ts';
 
 export function CustomDieLibraryIcon({
   die,
@@ -19,12 +18,12 @@ export function CustomDieLibraryIcon({
   const fallbackIconClass = compact ? 'h-4 w-4' : 'h-5 w-5';
   const faceIconClass = compact ? 'h-5 w-5' : 'h-6 w-6';
   const skinId = die.skinId ?? 'none';
-  const surfaceStyle = {
-    color: die.symbolColor,
-    backgroundColor: die.bodyColor,
-    backgroundImage: getDiceSkinBackgroundImage(skinId, die.bodyColor),
-    backgroundSize: getDiceTextureBackgroundSize(die.textureScale),
-    backgroundPosition: 'center',
+  const appearance: DiceAppearance = {
+    bodyColor: die.bodyColor,
+    symbolColor: die.symbolColor,
+    skinId,
+    effectsEnabled: die.effectsEnabled ?? false,
+    textureScale: die.textureScale,
   };
 
   if (!face) {
@@ -32,10 +31,13 @@ export function CustomDieLibraryIcon({
       <span
         data-custom-die-library-icon
         data-dice-skin={skinId}
-        className={`flex ${shellClass} items-center justify-center border border-[var(--dash-border)] text-[var(--dash-accent)]`}
-        style={surfaceStyle}
+        className={`relative flex ${shellClass} items-center justify-center border border-[var(--dash-border)]`}
       >
-        <Dices className={fallbackIconClass} />
+        <DiceSkinSurface appearance={appearance} className="flex h-full w-full items-center justify-center text-[var(--dash-accent)]">
+          <span className="relative z-10 flex h-full w-full items-center justify-center">
+            <Dices className={fallbackIconClass} />
+          </span>
+        </DiceSkinSurface>
       </span>
     );
   }
@@ -45,14 +47,17 @@ export function CustomDieLibraryIcon({
       data-custom-die-library-icon
       data-custom-die-library-face-icon
       data-dice-skin={skinId}
-      className={`flex ${shellClass} items-center justify-center overflow-hidden border border-[var(--dash-border)]`}
-      style={surfaceStyle}
+      className={`relative flex ${shellClass} items-center justify-center overflow-hidden border border-[var(--dash-border)]`}
     >
-      {face.visual.kind === 'icon'
-        ? <NoteIconGlyph name={face.visual.iconName} className={faceIconClass} />
-        : face.visual.kind === 'text'
-          ? <CustomDieTextFace text={face.visual.text} color={die.symbolColor} />
-          : <img draggable={false} data-custom-die-image-untinted src={face.visual.publicUrl} className={`${compact ? 'p-0.5' : 'p-1'} h-full w-full object-contain drop-shadow-[0_0_2px_rgba(255,255,255,0.65)]`} />}
+      <DiceSkinSurface appearance={appearance} className="flex h-full w-full items-center justify-center">
+        <span className="relative z-10 flex h-full w-full items-center justify-center">
+          {face.visual.kind === 'icon'
+            ? <NoteIconGlyph name={face.visual.iconName} className={faceIconClass} />
+            : face.visual.kind === 'text'
+              ? <CustomDieTextFace text={face.visual.text} color={die.symbolColor} />
+              : <img draggable={false} data-custom-die-image-untinted src={face.visual.publicUrl} className={`${compact ? 'p-0.5' : 'p-1'} h-full w-full object-contain drop-shadow-[0_0_2px_rgba(255,255,255,0.65)]`} />}
+        </span>
+      </DiceSkinSurface>
     </span>
   );
 }

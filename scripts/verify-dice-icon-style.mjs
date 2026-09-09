@@ -104,7 +104,8 @@ assert.ok(appearance.includes('getReadable3DLabelColor'), '3D standard labels mu
 assert.ok(appearance.includes('MIN_TEXTURED_LABEL_CONTRAST'), 'Textured 3D labels must enforce a minimum contrast target');
 assert.ok(appearance.includes('factory.label_color = labelColor') && appearance.includes('factory.label_color_rand = labelColor'), '3D standard labels must use the readable corrected color');
 assert.ok(appearance.includes('factory.label_outline = outlineColor') && appearance.includes('factory.label_outline_rand = outlineColor'), '3D standard labels must apply the contrasting outline');
-assert.ok(appearance.includes("return !descriptor.custom && descriptor.appearance.skinId !== 'none';"), 'Custom dice must keep a neutral face texture so skin patterns cannot obscure text, icons, or images');
+assert.ok(appearance.includes("return !descriptor.custom && descriptor.appearance.skinId !== 'none';"), 'label outline boosting must stay reserved for standard dice labels since Custom faces already ship a fixed readable contrast');
+assert.doesNotMatch(appearance, /if\s*\(!descriptor\.custom\)/, 'Custom dice with a skin must receive their selected 3D skin texture instead of a neutral face base');
 assert.ok(projection.includes('custom: true') && projection.includes('preserveFaceColors: true'), 'Every Custom die must preserve face colors while skin effects animate');
 assert.ok(appearance.includes('const isEdgeMaterial = materialIndex === 0'), 'Static 3D skin material changes must stay on edge material rather than readable face materials');
 assert.ok(appearance.includes('factory.material_options = { ...factory.material_options, color: 0xffffff }'), 'Textured 3D faces must keep a neutral material color to prevent bodyColor double multiplication');
