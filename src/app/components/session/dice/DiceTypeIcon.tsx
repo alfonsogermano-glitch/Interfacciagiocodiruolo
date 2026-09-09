@@ -59,10 +59,7 @@ const DICE_FILTER_BY_SIDES = {
   20: 'brightness(0) saturate(100%) invert(58%) sepia(84%) saturate(1164%) hue-rotate(343deg) brightness(96%) contrast(86%)',
 } as const;
 
-const D100_FILTERS = {
-  ten: 'brightness(0) saturate(100%) invert(42%) sepia(97%) saturate(2010%) hue-rotate(300deg) brightness(101%) contrast(96%)',
-  zero: 'brightness(0) saturate(100%) invert(78%) sepia(6%) saturate(410%) hue-rotate(178deg) brightness(91%) contrast(87%)',
-} as const;
+const DEFAULT_D100_FILTER = 'brightness(0) saturate(100%) invert(83%) sepia(29%) saturate(727%) hue-rotate(241deg) brightness(101%) contrast(98%)';
 
 const suppliedDieClassName = 'object-contain opacity-95';
 const d100ChildClassName = 'h-full aspect-square min-h-0 min-w-0 shrink-0';
@@ -276,8 +273,8 @@ export function DiceTypeIcon({
         data-die-source="user-svg"
         className={`${className ?? ''} inline-flex !w-auto items-center justify-center gap-[3px] overflow-visible`}
       >
-        <img src={diceD10} alt="" aria-hidden="true" draggable={false} className={`${d100ChildClassName} ${suppliedDieClassName}`} />
-        <img src={diceD10Zero} alt="" aria-hidden="true" draggable={false} className={`${d100ChildClassName} ${suppliedDieClassName}`} />
+        <img src={diceD10} alt="" aria-hidden="true" draggable={false} className={`${d100ChildClassName} ${suppliedDieClassName}`} style={{ filter: DEFAULT_D100_FILTER }} />
+        <img src={diceD10Zero} alt="" aria-hidden="true" draggable={false} className={`${d100ChildClassName} ${suppliedDieClassName}`} style={{ filter: DEFAULT_D100_FILTER }} />
       </span>
     );
   }
