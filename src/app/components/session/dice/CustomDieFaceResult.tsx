@@ -34,7 +34,7 @@ export function CustomDieFaceResult({
       <span data-custom-die-face-result data-custom-die-face-surface data-dice-skin={skinId} className={surfaceClass} style={surfaceStyle}>
         <NoteIconGlyph
           name={face.visual.iconName}
-          className="h-[78%] w-[78%]"
+          className="h-[78%] w-[78%] drop-shadow-[0_0_2px_rgba(255,255,255,0.65)]"
           stroke={symbolColor || 'currentColor'}
           style={{ color: symbolColor }}
         />
@@ -52,7 +52,11 @@ export function CustomDieFaceResult({
         className={surfaceClass}
         style={{ ...surfaceStyle, color: symbolColor }}
       >
-        <CustomDieTextFace text={face.visual.text} color={symbolColor} />
+        <CustomDieTextFace
+          text={face.visual.text}
+          color={symbolColor}
+          className="h-full w-full drop-shadow-[0_0_2px_rgba(255,255,255,0.65)]"
+        />
       </span>
     );
   }

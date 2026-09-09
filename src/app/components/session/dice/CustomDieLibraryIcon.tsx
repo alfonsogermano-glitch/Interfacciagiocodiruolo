@@ -52,9 +52,9 @@ export function CustomDieLibraryIcon({
       <DiceSkinSurface appearance={appearance} className="flex h-full w-full items-center justify-center">
         <span className="relative z-10 flex h-full w-full items-center justify-center">
           {face.visual.kind === 'icon'
-            ? <NoteIconGlyph name={face.visual.iconName} className={faceIconClass} />
+            ? <NoteIconGlyph name={face.visual.iconName} className={`${faceIconClass} drop-shadow-[0_0_2px_rgba(255,255,255,0.65)]`} />
             : face.visual.kind === 'text'
-              ? <CustomDieTextFace text={face.visual.text} color={die.symbolColor} />
+              ? <CustomDieTextFace text={face.visual.text} color={die.symbolColor} className="h-full w-full drop-shadow-[0_0_2px_rgba(255,255,255,0.65)]" />
               : <img draggable={false} data-custom-die-image-untinted src={face.visual.publicUrl} className={`${compact ? 'p-0.5' : 'p-1'} h-full w-full object-contain drop-shadow-[0_0_2px_rgba(255,255,255,0.65)]`} />}
         </span>
       </DiceSkinSurface>

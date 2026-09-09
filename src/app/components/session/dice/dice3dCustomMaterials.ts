@@ -117,13 +117,13 @@ export function buildCustomIconSvgDataUrl(iconName: string, color: string): stri
     }).join(' ');
     return `<${tag} ${serialized}/>`;
   }).join('');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" fill="none" stroke="${escapeXml(color)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" fill="none" stroke="${escapeXml(color)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">${body}</g><g>${body}</g></svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
 export function buildCustomTextSvgDataUrl(text: string, color: string): string {
   const layout = layoutCustomDieFaceText(text);
-  const body = layout.lines.map((line, index) => `<text x="50" y="${layout.lineYs[index]}" text-anchor="middle" dominant-baseline="central" font-size="${layout.fontSize}" font-weight="700" font-family="Arial, Helvetica, sans-serif" fill="${escapeXml(color)}">${escapeXml(line)}</text>`).join('');
+  const body = layout.lines.map((line, index) => `<text x="50" y="${layout.lineYs[index]}" text-anchor="middle" dominant-baseline="central" font-size="${layout.fontSize}" font-weight="700" font-family="Arial, Helvetica, sans-serif" fill="${escapeXml(color)}" stroke="rgba(255,255,255,0.8)" stroke-width="6" stroke-linejoin="round" paint-order="stroke">${escapeXml(line)}</text>`).join('');
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">${body}</svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
@@ -228,10 +228,14 @@ function drawCustomD4TextLabels(
 
       const fontPx = fontPt * (4 / 3);
       const lineOffset = singleLine ? 0 : fontPx * D4_CUSTOM_DOUBLE_LINE_GAP;
+      context.strokeStyle = 'rgba(255,255,255,0.8)';
+      context.lineJoin = 'round';
+      context.lineWidth = Math.max(2, fontPx * 0.16);
       layout.lines.forEach((line, lineIndex) => {
         const textY = singleLine
           ? textCenterY
           : textCenterY + (lineIndex === 0 ? -lineOffset : lineOffset);
+        context.strokeText(line, textX, textY);
         context.fillText(line, textX, textY);
       });
     }
@@ -277,6 +281,11 @@ export async function normalizeCustomFaceImage(
   const drawY = (CUSTOM_FACE_TEXTURE_SIZE - drawHeight) / 2;
 
   context.clearRect(0, 0, CUSTOM_FACE_TEXTURE_SIZE, CUSTOM_FACE_TEXTURE_SIZE);
+  context.save();
+  context.shadowColor = 'rgba(255,255,255,0.8)';
+  context.shadowBlur = Math.max(2, CUSTOM_FACE_TEXTURE_SIZE * 0.028);
+  context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+  context.restore();
   context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
   return loadImage(canvas.toDataURL('image/png'));
 }
