@@ -1,6 +1,6 @@
 import { Mark, mergeAttributes } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
-import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import { ICON_DATA, DEFAULT_ICON_NAME } from './tiptapIconData';
 
 declare module '@tiptap/core' {
@@ -137,6 +137,49 @@ export const InlineIcon = Mark.create({
   // visivamente pur essendo presente nel documento.
   addProseMirrorPlugins() {
     const markName = this.name;
+
+    // Unico ritocco di selezione dell'intera architettura, e solo per il
+    // caso d'angolo residue del browser: quando l'icona e' l'ULTIMO
+    // carattere del blocco, un click a destra dell'icona viene mappato da
+    // Chromium tra lo span del widget e il carattere ZWSP a larghezza zero;
+    // ProseMirror risolve quel punto DOM come posizione PRIMA del widget
+    // (sinistra dell'icona) mentre le frecce raggiungono correttamente P+1.
+    // Si interviene sul mousedown e non sul click: lasciando fare il giro
+    // normale il caret farebbe "destra (nativo) -> sinistra (mapping PM) ->
+    // destra (nostro aggiustamento)" con un flicker visibile. Qui il
+    // mousedown viene intercettato PRIMA che il browser piazzi il caret
+    // nativo, il default viene evitato e si dispatcha direttamente P+1.
+    // handleClick resta come rete di sicurezza per i percorsi che non
+    // passano dal nostro mousedown (es. click a selezione gia' presente,
+    // touch): stessi controlli, stesso risultato, e senza doppio dispatch
+    // quando la selezione e' gia' al posto giusto. Le guardie sono
+    // volutamente strette: solo click sinistro, solo su un'icona, solo se
+    // e' l'ultimo carattere del paragrafo e solo se il punto del click e'
+    // davvero a destra dell'icona. Rischia di bloccare solo il drag di
+    // selezione che parte da quel punto minuscolo dopo l'icona di fine riga
+    // - contestualmente al rimbalzo, il comportamento meno rilevante.
+    const nudgeToRightOfTrailingIcon = (view: EditorView, pos: number, event: MouseEvent): boolean => {
+      if (event.defaultPrevented || !view.editable) return false;
+      if (event.button !== 0) return false;
+      if (!view.state.selection.empty) return false;
+      if (!(event.target instanceof Element)) return false;
+      if (event.target.closest('.tiptap-inline-icon-widget')) return false;
+      const markType = view.state.schema.marks.inlineIcon;
+      if (!markType || view.state.doc.textBetween(pos, pos + 1) !== ZWSP) return false;
+      let hasIconMark = false;
+      view.state.doc.nodesBetween(pos, pos + 1, (node) => {
+        if (node.isText && node.text === ZWSP) hasIconMark = node.marks.some((mark) => mark.type === markType);
+      });
+      if (!hasIconMark) return false;
+      const $pos = view.state.doc.resolve(pos);
+      if (!$pos.parent.isTextblock) return false;
+      if ($pos.parentOffset + 1 !== $pos.parent.content.size) return false;
+      if (event.clientX < view.coordsAtPos(pos + 1).left) return false;
+      if (view.state.selection.from === pos + 1) return true;
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos + 1)));
+      return true;
+    };
+
     return [
       new Plugin({
         key: new PluginKey('inlineIconWidget'),
@@ -157,34 +200,27 @@ export const InlineIcon = Mark.create({
             });
             return DecorationSet.create(state.doc, decorations);
           },
-          // Unico ritocco di selezione dell'intera architettura, e solo per il
-          // caso d'angolo residue del browser: quando l'icona e' l'ULTIMO
-          // carattere del blocco, un click a destra dell'icona viene mappato
-          // da Chromium tra lo span del widget e il carattere ZWSP a larghezza zero; ProseMirror risolve quel punto DOM come posizione
-          // PRIMA del widget (sinistra dell'icona) e il caret rimbalza a
-          // sinistra nonostante il click fosse a destra. Le frecce invece
-          // funzionano e qui replicano esattamente la stessa posizione P+1.
-          // Guardie volutamente strette: solo click (non drag/doppio click),
-          // solo su un'icona, solo se e' l'ultimo carattere del paragrafo e
-          // solo se il punto del click e' a destra dell'icona.
+          // handleDOMEvents.mousedown educa il caret PRIMA del rendering
+          // nativo (vedi commento sopra il helper nudgeToRightOfTrailingIcon)
+          // e handleClick e' solo la rete di sicurezza per i percorsi che non
+          // passano dal nostro mousedown.
+          handleDOMEvents: {
+            mousedown(view, event) {
+              if (!view.editable || event.button !== 0) return false;
+              if (!(event.target instanceof Element)) return false;
+              if (event.target.closest('.tiptap-inline-icon-widget')) return false;
+              const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
+              if (!coords) return false;
+              if (nudgeToRightOfTrailingIcon(view, coords.pos, event)) {
+                event.preventDefault();
+                view.focus();
+                return true;
+              }
+              return false;
+            },
+          },
           handleClick(view, pos, event) {
-            if (event.defaultPrevented || !view.editable) return false;
-            if (!view.state.selection.empty) return false;
-            if (!(event.target instanceof Element)) return false;
-            if (event.target.closest('.tiptap-inline-icon-widget')) return false;
-            const markType = view.state.schema.marks.inlineIcon;
-            if (!markType || view.state.doc.textBetween(pos, pos + 1) !== ZWSP) return false;
-            let hasIconMark = false;
-            view.state.doc.nodesBetween(pos, pos + 1, (node) => {
-              if (node.isText && node.text === ZWSP) hasIconMark = node.marks.some((mark) => mark.type === markType);
-            });
-            if (!hasIconMark) return false;
-            const $pos = view.state.doc.resolve(pos);
-            if (!$pos.parent.isTextblock) return false;
-            if ($pos.parentOffset + 1 !== $pos.parent.content.size) return false;
-            if (event.clientX < view.coordsAtPos(pos + 1).left) return false;
-            view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos + 1)));
-            return true;
+            return nudgeToRightOfTrailingIcon(view, pos, event);
           },
         },
       }),

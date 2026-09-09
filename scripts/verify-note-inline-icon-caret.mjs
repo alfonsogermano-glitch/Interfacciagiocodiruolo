@@ -20,8 +20,18 @@ assert.match(
 );
 assert.match(
   source,
-  /handleClick[\s\S]*TextSelection\.create[\s\S]*pos \+ 1/,
+  /nudgeToRightOfTrailingIcon[\s\S]*TextSelection\.create[\s\S]*pos \+ 1/,
   'inline icon must keep the caret to the right of an icon that is the last character of its block when clicked to the right',
+);
+assert.match(
+  source,
+  /handleDOMEvents[\s\S]*mousedown\([\s\S]*event\.preventDefault\(\)/,
+  'inline icon must intercept the mousedown before the browser places a native caret, to avoid the native/PM flicker',
+);
+assert.match(
+  source,
+  /handleClick[\s\S]*nudgeToRightOfTrailingIcon/,
+  'inline icon click path must funnel through the same trailing-icon caret fix',
 );
 
 console.log('Inline icon leading-caret verification: PASS');
