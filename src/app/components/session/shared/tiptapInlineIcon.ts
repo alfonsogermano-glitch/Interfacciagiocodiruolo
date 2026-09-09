@@ -149,7 +149,10 @@ export const InlineIcon = Mark.create({
               if (!mark) return;
               const iconName = mark.attrs.name as string;
               for (let offset = 0; offset < node.nodeSize; offset++) {
-                decorations.push(Decoration.widget(pos + offset, () => buildIconWidget(iconName), { side: 0 }));
+                decorations.push(Decoration.widget(pos + offset, () => buildIconWidget(iconName), {
+                  side: 0,
+                  key: `icon:${pos + offset}:${iconName}`,
+                }));
               }
             });
             return DecorationSet.create(state.doc, decorations);
