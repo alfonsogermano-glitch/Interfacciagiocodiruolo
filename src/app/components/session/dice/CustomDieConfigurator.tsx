@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import { CustomDieTextFace } from './CustomDieTextFace';
 import { DiceSkinSurface } from './DiceSkinSurface';
 import { copyCustomDieFaceVisual, expectedCustomDieFaceCount, isCustomDieImageAssetUsed, normalizeCustomDieFaceTextInput, validateCustomDieDefinition } from './diceCustomDie.ts';
-import { toggleCustomDieLibraryIconFace } from './diceCustomDieLibraryIcon.ts';
+import { ensureCustomDieLibraryIconDefaults, toggleCustomDieLibraryIconFace } from './diceCustomDieLibraryIcon.ts';
 import { DICE_SKINS } from './diceSkins.ts';
 import { MAX_DICE_TEXTURE_SCALE, MIN_DICE_TEXTURE_SCALE, normalizeDiceTextureScale } from './diceTextureScale.ts';
 import { removeDiceFaceAsset, uploadDiceFaceAsset } from '../../../../services/supabase/diceFaceAssetService';
@@ -19,8 +19,8 @@ const SIDES: CustomDieSides[] = [4, 6, 8, 10, 12, 20, 100];
 function blankFaces(sides: CustomDieSides): CustomDieFace[] {
   if (sides === 100) {
     return [
-      ...Array.from({ length: 10 }, (_, i) => ({ index: i + 1, role: 'tens' as const, visual: { kind: 'icon' as const, iconName: 'Star' }, label: '', numericValue: null })),
-      ...Array.from({ length: 10 }, (_, i) => ({ index: i + 1, role: 'units' as const, visual: { kind: 'icon' as const, iconName: 'Star' }, label: '', numericValue: null })),
+      ...Array.from({ length: 10 }, (_, i) => ({ index: i + 1, role: 'tens' as const, visual: { kind: 'icon' as const, iconName: 'Star' }, label: '', numericValue: null, isLibraryIcon: i === 0 })),
+      ...Array.from({ length: 10 }, (_, i) => ({ index: i + 1, role: 'units' as const, visual: { kind: 'icon' as const, iconName: 'Star' }, label: '', numericValue: null, isLibraryIcon: i === 0 })),
     ];
   }
   return Array.from({ length: sides }, (_, i) => ({ index: i + 1, role: 'single' as const, visual: { kind: 'icon' as const, iconName: 'Star' }, label: '', numericValue: null }));
@@ -35,7 +35,7 @@ export function CustomDieConfigurator({ campaignId, ownerProfileId, initial, onS
   const [id] = useState(() => initial?.id ?? crypto.randomUUID());
   const [name, setName] = useState(initial?.name ?? 'Nuovo dado Custom');
   const [sides, setSides] = useState<CustomDieSides>(initial?.sides ?? 6);
-  const [faces, setFaces] = useState<CustomDieFace[]>(() => initial ? initial.faces.map((face) => ({ ...face, visual: { ...face.visual } })) : blankFaces(6));
+  const [faces, setFaces] = useState<CustomDieFace[]>(() => initial ? ensureCustomDieLibraryIconDefaults(initial.faces.map((face) => ({ ...face, visual: { ...face.visual } }))) : blankFaces(6));
   const facesRef = useRef(faces); facesRef.current = faces;
   const dragSourceFace = useRef<number | null>(null);
   const [dragTargetFace, setDragTargetFace] = useState<number | null>(null);

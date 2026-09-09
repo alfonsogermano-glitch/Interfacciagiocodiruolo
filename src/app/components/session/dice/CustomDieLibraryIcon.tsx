@@ -62,8 +62,10 @@ export function CustomDieLibraryIcon({
   };
 
   if (die.sides === 100) {
-    const tensFace = die.faces.find((candidate) => candidate.role === 'tens');
-    const unitsFace = die.faces.find((candidate) => candidate.role === 'units');
+    const tensFace = die.faces.find((candidate) => candidate.role === 'tens' && candidate.isLibraryIcon === true)
+      ?? die.faces.find((candidate) => candidate.role === 'tens');
+    const unitsFace = die.faces.find((candidate) => candidate.role === 'units' && candidate.isLibraryIcon === true)
+      ?? die.faces.find((candidate) => candidate.role === 'units');
     if (tensFace && unitsFace) {
       return (
         <span
