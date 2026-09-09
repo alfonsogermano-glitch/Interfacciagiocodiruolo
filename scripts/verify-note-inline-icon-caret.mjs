@@ -18,5 +18,10 @@ assert.match(
   /Decoration\.widget\([\s\S]*buildIconWidget\(iconName\)/,
   'inline icon decoration must render the caret-compatible wrapper widget',
 );
+assert.match(
+  source,
+  /handleClick[\s\S]*TextSelection\.create[\s\S]*pos \+ 1/,
+  'inline icon must keep the caret to the right of an icon that is the last character of its block when clicked to the right',
+);
 
 console.log('Inline icon leading-caret verification: PASS');

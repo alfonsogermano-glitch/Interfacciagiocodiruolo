@@ -1,5 +1,5 @@
 import { Mark, mergeAttributes } from '@tiptap/core';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { ICON_DATA, DEFAULT_ICON_NAME } from './tiptapIconData';
 
@@ -156,6 +156,35 @@ export const InlineIcon = Mark.create({
               }
             });
             return DecorationSet.create(state.doc, decorations);
+          },
+          // Unico ritocco di selezione dell'intera architettura, e solo per il
+          // caso d'angolo residue del browser: quando l'icona e' l'ULTIMO
+          // carattere del blocco, un click a destra dell'icona viene mappato
+          // da Chromium tra lo span del widget e il carattere ZWSP a larghezza zero; ProseMirror risolve quel punto DOM come posizione
+          // PRIMA del widget (sinistra dell'icona) e il caret rimbalza a
+          // sinistra nonostante il click fosse a destra. Le frecce invece
+          // funzionano e qui replicano esattamente la stessa posizione P+1.
+          // Guardie volutamente strette: solo click (non drag/doppio click),
+          // solo su un'icona, solo se e' l'ultimo carattere del paragrafo e
+          // solo se il punto del click e' a destra dell'icona.
+          handleClick(view, pos, event) {
+            if (event.defaultPrevented || !view.editable) return false;
+            if (!view.state.selection.empty) return false;
+            if (!(event.target instanceof Element)) return false;
+            if (event.target.closest('.tiptap-inline-icon-widget')) return false;
+            const markType = view.state.schema.marks.inlineIcon;
+            if (!markType || view.state.doc.textBetween(pos, pos + 1) !== ZWSP) return false;
+            let hasIconMark = false;
+            view.state.doc.nodesBetween(pos, pos + 1, (node) => {
+              if (node.isText && node.text === ZWSP) hasIconMark = node.marks.some((mark) => mark.type === markType);
+            });
+            if (!hasIconMark) return false;
+            const $pos = view.state.doc.resolve(pos);
+            if (!$pos.parent.isTextblock) return false;
+            if ($pos.parentOffset + 1 !== $pos.parent.content.size) return false;
+            if (event.clientX < view.coordsAtPos(pos + 1).left) return false;
+            view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos + 1)));
+            return true;
           },
         },
       }),
