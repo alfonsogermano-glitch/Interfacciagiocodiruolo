@@ -249,6 +249,36 @@ function drawCustomD4TextLabels(
   if (material.composite) material.composite.needsUpdate = true;
 }
 
+function isCustomPreparedFaceImage(value: unknown): value is HTMLImageElement {
+  return value instanceof HTMLImageElement
+    && (value as unknown as { hollowgateCustomLabel?: boolean }).hollowgateCustomLabel === true;
+}
+
+const paintedLabelGlows = new WeakMap<object, Set<string>>();
+
+function paintCustomFaceLabelGlow(
+  context: CanvasRenderingContext2D,
+  label: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): void {
+  let painted = paintedLabelGlows.get(context.canvas);
+  if (!painted) {
+    painted = new Set();
+    paintedLabelGlows.set(context.canvas, painted);
+  }
+  if (painted.has(label.src)) return;
+  painted.add(label.src);
+  context.save();
+  context.shadowColor = 'rgba(255,255,255,0.95)';
+  context.shadowBlur = Math.max(2, context.canvas.width * 0.025);
+  context.drawImage(label, x, y, width, height);
+  context.restore();
+  context.drawImage(label, x, y, width, height);
+}
+
 function loadImage(source: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -308,7 +338,8 @@ async function faceLabel(
   const contentRatio = face.visual.kind === 'text'
     ? CUSTOM_FACE_TEXT_CONTENT_RATIO
     : (physicalSides === 4 ? CUSTOM_FACE_D4_CONTENT_RATIO : CUSTOM_FACE_STANDARD_CONTENT_RATIO);
-  return normalizeCustomFaceImage(source, contentRatio);
+  const label = await normalizeCustomFaceImage(source, contentRatio);
+  return Object.assign(label, { hollowgateCustomLabel: true });
 }
 
 function facesForRole(snapshot: CustomDieRollSnapshot, role: CustomDiePhysicalRole): CustomDieFace[] {
@@ -443,7 +474,10 @@ export async function installCustomDiceMaterialAdapter(
       const current = diceobj.shape === 'd4' && Array.isArray(labels[index])
         ? labels[index] as unknown[]
         : null;
-      if (!current?.some(isCustomD4TextLabel)) {
+      const customLabel = !current && isCustomPreparedFaceImage(labels[index])
+        ? labels[index] as HTMLImageElement
+        : null;
+      if (!current?.some(isCustomD4TextLabel) && !customLabel) {
         return originalCreateTextMaterial.call(
           typedFactory,
           diceobj,
@@ -457,6 +491,33 @@ export async function installCustomDiceMaterialAdapter(
           backcolor,
           allowcache,
         );
+      }
+
+      // Dice-box stretches a plain HTMLImageElement label over the whole face
+      // canvas and loses the soft white halo half-tones on dark skins. Repaint
+      // the face content directly on the composite canvas (the same strategy
+      // that keeps d4 text visible) so the contrast halo survives everywhere.
+      if (customLabel) {
+        const material = originalCreateTextMaterial.call(
+          typedFactory,
+          diceobj,
+          labels,
+          index,
+          size,
+          margin,
+          texture,
+          forecolor,
+          outlinecolor,
+          backcolor,
+          allowcache,
+        );
+        const canvas = material?.composite?.image;
+        if (canvas) {
+          const context = canvas.getContext('2d');
+          if (context) paintCustomFaceLabelGlow(context, customLabel, 0, 0, canvas.width, canvas.height);
+          material.composite.needsUpdate = true;
+        }
+        return material;
       }
 
       const sanitizedLabels = labels.slice();
@@ -479,6 +540,26 @@ export async function installCustomDiceMaterialAdapter(
         current,
         forecolor ?? typedFactory.label_color_rand ?? '#ffffff',
       );
+      const canvas = material?.composite?.image;
+      if (canvas) {
+        const context = canvas.getContext('2d');
+        if (context) {
+          const centerX = canvas.width / 2;
+          const centerY = canvas.height / 2;
+          context.save();
+          for (const label of current) {
+            if (isCustomPreparedFaceImage(label)) {
+              const scale = label.width / canvas.width;
+              paintCustomFaceLabelGlow(context, label, 100 / scale, 25 / scale, 60 / scale, 60 / scale);
+            }
+            context.translate(centerX, centerY);
+            context.rotate(Math.PI * 2 / 3);
+            context.translate(-centerX, -centerY);
+          }
+          context.restore();
+        }
+        material.composite.needsUpdate = true;
+      }
       return material;
     };
   }
