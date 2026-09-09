@@ -93,9 +93,18 @@ assert.equal(obsidianMesh.material[0], obsidianEdge, 'Obsidian must preserve its
 assert.equal(obsidianMesh.material[1], obsidianFace, 'Obsidian must keep its scene-lit photographic face material');
 assert.equal(obsidianMesh.material[1].map, obsidianTexture, 'Obsidian must preserve the photographic map');
 
+const customEdge = new THREE.MeshPhongMaterial({ color: '#c63d35' });
 const customFace = new THREE.MeshPhongMaterial({ map: texture });
-const customMesh = { material: [fireEdge, customFace] };
+const customMesh = { material: [customEdge, customFace] };
 applyDice3DSurfaceProfile(customMesh, { appearance: appearance('ice'), custom: true });
-assert.equal(customMesh.material[1], customFace, 'Custom dice must remain outside standard-skin profiles');
+assert.equal(customMesh.material[0], customEdge, 'Custom dice must preserve their edge material');
+assert.ok(customMesh.material[1] instanceof THREE.MeshBasicMaterial, 'Custom mapped faces must use a genuinely unlit material');
+assert.equal(customMesh.material[1].map, texture, 'Custom faces must preserve the uploaded image map');
+assert.equal(customMesh.material[1].toneMapped, false, 'Custom faces must bypass tone mapping so dark images stay visible');
 
-console.log('Shared 3D surface profiles preserve Ice/Lightning/Poison photography, Fire/Stone/Metal/Obsidian lighting, edges, and Custom materials.');
+const customUnmappedFace = new THREE.MeshPhongMaterial({ color: '#ffffff' });
+const customUnmappedMesh = { material: [customEdge, customUnmappedFace] };
+applyDice3DSurfaceProfile(customUnmappedMesh, { appearance: appearance('ice'), custom: true });
+assert.equal(customUnmappedMesh.material[1], customUnmappedFace, 'Custom unmapped materials must remain unaffected');
+
+console.log('Shared 3D surface profiles preserve Ice/Lightning/Poison photography, Fire/Stone/Metal/Obsidian lighting, edges, and unlit Custom mapped faces for dark-image contrast.');

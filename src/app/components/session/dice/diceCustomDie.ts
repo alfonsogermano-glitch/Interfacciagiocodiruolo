@@ -8,6 +8,7 @@ import type {
   ResolvedDiceFormulaItem,
   SavedCustomDie,
 } from './diceTypes.ts';
+import { normalizeDiceTextureScale } from './diceTextureScale.ts';
 
 export const CUSTOM_DIE_SIDES = [4, 6, 8, 10, 12, 20, 100] as const;
 
@@ -194,6 +195,7 @@ export function toCustomDieRollSnapshot(die: SavedCustomDie): CustomDieRollSnaps
     symbolColor: die.symbolColor,
     skinId: die.skinId ?? 'none',
     effectsEnabled: die.effectsEnabled ?? false,
+    textureScale: normalizeDiceTextureScale(die.textureScale),
     iconName: die.iconName ?? null,
     updatedAt: die.updatedAt,
   };

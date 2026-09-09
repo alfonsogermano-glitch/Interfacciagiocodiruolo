@@ -1,5 +1,6 @@
 import { supabase } from '../../app/auth/AuthContext';
 import { validateCustomDieDefinition } from '../../app/components/session/dice/diceCustomDie.ts';
+import { normalizeDiceTextureScale } from '../../app/components/session/dice/diceTextureScale.ts';
 import type { CustomDieFace, CustomDieSides, DiceSkinId, SavedCustomDie } from '../../app/components/session/dice/diceTypes.ts';
 
 interface CustomDieRow {
@@ -13,6 +14,7 @@ interface CustomDieRow {
   symbol_color: string;
   skin_id?: DiceSkinId | null;
   effects_enabled?: boolean | null;
+  texture_scale?: number | null;
   icon_name: string | null;
   folder_id: string | null;
   sort_order: number;
@@ -32,6 +34,7 @@ function mapRow(row: CustomDieRow): SavedCustomDie {
     symbolColor: row.symbol_color,
     skinId: row.skin_id ?? 'none',
     effectsEnabled: row.effects_enabled ?? false,
+    textureScale: normalizeDiceTextureScale(row.texture_scale),
     iconName: row.icon_name,
     folderId: row.folder_id,
     sortOrder: row.sort_order,
@@ -64,6 +67,7 @@ export async function createCustomDie(input: {
   symbolColor?: string;
   skinId?: DiceSkinId;
   effectsEnabled?: boolean;
+  textureScale?: number;
   iconName?: string | null;
   folderId?: string | null;
 }): Promise<SavedCustomDie> {
@@ -79,6 +83,7 @@ export async function createCustomDie(input: {
     symbol_color: input.symbolColor ?? '#ffffff',
     skin_id: input.skinId ?? 'none',
     effects_enabled: input.effectsEnabled ?? false,
+    texture_scale: normalizeDiceTextureScale(input.textureScale),
     icon_name: input.iconName ?? null,
     folder_id: input.folderId ?? null,
     sort_order: -1,
@@ -89,7 +94,7 @@ export async function createCustomDie(input: {
 
 export async function updateCustomDie(
   id: string,
-  patch: Partial<Pick<SavedCustomDie, 'name' | 'sides' | 'faces' | 'bodyColor' | 'symbolColor' | 'skinId' | 'effectsEnabled' | 'iconName'>>,
+  patch: Partial<Pick<SavedCustomDie, 'name' | 'sides' | 'faces' | 'bodyColor' | 'symbolColor' | 'skinId' | 'effectsEnabled' | 'textureScale' | 'iconName'>>,
 ): Promise<SavedCustomDie> {
   if (patch.name !== undefined && !patch.name.trim()) throw new Error('Il nome del dado custom non può essere vuoto.');
   const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -100,6 +105,7 @@ export async function updateCustomDie(
   if (patch.symbolColor !== undefined) payload.symbol_color = patch.symbolColor;
   if (patch.skinId !== undefined) payload.skin_id = patch.skinId;
   if (patch.effectsEnabled !== undefined) payload.effects_enabled = patch.effectsEnabled;
+  if (patch.textureScale !== undefined) payload.texture_scale = normalizeDiceTextureScale(patch.textureScale);
   if (patch.iconName !== undefined) payload.icon_name = patch.iconName;
   const { data, error } = await supabase.from('dice_custom_dice').update(payload).eq('id', id).select('*').single();
   if (error) throw new Error(`Errore aggiornamento dado custom: ${error.message}`);
@@ -124,6 +130,7 @@ export async function duplicateCustomDie(die: SavedCustomDie, name: string): Pro
     symbolColor: die.symbolColor,
     skinId: die.skinId ?? 'none',
     effectsEnabled: die.effectsEnabled ?? false,
+    textureScale: normalizeDiceTextureScale(die.textureScale),
     iconName: die.iconName ?? null,
     folderId: die.folderId,
   });

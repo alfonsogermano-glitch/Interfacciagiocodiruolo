@@ -50,6 +50,7 @@ export interface SavedCustomDie {
   symbolColor: string;
   skinId?: DiceSkinId;
   effectsEnabled?: boolean;
+  textureScale?: number;
   iconName?: string | null;
   folderId: string | null;
   sortOrder: number;
@@ -66,6 +67,7 @@ export interface CustomDieRollSnapshot {
   symbolColor: string;
   skinId?: DiceSkinId;
   effectsEnabled?: boolean;
+  textureScale?: number;
   iconName?: string | null;
   updatedAt?: string;
 }

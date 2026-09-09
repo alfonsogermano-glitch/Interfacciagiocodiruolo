@@ -4,6 +4,7 @@ import type {
   DiceAppearance,
   RollResult,
 } from './diceTypes.ts';
+import { normalizeDiceTextureScale } from './diceTextureScale.ts';
 
 export const DICE_3D_SUPPORTED_SIDES = [4, 6, 8, 10, 12, 20, 100] as const;
 export type Dice3DSupportedSides = (typeof DICE_3D_SUPPORTED_SIDES)[number];
@@ -52,6 +53,7 @@ function customAppearance(snapshot: CustomDieRollSnapshot): Dice3DAppearanceDesc
       symbolColor: snapshot.symbolColor,
       skinId: snapshot.skinId ?? 'none',
       effectsEnabled: snapshot.effectsEnabled ?? false,
+      textureScale: normalizeDiceTextureScale(snapshot.textureScale),
     },
     custom: true,
     preserveFaceColors: true,

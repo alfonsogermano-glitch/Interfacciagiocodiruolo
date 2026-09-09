@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { NoteIconGlyph } from '../shared/NoteIconGrid';
 import { CustomDieTextFace } from './CustomDieTextFace';
 import { getDiceSkinBackgroundImage } from './diceSkins.ts';
+import { getDiceTextureBackgroundSize } from './diceTextureScale.ts';
 import type { CustomDieFace, DiceSkinId } from './diceTypes.ts';
 
 export function CustomDieFaceResult({
@@ -10,19 +11,21 @@ export function CustomDieFaceResult({
   symbolColor,
   bodyColor,
   skinId = 'none',
+  textureScale,
 }: {
   face: CustomDieFace;
   className?: string;
   symbolColor?: string;
   bodyColor?: string;
   skinId?: DiceSkinId;
+  textureScale?: number;
 }) {
   const [broken, setBroken] = useState(false);
   const surfaceClass = `${className} inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[3px]`;
   const surfaceStyle = {
     backgroundColor: bodyColor,
     backgroundImage: bodyColor ? getDiceSkinBackgroundImage(skinId, bodyColor) : undefined,
-    backgroundSize: 'cover',
+    backgroundSize: getDiceTextureBackgroundSize(textureScale),
     backgroundPosition: 'center',
   };
 
@@ -63,7 +66,7 @@ export function CustomDieFaceResult({
           src={face.visual.publicUrl}
           alt={face.label ?? ''}
           onError={() => setBroken(true)}
-          className="h-full w-full object-contain p-px"
+          className="h-full w-full object-contain p-px drop-shadow-[0_0_2px_rgba(255,255,255,0.65)]"
         />
       </span>
     );

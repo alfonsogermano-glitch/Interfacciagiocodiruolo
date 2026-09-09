@@ -127,6 +127,7 @@ export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; 
                             symbolColor={die.customFace.symbolColor ?? group.customDieSnapshot?.symbolColor}
                             bodyColor={group.customDieSnapshot?.bodyColor}
                             skinId={group.customDieSnapshot?.skinId ?? 'none'}
+                            textureScale={group.customDieSnapshot?.textureScale}
                           />
                           {die.customFace.label && <span>{die.customFace.label}</span>}
                           {die.customFace.numericValue !== null && <span className="text-[10px]">({die.customFace.numericValue})</span>}

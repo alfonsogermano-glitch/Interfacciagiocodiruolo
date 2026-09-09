@@ -12,6 +12,10 @@ function isNullableFinite(value: unknown) {
   return value === null || (typeof value === 'number' && Number.isFinite(value));
 }
 
+function isTextureScale(value: unknown) {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 100 && value <= 200;
+}
+
 function isDiceAppearance(value: unknown) {
   if (!isRecord(value)) return false;
   return typeof value.bodyColor === 'string'
@@ -19,7 +23,8 @@ function isDiceAppearance(value: unknown) {
     && typeof value.symbolColor === 'string'
     && value.symbolColor.length > 0
     && isDiceSkinId(value.skinId)
-    && typeof value.effectsEnabled === 'boolean';
+    && typeof value.effectsEnabled === 'boolean'
+    && (value.textureScale === undefined || isTextureScale(value.textureScale));
 }
 
 function isCustomFace(value: unknown) {
@@ -46,6 +51,7 @@ function isCustomDieSnapshot(value: unknown) {
   if (typeof value.bodyColor !== 'string' || typeof value.symbolColor !== 'string') return false;
   if (value.skinId !== undefined && !isDiceSkinId(value.skinId)) return false;
   if (value.effectsEnabled !== undefined && typeof value.effectsEnabled !== 'boolean') return false;
+  if (value.textureScale !== undefined && !isTextureScale(value.textureScale)) return false;
   return true;
 }
 

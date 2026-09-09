@@ -41,7 +41,8 @@ assert.ok(/draggable=\{false\}[^>]*data-custom-die-image-preview/.test(custom),'
 assert.ok(/!isCustomDieImageAssetUsed\(next,\s*previous\.assetPath\)/.test(custom),'shared uploaded images must only be removed when no face still references them');
 assert.ok(custom.includes("initial?.skinId ?? 'none'") && custom.includes('initial?.effectsEnabled ?? false'), 'legacy Custom dice must default to no skin/effects');
 assert.ok(custom.includes('DICE_SKINS.map'), 'Custom configurator must use the same nine-skin catalog');
-assert.ok(/onSave\(\{\s*id,[\s\S]{0,180}skinId,\s*effectsEnabled\s*\}\)/.test(custom), 'Custom save draft must include skin and effects');
+assert.ok(/onSave\(\{\s*id,[\s\S]{0,220}skinId,\s*effectsEnabled/.test(custom), 'Custom save draft must include skin and effects');
+assert.ok(/effectsEnabled,\s*textureScale\s*\}\)/.test(custom), 'Custom save draft must include the texture zoom');
 assert.ok(customDie.includes('export function copyCustomDieFaceVisual'),'custom die visual copying must be isolated in a reusable helper');
 assert.ok(/visual:\s*\{\s*\.\.\.source\.visual\s*\}/.test(customDie),'copying a visual must preserve target face metadata');
 console.log('Dice UI verification passed.');

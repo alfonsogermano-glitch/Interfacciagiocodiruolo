@@ -3,6 +3,7 @@ import { NoteIconGlyph } from '../shared/NoteIconGrid';
 import { CustomDieTextFace } from './CustomDieTextFace';
 import { getCustomDieLibraryIconFace } from './diceCustomDieLibraryIcon.ts';
 import { getDiceSkinBackgroundImage } from './diceSkins.ts';
+import { getDiceTextureBackgroundSize } from './diceTextureScale.ts';
 import type { SavedCustomDie } from './diceTypes.ts';
 
 export function CustomDieLibraryIcon({
@@ -22,7 +23,7 @@ export function CustomDieLibraryIcon({
     color: die.symbolColor,
     backgroundColor: die.bodyColor,
     backgroundImage: getDiceSkinBackgroundImage(skinId, die.bodyColor),
-    backgroundSize: 'cover',
+    backgroundSize: getDiceTextureBackgroundSize(die.textureScale),
     backgroundPosition: 'center',
   };
 
@@ -51,7 +52,7 @@ export function CustomDieLibraryIcon({
         ? <NoteIconGlyph name={face.visual.iconName} className={faceIconClass} />
         : face.visual.kind === 'text'
           ? <CustomDieTextFace text={face.visual.text} color={die.symbolColor} />
-          : <img draggable={false} data-custom-die-image-untinted src={face.visual.publicUrl} className={compact ? 'h-full w-full object-contain p-0.5' : 'h-full w-full object-contain p-1'} />}
+          : <img draggable={false} data-custom-die-image-untinted src={face.visual.publicUrl} className={`${compact ? 'p-0.5' : 'p-1'} h-full w-full object-contain drop-shadow-[0_0_2px_rgba(255,255,255,0.65)]`} />}
     </span>
   );
 }

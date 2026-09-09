@@ -120,9 +120,17 @@ export function applyDice3DSurfaceProfile(
   mesh: unknown,
   descriptor: Dice3DAppearanceDescriptor,
 ): void {
-  if (!mesh || typeof mesh !== 'object' || descriptor.custom) return;
+  if (!mesh || typeof mesh !== 'object') return;
 
   const typedMesh = mesh as MeshWithMaterials;
+  if (descriptor.custom) {
+    if (!Array.isArray(typedMesh.material)) return;
+    typedMesh.material = typedMesh.material.map((material, index) => (
+      index === 0 || !material?.map ? material : createUnlitFaceMaterial(material)
+    ));
+    return;
+  }
+
   if (descriptor.appearance.skinId === 'obsidian') applyObsidianLabelEmission(typedMesh, descriptor);
   if (getDice3DSurfaceProfile(descriptor.appearance.skinId) !== 'photo-unlit') return;
 
