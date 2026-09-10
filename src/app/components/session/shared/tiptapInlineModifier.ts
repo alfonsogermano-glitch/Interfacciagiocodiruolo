@@ -243,6 +243,28 @@ function performMeasurement() {
   }
 }
 
+function getModifierWidgetAt(pos: number): HTMLElement | null {
+  for (const [element, entry] of widgetEntries) {
+    if (!element.isConnected) continue;
+    if (entry.getPos() === pos) return element;
+  }
+  return null;
+}
+
+function isWrappedBeforeModifier(view: EditorView, pos: number): boolean {
+  if (pos <= 0 || !getInlineModifierMark(view.state, pos)) return false;
+  const widget = getModifierWidgetAt(pos);
+  if (!widget) return false;
+
+  try {
+    const before = view.coordsAtPos(pos - 1);
+    const widgetTop = widget.getBoundingClientRect().top;
+    return widgetTop - before.top > 6;
+  } catch {
+    return false;
+  }
+}
+
 function buildModifierWidget(
   view: EditorView,
   getPos: () => number | undefined,
@@ -542,6 +564,18 @@ export const InlineModifier = Mark.create({
               }
               return false;
             },
+          },
+          handleTextInput(view, from, to, text) {
+            if (!view.editable || text === '/' || from !== to || !view.state.selection.empty) return false;
+            if (!isWrappedBeforeModifier(view, from)) return false;
+            const hardBreak = view.state.schema.nodes.hardBreak;
+            if (!hardBreak) return false;
+
+            const tr = view.state.tr.insert(from, hardBreak.create());
+            tr.insertText(text, from + 1);
+            tr.setSelection(TextSelection.create(tr.doc, from + 1 + text.length));
+            view.dispatch(tr.scrollIntoView());
+            return true;
           },
           handleClick(view, pos, event) {
             return nudgeToRightOfTrailingModifier(view, pos, event);
