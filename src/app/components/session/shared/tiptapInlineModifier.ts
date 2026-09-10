@@ -160,68 +160,15 @@ export async function copyModifierToClipboard(state: EditorState, pos: number): 
   return true;
 }
 
-// ---------------------------------------------------------------------------
-// Misurazione della larghezza "a fine riga".
-//
-// Il Modificatore deve occupare l'area della riga ancora disponibile: da solo
-// tutta la riga, dopo del testo dalla fine del testo a fine riga. Un widget
-// inline puro non può sapere quanto spazio resta: qui lo misuriamo in JS.
-// Ogni widget registra una funzione apply(); quando il DOM dell'editor muta
-// (nuovo Modificatore inserito, testo che si allarga, finestra ridimensionata)
-// tutte le apply vengono rieseguite in un requestAnimationFrame. La misura di
-// ogni box arriva fino all'inizio del prossimo Modificatore sulla stessa riga
-// (così più Modificatori sulla stessa riga non si sovrappongono) oppure al
-// bordo destro della riga se è l'ultimo.
-// ---------------------------------------------------------------------------
+function stretchWidgetToLineEnd(_view: EditorView, element: HTMLElement): () => void {
+  const blockParent = element.closest('.ProseMirror > *') as HTMLElement | null;
 
-interface ModifierMeasureEntry {
-  fns: Set<() => void>;
-  raf: number;
-  observer: MutationObserver | null;
-}
-
-const modifierMeasureViews = new WeakMap<EditorView, ModifierMeasureEntry>();
-
-function scheduleMeasure(view: EditorView): void {
-  const entry = modifierMeasureViews.get(view);
-  if (!entry || entry.raf) return;
-  entry.raf = window.requestAnimationFrame(() => {
-    entry.raf = 0;
-    for (const fn of Array.from(entry.fns)) fn();
-  });
-}
-
-function registerModifierMeasure(view: EditorView, fn: () => void): () => void {
-  let entry = modifierMeasureViews.get(view);
-  if (!entry) {
-    entry = { fns: new Set(), raf: 0, observer: null };
-    if (typeof MutationObserver !== 'undefined') {
-      entry.observer = new MutationObserver(() => scheduleMeasure(view));
-      entry.observer.observe(view.dom, { childList: true, subtree: true, characterData: false });
-    }
-    modifierMeasureViews.set(view, entry);
-  }
-  entry.fns.add(fn);
-  fn();
-  scheduleMeasure(view);
-  return () => {
-    const current = modifierMeasureViews.get(view);
-    if (current) current.fns.delete(fn);
-  };
-}
-
-/** Imposta la larghezza del box: dalla sua sinistra al prossimo Modificatore
- * della stessa riga (o al bordo destro della riga se è l'ultimo). Ritorna la
- * teardown da collegare a spec.destroy. */
-function stretchWidgetToLineEnd(view: EditorView, element: HTMLElement): () => void {
   const measure = () => {
-    if (!element.isConnected) return;
-    const parent = element.parentElement;
-    if (!parent) return;
+    if (!element.isConnected || !blockParent) return;
     const left = element.getBoundingClientRect().left;
-    const right = parent.getBoundingClientRect().right;
+    const right = blockParent.getBoundingClientRect().right;
     let end = right;
-    for (const sibling of Array.from(parent.querySelectorAll(MODIFIER_WIDGET_SELECTOR))) {
+    for (const sibling of Array.from(blockParent.querySelectorAll(MODIFIER_WIDGET_SELECTOR))) {
       if (sibling === element) continue;
       const siblingLeft = sibling.getBoundingClientRect().left;
       if (siblingLeft > left + 1 && siblingLeft < end) end = siblingLeft;
@@ -231,10 +178,14 @@ function stretchWidgetToLineEnd(view: EditorView, element: HTMLElement): () => v
       element.style.width = `${target}px`;
     }
   };
-  const unregister = registerModifierMeasure(view, measure);
+
+  const observer = blockParent ? new ResizeObserver(measure) : null;
+  if (blockParent) observer!.observe(blockParent);
   window.addEventListener('resize', measure);
+  requestAnimationFrame(measure);
+
   return () => {
-    unregister();
+    observer?.disconnect();
     window.removeEventListener('resize', measure);
   };
 }
@@ -421,6 +372,7 @@ export const InlineModifier = Mark.create({
               text: INLINE_MODIFIER_CHAR,
               marks: [{ type: this.name, attrs: { name: MODIFIER_DEFAULT_NAME, value: MODIFIER_DEFAULT_VALUE } }],
             })
+            .insertContent(' ')
             .run(),
     };
   },
