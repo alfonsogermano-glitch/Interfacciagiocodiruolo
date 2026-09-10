@@ -17,6 +17,7 @@ import {
   Minus,
   Quote,
   Shapes,
+  SlidersHorizontal,
   Square,
   SquareCheckBig,
   Strikethrough,
@@ -31,7 +32,7 @@ export type NoteCommandId =
   | 'bold' | 'italic' | 'underline' | 'strike' | 'fontSize' | 'fontFamily'
   | 'bulletList' | 'orderedList' | 'blockquote' | 'alignLeft' | 'alignCenter' | 'alignRight'
   | 'textBox' | 'collapse' | 'horizontalRule' | 'table' | 'taskList' | 'checkbox' | 'radio'
-  | 'image' | 'inlineIcon' | 'undo';
+  | 'image' | 'inlineIcon' | 'inlineModifier' | 'undo';
 
 export type NoteCommandGroup = 'text' | 'block' | 'history';
 export type NoteSecondaryPicker = 'fontSize' | 'fontFamily' | 'image' | 'inlineIcon';
@@ -101,6 +102,8 @@ export const NOTE_COMMANDS: readonly NoteCommandDescriptor[] = [
     canRun: (e) => e.can().setImage({ src: 'about:blank' }), isActive: () => false },
   { id: 'inlineIcon', label: 'Icone', group: 'block', icon: Shapes, selectionEligible: false, secondaryPicker: 'inlineIcon',
     canRun: (e) => e.can().insertIcon('Sword'), isActive: () => false },
+  { id: 'inlineModifier', label: 'Modificatore', group: 'block', icon: SlidersHorizontal, selectionEligible: false,
+    canRun: (e) => e.can().insertInlineModifier(), isActive: () => false, run: (e) => e.chain().focus().insertInlineModifier().run() },
   { id: 'undo', label: 'Annulla', group: 'history', icon: Undo2, selectionEligible: false,
     canRun: (e) => e.can().undo(), isActive: () => false, run: (e) => e.chain().focus().undo().run() },
 ];
@@ -148,6 +151,7 @@ export function runSlashNoteCommand(editor: Editor, id: NoteCommandId, slashPos:
     case 'taskList': return chain.toggleTaskList().run();
     case 'checkbox': return chain.insertInlineCheckbox().run();
     case 'radio': return chain.insertInlineRadio().run();
+    case 'inlineModifier': return chain.insertInlineModifier().run();
     case 'undo': return chain.undo().run();
     case 'fontSize':
     case 'fontFamily':

@@ -14,6 +14,7 @@ import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
 import { FontSize, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { FontFamily } from './tiptapFontFamily';
 import { InlineIcon } from './tiptapInlineIcon';
+import { InlineModifier } from './tiptapInlineModifier';
 import { InlineCheckbox } from './tiptapInlineCheckbox';
 import { NOTE_TABLE_EXTENSIONS } from './tiptapNoteTable';
 import { NoteTableClipboardPaste } from './noteTableClipboard';
@@ -22,6 +23,7 @@ import { NoteContainerGuard } from './tiptapNoteContainerGuard';
 import { NoteSlashMenuExtension } from './tiptapNoteSlashMenu';
 import { NoteTableToolbar } from './NoteTableToolbar';
 import { NoteSlashMenu } from './NoteSlashMenu';
+import { NoteModifierMenu } from './NoteModifierMenu';
 import { NoteSelectionToolbar } from './NoteSelectionToolbar';
 import { NoteContainerNotice } from './NoteContainerNotice';
 import { flattenRemovedLayoutNodes } from './tiptapLegacyMigration';
@@ -199,6 +201,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
       TaskList,
       TaskItem.configure({ nested: false }),
       InlineIcon,
+      InlineModifier,
       inlineCheckboxExtension,
       ...TIPTAP_BLOCK_EXTENSIONS,
       ...NOTE_TABLE_EXTENSIONS,
@@ -262,6 +265,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
       </div>
       <PermanentUndo editor={editor} editable={editable} />
       <NoteSlashMenu editor={editor} editable={editable} />
+      <NoteModifierMenu editor={editor} editable={editable} />
       <NoteSelectionToolbar editor={editor} editable={editable} />
       <NoteTableToolbar editor={editor} editable={editable} />
       <NoteContainerNotice reason={containerRejection} anchor={editorShellRef.current} />
