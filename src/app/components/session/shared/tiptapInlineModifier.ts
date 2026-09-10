@@ -163,16 +163,21 @@ export async function copyModifierToClipboard(state: EditorState, pos: number): 
 // ---------------------------------------------------------------------------
 // Coordinated line measurement.
 //
-// Ogni widget si registra in `widgetEntries`. Una singola funzione
-// `performMeasurement` raggruppa i widget per riga (stesso blockParent),
-// ordina da sinistra a destra,Conta gli spazi tra widget adiacenti nel
-// documento e distribuisce la larghezza della riga: ogni spazio trasferisce
-// CHAR_WIDTH pixel dal widget destro a quello sinistro.  Il buffer
-// CURSOR_ROOM lascia spazio per il cursore dopo l'ultimo widget.
+// Each widget registers in `widgetEntries`.  A single `performMeasurement`
+// function groups widgets by block line, sorts left-to-right, counts space
+// characters between consecutive modifiers, and sizes each widget:
+//
+//  • Single modifier  → fills the line, leaving only CURSOR_ROOM at the end.
+//  • Multiple modifiers → the first keeps its natural width; each subsequent
+//    modifier fills the remaining space after the previous one's right edge
+//    plus the visible gap (spaces × CHAR_WIDTH, minimum MIN_GAP).  Pressing
+//    the space bar between two modifiers thus "compresses" the right one
+//    toward the end of the line without changing the left one.
 // ---------------------------------------------------------------------------
 
-const CURSOR_ROOM = 32;
 const CHAR_WIDTH = 8;
+const CURSOR_ROOM = CHAR_WIDTH;
+const MIN_GAP = CHAR_WIDTH;
 
 interface WidgetEntry {
   view: EditorView;
@@ -191,6 +196,14 @@ function scheduleMeasure() {
   });
 }
 
+function countSpacesBetween(view: EditorView, from: number, to: number): number {
+  if (to <= from) return 0;
+  const text = view.state.doc.textBetween(from, to);
+  let n = 0;
+  for (const ch of text) { if (ch === ' ') n++; }
+  return n;
+}
+
 function performMeasurement() {
   const groups = new Map<HTMLElement, Array<{ element: HTMLElement } & WidgetEntry>>();
 
@@ -206,10 +219,10 @@ function performMeasurement() {
     items.sort((a, b) => a.element.getBoundingClientRect().left - b.element.getBoundingClientRect().left);
 
     const blockRect = blockParent.getBoundingClientRect();
-    const lineLeft = items[0].element.getBoundingClientRect().left;
     const lineRight = blockRect.right;
 
     if (items.length === 1) {
+      const lineLeft = items[0].element.getBoundingClientRect().left;
       const target = Math.max(0, lineRight - lineLeft - CURSOR_ROOM);
       if (Math.abs(target - items[0].element.offsetWidth) > 1) {
         items[0].element.style.width = `${target}px`;
@@ -217,35 +230,21 @@ function performMeasurement() {
       continue;
     }
 
-    const spaceCounts: number[] = [];
-    for (let i = 0; i < items.length - 1; i++) {
-      const pos1 = items[i].getPos();
-      const pos2 = items[i + 1].getPos();
-      if (typeof pos1 === 'number' && typeof pos2 === 'number' && pos2 > pos1) {
-        const text = items[i].view.state.doc.textBetween(pos1 + 1, pos2);
-        let count = 0;
-        for (const ch of text) { if (ch === ' ') count++; }
-        spaceCounts.push(count);
-      } else {
-        spaceCounts.push(0);
+    for (let i = 1; i < items.length; i++) {
+      const prevPos = items[i - 1].getPos();
+      const thisPos = items[i].getPos();
+      const isLast = i === items.length - 1;
+      const prevRight = items[i - 1].element.getBoundingClientRect().right;
+
+      let gap = MIN_GAP;
+      if (typeof prevPos === 'number' && typeof thisPos === 'number' && thisPos > prevPos) {
+        const spaces = countSpacesBetween(items[i].view, prevPos + 1, thisPos);
+        if (spaces > 0) gap = spaces * CHAR_WIDTH;
       }
-    }
 
-    const totalSpaceWidth = spaceCounts.reduce((s, c) => s + c * CHAR_WIDTH, 0);
-    const availableWidth = Math.max(0, lineRight - lineLeft - totalSpaceWidth - CURSOR_ROOM);
-    const baseWidth = availableWidth / items.length;
-
-    const widths = items.map(() => baseWidth);
-    for (let i = 0; i < spaceCounts.length; i++) {
-      const shift = spaceCounts[i] * CHAR_WIDTH;
-      widths[i] += shift;
-      widths[i + 1] -= shift;
-    }
-
-    for (let i = 0; i < items.length; i++) {
-      const w = Math.max(0, widths[i]);
-      if (Math.abs(w - items[i].element.offsetWidth) > 1) {
-        items[i].element.style.width = `${w}px`;
+      const target = Math.max(0, lineRight - prevRight - gap - (isLast ? CURSOR_ROOM : 0));
+      if (Math.abs(target - items[i].element.offsetWidth) > 1) {
+        items[i].element.style.width = `${target}px`;
       }
     }
   }
@@ -268,7 +267,7 @@ function buildModifierWidget(
     display: 'inline-flex',
     flexDirection: 'column',
     boxSizing: 'border-box',
-    minWidth: '7em',
+    minWidth: '4em',
     minHeight: '2.5em',
     padding: '0.2em 0.5em',
     verticalAlign: 'middle',
