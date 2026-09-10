@@ -196,12 +196,9 @@ function scheduleMeasure() {
   });
 }
 
-function countSpacesBetween(view: EditorView, from: number, to: number): number {
+function textWidthBetween(view: EditorView, from: number, to: number): number {
   if (to <= from) return 0;
-  const text = view.state.doc.textBetween(from, to);
-  let n = 0;
-  for (const ch of text) { if (ch === ' ') n++; }
-  return n;
+  return view.state.doc.textBetween(from, to).length * CHAR_WIDTH;
 }
 
 function performMeasurement() {
@@ -232,22 +229,28 @@ function performMeasurement() {
 
     const lineLeft = items[0].element.getBoundingClientRect().left;
 
-    let totalGap = 0;
+    const gaps: Array<{ layout: number; margin: number }> = [];
     for (let i = 0; i < items.length - 1; i++) {
       const prevPos = items[i].getPos();
       const thisPos = items[i + 1].getPos();
-      let gap = MIN_GAP;
+      let layout = MIN_GAP;
+      let margin = MIN_GAP;
       if (typeof prevPos === 'number' && typeof thisPos === 'number' && thisPos > prevPos) {
-        const spaces = countSpacesBetween(items[i].view, prevPos + 1, thisPos);
-        if (spaces > 0) gap = spaces * CHAR_WIDTH;
+        const textWidth = textWidthBetween(items[i].view, prevPos + 1, thisPos);
+        if (textWidth > 0) {
+          layout = textWidth;
+          margin = 0;
+        }
       }
-      totalGap += gap;
+      gaps.push({ layout, margin });
     }
 
+    const totalGap = gaps.reduce((sum, gap) => sum + gap.layout, 0);
     const available = Math.max(0, lineRight - lineLeft - CURSOR_ROOM);
     const eachWidth = Math.max(0, (available - totalGap) / items.length);
 
     for (let i = 0; i < items.length; i++) {
+      items[i].element.style.marginLeft = i === 0 ? '0px' : `${gaps[i - 1].margin}px`;
       if (Math.abs(eachWidth - items[i].element.offsetWidth) > 1) {
         items[i].element.style.width = `${eachWidth}px`;
       }
