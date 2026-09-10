@@ -49,6 +49,30 @@ function createModifierId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `modifier-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
+function getUniqueModifierName(state: EditorState, requestedName = MODIFIER_DEFAULT_NAME, excludePos: number | null = null): string {
+  const markType = state.schema.marks.inlineModifier;
+  if (!markType) return requestedName;
+
+  const names = new Set<string>();
+  state.doc.descendants((node, pos) => {
+    if (!node.isText || !node.text) return;
+    const mark = node.marks.find((item) => item.type === markType);
+    if (!mark) return;
+
+    for (let offset = 0; offset < node.nodeSize; offset++) {
+      if (node.text.charAt(offset) !== INLINE_MODIFIER_CHAR) continue;
+      if (excludePos !== null && pos + offset === excludePos) continue;
+      names.add(String(mark.attrs.name ?? MODIFIER_DEFAULT_NAME));
+    }
+  });
+
+  if (!names.has(requestedName)) return requestedName;
+  const base = requestedName.replace(/ \(\d+\)$/, '');
+  let index = 1;
+  while (names.has(`${base} (${index})`)) index += 1;
+  return `${base} (${index})`;
+}
+
 function getInlineModifierMark(state: EditorState, pos: number) {
   const markType = state.schema.marks.inlineModifier;
   if (!markType || pos < 0 || pos >= state.doc.content.size) return null;
@@ -89,7 +113,9 @@ export function setModifierAttrs(
 
   const next = {
     id: currentMark.attrs.id,
-    name: attrs.name ?? currentMark.attrs.name ?? MODIFIER_DEFAULT_NAME,
+    name: attrs.name !== undefined
+      ? getUniqueModifierName(state, attrs.name, pos)
+      : currentMark.attrs.name ?? MODIFIER_DEFAULT_NAME,
     value: attrs.value ?? currentMark.attrs.value ?? MODIFIER_DEFAULT_VALUE,
   };
   if (dispatch) {
@@ -130,6 +156,7 @@ export function duplicateModifierAt(
     dispatch(state.tr.insert(pos + 1, state.schema.text(INLINE_MODIFIER_CHAR, [markType.create({
       ...currentMark.attrs,
       id: createModifierId(),
+      name: getUniqueModifierName(state, String(currentMark.attrs.name ?? MODIFIER_DEFAULT_NAME)),
     })])));
   }
   return true;
@@ -319,9 +346,6 @@ function buildModifierWidget(
     textTransform: 'uppercase',
   });
 
-  const spacer = document.createElement('span');
-  Object.assign(spacer.style, { flex: '1 1 auto' });
-
   const dots = document.createElement('span');
   dots.className = 'tiptap-inline-modifier-menu-trigger';
   dots.setAttribute('role', 'button');
@@ -329,11 +353,18 @@ function buildModifierWidget(
   dots.setAttribute('aria-label', `Menu Modificatore ${name}`);
   Object.assign(dots.style, {
     display: 'inline-flex',
+    position: 'absolute',
+    top: '0.32em',
+    right: '0.32em',
+    zIndex: 1,
     flex: 'none',
     alignItems: 'center',
-    gap: '0.13em',
-    padding: '0.25em 0.3em',
+    flexDirection: 'column',
+    gap: '0.11em',
+    padding: '0.22em',
     borderRadius: '0.3em',
+    opacity: 0,
+    transition: 'opacity 120ms ease',
     cursor: view.editable ? 'pointer' : 'default',
   });
   for (let i = 0; i < 3; i += 1) {
@@ -362,10 +393,14 @@ function buildModifierWidget(
   });
 
   head.appendChild(label);
-  head.appendChild(spacer);
-  head.appendChild(dots);
   element.appendChild(head);
   element.appendChild(valueEl);
+  element.appendChild(dots);
+
+  element.addEventListener('mouseenter', () => { dots.style.opacity = '1'; });
+  element.addEventListener('mouseleave', () => { if (document.activeElement !== dots) dots.style.opacity = '0'; });
+  dots.addEventListener('focus', () => { dots.style.opacity = '1'; });
+  dots.addEventListener('blur', () => { dots.style.opacity = '0'; });
 
   // Apre il men&ugrave; React dispatchando un CustomEvent. Il mousedown sui
   // puntini viene bloccato: niente move del caret, niente rimbalzi di
@@ -466,7 +501,7 @@ export const InlineModifier = Mark.create({
 
           tr.insert(insertPos, state.schema.text(INLINE_MODIFIER_CHAR, [markType.create({
             id: createModifierId(),
-            name: MODIFIER_DEFAULT_NAME,
+            name: getUniqueModifierName(state),
             value: MODIFIER_DEFAULT_VALUE,
           })]));
           tr.setSelection(TextSelection.create(tr.doc, insertPos + 1));

@@ -25,8 +25,18 @@ assert.match(
 );
 assert.match(
   source,
+  /getUniqueModifierName[\s\S]*names\.has[\s\S]*MODIFIER_DEFAULT_NAME[\s\S]*name:\s*getUniqueModifierName\(state\)/,
+  'modifier names must be generated uniquely from the default name',
+);
+assert.match(
+  source,
   /Decoration\.widget\([\s\S]*key:\s*`modifier:\$\{.*\}:\$\{.*\}:\$\{.*\}`/,
   'inline modifier decoration must include name and value in the key to force rebuild on attribute change',
+);
+assert.match(
+  source,
+  /tiptap-inline-modifier-menu-trigger[\s\S]*position:\s*'absolute'[\s\S]*flexDirection:\s*'column'[\s\S]*opacity:\s*0[\s\S]*mouseenter/,
+  'modifier menu trigger must be a vertical hover-only overlay that does not consume layout space',
 );
 assert.match(
   source,
