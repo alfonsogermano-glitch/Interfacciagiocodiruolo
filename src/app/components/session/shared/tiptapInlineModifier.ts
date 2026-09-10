@@ -160,11 +160,11 @@ export async function copyModifierToClipboard(state: EditorState, pos: number): 
   return true;
 }
 
-function stretchWidgetToLineEnd(_view: EditorView, element: HTMLElement): () => void {
-  const blockParent = element.closest('.ProseMirror > *') as HTMLElement | null;
-
+function stretchWidgetToLineEnd(view: EditorView, element: HTMLElement): () => void {
   const measure = () => {
-    if (!element.isConnected || !blockParent) return;
+    if (!element.isConnected) return;
+    const blockParent = element.closest('.ProseMirror > *') as HTMLElement | null;
+    if (!blockParent) return;
     const left = element.getBoundingClientRect().left;
     const right = blockParent.getBoundingClientRect().right;
     let end = right;
@@ -179,14 +179,21 @@ function stretchWidgetToLineEnd(_view: EditorView, element: HTMLElement): () => 
     }
   };
 
-  const observer = blockParent ? new ResizeObserver(measure) : null;
-  if (blockParent) observer!.observe(blockParent);
+  let raf = 0;
+  const schedule = () => {
+    if (raf) return;
+    raf = window.requestAnimationFrame(() => { raf = 0; measure(); });
+  };
+
+  const mo = new MutationObserver(schedule);
+  mo.observe(view.dom, { childList: true, subtree: true, characterData: true });
   window.addEventListener('resize', measure);
-  requestAnimationFrame(measure);
+  schedule();
 
   return () => {
-    observer?.disconnect();
+    mo.disconnect();
     window.removeEventListener('resize', measure);
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
   };
 }
 
