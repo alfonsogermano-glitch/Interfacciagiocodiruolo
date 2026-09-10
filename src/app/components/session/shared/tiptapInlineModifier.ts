@@ -164,15 +164,15 @@ export async function copyModifierToClipboard(state: EditorState, pos: number): 
 // Coordinated line measurement.
 //
 // Each widget registers in `widgetEntries`.  A single `performMeasurement`
-// function groups widgets by block line, sorts left-to-right, counts space
-// characters between consecutive modifiers, and sizes each widget:
+// function groups widgets by block paragraph, sorts by document position,
+// counts space characters between consecutive modifiers, and sizes them:
 //
 //  • Single modifier  → fills the line, leaving only CURSOR_ROOM at the end.
-//  • Multiple modifiers → the first keeps its natural width; each subsequent
-//    modifier fills the remaining space after the previous one's right edge
-//    plus the visible gap (spaces × CHAR_WIDTH, minimum MIN_GAP).  Pressing
-//    the space bar between two modifiers thus "compresses" the right one
-//    toward the end of the line without changing the left one.
+//  • Multiple modifiers → ALL modifiers are resized to the same width:
+//    eachWidth = (available − totalGaps) / count.  Pressing the space bar
+//    between two modifiers increases the gap; both modifiers shrink equally
+//    but the second one's right edge always stays at the line end, so it
+//    appears to compress only from the left toward the end of the line.
 // ---------------------------------------------------------------------------
 
 const CHAR_WIDTH = 8;
@@ -216,7 +216,7 @@ function performMeasurement() {
   }
 
   for (const [blockParent, items] of groups) {
-    items.sort((a, b) => a.element.getBoundingClientRect().left - b.element.getBoundingClientRect().left);
+    items.sort((a, b) => (a.getPos() ?? 0) - (b.getPos() ?? 0));
 
     const blockRect = blockParent.getBoundingClientRect();
     const lineRight = blockRect.right;
@@ -230,21 +230,26 @@ function performMeasurement() {
       continue;
     }
 
-    for (let i = 1; i < items.length; i++) {
-      const prevPos = items[i - 1].getPos();
-      const thisPos = items[i].getPos();
-      const isLast = i === items.length - 1;
-      const prevRight = items[i - 1].element.getBoundingClientRect().right;
+    const lineLeft = items[0].element.getBoundingClientRect().left;
 
+    let totalGap = 0;
+    for (let i = 0; i < items.length - 1; i++) {
+      const prevPos = items[i].getPos();
+      const thisPos = items[i + 1].getPos();
       let gap = MIN_GAP;
       if (typeof prevPos === 'number' && typeof thisPos === 'number' && thisPos > prevPos) {
         const spaces = countSpacesBetween(items[i].view, prevPos + 1, thisPos);
         if (spaces > 0) gap = spaces * CHAR_WIDTH;
       }
+      totalGap += gap;
+    }
 
-      const target = Math.max(0, lineRight - prevRight - gap - (isLast ? CURSOR_ROOM : 0));
-      if (Math.abs(target - items[i].element.offsetWidth) > 1) {
-        items[i].element.style.width = `${target}px`;
+    const available = Math.max(0, lineRight - lineLeft - CURSOR_ROOM);
+    const eachWidth = Math.max(0, (available - totalGap) / items.length);
+
+    for (let i = 0; i < items.length; i++) {
+      if (Math.abs(eachWidth - items[i].element.offsetWidth) > 1) {
+        items[i].element.style.width = `${eachWidth}px`;
       }
     }
   }
