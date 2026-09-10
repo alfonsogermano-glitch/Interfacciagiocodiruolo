@@ -160,41 +160,95 @@ export async function copyModifierToClipboard(state: EditorState, pos: number): 
   return true;
 }
 
-function stretchWidgetToLineEnd(view: EditorView, element: HTMLElement): () => void {
-  const measure = () => {
-    if (!element.isConnected) return;
+// ---------------------------------------------------------------------------
+// Coordinated line measurement.
+//
+// Ogni widget si registra in `widgetEntries`. Una singola funzione
+// `performMeasurement` raggruppa i widget per riga (stesso blockParent),
+// ordina da sinistra a destra,Conta gli spazi tra widget adiacenti nel
+// documento e distribuisce la larghezza della riga: ogni spazio trasferisce
+// CHAR_WIDTH pixel dal widget destro a quello sinistro.  Il buffer
+// CURSOR_ROOM lascia spazio per il cursore dopo l'ultimo widget.
+// ---------------------------------------------------------------------------
+
+const CURSOR_ROOM = 32;
+const CHAR_WIDTH = 8;
+
+interface WidgetEntry {
+  view: EditorView;
+  getPos: () => number | undefined;
+}
+
+const widgetEntries = new Map<HTMLElement, WidgetEntry>();
+
+let measureRaf = 0;
+
+function scheduleMeasure() {
+  if (measureRaf) return;
+  measureRaf = window.requestAnimationFrame(() => {
+    measureRaf = 0;
+    performMeasurement();
+  });
+}
+
+function performMeasurement() {
+  const groups = new Map<HTMLElement, Array<{ element: HTMLElement } & WidgetEntry>>();
+
+  for (const [element, entry] of widgetEntries) {
+    if (!element.isConnected) continue;
     const blockParent = element.closest('.ProseMirror > *') as HTMLElement | null;
-    if (!blockParent) return;
-    const left = element.getBoundingClientRect().left;
-    const right = blockParent.getBoundingClientRect().right;
-    let end = right;
-    for (const sibling of Array.from(blockParent.querySelectorAll(MODIFIER_WIDGET_SELECTOR))) {
-      if (sibling === element) continue;
-      const siblingLeft = sibling.getBoundingClientRect().left;
-      if (siblingLeft > left + 1 && siblingLeft < end) end = siblingLeft;
+    if (!blockParent) continue;
+    if (!groups.has(blockParent)) groups.set(blockParent, []);
+    groups.get(blockParent)!.push({ element, ...entry });
+  }
+
+  for (const [blockParent, items] of groups) {
+    items.sort((a, b) => a.element.getBoundingClientRect().left - b.element.getBoundingClientRect().left);
+
+    const blockRect = blockParent.getBoundingClientRect();
+    const lineLeft = items[0].element.getBoundingClientRect().left;
+    const lineRight = blockRect.right;
+
+    if (items.length === 1) {
+      const target = Math.max(0, lineRight - lineLeft - CURSOR_ROOM);
+      if (Math.abs(target - items[0].element.offsetWidth) > 1) {
+        items[0].element.style.width = `${target}px`;
+      }
+      continue;
     }
-    const target = Math.max(0, end - left - 1);
-    if (target > 0 && Math.abs(target - element.offsetWidth) > 1) {
-      element.style.width = `${target}px`;
+
+    const spaceCounts: number[] = [];
+    for (let i = 0; i < items.length - 1; i++) {
+      const pos1 = items[i].getPos();
+      const pos2 = items[i + 1].getPos();
+      if (typeof pos1 === 'number' && typeof pos2 === 'number' && pos2 > pos1) {
+        const text = items[i].view.state.doc.textBetween(pos1 + 1, pos2);
+        let count = 0;
+        for (const ch of text) { if (ch === ' ') count++; }
+        spaceCounts.push(count);
+      } else {
+        spaceCounts.push(0);
+      }
     }
-  };
 
-  let raf = 0;
-  const schedule = () => {
-    if (raf) return;
-    raf = window.requestAnimationFrame(() => { raf = 0; measure(); });
-  };
+    const totalSpaceWidth = spaceCounts.reduce((s, c) => s + c * CHAR_WIDTH, 0);
+    const availableWidth = Math.max(0, lineRight - lineLeft - totalSpaceWidth - CURSOR_ROOM);
+    const baseWidth = availableWidth / items.length;
 
-  const mo = new MutationObserver(schedule);
-  mo.observe(view.dom, { childList: true, subtree: true, characterData: true });
-  window.addEventListener('resize', measure);
-  schedule();
+    const widths = items.map(() => baseWidth);
+    for (let i = 0; i < spaceCounts.length; i++) {
+      const shift = spaceCounts[i] * CHAR_WIDTH;
+      widths[i] += shift;
+      widths[i + 1] -= shift;
+    }
 
-  return () => {
-    mo.disconnect();
-    window.removeEventListener('resize', measure);
-    if (raf) { cancelAnimationFrame(raf); raf = 0; }
-  };
+    for (let i = 0; i < items.length; i++) {
+      const w = Math.max(0, widths[i]);
+      if (Math.abs(w - items[i].element.offsetWidth) > 1) {
+        items[i].element.style.width = `${w}px`;
+      }
+    }
+  }
 }
 
 function buildModifierWidget(
@@ -329,11 +383,11 @@ function buildModifierWidget(
     openMenu();
   });
 
-  // Misura la larghezza a fine riga e salva la teardown sul DOM: la Decoration
-  // widget verrà ricostruita (spec.key) quando cambiano nome/valore e PM
-  // chiamerà spec.destroy con questo elemento per scorporare gli observer.
-  const teardown = stretchWidgetToLineEnd(view, element);
-  (element as unknown as { _modifierTeardown?: () => void })._modifierTeardown = teardown;
+  // Registra nel catalogo globale per la misura coordinata delle righe.
+  // La teardown viene gestita da spec.destroy che rimuove l'entry.
+  const entry: WidgetEntry = { view, getPos };
+  widgetEntries.set(element, entry);
+  scheduleMeasure();
   return element;
 }
 
@@ -379,7 +433,6 @@ export const InlineModifier = Mark.create({
               text: INLINE_MODIFIER_CHAR,
               marks: [{ type: this.name, attrs: { name: MODIFIER_DEFAULT_NAME, value: MODIFIER_DEFAULT_VALUE } }],
             })
-            .insertContent(' ')
             .run(),
     };
   },
@@ -444,7 +497,7 @@ export const InlineModifier = Mark.create({
                       // cambio di sola selezione.
                       key: `modifier:${modifierPos}:${name}:${value}`,
                       destroy: (node) => {
-                        (node as unknown as { _modifierTeardown?: () => void })._modifierTeardown?.();
+                        widgetEntries.delete(node as HTMLElement);
                       },
                     },
                   ),
@@ -475,6 +528,16 @@ export const InlineModifier = Mark.create({
           handleClick(view, pos, event) {
             return nudgeToRightOfTrailingModifier(view, pos, event);
           },
+        },
+        view() {
+          window.addEventListener('resize', scheduleMeasure);
+          scheduleMeasure();
+          return {
+            destroy() {
+              window.removeEventListener('resize', scheduleMeasure);
+              widgetEntries.clear();
+            },
+          };
         },
       }),
     ];

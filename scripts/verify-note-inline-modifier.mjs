@@ -30,8 +30,8 @@ assert.match(
 );
 assert.match(
   source,
-  /stretchWidgetToLineEnd[\s\S]*querySelectorAll\(MODIFIER_WIDGET_SELECTOR\)/,
-  'inline modifier must measure width to the next modifier (or line end) to fill remaining space',
+  /performMeasurement[\s\S]*widgetEntries[\s\S]*CURSOR_ROOM/,
+  'inline modifier must use coordinated line measurement with widget registry and cursor room buffer',
 );
 assert.match(
   source,
