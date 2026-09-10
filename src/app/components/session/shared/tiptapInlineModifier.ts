@@ -177,9 +177,9 @@ export async function copyModifierToClipboard(state: EditorState, pos: number): 
 //
 //  • Single modifier  → fills the line, leaving only CURSOR_ROOM at the end.
 //  • Multiple modifiers → all widgets currently registered in the same block
-//    split the available line width equally. After that, text editing follows
-//    normal inline flow like icons/checkboxes/radio buttons: widths are not
-//    continuously recalculated on every keystroke.
+//    split the available line width equally. The visual gap is real document
+//    text, not widget margin, so caret position and insertion point stay in
+//    sync when a modifier wraps to the next line.
 // ---------------------------------------------------------------------------
 
 const CHAR_WIDTH = 8;
@@ -222,7 +222,6 @@ function performMeasurement() {
 
     if (items.length === 1) {
       const lineLeft = items[0].element.getBoundingClientRect().left;
-      items[0].element.style.marginLeft = '0px';
       const target = Math.max(0, lineRight - lineLeft - CURSOR_ROOM);
       if (Math.abs(target - items[0].element.offsetWidth) > 1) {
         items[0].element.style.width = `${target}px`;
@@ -236,7 +235,7 @@ function performMeasurement() {
     const width = Math.max(0, available / items.length);
 
     for (let i = 0; i < items.length; i++) {
-      items[i].element.style.marginLeft = i === 0 ? '0px' : `${MIN_GAP}px`;
+      items[i].element.style.marginLeft = '0px';
       if (Math.abs(width - items[i].element.offsetWidth) > 1) {
         items[i].element.style.width = `${width}px`;
       }
@@ -423,18 +422,35 @@ export const InlineModifier = Mark.create({
     return {
       insertInlineModifier:
         () =>
-        ({ chain }) =>
-          chain()
-            .focus()
-            .insertContent({
-              type: 'text',
-              text: INLINE_MODIFIER_CHAR,
-              marks: [{
-                type: this.name,
-                attrs: { id: createModifierId(), name: MODIFIER_DEFAULT_NAME, value: MODIFIER_DEFAULT_VALUE },
-              }],
-            })
-            .run(),
+        ({ state, dispatch }) => {
+          const markType = state.schema.marks[this.name];
+          if (!markType) return false;
+          if (!dispatch) return true;
+
+          const tr = state.tr.deleteSelection();
+          let insertPos = tr.selection.from;
+          let previousIsModifier = false;
+          if (insertPos > 0 && tr.doc.textBetween(insertPos - 1, insertPos, '', '') === INLINE_MODIFIER_CHAR) {
+            tr.doc.nodesBetween(insertPos - 1, insertPos, (node) => {
+              if (previousIsModifier || !node.isText) return;
+              previousIsModifier = node.marks.some((mark) => mark.type === markType);
+            });
+          }
+
+          if (previousIsModifier) {
+            tr.insertText(' ', insertPos);
+            insertPos += 1;
+          }
+
+          tr.insert(insertPos, state.schema.text(INLINE_MODIFIER_CHAR, [markType.create({
+            id: createModifierId(),
+            name: MODIFIER_DEFAULT_NAME,
+            value: MODIFIER_DEFAULT_VALUE,
+          })]));
+          tr.setSelection(TextSelection.create(tr.doc, insertPos + 1));
+          dispatch(tr.scrollIntoView());
+          return true;
+        },
     };
   },
 

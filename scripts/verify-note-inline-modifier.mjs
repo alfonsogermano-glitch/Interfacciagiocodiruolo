@@ -20,8 +20,8 @@ assert.match(
 );
 assert.match(
   source,
-  /insertInlineModifier[\s\S]*insertContent\([\s\S]*INLINE_MODIFIER_CHAR[\s\S]*marks:[\s\S]*type:\s*this\.name/,
-  'insertInlineModifier must insert a ZWSP character carrying the inlineModifier mark',
+  /insertInlineModifier[\s\S]*previousIsModifier[\s\S]*insertText\(' '[\s\S]*tr\.insert\([\s\S]*INLINE_MODIFIER_CHAR[\s\S]*markType\.create/,
+  'insertInlineModifier must insert a ZWSP character carrying the inlineModifier mark and add a real space after adjacent modifiers',
 );
 assert.match(
   source,
