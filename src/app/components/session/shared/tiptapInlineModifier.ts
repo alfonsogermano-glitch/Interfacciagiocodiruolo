@@ -165,14 +165,13 @@ export async function copyModifierToClipboard(state: EditorState, pos: number): 
 //
 // Each widget registers in `widgetEntries`.  A single `performMeasurement`
 // function groups widgets by block paragraph, sorts by document position,
-// counts space characters between consecutive modifiers, and sizes them:
+// counts text between consecutive modifiers, and sizes them:
 //
 //  • Single modifier  → fills the line, leaving only CURSOR_ROOM at the end.
-//  • Multiple modifiers → ALL modifiers are resized to the same width:
-//    eachWidth = (available − totalGaps) / count.  Pressing the space bar
-//    between two modifiers increases the gap; both modifiers shrink equally
-//    but the second one's right edge always stays at the line end, so it
-//    appears to compress only from the left toward the end of the line.
+//  • Multiple modifiers → with no intervening text, all modifiers have the
+//    same width.  Text/spaces after modifier N consume width only from the
+//    modifiers to their right, so typing between the first and second of three
+//    leaves the first unchanged and compresses the second/third.
 // ---------------------------------------------------------------------------
 
 const CHAR_WIDTH = 8;
@@ -201,6 +200,12 @@ function textWidthBetween(view: EditorView, from: number, to: number): number {
   return view.state.doc.textBetween(from, to).length * CHAR_WIDTH;
 }
 
+function textWidthAfterModifier(view: EditorView, pos: number): number {
+  const $pos = view.state.doc.resolve(pos);
+  const end = pos - $pos.parentOffset + $pos.parent.content.size;
+  return textWidthBetween(view, pos + 1, end);
+}
+
 function performMeasurement() {
   const groups = new Map<HTMLElement, Array<{ element: HTMLElement } & WidgetEntry>>();
 
@@ -220,7 +225,9 @@ function performMeasurement() {
 
     if (items.length === 1) {
       const lineLeft = items[0].element.getBoundingClientRect().left;
-      const target = Math.max(0, lineRight - lineLeft - CURSOR_ROOM);
+      const pos = items[0].getPos();
+      const trailingTextWidth = typeof pos === 'number' ? textWidthAfterModifier(items[0].view, pos) : 0;
+      const target = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - trailingTextWidth);
       if (Math.abs(target - items[0].element.offsetWidth) > 1) {
         items[0].element.style.width = `${target}px`;
       }
@@ -229,7 +236,7 @@ function performMeasurement() {
 
     const lineLeft = items[0].element.getBoundingClientRect().left;
 
-    const gaps: Array<{ layout: number; margin: number }> = [];
+    const gaps: Array<{ layout: number; margin: number; extra: number }> = [];
     for (let i = 0; i < items.length - 1; i++) {
       const prevPos = items[i].getPos();
       const thisPos = items[i + 1].getPos();
@@ -242,17 +249,27 @@ function performMeasurement() {
           margin = 0;
         }
       }
-      gaps.push({ layout, margin });
+      gaps.push({ layout, margin, extra: Math.max(0, layout - MIN_GAP) });
     }
 
-    const totalGap = gaps.reduce((sum, gap) => sum + gap.layout, 0);
-    const available = Math.max(0, lineRight - lineLeft - CURSOR_ROOM);
-    const eachWidth = Math.max(0, (available - totalGap) / items.length);
+    const lastPos = items[items.length - 1].getPos();
+    const trailingTextWidth = typeof lastPos === 'number' ? textWidthAfterModifier(items[items.length - 1].view, lastPos) : 0;
+    const baseGaps = MIN_GAP * (items.length - 1);
+    const available = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - trailingTextWidth);
+    const baseWidth = Math.max(0, (available - baseGaps) / items.length);
+    const widths = items.map(() => baseWidth);
+
+    for (let i = 0; i < gaps.length; i++) {
+      if (gaps[i].extra <= 0) continue;
+      const rightCount = items.length - i - 1;
+      const compression = gaps[i].extra / rightCount;
+      for (let j = i + 1; j < widths.length; j++) widths[j] = Math.max(0, widths[j] - compression);
+    }
 
     for (let i = 0; i < items.length; i++) {
       items[i].element.style.marginLeft = i === 0 ? '0px' : `${gaps[i - 1].margin}px`;
-      if (Math.abs(eachWidth - items[i].element.offsetWidth) > 1) {
-        items[i].element.style.width = `${eachWidth}px`;
+      if (Math.abs(widths[i] - items[i].element.offsetWidth) > 1) {
+        items[i].element.style.width = `${widths[i]}px`;
       }
     }
   }
