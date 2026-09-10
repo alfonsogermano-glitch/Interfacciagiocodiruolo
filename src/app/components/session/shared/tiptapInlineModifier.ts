@@ -197,6 +197,15 @@ function scheduleMeasure() {
 
 function textWidthBetween(view: EditorView, from: number, to: number): number {
   if (to <= from) return 0;
+  try {
+    const fromCoords = view.coordsAtPos(from);
+    const toCoords = view.coordsAtPos(to);
+    if (Math.abs(fromCoords.top - toCoords.top) < 4 && toCoords.left >= fromCoords.left) {
+      return toCoords.left - fromCoords.left;
+    }
+  } catch {
+    // Fallback below for transient positions while ProseMirror is updating.
+  }
   return view.state.doc.textBetween(from, to).length * CHAR_WIDTH;
 }
 
@@ -557,6 +566,10 @@ export const InlineModifier = Mark.create({
           window.addEventListener('resize', scheduleMeasure);
           scheduleMeasure();
           return {
+            update() {
+              performMeasurement();
+              scheduleMeasure();
+            },
             destroy() {
               window.removeEventListener('resize', scheduleMeasure);
               widgetEntries.clear();
