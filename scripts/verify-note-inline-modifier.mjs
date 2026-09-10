@@ -40,8 +40,8 @@ assert.match(
 );
 assert.match(
   source,
-  /duplicateModifierAt[\s\S]*insert\([\s\S]*INLINE_MODIFIER_CHAR[\s\S]*markType\.create\(currentMark\.attrs\)/,
-  'duplicate must re-insert a fresh ZWSP character carrying identical mark attributes',
+  /duplicateModifierAt[\s\S]*insert\([\s\S]*INLINE_MODIFIER_CHAR[\s\S]*markType\.create\([\s\S]*\.\.\.currentMark\.attrs[\s\S]*id:\s*createModifierId\(\)/,
+  'duplicate must re-insert a fresh ZWSP character carrying identical data and a fresh stable id',
 );
 assert.match(
   source,

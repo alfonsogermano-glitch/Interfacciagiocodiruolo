@@ -45,6 +45,10 @@ export interface ModifierData {
   value: string;
 }
 
+function createModifierId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `modifier-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 function getInlineModifierMark(state: EditorState, pos: number) {
   const markType = state.schema.marks.inlineModifier;
   if (!markType || pos < 0 || pos >= state.doc.content.size) return null;
@@ -84,6 +88,7 @@ export function setModifierAttrs(
   if (!markType || !currentMark) return false;
 
   const next = {
+    id: currentMark.attrs.id,
     name: attrs.name ?? currentMark.attrs.name ?? MODIFIER_DEFAULT_NAME,
     value: attrs.value ?? currentMark.attrs.value ?? MODIFIER_DEFAULT_VALUE,
   };
@@ -122,7 +127,10 @@ export function duplicateModifierAt(
   const currentMark = getInlineModifierMark(state, pos);
   if (!markType || !currentMark) return false;
   if (dispatch) {
-    dispatch(state.tr.insert(pos + 1, state.schema.text(INLINE_MODIFIER_CHAR, [markType.create(currentMark.attrs)])));
+    dispatch(state.tr.insert(pos + 1, state.schema.text(INLINE_MODIFIER_CHAR, [markType.create({
+      ...currentMark.attrs,
+      id: createModifierId(),
+    })])));
   }
   return true;
 }
@@ -165,13 +173,13 @@ export async function copyModifierToClipboard(state: EditorState, pos: number): 
 //
 // Each widget registers in `widgetEntries`.  A single `performMeasurement`
 // function groups widgets by block paragraph, sorts by document position,
-// counts text between consecutive modifiers, and sizes them:
+// sizes modifiers when widgets are created/rebuilt:
 //
 //  • Single modifier  → fills the line, leaving only CURSOR_ROOM at the end.
-//  • Multiple modifiers → with no intervening text, all modifiers have the
-//    same width.  Text/spaces after modifier N consume width only from the
-//    modifiers to their right, so typing between the first and second of three
-//    leaves the first unchanged and compresses the second/third.
+//  • Multiple modifiers → all widgets currently registered in the same block
+//    split the available line width equally. After that, text editing follows
+//    normal inline flow like icons/checkboxes/radio buttons: widths are not
+//    continuously recalculated on every keystroke.
 // ---------------------------------------------------------------------------
 
 const CHAR_WIDTH = 8;
@@ -195,26 +203,6 @@ function scheduleMeasure() {
   });
 }
 
-function textWidthBetween(view: EditorView, from: number, to: number): number {
-  if (to <= from) return 0;
-  try {
-    const fromCoords = view.coordsAtPos(from);
-    const toCoords = view.coordsAtPos(to);
-    if (Math.abs(fromCoords.top - toCoords.top) < 4 && toCoords.left >= fromCoords.left) {
-      return toCoords.left - fromCoords.left;
-    }
-  } catch {
-    // Fallback below for transient positions while ProseMirror is updating.
-  }
-  return view.state.doc.textBetween(from, to).length * CHAR_WIDTH;
-}
-
-function textWidthAfterModifier(view: EditorView, pos: number): number {
-  const $pos = view.state.doc.resolve(pos);
-  const end = pos - $pos.parentOffset + $pos.parent.content.size;
-  return textWidthBetween(view, pos + 1, end);
-}
-
 function performMeasurement() {
   const groups = new Map<HTMLElement, Array<{ element: HTMLElement } & WidgetEntry>>();
 
@@ -234,9 +222,8 @@ function performMeasurement() {
 
     if (items.length === 1) {
       const lineLeft = items[0].element.getBoundingClientRect().left;
-      const pos = items[0].getPos();
-      const trailingTextWidth = typeof pos === 'number' ? textWidthAfterModifier(items[0].view, pos) : 0;
-      const target = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - trailingTextWidth);
+      items[0].element.style.marginLeft = '0px';
+      const target = Math.max(0, lineRight - lineLeft - CURSOR_ROOM);
       if (Math.abs(target - items[0].element.offsetWidth) > 1) {
         items[0].element.style.width = `${target}px`;
       }
@@ -244,41 +231,14 @@ function performMeasurement() {
     }
 
     const lineLeft = items[0].element.getBoundingClientRect().left;
-
-    const gaps: Array<{ layout: number; margin: number; extra: number }> = [];
-    for (let i = 0; i < items.length - 1; i++) {
-      const prevPos = items[i].getPos();
-      const thisPos = items[i + 1].getPos();
-      let layout = MIN_GAP;
-      let margin = MIN_GAP;
-      if (typeof prevPos === 'number' && typeof thisPos === 'number' && thisPos > prevPos) {
-        const textWidth = textWidthBetween(items[i].view, prevPos + 1, thisPos);
-        if (textWidth > 0) {
-          layout = textWidth;
-          margin = 0;
-        }
-      }
-      gaps.push({ layout, margin, extra: Math.max(0, layout - MIN_GAP) });
-    }
-
-    const lastPos = items[items.length - 1].getPos();
-    const trailingTextWidth = typeof lastPos === 'number' ? textWidthAfterModifier(items[items.length - 1].view, lastPos) : 0;
-    const baseGaps = MIN_GAP * (items.length - 1);
-    const available = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - trailingTextWidth);
-    const baseWidth = Math.max(0, (available - baseGaps) / items.length);
-    const widths = items.map(() => baseWidth);
-
-    for (let i = 0; i < gaps.length; i++) {
-      if (gaps[i].extra <= 0) continue;
-      const rightCount = items.length - i - 1;
-      const compression = gaps[i].extra / rightCount;
-      for (let j = i + 1; j < widths.length; j++) widths[j] = Math.max(0, widths[j] - compression);
-    }
+    const totalGap = MIN_GAP * (items.length - 1);
+    const available = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - totalGap);
+    const width = Math.max(0, available / items.length);
 
     for (let i = 0; i < items.length; i++) {
-      items[i].element.style.marginLeft = i === 0 ? '0px' : `${gaps[i - 1].margin}px`;
-      if (Math.abs(widths[i] - items[i].element.offsetWidth) > 1) {
-        items[i].element.style.width = `${widths[i]}px`;
+      items[i].element.style.marginLeft = i === 0 ? '0px' : `${MIN_GAP}px`;
+      if (Math.abs(width - items[i].element.offsetWidth) > 1) {
+        items[i].element.style.width = `${width}px`;
       }
     }
   }
@@ -433,6 +393,11 @@ export const InlineModifier = Mark.create({
 
   addAttributes() {
     return {
+      id: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-modifier-id'),
+        renderHTML: (attributes) => (attributes.id ? { 'data-modifier-id': attributes.id } : {}),
+      },
       name: {
         default: MODIFIER_DEFAULT_NAME,
         parseHTML: (element) => element.getAttribute('data-modifier-name') ?? MODIFIER_DEFAULT_NAME,
@@ -464,7 +429,10 @@ export const InlineModifier = Mark.create({
             .insertContent({
               type: 'text',
               text: INLINE_MODIFIER_CHAR,
-              marks: [{ type: this.name, attrs: { name: MODIFIER_DEFAULT_NAME, value: MODIFIER_DEFAULT_VALUE } }],
+              marks: [{
+                type: this.name,
+                attrs: { id: createModifierId(), name: MODIFIER_DEFAULT_NAME, value: MODIFIER_DEFAULT_VALUE },
+              }],
             })
             .run(),
     };
@@ -515,6 +483,7 @@ export const InlineModifier = Mark.create({
 
               const name = String(mark.attrs.name ?? MODIFIER_DEFAULT_NAME);
               const value = String(mark.attrs.value ?? MODIFIER_DEFAULT_VALUE);
+              const id = typeof mark.attrs.id === 'string' && mark.attrs.id ? mark.attrs.id : null;
               for (let offset = 0; offset < node.nodeSize; offset++) {
                 if (node.text.charAt(offset) !== INLINE_MODIFIER_CHAR) continue;
                 const modifierPos = pos + offset;
@@ -528,7 +497,7 @@ export const InlineModifier = Mark.create({
                       // viene ricostruito a vista (ProseMirror confronta i
                       // widget via spec.key) senza ricostruirlo a ogni
                       // cambio di sola selezione.
-                      key: `modifier:${modifierPos}:${name}:${value}`,
+                      key: `modifier:${id ?? modifierPos}:${name}:${value}`,
                       destroy: (node) => {
                         widgetEntries.delete(node as HTMLElement);
                       },
@@ -566,10 +535,6 @@ export const InlineModifier = Mark.create({
           window.addEventListener('resize', scheduleMeasure);
           scheduleMeasure();
           return {
-            update() {
-              performMeasurement();
-              scheduleMeasure();
-            },
             destroy() {
               window.removeEventListener('resize', scheduleMeasure);
               widgetEntries.clear();
