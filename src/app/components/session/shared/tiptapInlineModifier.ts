@@ -275,9 +275,12 @@ function measureLine(items: Array<{ element: HTMLElement } & WidgetEntry>, lineR
     return;
   }
 
-  const lineLeft = items[0].element.getBoundingClientRect().left;
-  const totalGap = MIN_GAP * (items.length - 1);
-  const available = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - END_INSERTION_ROOM - totalGap);
+  const rects = items.map((item) => item.element.getBoundingClientRect());
+  const lineLeft = rects[0].left;
+  const currentWidth = rects.reduce((sum, rect) => sum + rect.width, 0);
+  const currentSpan = rects[rects.length - 1].right - lineLeft;
+  const realGap = Math.max(0, currentSpan - currentWidth);
+  const available = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - END_INSERTION_ROOM - realGap);
   const width = Math.max(0, available / items.length);
 
   for (let i = 0; i < items.length; i++) {
