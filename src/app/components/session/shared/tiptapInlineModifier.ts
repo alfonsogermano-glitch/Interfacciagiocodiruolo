@@ -526,10 +526,10 @@ function buildModifierWidget(
   Object.assign(dots.style, {
     display: 'inline-flex',
     position: 'absolute',
-    // Nel compatto i puntini escono fuori dal box (badge in alto a destra):
-    // dentro un box quadrato coprirebbero il valore centrato.
-    top: compact ? '-0.55em' : '0.32em',
-    right: compact ? '-0.55em' : '0.32em',
+    // Sempre dentro il box come nell'espanso: overlay assoluto, visibili solo
+    // a hover/focus, senza occupare spazio di layout.
+    top: '0.32em',
+    right: '0.32em',
     zIndex: 1,
     flex: 'none',
     alignItems: 'center',
@@ -537,8 +537,6 @@ function buildModifierWidget(
     gap: '0.11em',
     padding: '0.22em',
     borderRadius: '0.3em',
-    background: compact ? 'var(--dash-panel)' : 'transparent',
-    border: compact ? '1px solid var(--dash-border-soft)' : '0',
     opacity: 0,
     transition: 'opacity 120ms ease',
     cursor: view.editable ? 'pointer' : 'default',
@@ -792,6 +790,42 @@ function buildModifierWidget(
   element.addEventListener('mouseleave', () => { if (document.activeElement !== dots) dots.style.opacity = '0'; });
   dots.addEventListener('focus', () => { dots.style.opacity = '1'; });
   dots.addEventListener('blur', () => { dots.style.opacity = '0'; });
+
+  // Tooltip col nome nel compatto (Riduci): senza la riga del titolo il nome
+  // non sarebbe leggibile da nessuna parte. Specchio del Tooltip condiviso
+  // (ui/tooltip): palette attiva via var(--dash-*), bolla sopra il box, solo
+  // hover/focus, pointer-events none quindi mai layout ne' interazione.
+  if (compact) {
+    const tip = document.createElement('span');
+    tip.className = 'tiptap-inline-modifier-tooltip';
+    tip.setAttribute('role', 'tooltip');
+    tip.textContent = name;
+    Object.assign(tip.style, {
+      position: 'absolute',
+      bottom: 'calc(100% + 8px)',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      whiteSpace: 'nowrap',
+      pointerEvents: 'none',
+      opacity: '0',
+      transition: 'opacity 120ms ease',
+      zIndex: 2,
+      borderRadius: '0.45em',
+      padding: '0.35em 0.7em',
+      fontSize: '0.75em',
+      fontWeight: 600,
+      letterSpacing: '0.04em',
+      background: 'var(--dash-panel)',
+      color: 'var(--dash-text)',
+      border: '1px solid var(--dash-border-soft)',
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+    });
+    element.appendChild(tip);
+    element.addEventListener('mouseenter', () => { tip.style.opacity = '1'; });
+    element.addEventListener('mouseleave', () => { tip.style.opacity = '0'; });
+    element.addEventListener('focusin', () => { tip.style.opacity = '1'; });
+    element.addEventListener('focusout', () => { tip.style.opacity = '0'; });
+  }
 
   // Apre il men&ugrave; React dispatchando un CustomEvent. Il mousedown sui
   // puntini viene bloccato: niente move del caret, niente rimbalzi di

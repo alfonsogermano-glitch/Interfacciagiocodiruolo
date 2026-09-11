@@ -55,8 +55,18 @@ assert.match(
 );
 assert.match(
   source,
-  /minHeight:\s*'2\.5em'[\s\S]*justifyContent:\s*compact \? 'center'[\s\S]*top:\s*compact \? '-0\.55em'/,
-  'compact modifiers must keep expanded height with centered value and menu dots outside the box',
+  /minHeight:\s*'2\.5em'[\s\S]*justifyContent:\s*compact \? 'center'/,
+  'compact modifiers must keep expanded height with centered value',
+);
+assert.doesNotMatch(
+  source,
+  /-0\.55em/,
+  'compact menu dots must stay inside the box like the expanded variant',
+);
+assert.match(
+  source,
+  /tiptap-inline-modifier-tooltip[\s\S]*role['"]?,\s*['"]tooltip['"][\s\S]*var\(--dash-panel\)[\s\S]*var\(--dash-text\)[\s\S]*var\(--dash-border-soft\)/,
+  'compact modifiers must show the modifier name in a palette-styled tooltip',
 );
 assert.match(
   source,
