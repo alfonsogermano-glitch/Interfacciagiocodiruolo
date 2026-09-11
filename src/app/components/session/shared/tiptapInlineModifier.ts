@@ -214,6 +214,7 @@ const CHAR_WIDTH = 8;
 const CURSOR_ROOM = CHAR_WIDTH;
 const END_INSERTION_ROOM = CHAR_WIDTH * 2;
 const MIN_GAP = CHAR_WIDTH;
+const MIN_MODIFIER_WIDTH = 64;
 
 interface WidgetEntry {
   view: EditorView;
@@ -296,23 +297,30 @@ function getModifierWidgetAt(pos: number): HTMLElement | null {
   return null;
 }
 
-function makeRoomNearModifier(pos: number, text: string): void {
+function makeRoomNearModifier(pos: number, delta: number): void {
   const widget = getModifierWidgetAt(pos);
   if (!widget) return;
-  const delta = Math.max(CHAR_WIDTH, text.length * CHAR_WIDTH);
   widget.style.width = `${Math.max(0, widget.offsetWidth - delta)}px`;
 }
 
-function makeRoomForInlineText(view: EditorView, pos: number, text: string): boolean {
+export function makeRoomForInlineModifierText(view: EditorView, pos: number, text: string): boolean {
+  const delta = Math.max(CHAR_WIDTH, text.length * CHAR_WIDTH);
   if (getInlineModifierMark(view.state, pos)) {
-    makeRoomNearModifier(pos, text);
+    makeRoomNearModifier(pos, delta);
     return true;
   }
   if (pos > 0 && getInlineModifierMark(view.state, pos - 1)) {
-    makeRoomNearModifier(pos - 1, text);
+    makeRoomNearModifier(pos - 1, delta);
     return true;
   }
   return false;
+}
+
+function makeRoomForInlineModifierInsertion(state: EditorState, pos: number): void {
+  if (pos <= 0 || !getInlineModifierMark(state, pos - 1)) return;
+  const widget = getModifierWidgetAt(pos - 1);
+  if (!widget) return;
+  widget.style.width = `${Math.max(MIN_MODIFIER_WIDTH, (widget.offsetWidth - MIN_GAP) / 2)}px`;
 }
 
 function buildModifierWidget(
@@ -518,6 +526,7 @@ export const InlineModifier = Mark.create({
           }
 
           if (previousIsModifier) {
+            makeRoomForInlineModifierInsertion(state, insertPos);
             tr.insertText(' ', insertPos);
             insertPos += 1;
           }
@@ -625,7 +634,7 @@ export const InlineModifier = Mark.create({
           },
           handleTextInput(view, from, to, text) {
             if (!view.editable || from !== to || !view.state.selection.empty) return false;
-            if (!makeRoomForInlineText(view, from, text)) return false;
+            if (!makeRoomForInlineModifierText(view, from, text)) return false;
             return false;
           },
           handleClick(view, pos, event) {

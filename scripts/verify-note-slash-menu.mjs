@@ -6,8 +6,8 @@ const uiSource = await readFile(new URL('../src/app/components/session/shared/No
 
 assert.match(
   source,
-  /handleTextInput[\s\S]*text !== '\/'[\s\S]*insertText\('\/'[\s\S]*setSelection\(TextSelection\.create\(tr\.doc, from \+ 1\)\)[\s\S]*type:\s*'open'/,
-  'slash trigger must insert /, explicitly place the caret after it, then open the slash menu',
+  /handleTextInput[\s\S]*text !== '\/'[\s\S]*makeRoomForInlineModifierText[\s\S]*insertText\('\/'[\s\S]*setSelection\(TextSelection\.create\(tr\.doc, from \+ 1\)\)[\s\S]*type:\s*'open'/,
+  'slash trigger must make room after inline modifiers, insert /, explicitly place the caret after it, then open the slash menu',
 );
 
 assert.match(

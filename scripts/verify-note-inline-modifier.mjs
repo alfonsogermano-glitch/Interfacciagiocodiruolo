@@ -45,8 +45,13 @@ assert.match(
 );
 assert.match(
   source,
-  /makeRoomForInlineText[\s\S]*getInlineModifierMark\(view\.state, pos\)[\s\S]*getInlineModifierMark\(view\.state, pos - 1\)[\s\S]*handleTextInput[\s\S]*makeRoomForInlineText/,
+  /makeRoomForInlineModifierText[\s\S]*getInlineModifierMark\(view\.state, pos\)[\s\S]*getInlineModifierMark\(view\.state, pos - 1\)[\s\S]*handleTextInput[\s\S]*makeRoomForInlineModifierText/,
   'typing immediately before or after a modifier must shrink the adjacent widget before native inline insertion',
+);
+assert.match(
+  source,
+  /makeRoomForInlineModifierInsertion[\s\S]*MIN_MODIFIER_WIDTH[\s\S]*previousIsModifier[\s\S]*makeRoomForInlineModifierInsertion/,
+  'adding another modifier immediately after a modifier must shrink the previous widget before insertion so both stay on the same visual line',
 );
 assert.match(
   source,
