@@ -278,18 +278,11 @@ function getModifierWidgetAt(pos: number): HTMLElement | null {
   return null;
 }
 
-function isWrappedBeforeModifier(view: EditorView, pos: number): boolean {
-  if (pos <= 0 || !getInlineModifierMark(view.state, pos)) return false;
+function makeRoomBeforeModifier(pos: number, text: string): void {
   const widget = getModifierWidgetAt(pos);
-  if (!widget) return false;
-
-  try {
-    const before = view.coordsAtPos(pos - 1);
-    const widgetTop = widget.getBoundingClientRect().top;
-    return widgetTop - before.top > 6;
-  } catch {
-    return false;
-  }
+  if (!widget) return;
+  const delta = Math.max(CHAR_WIDTH, text.length * CHAR_WIDTH);
+  widget.style.width = `${Math.max(0, widget.offsetWidth - delta)}px`;
 }
 
 function buildModifierWidget(
@@ -602,15 +595,9 @@ export const InlineModifier = Mark.create({
           },
           handleTextInput(view, from, to, text) {
             if (!view.editable || text === '/' || from !== to || !view.state.selection.empty) return false;
-            if (!isWrappedBeforeModifier(view, from)) return false;
-            const hardBreak = view.state.schema.nodes.hardBreak;
-            if (!hardBreak) return false;
-
-            const tr = view.state.tr.insert(from, hardBreak.create());
-            tr.insertText(text, from + 1);
-            tr.setSelection(TextSelection.create(tr.doc, from + 1 + text.length));
-            view.dispatch(tr.scrollIntoView());
-            return true;
+            if (!getInlineModifierMark(view.state, from)) return false;
+            makeRoomBeforeModifier(from, text);
+            return false;
           },
           handleClick(view, pos, event) {
             return nudgeToRightOfTrailingModifier(view, pos, event);
