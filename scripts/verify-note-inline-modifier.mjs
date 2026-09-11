@@ -50,6 +50,11 @@ assert.match(
 );
 assert.match(
   source,
+  /isCompactModifier[\s\S]*measureLine[\s\S]*style\.width = 'auto'[\s\S]*compactWidth[\s\S]*available \/ expanded\.length/,
+  'compact modifiers must shrink to content (value only) while expanded modifiers split the remaining line width',
+);
+assert.match(
+  source,
   /makeRoomForInlineModifierText[\s\S]*getInlineModifierMark\(view\.state, pos\)[\s\S]*getInlineModifierMark\(view\.state, pos - 1\)[\s\S]*handleTextInput[\s\S]*makeRoomForInlineModifierText/,
   'typing immediately before or after a modifier must shrink the adjacent widget before native inline insertion',
 );

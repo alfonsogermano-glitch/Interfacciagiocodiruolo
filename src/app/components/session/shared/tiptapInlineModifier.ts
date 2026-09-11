@@ -338,18 +338,40 @@ function performMeasurement() {
   }
 }
 
+function isCompactModifier(element: HTMLElement): boolean {
+  return element.dataset.modifierCompact === 'true';
+}
+
 function measureLine(items: Array<{ element: HTMLElement } & WidgetEntry>, lineRight: number) {
-  if (items.length === 1) {
-    const lineLeft = items[0].element.getBoundingClientRect().left;
-    const target = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - END_INSERTION_ROOM);
-    items[0].element.style.marginRight = `${CURSOR_ROOM}px`;
-    if (Math.abs(target - items[0].element.offsetWidth) > 1) {
-      items[0].element.style.width = `${target}px`;
+  // I Modificatori compatti (Riduci) restano a dimensione contenuto - solo il
+  // valore centrato - e non partecipano alla divisione della riga.
+  const expanded = items.filter((item) => !isCompactModifier(item.element));
+  for (const item of items) {
+    if (isCompactModifier(item.element)) {
+      item.element.style.marginLeft = '0px';
+      item.element.style.marginRight = '0px';
+      item.element.style.width = 'auto';
+    }
+  }
+  if (expanded.length === 0) {
+    for (let i = 0; i < items.length; i++) {
+      items[i].element.style.marginLeft = '0px';
+      items[i].element.style.marginRight = i === items.length - 1 ? `${CURSOR_ROOM}px` : '0px';
     }
     return;
   }
 
-  for (const item of items) {
+  if (items.length === 1) {
+    const lineLeft = expanded[0].element.getBoundingClientRect().left;
+    const target = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - END_INSERTION_ROOM);
+    expanded[0].element.style.marginRight = `${CURSOR_ROOM}px`;
+    if (Math.abs(target - expanded[0].element.offsetWidth) > 1) {
+      expanded[0].element.style.width = `${target}px`;
+    }
+    return;
+  }
+
+  for (const item of expanded) {
     item.element.style.marginLeft = '0px';
     item.element.style.marginRight = '0px';
   }
@@ -359,15 +381,21 @@ function measureLine(items: Array<{ element: HTMLElement } & WidgetEntry>, lineR
   const currentWidth = rects.reduce((sum, rect) => sum + rect.width, 0);
   const currentSpan = rects[rects.length - 1].right - lineLeft;
   const realGap = Math.max(0, currentSpan - currentWidth);
-  const available = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - END_INSERTION_ROOM - realGap);
-  const width = Math.max(0, available / items.length);
+  const compactWidth = items.reduce(
+    (sum, item) => sum + (isCompactModifier(item.element) ? item.element.getBoundingClientRect().width : 0),
+    0,
+  );
+  const available = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - END_INSERTION_ROOM - realGap - compactWidth);
+  const width = Math.max(0, available / expanded.length);
 
+  for (const item of expanded) {
+    if (Math.abs(width - item.element.offsetWidth) > 1) {
+      item.element.style.width = `${width}px`;
+    }
+  }
   for (let i = 0; i < items.length; i++) {
     items[i].element.style.marginLeft = '0px';
     items[i].element.style.marginRight = i === items.length - 1 ? `${CURSOR_ROOM}px` : '0px';
-    if (Math.abs(width - items[i].element.offsetWidth) > 1) {
-      items[i].element.style.width = `${width}px`;
-    }
   }
 }
 
@@ -381,7 +409,8 @@ function getModifierWidgetAt(pos: number): HTMLElement | null {
 
 function makeRoomNearModifier(pos: number, delta: number): void {
   const widget = getModifierWidgetAt(pos);
-  if (!widget) return;
+  // I compatti sono gia' al minimo (solo valore): non vanno schiacciati oltre.
+  if (!widget || isCompactModifier(widget)) return;
   widget.style.width = `${Math.max(0, widget.offsetWidth - delta)}px`;
 }
 
@@ -401,7 +430,8 @@ export function makeRoomForInlineModifierText(view: EditorView, pos: number, tex
 function makeRoomForInlineModifierInsertion(state: EditorState, pos: number): void {
   if (pos <= 0 || !getInlineModifierMark(state, pos - 1)) return;
   const widget = getModifierWidgetAt(pos - 1);
-  if (!widget) return;
+  // I compatti sono gia' al minimo (solo valore): non vanno dimezzati.
+  if (!widget || isCompactModifier(widget)) return;
   widget.style.width = `${Math.max(MIN_MODIFIER_WIDTH, (widget.offsetWidth - MIN_GAP) / 2)}px`;
 }
 
