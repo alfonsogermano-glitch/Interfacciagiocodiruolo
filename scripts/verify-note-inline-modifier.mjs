@@ -10,8 +10,8 @@ assert.match(
 );
 assert.match(
   source,
-  /addAttributes\(\)[\s\S]*name:[\s\S]*default:\s*MODIFIER_DEFAULT_NAME[\s\S]*value:[\s\S]*default:\s*MODIFIER_DEFAULT_VALUE[\s\S]*compact:[\s\S]*default:\s*false/,
-  'inline modifier must expose name, value, and compact attributes with documented defaults',
+  /addAttributes\(\)[\s\S]*name:[\s\S]*default:\s*MODIFIER_DEFAULT_NAME[\s\S]*value:[\s\S]*default:\s*MODIFIER_DEFAULT_VALUE[\s\S]*compact:[\s\S]*default:\s*false[\s\S]*titleBold:[\s\S]*default:\s*false[\s\S]*titleItalic:[\s\S]*default:\s*false[\s\S]*titleUnderline:[\s\S]*default:\s*false[\s\S]*titleStrike:[\s\S]*default:\s*false[\s\S]*titleFontSize:[\s\S]*default:\s*null[\s\S]*titleFontFamily:[\s\S]*default:\s*null[\s\S]*titleAlign:[\s\S]*default:\s*null/,
+  'inline modifier must expose name, value, compact, and title-format attributes with documented defaults',
 );
 assert.match(
   source,
@@ -30,8 +30,13 @@ assert.match(
 );
 assert.match(
   source,
-  /Decoration\.widget\([\s\S]*key:\s*`modifier:\$\{.*\}:\$\{.*\}:\$\{.*\}:\$\{compact\}`/,
-  'inline modifier decoration must include name, value, and compact in the key to force rebuild on attribute change',
+  /titleKey[\s\S]*Decoration\.widget\([\s\S]*key:\s*`modifier:\$\{.*\}:\$\{.*\}:\$\{.*\}:\$\{compact\}:\$\{titleKey\}`/,
+  'inline modifier decoration must include name, value, compact, and title format in the key to force rebuild on attribute change',
+);
+assert.match(
+  source,
+  /applyModifierTitleFormat[\s\S]*fontWeight[\s\S]*textDecoration[\s\S]*fontSize[\s\S]*fontFamily[\s\S]*textAlign/,
+  'modifier title must render persisted bold/italic/underline/strike/size/family/align formatting',
 );
 assert.match(
   source,
@@ -60,8 +65,8 @@ assert.match(
 );
 assert.match(
   source,
-  /NOTE_MODIFIER_RENAME_EVENT[\s\S]*startInlineRename[\s\S]*event\.key === 'Enter'[\s\S]*event\.key === 'Escape'[\s\S]*document\.addEventListener\('pointerdown'/,
-  'renaming a modifier must happen inline inside the widget and save on outside click/Enter while Escape cancels',
+  /NOTE_MODIFIER_RENAME_EVENT[\s\S]*startInlineRename[\s\S]*data-note-modifier-rename[\s\S]*event\.key === 'Enter'[\s\S]*event\.key === 'Escape'[\s\S]*window\.addEventListener\('pointerdown'[\s\S]*addEventListener\('blur'/,
+  'renaming a modifier must happen inline inside the widget and save on outside click/Enter/blur while Escape cancels',
 );
 assert.match(
   source,
@@ -77,6 +82,26 @@ assert.match(
   source,
   /NOTE_MODIFIER_MENU_EVENT[\s\S]*CustomEvent<NoteModifierMenuRequest>/,
   'the vanilla widget must bridge to the React menu via a typed CustomEvent',
+);
+assert.match(
+  source,
+  /NOTE_MODIFIER_TITLE_MENU_EVENT[\s\S]*NOTE_MODIFIER_TITLE_MENU_CLOSE_EVENT[\s\S]*NOTE_MODIFIER_TITLE_FORMAT_EVENT[\s\S]*NOTE_MODIFIER_TITLE_MENU_DISMISS_EVENT/,
+  'the rename input must bridge to the React title menu via typed CustomEvents for open/close/format/dismiss',
+);
+assert.match(
+  source,
+  /findTitleTrigger[\s\S]*selectionStart[\s\S]*syncTitleMenu[\s\S]*addEventListener\('input', onInput/,
+  'typing / inside the modifier rename input must open/update the filtered title menu instead of staying plain text',
+);
+assert.match(
+  source,
+  /onTitleFormat[\s\S]*pendingFormat[\s\S]*removeTitleTrigger[\s\S]*closeTitleMenu/,
+  'applying a title format must toggle pending formatting, remove the / trigger, and close the title menu while continuing the rename',
+);
+assert.match(
+  source,
+  /closest\(\s*'?\[data-note-modifier-title-menu="true"\]'?\s*\)/,
+  'clicks on the title menu must not save the rename as an outside click',
 );
 
 const commandsSource = await readFile(new URL('../src/app/components/session/shared/noteEditorCommands.ts', import.meta.url), 'utf8');

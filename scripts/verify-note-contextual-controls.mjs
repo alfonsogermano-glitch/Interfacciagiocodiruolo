@@ -51,6 +51,12 @@ assert.match(slash, /className=\{`flex min-h-12 w-full flex-col/, 'Slash command
 assert.match(modifierMenu, /<Icon className="h-3\.5 w-3\.5 shrink-0"/, 'modifier menu actions must show a left icon like other compact menus');
 assert.match(modifierMenu, /label=\{data\.compact \? 'Allarga' : 'Riduci'\}/, 'modifier menu must toggle Riduci/Allarga from compact state');
 assert.doesNotMatch(modifierMenu, /hint=\{data\.name\}/, 'modifier menu must not show the modifier name beside Riduci');
+assert.match(modifierMenu, /TITLE_SLASH_COMMAND_IDS[\s\S]*'bold'[\s\S]*'italic'[\s\S]*'underline'[\s\S]*'strike'[\s\S]*'fontSize'[\s\S]*'fontFamily'[\s\S]*'alignLeft'[\s\S]*'alignCenter'[\s\S]*'alignRight'/, 'modifier title slash menu must offer only the Text group options');
+assert.doesNotMatch(modifierMenu, /TITLE_SLASH_COMMAND_IDS[\s\S]*bulletList/, 'modifier title slash menu must exclude Elenco puntato');
+assert.doesNotMatch(modifierMenu, /TITLE_SLASH_COMMAND_IDS[\s\S]*orderedList/, 'modifier title slash menu must exclude Elenco numerato');
+assert.doesNotMatch(modifierMenu, /TITLE_SLASH_COMMAND_IDS[\s\S]*blockquote/, 'modifier title slash menu must exclude Citazione');
+assert.match(modifierMenu, /NoteModifierTitleMenu[\s\S]*data-note-modifier-title-menu/, 'modifier title menu must render as contextual UI with left icons');
+assert.match(editor, /NoteModifierTitleMenu/, 'RichTextEditor must mount the modifier title menu alongside the modifier menu');
 assert.doesNotMatch(pickers, /<PopoverTrigger asChild><PickerTooltip/, 'picker tooltip must not swallow Popover trigger events');
 assert.match(pickers, /<PickerTooltip trigger=\{<PopoverTrigger asChild>\{trigger\}<\/PopoverTrigger>\} label="Dimensione testo" \/>/, 'font-size picker must attach PopoverTrigger directly to the real button');
 assert.match(pickers, /<PickerTooltip trigger=\{<PopoverTrigger asChild>\{trigger\}<\/PopoverTrigger>\} label="Font" \/>/, 'font-family picker must attach PopoverTrigger directly to the real button');

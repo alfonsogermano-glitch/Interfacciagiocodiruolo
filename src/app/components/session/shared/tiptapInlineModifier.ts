@@ -32,6 +32,32 @@ export const MODIFIER_WIDGET_SELECTOR = '.tiptap-inline-modifier-widget';
 // componente React <NoteModifierMenu> lo ascolta e renderizza il menu.
 export const NOTE_MODIFIER_MENU_EVENT = 'note-inline-modifier-menu';
 export const NOTE_MODIFIER_RENAME_EVENT = 'note-inline-modifier-rename';
+// Bridge per il menu "/" dentro la rinomina del titolo: il widget (vanilla)
+// rileva "/" nell'input e chiede a React di mostrare il menu filtrato;
+// React risponde con formato o dismiss. Solo gruppo Testo, senza elenchi e
+// citazione (vedi TITLE_SLASH_COMMANDS in NoteModifierMenu).
+export const NOTE_MODIFIER_TITLE_MENU_EVENT = 'note-inline-modifier-title-menu';
+export const NOTE_MODIFIER_TITLE_MENU_CLOSE_EVENT = 'note-inline-modifier-title-menu-close';
+export const NOTE_MODIFIER_TITLE_FORMAT_EVENT = 'note-inline-modifier-title-format';
+export const NOTE_MODIFIER_TITLE_MENU_DISMISS_EVENT = 'note-inline-modifier-title-menu-dismiss';
+
+export type ModifierTitleFormatCommand =
+  | 'bold' | 'italic' | 'underline' | 'strike'
+  | 'fontSize' | 'fontFamily'
+  | 'alignLeft' | 'alignCenter' | 'alignRight';
+
+export interface NoteModifierTitleMenuRequest {
+  pos: number;
+  query: string;
+  x: number;
+  y: number;
+}
+
+export interface NoteModifierTitleFormatRequest {
+  pos: number;
+  command: ModifierTitleFormatCommand;
+  value?: number | string;
+}
 
 export interface NoteModifierMenuRequest {
   /** Posizione del carattere ZWSP (inizio del Modificatore). */
@@ -41,11 +67,40 @@ export interface NoteModifierMenuRequest {
   y: number;
 }
 
+export type ModifierTitleAlign = 'left' | 'center' | 'right';
+
+export interface ModifierTitleFormat {
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strike: boolean;
+  fontSize: number | null;
+  fontFamily: string | null;
+  align: ModifierTitleAlign | null;
+}
+
 export interface ModifierData {
   name: string;
   value: string;
   compact: boolean;
+  titleBold: boolean;
+  titleItalic: boolean;
+  titleUnderline: boolean;
+  titleStrike: boolean;
+  titleFontSize: number | null;
+  titleFontFamily: string | null;
+  titleAlign: ModifierTitleAlign | null;
 }
+
+export const MODIFIER_TITLE_FORMAT_DEFAULTS: ModifierTitleFormat = {
+  bold: false,
+  italic: false,
+  underline: false,
+  strike: false,
+  fontSize: null,
+  fontFamily: null,
+  align: null,
+};
 
 function createModifierId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `modifier-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -94,10 +149,18 @@ function getInlineModifierMark(state: EditorState, pos: number) {
 export function getModifierAt(state: EditorState, pos: number): ModifierData | null {
   const mark = getInlineModifierMark(state, pos);
   if (!mark) return null;
+  const align = mark.attrs.titleAlign;
   return {
     name: String(mark.attrs.name ?? MODIFIER_DEFAULT_NAME),
     value: String(mark.attrs.value ?? MODIFIER_DEFAULT_VALUE),
     compact: mark.attrs.compact === true,
+    titleBold: mark.attrs.titleBold === true,
+    titleItalic: mark.attrs.titleItalic === true,
+    titleUnderline: mark.attrs.titleUnderline === true,
+    titleStrike: mark.attrs.titleStrike === true,
+    titleFontSize: typeof mark.attrs.titleFontSize === 'number' ? mark.attrs.titleFontSize : null,
+    titleFontFamily: typeof mark.attrs.titleFontFamily === 'string' && mark.attrs.titleFontFamily ? mark.attrs.titleFontFamily : null,
+    titleAlign: align === 'left' || align === 'center' || align === 'right' ? align : null,
   };
 }
 
@@ -114,6 +177,7 @@ export function setModifierAttrs(
   const currentMark = getInlineModifierMark(state, pos);
   if (!markType || !currentMark) return false;
 
+  const nextAlign = attrs.titleAlign !== undefined ? attrs.titleAlign : currentMark.attrs.titleAlign;
   const next = {
     id: currentMark.attrs.id,
     name: attrs.name !== undefined
@@ -121,6 +185,13 @@ export function setModifierAttrs(
       : currentMark.attrs.name ?? MODIFIER_DEFAULT_NAME,
     value: attrs.value ?? currentMark.attrs.value ?? MODIFIER_DEFAULT_VALUE,
     compact: attrs.compact ?? (currentMark.attrs.compact === true),
+    titleBold: attrs.titleBold ?? (currentMark.attrs.titleBold === true),
+    titleItalic: attrs.titleItalic ?? (currentMark.attrs.titleItalic === true),
+    titleUnderline: attrs.titleUnderline ?? (currentMark.attrs.titleUnderline === true),
+    titleStrike: attrs.titleStrike ?? (currentMark.attrs.titleStrike === true),
+    titleFontSize: attrs.titleFontSize !== undefined ? attrs.titleFontSize : (typeof currentMark.attrs.titleFontSize === 'number' ? currentMark.attrs.titleFontSize : null),
+    titleFontFamily: attrs.titleFontFamily !== undefined ? attrs.titleFontFamily : (typeof currentMark.attrs.titleFontFamily === 'string' && currentMark.attrs.titleFontFamily ? currentMark.attrs.titleFontFamily : null),
+    titleAlign: nextAlign === 'left' || nextAlign === 'center' || nextAlign === 'right' ? nextAlign : null,
   };
   if (dispatch) {
     dispatch(
@@ -220,6 +291,11 @@ interface WidgetEntry {
 }
 
 const widgetEntries = new Map<HTMLElement, WidgetEntry>();
+
+// Solo una rinomina inline alla volta: se l'utente apre Rinomina su un altro
+// Modificatore mentre una precedente e' ancora aperta, la precedente viene
+// salvata prima di iniziare la nuova.
+let finishActiveInlineRename: ((save: boolean) => void) | null = null;
 
 let measureRaf = 0;
 
@@ -329,12 +405,31 @@ function makeRoomForInlineModifierInsertion(state: EditorState, pos: number): vo
   widget.style.width = `${Math.max(MIN_MODIFIER_WIDTH, (widget.offsetWidth - MIN_GAP) / 2)}px`;
 }
 
+export function applyModifierTitleFormat(
+  target: HTMLElement,
+  format: ModifierTitleFormat,
+  baseFontSize = '0.72em',
+): void {
+  target.style.fontWeight = format.bold ? '700' : '600';
+  target.style.fontStyle = format.italic ? 'italic' : 'normal';
+  const decorations: string[] = [];
+  if (format.underline) decorations.push('underline');
+  if (format.strike) decorations.push('line-through');
+  target.style.textDecoration = decorations.join(' ') || 'none';
+  target.style.fontSize = typeof format.fontSize === 'number' ? `${format.fontSize}px` : baseFontSize;
+  target.style.fontFamily = format.fontFamily ?? '';
+  if (format.align === 'center') target.style.textAlign = 'center';
+  else if (format.align === 'right') target.style.textAlign = 'right';
+  else target.style.textAlign = 'left';
+}
+
 function buildModifierWidget(
   view: EditorView,
   getPos: () => number | undefined,
   name: string,
   value: string,
   compact: boolean,
+  titleFormat: ModifierTitleFormat,
 ): HTMLElement {
   const element = document.createElement('span');
   element.className = 'tiptap-inline-modifier-widget';
@@ -384,6 +479,9 @@ function buildModifierWidget(
     color: 'var(--dash-text-strong)',
     textTransform: 'uppercase',
   });
+  applyModifierTitleFormat(label, titleFormat);
+  if (titleFormat.align === 'center') head.style.justifyContent = 'center';
+  else if (titleFormat.align === 'right') head.style.justifyContent = 'flex-end';
 
   const dots = document.createElement('span');
   dots.className = 'tiptap-inline-modifier-menu-trigger';
@@ -438,10 +536,18 @@ function buildModifierWidget(
 
   const startInlineRename = (pos: number) => {
     if (compact || typeof getPos() !== 'number' || getPos() !== pos) return;
+    // Chiude un'eventuale rinomina precedente ancora aperta (salvandola),
+    // cosi' non restano mai due input attivi in giro per il documento.
+    finishActiveInlineRename?.(true);
     const previousName = label.textContent ?? name;
+    const pendingFormat: ModifierTitleFormat = { ...titleFormat };
     const input = document.createElement('input');
     input.value = previousName;
     input.setAttribute('aria-label', 'Nome modificatore');
+    // L'input vive dentro un widget contenteditable=false: ProseMirror non lo
+    // tratta come testo del documento. "/" qui apre il menu titolo filtrato
+    // (solo Testo, vedi TITLE_SLASH_COMMANDS), non lo slash menu dell'editor.
+    input.setAttribute('data-note-modifier-rename', 'true');
     Object.assign(input.style, {
       width: '100%',
       minWidth: 0,
@@ -451,49 +557,186 @@ function buildModifierWidget(
       background: 'var(--dash-surface)',
       color: 'var(--dash-text-strong)',
       font: 'inherit',
-      fontSize: '0.72em',
-      fontWeight: 600,
       letterSpacing: '0.04em',
       textTransform: 'uppercase',
     });
+    applyModifierTitleFormat(input, pendingFormat);
 
     let done = false;
-    const finish = (save: boolean) => {
+    let titleMenuOpen = false;
+    let titleTriggerStart: number | null = null;
+    const host = element as HTMLElement & { __cancelInlineRename?: () => void };
+    const restoreLabel = (text: string) => {
+      label.textContent = text;
+      if (input.isConnected) input.replaceWith(label);
+    };
+    const closeTitleMenu = () => {
+      if (!titleMenuOpen) return;
+      titleMenuOpen = false;
+      titleTriggerStart = null;
+      window.dispatchEvent(new CustomEvent<{ pos: number }>(NOTE_MODIFIER_TITLE_MENU_CLOSE_EVENT, { detail: { pos } }));
+    };
+    const finish = (save: boolean, focusEditor = false) => {
       if (done) return;
       done = true;
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      input.removeEventListener('keydown', onKeyDown);
+      if (finishActiveInlineRename === finishWrapper) finishActiveInlineRename = null;
+      if (host.__cancelInlineRename === cancelRename) host.__cancelInlineRename = undefined;
+      window.removeEventListener('pointerdown', onWindowPointerDown, true);
+      window.removeEventListener('keydown', onWindowKeyDown, true);
+      window.removeEventListener(NOTE_MODIFIER_TITLE_FORMAT_EVENT, onTitleFormat as EventListener);
+      window.removeEventListener(NOTE_MODIFIER_TITLE_MENU_DISMISS_EVENT, onTitleDismiss as EventListener);
+      input.removeEventListener('blur', onBlur);
+      input.removeEventListener('input', onInput);
+      closeTitleMenu();
       const currentPos = getPos();
       if (save && typeof currentPos === 'number') {
         const nextName = input.value.trim() || MODIFIER_DEFAULT_NAME;
-        setModifierAttrs(view.state, (tr) => view.dispatch(tr), currentPos, { name: nextName });
+        // Ripristina subito il label anche se il widget non verra'
+        // ricostruito (nome/formato invariati => stessa key => stesso DOM):
+        // senza questo, l'input resterebbe appeso nel documento.
+        restoreLabel(nextName);
+        applyModifierTitleFormat(label, pendingFormat);
+        setModifierAttrs(view.state, (tr) => view.dispatch(tr), currentPos, {
+          name: nextName,
+          titleBold: pendingFormat.bold,
+          titleItalic: pendingFormat.italic,
+          titleUnderline: pendingFormat.underline,
+          titleStrike: pendingFormat.strike,
+          titleFontSize: pendingFormat.fontSize,
+          titleFontFamily: pendingFormat.fontFamily,
+          titleAlign: pendingFormat.align,
+        });
+      } else if (!save) {
+        restoreLabel(previousName);
       } else {
-        label.textContent = previousName;
-        input.replaceWith(label);
+        restoreLabel(previousName);
       }
+      if (focusEditor) view.focus();
+    };
+    const finishWrapper = (save: boolean) => finish(save, false);
+
+    // Trova un trigger "/" attivo prima del caret: "/" seguito solo da lettere
+    // (query di filtro). Senza trigger il menu resta chiuso e "/" e' testo.
+    const findTitleTrigger = (): { start: number; query: string } | null => {
+      const caret = input.selectionStart ?? input.value.length;
+      const before = input.value.slice(0, caret);
+      const match = before.match(/\/([A-Za-zÀ-ÿ]*)$/);
+      if (!match || typeof match.index !== 'number') return null;
+      return { start: match.index, query: match[1] ?? '' };
+    };
+    const syncTitleMenu = () => {
+      if (done || document.activeElement !== input) return;
+      const trigger = findTitleTrigger();
+      if (!trigger) {
+        closeTitleMenu();
+        return;
+      }
+      titleMenuOpen = true;
+      titleTriggerStart = trigger.start;
+      const rect = input.getBoundingClientRect();
+      window.dispatchEvent(
+        new CustomEvent<NoteModifierTitleMenuRequest>(NOTE_MODIFIER_TITLE_MENU_EVENT, {
+          detail: { pos, query: trigger.query, x: rect.left, y: rect.bottom },
+        }),
+      );
+    };
+    const onInput = () => {
+      applyModifierTitleFormat(input, pendingFormat);
+      syncTitleMenu();
+    };
+    const removeTitleTrigger = () => {
+      if (titleTriggerStart === null) return;
+      const caret = input.selectionStart ?? input.value.length;
+      input.value = input.value.slice(0, titleTriggerStart) + input.value.slice(caret);
+      try { input.setSelectionRange(titleTriggerStart, titleTriggerStart); } catch { /* input non testuale: ignora */ }
+    };
+    const onTitleFormat = (event: Event) => {
+      const detail = (event as CustomEvent<NoteModifierTitleFormatRequest>).detail;
+      if (!detail || detail.pos !== pos || done) return;
+      switch (detail.command) {
+        case 'bold': pendingFormat.bold = !pendingFormat.bold; break;
+        case 'italic': pendingFormat.italic = !pendingFormat.italic; break;
+        case 'underline': pendingFormat.underline = !pendingFormat.underline; break;
+        case 'strike': pendingFormat.strike = !pendingFormat.strike; break;
+        case 'fontSize': pendingFormat.fontSize = typeof detail.value === 'number' ? detail.value : pendingFormat.fontSize; break;
+        case 'fontFamily': pendingFormat.fontFamily = typeof detail.value === 'string' ? detail.value : pendingFormat.fontFamily; break;
+        case 'alignLeft': pendingFormat.align = pendingFormat.align === 'left' ? null : 'left'; break;
+        case 'alignCenter': pendingFormat.align = pendingFormat.align === 'center' ? null : 'center'; break;
+        case 'alignRight': pendingFormat.align = pendingFormat.align === 'right' ? null : 'right'; break;
+      }
+      removeTitleTrigger();
+      applyModifierTitleFormat(input, pendingFormat);
+      closeTitleMenu();
+      input.focus();
+    };
+    const onTitleDismiss = (event: Event) => {
+      const detail = (event as CustomEvent<{ pos: number }>).detail;
+      if (!detail || detail.pos !== pos || done) return;
+      // Escape nel menu titolo: chiude solo il menu, "/" resta testo e la
+      // rinomina continua (come lo slash menu dell'editor).
+      titleMenuOpen = false;
+      titleTriggerStart = null;
+      input.focus();
     };
 
-    const onPointerDown = (event: PointerEvent) => {
+    // Click (o tocco) fuori dall'input e fuori dal menu titolo: salva e lascia
+    // che l'evento prosegua verso il punto cliccato (niente preventDefault /
+    // stopPropagation qui, altrimenti il focus non si sposterebbe mai).
+    const onWindowPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && input.contains(event.target)) return;
       if (event.target === input) return;
-      finish(true);
+      if (event.target instanceof Element && event.target.closest('[data-note-modifier-title-menu="true"]')) return;
+      finish(true, false);
     };
-    const onKeyDown = (event: KeyboardEvent) => {
-      event.stopPropagation();
+    // Enter salva, Escape annulla - ma se il menu titolo e' aperto, Enter ed
+    // Escape li gestisce il menu React (scelta voce / chiusura con "/" che
+    // resta testo): qui si lascia passare senza chiudere la rinomina.
+    // Listener in capture su window: l'input e' dentro l'editor, quindi i
+    // listener capture dell'editor scatterebbero prima di un listener bubble
+    // sull'input e ci ruberebbero Esc/Invio.
+    const onWindowKeyDown = (event: KeyboardEvent) => {
+      if (event.target !== input) return;
+      if (titleMenuOpen) {
+        if (event.key === 'Enter' || event.key === 'Escape' || event.key.startsWith('Arrow')) return;
+        event.stopPropagation();
+        return;
+      }
       if (event.key === 'Enter') {
         event.preventDefault();
-        finish(true);
+        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+        finish(true, true);
       } else if (event.key === 'Escape') {
         event.preventDefault();
-        finish(false);
+        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+        finish(false, true);
+      } else {
+        // Altri tasti restano testo dentro l'input, senza raggiungere l'editor.
+        event.stopPropagation();
       }
     };
+    const onBlur = (event: FocusEvent) => {
+      // Il click sul menu titolo sposta il focus fuori dall'input: non salvare
+      // in quel caso, la rinomina continua dopo la scelta nel menu.
+      const next = event.relatedTarget as Element | null;
+      if (next?.closest?.('[data-note-modifier-title-menu="true"]')) return;
+      finish(true, false);
+    };
 
+    const cancelRename = () => finish(false, false);
+    finishActiveInlineRename = finishWrapper;
+    // Se il widget viene distrutto mentre la rinomina e' aperta (es. undo o
+    // cancellazione esterna), annulla senza dispatch: l'input e' comunque
+    // staccato dal documento e i listener verrebbero dimenticati.
+    host.__cancelInlineRename = cancelRename;
     label.replaceWith(input);
-    input.addEventListener('pointerdown', (event) => event.stopPropagation());
-    input.addEventListener('mousedown', (event) => event.stopPropagation());
-    input.addEventListener('click', (event) => event.stopPropagation());
-    input.addEventListener('keydown', onKeyDown);
-    document.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('pointerdown', onWindowPointerDown, true);
+    window.addEventListener('keydown', onWindowKeyDown, true);
+    window.addEventListener(NOTE_MODIFIER_TITLE_FORMAT_EVENT, onTitleFormat as EventListener);
+    window.addEventListener(NOTE_MODIFIER_TITLE_MENU_DISMISS_EVENT, onTitleDismiss as EventListener);
+    input.addEventListener('blur', onBlur);
+    input.addEventListener('input', onInput);
     window.requestAnimationFrame(() => {
       input.focus();
       input.select();
@@ -547,6 +790,7 @@ function buildModifierWidget(
   widgetEntries.set(element, entry);
   (element as HTMLElement & { __destroyModifierWidget?: () => void }).__destroyModifierWidget = () => {
     window.removeEventListener(NOTE_MODIFIER_RENAME_EVENT, onRenameRequest);
+    (element as HTMLElement & { __cancelInlineRename?: () => void }).__cancelInlineRename?.();
   };
   scheduleMeasure();
   return element;
@@ -580,6 +824,48 @@ export const InlineModifier = Mark.create({
         default: false,
         parseHTML: (element) => element.getAttribute('data-modifier-compact') === 'true',
         renderHTML: (attributes) => (attributes.compact ? { 'data-modifier-compact': 'true' } : {}),
+      },
+      titleBold: {
+        default: false,
+        parseHTML: (element) => element.getAttribute('data-modifier-title-bold') === 'true',
+        renderHTML: (attributes) => (attributes.titleBold ? { 'data-modifier-title-bold': 'true' } : {}),
+      },
+      titleItalic: {
+        default: false,
+        parseHTML: (element) => element.getAttribute('data-modifier-title-italic') === 'true',
+        renderHTML: (attributes) => (attributes.titleItalic ? { 'data-modifier-title-italic': 'true' } : {}),
+      },
+      titleUnderline: {
+        default: false,
+        parseHTML: (element) => element.getAttribute('data-modifier-title-underline') === 'true',
+        renderHTML: (attributes) => (attributes.titleUnderline ? { 'data-modifier-title-underline': 'true' } : {}),
+      },
+      titleStrike: {
+        default: false,
+        parseHTML: (element) => element.getAttribute('data-modifier-title-strike') === 'true',
+        renderHTML: (attributes) => (attributes.titleStrike ? { 'data-modifier-title-strike': 'true' } : {}),
+      },
+      titleFontSize: {
+        default: null,
+        parseHTML: (element) => {
+          const raw = element.getAttribute('data-modifier-title-font-size');
+          const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+          return Number.isFinite(parsed) ? parsed : null;
+        },
+        renderHTML: (attributes) => (typeof attributes.titleFontSize === 'number' ? { 'data-modifier-title-font-size': String(attributes.titleFontSize) } : {}),
+      },
+      titleFontFamily: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-modifier-title-font-family') ?? null,
+        renderHTML: (attributes) => (attributes.titleFontFamily ? { 'data-modifier-title-font-family': attributes.titleFontFamily } : {}),
+      },
+      titleAlign: {
+        default: null,
+        parseHTML: (element) => {
+          const raw = element.getAttribute('data-modifier-title-align');
+          return raw === 'left' || raw === 'center' || raw === 'right' ? raw : null;
+        },
+        renderHTML: (attributes) => (attributes.titleAlign ? { 'data-modifier-title-align': attributes.titleAlign } : {}),
       },
     };
   },
@@ -622,6 +908,13 @@ export const InlineModifier = Mark.create({
             name: getUniqueModifierName(state),
             value: MODIFIER_DEFAULT_VALUE,
             compact: false,
+            titleBold: false,
+            titleItalic: false,
+            titleUnderline: false,
+            titleStrike: false,
+            titleFontSize: null,
+            titleFontFamily: null,
+            titleAlign: null,
           })]));
           tr.setSelection(TextSelection.create(tr.doc, insertPos + 1));
           dispatch(tr.scrollIntoView());
@@ -676,6 +969,16 @@ export const InlineModifier = Mark.create({
               const name = String(mark.attrs.name ?? MODIFIER_DEFAULT_NAME);
               const value = String(mark.attrs.value ?? MODIFIER_DEFAULT_VALUE);
               const compact = mark.attrs.compact === true;
+              const titleFormat: ModifierTitleFormat = {
+                bold: mark.attrs.titleBold === true,
+                italic: mark.attrs.titleItalic === true,
+                underline: mark.attrs.titleUnderline === true,
+                strike: mark.attrs.titleStrike === true,
+                fontSize: typeof mark.attrs.titleFontSize === 'number' ? mark.attrs.titleFontSize : null,
+                fontFamily: typeof mark.attrs.titleFontFamily === 'string' && mark.attrs.titleFontFamily ? mark.attrs.titleFontFamily : null,
+                align: mark.attrs.titleAlign === 'left' || mark.attrs.titleAlign === 'center' || mark.attrs.titleAlign === 'right' ? mark.attrs.titleAlign : null,
+              };
+              const titleKey = `${titleFormat.bold ? 1 : 0}${titleFormat.italic ? 1 : 0}${titleFormat.underline ? 1 : 0}${titleFormat.strike ? 1 : 0}:${titleFormat.fontSize ?? ''}:${titleFormat.fontFamily ?? ''}:${titleFormat.align ?? ''}`;
               const id = typeof mark.attrs.id === 'string' && mark.attrs.id ? mark.attrs.id : null;
               for (let offset = 0; offset < node.nodeSize; offset++) {
                 if (node.text.charAt(offset) !== INLINE_MODIFIER_CHAR) continue;
@@ -683,14 +986,14 @@ export const InlineModifier = Mark.create({
                 decorations.push(
                   Decoration.widget(
                     modifierPos,
-                    (view, getPos) => buildModifierWidget(view, getPos, name, value, compact),
+                    (view, getPos) => buildModifierWidget(view, getPos, name, value, compact, titleFormat),
                     {
                       side: 0,
                       // Il key include nome e valore: cambiandoli il widget
                       // viene ricostruito a vista (ProseMirror confronta i
                       // widget via spec.key) senza ricostruirlo a ogni
                       // cambio di sola selezione.
-                      key: `modifier:${id ?? modifierPos}:${name}:${value}:${compact}`,
+                      key: `modifier:${id ?? modifierPos}:${name}:${value}:${compact}:${titleKey}`,
                       destroy: (node) => {
                         (node as HTMLElement & { __destroyModifierWidget?: () => void }).__destroyModifierWidget?.();
                         widgetEntries.delete(node as HTMLElement);
