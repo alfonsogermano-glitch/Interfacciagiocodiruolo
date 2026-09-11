@@ -40,7 +40,7 @@ assert.match(
 );
 assert.match(
   source,
-  /performMeasurement[\s\S]*lineGroups[\s\S]*measureLine[\s\S]*realGap[\s\S]*CURSOR_ROOM[\s\S]*END_INSERTION_ROOM[\s\S]*marginRight/,
+  /performMeasurement[\s\S]*lineGroups[\s\S]*measureLine[\s\S]*marginRight = '0px'[\s\S]*realGap[\s\S]*CURSOR_ROOM[\s\S]*END_INSERTION_ROOM[\s\S]*marginRight/,
   'inline modifier must use visual-line measurement with real inter-widget gaps, cursor room, and post-caret insertion room',
 );
 assert.match(

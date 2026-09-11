@@ -275,6 +275,11 @@ function measureLine(items: Array<{ element: HTMLElement } & WidgetEntry>, lineR
     return;
   }
 
+  for (const item of items) {
+    item.element.style.marginLeft = '0px';
+    item.element.style.marginRight = '0px';
+  }
+
   const rects = items.map((item) => item.element.getBoundingClientRect());
   const lineLeft = rects[0].left;
   const currentWidth = rects.reduce((sum, rect) => sum + rect.width, 0);
