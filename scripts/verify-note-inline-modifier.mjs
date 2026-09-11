@@ -55,6 +55,11 @@ assert.match(
 );
 assert.match(
   source,
+  /minHeight:\s*'2\.5em'[\s\S]*justifyContent:\s*compact \? 'center'[\s\S]*top:\s*compact \? '-0\.55em'/,
+  'compact modifiers must keep expanded height with centered value and menu dots outside the box',
+);
+assert.match(
+  source,
   /makeRoomForInlineModifierText[\s\S]*getInlineModifierMark\(view\.state, pos\)[\s\S]*getInlineModifierMark\(view\.state, pos - 1\)[\s\S]*handleTextInput[\s\S]*makeRoomForInlineModifierText/,
   'typing immediately before or after a modifier must shrink the adjacent widget before native inline insertion',
 );

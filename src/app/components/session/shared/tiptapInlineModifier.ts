@@ -474,10 +474,13 @@ function buildModifierWidget(
     flexDirection: 'column',
     boxSizing: 'border-box',
     minWidth: compact ? 'min-content' : '4em',
-    minHeight: compact ? '1.7em' : '2.5em',
-    // Compatto (Riduci): solo il valore centrato, con due spazi di respiro a
-    // destra e sinistra (0.7em ~ due spazi alla dimensione del valore).
-    padding: compact ? '0.15em 0.7em' : '0.2em 0.5em',
+    // Compatto (Riduci): stessa altezza dell'espanso, valore centrato su
+    // entrambi gli assi. Il respiro laterale (1.2em ~ quattro spazi) rende la
+    // forma quasi quadrata con un solo numero.
+    minHeight: '2.5em',
+    padding: compact ? '0.2em 1.2em' : '0.2em 0.5em',
+    justifyContent: compact ? 'center' : 'flex-start',
+    alignItems: compact ? 'center' : 'stretch',
     verticalAlign: 'middle',
     border: '1px solid var(--dash-border-soft)',
     borderRadius: '0.45em',
@@ -523,8 +526,10 @@ function buildModifierWidget(
   Object.assign(dots.style, {
     display: 'inline-flex',
     position: 'absolute',
-    top: '0.32em',
-    right: '0.32em',
+    // Nel compatto i puntini escono fuori dal box (badge in alto a destra):
+    // dentro un box quadrato coprirebbero il valore centrato.
+    top: compact ? '-0.55em' : '0.32em',
+    right: compact ? '-0.55em' : '0.32em',
     zIndex: 1,
     flex: 'none',
     alignItems: 'center',
@@ -532,6 +537,8 @@ function buildModifierWidget(
     gap: '0.11em',
     padding: '0.22em',
     borderRadius: '0.3em',
+    background: compact ? 'var(--dash-panel)' : 'transparent',
+    border: compact ? '1px solid var(--dash-border-soft)' : '0',
     opacity: 0,
     transition: 'opacity 120ms ease',
     cursor: view.editable ? 'pointer' : 'default',
