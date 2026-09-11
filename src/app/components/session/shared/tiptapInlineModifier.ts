@@ -202,7 +202,7 @@ export async function copyModifierToClipboard(state: EditorState, pos: number): 
 // function groups widgets by block paragraph, sorts by document position,
 // sizes modifiers when widgets are created/rebuilt:
 //
-//  • Single modifier  → fills the line, leaving only CURSOR_ROOM at the end.
+//  • Single modifier  → fills the line, leaving a real CURSOR_ROOM after it.
 //  • Multiple modifiers → all widgets currently registered in the same block
 //    split the available line width equally. The visual gap is real document
 //    text, not widget margin, so caret position and insertion point stay in
@@ -250,6 +250,7 @@ function performMeasurement() {
     if (items.length === 1) {
       const lineLeft = items[0].element.getBoundingClientRect().left;
       const target = Math.max(0, lineRight - lineLeft - CURSOR_ROOM);
+      items[0].element.style.marginRight = `${CURSOR_ROOM}px`;
       if (Math.abs(target - items[0].element.offsetWidth) > 1) {
         items[0].element.style.width = `${target}px`;
       }
@@ -263,6 +264,7 @@ function performMeasurement() {
 
     for (let i = 0; i < items.length; i++) {
       items[i].element.style.marginLeft = '0px';
+      items[i].element.style.marginRight = i === items.length - 1 ? `${CURSOR_ROOM}px` : '0px';
       if (Math.abs(width - items[i].element.offsetWidth) > 1) {
         items[i].element.style.width = `${width}px`;
       }

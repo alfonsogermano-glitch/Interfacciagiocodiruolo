@@ -40,8 +40,8 @@ assert.match(
 );
 assert.match(
   source,
-  /performMeasurement[\s\S]*widgetEntries[\s\S]*CURSOR_ROOM/,
-  'inline modifier must use coordinated line measurement with widget registry and cursor room buffer',
+  /performMeasurement[\s\S]*widgetEntries[\s\S]*CURSOR_ROOM[\s\S]*marginRight/,
+  'inline modifier must use coordinated line measurement with widget registry and a real cursor room after the last widget',
 );
 assert.match(
   source,
