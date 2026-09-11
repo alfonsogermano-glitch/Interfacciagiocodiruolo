@@ -31,6 +31,7 @@ export const MODIFIER_WIDGET_SELECTOR = '.tiptap-inline-modifier-widget';
 // Il click sui puntini dispatcha questo evento CustomEvent su window; il
 // componente React <NoteModifierMenu> lo ascolta e renderizza il menu.
 export const NOTE_MODIFIER_MENU_EVENT = 'note-inline-modifier-menu';
+export const NOTE_MODIFIER_RENAME_EVENT = 'note-inline-modifier-rename';
 
 export interface NoteModifierMenuRequest {
   /** Posizione del carattere ZWSP (inizio del Modificatore). */
@@ -43,6 +44,7 @@ export interface NoteModifierMenuRequest {
 export interface ModifierData {
   name: string;
   value: string;
+  compact: boolean;
 }
 
 function createModifierId(): string {
@@ -95,6 +97,7 @@ export function getModifierAt(state: EditorState, pos: number): ModifierData | n
   return {
     name: String(mark.attrs.name ?? MODIFIER_DEFAULT_NAME),
     value: String(mark.attrs.value ?? MODIFIER_DEFAULT_VALUE),
+    compact: mark.attrs.compact === true,
   };
 }
 
@@ -117,6 +120,7 @@ export function setModifierAttrs(
       ? getUniqueModifierName(state, attrs.name, pos)
       : currentMark.attrs.name ?? MODIFIER_DEFAULT_NAME,
     value: attrs.value ?? currentMark.attrs.value ?? MODIFIER_DEFAULT_VALUE,
+    compact: attrs.compact ?? (currentMark.attrs.compact === true),
   };
   if (dispatch) {
     dispatch(
@@ -128,19 +132,13 @@ export function setModifierAttrs(
   return true;
 }
 
-/** Riduci: decrementa di un'unità il valore numerico. I valori non numerici
- * restano invariati. */
-export function reduceModifierAt(
+export function setModifierCompactAt(
   state: EditorState,
   dispatch: ((transaction: Transaction) => void) | undefined,
   pos: number,
+  compact: boolean,
 ): boolean {
-  const data = getModifierAt(state, pos);
-  if (!data) return false;
-  const numeric = Number.parseFloat(data.value);
-  if (Number.isNaN(numeric)) return false;
-  const reduced = Number((numeric - 1).toFixed(10));
-  return setModifierAttrs(state, dispatch, pos, { value: String(reduced) });
+  return setModifierAttrs(state, dispatch, pos, { compact });
 }
 
 /** Duplica: inserisce una copia identica subito dopo l'originale. */
@@ -336,11 +334,13 @@ function buildModifierWidget(
   getPos: () => number | undefined,
   name: string,
   value: string,
+  compact: boolean,
 ): HTMLElement {
   const element = document.createElement('span');
   element.className = 'tiptap-inline-modifier-widget';
   element.dataset.modifierName = name;
   element.dataset.modifierValue = value;
+  element.dataset.modifierCompact = compact ? 'true' : 'false';
   element.setAttribute('role', 'group');
   element.setAttribute('aria-label', `Modificatore ${name}: ${value}`);
 
@@ -348,9 +348,9 @@ function buildModifierWidget(
     display: 'inline-flex',
     flexDirection: 'column',
     boxSizing: 'border-box',
-    minWidth: '4em',
-    minHeight: '2.5em',
-    padding: '0.2em 0.5em',
+    minWidth: compact ? 'min-content' : '4em',
+    minHeight: compact ? '1.7em' : '2.5em',
+    padding: compact ? '0.15em 0.2em' : '0.2em 0.5em',
     verticalAlign: 'middle',
     border: '1px solid var(--dash-border-soft)',
     borderRadius: '0.45em',
@@ -422,19 +422,89 @@ function buildModifierWidget(
   valueEl.className = 'tiptap-inline-modifier-value';
   valueEl.textContent = value;
   Object.assign(valueEl.style, {
-    width: '100%',
+    width: compact ? 'auto' : '100%',
     textAlign: 'center',
     fontSize: '0.95em',
     fontWeight: 600,
     lineHeight: 1.4,
-    marginTop: '0.1em',
+    marginTop: compact ? '0' : '0.1em',
     color: 'var(--dash-text)',
   });
 
   head.appendChild(label);
-  element.appendChild(head);
+  if (!compact) element.appendChild(head);
   element.appendChild(valueEl);
   element.appendChild(dots);
+
+  const startInlineRename = (pos: number) => {
+    if (compact || typeof getPos() !== 'number' || getPos() !== pos) return;
+    const previousName = label.textContent ?? name;
+    const input = document.createElement('input');
+    input.value = previousName;
+    input.setAttribute('aria-label', 'Nome modificatore');
+    Object.assign(input.style, {
+      width: '100%',
+      minWidth: 0,
+      border: '0',
+      outline: '1px solid var(--dash-accent)',
+      borderRadius: '0.25em',
+      background: 'var(--dash-surface)',
+      color: 'var(--dash-text-strong)',
+      font: 'inherit',
+      fontSize: '0.72em',
+      fontWeight: 600,
+      letterSpacing: '0.04em',
+      textTransform: 'uppercase',
+    });
+
+    let done = false;
+    const finish = (save: boolean) => {
+      if (done) return;
+      done = true;
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      input.removeEventListener('keydown', onKeyDown);
+      const currentPos = getPos();
+      if (save && typeof currentPos === 'number') {
+        const nextName = input.value.trim() || MODIFIER_DEFAULT_NAME;
+        setModifierAttrs(view.state, (tr) => view.dispatch(tr), currentPos, { name: nextName });
+      } else {
+        label.textContent = previousName;
+        input.replaceWith(label);
+      }
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target === input) return;
+      finish(true);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      event.stopPropagation();
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        finish(true);
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        finish(false);
+      }
+    };
+
+    label.replaceWith(input);
+    input.addEventListener('pointerdown', (event) => event.stopPropagation());
+    input.addEventListener('mousedown', (event) => event.stopPropagation());
+    input.addEventListener('click', (event) => event.stopPropagation());
+    input.addEventListener('keydown', onKeyDown);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    window.requestAnimationFrame(() => {
+      input.focus();
+      input.select();
+    });
+  };
+
+  const onRenameRequest = (event: Event) => {
+    const detail = (event as CustomEvent<{ pos: number }>).detail;
+    if (typeof detail?.pos === 'number') startInlineRename(detail.pos);
+  };
+  window.addEventListener(NOTE_MODIFIER_RENAME_EVENT, onRenameRequest);
 
   element.addEventListener('mouseenter', () => { dots.style.opacity = '1'; });
   element.addEventListener('mouseleave', () => { if (document.activeElement !== dots) dots.style.opacity = '0'; });
@@ -475,6 +545,9 @@ function buildModifierWidget(
   // La teardown viene gestita da spec.destroy che rimuove l'entry.
   const entry: WidgetEntry = { view, getPos };
   widgetEntries.set(element, entry);
+  (element as HTMLElement & { __destroyModifierWidget?: () => void }).__destroyModifierWidget = () => {
+    window.removeEventListener(NOTE_MODIFIER_RENAME_EVENT, onRenameRequest);
+  };
   scheduleMeasure();
   return element;
 }
@@ -502,6 +575,11 @@ export const InlineModifier = Mark.create({
         default: MODIFIER_DEFAULT_VALUE,
         parseHTML: (element) => element.getAttribute('data-modifier-value') ?? MODIFIER_DEFAULT_VALUE,
         renderHTML: (attributes) => ({ 'data-modifier-value': attributes.value }),
+      },
+      compact: {
+        default: false,
+        parseHTML: (element) => element.getAttribute('data-modifier-compact') === 'true',
+        renderHTML: (attributes) => (attributes.compact ? { 'data-modifier-compact': 'true' } : {}),
       },
     };
   },
@@ -543,6 +621,7 @@ export const InlineModifier = Mark.create({
             id: createModifierId(),
             name: getUniqueModifierName(state),
             value: MODIFIER_DEFAULT_VALUE,
+            compact: false,
           })]));
           tr.setSelection(TextSelection.create(tr.doc, insertPos + 1));
           dispatch(tr.scrollIntoView());
@@ -596,6 +675,7 @@ export const InlineModifier = Mark.create({
 
               const name = String(mark.attrs.name ?? MODIFIER_DEFAULT_NAME);
               const value = String(mark.attrs.value ?? MODIFIER_DEFAULT_VALUE);
+              const compact = mark.attrs.compact === true;
               const id = typeof mark.attrs.id === 'string' && mark.attrs.id ? mark.attrs.id : null;
               for (let offset = 0; offset < node.nodeSize; offset++) {
                 if (node.text.charAt(offset) !== INLINE_MODIFIER_CHAR) continue;
@@ -603,15 +683,16 @@ export const InlineModifier = Mark.create({
                 decorations.push(
                   Decoration.widget(
                     modifierPos,
-                    (view, getPos) => buildModifierWidget(view, getPos, name, value),
+                    (view, getPos) => buildModifierWidget(view, getPos, name, value, compact),
                     {
                       side: 0,
                       // Il key include nome e valore: cambiandoli il widget
                       // viene ricostruito a vista (ProseMirror confronta i
                       // widget via spec.key) senza ricostruirlo a ogni
                       // cambio di sola selezione.
-                      key: `modifier:${id ?? modifierPos}:${name}:${value}`,
+                      key: `modifier:${id ?? modifierPos}:${name}:${value}:${compact}`,
                       destroy: (node) => {
+                        (node as HTMLElement & { __destroyModifierWidget?: () => void }).__destroyModifierWidget?.();
                         widgetEntries.delete(node as HTMLElement);
                       },
                     },

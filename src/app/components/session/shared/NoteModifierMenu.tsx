@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
+import { Clipboard, Copy, Maximize2, Minimize2, Pencil, Trash2, Type } from 'lucide-react';
 import { usePortalContainer } from '../../ui/portal-container';
 import { placeFloatingNoteUI } from './noteFloatingPosition';
 import {
@@ -8,10 +9,11 @@ import {
   deleteModifierAt,
   duplicateModifierAt,
   getModifierAt,
-  reduceModifierAt,
+  setModifierCompactAt,
   setModifierAttrs,
   MODIFIER_DEFAULT_NAME,
   NOTE_MODIFIER_MENU_EVENT,
+  NOTE_MODIFIER_RENAME_EVENT,
   type NoteModifierMenuRequest,
 } from './tiptapInlineModifier';
 
@@ -29,7 +31,7 @@ interface NoteModifierMenuProps {
 
 type MenuMode = 'menu' | 'rename' | 'edit';
 
-function MenuAction({ label, onActivate, danger = false, hint }: { label: string; onActivate: () => void; danger?: boolean; hint?: string }) {
+function MenuAction({ label, icon: Icon, onActivate, danger = false, hint }: { label: string; icon: typeof Pencil; onActivate: () => void; danger?: boolean; hint?: string }) {
   return (
     <button
       type="button"
@@ -42,6 +44,7 @@ function MenuAction({ label, onActivate, danger = false, hint }: { label: string
       onMouseDown={(event) => event.preventDefault()}
       className={danger ? DANGER_ITEM_CLASS : MENU_ITEM_CLASS}
     >
+      <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span className="truncate">{label}</span>
       {hint ? <span className="ml-auto shrink-0 text-[9px] text-[var(--dash-muted)]">{hint}</span> : null}
     </button>
@@ -149,9 +152,9 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
 
   const startRename = () => {
     if (!request) return;
-    const data = getModifierAt(editor.state, request.pos);
-    setDraft(data?.name ?? '');
-    setMode('rename');
+    window.dispatchEvent(new CustomEvent(NOTE_MODIFIER_RENAME_EVENT, { detail: { pos: request.pos } }));
+    setRequest(null);
+    setMode('menu');
   };
 
   const startEdit = () => {
@@ -161,11 +164,11 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
     setMode('edit');
   };
 
-  const runReduce = () => {
+  const runCompact = (compact: boolean) => {
     if (!request) return;
     const { view } = editor;
     if (!getModifierAt(view.state, request.pos)) { close(); return; }
-    reduceModifierAt(view.state, (tr) => view.dispatch(tr), request.pos);
+    setModifierCompactAt(view.state, (tr) => view.dispatch(tr), request.pos, compact);
     close();
   };
 
@@ -207,13 +210,13 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
 
   const content: ReactNode = mode === 'menu' ? (
     <>
-      <MenuAction label="Rinomina" onActivate={startRename} />
-      <MenuAction label="Riduci" onActivate={runReduce} hint={data.name} />
-      <MenuAction label="Modifica" onActivate={startEdit} />
-      <MenuAction label="Duplica" onActivate={runDuplicate} />
-      <MenuAction label="Copia" onActivate={runCopy} />
+      <MenuAction label="Rinomina" icon={Pencil} onActivate={startRename} />
+      <MenuAction label={data.compact ? 'Allarga' : 'Riduci'} icon={data.compact ? Maximize2 : Minimize2} onActivate={() => runCompact(!data.compact)} />
+      <MenuAction label="Modifica" icon={Type} onActivate={startEdit} />
+      <MenuAction label="Duplica" icon={Copy} onActivate={runDuplicate} />
+      <MenuAction label="Copia" icon={Clipboard} onActivate={runCopy} />
       <div className="my-1 h-px bg-[var(--dash-border-soft)]" />
-      <MenuAction label="Elimina" danger onActivate={runDelete} />
+      <MenuAction label="Elimina" icon={Trash2} danger onActivate={runDelete} />
     </>
   ) : (
     <form onSubmit={submit} className="p-1">

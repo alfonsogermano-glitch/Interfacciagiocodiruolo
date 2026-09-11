@@ -10,8 +10,8 @@ assert.match(
 );
 assert.match(
   source,
-  /addAttributes\(\)[\s\S]*name:[\s\S]*default:\s*MODIFIER_DEFAULT_NAME[\s\S]*value:[\s\S]*default:\s*MODIFIER_DEFAULT_VALUE/,
-  'inline modifier must expose name and value attributes with documented defaults',
+  /addAttributes\(\)[\s\S]*name:[\s\S]*default:\s*MODIFIER_DEFAULT_NAME[\s\S]*value:[\s\S]*default:\s*MODIFIER_DEFAULT_VALUE[\s\S]*compact:[\s\S]*default:\s*false/,
+  'inline modifier must expose name, value, and compact attributes with documented defaults',
 );
 assert.match(
   source,
@@ -30,8 +30,8 @@ assert.match(
 );
 assert.match(
   source,
-  /Decoration\.widget\([\s\S]*key:\s*`modifier:\$\{.*\}:\$\{.*\}:\$\{.*\}`/,
-  'inline modifier decoration must include name and value in the key to force rebuild on attribute change',
+  /Decoration\.widget\([\s\S]*key:\s*`modifier:\$\{.*\}:\$\{.*\}:\$\{.*\}:\$\{compact\}`/,
+  'inline modifier decoration must include name, value, and compact in the key to force rebuild on attribute change',
 );
 assert.match(
   source,
@@ -57,6 +57,11 @@ assert.match(
   source,
   /setModifierAttrs\([\s\S]*removeMark[\s\S]*addMark/,
   'modifying attributes must replace the mark rather than mutating state in-place',
+);
+assert.match(
+  source,
+  /NOTE_MODIFIER_RENAME_EVENT[\s\S]*startInlineRename[\s\S]*event\.key === 'Enter'[\s\S]*event\.key === 'Escape'[\s\S]*document\.addEventListener\('pointerdown'/,
+  'renaming a modifier must happen inline inside the widget and save on outside click/Enter while Escape cancels',
 );
 assert.match(
   source,

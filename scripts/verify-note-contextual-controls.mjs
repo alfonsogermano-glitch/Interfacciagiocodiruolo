@@ -3,11 +3,11 @@ import { readFile } from 'node:fs/promises';
 
 const read = (name) => readFile(new URL(`../src/app/components/session/shared/${name}`, import.meta.url), 'utf8');
 const readSession = (name) => readFile(new URL(`../src/app/components/session/${name}`, import.meta.url), 'utf8');
-const [commands, slash, selection, pickers, richClipboard, editor, slashPlugin, menuCss, entityTabBar, noteSubTabs, noteListRow, trashRow, sessionNotesPanel] = await Promise.all([
+const [commands, slash, selection, pickers, richClipboard, editor, slashPlugin, menuCss, entityTabBar, noteSubTabs, noteListRow, trashRow, sessionNotesPanel, modifierMenu] = await Promise.all([
   read('noteEditorCommands.ts'), read('NoteSlashMenu.tsx'), read('NoteSelectionToolbar.tsx'),
   read('NoteContextualPickers.tsx'), read('tiptapNoteRichClipboard.ts'), read('RichTextEditor.tsx'), read('tiptapNoteSlashMenu.ts'),
   read('noteContextualMenus.css'), read('EntityTabBar.tsx'), read('NoteSubTabs.tsx'), read('NoteListRow.tsx'), read('TrashRow.tsx'),
-  readSession('SessionNotesPanel.tsx'),
+  readSession('SessionNotesPanel.tsx'), read('NoteModifierMenu.tsx'),
 ]);
 
 assert.match(commands, /id: 'horizontalRule'[\s\S]*icon: Minus/, 'horizontal rule must use Lucide Minus');
@@ -48,6 +48,9 @@ assert.match(selection, /hover:bg-\[var\(--dash-accent\)\]/, 'selection toolbar 
 assert.match(slash, /highlighted[\s\S]*bg-\[var\(--dash-accent\)\][^']*ring-\[var\(--dash-accent-2\)\]/, 'Slash highlighted command must use palette accent with a visible accent ring');
 assert.match(slash, /hover:bg-\[var\(--dash-accent\)\]/, 'Slash hover must use palette accent');
 assert.match(slash, /className=\{`flex min-h-12 w-full flex-col/, 'Slash command buttons must fill their grid cell so picker icons stay centered');
+assert.match(modifierMenu, /<Icon className="h-3\.5 w-3\.5 shrink-0"/, 'modifier menu actions must show a left icon like other compact menus');
+assert.match(modifierMenu, /label=\{data\.compact \? 'Allarga' : 'Riduci'\}/, 'modifier menu must toggle Riduci/Allarga from compact state');
+assert.doesNotMatch(modifierMenu, /hint=\{data\.name\}/, 'modifier menu must not show the modifier name beside Riduci');
 assert.doesNotMatch(pickers, /<PopoverTrigger asChild><PickerTooltip/, 'picker tooltip must not swallow Popover trigger events');
 assert.match(pickers, /<PickerTooltip trigger=\{<PopoverTrigger asChild>\{trigger\}<\/PopoverTrigger>\} label="Dimensione testo" \/>/, 'font-size picker must attach PopoverTrigger directly to the real button');
 assert.match(pickers, /<PickerTooltip trigger=\{<PopoverTrigger asChild>\{trigger\}<\/PopoverTrigger>\} label="Font" \/>/, 'font-family picker must attach PopoverTrigger directly to the real button');
