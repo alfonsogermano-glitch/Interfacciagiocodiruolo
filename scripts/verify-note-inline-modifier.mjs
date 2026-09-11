@@ -45,6 +45,11 @@ assert.match(
 );
 assert.match(
   source,
+  /makeRoomForInlineText[\s\S]*getInlineModifierMark\(view\.state, pos\)[\s\S]*getInlineModifierMark\(view\.state, pos - 1\)[\s\S]*handleTextInput[\s\S]*makeRoomForInlineText/,
+  'typing immediately before or after a modifier must shrink the adjacent widget before native inline insertion',
+);
+assert.match(
+  source,
   /setModifierAttrs\([\s\S]*removeMark[\s\S]*addMark/,
   'modifying attributes must replace the mark rather than mutating state in-place',
 );

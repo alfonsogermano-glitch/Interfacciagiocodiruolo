@@ -278,11 +278,23 @@ function getModifierWidgetAt(pos: number): HTMLElement | null {
   return null;
 }
 
-function makeRoomBeforeModifier(pos: number, text: string): void {
+function makeRoomNearModifier(pos: number, text: string): void {
   const widget = getModifierWidgetAt(pos);
   if (!widget) return;
   const delta = Math.max(CHAR_WIDTH, text.length * CHAR_WIDTH);
   widget.style.width = `${Math.max(0, widget.offsetWidth - delta)}px`;
+}
+
+function makeRoomForInlineText(view: EditorView, pos: number, text: string): boolean {
+  if (getInlineModifierMark(view.state, pos)) {
+    makeRoomNearModifier(pos, text);
+    return true;
+  }
+  if (pos > 0 && getInlineModifierMark(view.state, pos - 1)) {
+    makeRoomNearModifier(pos - 1, text);
+    return true;
+  }
+  return false;
 }
 
 function buildModifierWidget(
@@ -594,9 +606,8 @@ export const InlineModifier = Mark.create({
             },
           },
           handleTextInput(view, from, to, text) {
-            if (!view.editable || text === '/' || from !== to || !view.state.selection.empty) return false;
-            if (!getInlineModifierMark(view.state, from)) return false;
-            makeRoomBeforeModifier(from, text);
+            if (!view.editable || from !== to || !view.state.selection.empty) return false;
+            if (!makeRoomForInlineText(view, from, text)) return false;
             return false;
           },
           handleClick(view, pos, event) {
