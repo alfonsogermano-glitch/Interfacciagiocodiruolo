@@ -475,7 +475,9 @@ function buildModifierWidget(
     boxSizing: 'border-box',
     minWidth: compact ? 'min-content' : '4em',
     minHeight: compact ? '1.7em' : '2.5em',
-    padding: compact ? '0.15em 0.2em' : '0.2em 0.5em',
+    // Compatto (Riduci): solo il valore centrato, con due spazi di respiro a
+    // destra e sinistra (0.7em ~ due spazi alla dimensione del valore).
+    padding: compact ? '0.15em 0.7em' : '0.2em 0.5em',
     verticalAlign: 'middle',
     border: '1px solid var(--dash-border-soft)',
     borderRadius: '0.45em',
