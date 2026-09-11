@@ -21,7 +21,7 @@ assert.match(slash, /aria-disabled=\{disabled\}/, 'disabled Slash commands must 
 assert.match(slash, /cursor-not-allowed/, 'disabled Slash commands must show not-allowed cursor');
 assert.match(slash, /setSelectedIndex\(disabled \? -1 : index\)/, 'disabled hover must remove ghost highlight');
 assert.match(slash, /if \(disabled\) \{[\s\S]*preventDefault\(\)[\s\S]*stopPropagation\(\)[\s\S]*return;/, 'disabled click must be absorbed without closing menu');
-assert.match(slash, /event\.key === 'Escape' \|\| event\.key === 'Backspace' \|\| event\.key === 'Delete'/, 'Slash close keys must preserve literal slash');
+assert.match(slash, /event\.key === 'Escape'[\s\S]*closeNoteSlashMenu/, 'Escape must close the slash menu while preserving the literal slash');
 assert.match(slashPlugin, /insertText\('\/'/, 'Slash plugin must insert a literal slash trigger');
 assert.match(slashPlugin, /type: 'close'/, 'Slash menu close must be metadata-only unless command is executed');
 assert.match(commands, /runSlashNoteCommand[\s\S]*deleteRange\(\{ from: slashPos, to: slashPos \+ 1 \}\)[\s\S]*case 'collapse':[\s\S]*setCollapseBlock\(\)\.run\(\)/, 'Slash-trigger deletion and Collapse insertion must stay in one TipTap chain');

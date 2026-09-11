@@ -16,4 +16,16 @@ assert.match(
   'slash menu UI must keep guarding against stale slash positions and unexpected selections',
 );
 
+assert.match(
+  uiSource,
+  /SLASH_MENU_COLUMNS\s*=\s*4[\s\S]*stopImmediatePropagation\(\)[\s\S]*ArrowDown[\s\S]*moveSelection\(SLASH_MENU_COLUMNS\)[\s\S]*ArrowUp[\s\S]*moveSelection\(-SLASH_MENU_COLUMNS\)/,
+  'slash menu arrow up/down must navigate vertically in the 4-column grid and stop editor propagation',
+);
+
+assert.match(
+  uiSource,
+  /ArrowRight[\s\S]*moveSelection\(1\)[\s\S]*ArrowLeft[\s\S]*moveSelection\(-1\)/,
+  'slash menu arrow left/right must navigate inside the menu instead of moving the editor caret',
+);
+
 console.log('Note slash menu verification: PASS');

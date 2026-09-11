@@ -28,6 +28,8 @@ import {
 interface NoteSlashMenuProps { editor: Editor; editable: boolean }
 interface MenuState { slashPos: number; top: number; left: number }
 
+const SLASH_MENU_COLUMNS = 4;
+
 function commandButton(command: NoteCommandDescriptor, disabled: boolean, highlighted: boolean, onActivate: () => void, onHover: () => void): ReactElement {
   const Icon = command.icon;
   return (
@@ -157,26 +159,54 @@ export function NoteSlashMenu({ editor, editable }: NoteSlashMenuProps) {
     const dom = editor.view.dom;
     const onKeyDown = (event: KeyboardEvent) => {
       if (openSecondaryId) return;
-      if (event.key === 'Escape' || event.key === 'Backspace' || event.key === 'Delete') {
+      const consume = () => {
         event.preventDefault();
         event.stopPropagation();
+        event.stopImmediatePropagation();
+      };
+      const moveSelection = (delta: number) => {
+        consume();
+        const indices = enabledIndices();
+        if (!indices.length) return;
+        if (!indices.includes(selectedIndex)) {
+          setSelectedIndex(indices[0]);
+          return;
+        }
+        let next = selectedIndex;
+        for (let i = 0; i < commands.length; i += 1) {
+          next = (next + delta + commands.length) % commands.length;
+          if (indices.includes(next)) {
+            setSelectedIndex(next);
+            return;
+          }
+        }
+      };
+
+      if (event.key === 'Escape') {
+        consume();
         closeNoteSlashMenu(editor);
         return;
       }
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        event.preventDefault();
-        const indices = enabledIndices();
-        if (!indices.length) return;
-        const current = indices.indexOf(selectedIndex);
-        const delta = event.key === 'ArrowDown' ? 1 : -1;
-        const next = current < 0 ? 0 : (current + delta + indices.length) % indices.length;
-        setSelectedIndex(indices[next]);
+      if (event.key === 'ArrowDown') {
+        moveSelection(SLASH_MENU_COLUMNS);
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        moveSelection(-SLASH_MENU_COLUMNS);
+        return;
+      }
+      if (event.key === 'ArrowRight') {
+        moveSelection(1);
+        return;
+      }
+      if (event.key === 'ArrowLeft') {
+        moveSelection(-1);
         return;
       }
       if (event.key === 'Enter') {
         const command = commands[selectedIndex];
         if (!command || !canRunNoteCommand(editor, command)) return;
-        event.preventDefault();
+        consume();
         activate(command);
       }
     };
