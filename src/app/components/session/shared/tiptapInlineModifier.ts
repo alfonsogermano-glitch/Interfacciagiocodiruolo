@@ -199,15 +199,15 @@ export async function copyModifierToClipboard(state: EditorState, pos: number): 
 // Coordinated line measurement.
 //
 // Each widget registers in `widgetEntries`.  A single `performMeasurement`
-// function groups widgets by block paragraph, sorts by document position,
-// sizes modifiers when widgets are created/rebuilt:
+// function groups widgets by block paragraph, then by visual line, sorts by
+// document position, sizes modifiers when widgets are created/rebuilt:
 //
 //  • Single modifier  → fills the line, leaving a real CURSOR_ROOM after it
 //    and a small END_INSERTION_ROOM after the caret.
-//  • Multiple modifiers → all widgets currently registered in the same block
-//    split the available line width equally. The visual gap is real document
-//    text, not widget margin, so caret position and insertion point stay in
-//    sync when a modifier wraps to the next line.
+//  • Multiple modifiers → all widgets on the same visual line split the
+//    available line width equally. The visual gap is real document text, not
+//    widget margin, so caret position and insertion point stay in sync when a
+//    modifier wraps to the next line.
 // ---------------------------------------------------------------------------
 
 const CHAR_WIDTH = 8;
@@ -248,28 +248,42 @@ function performMeasurement() {
 
     const blockRect = blockParent.getBoundingClientRect();
     const lineRight = blockRect.right;
+    const lineGroups: Array<Array<{ element: HTMLElement } & WidgetEntry>> = [];
 
-    if (items.length === 1) {
-      const lineLeft = items[0].element.getBoundingClientRect().left;
-      const target = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - END_INSERTION_ROOM);
-      items[0].element.style.marginRight = `${CURSOR_ROOM}px`;
-      if (Math.abs(target - items[0].element.offsetWidth) > 1) {
-        items[0].element.style.width = `${target}px`;
-      }
-      continue;
+    for (const item of items) {
+      const top = item.element.getBoundingClientRect().top;
+      const line = lineGroups.find((group) => Math.abs(group[0].element.getBoundingClientRect().top - top) < 2);
+      if (line) line.push(item);
+      else lineGroups.push([item]);
     }
 
-    const lineLeft = items[0].element.getBoundingClientRect().left;
-    const totalGap = MIN_GAP * (items.length - 1);
-    const available = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - END_INSERTION_ROOM - totalGap);
-    const width = Math.max(0, available / items.length);
+    for (const lineItems of lineGroups) {
+      measureLine(lineItems, lineRight);
+    }
+  }
+}
 
-    for (let i = 0; i < items.length; i++) {
-      items[i].element.style.marginLeft = '0px';
-      items[i].element.style.marginRight = i === items.length - 1 ? `${CURSOR_ROOM}px` : '0px';
-      if (Math.abs(width - items[i].element.offsetWidth) > 1) {
-        items[i].element.style.width = `${width}px`;
-      }
+function measureLine(items: Array<{ element: HTMLElement } & WidgetEntry>, lineRight: number) {
+  if (items.length === 1) {
+    const lineLeft = items[0].element.getBoundingClientRect().left;
+    const target = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - END_INSERTION_ROOM);
+    items[0].element.style.marginRight = `${CURSOR_ROOM}px`;
+    if (Math.abs(target - items[0].element.offsetWidth) > 1) {
+      items[0].element.style.width = `${target}px`;
+    }
+    return;
+  }
+
+  const lineLeft = items[0].element.getBoundingClientRect().left;
+  const totalGap = MIN_GAP * (items.length - 1);
+  const available = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - END_INSERTION_ROOM - totalGap);
+  const width = Math.max(0, available / items.length);
+
+  for (let i = 0; i < items.length; i++) {
+    items[i].element.style.marginLeft = '0px';
+    items[i].element.style.marginRight = i === items.length - 1 ? `${CURSOR_ROOM}px` : '0px';
+    if (Math.abs(width - items[i].element.offsetWidth) > 1) {
+      items[i].element.style.width = `${width}px`;
     }
   }
 }
