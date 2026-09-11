@@ -795,9 +795,11 @@ function buildModifierWidget(
   // non sarebbe leggibile da nessuna parte. Specchio del Tooltip condiviso
   // (ui/tooltip): palette attiva via var(--dash-*), bolla sopra il box, solo
   // hover/focus, pointer-events none quindi mai layout ne' interazione.
-  // Portal su document.body in position:fixed (come slash menu e menu
-  // contestuale): dentro il widget finirebbe ritagliato dal bordo/overflow
-  // del contenitore della nota.
+  // Portal in position:fixed (come slash menu e menu contestuale): dentro il
+  // widget finirebbe ritagliato dal bordo/overflow del contenitore della
+  // nota. Il container e' l'antenato con data-dashboard-palette, NON
+  // document.body: fuori da quell'albero le variabili --dash-* non arrivano
+  // per cascata e il tooltip resta invisibile (vedi portal-container).
   let hideCompactTip: (() => void) | null = null;
   if (compact) {
     let tip: HTMLSpanElement | null = null;
@@ -829,7 +831,7 @@ function buildModifierWidget(
         border: '1px solid var(--dash-border-soft)',
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
       });
-      document.body.appendChild(tip);
+      (element.closest('[data-dashboard-palette]') ?? document.body).appendChild(tip);
       const rect = element.getBoundingClientRect();
       const tipRect = tip.getBoundingClientRect();
       const left = Math.max(8, Math.min(rect.left + rect.width / 2 - tipRect.width / 2, window.innerWidth - tipRect.width - 8));

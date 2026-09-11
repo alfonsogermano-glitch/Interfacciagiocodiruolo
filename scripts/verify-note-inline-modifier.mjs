@@ -65,7 +65,7 @@ assert.doesNotMatch(
 );
 assert.match(
   source,
-  /tiptap-inline-modifier-tooltip[\s\S]*role['"]?,\s*['"]tooltip['"][\s\S]*position:\s*'fixed'[\s\S]*var\(--dash-panel\)[\s\S]*var\(--dash-text\)[\s\S]*var\(--dash-border-soft\)[\s\S]*document\.body\.appendChild/,
+  /tiptap-inline-modifier-tooltip[\s\S]*role['"]?,\s*['"]tooltip['"][\s\S]*position:\s*'fixed'[\s\S]*var\(--dash-panel\)[\s\S]*var\(--dash-text\)[\s\S]*var\(--dash-border-soft\)[\s\S]*closest\('\[data-dashboard-palette\]'\)/,
   'compact modifiers must show the modifier name in a portal palette-styled tooltip that cannot clip behind the note border',
 );
 assert.match(
