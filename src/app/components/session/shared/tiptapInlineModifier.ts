@@ -795,36 +795,54 @@ function buildModifierWidget(
   // non sarebbe leggibile da nessuna parte. Specchio del Tooltip condiviso
   // (ui/tooltip): palette attiva via var(--dash-*), bolla sopra il box, solo
   // hover/focus, pointer-events none quindi mai layout ne' interazione.
+  // Portal su document.body in position:fixed (come slash menu e menu
+  // contestuale): dentro il widget finirebbe ritagliato dal bordo/overflow
+  // del contenitore della nota.
+  let hideCompactTip: (() => void) | null = null;
   if (compact) {
-    const tip = document.createElement('span');
-    tip.className = 'tiptap-inline-modifier-tooltip';
-    tip.setAttribute('role', 'tooltip');
-    tip.textContent = name;
-    Object.assign(tip.style, {
-      position: 'absolute',
-      bottom: 'calc(100% + 8px)',
-      left: '50%',
-      transform: 'translateX(-50%)',
-      whiteSpace: 'nowrap',
-      pointerEvents: 'none',
-      opacity: '0',
-      transition: 'opacity 120ms ease',
-      zIndex: 2,
-      borderRadius: '0.45em',
-      padding: '0.35em 0.7em',
-      fontSize: '0.75em',
-      fontWeight: 600,
-      letterSpacing: '0.04em',
-      background: 'var(--dash-panel)',
-      color: 'var(--dash-text)',
-      border: '1px solid var(--dash-border-soft)',
-      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
-    });
-    element.appendChild(tip);
-    element.addEventListener('mouseenter', () => { tip.style.opacity = '1'; });
-    element.addEventListener('mouseleave', () => { tip.style.opacity = '0'; });
-    element.addEventListener('focusin', () => { tip.style.opacity = '1'; });
-    element.addEventListener('focusout', () => { tip.style.opacity = '0'; });
+    let tip: HTMLSpanElement | null = null;
+    const hideTip = () => {
+      window.removeEventListener('scroll', hideTip, true);
+      tip?.remove();
+      tip = null;
+    };
+    const showTip = () => {
+      if (tip || !element.isConnected) return;
+      tip = document.createElement('span');
+      tip.className = 'tiptap-inline-modifier-tooltip';
+      tip.setAttribute('role', 'tooltip');
+      tip.textContent = name;
+      Object.assign(tip.style, {
+        position: 'fixed',
+        whiteSpace: 'nowrap',
+        pointerEvents: 'none',
+        opacity: '0',
+        transition: 'opacity 120ms ease',
+        zIndex: '1200',
+        borderRadius: '0.45em',
+        padding: '0.35em 0.7em',
+        fontSize: '0.75em',
+        fontWeight: 600,
+        letterSpacing: '0.04em',
+        background: 'var(--dash-panel)',
+        color: 'var(--dash-text)',
+        border: '1px solid var(--dash-border-soft)',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+      });
+      document.body.appendChild(tip);
+      const rect = element.getBoundingClientRect();
+      const tipRect = tip.getBoundingClientRect();
+      const left = Math.max(8, Math.min(rect.left + rect.width / 2 - tipRect.width / 2, window.innerWidth - tipRect.width - 8));
+      tip.style.left = `${left}px`;
+      tip.style.top = `${Math.max(8, rect.top - tipRect.height - 8)}px`;
+      window.addEventListener('scroll', hideTip, true);
+      window.requestAnimationFrame(() => { tip?.style.setProperty('opacity', '1'); });
+    };
+    hideCompactTip = hideTip;
+    element.addEventListener('mouseenter', showTip);
+    element.addEventListener('mouseleave', hideTip);
+    element.addEventListener('focusin', showTip);
+    element.addEventListener('focusout', hideTip);
   }
 
   // Apre il men&ugrave; React dispatchando un CustomEvent. Il mousedown sui
@@ -832,6 +850,7 @@ function buildModifierWidget(
   // selezione quando si apre il menu.
   const openMenu = () => {
     if (!view.editable) return;
+    hideCompactTip?.();
     const pos = getPos();
     if (typeof pos !== 'number') return;
     const rect = dots.getBoundingClientRect();
@@ -863,6 +882,7 @@ function buildModifierWidget(
   widgetEntries.set(element, entry);
   (element as HTMLElement & { __destroyModifierWidget?: () => void }).__destroyModifierWidget = () => {
     window.removeEventListener(NOTE_MODIFIER_RENAME_EVENT, onRenameRequest);
+    hideCompactTip?.();
     (element as HTMLElement & { __cancelInlineRename?: () => void }).__cancelInlineRename?.();
   };
   scheduleMeasure();
