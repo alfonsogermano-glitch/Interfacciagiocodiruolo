@@ -3,12 +3,15 @@ import { readFile } from 'node:fs/promises';
 
 const read = (name) => readFile(new URL(`../src/app/components/session/shared/${name}`, import.meta.url), 'utf8');
 const readSession = (name) => readFile(new URL(`../src/app/components/session/${name}`, import.meta.url), 'utf8');
-const [commands, slash, selection, pickers, richClipboard, editor, slashPlugin, menuCss, entityTabBar, noteSubTabs, noteListRow, trashRow, sessionNotesPanel, modifierMenu] = await Promise.all([
+const readDice = (name) => readFile(new URL(`../src/app/components/session/dice/${name}`, import.meta.url), 'utf8');
+const [commands, slash, selection, pickers, richClipboard, editor, slashPlugin, menuCss, entityTabBar, noteSubTabs, noteListRow, trashRow, sessionNotesPanel, modifierMenu, diceContext, diceCard, diceTypes] = await Promise.all([
   read('noteEditorCommands.ts'), read('NoteSlashMenu.tsx'), read('NoteSelectionToolbar.tsx'),
   read('NoteContextualPickers.tsx'), read('tiptapNoteRichClipboard.ts'), read('RichTextEditor.tsx'), read('tiptapNoteSlashMenu.ts'),
   read('noteContextualMenus.css'), read('EntityTabBar.tsx'), read('NoteSubTabs.tsx'), read('NoteListRow.tsx'), read('TrashRow.tsx'),
   readSession('SessionNotesPanel.tsx'), read('NoteModifierMenu.tsx'),
+  readDice('DiceSessionContext.tsx'), readDice('DiceRollHistoryCard.tsx'), readDice('diceTypes.ts'),
 ]);
+const diceRealtime = await readFile(new URL('../src/services/realtime/diceRealtime.ts', import.meta.url), 'utf8');
 
 assert.match(commands, /id: 'horizontalRule'[\s\S]*icon: Minus/, 'horizontal rule must use Lucide Minus');
 assert.doesNotMatch(commands, /SeparatorHorizontal/, 'obsolete horizontal-rule icon must not return');
@@ -60,6 +63,17 @@ assert.doesNotMatch(modifierMenu, /TITLE_SLASH_COMMAND_IDS[\s\S]*orderedList/, '
 assert.doesNotMatch(modifierMenu, /TITLE_SLASH_COMMAND_IDS[\s\S]*blockquote/, 'modifier title slash menu must exclude Citazione');
 assert.match(modifierMenu, /NoteModifierTitleMenu[\s\S]*data-note-modifier-title-menu/, 'modifier title menu must render as contextual UI with left icons');
 assert.match(editor, /NoteModifierTitleMenu/, 'RichTextEditor must mount the modifier title menu alongside the modifier menu');
+assert.match(modifierMenu, /ModifierEditDialog[\s\S]*Valore numerico[\s\S]*Formula/, 'modifier edit must open a dialog with Valore numerico and Formula fields');
+assert.match(modifierMenu, /<ConfirmDialog[\s\S]*ModifierEditDialog|ModifierEditDialog[\s\S]*<ConfirmDialog/, 'modifier edit dialog must reuse the palette ConfirmDialog');
+assert.match(modifierMenu, /parseModifierValue\(valueDraft/, 'modifier edit dialog must validate the restricted value charset');
+assert.match(modifierMenu, /NoteModifierRollBridge[\s\S]*useOptionalDiceSession[\s\S]*NOTE_MODIFIER_ROLL_EVENT/, 'modifier rolls must bridge to the dice session without crashing outside it');
+assert.match(editor, /NoteModifierRollBridge editor=\{editor\}/, 'RichTextEditor must mount the modifier roll bridge');
+assert.match(diceContext, /submitModifierRoll[\s\S]*parseModifierValue\(input\.expression\)[\s\S]*origin: 'modifier'/, 'modifier rolls must build dice items and mark their origin');
+assert.match(diceContext, /useOptionalDiceSession/, 'dice session must expose a nullable hook for bridges');
+assert.match(diceTypes, /origin\?: 'modifier'/, 'roll results must carry the modifier origin');
+assert.match(diceRealtime, /value\.origin !== undefined && value\.origin !== 'modifier'/, 'roll payload validation must accept the modifier origin');
+assert.match(diceCard, /origin === 'modifier'/, 'modifier chat cards must show the modifier name');
+assert.match(diceCard, /origin !== 'modifier' &&/, 'modifier chat cards must not offer Ritira');
 assert.doesNotMatch(pickers, /<PopoverTrigger asChild><PickerTooltip/, 'picker tooltip must not swallow Popover trigger events');
 assert.match(pickers, /<PickerTooltip trigger=\{<PopoverTrigger asChild>\{trigger\}<\/PopoverTrigger>\} label="Dimensione testo" \/>/, 'font-size picker must attach PopoverTrigger directly to the real button');
 assert.match(pickers, /<PickerTooltip trigger=\{<PopoverTrigger asChild>\{trigger\}<\/PopoverTrigger>\} label="Font" \/>/, 'font-family picker must attach PopoverTrigger directly to the real button');

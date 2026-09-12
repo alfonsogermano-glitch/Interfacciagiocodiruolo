@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
 import { ArrowLeft, Clipboard, Copy, Maximize2, Minimize2, Pencil, Trash2, Type } from 'lucide-react';
+import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { usePortalContainer } from '../../ui/portal-container';
+import { useOptionalDiceSession } from '../dice/DiceSessionContext';
 import { placeFloatingNoteUI } from './noteFloatingPosition';
 import { NOTE_COMMANDS, type NoteCommandId } from './noteEditorCommands';
 import { FONT_SIZES } from './tiptapFontSize';
@@ -14,15 +16,18 @@ import {
   getModifierAt,
   setModifierCompactAt,
   setModifierAttrs,
-  MODIFIER_DEFAULT_NAME,
+  parseModifierValue,
+  MODIFIER_VALUE_MAX_LENGTH,
   NOTE_MODIFIER_MENU_EVENT,
   NOTE_MODIFIER_RENAME_EVENT,
+  NOTE_MODIFIER_ROLL_EVENT,
   NOTE_MODIFIER_TITLE_FORMAT_EVENT,
   NOTE_MODIFIER_TITLE_MENU_CLOSE_EVENT,
   NOTE_MODIFIER_TITLE_MENU_DISMISS_EVENT,
   NOTE_MODIFIER_TITLE_MENU_EVENT,
   type ModifierTitleFormatCommand,
   type NoteModifierMenuRequest,
+  type NoteModifierRollRequest,
   type NoteModifierTitleFormatRequest,
   type NoteModifierTitleMenuRequest,
 } from './tiptapInlineModifier';
@@ -39,7 +44,7 @@ interface NoteModifierMenuProps {
   editable: boolean;
 }
 
-type MenuMode = 'menu' | 'rename' | 'edit';
+type MenuMode = 'menu' | 'edit';
 
 function MenuAction({ label, icon: Icon, onActivate, danger = false, hint }: { label: string; icon: typeof Pencil; onActivate: () => void; danger?: boolean; hint?: string }) {
   return (
@@ -61,12 +66,69 @@ function MenuAction({ label, icon: Icon, onActivate, danger = false, hint }: { l
   );
 }
 
+function ModifierEditDialog({ title, initialValue, initialFormula, onSave, onCancel }: {
+  title: string;
+  initialValue: string;
+  initialFormula: string;
+  onSave: (value: string, formula: string) => void;
+  onCancel: () => void;
+}) {
+  const [valueDraft, setValueDraft] = useState(initialValue);
+  const [formulaDraft, setFormulaDraft] = useState(initialFormula);
+  const [error, setError] = useState<string | null>(null);
+
+  const confirm = () => {
+    if (!parseModifierValue(valueDraft.trim())) {
+      setError('Caratteri consentiti: cifre, +/-, "d" minuscola (es. 0, +1, -3, 1d6, 3d6+3).');
+      return;
+    }
+    onSave(valueDraft.trim(), formulaDraft.trim());
+  };
+
+  return (
+    <ConfirmDialog
+      title={title}
+      message={'La "d" trasforma il valore in tiro di dado con un click.'}
+      danger={false}
+      confirmLabel="Salva"
+      onConfirm={confirm}
+      onCancel={onCancel}
+      extraContent={
+        <div className="flex flex-col gap-3">
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Valore numerico</span>
+            <input
+              autoFocus
+              value={valueDraft}
+              maxLength={MODIFIER_VALUE_MAX_LENGTH}
+              onChange={(event) => { setValueDraft(event.target.value); setError(null); }}
+              onKeyDown={(event) => { if (event.key === 'Enter') confirm(); }}
+              placeholder="0"
+              className="w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Formula</span>
+            <input
+              value={formulaDraft}
+              maxLength={200}
+              onChange={(event) => setFormulaDraft(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter') confirm(); }}
+              placeholder=""
+              className="w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
+            />
+          </label>
+          {error && <p role="alert" className="text-xs text-[var(--dash-danger-text)]">{error}</p>}
+        </div>
+      }
+    />
+  );
+}
+
 export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
   const portalContainer = usePortalContainer();
   const [request, setRequest] = useState<NoteModifierMenuRequest | null>(null);
   const [mode, setMode] = useState<MenuMode>('menu');
-  const [draft, setDraft] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const close = useCallback((refocus = true) => {
     setRequest(null);
@@ -127,42 +189,7 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [request, close]);
 
-  // Focus automatico sull'input di rinomina/modifica.
-  useEffect(() => {
-    if (mode === 'menu' || !request) return;
-    inputRef.current?.focus();
-  }, [mode, request]);
-
-  const applyAt = useCallback((apply: (state: NonNullable<ReturnType<Editor['state']['tr']['setMeta']> extends never ? never : never>, dispatch: (tr: NonNullable<ReturnType<Editor['state']['tr']['setMeta']> extends never ? never : never>) => void, pos: number) => boolean) => {
-    if (!request) return;
-    const { view } = editor;
-    if (!getModifierAt(view.state, request.pos)) {
-      close();
-      return;
-    }
-    // IL TIPO DELLA RIGA SOTTO È INIETTATO DI SOTTO: apply è uno dei
-    // setter esportati di tiptapInlineModifier che firmano
-    // (state, dispatch, pos). Il cast qui sotto allarga solo per evitare
-    // di ri-importare EditorState/Transaction nel componente.
-    type ModifierSetter = (state: unknown, dispatch: unknown, pos: number) => boolean;
-    (apply as unknown as ModifierSetter)(view.state, (tr: unknown) => view.dispatch(tr as never), request.pos);
-    close();
-  }, [editor, request, close]);
-
-  if (applyAt) { /* noop: tieni il riferimento letto sopra */ }
-
   if (!editable) return null;
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    if (!request) return;
-    const value = draft.trim();
-    if (mode === 'rename') {
-      applyAt((state, dispatch, pos) => setModifierAttrs(state as never, dispatch as never, pos, { name: value || MODIFIER_DEFAULT_NAME }));
-    } else if (mode === 'edit') {
-      applyAt((state, dispatch, pos) => setModifierAttrs(state as never, dispatch as never, pos, { value }));
-    }
-  };
 
   const startRename = () => {
     if (!request) return;
@@ -173,9 +200,15 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
 
   const startEdit = () => {
     if (!request) return;
-    const data = getModifierAt(editor.state, request.pos);
-    setDraft(data?.value ?? '');
     setMode('edit');
+  };
+
+  const saveEdit = (nextValue: string, nextFormula: string) => {
+    if (!request) return;
+    const { view } = editor;
+    if (!getModifierAt(view.state, request.pos)) { close(); return; }
+    setModifierAttrs(view.state, (tr) => view.dispatch(tr), request.pos, { value: nextValue, formula: nextFormula });
+    close();
   };
 
   const runCompact = (compact: boolean) => {
@@ -215,6 +248,20 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
   const data = getModifierAt(editor.state, request.pos);
   if (!data) return null;
 
+  // Modifica apre una finestra in stile palette con Valore numerico e Formula.
+  if (mode === 'edit') {
+    return createPortal(
+      <ModifierEditDialog
+        title={`Modifica ${data.name}`}
+        initialValue={data.value}
+        initialFormula={data.formula}
+        onSave={saveEdit}
+        onCancel={() => close()}
+      />,
+      portalContainer ?? document.body,
+    );
+  }
+
   const placed = placeFloatingNoteUI(
     { left: request.x, right: request.x + 2, top: request.y, bottom: request.y },
     MENU_WIDTH,
@@ -222,7 +269,7 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
     6,
   );
 
-  const content: ReactNode = mode === 'menu' ? (
+  const content: ReactNode = (
     <>
       <MenuAction label="Rinomina" icon={Pencil} onActivate={startRename} />
       <MenuAction label={data.compact ? 'Allarga' : 'Riduci'} icon={data.compact ? Maximize2 : Minimize2} onActivate={() => runCompact(!data.compact)} />
@@ -232,42 +279,6 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
       <div className="my-1 h-px bg-[var(--dash-border-soft)]" />
       <MenuAction label="Elimina" icon={Trash2} danger onActivate={runDelete} />
     </>
-  ) : (
-    <form onSubmit={submit} className="p-1">
-      <label htmlFor="note-modifier-input" className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">
-        {mode === 'rename' ? 'Nome' : 'Valore'}
-      </label>
-      <input
-        id="note-modifier-input"
-        ref={inputRef}
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            event.preventDefault();
-            event.stopPropagation();
-            close();
-          }
-        }}
-        placeholder={mode === 'rename' ? MODIFIER_DEFAULT_NAME : '0'}
-        className="w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
-      />
-      <div className="mt-1.5 flex gap-1.5">
-        <button
-          type="submit"
-          className="flex-1 rounded-md bg-[var(--dash-accent)] px-2 py-1.5 text-xs font-semibold text-[var(--dash-text-strong)] transition-colors hover:brightness-110"
-        >
-          Salva
-        </button>
-        <button
-          type="button"
-          onClick={() => close()}
-          className="flex-1 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)]"
-        >
-          Annulla
-        </button>
-      </div>
-    </form>
   );
 
   const menu = (
@@ -277,13 +288,41 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
       role="menu"
       aria-label="Menu Modificatore"
       style={{ position: 'fixed', top: placed.top, left: placed.left, zIndex: 9997 }}
-      className={`rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-lg ${mode === 'menu' ? 'w-[184px]' : 'w-[212px]'}`}
+      className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-lg w-[184px]"
     >
       {content}
     </div>
   );
 
   return createPortal(menu, portalContainer ?? document.body);
+}
+
+// Bridge widget vanilla -> chat dadi: al click su un Modificatore con valore
+// dado legge i dati correnti e chiede al contesto dadi di tirare. Fuori dalla
+// sessione dadi (o senza dati) non fa nulla.
+export function NoteModifierRollBridge({ editor }: { editor: Editor }) {
+  const session = useOptionalDiceSession();
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  const editorRef = useRef(editor);
+  editorRef.current = editor;
+  useEffect(() => {
+    const onRoll = (event: Event) => {
+      const detail = (event as CustomEvent<NoteModifierRollRequest>).detail;
+      const submit = sessionRef.current?.submitModifierRoll;
+      if (typeof detail?.pos !== 'number' || !submit) return;
+      const data = getModifierAt(editorRef.current.state, detail.pos);
+      if (!data) return;
+      try {
+        submit({ name: data.name, expression: data.value, formula: data.formula });
+      } catch (error) {
+        console.error('Errore tiro modificatore:', error);
+      }
+    };
+    window.addEventListener(NOTE_MODIFIER_ROLL_EVENT, onRoll);
+    return () => window.removeEventListener(NOTE_MODIFIER_ROLL_EVENT, onRoll);
+  }, []);
+  return null;
 }
 
 // Menu "/" dentro la rinomina del titolo del Modificatore: solo gruppo

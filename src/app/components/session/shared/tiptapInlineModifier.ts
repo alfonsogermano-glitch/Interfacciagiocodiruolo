@@ -38,6 +38,15 @@ export const MODIFIER_WIDGET_SELECTOR = '.tiptap-inline-modifier-widget';
 // componente React <NoteModifierMenu> lo ascolta e renderizza il menu.
 export const NOTE_MODIFIER_MENU_EVENT = 'note-inline-modifier-menu';
 export const NOTE_MODIFIER_RENAME_EVENT = 'note-inline-modifier-rename';
+// Click sull'elemento con valore dado (es. 1d6): la view chiede a React di
+// tirare tramite il bridge dadi (NoteModifierRollBridge), che legge i dati
+// correnti e posta in chat dadi.
+export const NOTE_MODIFIER_ROLL_EVENT = 'note-inline-modifier-roll';
+
+export interface NoteModifierRollRequest {
+  /** Posizione del carattere ZWSP (inizio del Modificatore). */
+  pos: number;
+}
 // Bridge per il menu "/" dentro la rinomina del titolo: il widget (vanilla)
 // rileva "/" nell'input e chiede a React di mostrare il menu filtrato;
 // React risponde con formato o dismiss. Solo gruppo Testo, senza elenchi e
@@ -89,6 +98,7 @@ export interface ModifierData {
   name: string;
   value: string;
   compact: boolean;
+  formula: string;
   titleBold: boolean;
   titleItalic: boolean;
   titleUnderline: boolean;
@@ -96,6 +106,35 @@ export interface ModifierData {
   titleFontSize: number | null;
   titleFontFamily: string | null;
   titleAlign: ModifierTitleAlign | null;
+}
+
+// Valore del Modificatore: numeri semplici (+1, -3, 0) o tiri dado (1d6,
+// 3d6+3). Solo cifre, +/-, "d" minuscola: tutto il resto e' vietato. La "d"
+// trasforma il valore in tiro di dado al click sull'elemento.
+export type ParsedModifierValue =
+  | { kind: 'number'; value: number }
+  | { kind: 'dice'; count: number; sides: number; modifier: number };
+
+export const MODIFIER_VALUE_MAX_LENGTH = 32;
+
+export function parseModifierValue(raw: string): ParsedModifierValue | null {
+  const text = raw.trim();
+  if (!text || text.length > MODIFIER_VALUE_MAX_LENGTH || !/^[0-9+\-d]+$/.test(text)) return null;
+  if (!text.includes('d')) {
+    if (!/^[+-]?\d+$/.test(text)) return null;
+    const value = Number.parseInt(text, 10);
+    if (!Number.isSafeInteger(value)) return null;
+    return { kind: 'number', value };
+  }
+  const match = text.match(/^(\d*)d(\d+)([+-]\d+)?$/);
+  if (!match) return null;
+  const count = match[1] === '' ? 1 : Number.parseInt(match[1], 10);
+  const sides = Number.parseInt(match[2], 10);
+  const modifier = match[3] ? Number.parseInt(match[3], 10) : 0;
+  if (!Number.isSafeInteger(count) || count < 1 || count > 100) return null;
+  if (!Number.isSafeInteger(sides) || sides < 2 || sides > 1000) return null;
+  if (!Number.isSafeInteger(modifier)) return null;
+  return { kind: 'dice', count, sides, modifier };
 }
 
 export const MODIFIER_TITLE_FORMAT_DEFAULTS: ModifierTitleFormat = {
@@ -160,6 +199,7 @@ export function getModifierAt(state: EditorState, pos: number): ModifierData | n
     name: String(mark.attrs.name ?? MODIFIER_DEFAULT_NAME),
     value: String(mark.attrs.value ?? MODIFIER_DEFAULT_VALUE),
     compact: mark.attrs.compact === true,
+    formula: typeof mark.attrs.formula === 'string' ? mark.attrs.formula : '',
     titleBold: mark.attrs.titleBold === true,
     titleItalic: mark.attrs.titleItalic === true,
     titleUnderline: mark.attrs.titleUnderline === true,
@@ -191,6 +231,7 @@ export function setModifierAttrs(
       : currentMark.attrs.name ?? MODIFIER_DEFAULT_NAME,
     value: attrs.value ?? currentMark.attrs.value ?? MODIFIER_DEFAULT_VALUE,
     compact: attrs.compact ?? (currentMark.attrs.compact === true),
+    formula: attrs.formula ?? (typeof currentMark.attrs.formula === 'string' ? currentMark.attrs.formula : ''),
     titleBold: attrs.titleBold ?? (currentMark.attrs.titleBold === true),
     titleItalic: attrs.titleItalic ?? (currentMark.attrs.titleItalic === true),
     titleUnderline: attrs.titleUnderline ?? (currentMark.attrs.titleUnderline === true),
@@ -934,6 +975,27 @@ function buildModifierWidget(
     openMenu();
   });
 
+  // Valori dado (1d6, 3d6+3): cursore a puntatore e click sull'elemento tira
+  // in chat dadi. I valori numerici semplici mantengono il comportamento nativo
+  // (posizionamento caret). Mai dai puntini (aprono il menu) ne' dalla rinomina.
+  if (parseModifierValue(value)?.kind === 'dice') element.style.cursor = 'pointer';
+  element.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest('.tiptap-inline-modifier-menu-trigger')) return;
+    if (event.target.closest('[data-note-modifier-rename="true"]')) return;
+    const currentPos = getPos();
+    if (typeof currentPos !== 'number') return;
+    const current = getModifierAt(view.state, currentPos);
+    if (!current) return;
+    if (parseModifierValue(current.value)?.kind !== 'dice') return;
+    event.stopPropagation();
+    window.dispatchEvent(
+      new CustomEvent<NoteModifierRollRequest>(NOTE_MODIFIER_ROLL_EVENT, {
+        detail: { pos: currentPos },
+      }),
+    );
+  });
+
   // Registra nel catalogo globale per la misura coordinata delle righe.
   // La teardown viene gestita da spec.destroy che rimuove l'entry.
   const entry: WidgetEntry = { view, getPos };
@@ -975,6 +1037,11 @@ export const InlineModifier = Mark.create({
         default: false,
         parseHTML: (element) => element.getAttribute('data-modifier-compact') === 'true',
         renderHTML: (attributes) => (attributes.compact ? { 'data-modifier-compact': 'true' } : {}),
+      },
+      formula: {
+        default: '',
+        parseHTML: (element) => element.getAttribute('data-modifier-formula') ?? '',
+        renderHTML: (attributes) => (attributes.formula ? { 'data-modifier-formula': attributes.formula } : {}),
       },
       titleBold: {
         default: false,
@@ -1059,6 +1126,7 @@ export const InlineModifier = Mark.create({
             name: getUniqueModifierName(state),
             value: MODIFIER_DEFAULT_VALUE,
             compact: false,
+            formula: '',
             titleBold: false,
             titleItalic: false,
             titleUnderline: false,

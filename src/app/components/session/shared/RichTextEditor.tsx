@@ -23,7 +23,7 @@ import { NoteContainerGuard } from './tiptapNoteContainerGuard';
 import { NoteSlashMenuExtension } from './tiptapNoteSlashMenu';
 import { NoteTableToolbar } from './NoteTableToolbar';
 import { NoteSlashMenu } from './NoteSlashMenu';
-import { NoteModifierMenu, NoteModifierTitleMenu } from './NoteModifierMenu';
+import { NoteModifierMenu, NoteModifierRollBridge, NoteModifierTitleMenu } from './NoteModifierMenu';
 import { NoteSelectionToolbar } from './NoteSelectionToolbar';
 import { NoteContainerNotice } from './NoteContainerNotice';
 import { flattenRemovedLayoutNodes } from './tiptapLegacyMigration';
@@ -288,6 +288,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
       <NoteSlashMenu editor={editor} editable={editable} />
       <NoteModifierMenu editor={editor} editable={editable} />
       <NoteModifierTitleMenu editable={editable} />
+      <NoteModifierRollBridge editor={editor} />
       <NoteSelectionToolbar editor={editor} editable={editable} />
       <NoteTableToolbar editor={editor} editable={editable} />
       <NoteContainerNotice reason={containerRejection} anchor={editorShellRef.current} />

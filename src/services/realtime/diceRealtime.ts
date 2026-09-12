@@ -107,6 +107,7 @@ export function isRollResultPayload(value: unknown): value is RollResult {
   if (!Array.isArray(value.comparisons)) return false;
   if (value.formulaId !== undefined && typeof value.formulaId !== 'string') return false;
   if (value.rollerAvatarUrl !== undefined && typeof value.rollerAvatarUrl !== 'string') return false;
+  if (value.origin !== undefined && value.origin !== 'modifier') return false;
   return true;
 }
 

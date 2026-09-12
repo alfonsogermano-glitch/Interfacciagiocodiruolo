@@ -10,7 +10,14 @@ import { HollowgateDice3DRenderer } from './dice3dRenderer.ts';
 import { projectRollTo3D } from './dice3dProjection.ts';
 import { isDice3DAbortError } from './dice3dTypes.ts';
 import { rollDiceFormula } from './diceEngine.ts';
+import { parseModifierValue } from '../shared/tiptapInlineModifier.ts';
 import type { DiceRollRequest, RollResult } from './diceTypes.ts';
+
+export interface ModifierRollSubmit {
+  name: string;
+  expression: string;
+  formula?: string;
+}
 
 const DICE_3D_ENABLED_KEY = 'hollowgate.dice.3d-enabled';
 const DICE_SETTLED_HOLD_MS = 1000;
@@ -27,6 +34,8 @@ interface SessionRollEntry {
 interface DiceSessionValue {
   rolls: RollResult[];
   submitLocalRoll: (request: DiceRollRequest) => RollResult;
+  /** Tiro da elemento Modificatore: nome in chat, niente Ritira. */
+  submitModifierRoll: (input: ModifierRollSubmit) => RollResult | null;
   reroll: (resultId: string) => RollResult | null;
   clearLocalHistory: () => void;
   historyOpen: boolean;
@@ -277,6 +286,34 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
     return result;
   }, [buildResult, dispatchRoll, ingestRoll]);
 
+  const submitModifierRoll = useCallback((input: ModifierRollSubmit) => {
+    const parsed = parseModifierValue(input.expression);
+    if (!parsed || parsed.kind !== 'dice') return null;
+    const diceItemId = globalThis.crypto.randomUUID();
+    const items: DiceRollRequest['items'] = [{ id: diceItemId, kind: 'dice', sides: parsed.sides, quantity: parsed.count }];
+    if (parsed.modifier !== 0) {
+      items.push({
+        id: globalThis.crypto.randomUUID(),
+        kind: 'modifier',
+        operation: parsed.modifier > 0 ? 'add' : 'subtract',
+        value: Math.abs(parsed.modifier),
+      });
+    }
+    const base = buildResult({ items, formulaName: input.name, visibility: 'public' });
+    // In chat: nome modificatore, dicitura XdX, poi Formula se presente
+    // altrimenti il valore numerico (gia' nel testo motore).
+    const diceToken = `${parsed.count}d${parsed.sides}`;
+    const formula = input.formula?.trim() ?? '';
+    const result: RollResult = {
+      ...base,
+      formulaText: formula ? `${diceToken} ${formula}` : base.formulaText,
+      origin: 'modifier',
+    };
+    ingestRoll(result);
+    dispatchRoll(result);
+    return result;
+  }, [buildResult, dispatchRoll, ingestRoll]);
+
   const rolls = useMemo(
     () => entries.filter((entry) => entry.revealState === 'revealed').map((entry) => entry.result),
     [entries],
@@ -311,6 +348,7 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
   const value = useMemo<DiceSessionValue>(() => ({
     rolls,
     submitLocalRoll,
+    submitModifierRoll,
     reroll,
     clearLocalHistory,
     historyOpen,
@@ -336,6 +374,7 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
     setAnimationsEnabled,
     setHistoryOpen,
     submitLocalRoll,
+    submitModifierRoll,
   ]);
 
   return <DiceSessionContext.Provider value={value}>{children}</DiceSessionContext.Provider>;
@@ -353,4 +392,9 @@ export function useDiceSession() {
   const context = useContext(DiceSessionContext);
   if (!context) throw new Error('useDiceSession deve essere usato dentro DiceSessionProvider.');
   return context;
+}
+
+/** Variante tollerante per i bridge montati anche fuori sessione dadi. */
+export function useOptionalDiceSession() {
+  return useContext(DiceSessionContext);
 }

@@ -90,6 +90,21 @@ assert.match(
 );
 assert.match(
   source,
+  /formula:[\s\S]*default:\s*''[\s\S]*data-modifier-formula/,
+  'inline modifier must persist a formula attribute with empty default',
+);
+assert.match(
+  source,
+  /export function parseModifierValue[\s\S]*0-9[\s\S]*kind: 'dice'[\s\S]*count[\s\S]*sides[\s\S]*modifier/,
+  'modifier values must validate to plain numbers or dice expressions with restricted charset',
+);
+assert.match(
+  source,
+  /NOTE_MODIFIER_ROLL_EVENT[\s\S]*parseModifierValue\(current\.value\)[\s\S]*CustomEvent<NoteModifierRollRequest>/,
+  'clicking a modifier with a dice value must request a chat roll instead of moving the caret',
+);
+assert.match(
+  source,
   /duplicateModifierAt[\s\S]*insert\([\s\S]*INLINE_MODIFIER_CHAR[\s\S]*markType\.create\([\s\S]*\.\.\.currentMark\.attrs[\s\S]*id:\s*createModifierId\(\)/,
   'duplicate must re-insert a fresh ZWSP character carrying identical data and a fresh stable id',
 );

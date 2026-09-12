@@ -65,20 +65,22 @@ export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; 
               ? <img src={result.rollerAvatarUrl} alt="" className="h-full w-full object-cover" />
               : <span className="text-xs font-semibold text-[var(--dash-text)]">{result.rollerName.slice(0, 1).toUpperCase()}</span>}
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button type="button" data-dice-reroll onClick={onReroll} aria-label="Ritira" className="mt-auto rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface)] p-1 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]">
-                <RotateCcw className="h-3 w-3" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Ritira</TooltipContent>
-          </Tooltip>
+          {result.origin !== 'modifier' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" data-dice-reroll onClick={onReroll} aria-label="Ritira" className="mt-auto rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface)] p-1 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]">
+                  <RotateCcw className="h-3 w-3" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Ritira</TooltipContent>
+            </Tooltip>
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <div className="break-words text-sm font-semibold leading-tight text-[var(--dash-text-strong)]">{result.rollerName}</div>
-              {(result.formulaId || result.visibility === 'secret') && (
+              {(result.formulaId || result.visibility === 'secret' || result.origin === 'modifier') && (
                 <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5">
                   {result.formulaId && (
                     <div className="flex min-w-[8rem] flex-1 items-center gap-1.5 break-words text-xs leading-tight text-[var(--dash-muted)]">

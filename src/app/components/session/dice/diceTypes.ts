@@ -190,6 +190,8 @@ export interface RollResult {
   rollerName: string;
   rollerAvatarUrl?: string;
   formulaId?: string;
+  /** Tiri dagli elementi Modificatore: mostrano il nome, niente Ritira. */
+  origin?: 'modifier';
   formulaName: string;
   formulaIconName?: string;
   formulaText: string;
