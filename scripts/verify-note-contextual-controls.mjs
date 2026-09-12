@@ -65,6 +65,8 @@ assert.match(richClipboard, /application\/x-hollowgate-note\+json/, 'rich clipbo
 assert.match(richClipboard, /data-hollowgate-note-clipboard/, 'rich clipboard HTML marker must remain');
 assert.match(richClipboard, /DOMSerializer\.fromSchema/, 'rich clipboard must preserve schema marks');
 assert.match(richClipboard, /replaceSelection\(slice\)/, 'rich paste must restore complete Slice, not plain text');
+assert.match(richClipboard, /renamePastedInlineModifiers[\s\S]*used\.has\([\s\S]*while \(used\.has/, 'pasted modifiers must get fresh ids and unique names with the full-name plus number rule');
+assert.match(richClipboard, /handlePaste[\s\S]*renamePastedInlineModifiers\(view\.state, Slice\.fromJSON/, 'paste must uniquify modifier names before replacing the selection');
 
 const order = ['containerGuardExtension','tableClipboardExtension','richClipboardExtension','NoteSlashMenuExtension'].map((token) => editor.lastIndexOf(token));
 assert.ok(order.every((index) => index >= 0) && order.every((index, i) => i === 0 || index > order[i - 1]), 'guard/table clipboard/rich clipboard/slash registration order must remain');

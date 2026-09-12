@@ -1,6 +1,6 @@
 import { Extension } from '@tiptap/core';
 import { DOMSerializer, Slice } from '@tiptap/pm/model';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
 import { getRichClipboardSlice, isRichClipboardTableSelection } from './noteRichClipboardSelection';
 import { validateStructuralReplacement, validateTableClipboardTarget, type NoteContainerRejection } from './noteContainerPolicy';
@@ -97,6 +97,73 @@ function readClipboard(event: ClipboardEvent): SliceJSON | null {
   return readHTML(clipboard.getData('text/html') ?? '');
 }
 
+// I Modificatori incollati diventano nuovi elementi: id fresco e nome
+// univoco con la regola "nome intero + (n)" - SENZA togliere un eventuale
+// numero gia' presente (Test (3) -> Test (3) (1), non Test (1)). Vale per
+// l'incolla da voce "Copia" e per il Ctrl+V nativo, che altrimenti
+// duplicherebbe nomi e chiavi widget.
+function renamePastedInlineModifiers(state: EditorState, slice: Slice): Slice {
+  const markType = state.schema.marks.inlineModifier;
+  if (!markType) return slice;
+  const used = new Set<string>();
+  const MODIFIER_CHAR = String.fromCharCode(0x200b);
+  state.doc.descendants((node) => {
+    if (!node.isText || !node.text || !node.text.includes(MODIFIER_CHAR)) return;
+    const mark = node.marks.find((item) => item.type === markType);
+    if (mark) used.add(String(mark.attrs?.name ?? ''));
+  });
+  const freshId = (): string =>
+    globalThis.crypto?.randomUUID?.() ?? `modifier-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  let touched = false;
+  const renameMarks = (marks: Array<{ type?: string; attrs?: Record<string, unknown> }> | undefined) => {
+    if (!marks) return marks;
+    let out = marks;
+    marks.forEach((entry, index) => {
+      if (!entry || entry.type !== 'inlineModifier') return;
+      const current = String(entry.attrs?.name ?? '');
+      let next = current;
+      if (used.has(next)) {
+        let candidate = 1;
+        while (used.has(`${current} (${candidate})`)) candidate += 1;
+        next = `${current} (${candidate})`;
+      }
+      used.add(next);
+      const replaced = { ...entry, attrs: { ...entry.attrs, id: freshId(), name: next } };
+      if (out === marks) out = marks.slice();
+      out[index] = replaced;
+      touched = true;
+    });
+    return out;
+  };
+  const walk = (nodes: unknown[]): unknown[] => nodes.map((child) => {
+    if (!child || typeof child !== 'object') return child;
+    let next = child as Record<string, unknown>;
+    if (next['type'] === 'text' && Array.isArray(next['marks'])) {
+      const marks = renameMarks(next['marks'] as Array<{ type?: string; attrs?: Record<string, unknown> }>);
+      if (marks !== next['marks']) next = { ...next, marks };
+    }
+    if (Array.isArray(next['content'])) {
+      const content = walk(next['content'] as unknown[]);
+      next = { ...next, content };
+    }
+    return next;
+  });
+  let json: { content?: unknown; openStart?: number; openEnd?: number } | null = null;
+  try {
+    json = slice.toJSON() as { content?: unknown; openStart?: number; openEnd?: number };
+  } catch {
+    return slice;
+  }
+  if (!json || !Array.isArray(json.content)) return slice;
+  const content = walk(json.content);
+  if (!touched) return slice;
+  try {
+    return Slice.fromJSON(state.schema, { ...json, content } as never);
+  } catch {
+    return slice;
+  }
+}
+
 export const NoteRichClipboard = Extension.create<{ onReject?: (reason: NoteContainerRejection) => void }>({
   name: 'noteRichClipboard',
   addOptions() { return { onReject: undefined }; },
@@ -123,11 +190,11 @@ export const NoteRichClipboard = Extension.create<{ onReject?: (reason: NoteCont
               event.preventDefault();
               return true;
             }
-            const slice = Slice.fromJSON(view.state.schema, {
+            const slice = renamePastedInlineModifiers(view.state, Slice.fromJSON(view.state.schema, {
               content: json.content,
               openStart: json.openStart,
               openEnd: json.openEnd,
-            } as any);
+            } as any));
             const decision = validateStructuralReplacement(view.state, slice);
             if (!decision.allowed && 'reason' in decision) {
               this.options.onReject?.(decision.reason);
