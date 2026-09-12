@@ -105,6 +105,11 @@ assert.match(
 );
 assert.match(
   source,
+  /parseModifierValue\(value\)\) \{[\s\S]*boxShadow[\s\S]*dash-accent-2/,
+  'rollable modifiers must stand out with accent border and glow',
+);
+assert.match(
+  source,
   /duplicateModifierAt[\s\S]*insert\([\s\S]*INLINE_MODIFIER_CHAR[\s\S]*markType\.create\([\s\S]*\.\.\.currentMark\.attrs[\s\S]*id:\s*createModifierId\(\)/,
   'duplicate must re-insert a fresh ZWSP character carrying identical data and a fresh stable id',
 );

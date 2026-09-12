@@ -975,10 +975,15 @@ function buildModifierWidget(
     openMenu();
   });
 
-  // Valori validi (numeri semplici o dadi): cursore a puntatore e click
-  // sull'elemento pubblica in chat dadi. Mai dai puntini (aprono il menu)
-  // ne' dalla rinomina.
-  if (parseModifierValue(value)) element.style.cursor = 'pointer';
+  // Valori validi (numeri semplici o dadi): l'elemento e' cliccabile e tira in
+  // chat dadi - bordo in accento e alone per distinguerlo dai Modificatori che
+  // rappresentano solo un valore. Mai dai puntini (aprono il menu) ne' dalla
+  // rinomina.
+  if (parseModifierValue(value)) {
+    element.style.cursor = 'pointer';
+    element.style.border = '1px solid var(--dash-accent-2)';
+    element.style.boxShadow = '0 0 8px var(--dash-accent-2)';
+  }
   element.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;
     if (event.target.closest('.tiptap-inline-modifier-menu-trigger')) return;

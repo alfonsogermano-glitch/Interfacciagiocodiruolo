@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type * as React from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
-import { ArrowLeft, Clipboard, Copy, Maximize2, Minimize2, Pencil, Trash2, Type } from 'lucide-react';
+import { ArrowLeft, Clipboard, Copy, GripVertical, Maximize2, Minimize2, Pencil, Trash2, Type } from 'lucide-react';
 import { usePortalContainer } from '../../ui/portal-container';
 import { useOptionalDiceSession } from '../dice/DiceSessionContext';
 import { placeFloatingNoteUI } from './noteFloatingPosition';
@@ -88,25 +88,27 @@ function ModifierEditForm({ initialValue, initialFormula, onSave, onCancel }: {
     <div className="flex flex-col gap-2 p-1">
       <label className="block">
         <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Valore numerico</span>
-        <input
+        <textarea
           autoFocus
+          rows={2}
           value={valueDraft}
           maxLength={MODIFIER_VALUE_MAX_LENGTH}
           onChange={(event) => { setValueDraft(event.target.value); setError(null); }}
-          onKeyDown={(event) => { if (event.key === 'Enter') confirm(); }}
+          onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); confirm(); } }}
           placeholder="0"
-          className="w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
+          className="w-full resize-y rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
         />
       </label>
       <label className="block">
         <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Formula</span>
-        <input
+        <textarea
+          rows={2}
           value={formulaDraft}
           maxLength={200}
           onChange={(event) => setFormulaDraft(event.target.value)}
-          onKeyDown={(event) => { if (event.key === 'Enter') confirm(); }}
+          onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); confirm(); } }}
           placeholder=""
-          className="w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
+          className="w-full resize-y rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
         />
       </label>
       {error && <p role="alert" className="px-0.5 text-xs text-[var(--dash-danger-text)]">{error}</p>}
@@ -143,9 +145,10 @@ function ModifierEditPanel({ top, left, name, initialValue, initialFormula, onSa
   const dragRef = useRef<{ dx: number; dy: number } | null>(null);
   const [pos, setPos] = useState({ top, left });
 
-  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    const target = event.target as Element | null;
-    if (event.button !== 0 || target?.closest('input, button, label, [role="alert"]')) return;
+  // Trascinamento dalla maniglia in testata (non dai bordi: un click appena
+  // fuori chiuderebbe il pannello). Solo tasto sinistro, con clamp viewport.
+  const onHandlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
     const root = rootRef.current;
     if (!root) return;
     event.preventDefault();
@@ -173,12 +176,19 @@ function ModifierEditPanel({ top, left, name, initialValue, initialFormula, onSa
       role="dialog"
       aria-label={`Modifica ${name}`}
       style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
-      className="w-[232px] cursor-grab rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-lg active:cursor-grabbing"
-      onPointerDown={onPointerDown}
+      className="w-[232px] rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-lg"
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
     >
+      <div
+        data-edit-drag-handle="true"
+        onPointerDown={onHandlePointerDown}
+        className="mb-1 flex cursor-grab touch-none items-center gap-1.5 rounded-md px-1.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] active:cursor-grabbing"
+      >
+        <GripVertical className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate">{name}</span>
+      </div>
       <ModifierEditForm
         initialValue={initialValue}
         initialFormula={initialFormula}

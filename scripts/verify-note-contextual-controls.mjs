@@ -65,14 +65,16 @@ assert.match(modifierMenu, /NoteModifierTitleMenu[\s\S]*data-note-modifier-title
 assert.match(editor, /NoteModifierTitleMenu/, 'RichTextEditor must mount the modifier title menu alongside the modifier menu');
 assert.match(modifierMenu, /ModifierEditForm[\s\S]*Valore numerico[\s\S]*Formula/, 'modifier edit must open a floating panel with Valore numerico and Formula fields');
 assert.match(modifierMenu, /data-note-modifier-edit="true"[\s\S]*zIndex: 9999/, 'modifier edit panel must float above other windows near the cursor');
-assert.match(modifierMenu, /ModifierEditPanel[\s\S]*onPointerDown[\s\S]*setPointerCapture/, 'modifier edit panel must be draggable');
+assert.match(modifierMenu, /onHandlePointerDown[\s\S]*setPointerCapture[\s\S]*data-edit-drag-handle="true"/, 'modifier edit panel must drag from its handle');
+assert.match(modifierMenu, /GripVertical/, 'modifier edit panel handle must use a grip icon');
+assert.match(modifierMenu, /<textarea[\s\S]*rows=\{2\}[\s\S]*<textarea[\s\S]*rows=\{2\}/, 'value and formula fields must offer two text rows');
 assert.doesNotMatch(modifierMenu, /ConfirmDialog/, 'modifier edit must not use a dedicated dialog window');
 assert.match(modifierMenu, /parseModifierValue\(valueDraft/, 'modifier edit panel must validate the restricted value charset');
 assert.match(selection, /data-note-modifier-edit="true"/, 'selection toolbar must stay hidden while the modifier edit panel is open');
 assert.match(modifierMenu, /NoteModifierRollBridge[\s\S]*useOptionalDiceSession[\s\S]*NOTE_MODIFIER_ROLL_EVENT/, 'modifier rolls must bridge to the dice session without crashing outside it');
 assert.match(editor, /NoteModifierRollBridge editor=\{editor\}/, 'RichTextEditor must mount the modifier roll bridge');
 assert.match(diceContext, /submitModifierRoll[\s\S]*parseModifierValue\(input\.expression\)[\s\S]*origin: 'modifier'/, 'modifier rolls must build dice items and mark their origin');
-assert.match(diceContext, /parsed\.kind === 'number'[\s\S]*total: parsed\.value/, 'plain numeric modifier values must post their value to dice chat');
+assert.match(diceContext, /count: 1, sides: 20, modifier: parsed\.value/, 'plain numeric modifiers must roll a d20 check with their value');
 assert.match(diceContext, /useOptionalDiceSession/, 'dice session must expose a nullable hook for bridges');
 assert.match(diceTypes, /origin\?: 'modifier'/, 'roll results must carry the modifier origin');
 assert.match(diceRealtime, /value\.origin !== undefined && value\.origin !== 'modifier'/, 'roll payload validation must accept the modifier origin');
