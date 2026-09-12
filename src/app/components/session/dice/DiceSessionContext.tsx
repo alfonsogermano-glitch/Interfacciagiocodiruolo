@@ -287,8 +287,36 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
   }, [buildResult, dispatchRoll, ingestRoll]);
 
   const submitModifierRoll = useCallback((input: ModifierRollSubmit) => {
+    if (!user || !activeCampaign) return null;
     const parsed = parseModifierValue(input.expression);
-    if (!parsed || parsed.kind !== 'dice') return null;
+    if (!parsed) return null;
+    const formula = input.formula?.trim() ?? '';
+    // Valore numerico semplice (senza "d"): niente dadi da tirare, in chat
+    // compare il valore stesso oppure la Formula se presente.
+    if (parsed.kind === 'number') {
+      const display = formula || input.expression.trim();
+      if (!display) return null;
+      const result: RollResult = {
+        id: globalThis.crypto.randomUUID(),
+        campaignId: activeCampaign.id,
+        rollerId: user.id,
+        rollerName: user.displayName,
+        rollerAvatarUrl: user.avatarUrl,
+        formulaName: input.name,
+        formulaText: display,
+        visibility: 'public',
+        sourceItems: [],
+        diceGroups: [],
+        arithmeticSteps: [],
+        comparisons: [],
+        total: parsed.value,
+        createdAt: Date.now(),
+        origin: 'modifier',
+      };
+      ingestRoll(result);
+      dispatchRoll(result);
+      return result;
+    }
     const diceItemId = globalThis.crypto.randomUUID();
     const items: DiceRollRequest['items'] = [{ id: diceItemId, kind: 'dice', sides: parsed.sides, quantity: parsed.count }];
     if (parsed.modifier !== 0) {
@@ -303,7 +331,6 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
     // In chat: nome modificatore, dicitura XdX, poi Formula se presente
     // altrimenti il valore numerico (gia' nel testo motore).
     const diceToken = `${parsed.count}d${parsed.sides}`;
-    const formula = input.formula?.trim() ?? '';
     const result: RollResult = {
       ...base,
       formulaText: formula ? `${diceToken} ${formula}` : base.formulaText,
@@ -312,7 +339,7 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
     ingestRoll(result);
     dispatchRoll(result);
     return result;
-  }, [buildResult, dispatchRoll, ingestRoll]);
+  }, [activeCampaign, buildResult, dispatchRoll, ingestRoll, user]);
 
   const rolls = useMemo(
     () => entries.filter((entry) => entry.revealState === 'revealed').map((entry) => entry.result),

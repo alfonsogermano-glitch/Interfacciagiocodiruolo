@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
 import { ArrowLeft, Clipboard, Copy, Maximize2, Minimize2, Pencil, Trash2, Type } from 'lucide-react';
-import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { usePortalContainer } from '../../ui/portal-container';
 import { useOptionalDiceSession } from '../dice/DiceSessionContext';
 import { placeFloatingNoteUI } from './noteFloatingPosition';
@@ -66,8 +65,7 @@ function MenuAction({ label, icon: Icon, onActivate, danger = false, hint }: { l
   );
 }
 
-function ModifierEditDialog({ title, initialValue, initialFormula, onSave, onCancel }: {
-  title: string;
+function ModifierEditForm({ initialValue, initialFormula, onSave, onCancel }: {
   initialValue: string;
   initialFormula: string;
   onSave: (value: string, formula: string) => void;
@@ -86,42 +84,48 @@ function ModifierEditDialog({ title, initialValue, initialFormula, onSave, onCan
   };
 
   return (
-    <ConfirmDialog
-      title={title}
-      message={'La "d" trasforma il valore in tiro di dado con un click.'}
-      danger={false}
-      confirmLabel="Salva"
-      onConfirm={confirm}
-      onCancel={onCancel}
-      extraContent={
-        <div className="flex flex-col gap-3">
-          <label className="block">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Valore numerico</span>
-            <input
-              autoFocus
-              value={valueDraft}
-              maxLength={MODIFIER_VALUE_MAX_LENGTH}
-              onChange={(event) => { setValueDraft(event.target.value); setError(null); }}
-              onKeyDown={(event) => { if (event.key === 'Enter') confirm(); }}
-              placeholder="0"
-              className="w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Formula</span>
-            <input
-              value={formulaDraft}
-              maxLength={200}
-              onChange={(event) => setFormulaDraft(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter') confirm(); }}
-              placeholder=""
-              className="w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
-            />
-          </label>
-          {error && <p role="alert" className="text-xs text-[var(--dash-danger-text)]">{error}</p>}
-        </div>
-      }
-    />
+    <div className="flex flex-col gap-2 p-1">
+      <label className="block">
+        <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Valore numerico</span>
+        <input
+          autoFocus
+          value={valueDraft}
+          maxLength={MODIFIER_VALUE_MAX_LENGTH}
+          onChange={(event) => { setValueDraft(event.target.value); setError(null); }}
+          onKeyDown={(event) => { if (event.key === 'Enter') confirm(); }}
+          placeholder="0"
+          className="w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Formula</span>
+        <input
+          value={formulaDraft}
+          maxLength={200}
+          onChange={(event) => setFormulaDraft(event.target.value)}
+          onKeyDown={(event) => { if (event.key === 'Enter') confirm(); }}
+          placeholder=""
+          className="w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
+        />
+      </label>
+      {error && <p role="alert" className="px-0.5 text-xs text-[var(--dash-danger-text)]">{error}</p>}
+      <div className="mt-0.5 flex gap-1.5">
+        <button
+          type="button"
+          onClick={confirm}
+          className="flex-1 rounded-md bg-[var(--dash-accent)] px-2 py-1.5 text-xs font-semibold text-[var(--dash-text-strong)] transition-colors hover:brightness-110"
+        >
+          Salva
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)]"
+        >
+          Annulla
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -162,11 +166,10 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
 
   // Chiusura su click fuori senza rubare il focus (il click sui puntini di un
   // altro Modificatore deve poter RIAPRIRE il menu allo stesso colpo, quindi
-  // non chiude). In modalita' edit la finestra di dialogo gestisce da sola il
-  // backdrop: senza questa esclusione ogni click nei suoi campi smonterebbe
-  // subito la finestra.
+  // non chiude). Il pannello modifica porta gli stessi marcatori del menu,
+  // quindi i click nei suoi campi non chiudono.
   useEffect(() => {
-    if (!request || mode !== 'menu') return;
+    if (!request) return;
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Element | null;
       if (!target) return;
@@ -176,7 +179,7 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
     };
     document.addEventListener('pointerdown', onPointerDown, true);
     return () => document.removeEventListener('pointerdown', onPointerDown, true);
-  }, [request, mode, close]);
+  }, [request, close]);
 
   // Escape chiude e restituisce il focus all'editor.
   useEffect(() => {
@@ -250,14 +253,28 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
   const data = getModifierAt(editor.state, request.pos);
   if (!data) return null;
 
-  // Modifica apre una finestra in stile palette con Valore numerico e Formula.
-  // Il marcatore contestuale evita che l'autofocus dei campi faccia blur
-  // all'editor (smonterebbe subito la finestra).
+  // Modifica: solita finestra volante vicino al cursore (niente finestra
+  // dedicata), con Valore numerico e Formula. Stessi marcatori del menu cosi'
+  // i click dentro non chiudono e l'autofocus non fa blur; z-index sopra gli
+  // altri pannelli e posizione vincolata alla viewport.
   if (mode === 'edit') {
+    const editPlaced = placeFloatingNoteUI(
+      { left: request.x, right: request.x + 2, top: request.y, bottom: request.y },
+      232,
+      300,
+      6,
+    );
     return createPortal(
-      <div data-note-contextual-ui="true" data-note-modifier-dialog="true">
-        <ModifierEditDialog
-          title={`Modifica ${data.name}`}
+      <div
+        data-note-contextual-ui="true"
+        data-note-modifier-menu="true"
+        data-note-modifier-edit="true"
+        role="dialog"
+        aria-label={`Modifica ${data.name}`}
+        style={{ position: 'fixed', top: editPlaced.top, left: editPlaced.left, zIndex: 9999 }}
+        className="w-[232px] rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-lg"
+      >
+        <ModifierEditForm
           initialValue={data.value}
           initialFormula={data.formula}
           onSave={saveEdit}

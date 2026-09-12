@@ -975,10 +975,10 @@ function buildModifierWidget(
     openMenu();
   });
 
-  // Valori dado (1d6, 3d6+3): cursore a puntatore e click sull'elemento tira
-  // in chat dadi. I valori numerici semplici mantengono il comportamento nativo
-  // (posizionamento caret). Mai dai puntini (aprono il menu) ne' dalla rinomina.
-  if (parseModifierValue(value)?.kind === 'dice') element.style.cursor = 'pointer';
+  // Valori validi (numeri semplici o dadi): cursore a puntatore e click
+  // sull'elemento pubblica in chat dadi. Mai dai puntini (aprono il menu)
+  // ne' dalla rinomina.
+  if (parseModifierValue(value)) element.style.cursor = 'pointer';
   element.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;
     if (event.target.closest('.tiptap-inline-modifier-menu-trigger')) return;
@@ -987,7 +987,7 @@ function buildModifierWidget(
     if (typeof currentPos !== 'number') return;
     const current = getModifierAt(view.state, currentPos);
     if (!current) return;
-    if (parseModifierValue(current.value)?.kind !== 'dice') return;
+    if (!parseModifierValue(current.value)) return;
     event.stopPropagation();
     window.dispatchEvent(
       new CustomEvent<NoteModifierRollRequest>(NOTE_MODIFIER_ROLL_EVENT, {

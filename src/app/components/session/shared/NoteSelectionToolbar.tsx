@@ -58,6 +58,16 @@ export function NoteSelectionToolbar({ editor, editable }: Props) {
       setPosition(null);
       return;
     }
+    // Il menu veloce serve solo al testo libero della tab: mai durante la
+    // gestione di un Modificatore (menu, finestra modifica, rinomina inline,
+    // menu titolo) ne' quando il focus e' dentro quelle UI.
+    if (typeof document !== 'undefined' && document.querySelector(
+      '[data-note-modifier-menu="true"], [data-note-modifier-title-menu="true"], [data-note-modifier-rename="true"], [data-note-modifier-edit="true"]',
+    )) {
+      setSnapshot(null);
+      setPosition(null);
+      return;
+    }
     const next = captureNoteSelection(editor.state);
     if (!next) {
       setSnapshot(null);
