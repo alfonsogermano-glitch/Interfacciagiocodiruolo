@@ -73,6 +73,7 @@ assert.match(richClipboard, /handlePaste[\s\S]*renamePastedInlineModifiers\(view
 
 const order = ['containerGuardExtension','tableClipboardExtension','richClipboardExtension','NoteSlashMenuExtension'].map((token) => editor.lastIndexOf(token));
 assert.ok(order.every((index) => index >= 0) && order.every((index, i) => i === 0 || index > order[i - 1]), 'guard/table clipboard/rich clipboard/slash registration order must remain');
+assert.match(editor, /relatedTarget[\s\S]*removeAllRanges[\s\S]*onBlurEditor\?\.\(\)/, 'editor blur to empty space must clear orphaned DOM ranges so no ghost caret survives');
 assert.match(editor, /PermanentUndo/, 'Undo must remain permanent outside Slash menu');
 assert.match(editor, /absolute right-2 top-2/, 'Undo must stay top-right');
 

@@ -219,6 +219,14 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
       if (editorShellRef.current?.contains(related)) return;
       if (related instanceof Element && related.closest('[data-note-contextual-ui="true"]')) return;
       if (related instanceof Element && related.closest('[data-slot="popover-content"]')) return;
+      // Il blur vero (click fuori su area vuota) deve spegnere anche un'eventuale
+      // DOM selection orfana rimasta nel shell: senza questo resta un caret
+      // fantasma visibile mentre l'editor e' gia' non editable. Il nuovo campo
+      // (se ce n'e' uno) imposta da solo il proprio caret al focus.
+      const domSelection = window.getSelection();
+      if (domSelection && domSelection.rangeCount > 0 && editorShellRef.current?.contains(domSelection.anchorNode)) {
+        domSelection.removeAllRanges();
+      }
       onBlurEditor?.();
     },
   });
