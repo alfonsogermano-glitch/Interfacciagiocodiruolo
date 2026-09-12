@@ -50,6 +50,9 @@ assert.match(slash, /hover:bg-\[var\(--dash-accent\)\]/, 'Slash hover must use p
 assert.match(slash, /className=\{`flex min-h-12 w-full flex-col/, 'Slash command buttons must fill their grid cell so picker icons stay centered');
 assert.match(modifierMenu, /<Icon className="h-3\.5 w-3\.5 shrink-0"/, 'modifier menu actions must show a left icon like other compact menus');
 assert.match(modifierMenu, /label=\{data\.compact \? 'Allarga' : 'Riduci'\}/, 'modifier menu must toggle Riduci/Allarga from compact state');
+assert.match(modifierMenu, /const close = useCallback\(\(refocus = true\)/, 'modifier menu close must support focusless dismissal');
+assert.match(modifierMenu, /if \(refocus && editor\.isEditable\) editor\.commands\.focus\(\);/, 'modifier menu must only refocus an editable editor');
+assert.match(modifierMenu, /target\.closest\('\.tiptap-inline-modifier-widget'\)\) return;[\s\S]*close\(false\)/, 'outside click must dismiss the modifier menu without stealing focus');
 assert.doesNotMatch(modifierMenu, /hint=\{data\.name\}/, 'modifier menu must not show the modifier name beside Riduci');
 assert.match(modifierMenu, /TITLE_SLASH_COMMAND_IDS[\s\S]*'bold'[\s\S]*'italic'[\s\S]*'underline'[\s\S]*'strike'[\s\S]*'fontSize'[\s\S]*'fontFamily'[\s\S]*'alignLeft'[\s\S]*'alignCenter'[\s\S]*'alignRight'/, 'modifier title slash menu must offer only the Text group options');
 assert.doesNotMatch(modifierMenu, /TITLE_SLASH_COMMAND_IDS[\s\S]*bulletList/, 'modifier title slash menu must exclude Elenco puntato');

@@ -68,10 +68,13 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const close = useCallback(() => {
+  const close = useCallback((refocus = true) => {
     setRequest(null);
     setMode('menu');
-    editor.commands.focus();
+    // Il refocus ha senso solo per chiusure da tastiera o da azioni del menu:
+    // al click fuori il focus deve seguire il punto cliccato, mai tornare
+    // all'editor (lasciava un caret fantasma). Mai su editor non editable.
+    if (refocus && editor.isEditable) editor.commands.focus();
   }, [editor]);
 
   // Apertura dal widget vanilla (CustomEvent su window).
@@ -95,8 +98,9 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
     return () => { editor.off('transaction', onTransaction); };
   }, [editor, request, close]);
 
-  // Chiusura su click fuori (il click sui puntini di un altro Modificatore
-  // deve poter RIAPRIRE il menu allo stesso colpo, quindi non chiude).
+  // Chiusura su click fuori senza rubare il focus (il click sui puntini di un
+  // altro Modificatore deve poter RIAPRIRE il menu allo stesso colpo, quindi
+  // non chiude).
   useEffect(() => {
     if (!request) return;
     const onPointerDown = (event: PointerEvent) => {
@@ -104,7 +108,7 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
       if (!target) return;
       if (target.closest('[data-note-modifier-menu="true"]')) return;
       if (target.closest('.tiptap-inline-modifier-widget')) return;
-      close();
+      close(false);
     };
     document.addEventListener('pointerdown', onPointerDown, true);
     return () => document.removeEventListener('pointerdown', onPointerDown, true);
@@ -257,7 +261,7 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
         </button>
         <button
           type="button"
-          onClick={close}
+          onClick={() => close()}
           className="flex-1 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)]"
         >
           Annulla

@@ -105,6 +105,11 @@ assert.match(
 );
 assert.match(
   source,
+  /dots\.addEventListener\('mousedown'[\s\S]*if \(!view\.editable\) return;[\s\S]*dots\.addEventListener\('click'[\s\S]*if \(!view\.editable\)[\s\S]*requestAnimationFrame\(attempt\)/,
+  'dots must let a blurred tab re-enter edit mode and defer the menu until the editor is editable again',
+);
+assert.match(
+  source,
   /copyModifierToClipboard\(view: EditorView[\s\S]*ClipboardItem[\s\S]*createModifierId\(\)[\s\S]*wrapNoteClipboardHTML[\s\S]*writeText\(text\)/,
   'copy must write the whole modifier element (rich HTML slice with fresh id) and keep plain text only as fallback',
 );

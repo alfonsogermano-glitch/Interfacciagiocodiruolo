@@ -900,10 +900,29 @@ function buildModifierWidget(
     );
   };
   dots.addEventListener('mousedown', (event) => {
+    // A editor spento (tab sfocata) lascia passare l'evento: focus nativo e
+    // bubble invariati, cosi' il wrapper puo' riattivare la modifica.
+    if (!view.editable) return;
     event.preventDefault();
     event.stopPropagation();
   });
   dots.addEventListener('click', (event) => {
+    // A editor spento il click risale al wrapper (onClickText) che rimette
+    // isEditing=true: si apre il menu appena l'editor torna editable, cosi'
+    // basta un solo click sui puntini anche a tab sfocata.
+    if (!view.editable) {
+      const startedAt = performance.now();
+      const attempt = () => {
+        if (!element.isConnected) return;
+        if (view.editable) {
+          openMenu();
+          return;
+        }
+        if (performance.now() - startedAt < 600) window.requestAnimationFrame(attempt);
+      };
+      window.requestAnimationFrame(attempt);
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     openMenu();
