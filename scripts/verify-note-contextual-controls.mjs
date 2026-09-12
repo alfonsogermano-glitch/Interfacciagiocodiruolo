@@ -64,6 +64,8 @@ assert.doesNotMatch(modifierMenu, /TITLE_SLASH_COMMAND_IDS[\s\S]*blockquote/, 'm
 assert.match(modifierMenu, /NoteModifierTitleMenu[\s\S]*data-note-modifier-title-menu/, 'modifier title menu must render as contextual UI with left icons');
 assert.match(editor, /NoteModifierTitleMenu/, 'RichTextEditor must mount the modifier title menu alongside the modifier menu');
 assert.match(modifierMenu, /ModifierEditDialog[\s\S]*Valore numerico[\s\S]*Formula/, 'modifier edit must open a dialog with Valore numerico and Formula fields');
+assert.match(modifierMenu, /data-note-modifier-dialog="true"/, 'modifier edit dialog must be marked contextual so autofocus does not blur the editor');
+assert.match(modifierMenu, /if \(!request \|\| mode !== 'menu'\) return;/, 'outside clicks must be ignored while the edit dialog owns its backdrop');
 assert.match(modifierMenu, /<ConfirmDialog[\s\S]*ModifierEditDialog|ModifierEditDialog[\s\S]*<ConfirmDialog/, 'modifier edit dialog must reuse the palette ConfirmDialog');
 assert.match(modifierMenu, /parseModifierValue\(valueDraft/, 'modifier edit dialog must validate the restricted value charset');
 assert.match(modifierMenu, /NoteModifierRollBridge[\s\S]*useOptionalDiceSession[\s\S]*NOTE_MODIFIER_ROLL_EVENT/, 'modifier rolls must bridge to the dice session without crashing outside it');

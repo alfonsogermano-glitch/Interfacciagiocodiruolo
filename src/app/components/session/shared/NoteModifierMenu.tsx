@@ -162,9 +162,11 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
 
   // Chiusura su click fuori senza rubare il focus (il click sui puntini di un
   // altro Modificatore deve poter RIAPRIRE il menu allo stesso colpo, quindi
-  // non chiude).
+  // non chiude). In modalita' edit la finestra di dialogo gestisce da sola il
+  // backdrop: senza questa esclusione ogni click nei suoi campi smonterebbe
+  // subito la finestra.
   useEffect(() => {
-    if (!request) return;
+    if (!request || mode !== 'menu') return;
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Element | null;
       if (!target) return;
@@ -174,7 +176,7 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
     };
     document.addEventListener('pointerdown', onPointerDown, true);
     return () => document.removeEventListener('pointerdown', onPointerDown, true);
-  }, [request, close]);
+  }, [request, mode, close]);
 
   // Escape chiude e restituisce il focus all'editor.
   useEffect(() => {
@@ -249,15 +251,19 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
   if (!data) return null;
 
   // Modifica apre una finestra in stile palette con Valore numerico e Formula.
+  // Il marcatore contestuale evita che l'autofocus dei campi faccia blur
+  // all'editor (smonterebbe subito la finestra).
   if (mode === 'edit') {
     return createPortal(
-      <ModifierEditDialog
-        title={`Modifica ${data.name}`}
-        initialValue={data.value}
-        initialFormula={data.formula}
-        onSave={saveEdit}
-        onCancel={() => close()}
-      />,
+      <div data-note-contextual-ui="true" data-note-modifier-dialog="true">
+        <ModifierEditDialog
+          title={`Modifica ${data.name}`}
+          initialValue={data.value}
+          initialFormula={data.formula}
+          onSave={saveEdit}
+          onCancel={() => close()}
+        />
+      </div>,
       portalContainer ?? document.body,
     );
   }
