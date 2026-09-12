@@ -65,6 +65,7 @@ assert.match(modifierMenu, /NoteModifierTitleMenu[\s\S]*data-note-modifier-title
 assert.match(editor, /NoteModifierTitleMenu/, 'RichTextEditor must mount the modifier title menu alongside the modifier menu');
 assert.match(modifierMenu, /ModifierEditForm[\s\S]*Valore numerico[\s\S]*Formula/, 'modifier edit must open a floating panel with Valore numerico and Formula fields');
 assert.match(modifierMenu, /data-note-modifier-edit="true"[\s\S]*zIndex: 9999/, 'modifier edit panel must float above other windows near the cursor');
+assert.match(modifierMenu, /ModifierEditPanel[\s\S]*onPointerDown[\s\S]*setPointerCapture/, 'modifier edit panel must be draggable');
 assert.doesNotMatch(modifierMenu, /ConfirmDialog/, 'modifier edit must not use a dedicated dialog window');
 assert.match(modifierMenu, /parseModifierValue\(valueDraft/, 'modifier edit panel must validate the restricted value charset');
 assert.match(selection, /data-note-modifier-edit="true"/, 'selection toolbar must stay hidden while the modifier edit panel is open');
@@ -76,6 +77,8 @@ assert.match(diceContext, /useOptionalDiceSession/, 'dice session must expose a 
 assert.match(diceTypes, /origin\?: 'modifier'/, 'roll results must carry the modifier origin');
 assert.match(diceRealtime, /value\.origin !== undefined && value\.origin !== 'modifier'/, 'roll payload validation must accept the modifier origin');
 assert.match(diceCard, /origin === 'modifier'/, 'modifier chat cards must show the modifier name');
+assert.match(diceCard, /result\.formulaId \|\| result\.origin === 'modifier'/, 'modifier name row must render without a formula id');
+assert.match(diceContext, /formulaText: formula \|\| base\.formulaText/, 'formula must replace the numeric value in modifier chat cards');
 assert.match(diceCard, /origin !== 'modifier' &&/, 'modifier chat cards must not offer Ritira');
 assert.doesNotMatch(pickers, /<PopoverTrigger asChild><PickerTooltip/, 'picker tooltip must not swallow Popover trigger events');
 assert.match(pickers, /<PickerTooltip trigger=\{<PopoverTrigger asChild>\{trigger\}<\/PopoverTrigger>\} label="Dimensione testo" \/>/, 'font-size picker must attach PopoverTrigger directly to the real button');

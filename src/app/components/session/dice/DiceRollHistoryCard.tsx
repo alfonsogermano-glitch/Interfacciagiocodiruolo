@@ -82,7 +82,7 @@ export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; 
               <div className="break-words text-sm font-semibold leading-tight text-[var(--dash-text-strong)]">{result.rollerName}</div>
               {(result.formulaId || result.visibility === 'secret' || result.origin === 'modifier') && (
                 <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5">
-                  {result.formulaId && (
+                  {(result.formulaId || result.origin === 'modifier') && (
                     <div className="flex min-w-[8rem] flex-1 items-center gap-1.5 break-words text-xs leading-tight text-[var(--dash-muted)]">
                       {result.formulaIconName && <NoteIconGlyph name={result.formulaIconName} data-dice-roll-formula-icon className="h-3.5 w-3.5 shrink-0 text-[var(--dash-accent)]" />}
                       <span className="min-w-0 break-words">{result.formulaName}</span>

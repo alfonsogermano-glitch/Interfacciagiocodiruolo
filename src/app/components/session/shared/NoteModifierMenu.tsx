@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type * as React from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
 import { ArrowLeft, Clipboard, Copy, Maximize2, Minimize2, Pencil, Trash2, Type } from 'lucide-react';
@@ -125,6 +126,65 @@ function ModifierEditForm({ initialValue, initialFormula, onSave, onCancel }: {
           Annulla
         </button>
       </div>
+    </div>
+  );
+}
+
+function ModifierEditPanel({ top, left, name, initialValue, initialFormula, onSave, onCancel }: {
+  top: number;
+  left: number;
+  name: string;
+  initialValue: string;
+  initialFormula: string;
+  onSave: (value: string, formula: string) => void;
+  onCancel: () => void;
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ dx: number; dy: number } | null>(null);
+  const [pos, setPos] = useState({ top, left });
+
+  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const target = event.target as Element | null;
+    if (event.button !== 0 || target?.closest('input, button, label, [role="alert"]')) return;
+    const root = rootRef.current;
+    if (!root) return;
+    event.preventDefault();
+    const rect = root.getBoundingClientRect();
+    dragRef.current = { dx: event.clientX - rect.left, dy: event.clientY - rect.top };
+    try { root.setPointerCapture(event.pointerId); } catch { /* pointer gia' rilasciato */ }
+  };
+  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    const root = rootRef.current;
+    if (!drag || !root) return;
+    setPos({
+      top: Math.max(8, Math.min(event.clientY - drag.dy, window.innerHeight - root.offsetHeight - 8)),
+      left: Math.max(8, Math.min(event.clientX - drag.dx, window.innerWidth - root.offsetWidth - 8)),
+    });
+  };
+  const endDrag = () => { dragRef.current = null; };
+
+  return (
+    <div
+      ref={rootRef}
+      data-note-contextual-ui="true"
+      data-note-modifier-menu="true"
+      data-note-modifier-edit="true"
+      role="dialog"
+      aria-label={`Modifica ${name}`}
+      style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+      className="w-[232px] cursor-grab rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-lg active:cursor-grabbing"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+    >
+      <ModifierEditForm
+        initialValue={initialValue}
+        initialFormula={initialFormula}
+        onSave={onSave}
+        onCancel={onCancel}
+      />
     </div>
   );
 }
@@ -256,7 +316,7 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
   // Modifica: solita finestra volante vicino al cursore (niente finestra
   // dedicata), con Valore numerico e Formula. Stessi marcatori del menu cosi'
   // i click dentro non chiudono e l'autofocus non fa blur; z-index sopra gli
-  // altri pannelli e posizione vincolata alla viewport.
+  // altri pannelli, posizione vincolata alla viewport e trascinabile.
   if (mode === 'edit') {
     const editPlaced = placeFloatingNoteUI(
       { left: request.x, right: request.x + 2, top: request.y, bottom: request.y },
@@ -265,22 +325,15 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
       6,
     );
     return createPortal(
-      <div
-        data-note-contextual-ui="true"
-        data-note-modifier-menu="true"
-        data-note-modifier-edit="true"
-        role="dialog"
-        aria-label={`Modifica ${data.name}`}
-        style={{ position: 'fixed', top: editPlaced.top, left: editPlaced.left, zIndex: 9999 }}
-        className="w-[232px] rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-lg"
-      >
-        <ModifierEditForm
-          initialValue={data.value}
-          initialFormula={data.formula}
-          onSave={saveEdit}
-          onCancel={() => close()}
-        />
-      </div>,
+      <ModifierEditPanel
+        top={editPlaced.top}
+        left={editPlaced.left}
+        name={data.name}
+        initialValue={data.value}
+        initialFormula={data.formula}
+        onSave={saveEdit}
+        onCancel={() => close()}
+      />,
       portalContainer ?? document.body,
     );
   }

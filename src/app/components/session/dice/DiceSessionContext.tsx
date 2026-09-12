@@ -328,12 +328,11 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
       });
     }
     const base = buildResult({ items, formulaName: input.name, visibility: 'public' });
-    // In chat: nome modificatore, dicitura XdX, poi Formula se presente
-    // altrimenti il valore numerico (gia' nel testo motore).
-    const diceToken = `${parsed.count}d${parsed.sides}`;
+    // In chat, sotto al nome: il valore numerico se non c'e' la Formula,
+    // altrimenti la Formula al suo posto.
     const result: RollResult = {
       ...base,
-      formulaText: formula ? `${diceToken} ${formula}` : base.formulaText,
+      formulaText: formula || base.formulaText,
       origin: 'modifier',
     };
     ingestRoll(result);
