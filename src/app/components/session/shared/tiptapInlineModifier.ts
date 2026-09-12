@@ -538,6 +538,7 @@ function buildModifierWidget(
   value: string,
   compact: boolean,
   titleFormat: ModifierTitleFormat,
+  formula: string,
 ): HTMLElement {
   const element = document.createElement('span');
   element.className = 'tiptap-inline-modifier-widget';
@@ -975,11 +976,13 @@ function buildModifierWidget(
     openMenu();
   });
 
-  // Valori validi (numeri semplici o dadi): l'elemento e' cliccabile e tira in
-  // chat dadi - bordo in accento e alone per distinguerlo dai Modificatori che
-  // rappresentano solo un valore. Mai dai puntini (aprono il menu) ne' dalla
-  // rinomina.
-  if (parseModifierValue(value)) {
+  // Elemento cliccabile solo se c'e' una "d" con numero prima e dopo, nel
+  // Valore oppure nella Formula: bordo in accento e alone per distinguerlo dai
+  // Modificatori che rappresentano solo un valore. Mai dai puntini (aprono il
+  // menu) ne' dalla rinomina.
+  const rollable = parseModifierValue(value)?.kind === 'dice'
+    || (formula ? parseModifierValue(formula)?.kind === 'dice' : false);
+  if (rollable) {
     element.style.cursor = 'pointer';
     element.style.border = '1px solid var(--dash-accent-2)';
     element.style.boxShadow = '0 0 8px var(--dash-accent-2)';
@@ -992,7 +995,9 @@ function buildModifierWidget(
     if (typeof currentPos !== 'number') return;
     const current = getModifierAt(view.state, currentPos);
     if (!current) return;
-    if (!parseModifierValue(current.value)) return;
+    const formulaDice = current.formula ? parseModifierValue(current.formula)?.kind === 'dice' : false;
+    const expression = formulaDice ? current.formula : current.value;
+    if (!parseModifierValue(expression)) return;
     event.stopPropagation();
     window.dispatchEvent(
       new CustomEvent<NoteModifierRollRequest>(NOTE_MODIFIER_ROLL_EVENT, {
@@ -1203,6 +1208,8 @@ export const InlineModifier = Mark.create({
                 align: mark.attrs.titleAlign === 'left' || mark.attrs.titleAlign === 'center' || mark.attrs.titleAlign === 'right' ? mark.attrs.titleAlign : null,
               };
               const titleKey = `${titleFormat.bold ? 1 : 0}${titleFormat.italic ? 1 : 0}${titleFormat.underline ? 1 : 0}${titleFormat.strike ? 1 : 0}:${titleFormat.fontSize ?? ''}:${titleFormat.fontFamily ?? ''}:${titleFormat.align ?? ''}`;
+              const formula = typeof mark.attrs.formula === 'string' ? mark.attrs.formula : '';
+              const formulaDice = formula ? parseModifierValue(formula)?.kind === 'dice' : false;
               const id = typeof mark.attrs.id === 'string' && mark.attrs.id ? mark.attrs.id : null;
               for (let offset = 0; offset < node.nodeSize; offset++) {
                 if (node.text.charAt(offset) !== INLINE_MODIFIER_CHAR) continue;
@@ -1210,14 +1217,14 @@ export const InlineModifier = Mark.create({
                 decorations.push(
                   Decoration.widget(
                     modifierPos,
-                    (view, getPos) => buildModifierWidget(view, getPos, name, value, compact, titleFormat),
+                    (view, getPos) => buildModifierWidget(view, getPos, name, value, compact, titleFormat, formula),
                     {
                       side: 0,
                       // Il key include nome e valore: cambiandoli il widget
                       // viene ricostruito a vista (ProseMirror confronta i
                       // widget via spec.key) senza ricostruirlo a ogni
                       // cambio di sola selezione.
-                      key: `modifier:${id ?? modifierPos}:${name}:${value}:${compact}:${titleKey}`,
+                      key: `modifier:${id ?? modifierPos}:${name}:${value}:${compact}:${titleKey}:${formulaDice ? 1 : 0}`,
                       destroy: (node) => {
                         (node as HTMLElement & { __destroyModifierWidget?: () => void }).__destroyModifierWidget?.();
                         widgetEntries.delete(node as HTMLElement);

@@ -287,13 +287,45 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
   }, [buildResult, dispatchRoll, ingestRoll]);
 
   const submitModifierRoll = useCallback((input: ModifierRollSubmit) => {
+    if (!user || !activeCampaign) return null;
     const parsed = parseModifierValue(input.expression);
     if (!parsed) return null;
-    // Valore numerico semplice (senza "d"): check con d20 piu' il valore
-    // (+1 -> 1d20+1, 0 -> 1d20). Le notazioni con "d" tirano come scritte.
-    const dice = parsed.kind === 'dice'
-      ? parsed
-      : { count: 1, sides: 20, modifier: parsed.value };
+    const formula = input.formula?.trim() ?? '';
+    // I dadi si tirano solo se c'e' una "d" con numero prima e dopo, nel
+    // Valore oppure nella Formula (la Formula con dadi vince sul Valore).
+    const formulaParsed = formula ? parseModifierValue(formula) : null;
+    const dice = formulaParsed?.kind === 'dice'
+      ? formulaParsed
+      : parsed.kind === 'dice'
+        ? parsed
+        : null;
+    // Valore numerico semplice (senza "d" da nessuna parte): nessun tiro, in
+    // chat compare il valore stesso oppure la Formula se presente.
+    if (!dice) {
+      if (parsed.kind !== 'number') return null;
+      const display = formula || input.expression.trim();
+      if (!display) return null;
+      const staticResult: RollResult = {
+        id: globalThis.crypto.randomUUID(),
+        campaignId: activeCampaign.id,
+        rollerId: user.id,
+        rollerName: user.displayName,
+        rollerAvatarUrl: user.avatarUrl,
+        formulaName: input.name,
+        formulaText: display,
+        visibility: 'public',
+        sourceItems: [],
+        diceGroups: [],
+        arithmeticSteps: [],
+        comparisons: [],
+        total: parsed.value,
+        createdAt: Date.now(),
+        origin: 'modifier',
+      };
+      ingestRoll(staticResult);
+      dispatchRoll(staticResult);
+      return staticResult;
+    }
     const diceItemId = globalThis.crypto.randomUUID();
     const items: DiceRollRequest['items'] = [{ id: diceItemId, kind: 'dice', sides: dice.sides, quantity: dice.count }];
     if (dice.modifier !== 0) {
@@ -307,7 +339,6 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
     const base = buildResult({ items, formulaName: input.name, visibility: 'public' });
     // In chat, sotto al nome: il valore numerico se non c'e' la Formula,
     // altrimenti la Formula al suo posto.
-    const formula = input.formula?.trim() ?? '';
     const result: RollResult = {
       ...base,
       formulaText: formula || base.formulaText,
@@ -316,7 +347,7 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
     ingestRoll(result);
     dispatchRoll(result);
     return result;
-  }, [buildResult, dispatchRoll, ingestRoll]);
+  }, [activeCampaign, buildResult, dispatchRoll, ingestRoll, user]);
 
   const rolls = useMemo(
     () => entries.filter((entry) => entry.revealState === 'revealed').map((entry) => entry.result),

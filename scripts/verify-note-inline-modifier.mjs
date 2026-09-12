@@ -30,8 +30,8 @@ assert.match(
 );
 assert.match(
   source,
-  /titleKey[\s\S]*Decoration\.widget\([\s\S]*key:\s*`modifier:\$\{.*\}:\$\{.*\}:\$\{.*\}:\$\{compact\}:\$\{titleKey\}`/,
-  'inline modifier decoration must include name, value, compact, and title format in the key to force rebuild on attribute change',
+  /titleKey[\s\S]*formulaDice[\s\S]*Decoration\.widget\([\s\S]*key:\s*`modifier:\$\{.*\}:\$\{.*\}:\$\{.*\}:\$\{compact\}:\$\{titleKey\}:\$\{formulaDice \? 1 : 0\}`/,
+  'inline modifier decoration must include name, value, compact, title format, and formula dice in the key to force rebuild on attribute change',
 );
 assert.match(
   source,
@@ -100,12 +100,12 @@ assert.match(
 );
 assert.match(
   source,
-  /NOTE_MODIFIER_ROLL_EVENT[\s\S]*parseModifierValue\(current\.value\)[\s\S]*CustomEvent<NoteModifierRollRequest>/,
-  'clicking a modifier with a dice value must request a chat roll instead of moving the caret',
+  /NOTE_MODIFIER_ROLL_EVENT[\s\S]*formulaDice[\s\S]*CustomEvent<NoteModifierRollRequest>/,
+  'clicking a modifier with dice in value or formula must request a chat roll instead of moving the caret',
 );
 assert.match(
   source,
-  /parseModifierValue\(value\)\) \{[\s\S]*boxShadow[\s\S]*dash-accent-2/,
+  /parseModifierValue\(value\)\?\.kind === 'dice'[\s\S]*parseModifierValue\(formula\)\?\.kind === 'dice'[\s\S]*boxShadow[\s\S]*dash-accent-2/,
   'rollable modifiers must stand out with accent border and glow',
 );
 assert.match(
