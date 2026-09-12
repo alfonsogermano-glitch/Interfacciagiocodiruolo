@@ -437,11 +437,11 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
       });
     }
     const base = buildResult({ items, formulaName: input.name, visibility: 'public' });
-    // In chat, sotto al nome: il valore numerico se non c'e' la Formula,
-    // altrimenti la Formula al suo posto.
+    // In chat, sotto al nome: esattamente il campo Valore se non c'e' la
+    // Formula, altrimenti la Formula al suo posto.
     const result: RollResult = {
       ...base,
-      formulaText: formula || base.formulaText,
+      formulaText: formula || input.expression.trim(),
       origin: 'modifier',
     };
     ingestRoll(result);

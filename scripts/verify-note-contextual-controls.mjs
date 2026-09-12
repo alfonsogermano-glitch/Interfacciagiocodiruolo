@@ -77,7 +77,7 @@ assert.match(editor, /NoteModifierRollBridge editor=\{editor\}/, 'RichTextEditor
 assert.match(diceContext, /submitModifierRoll[\s\S]*parseModifierValue\(input\.expression\)[\s\S]*origin: 'modifier'/, 'modifier rolls must build dice items and mark their origin');
 assert.match(diceContext, /evaluateModifierFormula\(formula\)[\s\S]*formulaText: formula/, 'a valid formula must override the numeric value when rolling');
 assert.match(modifierMenu, /isValidModifierFormula\(formulaDraft/, 'modifier edit panel must validate formulas');
-assert.match(diceContext, /evaluateModifierFormula\(formula\)[\s\S]*formulaText: formula/, 'a valid formula must override the numeric value when rolling');
+assert.match(diceContext, /formulaText: formula \|\| input\.expression\.trim\(\)/, 'without formula the chat must show the exact value text');
 assert.match(diceContext, /parsed\.kind === 'number'[\s\S]*total: parsed\.value/, 'plain numeric modifiers must post their value without rolling');
 assert.match(diceContext, /token\.sign \* groupSum/, 'signed dice must contribute with their sign');
 assert.match(diceContext, /useOptionalDiceSession/, 'dice session must expose a nullable hook for bridges');
@@ -85,7 +85,7 @@ assert.match(diceTypes, /origin\?: 'modifier'/, 'roll results must carry the mod
 assert.match(diceRealtime, /value\.origin !== undefined && value\.origin !== 'modifier'/, 'roll payload validation must accept the modifier origin');
 assert.match(diceCard, /origin === 'modifier'/, 'modifier chat cards must show the modifier name');
 assert.match(diceCard, /result\.formulaId \|\| result\.origin === 'modifier'/, 'modifier name row must render without a formula id');
-assert.match(diceContext, /formulaText: formula \|\| base\.formulaText/, 'formula must replace the numeric value in modifier chat cards');
+assert.match(diceContext, /formulaText: formula \|\| input\.expression\.trim\(\)/, 'formula must replace the exact value text in modifier chat cards');
 assert.match(diceCard, /origin !== 'modifier' &&/, 'modifier chat cards must not offer Ritira');
 assert.doesNotMatch(pickers, /<PopoverTrigger asChild><PickerTooltip/, 'picker tooltip must not swallow Popover trigger events');
 assert.match(pickers, /<PickerTooltip trigger=\{<PopoverTrigger asChild>\{trigger\}<\/PopoverTrigger>\} label="Dimensione testo" \/>/, 'font-size picker must attach PopoverTrigger directly to the real button');
