@@ -194,7 +194,7 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
     if (!request) return;
     const { view } = editor;
     if (!getModifierAt(view.state, request.pos)) { close(); return; }
-    await copyModifierToClipboard(view.state, request.pos);
+    await copyModifierToClipboard(view, request.pos);
     close();
   };
 

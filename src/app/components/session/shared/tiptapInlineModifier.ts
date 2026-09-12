@@ -1,6 +1,12 @@
 import { Mark, mergeAttributes } from '@tiptap/core';
+import { DOMSerializer, Fragment, Slice } from '@tiptap/pm/model';
 import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
+import {
+  encodeNoteClipboardSlice,
+  wrapNoteClipboardHTML,
+  type NoteClipboardSliceJSON,
+} from './tiptapNoteRichClipboard';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -243,11 +249,42 @@ export function deleteModifierAt(
   return true;
 }
 
-/** Copia in clipboard la rappresentazione testuale del Modificatore. */
-export async function copyModifierToClipboard(state: EditorState, pos: number): Promise<boolean> {
-  const data = getModifierAt(state, pos);
-  if (!data) return false;
+/** Copia in clipboard l'intero elemento Modificatore (non solo il testo):
+ *  scrive HTML + slice embedded nello stesso formato del copia/incolla ricco
+ *  dell'editor, cosi' l'incolla ricrea il box identico (nome, valore, formato
+ *  titolo, compatto). Il testo semplice resta come fallback per le app
+ *  esterne. */
+export async function copyModifierToClipboard(view: EditorView, pos: number): Promise<boolean> {
+  const mark = getInlineModifierMark(view.state, pos);
+  const data = getModifierAt(view.state, pos);
+  if (!mark || !data) return false;
   const text = `${data.name}: ${data.value}`;
+  const markType = view.state.schema.marks.inlineModifier;
+  const canRich = markType
+    && typeof ClipboardItem !== 'undefined'
+    && !!navigator.clipboard?.write;
+  if (canRich) {
+    try {
+      // id fresco come in Duplica (evita chiavi widget duplicate), resto
+      // identico all'originale cosi' l'incolla e' "esattamente com'e'".
+      const fresh = markType.create({ ...mark.attrs, id: createModifierId() });
+      const slice = new Slice(Fragment.from(view.state.schema.text(INLINE_MODIFIER_CHAR, [fresh])), 0, 0);
+      const json = slice.toJSON() as NoteClipboardSliceJSON;
+      const fragment = DOMSerializer.fromSchema(view.state.schema).serializeFragment(slice.content, { document });
+      const div = document.createElement('div');
+      div.appendChild(fragment);
+      const html = wrapNoteClipboardHTML(div.innerHTML, json);
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([text], { type: 'text/plain' }),
+        }),
+      ]);
+      return true;
+    } catch {
+      // Sotto: fallback testuale.
+    }
+  }
   try {
     await navigator.clipboard.writeText(text);
   } catch {

@@ -47,6 +47,17 @@ function decodeSlice(encoded: string): SliceJSON | null {
 function wrapHTML(html: string, slice: SliceJSON): string {
   return `<div ${CLIPBOARD_ATTR} ${SLICE_ATTR}="${encodeSlice(slice)}">${html}</div>`;
 }
+
+// Riutilizzo per la voce "Copia" del Modificatore: scrive lo stesso formato
+// dello stesso editor (slice embedded nell'HTML), cosi' l'incolla ricrea
+// l'elemento identico invece di solo testo.
+export type NoteClipboardSliceJSON = SliceJSON;
+export function encodeNoteClipboardSlice(slice: SliceJSON): string {
+  return encodeSlice(slice);
+}
+export function wrapNoteClipboardHTML(html: string, slice: SliceJSON): string {
+  return wrapHTML(html, slice);
+}
 function readHTML(html: string): SliceJSON | null {
   if (!html.includes(CLIPBOARD_ATTR)) return null;
   const match = html.match(new RegExp(`${SLICE_ATTR}="([^"]+)"`));

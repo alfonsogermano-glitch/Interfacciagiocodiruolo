@@ -105,6 +105,11 @@ assert.match(
 );
 assert.match(
   source,
+  /copyModifierToClipboard\(view: EditorView[\s\S]*ClipboardItem[\s\S]*createModifierId\(\)[\s\S]*wrapNoteClipboardHTML[\s\S]*writeText\(text\)/,
+  'copy must write the whole modifier element (rich HTML slice with fresh id) and keep plain text only as fallback',
+);
+assert.match(
+  source,
   /NOTE_MODIFIER_TITLE_MENU_EVENT[\s\S]*NOTE_MODIFIER_TITLE_MENU_CLOSE_EVENT[\s\S]*NOTE_MODIFIER_TITLE_FORMAT_EVENT[\s\S]*NOTE_MODIFIER_TITLE_MENU_DISMISS_EVENT/,
   'the rename input must bridge to the React title menu via typed CustomEvents for open/close/format/dismiss',
 );
