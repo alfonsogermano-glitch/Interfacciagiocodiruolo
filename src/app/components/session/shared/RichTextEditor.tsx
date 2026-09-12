@@ -266,6 +266,19 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
     <div ref={editorShellRef} className={`relative max-w-full ${fillViewport ? 'h-full' : ''}`}>
       <div
         onClick={!editable ? onClickText : undefined}
+        onMouseDown={editable ? (event) => {
+          // Click sul padding/area vuota del contenitore (non sul testo):
+          // senza questo il mousedown sposta il focus fuori, l'editor fa blur
+          // e il mouseup lo riattiva - caret e undo lampeggiano a ogni click e
+          // restano nascosti finche' il tasto resta premuto. Bloccando il
+          // default il focus resta dentro e niente lampeggia. Mai sul testo
+          // (serve a ProseMirror) ne' sulle scrollbar (serve allo scroll).
+          if (event.target !== event.currentTarget) return;
+          const box = event.currentTarget.getBoundingClientRect();
+          if (event.clientX - box.left >= event.currentTarget.clientWidth) return;
+          if (event.clientY - box.top >= event.currentTarget.clientHeight) return;
+          event.preventDefault();
+        } : undefined}
         style={fillViewport ? { height: '100%' } : undefined}
         className={`max-w-full ${fillViewport ? 'h-full overflow-auto tiptap-viewport-scroll' : 'overflow-x-auto'} ${!editable && onClickText ? 'cursor-text' : ''} ${containerClassName}`}
       >
