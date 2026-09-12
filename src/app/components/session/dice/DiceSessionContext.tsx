@@ -10,8 +10,9 @@ import { HollowgateDice3DRenderer } from './dice3dRenderer.ts';
 import { projectRollTo3D } from './dice3dProjection.ts';
 import { isDice3DAbortError } from './dice3dTypes.ts';
 import { rollDiceFormula } from './diceEngine.ts';
+import { evaluateModifierFormula } from '../shared/modifierFormula.ts';
 import { parseModifierValue } from '../shared/tiptapInlineModifier.ts';
-import type { DiceRollRequest, RollResult } from './diceTypes.ts';
+import type { DiceRollRequest, RollDiceGroup, RollResult } from './diceTypes.ts';
 
 export interface ModifierRollSubmit {
   name: string;
@@ -288,17 +289,62 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
 
   const submitModifierRoll = useCallback((input: ModifierRollSubmit) => {
     if (!user || !activeCampaign) return null;
+    const formula = input.formula?.trim() ?? '';
+    // La Formula, se valida, rende inefficace il Valore numerico: si tira
+    // solo la Formula. Altrimenti vale il Valore.
+    if (formula) {
+      let evaluated = null;
+      try {
+        evaluated = evaluateModifierFormula(formula);
+      } catch {
+        evaluated = null;
+      }
+      if (evaluated) {
+        const formulaRollId = globalThis.crypto.randomUUID();
+        const diceGroups: RollDiceGroup[] = evaluated.groups.map((group, groupIndex) => ({
+          itemId: `formula-g${groupIndex + 1}`,
+          sides: group.sides,
+          requestedQuantity: group.faces.length,
+          rolls: group.faces.map((face, dieIndex) => ({
+            id: `${formulaRollId}:g${groupIndex + 1}r${dieIndex + 1}`,
+            groupItemId: `formula-g${groupIndex + 1}`,
+            sides: group.sides,
+            face,
+            contribution: face,
+            active: true,
+            source: 'base' as const,
+            explosionDepth: 0,
+            chainId: `${formulaRollId}:chain${groupIndex + 1}`,
+          })),
+          activeRollIds: group.faces.map((_, dieIndex) => `${formulaRollId}:g${groupIndex + 1}r${dieIndex + 1}`),
+          contribution: group.faces.reduce((sum, face) => sum + face, 0),
+        }));
+        const formulaResult: RollResult = {
+          id: formulaRollId,
+          campaignId: activeCampaign.id,
+          rollerId: user.id,
+          rollerName: user.displayName,
+          rollerAvatarUrl: user.avatarUrl,
+          formulaName: input.name,
+          formulaText: formula,
+          visibility: 'public',
+          sourceItems: [],
+          diceGroups,
+          arithmeticSteps: [],
+          comparisons: [],
+          total: evaluated.total,
+          createdAt: Date.now(),
+          origin: 'modifier',
+        };
+        ingestRoll(formulaResult);
+        dispatchRoll(formulaResult);
+        return formulaResult;
+      }
+    }
     const parsed = parseModifierValue(input.expression);
     if (!parsed) return null;
-    const formula = input.formula?.trim() ?? '';
-    // I dadi si tirano solo se c'e' una "d" con numero prima e dopo, nel
-    // Valore oppure nella Formula (la Formula con dadi vince sul Valore).
-    const formulaParsed = formula ? parseModifierValue(formula) : null;
-    const dice = formulaParsed?.kind === 'dice'
-      ? formulaParsed
-      : parsed.kind === 'dice'
-        ? parsed
-        : null;
+    // I dadi si tirano solo se c'e' una "d" con numero prima e dopo.
+    const dice = parsed.kind === 'dice' ? parsed : null;
     // Valore numerico semplice (senza "d" da nessuna parte): nessun tiro, in
     // chat compare il valore stesso oppure la Formula se presente.
     if (!dice) {

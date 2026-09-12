@@ -7,6 +7,7 @@ import { usePortalContainer } from '../../ui/portal-container';
 import { useOptionalDiceSession } from '../dice/DiceSessionContext';
 import { placeFloatingNoteUI } from './noteFloatingPosition';
 import { NOTE_COMMANDS, type NoteCommandId } from './noteEditorCommands';
+import { isValidModifierFormula } from './modifierFormula';
 import { FONT_SIZES } from './tiptapFontSize';
 import { FONT_FAMILIES } from './tiptapFontFamily';
 import {
@@ -79,6 +80,10 @@ function ModifierEditForm({ initialValue, initialFormula, onSave, onCancel }: {
   const confirm = () => {
     if (!parseModifierValue(valueDraft.trim())) {
       setError('Caratteri consentiti: cifre, +/-, "d" minuscola (es. 0, +1, -3, 1d6, 3d6+3).');
+      return;
+    }
+    if (formulaDraft.trim() && !isValidModifierFormula(formulaDraft.trim())) {
+      setError('Formula non valida: usa numeri, d, +, -, *, / e parentesi (es. (1d6+3)-(1d4)).');
       return;
     }
     onSave(valueDraft.trim(), formulaDraft.trim());

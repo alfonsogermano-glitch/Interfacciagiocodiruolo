@@ -100,13 +100,30 @@ assert.match(
 );
 assert.match(
   source,
-  /NOTE_MODIFIER_ROLL_EVENT[\s\S]*formulaDice[\s\S]*CustomEvent<NoteModifierRollRequest>/,
+  /NOTE_MODIFIER_ROLL_EVENT[\s\S]*formulaValid[\s\S]*CustomEvent<NoteModifierRollRequest>/,
   'clicking a modifier with dice in value or formula must request a chat roll instead of moving the caret',
 );
 assert.match(
   source,
-  /parseModifierValue\(value\)\?\.kind === 'dice'[\s\S]*parseModifierValue\(formula\)\?\.kind === 'dice'[\s\S]*boxShadow[\s\S]*dash-accent-2/,
+  /modifierFormulaHasDice\(formula\)[\s\S]*boxShadow[\s\S]*dash-accent-2/,
   'rollable modifiers must stand out with accent border and glow',
+);
+
+const formulaSource = await readFile(new URL('../src/app/components/session/shared/modifierFormula.ts', import.meta.url), 'utf8');
+assert.match(
+  formulaSource,
+  /parseModifierFormula[\s\S]*lparen[\s\S]*rparen[\s\S]*ModifierFormulaError/,
+  'modifier formulas must support nested parentheses with typed errors',
+);
+assert.match(
+  formulaSource,
+  /evaluateModifierFormula[\s\S]*cryptoDiceRng[\s\S]*MODIFIER_FORMULA_MAX_DICE/,
+  'formula evaluation must roll real dice with a generation cap',
+);
+assert.match(
+  formulaSource,
+  /export function isValidModifierFormula[\s\S]*export function modifierFormulaHasDice/,
+  'formula validity and dice detection must be checkable without rolling',
 );
 assert.match(
   source,

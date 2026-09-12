@@ -74,7 +74,9 @@ assert.match(selection, /data-note-modifier-edit="true"/, 'selection toolbar mus
 assert.match(modifierMenu, /NoteModifierRollBridge[\s\S]*useOptionalDiceSession[\s\S]*NOTE_MODIFIER_ROLL_EVENT/, 'modifier rolls must bridge to the dice session without crashing outside it');
 assert.match(editor, /NoteModifierRollBridge editor=\{editor\}/, 'RichTextEditor must mount the modifier roll bridge');
 assert.match(diceContext, /submitModifierRoll[\s\S]*parseModifierValue\(input\.expression\)[\s\S]*origin: 'modifier'/, 'modifier rolls must build dice items and mark their origin');
-assert.match(diceContext, /formulaParsed\?\.kind === 'dice'/, 'dice in the formula must win over the value when rolling');
+assert.match(diceContext, /evaluateModifierFormula\(formula\)[\s\S]*formulaText: formula/, 'a valid formula must override the numeric value when rolling');
+assert.match(modifierMenu, /isValidModifierFormula\(formulaDraft/, 'modifier edit panel must validate formulas');
+assert.match(diceContext, /evaluateModifierFormula\(formula\)[\s\S]*formulaText: formula/, 'a valid formula must override the numeric value when rolling');
 assert.match(diceContext, /if \(!dice\)[\s\S]*total: parsed\.value/, 'plain numeric modifiers must post their value without rolling');
 assert.match(diceContext, /useOptionalDiceSession/, 'dice session must expose a nullable hook for bridges');
 assert.match(diceTypes, /origin\?: 'modifier'/, 'roll results must carry the modifier origin');

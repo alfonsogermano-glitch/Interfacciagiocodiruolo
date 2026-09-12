@@ -7,6 +7,7 @@ import {
   wrapNoteClipboardHTML,
   type NoteClipboardSliceJSON,
 } from './tiptapNoteRichClipboard';
+import { isValidModifierFormula, modifierFormulaHasDice } from './modifierFormula';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -977,11 +978,11 @@ function buildModifierWidget(
   });
 
   // Elemento cliccabile solo se c'e' una "d" con numero prima e dopo, nel
-  // Valore oppure nella Formula: bordo in accento e alone per distinguerlo dai
-  // Modificatori che rappresentano solo un valore. Mai dai puntini (aprono il
-  // menu) ne' dalla rinomina.
+  // Valore oppure nella Formula (anche con parentesi): bordo in accento e
+  // alone per distinguerlo dai Modificatori che rappresentano solo un valore.
+  // Mai dai puntini (aprono il menu) ne' dalla rinomina.
   const rollable = parseModifierValue(value)?.kind === 'dice'
-    || (formula ? parseModifierValue(formula)?.kind === 'dice' : false);
+    || (formula ? modifierFormulaHasDice(formula) : false);
   if (rollable) {
     element.style.cursor = 'pointer';
     element.style.border = '1px solid var(--dash-accent-2)';
@@ -995,9 +996,10 @@ function buildModifierWidget(
     if (typeof currentPos !== 'number') return;
     const current = getModifierAt(view.state, currentPos);
     if (!current) return;
-    const formulaDice = current.formula ? parseModifierValue(current.formula)?.kind === 'dice' : false;
-    const expression = formulaDice ? current.formula : current.value;
-    if (!parseModifierValue(expression)) return;
+    // La Formula valida rende inefficace il Valore: si tira solo la Formula.
+    // Altrimenti vale il Valore (dadi o post statico del numero).
+    const formulaValid = current.formula ? isValidModifierFormula(current.formula) : false;
+    if (!formulaValid && !parseModifierValue(current.value)) return;
     event.stopPropagation();
     window.dispatchEvent(
       new CustomEvent<NoteModifierRollRequest>(NOTE_MODIFIER_ROLL_EVENT, {
@@ -1209,7 +1211,7 @@ export const InlineModifier = Mark.create({
               };
               const titleKey = `${titleFormat.bold ? 1 : 0}${titleFormat.italic ? 1 : 0}${titleFormat.underline ? 1 : 0}${titleFormat.strike ? 1 : 0}:${titleFormat.fontSize ?? ''}:${titleFormat.fontFamily ?? ''}:${titleFormat.align ?? ''}`;
               const formula = typeof mark.attrs.formula === 'string' ? mark.attrs.formula : '';
-              const formulaDice = formula ? parseModifierValue(formula)?.kind === 'dice' : false;
+              const formulaDice = formula ? modifierFormulaHasDice(formula) : false;
               const id = typeof mark.attrs.id === 'string' && mark.attrs.id ? mark.attrs.id : null;
               for (let offset = 0; offset < node.nodeSize; offset++) {
                 if (node.text.charAt(offset) !== INLINE_MODIFIER_CHAR) continue;
