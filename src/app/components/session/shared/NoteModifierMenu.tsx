@@ -79,7 +79,7 @@ function ModifierEditForm({ initialValue, initialFormula, onSave, onCancel }: {
 
   const confirm = () => {
     if (!parseModifierValue(valueDraft.trim())) {
-      setError('Caratteri consentiti: cifre, +/-, "d" minuscola (es. 0, +1, -3, 1d6, 3d6+3).');
+      setError('Il valore deve contenere almeno un numero o un dado (es. +1 Forza, 1d6 danni).');
       return;
     }
     if (formulaDraft.trim() && !isValidModifierFormula(formulaDraft.trim())) {
@@ -92,7 +92,7 @@ function ModifierEditForm({ initialValue, initialFormula, onSave, onCancel }: {
   return (
     <div className="flex flex-col gap-2 p-1">
       <label className="block">
-        <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Valore numerico</span>
+        <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Valore</span>
         <textarea
           autoFocus
           rows={2}

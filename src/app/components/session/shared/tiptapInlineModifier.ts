@@ -109,33 +109,92 @@ export interface ModifierData {
   titleAlign: ModifierTitleAlign | null;
 }
 
-// Valore del Modificatore: numeri semplici (+1, -3, 0) o tiri dado (1d6,
-// 3d6+3). Solo cifre, +/-, "d" minuscola: tutto il resto e' vietato. La "d"
-// trasforma il valore in tiro di dado al click sull'elemento.
+// Valore del Modificatore: testo libero da cui si estraggono dadi e numeri
+// con una scansione da sinistra a destra ("hkjfhek1d4" -> 1d4, "+1 Forza" ->
+// +1, "Saggezza-2" -> -2, "3d6+3" -> 3d6 e +3). Un segno prima dei dadi li
+// rende negativi ("2d6-1d4"). Le lettere sono ignorate, la "d" vale solo
+// minuscola e con numero prima (opzionale) e dopo. Serve almeno un numero o
+// un dado, altrimenti il valore non e' valido.
+export interface ModifierDiceToken {
+  sign: 1 | -1;
+  count: number;
+  sides: number;
+}
+
 export type ParsedModifierValue =
   | { kind: 'number'; value: number }
-  | { kind: 'dice'; count: number; sides: number; modifier: number };
+  | { kind: 'dice'; dice: ModifierDiceToken[]; modifier: number };
 
-export const MODIFIER_VALUE_MAX_LENGTH = 32;
+export const MODIFIER_VALUE_MAX_LENGTH = 64;
+
+function isAsciiDigit(char: string): boolean {
+  return char >= '0' && char <= '9';
+}
+
+function readAsciiDigits(text: string, start: number): { digits: string; end: number } | null {
+  let end = start;
+  while (end < text.length && isAsciiDigit(text[end])) end += 1;
+  if (end === start) return null;
+  return { digits: text.slice(start, end), end };
+}
+
+function parseAsciiInteger(digits: string): number | null {
+  const value = Number.parseInt(digits, 10);
+  return Number.isSafeInteger(value) ? value : null;
+}
 
 export function parseModifierValue(raw: string): ParsedModifierValue | null {
   const text = raw.trim();
-  if (!text || text.length > MODIFIER_VALUE_MAX_LENGTH || !/^[0-9+\-d]+$/.test(text)) return null;
-  if (!text.includes('d')) {
-    if (!/^[+-]?\d+$/.test(text)) return null;
-    const value = Number.parseInt(text, 10);
-    if (!Number.isSafeInteger(value)) return null;
-    return { kind: 'number', value };
+  if (!text || text.length > MODIFIER_VALUE_MAX_LENGTH) return null;
+  const dice: ModifierDiceToken[] = [];
+  let modifier = 0;
+  let found = false;
+  let index = 0;
+  let diceCount = 0;
+  while (index < text.length) {
+    const char = text[index];
+    if (char === '+' || char === '-' || isAsciiDigit(char) || char === 'd') {
+      let cursor = index;
+      const negative = text[cursor] === '-';
+      if (text[cursor] === '+' || text[cursor] === '-') cursor += 1;
+      const countRead = readAsciiDigits(text, cursor);
+      const afterCount = countRead ? countRead.end : cursor;
+      // Dado con segno opzionale: [+-]? cifre? "d" cifre ("-1d4", "d6", "2d6").
+      if (text[afterCount] === 'd') {
+        const sidesRead = readAsciiDigits(text, afterCount + 1);
+        if (sidesRead) {
+          const count = countRead ? parseAsciiInteger(countRead.digits) : 1;
+          const sides = parseAsciiInteger(sidesRead.digits);
+          if (count === null || sides === null) return null;
+          if (count < 1 || count > 100 || sides < 2 || sides > 1000) return null;
+          dice.push({ sign: negative ? -1 : 1, count, sides });
+          diceCount += count;
+          if (diceCount > 1000) return null;
+          found = true;
+          index = sidesRead.end;
+          continue;
+        }
+      }
+      // Numero con segno opzionale, non seguito da dado ("Saggezza-2" -> -2).
+      if (countRead) {
+        const absolute = parseAsciiInteger(countRead.digits);
+        if (absolute === null) return null;
+        const signed = negative ? -absolute : absolute;
+        if (!Number.isSafeInteger(modifier + signed)) return null;
+        modifier += signed;
+        found = true;
+        index = countRead.end;
+        continue;
+      }
+    }
+    index += 1;
   }
-  const match = text.match(/^(\d*)d(\d+)([+-]\d+)?$/);
-  if (!match) return null;
-  const count = match[1] === '' ? 1 : Number.parseInt(match[1], 10);
-  const sides = Number.parseInt(match[2], 10);
-  const modifier = match[3] ? Number.parseInt(match[3], 10) : 0;
-  if (!Number.isSafeInteger(count) || count < 1 || count > 100) return null;
-  if (!Number.isSafeInteger(sides) || sides < 2 || sides > 1000) return null;
-  if (!Number.isSafeInteger(modifier)) return null;
-  return { kind: 'dice', count, sides, modifier };
+  if (!found) return null;
+  if (dice.length === 0) {
+    if (!Number.isSafeInteger(modifier)) return null;
+    return { kind: 'number', value: modifier };
+  }
+  return { kind: 'dice', dice, modifier };
 }
 
 export const MODIFIER_TITLE_FORMAT_DEFAULTS: ModifierTitleFormat = {
@@ -977,14 +1036,16 @@ function buildModifierWidget(
     openMenu();
   });
 
-  // Elemento cliccabile solo se c'e' una "d" con numero prima e dopo, nel
-  // Valore oppure nella Formula (anche con parentesi): bordo in accento e
-  // alone per distinguerlo dai Modificatori che rappresentano solo un valore.
-  // Mai dai puntini (aprono il menu) ne' dalla rinomina.
+  // Click sull'elemento: valido se il Valore contiene numeri/dadi oppure la
+  // Formula e' valida. Bordo in accento e alone solo quando ci sono dadi da
+  // tirare (nel Valore o nella Formula), per distinguere i pulsanti dai
+  // Modificatori che rappresentano solo un valore. Mai dai puntini (aprono il
+  // menu) ne' dalla rinomina.
+  const clickable = !!parseModifierValue(value) || (formula ? isValidModifierFormula(formula) : false);
   const rollable = parseModifierValue(value)?.kind === 'dice'
     || (formula ? modifierFormulaHasDice(formula) : false);
+  if (clickable) element.style.cursor = 'pointer';
   if (rollable) {
-    element.style.cursor = 'pointer';
     element.style.border = '1px solid var(--dash-accent-2)';
     element.style.boxShadow = '0 0 8px var(--dash-accent-2)';
   }

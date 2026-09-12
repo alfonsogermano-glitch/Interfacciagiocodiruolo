@@ -63,7 +63,8 @@ assert.doesNotMatch(modifierMenu, /TITLE_SLASH_COMMAND_IDS[\s\S]*orderedList/, '
 assert.doesNotMatch(modifierMenu, /TITLE_SLASH_COMMAND_IDS[\s\S]*blockquote/, 'modifier title slash menu must exclude Citazione');
 assert.match(modifierMenu, /NoteModifierTitleMenu[\s\S]*data-note-modifier-title-menu/, 'modifier title menu must render as contextual UI with left icons');
 assert.match(editor, /NoteModifierTitleMenu/, 'RichTextEditor must mount the modifier title menu alongside the modifier menu');
-assert.match(modifierMenu, /ModifierEditForm[\s\S]*Valore numerico[\s\S]*Formula/, 'modifier edit must open a floating panel with Valore numerico and Formula fields');
+assert.match(modifierMenu, /ModifierEditForm[\s\S]*>Valore<[\s\S]*>Formula</, 'modifier edit must open a floating panel with Valore and Formula fields');
+assert.match(modifierMenu, /almeno un numero o un dado/, 'modifier edit must require at least a number or die in the value');
 assert.match(modifierMenu, /data-note-modifier-edit="true"[\s\S]*zIndex: 9999/, 'modifier edit panel must float above other windows near the cursor');
 assert.match(modifierMenu, /onHandlePointerDown[\s\S]*setPointerCapture[\s\S]*data-edit-drag-handle="true"/, 'modifier edit panel must drag from its handle');
 assert.match(modifierMenu, /GripVertical/, 'modifier edit panel handle must use a grip icon');
@@ -77,7 +78,8 @@ assert.match(diceContext, /submitModifierRoll[\s\S]*parseModifierValue\(input\.e
 assert.match(diceContext, /evaluateModifierFormula\(formula\)[\s\S]*formulaText: formula/, 'a valid formula must override the numeric value when rolling');
 assert.match(modifierMenu, /isValidModifierFormula\(formulaDraft/, 'modifier edit panel must validate formulas');
 assert.match(diceContext, /evaluateModifierFormula\(formula\)[\s\S]*formulaText: formula/, 'a valid formula must override the numeric value when rolling');
-assert.match(diceContext, /if \(!dice\)[\s\S]*total: parsed\.value/, 'plain numeric modifiers must post their value without rolling');
+assert.match(diceContext, /parsed\.kind === 'number'[\s\S]*total: parsed\.value/, 'plain numeric modifiers must post their value without rolling');
+assert.match(diceContext, /token\.sign \* groupSum/, 'signed dice must contribute with their sign');
 assert.match(diceContext, /useOptionalDiceSession/, 'dice session must expose a nullable hook for bridges');
 assert.match(diceTypes, /origin\?: 'modifier'/, 'roll results must carry the modifier origin');
 assert.match(diceRealtime, /value\.origin !== undefined && value\.origin !== 'modifier'/, 'roll payload validation must accept the modifier origin');

@@ -9,7 +9,7 @@ import { attachDiceAppearanceSnapshots } from './diceAppearance.ts';
 import { HollowgateDice3DRenderer } from './dice3dRenderer.ts';
 import { projectRollTo3D } from './dice3dProjection.ts';
 import { isDice3DAbortError } from './dice3dTypes.ts';
-import { rollDiceFormula } from './diceEngine.ts';
+import { cryptoDiceRng, rollDiceFormula } from './diceEngine.ts';
 import { evaluateModifierFormula } from '../shared/modifierFormula.ts';
 import { parseModifierValue } from '../shared/tiptapInlineModifier.ts';
 import type { DiceRollRequest, RollDiceGroup, RollResult } from './diceTypes.ts';
@@ -343,12 +343,9 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
     }
     const parsed = parseModifierValue(input.expression);
     if (!parsed) return null;
-    // I dadi si tirano solo se c'e' una "d" con numero prima e dopo.
-    const dice = parsed.kind === 'dice' ? parsed : null;
     // Valore numerico semplice (senza "d" da nessuna parte): nessun tiro, in
     // chat compare il valore stesso oppure la Formula se presente.
-    if (!dice) {
-      if (parsed.kind !== 'number') return null;
+    if (parsed.kind === 'number') {
       const display = formula || input.expression.trim();
       if (!display) return null;
       const staticResult: RollResult = {
@@ -372,14 +369,71 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
       dispatchRoll(staticResult);
       return staticResult;
     }
+    // Piu' dadi o dadi con segno (es. "2d6-1d4", "1d6 danni 1d4"): gruppi
+    // manuali, ogni segno contribuisce col proprio verso.
+    if (parsed.dice.length > 1 || parsed.dice[0].sign < 0) {
+      const manualId = globalThis.crypto.randomUUID();
+      const manualGroups: RollDiceGroup[] = [];
+      let manualTotal = parsed.modifier;
+      parsed.dice.forEach((token, tokenIndex) => {
+        const faces: number[] = [];
+        for (let rollIndex = 0; rollIndex < token.count; rollIndex += 1) {
+          faces.push(cryptoDiceRng(token.sides));
+        }
+        const groupSum = faces.reduce((sum, face) => sum + face, 0);
+        manualTotal += token.sign * groupSum;
+        manualGroups.push({
+          itemId: `modifier-v${tokenIndex + 1}`,
+          sides: token.sides,
+          requestedQuantity: token.count,
+          rolls: faces.map((face, dieIndex) => ({
+            id: `${manualId}:v${tokenIndex + 1}r${dieIndex + 1}`,
+            groupItemId: `modifier-v${tokenIndex + 1}`,
+            sides: token.sides,
+            face,
+            contribution: token.sign * face,
+            active: true,
+            source: 'base' as const,
+            explosionDepth: 0,
+            chainId: `${manualId}:vchain${tokenIndex + 1}`,
+          })),
+          activeRollIds: faces.map((_, dieIndex) => `${manualId}:v${tokenIndex + 1}r${dieIndex + 1}`),
+          contribution: token.sign * groupSum,
+        });
+      });
+      if (!Number.isFinite(manualTotal)) return null;
+      const display = formula || input.expression.trim();
+      const manualResult: RollResult = {
+        id: manualId,
+        campaignId: activeCampaign.id,
+        rollerId: user.id,
+        rollerName: user.displayName,
+        rollerAvatarUrl: user.avatarUrl,
+        formulaName: input.name,
+        formulaText: display,
+        visibility: 'public',
+        sourceItems: [],
+        diceGroups: manualGroups,
+        arithmeticSteps: [],
+        comparisons: [],
+        total: manualTotal,
+        createdAt: Date.now(),
+        origin: 'modifier',
+      };
+      ingestRoll(manualResult);
+      dispatchRoll(manualResult);
+      return manualResult;
+    }
+    // Singolo dado positivo: motore standard (snapshot apparenze incluso).
+    const dice = parsed.dice[0];
     const diceItemId = globalThis.crypto.randomUUID();
     const items: DiceRollRequest['items'] = [{ id: diceItemId, kind: 'dice', sides: dice.sides, quantity: dice.count }];
-    if (dice.modifier !== 0) {
+    if (parsed.modifier !== 0) {
       items.push({
         id: globalThis.crypto.randomUUID(),
         kind: 'modifier',
-        operation: dice.modifier > 0 ? 'add' : 'subtract',
-        value: Math.abs(dice.modifier),
+        operation: parsed.modifier > 0 ? 'add' : 'subtract',
+        value: Math.abs(parsed.modifier),
       });
     }
     const base = buildResult({ items, formulaName: input.name, visibility: 'public' });

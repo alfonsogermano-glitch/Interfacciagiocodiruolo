@@ -95,8 +95,18 @@ assert.match(
 );
 assert.match(
   source,
-  /export function parseModifierValue[\s\S]*0-9[\s\S]*kind: 'dice'[\s\S]*count[\s\S]*sides[\s\S]*modifier/,
-  'modifier values must validate to plain numbers or dice expressions with restricted charset',
+  /export function parseModifierValue[\s\S]*kind: 'dice'[\s\S]*dice, modifier/,
+  'free-text values must extract signed dice and numbers from left to right',
+);
+assert.match(
+  source,
+  /ModifierDiceToken[\s\S]*sign: 1 \| -1/,
+  'extracted dice tokens must carry their sign',
+);
+assert.match(
+  source,
+  /const clickable[\s\S]*const rollable[\s\S]*cursor[\s\S]*boxShadow/,
+  'clickable modifiers get a pointer while only dice rollers get the glow',
 );
 assert.match(
   source,
