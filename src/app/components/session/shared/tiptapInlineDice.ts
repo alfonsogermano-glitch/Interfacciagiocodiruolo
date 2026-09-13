@@ -408,7 +408,7 @@ function buildDiceWidget(
     label.style.color = 'var(--dash-danger-text)';
     formulaEl.style.color = 'var(--dash-danger-text)';
     element.style.background = 'var(--dash-danger-bg)';
-    element.style.background = 'color-mix(in srgb, var(--dash-danger) 22%, var(--dash-surface-2))';
+    element.style.background = 'color-mix(in srgb, var(--dash-danger-border) 45%, var(--dash-surface-2))';
     if (diceAnomalyReason) {
       const host = element as HTMLElement & { __hideAnomalyTip?: (() => void) | null };
       const showAnomalyTip = () => {

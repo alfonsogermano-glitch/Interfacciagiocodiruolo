@@ -1165,9 +1165,11 @@ function buildModifierWidget(
     element.style.color = 'var(--dash-danger-text)';
     label.style.color = 'var(--dash-danger-text)';
     valueEl.style.color = 'var(--dash-danger-text)';
-    // Sfondo rosso pieno (non solo bordo/testo): l'anomalia deve vedersi.
+    // Sfondo rosso marcato (non solo bordo/testo): mix col rosso del bordo,
+    // definito in ogni palette (il bare --dash-danger non esiste e veniva
+    // scartato, lasciando un fallback quasi nero).
     element.style.background = 'var(--dash-danger-bg)';
-    element.style.background = 'color-mix(in srgb, var(--dash-danger) 22%, var(--dash-surface-2))';
+    element.style.background = 'color-mix(in srgb, var(--dash-danger-border) 45%, var(--dash-surface-2))';
     // Tooltip col motivo dell'anomalia (solo espanso: il compatto mostra gia'
     // il motivo al posto del nome). La chiusura alla destroy avviene nella
     // teardown unica in fondo (proprieta' __hideAnomalyTip).
