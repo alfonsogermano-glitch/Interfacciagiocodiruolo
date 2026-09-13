@@ -551,8 +551,17 @@ function DiceEditForm({ dicePos, modifiers, lookup, initialName, initialTitle, i
         return next;
       });
       removeTitleTrigger();
-      titleMenuOpenRef.current = false;
-      window.dispatchEvent(new CustomEvent<{ pos: number }>(NOTE_MODIFIER_TITLE_MENU_CLOSE_EVENT, { detail: { pos: dicePos } }));
+      // Il menu resta aperto per altre scelte (lista completa, query
+      // azzerata): chiuderlo a ogni voce costringerebbe a ridigitare "/".
+      titleMenuOpenRef.current = true;
+      const rect = nameRef.current?.getBoundingClientRect();
+      if (rect) {
+        window.dispatchEvent(
+          new CustomEvent<NoteModifierTitleMenuRequest>(NOTE_MODIFIER_TITLE_MENU_EVENT, {
+            detail: { pos: dicePos, query: '', x: rect.left, y: rect.bottom },
+          }),
+        );
+      }
     };
     const onTitleDismiss = (event: Event) => {
       const detail = (event as CustomEvent<{ pos: number }>).detail;

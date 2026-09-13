@@ -126,6 +126,11 @@ assert.match(
   'outside clicks with the title menu open must close only the title menu first',
 );
 assert.match(
+  modifierMenu,
+  /resta aperto per altre scelte[\s\S]*query: ''/,
+  'applying a title entry must keep the menu open with the full list',
+);
+assert.match(
   dice,
   /diceAnomalous[\s\S]*assessDiceFormula\(rawFormula, getModifierLookupForState\(state\)\)[\s\S]*dice:\$\{id \?\? dicePos\}:.*:\$\{diceAnomalous \? 1 : 0\}/,
   'dice widgets must rebuild red when a referenced modifier disappears',
