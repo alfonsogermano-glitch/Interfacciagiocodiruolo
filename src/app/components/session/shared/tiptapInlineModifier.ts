@@ -1048,6 +1048,10 @@ function buildModifierWidget(
   if (rollable) {
     element.style.border = '1px solid var(--dash-accent-2)';
     element.style.boxShadow = '0 0 8px var(--dash-accent-2)';
+    // Fondo tinta accento per i pulsanti; la prima assegnazione resta come
+    // fallback dove color-mix non e' supportato.
+    element.style.background = 'var(--dash-surface-2)';
+    element.style.background = 'color-mix(in srgb, var(--dash-accent-2) 22%, var(--dash-surface-2))';
   }
   element.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;

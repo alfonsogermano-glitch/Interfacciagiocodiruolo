@@ -105,7 +105,7 @@ assert.match(
 );
 assert.match(
   source,
-  /const clickable[\s\S]*const rollable[\s\S]*cursor[\s\S]*boxShadow/,
+  /const clickable[\s\S]*const rollable[\s\S]*cursor[\s\S]*boxShadow[\s\S]*color-mix/,
   'clickable modifiers get a pointer while only dice rollers get the glow',
 );
 assert.match(
