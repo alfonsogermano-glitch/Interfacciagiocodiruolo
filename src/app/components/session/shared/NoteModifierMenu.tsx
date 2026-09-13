@@ -135,27 +135,78 @@ function ModifierEditForm({ modifierName, modifiers, lookup, initialValue, initi
   const [error, setError] = useState<string | null>(null);
   const formulaRef = useRef<HTMLDivElement | null>(null);
 
+  // Tooltip stile sito sui tag della formula: sopra la pill mostra
+  // formula o valore del modificatore referenziato.
+  const tagTipRef = useRef<HTMLSpanElement | null>(null);
+  const hideTagTip = () => {
+    window.removeEventListener('scroll', hideTagTip, true);
+    tagTipRef.current?.remove();
+    tagTipRef.current = null;
+  };
+  const showTagTip = (tagName: string, rect: DOMRect) => {
+    hideTagTip();
+    const entry = lookup.get(tagName);
+    const tip = document.createElement('span');
+    tip.textContent = entry ? (entry.formula || entry.value || '—') : `"${tagName}" non trovato`;
+    tip.style.cssText = 'position:fixed;z-index:1200;pointer-events:none;white-space:nowrap;max-width:min(320px,80vw);overflow:hidden;text-overflow:ellipsis;background:var(--dash-panel);color:var(--dash-text);border:1px solid var(--dash-border-soft);border-radius:0.45rem;padding:0.15rem 0.45rem;font-size:0.72rem;line-height:1.25;box-shadow:0 6px 22px rgba(0,0,0,0.35);';
+    const host = formulaRef.current?.closest('[data-dashboard-palette]') ?? document.body;
+    host.appendChild(tip);
+    const tipRect = tip.getBoundingClientRect();
+    let left = rect.left + rect.width / 2 - tipRect.width / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
+    let top = rect.top - tipRect.height - 6;
+    if (top < 8) top = rect.bottom + 6;
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
+    tagTipRef.current = tip;
+    window.addEventListener('scroll', hideTagTip, true);
+  };
+
   // Costruzione iniziale una sola volta (contenuto poi gestito dal DOM).
   useEffect(() => {
     const el = formulaRef.current;
-    if (!el || el.dataset.initialized) return;
-    el.dataset.initialized = 'true';
-    appendFormulaSegments(el, initialFormula);
-    el.focus();
-    try {
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      range.collapse(false);
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-    } catch { /* selezione non disponibile */ }
+    if (!el) return;
+    if (!el.dataset.initialized) {
+      el.dataset.initialized = 'true';
+      appendFormulaSegments(el, initialFormula);
+      el.focus();
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+      } catch { /* selezione non disponibile */ }
+    }
+    const showFor = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement) || !target.hasAttribute('data-modifier-tag')) {
+        hideTagTip();
+        return;
+      }
+      showTagTip(target.getAttribute('data-modifier-tag') ?? '', target.getBoundingClientRect());
+    };
+    const onOver = (event: MouseEvent) => showFor(event.target);
+    const onOut = (event: MouseEvent) => {
+      if (!(event.relatedTarget instanceof Node) || !el.contains(event.relatedTarget)) hideTagTip();
+    };
+    el.addEventListener('mouseover', onOver);
+    el.addEventListener('mouseout', onOut);
+    return () => {
+      el.removeEventListener('mouseover', onOver);
+      el.removeEventListener('mouseout', onOut);
+      hideTagTip();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const confirm = () => {
+    if (!valueDraft.trim()) {
+      setError('Il valore non puo\' essere vuoto (il solo testo vale 0).');
+      return;
+    }
     if (!parseModifierValue(valueDraft.trim())) {
-      setError('Il valore deve contenere almeno un numero o un dado (es. +1 Forza, 1d6 danni).');
+      setError('Valore non valido.');
       return;
     }
     const formulaText = serializeFormulaEditor(formulaRef.current).trim();

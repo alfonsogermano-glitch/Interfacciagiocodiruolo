@@ -69,7 +69,7 @@ assert.doesNotMatch(modifierMenu, /TITLE_SLASH_COMMAND_IDS[\s\S]*blockquote/, 'm
 assert.match(modifierMenu, /NoteModifierTitleMenu[\s\S]*data-note-modifier-title-menu/, 'modifier title menu must render as contextual UI with left icons');
 assert.match(editor, /NoteModifierTitleMenu/, 'RichTextEditor must mount the modifier title menu alongside the modifier menu');
 assert.match(modifierMenu, /ModifierEditForm[\s\S]*>Valore<[\s\S]*>Formula</, 'modifier edit must open a floating panel with Valore and Formula fields');
-assert.match(modifierMenu, /almeno un numero o un dado/, 'modifier edit must require at least a number or die in the value');
+assert.match(modifierMenu, /solo testo vale 0/, 'modifier edit must accept text-only values as zero');
 assert.match(modifierMenu, /data-note-modifier-edit="true"[\s\S]*zIndex: 9999/, 'modifier edit panel must float above other windows near the cursor');
 assert.match(modifierMenu, /onHandlePointerDown[\s\S]*setPointerCapture[\s\S]*data-edit-drag-handle="true"/, 'modifier edit panel must drag from its handle');
 assert.match(modifierMenu, /GripVertical/, 'modifier edit panel handle must use a grip icon');
@@ -84,6 +84,8 @@ assert.match(diceContext, /submitModifierRoll[\s\S]*parseModifierValue\(input\.e
 assert.match(diceContext, /evaluateModifierFormula\(formula, undefined, input\.resolveName\)[\s\S]*formulaText: formula/, 'a valid formula must override the numeric value when rolling');
 assert.match(modifierMenu, /extractModifierRefs\(formulaText\)/, 'modifier edit panel must validate formula references');
 assert.match(modifierMenu, /insertTag[\s\S]*createFormulaTag[\s\S]*insertNode/, 'selecting a modifier name must insert an atomic tag at the caret');
+assert.match(modifierMenu, /showTagTip[\s\S]*entry\.formula \|\| entry\.value/, 'formula tags must show a tooltip with the referenced value or formula');
+assert.match(modifierMenu, /showTagTip[\s\S]*z-index:1200[\s\S]*data-dashboard-palette/, 'formula tag tooltips must use the site palette style');
 assert.match(modifierMenu, /createFormulaTag[\s\S]*data-modifier-tag[\s\S]*contenteditable[\s\S]*false/, 'formula tags must be non-editable pills');
 assert.match(modifierMenu, /'Backspace'[\s\S]*'Delete'[\s\S]*data-modifier-tag[\s\S]*sibling\.remove\(\)/, 'whole tags must delete at once, never in pieces');
 assert.match(modifierMenu, /serializeFormulaEditor[\s\S]*data-modifier-tag/, 'saving must serialize tags back to quoted references');

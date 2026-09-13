@@ -69,6 +69,7 @@ assert.equal(modifierFormulaHasDice('"Forza"', (name) => name === 'Forza' ? { va
 assert.deepEqual(parseModifierValue('hkjfhek1d4'), { kind: 'dice', dice: [{ sign: 1, count: 1, sides: 4 }], modifier: 0 });
 assert.deepEqual(parseModifierValue('+1 Forza'), { kind: 'number', value: 1 });
 assert.deepEqual(parseModifierValue('Saggezza-2'), { kind: 'number', value: -2 });
-assert.equal(parseModifierValue('Forza'), null);
+assert.deepEqual(parseModifierValue('Forza'), { kind: 'number', value: 0 });
+assert.equal(parseModifierValue(''), null);
 
 console.log('Modifier formula verification: PASS');

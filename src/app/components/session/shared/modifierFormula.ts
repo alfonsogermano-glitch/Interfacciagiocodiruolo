@@ -28,8 +28,8 @@ const MAX_COUNT = 100;
 // con una scansione da sinistra a destra ("hkjfhek1d4" -> 1d4, "+1 Forza" ->
 // +1, "Saggezza-2" -> -2, "3d6+3" -> 3d6 e +3). Un segno prima dei dadi li
 // rende negativi ("2d6-1d4"). Le lettere sono ignorate, la "d" vale solo
-// minuscola e con numero prima (opzionale) e dopo. Serve almeno un numero o
-// un dado, altrimenti il valore non e' valido.
+// minuscola e con numero prima (opzionale) e dopo. Il testo senza cifre vale
+// 0; solo la stringa vuota non e' valida.
 export interface ModifierDiceToken {
   sign: 1 | -1;
   count: number;
@@ -104,7 +104,9 @@ export function parseModifierValue(raw: string): ParsedModifierValue | null {
     }
     index += 1;
   }
-  if (!found) return null;
+  // Solo testo, senza cifre: il valore vale 0 (la stringa vuota resta
+  // invalida, vedi sopra).
+  if (!found) return { kind: 'number', value: 0 };
   if (dice.length === 0) {
     if (!Number.isSafeInteger(modifier)) return null;
     return { kind: 'number', value: modifier };
