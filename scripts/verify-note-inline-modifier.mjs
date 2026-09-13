@@ -56,6 +56,11 @@ assert.match(
 );
 assert.match(
   source,
+  /Default centrale[\s\S]*titleFormat\.align === 'right'[\s\S]*justifyContent = 'center'/,
+  'modifier title must default to centered alignment',
+);
+assert.match(
+  source,
   /tiptap-inline-modifier-menu-trigger[\s\S]*position:\s*'absolute'[\s\S]*flexDirection:\s*'column'[\s\S]*opacity:\s*0[\s\S]*mouseenter/,
   'modifier menu trigger must be a vertical hover-only overlay that does not consume layout space',
 );

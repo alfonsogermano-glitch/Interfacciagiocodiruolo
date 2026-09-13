@@ -615,9 +615,10 @@ export function applyModifierTitleFormat(
   target.style.textDecoration = decorations.join(' ') || 'none';
   target.style.fontSize = typeof format.fontSize === 'number' ? `${format.fontSize}px` : baseFontSize;
   target.style.fontFamily = format.fontFamily ?? '';
-  if (format.align === 'center') target.style.textAlign = 'center';
-  else if (format.align === 'right') target.style.textAlign = 'right';
-  else target.style.textAlign = 'left';
+  // Default centrale: solo 'left' esplicito allinea a sinistra.
+  if (format.align === 'right') target.style.textAlign = 'right';
+  else if (format.align === 'left') target.style.textAlign = 'left';
+  else target.style.textAlign = 'center';
 }
 
 function buildModifierWidget(
@@ -683,8 +684,10 @@ function buildModifierWidget(
     textTransform: 'uppercase',
   });
   applyModifierTitleFormat(label, titleFormat);
-  if (titleFormat.align === 'center') head.style.justifyContent = 'center';
-  else if (titleFormat.align === 'right') head.style.justifyContent = 'flex-end';
+  // Default centrale: solo 'left' esplicito allinea a sinistra.
+  if (titleFormat.align === 'right') head.style.justifyContent = 'flex-end';
+  else if (titleFormat.align === 'left') head.style.justifyContent = 'flex-start';
+  else head.style.justifyContent = 'center';
 
   const dots = document.createElement('span');
   dots.className = 'tiptap-inline-modifier-menu-trigger';
