@@ -106,6 +106,16 @@ assert.match(
   'saving dice must persist the title formatting',
 );
 assert.match(
+  modifierMenu,
+  /aria-label="Formato titolo"[\s\S]*zIndex: 10002/,
+  'title menu must paint above the dice edit panel',
+);
+assert.match(
+  modifierMenu,
+  /data-note-dice-menu="true"[\s\S]*data-note-modifier-title-menu="true"[\s\S]*close\(false\)/,
+  'choosing a title entry must not close the dice panel',
+);
+assert.match(
   dice,
   /diceAnomalous[\s\S]*assessDiceFormula\(rawFormula, getModifierLookupForState\(state\)\)[\s\S]*dice:\$\{id \?\? dicePos\}:.*:\$\{diceAnomalous \? 1 : 0\}/,
   'dice widgets must rebuild red when a referenced modifier disappears',

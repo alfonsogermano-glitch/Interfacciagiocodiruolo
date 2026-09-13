@@ -877,13 +877,15 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
   // Chiusura su click fuori senza rubare il focus (il click sui puntini di un
   // altro Modificatore deve poter RIAPRIRE il menu allo stesso colpo, quindi
   // non chiude). Il pannello modifica porta gli stessi marcatori del menu,
-  // quindi i click nei suoi campi non chiudono.
+  // quindi i click nei suoi campi non chiudono. Il menu titolo "/" del Nome
+  // Dado e' fuori da entrambi: usarlo non deve chiudere.
   useEffect(() => {
     if (!request) return;
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Element | null;
       if (!target) return;
       if (target.closest('[data-note-modifier-menu="true"]')) return;
+      if (target.closest('[data-note-modifier-title-menu="true"]')) return;
       if (target.closest('.tiptap-inline-modifier-widget')) return;
       close(false);
     };
@@ -1067,13 +1069,16 @@ export function NoteDiceMenu({ editor, editable }: NoteModifierMenuProps) {
   }, [editor, request, close]);
 
   // Chiusura su click fuori senza rubare il focus (stesse regole del menu
-  // Modificatore: i puntini di un altro elemento possono riaprire).
+  // Modificatore: i puntini di un altro elemento possono riaprire). Il menu
+  // titolo "/" del Nome e' fuori dal pannello: sceglierne una voce non deve
+  // chiuderlo.
   useEffect(() => {
     if (!request) return;
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Element | null;
       if (!target) return;
       if (target.closest('[data-note-dice-menu="true"]')) return;
+      if (target.closest('[data-note-modifier-title-menu="true"]')) return;
       if (target.closest(DICE_WIDGET_SELECTOR)) return;
       close(false);
     };
@@ -1505,7 +1510,9 @@ export function NoteModifierTitleMenu({ editable }: { editable: boolean }) {
       data-note-modifier-title-menu="true"
       role="menu"
       aria-label="Formato titolo"
-      style={{ position: 'fixed', top: placed.top, left: placed.left, zIndex: 9998 }}
+      // Sopra anche al pannello Modifica (z 9999): dal Nome del Dado il menu
+      // si apre sopra il pannello e deve restare cliccabile.
+      style={{ position: 'fixed', top: placed.top, left: placed.left, zIndex: 10002 }}
       className="w-[224px] overflow-hidden rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-lg"
       onPointerDown={(event) => event.stopPropagation()}
     >
