@@ -116,6 +116,16 @@ assert.match(
   'choosing a title entry must not close the dice panel',
 );
 assert.match(
+  modifierMenu,
+  /onTitleOpen[\s\S]*detail\?\.pos === 'number'[\s\S]*detail\.pos === request\.pos/,
+  'outside clicks must only dismiss the title menu when it belongs to this dice',
+);
+assert.match(
+  modifierMenu,
+  /diceTitleMenuOpenRef\.current[\s\S]*TITLE_MENU_CLOSE_EVENT[\s\S]*TITLE_MENU_DISMISS_EVENT[\s\S]*return;[\s\S]*close\(false\)/,
+  'outside clicks with the title menu open must close only the title menu first',
+);
+assert.match(
   dice,
   /diceAnomalous[\s\S]*assessDiceFormula\(rawFormula, getModifierLookupForState\(state\)\)[\s\S]*dice:\$\{id \?\? dicePos\}:.*:\$\{diceAnomalous \? 1 : 0\}/,
   'dice widgets must rebuild red when a referenced modifier disappears',

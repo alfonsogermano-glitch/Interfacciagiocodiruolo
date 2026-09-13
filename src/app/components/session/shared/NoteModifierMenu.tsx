@@ -552,6 +552,7 @@ function DiceEditForm({ dicePos, modifiers, lookup, initialName, initialTitle, i
       });
       removeTitleTrigger();
       titleMenuOpenRef.current = false;
+      window.dispatchEvent(new CustomEvent<{ pos: number }>(NOTE_MODIFIER_TITLE_MENU_CLOSE_EVENT, { detail: { pos: dicePos } }));
     };
     const onTitleDismiss = (event: Event) => {
       const detail = (event as CustomEvent<{ pos: number }>).detail;
@@ -1068,6 +1069,26 @@ export function NoteDiceMenu({ editor, editable }: NoteModifierMenuProps) {
     return () => { editor.off('transaction', onTransaction); };
   }, [editor, request, close]);
 
+  // Il menu titolo "/" e' unico: se quello aperto e' del Nome di questo Dado,
+  // il click fuori chiude prima solo lui (stessa sequenza del suo dismiss) e
+  // il pannello resta aperto. Se appartiene ad altro, chiude il pannello.
+  const diceTitleMenuOpenRef = useRef(false);
+  useEffect(() => {
+    const onTitleOpen = (event: Event) => {
+      const detail = (event as CustomEvent<NoteModifierTitleMenuRequest>).detail;
+      diceTitleMenuOpenRef.current = !!request && typeof detail?.pos === 'number' && detail.pos === request.pos;
+    };
+    const onTitleClosed = () => { diceTitleMenuOpenRef.current = false; };
+    window.addEventListener(NOTE_MODIFIER_TITLE_MENU_EVENT, onTitleOpen);
+    window.addEventListener(NOTE_MODIFIER_TITLE_MENU_CLOSE_EVENT, onTitleClosed);
+    window.addEventListener(NOTE_MODIFIER_TITLE_MENU_DISMISS_EVENT, onTitleClosed);
+    return () => {
+      window.removeEventListener(NOTE_MODIFIER_TITLE_MENU_EVENT, onTitleOpen);
+      window.removeEventListener(NOTE_MODIFIER_TITLE_MENU_CLOSE_EVENT, onTitleClosed);
+      window.removeEventListener(NOTE_MODIFIER_TITLE_MENU_DISMISS_EVENT, onTitleClosed);
+    };
+  }, [request]);
+
   // Chiusura su click fuori senza rubare il focus (stesse regole del menu
   // Modificatore: i puntini di un altro elemento possono riaprire). Il menu
   // titolo "/" del Nome e' fuori dal pannello: sceglierne una voce non deve
@@ -1080,6 +1101,12 @@ export function NoteDiceMenu({ editor, editable }: NoteModifierMenuProps) {
       if (target.closest('[data-note-dice-menu="true"]')) return;
       if (target.closest('[data-note-modifier-title-menu="true"]')) return;
       if (target.closest(DICE_WIDGET_SELECTOR)) return;
+      if (diceTitleMenuOpenRef.current && document.querySelector('[data-note-modifier-title-menu="true"]')) {
+        diceTitleMenuOpenRef.current = false;
+        window.dispatchEvent(new CustomEvent<{ pos: number }>(NOTE_MODIFIER_TITLE_MENU_CLOSE_EVENT, { detail: { pos: request.pos } }));
+        window.dispatchEvent(new CustomEvent<{ pos: number }>(NOTE_MODIFIER_TITLE_MENU_DISMISS_EVENT, { detail: { pos: request.pos } }));
+        return;
+      }
       close(false);
     };
     document.addEventListener('pointerdown', onPointerDown, true);
