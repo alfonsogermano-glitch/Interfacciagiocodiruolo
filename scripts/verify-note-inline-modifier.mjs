@@ -51,6 +51,11 @@ assert.match(
 );
 assert.match(
   source,
+  /2px solid var\(--dash-danger-border\)[\s\S]*color-mix\(in srgb, var\(--dash-danger-border\)/,
+  'anomalous modifiers must use a thick vivid red border',
+);
+assert.match(
+  source,
   /showInlineBoxTipAbove[\s\S]*role.*tooltip[\s\S]*data-dashboard-palette/,
   'anomalous modifiers must explain the reason in a site-style tooltip',
 );

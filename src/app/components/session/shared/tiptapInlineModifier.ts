@@ -167,7 +167,7 @@ export function getModifierLookup(view: EditorView): Map<string, ModifierSnapsho
   return mergeModifierLookup(modifierPeerSnapshots.get(view) ?? [], view.state);
 }
 
-function getModifierLookupForState(state: EditorState): Map<string, ModifierSnapshot> {
+export function getModifierLookupForState(state: EditorState): Map<string, ModifierSnapshot> {
   for (const [view, peers] of modifierPeerSnapshots) {
     if (view.state === state) return mergeModifierLookup(peers, state);
   }
@@ -1161,7 +1161,9 @@ function buildModifierWidget(
   }
   element.dataset.modifierAnomalous = anomalous ? 'true' : 'false';
   if (anomalous) {
-    element.style.border = '1px solid var(--dash-danger-border)';
+    // Bordo spesso e vivo: il rosso border da solo e' spento.
+    element.style.border = '2px solid var(--dash-danger-border)';
+    element.style.borderColor = 'color-mix(in srgb, var(--dash-danger-border) 60%, #ff7a7a)';
     element.style.color = 'var(--dash-danger-text)';
     label.style.color = 'var(--dash-danger-text)';
     valueEl.style.color = 'var(--dash-danger-text)';

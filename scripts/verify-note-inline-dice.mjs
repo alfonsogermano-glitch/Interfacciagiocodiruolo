@@ -71,6 +71,16 @@ assert.match(
   'anomalous dice must turn red including the background and explain the reason in a tooltip',
 );
 assert.match(
+  dice,
+  /2px solid var\(--dash-danger-border\)/,
+  'anomalous dice must use a thick vivid red border',
+);
+assert.match(
+  dice,
+  /diceAnomalous[\s\S]*assessDiceFormula\(rawFormula, getModifierLookupForState\(state\)\)[\s\S]*dice:\$\{id \?\? dicePos\}:.*:\$\{diceAnomalous \? 1 : 0\}/,
+  'dice widgets must rebuild red when a referenced modifier disappears',
+);
+assert.match(
   modifierMenu,
   /getDiceAt\(editorRef\.current\.state[\s\S]*submit\(\{ name: dice\.name, expression: dice\.formula, formula: dice\.formula/,
   'dice rolls must resolve modifier references and post like modifier rolls',

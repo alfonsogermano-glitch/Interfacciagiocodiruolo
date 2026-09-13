@@ -8,6 +8,7 @@ import {
   NOTE_MODIFIER_ROLL_EVENT,
   getInlineBoxWidgetAt,
   getModifierLookup,
+  getModifierLookupForState,
   halveInlineBoxWidget,
   makeRoomForInlineModifierInsertion,
   registerInlineBoxWidget,
@@ -403,7 +404,9 @@ function buildDiceWidget(
   // Il Dado non e' referenziabile: niente controllo "riferimento a se'".
   const diceAnomalyReason = assessment.anomalous ? describeFormulaAnomaly(formula, diceLookup) : null;
   if (assessment.anomalous) {
-    element.style.border = '1px solid var(--dash-danger-border)';
+    // Bordo spesso e vivo: il rosso border da solo e' spento.
+    element.style.border = '2px solid var(--dash-danger-border)';
+    element.style.borderColor = 'color-mix(in srgb, var(--dash-danger-border) 60%, #ff7a7a)';
     element.style.color = 'var(--dash-danger-text)';
     label.style.color = 'var(--dash-danger-text)';
     formulaEl.style.color = 'var(--dash-danger-text)';
@@ -563,6 +566,11 @@ export const InlineDice = Mark.create({
               const name = String(mark.attrs.name ?? DICE_DEFAULT_NAME);
               const rawFormula = typeof mark.attrs.formula === 'string' && mark.attrs.formula ? mark.attrs.formula : DICE_DEFAULT_FORMULA;
               const id = typeof mark.attrs.id === 'string' && mark.attrs.id ? mark.attrs.id : null;
+              // Il flag anomalia e' nella key come nel Modificatore: se un
+              // Modificatore referenziato viene eliminato, la key cambia e il
+              // widget viene ricostruito rosso (senza, ProseMirror riuserebbe
+              // il vecchio DOM e il Dado resterebbe neutro).
+              const diceAnomalous = assessDiceFormula(rawFormula, getModifierLookupForState(state)).anomalous;
               for (let offset = 0; offset < node.nodeSize; offset++) {
                 if (node.text.charAt(offset) !== INLINE_MODIFIER_CHAR) continue;
                 const dicePos = pos + offset;
@@ -572,7 +580,7 @@ export const InlineDice = Mark.create({
                     (view, getPos) => buildDiceWidget(view, getPos, name, rawFormula),
                     {
                       side: 0,
-                      key: `dice:${id ?? dicePos}:${name}:${rawFormula}`,
+                      key: `dice:${id ?? dicePos}:${name}:${rawFormula}:${diceAnomalous ? 1 : 0}`,
                       destroy: (node) => {
                         (node as HTMLElement & { __destroyDiceWidget?: () => void }).__destroyDiceWidget?.();
                         unregisterInlineBoxWidget(node as HTMLElement);
