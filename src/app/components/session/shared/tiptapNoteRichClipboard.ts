@@ -1,6 +1,7 @@
 import { Extension } from '@tiptap/core';
 import { DOMSerializer, Slice } from '@tiptap/pm/model';
 import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
+import { isPreviousModifier, makeRoomForInlineModifierInsertion } from './tiptapInlineModifier';
 import type { EditorView } from '@tiptap/pm/view';
 import { getRichClipboardSlice, isRichClipboardTableSelection } from './noteRichClipboardSelection';
 import { validateStructuralReplacement, validateTableClipboardTarget, type NoteContainerRejection } from './noteContainerPolicy';
@@ -106,7 +107,6 @@ function renamePastedInlineModifiers(state: EditorState, slice: Slice): Slice {
   const markType = state.schema.marks.inlineModifier;
   if (!markType) return slice;
   const used = new Set<string>();
-  const MODIFIER_CHAR = String.fromCharCode(0x200b);
   state.doc.descendants((node) => {
     if (!node.isText || !node.text || !node.text.includes(MODIFIER_CHAR)) return;
     const mark = node.marks.find((item) => item.type === markType);
@@ -164,6 +164,14 @@ function renamePastedInlineModifiers(state: EditorState, slice: Slice): Slice {
   }
 }
 
+// true se lo slice e' un singolo carattere Modificatore.
+const MODIFIER_CHAR = String.fromCharCode(0x200b);
+function isSingleModifierSlice(slice: Slice): boolean {
+  if (slice.content.childCount !== 1) return false;
+  const child = slice.content.firstChild;
+  return !!child && child.isText && child.text === MODIFIER_CHAR && child.marks.some((mark) => mark.type.name === 'inlineModifier');
+}
+
 export const NoteRichClipboard = Extension.create<{ onReject?: (reason: NoteContainerRejection) => void }>({
   name: 'noteRichClipboard',
   addOptions() { return { onReject: undefined }; },
@@ -202,7 +210,15 @@ export const NoteRichClipboard = Extension.create<{ onReject?: (reason: NoteCont
               return true;
             }
             event.preventDefault();
-            view.dispatch(view.state.tr.replaceSelection(slice).scrollIntoView());
+            // Un singolo Modificatore incollato dopo un altro resta di fianco
+            // con uno spazio vero e restringimento preventivo, come Duplica:
+            // senza questo va a capo e la misura per riga lo blocca sotto.
+            let tr = view.state.tr;
+            if (isSingleModifierSlice(slice) && isPreviousModifier(view.state, tr.selection.from)) {
+              makeRoomForInlineModifierInsertion(view.state, tr.selection.from);
+              tr = tr.insertText(' ', tr.selection.from);
+            }
+            view.dispatch(tr.replaceSelection(slice).scrollIntoView());
             return true;
           } catch {
             return false;

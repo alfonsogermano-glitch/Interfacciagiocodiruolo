@@ -147,6 +147,16 @@ assert.match(
 );
 assert.match(
   source,
+  /duplicateModifierAt[\s\S]*makeRoomForInlineModifierInsertion[\s\S]*insertText\(' '[\s\S]*INLINE_MODIFIER_CHAR/,
+  'duplicate must shrink the previous widget and leave a real space so the copy stays beside the original',
+);
+assert.match(
+  source,
+  /export function isPreviousModifier/,
+  'insertion paths must share the previous-modifier check',
+);
+assert.match(
+  source,
   /deleteModifierAt[\s\S]*delete\([\s\S]*pos,\s*pos \+ 1\)/,
   'delete must remove the single marked character without touching neighbours',
 );

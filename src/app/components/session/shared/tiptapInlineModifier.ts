@@ -321,7 +321,10 @@ export function setModifierCompactAt(
   return setModifierAttrs(state, dispatch, pos, { compact });
 }
 
-/** Duplica: inserisce una copia identica subito dopo l'originale. */
+/** Duplica: copia istantanea subito dopo l'originale, con uno spazio vero in
+ *  mezzo e restringimento preventivo come insertInlineModifier, cosi' la copia
+ *  resta di fianco invece di andare a capo. Contenuto identico, solo id fresco
+ *  e nome univoco. */
 export function duplicateModifierAt(
   state: EditorState,
   dispatch: ((transaction: Transaction) => void) | undefined,
@@ -331,11 +334,14 @@ export function duplicateModifierAt(
   const currentMark = getInlineModifierMark(state, pos);
   if (!markType || !currentMark) return false;
   if (dispatch) {
-    dispatch(state.tr.insert(pos + 1, state.schema.text(INLINE_MODIFIER_CHAR, [markType.create({
+    makeRoomForInlineModifierInsertion(state, pos + 1);
+    const tr = state.tr.insertText(' ', pos + 1);
+    tr.insert(pos + 2, state.schema.text(INLINE_MODIFIER_CHAR, [markType.create({
       ...currentMark.attrs,
       id: createModifierId(),
       name: getUniqueModifierName(state, String(currentMark.attrs.name ?? MODIFIER_DEFAULT_NAME)),
-    })])));
+    })]));
+    dispatch(tr);
   }
   return true;
 }
@@ -567,12 +573,19 @@ export function makeRoomForInlineModifierText(view: EditorView, pos: number, tex
   return false;
 }
 
-function makeRoomForInlineModifierInsertion(state: EditorState, pos: number): void {
+export function makeRoomForInlineModifierInsertion(state: EditorState, pos: number): void {
   if (pos <= 0 || !getInlineModifierMark(state, pos - 1)) return;
   const widget = getModifierWidgetAt(pos - 1);
   // I compatti sono gia' al minimo (solo valore): non vanno dimezzati.
   if (!widget || isCompactModifier(widget)) return;
   widget.style.width = `${Math.max(MIN_MODIFIER_WIDTH, (widget.offsetWidth - MIN_GAP) / 2)}px`;
+}
+
+/** true se subito prima di pos c'e' un Modificatore: chi inserisce dopo deve
+ *  lasciare uno spazio vero e restringere prima, come insertInlineModifier. */
+export function isPreviousModifier(state: EditorState, pos: number): boolean {
+  if (pos <= 0 || state.doc.textBetween(pos - 1, pos, '', '') !== INLINE_MODIFIER_CHAR) return false;
+  return !!getInlineModifierMark(state, pos - 1);
 }
 
 export function applyModifierTitleFormat(
