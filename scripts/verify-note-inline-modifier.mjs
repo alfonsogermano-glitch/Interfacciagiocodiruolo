@@ -105,8 +105,13 @@ assert.match(
 );
 assert.match(
   source,
-  /const clickable[\s\S]*const rollable[\s\S]*cursor[\s\S]*boxShadow[\s\S]*color-mix/,
-  'clickable modifiers get a pointer while only dice rollers get the glow',
+  /const rollable[\s\S]*cursor = 'pointer'[\s\S]*color-mix/,
+  'pointer cursor and accent background apply only to real dice buttons',
+);
+assert.doesNotMatch(
+  source,
+  /0 0 8px var\(--dash-accent-2\)/,
+  'no glow halo around modifier buttons',
 );
 assert.match(
   source,
@@ -115,8 +120,8 @@ assert.match(
 );
 assert.match(
   source,
-  /modifierFormulaHasDice\(formula\)[\s\S]*boxShadow[\s\S]*dash-accent-2/,
-  'rollable modifiers must stand out with accent border and glow',
+  /modifierFormulaHasDice\(formula\)[\s\S]*border = '1px solid var\(--dash-accent-2\)'/,
+  'rollable modifiers must stand out with accent border and background',
 );
 
 const formulaSource = await readFile(new URL('../src/app/components/session/shared/modifierFormula.ts', import.meta.url), 'utf8');

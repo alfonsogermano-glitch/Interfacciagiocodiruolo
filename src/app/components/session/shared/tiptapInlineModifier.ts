@@ -1041,13 +1041,13 @@ function buildModifierWidget(
   // tirare (nel Valore o nella Formula), per distinguere i pulsanti dai
   // Modificatori che rappresentano solo un valore. Mai dai puntini (aprono il
   // menu) ne' dalla rinomina.
-  const clickable = !!parseModifierValue(value) || (formula ? isValidModifierFormula(formula) : false);
   const rollable = parseModifierValue(value)?.kind === 'dice'
     || (formula ? modifierFormulaHasDice(formula) : false);
-  if (clickable) element.style.cursor = 'pointer';
+  // Manina solo sui veri pulsanti (con dadi); i valori semplici pubblicano in
+  // chat ma restano neutri. Niente alone: solo bordo e fondo accento.
   if (rollable) {
+    element.style.cursor = 'pointer';
     element.style.border = '1px solid var(--dash-accent-2)';
-    element.style.boxShadow = '0 0 8px var(--dash-accent-2)';
     // Fondo tinta accento per i pulsanti; la prima assegnazione resta come
     // fallback dove color-mix non e' supportato.
     element.style.background = 'var(--dash-surface-2)';
