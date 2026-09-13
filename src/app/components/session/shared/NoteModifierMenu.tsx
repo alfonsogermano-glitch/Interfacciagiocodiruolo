@@ -13,6 +13,7 @@ import { FONT_SIZES } from './tiptapFontSize';
 import { FONT_FAMILIES } from './tiptapFontFamily';
 import { extractModifierRefs, modifierFormulaHasDice } from './modifierFormula';
 import {
+  applyModifierTitleFormat,
   copyModifierToClipboard,
   deleteModifierAt,
   duplicateModifierAt,
@@ -30,6 +31,7 @@ import {
   NOTE_MODIFIER_TITLE_MENU_DISMISS_EVENT,
   NOTE_MODIFIER_TITLE_MENU_EVENT,
   type ModifierSnapshot,
+  type ModifierTitleFormat,
   type ModifierTitleFormatCommand,
   type NoteModifierMenuRequest,
   type NoteModifierRollRequest,
@@ -465,18 +467,108 @@ function ModifierEditPanel({ top, left, name, modifiers, lookup, initialValue, i
 // Pannello Modifica del Dado: solo Nome (testo sul pulsante) + Valore
 // (editor a tag identico alla Formula del Modificatore, con lista dei
 // Modificatori applicabili sotto). Niente Valore numerico, niente compatto.
-function DiceEditForm({ modifiers, lookup, initialName, initialFormula, onSave, onCancel }: {
+function DiceEditForm({ dicePos, modifiers, lookup, initialName, initialTitle, initialFormula, onSave, onCancel }: {
+  dicePos: number;
   modifiers: ModifierSnapshot[];
   lookup: Map<string, ModifierSnapshot>;
   initialName: string;
+  initialTitle: ModifierTitleFormat;
   initialFormula: string;
-  onSave: (name: string, formula: string) => void;
+  onSave: (name: string, formula: string, title: ModifierTitleFormat) => void;
   onCancel: () => void;
 }) {
   const [nameDraft, setNameDraft] = useState(initialName);
+  const [titleFormat, setTitleFormat] = useState(initialTitle);
   const [error, setError] = useState<string | null>(null);
   const formulaRef = useRef<HTMLDivElement | null>(null);
+  const nameRef = useRef<HTMLInputElement | null>(null);
+  const titleMenuOpenRef = useRef(false);
+  const nameDraftRef = useRef(nameDraft);
+  nameDraftRef.current = nameDraft;
   useFormulaTagTips(lookup, formulaRef);
+
+  // Anteprima live del formato titolo sul Nome.
+  useEffect(() => {
+    const input = nameRef.current;
+    if (input) applyModifierTitleFormat(input, titleFormat);
+  }, [titleFormat]);
+
+  // Menu "/" nel Nome: stesse opzioni del titolo Modificatore (solo gruppo
+  // Testo). Il marcatore data-note-modifier-rename fa consumare al menu
+  // Invio/Escape/frecce; qui si applica il formato e si toglie il trigger.
+  const syncTitleMenu = (value: string, caret: number) => {
+    const before = value.slice(0, caret);
+    const match = before.match(/\/([A-Za-zÀ-ÿ]*)$/);
+    if (!match) {
+      if (titleMenuOpenRef.current) {
+        titleMenuOpenRef.current = false;
+        window.dispatchEvent(new CustomEvent<{ pos: number }>(NOTE_MODIFIER_TITLE_MENU_CLOSE_EVENT, { detail: { pos: dicePos } }));
+      }
+      return;
+    }
+    titleMenuOpenRef.current = true;
+    const rect = nameRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    window.dispatchEvent(
+      new CustomEvent<NoteModifierTitleMenuRequest>(NOTE_MODIFIER_TITLE_MENU_EVENT, {
+        detail: { pos: dicePos, query: match[1] ?? '', x: rect.left, y: rect.bottom },
+      }),
+    );
+  };
+
+  useEffect(() => {
+    const removeTitleTrigger = () => {
+      const input = nameRef.current;
+      if (!input) return;
+      const value = nameDraftRef.current;
+      const caret = input.selectionStart ?? value.length;
+      const match = value.slice(0, caret).match(/\/([A-Za-zÀ-ÿ]*)$/);
+      if (!match || typeof match.index !== 'number') return;
+      const next = value.slice(0, match.index) + value.slice(caret);
+      nameDraftRef.current = next;
+      setNameDraft(next);
+      window.requestAnimationFrame(() => {
+        try { input.setSelectionRange(match.index, match.index); } catch { /* input non testuale: ignora */ }
+        input.focus();
+      });
+    };
+    const onTitleFormat = (event: Event) => {
+      const detail = (event as CustomEvent<NoteModifierTitleFormatRequest>).detail;
+      if (!detail || detail.pos !== dicePos) return;
+      setTitleFormat((prev) => {
+        const next = { ...prev };
+        switch (detail.command) {
+          case 'bold': next.bold = !next.bold; break;
+          case 'italic': next.italic = !next.italic; break;
+          case 'underline': next.underline = !next.underline; break;
+          case 'strike': next.strike = !next.strike; break;
+          case 'fontSize': next.fontSize = typeof detail.value === 'number' ? detail.value : next.fontSize; break;
+          case 'fontFamily': next.fontFamily = typeof detail.value === 'string' ? detail.value : next.fontFamily; break;
+          case 'alignLeft': next.align = next.align === 'left' ? null : 'left'; break;
+          case 'alignCenter': next.align = next.align === 'center' ? null : 'center'; break;
+          case 'alignRight': next.align = next.align === 'right' ? null : 'right'; break;
+        }
+        return next;
+      });
+      removeTitleTrigger();
+      titleMenuOpenRef.current = false;
+    };
+    const onTitleDismiss = (event: Event) => {
+      const detail = (event as CustomEvent<{ pos: number }>).detail;
+      if (!detail || detail.pos !== dicePos) return;
+      // Escape nel menu titolo: chiude solo il menu, "/" resta testo.
+      titleMenuOpenRef.current = false;
+      nameRef.current?.focus();
+    };
+    window.addEventListener(NOTE_MODIFIER_TITLE_FORMAT_EVENT, onTitleFormat as EventListener);
+    window.addEventListener(NOTE_MODIFIER_TITLE_MENU_DISMISS_EVENT, onTitleDismiss as EventListener);
+    return () => {
+      window.removeEventListener(NOTE_MODIFIER_TITLE_FORMAT_EVENT, onTitleFormat as EventListener);
+      window.removeEventListener(NOTE_MODIFIER_TITLE_MENU_DISMISS_EVENT, onTitleDismiss as EventListener);
+      window.dispatchEvent(new CustomEvent<{ pos: number }>(NOTE_MODIFIER_TITLE_MENU_CLOSE_EVENT, { detail: { pos: dicePos } }));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dicePos]);
 
   // Costruzione iniziale una sola volta (contenuto poi gestito dal DOM). Il
   // focus resta sul Nome (autoFocus): qui niente el.focus().
@@ -519,7 +611,9 @@ function DiceEditForm({ modifiers, lookup, initialName, initialFormula, onSave, 
       setError('Il valore deve contenere almeno una notazione XdY (es. 1d6).');
       return;
     }
-    onSave(nameDraft.trim(), formulaText);
+    titleMenuOpenRef.current = false;
+    window.dispatchEvent(new CustomEvent<{ pos: number }>(NOTE_MODIFIER_TITLE_MENU_CLOSE_EVENT, { detail: { pos: dicePos } }));
+    onSave(nameDraft.trim(), formulaText, titleFormat);
   };
 
   const insertTag = (tagName: string) => {
@@ -586,10 +680,24 @@ function DiceEditForm({ modifiers, lookup, initialName, initialFormula, onSave, 
         <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Nome</span>
         <input
           autoFocus
+          ref={nameRef}
           value={nameDraft}
           maxLength={MODIFIER_VALUE_MAX_LENGTH}
-          onChange={(event) => { setNameDraft(event.target.value); setError(null); }}
-          onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); confirm(); } }}
+          // Marcatore rename: il menu titolo "/" consuma qui Invio/Escape e
+          // frecce quando e' aperto (stesse opzioni del titolo Modificatore).
+          data-note-modifier-rename="true"
+          aria-label="Nome dado"
+          onChange={(event) => {
+            const next = event.target.value;
+            setNameDraft(next);
+            setError(null);
+            applyModifierTitleFormat(event.target, titleFormat);
+            syncTitleMenu(next, event.target.selectionStart ?? next.length);
+          }}
+          onKeyDown={(event) => {
+            if (titleMenuOpenRef.current && (event.key === 'Enter' || event.key === 'Escape' || event.key.startsWith('Arrow'))) return;
+            if (event.key === 'Enter') { event.preventDefault(); confirm(); }
+          }}
           placeholder="Dado"
           className="w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
         />
@@ -654,15 +762,17 @@ function DiceEditForm({ modifiers, lookup, initialName, initialFormula, onSave, 
   );
 }
 
-function DiceEditPanel({ top, left, name, modifiers, lookup, initialName, initialFormula, onSave, onCancel }: {
+function DiceEditPanel({ top, left, name, modifiers, lookup, initialName, initialTitle, initialFormula, dicePos, onSave, onCancel }: {
   top: number;
   left: number;
   name: string;
   modifiers: ModifierSnapshot[];
   lookup: Map<string, ModifierSnapshot>;
   initialName: string;
+  initialTitle: ModifierTitleFormat;
   initialFormula: string;
-  onSave: (name: string, formula: string) => void;
+  dicePos: number;
+  onSave: (name: string, formula: string, title: ModifierTitleFormat) => void;
   onCancel: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -713,9 +823,11 @@ function DiceEditPanel({ top, left, name, modifiers, lookup, initialName, initia
         <span className="min-w-0 flex-1 truncate">{name}</span>
       </div>
       <DiceEditForm
+        dicePos={dicePos}
         modifiers={modifiers}
         lookup={lookup}
         initialName={initialName}
+        initialTitle={initialTitle}
         initialFormula={initialFormula}
         onSave={onSave}
         onCancel={onCancel}
@@ -989,11 +1101,21 @@ export function NoteDiceMenu({ editor, editable }: NoteModifierMenuProps) {
     setMode('edit');
   };
 
-  const saveEdit = (nextName: string, nextFormula: string) => {
+  const saveEdit = (nextName: string, nextFormula: string, nextTitle: ModifierTitleFormat) => {
     if (!request) return;
     const { view } = editor;
     if (!getDiceAt(view.state, request.pos)) { close(); return; }
-    setDiceAttrs(view.state, (tr) => view.dispatch(tr), request.pos, { name: nextName, formula: nextFormula });
+    setDiceAttrs(view.state, (tr) => view.dispatch(tr), request.pos, {
+      name: nextName,
+      formula: nextFormula,
+      titleBold: nextTitle.bold,
+      titleItalic: nextTitle.italic,
+      titleUnderline: nextTitle.underline,
+      titleStrike: nextTitle.strike,
+      titleFontSize: nextTitle.fontSize,
+      titleFontFamily: nextTitle.fontFamily,
+      titleAlign: nextTitle.align,
+    });
     close();
   };
 
@@ -1049,7 +1171,17 @@ export function NoteDiceMenu({ editor, editable }: NoteModifierMenuProps) {
         modifiers={modifiers}
         lookup={lookup}
         initialName={data.name}
+        initialTitle={{
+          bold: data.titleBold,
+          italic: data.titleItalic,
+          underline: data.titleUnderline,
+          strike: data.titleStrike,
+          fontSize: data.titleFontSize,
+          fontFamily: data.titleFontFamily,
+          align: data.titleAlign,
+        }}
         initialFormula={data.formula}
+        dicePos={request.pos}
         onSave={saveEdit}
         onCancel={() => close()}
       />,

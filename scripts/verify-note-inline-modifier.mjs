@@ -66,6 +66,16 @@ assert.match(
 );
 assert.match(
   source,
+  /formulaTip = !anomalous && formula\.trim\(\)[\s\S]*showInlineBoxTipAbove\(element, formulaTip\)/,
+  'expanded modifiers with a formula must tooltip its text with the linked tags',
+);
+assert.match(
+  source,
+  /tip\.textContent = describeFormulaAnomaly\(formula, getModifierLookup\(view\), name\)[\s\S]*\$\{name\}: \$\{formula\.trim\(\)\}/,
+  'compact modifiers with a formula must tooltip name and formula text',
+);
+assert.match(
+  source,
   /applyModifierTitleFormat[\s\S]*fontWeight[\s\S]*textDecoration[\s\S]*fontSize[\s\S]*fontFamily[\s\S]*textAlign/,
   'modifier title must render persisted bold/italic/underline/strike/size/family/align formatting',
 );

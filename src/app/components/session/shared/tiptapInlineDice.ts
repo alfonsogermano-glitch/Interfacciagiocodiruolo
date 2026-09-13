@@ -6,6 +6,7 @@ import { wrapNoteClipboardHTML } from './tiptapNoteRichClipboard';
 import {
   INLINE_MODIFIER_CHAR,
   NOTE_MODIFIER_ROLL_EVENT,
+  applyModifierTitleFormat,
   getInlineBoxWidgetAt,
   getModifierLookup,
   getModifierLookupForState,
@@ -15,6 +16,8 @@ import {
   showInlineBoxTipAbove,
   shrinkInlineBoxWidget,
   unregisterInlineBoxWidget,
+  type ModifierTitleAlign,
+  type ModifierTitleFormat,
   type NoteModifierMenuRequest,
   type NoteModifierRollRequest,
 } from './tiptapInlineModifier';
@@ -53,7 +56,25 @@ export const NOTE_DICE_MENU_EVENT = 'note-inline-dice-menu';
 export interface DiceData {
   name: string;
   formula: string;
+  titleBold: boolean;
+  titleItalic: boolean;
+  titleUnderline: boolean;
+  titleStrike: boolean;
+  titleFontSize: number | null;
+  titleFontFamily: string | null;
+  titleAlign: ModifierTitleAlign | null;
 }
+
+/** Formato titolo iniziale (nessuna scelta esplicita). */
+export const DICE_TITLE_FORMAT_DEFAULTS: ModifierTitleFormat = {
+  bold: false,
+  italic: false,
+  underline: false,
+  strike: false,
+  fontSize: null,
+  fontFamily: null,
+  align: null,
+};
 
 function createDiceId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `dice-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -73,17 +94,25 @@ function getInlineDiceMark(state: EditorState, pos: number) {
   return found;
 }
 
-/** Legge nome/formula del Dado alla posizione data. */
+/** Legge nome/formula/formato titolo del Dado alla posizione data. */
 export function getDiceAt(state: EditorState, pos: number): DiceData | null {
   const mark = getInlineDiceMark(state, pos);
   if (!mark) return null;
+  const align = mark.attrs.titleAlign;
   return {
     name: String(mark.attrs.name ?? DICE_DEFAULT_NAME),
     formula: typeof mark.attrs.formula === 'string' && mark.attrs.formula ? mark.attrs.formula : DICE_DEFAULT_FORMULA,
+    titleBold: mark.attrs.titleBold === true,
+    titleItalic: mark.attrs.titleItalic === true,
+    titleUnderline: mark.attrs.titleUnderline === true,
+    titleStrike: mark.attrs.titleStrike === true,
+    titleFontSize: typeof mark.attrs.titleFontSize === 'number' ? mark.attrs.titleFontSize : null,
+    titleFontFamily: typeof mark.attrs.titleFontFamily === 'string' && mark.attrs.titleFontFamily ? mark.attrs.titleFontFamily : null,
+    titleAlign: align === 'left' || align === 'center' || align === 'right' ? align : null,
   };
 }
 
-/** Sostituisce nome/formula di UN solo Dado (range di un carattere). */
+/** Sostituisce nome/formula/formato di UN solo Dado (range di un carattere). */
 export function setDiceAttrs(
   state: EditorState,
   dispatch: ((transaction: Transaction) => void) | undefined,
@@ -93,10 +122,18 @@ export function setDiceAttrs(
   const markType = state.schema.marks.inlineDice;
   const currentMark = getInlineDiceMark(state, pos);
   if (!markType || !currentMark) return false;
+  const nextAlign = attrs.titleAlign !== undefined ? attrs.titleAlign : currentMark.attrs.titleAlign;
   const next = {
     id: currentMark.attrs.id,
     name: attrs.name !== undefined && attrs.name.trim() ? attrs.name.trim() : String(currentMark.attrs.name ?? DICE_DEFAULT_NAME),
     formula: attrs.formula !== undefined && attrs.formula.trim() ? attrs.formula.trim() : String(currentMark.attrs.formula ?? DICE_DEFAULT_FORMULA),
+    titleBold: attrs.titleBold ?? (currentMark.attrs.titleBold === true),
+    titleItalic: attrs.titleItalic ?? (currentMark.attrs.titleItalic === true),
+    titleUnderline: attrs.titleUnderline ?? (currentMark.attrs.titleUnderline === true),
+    titleStrike: attrs.titleStrike ?? (currentMark.attrs.titleStrike === true),
+    titleFontSize: attrs.titleFontSize !== undefined ? attrs.titleFontSize : (typeof currentMark.attrs.titleFontSize === 'number' ? currentMark.attrs.titleFontSize : null),
+    titleFontFamily: attrs.titleFontFamily !== undefined ? attrs.titleFontFamily : (typeof currentMark.attrs.titleFontFamily === 'string' && currentMark.attrs.titleFontFamily ? currentMark.attrs.titleFontFamily : null),
+    titleAlign: nextAlign === 'left' || nextAlign === 'center' || nextAlign === 'right' ? nextAlign : null,
   };
   if (dispatch) {
     dispatch(
@@ -239,10 +276,15 @@ function buildDiceWidget(
   getPos: () => number | undefined,
   name: string,
   formula: string,
+  titleFormat: ModifierTitleFormat,
 ): HTMLElement {
   const element = document.createElement('span');
   element.className = 'tiptap-inline-dice-widget';
   element.dataset.diceName = name;
+  // I Dadi non riempiono la riga: larghezza del contenuto (nome/formula)
+  // come i Modificatori compatti - vale solo per la misura per riga visiva,
+  // niente Riduci/Allarga.
+  element.dataset.modifierCompact = 'true';
   element.setAttribute('role', 'group');
   element.setAttribute('aria-label', `Dado ${name}: ${formula}`);
 
@@ -276,6 +318,10 @@ function buildDiceWidget(
     width: '100%',
     lineHeight: 1,
   });
+  // Allineamento titolo come il Modificatore (default centrale).
+  if (titleFormat.align === 'right') head.style.justifyContent = 'flex-end';
+  else if (titleFormat.align === 'left') head.style.justifyContent = 'flex-start';
+  else head.style.justifyContent = 'center';
 
   const label = document.createElement('span');
   label.className = 'tiptap-inline-dice-label';
@@ -293,6 +339,7 @@ function buildDiceWidget(
     textTransform: 'uppercase',
     textAlign: 'center',
   });
+  applyModifierTitleFormat(label, titleFormat);
 
   const formulaEl = document.createElement('span');
   formulaEl.className = 'tiptap-inline-dice-formula';
@@ -475,6 +522,48 @@ export const InlineDice = Mark.create({
         parseHTML: (element) => element.getAttribute('data-dice-formula') ?? DICE_DEFAULT_FORMULA,
         renderHTML: (attributes) => ({ 'data-dice-formula': attributes.formula }),
       },
+      titleBold: {
+        default: false,
+        parseHTML: (element) => element.getAttribute('data-dice-title-bold') === 'true',
+        renderHTML: (attributes) => (attributes.titleBold ? { 'data-dice-title-bold': 'true' } : {}),
+      },
+      titleItalic: {
+        default: false,
+        parseHTML: (element) => element.getAttribute('data-dice-title-italic') === 'true',
+        renderHTML: (attributes) => (attributes.titleItalic ? { 'data-dice-title-italic': 'true' } : {}),
+      },
+      titleUnderline: {
+        default: false,
+        parseHTML: (element) => element.getAttribute('data-dice-title-underline') === 'true',
+        renderHTML: (attributes) => (attributes.titleUnderline ? { 'data-dice-title-underline': 'true' } : {}),
+      },
+      titleStrike: {
+        default: false,
+        parseHTML: (element) => element.getAttribute('data-dice-title-strike') === 'true',
+        renderHTML: (attributes) => (attributes.titleStrike ? { 'data-dice-title-strike': 'true' } : {}),
+      },
+      titleFontSize: {
+        default: null,
+        parseHTML: (element) => {
+          const raw = element.getAttribute('data-dice-title-font-size');
+          const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+          return Number.isFinite(parsed) ? parsed : null;
+        },
+        renderHTML: (attributes) => (typeof attributes.titleFontSize === 'number' ? { 'data-dice-title-font-size': String(attributes.titleFontSize) } : {}),
+      },
+      titleFontFamily: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-dice-title-font-family') ?? null,
+        renderHTML: (attributes) => (attributes.titleFontFamily ? { 'data-dice-title-font-family': attributes.titleFontFamily } : {}),
+      },
+      titleAlign: {
+        default: null,
+        parseHTML: (element) => {
+          const raw = element.getAttribute('data-dice-title-align');
+          return raw === 'left' || raw === 'center' || raw === 'right' ? raw : null;
+        },
+        renderHTML: (attributes) => (attributes.titleAlign ? { 'data-dice-title-align': attributes.titleAlign } : {}),
+      },
     };
   },
 
@@ -517,6 +606,13 @@ export const InlineDice = Mark.create({
             id: createDiceId(),
             name: DICE_DEFAULT_NAME,
             formula: DICE_DEFAULT_FORMULA,
+            titleBold: false,
+            titleItalic: false,
+            titleUnderline: false,
+            titleStrike: false,
+            titleFontSize: null,
+            titleFontFamily: null,
+            titleAlign: null,
           })]));
           tr.setSelection(TextSelection.create(tr.doc, insertPos + 1));
           dispatch(tr.scrollIntoView());
@@ -566,6 +662,16 @@ export const InlineDice = Mark.create({
               const name = String(mark.attrs.name ?? DICE_DEFAULT_NAME);
               const rawFormula = typeof mark.attrs.formula === 'string' && mark.attrs.formula ? mark.attrs.formula : DICE_DEFAULT_FORMULA;
               const id = typeof mark.attrs.id === 'string' && mark.attrs.id ? mark.attrs.id : null;
+              const titleFormat: ModifierTitleFormat = {
+                bold: mark.attrs.titleBold === true,
+                italic: mark.attrs.titleItalic === true,
+                underline: mark.attrs.titleUnderline === true,
+                strike: mark.attrs.titleStrike === true,
+                fontSize: typeof mark.attrs.titleFontSize === 'number' ? mark.attrs.titleFontSize : null,
+                fontFamily: typeof mark.attrs.titleFontFamily === 'string' && mark.attrs.titleFontFamily ? mark.attrs.titleFontFamily : null,
+                align: mark.attrs.titleAlign === 'left' || mark.attrs.titleAlign === 'center' || mark.attrs.titleAlign === 'right' ? mark.attrs.titleAlign : null,
+              };
+              const titleKey = `${titleFormat.bold ? 1 : 0}${titleFormat.italic ? 1 : 0}${titleFormat.underline ? 1 : 0}${titleFormat.strike ? 1 : 0}:${titleFormat.fontSize ?? ''}:${titleFormat.fontFamily ?? ''}:${titleFormat.align ?? ''}`;
               // Il flag anomalia e' nella key come nel Modificatore: se un
               // Modificatore referenziato viene eliminato, la key cambia e il
               // widget viene ricostruito rosso (senza, ProseMirror riuserebbe
@@ -577,10 +683,10 @@ export const InlineDice = Mark.create({
                 decorations.push(
                   Decoration.widget(
                     dicePos,
-                    (view, getPos) => buildDiceWidget(view, getPos, name, rawFormula),
+                    (view, getPos) => buildDiceWidget(view, getPos, name, rawFormula, titleFormat),
                     {
                       side: 0,
-                      key: `dice:${id ?? dicePos}:${name}:${rawFormula}:${diceAnomalous ? 1 : 0}`,
+                      key: `dice:${id ?? dicePos}:${name}:${rawFormula}:${titleKey}:${diceAnomalous ? 1 : 0}`,
                       destroy: (node) => {
                         (node as HTMLElement & { __destroyDiceWidget?: () => void }).__destroyDiceWidget?.();
                         unregisterInlineBoxWidget(node as HTMLElement);

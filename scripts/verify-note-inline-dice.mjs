@@ -77,6 +77,36 @@ assert.match(
 );
 assert.match(
   dice,
+  /non riempiono la riga[\s\S]*dataset\.modifierCompact = 'true'/,
+  'dice must size to content instead of filling the line',
+);
+assert.match(
+  dice,
+  /titleBold: \{[\s\S]*default: false[\s\S]*data-dice-title-bold[\s\S]*titleAlign: \{[\s\S]*data-dice-title-align/,
+  'dice names must persist title formatting like modifier titles',
+);
+assert.match(
+  dice,
+  /applyModifierTitleFormat\(label, titleFormat\)/,
+  'dice widgets must render the persisted title formatting',
+);
+assert.match(
+  modifierMenu,
+  /DiceEditForm[\s\S]*data-note-modifier-rename="true"[\s\S]*syncTitleMenu/,
+  'dice names must open the title slash menu with "/" like modifier titles',
+);
+assert.match(
+  modifierMenu,
+  /NOTE_MODIFIER_TITLE_FORMAT_EVENT[\s\S]*detail\.pos !== dicePos[\s\S]*alignCenter/,
+  'dice names must apply the title menu formatting to the pending name',
+);
+assert.match(
+  modifierMenu,
+  /titleBold: nextTitle\.bold[\s\S]*titleAlign: nextTitle\.align/,
+  'saving dice must persist the title formatting',
+);
+assert.match(
+  dice,
   /diceAnomalous[\s\S]*assessDiceFormula\(rawFormula, getModifierLookupForState\(state\)\)[\s\S]*dice:\$\{id \?\? dicePos\}:.*:\$\{diceAnomalous \? 1 : 0\}/,
   'dice widgets must rebuild red when a referenced modifier disappears',
 );

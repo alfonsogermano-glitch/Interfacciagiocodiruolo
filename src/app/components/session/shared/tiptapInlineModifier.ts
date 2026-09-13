@@ -1053,8 +1053,10 @@ function buildModifierWidget(
       tip = document.createElement('span');
       tip.className = 'tiptap-inline-modifier-tooltip';
       tip.setAttribute('role', 'tooltip');
-      // Box rosso: il tooltip spiega il motivo dell'anomalia, non il nome.
-      tip.textContent = describeFormulaAnomaly(formula, getModifierLookup(view), name) ?? name;
+      // Box rosso: il tooltip spiega il motivo dell'anomalia. Con formula
+      // (non anomala): nome + testo della formula con i tag collegati.
+      tip.textContent = describeFormulaAnomaly(formula, getModifierLookup(view), name)
+        ?? (formula.trim() ? `${name}: ${formula.trim()}` : name);
       Object.assign(tip.style, {
         position: 'fixed',
         whiteSpace: 'nowrap',
@@ -1149,6 +1151,21 @@ function buildModifierWidget(
   const rollable = parseModifierValue(value)?.kind === 'dice' || assessment.hasDice;
   const anomalous = assessment.anomalous;
   const anomalyReason = anomalous ? describeFormulaAnomaly(formula, formulaLookup, name) : null;
+  // Con formula (non anomala) l'espanso mostra il testo della formula con i
+  // tag collegati su hover (nome e valore sono gia' visibili sul box).
+  const formulaTip = !anomalous && formula.trim() ? formula.trim() : null;
+  if (formulaTip) {
+    const host = element as HTMLElement & { __hideFormulaTip?: (() => void) | null };
+    const showFormulaTip = () => {
+      if (host.__hideFormulaTip || !element.isConnected) return;
+      host.__hideFormulaTip = showInlineBoxTipAbove(element, formulaTip);
+    };
+    const hideFormulaTipNow = () => { host.__hideFormulaTip?.(); host.__hideFormulaTip = null; };
+    element.addEventListener('mouseenter', showFormulaTip);
+    element.addEventListener('mouseleave', hideFormulaTipNow);
+    element.addEventListener('focusin', showFormulaTip);
+    element.addEventListener('focusout', hideFormulaTipNow);
+  }
   // Manina solo sui veri pulsanti (con dadi); i valori semplici pubblicano in
   // chat ma restano neutri. Niente alone: solo bordo e fondo accento.
   if (rollable && !anomalous) {
@@ -1216,6 +1233,7 @@ function buildModifierWidget(
     window.removeEventListener(NOTE_MODIFIER_RENAME_EVENT, onRenameRequest);
     hideCompactTip?.();
     (element as HTMLElement & { __hideAnomalyTip?: (() => void) | null }).__hideAnomalyTip?.();
+    (element as HTMLElement & { __hideFormulaTip?: (() => void) | null }).__hideFormulaTip?.();
     (element as HTMLElement & { __cancelInlineRename?: () => void }).__cancelInlineRename?.();
   };
   scheduleMeasure();
