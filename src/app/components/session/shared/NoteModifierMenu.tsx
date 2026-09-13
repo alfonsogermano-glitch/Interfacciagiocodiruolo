@@ -148,7 +148,9 @@ function ModifierEditForm({ modifierName, modifiers, lookup, initialValue, initi
     const entry = lookup.get(tagName);
     const tip = document.createElement('span');
     tip.textContent = entry ? (entry.formula || entry.value || '—') : `"${tagName}" non trovato`;
-    tip.style.cssText = 'position:fixed;z-index:1200;pointer-events:none;white-space:nowrap;max-width:min(320px,80vw);overflow:hidden;text-overflow:ellipsis;background:var(--dash-panel);color:var(--dash-text);border:1px solid var(--dash-border-soft);border-radius:0.45rem;padding:0.15rem 0.45rem;font-size:0.72rem;line-height:1.25;box-shadow:0 6px 22px rgba(0,0,0,0.35);';
+    // z-index sopra il pannello (z 9999): a 1200 il tooltip veniva dipinto
+    // sotto lo sfondo del pannello e risultava invisibile.
+    tip.style.cssText = 'position:fixed;z-index:10001;pointer-events:none;white-space:nowrap;max-width:min(320px,80vw);overflow:hidden;text-overflow:ellipsis;background:var(--dash-panel);color:var(--dash-text);border:1px solid var(--dash-border-soft);border-radius:0.45rem;padding:0.15rem 0.45rem;font-size:0.72rem;line-height:1.25;box-shadow:0 6px 22px rgba(0,0,0,0.35);';
     const host = formulaRef.current?.closest('[data-dashboard-palette]') ?? document.body;
     host.appendChild(tip);
     const tipRect = tip.getBoundingClientRect();
@@ -336,7 +338,8 @@ function ModifierEditForm({ modifierName, modifiers, lookup, initialValue, initi
                     {modifier.name}
                   </button>
                 </TooltipTrigger>
-                <TooltipContent>{modifier.formula || modifier.value || '—'}</TooltipContent>
+                {/* z sopra il pannello (z 9999): il default z-[1200] resterebbe sotto il suo sfondo. */}
+                <TooltipContent className="z-[10001]">{modifier.formula || modifier.value || '—'}</TooltipContent>
               </Tooltip>
             ))}
           </div>

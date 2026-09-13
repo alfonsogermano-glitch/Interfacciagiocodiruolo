@@ -85,12 +85,14 @@ assert.match(diceContext, /evaluateModifierFormula\(formula, undefined, input\.r
 assert.match(modifierMenu, /extractModifierRefs\(formulaText\)/, 'modifier edit panel must validate formula references');
 assert.match(modifierMenu, /insertTag[\s\S]*createFormulaTag[\s\S]*insertNode/, 'selecting a modifier name must insert an atomic tag at the caret');
 assert.match(modifierMenu, /showTagTip[\s\S]*entry\.formula \|\| entry\.value/, 'formula tags must show a tooltip with the referenced value or formula');
-assert.match(modifierMenu, /showTagTip[\s\S]*z-index:1200[\s\S]*data-dashboard-palette/, 'formula tag tooltips must use the site palette style');
+assert.match(modifierMenu, /showTagTip[\s\S]*z-index:10001[\s\S]*data-dashboard-palette/, 'formula tag tooltips must use the site palette style');
+assert.match(modifierMenu, /sopra il pannello \(z 9999\)[\s\S]*z-index:10001/, 'formula tag tooltips must paint above the edit panel');
+assert.match(modifierMenu, /<TooltipContent className="z-\[10001\]">/, 'modifier list tooltips must paint above the edit panel');
 assert.match(modifierMenu, /createFormulaTag[\s\S]*data-modifier-tag[\s\S]*contenteditable[\s\S]*false/, 'formula tags must be non-editable pills');
 assert.match(modifierMenu, /'Backspace'[\s\S]*'Delete'[\s\S]*data-modifier-tag[\s\S]*sibling\.remove\(\)/, 'whole tags must delete at once, never in pieces');
 assert.match(modifierMenu, /serializeFormulaEditor[\s\S]*data-modifier-tag/, 'saving must serialize tags back to quoted references');
 assert.match(modifierMenu, /onFormulaPaste[\s\S]*text\/plain/, 'pasting into the formula must stay plain text');
-assert.match(modifierMenu, /TooltipContent>\{modifier\.formula \|\| modifier\.value/, 'hovering a listed name must preview its formula or value');
+assert.match(modifierMenu, /TooltipContent[^>]*>\{modifier\.formula \|\| modifier\.value/, 'hovering a listed name must preview its formula or value');
 assert.match(modifierMenu, /non puo' riferirsi a se' stessa/, 'formulas must reject self references');
 assert.match(modifierMenu, /non trovato tra i modificatori della nota/, 'formulas must reject unknown references');
 assert.match(modifierMenu, /resolveName[\s\S]*lookup\.get/, 'modifier rolls must resolve tags against current values');
