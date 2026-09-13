@@ -56,7 +56,7 @@ assert.match(modifierMenu, /label=\{data\.compact \? 'Allarga' : 'Riduci'\}/, 'm
 assert.match(modifierMenu, /label="Modifica" icon=\{Wrench\}/, 'modifier menu Modifica must not look like text editing');
 assert.doesNotMatch(modifierMenu, /icon=\{Type\}/, 'obsolete text-style Modifica icon must not return');
 assert.match(modifierMenu, /centeredLeft[\s\S]*belowTop[\s\S]*widgetBottom \+ 8/, 'modifier edit panel must open centered in the tab just below the element');
-assert.match(modifierMenu, /<Check[\s\S]*Salva/, 'modifier edit save must show an icon');
+assert.match(modifierMenu, /<Save[\s\S]*Salva/, 'modifier edit save must use the site-wide floppy-disk icon');
 assert.match(modifierMenu, /<X[\s\S]*Annulla/, 'modifier edit cancel must show an icon');
 assert.match(modifierMenu, /const close = useCallback\(\(refocus = true\)/, 'modifier menu close must support focusless dismissal');
 assert.match(modifierMenu, /if \(refocus && editor\.isEditable\) editor\.commands\.focus\(\);/, 'modifier menu must only refocus an editable editor');

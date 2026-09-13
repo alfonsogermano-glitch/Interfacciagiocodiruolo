@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type * as React from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
-import { ArrowLeft, Check, Clipboard, Copy, GripVertical, Maximize2, Minimize2, Pencil, Trash2, Wrench, X } from 'lucide-react';
+import { ArrowLeft, Clipboard, Copy, GripVertical, Maximize2, Minimize2, Pencil, Save, Trash2, Wrench, X } from 'lucide-react';
 import { usePortalContainer } from '../../ui/portal-container';
 import { useOptionalDiceSession } from '../dice/DiceSessionContext';
 import { placeFloatingNoteUI } from './noteFloatingPosition';
@@ -123,7 +123,7 @@ function ModifierEditForm({ initialValue, initialFormula, onSave, onCancel }: {
           onClick={confirm}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-[var(--dash-accent)] px-2 py-1.5 text-xs font-semibold text-[var(--dash-text-strong)] transition-colors hover:brightness-110"
         >
-          <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <Save className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           Salva
         </button>
         <button
