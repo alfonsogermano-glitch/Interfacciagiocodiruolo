@@ -57,8 +57,13 @@ assert.match(
 );
 assert.match(
   modifierMenu,
-  /modifierFormulaHasDice\(formulaText, resolveRef\)[\s\S]*almeno un dado/,
-  'dice values must always contain at least one XdY die, directly or through a modifier',
+  /notazione XdY testuale[\s\S]*modifierFormulaHasDice\(formulaText\)[\s\S]*almeno una notazione XdY/,
+  'dice values must always contain a literal XdY notation typed by the user',
+);
+assert.doesNotMatch(
+  modifierMenu,
+  /DiceEditForm[\s\S]{0,2000}modifierFormulaHasDice\(formulaText, resolveRef\)/,
+  'dice values must not accept dice only through referenced modifiers',
 );
 assert.match(
   dice,

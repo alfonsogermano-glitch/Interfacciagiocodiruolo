@@ -512,11 +512,11 @@ function DiceEditForm({ modifiers, lookup, initialName, initialFormula, onSave, 
       setError(`Modificatore "${missing}" non trovato tra i modificatori della nota.`);
       return;
     }
-    // Il Dado tira sempre: serve almeno una notazione XdY, diretta oppure
-    // tramite un Modificatore che tira dadi.
-    const resolveRef = (refName: string) => lookup.get(refName) ?? null;
-    if (!modifierFormulaHasDice(formulaText, resolveRef)) {
-      setError('Il valore deve contenere almeno un dado (es. 1d6, anche tramite Modificatore).');
+    // Il Dado tira sempre: serve almeno una notazione XdY testuale digitata
+    // dall'utente (senza risolvere i riferimenti: un Modificatore che tira
+    // dadi non basta). Altri Modificatori restano liberamente aggiungibili.
+    if (!modifierFormulaHasDice(formulaText)) {
+      setError('Il valore deve contenere almeno una notazione XdY (es. 1d6).');
       return;
     }
     onSave(nameDraft.trim(), formulaText);
