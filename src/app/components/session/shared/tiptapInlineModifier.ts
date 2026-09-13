@@ -567,6 +567,34 @@ function getModifierWidgetAt(pos: number): HTMLElement | null {
   return null;
 }
 
+// Registro condiviso con l'elemento Dado: i suoi widget partecipano alla
+// stessa misura per riga visiva (come Modificatori espansi, mai compatti).
+export function registerInlineBoxWidget(
+  element: HTMLElement,
+  entry: { view: EditorView; getPos: () => number | undefined },
+): void {
+  widgetEntries.set(element, entry);
+  scheduleMeasure();
+}
+
+export function unregisterInlineBoxWidget(element: HTMLElement): void {
+  widgetEntries.delete(element);
+}
+
+export function getInlineBoxWidgetAt(pos: number): HTMLElement | null {
+  return getModifierWidgetAt(pos);
+}
+
+/** Restringe di delta (testo digitato accanto all'elemento). */
+export function shrinkInlineBoxWidget(widget: HTMLElement, delta: number): void {
+  widget.style.width = `${Math.max(0, widget.offsetWidth - delta)}px`;
+}
+
+/** Dimezza preventivo (inserimento/duplica accanto all'elemento). */
+export function halveInlineBoxWidget(widget: HTMLElement): void {
+  widget.style.width = `${Math.max(MIN_MODIFIER_WIDTH, (widget.offsetWidth - MIN_GAP) / 2)}px`;
+}
+
 function makeRoomNearModifier(pos: number, delta: number): void {
   const widget = getModifierWidgetAt(pos);
   // I compatti sono gia' al minimo (solo valore): non vanno schiacciati oltre.
@@ -1226,15 +1254,24 @@ export const InlineModifier = Mark.create({
           const tr = state.tr.deleteSelection();
           let insertPos = tr.selection.from;
           let previousIsModifier = false;
+          // Anche un Dado conta come "scatola precedente" (controllo per nome,
+          // senza importare il modulo Dado ed evitare un ciclo): spazio vero e
+          // restringimento come tra Modificatori.
+          let previousIsDice = false;
           if (insertPos > 0 && tr.doc.textBetween(insertPos - 1, insertPos, '', '') === INLINE_MODIFIER_CHAR) {
             tr.doc.nodesBetween(insertPos - 1, insertPos, (node) => {
-              if (previousIsModifier || !node.isText) return;
-              previousIsModifier = node.marks.some((mark) => mark.type === markType);
+              if ((previousIsModifier && previousIsDice) || !node.isText) return;
+              if (!previousIsModifier) previousIsModifier = node.marks.some((mark) => mark.type === markType);
+              if (!previousIsDice) previousIsDice = node.marks.some((mark) => mark.type.name === 'inlineDice');
             });
           }
 
-          if (previousIsModifier) {
+          if (previousIsModifier || previousIsDice) {
             makeRoomForInlineModifierInsertion(state, insertPos);
+            if (previousIsDice && !previousIsModifier) {
+              const diceWidget = getModifierWidgetAt(insertPos - 1);
+              if (diceWidget) halveInlineBoxWidget(diceWidget);
+            }
             tr.insertText(' ', insertPos);
             insertPos += 1;
           }

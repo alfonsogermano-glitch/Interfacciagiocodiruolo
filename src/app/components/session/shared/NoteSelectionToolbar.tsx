@@ -62,7 +62,7 @@ export function NoteSelectionToolbar({ editor, editable }: Props) {
     // gestione di un Modificatore (menu, finestra modifica, rinomina inline,
     // menu titolo) ne' quando il focus e' dentro quelle UI.
     if (typeof document !== 'undefined' && document.querySelector(
-      '[data-note-modifier-menu="true"], [data-note-modifier-title-menu="true"], [data-note-modifier-rename="true"], [data-note-modifier-edit="true"]',
+      '[data-note-modifier-menu="true"], [data-note-modifier-title-menu="true"], [data-note-modifier-rename="true"], [data-note-modifier-edit="true"], [data-note-dice-menu="true"]',
     )) {
       setSnapshot(null);
       setPosition(null);

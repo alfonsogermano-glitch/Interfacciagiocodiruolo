@@ -36,6 +36,15 @@ import {
   type NoteModifierTitleFormatRequest,
   type NoteModifierTitleMenuRequest,
 } from './tiptapInlineModifier';
+import {
+  copyDiceToClipboard,
+  deleteDiceAt,
+  DICE_WIDGET_SELECTOR,
+  duplicateDiceAt,
+  getDiceAt,
+  NOTE_DICE_MENU_EVENT,
+  setDiceAttrs,
+} from './tiptapInlineDice';
 
 const MENU_WIDTH = 184;
 const MENU_HEIGHT = 236;
@@ -122,22 +131,16 @@ function appendFormulaSegments(el: HTMLElement, formula: string): void {
   appendText(formula.slice(last));
 }
 
-function ModifierEditForm({ modifierName, modifiers, lookup, initialValue, initialFormula, onSave, onCancel }: {
-  modifierName: string;
-  modifiers: ModifierSnapshot[];
-  lookup: Map<string, ModifierSnapshot>;
-  initialValue: string;
-  initialFormula: string;
-  onSave: (value: string, formula: string) => void;
-  onCancel: () => void;
-}) {
-  const [valueDraft, setValueDraft] = useState(initialValue);
-  const [error, setError] = useState<string | null>(null);
-  const formulaRef = useRef<HTMLDivElement | null>(null);
-
-  // Tooltip stile sito sui tag della formula: sopra la pill mostra
-  // formula o valore del modificatore referenziato.
+// Tooltip stile sito sui tag della formula (condiviso tra pannello
+// Modificatore e pannello Dado): sopra la pill mostra formula o valore del
+// modificatore referenziato.
+function useFormulaTagTips(
+  lookup: Map<string, ModifierSnapshot>,
+  editorRef: React.RefObject<HTMLDivElement | null>,
+) {
   const tagTipRef = useRef<HTMLSpanElement | null>(null);
+  const lookupRef = useRef(lookup);
+  lookupRef.current = lookup;
   const hideTagTip = () => {
     window.removeEventListener('scroll', hideTagTip, true);
     tagTipRef.current?.remove();
@@ -145,13 +148,13 @@ function ModifierEditForm({ modifierName, modifiers, lookup, initialValue, initi
   };
   const showTagTip = (tagName: string, rect: DOMRect) => {
     hideTagTip();
-    const entry = lookup.get(tagName);
+    const entry = lookupRef.current.get(tagName);
     const tip = document.createElement('span');
     tip.textContent = entry ? (entry.formula || entry.value || '—') : `"${tagName}" non trovato`;
     // z-index sopra il pannello (z 9999): a 1200 il tooltip veniva dipinto
     // sotto lo sfondo del pannello e risultava invisibile.
     tip.style.cssText = 'position:fixed;z-index:10001;pointer-events:none;white-space:nowrap;max-width:min(320px,80vw);overflow:hidden;text-overflow:ellipsis;background:var(--dash-panel);color:var(--dash-text);border:1px solid var(--dash-border-soft);border-radius:0.45rem;padding:0.15rem 0.45rem;font-size:0.72rem;line-height:1.25;box-shadow:0 6px 22px rgba(0,0,0,0.35);';
-    const host = formulaRef.current?.closest('[data-dashboard-palette]') ?? document.body;
+    const host = editorRef.current?.closest('[data-dashboard-palette]') ?? document.body;
     host.appendChild(tip);
     const tipRect = tip.getBoundingClientRect();
     let left = rect.left + rect.width / 2 - tipRect.width / 2;
@@ -164,23 +167,9 @@ function ModifierEditForm({ modifierName, modifiers, lookup, initialValue, initi
     window.addEventListener('scroll', hideTagTip, true);
   };
 
-  // Costruzione iniziale una sola volta (contenuto poi gestito dal DOM).
   useEffect(() => {
-    const el = formulaRef.current;
+    const el = editorRef.current;
     if (!el) return;
-    if (!el.dataset.initialized) {
-      el.dataset.initialized = 'true';
-      appendFormulaSegments(el, initialFormula);
-      el.focus();
-      try {
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        range.collapse(false);
-        const selection = window.getSelection();
-        selection?.removeAllRanges();
-        selection?.addRange(range);
-      } catch { /* selezione non disponibile */ }
-    }
     const showFor = (target: EventTarget | null) => {
       if (!(target instanceof HTMLElement) || !target.hasAttribute('data-modifier-tag')) {
         hideTagTip();
@@ -199,6 +188,39 @@ function ModifierEditForm({ modifierName, modifiers, lookup, initialValue, initi
       el.removeEventListener('mouseout', onOut);
       hideTagTip();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
+
+function ModifierEditForm({ modifierName, modifiers, lookup, initialValue, initialFormula, onSave, onCancel }: {
+  modifierName: string;
+  modifiers: ModifierSnapshot[];
+  lookup: Map<string, ModifierSnapshot>;
+  initialValue: string;
+  initialFormula: string;
+  onSave: (value: string, formula: string) => void;
+  onCancel: () => void;
+}) {
+  const [valueDraft, setValueDraft] = useState(initialValue);
+  const [error, setError] = useState<string | null>(null);
+  const formulaRef = useRef<HTMLDivElement | null>(null);
+  useFormulaTagTips(lookup, formulaRef);
+
+  // Costruzione iniziale una sola volta (contenuto poi gestito dal DOM).
+  useEffect(() => {
+    const el = formulaRef.current;
+    if (!el || el.dataset.initialized) return;
+    el.dataset.initialized = 'true';
+    appendFormulaSegments(el, initialFormula);
+    el.focus();
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    } catch { /* selezione non disponibile */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -440,6 +462,264 @@ function ModifierEditPanel({ top, left, name, modifiers, lookup, initialValue, i
   );
 }
 
+// Pannello Modifica del Dado: solo Nome (testo sul pulsante) + Valore
+// (editor a tag identico alla Formula del Modificatore, con lista dei
+// Modificatori applicabili sotto). Niente Valore numerico, niente compatto.
+function DiceEditForm({ modifiers, lookup, initialName, initialFormula, onSave, onCancel }: {
+  modifiers: ModifierSnapshot[];
+  lookup: Map<string, ModifierSnapshot>;
+  initialName: string;
+  initialFormula: string;
+  onSave: (name: string, formula: string) => void;
+  onCancel: () => void;
+}) {
+  const [nameDraft, setNameDraft] = useState(initialName);
+  const [error, setError] = useState<string | null>(null);
+  const formulaRef = useRef<HTMLDivElement | null>(null);
+  useFormulaTagTips(lookup, formulaRef);
+
+  // Costruzione iniziale una sola volta (contenuto poi gestito dal DOM). Il
+  // focus resta sul Nome (autoFocus): qui niente el.focus().
+  useEffect(() => {
+    const el = formulaRef.current;
+    if (!el || el.dataset.initialized) return;
+    el.dataset.initialized = 'true';
+    appendFormulaSegments(el, initialFormula);
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    } catch { /* selezione non disponibile */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const confirm = () => {
+    const formulaText = serializeFormulaEditor(formulaRef.current).trim();
+    if (!formulaText) {
+      setError('Il valore non puo\' essere vuoto.');
+      return;
+    }
+    const refs = extractModifierRefs(formulaText);
+    if (refs === null) {
+      setError('Formula non valida: usa numeri, d, +, -, *, /, parentesi e tag "Nome" (es. (1d6+3)-(1d4)).');
+      return;
+    }
+    const missing = refs.find((ref) => !lookup.has(ref));
+    if (missing) {
+      setError(`Modificatore "${missing}" non trovato tra i modificatori della nota.`);
+      return;
+    }
+    onSave(nameDraft.trim(), formulaText);
+  };
+
+  const insertTag = (tagName: string) => {
+    const el = formulaRef.current;
+    setError(null);
+    if (!el) return;
+    el.focus();
+    const selection = window.getSelection();
+    const tag = createFormulaTag(tagName);
+    if (selection && selection.rangeCount > 0 && el.contains(selection.anchorNode)) {
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(tag);
+      range.setStartAfter(tag);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } else {
+      el.appendChild(tag);
+    }
+  };
+
+  const onFormulaKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      confirm();
+      return;
+    }
+    // Backspace/Canc su tag adiacente: via il tag intero, mai a pezzi.
+    const el = formulaRef.current;
+    if ((event.key === 'Backspace' || event.key === 'Delete') && el) {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) return;
+      const anchor = selection.anchorNode;
+      const offset = selection.anchorOffset;
+      let sibling: ChildNode | null = null;
+      if (anchor === el) {
+        const index = event.key === 'Backspace' ? offset - 1 : offset;
+        sibling = el.childNodes[index] ?? null;
+      } else if (anchor?.nodeType === Node.TEXT_NODE && anchor.parentNode === el) {
+        const index = Array.prototype.indexOf.call(el.childNodes, anchor);
+        if (event.key === 'Backspace' && offset === 0 && index > 0) sibling = el.childNodes[index - 1];
+        else if (event.key === 'Delete' && offset === (anchor.textContent ?? '').length) sibling = el.childNodes[index + 1] ?? null;
+      }
+      if (sibling instanceof HTMLElement && sibling.hasAttribute('data-modifier-tag')) {
+        event.preventDefault();
+        sibling.remove();
+        setError(null);
+      }
+    }
+  };
+
+  const onFormulaPaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    // Solo testo semplice: niente HTML esterno dentro la formula.
+    event.preventDefault();
+    const text = event.clipboardData?.getData('text/plain') ?? '';
+    if (!text) return;
+    document.execCommand('insertText', false, text);
+  };
+
+  return (
+    <div className="flex flex-col gap-2 p-1">
+      <label className="block">
+        <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Nome</span>
+        <input
+          autoFocus
+          value={nameDraft}
+          maxLength={MODIFIER_VALUE_MAX_LENGTH}
+          onChange={(event) => { setNameDraft(event.target.value); setError(null); }}
+          onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); confirm(); } }}
+          placeholder="Dado"
+          className="w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
+        />
+      </label>
+      <div>
+        <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Valore</span>
+        <div
+          ref={formulaRef}
+          contentEditable
+          suppressContentEditableWarning
+          role="textbox"
+          aria-label="Valore"
+          onKeyDown={onFormulaKeyDown}
+          onPaste={onFormulaPaste}
+          onInput={() => setError(null)}
+          className="min-h-[3.2em] w-full resize-y whitespace-pre-wrap break-words rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
+        />
+      </div>
+      {modifiers.length > 0 && (
+        <div>
+          <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Modificatori</span>
+          <div className="flex max-h-28 flex-col gap-0.5 overflow-y-auto rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1">
+            {modifiers.map((modifier) => (
+              <Tooltip key={modifier.name}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => insertTag(modifier.name)}
+                    className="truncate rounded-md px-2 py-1 text-left text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-accent)] hover:text-[var(--dash-text-strong)]"
+                  >
+                    {modifier.name}
+                  </button>
+                </TooltipTrigger>
+                {/* z sopra il pannello (z 9999): il default z-[1200] resterebbe sotto il suo sfondo. */}
+                <TooltipContent className="z-[10001]">{modifier.formula || modifier.value || '—'}</TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
+        </div>
+      )}
+      {error && <p role="alert" className="px-0.5 text-xs text-[var(--dash-danger-text)]">{error}</p>}
+      <div className="mt-0.5 flex gap-1.5">
+        <button
+          type="button"
+          onClick={confirm}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-[var(--dash-accent)] px-2 py-1.5 text-xs font-semibold text-[var(--dash-text-strong)] transition-colors hover:brightness-110"
+        >
+          <Save className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          Salva
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)]"
+        >
+          <X className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          Annulla
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DiceEditPanel({ top, left, name, modifiers, lookup, initialName, initialFormula, onSave, onCancel }: {
+  top: number;
+  left: number;
+  name: string;
+  modifiers: ModifierSnapshot[];
+  lookup: Map<string, ModifierSnapshot>;
+  initialName: string;
+  initialFormula: string;
+  onSave: (name: string, formula: string) => void;
+  onCancel: () => void;
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ dx: number; dy: number } | null>(null);
+  const [pos, setPos] = useState({ top, left });
+
+  // Trascinamento dalla maniglia in testata (non dai bordi: un click appena
+  // fuori chiuderebbe il pannello). Solo tasto sinistro, con clamp viewport.
+  const onHandlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    const root = rootRef.current;
+    if (!root) return;
+    event.preventDefault();
+    const rect = root.getBoundingClientRect();
+    dragRef.current = { dx: event.clientX - rect.left, dy: event.clientY - rect.top };
+    try { root.setPointerCapture(event.pointerId); } catch { /* pointer gia' rilasciato */ }
+  };
+  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    const root = rootRef.current;
+    if (!drag || !root) return;
+    setPos({
+      top: Math.max(8, Math.min(event.clientY - drag.dy, window.innerHeight - root.offsetHeight - 8)),
+      left: Math.max(8, Math.min(event.clientX - drag.dx, window.innerWidth - root.offsetWidth - 8)),
+    });
+  };
+  const endDrag = () => { dragRef.current = null; };
+
+  return (
+    <div
+      ref={rootRef}
+      data-note-contextual-ui="true"
+      data-note-dice-menu="true"
+      role="dialog"
+      aria-label={`Modifica ${name}`}
+      style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
+      className="w-[232px] rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-lg"
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+    >
+      <div
+        data-edit-drag-handle="true"
+        onPointerDown={onHandlePointerDown}
+        className="mb-1 flex cursor-grab touch-none items-center gap-1.5 rounded-md px-1.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] active:cursor-grabbing"
+      >
+        <GripVertical className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate">{name}</span>
+      </div>
+      <DiceEditForm
+        modifiers={modifiers}
+        lookup={lookup}
+        initialName={initialName}
+        initialFormula={initialFormula}
+        onSave={onSave}
+        onCancel={onCancel}
+      />
+    </div>
+  );
+}
+
+const DICE_MENU_WIDTH = 184;
+const DICE_MENU_HEIGHT = 176;
+
 export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
   const portalContainer = usePortalContainer();
   const [request, setRequest] = useState<NoteModifierMenuRequest | null>(null);
@@ -633,6 +913,170 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
 }
 
 // Bridge widget vanilla -> chat dadi: al click su un Modificatore con valore
+// Menu contestuale del Dado: solo Modifica, Duplica, Copia ed Elimina (niente
+// Rinomina, niente Riduci/Allarga, niente formato titolo).
+export function NoteDiceMenu({ editor, editable }: NoteModifierMenuProps) {
+  const portalContainer = usePortalContainer();
+  const [request, setRequest] = useState<NoteModifierMenuRequest | null>(null);
+  const [mode, setMode] = useState<MenuMode>('menu');
+
+  const close = useCallback((refocus = true) => {
+    setRequest(null);
+    setMode('menu');
+    if (refocus && editor.isEditable) editor.commands.focus();
+  }, [editor]);
+
+  // Apertura dal widget vanilla (CustomEvent su window).
+  useEffect(() => {
+    const onOpen = (event: Event) => {
+      const detail = (event as CustomEvent<NoteModifierMenuRequest>).detail;
+      setRequest(detail);
+      setMode('menu');
+    };
+    window.addEventListener(NOTE_DICE_MENU_EVENT, onOpen);
+    return () => window.removeEventListener(NOTE_DICE_MENU_EVENT, onOpen);
+  }, []);
+
+  // Se il Dado sparisce dal documento (cancellato altrove), chiudi.
+  useEffect(() => {
+    if (!editor || !request) return;
+    const onTransaction = () => {
+      if (!getDiceAt(editor.state, request.pos)) close();
+    };
+    editor.on('transaction', onTransaction);
+    return () => { editor.off('transaction', onTransaction); };
+  }, [editor, request, close]);
+
+  // Chiusura su click fuori senza rubare il focus (stesse regole del menu
+  // Modificatore: i puntini di un altro elemento possono riaprire).
+  useEffect(() => {
+    if (!request) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (!target) return;
+      if (target.closest('[data-note-dice-menu="true"]')) return;
+      if (target.closest(DICE_WIDGET_SELECTOR)) return;
+      close(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [request, close]);
+
+  // Escape chiude e restituisce il focus all'editor.
+  useEffect(() => {
+    if (!request) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [request, close]);
+
+  if (!editable) return null;
+
+  const startEdit = () => {
+    if (!request) return;
+    setMode('edit');
+  };
+
+  const saveEdit = (nextName: string, nextFormula: string) => {
+    if (!request) return;
+    const { view } = editor;
+    if (!getDiceAt(view.state, request.pos)) { close(); return; }
+    setDiceAttrs(view.state, (tr) => view.dispatch(tr), request.pos, { name: nextName, formula: nextFormula });
+    close();
+  };
+
+  const runDuplicate = () => {
+    if (!request) return;
+    const { view } = editor;
+    if (!getDiceAt(view.state, request.pos)) { close(); return; }
+    duplicateDiceAt(view.state, (tr) => view.dispatch(tr), request.pos);
+    close();
+  };
+
+  const runCopy = async () => {
+    if (!request) return;
+    const { view } = editor;
+    if (!getDiceAt(view.state, request.pos)) { close(); return; }
+    await copyDiceToClipboard(view, request.pos);
+    close();
+  };
+
+  const runDelete = () => {
+    if (!request) return;
+    const { view } = editor;
+    if (!getDiceAt(view.state, request.pos)) { close(); return; }
+    deleteDiceAt(view.state, (tr) => view.dispatch(tr), request.pos);
+    close();
+  };
+
+  if (!request) return null;
+
+  const data = getDiceAt(editor.state, request.pos);
+  if (!data) return null;
+
+  // Modifica: stessa finestra volante del Modificatore (centrata nella tab,
+  // sotto l'elemento), con Nome e Valore.
+  if (mode === 'edit') {
+    const EDIT_PANEL_WIDTH = 232;
+    const domRect = editor.view.dom.getBoundingClientRect();
+    const centeredLeft = Math.max(
+      8,
+      Math.min(
+        domRect.left + (domRect.width - EDIT_PANEL_WIDTH) / 2,
+        window.innerWidth - EDIT_PANEL_WIDTH - 8,
+      ),
+    );
+    const belowTop = Math.max(8, Math.min(request.widgetBottom + 8, window.innerHeight - 320 - 8));
+    const lookup = getModifierLookup(editor.view);
+    const modifiers = [...lookup.values()];
+    return createPortal(
+      <DiceEditPanel
+        top={belowTop}
+        left={centeredLeft}
+        name={data.name}
+        modifiers={modifiers}
+        lookup={lookup}
+        initialName={data.name}
+        initialFormula={data.formula}
+        onSave={saveEdit}
+        onCancel={() => close()}
+      />,
+      portalContainer ?? document.body,
+    );
+  }
+
+  const placed = placeFloatingNoteUI(
+    { left: request.x, right: request.x + 2, top: request.y, bottom: request.y },
+    DICE_MENU_WIDTH,
+    DICE_MENU_HEIGHT,
+    6,
+  );
+
+  const menu = (
+    <div
+      data-note-contextual-ui="true"
+      data-note-dice-menu="true"
+      role="menu"
+      aria-label="Menu Dado"
+      style={{ position: 'fixed', top: placed.top, left: placed.left, zIndex: 9997 }}
+      className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-lg w-[184px]"
+    >
+      <MenuAction label="Modifica" icon={Wrench} onActivate={startEdit} />
+      <MenuAction label="Duplica" icon={Copy} onActivate={runDuplicate} />
+      <MenuAction label="Copia" icon={Clipboard} onActivate={runCopy} />
+      <div className="my-1 h-px bg-[var(--dash-border-soft)]" />
+      <MenuAction label="Elimina" icon={Trash2} danger onActivate={runDelete} />
+    </div>
+  );
+
+  return createPortal(menu, portalContainer ?? document.body);
+}
+
 // dado legge i dati correnti e chiede al contesto dadi di tirare. Fuori dalla
 // sessione dadi (o senza dati) non fa nulla.
 export function NoteModifierRollBridge({ editor }: { editor: Editor }) {
@@ -647,16 +1091,23 @@ export function NoteModifierRollBridge({ editor }: { editor: Editor }) {
       const submit = sessionRef.current?.submitModifierRoll;
       if (typeof detail?.pos !== 'number' || !submit) return;
       const view = editorRef.current.view;
-      const data = getModifierAt(editorRef.current.state, detail.pos);
-      if (!data) return;
-      // I tag "Nome" si risolvono sui valori correnti di tutta la nota.
+      // I tag "Nome" si risolvono sui valori correnti di tutta la nota. Vale
+      // sia per il Modificatore sia per il Dado (stesso evento di tiro).
       const lookup = getModifierLookup(view);
       const resolveName = (refName: string) => {
         const entry = lookup.get(refName);
         return entry ? { value: entry.value, formula: entry.formula } : null;
       };
       try {
-        submit({ name: data.name, expression: data.value, formula: data.formula, resolveName });
+        const modifier = getModifierAt(editorRef.current.state, detail.pos);
+        if (modifier) {
+          submit({ name: modifier.name, expression: modifier.value, formula: modifier.formula, resolveName });
+          return;
+        }
+        const dice = getDiceAt(editorRef.current.state, detail.pos);
+        if (dice) {
+          submit({ name: dice.name, expression: dice.formula, formula: dice.formula, resolveName });
+        }
       } catch (error) {
         console.error('Errore tiro modificatore:', error);
       }

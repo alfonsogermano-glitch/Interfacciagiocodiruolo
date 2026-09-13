@@ -118,7 +118,7 @@ assert.match(richClipboard, /application\/x-hollowgate-note\+json/, 'rich clipbo
 assert.match(richClipboard, /data-hollowgate-note-clipboard/, 'rich clipboard HTML marker must remain');
 assert.match(richClipboard, /DOMSerializer\.fromSchema/, 'rich clipboard must preserve schema marks');
 assert.match(richClipboard, /replaceSelection\(slice\)/, 'rich paste must restore complete Slice, not plain text');
-assert.match(richClipboard, /isSingleModifierSlice\(slice\)[\s\S]*isPreviousModifier[\s\S]*insertText\(' '/, 'a lone pasted modifier after a modifier must stay on the same line with a real space');
+assert.match(richClipboard, /previousIsBox = isPreviousModifier[\s\S]*isPreviousDice[\s\S]*isSingleModifierSlice\(slice\)[\s\S]*isSingleDiceSlice\(slice\)[\s\S]*insertText\(' '/, 'a lone pasted modifier or dice after another element must stay on the same line with a real space');
 assert.match(richClipboard, /renamePastedInlineModifiers[\s\S]*used\.has\([\s\S]*while \(used\.has/, 'pasted modifiers must get fresh ids and unique names with the full-name plus number rule');
 assert.match(richClipboard, /handlePaste[\s\S]*renamePastedInlineModifiers\(view\.state, Slice\.fromJSON/, 'paste must uniquify modifier names before replacing the selection');
 

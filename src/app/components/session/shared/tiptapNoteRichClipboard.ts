@@ -2,6 +2,7 @@ import { Extension } from '@tiptap/core';
 import { DOMSerializer, Slice } from '@tiptap/pm/model';
 import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
 import { isPreviousModifier, makeRoomForInlineModifierInsertion } from './tiptapInlineModifier';
+import { isPreviousDice, makeRoomForInlineDiceInsertion } from './tiptapInlineDice';
 import type { EditorView } from '@tiptap/pm/view';
 import { getRichClipboardSlice, isRichClipboardTableSelection } from './noteRichClipboardSelection';
 import { validateStructuralReplacement, validateTableClipboardTarget, type NoteContainerRejection } from './noteContainerPolicy';
@@ -119,7 +120,17 @@ function renamePastedInlineModifiers(state: EditorState, slice: Slice): Slice {
     if (!marks) return marks;
     let out = marks;
     marks.forEach((entry, index) => {
-      if (!entry || entry.type !== 'inlineModifier') return;
+      if (!entry) return;
+      // I Dadi incollati diventano nuovi elementi (id fresco, nome invariato:
+      // non sono referenziabili, niente regola di univocita').
+      if (entry.type === 'inlineDice') {
+        const replaced = { ...entry, attrs: { ...entry.attrs, id: freshId() } };
+        if (out === marks) out = marks.slice();
+        out[index] = replaced;
+        touched = true;
+        return;
+      }
+      if (entry.type !== 'inlineModifier') return;
       const current = String(entry.attrs?.name ?? '');
       let next = current;
       if (used.has(next)) {
@@ -172,6 +183,13 @@ function isSingleModifierSlice(slice: Slice): boolean {
   return !!child && child.isText && child.text === MODIFIER_CHAR && child.marks.some((mark) => mark.type.name === 'inlineModifier');
 }
 
+// true se lo slice e' un singolo carattere Dado.
+function isSingleDiceSlice(slice: Slice): boolean {
+  if (slice.content.childCount !== 1) return false;
+  const child = slice.content.firstChild;
+  return !!child && child.isText && child.text === MODIFIER_CHAR && child.marks.some((mark) => mark.type.name === 'inlineDice');
+}
+
 export const NoteRichClipboard = Extension.create<{ onReject?: (reason: NoteContainerRejection) => void }>({
   name: 'noteRichClipboard',
   addOptions() { return { onReject: undefined }; },
@@ -210,12 +228,15 @@ export const NoteRichClipboard = Extension.create<{ onReject?: (reason: NoteCont
               return true;
             }
             event.preventDefault();
-            // Un singolo Modificatore incollato dopo un altro resta di fianco
-            // con uno spazio vero e restringimento preventivo, come Duplica:
-            // senza questo va a capo e la misura per riga lo blocca sotto.
+            // Un singolo Modificatore o Dado incollato dopo un altro elemento
+            // resta di fianco con uno spazio vero e restringimento preventivo,
+            // come Duplica: senza questo va a capo e la misura per riga lo
+            // blocca sotto.
             let tr = view.state.tr;
-            if (isSingleModifierSlice(slice) && isPreviousModifier(view.state, tr.selection.from)) {
+            const previousIsBox = isPreviousModifier(view.state, tr.selection.from) || isPreviousDice(view.state, tr.selection.from);
+            if ((isSingleModifierSlice(slice) || isSingleDiceSlice(slice)) && previousIsBox) {
               makeRoomForInlineModifierInsertion(view.state, tr.selection.from);
+              makeRoomForInlineDiceInsertion(view.state, tr.selection.from);
               tr = tr.insertText(' ', tr.selection.from);
             }
             view.dispatch(tr.replaceSelection(slice).scrollIntoView());
