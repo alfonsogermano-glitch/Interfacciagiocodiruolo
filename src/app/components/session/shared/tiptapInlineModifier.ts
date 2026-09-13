@@ -81,6 +81,8 @@ export interface NoteModifierMenuRequest {
   /** Coordinate del punto di ancoraggio del menu (pixel viewport). */
   x: number;
   y: number;
+  /** Lato inferiore del box (pixel viewport): il pannello modifica si apre sotto. */
+  widgetBottom: number;
 }
 
 export type ModifierTitleAlign = 'left' | 'center' | 'right';
@@ -997,7 +999,7 @@ function buildModifierWidget(
     const rect = dots.getBoundingClientRect();
     window.dispatchEvent(
       new CustomEvent<NoteModifierMenuRequest>(NOTE_MODIFIER_MENU_EVENT, {
-        detail: { pos, x: rect.left, y: rect.bottom },
+        detail: { pos, x: rect.left, y: rect.bottom, widgetBottom: element.getBoundingClientRect().bottom },
       }),
     );
   };

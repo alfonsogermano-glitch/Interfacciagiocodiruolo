@@ -157,6 +157,11 @@ assert.match(
 );
 assert.match(
   source,
+  /widgetBottom: number[\s\S]*widgetBottom: element\.getBoundingClientRect\(\)\.bottom/,
+  'the menu request must carry the widget bottom for panel placement',
+);
+assert.match(
+  source,
   /dots\.addEventListener\('mousedown'[\s\S]*if \(!view\.editable\) return;[\s\S]*dots\.addEventListener\('click'[\s\S]*if \(!view\.editable\)[\s\S]*requestAnimationFrame\(attempt\)/,
   'dots must let a blurred tab re-enter edit mode and defer the menu until the editor is editable again',
 );

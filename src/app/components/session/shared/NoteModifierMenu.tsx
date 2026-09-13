@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type * as React from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
-import { ArrowLeft, Clipboard, Copy, GripVertical, Maximize2, Minimize2, Pencil, Trash2, Type } from 'lucide-react';
+import { ArrowLeft, Check, Clipboard, Copy, GripVertical, Maximize2, Minimize2, Pencil, Trash2, Wrench, X } from 'lucide-react';
 import { usePortalContainer } from '../../ui/portal-container';
 import { useOptionalDiceSession } from '../dice/DiceSessionContext';
 import { placeFloatingNoteUI } from './noteFloatingPosition';
@@ -121,15 +121,17 @@ function ModifierEditForm({ initialValue, initialFormula, onSave, onCancel }: {
         <button
           type="button"
           onClick={confirm}
-          className="flex-1 rounded-md bg-[var(--dash-accent)] px-2 py-1.5 text-xs font-semibold text-[var(--dash-text-strong)] transition-colors hover:brightness-110"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-[var(--dash-accent)] px-2 py-1.5 text-xs font-semibold text-[var(--dash-text-strong)] transition-colors hover:brightness-110"
         >
+          <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           Salva
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)]"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)]"
         >
+          <X className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           Annulla
         </button>
       </div>
@@ -328,21 +330,25 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
   const data = getModifierAt(editor.state, request.pos);
   if (!data) return null;
 
-  // Modifica: solita finestra volante vicino al cursore (niente finestra
-  // dedicata), con Valore numerico e Formula. Stessi marcatori del menu cosi'
-  // i click dentro non chiudono e l'autofocus non fa blur; z-index sopra gli
-  // altri pannelli, posizione vincolata alla viewport e trascinabile.
+  // Modifica: finestra volante centrata nella tab, appena sotto l'elemento
+  // (niente finestra dedicata), con Valore e Formula. Stessi marcatori del
+  // menu cosi' i click dentro non chiudono e l'autofocus non fa blur; z-index
+  // sopra gli altri pannelli e posizione vincolata alla viewport.
   if (mode === 'edit') {
-    const editPlaced = placeFloatingNoteUI(
-      { left: request.x, right: request.x + 2, top: request.y, bottom: request.y },
-      232,
-      300,
-      6,
+    const EDIT_PANEL_WIDTH = 232;
+    const domRect = editor.view.dom.getBoundingClientRect();
+    const centeredLeft = Math.max(
+      8,
+      Math.min(
+        domRect.left + (domRect.width - EDIT_PANEL_WIDTH) / 2,
+        window.innerWidth - EDIT_PANEL_WIDTH - 8,
+      ),
     );
+    const belowTop = Math.max(8, Math.min(request.widgetBottom + 8, window.innerHeight - 320 - 8));
     return createPortal(
       <ModifierEditPanel
-        top={editPlaced.top}
-        left={editPlaced.left}
+        top={belowTop}
+        left={centeredLeft}
         name={data.name}
         initialValue={data.value}
         initialFormula={data.formula}
@@ -364,7 +370,7 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
     <>
       <MenuAction label="Rinomina" icon={Pencil} onActivate={startRename} />
       <MenuAction label={data.compact ? 'Allarga' : 'Riduci'} icon={data.compact ? Maximize2 : Minimize2} onActivate={() => runCompact(!data.compact)} />
-      <MenuAction label="Modifica" icon={Type} onActivate={startEdit} />
+      <MenuAction label="Modifica" icon={Wrench} onActivate={startEdit} />
       <MenuAction label="Duplica" icon={Copy} onActivate={runDuplicate} />
       <MenuAction label="Copia" icon={Clipboard} onActivate={runCopy} />
       <div className="my-1 h-px bg-[var(--dash-border-soft)]" />

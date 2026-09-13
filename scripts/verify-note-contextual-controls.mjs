@@ -53,6 +53,11 @@ assert.match(slash, /hover:bg-\[var\(--dash-accent\)\]/, 'Slash hover must use p
 assert.match(slash, /className=\{`flex min-h-12 w-full flex-col/, 'Slash command buttons must fill their grid cell so picker icons stay centered');
 assert.match(modifierMenu, /<Icon className="h-3\.5 w-3\.5 shrink-0"/, 'modifier menu actions must show a left icon like other compact menus');
 assert.match(modifierMenu, /label=\{data\.compact \? 'Allarga' : 'Riduci'\}/, 'modifier menu must toggle Riduci/Allarga from compact state');
+assert.match(modifierMenu, /label="Modifica" icon=\{Wrench\}/, 'modifier menu Modifica must not look like text editing');
+assert.doesNotMatch(modifierMenu, /icon=\{Type\}/, 'obsolete text-style Modifica icon must not return');
+assert.match(modifierMenu, /centeredLeft[\s\S]*belowTop[\s\S]*widgetBottom \+ 8/, 'modifier edit panel must open centered in the tab just below the element');
+assert.match(modifierMenu, /<Check[\s\S]*Salva/, 'modifier edit save must show an icon');
+assert.match(modifierMenu, /<X[\s\S]*Annulla/, 'modifier edit cancel must show an icon');
 assert.match(modifierMenu, /const close = useCallback\(\(refocus = true\)/, 'modifier menu close must support focusless dismissal');
 assert.match(modifierMenu, /if \(refocus && editor\.isEditable\) editor\.commands\.focus\(\);/, 'modifier menu must only refocus an editable editor');
 assert.match(modifierMenu, /target\.closest\('\.tiptap-inline-modifier-widget'\)\) return;[\s\S]*close\(false\)/, 'outside click must dismiss the modifier menu without stealing focus');
