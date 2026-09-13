@@ -171,9 +171,18 @@ function checkDiceRange(count: number, sides: number): void {
   if (sides < 2 || sides > MAX_SIDES) throw new ModifierFormulaError('Le facce dei dadi devono stare tra 2 e 1000.', 'range');
 }
 
+function isStrictValueLiteral(content: string): boolean {
+  const text = content.trim();
+  if (/^[+-]?[0-9]+$/.test(text)) return true;
+  return /^([0-9]*)d([0-9]+)([+-][0-9]+)?$/.test(text);
+}
+
 function literalOrRef(content: string): ModifierFormulaNode {
   if (!content.trim()) throw new ModifierFormulaError('Riferimento vuoto: servono un nome o un valore tra virgolette.');
-  // Prima i letterali deterministici (dadi/numeri), poi i nomi dei Modificatori.
+  // Solo i contenuti interamente numerici/dado sono letterali ("1d6", "+3"):
+  // i nomi con cifre ("Modificatore (1)") sono sempre riferimenti.
+  if (!isStrictValueLiteral(content)) return { kind: 'ref', name: content.trim() };
+  // Contenuto interamente numerico/dado: letterale deterministico.
   const literal = parseModifierValue(content);
   if (literal) {
     if (literal.kind === 'number') return { kind: 'num', value: literal.value };

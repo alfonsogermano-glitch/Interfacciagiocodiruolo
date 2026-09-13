@@ -73,7 +73,8 @@ assert.match(modifierMenu, /almeno un numero o un dado/, 'modifier edit must req
 assert.match(modifierMenu, /data-note-modifier-edit="true"[\s\S]*zIndex: 9999/, 'modifier edit panel must float above other windows near the cursor');
 assert.match(modifierMenu, /onHandlePointerDown[\s\S]*setPointerCapture[\s\S]*data-edit-drag-handle="true"/, 'modifier edit panel must drag from its handle');
 assert.match(modifierMenu, /GripVertical/, 'modifier edit panel handle must use a grip icon');
-assert.match(modifierMenu, /<textarea[\s\S]*rows=\{2\}[\s\S]*<textarea[\s\S]*rows=\{2\}/, 'value and formula fields must offer two text rows');
+assert.match(modifierMenu, /<textarea[\s\S]*rows=\{2\}/, 'value field must offer two text rows');
+assert.match(modifierMenu, /contentEditable[\s\S]*role="textbox"[\s\S]*aria-label="Formula"/, 'formula field must be a tag editor');
 assert.doesNotMatch(modifierMenu, /ConfirmDialog/, 'modifier edit must not use a dedicated dialog window');
 assert.match(modifierMenu, /parseModifierValue\(valueDraft/, 'modifier edit panel must validate the restricted value charset');
 assert.match(selection, /data-note-modifier-edit="true"/, 'selection toolbar must stay hidden while the modifier edit panel is open');
@@ -82,7 +83,11 @@ assert.match(editor, /NoteModifierRollBridge editor=\{editor\}/, 'RichTextEditor
 assert.match(diceContext, /submitModifierRoll[\s\S]*parseModifierValue\(input\.expression\)[\s\S]*origin: 'modifier'/, 'modifier rolls must build dice items and mark their origin');
 assert.match(diceContext, /evaluateModifierFormula\(formula, undefined, input\.resolveName\)[\s\S]*formulaText: formula/, 'a valid formula must override the numeric value when rolling');
 assert.match(modifierMenu, /extractModifierRefs\(formulaText\)/, 'modifier edit panel must validate formula references');
-assert.match(modifierMenu, /insertTag[\s\S]*"\$\{tagName\}"[\s\S]*setSelectionRange/, 'selecting a modifier name must insert a tag at the caret');
+assert.match(modifierMenu, /insertTag[\s\S]*createFormulaTag[\s\S]*insertNode/, 'selecting a modifier name must insert an atomic tag at the caret');
+assert.match(modifierMenu, /createFormulaTag[\s\S]*data-modifier-tag[\s\S]*contenteditable[\s\S]*false/, 'formula tags must be non-editable pills');
+assert.match(modifierMenu, /'Backspace'[\s\S]*'Delete'[\s\S]*data-modifier-tag[\s\S]*sibling\.remove\(\)/, 'whole tags must delete at once, never in pieces');
+assert.match(modifierMenu, /serializeFormulaEditor[\s\S]*data-modifier-tag/, 'saving must serialize tags back to quoted references');
+assert.match(modifierMenu, /onFormulaPaste[\s\S]*text\/plain/, 'pasting into the formula must stay plain text');
 assert.match(modifierMenu, /TooltipContent>\{modifier\.formula \|\| modifier\.value/, 'hovering a listed name must preview its formula or value');
 assert.match(modifierMenu, /non puo' riferirsi a se' stessa/, 'formulas must reject self references');
 assert.match(modifierMenu, /non trovato tra i modificatori della nota/, 'formulas must reject unknown references');

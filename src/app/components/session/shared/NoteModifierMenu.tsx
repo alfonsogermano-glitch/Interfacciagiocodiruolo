@@ -71,6 +71,57 @@ function MenuAction({ label, icon: Icon, onActivate, danger = false, hint }: { l
   );
 }
 
+// Tag "Nome" non modificabile: pill che vale come valore/formula e si cancella
+// intera con Backspace/Canc, cosi' il nome non si puo' corrompere a meta'.
+function createFormulaTag(name: string): HTMLSpanElement {
+  const tag = document.createElement('span');
+  tag.setAttribute('data-modifier-tag', name);
+  tag.setAttribute('contenteditable', 'false');
+  tag.className = 'mx-0.5 inline-flex items-center rounded-md border border-[var(--dash-accent-2)] bg-[var(--dash-accent)]/20 px-1.5 py-px font-mono text-xs text-[var(--dash-text-strong)]';
+  tag.textContent = name;
+  return tag;
+}
+
+function serializeFormulaEditor(el: HTMLElement | null): string {
+  if (!el) return '';
+  let out = '';
+  const walk = (node: Node): void => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      out += node.textContent ?? '';
+      return;
+    }
+    if (node instanceof HTMLElement) {
+      if (node.hasAttribute('data-modifier-tag')) {
+        out += `"${node.getAttribute('data-modifier-tag') ?? ''}"`;
+        return;
+      }
+      if (node.tagName === 'BR') {
+        out += '\n';
+        return;
+      }
+      node.childNodes.forEach(walk);
+      if (node.tagName === 'DIV' || node.tagName === 'P') out += '\n';
+    }
+  };
+  el.childNodes.forEach(walk);
+  return out;
+}
+
+function appendFormulaSegments(el: HTMLElement, formula: string): void {
+  const pattern = /"([^"]*)"/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  const appendText = (text: string) => {
+    if (text) el.appendChild(document.createTextNode(text));
+  };
+  while ((match = pattern.exec(formula)) !== null) {
+    appendText(formula.slice(last, match.index));
+    el.appendChild(createFormulaTag(match[1]));
+    last = match.index + match[0].length;
+  }
+  appendText(formula.slice(last));
+}
+
 function ModifierEditForm({ modifierName, modifiers, lookup, initialValue, initialFormula, onSave, onCancel }: {
   modifierName: string;
   modifiers: ModifierSnapshot[];
@@ -81,16 +132,33 @@ function ModifierEditForm({ modifierName, modifiers, lookup, initialValue, initi
   onCancel: () => void;
 }) {
   const [valueDraft, setValueDraft] = useState(initialValue);
-  const [formulaDraft, setFormulaDraft] = useState(initialFormula);
   const [error, setError] = useState<string | null>(null);
-  const formulaRef = useRef<HTMLTextAreaElement | null>(null);
+  const formulaRef = useRef<HTMLDivElement | null>(null);
+
+  // Costruzione iniziale una sola volta (contenuto poi gestito dal DOM).
+  useEffect(() => {
+    const el = formulaRef.current;
+    if (!el || el.dataset.initialized) return;
+    el.dataset.initialized = 'true';
+    appendFormulaSegments(el, initialFormula);
+    el.focus();
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    } catch { /* selezione non disponibile */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const confirm = () => {
     if (!parseModifierValue(valueDraft.trim())) {
       setError('Il valore deve contenere almeno un numero o un dado (es. +1 Forza, 1d6 danni).');
       return;
     }
-    const formulaText = formulaDraft.trim();
+    const formulaText = serializeFormulaEditor(formulaRef.current).trim();
     if (formulaText) {
       const refs = extractModifierRefs(formulaText);
       if (refs === null) {
@@ -111,23 +179,65 @@ function ModifierEditForm({ modifierName, modifiers, lookup, initialValue, initi
     onSave(valueDraft.trim(), formulaText);
   };
 
-  // Tag "Nome": inserito al caret, vale come valore/formula nella formula.
   const insertTag = (tagName: string) => {
-    const tag = `"${tagName}"`;
     const el = formulaRef.current;
-    if (!el) {
-      setFormulaDraft((current) => current + tag);
+    setError(null);
+    if (!el) return;
+    el.focus();
+    const selection = window.getSelection();
+    const tag = createFormulaTag(tagName);
+    if (selection && selection.rangeCount > 0 && el.contains(selection.anchorNode)) {
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(tag);
+      range.setStartAfter(tag);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } else {
+      el.appendChild(tag);
+    }
+  };
+
+  const onFormulaKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      confirm();
       return;
     }
-    const start = el.selectionStart ?? el.value.length;
-    const end = el.selectionEnd ?? el.value.length;
-    const next = `${el.value.slice(0, start)}${tag}${el.value.slice(end)}`;
-    setFormulaDraft(next);
-    setError(null);
-    window.requestAnimationFrame(() => {
-      el.focus();
-      try { el.setSelectionRange(start + tag.length, start + tag.length); } catch { /* area non testuale */ }
-    });
+    // Backspace/Canc su tag adiacente: via il tag intero, mai a pezzi.
+    const el = formulaRef.current;
+    if ((event.key !== 'Backspace' && event.key !== 'Delete') || !el) return;
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) return;
+    const { anchorNode, anchorOffset } = selection;
+    let sibling: ChildNode | null = null;
+    if (anchorNode === el) {
+      const kids = el.childNodes;
+      const index = event.key === 'Backspace' ? anchorOffset - 1 : anchorOffset;
+      sibling = index >= 0 && index < kids.length ? kids[index] : null;
+    } else if (anchorNode.nodeType === Node.TEXT_NODE) {
+      const atEdge = event.key === 'Backspace'
+        ? anchorOffset === 0
+        : anchorOffset === (anchorNode.textContent ?? '').length;
+      if (!atEdge) return;
+      sibling = event.key === 'Backspace' ? anchorNode.previousSibling : anchorNode.nextSibling;
+    } else {
+      return;
+    }
+    if (sibling instanceof HTMLElement && sibling.hasAttribute('data-modifier-tag')) {
+      event.preventDefault();
+      sibling.remove();
+      setError(null);
+    }
+  };
+
+  const onFormulaPaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    // Solo testo semplice: niente HTML esterno dentro la formula.
+    event.preventDefault();
+    const text = event.clipboardData?.getData('text/plain') ?? '';
+    if (!text) return;
+    document.execCommand('insertText', false, text);
   };
 
   return (
@@ -145,19 +255,20 @@ function ModifierEditForm({ modifierName, modifiers, lookup, initialValue, initi
           className="w-full resize-y rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
         />
       </label>
-      <label className="block">
+      <div>
         <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Formula</span>
-        <textarea
+        <div
           ref={formulaRef}
-          rows={2}
-          value={formulaDraft}
-          maxLength={200}
-          onChange={(event) => setFormulaDraft(event.target.value)}
-          onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); confirm(); } }}
-          placeholder=""
-          className="w-full resize-y rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
+          contentEditable
+          suppressContentEditableWarning
+          role="textbox"
+          aria-label="Formula"
+          onKeyDown={onFormulaKeyDown}
+          onPaste={onFormulaPaste}
+          onInput={() => setError(null)}
+          className="min-h-[3.2em] w-full resize-y whitespace-pre-wrap break-words rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
         />
-      </label>
+      </div>
       {modifiers.length > 0 && (
         <div>
           <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Modificatori</span>
