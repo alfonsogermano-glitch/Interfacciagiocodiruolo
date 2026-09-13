@@ -1,4 +1,4 @@
-import { Mark, mergeAttributes } from '@tiptap/core';
+import { Mark, mergeAttributes, type JSONContent } from '@tiptap/core';
 import { DOMSerializer, Fragment, Slice } from '@tiptap/pm/model';
 import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
@@ -7,7 +7,7 @@ import {
   wrapNoteClipboardHTML,
   type NoteClipboardSliceJSON,
 } from './tiptapNoteRichClipboard';
-import { isValidModifierFormula, modifierFormulaHasDice } from './modifierFormula';
+import { extractModifierRefs, isValidModifierFormula, modifierFormulaHasDice, parseModifierValue } from './modifierFormula';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -97,6 +97,99 @@ export interface ModifierTitleFormat {
   align: ModifierTitleAlign | null;
 }
 
+export interface ModifierSnapshot {
+  name: string;
+  value: string;
+  formula: string;
+}
+
+/** Estrae nome/valore/formula dei Modificatori da un documento JSON (tab). */
+export function collectModifiersFromJSON(doc: JSONContent | null | undefined): ModifierSnapshot[] {
+  const found: ModifierSnapshot[] = [];
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    const record = node as Record<string, unknown>;
+    if (record['type'] === 'text' && typeof record['text'] === 'string' && Array.isArray(record['marks'])) {
+      for (const mark of record['marks'] as Array<{ type?: string; attrs?: Record<string, unknown> }>) {
+        if (mark?.type === 'inlineModifier') {
+          found.push({
+            name: String(mark.attrs?.['name'] ?? MODIFIER_DEFAULT_NAME),
+            value: String(mark.attrs?.['value'] ?? MODIFIER_DEFAULT_VALUE),
+            formula: typeof mark.attrs?.['formula'] === 'string' ? (mark.attrs['formula'] as string) : '',
+          });
+        }
+      }
+    }
+    if (Array.isArray(record['content'])) {
+      for (const child of record['content'] as unknown[]) visit(child);
+    }
+  };
+  visit(doc);
+  return found;
+}
+
+// I Modificatori referenziabili vivono anche in ALTRE tab (documenti separati,
+// non montati): ogni editor pubblica i peer della propria nota e i widget li
+// leggono da qui, unendo sempre il documento live corrente (piu' fresco).
+const modifierPeerSnapshots = new Map<EditorView, ModifierSnapshot[]>();
+
+export function publishModifierPeers(view: EditorView, peers: ModifierSnapshot[]): void {
+  modifierPeerSnapshots.set(view, peers);
+}
+
+export function unpublishModifierPeers(view: EditorView): void {
+  modifierPeerSnapshots.delete(view);
+}
+
+function mergeModifierLookup(peers: ModifierSnapshot[], state: EditorState): Map<string, ModifierSnapshot> {
+  const lookup = new Map<string, ModifierSnapshot>();
+  for (const peer of peers) {
+    if (!lookup.has(peer.name)) lookup.set(peer.name, peer);
+  }
+  const markType = state.schema.marks.inlineModifier;
+  if (markType) {
+    state.doc.descendants((node) => {
+      if (!node.isText || !node.text) return;
+      const mark = node.marks.find((item) => item.type === markType);
+      if (!mark) return;
+      lookup.set(String(mark.attrs.name ?? MODIFIER_DEFAULT_NAME), {
+        name: String(mark.attrs.name ?? MODIFIER_DEFAULT_NAME),
+        value: String(mark.attrs.value ?? MODIFIER_DEFAULT_VALUE),
+        formula: typeof mark.attrs.formula === 'string' ? mark.attrs.formula : '',
+      });
+    });
+  }
+  return lookup;
+}
+
+/** Mappa nome -> dati unendo peer pubblicati e documento live (vince il live). */
+export function getModifierLookup(view: EditorView): Map<string, ModifierSnapshot> {
+  return mergeModifierLookup(modifierPeerSnapshots.get(view) ?? [], view.state);
+}
+
+function getModifierLookupForState(state: EditorState): Map<string, ModifierSnapshot> {
+  for (const [view, peers] of modifierPeerSnapshots) {
+    if (view.state === state) return mergeModifierLookup(peers, state);
+  }
+  return mergeModifierLookup([], state);
+}
+
+/** Anomalia (rosso) e presenza dadi per una formula, seguendo i riferimenti:
+ *  sintassi non valida, riferimento mancante o a se' stesso. */
+export function assessModifierFormula(
+  name: string,
+  formula: string,
+  lookup: Map<string, ModifierSnapshot>,
+): { anomalous: boolean; hasDice: boolean } {
+  if (!formula.trim()) return { anomalous: false, hasDice: false };
+  const refs = extractModifierRefs(formula);
+  const resolveRef = (refName: string) => lookup.get(refName) ?? null;
+  return {
+    anomalous: refs === null || refs.some((ref) => ref === name || !lookup.has(ref)),
+    hasDice: modifierFormulaHasDice(formula, resolveRef),
+  };
+}
+
 export interface ModifierData {
   name: string;
   value: string;
@@ -111,93 +204,14 @@ export interface ModifierData {
   titleAlign: ModifierTitleAlign | null;
 }
 
-// Valore del Modificatore: testo libero da cui si estraggono dadi e numeri
-// con una scansione da sinistra a destra ("hkjfhek1d4" -> 1d4, "+1 Forza" ->
-// +1, "Saggezza-2" -> -2, "3d6+3" -> 3d6 e +3). Un segno prima dei dadi li
-// rende negativi ("2d6-1d4"). Le lettere sono ignorate, la "d" vale solo
-// minuscola e con numero prima (opzionale) e dopo. Serve almeno un numero o
-// un dado, altrimenti il valore non e' valido.
-export interface ModifierDiceToken {
-  sign: 1 | -1;
-  count: number;
-  sides: number;
-}
-
-export type ParsedModifierValue =
-  | { kind: 'number'; value: number }
-  | { kind: 'dice'; dice: ModifierDiceToken[]; modifier: number };
-
-export const MODIFIER_VALUE_MAX_LENGTH = 64;
-
-function isAsciiDigit(char: string): boolean {
-  return char >= '0' && char <= '9';
-}
-
-function readAsciiDigits(text: string, start: number): { digits: string; end: number } | null {
-  let end = start;
-  while (end < text.length && isAsciiDigit(text[end])) end += 1;
-  if (end === start) return null;
-  return { digits: text.slice(start, end), end };
-}
-
-function parseAsciiInteger(digits: string): number | null {
-  const value = Number.parseInt(digits, 10);
-  return Number.isSafeInteger(value) ? value : null;
-}
-
-export function parseModifierValue(raw: string): ParsedModifierValue | null {
-  const text = raw.trim();
-  if (!text || text.length > MODIFIER_VALUE_MAX_LENGTH) return null;
-  const dice: ModifierDiceToken[] = [];
-  let modifier = 0;
-  let found = false;
-  let index = 0;
-  let diceCount = 0;
-  while (index < text.length) {
-    const char = text[index];
-    if (char === '+' || char === '-' || isAsciiDigit(char) || char === 'd') {
-      let cursor = index;
-      const negative = text[cursor] === '-';
-      if (text[cursor] === '+' || text[cursor] === '-') cursor += 1;
-      const countRead = readAsciiDigits(text, cursor);
-      const afterCount = countRead ? countRead.end : cursor;
-      // Dado con segno opzionale: [+-]? cifre? "d" cifre ("-1d4", "d6", "2d6").
-      if (text[afterCount] === 'd') {
-        const sidesRead = readAsciiDigits(text, afterCount + 1);
-        if (sidesRead) {
-          const count = countRead ? parseAsciiInteger(countRead.digits) : 1;
-          const sides = parseAsciiInteger(sidesRead.digits);
-          if (count === null || sides === null) return null;
-          if (count < 1 || count > 100 || sides < 2 || sides > 1000) return null;
-          dice.push({ sign: negative ? -1 : 1, count, sides });
-          diceCount += count;
-          if (diceCount > 1000) return null;
-          found = true;
-          index = sidesRead.end;
-          continue;
-        }
-      }
-      // Numero con segno opzionale, non seguito da dado ("Saggezza-2" -> -2).
-      if (countRead) {
-        const absolute = parseAsciiInteger(countRead.digits);
-        if (absolute === null) return null;
-        const signed = negative ? -absolute : absolute;
-        if (!Number.isSafeInteger(modifier + signed)) return null;
-        modifier += signed;
-        found = true;
-        index = countRead.end;
-        continue;
-      }
-    }
-    index += 1;
-  }
-  if (!found) return null;
-  if (dice.length === 0) {
-    if (!Number.isSafeInteger(modifier)) return null;
-    return { kind: 'number', value: modifier };
-  }
-  return { kind: 'dice', dice, modifier };
-}
+// Parsing del Valore in modifierFormula (unica implementazione, qui
+// riesportata per i consumatori esistenti: menu, contesto dadi, widget).
+export {
+  parseModifierValue,
+  MODIFIER_VALUE_MAX_LENGTH,
+  type ParsedModifierValue,
+  type ModifierDiceToken,
+} from './modifierFormula';
 
 export const MODIFIER_TITLE_FORMAT_DEFAULTS: ModifierTitleFormat = {
   bold: false,
@@ -1053,20 +1067,29 @@ function buildModifierWidget(
 
   // Click sull'elemento: valido se il Valore contiene numeri/dadi oppure la
   // Formula e' valida. Bordo in accento e alone solo quando ci sono dadi da
-  // tirare (nel Valore o nella Formula), per distinguere i pulsanti dai
-  // Modificatori che rappresentano solo un valore. Mai dai puntini (aprono il
-  // menu) ne' dalla rinomina.
-  const rollable = parseModifierValue(value)?.kind === 'dice'
-    || (formula ? modifierFormulaHasDice(formula) : false);
+  // tirare (nel Valore o nella Formula, seguendo i riferimenti), per
+  // distinguere i pulsanti dai Modificatori che rappresentano solo un valore.
+  // Riferimento mancante, a se' stesso o sintassi non valida: anomalia rossa.
+  // Mai dai puntini (aprono il menu) ne' dalla rinomina.
+  const assessment = assessModifierFormula(name, formula, getModifierLookup(view));
+  const rollable = parseModifierValue(value)?.kind === 'dice' || assessment.hasDice;
+  const anomalous = assessment.anomalous;
   // Manina solo sui veri pulsanti (con dadi); i valori semplici pubblicano in
   // chat ma restano neutri. Niente alone: solo bordo e fondo accento.
-  if (rollable) {
+  if (rollable && !anomalous) {
     element.style.cursor = 'pointer';
     element.style.border = '1px solid var(--dash-accent-2)';
     // Fondo tinta accento per i pulsanti; la prima assegnazione resta come
     // fallback dove color-mix non e' supportato.
     element.style.background = 'var(--dash-surface-2)';
     element.style.background = 'color-mix(in srgb, var(--dash-accent-2) 22%, var(--dash-surface-2))';
+  }
+  element.dataset.modifierAnomalous = anomalous ? 'true' : 'false';
+  if (anomalous) {
+    element.style.border = '1px solid var(--dash-danger-border)';
+    element.style.color = 'var(--dash-danger-text)';
+    label.style.color = 'var(--dash-danger-text)';
+    valueEl.style.color = 'var(--dash-danger-text)';
   }
   element.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;
@@ -1291,7 +1314,7 @@ export const InlineModifier = Mark.create({
               };
               const titleKey = `${titleFormat.bold ? 1 : 0}${titleFormat.italic ? 1 : 0}${titleFormat.underline ? 1 : 0}${titleFormat.strike ? 1 : 0}:${titleFormat.fontSize ?? ''}:${titleFormat.fontFamily ?? ''}:${titleFormat.align ?? ''}`;
               const formula = typeof mark.attrs.formula === 'string' ? mark.attrs.formula : '';
-              const formulaDice = formula ? modifierFormulaHasDice(formula) : false;
+              const assessment = assessModifierFormula(name, formula, getModifierLookupForState(state));
               const id = typeof mark.attrs.id === 'string' && mark.attrs.id ? mark.attrs.id : null;
               for (let offset = 0; offset < node.nodeSize; offset++) {
                 if (node.text.charAt(offset) !== INLINE_MODIFIER_CHAR) continue;
@@ -1306,7 +1329,7 @@ export const InlineModifier = Mark.create({
                       // viene ricostruito a vista (ProseMirror confronta i
                       // widget via spec.key) senza ricostruirlo a ogni
                       // cambio di sola selezione.
-                      key: `modifier:${id ?? modifierPos}:${name}:${value}:${compact}:${titleKey}:${formulaDice ? 1 : 0}`,
+                      key: `modifier:${id ?? modifierPos}:${name}:${value}:${compact}:${titleKey}:${assessment.hasDice ? 1 : 0}:${assessment.anomalous ? 1 : 0}`,
                       destroy: (node) => {
                         (node as HTMLElement & { __destroyModifierWidget?: () => void }).__destroyModifierWidget?.();
                         widgetEntries.delete(node as HTMLElement);

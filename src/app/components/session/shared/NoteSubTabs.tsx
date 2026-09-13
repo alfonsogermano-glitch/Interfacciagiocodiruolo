@@ -95,6 +95,7 @@ export function NoteSubTabs({ note, campaignId, accessToken, canEdit, onPersistS
           legacyContent={selectedSubTab.content}
           richContent={selectedSubTab.content_rich}
           onChangeRich={(json) => nestedTabs.handleCustomTabRichContentChange(selectedSubTab.id, json)}
+          peerContents={nestedTabs.customTabs.filter((tab) => tab.id !== selectedSubTab.id).map((tab) => tab.content_rich)}
           disabled={!canEdit}
           placeholder="Scrivi qui..."
           className="min-h-[3rem] rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-3"

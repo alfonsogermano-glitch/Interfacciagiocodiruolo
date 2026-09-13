@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../src/app/components/session/shared/tiptapInlineModifier.ts', import.meta.url), 'utf8');
+const formulaSource = await readFile(new URL('../src/app/components/session/shared/modifierFormula.ts', import.meta.url), 'utf8');
 
 assert.match(
   source,
@@ -30,8 +31,23 @@ assert.match(
 );
 assert.match(
   source,
-  /titleKey[\s\S]*formulaDice[\s\S]*Decoration\.widget\([\s\S]*key:\s*`modifier:\$\{.*\}:\$\{.*\}:\$\{.*\}:\$\{compact\}:\$\{titleKey\}:\$\{formulaDice \? 1 : 0\}`/,
-  'inline modifier decoration must include name, value, compact, title format, and formula dice in the key to force rebuild on attribute change',
+  /assessModifierFormula[\s\S]*Decoration\.widget\([\s\S]*key:\s*`modifier:\$\{.*\}:\$\{.*\}:\$\{.*\}:\$\{compact\}:\$\{titleKey\}:\$\{assessment\.hasDice \? 1 : 0\}:\$\{assessment\.anomalous \? 1 : 0\}`/,
+  'inline modifier decoration must include name, value, compact, title format, dice and anomaly in the key to force rebuild on attribute change',
+);
+assert.match(
+  source,
+  /export \{[\s\S]*parseModifierValue[\s\S]*\} from '\.\/modifierFormula'/,
+  'value parsing must live in a single module re-exported by the widget',
+);
+assert.match(
+  source,
+  /collectModifiersFromJSON[\s\S]*publishModifierPeers[\s\S]*unpublishModifierPeers[\s\S]*getModifierLookup/,
+  'peer modifiers from other tabs must feed a shared lookup with live-doc override',
+);
+assert.match(
+  source,
+  /assessModifierFormula[\s\S]*anomalous[\s\S]*dash-danger-border[\s\S]*dash-danger-text/,
+  'modifiers with missing, self or invalid formula references must turn red',
 );
 assert.match(
   source,
@@ -94,14 +110,24 @@ assert.match(
   'inline modifier must persist a formula attribute with empty default',
 );
 assert.match(
-  source,
+  formulaSource,
   /export function parseModifierValue[\s\S]*kind: 'dice'[\s\S]*dice, modifier/,
   'free-text values must extract signed dice and numbers from left to right',
 );
 assert.match(
-  source,
+  formulaSource,
   /ModifierDiceToken[\s\S]*sign: 1 \| -1/,
   'extracted dice tokens must carry their sign',
+);
+assert.match(
+  formulaSource,
+  /kind: 'str'[\s\S]*kind: 'ref'[\s\S]*literalOrRef/,
+  'formula tags must resolve to literals or modifier references',
+);
+assert.match(
+  formulaSource,
+  /Riferimento circolare/,
+  'circular references must be rejected with a dedicated error',
 );
 assert.match(
   source,
@@ -120,11 +146,10 @@ assert.match(
 );
 assert.match(
   source,
-  /modifierFormulaHasDice\(formula\)[\s\S]*border = '1px solid var\(--dash-accent-2\)'/,
-  'rollable modifiers must stand out with accent border and background',
+  /assessment\.anomalous[\s\S]*dash-danger-border[\s\S]*dash-danger-text/,
+  'anomalous modifiers must render in red',
 );
 
-const formulaSource = await readFile(new URL('../src/app/components/session/shared/modifierFormula.ts', import.meta.url), 'utf8');
 assert.match(
   formulaSource,
   /parseModifierFormula[\s\S]*lparen[\s\S]*rparen[\s\S]*ModifierFormulaError/,

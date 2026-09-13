@@ -10,7 +10,7 @@ import { HollowgateDice3DRenderer } from './dice3dRenderer.ts';
 import { projectRollTo3D } from './dice3dProjection.ts';
 import { isDice3DAbortError } from './dice3dTypes.ts';
 import { cryptoDiceRng, rollDiceFormula } from './diceEngine.ts';
-import { evaluateModifierFormula } from '../shared/modifierFormula.ts';
+import { ModifierFormulaError, evaluateModifierFormula, type ModifierReference } from '../shared/modifierFormula.ts';
 import { parseModifierValue } from '../shared/tiptapInlineModifier.ts';
 import type { DiceRollRequest, RollDiceGroup, RollResult } from './diceTypes.ts';
 
@@ -18,6 +18,7 @@ export interface ModifierRollSubmit {
   name: string;
   expression: string;
   formula?: string;
+  resolveName?: (name: string) => ModifierReference | null;
 }
 
 const DICE_3D_ENABLED_KEY = 'hollowgate.dice.3d-enabled';
@@ -295,8 +296,14 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
     if (formula) {
       let evaluated = null;
       try {
-        evaluated = evaluateModifierFormula(formula);
-      } catch {
+        evaluated = evaluateModifierFormula(formula, undefined, input.resolveName);
+      } catch (error) {
+        // Riferimento mancante o circolare: niente tiro silenzioso sul valore,
+        // il widget rosso segnala gia' l'anomalia.
+        if (error instanceof ModifierFormulaError && (error.code === 'missing' || error.code === 'cycle')) {
+          toast.error(error.message);
+          return null;
+        }
         evaluated = null;
       }
       if (evaluated) {

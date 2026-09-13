@@ -3,18 +3,21 @@ import type * as React from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
 import { ArrowLeft, Clipboard, Copy, GripVertical, Maximize2, Minimize2, Pencil, Save, Trash2, Wrench, X } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import { usePortalContainer } from '../../ui/portal-container';
 import { useOptionalDiceSession } from '../dice/DiceSessionContext';
 import { placeFloatingNoteUI } from './noteFloatingPosition';
 import { NOTE_COMMANDS, type NoteCommandId } from './noteEditorCommands';
-import { isValidModifierFormula } from './modifierFormula';
+
 import { FONT_SIZES } from './tiptapFontSize';
 import { FONT_FAMILIES } from './tiptapFontFamily';
+import { extractModifierRefs } from './modifierFormula';
 import {
   copyModifierToClipboard,
   deleteModifierAt,
   duplicateModifierAt,
   getModifierAt,
+  getModifierLookup,
   setModifierCompactAt,
   setModifierAttrs,
   parseModifierValue,
@@ -26,6 +29,7 @@ import {
   NOTE_MODIFIER_TITLE_MENU_CLOSE_EVENT,
   NOTE_MODIFIER_TITLE_MENU_DISMISS_EVENT,
   NOTE_MODIFIER_TITLE_MENU_EVENT,
+  type ModifierSnapshot,
   type ModifierTitleFormatCommand,
   type NoteModifierMenuRequest,
   type NoteModifierRollRequest,
@@ -67,7 +71,10 @@ function MenuAction({ label, icon: Icon, onActivate, danger = false, hint }: { l
   );
 }
 
-function ModifierEditForm({ initialValue, initialFormula, onSave, onCancel }: {
+function ModifierEditForm({ modifierName, modifiers, lookup, initialValue, initialFormula, onSave, onCancel }: {
+  modifierName: string;
+  modifiers: ModifierSnapshot[];
+  lookup: Map<string, ModifierSnapshot>;
   initialValue: string;
   initialFormula: string;
   onSave: (value: string, formula: string) => void;
@@ -76,17 +83,51 @@ function ModifierEditForm({ initialValue, initialFormula, onSave, onCancel }: {
   const [valueDraft, setValueDraft] = useState(initialValue);
   const [formulaDraft, setFormulaDraft] = useState(initialFormula);
   const [error, setError] = useState<string | null>(null);
+  const formulaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const confirm = () => {
     if (!parseModifierValue(valueDraft.trim())) {
       setError('Il valore deve contenere almeno un numero o un dado (es. +1 Forza, 1d6 danni).');
       return;
     }
-    if (formulaDraft.trim() && !isValidModifierFormula(formulaDraft.trim())) {
-      setError('Formula non valida: usa numeri, d, +, -, *, / e parentesi (es. (1d6+3)-(1d4)).');
+    const formulaText = formulaDraft.trim();
+    if (formulaText) {
+      const refs = extractModifierRefs(formulaText);
+      if (refs === null) {
+        setError('Formula non valida: usa numeri, d, +, -, *, /, parentesi e tag "Nome" (es. (1d6+3)-(1d4)).');
+        return;
+      }
+      const selfRef = refs.find((ref) => ref === modifierName);
+      if (selfRef) {
+        setError(`La formula non puo' riferirsi a se' stessa ("${selfRef}").`);
+        return;
+      }
+      const missing = refs.find((ref) => !lookup.has(ref));
+      if (missing) {
+        setError(`Modificatore "${missing}" non trovato tra i modificatori della nota.`);
+        return;
+      }
+    }
+    onSave(valueDraft.trim(), formulaText);
+  };
+
+  // Tag "Nome": inserito al caret, vale come valore/formula nella formula.
+  const insertTag = (tagName: string) => {
+    const tag = `"${tagName}"`;
+    const el = formulaRef.current;
+    if (!el) {
+      setFormulaDraft((current) => current + tag);
       return;
     }
-    onSave(valueDraft.trim(), formulaDraft.trim());
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    const next = `${el.value.slice(0, start)}${tag}${el.value.slice(end)}`;
+    setFormulaDraft(next);
+    setError(null);
+    window.requestAnimationFrame(() => {
+      el.focus();
+      try { el.setSelectionRange(start + tag.length, start + tag.length); } catch { /* area non testuale */ }
+    });
   };
 
   return (
@@ -107,6 +148,7 @@ function ModifierEditForm({ initialValue, initialFormula, onSave, onCancel }: {
       <label className="block">
         <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Formula</span>
         <textarea
+          ref={formulaRef}
           rows={2}
           value={formulaDraft}
           maxLength={200}
@@ -116,6 +158,28 @@ function ModifierEditForm({ initialValue, initialFormula, onSave, onCancel }: {
           className="w-full resize-y rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
         />
       </label>
+      {modifiers.length > 0 && (
+        <div>
+          <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Modificatori</span>
+          <div className="flex max-h-28 flex-col gap-0.5 overflow-y-auto rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1">
+            {modifiers.map((modifier) => (
+              <Tooltip key={modifier.name}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => insertTag(modifier.name)}
+                    className="truncate rounded-md px-2 py-1 text-left text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-accent)] hover:text-[var(--dash-text-strong)]"
+                  >
+                    {modifier.name}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>{modifier.formula || modifier.value || '—'}</TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
+        </div>
+      )}
       {error && <p role="alert" className="px-0.5 text-xs text-[var(--dash-danger-text)]">{error}</p>}
       <div className="mt-0.5 flex gap-1.5">
         <button
@@ -139,10 +203,12 @@ function ModifierEditForm({ initialValue, initialFormula, onSave, onCancel }: {
   );
 }
 
-function ModifierEditPanel({ top, left, name, initialValue, initialFormula, onSave, onCancel }: {
+function ModifierEditPanel({ top, left, name, modifiers, lookup, initialValue, initialFormula, onSave, onCancel }: {
   top: number;
   left: number;
   name: string;
+  modifiers: ModifierSnapshot[];
+  lookup: Map<string, ModifierSnapshot>;
   initialValue: string;
   initialFormula: string;
   onSave: (value: string, formula: string) => void;
@@ -197,6 +263,9 @@ function ModifierEditPanel({ top, left, name, initialValue, initialFormula, onSa
         <span className="min-w-0 flex-1 truncate">{name}</span>
       </div>
       <ModifierEditForm
+        modifierName={name}
+        modifiers={modifiers}
+        lookup={lookup}
         initialValue={initialValue}
         initialFormula={initialFormula}
         onSave={onSave}
@@ -345,11 +414,15 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
       ),
     );
     const belowTop = Math.max(8, Math.min(request.widgetBottom + 8, window.innerHeight - 320 - 8));
+    const lookup = getModifierLookup(editor.view);
+    const modifiers = [...lookup.values()].filter((modifier) => modifier.name !== data.name);
     return createPortal(
       <ModifierEditPanel
         top={belowTop}
         left={centeredLeft}
         name={data.name}
+        modifiers={modifiers}
+        lookup={lookup}
         initialValue={data.value}
         initialFormula={data.formula}
         onSave={saveEdit}
@@ -408,10 +481,17 @@ export function NoteModifierRollBridge({ editor }: { editor: Editor }) {
       const detail = (event as CustomEvent<NoteModifierRollRequest>).detail;
       const submit = sessionRef.current?.submitModifierRoll;
       if (typeof detail?.pos !== 'number' || !submit) return;
+      const view = editorRef.current.view;
       const data = getModifierAt(editorRef.current.state, detail.pos);
       if (!data) return;
+      // I tag "Nome" si risolvono sui valori correnti di tutta la nota.
+      const lookup = getModifierLookup(view);
+      const resolveName = (refName: string) => {
+        const entry = lookup.get(refName);
+        return entry ? { value: entry.value, formula: entry.formula } : null;
+      };
       try {
-        submit({ name: data.name, expression: data.value, formula: data.formula });
+        submit({ name: data.name, expression: data.value, formula: data.formula, resolveName });
       } catch (error) {
         console.error('Errore tiro modificatore:', error);
       }

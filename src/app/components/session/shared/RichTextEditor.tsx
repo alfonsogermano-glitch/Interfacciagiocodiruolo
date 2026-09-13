@@ -14,7 +14,7 @@ import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
 import { FontSize, HEADING_LEVEL_TO_FONT_SIZE, migrateHeadingsToFontSize } from './tiptapFontSize';
 import { FontFamily } from './tiptapFontFamily';
 import { InlineIcon } from './tiptapInlineIcon';
-import { InlineModifier } from './tiptapInlineModifier';
+import { InlineModifier, collectModifiersFromJSON, publishModifierPeers, unpublishModifierPeers } from './tiptapInlineModifier';
 import { InlineCheckbox } from './tiptapInlineCheckbox';
 import { NOTE_TABLE_EXTENSIONS } from './tiptapNoteTable';
 import { NoteTableClipboardPaste } from './noteTableClipboard';
@@ -40,6 +40,9 @@ interface RichTextEditorProps {
   fillViewport?: boolean;
   autoFocusOnSelect?: boolean;
   onAutoFocusConsumed?: () => void;
+  /** Documenti delle altre tab della stessa nota: i Modificatori referenziabili
+   *  dalle formule vivono anche li' (la lista nomi e la risoluzione li usano). */
+  peerContents?: Array<JSONContent | null>;
 }
 
 function legacyToTipTapDoc(content: string): JSONContent {
@@ -162,7 +165,7 @@ function PermanentUndo({ editor, editable }: { editor: Editor; editable: boolean
   );
 }
 
-function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineCheckbox, autoFocus, onBlurEditor, onClickText, containerClassName, fillViewport }: {
+function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineCheckbox, autoFocus, onBlurEditor, onClickText, containerClassName, fillViewport, peerContents }: {
   richContent: JSONContent;
   onChangeRich: (json: JSONContent) => void;
   editable: boolean;
@@ -172,6 +175,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
   onClickText?: () => void;
   containerClassName: string;
   fillViewport: boolean;
+  peerContents?: Array<JSONContent | null>;
 }) {
   const [initialContent] = useState(() => flattenRemovedLayoutNodes(migrateHeadingsToFontSize(richContent)));
   const editorShellRef = useRef<HTMLDivElement>(null);
@@ -242,6 +246,19 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
     editor.setEditable(editable);
   }, [editor, editable]);
 
+  // Pubblica i Modificatori delle altre tab per riferimenti/tooltip/rosso dei
+  // widget; al cambio peer rinfresca la vista solo a editor sfocato (mentre si
+  // digita le transazioni ricostruiscono gia' tutto, e si evita l'IME).
+  useEffect(() => {
+    if (!editor) return;
+    publishModifierPeers(
+      editor.view,
+      (peerContents ?? []).flatMap((peer) => collectModifiersFromJSON(peer)),
+    );
+    if (!editor.view.hasFocus()) editor.view.updateState(editor.state);
+    return () => { unpublishModifierPeers(editor.view); };
+  }, [editor, peerContents]);
+
   useEffect(() => {
     if (!editor) return;
     if (editable && autoFocus) editor.commands.focus();
@@ -298,7 +315,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
 
 const DEFAULT_CONTAINER_CLASS = 'min-h-[3rem] rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3';
 
-export function RichTextEditor({ legacyContent, richContent, onChangeRich, disabled, placeholder, className, fillViewport = true, autoFocusOnSelect, onAutoFocusConsumed }: RichTextEditorProps) {
+export function RichTextEditor({ legacyContent, richContent, onChangeRich, disabled, placeholder, className, fillViewport = true, autoFocusOnSelect, onAutoFocusConsumed, peerContents }: RichTextEditorProps) {
   const [isEditing, setIsEditing] = useState(() => !!autoFocusOnSelect && !disabled);
   useEffect(() => { if (autoFocusOnSelect) onAutoFocusConsumed?.(); }, []);
   const hasLegacyToProtect = richContent === null && legacyContent.trim() !== '';
@@ -307,7 +324,7 @@ export function RichTextEditor({ legacyContent, richContent, onChangeRich, disab
   if (richContent !== null) {
     return (
       <NoteViewportFrame enabled={fillViewport}>
-        <TipTapEditor richContent={richContent} onChangeRich={onChangeRich} editable={!disabled && isEditing} canToggleInlineCheckbox={!disabled} autoFocus={isEditing} onBlurEditor={() => setIsEditing(false)} onClickText={!disabled ? () => setIsEditing(true) : undefined} containerClassName={containerClassName} fillViewport={fillViewport} />
+        <TipTapEditor richContent={richContent} onChangeRich={onChangeRich} editable={!disabled && isEditing} canToggleInlineCheckbox={!disabled} autoFocus={isEditing} onBlurEditor={() => setIsEditing(false)} onClickText={!disabled ? () => setIsEditing(true) : undefined} containerClassName={containerClassName} fillViewport={fillViewport} peerContents={peerContents} />
       </NoteViewportFrame>
     );
   }
@@ -334,7 +351,7 @@ export function RichTextEditor({ legacyContent, richContent, onChangeRich, disab
 
   return (
     <NoteViewportFrame enabled={fillViewport}>
-      <TipTapEditor richContent={{ type: 'doc', content: [{ type: 'paragraph' }] }} onChangeRich={onChangeRich} editable canToggleInlineCheckbox autoFocus onBlurEditor={() => setIsEditing(false)} containerClassName={containerClassName} fillViewport={fillViewport} />
+        <TipTapEditor richContent={{ type: 'doc', content: [{ type: 'paragraph' }] }} onChangeRich={onChangeRich} editable canToggleInlineCheckbox autoFocus onBlurEditor={() => setIsEditing(false)} containerClassName={containerClassName} fillViewport={fillViewport} peerContents={peerContents} />
     </NoteViewportFrame>
   );
 }
