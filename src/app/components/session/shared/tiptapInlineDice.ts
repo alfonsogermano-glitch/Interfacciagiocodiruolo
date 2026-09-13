@@ -11,11 +11,13 @@ import {
   halveInlineBoxWidget,
   makeRoomForInlineModifierInsertion,
   registerInlineBoxWidget,
+  showInlineBoxTipAbove,
   shrinkInlineBoxWidget,
   unregisterInlineBoxWidget,
   type NoteModifierMenuRequest,
   type NoteModifierRollRequest,
 } from './tiptapInlineModifier';
+import { describeFormulaAnomaly } from './modifierFormula';
 import {
   extractModifierRefs,
   isValidModifierFormula,
@@ -395,13 +397,30 @@ function buildDiceWidget(
   dots.addEventListener('focus', () => { dots.style.opacity = '1'; });
   dots.addEventListener('blur', () => { dots.style.opacity = '0'; });
 
-  const assessment = assessDiceFormula(formula, getModifierLookup(view));
+  const diceLookup = getModifierLookup(view);
+  const assessment = assessDiceFormula(formula, diceLookup);
   element.dataset.diceAnomalous = assessment.anomalous ? 'true' : 'false';
+  // Il Dado non e' referenziabile: niente controllo "riferimento a se'".
+  const diceAnomalyReason = assessment.anomalous ? describeFormulaAnomaly(formula, diceLookup) : null;
   if (assessment.anomalous) {
     element.style.border = '1px solid var(--dash-danger-border)';
     element.style.color = 'var(--dash-danger-text)';
     label.style.color = 'var(--dash-danger-text)';
     formulaEl.style.color = 'var(--dash-danger-text)';
+    element.style.background = 'var(--dash-danger-bg)';
+    element.style.background = 'color-mix(in srgb, var(--dash-danger) 22%, var(--dash-surface-2))';
+    if (diceAnomalyReason) {
+      const host = element as HTMLElement & { __hideAnomalyTip?: (() => void) | null };
+      const showAnomalyTip = () => {
+        if (host.__hideAnomalyTip || !element.isConnected) return;
+        host.__hideAnomalyTip = showInlineBoxTipAbove(element, diceAnomalyReason);
+      };
+      const hideAnomalyTipNow = () => { host.__hideAnomalyTip?.(); host.__hideAnomalyTip = null; };
+      element.addEventListener('mouseenter', showAnomalyTip);
+      element.addEventListener('mouseleave', hideAnomalyTipNow);
+      element.addEventListener('focusin', showAnomalyTip);
+      element.addEventListener('focusout', hideAnomalyTipNow);
+    }
   }
   // Click sull'elemento (mai dai puntini): tira sempre la formula indicata
   // nel Valore. Formula vuota o sintassi non valida: niente tiro.
@@ -424,6 +443,7 @@ function buildDiceWidget(
   // Misura coordinata condivisa col Modificatore (stessa riga visiva).
   registerInlineBoxWidget(element, { view, getPos });
   (element as HTMLElement & { __destroyDiceWidget?: () => void }).__destroyDiceWidget = () => {
+    (element as HTMLElement & { __hideAnomalyTip?: (() => void) | null }).__hideAnomalyTip?.();
     unregisterInlineBoxWidget(element);
   };
   return element;

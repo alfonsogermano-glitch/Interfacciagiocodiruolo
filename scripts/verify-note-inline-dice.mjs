@@ -57,6 +57,16 @@ assert.match(
 );
 assert.match(
   modifierMenu,
+  /modifierFormulaHasDice\(formulaText, resolveRef\)[\s\S]*almeno un dado/,
+  'dice values must always contain at least one XdY die, directly or through a modifier',
+);
+assert.match(
+  dice,
+  /dash-danger-bg[\s\S]*showInlineBoxTipAbove/,
+  'anomalous dice must turn red including the background and explain the reason in a tooltip',
+);
+assert.match(
+  modifierMenu,
   /getDiceAt\(editorRef\.current\.state[\s\S]*submit\(\{ name: dice\.name, expression: dice\.formula, formula: dice\.formula/,
   'dice rolls must resolve modifier references and post like modifier rolls',
 );

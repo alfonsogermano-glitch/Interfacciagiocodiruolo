@@ -7,7 +7,7 @@ import {
   wrapNoteClipboardHTML,
   type NoteClipboardSliceJSON,
 } from './tiptapNoteRichClipboard';
-import { extractModifierRefs, isValidModifierFormula, modifierFormulaHasDice, parseModifierValue } from './modifierFormula';
+import { describeFormulaAnomaly, extractModifierRefs, isValidModifierFormula, modifierFormulaHasDice, parseModifierValue } from './modifierFormula';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -595,6 +595,47 @@ export function halveInlineBoxWidget(widget: HTMLElement): void {
   widget.style.width = `${Math.max(MIN_MODIFIER_WIDTH, (widget.offsetWidth - MIN_GAP) / 2)}px`;
 }
 
+// Tooltip vanilla sopra un box inline (motivo anomalia su Modificatori e
+// Dadi rossi): stesso stile del tooltip compatto (palette via var(--dash-*),
+// portal fixed sopra il box, pointer-events none). Ritorna la chiusura.
+export function showInlineBoxTipAbove(element: HTMLElement, text: string): () => void {
+  const tip = document.createElement('span');
+  tip.setAttribute('role', 'tooltip');
+  tip.textContent = text;
+  Object.assign(tip.style, {
+    position: 'fixed',
+    whiteSpace: 'nowrap',
+    maxWidth: 'min(320px, 80vw)',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    pointerEvents: 'none',
+    opacity: '0',
+    transition: 'opacity 120ms ease',
+    zIndex: '1200',
+    borderRadius: '0.45em',
+    padding: '0.35em 0.7em',
+    fontSize: '0.75em',
+    fontWeight: 600,
+    letterSpacing: '0.04em',
+    background: 'var(--dash-panel)',
+    color: 'var(--dash-text)',
+    border: '1px solid var(--dash-border-soft)',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+  });
+  (element.closest('[data-dashboard-palette]') ?? document.body).appendChild(tip);
+  const rect = element.getBoundingClientRect();
+  const tipRect = tip.getBoundingClientRect();
+  tip.style.left = `${Math.max(8, Math.min(rect.left + rect.width / 2 - tipRect.width / 2, window.innerWidth - tipRect.width - 8))}px`;
+  tip.style.top = `${Math.max(8, rect.top - tipRect.height - 8)}px`;
+  const hide = () => {
+    window.removeEventListener('scroll', hide, true);
+    tip.remove();
+  };
+  window.addEventListener('scroll', hide, true);
+  window.requestAnimationFrame(() => { if (tip.isConnected) tip.style.setProperty('opacity', '1'); });
+  return hide;
+}
+
 function makeRoomNearModifier(pos: number, delta: number): void {
   const widget = getModifierWidgetAt(pos);
   // I compatti sono gia' al minimo (solo valore): non vanno schiacciati oltre.
@@ -1012,7 +1053,8 @@ function buildModifierWidget(
       tip = document.createElement('span');
       tip.className = 'tiptap-inline-modifier-tooltip';
       tip.setAttribute('role', 'tooltip');
-      tip.textContent = name;
+      // Box rosso: il tooltip spiega il motivo dell'anomalia, non il nome.
+      tip.textContent = describeFormulaAnomaly(formula, getModifierLookup(view), name) ?? name;
       Object.assign(tip.style, {
         position: 'fixed',
         whiteSpace: 'nowrap',
@@ -1102,9 +1144,11 @@ function buildModifierWidget(
   // distinguere i pulsanti dai Modificatori che rappresentano solo un valore.
   // Riferimento mancante, a se' stesso o sintassi non valida: anomalia rossa.
   // Mai dai puntini (aprono il menu) ne' dalla rinomina.
-  const assessment = assessModifierFormula(name, formula, getModifierLookup(view));
+  const formulaLookup = getModifierLookup(view);
+  const assessment = assessModifierFormula(name, formula, formulaLookup);
   const rollable = parseModifierValue(value)?.kind === 'dice' || assessment.hasDice;
   const anomalous = assessment.anomalous;
+  const anomalyReason = anomalous ? describeFormulaAnomaly(formula, formulaLookup, name) : null;
   // Manina solo sui veri pulsanti (con dadi); i valori semplici pubblicano in
   // chat ma restano neutri. Niente alone: solo bordo e fondo accento.
   if (rollable && !anomalous) {
@@ -1121,6 +1165,24 @@ function buildModifierWidget(
     element.style.color = 'var(--dash-danger-text)';
     label.style.color = 'var(--dash-danger-text)';
     valueEl.style.color = 'var(--dash-danger-text)';
+    // Sfondo rosso pieno (non solo bordo/testo): l'anomalia deve vedersi.
+    element.style.background = 'var(--dash-danger-bg)';
+    element.style.background = 'color-mix(in srgb, var(--dash-danger) 22%, var(--dash-surface-2))';
+    // Tooltip col motivo dell'anomalia (solo espanso: il compatto mostra gia'
+    // il motivo al posto del nome). La chiusura alla destroy avviene nella
+    // teardown unica in fondo (proprieta' __hideAnomalyTip).
+    if (!compact && anomalyReason) {
+      const host = element as HTMLElement & { __hideAnomalyTip?: (() => void) | null };
+      const showAnomalyTip = () => {
+        if (host.__hideAnomalyTip || !element.isConnected) return;
+        host.__hideAnomalyTip = showInlineBoxTipAbove(element, anomalyReason);
+      };
+      const hideAnomalyTipNow = () => { host.__hideAnomalyTip?.(); host.__hideAnomalyTip = null; };
+      element.addEventListener('mouseenter', showAnomalyTip);
+      element.addEventListener('mouseleave', hideAnomalyTipNow);
+      element.addEventListener('focusin', showAnomalyTip);
+      element.addEventListener('focusout', hideAnomalyTipNow);
+    }
   }
   element.addEventListener('click', (event) => {
     if (!(event.target instanceof Element)) return;
@@ -1149,6 +1211,7 @@ function buildModifierWidget(
   (element as HTMLElement & { __destroyModifierWidget?: () => void }).__destroyModifierWidget = () => {
     window.removeEventListener(NOTE_MODIFIER_RENAME_EVENT, onRenameRequest);
     hideCompactTip?.();
+    (element as HTMLElement & { __hideAnomalyTip?: (() => void) | null }).__hideAnomalyTip?.();
     (element as HTMLElement & { __cancelInlineRename?: () => void }).__cancelInlineRename?.();
   };
   scheduleMeasure();

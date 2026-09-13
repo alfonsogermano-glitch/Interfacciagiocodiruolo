@@ -11,7 +11,7 @@ import { NOTE_COMMANDS, type NoteCommandId } from './noteEditorCommands';
 
 import { FONT_SIZES } from './tiptapFontSize';
 import { FONT_FAMILIES } from './tiptapFontFamily';
-import { extractModifierRefs } from './modifierFormula';
+import { extractModifierRefs, modifierFormulaHasDice } from './modifierFormula';
 import {
   copyModifierToClipboard,
   deleteModifierAt,
@@ -510,6 +510,13 @@ function DiceEditForm({ modifiers, lookup, initialName, initialFormula, onSave, 
     const missing = refs.find((ref) => !lookup.has(ref));
     if (missing) {
       setError(`Modificatore "${missing}" non trovato tra i modificatori della nota.`);
+      return;
+    }
+    // Il Dado tira sempre: serve almeno una notazione XdY, diretta oppure
+    // tramite un Modificatore che tira dadi.
+    const resolveRef = (refName: string) => lookup.get(refName) ?? null;
+    if (!modifierFormulaHasDice(formulaText, resolveRef)) {
+      setError('Il valore deve contenere almeno un dado (es. 1d6, anche tramite Modificatore).');
       return;
     }
     onSave(nameDraft.trim(), formulaText);

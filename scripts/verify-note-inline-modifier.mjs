@@ -46,8 +46,18 @@ assert.match(
 );
 assert.match(
   source,
-  /assessModifierFormula[\s\S]*anomalous[\s\S]*dash-danger-border[\s\S]*dash-danger-text/,
-  'modifiers with missing, self or invalid formula references must turn red',
+  /assessModifierFormula[\s\S]*anomalous[\s\S]*dash-danger-border[\s\S]*dash-danger-text[\s\S]*dash-danger-bg/,
+  'modifiers with missing, self or invalid formula references must turn red including the background',
+);
+assert.match(
+  source,
+  /showInlineBoxTipAbove[\s\S]*role.*tooltip[\s\S]*data-dashboard-palette/,
+  'anomalous modifiers must explain the reason in a site-style tooltip',
+);
+assert.match(
+  source,
+  /anomalyReason[\s\S]*describeFormulaAnomaly\(formula, formulaLookup, name\)/,
+  'anomalous modifiers must compute the tooltip reason from the live lookup',
 );
 assert.match(
   source,

@@ -448,3 +448,25 @@ export function modifierFormulaHasDice(text: string, resolve?: ModifierReference
     return false;
   }
 }
+
+export type FormulaAnomalyLookup = Map<string, { value: string; formula: string }>;
+
+// Motivo dell'anomalia in chiaro per il tooltip sui box rossi: sintassi non
+// valida, riferimento a se' stessi (solo Modificatore, il Dado non e'
+// referenziabile), riferimento mancante. null se tutto a posto.
+export function describeFormulaAnomaly(
+  formula: string,
+  lookup: FormulaAnomalyLookup,
+  selfName?: string,
+): string | null {
+  if (!formula.trim()) return null;
+  const refs = extractModifierRefs(formula);
+  if (refs === null) return 'Formula non valida: usa numeri, d, +, -, *, /, parentesi e tag "Nome".';
+  if (selfName) {
+    const selfRef = refs.find((ref) => ref === selfName);
+    if (selfRef) return `La formula si riferisce a se' stessa ("${selfRef}").`;
+  }
+  const missing = refs.find((ref) => !lookup.has(ref));
+  if (missing) return `Modificatore "${missing}" non trovato.`;
+  return null;
+}

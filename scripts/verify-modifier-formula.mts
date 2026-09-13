@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   ModifierFormulaError,
+  describeFormulaAnomaly,
   evaluateModifierFormula,
   extractModifierRefs,
   isValidModifierFormula,
@@ -71,5 +72,14 @@ assert.deepEqual(parseModifierValue('+1 Forza'), { kind: 'number', value: 1 });
 assert.deepEqual(parseModifierValue('Saggezza-2'), { kind: 'number', value: -2 });
 assert.deepEqual(parseModifierValue('Forza'), { kind: 'number', value: 0 });
 assert.equal(parseModifierValue(''), null);
+
+// Motivo dell'anomalia per il tooltip sui box rossi.
+const anomalyLookup = new Map(Object.entries({ 'Forza': { value: '+2', formula: '' } }));
+assert.equal(describeFormulaAnomaly('1d6+"Forza"', anomalyLookup, 'Attacco'), null);
+assert.equal(describeFormulaAnomaly('', anomalyLookup, 'Attacco'), null);
+assert.match(describeFormulaAnomaly('1d6+', anomalyLookup, 'Attacco') ?? '', /Formula non valida/);
+assert.match(describeFormulaAnomaly('1d6+"Attacco"', anomalyLookup, 'Attacco') ?? '', /se' stessa/);
+assert.match(describeFormulaAnomaly('1d6+"Mana"', anomalyLookup, 'Attacco') ?? '', /"Mana" non trovato/);
+assert.match(describeFormulaAnomaly('1d6+"Mana"', anomalyLookup) ?? '', /"Mana" non trovato/);
 
 console.log('Modifier formula verification: PASS');
