@@ -48,7 +48,7 @@ const FIRE_FRAME_CANVAS_SIZE = 192;
 // mappa), emissive o luce orbitante, pinnati altrove.
 const METAL_FILL_SKY_COLOR = '#e6eef6';
 const METAL_FILL_GROUND_COLOR = '#14161c';
-const METAL_FILL_INTENSITY = 0.55;
+const METAL_FILL_INTENSITY = 0.32;
 
 const fireFrameAtlasImage = typeof Image === 'undefined' ? null : new Image();
 if (fireFrameAtlasImage) {
@@ -138,12 +138,12 @@ export function installDice3DVisualBoost(
     return fillCleanup;
   }
   if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-    return () => undefined;
+    return fillCleanup;
   }
 
   const skin = descriptor.appearance.skinId;
   const lightColor = boostLightColor(skin);
-  if (!lightColor) return () => undefined;
+  if (!lightColor) return fillCleanup;
 
   const typedMesh = mesh as MeshLike;
   const fireFaceBaselines: FireFaceBaseline[] = skin === 'fire' && !descriptor.custom

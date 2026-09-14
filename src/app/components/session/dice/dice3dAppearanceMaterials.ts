@@ -1,4 +1,4 @@
-import { getDice3DTextureDescriptor } from './dice3dSkinTextures.ts';
+import { getDice3DTextureDescriptor, repairDarkFaceMap } from './dice3dSkinTextures.ts';
 import { Dice3DSkinEffectController } from './dice3dSkinEffects.ts';
 import { applyDice3DSurfaceProfile, getDice3DSurfaceProfile } from './dice3dSurfaceProfiles.ts';
 import { installDice3DVisualBoost } from './dice3dVisualBoost.ts';
@@ -494,41 +494,14 @@ export function buildSimultaneousAppearanceQueue(chunks: Dice3DProjectionChunk[]
   return [...grouped.values()].flat();
 }
 
-// Luminanza campionata (ogni 16px): basta per distinguere una faccia
-// riuscita (foto+etichette) da una nera (base senza foto).
-function sampledFaceLuminance(canvas: HTMLCanvasElement): number {
-  const width = canvas.width;
-  const height = canvas.height;
-  if (width <= 0 || height <= 0) return 1;
-  const context = canvas.getContext('2d');
-  if (!context) return 1;
-  const step = 16;
-  let sum = 0;
-  let count = 0;
-  try {
-    const data = context.getImageData(0, 0, width, height).data;
-    for (let y = 0; y < height; y += step) {
-      for (let x = 0; x < width; x += step) {
-        const offset = (y * width + x) * 4;
-        sum += 0.2126 * data[offset] + 0.7152 * data[offset + 1] + 0.0722 * data[offset + 2];
-        count += 1;
-      }
-    }
-  } catch {
-    return 1;
-  }
-  return count === 0 ? 1 : sum / count / 255;
-}
-
-// Riparazione post-settle delle facce composte senza foto: dice-box compone
-// le texture dei dadi in batch leggendo lo stato factory GLOBALE, quindi una
-// faccia puo' nascere con base nera e senza foto anche se l'adapter ha dato
-// i dati giusti al suo dado (race non deterministica, piu' visibile sul
-// metallo scuro). Ridipinge la foto SOTTO le etichette con 'lighten' (tiene
-// il piu' chiaro per pixel: etichette chiare intatte, base nera sostituita).
-// Idempotente sulle facce riuscite (foto su foto) e limitato a quelle scure.
+// Riparazione delle facce composte senza foto: dice-box compone le texture
+// dei dadi in batch leggendo lo stato factory GLOBALE, quindi una faccia
+// puo' nascere con base nera e senza foto anche se l'adapter ha dato i dati
+// giusti al suo dado (race non deterministica, piu' visibile sul metallo
+// scuro). Stessa repair gira nel loop effetti durante il roll e al settle.
+// Usa gli helper condivisi (una tantum per canvas, idempotente).
 function repairSettledFaceMaps(entries: Array<{ mesh: object; descriptor: Dice3DAppearanceDescriptor }>): void {
-  if (typeof document === 'undefined') return;
+  if (typeof document === 'undefined' || typeof HTMLCanvasElement === 'undefined') return;
   let repainted = 0;
   for (const { mesh, descriptor } of entries) {
     if (descriptor.custom || descriptor.appearance.skinId === 'none') continue;
@@ -538,25 +511,12 @@ function repairSettledFaceMaps(entries: Array<{ mesh: object; descriptor: Dice3D
     } catch {
       continue;
     }
-    if (!photo || photo.width <= 0 || photo.height <= 0) continue;
+    if (!(photo instanceof HTMLCanvasElement) || photo.width <= 0 || photo.height <= 0) continue;
     materialsOf(mesh as MeshLike).forEach((material, materialIndex) => {
       if (materialIndex === 0) return;
       const image = material.map?.image;
       if (!(image instanceof HTMLCanvasElement)) return;
-      if (image.width <= 0 || image.height <= 0) return;
-      if (sampledFaceLuminance(image) >= 0.3) return;
-      const context = image.getContext('2d');
-      if (!context) return;
-      context.save();
-      try {
-        context.globalAlpha = 1;
-        context.globalCompositeOperation = 'lighten';
-        context.drawImage(photo, 0, 0, image.width, image.height);
-      } catch {
-        // Canvas illeggibile o sorgente non disegnabile: resta com'e'.
-      } finally {
-        context.restore();
-      }
+      if (!repairDarkFaceMap(photo, image)) return;
       if (material.map) material.map.needsUpdate = true;
       if (typeof material.needsUpdate === 'boolean') material.needsUpdate = true;
       repainted += 1;

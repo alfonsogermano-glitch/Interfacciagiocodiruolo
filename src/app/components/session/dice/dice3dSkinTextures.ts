@@ -428,6 +428,58 @@ function drawPattern(textureCanvas: HTMLCanvasElement, bumpCanvas: HTMLCanvasEle
   bump.globalAlpha = 1;
 }
 
+// Luminanza campionata (ogni 16px): basta per distinguere una faccia
+// riuscita (foto+etichette) da una nera (base senza foto).
+export function sampledFaceLuminance(canvas: HTMLCanvasElement): number {
+  const width = canvas.width;
+  const height = canvas.height;
+  if (width <= 0 || height <= 0) return 1;
+  const context = canvas.getContext('2d');
+  if (!context) return 1;
+  const step = 16;
+  let sum = 0;
+  let count = 0;
+  try {
+    const data = context.getImageData(0, 0, width, height).data;
+    for (let y = 0; y < height; y += step) {
+      for (let x = 0; x < width; x += step) {
+        const offset = (y * width + x) * 4;
+        sum += 0.2126 * data[offset] + 0.7152 * data[offset + 1] + 0.0722 * data[offset + 2];
+        count += 1;
+      }
+    }
+  } catch {
+    return 1;
+  }
+  return count === 0 ? 1 : sum / count / 255;
+}
+
+// Facce gia' riparate (ogni canvas una sola volta: la foto ridipinta resta).
+const repairedFaceCanvases = new WeakSet<HTMLCanvasElement>();
+
+// Ridipinge la foto SOTTO le etichette con 'lighten' (tiene il piu' chiaro
+// per pixel: etichette chiare intatte, base nera sostituita dalla foto).
+// Idempotente (foto su foto) e una tantum per canvas.
+export function repairDarkFaceMap(photo: HTMLCanvasElement, face: HTMLCanvasElement): boolean {
+  if (photo.width <= 0 || photo.height <= 0 || face.width <= 0 || face.height <= 0) return false;
+  if (repairedFaceCanvases.has(face)) return false;
+  if (sampledFaceLuminance(face) >= 0.3) return false;
+  const context = face.getContext('2d');
+  if (!context) return false;
+  context.save();
+  try {
+    context.globalAlpha = 1;
+    context.globalCompositeOperation = 'lighten';
+    context.drawImage(photo, 0, 0, face.width, face.height);
+  } catch {
+    return false;
+  } finally {
+    context.restore();
+  }
+  repairedFaceCanvases.add(face);
+  return true;
+}
+
 export function getDice3DTextureDescriptor(appearance: DiceAppearance): Dice3DTextureDescriptor {
   if (appearance.skinId === 'none') return { name: 'none', texture: null, bump: null, composite: 'source-over', material: 'none' };
   const textureScale = normalizeDiceTextureScale(appearance.textureScale);

@@ -2,6 +2,7 @@
 // @ts-ignore Runtime module is present through dice-box-threejs; keep this adapter structurally typed.
 import * as THREE from 'three';
 import type { Dice3DAppearanceDescriptor } from './dice3dProjection.ts';
+import { getDice3DTextureDescriptor, repairDarkFaceMap } from './dice3dSkinTextures.ts';
 
 type MaterialLike = {
   emissive?: { set?: (value: string | number) => unknown; getHex?: () => number };
@@ -12,6 +13,7 @@ type MaterialLike = {
   opacity?: number;
   transparent?: boolean;
   needsUpdate?: boolean;
+  map?: { image?: unknown; needsUpdate?: boolean } | null;
 };
 
 type GeometryLike = {
@@ -530,6 +532,24 @@ export class Dice3DSkinEffectController {
             }
             if (typeof material.shininess === 'number') {
               material.shininess = blendNumber(material.shininess, settledProfile.shininess, settleProgress);
+            }
+          }
+          // Stessa repair del settle, ma durante il roll: le facce nate senza
+          // foto guariscono entro pochi frame invece di restare nere fino al
+          // settle. Una tantum per canvas (WeakSet interno), idempotente.
+          if (!isEdgeMaterial && !entry.descriptor.custom && entry.descriptor.appearance.skinId !== 'none') {
+            const faceCanvas = material.map?.image;
+            if (faceCanvas instanceof HTMLCanvasElement) {
+              let photo: HTMLCanvasElement | null = null;
+              try {
+                const resolved = getDice3DTextureDescriptor(entry.descriptor.appearance).texture;
+                photo = resolved instanceof HTMLCanvasElement ? resolved : null;
+              } catch {
+                photo = null;
+              }
+              if (photo && repairDarkFaceMap(photo, faceCanvas) && material.map) {
+                material.map.needsUpdate = true;
+              }
             }
           }
           material.needsUpdate = true;
