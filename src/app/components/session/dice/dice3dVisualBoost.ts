@@ -44,6 +44,11 @@ const FIRE_FRAME_EMISSIVE_LIFT = 0.34;
 const STONE_FACE_EMISSIVE_PULSE = 0.16;
 const ICE_LIGHT_INTENSITY = 0.56;
 const FIRE_FRAME_CANVAS_SIZE = 192;
+// Fill metallico: solleva le facce argentate senza toccare polish (filtro
+// mappa), emissive o luce orbitante, pinnati altrove.
+const METAL_FILL_SKY_COLOR = '#e6eef6';
+const METAL_FILL_GROUND_COLOR = '#14161c';
+const METAL_FILL_INTENSITY = 0.55;
 
 const fireFrameAtlasImage = typeof Image === 'undefined' ? null : new Image();
 if (fireFrameAtlasImage) {
@@ -117,8 +122,19 @@ export function installDice3DVisualBoost(
   descriptor: Dice3DAppearanceDescriptor,
 ): () => void {
   if (!mesh || typeof mesh !== 'object') return () => undefined;
+  const typedMeshEarly = mesh as MeshLike;
+  // Fill metallico dedicato (anche a effetti spenti o motion ridotta): luce
+  // emisferica morbida che solleva le facce senza appiattire la spazzolatura
+  // come farebbe un emissive. Solo metallo standard (mai custom, mai altre
+  // skin: l'ossidiana deve restare vetro quasi nero).
+  let fillCleanup = () => undefined;
+  if (descriptor.appearance.skinId === 'metal' && !descriptor.custom) {
+    const fill = new THREE.HemisphereLight(METAL_FILL_SKY_COLOR, METAL_FILL_GROUND_COLOR, METAL_FILL_INTENSITY);
+    typedMeshEarly.add(fill);
+    fillCleanup = () => { typedMeshEarly.remove(fill); };
+  }
   if (!descriptor.appearance.effectsEnabled || descriptor.appearance.skinId === 'none' || descriptor.appearance.skinId === 'arcane') {
-    return () => undefined;
+    return fillCleanup;
   }
   if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
     return () => undefined;
@@ -265,6 +281,7 @@ export function installDice3DVisualBoost(
   typedMesh.add(group);
   raf = window.requestAnimationFrame(frame);
   return () => {
+    fillCleanup();
     if (raf !== null) window.cancelAnimationFrame(raf);
     if (onFireAtlasLoad && fireFrameAtlasImage) fireFrameAtlasImage.removeEventListener('load', onFireAtlasLoad);
     for (const { material, emissiveMap, emissiveIntensity, emissiveHex } of fireFaceBaselines) {
