@@ -529,6 +529,7 @@ function sampledFaceLuminance(canvas: HTMLCanvasElement): number {
 // Idempotente sulle facce riuscite (foto su foto) e limitato a quelle scure.
 function repairSettledFaceMaps(entries: Array<{ mesh: object; descriptor: Dice3DAppearanceDescriptor }>): void {
   if (typeof document === 'undefined') return;
+  let repainted = 0;
   for (const { mesh, descriptor } of entries) {
     if (descriptor.custom || descriptor.appearance.skinId === 'none') continue;
     let photo: HTMLCanvasElement | null = null;
@@ -558,8 +559,10 @@ function repairSettledFaceMaps(entries: Array<{ mesh: object; descriptor: Dice3D
       }
       if (material.map) material.map.needsUpdate = true;
       if (typeof material.needsUpdate === 'boolean') material.needsUpdate = true;
+      repainted += 1;
     });
   }
+  if (repainted > 0) console.info(`Hollowgate 3D: riparate ${repainted} facce con foto mancante.`);
 }
 
 export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice3DAppearanceDescriptor | null>): { restore: () => void; effects: Dice3DSkinEffectController } {
