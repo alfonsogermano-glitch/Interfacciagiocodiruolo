@@ -236,7 +236,9 @@ function drawMetalPhotoTexture(context: CanvasRenderingContext2D, bump: CanvasRe
   context.fillRect(0, 0, size, size);
   context.restore();
   bump.save();
-  bump.filter = 'grayscale(1) contrast(1.85) brightness(.92)';
+  // Contrasto contenuto: valori alti rendono il bump pixelloso e la luce
+  // speculare maculata sulla faccia.
+  bump.filter = 'grayscale(1) contrast(1.55) brightness(.94)';
   drawImageCover(bump, image, size);
   bump.restore();
   return true;
@@ -310,7 +312,10 @@ function applyTextureZoom(context: CanvasRenderingContext2D, bump: CanvasRenderi
 function drawPattern(textureCanvas: HTMLCanvasElement, bumpCanvas: HTMLCanvasElement, skinId: DiceSkinId, textureScale?: number) {
   const context = textureCanvas.getContext('2d');
   const bump = bumpCanvas.getContext('2d');
-  if (!context || !bump) return;
+  // Mai restituire canvas vuoti in cache: con i contesti 2D esauriti (troppe
+  // facce accumulate tra i tiri) produrrebbero dadi bianchi senza numeri.
+  // Meglio un errore forte (fallback neutro + console) che un cache avvelenata.
+  if (!context || !bump) throw new Error('Contesto 2D non disponibile per la texture dei dadi.');
   const size = textureCanvas.width;
   resetContext(context, size);
   resetContext(bump, size);

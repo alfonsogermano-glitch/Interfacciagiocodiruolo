@@ -9,6 +9,7 @@ const saved=read('src/app/components/session/dice/SavedDiceFormulaCard.tsx');
 const history=read('src/app/components/session/dice/DiceRollHistoryDrawer.tsx');
 const card=read('src/app/components/session/dice/DiceRollHistoryCard.tsx');
 const quick=read('src/app/components/session/dice/DiceQuickRollFloating.tsx');
+const overlay=read('src/app/components/session/dice/Dice3DOverlay.tsx');
 const custom=read('src/app/components/session/dice/CustomDieConfigurator.tsx');
 const customizer=read('src/app/components/session/dice/DiceAppearanceCustomizer.tsx');
 const customDie=read('src/app/components/session/dice/diceCustomDie.ts');
@@ -29,6 +30,7 @@ assert.ok(!card.includes('<Dices className="h-2.5 w-2.5"/>d{die.sides}:'), 'stan
 for(const hook of ['data-dice-quick-roll-floating','data-dice-quick-toggle','data-dice-history-toggle','data-dice-history-unread','data-dice-quick-palette','data-dice-appearance-toolbar']) assert.ok(quick.includes(hook));
 assert.ok(quick.indexOf('data-dice-custom-toolbar') < quick.indexOf('data-dice-appearance-toolbar'), 'Personalizza must immediately follow the Custom die control');
 assert.ok(quick.includes('appearance={getStandardAppearance(side)}'), 'quick-roll standard dice must read the campaign/user appearance context');
+assert.ok(overlay.includes("void import('@3d-dice/dice-box-threejs').catch(() => {})"), '3D overlay must warm the dice-box module so the first quick roll never looks dead');
 assert.ok(quick.includes('isLoading: appearanceLoading') && /data-dice-appearance-toolbar[\s\S]{0,260}disabled=\{appearanceLoading\}/.test(quick), 'Personalizza must not open before stored styles finish loading');
 for(const hook of ['data-dice-appearance-customizer','data-dice-appearance-side','data-dice-appearance-effects','data-dice-appearance-apply-all','data-dice-appearance-save','data-dice-appearance-cancel']) assert.ok(customizer.includes(hook),`customizer missing ${hook}`);
 assert.ok(customizer.includes('DICE_SKINS.map'), 'standard customizer must expose the complete shared skin catalog');

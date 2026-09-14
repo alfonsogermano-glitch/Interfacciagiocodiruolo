@@ -48,7 +48,7 @@ const FIRE_FRAME_CANVAS_SIZE = 192;
 // mappa), emissive o luce orbitante, pinnati altrove.
 const METAL_FILL_SKY_COLOR = '#e6eef6';
 const METAL_FILL_GROUND_COLOR = '#14161c';
-const METAL_FILL_INTENSITY = 0.32;
+const METAL_FILL_INTENSITY = 0.22;
 
 const fireFrameAtlasImage = typeof Image === 'undefined' ? null : new Image();
 if (fireFrameAtlasImage) {

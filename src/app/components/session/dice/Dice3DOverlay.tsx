@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useDiceSession } from './DiceSessionContext';
 
 export function Dice3DOverlay() {
@@ -7,6 +7,14 @@ export function Dice3DOverlay() {
   const setContainer = useCallback((node: HTMLDivElement | null) => {
     setAnimationContainer(node);
   }, [setAnimationContainer]);
+
+  // Preriscalda il modulo 3D (dice-box + three incorporato): il primo Tira
+  // dopo il refresh non deve pagare parse+init a menù già chiuso sembrando
+  // morto. Stesso specifier dell'import dinamico del renderer: condivide la
+  // cache moduli, nessun doppio caricamento.
+  useEffect(() => {
+    void import('@3d-dice/dice-box-threejs').catch(() => {});
+  }, []);
 
   return (
     <div

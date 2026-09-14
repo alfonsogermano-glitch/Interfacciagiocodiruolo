@@ -599,6 +599,14 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
       factory.create = originalCreate;
       if (originalSetMaterialInfo) factory.setMaterialInfo = originalSetMaterialInfo;
       if (previousSwapD4) box.swapDiceFace_D4 = previousSwapD4;
+      // Svuota la cache materiali tra un tiro e l'altro: trattiene un canvas
+      // per ogni faccia mai composta e, a sessione lunga, esaurisce i contesti
+      // 2D (dadi bianchi senza numeri). Stesso pattern gia' usato dallo swap d4.
+      try {
+        factory.materials_cache = {};
+      } catch {
+        // Cache non azzerabile: i vecchi canvas restano riusabili.
+      }
       visualBoostCleanups.splice(0).forEach((cleanup) => cleanup());
       meshAppearances.length = 0;
       settledFlag.value = false;

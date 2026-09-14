@@ -11,7 +11,7 @@ assert.ok(!boost.includes('METAL_FACE_EMISSIVE_PULSE'), 'Metal photographic face
 assert.ok(!boost.includes("(skin === 'stone' || skin === 'metal') && !descriptor.custom"), 'Metal must not be included in photographic face emissive baselines');
 assert.ok(boost.includes("if (skin === 'stone' || skin === 'metal')"), 'Metal must keep the external/orbiting light animation');
 assert.ok(boost.includes("skin === 'metal' ? 0.82"), 'Metal must keep its dedicated moving point-light boost');
-assert.ok(boost.includes('METAL_FILL_INTENSITY = 0.32'), 'Metal fill must lift faces without washing them out');
+assert.ok(boost.includes('METAL_FILL_INTENSITY = 0.22'), 'Metal fill must lift faces without washing them out');
 assert.ok(boost.includes("new THREE.HemisphereLight(METAL_FILL_SKY_COLOR, METAL_FILL_GROUND_COLOR, METAL_FILL_INTENSITY)"), 'Metal fill must be a soft hemisphere light that preserves the brushed texture');
 assert.ok(boost.includes("descriptor.appearance.skinId === 'metal' && !descriptor.custom"), 'Metal fill must apply to standard dice only, never to custom dice or other skins');
 assert.ok(boost.includes('isSettled') && boost.includes('settleDimFactor'), 'Orbiting lights must fade once dice settle so final numbers stay readable');
@@ -21,6 +21,8 @@ assert.ok(
   'Rolling faces must heal within frames through the same shared repair',
 );
 assert.ok(textures.includes('export function repairDarkFaceMap'), 'Face repair must live in a single shared module');
+assert.ok(materials.includes('factory.materials_cache = {};'), 'Face cache must reset between rolls so 2D contexts never run out');
+assert.ok(textures.includes("if (!context || !bump) throw new Error('Contesto 2D non disponibile"), 'Empty texture descriptors must fail loudly instead of poisoning the cache');
 assert.ok(textures.includes("globalCompositeOperation = 'lighten'"), 'Face repair must repaint the photo under the labels without covering them');
 assert.ok(textures.includes('sampledFaceLuminance(face) >= 0.3'), 'Face repair must only touch dark faces and leave correct ones alone');
 
