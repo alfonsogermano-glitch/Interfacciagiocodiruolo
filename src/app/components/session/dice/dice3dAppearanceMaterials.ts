@@ -63,7 +63,13 @@ const PHOTO_UNLIT_LABEL_OUTLINE_MAX_WIDTH = 32;
 const PHOTO_UNLIT_LABEL_OUTLINE_FONT_RATIO = 0.09;
 const OBSIDIAN_OUTER_OUTLINE_EXTRA_WIDTH = 14;
 const REFLECTIVE_OUTPUT_FRAGMENT_CHUNKS = ['#include <colorspace_fragment>', '#include <encodings_fragment>'] as const;
-const REFLECTIVE_LABEL_SHIELD_CACHE_KEY = 'hollowgate-reflective-label-shield-v1';
+// Varying UV della mappa: 'vMapUv' solo da three r151 (canali UV per-mappa),
+// 'vUv' nelle versioni precedenti come la 0.143 usata qui. Usare quello
+// sbagliato e' un identificatore non dichiarato: il programma delle facce non
+// compila e i dadi metallo/ossidiana (unici con lo shield) restano neri.
+const REFLECTIVE_UV_VARYING_CHANNELS = 'vMapUv';
+const REFLECTIVE_UV_VARYING_LEGACY = 'vUv';
+const REFLECTIVE_LABEL_SHIELD_CACHE_KEY = 'hollowgate-reflective-label-shield-v2';
 const reflectiveLabelMasks = new WeakMap<HTMLCanvasElement, HTMLCanvasElement>();
 
 function captureFactoryState(factory: DiceFactoryLike) {
@@ -367,10 +373,13 @@ function protectReflectiveDiceLabelFromLighting(material: MaterialLike, descript
     shader.uniforms.reflectiveLabelMask = { value: maskTexture };
     const outputChunk = REFLECTIVE_OUTPUT_FRAGMENT_CHUNKS.find((chunk) => shader.fragmentShader.includes(chunk));
     if (!outputChunk) return;
+    const uvVarying = outputChunk === '#include <colorspace_fragment>'
+      ? REFLECTIVE_UV_VARYING_CHANNELS
+      : REFLECTIVE_UV_VARYING_LEGACY;
     shader.fragmentShader = `uniform sampler2D reflectiveLabelMask;\n${shader.fragmentShader}`;
     shader.fragmentShader = shader.fragmentShader.replace(
       outputChunk,
-      `${outputChunk}\n#ifdef USE_MAP\n  float reflectiveLabelProtection = smoothstep(0.02, 0.72, texture2D(reflectiveLabelMask, vMapUv).a);\n  vec3 reflectiveLabelTexel = texture2D(map, vMapUv).rgb;\n  gl_FragColor.rgb = mix(gl_FragColor.rgb, reflectiveLabelTexel, reflectiveLabelProtection);\n#endif`,
+      `${outputChunk}\n#ifdef USE_MAP\n  float reflectiveLabelProtection = smoothstep(0.02, 0.72, texture2D(reflectiveLabelMask, ${uvVarying}).a);\n  vec3 reflectiveLabelTexel = texture2D(map, ${uvVarying}).rgb;\n  gl_FragColor.rgb = mix(gl_FragColor.rgb, reflectiveLabelTexel, reflectiveLabelProtection);\n#endif`,
     );
   };
   material.customProgramCacheKey = () => `${previousProgramCacheKey?.() ?? ''}|${REFLECTIVE_LABEL_SHIELD_CACHE_KEY}`;
