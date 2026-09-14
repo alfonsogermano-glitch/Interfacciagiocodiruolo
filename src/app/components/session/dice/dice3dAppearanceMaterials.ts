@@ -494,6 +494,74 @@ export function buildSimultaneousAppearanceQueue(chunks: Dice3DProjectionChunk[]
   return [...grouped.values()].flat();
 }
 
+// Luminanza campionata (ogni 16px): basta per distinguere una faccia
+// riuscita (foto+etichette) da una nera (base senza foto).
+function sampledFaceLuminance(canvas: HTMLCanvasElement): number {
+  const width = canvas.width;
+  const height = canvas.height;
+  if (width <= 0 || height <= 0) return 1;
+  const context = canvas.getContext('2d');
+  if (!context) return 1;
+  const step = 16;
+  let sum = 0;
+  let count = 0;
+  try {
+    const data = context.getImageData(0, 0, width, height).data;
+    for (let y = 0; y < height; y += step) {
+      for (let x = 0; x < width; x += step) {
+        const offset = (y * width + x) * 4;
+        sum += 0.2126 * data[offset] + 0.7152 * data[offset + 1] + 0.0722 * data[offset + 2];
+        count += 1;
+      }
+    }
+  } catch {
+    return 1;
+  }
+  return count === 0 ? 1 : sum / count / 255;
+}
+
+// Riparazione post-settle delle facce composte senza foto: dice-box compone
+// le texture dei dadi in batch leggendo lo stato factory GLOBALE, quindi una
+// faccia puo' nascere con base nera e senza foto anche se l'adapter ha dato
+// i dati giusti al suo dado (race non deterministica, piu' visibile sul
+// metallo scuro). Ridipinge la foto SOTTO le etichette con 'lighten' (tiene
+// il piu' chiaro per pixel: etichette chiare intatte, base nera sostituita).
+// Idempotente sulle facce riuscite (foto su foto) e limitato a quelle scure.
+function repairSettledFaceMaps(entries: Array<{ mesh: object; descriptor: Dice3DAppearanceDescriptor }>): void {
+  if (typeof document === 'undefined') return;
+  for (const { mesh, descriptor } of entries) {
+    if (descriptor.custom || descriptor.appearance.skinId === 'none') continue;
+    let photo: HTMLCanvasElement | null = null;
+    try {
+      photo = getDice3DTextureDescriptor(descriptor.appearance).texture;
+    } catch {
+      continue;
+    }
+    if (!photo || photo.width <= 0 || photo.height <= 0) continue;
+    materialsOf(mesh as MeshLike).forEach((material, materialIndex) => {
+      if (materialIndex === 0) return;
+      const image = material.map?.image;
+      if (!(image instanceof HTMLCanvasElement)) return;
+      if (image.width <= 0 || image.height <= 0) return;
+      if (sampledFaceLuminance(image) >= 0.3) return;
+      const context = image.getContext('2d');
+      if (!context) return;
+      context.save();
+      try {
+        context.globalAlpha = 1;
+        context.globalCompositeOperation = 'lighten';
+        context.drawImage(photo, 0, 0, image.width, image.height);
+      } catch {
+        // Canvas illeggibile o sorgente non disegnabile: resta com'e'.
+      } finally {
+        context.restore();
+      }
+      if (material.map) material.map.needsUpdate = true;
+      if (typeof material.needsUpdate === 'boolean') material.needsUpdate = true;
+    });
+  }
+}
+
 export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice3DAppearanceDescriptor | null>): { restore: () => void; effects: Dice3DSkinEffectController } {
   const candidateFactory = box.DiceFactory;
   if (!candidateFactory || typeof candidateFactory !== 'object') throw new Error('Il renderer 3D non espone il factory richiesto per la personalizzazione.');
@@ -506,6 +574,8 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
   const d4Appearance = new WeakMap<object, Dice3DAppearanceDescriptor>();
   const effects = new Dice3DSkinEffectController();
   const visualBoostCleanups: Array<() => void> = [];
+  const meshAppearances: Array<{ mesh: object; descriptor: Dice3DAppearanceDescriptor }> = [];
+  const settledFlag = { value: false };
   let queueIndex = 0;
 
   factory.create = (type: string) => {
@@ -524,7 +594,8 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
       applyStaticSkinToMesh(mesh, descriptor, type);
       applyDice3DSurfaceProfile(mesh, descriptor);
       effects.registerMesh(mesh, descriptor);
-      visualBoostCleanups.push(installDice3DVisualBoost(mesh, descriptor));
+      visualBoostCleanups.push(installDice3DVisualBoost(mesh, descriptor, () => settledFlag.value));
+      if (mesh && typeof mesh === 'object') meshAppearances.push({ mesh, descriptor });
       if (type === 'd4' && mesh && typeof mesh === 'object') d4Appearance.set(mesh as object, descriptor);
       return mesh;
     } finally {
@@ -552,6 +623,13 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
     };
   }
 
+  const originalSettle = effects.settle.bind(effects);
+  effects.settle = () => {
+    repairSettledFaceMaps(meshAppearances);
+    settledFlag.value = true;
+    originalSettle();
+  };
+
   return {
     effects,
     restore: () => {
@@ -559,6 +637,8 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
       if (originalSetMaterialInfo) factory.setMaterialInfo = originalSetMaterialInfo;
       if (previousSwapD4) box.swapDiceFace_D4 = previousSwapD4;
       visualBoostCleanups.splice(0).forEach((cleanup) => cleanup());
+      meshAppearances.length = 0;
+      settledFlag.value = false;
       effects.stop();
     },
   };

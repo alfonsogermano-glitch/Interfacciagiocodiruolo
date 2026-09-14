@@ -120,6 +120,7 @@ function drawFireAtlasFrame(
 export function installDice3DVisualBoost(
   mesh: unknown,
   descriptor: Dice3DAppearanceDescriptor,
+  isSettled: () => boolean = () => false,
 ): () => void {
   if (!mesh || typeof mesh !== 'object') return () => undefined;
   const typedMeshEarly = mesh as MeshLike;
@@ -223,6 +224,9 @@ export function installDice3DVisualBoost(
 
   let raf: number | null = null;
   const startedAt = performance.now();
+  // A dado fermo la luce orbitante sfuma (non deve abbagliare la faccia
+  // finale: il numero resta leggibile). Fade morbido dopo il settle.
+  let settleDimStart: number | null = null;
   const frame = (now: number) => {
     const seconds = (now - startedAt) / 1000;
     const fast = (Math.sin(seconds * 15.7) + 1) / 2;
@@ -242,7 +246,9 @@ export function installDice3DVisualBoost(
       );
     }
 
-    pointLight.intensity = skin === 'lightning'
+    if (settleDimStart === null && isSettled()) settleDimStart = now;
+    const settleDimFactor = settleDimStart === null ? 1 : Math.max(0.25, 1 - (now - settleDimStart) / 600);
+    pointLight.intensity = (skin === 'lightning'
       ? 0.55 + rollingPulse * 0.75
       : skin === 'fire'
         ? 0.6 + rollingPulse * 1.12
@@ -254,7 +260,7 @@ export function installDice3DVisualBoost(
               ? 0.44 + rollingPulse * 0.38
               : skin === 'metal'
                 ? 0.54 + rollingPulse * 0.76
-                : 0.35 + rollingPulse * 0.42;
+                : 0.35 + rollingPulse * 0.42) * settleDimFactor;
 
     if (fireFrameContext && fireFrameTexture && fireFrameAtlasImage?.complete && fireFrameAtlasImage.naturalWidth > 0) {
       const pingPongLength = FIRE_FRAME_COUNT * 2 - 2;
