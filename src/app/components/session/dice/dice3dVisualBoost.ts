@@ -86,7 +86,6 @@ function boostLightColor(skin: Dice3DAppearanceDescriptor['appearance']['skinId'
     case 'lightning': return '#55e6ff';
     case 'poison': return '#a6ff4f';
     case 'stone': return '#d8c7a8';
-    case 'obsidian': return '#9a69ff';
     default: return null;
   }
 }

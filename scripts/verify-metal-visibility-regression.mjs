@@ -15,7 +15,7 @@ assert.ok(!boost.includes('METAL_FILL_') && !boost.includes('createFillLight'), 
 assert.ok(!materials.includes('cloneSceneHemisphere'), 'Metal must not clone renderer lights into each die');
 assert.ok(boost.includes('isSettled') && boost.includes('settleDimFactor'), 'Orbiting lights must fade once dice settle so final numbers stay readable');
 assert.ok(boost.includes('RESERVED_OBJECT_ID_COUNT') && boost.includes('new THREE.Object3D()'), 'Our three copy must reserve object ids past any scene-light collision');
-assert.ok(materials.includes("return descriptor.appearance.skinId === 'obsidian';"), 'The reflective shader shield must be isolated to Obsidian');
+assert.ok(!materials.includes('protectReflectiveDiceLabelFromLighting'), 'Photographic faces must not rely on an injected reflective shader');
 assert.ok(!materials.includes('repairSettledFaceMaps') && !effects.includes('repairDarkFaceMap'), 'Metal must not repaint composed face canvases during or after a roll');
 assert.ok(!textures.includes('getImageData(') && !textures.includes('sampledFaceLuminance'), 'Metal texture generation must not perform Canvas readbacks');
 assert.ok(materials.includes('factory.materials_cache = {};'), 'Face cache must reset between rolls so 2D contexts never run out');

@@ -29,11 +29,7 @@ type TextureLike = {
   anisotropy?: number;
   generateMipmaps?: boolean;
   needsUpdate?: boolean;
-  image?: unknown;
-  clone?: () => TextureLike;
-  dispose?: () => void;
 };
-type ShaderLike = { fragmentShader: string; uniforms: Record<string, { value: unknown }> };
 type MaterialLike = {
   color?: ColorLike;
   map?: TextureLike | null;
@@ -45,10 +41,6 @@ type MaterialLike = {
   emissive?: ColorLike;
   emissiveMap?: TextureLike | null;
   emissiveIntensity?: number;
-  onBeforeCompile?: (shader: ShaderLike) => void;
-  customProgramCacheKey?: () => string;
-  addEventListener?: (type: string, listener: () => void) => void;
-  userData?: Record<string, unknown>;
   needsUpdate?: boolean;
 };
 type MeshLike = { material?: MaterialLike | MaterialLike[] };
@@ -61,16 +53,6 @@ const DICE_SKIN_LABEL_OUTLINE_WIDTH = 8;
 const PHOTO_UNLIT_LABEL_OUTLINE_MIN_WIDTH = 18;
 const PHOTO_UNLIT_LABEL_OUTLINE_MAX_WIDTH = 32;
 const PHOTO_UNLIT_LABEL_OUTLINE_FONT_RATIO = 0.09;
-const OBSIDIAN_OUTER_OUTLINE_EXTRA_WIDTH = 14;
-const REFLECTIVE_OUTPUT_FRAGMENT_CHUNKS = ['#include <colorspace_fragment>', '#include <encodings_fragment>'] as const;
-// Varying UV della mappa: 'vMapUv' solo da three r151 (canali UV per-mappa),
-// 'vUv' nelle versioni precedenti come la 0.143 usata qui. Usare quello
-// sbagliato e' un identificatore non dichiarato: il programma delle facce non
-// compila e i dadi ossidiana (gli unici con lo shield) restano neri.
-const REFLECTIVE_UV_VARYING_CHANNELS = 'vMapUv';
-const REFLECTIVE_UV_VARYING_LEGACY = 'vUv';
-const REFLECTIVE_LABEL_SHIELD_CACHE_KEY = 'hollowgate-reflective-label-shield-v2';
-const reflectiveLabelMasks = new WeakMap<HTMLCanvasElement, HTMLCanvasElement>();
 
 function captureFactoryState(factory: DiceFactoryLike) {
   return {
@@ -101,101 +83,10 @@ function dice3DLabelOutlineWidth(
   return skinId === 'metal' ? Math.min(48, base * 1.4) : base;
 }
 
-function isReflectiveStandardDescriptor(descriptor: Dice3DAppearanceDescriptor): boolean {
-  if (descriptor.custom) return false;
-  return descriptor.appearance.skinId === 'obsidian';
-}
-
-function shouldProtectReflectiveDiceLabel(descriptor: Dice3DAppearanceDescriptor, diceType?: string): boolean {
-  if (!isReflectiveStandardDescriptor(descriptor)) return false;
-  if (descriptor.appearance.skinId === 'obsidian' && diceType === 'd4') return false;
-  return true;
-}
-
-function reflectiveMaskContext(source: CanvasRenderingContext2D): CanvasRenderingContext2D | null {
-  if (typeof document === 'undefined' || typeof HTMLCanvasElement === 'undefined') return null;
-  const sourceCanvas = source.canvas;
-  if (!(sourceCanvas instanceof HTMLCanvasElement)) return null;
-  let maskCanvas = reflectiveLabelMasks.get(sourceCanvas);
-  if (!maskCanvas || maskCanvas.width !== sourceCanvas.width || maskCanvas.height !== sourceCanvas.height) {
-    maskCanvas = document.createElement('canvas');
-    maskCanvas.width = sourceCanvas.width;
-    maskCanvas.height = sourceCanvas.height;
-    reflectiveLabelMasks.set(sourceCanvas, maskCanvas);
-  }
-  return maskCanvas.getContext('2d', { alpha: true });
-}
-
-function copyTextMaskState(source: CanvasRenderingContext2D, target: CanvasRenderingContext2D): void {
-  target.setTransform(source.getTransform());
-  target.globalAlpha = source.globalAlpha;
-  target.globalCompositeOperation = 'source-over';
-  target.font = source.font;
-  target.textAlign = source.textAlign;
-  target.textBaseline = source.textBaseline;
-  target.direction = source.direction;
-  target.lineWidth = source.lineWidth;
-  target.lineCap = source.lineCap;
-  target.lineJoin = source.lineJoin;
-  target.miterLimit = source.miterLimit;
-  target.shadowBlur = 0;
-  target.shadowColor = 'transparent';
-}
-
-function runWithDice3DLabelOutlineBoost<T>(descriptor: Dice3DAppearanceDescriptor, diceType: string | undefined, work: () => T): T {
+function runWithDice3DLabelOutlineBoost<T>(descriptor: Dice3DAppearanceDescriptor, work: () => T): T {
   if (typeof CanvasRenderingContext2D === 'undefined') return work();
   const prototype = CanvasRenderingContext2D.prototype;
-  const originalFillText = prototype.fillText;
   const originalStrokeText = prototype.strokeText;
-  const originalClearRect = prototype.clearRect;
-  const protectReflectiveLabel = shouldProtectReflectiveDiceLabel(descriptor, diceType);
-  const obsidianDualOutline = !descriptor.custom && descriptor.appearance.skinId === 'obsidian';
-  const obsidianLabelColor = getReadable3DLabelColor(descriptor.appearance.symbolColor, descriptor.appearance.bodyColor, descriptor.appearance.skinId);
-  const obsidianOutlineColor = readableOutlineColor(obsidianLabelColor);
-  const obsidianOuterOutlineColor = readableOutlineColor(obsidianOutlineColor);
-
-  prototype.clearRect = function (
-    this: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-  ): void {
-    originalClearRect.call(this, x, y, width, height);
-    if (!protectReflectiveLabel) return;
-    const maskContext = reflectiveMaskContext(this);
-    if (!maskContext) return;
-    maskContext.save();
-    try {
-      copyTextMaskState(this, maskContext);
-      originalClearRect.call(maskContext, x, y, width, height);
-    } finally {
-      maskContext.restore();
-    }
-  };
-
-  prototype.fillText = function (
-    this: CanvasRenderingContext2D,
-    text: string,
-    x: number,
-    y: number,
-    maxWidth?: number,
-  ): void {
-    if (typeof maxWidth === 'number') originalFillText.call(this, text, x, y, maxWidth);
-    else originalFillText.call(this, text, x, y);
-    if (!protectReflectiveLabel) return;
-    const maskContext = reflectiveMaskContext(this);
-    if (!maskContext) return;
-    maskContext.save();
-    try {
-      copyTextMaskState(this, maskContext);
-      maskContext.fillStyle = '#ffffff';
-      if (typeof maxWidth === 'number') originalFillText.call(maskContext, text, x, y, maxWidth);
-      else originalFillText.call(maskContext, text, x, y);
-    } finally {
-      maskContext.restore();
-    }
-  };
 
   prototype.strokeText = function (
     this: CanvasRenderingContext2D,
@@ -205,51 +96,18 @@ function runWithDice3DLabelOutlineBoost<T>(descriptor: Dice3DAppearanceDescripto
     maxWidth?: number,
   ): void {
     const previousLineWidth = this.lineWidth;
-    const previousStrokeStyle = this.strokeStyle;
     this.lineWidth = Math.max(previousLineWidth, dice3DLabelOutlineWidth(this, descriptor));
     try {
-      if (obsidianDualOutline) {
-        this.lineWidth = this.lineWidth + OBSIDIAN_OUTER_OUTLINE_EXTRA_WIDTH;
-        this.strokeStyle = obsidianOuterOutlineColor;
-        if (typeof maxWidth === 'number') originalStrokeText.call(this, text, x, y, maxWidth);
-        else originalStrokeText.call(this, text, x, y);
-        this.lineWidth = Math.max(previousLineWidth, dice3DLabelOutlineWidth(this, descriptor));
-        this.strokeStyle = previousStrokeStyle;
-      }
       if (typeof maxWidth === 'number') originalStrokeText.call(this, text, x, y, maxWidth);
       else originalStrokeText.call(this, text, x, y);
-      if (protectReflectiveLabel) {
-        const maskContext = reflectiveMaskContext(this);
-        if (maskContext) {
-          maskContext.save();
-          try {
-            copyTextMaskState(this, maskContext);
-            if (obsidianDualOutline) {
-              maskContext.lineWidth = this.lineWidth + OBSIDIAN_OUTER_OUTLINE_EXTRA_WIDTH;
-              maskContext.strokeStyle = obsidianOuterOutlineColor;
-              if (typeof maxWidth === 'number') originalStrokeText.call(maskContext, text, x, y, maxWidth);
-              else originalStrokeText.call(maskContext, text, x, y);
-              maskContext.lineWidth = this.lineWidth;
-            }
-            maskContext.strokeStyle = '#ffffff';
-            if (typeof maxWidth === 'number') originalStrokeText.call(maskContext, text, x, y, maxWidth);
-            else originalStrokeText.call(maskContext, text, x, y);
-          } finally {
-            maskContext.restore();
-          }
-        }
-      }
     } finally {
       this.lineWidth = previousLineWidth;
-      this.strokeStyle = previousStrokeStyle;
     }
   };
   try {
     return work();
   } finally {
-    prototype.fillText = originalFillText;
     prototype.strokeText = originalStrokeText;
-    prototype.clearRect = originalClearRect;
   }
 }
 
@@ -355,42 +213,6 @@ function materialsOf(mesh: MeshLike): MaterialLike[] {
   return Array.isArray(mesh.material) ? mesh.material : [mesh.material];
 }
 
-function protectReflectiveDiceLabelFromLighting(material: MaterialLike, descriptor: Dice3DAppearanceDescriptor, diceType?: string): void {
-  if (!shouldProtectReflectiveDiceLabel(descriptor, diceType)) return;
-  if (!material.map || typeof material.map.clone !== 'function') return;
-  if (typeof HTMLCanvasElement === 'undefined' || !(material.map.image instanceof HTMLCanvasElement)) return;
-  const maskCanvas = reflectiveLabelMasks.get(material.map.image);
-  if (!maskCanvas) return;
-  if (material.userData?.hollowgateReflectiveLabelShield === true) return;
-
-  const maskTexture = material.map.clone();
-  maskTexture.image = maskCanvas;
-  maskTexture.anisotropy = material.map.anisotropy;
-  maskTexture.generateMipmaps = material.map.generateMipmaps;
-  maskTexture.needsUpdate = true;
-
-  const previousOnBeforeCompile = material.onBeforeCompile;
-  const previousProgramCacheKey = material.customProgramCacheKey?.bind(material);
-  material.onBeforeCompile = (shader) => {
-    previousOnBeforeCompile?.(shader);
-    shader.uniforms.reflectiveLabelMask = { value: maskTexture };
-    const outputChunk = REFLECTIVE_OUTPUT_FRAGMENT_CHUNKS.find((chunk) => shader.fragmentShader.includes(chunk));
-    if (!outputChunk) return;
-    const uvVarying = outputChunk === '#include <colorspace_fragment>'
-      ? REFLECTIVE_UV_VARYING_CHANNELS
-      : REFLECTIVE_UV_VARYING_LEGACY;
-    shader.fragmentShader = `uniform sampler2D reflectiveLabelMask;\n${shader.fragmentShader}`;
-    shader.fragmentShader = shader.fragmentShader.replace(
-      outputChunk,
-      `${outputChunk}\n#ifdef USE_MAP\n  float reflectiveLabelProtection = smoothstep(0.02, 0.72, texture2D(reflectiveLabelMask, ${uvVarying}).a);\n  vec3 reflectiveLabelTexel = texture2D(map, ${uvVarying}).rgb;\n  gl_FragColor.rgb = mix(gl_FragColor.rgb, reflectiveLabelTexel, reflectiveLabelProtection);\n#endif`,
-    );
-  };
-  material.customProgramCacheKey = () => `${previousProgramCacheKey?.() ?? ''}|${REFLECTIVE_LABEL_SHIELD_CACHE_KEY}`;
-  material.userData = { ...material.userData, hollowgateReflectiveLabelShield: true };
-  material.addEventListener?.('dispose', () => maskTexture.dispose?.());
-  material.needsUpdate = true;
-}
-
 function preserveFireFaceTexture(material: MaterialLike) {
   material.color?.set?.(0xffffff);
   if (!material.map) return;
@@ -417,23 +239,12 @@ function preserveStoneFaceTexture(material: MaterialLike) {
   material.shininess = 8;
 }
 
-function prepareMetalFaceTexture(material: MaterialLike) {
+function prepareUnlitPhotoFaceTexture(material: MaterialLike) {
   material.color?.set?.(0xffffff);
   if (!material.map) return;
   material.map.anisotropy = Math.max(material.map.anisotropy ?? 1, TEXTURED_FACE_ANISOTROPY);
   material.map.generateMipmaps = true;
   material.map.needsUpdate = true;
-}
-
-function preserveObsidianFaceTexture(material: MaterialLike) {
-  material.color?.set?.(0xffffff);
-  if (!material.map) return;
-  material.map.anisotropy = Math.max(material.map.anisotropy ?? 1, TEXTURED_FACE_ANISOTROPY);
-  material.map.generateMipmaps = true;
-  material.map.needsUpdate = true;
-  material.roughness = 0.18;
-  material.metalness = 0.08;
-  material.shininess = 138;
 }
 
 function blendValue(current: number, target: number, factor: number): number { return current + (target - current) * factor; }
@@ -443,7 +254,7 @@ function edgeGlowColor(skinId: Dice3DAppearanceDescriptor['appearance']['skinId'
   }
 }
 
-function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescriptor, diceType?: string) {
+function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescriptor) {
   if (!mesh || typeof mesh !== 'object') return;
   const skinId = descriptor.appearance.skinId;
   if (skinId === 'none') return;
@@ -456,9 +267,7 @@ function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescri
     if (!isEdgeMaterial) {
       if (skinId === 'fire' && !descriptor.custom) preserveFireFaceTexture(material);
       if (skinId === 'stone' && !descriptor.custom) preserveStoneFaceTexture(material);
-      if (skinId === 'metal' && !descriptor.custom) prepareMetalFaceTexture(material);
-      if (skinId === 'obsidian' && !descriptor.custom) preserveObsidianFaceTexture(material);
-      protectReflectiveDiceLabelFromLighting(material, descriptor, diceType);
+      if ((skinId === 'metal' || skinId === 'obsidian') && !descriptor.custom) prepareUnlitPhotoFaceTexture(material);
       if (typeof material.opacity === 'number') material.opacity = 1;
       material.transparent = false;
       material.needsUpdate = true;
@@ -520,9 +329,9 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
     try {
       applyAppearanceFactoryState(factory, descriptor);
       const mesh = shouldBoostDice3DLabelOutline(descriptor)
-        ? runWithDice3DLabelOutlineBoost(descriptor, type, () => originalCreate(type))
+        ? runWithDice3DLabelOutlineBoost(descriptor, () => originalCreate(type))
         : originalCreate(type);
-      applyStaticSkinToMesh(mesh, descriptor, type);
+      applyStaticSkinToMesh(mesh, descriptor);
       applyDice3DSurfaceProfile(mesh, descriptor);
       effects.registerMesh(mesh, descriptor);
       visualBoostCleanups.push(installDice3DVisualBoost(mesh, descriptor, () => settledFlag.value));
@@ -544,9 +353,9 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
         factory.materials_cache = {};
         applyAppearanceFactoryState(factory, descriptor);
         const swapped = shouldBoostDice3DLabelOutline(descriptor)
-          ? runWithDice3DLabelOutlineBoost(descriptor, 'd4', () => previousSwapD4.call(box, dicemesh, result))
+          ? runWithDice3DLabelOutlineBoost(descriptor, () => previousSwapD4.call(box, dicemesh, result))
           : previousSwapD4.call(box, dicemesh, result);
-        applyStaticSkinToMesh(dicemesh, descriptor, 'd4');
+        applyStaticSkinToMesh(dicemesh, descriptor);
         applyDice3DSurfaceProfile(dicemesh, descriptor);
         return swapped;
       } finally { Object.assign(factory, originalState); }

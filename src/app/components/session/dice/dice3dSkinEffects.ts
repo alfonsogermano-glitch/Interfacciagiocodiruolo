@@ -49,26 +49,6 @@ interface RegisteredMesh {
   visual: VisualEffect | null;
 }
 
-type ReflectiveSettledProfile = {
-  roughness: number;
-  metalness: number;
-  shininess: number;
-};
-
-const REFLECTIVE_SETTLE_DURATION_MS = 320;
-
-function reflectiveSettledProfile(
-  skinId: Dice3DAppearanceDescriptor['appearance']['skinId'],
-): ReflectiveSettledProfile | null {
-  return skinId === 'obsidian'
-    ? { roughness: 0.42, metalness: 0.03, shininess: 44 }
-    : null;
-}
-
-function blendNumber(current: number, target: number, factor: number): number {
-  return current + (target - current) * factor;
-}
-
 export interface Dice3DSkinEffectProfile {
   frequency: number;
   emissiveColor: string | null;
@@ -422,7 +402,6 @@ export class Dice3DSkinEffectController {
   private entries: RegisteredMesh[] = [];
   private raf: number | null = null;
   private startedAt = 0;
-  private settledAt: number | null = null;
   private baselines = new WeakMap<object, MaterialBaseline>();
   private particleBudget = 144;
 
@@ -442,8 +421,7 @@ export class Dice3DSkinEffectController {
   }
 
   settle(): void {
-    if (this.settledAt !== null) return;
-    this.settledAt = typeof performance !== 'undefined' ? performance.now() : 0;
+    // The appearance adapter forwards this lifecycle event to visual boosts.
   }
 
   start(): void {
@@ -454,13 +432,9 @@ export class Dice3DSkinEffectController {
 
     const frame = (now: number) => {
       const elapsed = (now - this.startedAt) / 1000;
-      const settleProgress = this.settledAt === null
-        ? 0
-        : Math.min(1, Math.max(0, (now - this.settledAt) / REFLECTIVE_SETTLE_DURATION_MS));
       for (const entry of this.entries) {
         const skinId = entry.descriptor.appearance.skinId;
         const profile = getDice3DSkinEffectProfile(skinId);
-        const settledProfile = entry.descriptor.custom ? null : reflectiveSettledProfile(skinId);
         const wave = profile.frequency > 0 ? (Math.sin(elapsed * profile.frequency) + 1) / 2 : 0;
 
         entry.visual?.update(elapsed, wave);
@@ -519,17 +493,6 @@ export class Dice3DSkinEffectController {
             );
           }
 
-          if (!isEdgeMaterial && settledProfile && settleProgress > 0) {
-            if (typeof material.roughness === 'number') {
-              material.roughness = blendNumber(material.roughness, settledProfile.roughness, settleProgress);
-            }
-            if (typeof material.metalness === 'number') {
-              material.metalness = blendNumber(material.metalness, settledProfile.metalness, settleProgress);
-            }
-            if (typeof material.shininess === 'number') {
-              material.shininess = blendNumber(material.shininess, settledProfile.shininess, settleProgress);
-            }
-          }
           material.needsUpdate = true;
         });
       }
@@ -561,7 +524,6 @@ export class Dice3DSkinEffectController {
       }
     }
     this.entries = [];
-    this.settledAt = null;
     this.baselines = new WeakMap<object, MaterialBaseline>();
     this.particleBudget = 144;
   }

@@ -45,8 +45,8 @@ for (const skin of ['stone', 'metal', 'obsidian']) {
   expect(materials.includes(`skinId !== '${skin}'`), `${skin} must inherit the stronger proportional photographic outline`);
 }
 expect(materials.includes('Number.parseFloat(context.font)'), 'Photographic label-outline sizing must derive from the actual canvas font size');
-expect(materials.includes('runWithDice3DLabelOutlineBoost(descriptor, type, () => originalCreate(type))'), 'Standard skinned dice creation must render labels through the profile-aware outline boost with dice-type awareness');
-expect(materials.includes("runWithDice3DLabelOutlineBoost(descriptor, 'd4', () => previousSwapD4.call(box, dicemesh, result))"), 'D4 face swaps must retain the same profile-aware label outline while staying on the d4-safe path');
+expect(materials.includes('runWithDice3DLabelOutlineBoost(descriptor, () => originalCreate(type))'), 'Standard skinned dice creation must render labels through the profile-aware outline boost');
+expect(materials.includes('runWithDice3DLabelOutlineBoost(descriptor, () => previousSwapD4.call(box, dicemesh, result))'), 'D4 face swaps must retain the same profile-aware label outline');
 expect(materials.includes("!descriptor.custom && descriptor.appearance.skinId !== 'none'"), 'Shared outline boosting must leave unskinned/custom dice untouched');
 
 const iceTextureFn = textures.match(/function drawIcePhotoTexture[\s\S]*?\n}\n/)?.[0] ?? '';
@@ -86,7 +86,7 @@ expect(profiles.includes("lightning: 'photo-unlit'"), 'Lightning must reuse the 
 expect(profiles.includes("poison: 'photo-unlit'"), 'Poison must reuse the photo-unlit profile for stable vivid faces');
 expect(profiles.includes("stone: 'photo-lit'"), 'Stone must keep scene lighting for believable rocky depth');
 expect(profiles.includes("metal: 'photo-unlit'"), 'Metal must keep stable silver photography independently of scene lighting');
-expect(profiles.includes("obsidian: 'photo-lit'"), 'Obsidian must keep scene lighting for believable glossy glass depth');
+expect(profiles.includes("obsidian: 'photo-unlit'"), 'Obsidian must keep stable photographic color independently of scene lighting');
 
 const fireMaterialFn = materials.match(/function preserveFireFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
 expect(fireMaterialFn.includes('material.color?.set?.(0xffffff)'), 'Fire face diffuse behavior must remain unchanged');
@@ -97,29 +97,25 @@ expect(stoneMaterialFn.includes('material.color?.set?.(0xffffff)'), 'Stone faces
 expect(stoneMaterialFn.includes('material.roughness = 0.9'), 'Stone photographic faces must remain strongly matte');
 expect(stoneMaterialFn.includes('material.metalness = 0'), 'Stone photographic faces must remain non-metallic');
 
-const metalMaterialFn = materials.match(/function prepareMetalFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
-expect(metalMaterialFn.includes('material.color?.set?.(0xffffff)'), 'Metal faces must keep a neutral white multiplier over the photograph');
-expect(metalMaterialFn.includes('material.map.anisotropy'), 'Metal photographic faces must retain sharp texture filtering');
-expect(!metalMaterialFn.includes('material.roughness') && !metalMaterialFn.includes('material.metalness'), 'Metal face color must not vary with scene lighting');
-
-const obsidianMaterialFn = materials.match(/function preserveObsidianFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
-expect(obsidianMaterialFn.includes('material.color?.set?.(0xffffff)'), 'Obsidian faces must keep a neutral white multiplier over the photograph');
-expect(obsidianMaterialFn.includes('material.roughness = 0.18'), 'Obsidian photographic faces must remain glossy');
-expect(obsidianMaterialFn.includes('material.metalness = 0.08'), 'Obsidian photographic faces must remain glasslike rather than metallic');
-expect(!obsidianMaterialFn.includes('emissiveMap'), 'Obsidian photograph must not be driven as an emissive map');
+const unlitPhotoMaterialFn = materials.match(/function prepareUnlitPhotoFaceTexture[\s\S]*?\n}\n/)?.[0] ?? '';
+expect(unlitPhotoMaterialFn.includes('material.color?.set?.(0xffffff)'), 'Metal and Obsidian faces must keep a neutral white multiplier over the photograph');
+expect(unlitPhotoMaterialFn.includes('material.map.anisotropy'), 'Metal and Obsidian photographic faces must retain sharp texture filtering');
+expect(!unlitPhotoMaterialFn.includes('material.roughness') && !unlitPhotoMaterialFn.includes('material.metalness'), 'Metal and Obsidian face color must not vary with scene lighting');
+expect(materials.includes("skinId === 'metal' || skinId === 'obsidian'"), 'Metal and Obsidian must share the stable unlit photo preparation');
+expect(!materials.includes('onBeforeCompile') && !materials.includes('reflectiveLabelMask'), 'Obsidian must not rely on an injected face shader');
+expect(!profiles.includes('applyObsidianLabelEmission') && !profiles.includes('createObsidianLabelMask'), 'Obsidian must not build emissive label masks from Canvas readbacks');
 
 expect(session.includes('const DICE_ANIMATED_SETTLED_HOLD_MS = 2000;'), 'Animated dice must remain settled for 2000 ms, one second less than before');
 expect(renderer.includes('private settledRenderRaf: number | null = null;'), '3D renderer must own a settled-phase RAF so effects keep rendering after physics stop');
 expect(renderer.includes('this.startSettledRenderLoop();'), '3D renderer must start the settled redraw loop after an effects-enabled roll finishes');
 expect(renderer.includes('box.renderer.render(box.scene, box.camera);'), 'Settled redraw loop must render the Three.js scene while effects continue updating');
 expect(renderer.includes('this.stopSettledRenderLoop();'), 'Settled redraw loop must be stopped when the dice are cleared or replaced');
-expect(effects.includes('const REFLECTIVE_SETTLE_DURATION_MS = 320;'), 'Obsidian must fade into its anti-glare result state instead of snapping');
-expect(!effects.includes("skinId === 'metal' || skinId === 'obsidian'"), 'Metal must not receive a different settled-face treatment');
+expect(!effects.includes('REFLECTIVE_SETTLE_DURATION_MS'), 'Photographic faces must not receive a different settled-face treatment');
 expect(!effects.includes('{ roughness: 0.68, metalness: 0.38, shininess: 26 }'), 'Metal must not transition toward a washed-out settled material');
-expect(effects.includes('? { roughness: 0.42, metalness: 0.03, shininess: 44 }'), 'Obsidian settled faces must reduce the white reflection while retaining glassy depth');
+expect(!effects.includes('{ roughness: 0.42, metalness: 0.03, shininess: 44 }'), 'Obsidian must not transition toward a different settled material');
 expect(effects.includes('settle(): void'), '3D skin effects must expose an explicit settled transition');
-expect(renderer.includes('if (installed) installed.effects.settle();'), 'Renderer must trigger the anti-glare transition only after the physical roll resolves');
-expect(renderer.indexOf('await this.box.roll(notation)') < renderer.indexOf('if (installed) installed.effects.settle();'), 'Anti-glare transition must begin after dice physics stop');
+expect(renderer.includes('if (installed) installed.effects.settle();'), 'Renderer must signal the settled visual-effect lifecycle after the physical roll resolves');
+expect(renderer.indexOf('await this.box.roll(notation)') < renderer.indexOf('if (installed) installed.effects.settle();'), 'Settled visual effects must begin after dice physics stop');
 
 if (failures.length) {
   throw new assert.AssertionError({
@@ -130,4 +126,4 @@ if (failures.length) {
   });
 }
 
-console.log('Fire/Ice/Lightning/Poison/Stone/Metal/Obsidian rendering, exact colors, proportional photographic labels, shared surface profiles, and settled anti-glare lifecycle verification passed.');
+console.log('Fire/Ice/Lightning/Poison/Stone/Metal/Obsidian rendering, exact colors, proportional photographic labels, shared surface profiles, and stable settled lifecycle verification passed.');

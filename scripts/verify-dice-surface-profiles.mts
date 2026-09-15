@@ -88,11 +88,12 @@ const obsidianTexture = new THREE.Texture();
 const obsidianEdge = new THREE.MeshPhongMaterial({ color: '#16141b' });
 const obsidianFace = new THREE.MeshPhongMaterial({ color: '#ffffff', map: obsidianTexture });
 const obsidianMesh = { material: [obsidianEdge, obsidianFace] };
-assert.equal(getDice3DSurfaceProfile('obsidian'), 'photo-lit');
+assert.equal(getDice3DSurfaceProfile('obsidian'), 'photo-unlit');
 applyDice3DSurfaceProfile(obsidianMesh, { appearance: appearance('obsidian'), custom: false });
 assert.equal(obsidianMesh.material[0], obsidianEdge, 'Obsidian must preserve its dark glass edge material');
-assert.equal(obsidianMesh.material[1], obsidianFace, 'Obsidian must keep its scene-lit photographic face material');
+assert.ok(obsidianMesh.material[1] instanceof THREE.MeshBasicMaterial, 'Obsidian faces must ignore scene lighting for stable photographic color');
 assert.equal(obsidianMesh.material[1].map, obsidianTexture, 'Obsidian must preserve the photographic map');
+assert.equal(obsidianMesh.material[1].toneMapped, false, 'Obsidian faces must keep the same color while rolling and settled');
 
 const customEdge = new THREE.MeshPhongMaterial({ color: '#c63d35' });
 const customFace = new THREE.MeshPhongMaterial({ map: texture });
@@ -108,4 +109,4 @@ const customUnmappedMesh = { material: [customEdge, customUnmappedFace] };
 applyDice3DSurfaceProfile(customUnmappedMesh, { appearance: appearance('ice'), custom: true });
 assert.equal(customUnmappedMesh.material[1], customUnmappedFace, 'Custom unmapped materials must remain unaffected');
 
-console.log('Shared 3D surface profiles preserve stable Ice/Lightning/Poison/Metal photography, Fire/Stone/Obsidian lighting, edges, and unlit Custom mapped faces.');
+console.log('Shared 3D surface profiles preserve stable Ice/Lightning/Poison/Metal/Obsidian photography, Fire/Stone lighting, edges, and unlit Custom mapped faces.');

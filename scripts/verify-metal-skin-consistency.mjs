@@ -34,7 +34,7 @@ assert.ok(textures.includes('drawMetalPhotoTexture(context, bump, size)') && tex
 assert.ok(textures.includes("appearance.skinId === 'metal'") && textures.includes("isMetalTextureReady() ? 'ready' : 'placeholder'"), 'Metal must use readiness-aware caching');
 assert.ok(textures.includes("descriptor && descriptor.appearance.skinId === 'metal'"), 'Metal must finish loading before a 3D roll');
 assert.ok(profiles.includes("metal: 'photo-unlit'"), 'Metal faces must keep stable photographic color independently of scene lighting');
-assert.ok(materials.includes('function prepareMetalFaceTexture(material: MaterialLike)') && materials.includes('material.map.anisotropy'), 'Metal faces must retain sharp photographic maps before unlit conversion');
+assert.ok(materials.includes('function prepareUnlitPhotoFaceTexture(material: MaterialLike)') && materials.includes('material.map.anisotropy'), 'Metal faces must retain sharp photographic maps before unlit conversion');
 assert.ok(materials.includes("skinId === 'metal'"), 'Metal must preserve the exact selected 3D symbol color');
 assert.ok(materials.includes("skinId !== 'metal'"), 'Metal must inherit the strong photographic number outline');
 assert.ok(ci.includes('node scripts/verify-metal-skin-consistency.mjs'), 'CI must run the Metal photographic regression test');

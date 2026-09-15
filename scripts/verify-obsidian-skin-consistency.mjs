@@ -15,6 +15,7 @@ const surface = readText(new URL('DiceSkinSurface.tsx', diceDir));
 const icon = readText(new URL('StyledStandardDieIcon.tsx', diceDir));
 const preview = readText(new URL('DiceSkinPreviewArt.tsx', diceDir));
 const effects = readText(new URL('dice3dSkinEffects.ts', diceDir));
+const boost = readText(new URL('dice3dVisualBoost.ts', diceDir));
 const ci = readText(new URL('.github/workflows/ci.yml', root));
 
 assert.ok(fs.existsSync(dataUrl), 'Obsidian texture data module must exist');
@@ -39,9 +40,14 @@ assert.ok(textures.includes("import { OBSIDIAN_TEXTURE_SOURCE_DATA_URL } from '.
 assert.ok(textures.includes("descriptor && descriptor.appearance.skinId === 'obsidian'"), 'Obsidian must finish loading before a 3D roll');
 assert.ok(textures.includes('isObsidianTextureReady()'), 'Obsidian cache must distinguish placeholder from ready texture');
 assert.ok(textures.includes('drawObsidianPhotoTexture(context, bump, size)') && textures.includes("context.filter = 'brightness(1.12) saturate(.92) contrast(1.16)'"), 'Obsidian 3D faces must use the photographic treatment');
-assert.ok(materials.includes('function preserveObsidianFaceTexture(material: MaterialLike)') && materials.includes('material.roughness = 0.18') && materials.includes('material.metalness = 0.08'), 'Obsidian face material must stay glossy without losing the photograph');
+assert.ok(materials.includes('function prepareUnlitPhotoFaceTexture(material: MaterialLike)') && materials.includes("skinId === 'metal' || skinId === 'obsidian'"), 'Obsidian must retain sharp photographic maps before unlit conversion');
 assert.ok(materials.includes("skinId === 'obsidian'"), 'Obsidian must receive photographic label/material handling');
-assert.ok(profiles.includes("obsidian: 'photo-lit'"), 'Obsidian must keep scene-lit photographic glass depth');
+assert.ok(profiles.includes("obsidian: 'photo-unlit'"), 'Obsidian faces must keep stable photographic color independently of scene lighting');
+assert.ok(!profiles.includes('applyObsidianLabelEmission') && !profiles.includes('createObsidianLabelMask'), 'Obsidian faces must not use emissive masks or Canvas readbacks');
+assert.ok(!materials.includes('onBeforeCompile') && !materials.includes('reflectiveLabelMask'), 'Obsidian faces must not inject a reflective-label shader');
+assert.ok(!materials.includes('OBSIDIAN_OUTER_OUTLINE_EXTRA_WIDTH') && !materials.includes('obsidianDualOutline'), 'Obsidian labels must use the shared single photographic outline');
+assert.ok(!boost.includes("case 'obsidian': return '#9a69ff'"), 'Obsidian must not create a local point light');
+assert.ok(!effects.includes('reflectiveSettledProfile') && !effects.includes('REFLECTIVE_SETTLE_DURATION_MS'), 'Obsidian faces must not change material after settling');
 assert.ok(surface.includes("appearance.skinId === 'obsidian'"), 'Obsidian must be treated as photographic in 2D surfaces');
 assert.ok(icon.includes("skinId === 'obsidian'"), 'Obsidian must preserve exact selected symbol color in standard die icons');
 assert.ok(preview.includes("case 'obsidian':\n      return null;"), 'Procedural Obsidian preview art must not cover the photograph');
@@ -50,4 +56,4 @@ assert.ok(fs.existsSync(new URL('DiceObsidianAnimatedOverlay.tsx', diceDir)) && 
 assert.ok(effects.includes("case 'obsidian':") && effects.includes("particleColor: '#c7b6ff'"), 'Obsidian must keep its dedicated 3D shard/glint particles');
 assert.ok(ci.includes('node scripts/verify-obsidian-skin-consistency.mjs'), 'CI must run the Obsidian photographic regression test');
 
-console.log('Obsidian photographic 2D/3D texture, readiness cache, glossy material, readable labels and animated effects verification passed.');
+console.log('Obsidian photographic 2D/3D texture, stable unlit faces, readable labels and animated effects verification passed.');
