@@ -307,6 +307,8 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
         evaluated = null;
       }
       if (evaluated) {
+        // Senza dadi non e' un tiro: niente voce in chat tiri.
+        if (evaluated.diceCount === 0) return null;
         const formulaRollId = globalThis.crypto.randomUUID();
         const diceGroups: RollDiceGroup[] = evaluated.groups.map((group, groupIndex) => ({
           itemId: `formula-g${groupIndex + 1}`,
@@ -350,32 +352,9 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
     }
     const parsed = parseModifierValue(input.expression);
     if (!parsed) return null;
-    // Valore numerico semplice (senza "d" da nessuna parte): nessun tiro, in
-    // chat compare il valore stesso oppure la Formula se presente.
-    if (parsed.kind === 'number') {
-      const display = formula || input.expression.trim();
-      if (!display) return null;
-      const staticResult: RollResult = {
-        id: globalThis.crypto.randomUUID(),
-        campaignId: activeCampaign.id,
-        rollerId: user.id,
-        rollerName: user.displayName,
-        rollerAvatarUrl: user.avatarUrl,
-        formulaName: input.name,
-        formulaText: display,
-        visibility: 'public',
-        sourceItems: [],
-        diceGroups: [],
-        arithmeticSteps: [],
-        comparisons: [],
-        total: parsed.value,
-        createdAt: Date.now(),
-        origin: 'modifier',
-      };
-      ingestRoll(staticResult);
-      dispatchRoll(staticResult);
-      return staticResult;
-    }
+    // Valore numerico semplice (senza "d" da nessuna parte): non e' un dado,
+    // quindi non crea tiri in chat.
+    if (parsed.kind === 'number') return null;
     // Piu' dadi o dadi con segno (es. "2d6-1d4", "1d6 danni 1d4"): gruppi
     // manuali, ogni segno contribuisce col proprio verso.
     if (parsed.dice.length > 1 || parsed.dice[0].sign < 0) {

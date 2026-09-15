@@ -101,7 +101,7 @@ assert.match(noteSubTabs, /peerContents=\{/, 'note subtabs must feed peer docume
 assert.match(diceContext, /resolveName\?:/, 'modifier roll submit must accept a tag resolver');
 assert.match(diceContext, /toast\.error\(error\.message\)/, 'broken references must surface an error instead of rolling');
 assert.match(diceContext, /formulaText: formula \|\| input\.expression\.trim\(\)/, 'without formula the chat must show the exact value text');
-assert.match(diceContext, /parsed\.kind === 'number'[\s\S]*total: parsed\.value/, 'plain numeric modifiers must post their value without rolling');
+assert.match(diceContext, /parsed\.kind === 'number'[\s\S]{0,120}return null/, 'plain numeric modifiers must not create dice chat rolls');assert.match(diceContext, /diceCount === 0[\s\S]{0,80}return null/, 'formulas without dice must not create dice chat rolls');
 assert.match(diceContext, /token\.sign \* groupSum/, 'signed dice must contribute with their sign');
 assert.match(diceContext, /useOptionalDiceSession/, 'dice session must expose a nullable hook for bridges');
 assert.match(diceTypes, /origin\?: 'modifier'/, 'roll results must carry the modifier origin');

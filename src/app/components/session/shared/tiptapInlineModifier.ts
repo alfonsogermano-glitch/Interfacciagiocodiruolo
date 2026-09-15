@@ -1140,10 +1140,9 @@ function buildModifierWidget(
     openMenu();
   });
 
-  // Click sull'elemento: valido se il Valore contiene numeri/dadi oppure la
-  // Formula e' valida. Bordo in accento e alone solo quando ci sono dadi da
-  // tirare (nel Valore o nella Formula, seguendo i riferimenti), per
-  // distinguere i pulsanti dai Modificatori che rappresentano solo un valore.
+  // Click sull'elemento: tira solo se ci sono dadi da tirare (nel Valore o
+  // nella Formula, seguendo i riferimenti). Bordo in accento solo per i
+  // pulsanti, per distinguere i Modificatori che rappresentano solo un valore.
   // Riferimento mancante, a se' stesso o sintassi non valida: anomalia rossa.
   // Mai dai puntini (aprono il menu) ne' dalla rinomina.
   const formulaLookup = getModifierLookup(view);
@@ -1166,8 +1165,8 @@ function buildModifierWidget(
     element.addEventListener('focusin', showFormulaTip);
     element.addEventListener('focusout', hideFormulaTipNow);
   }
-  // Manina solo sui veri pulsanti (con dadi); i valori semplici pubblicano in
-  // chat ma restano neutri. Niente alone: solo bordo e fondo accento.
+  // Manina solo sui veri pulsanti (con dadi); i valori semplici non creano
+  // tiri e restano neutri. Niente alone: solo bordo e fondo accento.
   if (rollable && !anomalous) {
     element.style.cursor = 'pointer';
     element.style.border = '1px solid var(--dash-accent-2)';
@@ -1213,10 +1212,20 @@ function buildModifierWidget(
     if (typeof currentPos !== 'number') return;
     const current = getModifierAt(view.state, currentPos);
     if (!current) return;
-    // La Formula valida rende inefficace il Valore: si tira solo la Formula.
-    // Altrimenti vale il Valore (dadi o post statico del numero).
+    // Solo i dadi finiscono in chat tiri. La Formula valida rende inefficace
+    // il Valore: si tira solo la Formula. Altrimenti vale il Valore, ma i
+    // valori semplici non creano tiri.
     const formulaValid = current.formula ? isValidModifierFormula(current.formula) : false;
-    if (!formulaValid && !parseModifierValue(current.value)) return;
+    if (formulaValid) {
+      const lookup = getModifierLookup(view);
+      const resolveRef = (refName: string) => {
+        const entry = lookup.get(refName);
+        return entry ? { value: entry.value, formula: entry.formula } : null;
+      };
+      if (!modifierFormulaHasDice(current.formula, resolveRef)) return;
+    } else if (parseModifierValue(current.value)?.kind !== 'dice') {
+      return;
+    }
     event.stopPropagation();
     window.dispatchEvent(
       new CustomEvent<NoteModifierRollRequest>(NOTE_MODIFIER_ROLL_EVENT, {
