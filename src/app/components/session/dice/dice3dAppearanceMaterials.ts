@@ -91,10 +91,14 @@ function dice3DLabelOutlineWidth(
   const proportionalWidth = Number.isFinite(fontSize)
     ? fontSize * PHOTO_UNLIT_LABEL_OUTLINE_FONT_RATIO
     : PHOTO_UNLIT_LABEL_OUTLINE_MIN_WIDTH;
-  return Math.min(
+  const base = Math.min(
     PHOTO_UNLIT_LABEL_OUTLINE_MAX_WIDTH,
     Math.max(PHOTO_UNLIT_LABEL_OUTLINE_MIN_WIDTH, proportionalWidth),
   );
+  // Metallo: numeri bianchi su foto chiara, il caso peggiore per contrasto.
+  // Contorno piu' marcato cosi' restano leggibili anche a faccia luminosa.
+  // Solo metallo: le altre skin restano invariate.
+  return skinId === 'metal' ? Math.min(48, base * 1.4) : base;
 }
 
 function isReflectiveStandardDescriptor(descriptor: Dice3DAppearanceDescriptor): boolean {

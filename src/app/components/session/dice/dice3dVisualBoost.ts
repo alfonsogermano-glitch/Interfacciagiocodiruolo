@@ -48,7 +48,7 @@ const FIRE_FRAME_CANVAS_SIZE = 192;
 // mappa), emissive o luce orbitante, pinnati altrove.
 const METAL_FILL_SKY_COLOR = '#e6eef6';
 const METAL_FILL_GROUND_COLOR = '#14161c';
-const METAL_FILL_INTENSITY = 0.22;
+const METAL_FILL_INTENSITY = 0.28;
 // La point orbitante vicinissima bruciava le facce (1/d^2) rendendo i numeri
 // bianchi invisibili sul bianco: per il metallo (foto chiara + numeri chiari,
 // il caso peggiore) l'intensita' di rollio e' dimezzata. Le altre skin restano

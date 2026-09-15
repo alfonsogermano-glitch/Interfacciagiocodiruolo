@@ -11,7 +11,8 @@ assert.ok(!boost.includes('METAL_FACE_EMISSIVE_PULSE'), 'Metal photographic face
 assert.ok(!boost.includes("(skin === 'stone' || skin === 'metal') && !descriptor.custom"), 'Metal must not be included in photographic face emissive baselines');
 assert.ok(boost.includes("if (skin === 'stone' || skin === 'metal')"), 'Metal must keep the external/orbiting light animation');
 assert.ok(boost.includes("skin === 'metal' ? 0.82"), 'Metal must keep its dedicated moving point-light boost');
-assert.ok(boost.includes('METAL_FILL_INTENSITY = 0.22'), 'Metal fill must lift faces without washing them out');
+assert.ok(boost.includes('METAL_FILL_INTENSITY = 0.28'), 'Metal fill must lift faces without washing them out');
+assert.ok(materials.includes("skinId === 'metal' ? Math.min(48, base * 1.4) : base"), 'Metal number outlines must be stronger to survive bright faces');
 assert.ok(boost.includes('createFillLight') && boost.includes('METAL_FILL_INTENSITY'), 'Metal fill must come from a provided factory using the renderer three copy');
 assert.ok(materials.includes('cloneSceneHemisphere') && materials.includes('isHemisphereLight'), 'Fill light must clone a scene hemisphere so light-cache ids stay unique');
 assert.ok(boost.includes("descriptor.appearance.skinId === 'metal' && !descriptor.custom"), 'Metal fill must apply to standard dice only, never to custom dice or other skins');

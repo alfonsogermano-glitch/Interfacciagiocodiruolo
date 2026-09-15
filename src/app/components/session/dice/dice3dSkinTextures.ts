@@ -231,7 +231,7 @@ function drawMetalPhotoTexture(context: CanvasRenderingContext2D, bump: CanvasRe
   drawImageCover(context, image, size);
   context.filter = 'none';
   context.globalCompositeOperation = 'screen';
-  context.globalAlpha = 0.035;
+  context.globalAlpha = 0.05;
   context.fillStyle = '#e6edf2';
   context.fillRect(0, 0, size, size);
   context.restore();
