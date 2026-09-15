@@ -60,12 +60,9 @@ const REFLECTIVE_SETTLE_DURATION_MS = 320;
 function reflectiveSettledProfile(
   skinId: Dice3DAppearanceDescriptor['appearance']['skinId'],
 ): ReflectiveSettledProfile | null {
-  if (skinId === 'metal' || skinId === 'obsidian') {
-    return skinId === 'metal'
-      ? { roughness: 0.68, metalness: 0.38, shininess: 26 }
-      : { roughness: 0.42, metalness: 0.03, shininess: 44 };
-  }
-  return null;
+  return skinId === 'obsidian'
+    ? { roughness: 0.42, metalness: 0.03, shininess: 44 }
+    : null;
 }
 
 function blendNumber(current: number, target: number, factor: number): number {

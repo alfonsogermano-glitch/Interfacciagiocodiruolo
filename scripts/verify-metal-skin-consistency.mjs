@@ -33,10 +33,10 @@ assert.ok(textures.includes("import { METAL_TEXTURE_SOURCE_DATA_URL } from './me
 assert.ok(textures.includes('drawMetalPhotoTexture(context, bump, size)') && textures.includes("bump.filter = 'grayscale(1) contrast(1.25) brightness(.98)'"), 'Metal 3D must use the clean photograph with a restrained bump map');
 assert.ok(textures.includes("appearance.skinId === 'metal'") && textures.includes("isMetalTextureReady() ? 'ready' : 'placeholder'"), 'Metal must use readiness-aware caching');
 assert.ok(textures.includes("descriptor && descriptor.appearance.skinId === 'metal'"), 'Metal must finish loading before a 3D roll');
-assert.ok(profiles.includes("metal: 'photo-lit'"), 'Metal must keep scene-lit photographic depth');
-assert.ok(materials.includes('function preserveMetalFaceTexture(material: MaterialLike)') && materials.includes('material.roughness = 0.46') && materials.includes('material.metalness = 0.58'), 'Metal faces must remain physically metallic without losing the photograph');
+assert.ok(profiles.includes("metal: 'photo-unlit'"), 'Metal faces must keep stable photographic color independently of scene lighting');
+assert.ok(materials.includes('function prepareMetalFaceTexture(material: MaterialLike)') && materials.includes('material.map.anisotropy'), 'Metal faces must retain sharp photographic maps before unlit conversion');
 assert.ok(materials.includes("skinId === 'metal'"), 'Metal must preserve the exact selected 3D symbol color');
 assert.ok(materials.includes("skinId !== 'metal'"), 'Metal must inherit the strong photographic number outline');
 assert.ok(ci.includes('node scripts/verify-metal-skin-consistency.mjs'), 'CI must run the Metal photographic regression test');
 
-console.log('Replacement Metal texture, 2D/3D integration, readiness cache, metallic material and exact labels verification passed.');
+console.log('Replacement Metal texture, stable 2D/3D integration, readiness cache and exact labels verification passed.');

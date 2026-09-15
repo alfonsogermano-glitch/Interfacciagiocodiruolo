@@ -77,11 +77,12 @@ const metalTexture = new THREE.Texture();
 const metalEdge = new THREE.MeshPhongMaterial({ color: '#7d858b' });
 const metalFace = new THREE.MeshPhongMaterial({ color: '#ffffff', map: metalTexture });
 const metalMesh = { material: [metalEdge, metalFace] };
-assert.equal(getDice3DSurfaceProfile('metal'), 'photo-lit');
+assert.equal(getDice3DSurfaceProfile('metal'), 'photo-unlit');
 applyDice3DSurfaceProfile(metalMesh, { appearance: appearance('metal'), custom: false });
 assert.equal(metalMesh.material[0], metalEdge, 'Metal must preserve its metallic edge material');
-assert.equal(metalMesh.material[1], metalFace, 'Metal must keep its existing scene-lit photographic face material');
+assert.ok(metalMesh.material[1] instanceof THREE.MeshBasicMaterial, 'Metal faces must ignore scene lighting for stable silver color');
 assert.equal(metalMesh.material[1].map, metalTexture, 'Metal must preserve the photographic map');
+assert.equal(metalMesh.material[1].toneMapped, false, 'Metal faces must keep the same color while rolling and settled');
 
 const obsidianTexture = new THREE.Texture();
 const obsidianEdge = new THREE.MeshPhongMaterial({ color: '#16141b' });
@@ -107,4 +108,4 @@ const customUnmappedMesh = { material: [customEdge, customUnmappedFace] };
 applyDice3DSurfaceProfile(customUnmappedMesh, { appearance: appearance('ice'), custom: true });
 assert.equal(customUnmappedMesh.material[1], customUnmappedFace, 'Custom unmapped materials must remain unaffected');
 
-console.log('Shared 3D surface profiles preserve Ice/Lightning/Poison photography, Fire/Stone/Metal/Obsidian lighting, edges, and unlit Custom mapped faces for dark-image contrast.');
+console.log('Shared 3D surface profiles preserve stable Ice/Lightning/Poison/Metal photography, Fire/Stone/Obsidian lighting, edges, and unlit Custom mapped faces.');

@@ -417,15 +417,12 @@ function preserveStoneFaceTexture(material: MaterialLike) {
   material.shininess = 8;
 }
 
-function preserveMetalFaceTexture(material: MaterialLike) {
+function prepareMetalFaceTexture(material: MaterialLike) {
   material.color?.set?.(0xffffff);
   if (!material.map) return;
   material.map.anisotropy = Math.max(material.map.anisotropy ?? 1, TEXTURED_FACE_ANISOTROPY);
   material.map.generateMipmaps = true;
   material.map.needsUpdate = true;
-  material.roughness = 0.46;
-  material.metalness = 0.58;
-  material.shininess = 64;
 }
 
 function preserveObsidianFaceTexture(material: MaterialLike) {
@@ -459,7 +456,7 @@ function applyStaticSkinToMesh(mesh: unknown, descriptor: Dice3DAppearanceDescri
     if (!isEdgeMaterial) {
       if (skinId === 'fire' && !descriptor.custom) preserveFireFaceTexture(material);
       if (skinId === 'stone' && !descriptor.custom) preserveStoneFaceTexture(material);
-      if (skinId === 'metal' && !descriptor.custom) preserveMetalFaceTexture(material);
+      if (skinId === 'metal' && !descriptor.custom) prepareMetalFaceTexture(material);
       if (skinId === 'obsidian' && !descriptor.custom) preserveObsidianFaceTexture(material);
       protectReflectiveDiceLabelFromLighting(material, descriptor, diceType);
       if (typeof material.opacity === 'number') material.opacity = 1;
