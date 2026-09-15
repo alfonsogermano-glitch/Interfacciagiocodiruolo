@@ -83,6 +83,150 @@ function dice3DLabelOutlineWidth(
   return skinId === 'metal' ? Math.min(48, base * 1.4) : base;
 }
 
+// Il d4 di dice-box disegna tre etichette per faccia a 24pt ogni 128px di
+// texture (contro ~170pt del d20 a numero singolo): numeri, icone e note
+// restano piccoli e poco leggibili. Questo boost li ingrandisce solo per il
+// d4, lasciando invariate le texture fotografiche a pieno canvas.
+export const D4_LABEL_FONT_SCALE = 1.5;
+export const D4_LABEL_IMAGE_SCALE = 1.5;
+const D4_LABEL_IMAGE_FULL_CANVAS_RATIO = 0.9;
+
+function scaledD4LabelFont(font: string): string | null {
+  // Il canvas normalizza le unita' in lettura ("96pt" diventa "128px"):
+  // si accettano entrambe e si conserva l'unita' originale.
+  const match = font.match(/(\d+(?:\.\d+)?)(pt|px)(\s|$)/);
+  if (!match) return null;
+  const scaled = Number.parseFloat(match[1]) * D4_LABEL_FONT_SCALE;
+  if (!Number.isFinite(scaled)) return null;
+  return font.replace(match[0], `${scaled}${match[2]}${match[3]}`);
+}
+
+// Profondita' di annidamento del boost d4: gli adapter appearance e custom
+// si avvolgono a vicenda sullo stesso factory, quindi il patch scatta una
+// sola volta per ogni disegno nativo. Il disegno custom esplicito (dimensioni
+// gia' calcolate, con cap anti-sovrapposizione) gira invece con
+// withoutD4LabelBoost, che ripristina davvero i metodi originali: basta
+// impedire il re-patch non basterebbe, perche' il patch esterno resterebbe
+// attivo e ri-scalerebbe il disegno esplicito una seconda volta.
+let d4LabelBoostDepth = 0;
+let d4BoostRestoredOriginals: {
+  fillText: CanvasRenderingContext2D['fillText'];
+  strokeText: CanvasRenderingContext2D['strokeText'];
+  drawImage: CanvasRenderingContext2D['drawImage'];
+} | null = null;
+
+export function withoutD4LabelBoost<T>(work: () => T): T {
+  if (typeof CanvasRenderingContext2D === 'undefined' || d4LabelBoostDepth === 0 || !d4BoostRestoredOriginals) return work();
+  const prototype = CanvasRenderingContext2D.prototype;
+  const patched = {
+    fillText: prototype.fillText,
+    strokeText: prototype.strokeText,
+    drawImage: prototype.drawImage,
+  };
+  prototype.fillText = d4BoostRestoredOriginals.fillText;
+  prototype.strokeText = d4BoostRestoredOriginals.strokeText;
+  prototype.drawImage = d4BoostRestoredOriginals.drawImage;
+  try {
+    return work();
+  } finally {
+    prototype.fillText = patched.fillText;
+    prototype.strokeText = patched.strokeText;
+    prototype.drawImage = patched.drawImage;
+  }
+}
+
+export function runWithD4LabelBoost<T>(diceType: string | undefined, work: () => T): T {
+  if (diceType !== 'd4' || typeof CanvasRenderingContext2D === 'undefined' || d4LabelBoostDepth > 0) return work();
+  d4LabelBoostDepth += 1;
+  const prototype = CanvasRenderingContext2D.prototype;
+  const originalFillText = prototype.fillText;
+  const originalStrokeText = prototype.strokeText;
+  const originalDrawImage = prototype.drawImage;
+
+  d4BoostRestoredOriginals = {
+    fillText: originalFillText,
+    strokeText: originalStrokeText,
+    drawImage: originalDrawImage,
+  };
+
+  prototype.fillText = function (
+    this: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    maxWidth?: number,
+  ): void {
+    const previousFont = this.font;
+    const scaledFont = scaledD4LabelFont(previousFont);
+    if (scaledFont) this.font = scaledFont;
+    try {
+      if (typeof maxWidth === 'number') originalFillText.call(this, text, x, y, maxWidth);
+      else originalFillText.call(this, text, x, y);
+    } finally {
+      this.font = previousFont;
+    }
+  };
+
+  prototype.strokeText = function (
+    this: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    maxWidth?: number,
+  ): void {
+    const previousFont = this.font;
+    const scaledFont = scaledD4LabelFont(previousFont);
+    if (scaledFont) this.font = scaledFont;
+    try {
+      if (typeof maxWidth === 'number') originalStrokeText.call(this, text, x, y, maxWidth);
+      else originalStrokeText.call(this, text, x, y);
+    } finally {
+      this.font = previousFont;
+    }
+  };
+
+  prototype.drawImage = function (
+    this: CanvasRenderingContext2D,
+    ...args: any[]
+  ): void {
+    const canvasWidth = this.canvas?.width ?? 0;
+    const canvasHeight = this.canvas?.height ?? 0;
+    // Forme drawImage: (img, dx, dy) | (img, dx, dy, dw, dh) |
+    // (img, sx, sy, sw, sh, dx, dy, dw, dh). Si ingrandisce solo il contenuto
+    // piccolo (icone d4) attorno al suo centro; le texture a pieno canvas
+    // (fotografie, bump) restano invariate.
+    if (args.length >= 4 && canvasWidth > 0 && canvasHeight > 0) {
+      const dw = args[args.length - 2] as number;
+      const dh = args[args.length - 1] as number;
+      const dx = args[args.length - 4] as number;
+      const dy = args[args.length - 3] as number;
+      if (typeof dx === 'number' && typeof dy === 'number'
+        && typeof dw === 'number' && typeof dh === 'number'
+        && dw > 0 && dh > 0
+        && dw < canvasWidth * D4_LABEL_IMAGE_FULL_CANVAS_RATIO
+        && dh < canvasHeight * D4_LABEL_IMAGE_FULL_CANVAS_RATIO) {
+        const scaledWidth = dw * D4_LABEL_IMAGE_SCALE;
+        const scaledHeight = dh * D4_LABEL_IMAGE_SCALE;
+        args[args.length - 4] = dx + (dw - scaledWidth) / 2;
+        args[args.length - 3] = dy + (dh - scaledHeight) / 2;
+        args[args.length - 2] = scaledWidth;
+        args[args.length - 1] = scaledHeight;
+      }
+    }
+    (originalDrawImage as (...callArgs: any[]) => void).apply(this, args);
+  };
+
+  try {
+    return work();
+  } finally {
+    prototype.fillText = originalFillText;
+    prototype.strokeText = originalStrokeText;
+    prototype.drawImage = originalDrawImage;
+    d4BoostRestoredOriginals = null;
+    d4LabelBoostDepth -= 1;
+  }
+}
+
 function runWithDice3DLabelOutlineBoost<T>(descriptor: Dice3DAppearanceDescriptor, work: () => T): T {
   if (typeof CanvasRenderingContext2D === 'undefined') return work();
   const prototype = CanvasRenderingContext2D.prototype;
@@ -328,9 +472,9 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
     }
     try {
       applyAppearanceFactoryState(factory, descriptor);
-      const mesh = shouldBoostDice3DLabelOutline(descriptor)
+      const mesh = runWithD4LabelBoost(type, () => (shouldBoostDice3DLabelOutline(descriptor)
         ? runWithDice3DLabelOutlineBoost(descriptor, () => originalCreate(type))
-        : originalCreate(type);
+        : originalCreate(type)));
       applyStaticSkinToMesh(mesh, descriptor);
       applyDice3DSurfaceProfile(mesh, descriptor);
       effects.registerMesh(mesh, descriptor);
@@ -352,9 +496,9 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
         originalSetMaterialInfo?.();
         factory.materials_cache = {};
         applyAppearanceFactoryState(factory, descriptor);
-        const swapped = shouldBoostDice3DLabelOutline(descriptor)
+        const swapped = runWithD4LabelBoost('d4', () => (shouldBoostDice3DLabelOutline(descriptor)
           ? runWithDice3DLabelOutlineBoost(descriptor, () => previousSwapD4.call(box, dicemesh, result))
-          : previousSwapD4.call(box, dicemesh, result);
+          : previousSwapD4.call(box, dicemesh, result)));
         applyStaticSkinToMesh(dicemesh, descriptor);
         applyDice3DSurfaceProfile(dicemesh, descriptor);
         return swapped;

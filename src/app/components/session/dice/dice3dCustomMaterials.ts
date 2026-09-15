@@ -1,4 +1,5 @@
 import { ICON_DATA } from '../shared/tiptapIconData';
+import { D4_LABEL_FONT_SCALE, D4_LABEL_IMAGE_SCALE, runWithD4LabelBoost, withoutD4LabelBoost } from './dice3dAppearanceMaterials.ts';
 import { getDice3DTextureDescriptor } from './dice3dSkinTextures.ts';
 import { layoutCustomDieFaceText } from './diceCustomDie.ts';
 import type { Dice3DCustomMaterial, Dice3DProjectionChunk } from './dice3dProjection.ts';
@@ -89,7 +90,8 @@ const CUSTOM_FACE_TEXTURE_SIZE = 256;
 // while leaving a clear border from the physical face edges.
 const CUSTOM_FACE_STANDARD_CONTENT_RATIO = 0.52;
 const CUSTOM_FACE_TEXT_CONTENT_RATIO = 0.72;
-// d4 has its own image-placement path and already shrinks custom images internally.
+// d4 has its own image-placement path and already shrinks custom images internally;
+// runWithD4LabelBoost counter-scales them back up at draw time (see glow repaint below).
 const CUSTOM_FACE_D4_CONTENT_RATIO = 0.9;
 const CUSTOM_FACE_D4_TEXT_WRAP_THRESHOLD = 30;
 const CUSTOM_FACE_D4_TEXT_CENTER_Y = 62;
@@ -214,7 +216,7 @@ function drawCustomD4TextLabels(
       const layoutScale = singleLine
         ? Math.min(1, layout.fontSize / 56)
         : Math.min(1, layout.fontSize / 36) * D4_CUSTOM_DOUBLE_LINE_SCALE;
-      let fontPt = Math.max(1, nativeFontPt * layoutScale);
+      let fontPt = Math.max(1, nativeFontPt * layoutScale * D4_LABEL_FONT_SCALE);
       context.font = `800 ${fontPt}pt Arial, Helvetica, sans-serif`;
 
       const widestLine = Math.max(
@@ -498,7 +500,7 @@ export async function installCustomDiceMaterialAdapter(
       // the face content directly on the composite canvas (the same strategy
       // that keeps d4 text visible) so the contrast halo survives everywhere.
       if (customLabel) {
-        const material = originalCreateTextMaterial.call(
+        const createMaterial = () => originalCreateTextMaterial.call(
           typedFactory,
           diceobj,
           labels,
@@ -511,6 +513,11 @@ export async function installCustomDiceMaterialAdapter(
           backcolor,
           allowcache,
         );
+        // Le icone custom sul d4 usano il percorso di placement ridotto di
+        // dice-box: stesso boost delle etichette d4 standard.
+        const material = diceobj.shape === 'd4'
+          ? runWithD4LabelBoost('d4', createMaterial)
+          : createMaterial();
         const canvas = material?.composite?.image;
         if (canvas) {
           const context = canvas.getContext('2d');
@@ -522,7 +529,7 @@ export async function installCustomDiceMaterialAdapter(
 
       const sanitizedLabels = labels.slice();
       sanitizedLabels[index] = current.map((label) => isCustomD4TextLabel(label) ? '' : label);
-      const material = originalCreateTextMaterial.call(
+      const material = runWithD4LabelBoost('d4', () => originalCreateTextMaterial.call(
         typedFactory,
         diceobj,
         sanitizedLabels,
@@ -534,32 +541,39 @@ export async function installCustomDiceMaterialAdapter(
         outlinecolor,
         backcolor,
         false,
-      );
-      drawCustomD4TextLabels(
-        material,
-        current,
-        forecolor ?? typedFactory.label_color_rand ?? '#ffffff',
-      );
-      const canvas = material?.composite?.image;
-      if (canvas) {
+      ));
+      // Dimensioni esplicite gia' ingrandite (testo) e rettangoli allineati al
+      // disegno nativo (alone): qui il boost deve restare spento, altrimenti
+      // l'intercettazione ri-scalerebbe tutto una seconda volta.
+      withoutD4LabelBoost(() => {
+        drawCustomD4TextLabels(
+          material,
+          current,
+          forecolor ?? typedFactory.label_color_rand ?? '#ffffff',
+        );
+        const canvas = material?.composite?.image;
+        if (!canvas) return;
         const context = canvas.getContext('2d');
-        if (context) {
-          const centerX = canvas.width / 2;
-          const centerY = canvas.height / 2;
-          context.save();
-          for (const label of current) {
-            if (isCustomPreparedFaceImage(label)) {
-              const scale = label.width / canvas.width;
-              paintCustomFaceLabelGlow(context, label, 100 / scale, 25 / scale, 60 / scale, 60 / scale);
-            }
-            context.translate(centerX, centerY);
-            context.rotate(Math.PI * 2 / 3);
-            context.translate(-centerX, -centerY);
+        if (!context) return;
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        context.save();
+        for (const label of current) {
+          if (isCustomPreparedFaceImage(label)) {
+            // Stesso rettangolo ingrandito del disegno nativo intercettato
+            // dal boost d4: l'alone deve restare allineato all'immagine.
+            const scale = label.width / canvas.width;
+            const glowSize = (60 / scale) * D4_LABEL_IMAGE_SCALE;
+            const glowShift = (glowSize - 60 / scale) / 2;
+            paintCustomFaceLabelGlow(context, label, 100 / scale - glowShift, 25 / scale - glowShift, glowSize, glowSize);
           }
-          context.restore();
+          context.translate(centerX, centerY);
+          context.rotate(Math.PI * 2 / 3);
+          context.translate(-centerX, -centerY);
         }
+        context.restore();
         material.composite.needsUpdate = true;
-      }
+      });
       return material;
     };
   }

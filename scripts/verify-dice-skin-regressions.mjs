@@ -11,6 +11,7 @@ const textures = fs.readFileSync(new URL('src/app/components/session/dice/dice3d
 const effects = fs.readFileSync(new URL('src/app/components/session/dice/dice3dSkinEffects.ts', root), 'utf8');
 const session = fs.readFileSync(new URL('src/app/components/session/dice/DiceSessionContext.tsx', root), 'utf8');
 const renderer = fs.readFileSync(new URL('src/app/components/session/dice/dice3dRenderer.ts', root), 'utf8');
+const customMaterials = fs.readFileSync(new URL('src/app/components/session/dice/dice3dCustomMaterials.ts', root), 'utf8');
 
 const failures = [];
 const expect = (condition, message) => { if (!condition) failures.push(message); };
@@ -48,6 +49,17 @@ expect(materials.includes('Number.parseFloat(context.font)'), 'Photographic labe
 expect(materials.includes('runWithDice3DLabelOutlineBoost(descriptor, () => originalCreate(type))'), 'Standard skinned dice creation must render labels through the profile-aware outline boost');
 expect(materials.includes('runWithDice3DLabelOutlineBoost(descriptor, () => previousSwapD4.call(box, dicemesh, result))'), 'D4 face swaps must retain the same profile-aware label outline');
 expect(materials.includes("!descriptor.custom && descriptor.appearance.skinId !== 'none'"), 'Shared outline boosting must leave unskinned/custom dice untouched');
+expect(materials.includes('export const D4_LABEL_FONT_SCALE = 1.5;'), 'D4 numbers must render larger than the native dice-box size');
+expect(materials.includes('export const D4_LABEL_IMAGE_SCALE = 1.5;'), 'D4 custom icons must render larger than the native dice-box placement');
+expect(materials.includes('export function runWithD4LabelBoost'), 'D4 label enlargement must be isolated in a dice-type-aware wrapper');
+expect(materials.includes('export function withoutD4LabelBoost'), 'Explicit custom D4 artwork must opt out of interception so sizes apply exactly once');
+expect(materials.includes('D4_LABEL_IMAGE_FULL_CANVAS_RATIO'), 'D4 enlargement must leave full-canvas photographic textures untouched');
+expect(materials.includes('d4LabelBoostDepth'), 'Nested appearance/custom adapters must not stack the D4 enlargement twice');
+expect(materials.includes("runWithD4LabelBoost(type, () => (shouldBoostDice3DLabelOutline(descriptor)"), 'Standard dice creation must enlarge D4 labels with dice-type awareness');
+expect(materials.includes("runWithD4LabelBoost('d4', () => (shouldBoostDice3DLabelOutline(descriptor)"), 'D4 forced-result remaps must retain the enlarged labels');
+expect(customMaterials.includes("import { D4_LABEL_FONT_SCALE, D4_LABEL_IMAGE_SCALE, runWithD4LabelBoost, withoutD4LabelBoost } from './dice3dAppearanceMaterials.ts';"), 'Custom D4 faces must reuse the shared enlargement helpers');
+expect(customMaterials.includes('nativeFontPt * layoutScale * D4_LABEL_FONT_SCALE'), 'Custom D4 text notes must grow with the same scale as standard numbers');
+expect(customMaterials.includes('withoutD4LabelBoost(() => {'), 'Custom D4 explicit artwork must render outside the interception scope');
 
 const iceTextureFn = textures.match(/function drawIcePhotoTexture[\s\S]*?\n}\n/)?.[0] ?? '';
 expect(!iceTextureFn.includes('fillStyle = bodyColor'), 'Ice 3D photographic texture must not be tinted by bodyColor');
