@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { projectId } from '/utils/supabase/info';
-import { useAuth, supabase } from '../auth/AuthContext';
+import { useRealtimeChannel } from '../../services/realtime/campaignChannel';
+import { useAuth } from '../auth/AuthContext';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
@@ -70,74 +71,15 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     void fetchNotifications();
   }, [fetchNotifications]);
 
-  // Canale Realtime per-utente (profile:{userId}), Broadcast con retry -
-  // stesso pattern con retry-on-error di PlayerCharacters.tsx, non quello
-  // senza retry di PresenceContext.tsx (l'unico canale rimasto rotto).
-  useEffect(() => {
-    const userId = user?.id;
-    if (!userId) return;
-
-    let isActive = true;
-    let currentChannel: ReturnType<typeof supabase.channel> | null = null;
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-    let retryCount = 0;
-    const MAX_RETRIES = 5;
-
-    const handleBroadcast = (msg: any) => {
-      const notification = msg?.payload?.notification;
-      if (!notification) return;
-      setNotifications(prev => mergeNotification(prev, notification));
-    };
-
-    const subscribeChannel = async () => {
-      if (!isActive) return;
-      await supabase.realtime.setAuth();
-
-      // hasScheduledRetry si azzera ad ogni SUBSCRIBED riuscito (a differenza
-      // del precedente "settled", che restava true per sempre dopo il primo
-      // aggancio e bloccava il retry se il canale moriva più tardi durante la
-      // sessione - stesso bug trovato e corretto in CampaignHome.tsx il
-      // 2026-07-19, propagato qui perché copiato dallo stesso pattern).
-      let hasScheduledRetry = false;
-      const ch = supabase
-        .channel(`profile:${userId}`, { config: { private: true } })
-        .on('broadcast', { event: 'notification' }, handleBroadcast)
-        .subscribe((status) => {
-          if (!isActive) return;
-
-          if (status === 'SUBSCRIBED') {
-            retryCount = 0;
-            hasScheduledRetry = false;
-            return;
-          }
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            if (hasScheduledRetry) return;
-            hasScheduledRetry = true;
-            if (currentChannel === ch) currentChannel = null;
-            (async () => {
-              try {
-                await supabase.removeChannel(ch);
-              } catch { /* ignora */ }
-              if (retryCount >= MAX_RETRIES) return;
-              retryCount += 1;
-              retryTimeout = setTimeout(() => { if (isActive) subscribeChannel(); }, 1000);
-            })();
-          }
-        });
-
-      currentChannel = ch;
-    };
-
-    subscribeChannel();
-
-    return () => {
-      isActive = false;
-      if (retryTimeout) clearTimeout(retryTimeout);
-      if (currentChannel) {
-        try { supabase.removeChannel(currentChannel); } catch { /* ignora */ }
-      }
-    };
-  }, [user?.id]);
+  useRealtimeChannel(user?.id ? `profile:${user.id}` : null, {
+    onBroadcast: {
+      notification: (msg) => {
+        const notification = msg?.payload?.notification;
+        if (!notification) return;
+        setNotifications(prev => mergeNotification(prev, notification));
+      },
+    },
+  });
 
   const markAsRead = useCallback(async (id: string) => {
     if (!session?.access_token) return;

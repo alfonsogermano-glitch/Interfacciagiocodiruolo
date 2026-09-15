@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-// Lo shield delle etichette riflettenti (solo skin metallo/ossidiana) inietta
+// Lo shield delle etichette riflettenti (solo skin ossidiana) inietta
 // GLSL nel programma delle facce: ogni identificatore usato deve esistere
 // nella versione di three installata, altrimenti il programma non compila e
 // le facce restano nere/invisibili con soli spigoli e numeri.

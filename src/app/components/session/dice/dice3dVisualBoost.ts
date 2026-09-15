@@ -44,19 +44,9 @@ const FIRE_FRAME_EMISSIVE_LIFT = 0.34;
 const STONE_FACE_EMISSIVE_PULSE = 0.16;
 const ICE_LIGHT_INTENSITY = 0.56;
 const FIRE_FRAME_CANVAS_SIZE = 192;
-// Fill metallico: solleva le facce argentate senza toccare polish (filtro
-// mappa), emissive o luce orbitante, pinnati altrove.
-const METAL_FILL_SKY_COLOR = '#e6eef6';
-const METAL_FILL_GROUND_COLOR = '#14161c';
-const METAL_FILL_INTENSITY = 0.28;
-// La point orbitante vicinissima bruciava le facce (1/d^2) rendendo i numeri
-// bianchi invisibili sul bianco: per il metallo (foto chiara + numeri chiari,
-// il caso peggiore) l'intensita' di rollio e' dimezzata. Le altre skin restano
-// invariate; a dado fermo vale comunque il fade al 25%.
-const METAL_ROLLING_INTENSITY_SCALE = 0.5;
 
-// Riserva id oltre ogni collisione con le luci di scena (vedi sotto): le luci
-// di dice-box nascono tutte all'inizializzazione con id bassi e fissi.
+// Le luci delle altre skin usano una copia diversa di three rispetto a
+// dice-box: gli id alti evitano collisioni nelle cache interne del renderer.
 const RESERVED_OBJECT_ID_COUNT = 4096;
 for (let reserveIndex = 0; reserveIndex < RESERVED_OBJECT_ID_COUNT; reserveIndex += 1) {
   // eslint-disable-next-line no-new
@@ -96,7 +86,6 @@ function boostLightColor(skin: Dice3DAppearanceDescriptor['appearance']['skinId'
     case 'lightning': return '#55e6ff';
     case 'poison': return '#a6ff4f';
     case 'stone': return '#d8c7a8';
-    case 'metal': return '#d5ecff';
     case 'obsidian': return '#9a69ff';
     default: return null;
   }
@@ -130,52 +119,22 @@ function drawFireAtlasFrame(
   );
 }
 
-type FillLightLike = {
-  color?: { set?: (value: string) => unknown };
-  groundColor?: { set?: (value: string) => unknown };
-  intensity?: number;
-};
-
 export function installDice3DVisualBoost(
   mesh: unknown,
   descriptor: Dice3DAppearanceDescriptor,
   isSettled: () => boolean = () => false,
-  createFillLight: () => unknown = () => null,
 ): () => void {
   if (!mesh || typeof mesh !== 'object') return () => undefined;
-  const typedMeshEarly = mesh as MeshLike;
-  // Fill metallico dedicato (anche a effetti spenti o motion ridotta): luce
-  // emisferica morbida che solleva le facce senza appiattire la spazzolatura
-  // come farebbe un emissive. Solo metallo standard (mai custom, mai altre
-  // skin: l'ossidiana deve restare vetro quasi nero). La luce VIENE CLONATA
-  // dalla scena (stessa copia di three del renderer): crearla con la nostra
-  // copia avvelenerebbe la cache luci (id in collisione) e farebbe fallire il
-  // primo tiro. Senza template in scena: niente fill, mai un crash.
-  let fillCleanup = () => undefined;
-  if (descriptor.appearance.skinId === 'metal' && !descriptor.custom) {
-    const fill = createFillLight() as FillLightLike | null;
-    if (fill) {
-      try {
-        fill.color?.set?.(METAL_FILL_SKY_COLOR);
-        fill.groundColor?.set?.(METAL_FILL_GROUND_COLOR);
-        if (typeof fill.intensity === 'number') fill.intensity = METAL_FILL_INTENSITY;
-        typedMeshEarly.add(fill);
-        fillCleanup = () => { typedMeshEarly.remove(fill); };
-      } catch {
-        // Senza fill: il metallo resta piu' scuro ma il tiro non muore.
-      }
-    }
-  }
   if (!descriptor.appearance.effectsEnabled || descriptor.appearance.skinId === 'none' || descriptor.appearance.skinId === 'arcane') {
-    return fillCleanup;
+    return () => undefined;
   }
   if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
-    return fillCleanup;
+    return () => undefined;
   }
 
   const skin = descriptor.appearance.skinId;
   const lightColor = boostLightColor(skin);
-  if (!lightColor) return fillCleanup;
+  if (!lightColor) return () => undefined;
 
   const typedMesh = mesh as MeshLike;
   const fireFaceBaselines: FireFaceBaseline[] = skin === 'fire' && !descriptor.custom
@@ -255,7 +214,7 @@ export function installDice3DVisualBoost(
   // incontrano mai (le luci di scena restano quelle dell'inizializzazione).
   const pointLight = new THREE.PointLight(
     lightColor,
-    skin === 'ice' ? ICE_LIGHT_INTENSITY : skin === 'lightning' ? 0.85 : skin === 'poison' ? 0.82 : skin === 'stone' ? 0.58 : skin === 'metal' ? 0.82 : 0.65,
+    skin === 'ice' ? ICE_LIGHT_INTENSITY : skin === 'lightning' ? 0.85 : skin === 'poison' ? 0.82 : skin === 'stone' ? 0.58 : 0.65,
     radius * 4.9,
     2,
   );
@@ -275,9 +234,9 @@ export function installDice3DVisualBoost(
       ? clamp01(0.2 + slow * 0.24 + medium * 0.3 + fast * 0.26 + ((Math.sin(seconds * 29.4 + 0.6) + 1) / 2) * 0.14)
       : clamp01(0.18 + slow * 0.32 + medium * 0.24);
 
-    if (skin === 'stone' || skin === 'metal') {
-      const orbitRadius = skin === 'metal' ? radius * 1.62 : radius * 1.48;
-      const orbitSpeed = skin === 'metal' ? 1.72 : 0.92;
+    if (skin === 'stone') {
+      const orbitRadius = radius * 1.48;
+      const orbitSpeed = 0.92;
       pointLight.position.set(
         Math.cos(seconds * orbitSpeed) * orbitRadius,
         Math.sin(seconds * orbitSpeed * 0.83 + 0.6) * orbitRadius * 0.72,
@@ -287,7 +246,6 @@ export function installDice3DVisualBoost(
 
     if (settleDimStart === null && isSettled()) settleDimStart = now;
     const settleDimFactor = settleDimStart === null ? 1 : Math.max(0.25, 1 - (now - settleDimStart) / 600);
-    const rollingScale = skin === 'metal' ? METAL_ROLLING_INTENSITY_SCALE : 1;
     pointLight.intensity = (skin === 'lightning'
       ? 0.55 + rollingPulse * 0.75
       : skin === 'fire'
@@ -298,9 +256,7 @@ export function installDice3DVisualBoost(
             ? 0.52 + rollingPulse * 0.6
             : skin === 'stone'
               ? 0.44 + rollingPulse * 0.38
-              : skin === 'metal'
-                ? 0.54 + rollingPulse * 0.76
-                : 0.35 + rollingPulse * 0.42) * settleDimFactor * rollingScale;
+              : 0.35 + rollingPulse * 0.42) * settleDimFactor;
 
     if (fireFrameContext && fireFrameTexture && fireFrameAtlasImage?.complete && fireFrameAtlasImage.naturalWidth > 0) {
       const pingPongLength = FIRE_FRAME_COUNT * 2 - 2;
@@ -327,7 +283,6 @@ export function installDice3DVisualBoost(
   typedMesh.add(group);
   raf = window.requestAnimationFrame(frame);
   return () => {
-    fillCleanup();
     if (raf !== null) window.cancelAnimationFrame(raf);
     if (onFireAtlasLoad && fireFrameAtlasImage) fireFrameAtlasImage.removeEventListener('load', onFireAtlasLoad);
     for (const { material, emissiveMap, emissiveIntensity, emissiveHex } of fireFaceBaselines) {

@@ -1,4 +1,4 @@
-import { getDice3DTextureDescriptor, repairDarkFaceMap } from './dice3dSkinTextures.ts';
+import { getDice3DTextureDescriptor } from './dice3dSkinTextures.ts';
 import { Dice3DSkinEffectController } from './dice3dSkinEffects.ts';
 import { applyDice3DSurfaceProfile, getDice3DSurfaceProfile } from './dice3dSurfaceProfiles.ts';
 import { installDice3DVisualBoost } from './dice3dVisualBoost.ts';
@@ -66,7 +66,7 @@ const REFLECTIVE_OUTPUT_FRAGMENT_CHUNKS = ['#include <colorspace_fragment>', '#i
 // Varying UV della mappa: 'vMapUv' solo da three r151 (canali UV per-mappa),
 // 'vUv' nelle versioni precedenti come la 0.143 usata qui. Usare quello
 // sbagliato e' un identificatore non dichiarato: il programma delle facce non
-// compila e i dadi metallo/ossidiana (unici con lo shield) restano neri.
+// compila e i dadi ossidiana (gli unici con lo shield) restano neri.
 const REFLECTIVE_UV_VARYING_CHANNELS = 'vMapUv';
 const REFLECTIVE_UV_VARYING_LEGACY = 'vUv';
 const REFLECTIVE_LABEL_SHIELD_CACHE_KEY = 'hollowgate-reflective-label-shield-v2';
@@ -103,8 +103,7 @@ function dice3DLabelOutlineWidth(
 
 function isReflectiveStandardDescriptor(descriptor: Dice3DAppearanceDescriptor): boolean {
   if (descriptor.custom) return false;
-  const skinId = descriptor.appearance.skinId;
-  return skinId === 'metal' || skinId === 'obsidian';
+  return descriptor.appearance.skinId === 'obsidian';
 }
 
 function shouldProtectReflectiveDiceLabel(descriptor: Dice3DAppearanceDescriptor, diceType?: string): boolean {
@@ -498,37 +497,6 @@ export function buildSimultaneousAppearanceQueue(chunks: Dice3DProjectionChunk[]
   return [...grouped.values()].flat();
 }
 
-// Riparazione delle facce composte senza foto: dice-box compone le texture
-// dei dadi in batch leggendo lo stato factory GLOBALE, quindi una faccia
-// puo' nascere con base nera e senza foto anche se l'adapter ha dato i dati
-// giusti al suo dado (race non deterministica, piu' visibile sul metallo
-// scuro). Stessa repair gira nel loop effetti durante il roll e al settle.
-// Usa gli helper condivisi (una tantum per canvas, idempotente).
-function repairSettledFaceMaps(entries: Array<{ mesh: object; descriptor: Dice3DAppearanceDescriptor }>): void {
-  if (typeof document === 'undefined' || typeof HTMLCanvasElement === 'undefined') return;
-  let repainted = 0;
-  for (const { mesh, descriptor } of entries) {
-    if (descriptor.custom || descriptor.appearance.skinId === 'none') continue;
-    let photo: HTMLCanvasElement | null = null;
-    try {
-      photo = getDice3DTextureDescriptor(descriptor.appearance).texture;
-    } catch {
-      continue;
-    }
-    if (!(photo instanceof HTMLCanvasElement) || photo.width <= 0 || photo.height <= 0) continue;
-    materialsOf(mesh as MeshLike).forEach((material, materialIndex) => {
-      if (materialIndex === 0) return;
-      const image = material.map?.image;
-      if (!(image instanceof HTMLCanvasElement)) return;
-      if (!repairDarkFaceMap(photo, image)) return;
-      if (material.map) material.map.needsUpdate = true;
-      if (typeof material.needsUpdate === 'boolean') material.needsUpdate = true;
-      repainted += 1;
-    });
-  }
-  if (repainted > 0) console.info(`Hollowgate 3D: riparate ${repainted} facce con foto mancante.`);
-}
-
 export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice3DAppearanceDescriptor | null>): { restore: () => void; effects: Dice3DSkinEffectController } {
   const candidateFactory = box.DiceFactory;
   if (!candidateFactory || typeof candidateFactory !== 'object') throw new Error('Il renderer 3D non espone il factory richiesto per la personalizzazione.');
@@ -537,35 +505,10 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
 
   const originalCreate = factory.create.bind(factory);
   const originalSetMaterialInfo = factory.setMaterialInfo?.bind(factory);
-  // Clona una luce emisferica della SCENA di dice-box (stessa copia di three
-  // del renderer): le cache interne di three sono indicizzate per id numerico
-  // e i contatori delle due copie di three (nostra + incorporata in dice-box)
-  // collidono. Una luce creata con la nostra copia avvelena la cache luci con
-  // uniform di tipo diverso -> "Cannot read properties of undefined (reading
-  // 'copy')" al primo tiro metal. Clonando dalla scena gli id restano unici.
-  const cloneSceneHemisphere = (): unknown => {
-    const scene = (box as { scene?: { traverse?: (visit: (item: unknown) => void) => void } }).scene;
-    let template: { clone?: () => unknown } | null = null;
-    try {
-      scene?.traverse?.((item) => {
-        const candidate = item as { isHemisphereLight?: boolean; clone?: () => unknown };
-        if (!template && candidate?.isHemisphereLight && typeof candidate.clone === 'function') template = candidate;
-      });
-    } catch {
-      template = null;
-    }
-    if (!template) return null;
-    try {
-      return template.clone() ?? null;
-    } catch {
-      return null;
-    }
-  };
   const previousSwapD4 = box.swapDiceFace_D4;
   const d4Appearance = new WeakMap<object, Dice3DAppearanceDescriptor>();
   const effects = new Dice3DSkinEffectController();
   const visualBoostCleanups: Array<() => void> = [];
-  const meshAppearances: Array<{ mesh: object; descriptor: Dice3DAppearanceDescriptor }> = [];
   const settledFlag = { value: false };
   let queueIndex = 0;
 
@@ -585,8 +528,7 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
       applyStaticSkinToMesh(mesh, descriptor, type);
       applyDice3DSurfaceProfile(mesh, descriptor);
       effects.registerMesh(mesh, descriptor);
-      visualBoostCleanups.push(installDice3DVisualBoost(mesh, descriptor, () => settledFlag.value, cloneSceneHemisphere));
-      if (mesh && typeof mesh === 'object') meshAppearances.push({ mesh, descriptor });
+      visualBoostCleanups.push(installDice3DVisualBoost(mesh, descriptor, () => settledFlag.value));
       if (type === 'd4' && mesh && typeof mesh === 'object') d4Appearance.set(mesh as object, descriptor);
       return mesh;
     } finally {
@@ -616,7 +558,6 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
 
   const originalSettle = effects.settle.bind(effects);
   effects.settle = () => {
-    repairSettledFaceMaps(meshAppearances);
     settledFlag.value = true;
     originalSettle();
   };
@@ -636,7 +577,6 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
         // Cache non azzerabile: i vecchi canvas restano riusabili.
       }
       visualBoostCleanups.splice(0).forEach((cleanup) => cleanup());
-      meshAppearances.length = 0;
       settledFlag.value = false;
       effects.stop();
     },

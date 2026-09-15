@@ -43,6 +43,7 @@ import {
   type NPC, type Monster
 } from '../../../services/supabase/entitiesService';
 import { duplicateEntityNotes } from '../../../services/supabase/entityNotesService';
+import { useRealtimeChannel } from '../../../services/realtime/campaignChannel';
 import { createEmptyMonster } from './monsters/monstersUtils';
 import type { Character } from '../../../types/character';
 import type { Adventure } from '../../../types/adventure';
@@ -400,24 +401,16 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     };
   }, [myAndJoinedCampaignIdsKey]);
 
-  // Canale personale profile:{user.id} - copre il caso in cui un PG torna al
-  // GM senza che ci sia (più) una campagna nota da cui è passato (release
-  // chiamato dopo che il PG e' stato rimosso dalla campagna): in quel caso
-  // il server non ha un canale campaign:{id} valido su cui notificare e usa
-  // questo invece (broadcastCharacterOwnerChange in index.tsx). Nessun
-  // retry qui, come l'effetto per-campagna sopra - non e' un canale che deve
-  // restare vivo a lungo, un refresh al prossimo mount basta.
-  useEffect(() => {
-    if (!user?.id) return;
-    const ch = supabase
-      .channel(`profile:${user.id}`, { config: { private: true } })
-      .on('broadcast', { event: 'character_owner_change' }, () => {
+  // Condivide il canale personale con notifiche e tiri segreti: nessun
+  // consumer aggiunge callback Supabase dopo la subscribe.
+  useRealtimeChannel(user?.id ? `profile:${user.id}` : null, {
+    onBroadcast: {
+      character_owner_change: () => {
         void load();
         void loadAvailable();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [user?.id]);
+      },
+    },
+  });
 
   // Secondo punto d'ingresso per "unisciti con un codice invito" - stesso
   // flusso di HomeScreen.tsx (bottone "Unisciti a sessione"), estratto in

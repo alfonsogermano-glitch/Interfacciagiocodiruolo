@@ -9,26 +9,17 @@ const textures = fs.readFileSync(new URL('src/app/components/session/dice/dice3d
 
 assert.ok(!boost.includes('METAL_FACE_EMISSIVE_PULSE'), 'Metal photographic faces must not use emissive-map pulsing: it washes the texture out to white');
 assert.ok(!boost.includes("(skin === 'stone' || skin === 'metal') && !descriptor.custom"), 'Metal must not be included in photographic face emissive baselines');
-assert.ok(boost.includes("if (skin === 'stone' || skin === 'metal')"), 'Metal must keep the external/orbiting light animation');
-assert.ok(boost.includes("skin === 'metal' ? 0.82"), 'Metal must keep its dedicated moving point-light boost');
-assert.ok(boost.includes('METAL_FILL_INTENSITY = 0.28'), 'Metal fill must lift faces without washing them out');
 assert.ok(materials.includes("skinId === 'metal' ? Math.min(48, base * 1.4) : base"), 'Metal number outlines must be stronger to survive bright faces');
-assert.ok(boost.includes('createFillLight') && boost.includes('METAL_FILL_INTENSITY'), 'Metal fill must come from a provided factory using the renderer three copy');
-assert.ok(materials.includes('cloneSceneHemisphere') && materials.includes('isHemisphereLight'), 'Fill light must clone a scene hemisphere so light-cache ids stay unique');
-assert.ok(boost.includes("descriptor.appearance.skinId === 'metal' && !descriptor.custom"), 'Metal fill must apply to standard dice only, never to custom dice or other skins');
+assert.ok(!boost.includes("case 'metal': return '#d5ecff'"), 'Metal must not create a local point light');
+assert.ok(!boost.includes('METAL_FILL_') && !boost.includes('createFillLight'), 'Metal must not create a dedicated fill light');
+assert.ok(!materials.includes('cloneSceneHemisphere'), 'Metal must not clone renderer lights into each die');
 assert.ok(boost.includes('isSettled') && boost.includes('settleDimFactor'), 'Orbiting lights must fade once dice settle so final numbers stay readable');
-assert.ok(boost.includes('METAL_ROLLING_INTENSITY_SCALE = 0.5'), 'Metal rolling light must stay below white-out so white numbers survive hotspots');
 assert.ok(boost.includes('RESERVED_OBJECT_ID_COUNT') && boost.includes('new THREE.Object3D()'), 'Our three copy must reserve object ids past any scene-light collision');
-assert.ok(materials.includes('repairSettledFaceMaps(meshAppearances)'), 'Settled faces must be repaired from the tracked appearance queue');
-assert.ok(
-  effects.includes('repairDarkFaceMap(photo, faceCanvas)') && effects.includes('getDice3DTextureDescriptor(entry.descriptor.appearance).texture'),
-  'Rolling faces must heal within frames through the same shared repair',
-);
-assert.ok(effects.includes('FACE_REPAIR_BUDGET_FRAMES = 90') && effects.includes('entry.repairBudget -= 1'), 'Face readbacks must stop after the first frames to avoid GPU stalls and console spam');
-assert.ok(textures.includes('export function repairDarkFaceMap'), 'Face repair must live in a single shared module');
+assert.ok(materials.includes("return descriptor.appearance.skinId === 'obsidian';"), 'The reflective shader shield must be isolated to Obsidian');
+assert.ok(!materials.includes('repairSettledFaceMaps') && !effects.includes('repairDarkFaceMap'), 'Metal must not repaint composed face canvases during or after a roll');
+assert.ok(!textures.includes('getImageData(') && !textures.includes('sampledFaceLuminance'), 'Metal texture generation must not perform Canvas readbacks');
 assert.ok(materials.includes('factory.materials_cache = {};'), 'Face cache must reset between rolls so 2D contexts never run out');
 assert.ok(textures.includes("if (!context || !bump) throw new Error('Contesto 2D non disponibile"), 'Empty texture descriptors must fail loudly instead of poisoning the cache');
-assert.ok(textures.includes("globalCompositeOperation = 'lighten'"), 'Face repair must repaint the photo under the labels without covering them');
-assert.ok(textures.includes('sampledFaceLuminance(face) >= 0.3'), 'Face repair must only touch dark faces and leave correct ones alone');
+assert.ok(textures.includes('drawImageCover(context, image, size);'), 'Metal faces must be composed directly from the preloaded replacement photograph');
 
-console.log('Metal visibility regression verification passed.');
+console.log('Metal light-free visibility and Canvas stability regression verification passed.');

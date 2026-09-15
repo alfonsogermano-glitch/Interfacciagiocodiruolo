@@ -26,7 +26,9 @@ type BroadcastEvent =
   | 'session_change'
   | 'members_change'
   | 'notes_change'
-  | 'dice_roll';
+  | 'dice_roll'
+  | 'notification'
+  | 'character_owner_change';
 const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = [
   'INSERT',
   'UPDATE',
@@ -35,6 +37,8 @@ const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = [
   'members_change',
   'notes_change',
   'dice_roll',
+  'notification',
+  'character_owner_change',
 ];
 
 type BroadcastHandler = (msg: any) => void;
