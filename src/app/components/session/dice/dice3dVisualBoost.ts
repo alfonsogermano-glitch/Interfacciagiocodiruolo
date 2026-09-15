@@ -50,6 +50,14 @@ const METAL_FILL_SKY_COLOR = '#e6eef6';
 const METAL_FILL_GROUND_COLOR = '#14161c';
 const METAL_FILL_INTENSITY = 0.22;
 
+// Riserva id oltre ogni collisione con le luci di scena (vedi sotto): le luci
+// di dice-box nascono tutte all'inizializzazione con id bassi e fissi.
+const RESERVED_OBJECT_ID_COUNT = 4096;
+for (let reserveIndex = 0; reserveIndex < RESERVED_OBJECT_ID_COUNT; reserveIndex += 1) {
+  // eslint-disable-next-line no-new
+  new THREE.Object3D();
+}
+
 const fireFrameAtlasImage = typeof Image === 'undefined' ? null : new Image();
 if (fireFrameAtlasImage) {
   fireFrameAtlasImage.decoding = 'async';
@@ -233,6 +241,13 @@ export function installDice3DVisualBoost(
   group.name = `hollowgate-strong-skin-${skin}`;
   group.renderOrder = 1000;
 
+  // NOTA: questa PointLight usa la nostra copia di three dentro la scena di
+  // dice-box (che ne incorpora un'altra). Le cache luci di three sono
+  // indicizzate per id numerico con contatori separati per copia: senza la
+  // riserva qui sopra, gli id bassi collidevano con le luci di scena
+  // restituendo uniform di tipo diverso -> "Cannot read properties of
+  // undefined (reading 'copy')" al primo tiro. Con la riserva gli id non si
+  // incontrano mai (le luci di scena restano quelle dell'inizializzazione).
   const pointLight = new THREE.PointLight(
     lightColor,
     skin === 'ice' ? ICE_LIGHT_INTENSITY : skin === 'lightning' ? 0.85 : skin === 'poison' ? 0.82 : skin === 'stone' ? 0.58 : skin === 'metal' ? 0.82 : 0.65,
