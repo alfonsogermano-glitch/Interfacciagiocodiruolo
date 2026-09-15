@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, Dices, Eye, EyeOff, Minus, Palette, Play, Plus, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Dices, Eye, EyeOff, Palette, Play, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../../auth/AuthContext';
 import { useCampaign } from '../../../campaigns/CampaignContext';
@@ -12,7 +12,7 @@ import { DiceAppearanceCustomizer } from './DiceAppearanceCustomizer';
 import { useDiceAppearance } from './DiceAppearanceContext';
 import { StyledStandardDieIcon } from './StyledStandardDieIcon';
 import { useDiceSession } from './DiceSessionContext';
-import { addCustomQuickDie, addStandardQuickDie, buildQuickRollItems, clearQuickRoll, decrementQuickDie, type QuickRollEntry } from './diceQuickRollState.ts';
+import { addCustomQuickDie, addStandardQuickDie, buildQuickRollItems, clearQuickRoll, type QuickRollEntry } from './diceQuickRollState.ts';
 import type { DiceVisibility, SavedCustomDie } from './diceTypes.ts';
 
 const SIDES = [4, 6, 8, 10, 12, 20, 100] as const;
@@ -57,9 +57,7 @@ export function DiceQuickRollFloating() {
   }, [reload]);
 
   const qty = (side: number) => entries.find((entry) => entry.kind === 'dice' && entry.sides === side)?.quantity ?? 0;
-  const customEntries = entries.filter(
-    (entry): entry is Extract<QuickRollEntry, { kind: 'custom-die' }> => entry.kind === 'custom-die',
-  );
+  const customQty = (customDieId: string) => entries.find((entry) => entry.kind === 'custom-die' && entry.customDieId === customDieId)?.quantity ?? 0;
 
   const roll = () => {
     if (entries.length === 0) return;
@@ -111,8 +109,9 @@ export function DiceQuickRollFloating() {
                       {customDice.map((die) => (
                         <Tooltip key={die.id}>
                           <TooltipTrigger asChild>
-                            <button type="button" aria-label={`${die.name} · d${die.sides}`} onClick={() => { setEntries((value) => addCustomQuickDie(value, die.id)); setSelector(false); }} className="flex h-9 w-9 items-center justify-center rounded-md hover:bg-[var(--dash-surface-2)]">
+                            <button type="button" aria-label={`${die.name} · d${die.sides}`} onClick={() => { setEntries((value) => addCustomQuickDie(value, die.id)); }} className="relative flex h-9 w-9 items-center justify-center rounded-md hover:bg-[var(--dash-surface-2)]">
                               <CustomDieLibraryIcon die={die} size="compact" />
+                              {customQty(die.id) > 0 && <span className="absolute -right-1 -top-1 rounded-full bg-[var(--dash-accent)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--dash-text-strong)]">{customQty(die.id)}</span>}
                             </button>
                           </TooltipTrigger>
                           <TooltipContent side="top" className="!animate-none">{die.name} · d{die.sides}</TooltipContent>
@@ -132,19 +131,6 @@ export function DiceQuickRollFloating() {
                 <TooltipContent side="top" className="!animate-none">Personalizza</TooltipContent>
               </Tooltip>
             </div>
-
-            {customEntries.length > 0 && (
-              <div className="flex shrink-0 flex-nowrap items-center gap-1 border-l border-[var(--dash-border)] pl-2">
-                {customEntries.map((entry, index) => {
-                  const label = customDice.find((die) => die.id === entry.customDieId)?.name ?? 'Custom';
-                  return <div key={`custom-die-${index}`} data-dice-custom-quick-stepper className="inline-flex shrink-0 items-stretch overflow-hidden rounded-full border border-[var(--dash-border)] bg-[var(--dash-input)] text-[10px] text-[var(--dash-text)]">
-                    <button type="button" data-dice-custom-quick-increment aria-label={`Aggiungi ${label}`} onClick={() => setEntries((value) => addCustomQuickDie(value, entry.customDieId))} className="flex w-7 items-center justify-center border-r border-[var(--dash-border)] hover:bg-[var(--dash-surface-2)]"><Plus className="h-3 w-3" /></button>
-                    <span className="flex max-w-40 items-center justify-center truncate px-2 py-1" title={`${label} ×${entry.quantity}`}>{label}</span>
-                    <button type="button" data-dice-custom-quick-decrement aria-label={`Rimuovi ${label}`} onClick={() => setEntries((value) => decrementQuickDie(value, entry))} className="flex w-7 items-center justify-center border-l border-[var(--dash-border)] hover:bg-[var(--dash-surface-2)]"><Minus className="h-3 w-3" /></button>
-                  </div>;
-                })}
-              </div>
-            )}
 
             <div className="flex shrink-0 items-center gap-2 border-l border-[var(--dash-border)] pl-2">
               <button aria-label="Svuota tiro rapido" onClick={() => setEntries([])} className="rounded-lg border border-[var(--dash-border)] p-2 text-[var(--dash-muted)]"><X className="h-4 w-4" /></button>
