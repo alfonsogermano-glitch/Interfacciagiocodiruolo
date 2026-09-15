@@ -41,7 +41,8 @@ assert.ok(appearance.includes('getReadable3DLabelColor'), '3D labels must use au
 assert.ok(appearance.includes('const MIN_TEXTURED_LABEL_CONTRAST = 7'), '3D textured labels must use the stronger contrast target');
 assert.ok(appearance.includes("case 'fire': return mixHexColor('#202329', bodyColor, 0.18)"), 'Fire label contrast must be measured against the dark photographic rock surface');
 assert.ok(appearance.includes('factory.label_color = labelColor') && appearance.includes('factory.label_color_rand = labelColor'), '3D renderer must apply the corrected readable label color');
-assert.ok(history.includes('result.rollerId === user?.id') && history.includes('getStandardAppearance(die.sides)'), 'Local standard-die history entries must follow the current saved appearance');
-assert.ok(history.includes(': group.appearance'), 'Remote roll history must retain the roller appearance snapshot');
+assert.ok(history.includes('historyStandardAppearance') && history.includes('group.appearance'), 'History entries must preserve the appearance snapshot from roll time');
+assert.ok(!history.includes('result.rollerId === user?.id'), 'History must not switch past rolls to the current saved appearance');
+assert.ok(history.includes('getStandardAppearance(die.sides)'), 'Legacy history entries without a snapshot may still fall back to the saved appearance');
 
-console.log('High-resolution Fire texture, shared user-controlled 2D/3D zoom, neutral 3D face material, texture-preserving Phong compensation, outer-only glow, live local history style, and strong 3D label contrast verification passed.');
+console.log('High-resolution Fire texture, shared user-controlled 2D/3D zoom, neutral 3D face material, texture-preserving Phong compensation, outer-only glow, stable history snapshots, and strong 3D label contrast verification passed.');

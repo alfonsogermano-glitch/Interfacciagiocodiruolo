@@ -1,5 +1,4 @@
 import { Dices, EyeOff, RotateCcw } from 'lucide-react';
-import { useAuth } from '../../../auth/AuthContext';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import { NoteIconGlyph } from '../shared/NoteIconGrid';
 import type { DiceAppearance, RollComparisonResult, RollResult } from './diceTypes.ts';
@@ -54,7 +53,6 @@ function CompareOutcome({ result }: { result: RollComparisonResult }) {
 
 export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; onReroll: () => void }) {
   const primary = formatPrimaryRollResult(result);
-  const { user } = useAuth();
   const { getStandardAppearance } = useDiceAppearance();
   return (
     <article data-dice-roll-history-card className="rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 p-2 shadow-md">
@@ -112,11 +110,13 @@ export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; 
           <div className="mt-1 grid grid-cols-3 gap-1">
             {result.diceGroups.flatMap((group) => group.rolls.map((die) => {
               const tooltip = `${die.customDieName ?? (die.source === 'explosion' ? 'Rilancio esplosivo' : `d${die.sides}`)}${die.active ? '' : ' - escluso'}`;
-              const liveStandardAppearance = !die.customFace
-                && result.rollerId === user?.id
-                && isChatDieSides(die.sides)
-                ? getStandardAppearance(die.sides)
-                : group.appearance;
+              // I tiri passati conservano la skin del momento del lancio: lo snapshot
+              // salvato nel gruppo ha precedenza. Il contesto serve solo per i payload
+              // legacy senza appearance.
+              const historyStandardAppearance = group.appearance
+                ?? (!die.customFace && isChatDieSides(die.sides)
+                  ? getStandardAppearance(die.sides)
+                  : undefined);
               return (
                 <Tooltip key={die.id}>
                   <TooltipTrigger asChild>
@@ -134,7 +134,7 @@ export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; 
                           {die.customFace.label && <span>{die.customFace.label}</span>}
                           {die.customFace.numericValue !== null && <span className="text-[10px]">({die.customFace.numericValue})</span>}
                         </>
-                        : <StandardDieResult sides={die.sides} face={die.face} contribution={die.contribution} appearance={liveStandardAppearance} />}
+                        : <StandardDieResult sides={die.sides} face={die.face} contribution={die.contribution} appearance={historyStandardAppearance} />}
                     </span>
                   </TooltipTrigger>
                   <TooltipContent>{tooltip}</TooltipContent>

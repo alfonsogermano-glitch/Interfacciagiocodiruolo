@@ -326,7 +326,7 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
           activeRollIds: group.faces.map((_, dieIndex) => `${formulaRollId}:g${groupIndex + 1}r${dieIndex + 1}`),
           contribution: group.faces.reduce((sum, face) => sum + face, 0),
         }));
-        const formulaResult: RollResult = {
+        const formulaResult: RollResult = attachDiceAppearanceSnapshots({
           id: formulaRollId,
           campaignId: activeCampaign.id,
           rollerId: user.id,
@@ -342,7 +342,7 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
           total: evaluated.total,
           createdAt: Date.now(),
           origin: 'modifier',
-        };
+        }, standardStyles);
         ingestRoll(formulaResult);
         dispatchRoll(formulaResult);
         return formulaResult;
@@ -410,7 +410,7 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
       });
       if (!Number.isFinite(manualTotal)) return null;
       const display = formula || input.expression.trim();
-      const manualResult: RollResult = {
+      const manualResult: RollResult = attachDiceAppearanceSnapshots({
         id: manualId,
         campaignId: activeCampaign.id,
         rollerId: user.id,
@@ -426,7 +426,7 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
         total: manualTotal,
         createdAt: Date.now(),
         origin: 'modifier',
-      };
+      }, standardStyles);
       ingestRoll(manualResult);
       dispatchRoll(manualResult);
       return manualResult;
@@ -454,7 +454,7 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
     ingestRoll(result);
     dispatchRoll(result);
     return result;
-  }, [activeCampaign, buildResult, dispatchRoll, ingestRoll, user]);
+  }, [activeCampaign, buildResult, dispatchRoll, ingestRoll, standardStyles, user]);
 
   const rolls = useMemo(
     () => entries.filter((entry) => entry.revealState === 'revealed').map((entry) => entry.result),

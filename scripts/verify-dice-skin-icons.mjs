@@ -10,7 +10,7 @@ const libIcon=read('src/app/components/session/dice/diceCustomDieLibraryIcon.ts'
 const configurator=read('src/app/components/session/dice/CustomDieConfigurator.tsx');
 assert.ok(surface.includes('getDiceSkinBackgroundImage'));
 assert.ok(styled.includes('<DieSkinSurface') && styled.includes('appearance.symbolColor'));
-assert.ok(history.includes('appearance={liveStandardAppearance}'));
+assert.ok(history.includes('appearance={historyStandardAppearance}'));
 assert.ok(history.includes("skinId={group.customDieSnapshot?.skinId ?? 'none'}"));
 assert.ok(library.includes("const skinId = die.skinId ?? 'none'"));
 assert.ok(library.includes('data-custom-die-image-untinted'));

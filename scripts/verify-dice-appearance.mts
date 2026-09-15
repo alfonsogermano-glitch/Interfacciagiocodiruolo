@@ -39,4 +39,22 @@ assert.equal(result.diceGroups[0].appearance, undefined, 'source result must sta
 assert.deepEqual(snap.diceGroups[0].appearance, {bodyColor:'#123456',symbolColor:'#abcdef',skinId:'arcane',effectsEnabled:true,textureScale:174});
 assert.equal(snap.diceGroups[2].appearance, undefined, 'custom groups must keep appearance in custom snapshot');
 assert.equal(snap.diceGroups[2].customDieSnapshot?.skinId, 'ice');
+
+const historyBase: RollResult = {
+  id: 'history-metal', campaignId: 'c', rollerId: 'u', rollerName: 'Tester', formulaName: 'test', formulaText: '1d20', visibility: 'public',
+  sourceItems: [], arithmeticSteps: [], comparisons: [], total: 14, createdAt: 1,
+  diceGroups: [{ itemId: 'a', sides: 20, requestedQuantity: 1, rolls: [], activeRollIds: [], contribution: 14 }],
+};
+const metalHistoryStyles = defaults.map((style) => style.sides === 20
+  ? { ...style, bodyColor: '#8a9299', symbolColor: '#ffffff', skinId: 'metal' as const, effectsEnabled: true, textureScale: 138 }
+  : style);
+const metalHistorySnap = attachDiceAppearanceSnapshots(historyBase, metalHistoryStyles);
+assert.equal(metalHistorySnap.diceGroups[0].appearance?.skinId, 'metal', 'first d20 roll must snapshot Metal');
+const fireHistoryStyles = metalHistoryStyles.map((style) => style.sides === 20
+  ? { ...style, skinId: 'fire' as const }
+  : style);
+const fireHistorySnap = attachDiceAppearanceSnapshots(historyBase, fireHistoryStyles);
+assert.equal(fireHistorySnap.diceGroups[0].appearance?.skinId, 'fire', 'second d20 roll must snapshot Fire');
+assert.equal(metalHistorySnap.diceGroups[0].appearance?.skinId, 'metal', 'changing to Fire must not update the previous Metal snapshot');
+assert.notEqual(metalHistorySnap.diceGroups[0].appearance, fireHistorySnap.diceGroups[0].appearance, 'snapshots must not share mutable appearance objects');
 console.log('verify-dice-appearance: PASS');
