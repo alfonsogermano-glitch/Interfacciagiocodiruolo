@@ -48,7 +48,14 @@ interface RegisteredMesh {
   mesh: MeshLike;
   descriptor: Dice3DAppearanceDescriptor;
   visual: VisualEffect | null;
+  // Frame rimanenti in cui controllare le facce scure: le readback
+  // getImageData costano (stallano la GPU e riempiono la console di warning),
+  // quindi si controlla solo nei primi frame di vita del dado. Le facce nate
+  // male guariscono subito; gli avanzi li copre la repair al settle.
+  repairBudget: number;
 }
+
+const FACE_REPAIR_BUDGET_FRAMES = 90;
 
 type ReflectiveSettledProfile = {
   roughness: number;
@@ -441,7 +448,7 @@ export class Dice3DSkinEffectController {
     this.particleBudget -= particleCount;
     const visual = reducedMotion ? null : createParticleVisual(meshRadius(typedMesh), profile, particleCount, descriptor.appearance.skinId);
     if (visual) typedMesh.add(visual.group);
-    this.entries.push({ mesh: typedMesh, descriptor, visual });
+    this.entries.push({ mesh: typedMesh, descriptor, visual, repairBudget: FACE_REPAIR_BUDGET_FRAMES });
     this.start();
   }
 
@@ -536,8 +543,10 @@ export class Dice3DSkinEffectController {
           }
           // Stessa repair del settle, ma durante il roll: le facce nate senza
           // foto guariscono entro pochi frame invece di restare nere fino al
-          // settle. Una tantum per canvas (WeakSet interno), idempotente.
-          if (!isEdgeMaterial && !entry.descriptor.custom && entry.descriptor.appearance.skinId !== 'none') {
+          // settle. Una tantum per canvas (WeakSet interno), idempotente, e
+          // solo nei primi frame di vita (le readback costano).
+          if (entry.repairBudget > 0 && !isEdgeMaterial && !entry.descriptor.custom && entry.descriptor.appearance.skinId !== 'none') {
+            entry.repairBudget -= 1;
             const faceCanvas = material.map?.image;
             if (faceCanvas instanceof HTMLCanvasElement) {
               let photo: HTMLCanvasElement | null = null;

@@ -22,6 +22,7 @@ assert.ok(
   effects.includes('repairDarkFaceMap(photo, faceCanvas)') && effects.includes('getDice3DTextureDescriptor(entry.descriptor.appearance).texture'),
   'Rolling faces must heal within frames through the same shared repair',
 );
+assert.ok(effects.includes('FACE_REPAIR_BUDGET_FRAMES = 90') && effects.includes('entry.repairBudget -= 1'), 'Face readbacks must stop after the first frames to avoid GPU stalls and console spam');
 assert.ok(textures.includes('export function repairDarkFaceMap'), 'Face repair must live in a single shared module');
 assert.ok(materials.includes('factory.materials_cache = {};'), 'Face cache must reset between rolls so 2D contexts never run out');
 assert.ok(textures.includes("if (!context || !bump) throw new Error('Contesto 2D non disponibile"), 'Empty texture descriptors must fail loudly instead of poisoning the cache');
