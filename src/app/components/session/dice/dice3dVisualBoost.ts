@@ -49,6 +49,11 @@ const FIRE_FRAME_CANVAS_SIZE = 192;
 const METAL_FILL_SKY_COLOR = '#e6eef6';
 const METAL_FILL_GROUND_COLOR = '#14161c';
 const METAL_FILL_INTENSITY = 0.22;
+// La point orbitante vicinissima bruciava le facce (1/d^2) rendendo i numeri
+// bianchi invisibili sul bianco: per il metallo (foto chiara + numeri chiari,
+// il caso peggiore) l'intensita' di rollio e' dimezzata. Le altre skin restano
+// invariate; a dado fermo vale comunque il fade al 25%.
+const METAL_ROLLING_INTENSITY_SCALE = 0.5;
 
 // Riserva id oltre ogni collisione con le luci di scena (vedi sotto): le luci
 // di dice-box nascono tutte all'inizializzazione con id bassi e fissi.
@@ -282,6 +287,7 @@ export function installDice3DVisualBoost(
 
     if (settleDimStart === null && isSettled()) settleDimStart = now;
     const settleDimFactor = settleDimStart === null ? 1 : Math.max(0.25, 1 - (now - settleDimStart) / 600);
+    const rollingScale = skin === 'metal' ? METAL_ROLLING_INTENSITY_SCALE : 1;
     pointLight.intensity = (skin === 'lightning'
       ? 0.55 + rollingPulse * 0.75
       : skin === 'fire'
@@ -294,7 +300,7 @@ export function installDice3DVisualBoost(
               ? 0.44 + rollingPulse * 0.38
               : skin === 'metal'
                 ? 0.54 + rollingPulse * 0.76
-                : 0.35 + rollingPulse * 0.42) * settleDimFactor;
+                : 0.35 + rollingPulse * 0.42) * settleDimFactor * rollingScale;
 
     if (fireFrameContext && fireFrameTexture && fireFrameAtlasImage?.complete && fireFrameAtlasImage.naturalWidth > 0) {
       const pingPongLength = FIRE_FRAME_COUNT * 2 - 2;

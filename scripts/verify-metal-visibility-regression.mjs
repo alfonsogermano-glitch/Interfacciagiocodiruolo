@@ -16,6 +16,7 @@ assert.ok(boost.includes('createFillLight') && boost.includes('METAL_FILL_INTENS
 assert.ok(materials.includes('cloneSceneHemisphere') && materials.includes('isHemisphereLight'), 'Fill light must clone a scene hemisphere so light-cache ids stay unique');
 assert.ok(boost.includes("descriptor.appearance.skinId === 'metal' && !descriptor.custom"), 'Metal fill must apply to standard dice only, never to custom dice or other skins');
 assert.ok(boost.includes('isSettled') && boost.includes('settleDimFactor'), 'Orbiting lights must fade once dice settle so final numbers stay readable');
+assert.ok(boost.includes('METAL_ROLLING_INTENSITY_SCALE = 0.5'), 'Metal rolling light must stay below white-out so white numbers survive hotspots');
 assert.ok(boost.includes('RESERVED_OBJECT_ID_COUNT') && boost.includes('new THREE.Object3D()'), 'Our three copy must reserve object ids past any scene-light collision');
 assert.ok(materials.includes('repairSettledFaceMaps(meshAppearances)'), 'Settled faces must be repaired from the tracked appearance queue');
 assert.ok(
