@@ -103,15 +103,15 @@ export function DiceQuickRollFloating() {
                     <CustomDiceQuestionIcon className="h-9 w-9" />
                   </button>
                 </PopoverTrigger>
-                <PopoverContent data-dice-custom-selector-popover side="top" align="center" sideOffset={8} collisionPadding={8} className="z-[1100] w-max min-w-0 max-w-[min(20rem,calc(100vw-2rem))] border-[var(--dash-border)] bg-[var(--dash-panel)] p-1.5 text-[var(--dash-text)] shadow-2xl">
+                <PopoverContent data-dice-custom-selector-popover side="top" align="center" sideOffset={8} collisionPadding={8} className="z-[1100] w-max min-w-0 max-w-[min(20rem,calc(100vw-2rem))] border-[var(--dash-border)] bg-[var(--dash-panel)] p-2 text-[var(--dash-text)] shadow-2xl">
                   {customDice.length > 0 ? (
-                    <div data-dice-custom-selector-grid className="grid max-w-full grid-flow-col gap-1 overflow-x-auto [scrollbar-width:thin]" style={{ gridTemplateRows: `repeat(${customGridRows}, minmax(0, 1fr))` }}>
+                    <div data-dice-custom-selector-grid className="grid max-w-full grid-flow-col gap-2 overflow-x-auto p-1 [scrollbar-width:thin]" style={{ gridTemplateRows: `repeat(${customGridRows}, minmax(0, 1fr))` }}>
                       {customDice.map((die) => (
                         <Tooltip key={die.id}>
                           <TooltipTrigger asChild>
                             <button type="button" aria-label={`${die.name} · d${die.sides}`} onClick={() => { setEntries((value) => addCustomQuickDie(value, die.id)); }} className="relative flex h-9 w-9 items-center justify-center rounded-md hover:bg-[var(--dash-surface-2)]">
                               <CustomDieLibraryIcon die={die} size="compact" />
-                              {customQty(die.id) > 0 && <span className="absolute -right-1 -top-1 rounded-full bg-[var(--dash-accent)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--dash-text-strong)]">{customQty(die.id)}</span>}
+                              {customQty(die.id) > 0 && <span className="absolute -right-1 -top-1 z-20 rounded-full bg-[var(--dash-accent)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--dash-text-strong)]">{customQty(die.id)}</span>}
                             </button>
                           </TooltipTrigger>
                           <TooltipContent side="top" className="!animate-none">{die.name} · d{die.sides}</TooltipContent>
