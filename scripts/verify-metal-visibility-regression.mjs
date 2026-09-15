@@ -12,7 +12,8 @@ assert.ok(!boost.includes("(skin === 'stone' || skin === 'metal') && !descriptor
 assert.ok(boost.includes("if (skin === 'stone' || skin === 'metal')"), 'Metal must keep the external/orbiting light animation');
 assert.ok(boost.includes("skin === 'metal' ? 0.82"), 'Metal must keep its dedicated moving point-light boost');
 assert.ok(boost.includes('METAL_FILL_INTENSITY = 0.22'), 'Metal fill must lift faces without washing them out');
-assert.ok(boost.includes("new THREE.HemisphereLight(METAL_FILL_SKY_COLOR, METAL_FILL_GROUND_COLOR, METAL_FILL_INTENSITY)"), 'Metal fill must be a soft hemisphere light that preserves the brushed texture');
+assert.ok(boost.includes('createFillLight') && boost.includes('METAL_FILL_INTENSITY'), 'Metal fill must come from a provided factory using the renderer three copy');
+assert.ok(materials.includes('cloneSceneHemisphere') && materials.includes('isHemisphereLight'), 'Fill light must clone a scene hemisphere so light-cache ids stay unique');
 assert.ok(boost.includes("descriptor.appearance.skinId === 'metal' && !descriptor.custom"), 'Metal fill must apply to standard dice only, never to custom dice or other skins');
 assert.ok(boost.includes('isSettled') && boost.includes('settleDimFactor'), 'Orbiting lights must fade once dice settle so final numbers stay readable');
 assert.ok(materials.includes('repairSettledFaceMaps(meshAppearances)'), 'Settled faces must be repaired from the tracked appearance queue');

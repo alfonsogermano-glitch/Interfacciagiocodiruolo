@@ -117,22 +117,41 @@ function drawFireAtlasFrame(
   );
 }
 
+type FillLightLike = {
+  color?: { set?: (value: string) => unknown };
+  groundColor?: { set?: (value: string) => unknown };
+  intensity?: number;
+};
+
 export function installDice3DVisualBoost(
   mesh: unknown,
   descriptor: Dice3DAppearanceDescriptor,
   isSettled: () => boolean = () => false,
+  createFillLight: () => unknown = () => null,
 ): () => void {
   if (!mesh || typeof mesh !== 'object') return () => undefined;
   const typedMeshEarly = mesh as MeshLike;
   // Fill metallico dedicato (anche a effetti spenti o motion ridotta): luce
   // emisferica morbida che solleva le facce senza appiattire la spazzolatura
   // come farebbe un emissive. Solo metallo standard (mai custom, mai altre
-  // skin: l'ossidiana deve restare vetro quasi nero).
+  // skin: l'ossidiana deve restare vetro quasi nero). La luce VIENE CLONATA
+  // dalla scena (stessa copia di three del renderer): crearla con la nostra
+  // copia avvelenerebbe la cache luci (id in collisione) e farebbe fallire il
+  // primo tiro. Senza template in scena: niente fill, mai un crash.
   let fillCleanup = () => undefined;
   if (descriptor.appearance.skinId === 'metal' && !descriptor.custom) {
-    const fill = new THREE.HemisphereLight(METAL_FILL_SKY_COLOR, METAL_FILL_GROUND_COLOR, METAL_FILL_INTENSITY);
-    typedMeshEarly.add(fill);
-    fillCleanup = () => { typedMeshEarly.remove(fill); };
+    const fill = createFillLight() as FillLightLike | null;
+    if (fill) {
+      try {
+        fill.color?.set?.(METAL_FILL_SKY_COLOR);
+        fill.groundColor?.set?.(METAL_FILL_GROUND_COLOR);
+        if (typeof fill.intensity === 'number') fill.intensity = METAL_FILL_INTENSITY;
+        typedMeshEarly.add(fill);
+        fillCleanup = () => { typedMeshEarly.remove(fill); };
+      } catch {
+        // Senza fill: il metallo resta piu' scuro ma il tiro non muore.
+      }
+    }
   }
   if (!descriptor.appearance.effectsEnabled || descriptor.appearance.skinId === 'none' || descriptor.appearance.skinId === 'arcane') {
     return fillCleanup;

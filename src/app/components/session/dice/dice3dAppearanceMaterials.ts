@@ -533,6 +533,30 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
 
   const originalCreate = factory.create.bind(factory);
   const originalSetMaterialInfo = factory.setMaterialInfo?.bind(factory);
+  // Clona una luce emisferica della SCENA di dice-box (stessa copia di three
+  // del renderer): le cache interne di three sono indicizzate per id numerico
+  // e i contatori delle due copie di three (nostra + incorporata in dice-box)
+  // collidono. Una luce creata con la nostra copia avvelena la cache luci con
+  // uniform di tipo diverso -> "Cannot read properties of undefined (reading
+  // 'copy')" al primo tiro metal. Clonando dalla scena gli id restano unici.
+  const cloneSceneHemisphere = (): unknown => {
+    const scene = (box as { scene?: { traverse?: (visit: (item: unknown) => void) => void } }).scene;
+    let template: { clone?: () => unknown } | null = null;
+    try {
+      scene?.traverse?.((item) => {
+        const candidate = item as { isHemisphereLight?: boolean; clone?: () => unknown };
+        if (!template && candidate?.isHemisphereLight && typeof candidate.clone === 'function') template = candidate;
+      });
+    } catch {
+      template = null;
+    }
+    if (!template) return null;
+    try {
+      return template.clone() ?? null;
+    } catch {
+      return null;
+    }
+  };
   const previousSwapD4 = box.swapDiceFace_D4;
   const d4Appearance = new WeakMap<object, Dice3DAppearanceDescriptor>();
   const effects = new Dice3DSkinEffectController();
@@ -557,7 +581,7 @@ export function installDiceAppearanceAdapter(box: DiceBoxLike, queue: Array<Dice
       applyStaticSkinToMesh(mesh, descriptor, type);
       applyDice3DSurfaceProfile(mesh, descriptor);
       effects.registerMesh(mesh, descriptor);
-      visualBoostCleanups.push(installDice3DVisualBoost(mesh, descriptor, () => settledFlag.value));
+      visualBoostCleanups.push(installDice3DVisualBoost(mesh, descriptor, () => settledFlag.value, cloneSceneHemisphere));
       if (mesh && typeof mesh === 'object') meshAppearances.push({ mesh, descriptor });
       if (type === 'd4' && mesh && typeof mesh === 'object') d4Appearance.set(mesh as object, descriptor);
       return mesh;
