@@ -65,7 +65,7 @@ export interface DiceData {
   titleAlign: ModifierTitleAlign | null;
 }
 
-/** Formato titolo iniziale (nessuna scelta esplicita). */
+/** Formato titolo iniziale: nome centrato, senza altri stili. */
 export const DICE_TITLE_FORMAT_DEFAULTS: ModifierTitleFormat = {
   bold: false,
   italic: false,
@@ -73,7 +73,7 @@ export const DICE_TITLE_FORMAT_DEFAULTS: ModifierTitleFormat = {
   strike: false,
   fontSize: null,
   fontFamily: null,
-  align: null,
+  align: 'center',
 };
 
 function createDiceId(): string {
@@ -108,7 +108,7 @@ export function getDiceAt(state: EditorState, pos: number): DiceData | null {
     titleStrike: mark.attrs.titleStrike === true,
     titleFontSize: typeof mark.attrs.titleFontSize === 'number' ? mark.attrs.titleFontSize : null,
     titleFontFamily: typeof mark.attrs.titleFontFamily === 'string' && mark.attrs.titleFontFamily ? mark.attrs.titleFontFamily : null,
-    titleAlign: align === 'left' || align === 'center' || align === 'right' ? align : null,
+    titleAlign: align === 'left' || align === 'center' || align === 'right' ? align : DICE_TITLE_FORMAT_DEFAULTS.align,
   };
 }
 
@@ -133,7 +133,7 @@ export function setDiceAttrs(
     titleStrike: attrs.titleStrike ?? (currentMark.attrs.titleStrike === true),
     titleFontSize: attrs.titleFontSize !== undefined ? attrs.titleFontSize : (typeof currentMark.attrs.titleFontSize === 'number' ? currentMark.attrs.titleFontSize : null),
     titleFontFamily: attrs.titleFontFamily !== undefined ? attrs.titleFontFamily : (typeof currentMark.attrs.titleFontFamily === 'string' && currentMark.attrs.titleFontFamily ? currentMark.attrs.titleFontFamily : null),
-    titleAlign: nextAlign === 'left' || nextAlign === 'center' || nextAlign === 'right' ? nextAlign : null,
+    titleAlign: nextAlign === 'left' || nextAlign === 'center' || nextAlign === 'right' ? nextAlign : DICE_TITLE_FORMAT_DEFAULTS.align,
   };
   if (dispatch) {
     dispatch(
@@ -336,7 +336,6 @@ function buildDiceWidget(
     fontWeight: 600,
     letterSpacing: '0.04em',
     color: 'var(--dash-text-strong)',
-    textTransform: 'uppercase',
     textAlign: 'center',
   });
   applyModifierTitleFormat(label, titleFormat);
@@ -557,10 +556,10 @@ export const InlineDice = Mark.create({
         renderHTML: (attributes) => (attributes.titleFontFamily ? { 'data-dice-title-font-family': attributes.titleFontFamily } : {}),
       },
       titleAlign: {
-        default: null,
+        default: DICE_TITLE_FORMAT_DEFAULTS.align,
         parseHTML: (element) => {
           const raw = element.getAttribute('data-dice-title-align');
-          return raw === 'left' || raw === 'center' || raw === 'right' ? raw : null;
+          return raw === 'left' || raw === 'center' || raw === 'right' ? raw : DICE_TITLE_FORMAT_DEFAULTS.align;
         },
         renderHTML: (attributes) => (attributes.titleAlign ? { 'data-dice-title-align': attributes.titleAlign } : {}),
       },
@@ -612,7 +611,7 @@ export const InlineDice = Mark.create({
             titleStrike: false,
             titleFontSize: null,
             titleFontFamily: null,
-            titleAlign: null,
+            titleAlign: DICE_TITLE_FORMAT_DEFAULTS.align,
           })]));
           tr.setSelection(TextSelection.create(tr.doc, insertPos + 1));
           dispatch(tr.scrollIntoView());
@@ -669,7 +668,7 @@ export const InlineDice = Mark.create({
                 strike: mark.attrs.titleStrike === true,
                 fontSize: typeof mark.attrs.titleFontSize === 'number' ? mark.attrs.titleFontSize : null,
                 fontFamily: typeof mark.attrs.titleFontFamily === 'string' && mark.attrs.titleFontFamily ? mark.attrs.titleFontFamily : null,
-                align: mark.attrs.titleAlign === 'left' || mark.attrs.titleAlign === 'center' || mark.attrs.titleAlign === 'right' ? mark.attrs.titleAlign : null,
+                align: mark.attrs.titleAlign === 'left' || mark.attrs.titleAlign === 'center' || mark.attrs.titleAlign === 'right' ? mark.attrs.titleAlign : DICE_TITLE_FORMAT_DEFAULTS.align,
               };
               const titleKey = `${titleFormat.bold ? 1 : 0}${titleFormat.italic ? 1 : 0}${titleFormat.underline ? 1 : 0}${titleFormat.strike ? 1 : 0}:${titleFormat.fontSize ?? ''}:${titleFormat.fontFamily ?? ''}:${titleFormat.align ?? ''}`;
               // Il flag anomalia e' nella key come nel Modificatore: se un

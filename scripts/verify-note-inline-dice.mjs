@@ -13,7 +13,10 @@ const selection = await readFile(new URL('../src/app/components/session/shared/N
 
 // Mark + widget.
 assert.match(dice, /Mark\.create[\s\S]*name:\s*'inlineDice'/, 'dice must define a Mark with name "inlineDice"');
+assert.match(dice, /DICE_DEFAULT_NAME = 'Dado'/, 'new dice must default to the name "Dado"');
 assert.match(dice, /DICE_DEFAULT_FORMULA = '1d6'/, 'new dice must default to a 1d6 formula');
+assert.match(dice, /DICE_TITLE_FORMAT_DEFAULTS[\s\S]{0,300}align:\s*'center'/, 'new dice names must default to explicit centered alignment');
+assert.match(dice, /insertInlineDice[\s\S]*name:\s*DICE_DEFAULT_NAME[\s\S]*formula:\s*DICE_DEFAULT_FORMULA[\s\S]*titleAlign:\s*DICE_TITLE_FORMAT_DEFAULTS\.align/, 'slash-created dice must use the canonical name, formula and centered alignment defaults');
 assert.match(dice, /insertInlineDice[\s\S]*INLINE_MODIFIER_CHAR[\s\S]*markType\.create/, 'insertInlineDice must insert a ZWSP character carrying the inlineDice mark');
 assert.match(dice, /previousIsBox[\s\S]*inlineModifier/, 'inserting dice after a modifier must leave a real space like modifiers do');
 assert.match(dice, /tiptap-inline-dice-widget[\s\S]*registerInlineBoxWidget/, 'dice widgets must join the shared visual-line measurement');
@@ -89,6 +92,11 @@ assert.match(
   dice,
   /applyModifierTitleFormat\(label, titleFormat\)/,
   'dice widgets must render the persisted title formatting',
+);
+assert.doesNotMatch(
+  dice,
+  /tiptap-inline-dice-label[\s\S]{0,700}textTransform:\s*'uppercase'/,
+  'dice names must preserve the saved uppercase and lowercase characters',
 );
 assert.match(
   modifierMenu,
