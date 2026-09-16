@@ -70,6 +70,23 @@ interface NoteModifierMenuProps {
 
 type MenuMode = 'menu' | 'edit';
 
+interface CustomDiceScrollIndicator {
+  visible: boolean;
+  topPercent: number;
+  heightPercent: number;
+}
+
+function measureCustomDiceScroll(element: HTMLDivElement): CustomDiceScrollIndicator {
+  if (element.scrollHeight <= element.clientHeight + 1) return { visible: false, topPercent: 0, heightPercent: 100 };
+  const heightPercent = Math.max(15, (element.clientHeight / element.scrollHeight) * 100);
+  const progress = element.scrollTop / Math.max(1, element.scrollHeight - element.clientHeight);
+  return {
+    visible: true,
+    topPercent: progress * (100 - heightPercent),
+    heightPercent,
+  };
+}
+
 function MenuAction({ label, icon: Icon, onActivate, danger = false, hint }: { label: string; icon: typeof Pencil; onActivate: () => void; danger?: boolean; hint?: string }) {
   return (
     <button
@@ -494,8 +511,10 @@ function DiceEditForm({ dicePos, modifiers, lookup, customDice, customDiceLoadin
   const [diceMode, setDiceMode] = useState<DiceMode>(initialMode);
   const [quantity, setQuantity] = useState(initialQuantity);
   const [customDieDraft, setCustomDieDraft] = useState<CustomDieRollSnapshot | null>(initialCustomDie);
+  const [customScroll, setCustomScroll] = useState<CustomDiceScrollIndicator>({ visible: false, topPercent: 0, heightPercent: 100 });
   const [error, setError] = useState<string | null>(null);
   const formulaRef = useRef<HTMLDivElement | null>(null);
+  const customPickerRef = useRef<HTMLDivElement | null>(null);
   const standardFormulaDraftRef = useRef(initialFormula);
   const nameRef = useRef<HTMLInputElement | null>(null);
   const titleMenuOpenRef = useRef(false);
@@ -510,6 +529,20 @@ function DiceEditForm({ dicePos, modifiers, lookup, customDice, customDiceLoadin
     const current = customDice.find((die) => die.id === customDieDraft.id);
     if (current && current.updatedAt !== customDieDraft.updatedAt) setCustomDieDraft(toCustomDieRollSnapshot(current));
   }, [customDice, customDieDraft]);
+
+  useEffect(() => {
+    if (diceMode !== 'custom') return;
+    const picker = customPickerRef.current;
+    if (!picker) return;
+    const sync = () => setCustomScroll(measureCustomDiceScroll(picker));
+    const frame = window.requestAnimationFrame(sync);
+    const observer = new ResizeObserver(sync);
+    observer.observe(picker);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [customDice.length, customDiceLoading, customDieDraft?.id, diceMode]);
 
   // Anteprima live del formato titolo sul Nome.
   useEffect(() => {
@@ -805,27 +838,37 @@ function DiceEditForm({ dicePos, modifiers, lookup, customDice, customDiceLoadin
       </> : <>
         <div key="custom-dice-picker">
           <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Dado Custom</span>
-          <div data-note-custom-die-picker className="flex max-h-32 flex-col gap-1 overflow-y-scroll rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1 [scrollbar-color:var(--dash-accent)_var(--dash-surface-2)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--dash-accent)] [&::-webkit-scrollbar-track]:bg-[var(--dash-surface-2)]">
-            {customDiceLoading ? <p className="px-2 py-2 text-center text-[10px] text-[var(--dash-muted)]">Caricamento...</p> : <>
-              {customDieDraft && !customDice.some((die) => die.id === customDieDraft.id) ? <div className="flex items-center gap-2 rounded-md border border-[var(--dash-accent)] bg-[var(--dash-accent)]/15 px-1.5 py-1 text-xs">
-                <CustomDieLibraryIcon die={customDieDraft} size="compact" />
-                <span className="min-w-0 flex-1 truncate">{customDieDraft.name}</span>
-              </div> : null}
-              {customDice.map((die) => (
-                <button
-                  key={die.id}
-                  type="button"
-                  aria-pressed={customDieDraft?.id === die.id}
-                  onClick={() => { setCustomDieDraft(toCustomDieRollSnapshot(die)); setQuantity((current) => Math.min(current, die.sides === 100 ? 500 : 1000)); setError(null); }}
-                  className={`flex items-center gap-2 rounded-md border px-1.5 py-1 text-left text-xs ${customDieDraft?.id === die.id ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/15' : 'border-transparent hover:bg-[var(--dash-surface-2)]'}`}
-                >
-                  <CustomDieLibraryIcon die={die} size="compact" />
-                  <span className="min-w-0 flex-1 truncate">{die.name}</span>
-                  <span className="text-[10px] text-[var(--dash-muted)]">d{die.sides}</span>
-                </button>
-              ))}
-              {!customDice.length && !customDieDraft ? <p className="px-2 py-2 text-center text-[10px] text-[var(--dash-muted)]">Nessun dado Custom salvato.</p> : null}
-            </>}
+          <div className="relative">
+            <div
+              ref={customPickerRef}
+              data-note-custom-die-picker
+              onScroll={(event) => setCustomScroll(measureCustomDiceScroll(event.currentTarget))}
+              className="flex max-h-32 flex-col gap-1 overflow-y-auto rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1 pr-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+              {customDiceLoading ? <p className="px-2 py-2 text-center text-[10px] text-[var(--dash-muted)]">Caricamento...</p> : <>
+                {customDieDraft && !customDice.some((die) => die.id === customDieDraft.id) ? <div className="flex shrink-0 items-center gap-2 rounded-md border border-[var(--dash-accent)] bg-[var(--dash-accent)]/15 px-1.5 py-1 text-xs">
+                  <CustomDieLibraryIcon die={customDieDraft} size="compact" />
+                  <span className="min-w-0 flex-1 truncate">{customDieDraft.name}</span>
+                </div> : null}
+                {customDice.map((die) => (
+                  <button
+                    key={die.id}
+                    type="button"
+                    aria-pressed={customDieDraft?.id === die.id}
+                    onClick={() => { setCustomDieDraft(toCustomDieRollSnapshot(die)); setQuantity((current) => Math.min(current, die.sides === 100 ? 500 : 1000)); setError(null); }}
+                    className={`flex shrink-0 items-center gap-2 rounded-md border px-1.5 py-1 text-left text-xs ${customDieDraft?.id === die.id ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/15' : 'border-transparent hover:bg-[var(--dash-surface-2)]'}`}
+                  >
+                    <CustomDieLibraryIcon die={die} size="compact" />
+                    <span className="min-w-0 flex-1 truncate">{die.name}</span>
+                    <span className="text-[10px] text-[var(--dash-muted)]">d{die.sides}</span>
+                  </button>
+                ))}
+                {!customDice.length && !customDieDraft ? <p className="px-2 py-2 text-center text-[10px] text-[var(--dash-muted)]">Nessun dado Custom salvato.</p> : null}
+              </>}
+            </div>
+            {customScroll.visible ? <span aria-hidden="true" data-note-custom-die-scrollbar className="pointer-events-none absolute bottom-1 right-1 top-1 w-1 rounded-full bg-[var(--dash-surface-2)]">
+              <span className="absolute left-0 w-full rounded-full bg-[var(--dash-accent)]" style={{ top: `${customScroll.topPercent}%`, height: `${customScroll.heightPercent}%` }} />
+            </span> : null}
           </div>
         </div>
         <label className="block">
