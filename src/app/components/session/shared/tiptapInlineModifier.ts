@@ -750,7 +750,6 @@ function buildModifierWidget(
     fontWeight: 600,
     letterSpacing: '0.04em',
     color: 'var(--dash-text-strong)',
-    textTransform: 'uppercase',
   });
   applyModifierTitleFormat(label, titleFormat);
   // Default centrale: solo 'left' esplicito allinea a sinistra.
@@ -835,7 +834,6 @@ function buildModifierWidget(
       color: 'var(--dash-text-strong)',
       font: 'inherit',
       letterSpacing: '0.04em',
-      textTransform: 'uppercase',
     });
     applyModifierTitleFormat(input, pendingFormat);
 

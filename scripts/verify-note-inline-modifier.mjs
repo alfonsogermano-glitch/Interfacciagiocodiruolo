@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../src/app/components/session/shared/tiptapInlineModifier.ts', import.meta.url), 'utf8');
 const formulaSource = await readFile(new URL('../src/app/components/session/shared/modifierFormula.ts', import.meta.url), 'utf8');
+const menuSource = await readFile(new URL('../src/app/components/session/shared/NoteModifierMenu.tsx', import.meta.url), 'utf8');
 
 assert.match(
   source,
@@ -78,6 +79,16 @@ assert.match(
   source,
   /applyModifierTitleFormat[\s\S]*fontWeight[\s\S]*textDecoration[\s\S]*fontSize[\s\S]*fontFamily[\s\S]*textAlign/,
   'modifier title must render persisted bold/italic/underline/strike/size/family/align formatting',
+);
+assert.doesNotMatch(
+  source,
+  /textTransform:\s*'uppercase'/,
+  'modifier names must preserve the saved uppercase and lowercase characters while displayed and renamed',
+);
+assert.doesNotMatch(
+  menuSource,
+  /data-note-modifier-edit[\s\S]{0,500}font-semibold uppercase/,
+  'modifier edit headers must preserve the saved name casing',
 );
 assert.match(
   source,

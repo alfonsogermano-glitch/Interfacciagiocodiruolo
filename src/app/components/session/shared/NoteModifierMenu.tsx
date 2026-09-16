@@ -446,7 +446,7 @@ function ModifierEditPanel({ top, left, name, modifiers, lookup, initialValue, i
       <div
         data-edit-drag-handle="true"
         onPointerDown={onHandlePointerDown}
-        className="mb-1 flex cursor-grab touch-none items-center gap-1.5 rounded-md px-1.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] active:cursor-grabbing"
+        className="mb-1 flex cursor-grab touch-none items-center gap-1.5 rounded-md px-1.5 py-1 text-[10px] font-semibold tracking-[0.12em] text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] active:cursor-grabbing"
       >
         <GripVertical className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate">{name}</span>
