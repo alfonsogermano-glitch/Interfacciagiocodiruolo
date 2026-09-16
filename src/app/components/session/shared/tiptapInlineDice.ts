@@ -1,7 +1,13 @@
+import { createElement } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { Mark, mergeAttributes } from '@tiptap/core';
 import { DOMSerializer, Fragment, Slice } from '@tiptap/pm/model';
 import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
+import { CustomDieLibraryIcon } from '../dice/CustomDieLibraryIcon';
+import { validateCustomDieDefinition } from '../dice/diceCustomDie';
+import { isDiceSkinId } from '../dice/diceSkins';
+import type { CustomDieRollSnapshot } from '../dice/diceTypes';
 import { wrapNoteClipboardHTML } from './tiptapNoteRichClipboard';
 import {
   INLINE_MODIFIER_CHAR,
@@ -47,6 +53,7 @@ declare module '@tiptap/core' {
 // della nota); i Dadi non sono referenziabili e non entrano nel lookup.
 export const DICE_DEFAULT_NAME = 'Dado';
 export const DICE_DEFAULT_FORMULA = '1d6';
+export type DiceMode = 'standard' | 'custom';
 
 export const DICE_WIDGET_SELECTOR = '.tiptap-inline-dice-widget';
 
@@ -57,6 +64,9 @@ export const NOTE_DICE_MENU_EVENT = 'note-inline-dice-menu';
 export interface DiceData {
   name: string;
   formula: string;
+  mode: DiceMode;
+  quantity: number;
+  customDie: CustomDieRollSnapshot | null;
   titleBold: boolean;
   titleItalic: boolean;
   titleUnderline: boolean;
@@ -64,6 +74,56 @@ export interface DiceData {
   titleFontSize: number | null;
   titleFontFamily: string | null;
   titleAlign: ModifierTitleAlign | null;
+}
+
+function parseCustomDieSnapshot(value: unknown): CustomDieRollSnapshot | null {
+  let candidate = value;
+  if (typeof candidate === 'string') {
+    try { candidate = JSON.parse(candidate); } catch { return null; }
+  }
+  if (!candidate || typeof candidate !== 'object') return null;
+  const die = candidate as CustomDieRollSnapshot;
+  if (
+    typeof die.id !== 'string' || !die.id
+    || typeof die.name !== 'string' || !die.name.trim()
+    || !Array.isArray(die.faces)
+    || typeof die.bodyColor !== 'string'
+    || typeof die.symbolColor !== 'string'
+    || (die.skinId !== undefined && !isDiceSkinId(die.skinId))
+    || (die.effectsEnabled !== undefined && typeof die.effectsEnabled !== 'boolean')
+    || (die.textureScale !== undefined && (!Number.isInteger(die.textureScale) || die.textureScale < 100 || die.textureScale > 200))
+  ) return null;
+  try {
+    return validateCustomDieDefinition(die).valid ? die : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeDiceQuantity(value: unknown, customDie: CustomDieRollSnapshot | null): number {
+  const max = customDie?.sides === 100 ? 500 : 1000;
+  const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) ? Math.max(1, Math.min(max, Math.round(parsed))) : 1;
+}
+
+function readDiceData(attrs: Record<string, unknown>): DiceData {
+  const customDie = parseCustomDieSnapshot(attrs.customDie);
+  const mode: DiceMode = attrs.mode === 'custom' && customDie ? 'custom' : 'standard';
+  const align = attrs.titleAlign;
+  return {
+    name: String(attrs.name ?? DICE_DEFAULT_NAME),
+    formula: typeof attrs.formula === 'string' && attrs.formula ? attrs.formula : DICE_DEFAULT_FORMULA,
+    mode,
+    quantity: normalizeDiceQuantity(attrs.quantity, customDie),
+    customDie,
+    titleBold: attrs.titleBold === true,
+    titleItalic: attrs.titleItalic === true,
+    titleUnderline: attrs.titleUnderline === true,
+    titleStrike: attrs.titleStrike === true,
+    titleFontSize: typeof attrs.titleFontSize === 'number' ? attrs.titleFontSize : null,
+    titleFontFamily: typeof attrs.titleFontFamily === 'string' && attrs.titleFontFamily ? attrs.titleFontFamily : null,
+    titleAlign: align === 'left' || align === 'center' || align === 'right' ? align : DICE_TITLE_FORMAT_DEFAULTS.align,
+  };
 }
 
 /** Formato titolo iniziale: nome centrato, senza altri stili. */
@@ -99,18 +159,7 @@ function getInlineDiceMark(state: EditorState, pos: number) {
 export function getDiceAt(state: EditorState, pos: number): DiceData | null {
   const mark = getInlineDiceMark(state, pos);
   if (!mark) return null;
-  const align = mark.attrs.titleAlign;
-  return {
-    name: String(mark.attrs.name ?? DICE_DEFAULT_NAME),
-    formula: typeof mark.attrs.formula === 'string' && mark.attrs.formula ? mark.attrs.formula : DICE_DEFAULT_FORMULA,
-    titleBold: mark.attrs.titleBold === true,
-    titleItalic: mark.attrs.titleItalic === true,
-    titleUnderline: mark.attrs.titleUnderline === true,
-    titleStrike: mark.attrs.titleStrike === true,
-    titleFontSize: typeof mark.attrs.titleFontSize === 'number' ? mark.attrs.titleFontSize : null,
-    titleFontFamily: typeof mark.attrs.titleFontFamily === 'string' && mark.attrs.titleFontFamily ? mark.attrs.titleFontFamily : null,
-    titleAlign: align === 'left' || align === 'center' || align === 'right' ? align : DICE_TITLE_FORMAT_DEFAULTS.align,
-  };
+  return readDiceData(mark.attrs);
 }
 
 /** Sostituisce nome/formula/formato di UN solo Dado (range di un carattere). */
@@ -124,10 +173,16 @@ export function setDiceAttrs(
   const currentMark = getInlineDiceMark(state, pos);
   if (!markType || !currentMark) return false;
   const nextAlign = attrs.titleAlign !== undefined ? attrs.titleAlign : currentMark.attrs.titleAlign;
+  const customDie = attrs.customDie !== undefined
+    ? parseCustomDieSnapshot(attrs.customDie)
+    : parseCustomDieSnapshot(currentMark.attrs.customDie);
   const next = {
     id: currentMark.attrs.id,
     name: attrs.name !== undefined && attrs.name.trim() ? attrs.name.trim() : String(currentMark.attrs.name ?? DICE_DEFAULT_NAME),
     formula: attrs.formula !== undefined && attrs.formula.trim() ? attrs.formula.trim() : String(currentMark.attrs.formula ?? DICE_DEFAULT_FORMULA),
+    mode: attrs.mode === 'custom' && customDie ? 'custom' : attrs.mode === 'standard' ? 'standard' : currentMark.attrs.mode === 'custom' && customDie ? 'custom' : 'standard',
+    quantity: normalizeDiceQuantity(attrs.quantity !== undefined ? attrs.quantity : currentMark.attrs.quantity, customDie),
+    customDie,
     titleBold: attrs.titleBold ?? (currentMark.attrs.titleBold === true),
     titleItalic: attrs.titleItalic ?? (currentMark.attrs.titleItalic === true),
     titleUnderline: attrs.titleUnderline ?? (currentMark.attrs.titleUnderline === true),
@@ -216,7 +271,9 @@ export async function copyDiceToClipboard(view: EditorView, pos: number): Promis
   const mark = getInlineDiceMark(view.state, pos);
   const data = getDiceAt(view.state, pos);
   if (!mark || !data) return false;
-  const text = `${data.name}: ${data.formula}`;
+  const text = data.mode === 'custom' && data.customDie
+    ? `${data.name}: ${data.quantity}× ${data.customDie.name}`
+    : `${data.name}: ${data.formula}`;
   const markType = view.state.schema.marks.inlineDice;
   const canRich = markType
     && typeof ClipboardItem !== 'undefined'
@@ -275,10 +332,10 @@ function assessDiceFormula(
 function buildDiceWidget(
   view: EditorView,
   getPos: () => number | undefined,
-  name: string,
-  formula: string,
+  data: DiceData,
   titleFormat: ModifierTitleFormat,
 ): HTMLElement {
+  const { name, formula, mode, quantity, customDie } = data;
   const element = document.createElement('span');
   element.className = 'tiptap-inline-dice-widget';
   element.dataset.diceName = name;
@@ -287,7 +344,8 @@ function buildDiceWidget(
   // niente Riduci/Allarga.
   element.dataset.modifierCompact = 'true';
   element.setAttribute('role', 'group');
-  element.setAttribute('aria-label', `Dado ${name}: ${formula}`);
+  const valueLabel = mode === 'custom' && customDie ? `${quantity} ${customDie.name}` : formula;
+  element.setAttribute('aria-label', `Dado ${name}: ${valueLabel}`);
 
   Object.assign(element.style, {
     display: 'inline-flex',
@@ -344,10 +402,9 @@ function buildDiceWidget(
   });
   applyModifierTitleFormat(label, titleFormat);
 
-  const formulaEl = document.createElement('span');
-  formulaEl.className = 'tiptap-inline-dice-formula';
-  formulaEl.textContent = formula;
-  Object.assign(formulaEl.style, {
+  const valueEl = document.createElement('span');
+  valueEl.className = 'tiptap-inline-dice-formula';
+  Object.assign(valueEl.style, {
     width: '100%',
     textAlign: 'center',
     fontSize: '0.95em',
@@ -358,6 +415,33 @@ function buildDiceWidget(
     position: 'relative',
     zIndex: 1,
   });
+  let customPreviewRoot: Root | null = null;
+  if (mode === 'custom' && customDie) {
+    valueEl.dataset.noteCustomDieValue = 'true';
+    Object.assign(valueEl.style, {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '0.3em',
+    });
+    const quantityEl = document.createElement('span');
+    quantityEl.textContent = String(quantity);
+    quantityEl.dataset.noteCustomDieQuantity = 'true';
+    Object.assign(quantityEl.style, {
+      fontSize: '2em',
+      fontWeight: 700,
+      lineHeight: 1,
+    });
+    const preview = document.createElement('span');
+    preview.dataset.noteCustomDieFace = 'true';
+    Object.assign(preview.style, { display: 'inline-flex', flex: 'none' });
+    valueEl.appendChild(quantityEl);
+    valueEl.appendChild(preview);
+    customPreviewRoot = createRoot(preview);
+    customPreviewRoot.render(createElement(CustomDieLibraryIcon, { die: customDie, size: 'compact' }));
+  } else {
+    valueEl.textContent = formula;
+  }
 
   const dots = document.createElement('span');
   dots.className = 'tiptap-inline-dice-menu-trigger';
@@ -394,7 +478,7 @@ function buildDiceWidget(
 
   head.appendChild(label);
   element.appendChild(head);
-  element.appendChild(formulaEl);
+  element.appendChild(valueEl);
   element.appendChild(dots);
 
   // Apre il menu React dispatchando un CustomEvent (stesso meccanismo del
@@ -451,7 +535,9 @@ function buildDiceWidget(
   dots.addEventListener('blur', () => { dots.style.opacity = '0'; });
 
   const diceLookup = getModifierLookup(view);
-  const assessment = assessDiceFormula(formula, diceLookup);
+  const assessment = mode === 'custom'
+    ? { anomalous: !customDie, hasDice: Boolean(customDie) }
+    : assessDiceFormula(formula, diceLookup);
   element.dataset.diceAnomalous = assessment.anomalous ? 'true' : 'false';
   // Il Dado non e' referenziabile: niente controllo "riferimento a se'".
   const diceAnomalyReason = assessment.anomalous ? describeFormulaAnomaly(formula, diceLookup) : null;
@@ -461,7 +547,7 @@ function buildDiceWidget(
     element.style.borderColor = 'color-mix(in srgb, var(--dash-danger-border) 60%, #ff7a7a)';
     element.style.color = 'var(--dash-danger-text)';
     label.style.color = 'var(--dash-danger-text)';
-    formulaEl.style.color = 'var(--dash-danger-text)';
+    valueEl.style.color = 'var(--dash-danger-text)';
     element.style.background = 'var(--dash-danger-bg)';
     element.style.background = 'color-mix(in srgb, var(--dash-danger-border) 45%, var(--dash-surface-2))';
     if (diceAnomalyReason) {
@@ -485,8 +571,9 @@ function buildDiceWidget(
     const currentPos = getPos();
     if (typeof currentPos !== 'number') return;
     const current = getDiceAt(view.state, currentPos);
-    if (!current || !current.formula.trim()) return;
-    if (!isValidModifierFormula(current.formula) && !parseModifierValue(current.formula)) return;
+    if (!current) return;
+    if (current.mode === 'custom' && !current.customDie) return;
+    if (current.mode === 'standard' && (!current.formula.trim() || (!isValidModifierFormula(current.formula) && !parseModifierValue(current.formula)))) return;
     event.stopPropagation();
     window.dispatchEvent(
       new CustomEvent<NoteModifierRollRequest>(NOTE_MODIFIER_ROLL_EVENT, {
@@ -499,6 +586,7 @@ function buildDiceWidget(
   registerInlineBoxWidget(element, { view, getPos });
   (element as HTMLElement & { __destroyDiceWidget?: () => void }).__destroyDiceWidget = () => {
     (element as HTMLElement & { __hideAnomalyTip?: (() => void) | null }).__hideAnomalyTip?.();
+    customPreviewRoot?.unmount();
     unregisterInlineBoxWidget(element);
   };
   return element;
@@ -526,6 +614,24 @@ export const InlineDice = Mark.create({
         default: DICE_DEFAULT_FORMULA,
         parseHTML: (element) => element.getAttribute('data-dice-formula') ?? DICE_DEFAULT_FORMULA,
         renderHTML: (attributes) => ({ 'data-dice-formula': attributes.formula }),
+      },
+      mode: {
+        default: 'standard',
+        parseHTML: (element) => element.getAttribute('data-dice-mode') === 'custom' ? 'custom' : 'standard',
+        renderHTML: (attributes) => ({ 'data-dice-mode': attributes.mode === 'custom' ? 'custom' : 'standard' }),
+      },
+      quantity: {
+        default: 1,
+        parseHTML: (element) => normalizeDiceQuantity(element.getAttribute('data-dice-quantity'), null),
+        renderHTML: (attributes) => ({ 'data-dice-quantity': String(normalizeDiceQuantity(attributes.quantity, parseCustomDieSnapshot(attributes.customDie))) }),
+      },
+      customDie: {
+        default: null,
+        parseHTML: (element) => parseCustomDieSnapshot(element.getAttribute('data-dice-custom-die')),
+        renderHTML: (attributes) => {
+          const customDie = parseCustomDieSnapshot(attributes.customDie);
+          return customDie ? { 'data-dice-custom-die': JSON.stringify(customDie) } : {};
+        },
       },
       titleBold: {
         default: false,
@@ -611,6 +717,9 @@ export const InlineDice = Mark.create({
             id: createDiceId(),
             name: DICE_DEFAULT_NAME,
             formula: DICE_DEFAULT_FORMULA,
+            mode: 'standard',
+            quantity: 1,
+            customDie: null,
             titleBold: false,
             titleItalic: false,
             titleUnderline: false,
@@ -664,8 +773,8 @@ export const InlineDice = Mark.create({
               const mark = node.marks.find((item) => item.type.name === markName);
               if (!mark) return;
 
-              const name = String(mark.attrs.name ?? DICE_DEFAULT_NAME);
-              const rawFormula = typeof mark.attrs.formula === 'string' && mark.attrs.formula ? mark.attrs.formula : DICE_DEFAULT_FORMULA;
+              const data = readDiceData(mark.attrs);
+              const { name, formula: rawFormula, mode, quantity, customDie } = data;
               const id = typeof mark.attrs.id === 'string' && mark.attrs.id ? mark.attrs.id : null;
               const titleFormat: ModifierTitleFormat = {
                 bold: mark.attrs.titleBold === true,
@@ -681,17 +790,19 @@ export const InlineDice = Mark.create({
               // Modificatore referenziato viene eliminato, la key cambia e il
               // widget viene ricostruito rosso (senza, ProseMirror riuserebbe
               // il vecchio DOM e il Dado resterebbe neutro).
-              const diceAnomalous = assessDiceFormula(rawFormula, getModifierLookupForState(state)).anomalous;
+              const diceAnomalous = mode === 'custom'
+                ? !customDie
+                : assessDiceFormula(rawFormula, getModifierLookupForState(state)).anomalous;
               for (let offset = 0; offset < node.nodeSize; offset++) {
                 if (node.text.charAt(offset) !== INLINE_MODIFIER_CHAR) continue;
                 const dicePos = pos + offset;
                 decorations.push(
                   Decoration.widget(
                     dicePos,
-                    (view, getPos) => buildDiceWidget(view, getPos, name, rawFormula, titleFormat),
+                    (view, getPos) => buildDiceWidget(view, getPos, data, titleFormat),
                     {
                       side: 0,
-                      key: `dice:${id ?? dicePos}:${name}:${rawFormula}:${titleKey}:${diceAnomalous ? 1 : 0}`,
+                      key: `dice:${id ?? dicePos}:${name}:${mode}:${rawFormula}:${quantity}:${customDie?.id ?? ''}:${customDie?.updatedAt ?? ''}:${titleKey}:${diceAnomalous ? 1 : 0}`,
                       destroy: (node) => {
                         (node as HTMLElement & { __destroyDiceWidget?: () => void }).__destroyDiceWidget?.();
                         unregisterInlineBoxWidget(node as HTMLElement);

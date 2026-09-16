@@ -12,13 +12,19 @@ import { isDice3DAbortError } from './dice3dTypes.ts';
 import { cryptoDiceRng, rollDiceFormula } from './diceEngine.ts';
 import { ModifierFormulaError, evaluateModifierFormula, type ModifierReference } from '../shared/modifierFormula.ts';
 import { parseModifierValue } from '../shared/tiptapInlineModifier.ts';
-import type { DiceRollRequest, RollDiceGroup, RollResult } from './diceTypes.ts';
+import type { CustomDieRollSnapshot, DiceRollRequest, RollDiceGroup, RollResult } from './diceTypes.ts';
 
 export interface ModifierRollSubmit {
   name: string;
   expression: string;
   formula?: string;
   resolveName?: (name: string) => ModifierReference | null;
+}
+
+export interface InlineCustomDieRollSubmit {
+  name: string;
+  quantity: number;
+  customDie: CustomDieRollSnapshot;
 }
 
 const DICE_3D_ENABLED_KEY = 'hollowgate.dice.3d-enabled';
@@ -38,6 +44,8 @@ interface DiceSessionValue {
   submitLocalRoll: (request: DiceRollRequest) => RollResult;
   /** Tiro da elemento Modificatore: nome in chat, niente Ritira. */
   submitModifierRoll: (input: ModifierRollSubmit) => RollResult | null;
+  /** Tiro Custom da elemento Dado nelle Note: usa lo snapshot salvato, niente Ritira. */
+  submitInlineCustomDieRoll: (input: InlineCustomDieRollSubmit) => RollResult | null;
   reroll: (resultId: string) => RollResult | null;
   clearLocalHistory: () => void;
   historyOpen: boolean;
@@ -435,6 +443,27 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
     return result;
   }, [activeCampaign, buildResult, dispatchRoll, ingestRoll, standardStyles, user]);
 
+  const submitInlineCustomDieRoll = useCallback((input: InlineCustomDieRollSubmit) => {
+    if (!user || !activeCampaign) return null;
+    const maxQuantity = input.customDie.sides === 100 ? 500 : 1000;
+    if (!Number.isInteger(input.quantity) || input.quantity < 1 || input.quantity > maxQuantity) return null;
+    const base = buildResult({
+      items: [{
+        id: globalThis.crypto.randomUUID(),
+        kind: 'custom-die',
+        customDieId: input.customDie.id,
+        quantity: input.quantity,
+        customDie: input.customDie,
+      }],
+      formulaName: input.name,
+      visibility: 'public',
+    });
+    const result: RollResult = { ...base, origin: 'modifier' };
+    ingestRoll(result);
+    dispatchRoll(result);
+    return result;
+  }, [activeCampaign, buildResult, dispatchRoll, ingestRoll, user]);
+
   const rolls = useMemo(
     () => entries.filter((entry) => entry.revealState === 'revealed').map((entry) => entry.result),
     [entries],
@@ -470,6 +499,7 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
     rolls,
     submitLocalRoll,
     submitModifierRoll,
+    submitInlineCustomDieRoll,
     reroll,
     clearLocalHistory,
     historyOpen,
@@ -495,6 +525,7 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
     setAnimationsEnabled,
     setHistoryOpen,
     submitLocalRoll,
+    submitInlineCustomDieRoll,
     submitModifierRoll,
   ]);
 

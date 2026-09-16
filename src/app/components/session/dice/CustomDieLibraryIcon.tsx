@@ -3,7 +3,9 @@ import { NoteIconGlyph } from '../shared/NoteIconGrid';
 import { CustomDieTextFace } from './CustomDieTextFace';
 import { DiceSkinSurface } from './DiceSkinSurface';
 import { getCustomDieLibraryIconFace } from './diceCustomDieLibraryIcon.ts';
-import type { CustomDieFace, DiceAppearance, SavedCustomDie } from './diceTypes.ts';
+import type { CustomDieFace, CustomDieRollSnapshot, DiceAppearance, SavedCustomDie } from './diceTypes.ts';
+
+type CustomDieLibraryIconData = SavedCustomDie | CustomDieRollSnapshot;
 
 function CustomDieLibraryD100Shell({
   die,
@@ -11,7 +13,7 @@ function CustomDieLibraryD100Shell({
   shellClass,
   iconClass,
 }: {
-  die: SavedCustomDie;
+  die: CustomDieLibraryIconData;
   face: CustomDieFace;
   shellClass: string;
   iconClass: string;
@@ -44,7 +46,7 @@ export function CustomDieLibraryIcon({
   die,
   size = 'card',
 }: {
-  die: SavedCustomDie;
+  die: CustomDieLibraryIconData;
   size?: 'card' | 'compact';
 }) {
   const face = getCustomDieLibraryIconFace(die.faces);

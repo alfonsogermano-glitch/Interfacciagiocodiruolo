@@ -5,7 +5,14 @@ import type { Editor } from '@tiptap/react';
 import { ArrowLeft, Clipboard, Copy, GripVertical, Maximize2, Minimize2, Pencil, Save, Trash2, Wrench, X } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import { usePortalContainer } from '../../ui/portal-container';
+import { useAuth } from '../../../auth/AuthContext';
+import { useCampaign } from '../../../campaigns/CampaignContext';
+import { CUSTOM_DICE_LIBRARY_CHANGED_EVENT, loadCustomDice } from '../../../../services/supabase/diceCustomDiceService';
+import { CustomDieLibraryIcon } from '../dice/CustomDieLibraryIcon';
+import { DiceNumericStepper } from '../dice/DiceNumericStepper';
 import { useOptionalDiceSession } from '../dice/DiceSessionContext';
+import { toCustomDieRollSnapshot } from '../dice/diceCustomDie';
+import type { CustomDieRollSnapshot, SavedCustomDie } from '../dice/diceTypes';
 import { placeFloatingNoteUI } from './noteFloatingPosition';
 import { NOTE_COMMANDS, type NoteCommandId } from './noteEditorCommands';
 
@@ -46,6 +53,7 @@ import {
   getDiceAt,
   NOTE_DICE_MENU_EVENT,
   setDiceAttrs,
+  type DiceMode,
 } from './tiptapInlineDice';
 
 const MENU_WIDTH = 184;
@@ -464,28 +472,44 @@ function ModifierEditPanel({ top, left, name, modifiers, lookup, initialValue, i
   );
 }
 
-// Pannello Modifica del Dado: solo Nome (testo sul pulsante) + Valore
-// (editor a tag identico alla Formula del Modificatore, con lista dei
-// Modificatori applicabili sotto). Niente Valore numerico, niente compatto.
-function DiceEditForm({ dicePos, modifiers, lookup, initialName, initialTitle, initialFormula, onSave, onCancel }: {
+// Il Dado Standard conserva Valore e Modificatori; il Custom sostituisce
+// entrambi con scelta del dado salvato e quantità.
+function DiceEditForm({ dicePos, modifiers, lookup, customDice, customDiceLoading, initialName, initialTitle, initialFormula, initialMode, initialQuantity, initialCustomDie, onSave, onCancel }: {
   dicePos: number;
   modifiers: ModifierSnapshot[];
   lookup: Map<string, ModifierSnapshot>;
+  customDice: SavedCustomDie[];
+  customDiceLoading: boolean;
   initialName: string;
   initialTitle: ModifierTitleFormat;
   initialFormula: string;
-  onSave: (name: string, formula: string, title: ModifierTitleFormat) => void;
+  initialMode: DiceMode;
+  initialQuantity: number;
+  initialCustomDie: CustomDieRollSnapshot | null;
+  onSave: (name: string, formula: string, title: ModifierTitleFormat, mode: DiceMode, quantity: number, customDie: CustomDieRollSnapshot | null) => void;
   onCancel: () => void;
 }) {
   const [nameDraft, setNameDraft] = useState(initialName);
   const [titleFormat, setTitleFormat] = useState(initialTitle);
+  const [diceMode, setDiceMode] = useState<DiceMode>(initialMode);
+  const [quantity, setQuantity] = useState(initialQuantity);
+  const [customDieDraft, setCustomDieDraft] = useState<CustomDieRollSnapshot | null>(initialCustomDie);
   const [error, setError] = useState<string | null>(null);
   const formulaRef = useRef<HTMLDivElement | null>(null);
+  const standardFormulaDraftRef = useRef(initialFormula);
   const nameRef = useRef<HTMLInputElement | null>(null);
   const titleMenuOpenRef = useRef(false);
   const nameDraftRef = useRef(nameDraft);
   nameDraftRef.current = nameDraft;
   useFormulaTagTips(lookup, formulaRef);
+
+  // Se il dado e' stato aggiornato in libreria dopo l'inserimento nella Nota,
+  // anteprima e snapshot salvato devono indicare la stessa versione.
+  useEffect(() => {
+    if (!customDieDraft) return;
+    const current = customDice.find((die) => die.id === customDieDraft.id);
+    if (current && current.updatedAt !== customDieDraft.updatedAt) setCustomDieDraft(toCustomDieRollSnapshot(current));
+  }, [customDice, customDieDraft]);
 
   // Anteprima live del formato titolo sul Nome.
   useEffect(() => {
@@ -586,7 +610,7 @@ function DiceEditForm({ dicePos, modifiers, lookup, initialName, initialTitle, i
     const el = formulaRef.current;
     if (!el || el.dataset.initialized) return;
     el.dataset.initialized = 'true';
-    appendFormulaSegments(el, initialFormula);
+    appendFormulaSegments(el, standardFormulaDraftRef.current);
     try {
       const range = document.createRange();
       range.selectNodeContents(el);
@@ -596,10 +620,22 @@ function DiceEditForm({ dicePos, modifiers, lookup, initialName, initialTitle, i
       selection?.addRange(range);
     } catch { /* selezione non disponibile */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [diceMode]);
 
   const confirm = () => {
-    const formulaText = serializeFormulaEditor(formulaRef.current).trim();
+    const formulaText = diceMode === 'standard'
+      ? serializeFormulaEditor(formulaRef.current).trim()
+      : standardFormulaDraftRef.current.trim();
+    if (diceMode === 'custom') {
+      if (!customDieDraft) {
+        setError('Seleziona un dado Custom.');
+        return;
+      }
+      titleMenuOpenRef.current = false;
+      window.dispatchEvent(new CustomEvent<{ pos: number }>(NOTE_MODIFIER_TITLE_MENU_CLOSE_EVENT, { detail: { pos: dicePos } }));
+      onSave(nameDraft.trim(), formulaText || initialFormula, titleFormat, diceMode, quantity, customDieDraft);
+      return;
+    }
     if (!formulaText) {
       setError('Il valore non puo\' essere vuoto.');
       return;
@@ -623,7 +659,13 @@ function DiceEditForm({ dicePos, modifiers, lookup, initialName, initialTitle, i
     }
     titleMenuOpenRef.current = false;
     window.dispatchEvent(new CustomEvent<{ pos: number }>(NOTE_MODIFIER_TITLE_MENU_CLOSE_EVENT, { detail: { pos: dicePos } }));
-    onSave(nameDraft.trim(), formulaText, titleFormat);
+    onSave(nameDraft.trim(), formulaText, titleFormat, diceMode, quantity, customDieDraft);
+  };
+
+  const selectMode = (nextMode: DiceMode) => {
+    if (diceMode === 'standard') standardFormulaDraftRef.current = serializeFormulaEditor(formulaRef.current).trim() || initialFormula;
+    setDiceMode(nextMode);
+    setError(null);
   };
 
   const insertTag = (tagName: string) => {
@@ -712,43 +754,85 @@ function DiceEditForm({ dicePos, modifiers, lookup, initialName, initialTitle, i
           className="w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
         />
       </label>
-      <div>
-        <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Valore</span>
-        <div
-          ref={formulaRef}
-          contentEditable
-          suppressContentEditableWarning
-          role="textbox"
-          aria-label="Valore"
-          onKeyDown={onFormulaKeyDown}
-          onPaste={onFormulaPaste}
-          onInput={() => setError(null)}
-          className="min-h-[3.2em] w-full resize-y whitespace-pre-wrap break-words rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
-        />
-      </div>
-      {modifiers.length > 0 && (
+      <fieldset>
+        <legend className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Tipo</legend>
+        <div className="grid grid-cols-2 gap-1.5">
+          {(['standard', 'custom'] as const).map((option) => (
+            <label key={option} className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1.5 text-xs ${diceMode === option ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/15 text-[var(--dash-text-strong)]' : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-text)]'}`}>
+              <input type="radio" name={`note-dice-mode-${dicePos}`} value={option} checked={diceMode === option} onChange={() => selectMode(option)} className="accent-[var(--dash-accent)]" />
+              {option === 'standard' ? 'Standard' : 'Custom'}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      {diceMode === 'standard' ? <>
         <div>
-          <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Modificatori</span>
-          <div className="flex max-h-28 flex-col gap-0.5 overflow-y-auto rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1">
-            {modifiers.map((modifier) => (
-              <Tooltip key={modifier.name}>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => insertTag(modifier.name)}
-                    className="truncate rounded-md px-2 py-1 text-left text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-accent)] hover:text-[var(--dash-text-strong)]"
-                  >
-                    {modifier.name}
-                  </button>
-                </TooltipTrigger>
-                {/* z sopra il pannello (z 9999): il default z-[1200] resterebbe sotto il suo sfondo. */}
-                <TooltipContent className="z-[10001]">{modifier.formula || modifier.value || '—'}</TooltipContent>
-              </Tooltip>
-            ))}
+          <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Valore</span>
+          <div
+            ref={formulaRef}
+            contentEditable
+            suppressContentEditableWarning
+            role="textbox"
+            aria-label="Valore"
+            onKeyDown={onFormulaKeyDown}
+            onPaste={onFormulaPaste}
+            onInput={() => setError(null)}
+            className="min-h-[3.2em] w-full resize-y whitespace-pre-wrap break-words rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
+          />
+        </div>
+        {modifiers.length > 0 && (
+          <div>
+            <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Modificatori</span>
+            <div className="flex max-h-28 flex-col gap-0.5 overflow-y-auto rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1">
+              {modifiers.map((modifier) => (
+                <Tooltip key={modifier.name}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => insertTag(modifier.name)}
+                      className="truncate rounded-md px-2 py-1 text-left text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-accent)] hover:text-[var(--dash-text-strong)]"
+                    >
+                      {modifier.name}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="z-[10001]">{modifier.formula || modifier.value || '—'}</TooltipContent>
+                </Tooltip>
+              ))}
+            </div>
+          </div>
+        )}
+      </> : <>
+        <div>
+          <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Dado Custom</span>
+          <div data-note-custom-die-picker className="flex max-h-32 flex-col gap-1 overflow-y-auto rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1">
+            {customDiceLoading ? <p className="px-2 py-2 text-center text-[10px] text-[var(--dash-muted)]">Caricamento...</p> : <>
+              {customDieDraft && !customDice.some((die) => die.id === customDieDraft.id) ? <div className="flex items-center gap-2 rounded-md border border-[var(--dash-accent)] bg-[var(--dash-accent)]/15 px-1.5 py-1 text-xs">
+                <CustomDieLibraryIcon die={customDieDraft} size="compact" />
+                <span className="min-w-0 flex-1 truncate">{customDieDraft.name}</span>
+              </div> : null}
+              {customDice.map((die) => (
+                <button
+                  key={die.id}
+                  type="button"
+                  aria-pressed={customDieDraft?.id === die.id}
+                  onClick={() => { setCustomDieDraft(toCustomDieRollSnapshot(die)); setQuantity((current) => Math.min(current, die.sides === 100 ? 500 : 1000)); setError(null); }}
+                  className={`flex items-center gap-2 rounded-md border px-1.5 py-1 text-left text-xs ${customDieDraft?.id === die.id ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/15' : 'border-transparent hover:bg-[var(--dash-surface-2)]'}`}
+                >
+                  <CustomDieLibraryIcon die={die} size="compact" />
+                  <span className="min-w-0 flex-1 truncate">{die.name}</span>
+                  <span className="text-[10px] text-[var(--dash-muted)]">d{die.sides}</span>
+                </button>
+              ))}
+              {!customDice.length && !customDieDraft ? <p className="px-2 py-2 text-center text-[10px] text-[var(--dash-muted)]">Nessun dado Custom salvato.</p> : null}
+            </>}
           </div>
         </div>
-      )}
+        <label className="block">
+          <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Quantità</span>
+          <DiceNumericStepper value={quantity} onChange={setQuantity} min={1} max={customDieDraft?.sides === 100 ? 500 : 1000} integer fullWidth ariaLabel="quantità dadi Custom" />
+        </label>
+      </>}
       {error && <p role="alert" className="px-0.5 text-xs text-[var(--dash-danger-text)]">{error}</p>}
       <div className="mt-0.5 flex gap-1.5">
         <button
@@ -772,17 +856,22 @@ function DiceEditForm({ dicePos, modifiers, lookup, initialName, initialTitle, i
   );
 }
 
-function DiceEditPanel({ top, left, name, modifiers, lookup, initialName, initialTitle, initialFormula, dicePos, onSave, onCancel }: {
+function DiceEditPanel({ top, left, name, modifiers, lookup, customDice, customDiceLoading, initialName, initialTitle, initialFormula, initialMode, initialQuantity, initialCustomDie, dicePos, onSave, onCancel }: {
   top: number;
   left: number;
   name: string;
   modifiers: ModifierSnapshot[];
   lookup: Map<string, ModifierSnapshot>;
+  customDice: SavedCustomDie[];
+  customDiceLoading: boolean;
   initialName: string;
   initialTitle: ModifierTitleFormat;
   initialFormula: string;
+  initialMode: DiceMode;
+  initialQuantity: number;
+  initialCustomDie: CustomDieRollSnapshot | null;
   dicePos: number;
-  onSave: (name: string, formula: string, title: ModifierTitleFormat) => void;
+  onSave: (name: string, formula: string, title: ModifierTitleFormat, mode: DiceMode, quantity: number, customDie: CustomDieRollSnapshot | null) => void;
   onCancel: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -819,7 +908,7 @@ function DiceEditPanel({ top, left, name, modifiers, lookup, initialName, initia
       role="dialog"
       aria-label={`Modifica ${name}`}
       style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999 }}
-      className="w-[232px] rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-lg"
+      className="max-h-[calc(100vh-16px)] w-[232px] overflow-y-auto rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-lg"
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
@@ -836,9 +925,14 @@ function DiceEditPanel({ top, left, name, modifiers, lookup, initialName, initia
         dicePos={dicePos}
         modifiers={modifiers}
         lookup={lookup}
+        customDice={customDice}
+        customDiceLoading={customDiceLoading}
         initialName={initialName}
         initialTitle={initialTitle}
         initialFormula={initialFormula}
+        initialMode={initialMode}
+        initialQuantity={initialQuantity}
+        initialCustomDie={initialCustomDie}
         onSave={onSave}
         onCancel={onCancel}
       />
@@ -1048,8 +1142,38 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
 // Rinomina, niente Riduci/Allarga, niente formato titolo).
 export function NoteDiceMenu({ editor, editable }: NoteModifierMenuProps) {
   const portalContainer = usePortalContainer();
+  const { user } = useAuth();
+  const { activeCampaign } = useCampaign();
   const [request, setRequest] = useState<NoteModifierMenuRequest | null>(null);
   const [mode, setMode] = useState<MenuMode>('menu');
+  const [customDice, setCustomDice] = useState<SavedCustomDie[]>([]);
+  const [customDiceLoading, setCustomDiceLoading] = useState(false);
+
+  const reloadCustomDice = useCallback(async () => {
+    if (!user?.id || !activeCampaign?.id) {
+      setCustomDice([]);
+      return;
+    }
+    setCustomDiceLoading(true);
+    try {
+      setCustomDice(await loadCustomDice(activeCampaign.id, user.id));
+    } catch (error) {
+      console.error('Errore caricamento dadi Custom per le Note:', error);
+      setCustomDice([]);
+    } finally {
+      setCustomDiceLoading(false);
+    }
+  }, [activeCampaign?.id, user?.id]);
+
+  useEffect(() => {
+    if (mode === 'edit' && request) void reloadCustomDice();
+  }, [mode, request, reloadCustomDice]);
+
+  useEffect(() => {
+    const onLibraryChanged = () => { if (mode === 'edit' && request) void reloadCustomDice(); };
+    window.addEventListener(CUSTOM_DICE_LIBRARY_CHANGED_EVENT, onLibraryChanged);
+    return () => window.removeEventListener(CUSTOM_DICE_LIBRARY_CHANGED_EVENT, onLibraryChanged);
+  }, [mode, request, reloadCustomDice]);
 
   const close = useCallback((refocus = true) => {
     setRequest(null);
@@ -1142,13 +1266,16 @@ export function NoteDiceMenu({ editor, editable }: NoteModifierMenuProps) {
     setMode('edit');
   };
 
-  const saveEdit = (nextName: string, nextFormula: string, nextTitle: ModifierTitleFormat) => {
+  const saveEdit = (nextName: string, nextFormula: string, nextTitle: ModifierTitleFormat, nextMode: DiceMode, quantity: number, customDie: CustomDieRollSnapshot | null) => {
     if (!request) return;
     const { view } = editor;
     if (!getDiceAt(view.state, request.pos)) { close(); return; }
     setDiceAttrs(view.state, (tr) => view.dispatch(tr), request.pos, {
       name: nextName,
       formula: nextFormula,
+      mode: nextMode,
+      quantity,
+      customDie,
       titleBold: nextTitle.bold,
       titleItalic: nextTitle.italic,
       titleUnderline: nextTitle.underline,
@@ -1211,6 +1338,8 @@ export function NoteDiceMenu({ editor, editable }: NoteModifierMenuProps) {
         name={data.name}
         modifiers={modifiers}
         lookup={lookup}
+        customDice={customDice}
+        customDiceLoading={customDiceLoading}
         initialName={data.name}
         initialTitle={{
           bold: data.titleBold,
@@ -1222,6 +1351,9 @@ export function NoteDiceMenu({ editor, editable }: NoteModifierMenuProps) {
           align: data.titleAlign,
         }}
         initialFormula={data.formula}
+        initialMode={data.mode}
+        initialQuantity={data.quantity}
+        initialCustomDie={data.customDie}
         dicePos={request.pos}
         onSave={saveEdit}
         onCancel={() => close()}
@@ -1286,10 +1418,18 @@ export function NoteModifierRollBridge({ editor }: { editor: Editor }) {
         }
         const dice = getDiceAt(editorRef.current.state, detail.pos);
         if (dice) {
+          if (dice.mode === 'custom' && dice.customDie) {
+            sessionRef.current?.submitInlineCustomDieRoll({
+              name: dice.name,
+              quantity: dice.quantity,
+              customDie: dice.customDie,
+            });
+            return;
+          }
           submit({ name: dice.name, expression: dice.formula, formula: dice.formula, resolveName });
         }
       } catch (error) {
-        console.error('Errore tiro modificatore:', error);
+        console.error('Errore tiro elemento Nota:', error);
       }
     };
     window.addEventListener(NOTE_MODIFIER_ROLL_EVENT, onRoll);
