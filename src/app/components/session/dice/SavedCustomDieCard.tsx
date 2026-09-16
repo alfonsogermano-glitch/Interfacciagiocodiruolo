@@ -49,7 +49,7 @@ export function SavedCustomDieCard(props: {
         <CustomDieLibraryIcon die={die} />
         <span className="min-w-0">
           <span className="block truncate text-sm font-semibold text-[var(--dash-text-strong)]">{die.name}</span>
-          <span className="block text-xs text-[var(--dash-muted)]">Dado Custom d{die.sides}</span>
+          <span className="block text-xs text-[var(--dash-muted)]">Dado Custom {die.quickRollQuantity ?? 1}d{die.sides}</span>
         </span>
       </button>
       <div data-no-dice-library-drag className="flex items-center">

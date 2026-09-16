@@ -1,6 +1,6 @@
 import { buildSimultaneousAppearanceQueue, installDiceAppearanceAdapter } from './dice3dAppearanceMaterials.ts';
 import { buildSimultaneousMaterialQueue, installCustomDiceMaterialAdapter } from './dice3dCustomMaterials.ts';
-import { boostDice3DSpin, DICE_3D_THROW_STRENGTH, type Dice3DNotationVectors } from './dice3dMotion.ts';
+import { calibrateDice3DMotion, DICE_3D_ROLL_TIMEOUT_MS, DICE_3D_THROW_STRENGTH, type Dice3DNotationVectors } from './dice3dMotion.ts';
 import { projectRollTo3D, type Dice3DProjectionChunk } from './dice3dProjection.ts';
 import { waitForDice3DTextureAssets } from './dice3dSkinTextures.ts';
 import { Dice3DAbortError, type Dice3DRenderer } from './dice3dTypes.ts';
@@ -24,10 +24,43 @@ function throwIfAborted(signal: AbortSignal) {
   if (signal.aborted) throw new Dice3DAbortError();
 }
 
-function installDice3DSpinAdapter(box: DiceBoxInstance) {
+function installDice3DMotionAdapter(box: DiceBoxInstance, container: HTMLElement) {
   const original = box.getNotationVectors?.bind(box);
   if (!original) return;
-  box.getNotationVectors = (...args: unknown[]) => boostDice3DSpin(original(...args) as Dice3DNotationVectors);
+  box.getNotationVectors = (...args: unknown[]) => {
+    const shortSide = Math.min(container.clientWidth || window.innerWidth, container.clientHeight || window.innerHeight);
+    return calibrateDice3DMotion(original(...args) as Dice3DNotationVectors, shortSide);
+  };
+}
+
+function rollDiceWithDeadline(box: DiceBoxInstance, notation: string, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      signal.removeEventListener('abort', abort);
+      callback();
+    };
+    const stop = () => {
+      try { box.clearDice(); } catch { /* Presentation-only. */ }
+    };
+    const abort = () => finish(() => { stop(); reject(new Dice3DAbortError()); });
+    const timeoutId = window.setTimeout(() => finish(() => {
+      stop();
+      reject(new Error(`Il lancio 3D non si è fermato entro ${DICE_3D_ROLL_TIMEOUT_MS / 1000} secondi.`));
+    }), DICE_3D_ROLL_TIMEOUT_MS);
+    signal.addEventListener('abort', abort, { once: true });
+    if (signal.aborted) {
+      abort();
+      return;
+    }
+    void Promise.resolve().then(() => box.roll(notation)).then(
+      () => finish(resolve),
+      (error) => finish(() => reject(error)),
+    );
+  });
 }
 
 export function buildSimultaneousDice3DNotation(chunks: Dice3DProjectionChunk[]): string | null {
@@ -106,7 +139,7 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
       strength: DICE_3D_THROW_STRENGTH,
     });
     await box.initialize();
-    installDice3DSpinAdapter(box);
+    installDice3DMotionAdapter(box, container);
     this.box = box;
   }
 
@@ -153,7 +186,7 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
 
       throwIfAborted(signal);
       if (needsRollingEffectsRender) this.startSettledRenderLoop();
-      await this.box.roll(notation);
+      await rollDiceWithDeadline(this.box, notation, signal);
       throwIfAborted(signal);
       if (installed) installed.effects.settle();
       if (keepEffectsRendering) this.startSettledRenderLoop();
