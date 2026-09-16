@@ -766,7 +766,7 @@ function DiceEditForm({ dicePos, modifiers, lookup, customDice, customDiceLoadin
         </div>
       </fieldset>
       {diceMode === 'standard' ? <>
-        <div>
+        <div key="standard-dice-value">
           <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Valore</span>
           <div
             ref={formulaRef}
@@ -803,9 +803,9 @@ function DiceEditForm({ dicePos, modifiers, lookup, customDice, customDiceLoadin
           </div>
         )}
       </> : <>
-        <div>
+        <div key="custom-dice-picker">
           <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Dado Custom</span>
-          <div data-note-custom-die-picker className="flex max-h-32 flex-col gap-1 overflow-y-auto rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1">
+          <div data-note-custom-die-picker className="flex max-h-32 flex-col gap-1 overflow-y-scroll rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1 [scrollbar-color:var(--dash-accent)_var(--dash-surface-2)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--dash-accent)] [&::-webkit-scrollbar-track]:bg-[var(--dash-surface-2)]">
             {customDiceLoading ? <p className="px-2 py-2 text-center text-[10px] text-[var(--dash-muted)]">Caricamento...</p> : <>
               {customDieDraft && !customDice.some((die) => die.id === customDieDraft.id) ? <div className="flex items-center gap-2 rounded-md border border-[var(--dash-accent)] bg-[var(--dash-accent)]/15 px-1.5 py-1 text-xs">
                 <CustomDieLibraryIcon die={customDieDraft} size="compact" />

@@ -41,6 +41,8 @@ assert.doesNotMatch(modifierMenu, /Menu Dado[\s\S]{0,800}label="Rinomina"/, 'dic
 assert.match(modifierMenu, /DiceEditForm[\s\S]*>Nome<[\s\S]*>Valore<[\s\S]*>Modificatori</, 'Standard dice edit must preserve Nome, tag-based Valore and the modifiers list');
 assert.match(modifierMenu, /type="radio"[\s\S]*'Standard'[\s\S]*'Custom'/, 'dice edit must offer Standard and Custom radio controls');
 assert.match(modifierMenu, /diceMode === 'standard'[\s\S]*>Valore<[\s\S]*>Modificatori<[\s\S]*data-note-custom-die-picker[\s\S]*DiceNumericStepper/, 'Custom mode must replace Value and Modifiers with the Custom picker and quantity stepper');
+assert.match(modifierMenu, /diceMode === 'standard'[\s\S]*key="standard-dice-value"[\s\S]*key="custom-dice-picker"/, 'switching modes must remount the uncontrolled Standard value instead of leaking it into the Custom picker');
+assert.match(modifierMenu, /data-note-custom-die-picker[\s\S]{0,500}overflow-y-scroll[\s\S]{0,500}scrollbar-width:thin/, 'the Custom picker must expose a persistent visible scrollbar');
 assert.match(modifierMenu, /loadCustomDice\(activeCampaign\.id, user\.id\)/, 'dice edit must load the current user Custom dice library');
 assert.match(modifierMenu, /toCustomDieRollSnapshot\(die\)/, 'the selected Custom die must be saved as a portable roll snapshot');
 assert.match(modifierMenu, /current\.updatedAt !== customDieDraft\.updatedAt[\s\S]*setCustomDieDraft\(toCustomDieRollSnapshot\(current\)\)/, 'an updated library die must keep the picker preview and saved snapshot in sync');
