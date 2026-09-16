@@ -9,6 +9,7 @@ interface CustomDieRow {
   owner_profile_id: string;
   name: string;
   sides: number;
+  quick_roll_quantity?: number | null;
   faces: unknown;
   body_color: string;
   symbol_color: string;
@@ -29,6 +30,7 @@ function mapRow(row: CustomDieRow): SavedCustomDie {
     ownerProfileId: row.owner_profile_id,
     name: row.name,
     sides: row.sides as CustomDieSides,
+    quickRollQuantity: Number.isInteger(row.quick_roll_quantity) && Number(row.quick_roll_quantity) >= 1 ? Number(row.quick_roll_quantity) : 1,
     faces: Array.isArray(row.faces) ? row.faces as CustomDieFace[] : [],
     bodyColor: row.body_color,
     symbolColor: row.symbol_color,
@@ -62,6 +64,7 @@ export async function createCustomDie(input: {
   ownerProfileId: string;
   name: string;
   sides: CustomDieSides;
+  quickRollQuantity?: number;
   faces: CustomDieFace[];
   bodyColor?: string;
   symbolColor?: string;
@@ -78,6 +81,7 @@ export async function createCustomDie(input: {
     owner_profile_id: input.ownerProfileId,
     name: input.name.trim(),
     sides: input.sides,
+    quick_roll_quantity: input.quickRollQuantity ?? 1,
     faces: input.faces,
     body_color: input.bodyColor ?? '#20242f',
     symbol_color: input.symbolColor ?? '#ffffff',
@@ -94,12 +98,13 @@ export async function createCustomDie(input: {
 
 export async function updateCustomDie(
   id: string,
-  patch: Partial<Pick<SavedCustomDie, 'name' | 'sides' | 'faces' | 'bodyColor' | 'symbolColor' | 'skinId' | 'effectsEnabled' | 'textureScale' | 'iconName'>>,
+  patch: Partial<Pick<SavedCustomDie, 'name' | 'sides' | 'quickRollQuantity' | 'faces' | 'bodyColor' | 'symbolColor' | 'skinId' | 'effectsEnabled' | 'textureScale' | 'iconName'>>,
 ): Promise<SavedCustomDie> {
   if (patch.name !== undefined && !patch.name.trim()) throw new Error('Il nome del dado custom non può essere vuoto.');
   const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (patch.name !== undefined) payload.name = patch.name.trim();
   if (patch.sides !== undefined) payload.sides = patch.sides;
+  if (patch.quickRollQuantity !== undefined) payload.quick_roll_quantity = patch.quickRollQuantity;
   if (patch.faces !== undefined) payload.faces = patch.faces;
   if (patch.bodyColor !== undefined) payload.body_color = patch.bodyColor;
   if (patch.symbolColor !== undefined) payload.symbol_color = patch.symbolColor;
@@ -125,6 +130,7 @@ export async function duplicateCustomDie(die: SavedCustomDie, name: string): Pro
     ownerProfileId: die.ownerProfileId,
     name,
     sides: die.sides,
+    quickRollQuantity: die.quickRollQuantity ?? 1,
     faces: die.faces.map((face) => ({ ...face, visual: { ...face.visual } })),
     bodyColor: die.bodyColor,
     symbolColor: die.symbolColor,

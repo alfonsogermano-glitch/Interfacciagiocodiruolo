@@ -15,7 +15,7 @@ The existing saved-formula library remains the single persistent library UI. A s
 - Rolling must never force-open roll history.
 - The user decides whether roll history stays open or closed.
 - Saved formulas remain the tool for recurring/prepared rolls.
-- Custom dice define a reusable die type; quantity belongs to a roll or formula, not to the die definition.
+- Custom dice define a reusable die type and may store a default Quick Roll quantity. Formula quantities remain independent.
 - Existing numeric dice behavior and existing saved formulas must remain backward compatible.
 
 ## Quick Roll UX
@@ -33,7 +33,7 @@ When opened, the control expands vertically above the floating button and shows,
 - d100
 - Custom die button, represented by a die with a question mark.
 
-Each click adds one die of that type to the pending pool. Repeated clicks increase its quantity and display a quantity badge. Different die types may be mixed in the same pool, for example `1d100 + 2d20 + 1d8 + 1d6`.
+Each standard-die click adds one die of that type to the pending pool. Repeated clicks increase its quantity and display a quantity badge. Different die types may be mixed in the same pool, for example `1d100 + 2d20 + 1d8 + 1d6`.
 
 The Quick Roll footer contains:
 
@@ -43,7 +43,7 @@ The Quick Roll footer contains:
 
 After Roll succeeds, the pending pool is cleared automatically. Repeating the same roll is handled by the existing Reroll action in history.
 
-The Custom die button opens a compact selector of custom dice available to the current user in the current campaign. Selecting a custom die adds one instance to the pending pool; further additions increase its quantity exactly like standard dice.
+The Custom die button opens a compact selector of custom dice available to the current user in the current campaign. Selecting a custom die adds its configured Quick Roll quantity to the pending pool. Further selections add the same quantity, so a value of three produces badges `3`, `6`, `9`, and so on.
 
 ## Roll history behavior and unread indicator
 
@@ -166,6 +166,7 @@ Introduce a `dice_custom_dice` table with at least:
 - `owner_profile_id uuid not null`;
 - `name text not null`;
 - `sides integer not null` constrained to 4, 6, 8, 10, 12, 20, 100;
+- `quick_roll_quantity integer not null default 1`, capped so a Quick Roll cannot exceed 1,000 physical dice;
 - `faces jsonb not null` containing validated face definitions;
 - appearance settings for the first release: body color and symbol color;
 - `icon_name text null` for the library row;

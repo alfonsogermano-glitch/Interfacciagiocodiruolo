@@ -109,7 +109,7 @@ export function DiceQuickRollFloating() {
                       {customDice.map((die) => (
                         <Tooltip key={die.id}>
                           <TooltipTrigger asChild>
-                            <button type="button" aria-label={`${die.name} · d${die.sides}`} onClick={() => { setEntries((value) => addCustomQuickDie(value, die.id)); }} className="relative flex h-9 w-9 items-center justify-center rounded-md hover:bg-[var(--dash-surface-2)]">
+                            <button type="button" aria-label={`${die.name} · d${die.sides}`} onClick={() => { setEntries((value) => addCustomQuickDie(value, die.id, die.quickRollQuantity)); }} className="relative flex h-9 w-9 items-center justify-center rounded-md hover:bg-[var(--dash-surface-2)]">
                               <CustomDieLibraryIcon die={die} size="compact" />
                               {customQty(die.id) > 0 && <span className="absolute -right-1 -top-1 z-20 rounded-full bg-[var(--dash-accent)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--dash-text-strong)]">{customQty(die.id)}</span>}
                             </button>

@@ -17,16 +17,17 @@ export function addStandardQuickDie(entries: readonly QuickRollEntry[], sides: n
   return found ? next : [...next, { kind: 'dice', sides, quantity: 1 }];
 }
 
-export function addCustomQuickDie(entries: readonly QuickRollEntry[], customDieId: string): QuickRollEntry[] {
+export function addCustomQuickDie(entries: readonly QuickRollEntry[], customDieId: string, quantity = 1): QuickRollEntry[] {
+  const increment = Number.isInteger(quantity) && quantity >= 1 ? quantity : 1;
   let found = false;
   const next = entries.map((entry) => {
     if (entry.kind === 'custom-die' && entry.customDieId === customDieId) {
       found = true;
-      return { ...entry, quantity: entry.quantity + 1 };
+      return { ...entry, quantity: entry.quantity + increment };
     }
     return { ...entry };
   });
-  return found ? next : [...next, { kind: 'custom-die', customDieId, quantity: 1 }];
+  return found ? next : [...next, { kind: 'custom-die', customDieId, quantity: increment }];
 }
 
 export function decrementQuickDie(entries: readonly QuickRollEntry[], target: QuickRollEntry): QuickRollEntry[] {

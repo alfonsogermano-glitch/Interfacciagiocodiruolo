@@ -45,6 +45,7 @@ export interface SavedCustomDie {
   ownerProfileId: string;
   name: string;
   sides: CustomDieSides;
+  quickRollQuantity?: number;
   faces: CustomDieFace[];
   bodyColor: string;
   symbolColor: string;
