@@ -10,6 +10,7 @@ const editor = await readFile(new URL('../src/app/components/session/shared/Rich
 const richClipboard = await readFile(new URL('../src/app/components/session/shared/tiptapNoteRichClipboard.ts', import.meta.url), 'utf8');
 const slashPlugin = await readFile(new URL('../src/app/components/session/shared/tiptapNoteSlashMenu.ts', import.meta.url), 'utf8');
 const selection = await readFile(new URL('../src/app/components/session/shared/NoteSelectionToolbar.tsx', import.meta.url), 'utf8');
+const categoryIcon = await readFile(new URL('../src/app/components/session/shared/noteElementCategoryIcon.ts', import.meta.url), 'utf8');
 
 // Mark + widget.
 assert.match(dice, /Mark\.create[\s\S]*name:\s*'inlineDice'/, 'dice must define a Mark with name "inlineDice"');
@@ -20,6 +21,8 @@ assert.match(dice, /insertInlineDice[\s\S]*name:\s*DICE_DEFAULT_NAME[\s\S]*formu
 assert.match(dice, /insertInlineDice[\s\S]*INLINE_MODIFIER_CHAR[\s\S]*markType\.create/, 'insertInlineDice must insert a ZWSP character carrying the inlineDice mark');
 assert.match(dice, /previousIsBox[\s\S]*inlineModifier/, 'inserting dice after a modifier must leave a real space like modifiers do');
 assert.match(dice, /tiptap-inline-dice-widget[\s\S]*registerInlineBoxWidget/, 'dice widgets must join the shared visual-line measurement');
+assert.match(dice, /buildNoteElementCategoryIcon\('Dices'\)/, 'dice widgets must show the slash-menu Dices icon in their background');
+assert.match(categoryIcon, /left:\s*'0\.35em'[\s\S]*opacity:\s*'0\.5'[\s\S]*pointerEvents:\s*'none'/, 'category icons must stay behind the content at 50% opacity on the left');
 assert.match(dice, /duplicateDiceAt[\s\S]*makeRoomForInlineDiceInsertion[\s\S]*createDiceId/, 'duplicating dice must stay beside the original with a fresh id');
 assert.match(dice, /copyDiceToClipboard[\s\S]*wrapNoteClipboardHTML/, 'copying dice must write the rich element for exact paste');
 assert.match(

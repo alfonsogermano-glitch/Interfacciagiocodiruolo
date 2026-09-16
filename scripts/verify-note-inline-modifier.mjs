@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('../src/app/components/session/shared/tiptapInlineModifier.ts', import.meta.url), 'utf8');
 const formulaSource = await readFile(new URL('../src/app/components/session/shared/modifierFormula.ts', import.meta.url), 'utf8');
 const menuSource = await readFile(new URL('../src/app/components/session/shared/NoteModifierMenu.tsx', import.meta.url), 'utf8');
+const categoryIconSource = await readFile(new URL('../src/app/components/session/shared/noteElementCategoryIcon.ts', import.meta.url), 'utf8');
 
 assert.match(
   source,
@@ -95,6 +96,8 @@ assert.match(
   /Default centrale[\s\S]*titleFormat\.align === 'right'[\s\S]*justifyContent = 'center'/,
   'modifier title must default to centered alignment',
 );
+assert.match(source, /buildNoteElementCategoryIcon\('Cog'\)/, 'modifier widgets must show a Cog category icon in their background');
+assert.match(categoryIconSource, /Cog:\s*COG_ICON[\s\S]*opacity:\s*'0\.5'/, 'modifier category icons must use the Cog artwork at 50% opacity');
 assert.match(
   source,
   /tiptap-inline-modifier-menu-trigger[\s\S]*position:\s*'absolute'[\s\S]*flexDirection:\s*'column'[\s\S]*opacity:\s*0[\s\S]*mouseenter/,
@@ -275,8 +278,8 @@ assert.match(
 );
 assert.match(
   commandsSource,
-  /id:\s*'inlineModifier'[\s\S]*SlidersHorizontal/,
-  'slash menu must expose "Modificatore" with a unique icon (SlidersHorizontal by default)',
+  /id:\s*'inlineModifier'[\s\S]*icon:\s*Cog/,
+  'slash menu must expose "Modificatore" with the Cog icon',
 );
 
 const richTextSource = await readFile(new URL('../src/app/components/session/shared/RichTextEditor.tsx', import.meta.url), 'utf8');

@@ -22,6 +22,7 @@ import {
   type NoteModifierRollRequest,
 } from './tiptapInlineModifier';
 import { describeFormulaAnomaly } from './modifierFormula';
+import { buildNoteElementCategoryIcon } from './noteElementCategoryIcon';
 import {
   extractModifierRefs,
   isValidModifierFormula,
@@ -308,6 +309,7 @@ function buildDiceWidget(
     cursor: 'pointer',
   });
   element.style.background = 'color-mix(in srgb, var(--dash-accent-2) 22%, var(--dash-surface-2))';
+  element.appendChild(buildNoteElementCategoryIcon('Dices'));
 
   const head = document.createElement('span');
   Object.assign(head.style, {
@@ -317,6 +319,8 @@ function buildDiceWidget(
     gap: '0.35em',
     width: '100%',
     lineHeight: 1,
+    position: 'relative',
+    zIndex: 1,
   });
   // Allineamento titolo come il Modificatore (default centrale).
   if (titleFormat.align === 'right') head.style.justifyContent = 'flex-end';
@@ -351,6 +355,8 @@ function buildDiceWidget(
     lineHeight: 1.4,
     marginTop: '0.1em',
     color: 'var(--dash-text)',
+    position: 'relative',
+    zIndex: 1,
   });
 
   const dots = document.createElement('span');

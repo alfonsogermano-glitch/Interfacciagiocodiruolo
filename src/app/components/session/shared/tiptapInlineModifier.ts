@@ -8,6 +8,7 @@ import {
   type NoteClipboardSliceJSON,
 } from './tiptapNoteRichClipboard';
 import { describeFormulaAnomaly, extractModifierRefs, isValidModifierFormula, modifierFormulaHasDice, parseModifierValue } from './modifierFormula';
+import { buildNoteElementCategoryIcon } from './noteElementCategoryIcon';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -727,6 +728,7 @@ function buildModifierWidget(
     userSelect: 'none',
     position: 'relative',
   });
+  element.appendChild(buildNoteElementCategoryIcon('Cog'));
 
   const head = document.createElement('span');
   Object.assign(head.style, {
@@ -735,6 +737,8 @@ function buildModifierWidget(
     gap: '0.35em',
     width: '100%',
     lineHeight: 1,
+    position: 'relative',
+    zIndex: 1,
   });
 
   const label = document.createElement('span');
@@ -803,6 +807,8 @@ function buildModifierWidget(
     lineHeight: 1.4,
     marginTop: compact ? '0' : '0.1em',
     color: 'var(--dash-text)',
+    position: 'relative',
+    zIndex: 1,
   });
 
   head.appendChild(label);
