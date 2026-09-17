@@ -446,7 +446,7 @@ function buildDiceWidget(
     valueEl.appendChild(quantityEl);
     valueEl.appendChild(preview);
     customPreviewRoot = createRoot(preview);
-    customPreviewRoot.render(createElement(CustomDieLibraryIcon, { die: customDie, size: 'compact' }));
+    customPreviewRoot.render(createElement(CustomDieLibraryIcon, { die: customDie, size: 'compact', faceOffsetY: 3 }));
   } else {
     valueEl.textContent = formula;
   }
