@@ -306,7 +306,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
       <PermanentUndo editor={editor} editable={editable} />
       <NoteSlashMenu editor={editor} editable={editable} />
       <NoteModifierMenu editor={editor} editable={editable} />
-      <NoteDiceMenu editor={editor} editable={editable} />
+      <NoteDiceMenu editor={editor} editable={editable} canPersist={canToggleInlineCheckbox} />
       <NoteModifierTitleMenu editable={editable} />
       <NoteModifierRollBridge editor={editor} />
       <NoteSelectionToolbar editor={editor} editable={editable} />

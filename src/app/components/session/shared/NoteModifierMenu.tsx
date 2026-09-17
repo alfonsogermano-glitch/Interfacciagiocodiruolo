@@ -67,6 +67,7 @@ const DANGER_ITEM_CLASS =
 interface NoteModifierMenuProps {
   editor: Editor;
   editable: boolean;
+  canPersist?: boolean;
 }
 
 type MenuMode = 'menu' | 'edit';
@@ -1184,7 +1185,7 @@ export function NoteModifierMenu({ editor, editable }: NoteModifierMenuProps) {
 // Bridge widget vanilla -> chat dadi: al click su un Modificatore con valore
 // Menu contestuale del Dado: solo Modifica, Duplica, Copia ed Elimina (niente
 // Rinomina, niente Riduci/Allarga, niente formato titolo).
-export function NoteDiceMenu({ editor, editable }: NoteModifierMenuProps) {
+export function NoteDiceMenu({ editor, editable, canPersist = true }: NoteModifierMenuProps) {
   const portalContainer = usePortalContainer();
   const { user } = useAuth();
   const { activeCampaign } = useCampaign();
@@ -1192,34 +1193,47 @@ export function NoteDiceMenu({ editor, editable }: NoteModifierMenuProps) {
   const [mode, setMode] = useState<MenuMode>('menu');
   const [customDice, setCustomDice] = useState<SavedCustomDie[]>([]);
   const [customDiceLoading, setCustomDiceLoading] = useState(false);
+  const customDiceLoadSequenceRef = useRef(0);
 
   const reloadCustomDice = useCallback(async () => {
+    const sequence = ++customDiceLoadSequenceRef.current;
     if (!user?.id || !activeCampaign?.id) {
       setCustomDice([]);
+      setCustomDiceLoading(false);
       return;
     }
     setCustomDiceLoading(true);
     try {
       const loaded = await loadCustomDice(activeCampaign.id, user.id);
+      if (sequence !== customDiceLoadSequenceRef.current || editor.isDestroyed) return;
       setCustomDice(loaded);
-      refreshInlineCustomDiceSnapshots(editor.view.state, (transaction) => editor.view.dispatch(transaction), loaded);
+      if (canPersist) refreshInlineCustomDiceSnapshots(editor.view.state, (transaction) => editor.view.dispatch(transaction), loaded);
     } catch (error) {
+      if (sequence !== customDiceLoadSequenceRef.current) return;
       console.error('Errore caricamento dadi Custom per le Note:', error);
       setCustomDice([]);
     } finally {
-      setCustomDiceLoading(false);
+      if (sequence === customDiceLoadSequenceRef.current) setCustomDiceLoading(false);
     }
-  }, [activeCampaign?.id, editor, user?.id]);
+  }, [activeCampaign?.id, canPersist, editor, user?.id]);
+
+  // Il pannello Dadi smonta le Note, quindi l'evento emesso durante il
+  // salvataggio puo' andare perso. Ogni editor riallinea gli snapshot appena
+  // torna montato; le tab inattive faranno lo stesso quando vengono aperte.
+  useEffect(() => {
+    if (canPersist) void reloadCustomDice();
+    return () => { customDiceLoadSequenceRef.current += 1; };
+  }, [canPersist, reloadCustomDice]);
 
   useEffect(() => {
     if (mode === 'edit' && request) void reloadCustomDice();
   }, [mode, request, reloadCustomDice]);
 
   useEffect(() => {
-    const onLibraryChanged = () => void reloadCustomDice();
+    const onLibraryChanged = () => { if (canPersist) void reloadCustomDice(); };
     window.addEventListener(CUSTOM_DICE_LIBRARY_CHANGED_EVENT, onLibraryChanged);
     return () => window.removeEventListener(CUSTOM_DICE_LIBRARY_CHANGED_EVENT, onLibraryChanged);
-  }, [reloadCustomDice]);
+  }, [canPersist, reloadCustomDice]);
 
   const close = useCallback((refocus = true) => {
     setRequest(null);

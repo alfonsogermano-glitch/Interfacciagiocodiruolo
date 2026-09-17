@@ -106,6 +106,20 @@ function normalizeDiceQuantity(value: unknown, customDie: CustomDieRollSnapshot 
   return Number.isFinite(parsed) ? Math.max(1, Math.min(max, Math.round(parsed))) : 1;
 }
 
+function serializeCustomDieSnapshot(customDie: CustomDieRollSnapshot | null): string {
+  return customDie ? JSON.stringify(customDie) : '';
+}
+
+function customDieSnapshotKey(customDie: CustomDieRollSnapshot | null): string {
+  const serialized = serializeCustomDieSnapshot(customDie);
+  let hash = 2166136261;
+  for (let index = 0; index < serialized.length; index += 1) {
+    hash ^= serialized.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 function readDiceData(attrs: Record<string, unknown>): DiceData {
   const customDie = parseCustomDieSnapshot(attrs.customDie);
   const mode: DiceMode = attrs.mode === 'custom' && customDie ? 'custom' : 'standard';
@@ -220,8 +234,9 @@ export function refreshInlineCustomDiceSnapshots(
     const current = readDiceData(mark.attrs);
     if (current.mode !== 'custom' || !current.customDie) return;
     const refreshed = byId.get(current.customDie.id);
-    if (!refreshed || refreshed.updatedAt === current.customDie.updatedAt) return;
+    if (!refreshed) return;
     const customDie = toCustomDieRollSnapshot(refreshed);
+    if (serializeCustomDieSnapshot(customDie) === serializeCustomDieSnapshot(current.customDie)) return;
     for (let offset = 0; offset < node.nodeSize; offset += 1) {
       if (node.text.charAt(offset) !== INLINE_MODIFIER_CHAR) continue;
       transaction
@@ -234,7 +249,7 @@ export function refreshInlineCustomDiceSnapshots(
       changed = true;
     }
   });
-  if (changed && dispatch) dispatch(transaction);
+  if (changed && dispatch) dispatch(transaction.setMeta('addToHistory', false));
   return changed;
 }
 
@@ -847,7 +862,7 @@ export const InlineDice = Mark.create({
                     (view, getPos) => buildDiceWidget(view, getPos, data, titleFormat),
                     {
                       side: 0,
-                      key: `dice:${id ?? dicePos}:${name}:${mode}:${rawFormula}:${quantity}:${customDie?.id ?? ''}:${customDie?.updatedAt ?? ''}:${titleKey}:${diceAnomalous ? 1 : 0}`,
+                      key: `dice:${id ?? dicePos}:${name}:${mode}:${rawFormula}:${quantity}:${customDieSnapshotKey(customDie)}:${titleKey}:${diceAnomalous ? 1 : 0}`,
                       destroy: (node) => {
                         (node as HTMLElement & { __destroyDiceWidget?: () => void }).__destroyDiceWidget?.();
                         unregisterInlineBoxWidget(node as HTMLElement);

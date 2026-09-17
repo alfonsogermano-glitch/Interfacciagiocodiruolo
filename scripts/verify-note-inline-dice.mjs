@@ -47,8 +47,11 @@ assert.match(modifierMenu, /data-note-custom-die-picker[\s\S]*onScroll[\s\S]*dat
 assert.match(modifierMenu, /loadCustomDice\(activeCampaign\.id, user\.id\)/, 'dice edit must load the current user Custom dice library');
 assert.match(modifierMenu, /toCustomDieRollSnapshot\(die\)/, 'the selected Custom die must be saved as a portable roll snapshot');
 assert.match(modifierMenu, /current\.updatedAt !== customDieDraft\.updatedAt[\s\S]*setCustomDieDraft\(toCustomDieRollSnapshot\(current\)\)/, 'an updated library die must keep the picker preview and saved snapshot in sync');
-assert.match(modifierMenu, /refreshInlineCustomDiceSnapshots\(editor\.view\.state[\s\S]*const onLibraryChanged = \(\) => void reloadCustomDice\(\)/, 'Custom library changes must refresh inline Note dice even while their menu is closed');
-assert.match(dice, /refreshInlineCustomDiceSnapshots[\s\S]*refreshed\.updatedAt === current\.customDie\.updatedAt[\s\S]*toCustomDieRollSnapshot\(refreshed\)[\s\S]*dispatch\(transaction\)/, 'all stale Custom snapshots in a Note must refresh in one transaction');
+assert.match(modifierMenu, /pannello Dadi smonta le Note[\s\S]*if \(canPersist\) void reloadCustomDice\(\)/, 'each remounted Note editor must reconcile events lost while the Dice panel was open');
+assert.match(modifierMenu, /customDiceLoadSequenceRef[\s\S]*sequence !== customDiceLoadSequenceRef\.current \|\| editor\.isDestroyed/, 'Custom library reconciliation must ignore stale requests and destroyed editors');
+assert.match(modifierMenu, /refreshInlineCustomDiceSnapshots\(editor\.view\.state[\s\S]*const onLibraryChanged[\s\S]*reloadCustomDice\(\)/, 'mounted Note editors must still refresh immediately on Custom library events');
+assert.match(dice, /refreshInlineCustomDiceSnapshots[\s\S]*serializeCustomDieSnapshot\(customDie\) === serializeCustomDieSnapshot\(current\.customDie\)[\s\S]*setMeta\('addToHistory', false\)/, 'all changed Custom snapshots must refresh in one non-undoable transaction without relying only on timestamps');
+assert.match(dice, /customDieSnapshotKey\(customDie\)/, 'the decoration key must fingerprint the complete Custom snapshot');
 assert.match(modifierMenu, /DiceEditForm[\s\S]*useFormulaTagTips/, 'Standard dice formula tags must share the site-style tooltips');
 assert.match(modifierMenu, /notazione XdY testuale[\s\S]*modifierFormulaHasDice\(formulaText\)[\s\S]*almeno una notazione XdY/, 'Standard dice values must always contain a literal XdY notation typed by the user');
 assert.doesNotMatch(modifierMenu, /DiceEditForm[\s\S]{0,2000}modifierFormulaHasDice\(formulaText, resolveRef\)/, 'Standard dice values must not accept dice only through referenced modifiers');
@@ -79,7 +82,7 @@ assert.match(customLibraryIcon, /SavedCustomDie \| CustomDieRollSnapshot/, 'the 
 
 // Editor integration.
 assert.match(editor, /InlineDice,[\s\S]*inlineCheckboxExtension/, 'editor must register the InlineDice mark');
-assert.match(editor, /<NoteDiceMenu editor=\{editor\} editable=\{editable\} \/>/, 'editor must mount the dice menu');
+assert.match(editor, /<NoteDiceMenu editor=\{editor\} editable=\{editable\} canPersist=\{canToggleInlineCheckbox\} \/>/, 'editor must mount the dice menu with persistent-write permission');
 assert.match(slashPlugin, /makeRoomForInlineDiceText\(view, from, text\)/, 'slash trigger after dice must shrink like after modifiers');
 assert.match(richClipboard, /inlineDice[\s\S]*id: freshId\(\)/, 'pasted dice must get fresh widget ids without renaming');
 assert.match(richClipboard, /isSingleDiceSlice\(slice\)[\s\S]*previousIsBox/, 'a single pasted dice after another element must stay beside it');
