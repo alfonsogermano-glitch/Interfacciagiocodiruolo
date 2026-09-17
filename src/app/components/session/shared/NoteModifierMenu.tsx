@@ -52,6 +52,7 @@ import {
   duplicateDiceAt,
   getDiceAt,
   NOTE_DICE_MENU_EVENT,
+  refreshInlineCustomDiceSnapshots,
   setDiceAttrs,
   type DiceMode,
 } from './tiptapInlineDice';
@@ -1201,32 +1202,24 @@ export function NoteDiceMenu({ editor, editable }: NoteModifierMenuProps) {
     try {
       const loaded = await loadCustomDice(activeCampaign.id, user.id);
       setCustomDice(loaded);
-      if (request) {
-        const current = getDiceAt(editor.state, request.pos);
-        const refreshed = current?.customDie ? loaded.find((die) => die.id === current.customDie?.id) : null;
-        if (current?.mode === 'custom' && current.customDie && refreshed && refreshed.updatedAt !== current.customDie.updatedAt) {
-          setDiceAttrs(editor.view.state, (transaction) => editor.view.dispatch(transaction), request.pos, {
-            customDie: toCustomDieRollSnapshot(refreshed),
-          });
-        }
-      }
+      refreshInlineCustomDiceSnapshots(editor.view.state, (transaction) => editor.view.dispatch(transaction), loaded);
     } catch (error) {
       console.error('Errore caricamento dadi Custom per le Note:', error);
       setCustomDice([]);
     } finally {
       setCustomDiceLoading(false);
     }
-  }, [activeCampaign?.id, editor, request, user?.id]);
+  }, [activeCampaign?.id, editor, user?.id]);
 
   useEffect(() => {
     if (mode === 'edit' && request) void reloadCustomDice();
   }, [mode, request, reloadCustomDice]);
 
   useEffect(() => {
-    const onLibraryChanged = () => { if (mode === 'edit' && request) void reloadCustomDice(); };
+    const onLibraryChanged = () => void reloadCustomDice();
     window.addEventListener(CUSTOM_DICE_LIBRARY_CHANGED_EVENT, onLibraryChanged);
     return () => window.removeEventListener(CUSTOM_DICE_LIBRARY_CHANGED_EVENT, onLibraryChanged);
-  }, [mode, request, reloadCustomDice]);
+  }, [reloadCustomDice]);
 
   const close = useCallback((refocus = true) => {
     setRequest(null);

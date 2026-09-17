@@ -47,7 +47,8 @@ assert.match(modifierMenu, /data-note-custom-die-picker[\s\S]*onScroll[\s\S]*dat
 assert.match(modifierMenu, /loadCustomDice\(activeCampaign\.id, user\.id\)/, 'dice edit must load the current user Custom dice library');
 assert.match(modifierMenu, /toCustomDieRollSnapshot\(die\)/, 'the selected Custom die must be saved as a portable roll snapshot');
 assert.match(modifierMenu, /current\.updatedAt !== customDieDraft\.updatedAt[\s\S]*setCustomDieDraft\(toCustomDieRollSnapshot\(current\)\)/, 'an updated library die must keep the picker preview and saved snapshot in sync');
-assert.match(modifierMenu, /refreshed\.updatedAt !== current\.customDie\.updatedAt[\s\S]*setDiceAttrs[\s\S]*customDie: toCustomDieRollSnapshot\(refreshed\)/, 'an updated Custom skin must immediately refresh the open inline Note dice widget');
+assert.match(modifierMenu, /refreshInlineCustomDiceSnapshots\(editor\.view\.state[\s\S]*const onLibraryChanged = \(\) => void reloadCustomDice\(\)/, 'Custom library changes must refresh inline Note dice even while their menu is closed');
+assert.match(dice, /refreshInlineCustomDiceSnapshots[\s\S]*refreshed\.updatedAt === current\.customDie\.updatedAt[\s\S]*toCustomDieRollSnapshot\(refreshed\)[\s\S]*dispatch\(transaction\)/, 'all stale Custom snapshots in a Note must refresh in one transaction');
 assert.match(modifierMenu, /DiceEditForm[\s\S]*useFormulaTagTips/, 'Standard dice formula tags must share the site-style tooltips');
 assert.match(modifierMenu, /notazione XdY testuale[\s\S]*modifierFormulaHasDice\(formulaText\)[\s\S]*almeno una notazione XdY/, 'Standard dice values must always contain a literal XdY notation typed by the user');
 assert.doesNotMatch(modifierMenu, /DiceEditForm[\s\S]{0,2000}modifierFormulaHasDice\(formulaText, resolveRef\)/, 'Standard dice values must not accept dice only through referenced modifiers');

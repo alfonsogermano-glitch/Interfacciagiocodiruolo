@@ -5,9 +5,9 @@ import { DOMSerializer, Fragment, Slice } from '@tiptap/pm/model';
 import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import { CustomDieLibraryIcon } from '../dice/CustomDieLibraryIcon';
-import { validateCustomDieDefinition } from '../dice/diceCustomDie';
+import { toCustomDieRollSnapshot, validateCustomDieDefinition } from '../dice/diceCustomDie';
 import { isDiceSkinId } from '../dice/diceSkins';
-import type { CustomDieRollSnapshot } from '../dice/diceTypes';
+import type { CustomDieRollSnapshot, SavedCustomDie } from '../dice/diceTypes';
 import { wrapNoteClipboardHTML } from './tiptapNoteRichClipboard';
 import {
   INLINE_MODIFIER_CHAR,
@@ -199,6 +199,43 @@ export function setDiceAttrs(
     );
   }
   return true;
+}
+
+/** Aggiorna in un'unica transazione gli snapshot dei Dadi Custom presenti
+ * nella Nota quando cambia la libreria personale. */
+export function refreshInlineCustomDiceSnapshots(
+  state: EditorState,
+  dispatch: ((transaction: Transaction) => void) | undefined,
+  customDice: readonly SavedCustomDie[],
+): boolean {
+  const markType = state.schema.marks.inlineDice;
+  if (!markType) return false;
+  const byId = new Map(customDice.map((die) => [die.id, die]));
+  const transaction = state.tr;
+  let changed = false;
+  state.doc.descendants((node, pos) => {
+    if (!node.isText || !node.text) return;
+    const mark = node.marks.find((item) => item.type === markType);
+    if (!mark) return;
+    const current = readDiceData(mark.attrs);
+    if (current.mode !== 'custom' || !current.customDie) return;
+    const refreshed = byId.get(current.customDie.id);
+    if (!refreshed || refreshed.updatedAt === current.customDie.updatedAt) return;
+    const customDie = toCustomDieRollSnapshot(refreshed);
+    for (let offset = 0; offset < node.nodeSize; offset += 1) {
+      if (node.text.charAt(offset) !== INLINE_MODIFIER_CHAR) continue;
+      transaction
+        .removeMark(pos + offset, pos + offset + 1, markType)
+        .addMark(pos + offset, pos + offset + 1, markType.create({
+          ...mark.attrs,
+          customDie,
+          quantity: normalizeDiceQuantity(current.quantity, customDie),
+        }));
+      changed = true;
+    }
+  });
+  if (changed && dispatch) dispatch(transaction);
+  return changed;
 }
 
 /** true se subito prima di pos c'e' un Dado. */
