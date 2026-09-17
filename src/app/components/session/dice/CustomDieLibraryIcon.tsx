@@ -12,11 +12,13 @@ function CustomDieLibraryD100Shell({
   face,
   shellClass,
   iconClass,
+  faceOffsetY,
 }: {
   die: CustomDieLibraryIconData;
   face: CustomDieFace;
   shellClass: string;
   iconClass: string;
+  faceOffsetY: number;
 }) {
   const skinId = die.skinId ?? 'none';
   const appearance: DiceAppearance = {
@@ -30,7 +32,7 @@ function CustomDieLibraryD100Shell({
   return (
     <span className={`relative flex ${shellClass} items-center justify-center overflow-hidden border border-[var(--dash-border)]`}>
       <DiceSkinSurface appearance={appearance} className="flex h-full w-full items-center justify-center">
-        <span className="relative z-10 flex h-full w-full items-center justify-center">
+        <span className="relative z-10 flex h-full w-full items-center justify-center" style={faceOffsetY ? { transform: `translateY(${faceOffsetY}px)` } : undefined}>
           {face.visual.kind === 'icon'
             ? <NoteIconGlyph name={face.visual.iconName} className={`${iconClass} drop-shadow-[0_0_2px_rgba(255,255,255,0.65)]`} />
             : face.visual.kind === 'text'
@@ -45,9 +47,11 @@ function CustomDieLibraryD100Shell({
 export function CustomDieLibraryIcon({
   die,
   size = 'card',
+  faceOffsetY = 0,
 }: {
   die: CustomDieLibraryIconData;
   size?: 'card' | 'compact';
+  faceOffsetY?: number;
 }) {
   const face = getCustomDieLibraryIconFace(die.faces);
   const compact = size === 'compact';
@@ -76,8 +80,8 @@ export function CustomDieLibraryIcon({
           data-dice-skin={skinId}
           className={`relative flex ${compact ? 'gap-[2px]' : 'gap-1'} items-center justify-center`}
         >
-          <CustomDieLibraryD100Shell die={die} face={tensFace} shellClass={compact ? 'h-4 w-4 rounded-[4px]' : 'h-8 w-8 rounded-md'} iconClass={compact ? 'h-3 w-3' : 'h-4 w-4'} />
-          <CustomDieLibraryD100Shell die={die} face={unitsFace} shellClass={compact ? 'h-4 w-4 rounded-[4px]' : 'h-8 w-8 rounded-md'} iconClass={compact ? 'h-3 w-3' : 'h-4 w-4'} />
+          <CustomDieLibraryD100Shell die={die} face={tensFace} shellClass={compact ? 'h-4 w-4 rounded-[4px]' : 'h-8 w-8 rounded-md'} iconClass={compact ? 'h-3 w-3' : 'h-4 w-4'} faceOffsetY={faceOffsetY} />
+          <CustomDieLibraryD100Shell die={die} face={unitsFace} shellClass={compact ? 'h-4 w-4 rounded-[4px]' : 'h-8 w-8 rounded-md'} iconClass={compact ? 'h-3 w-3' : 'h-4 w-4'} faceOffsetY={faceOffsetY} />
         </span>
       );
     }
@@ -91,7 +95,7 @@ export function CustomDieLibraryIcon({
         className={`relative flex ${shellClass} items-center justify-center border border-[var(--dash-border)]`}
       >
         <DiceSkinSurface appearance={appearance} className="flex h-full w-full items-center justify-center text-[var(--dash-accent)]">
-          <span className="relative z-10 flex h-full w-full items-center justify-center">
+          <span className="relative z-10 flex h-full w-full items-center justify-center" style={faceOffsetY ? { transform: `translateY(${faceOffsetY}px)` } : undefined}>
             <Dices className={fallbackIconClass} />
           </span>
         </DiceSkinSurface>
@@ -107,7 +111,7 @@ export function CustomDieLibraryIcon({
       className={`relative flex ${shellClass} items-center justify-center overflow-hidden border border-[var(--dash-border)]`}
     >
       <DiceSkinSurface appearance={appearance} className="flex h-full w-full items-center justify-center">
-        <span className="relative z-10 flex h-full w-full items-center justify-center">
+        <span className="relative z-10 flex h-full w-full items-center justify-center" style={faceOffsetY ? { transform: `translateY(${faceOffsetY}px)` } : undefined}>
           {face.visual.kind === 'icon'
             ? <NoteIconGlyph name={face.visual.iconName} className={`${faceIconClass} drop-shadow-[0_0_2px_rgba(255,255,255,0.65)]`} />
             : face.visual.kind === 'text'

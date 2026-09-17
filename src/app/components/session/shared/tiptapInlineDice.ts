@@ -422,7 +422,7 @@ function buildDiceWidget(
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      minWidth: `${2.3 + String(quantity).length * 1.2}em`,
+      gap: '0.3em',
     });
     const quantityEl = document.createElement('span');
     quantityEl.textContent = String(quantity);
@@ -431,10 +431,6 @@ function buildDiceWidget(
       fontSize: '2em',
       fontWeight: 700,
       lineHeight: 1,
-      position: 'absolute',
-      right: 'calc(50% + 1.15em)',
-      top: '50%',
-      transform: 'translateY(-50%)',
     });
     const preview = document.createElement('span');
     preview.dataset.noteCustomDieFace = 'true';
@@ -442,7 +438,11 @@ function buildDiceWidget(
     valueEl.appendChild(quantityEl);
     valueEl.appendChild(preview);
     customPreviewRoot = createRoot(preview);
-    customPreviewRoot.render(createElement(CustomDieLibraryIcon, { die: customDie, size: 'compact' }));
+    customPreviewRoot.render(createElement(CustomDieLibraryIcon, {
+      die: customDie,
+      size: 'compact',
+      faceOffsetY: (customDie.skinId ?? 'none') === 'none' ? 2 : 0,
+    }));
   } else {
     valueEl.textContent = formula;
   }
