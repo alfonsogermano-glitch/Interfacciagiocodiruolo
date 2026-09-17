@@ -434,15 +434,19 @@ function buildDiceWidget(
     });
     const preview = document.createElement('span');
     preview.dataset.noteCustomDieFace = 'true';
-    Object.assign(preview.style, { display: 'inline-flex', flex: 'none' });
+    Object.assign(preview.style, {
+      display: 'inline-flex',
+      flex: 'none',
+      width: '2rem',
+      height: '2rem',
+      alignItems: 'center',
+      justifyContent: 'center',
+      lineHeight: 0,
+    });
     valueEl.appendChild(quantityEl);
     valueEl.appendChild(preview);
     customPreviewRoot = createRoot(preview);
-    customPreviewRoot.render(createElement(CustomDieLibraryIcon, {
-      die: customDie,
-      size: 'compact',
-      faceOffsetY: (customDie.skinId ?? 'none') === 'none' ? 2 : 0,
-    }));
+    customPreviewRoot.render(createElement(CustomDieLibraryIcon, { die: customDie, size: 'compact' }));
   } else {
     valueEl.textContent = formula;
   }
