@@ -422,7 +422,7 @@ function buildDiceWidget(
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: '0.3em',
+      minWidth: `${2.3 + String(quantity).length * 1.2}em`,
     });
     const quantityEl = document.createElement('span');
     quantityEl.textContent = String(quantity);
@@ -431,6 +431,10 @@ function buildDiceWidget(
       fontSize: '2em',
       fontWeight: 700,
       lineHeight: 1,
+      position: 'absolute',
+      right: 'calc(50% + 1.15em)',
+      top: '50%',
+      transform: 'translateY(-50%)',
     });
     const preview = document.createElement('span');
     preview.dataset.noteCustomDieFace = 'true';
