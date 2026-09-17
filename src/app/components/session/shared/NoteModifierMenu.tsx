@@ -1199,14 +1199,24 @@ export function NoteDiceMenu({ editor, editable }: NoteModifierMenuProps) {
     }
     setCustomDiceLoading(true);
     try {
-      setCustomDice(await loadCustomDice(activeCampaign.id, user.id));
+      const loaded = await loadCustomDice(activeCampaign.id, user.id);
+      setCustomDice(loaded);
+      if (request) {
+        const current = getDiceAt(editor.state, request.pos);
+        const refreshed = current?.customDie ? loaded.find((die) => die.id === current.customDie?.id) : null;
+        if (current?.mode === 'custom' && current.customDie && refreshed && refreshed.updatedAt !== current.customDie.updatedAt) {
+          setDiceAttrs(editor.view.state, (transaction) => editor.view.dispatch(transaction), request.pos, {
+            customDie: toCustomDieRollSnapshot(refreshed),
+          });
+        }
+      }
     } catch (error) {
       console.error('Errore caricamento dadi Custom per le Note:', error);
       setCustomDice([]);
     } finally {
       setCustomDiceLoading(false);
     }
-  }, [activeCampaign?.id, user?.id]);
+  }, [activeCampaign?.id, editor, request, user?.id]);
 
   useEffect(() => {
     if (mode === 'edit' && request) void reloadCustomDice();
