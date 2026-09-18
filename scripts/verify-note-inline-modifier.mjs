@@ -98,7 +98,7 @@ assert.match(
 );
 assert.match(source, /buildNoteElementCategoryIcon\('Cog'\)/, 'modifier widgets must show a Cog category icon in their background');
 assert.match(categoryIconSource, /Cog:\s*COG_ICON[\s\S]*opacity:\s*'0\.5'/, 'modifier category icons must use the Cog artwork at 50% opacity');
-assert.match(categoryIconSource, /iconName === 'Cog' \? '-0\.22em' : '-0\.12em'/, 'the Cog watermark must sit slightly farther left for even tooth clipping');
+assert.match(categoryIconSource, /iconName === 'Cog' \? '-0\.5em' : '-0\.22em'/, 'the Cog watermark must account for its wider visual axis at the corner curve');
 assert.match(source, /buildModifierWidget[\s\S]*position:\s*'relative'[\s\S]*overflow:\s*'hidden'/, 'modifier widgets must clip the lower-left category watermark to their rounded border');
 assert.match(
   source,
