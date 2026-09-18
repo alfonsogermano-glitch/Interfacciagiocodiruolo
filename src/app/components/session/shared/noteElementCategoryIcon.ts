@@ -38,7 +38,7 @@ export function buildNoteElementCategoryIcon(iconName: NoteElementCategoryIcon):
   svg.dataset.noteElementCategoryIcon = iconName;
   Object.assign(svg.style, {
     position: 'absolute',
-    left: iconName === 'Cog' ? '-0.5em' : '-0.22em',
+    left: iconName === 'Cog' ? '-0.4em' : '-0.22em',
     bottom: '-0.3em',
     width: '1.7em',
     height: '1.7em',
