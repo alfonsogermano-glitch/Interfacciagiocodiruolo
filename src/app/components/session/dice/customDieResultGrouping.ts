@@ -9,12 +9,16 @@ export interface GroupedCustomDieResult {
   sortValue: number;
 }
 
-function faceIdentity(face: RollCustomDieFace): unknown {
-  return {
-    visual: face.visual,
-    label: face.label ?? null,
-    numericValue: face.numericValue,
-  };
+function faceGroupIdentity(face: RollCustomDieFace): string {
+  return face.resultGroup === null || face.resultGroup === undefined
+    ? `face:${face.role}:${face.index}`
+    : `group:${face.resultGroup}`;
+}
+
+function faceGroupSortValue(face: RollCustomDieFace): number {
+  if (face.resultGroup !== null && face.resultGroup !== undefined) return face.resultGroup;
+  const roleOffset = face.role === 'units' ? 100 : 0;
+  return 1_000_000 + roleOffset + face.index;
 }
 
 export function groupCustomDieResults(group: RollDiceGroup): GroupedCustomDieResult[] {
@@ -40,12 +44,13 @@ export function groupCustomDieResults(group: RollDiceGroup): GroupedCustomDieRes
     const primaryRoll = orderedRolls.find((roll) => roll.physicalRole !== 'units') ?? orderedRolls[0];
     const active = orderedRolls.some((roll) => roll.active);
     const contribution = primaryRoll.contribution;
-    const sortValue = contribution ?? faces.reduce((value, face) => (value * 101) + face.index, 0);
-    const key = JSON.stringify({ faces: faces.map(faceIdentity), active, contribution });
+    const sortValue = faces.reduce((value, face) => (value * 1_000_201) + faceGroupSortValue(face), 0);
+    const key = JSON.stringify({ groups: faces.map(faceGroupIdentity), active });
     const existing = grouped.get(key);
     if (existing) {
       existing.count += 1;
       existing.sortValue = Math.min(existing.sortValue, sortValue);
+      if (existing.contribution !== contribution) existing.contribution = null;
     } else {
       grouped.set(key, { id: primaryRoll.id, faces, count: 1, active, contribution, sortValue });
     }

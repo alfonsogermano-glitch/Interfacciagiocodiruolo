@@ -33,6 +33,7 @@ export interface CustomDieFace {
   visual: CustomDieFaceVisual;
   label?: string | null;
   numericValue: number | null;
+  resultGroup?: number | null;
   isLibraryIcon?: boolean;
 }
 

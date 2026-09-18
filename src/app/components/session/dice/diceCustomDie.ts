@@ -154,6 +154,7 @@ export function validateCustomDieDefinition(
   for (const face of die.faces) {
     if (!Number.isInteger(face.index) || face.index < 1) issues.push('Ogni faccia deve avere un indice positivo.');
     if (face.numericValue !== null && !Number.isFinite(face.numericValue)) issues.push('I valori numerici delle facce devono essere finiti.');
+    if (face.resultGroup !== null && face.resultGroup !== undefined && (!Number.isInteger(face.resultGroup) || face.resultGroup < 1)) issues.push('I gruppi delle facce devono essere numeri interi positivi.');
     if (face.visual.kind === 'icon' && !face.visual.iconName.trim()) issues.push('Seleziona una icona per ogni faccia.');
     if (face.visual.kind === 'image' && (!face.visual.assetPath.trim() || !face.visual.publicUrl.trim())) {
       issues.push('L’immagine di una faccia non è stata caricata correttamente.');

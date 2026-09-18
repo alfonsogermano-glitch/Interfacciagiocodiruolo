@@ -32,6 +32,7 @@ function isCustomFace(value: unknown) {
   if (typeof value.index !== 'number' || !Number.isInteger(value.index) || value.index < 1) return false;
   if (value.role !== 'single' && value.role !== 'tens' && value.role !== 'units') return false;
   if (value.numericValue !== null && value.numericValue !== undefined && (typeof value.numericValue !== 'number' || !Number.isFinite(value.numericValue))) return false;
+  if (value.resultGroup !== null && value.resultGroup !== undefined && (typeof value.resultGroup !== 'number' || !Number.isInteger(value.resultGroup) || value.resultGroup < 1)) return false;
   if (!isRecord(value.visual)) return false;
   if (value.visual.kind === 'icon') return typeof value.visual.iconName === 'string' && value.visual.iconName.length > 0;
   if (value.visual.kind === 'image') {
