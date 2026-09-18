@@ -157,8 +157,7 @@ export function validateCustomDieDefinition(
   if (!die.name.trim()) issues.push('Inserisci un nome per il dado custom.');
   if (!Number.isInteger(die.sides) || die.sides < MIN_CUSTOM_DIE_SIDES || die.sides > MAX_CUSTOM_DIE_SIDES) issues.push(`Il dado custom deve avere da ${MIN_CUSTOM_DIE_SIDES} a ${MAX_CUSTOM_DIE_SIDES} facce.`);
   if (definitionMode === 'numeric') {
-    if (die.sides <= 20) issues.push('I dadi dXX fino a 20 facce devono avere facce personalizzabili.');
-    if (die.faces.length !== 0) issues.push('I dadi dXX oltre 20 facce devono essere esclusivamente numerici.');
+    if (die.faces.length !== 0) issues.push('I dadi dXX con Numeri Standard non possono avere facce personalizzate.');
     if (die.resultDisplayMode === 'grouped') issues.push('I dadi numerici dXX mostrano i risultati singolarmente.');
     return { valid: issues.length === 0, issues: [...new Set(issues)] };
   }

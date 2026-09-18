@@ -52,4 +52,7 @@ assert.ok(customDie.includes('export function copyCustomDieFaceVisual'),'custom 
 assert.ok(/visual:\s*\{\s*\.\.\.source\.visual\s*\}/.test(customDie),'copying a visual must preserve target face metadata');
 assert.ok(custom.includes('data-custom-die-dxx')&&custom.includes('data-custom-die-dxx-sides'),'Custom geometry must offer a configurable dXX');
 assert.ok(custom.includes('MIN_CUSTOM_DIE_SIDES')&&custom.includes('MAX_CUSTOM_DIE_SIDES'),'dXX input must use centralized 2..999 limits');
+assert.ok(custom.includes('data-custom-die-definition-mode')&&custom.includes('Numeri Standard')&&custom.includes('Facce Custom'),'dXX must offer standard-number and custom-face radio choices');
+assert.ok(custom.includes('<DiceNumericStepper value={sides}')&&!custom.includes('customSidesDraft'),'dXX sides must use the shared numeric stepper');
+assert.ok(custom.indexOf('data-custom-die-appearance-controls')>custom.indexOf("definitionMode === 'numeric'"),'skin controls must remain outside the numeric/custom-face content switch');
 console.log('Dice UI verification passed.');

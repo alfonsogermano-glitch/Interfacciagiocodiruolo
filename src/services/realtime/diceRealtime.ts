@@ -65,7 +65,7 @@ function isCustomDieSnapshot(value: unknown) {
   const definitionMode = value.definitionMode === undefined ? 'faces' : value.definitionMode;
   if (definitionMode !== 'faces' && definitionMode !== 'numeric') return false;
   if (definitionMode === 'numeric') {
-    if (value.sides <= 20 || value.faces.length !== 0 || value.resultDisplayMode === 'grouped') return false;
+    if (value.faces.length !== 0 || value.resultDisplayMode === 'grouped') return false;
   } else {
     if (value.sides > 20 && value.sides !== 100) return false;
     const expectedFaces = value.sides === 100 ? 20 : value.sides;
