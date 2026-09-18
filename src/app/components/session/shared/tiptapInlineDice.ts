@@ -483,6 +483,7 @@ function buildDiceWidget(
       fontSize: '2em',
       fontWeight: 700,
       lineHeight: 1,
+      transform: 'translateY(-0.08em)',
     });
     const preview = document.createElement('span');
     preview.dataset.noteCustomDieFace = 'true';

@@ -77,7 +77,7 @@ assert.match(dice, /diceAnomalous[\s\S]*assessDiceFormula\(rawFormula, getModifi
 assert.match(modifierMenu, /getDiceAt\(editorRef\.current\.state[\s\S]*submit\(\{ name: dice\.name, expression: dice\.formula, formula: dice\.formula/, 'Standard dice rolls must resolve modifier references and post like modifier rolls');
 assert.match(modifierMenu, /dice\.mode === 'custom'[\s\S]*submitInlineCustomDieRoll[\s\S]*quantity: dice\.quantity[\s\S]*customDie: dice\.customDie/, 'Custom Note dice must bypass modifier formulas and submit their saved snapshot');
 assert.match(diceSession, /submitInlineCustomDieRoll[\s\S]*kind: 'custom-die'[\s\S]*customDie: input\.customDie[\s\S]*origin: 'modifier'/, 'Custom Note dice must use the canonical engine without exposing reroll');
-assert.match(dice, /noteCustomDieQuantity[\s\S]*fontSize: '2em'[\s\S]*noteCustomDieFace[\s\S]*width: '2rem'[\s\S]*height: '2rem'[\s\S]*lineHeight: 0[\s\S]*CustomDieLibraryIcon[\s\S]*faceOffsetY: 3/, 'the widget must place the quantity before a fixed-size Custom face and lower only its artwork for optical alignment');
+assert.match(dice, /noteCustomDieQuantity[\s\S]*fontSize: '2em'[\s\S]*translateY\(-0\.08em\)[\s\S]*noteCustomDieFace[\s\S]*width: '2rem'[\s\S]*height: '2rem'[\s\S]*lineHeight: 0[\s\S]*CustomDieLibraryIcon[\s\S]*faceOffsetY: 3/, 'the widget must optically center the quantity beside the fixed-size Custom face');
 assert.match(customLibraryIcon, /SavedCustomDie \| CustomDieRollSnapshot/, 'the shared Custom face renderer must accept persisted Note snapshots');
 
 // Editor integration.
