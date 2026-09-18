@@ -1,7 +1,7 @@
 import { supabase } from '../../app/auth/AuthContext';
-import { normalizeCustomDieResultMode, validateCustomDieDefinition } from '../../app/components/session/dice/diceCustomDie.ts';
+import { normalizeCustomDieDefinitionMode, normalizeCustomDieResultMode, validateCustomDieDefinition } from '../../app/components/session/dice/diceCustomDie.ts';
 import { normalizeDiceTextureScale } from '../../app/components/session/dice/diceTextureScale.ts';
-import type { CustomDieFace, CustomDieResultMode, CustomDieSides, DiceSkinId, SavedCustomDie } from '../../app/components/session/dice/diceTypes.ts';
+import type { CustomDieDefinitionMode, CustomDieFace, CustomDieResultMode, CustomDieSides, DiceSkinId, SavedCustomDie } from '../../app/components/session/dice/diceTypes.ts';
 
 interface CustomDieRow {
   id: string;
@@ -10,6 +10,7 @@ interface CustomDieRow {
   name: string;
   sides: number;
   quick_roll_quantity?: number | null;
+  definition_mode?: CustomDieDefinitionMode | null;
   result_display_mode?: CustomDieResultMode | null;
   faces: unknown;
   body_color: string;
@@ -32,6 +33,7 @@ function mapRow(row: CustomDieRow): SavedCustomDie {
     name: row.name,
     sides: row.sides as CustomDieSides,
     quickRollQuantity: Number.isInteger(row.quick_roll_quantity) && Number(row.quick_roll_quantity) >= 1 ? Number(row.quick_roll_quantity) : 1,
+    definitionMode: normalizeCustomDieDefinitionMode(row.definition_mode),
     resultDisplayMode: normalizeCustomDieResultMode(row.result_display_mode),
     faces: Array.isArray(row.faces) ? row.faces as CustomDieFace[] : [],
     bodyColor: row.body_color,
@@ -67,6 +69,7 @@ export async function createCustomDie(input: {
   name: string;
   sides: CustomDieSides;
   quickRollQuantity?: number;
+  definitionMode?: CustomDieDefinitionMode;
   resultDisplayMode?: CustomDieResultMode;
   faces: CustomDieFace[];
   bodyColor?: string;
@@ -85,6 +88,7 @@ export async function createCustomDie(input: {
     name: input.name.trim(),
     sides: input.sides,
     quick_roll_quantity: input.quickRollQuantity ?? 1,
+    definition_mode: normalizeCustomDieDefinitionMode(input.definitionMode),
     result_display_mode: normalizeCustomDieResultMode(input.resultDisplayMode),
     faces: input.faces,
     body_color: input.bodyColor ?? '#20242f',
@@ -102,13 +106,14 @@ export async function createCustomDie(input: {
 
 export async function updateCustomDie(
   id: string,
-  patch: Partial<Pick<SavedCustomDie, 'name' | 'sides' | 'quickRollQuantity' | 'resultDisplayMode' | 'faces' | 'bodyColor' | 'symbolColor' | 'skinId' | 'effectsEnabled' | 'textureScale' | 'iconName'>>,
+  patch: Partial<Pick<SavedCustomDie, 'name' | 'sides' | 'quickRollQuantity' | 'definitionMode' | 'resultDisplayMode' | 'faces' | 'bodyColor' | 'symbolColor' | 'skinId' | 'effectsEnabled' | 'textureScale' | 'iconName'>>,
 ): Promise<SavedCustomDie> {
   if (patch.name !== undefined && !patch.name.trim()) throw new Error('Il nome del dado custom non può essere vuoto.');
   const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (patch.name !== undefined) payload.name = patch.name.trim();
   if (patch.sides !== undefined) payload.sides = patch.sides;
   if (patch.quickRollQuantity !== undefined) payload.quick_roll_quantity = patch.quickRollQuantity;
+  if (patch.definitionMode !== undefined) payload.definition_mode = normalizeCustomDieDefinitionMode(patch.definitionMode);
   if (patch.resultDisplayMode !== undefined) payload.result_display_mode = normalizeCustomDieResultMode(patch.resultDisplayMode);
   if (patch.faces !== undefined) payload.faces = patch.faces;
   if (patch.bodyColor !== undefined) payload.body_color = patch.bodyColor;
@@ -136,6 +141,7 @@ export async function duplicateCustomDie(die: SavedCustomDie, name: string): Pro
     name,
     sides: die.sides,
     quickRollQuantity: die.quickRollQuantity ?? 1,
+    definitionMode: normalizeCustomDieDefinitionMode(die.definitionMode),
     resultDisplayMode: normalizeCustomDieResultMode(die.resultDisplayMode),
     faces: die.faces.map((face) => ({ ...face, visual: { ...face.visual } })),
     bodyColor: die.bodyColor,

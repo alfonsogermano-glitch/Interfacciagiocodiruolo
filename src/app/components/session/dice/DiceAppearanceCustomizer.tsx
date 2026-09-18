@@ -7,9 +7,9 @@ import { StyledStandardDieIcon } from './StyledStandardDieIcon';
 import { useDiceAppearance } from './DiceAppearanceContext';
 import { DICE_SKINS } from './diceSkins.ts';
 import { MAX_DICE_TEXTURE_SCALE, MIN_DICE_TEXTURE_SCALE } from './diceTextureScale.ts';
-import type { CustomDieSides, StandardDieAppearance } from './diceTypes.ts';
+import type { StandardDieAppearance, StandardDieSides } from './diceTypes.ts';
 
-const STANDARD_SIDES: readonly CustomDieSides[] = [4, 6, 8, 10, 12, 20, 100] as const;
+const STANDARD_SIDES: readonly StandardDieSides[] = [4, 6, 8, 10, 12, 20, 100] as const;
 
 function cloneStyles(styles: readonly StandardDieAppearance[]) {
   return styles.map((style) => ({ ...style }));
@@ -17,7 +17,7 @@ function cloneStyles(styles: readonly StandardDieAppearance[]) {
 
 export function DiceAppearanceCustomizer({ onClose }: { onClose: () => void }) {
   const { styles, saveStyles } = useDiceAppearance();
-  const [selectedSides, setSelectedSides] = useState<CustomDieSides>(4);
+  const [selectedSides, setSelectedSides] = useState<StandardDieSides>(4);
   const [draft, setDraft] = useState<StandardDieAppearance[]>(() => cloneStyles(styles));
   const [busy, setBusy] = useState(false);
 

@@ -5,7 +5,7 @@ import { DOMSerializer, Fragment, Slice } from '@tiptap/pm/model';
 import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import { CustomDieLibraryIcon } from '../dice/CustomDieLibraryIcon';
-import { toCustomDieRollSnapshot, validateCustomDieDefinition } from '../dice/diceCustomDie';
+import { getCustomDieQuickRollMax, toCustomDieRollSnapshot, validateCustomDieDefinition } from '../dice/diceCustomDie';
 import { isDiceSkinId } from '../dice/diceSkins';
 import type { CustomDieRollSnapshot, SavedCustomDie } from '../dice/diceTypes';
 import { wrapNoteClipboardHTML } from './tiptapNoteRichClipboard';
@@ -89,6 +89,7 @@ function parseCustomDieSnapshot(value: unknown): CustomDieRollSnapshot | null {
     || !Array.isArray(die.faces)
     || typeof die.bodyColor !== 'string'
     || typeof die.symbolColor !== 'string'
+    || (die.definitionMode !== undefined && die.definitionMode !== 'faces' && die.definitionMode !== 'numeric')
     || (die.skinId !== undefined && !isDiceSkinId(die.skinId))
     || (die.effectsEnabled !== undefined && typeof die.effectsEnabled !== 'boolean')
     || (die.textureScale !== undefined && (!Number.isInteger(die.textureScale) || die.textureScale < 100 || die.textureScale > 200))
@@ -102,7 +103,7 @@ function parseCustomDieSnapshot(value: unknown): CustomDieRollSnapshot | null {
 }
 
 function normalizeDiceQuantity(value: unknown, customDie: CustomDieRollSnapshot | null): number {
-  const max = customDie?.sides === 100 ? 500 : 1000;
+  const max = customDie ? getCustomDieQuickRollMax(customDie) : 1000;
   const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
   return Number.isFinite(parsed) ? Math.max(1, Math.min(max, Math.round(parsed))) : 1;
 }

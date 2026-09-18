@@ -43,18 +43,51 @@ function isCustomFace(value: unknown) {
   return false;
 }
 
+function hasExpectedCustomFaces(faces: unknown[], sides: number) {
+  const roles = sides === 100 ? ['tens', 'units'] as const : ['single'] as const;
+  const expectedPerRole = sides === 100 ? 10 : sides;
+  return roles.every((role) => {
+    const indices = faces
+      .filter((face): face is Record<string, unknown> => isRecord(face) && face.role === role)
+      .map((face) => face.index);
+    return indices.length === expectedPerRole
+      && new Set(indices).size === expectedPerRole
+      && indices.every((index) => typeof index === 'number' && index >= 1 && index <= expectedPerRole);
+  });
+}
+
 function isCustomDieSnapshot(value: unknown) {
   if (!isRecord(value)) return false;
   if (typeof value.id !== 'string' || !value.id.length) return false;
   if (typeof value.name !== 'string' || !value.name.length) return false;
-  if (![4, 6, 8, 10, 12, 20, 100].includes(Number(value.sides))) return false;
+  if (typeof value.sides !== 'number' || !Number.isInteger(value.sides) || value.sides < 2 || value.sides > 999) return false;
   if (!Array.isArray(value.faces) || !value.faces.every(isCustomFace)) return false;
+  const definitionMode = value.definitionMode === undefined ? 'faces' : value.definitionMode;
+  if (definitionMode !== 'faces' && definitionMode !== 'numeric') return false;
+  if (definitionMode === 'numeric') {
+    if (value.sides <= 20 || value.faces.length !== 0 || value.resultDisplayMode === 'grouped') return false;
+  } else {
+    if (value.sides > 20 && value.sides !== 100) return false;
+    const expectedFaces = value.sides === 100 ? 20 : value.sides;
+    if (value.faces.length !== expectedFaces || !hasExpectedCustomFaces(value.faces, value.sides)) return false;
+  }
   if (typeof value.bodyColor !== 'string' || typeof value.symbolColor !== 'string') return false;
   if (value.skinId !== undefined && !isDiceSkinId(value.skinId)) return false;
   if (value.effectsEnabled !== undefined && typeof value.effectsEnabled !== 'boolean') return false;
   if (value.textureScale !== undefined && !isTextureScale(value.textureScale)) return false;
   if (value.resultDisplayMode !== undefined && value.resultDisplayMode !== 'single' && value.resultDisplayMode !== 'grouped') return false;
   return true;
+}
+
+function isSourceItemPayload(value: unknown) {
+  if (!isRecord(value) || typeof value.kind !== 'string') return false;
+  if (value.kind !== 'custom-die') return true;
+  return typeof value.id === 'string'
+    && typeof value.customDieId === 'string'
+    && typeof value.quantity === 'number'
+    && Number.isInteger(value.quantity)
+    && value.quantity >= 1
+    && isCustomDieSnapshot(value.customDie);
 }
 
 function isRollDiePayload(value: unknown) {
@@ -103,7 +136,7 @@ export function isRollResultPayload(value: unknown): value is RollResult {
   if (value.visibility !== 'public' && value.visibility !== 'secret') return false;
   if (!isNullableFinite(value.total)) return false;
   if (typeof value.createdAt !== 'number' || !Number.isFinite(value.createdAt)) return false;
-  if (!Array.isArray(value.sourceItems)) return false;
+  if (!Array.isArray(value.sourceItems) || !value.sourceItems.every(isSourceItemPayload)) return false;
   if (!Array.isArray(value.diceGroups) || !value.diceGroups.every(isDiceGroupPayload)) return false;
   if (!Array.isArray(value.arithmeticSteps) || !value.arithmeticSteps.every(isArithmeticStepPayload)) return false;
   if (!Array.isArray(value.comparisons)) return false;

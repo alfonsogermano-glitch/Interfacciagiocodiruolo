@@ -1,8 +1,8 @@
-import type { CustomDieSides, DiceAppearance, RollResult, StandardDieAppearance } from './diceTypes.ts';
+import type { DiceAppearance, RollResult, StandardDieAppearance, StandardDieSides } from './diceTypes.ts';
 import { isDiceSkinId } from './diceSkins.ts';
 import { DEFAULT_DICE_TEXTURE_SCALE, normalizeDiceTextureScale } from './diceTextureScale.ts';
 
-export const STANDARD_DIE_SIDES: readonly CustomDieSides[] = [4, 6, 8, 10, 12, 20, 100] as const;
+export const STANDARD_DIE_SIDES: readonly StandardDieSides[] = [4, 6, 8, 10, 12, 20, 100] as const;
 
 type NormalizedDiceAppearance = DiceAppearance & { textureScale: number };
 
@@ -55,7 +55,7 @@ export function getStandardDieAppearance(
   if (!(STANDARD_DIE_SIDES as readonly number[]).includes(sides)) return null;
   const found = styles.find((style) => style.sides === sides);
   return found ? { sides: found.sides, ...cloneDiceAppearance(found) } : {
-    sides: sides as CustomDieSides,
+    sides: sides as StandardDieSides,
     ...cloneDiceAppearance(DEFAULT_DICE_APPEARANCE),
   };
 }

@@ -8,6 +8,7 @@ import { DiceTypeIcon } from './DiceTypeIcon';
 import { StyledStandardDieIcon } from './StyledStandardDieIcon';
 import { useDiceAppearance } from './DiceAppearanceContext';
 import { groupCustomDieResults } from './customDieResultGrouping.ts';
+import { isNumericCustomDie } from './diceCustomDie.ts';
 
 const CHAT_DIE_SIDES = [4, 6, 8, 10, 12, 20, 100] as const;
 type ChatDieSides = (typeof CHAT_DIE_SIDES)[number];
@@ -21,15 +22,17 @@ function StandardDieResult({
   face,
   contribution,
   appearance,
+  forceGeneric = false,
 }: {
   sides: number;
   face: number;
   contribution: number | null;
   appearance?: DiceAppearance;
+  forceGeneric?: boolean;
 }) {
   return (
     <>
-      {isChatDieSides(sides)
+      {!forceGeneric && isChatDieSides(sides)
         ? appearance
           ? <StyledStandardDieIcon sides={sides} appearance={appearance} className={sides === 100 ? 'h-[24px] w-[46px]' : 'h-[24px] w-[24px]'} />
           : <DiceTypeIcon sides={sides} className={sides === 100 ? 'h-[24px] !gap-px [&>img]:!h-[24px] [&>img]:!w-[24px]' : 'h-[24px] w-[24px]'} />
@@ -150,7 +153,7 @@ export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; 
                           {die.customFace.label && <span>{die.customFace.label}</span>}
                           {die.customFace.numericValue !== null && <span className="text-[10px]">({die.customFace.numericValue})</span>}
                         </>
-                        : <StandardDieResult sides={die.sides} face={die.face} contribution={die.contribution} appearance={historyStandardAppearance} />}
+                        : <StandardDieResult sides={die.sides} face={die.face} contribution={die.contribution} appearance={historyStandardAppearance} forceGeneric={Boolean(group.customDieSnapshot && isNumericCustomDie(group.customDieSnapshot))} />}
                     </span>
                   </TooltipTrigger>
                   <TooltipContent>{tooltip}</TooltipContent>

@@ -88,6 +88,16 @@ function roll(items: DiceFormulaItem[], values: number[]) {
 
 assert.equal(roll([{ id: 'd', kind: 'dice', sides: 6, quantity: 2 }], [3, 5]).total, 8);
 
+const numericDxx: DiceFormulaItem = { id: 'dxx', kind: 'custom-die', customDieId: 'numeric-d30', quantity: 2, customDie: { id: 'numeric-d30', name: 'dXX', sides: 30, definitionMode: 'numeric', resultDisplayMode: 'single', faces: [], bodyColor: '#111111', symbolColor: '#ffffff', skinId: 'none', effectsEnabled: false } };
+const numericDxxRoll = roll([numericDxx], [30, 7]);
+assert.equal(validateDiceFormula([numericDxx]).valid, true);
+assert.equal(numericDxxRoll.total, 37);
+assert.deepEqual(numericDxxRoll.diceGroups[0].rolls.map((die) => die.face), [30, 7]);
+assert.ok(numericDxxRoll.diceGroups[0].rolls.every((die) => die.customFace === undefined));
+const explodedDxx = roll([{ ...numericDxx, quantity: 1 }, explode], [30, 5]);
+assert.equal(explodedDxx.total, 35);
+assert.equal(explodedDxx.diceGroups[0].rolls.length, 2);
+
 const keepHighest = roll([
   { id: 'd', kind: 'dice', sides: 20, quantity: 4 },
   { id: 'k', kind: 'keep', which: 'highest', count: 15 },

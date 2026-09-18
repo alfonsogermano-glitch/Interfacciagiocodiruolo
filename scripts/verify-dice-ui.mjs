@@ -50,4 +50,6 @@ assert.ok(/onSave\(\{\s*id,[\s\S]{0,220}skinId,\s*effectsEnabled/.test(custom), 
 assert.ok(/effectsEnabled,\s*textureScale\s*\}\)/.test(custom), 'Custom save draft must include the texture zoom');
 assert.ok(customDie.includes('export function copyCustomDieFaceVisual'),'custom die visual copying must be isolated in a reusable helper');
 assert.ok(/visual:\s*\{\s*\.\.\.source\.visual\s*\}/.test(customDie),'copying a visual must preserve target face metadata');
+assert.ok(custom.includes('data-custom-die-dxx')&&custom.includes('data-custom-die-dxx-sides'),'Custom geometry must offer a configurable dXX');
+assert.ok(custom.includes('MIN_CUSTOM_DIE_SIDES')&&custom.includes('MAX_CUSTOM_DIE_SIDES'),'dXX input must use centralized 2..999 limits');
 console.log('Dice UI verification passed.');

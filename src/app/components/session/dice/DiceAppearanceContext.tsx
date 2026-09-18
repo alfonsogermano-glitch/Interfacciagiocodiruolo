@@ -7,12 +7,12 @@ import {
   completeStandardDiceStyles,
   getStandardDieAppearance,
 } from './diceAppearance.ts';
-import type { CustomDieSides, StandardDieAppearance } from './diceTypes.ts';
+import type { StandardDieAppearance, StandardDieSides } from './diceTypes.ts';
 
 interface DiceAppearanceContextValue {
   styles: StandardDieAppearance[];
   isLoading: boolean;
-  getStandardAppearance: (sides: CustomDieSides) => StandardDieAppearance;
+  getStandardAppearance: (sides: StandardDieSides) => StandardDieAppearance;
   saveStyles: (styles: readonly StandardDieAppearance[]) => Promise<StandardDieAppearance[]>;
 }
 
@@ -52,7 +52,7 @@ export function DiceAppearanceProvider({ children }: { children: React.ReactNode
       });
   }, [activeCampaign?.id, user?.id]);
 
-  const getStandardAppearance = useCallback((sides: CustomDieSides) => {
+  const getStandardAppearance = useCallback((sides: StandardDieSides) => {
     return getStandardDieAppearance(styles, sides) ?? buildDefaultStandardDiceStyles().find((style) => style.sides === sides)!;
   }, [styles]);
 

@@ -1,5 +1,5 @@
 import { formatDiceFormula } from './diceFormulaText.ts';
-import { getCustomDieFace, isCustomDieFullyNumeric } from './diceCustomDie.ts';
+import { getCustomDieFace, isCustomDieFullyNumeric, isCustomPercentileDie, isNumericCustomDie } from './diceCustomDie.ts';
 import { validateDiceFormula } from './diceFormulaValidation.ts';
 import type {
   CustomDieFace,
@@ -157,7 +157,10 @@ export function rollDiceFormula(input: RollDiceFormulaInput, rng: DiceRng = cryp
         const fullyNumeric = isCustomDieFullyNumeric(die);
         const group: RollDiceGroup = { itemId: item.id, sides: die.sides, requestedQuantity: item.quantity, rolls: [], activeRollIds: [], contribution: fullyNumeric ? 0 : null, customDieId: die.id, customDieName: die.name, customDieSnapshot: { ...die, faces: die.faces.map((face) => ({ ...face, visual: { ...face.visual } })) } };
         for (let logicalIndex = 0; logicalIndex < item.quantity; logicalIndex += 1) {
-          if (die.sides === 100) {
+          if (isNumericCustomDie(die)) {
+            const face = rollFace(die.sides); const id = nextRollId(item.id);
+            group.rolls.push({ id, groupItemId: item.id, sides: die.sides, face, contribution: face, active: true, source: 'base', explosionDepth: 0, chainId: `${item.id}:chain${logicalIndex + 1}`, customDieId: die.id, customDieName: die.name, physicalRole: 'single', logicalRollIndex: logicalIndex });
+          } else if (isCustomPercentileDie(die)) {
             const tensIndex = rollFace(10); const unitsIndex = rollFace(10);
             const tensFace = getCustomDieFace(die, 'tens', tensIndex); const unitsFace = getCustomDieFace(die, 'units', unitsIndex);
             const pairValue = fullyNumeric ? (tensFace.numericValue as number) + (unitsFace.numericValue as number) : null;
@@ -181,11 +184,14 @@ export function rollDiceFormula(input: RollDiceFormulaInput, rng: DiceRng = cryp
       }
       case 'exploding': {
         if (!activeGroup) throw new DiceRollError('Esplosione senza gruppo di dadi attivo.');
-        if (activeGroup.sides === 100 && activeGroup.customDieId) throw new DiceRollError('L’esplosione non è disponibile per il d100 Custom.');
+        const activeCustomItem = input.request.items.find((candidate) => candidate.id === activeGroup?.itemId && candidate.kind === 'custom-die');
+        if (activeCustomItem?.kind === 'custom-die' && isCustomPercentileDie(activeCustomItem.customDie)) throw new DiceRollError('L’esplosione non è disponibile per il d100 Custom percentile.');
         const group = activeGroup; const before = group.contribution; const starters = logicalRolls(group).slice();
-        const customItem = input.request.items.find((candidate) => candidate.id === group.itemId && candidate.kind === 'custom-die');
+        const customItem = activeCustomItem;
         const customMax = customItem && customItem.kind === 'custom-die'
-          ? Math.max(...customItem.customDie.faces.map((face) => face.numericValue ?? Number.NEGATIVE_INFINITY))
+          ? isNumericCustomDie(customItem.customDie)
+            ? customItem.customDie.sides
+            : Math.max(...customItem.customDie.faces.map((face) => face.numericValue ?? Number.NEGATIVE_INFINITY))
           : null;
         for (const starter of starters) {
           const shouldExplode = customMax === null ? starter.face === group.sides : starter.contribution === customMax;
@@ -196,10 +202,15 @@ export function rollDiceFormula(input: RollDiceFormulaInput, rng: DiceRng = cryp
             const face = rollFace(group.sides); explosionCount += 1; explosionDepth += 1; const id = nextRollId(group.itemId);
             let contribution: number; let customFace = undefined;
             if (customItem && customItem.kind === 'custom-die') {
-              customFace = getCustomDieFace(customItem.customDie, 'single', face);
-              if (customFace.numericValue === null) throw new DiceRollError('Esplosione Custom richiede facce numeriche.');
-              contribution = item.mode === 'penetrate' ? customFace.numericValue - 1 : customFace.numericValue;
-              continueExplosion = customFace.numericValue === customMax;
+              if (isNumericCustomDie(customItem.customDie)) {
+                contribution = item.mode === 'penetrate' ? face - 1 : face;
+                continueExplosion = face === customMax;
+              } else {
+                customFace = getCustomDieFace(customItem.customDie, 'single', face);
+                if (customFace.numericValue === null) throw new DiceRollError('Esplosione Custom richiede facce numeriche.');
+                contribution = item.mode === 'penetrate' ? customFace.numericValue - 1 : customFace.numericValue;
+                continueExplosion = customFace.numericValue === customMax;
+              }
             } else {
               contribution = item.mode === 'penetrate' ? face - 1 : face;
               continueExplosion = face === group.sides;

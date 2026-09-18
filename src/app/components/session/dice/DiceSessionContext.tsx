@@ -10,6 +10,7 @@ import { HollowgateDice3DRenderer } from './dice3dRenderer.ts';
 import { projectRollTo3D } from './dice3dProjection.ts';
 import { isDice3DAbortError } from './dice3dTypes.ts';
 import { cryptoDiceRng, rollDiceFormula } from './diceEngine.ts';
+import { getCustomDieQuickRollMax } from './diceCustomDie.ts';
 import { ModifierFormulaError, evaluateModifierFormula, type ModifierReference } from '../shared/modifierFormula.ts';
 import { parseModifierValue } from '../shared/tiptapInlineModifier.ts';
 import type { CustomDieRollSnapshot, DiceRollRequest, RollDiceGroup, RollResult } from './diceTypes.ts';
@@ -445,7 +446,7 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
 
   const submitInlineCustomDieRoll = useCallback((input: InlineCustomDieRollSubmit) => {
     if (!user || !activeCampaign) return null;
-    const maxQuantity = input.customDie.sides === 100 ? 500 : 1000;
+    const maxQuantity = getCustomDieQuickRollMax(input.customDie);
     if (!Number.isInteger(input.quantity) || input.quantity < 1 || input.quantity > maxQuantity) return null;
     const base = buildResult({
       items: [{

@@ -1,6 +1,6 @@
 import { supabase } from '../../app/auth/AuthContext';
 import { normalizeDiceTextureScale } from '../../app/components/session/dice/diceTextureScale.ts';
-import type { CustomDieSides, StandardDieAppearance } from '../../app/components/session/dice/diceTypes.ts';
+import type { StandardDieAppearance, StandardDieSides } from '../../app/components/session/dice/diceTypes.ts';
 
 interface StandardDieStyleRow {
   campaign_id: string;
@@ -15,7 +15,7 @@ interface StandardDieStyleRow {
 
 function mapRow(row: StandardDieStyleRow): StandardDieAppearance {
   return {
-    sides: row.sides as CustomDieSides,
+    sides: row.sides as StandardDieSides,
     bodyColor: row.body_color,
     symbolColor: row.symbol_color,
     skinId: row.skin_id,

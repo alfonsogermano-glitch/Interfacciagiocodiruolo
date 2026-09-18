@@ -10,9 +10,9 @@ import { DiceSkinPreviewArt } from './DiceSkinPreviewArt';
 import { DiceTypeIcon } from './DiceTypeIcon';
 import { getDiceSkinBackgroundImage } from './diceSkins.ts';
 import { getDiceTextureBackgroundSize } from './diceTextureScale.ts';
-import type { DiceAppearance, CustomDieSides } from './diceTypes.ts';
+import type { DiceAppearance, StandardDieSides } from './diceTypes.ts';
 
-export const DICE_SILHOUETTE_PATHS: Record<Exclude<CustomDieSides, 100>, string> = {
+export const DICE_SILHOUETTE_PATHS: Record<Exclude<StandardDieSides, 100>, string> = {
   4: 'M18.433 1.75l14.722 25.5a.5.5 0 0 1-.433.75H3.278a.5.5 0 0 1-.433-.75l14.722-25.5a.5.5 0 0 1 .866 0z',
   6: 'M5 5h26v26H5V5z',
   8: 'M18.5 1L34 9.949v17.898l-15.5 8.949L3 27.846V9.95L18.5 1z',
@@ -102,7 +102,7 @@ function DieOuterGlow({
   appearance,
   className = '',
 }: {
-  sides: Exclude<CustomDieSides, 100>;
+  sides: Exclude<StandardDieSides, 100>;
   appearance: DiceAppearance;
   className?: string;
 }) {
@@ -135,7 +135,7 @@ function DieSkinSurface({
   className = '',
   previewSkinArt = false,
 }: {
-  sides: Exclude<CustomDieSides, 100>;
+  sides: Exclude<StandardDieSides, 100>;
   appearance: DiceAppearance;
   className?: string;
   previewSkinArt?: boolean;
@@ -239,7 +239,7 @@ export function StyledStandardDieIcon({
   className = 'h-9 w-9',
   previewSkinArt = false,
 }: {
-  sides: CustomDieSides;
+  sides: StandardDieSides;
   appearance: DiceAppearance;
   className?: string;
   previewSkinArt?: boolean;

@@ -1,6 +1,7 @@
 import type {
   CustomDieFace,
   CustomDieFaceVisual,
+  CustomDieDefinitionMode,
   CustomDiePhysicalRole,
   CustomDieResultMode,
   CustomDieRollSnapshot,
@@ -12,6 +13,24 @@ import type {
 import { normalizeDiceTextureScale } from './diceTextureScale.ts';
 
 export const CUSTOM_DIE_SIDES = [4, 6, 8, 10, 12, 20, 100] as const;
+export const MIN_CUSTOM_DIE_SIDES = 2;
+export const MAX_CUSTOM_DIE_SIDES = 999;
+
+export function normalizeCustomDieDefinitionMode(value: unknown): CustomDieDefinitionMode {
+  return value === 'numeric' ? 'numeric' : 'faces';
+}
+
+export function isNumericCustomDie(die: { definitionMode?: CustomDieDefinitionMode }): boolean {
+  return normalizeCustomDieDefinitionMode(die.definitionMode) === 'numeric';
+}
+
+export function isCustomPercentileDie(die: { sides: number; definitionMode?: CustomDieDefinitionMode }): boolean {
+  return die.sides === 100 && !isNumericCustomDie(die);
+}
+
+export function getCustomDieQuickRollMax(die: { sides: number; definitionMode?: CustomDieDefinitionMode }): number {
+  return isCustomPercentileDie(die) ? 500 : 1000;
+}
 
 export function normalizeCustomDieResultMode(value: unknown): CustomDieResultMode {
   return value === 'grouped' ? 'grouped' : 'single';
@@ -29,7 +48,8 @@ export interface CustomDieTextLayout {
   lineYs: number[];
 }
 
-export function expectedCustomDieFaceCount(sides: CustomDieSides): number {
+export function expectedCustomDieFaceCount(sides: CustomDieSides, definitionMode: CustomDieDefinitionMode = 'faces'): number {
+  if (definitionMode === 'numeric') return 0;
   return sides === 100 ? 20 : sides;
 }
 
@@ -130,13 +150,21 @@ export function layoutCustomDieFaceText(rawText: string): CustomDieTextLayout {
 }
 
 export function validateCustomDieDefinition(
-  die: Pick<SavedCustomDie, 'name' | 'sides' | 'faces'>,
+  die: Pick<SavedCustomDie, 'name' | 'sides' | 'faces' | 'definitionMode' | 'resultDisplayMode'>,
 ): { valid: boolean; issues: string[] } {
   const issues: string[] = [];
+  const definitionMode = normalizeCustomDieDefinitionMode(die.definitionMode);
   if (!die.name.trim()) issues.push('Inserisci un nome per il dado custom.');
-  if (!CUSTOM_DIE_SIDES.includes(die.sides)) issues.push('Geometria del dado custom non supportata.');
-  if (die.faces.length !== expectedCustomDieFaceCount(die.sides)) {
-    issues.push(`Il d${die.sides} custom richiede ${expectedCustomDieFaceCount(die.sides)} facce configurate.`);
+  if (!Number.isInteger(die.sides) || die.sides < MIN_CUSTOM_DIE_SIDES || die.sides > MAX_CUSTOM_DIE_SIDES) issues.push(`Il dado custom deve avere da ${MIN_CUSTOM_DIE_SIDES} a ${MAX_CUSTOM_DIE_SIDES} facce.`);
+  if (definitionMode === 'numeric') {
+    if (die.sides <= 20) issues.push('I dadi dXX fino a 20 facce devono avere facce personalizzabili.');
+    if (die.faces.length !== 0) issues.push('I dadi dXX oltre 20 facce devono essere esclusivamente numerici.');
+    if (die.resultDisplayMode === 'grouped') issues.push('I dadi numerici dXX mostrano i risultati singolarmente.');
+    return { valid: issues.length === 0, issues: [...new Set(issues)] };
+  }
+  if (die.sides > 20 && die.sides !== 100) issues.push('Le facce personalizzabili sono disponibili fino al d20.');
+  if (die.faces.length !== expectedCustomDieFaceCount(die.sides, definitionMode)) {
+    issues.push(`Il d${die.sides} custom richiede ${expectedCustomDieFaceCount(die.sides, definitionMode)} facce configurate.`);
   }
 
   for (const role of ['single', 'tens', 'units'] as const) {
@@ -185,6 +213,7 @@ export function isCustomDieImageAssetUsed(faces: readonly CustomDieFace[], asset
 }
 
 export function isCustomDieFullyNumeric(die: Pick<SavedCustomDie, 'faces'> | CustomDieRollSnapshot): boolean {
+  if (normalizeCustomDieDefinitionMode('definitionMode' in die ? die.definitionMode : undefined) === 'numeric') return true;
   return die.faces.length > 0 && die.faces.every((face) => face.numericValue !== null && Number.isFinite(face.numericValue));
 }
 
@@ -203,6 +232,7 @@ export function toCustomDieRollSnapshot(die: SavedCustomDie): CustomDieRollSnaps
     effectsEnabled: die.effectsEnabled ?? false,
     textureScale: normalizeDiceTextureScale(die.textureScale),
     iconName: die.iconName ?? null,
+    definitionMode: normalizeCustomDieDefinitionMode(die.definitionMode),
     resultDisplayMode: normalizeCustomDieResultMode(die.resultDisplayMode),
     updatedAt: die.updatedAt,
   };

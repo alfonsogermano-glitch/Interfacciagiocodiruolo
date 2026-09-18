@@ -1,4 +1,3 @@
-import { Dices } from 'lucide-react';
 import { NoteIconGlyph } from '../shared/NoteIconGrid';
 import { CustomDieTextFace } from './CustomDieTextFace';
 import { DiceSkinSurface } from './DiceSkinSurface';
@@ -56,7 +55,6 @@ export function CustomDieLibraryIcon({
   const face = getCustomDieLibraryIconFace(die.faces);
   const compact = size === 'compact';
   const shellClass = compact ? 'h-8 w-8 rounded-md' : 'h-10 w-10 rounded-lg';
-  const fallbackIconClass = compact ? 'h-4 w-4' : 'h-5 w-5';
   const faceIconClass = compact ? 'h-5 w-5' : 'h-6 w-6';
   const skinId = die.skinId ?? 'none';
   const appearance: DiceAppearance = {
@@ -96,7 +94,7 @@ export function CustomDieLibraryIcon({
       >
         <DiceSkinSurface appearance={appearance} className="flex h-full w-full items-center justify-center text-[var(--dash-accent)]">
           <span className="relative z-10 flex h-full w-full items-center justify-center" style={faceOffsetY ? { transform: `translateY(${faceOffsetY}px)` } : undefined}>
-            <Dices className={fallbackIconClass} />
+            <span className={`${compact ? 'text-[9px]' : 'text-xs'} font-bold leading-none`}>d{die.sides}</span>
           </span>
         </DiceSkinSurface>
       </span>

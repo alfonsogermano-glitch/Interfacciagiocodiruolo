@@ -4,9 +4,11 @@ export type DiceExplodingMode = 'explode' | 'compound' | 'penetrate';
 export type DiceCompareOperator = 'gte' | 'lte' | 'eq';
 export type DiceModifierOperation = 'add' | 'subtract' | 'multiply' | 'divide' | 'exponent';
 export type DiceVisibility = 'public' | 'secret';
-export type CustomDieSides = 4 | 6 | 8 | 10 | 12 | 20 | 100;
+export type StandardDieSides = 4 | 6 | 8 | 10 | 12 | 20 | 100;
+export type CustomDieSides = number;
 export type CustomDiePhysicalRole = 'single' | 'tens' | 'units';
 export type CustomDieResultMode = 'single' | 'grouped';
+export type CustomDieDefinitionMode = 'faces' | 'numeric';
 export type DiceSkinId = 'none' | 'fire' | 'ice' | 'lightning' | 'poison' | 'stone' | 'metal' | 'obsidian' | 'arcane';
 
 export interface DiceAppearance {
@@ -18,7 +20,7 @@ export interface DiceAppearance {
 }
 
 export interface StandardDieAppearance extends DiceAppearance {
-  sides: CustomDieSides;
+  sides: StandardDieSides;
   textureScale: number;
 }
 
@@ -48,6 +50,7 @@ export interface SavedCustomDie {
   name: string;
   sides: CustomDieSides;
   quickRollQuantity?: number;
+  definitionMode?: CustomDieDefinitionMode;
   resultDisplayMode?: CustomDieResultMode;
   faces: CustomDieFace[];
   bodyColor: string;
@@ -73,6 +76,7 @@ export interface CustomDieRollSnapshot {
   effectsEnabled?: boolean;
   textureScale?: number;
   iconName?: string | null;
+  definitionMode?: CustomDieDefinitionMode;
   resultDisplayMode?: CustomDieResultMode;
   updatedAt?: string;
 }

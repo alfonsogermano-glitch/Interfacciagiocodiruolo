@@ -5,6 +5,7 @@ import type {
   RollResult,
 } from './diceTypes.ts';
 import { normalizeDiceTextureScale } from './diceTextureScale.ts';
+import { isNumericCustomDie } from './diceCustomDie.ts';
 
 export const DICE_3D_SUPPORTED_SIDES = [4, 6, 8, 10, 12, 20, 100] as const;
 export type Dice3DSupportedSides = (typeof DICE_3D_SUPPORTED_SIDES)[number];
@@ -64,6 +65,7 @@ function customAppearance(snapshot: CustomDieRollSnapshot): Dice3DAppearanceDesc
 export function projectRollTo3D(result: RollResult): Dice3DProjectionChunk[] {
   return result.diceGroups.flatMap((group): Dice3DProjectionChunk[] => {
     if (group.customDieId && group.customDieSnapshot) {
+      if (isNumericCustomDie(group.customDieSnapshot)) return [];
       return group.rolls.flatMap((die): Dice3DProjectionChunk[] => {
         if (!isSupportedSides(die.sides)) return [];
         const forced = customForcedValue(die.sides, die.face);

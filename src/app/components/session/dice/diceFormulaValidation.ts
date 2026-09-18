@@ -1,4 +1,4 @@
-import { isCustomDieFullyNumeric } from './diceCustomDie.ts';
+import { isCustomDieFullyNumeric, isCustomPercentileDie } from './diceCustomDie.ts';
 import type { DiceFormulaItem, DiceFormulaValidationIssue, DiceFormulaValidationResult, ResolvedDiceFormulaItem } from './diceTypes.ts';
 
 const MAX_DICE_PER_ROLL = 1000;
@@ -44,12 +44,12 @@ export function validateDiceFormula(items: readonly ValidationItem[]): DiceFormu
       case 'custom-die': {
         if (!item.customDieId.trim()) addIssue('missing_custom_die', 'Seleziona un dado Custom.', item.id);
         if (!isPositiveInteger(item.quantity)) addIssue('invalid_die_quantity', 'La quantità di dadi deve essere almeno 1.', item.id);
-        else requestedDiceCount += item.quantity * (('customDie' in item && item.customDie.sides === 100) ? 2 : 1);
+        else requestedDiceCount += item.quantity * (('customDie' in item && isCustomPercentileDie(item.customDie)) ? 2 : 1);
         hasAnyTerm = true; activeDiceGroup = true; explodingSeenInGroup = false;
         if ('customDie' in item) {
           activeGroupNumeric = isCustomDieFullyNumeric(item.customDie);
           activeCustomName = item.customDie.name;
-          activeCustomD100 = item.customDie.sides === 100;
+          activeCustomD100 = isCustomPercentileDie(item.customDie);
           if (!activeGroupNumeric) totalNumeric = false;
         } else {
           // Persisted formulas intentionally store only the ID; availability is resolved before execution.
@@ -72,7 +72,7 @@ export function validateDiceFormula(items: readonly ValidationItem[]): DiceFormu
       case 'exploding': {
         if (!activeDiceGroup) addIssue('missing_active_dice_group', 'Esplosione richiede un gruppo di dadi attivo.', item.id);
         requireNumericGroup(item.id);
-        if (activeCustomD100) addIssue('custom_d100_exploding_unsupported', 'L’esplosione non è disponibile per il d100 Custom.', item.id);
+        if (activeCustomD100) addIssue('custom_d100_exploding_unsupported', 'L’esplosione non è disponibile per il d100 Custom percentile.', item.id);
         if (explodingSeenInGroup) addIssue('duplicate_exploding', 'È consentito un solo modificatore Esplosione per gruppo di dadi.', item.id);
         explodingSeenInGroup = true;
         break;

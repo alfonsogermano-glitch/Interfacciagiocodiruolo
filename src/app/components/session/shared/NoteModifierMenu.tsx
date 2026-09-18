@@ -11,7 +11,7 @@ import { CUSTOM_DICE_LIBRARY_CHANGED_EVENT, loadCustomDice } from '../../../../s
 import { CustomDieLibraryIcon } from '../dice/CustomDieLibraryIcon';
 import { DiceNumericStepper } from '../dice/DiceNumericStepper';
 import { useOptionalDiceSession } from '../dice/DiceSessionContext';
-import { toCustomDieRollSnapshot } from '../dice/diceCustomDie';
+import { getCustomDieQuickRollMax, toCustomDieRollSnapshot } from '../dice/diceCustomDie';
 import type { CustomDieRollSnapshot, SavedCustomDie } from '../dice/diceTypes';
 import { placeFloatingNoteUI } from './noteFloatingPosition';
 import { NOTE_COMMANDS, type NoteCommandId } from './noteEditorCommands';
@@ -857,7 +857,7 @@ function DiceEditForm({ dicePos, modifiers, lookup, customDice, customDiceLoadin
                     key={die.id}
                     type="button"
                     aria-pressed={customDieDraft?.id === die.id}
-                    onClick={() => { setCustomDieDraft(toCustomDieRollSnapshot(die)); setQuantity((current) => Math.min(current, die.sides === 100 ? 500 : 1000)); setError(null); }}
+                    onClick={() => { setCustomDieDraft(toCustomDieRollSnapshot(die)); setQuantity((current) => Math.min(current, getCustomDieQuickRollMax(die))); setError(null); }}
                     className={`flex shrink-0 items-center gap-2 rounded-md border px-1.5 py-1 text-left text-xs ${customDieDraft?.id === die.id ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/15' : 'border-transparent hover:bg-[var(--dash-surface-2)]'}`}
                   >
                     <CustomDieLibraryIcon die={die} size="compact" />
@@ -875,7 +875,7 @@ function DiceEditForm({ dicePos, modifiers, lookup, customDice, customDiceLoadin
         </div>
         <label className="block">
           <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Quantità</span>
-          <DiceNumericStepper value={quantity} onChange={setQuantity} min={1} max={customDieDraft?.sides === 100 ? 500 : 1000} integer fullWidth ariaLabel="quantità dadi Custom" />
+          <DiceNumericStepper value={quantity} onChange={setQuantity} min={1} max={customDieDraft ? getCustomDieQuickRollMax(customDieDraft) : 1000} integer fullWidth ariaLabel="quantità dadi Custom" />
         </label>
       </>}
       {error && <p role="alert" className="px-0.5 text-xs text-[var(--dash-danger-text)]">{error}</p>}
