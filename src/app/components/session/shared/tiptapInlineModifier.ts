@@ -727,6 +727,7 @@ function buildModifierWidget(
     color: 'var(--dash-text)',
     userSelect: 'none',
     position: 'relative',
+    overflow: 'hidden',
   });
   element.appendChild(buildNoteElementCategoryIcon('Cog'));
 

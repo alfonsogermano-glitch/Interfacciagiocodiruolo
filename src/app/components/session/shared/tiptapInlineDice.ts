@@ -415,6 +415,7 @@ function buildDiceWidget(
     color: 'var(--dash-text)',
     userSelect: 'none',
     position: 'relative',
+    overflow: 'hidden',
     // Il Dado e' sempre un pulsante: tira a ogni click.
     cursor: 'pointer',
   });

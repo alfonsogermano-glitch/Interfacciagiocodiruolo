@@ -25,7 +25,8 @@ assert.match(dice, /insertInlineDice[\s\S]*INLINE_MODIFIER_CHAR[\s\S]*markType\.
 assert.match(dice, /previousIsBox[\s\S]*inlineModifier/, 'inserting dice after a modifier must leave a real space like modifiers do');
 assert.match(dice, /tiptap-inline-dice-widget[\s\S]*registerInlineBoxWidget/, 'dice widgets must join the shared visual-line measurement');
 assert.match(dice, /buildNoteElementCategoryIcon\('Dices'\)/, 'dice widgets must show the slash-menu Dices icon in their background');
-assert.match(categoryIcon, /left:\s*'0\.35em'[\s\S]*opacity:\s*'0\.5'[\s\S]*pointerEvents:\s*'none'/, 'category icons must stay behind the content at 50% opacity on the left');
+assert.match(categoryIcon, /left:\s*'-0\.12em'[\s\S]*bottom:\s*'-0\.3em'[\s\S]*opacity:\s*'0\.5'[\s\S]*pointerEvents:\s*'none'/, 'category icons must sit discreetly behind the content in the lower-left corner');
+assert.match(dice, /buildDiceWidget[\s\S]*position:\s*'relative'[\s\S]*overflow:\s*'hidden'/, 'dice widgets must clip the lower-left category watermark to their rounded border');
 assert.match(dice, /duplicateDiceAt[\s\S]*makeRoomForInlineDiceInsertion[\s\S]*createDiceId/, 'duplicating dice must stay beside the original with a fresh id');
 assert.match(dice, /copyDiceToClipboard[\s\S]*wrapNoteClipboardHTML/, 'copying dice must write the rich element for exact paste');
 assert.match(dice, /NOTE_DICE_MENU_EVENT[\s\S]*NOTE_MODIFIER_ROLL_EVENT/, 'dice must open its own dots menu and roll through the shared roll event');

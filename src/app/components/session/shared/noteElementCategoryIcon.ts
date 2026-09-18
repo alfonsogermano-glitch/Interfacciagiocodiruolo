@@ -38,13 +38,12 @@ export function buildNoteElementCategoryIcon(iconName: NoteElementCategoryIcon):
   svg.dataset.noteElementCategoryIcon = iconName;
   Object.assign(svg.style, {
     position: 'absolute',
-    left: '0.35em',
-    top: '50%',
-    width: '1.8em',
-    height: '1.8em',
+    left: '-0.12em',
+    bottom: '-0.3em',
+    width: '1.7em',
+    height: '1.7em',
     color: 'var(--dash-accent-2)',
     opacity: '0.5',
-    transform: 'translateY(-50%)',
     pointerEvents: 'none',
     zIndex: 0,
   });
