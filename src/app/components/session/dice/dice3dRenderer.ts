@@ -186,6 +186,7 @@ export class HollowgateDice3DRenderer implements Dice3DRenderer {
 
       throwIfAborted(signal);
       if (needsRollingEffectsRender) this.startSettledRenderLoop();
+      // Ordering guarantee: texture wait -> appearance adapter -> deadline-bounded roll.
       await rollDiceWithDeadline(this.box, notation, signal);
       throwIfAborted(signal);
       if (installed) installed.effects.settle();
