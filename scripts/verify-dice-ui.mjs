@@ -13,6 +13,7 @@ const overlay=read('src/app/components/session/dice/Dice3DOverlay.tsx');
 const custom=read('src/app/components/session/dice/CustomDieConfigurator.tsx');
 const customizer=read('src/app/components/session/dice/DiceAppearanceCustomizer.tsx');
 const customDie=read('src/app/components/session/dice/diceCustomDie.ts');
+const globalStyles=read('src/styles/index.css');
 assert.match(toolbar,/QUICK_DICE_SIDES\s*=\s*\[4,\s*6,\s*8,\s*10,\s*12,\s*20,\s*100\]/);
 assert.ok(toolbar.includes('DiceTypeIcon')); assert.ok(toolbar.includes('TooltipContent')); assert.ok(toolbar.includes('data-dice-custom-toolbar'));
 for(const family of ['compare','dice','drop','exploding','keep','modifier']) assert.ok(builder.includes(`append('${family}')`));
@@ -36,6 +37,8 @@ for(const hook of ['data-dice-appearance-customizer','data-dice-appearance-side'
 assert.ok(customizer.includes('DICE_SKINS.map'), 'standard customizer must expose the complete shared skin catalog');
 assert.ok(customizer.includes('Applica a tutti') && customizer.includes('Colore dado') && customizer.includes('Colore numeri'));
 for(const hook of ['data-custom-die-configurator','data-custom-die-face','data-custom-die-upload','data-custom-die-face-drag-source','data-custom-die-face-drop-target','data-custom-die-skin-controls','data-custom-die-effects']) assert.ok(custom.includes(hook));
+assert.ok(custom.includes('data-custom-die-configurator-scroll')&&custom.includes('custom-die-configurator-scroll'),'Custom configurator must expose its themed scroll viewport');
+assert.ok(globalStyles.includes(':not(.custom-die-configurator-scroll)')&&globalStyles.includes('.custom-die-configurator-scroll::-webkit-scrollbar-thumb')&&globalStyles.includes('scrollbar-color: var(--dash-accent-2) var(--dash-panel)'),'Custom configurator scrollbar must override the global hidden-scrollbar rule with theme colors');
 assert.ok(/dataTransfer\.effectAllowed\s*=\s*'copy'/.test(custom),'custom face preview drag must advertise copy semantics');
 assert.ok(/dataTransfer\.dropEffect\s*=\s*'copy'/.test(custom),'custom face drop target must use copy semantics');
 assert.ok(/copyFaceVisual\(source,\s*pos\)/.test(custom),'dropping a custom face must copy its visual to the target');
