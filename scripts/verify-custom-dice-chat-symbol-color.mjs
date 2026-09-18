@@ -11,4 +11,5 @@ assert.ok(engine.includes("face.visual.kind === 'icon' ? { symbolColor } : {}")&
 for(const [name,source] of [['chat',faceResult],['library',libraryIcon]]){const images=[...source.matchAll(/<img\b[^>]*>/g)].map((m)=>m[0]);assert.ok(images.length>0,`${name} must render raw Custom face images`);for(const image of images){assert.ok(!/filter\s*:|symbolColor|skinId/.test(image),`${name} image faces must never receive tint/filter/skin styles`)}}
 assert.ok(libraryIcon.includes('data-custom-die-image-untinted')&&faceResult.includes('data-custom-die-image-untinted'),'untinted Custom image branches must expose regression hooks');
 assert.ok(historyCard.includes('data-custom-die-text-label'),'chat must show rolled text-face content beside the thumbnail');
+assert.ok(historyCard.includes("'col-span-full w-full'")&&historyCard.includes("'w-auto'"),'custom chat boxes must shrink for icon faces and span the full row for text faces');
 console.log('Custom dice chat symbol color verification passed.');

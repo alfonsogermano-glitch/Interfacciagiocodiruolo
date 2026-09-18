@@ -142,10 +142,13 @@ export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; 
                 ?? (!die.customFace && isChatDieSides(die.sides)
                   ? getStandardAppearance(die.sides)
                   : undefined);
+              const customFaceText = die.customFace && die.customFace.visual.kind === 'text' && die.customFace.visual.text.trim() !== ''
+                ? die.customFace.visual.text
+                : null;
               return (
                 <Tooltip key={die.id}>
                   <TooltipTrigger asChild>
-                    <span className={`inline-flex w-full min-w-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] leading-none ${die.active ? 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] text-[var(--dash-text)]' : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-muted)] line-through opacity-60'}`}>
+                    <span className={`inline-flex min-w-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] leading-none ${die.customFace ? (customFaceText ? 'col-span-full w-full' : 'w-auto') : 'w-full'} ${die.active ? 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] text-[var(--dash-text)]' : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-muted)] line-through opacity-60'}`}>
                       {die.customFace
                         ? <>
                           <CustomDieFaceResult
@@ -156,8 +159,8 @@ export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; 
                             skinId={group.customDieSnapshot?.skinId ?? 'none'}
                             textureScale={group.customDieSnapshot?.textureScale}
                           />
-                          {die.customFace.visual.kind === 'text' && die.customFace.visual.text.trim() !== '' && (
-                            <span data-custom-die-text-label className="min-w-0 flex-1 break-words font-semibold" style={{ color: die.customFace.symbolColor ?? group.customDieSnapshot?.symbolColor }}>{die.customFace.visual.text}</span>
+                          {customFaceText && (
+                            <span data-custom-die-text-label className="min-w-0 flex-1 break-words font-semibold" style={{ color: die.customFace.symbolColor ?? group.customDieSnapshot?.symbolColor }}>{customFaceText}</span>
                           )}
                           {die.customFace.label && <span>{die.customFace.label}</span>}
                           {die.customFace.numericValue !== null && <span className="text-[10px]">({die.customFace.numericValue})</span>}
