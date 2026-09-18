@@ -115,10 +115,10 @@ export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; 
               ? groupCustomDieResults(group).map((grouped) => (
                 <Tooltip key={grouped.id}>
                   <TooltipTrigger asChild>
-                    <span data-custom-die-grouped-result className={`inline-flex w-full min-w-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] leading-none ${grouped.active ? 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] text-[var(--dash-text)]' : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-muted)] line-through opacity-60'}`}>
+                    <span data-custom-die-grouped-result className={`inline-flex w-full min-w-0 items-center gap-0.5 rounded border px-1.5 py-0.5 text-[11px] leading-none ${grouped.active ? 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] text-[var(--dash-text)]' : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-muted)] line-through opacity-60'}`}>
                       <span className="flex shrink-0 items-center -space-x-1">{grouped.faces.map((face, index) => <CustomDieFaceResult key={`${face.role}:${face.index}:${index}`} face={face} className="h-[24px] w-[24px]" symbolColor={face.symbolColor ?? group.customDieSnapshot?.symbolColor} bodyColor={group.customDieSnapshot?.bodyColor} skinId={group.customDieSnapshot?.skinId ?? 'none'} textureScale={group.customDieSnapshot?.textureScale} />)}</span>
                       {grouped.faces.map((face) => face.label).filter(Boolean).join(' / ') && <span className="min-w-0 truncate">{grouped.faces.map((face) => face.label).filter(Boolean).join(' / ')}</span>}
-                      <span data-custom-die-group-count className="ml-auto shrink-0 font-semibold">×{grouped.count}</span>
+                      <span data-custom-die-group-count className="shrink-0 text-[24px] font-semibold leading-none">×{grouped.count}</span>
                     </span>
                   </TooltipTrigger>
                   <TooltipContent>{group.customDieName ?? 'Dado Custom'}{grouped.contribution !== null ? `: ${grouped.contribution}` : ''}</TooltipContent>
