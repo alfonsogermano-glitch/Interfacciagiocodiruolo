@@ -7,6 +7,7 @@ import { CustomDieFaceResult } from './CustomDieFaceResult';
 import { DiceTypeIcon } from './DiceTypeIcon';
 import { StyledStandardDieIcon } from './StyledStandardDieIcon';
 import { useDiceAppearance } from './DiceAppearanceContext';
+import { groupCustomDieResults } from './customDieResultGrouping.ts';
 
 const CHAT_DIE_SIDES = [4, 6, 8, 10, 12, 20, 100] as const;
 type ChatDieSides = (typeof CHAT_DIE_SIDES)[number];
@@ -54,6 +55,8 @@ function CompareOutcome({ result }: { result: RollComparisonResult }) {
 export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; onReroll: () => void }) {
   const primary = formatPrimaryRollResult(result);
   const { getStandardAppearance } = useDiceAppearance();
+  const hasGroupedCustomResults = result.diceGroups.some((group) => group.customDieSnapshot?.resultDisplayMode === 'grouped');
+  const groupedResultTotal = result.total ?? result.diceGroups.reduce((count, group) => count + group.rolls.filter((die) => die.active && die.physicalRole !== 'units').length, 0);
   return (
     <article data-dice-roll-history-card className="rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 p-2 shadow-md">
       <div className="flex items-stretch gap-2">
@@ -108,7 +111,20 @@ export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; 
           </div>
           <div className="mt-1 break-words whitespace-pre-wrap rounded bg-[var(--dash-input)] px-1.5 py-0.5 font-mono text-[11px] leading-tight text-[var(--dash-text)]">{result.formulaText}</div>
           <div className="mt-1 grid grid-cols-3 gap-1">
-            {result.diceGroups.flatMap((group) => group.rolls.map((die) => {
+            {result.diceGroups.flatMap((group) => group.customDieSnapshot?.resultDisplayMode === 'grouped'
+              ? groupCustomDieResults(group).map((grouped) => (
+                <Tooltip key={grouped.id}>
+                  <TooltipTrigger asChild>
+                    <span data-custom-die-grouped-result className={`inline-flex w-full min-w-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] leading-none ${grouped.active ? 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] text-[var(--dash-text)]' : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-muted)] line-through opacity-60'}`}>
+                      <span className="flex shrink-0 items-center -space-x-1">{grouped.faces.map((face, index) => <CustomDieFaceResult key={`${face.role}:${face.index}:${index}`} face={face} className="h-[24px] w-[24px]" symbolColor={face.symbolColor ?? group.customDieSnapshot?.symbolColor} bodyColor={group.customDieSnapshot?.bodyColor} skinId={group.customDieSnapshot?.skinId ?? 'none'} textureScale={group.customDieSnapshot?.textureScale} />)}</span>
+                      {grouped.faces.map((face) => face.label).filter(Boolean).join(' / ') && <span className="min-w-0 truncate">{grouped.faces.map((face) => face.label).filter(Boolean).join(' / ')}</span>}
+                      <span data-custom-die-group-count className="ml-auto shrink-0 font-semibold">×{grouped.count}</span>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{group.customDieName ?? 'Dado Custom'}{grouped.contribution !== null ? `: ${grouped.contribution}` : ''}</TooltipContent>
+                </Tooltip>
+              ))
+              : group.rolls.map((die) => {
               const tooltip = `${die.customDieName ?? (die.source === 'explosion' ? 'Rilancio esplosivo' : `d${die.sides}`)}${die.active ? '' : ' - escluso'}`;
               // I tiri passati conservano la skin del momento del lancio: lo snapshot
               // salvato nel gruppo ha precedenza. Il contesto serve solo per i payload
@@ -140,8 +156,9 @@ export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; 
                   <TooltipContent>{tooltip}</TooltipContent>
                 </Tooltip>
               );
-            }))}
+              }))}
           </div>
+          {hasGroupedCustomResults && <div data-custom-die-grouped-total className="mt-1 text-right text-[11px] font-semibold text-[var(--dash-text-strong)]">Totale: {groupedResultTotal}</div>}
           {result.comparisons.length > 0 && (
             <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
               {result.comparisons.map((comparison) => <CompareOutcome key={comparison.itemId} result={comparison} />)}

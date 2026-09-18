@@ -92,6 +92,7 @@ function parseCustomDieSnapshot(value: unknown): CustomDieRollSnapshot | null {
     || (die.skinId !== undefined && !isDiceSkinId(die.skinId))
     || (die.effectsEnabled !== undefined && typeof die.effectsEnabled !== 'boolean')
     || (die.textureScale !== undefined && (!Number.isInteger(die.textureScale) || die.textureScale < 100 || die.textureScale > 200))
+    || (die.resultDisplayMode !== undefined && die.resultDisplayMode !== 'single' && die.resultDisplayMode !== 'grouped')
   ) return null;
   try {
     return validateCustomDieDefinition(die).valid ? die : null;

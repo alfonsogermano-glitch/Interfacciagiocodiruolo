@@ -6,6 +6,7 @@ export type DiceModifierOperation = 'add' | 'subtract' | 'multiply' | 'divide' |
 export type DiceVisibility = 'public' | 'secret';
 export type CustomDieSides = 4 | 6 | 8 | 10 | 12 | 20 | 100;
 export type CustomDiePhysicalRole = 'single' | 'tens' | 'units';
+export type CustomDieResultMode = 'single' | 'grouped';
 export type DiceSkinId = 'none' | 'fire' | 'ice' | 'lightning' | 'poison' | 'stone' | 'metal' | 'obsidian' | 'arcane';
 
 export interface DiceAppearance {
@@ -46,6 +47,7 @@ export interface SavedCustomDie {
   name: string;
   sides: CustomDieSides;
   quickRollQuantity?: number;
+  resultDisplayMode?: CustomDieResultMode;
   faces: CustomDieFace[];
   bodyColor: string;
   symbolColor: string;
@@ -70,6 +72,7 @@ export interface CustomDieRollSnapshot {
   effectsEnabled?: boolean;
   textureScale?: number;
   iconName?: string | null;
+  resultDisplayMode?: CustomDieResultMode;
   updatedAt?: string;
 }
 

@@ -2,6 +2,7 @@ import type {
   CustomDieFace,
   CustomDieFaceVisual,
   CustomDiePhysicalRole,
+  CustomDieResultMode,
   CustomDieRollSnapshot,
   CustomDieSides,
   DiceFormulaItem,
@@ -11,6 +12,10 @@ import type {
 import { normalizeDiceTextureScale } from './diceTextureScale.ts';
 
 export const CUSTOM_DIE_SIDES = [4, 6, 8, 10, 12, 20, 100] as const;
+
+export function normalizeCustomDieResultMode(value: unknown): CustomDieResultMode {
+  return value === 'grouped' ? 'grouped' : 'single';
+}
 
 const CUSTOM_DIE_TEXT_WIDTH = 84;
 const CUSTOM_DIE_TEXT_MAX_SINGLE_FONT = 48;
@@ -197,6 +202,7 @@ export function toCustomDieRollSnapshot(die: SavedCustomDie): CustomDieRollSnaps
     effectsEnabled: die.effectsEnabled ?? false,
     textureScale: normalizeDiceTextureScale(die.textureScale),
     iconName: die.iconName ?? null,
+    resultDisplayMode: normalizeCustomDieResultMode(die.resultDisplayMode),
     updatedAt: die.updatedAt,
   };
 }

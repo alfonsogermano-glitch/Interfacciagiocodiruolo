@@ -52,6 +52,7 @@ function isCustomDieSnapshot(value: unknown) {
   if (value.skinId !== undefined && !isDiceSkinId(value.skinId)) return false;
   if (value.effectsEnabled !== undefined && typeof value.effectsEnabled !== 'boolean') return false;
   if (value.textureScale !== undefined && !isTextureScale(value.textureScale)) return false;
+  if (value.resultDisplayMode !== undefined && value.resultDisplayMode !== 'single' && value.resultDisplayMode !== 'grouped') return false;
   return true;
 }
 
