@@ -16,6 +16,7 @@ assert.ok(library.includes("const skinId = die.skinId ?? 'none'"));
 assert.ok(library.includes('data-custom-die-image-untinted'));
 assert.ok(result.includes('data-custom-die-image-untinted'));
 assert.ok(library.includes('data-custom-die-library-d100-pair'),'custom d100 must keep the fixed two-die (tens + units) library icon');
+assert.ok(/if\s*\(!face\)[\s\S]{0,400}overflow-hidden/.test(library),'numeric Custom dice without faces must clip the photographic skin to the rounded library frame');
 assert.ok(library.includes("candidate.role === 'tens' && candidate.isLibraryIcon === true")&&library.includes("candidate.role === 'units' && candidate.isLibraryIcon === true"),'custom d100 icon must honor the selected tens and units faces separately');
 assert.ok(libIcon.includes('face.role !== target.role'),'d100 icon radios must keep independent tens and units groups');
 assert.ok(libIcon.includes('ensureCustomDieLibraryIconDefaults'),'d100 icon selection must fall back to Decine 1 and Unità 1 defaults');

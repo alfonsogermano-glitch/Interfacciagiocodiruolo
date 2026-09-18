@@ -90,7 +90,7 @@ export function CustomDieLibraryIcon({
       <span
         data-custom-die-library-icon
         data-dice-skin={skinId}
-        className={`relative flex ${shellClass} items-center justify-center border border-[var(--dash-border)]`}
+        className={`relative flex ${shellClass} items-center justify-center overflow-hidden border border-[var(--dash-border)]`}
       >
         <DiceSkinSurface appearance={appearance} className="flex h-full w-full items-center justify-center text-[var(--dash-accent)]">
           <span className="relative z-10 flex h-full w-full items-center justify-center" style={faceOffsetY ? { transform: `translateY(${faceOffsetY}px)` } : undefined}>
