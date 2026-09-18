@@ -12,6 +12,6 @@ for(const [name,source] of [['chat',faceResult],['library',libraryIcon]]){const 
 assert.ok(libraryIcon.includes('data-custom-die-image-untinted')&&faceResult.includes('data-custom-die-image-untinted'),'untinted Custom image branches must expose regression hooks');
 assert.ok(historyCard.includes('data-custom-die-text-label'),'chat must show rolled text-face content beside the thumbnail');
 assert.ok(historyCard.includes("grouped.faces.find((face) => face.symbolColor)?.symbolColor ?? group.customDieSnapshot?.symbolColor"),'grouped chat names must use the rolled symbol color');
-assert.ok(historyCard.includes('mt-1 flex flex-wrap gap-1'),'chat dice must flow as content-sized chips instead of fixed grid cells');
+assert.ok(historyCard.includes('mt-1 flex flex-wrap items-center gap-1'),'chat dice must flow as content-sized chips instead of fixed grid cells');
 assert.ok(historyCard.includes('inline-flex w-auto min-w-0 max-w-full'),'chat dice boxes must shrink to content without overflowing the card');
 console.log('Custom dice chat symbol color verification passed.');

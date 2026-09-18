@@ -51,10 +51,10 @@ function customFaceDisplayName(face: Pick<CustomDieFace, 'label' | 'visual'>): s
 
 function CompareOutcome({ result }: { result: RollComparisonResult }) {
   if (result.success !== undefined) {
-    return <span className={`text-xs font-semibold ${result.success ? 'text-emerald-400' : 'text-red-400'}`}>{result.success ? 'Successo' : 'Fallimento'}</span>;
+    return <span className={`text-sm font-bold ${result.success ? 'text-emerald-400' : 'text-red-400'}`}>{result.success ? 'Successo' : 'Fallimento'}</span>;
   }
   return (
-    <span className="flex flex-wrap gap-1.5 text-xs font-semibold">
+    <span className="flex flex-wrap gap-1.5 text-sm font-bold">
       {(result.successes ?? 0) > 0 && <span className="text-emerald-400">{result.successes} Successi</span>}
       {(result.failures ?? 0) > 0 && <span className="text-red-400">{result.failures} Fallimenti</span>}
     </span>
@@ -119,7 +119,7 @@ export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; 
             )}
           </div>
           <div className="mt-1 break-words whitespace-pre-wrap rounded bg-[var(--dash-input)] px-1.5 py-0.5 font-mono text-[11px] leading-tight text-[var(--dash-text)]">{result.formulaText}</div>
-          <div className="mt-1 flex flex-wrap gap-1">
+          <div className="mt-1 flex flex-wrap items-center gap-1">
             {result.diceGroups.flatMap((group) => group.customDieSnapshot?.resultDisplayMode === 'grouped'
               ? groupCustomDieResults(group).map((grouped) => (
                 <Tooltip key={grouped.id}>
@@ -172,13 +172,9 @@ export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; 
                 </Tooltip>
               );
               }))}
+            {result.comparisons.map((comparison) => <CompareOutcome key={comparison.itemId} result={comparison} />)}
           </div>
           {hasGroupedCustomResults && <div data-custom-die-grouped-total className="mt-1 text-right text-[11px] font-semibold text-[var(--dash-text-strong)]">Totale: {groupedResultTotal}</div>}
-          {result.comparisons.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
-              {result.comparisons.map((comparison) => <CompareOutcome key={comparison.itemId} result={comparison} />)}
-            </div>
-          )}
         </div>
       </div>
     </article>
