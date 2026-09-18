@@ -31,7 +31,9 @@ assert.ok(effects.includes('function addMetalSparks('), 'Metal must have a dedic
 assert.ok(effects.includes('addMetalSparks(group, updaters, radius);'), 'Metal 3D spark effect must be wired into the visual effect switch');
 assert.ok(renderer.includes("descriptor.appearance.skinId === 'stone' || descriptor.appearance.skinId === 'metal'"), 'Renderer must explicitly classify Metal as requiring active rolling renders');
 const metalRollingRender = renderer.indexOf('if (needsRollingEffectsRender) this.startSettledRenderLoop();');
-const rollCall = renderer.indexOf('await this.box.roll(notation);');
+const directMetalRollCall = renderer.indexOf('await this.box.roll(notation);');
+const deadlineMetalRollCall = renderer.indexOf('rollDiceWithDeadline(this.box, notation');
+const rollCall = directMetalRollCall >= 0 ? directMetalRollCall : deadlineMetalRollCall;
 assert.ok(metalRollingRender >= 0 && rollCall > metalRollingRender, 'Metal rolling effect render loop must start before the physical 3D roll');
 
 console.log('Metal 2D/3D shimmer, sweep, sparks and rolling render lifecycle verification passed.');

@@ -127,7 +127,10 @@ expect(!effects.includes('{ roughness: 0.68, metalness: 0.38, shininess: 26 }'),
 expect(!effects.includes('{ roughness: 0.42, metalness: 0.03, shininess: 44 }'), 'Obsidian must not transition toward a different settled material');
 expect(effects.includes('settle(): void'), '3D skin effects must expose an explicit settled transition');
 expect(renderer.includes('if (installed) installed.effects.settle();'), 'Renderer must signal the settled visual-effect lifecycle after the physical roll resolves');
-expect(renderer.indexOf('await this.box.roll(notation)') < renderer.indexOf('if (installed) installed.effects.settle();'), 'Settled visual effects must begin after dice physics stop');
+const directRegressionRoll = renderer.indexOf('await this.box.roll(notation)');
+const deadlineRegressionRoll = renderer.indexOf('rollDiceWithDeadline(this.box, notation');
+const regressionRoll = directRegressionRoll >= 0 ? directRegressionRoll : deadlineRegressionRoll;
+expect(regressionRoll >= 0 && regressionRoll < renderer.indexOf('if (installed) installed.effects.settle();'), 'Settled visual effects must begin after dice physics stop');
 
 if (failures.length) {
   throw new assert.AssertionError({

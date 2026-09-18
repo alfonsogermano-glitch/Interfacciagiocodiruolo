@@ -58,7 +58,9 @@ assert.ok(textures.includes('`${appearance.skinId}:${textureScale}:${readiness}`
 assert.ok(textures.includes('`hollowgate-${appearance.skinId}-${textureScale}-${readiness}`'), 'The renderer-facing texture name must change when the Ice photograph becomes ready');
 const waitIndex = renderer.indexOf('await waitForDice3DTextureAssets(appearanceQueue);');
 const adapterIndex = renderer.indexOf('installDiceAppearanceAdapter(this.box, appearanceQueue)');
-const rollIndex = renderer.indexOf('await this.box.roll(notation);');
+const directRollIndex = renderer.indexOf('await this.box.roll(notation);');
+const deadlineRollIndex = renderer.indexOf('rollDiceWithDeadline(this.box, notation');
+const rollIndex = directRollIndex >= 0 ? directRollIndex : deadlineRollIndex;
 assert.ok(waitIndex >= 0 && adapterIndex > waitIndex && rollIndex > waitIndex, 'Ice photographic assets must finish loading before the appearance adapter creates dice and before the roll starts');
 assert.ok(materials.includes("getDice3DSurfaceProfile(skinId) === 'photo-unlit'") && materials.includes('return symbolColor;'), 'Ice numbers must preserve the exact user-selected symbol color through the shared photo-unlit profile');
 assert.ok(materials.includes('factory.label_outline = outlineColor;'), 'Ice numbers must keep the contrasting renderer outline');

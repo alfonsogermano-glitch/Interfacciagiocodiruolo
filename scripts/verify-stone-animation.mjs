@@ -18,7 +18,9 @@ assert.ok(effects.includes('orbitSpeed: 0.85'), 'Stone 3D particles must move vi
 assert.ok(effects.includes('for (let index = 0; index < 8; index += 1)'), 'Stone 3D effect must use eight dedicated fragments');
 assert.ok(renderer.includes("descriptor.appearance.skinId === 'stone' || descriptor.appearance.skinId === 'metal'"), 'Renderer must explicitly classify Stone as requiring active rolling renders');
 const stoneRollingRender = renderer.indexOf('if (needsRollingEffectsRender) this.startSettledRenderLoop();');
-const rollCall = renderer.indexOf('await this.box.roll(notation);');
+const directStoneRollCall = renderer.indexOf('await this.box.roll(notation);');
+const deadlineStoneRollCall = renderer.indexOf('rollDiceWithDeadline(this.box, notation');
+const rollCall = directStoneRollCall >= 0 ? directStoneRollCall : deadlineStoneRollCall;
 assert.ok(stoneRollingRender >= 0 && rollCall > stoneRollingRender, 'Stone rolling effect render loop must start before the physical 3D roll');
 
 console.log('Stone 2D/3D animated dust, shards, impact and rolling render lifecycle verification passed.');

@@ -99,7 +99,9 @@ assert.ok(textures.includes('`hollowgate-${appearance.skinId}-${textureScale}-${
 
 const waitIndex = renderer.indexOf('await waitForDice3DTextureAssets(appearanceQueue);');
 const adapterIndex = renderer.indexOf('installDiceAppearanceAdapter(this.box, appearanceQueue)');
-const rollIndex = renderer.indexOf('await this.box.roll(notation);');
+const directRollIndex = renderer.indexOf('await this.box.roll(notation);');
+const deadlineRollIndex = renderer.indexOf('rollDiceWithDeadline(this.box, notation');
+const rollIndex = directRollIndex >= 0 ? directRollIndex : deadlineRollIndex;
 assert.ok(waitIndex >= 0 && adapterIndex > waitIndex && rollIndex > waitIndex, 'Poison photographic assets must load before die creation and roll start');
 assert.ok(profiles.includes("poison: 'photo-unlit'"), 'Poison photographic faces must remain vivid and stable independently of scene lighting');
 assert.ok(materials.includes("getDice3DSurfaceProfile(skinId) === 'photo-unlit'") && materials.includes('return symbolColor;'), 'Fire and every photo-unlit skin must preserve the exact user-selected symbol color');

@@ -73,7 +73,10 @@ assert.ok(textures.includes("import { STONE_TEXTURE_SOURCE_DATA_URL } from './st
 assert.ok(textures.includes('drawStonePhotoTexture(context, bump, size)') && textures.includes("context.filter = 'brightness(1.12) saturate(.96) contrast(1.10)'") && textures.includes("bump.filter = 'grayscale(1) contrast(2.10) brightness(.90)'"), 'Stone 3D must use restrained photographic polish and bump');
 assert.ok(textures.includes("descriptor.appearance.skinId === 'stone'") && textures.includes("appearance.skinId === 'stone'") && textures.includes("isStoneTextureReady() ? 'ready' : 'placeholder'"), 'Stone must use readiness-aware caching');
 const waitIndex = renderer.indexOf('await waitForDice3DTextureAssets(appearanceQueue);');
-assert.ok(waitIndex >= 0 && renderer.indexOf('installDiceAppearanceAdapter(this.box, appearanceQueue)') > waitIndex && renderer.indexOf('await this.box.roll(notation);') > waitIndex, 'Stone must load before die creation and roll');
+const directStoneRollIndex = renderer.indexOf('await this.box.roll(notation);');
+const deadlineStoneRollIndex = renderer.indexOf('rollDiceWithDeadline(this.box, notation');
+const stoneRollIndex = directStoneRollIndex >= 0 ? directStoneRollIndex : deadlineStoneRollIndex;
+assert.ok(waitIndex >= 0 && renderer.indexOf('installDiceAppearanceAdapter(this.box, appearanceQueue)') > waitIndex && stoneRollIndex > waitIndex, 'Stone must load before die creation and roll');
 assert.ok(profiles.includes("stone: 'photo-lit'"), 'Stone must keep scene-lit photographic depth');
 assert.ok(materials.includes('function preserveStoneFaceTexture(material: MaterialLike)') && materials.includes('material.roughness = 0.9') && materials.includes('material.metalness = 0'), 'Stone faces must be matte and non-metallic');
 assert.ok(materials.includes("skinId === 'fire' || skinId === 'stone'") && materials.includes("getDice3DSurfaceProfile(skinId) === 'photo-unlit'"), 'Stone must preserve the exact selected symbol color and use the shared intelligent outline');
