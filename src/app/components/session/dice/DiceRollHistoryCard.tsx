@@ -1,7 +1,7 @@
 import { Dices, EyeOff, RotateCcw } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import { NoteIconGlyph } from '../shared/NoteIconGrid';
-import type { DiceAppearance, RollComparisonResult, RollResult } from './diceTypes.ts';
+import type { CustomDieFace, DiceAppearance, RollComparisonResult, RollResult } from './diceTypes.ts';
 import { formatPrimaryRollResult } from './diceResultSummary.ts';
 import { CustomDieFaceResult } from './CustomDieFaceResult';
 import { DiceTypeIcon } from './DiceTypeIcon';
@@ -41,6 +41,12 @@ function StandardDieResult({
       {contribution !== face && <span className="text-[10px]">({contribution})</span>}
     </>
   );
+}
+
+function customFaceDisplayName(face: Pick<CustomDieFace, 'label' | 'visual'>): string {
+  if (face.label) return face.label;
+  if (face.visual.kind === 'text') return face.visual.text;
+  return '';
 }
 
 function CompareOutcome({ result }: { result: RollComparisonResult }) {
@@ -120,7 +126,7 @@ export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; 
                   <TooltipTrigger asChild>
                     <span data-custom-die-grouped-result className={`inline-flex w-full min-w-0 items-center gap-0.5 rounded border px-1.5 py-0.5 text-[11px] leading-none ${grouped.active ? 'border-[var(--dash-border)] bg-[var(--dash-surface-2)] text-[var(--dash-text)]' : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-[var(--dash-muted)] line-through opacity-60'}`}>
                       <span className="flex shrink-0 items-center -space-x-1">{grouped.faces.map((face, index) => <CustomDieFaceResult key={`${face.role}:${face.index}:${index}`} face={face} className="h-[24px] w-[24px]" symbolColor={face.symbolColor ?? group.customDieSnapshot?.symbolColor} bodyColor={group.customDieSnapshot?.bodyColor} skinId={group.customDieSnapshot?.skinId ?? 'none'} textureScale={group.customDieSnapshot?.textureScale} />)}</span>
-                      {grouped.faces.map((face) => face.label).filter(Boolean).join(' / ') && <span className="min-w-0 truncate">{grouped.faces.map((face) => face.label).filter(Boolean).join(' / ')}</span>}
+                      {grouped.faces.map(customFaceDisplayName).filter(Boolean).join(' / ') && <span className="min-w-0 truncate">{grouped.faces.map(customFaceDisplayName).filter(Boolean).join(' / ')}</span>}
                       <span data-custom-die-group-count className="shrink-0 text-[24px] font-semibold leading-none">×{grouped.count}</span>
                     </span>
                   </TooltipTrigger>
@@ -150,6 +156,9 @@ export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; 
                             skinId={group.customDieSnapshot?.skinId ?? 'none'}
                             textureScale={group.customDieSnapshot?.textureScale}
                           />
+                          {die.customFace.visual.kind === 'text' && die.customFace.visual.text.trim() !== '' && (
+                            <span data-custom-die-text-label className="min-w-0 flex-1 break-words font-semibold" style={{ color: die.customFace.symbolColor ?? group.customDieSnapshot?.symbolColor }}>{die.customFace.visual.text}</span>
+                          )}
                           {die.customFace.label && <span>{die.customFace.label}</span>}
                           {die.customFace.numericValue !== null && <span className="text-[10px]">({die.customFace.numericValue})</span>}
                         </>
