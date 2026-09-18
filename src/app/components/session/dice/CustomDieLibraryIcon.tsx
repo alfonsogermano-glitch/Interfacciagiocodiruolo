@@ -94,7 +94,7 @@ export function CustomDieLibraryIcon({
       >
         <DiceSkinSurface appearance={appearance} className="flex h-full w-full items-center justify-center text-[var(--dash-accent)]">
           <span className="relative z-10 flex h-full w-full items-center justify-center" style={faceOffsetY ? { transform: `translateY(${faceOffsetY}px)` } : undefined}>
-            <span className={`${compact ? 'text-[9px]' : 'text-xs'} font-bold leading-none`}>d{die.sides}</span>
+            <span className={`${compact ? 'text-[9px]' : 'text-xs'} font-bold leading-none`} style={{ color: die.symbolColor }}>d{die.sides}</span>
           </span>
         </DiceSkinSurface>
       </span>

@@ -57,4 +57,7 @@ assert.ok(custom.includes('Il dXX non viene simulato in 3D'),'dXX numeric notice
 assert.ok(custom.includes('data-custom-die-definition-mode')&&custom.includes('Numeri Standard')&&custom.includes('Facce Custom'),'dXX must offer standard-number and custom-face radio choices');
 assert.ok(custom.includes('<DiceNumericStepper value={sides}')&&!custom.includes('customSidesDraft'),'dXX sides must use the shared numeric stepper');
 assert.ok(custom.indexOf('data-custom-die-appearance-controls')>custom.indexOf("definitionMode === 'numeric'"),'skin controls must remain outside the numeric/custom-face content switch');
+assert.ok(custom.includes('Colore simboli/testo'),'symbol color control must cover numeric text as well as face symbols');
+assert.ok(custom.includes("definitionMode === 'numeric' || faces.some"),'symbol color must stay enabled for numeric dXX');
+assert.ok(/style=\{\{\s*color:\s*symbolColor\s*\}\}>d\{sides\}<\/div>/.test(custom),'numeric dXX preview must render in the chosen symbol color');
 console.log('Dice UI verification passed.');

@@ -186,7 +186,7 @@ export function validateCustomDieDefinition(
     if (face.visual.kind === 'image' && (!face.visual.assetPath.trim() || !face.visual.publicUrl.trim())) {
       issues.push('L’immagine di una faccia non è stata caricata correttamente.');
     }
-    if (face.visual.kind === 'text' && !face.visual.text.trim()) issues.push('Inserisci il testo per ogni faccia testuale.');
+    if (face.visual.kind === 'text' && !face.visual.text.trim()) issues.push('Ogni faccia impostata come testo deve contenere del testo (puoi mischiare icone, immagini e testo).');
   }
 
   return { valid: issues.length === 0, issues: [...new Set(issues)] };
