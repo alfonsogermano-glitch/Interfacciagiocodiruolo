@@ -483,7 +483,7 @@ function performMeasurement() {
 
   for (const [element, entry] of widgetEntries) {
     if (!element.isConnected) continue;
-    const blockParent = element.closest('.ProseMirror > *') as HTMLElement | null;
+    const blockParent = getWidgetLineContainer(element);
     if (!blockParent) continue;
     if (!groups.has(blockParent)) groups.set(blockParent, []);
     groups.get(blockParent)!.push({ element, ...entry });
@@ -516,6 +516,17 @@ function performMeasurement() {
       measureLine(lineItems, lineRight);
     }
   }
+}
+
+function getWidgetLineContainer(element: HTMLElement): HTMLElement | null {
+  const editorRoot = element.closest('.ProseMirror');
+  let current = element.parentElement;
+  while (current && current !== editorRoot) {
+    const display = window.getComputedStyle(current).display;
+    if (display === 'block' || display === 'list-item' || display === 'table-cell') return current;
+    current = current.parentElement;
+  }
+  return editorRoot instanceof HTMLElement ? editorRoot : null;
 }
 
 function isCompactModifier(element: HTMLElement): boolean {
@@ -1262,18 +1273,16 @@ function buildModifierWidget(
     );
   });
 
-  // Registra nel catalogo globale per la misura coordinata delle righe.
-  // La teardown viene gestita da spec.destroy che rimuove l'entry.
-  const entry: WidgetEntry = { view, getPos };
-  widgetEntries.set(element, entry);
+  // Registra nel catalogo condiviso per la misura coordinata delle righe.
+  registerInlineBoxWidget(element, { view, getPos });
   (element as HTMLElement & { __destroyModifierWidget?: () => void }).__destroyModifierWidget = () => {
     window.removeEventListener(NOTE_MODIFIER_RENAME_EVENT, onRenameRequest);
     hideCompactTip?.();
     (element as HTMLElement & { __hideAnomalyTip?: (() => void) | null }).__hideAnomalyTip?.();
     (element as HTMLElement & { __hideFormulaTip?: (() => void) | null }).__hideFormulaTip?.();
     (element as HTMLElement & { __cancelInlineRename?: () => void }).__cancelInlineRename?.();
+    unregisterInlineBoxWidget(element);
   };
-  scheduleMeasure();
   return element;
 }
 
@@ -1533,13 +1542,15 @@ export const InlineModifier = Mark.create({
             return nudgeToRightOfTrailingModifier(view, pos, event);
           },
         },
-        view() {
+        view(editorView) {
           window.addEventListener('resize', scheduleMeasure);
           scheduleMeasure();
           return {
             destroy() {
               window.removeEventListener('resize', scheduleMeasure);
-              widgetEntries.clear();
+              for (const [element, entry] of widgetEntries) {
+                if (entry.view === editorView) widgetEntries.delete(element);
+              }
             },
           };
         },
