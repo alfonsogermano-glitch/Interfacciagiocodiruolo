@@ -767,7 +767,7 @@ export const InlineDice = Mark.create({
           if (insertPos > 0 && tr.doc.textBetween(insertPos - 1, insertPos, '', '') === INLINE_MODIFIER_CHAR) {
             tr.doc.nodesBetween(insertPos - 1, insertPos, (node) => {
               if (previousIsBox || !node.isText) return;
-              previousIsBox = node.marks.some((mark) => mark.type === markType || mark.type.name === 'inlineModifier');
+              previousIsBox = node.marks.some((mark) => mark.type === markType || mark.type.name === 'inlineModifier' || mark.type.name === 'inlinePoints');
             });
           }
           if (previousIsBox) {

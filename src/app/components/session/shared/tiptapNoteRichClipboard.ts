@@ -3,6 +3,7 @@ import { DOMSerializer, Slice } from '@tiptap/pm/model';
 import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
 import { isPreviousModifier, makeRoomForInlineModifierInsertion } from './tiptapInlineModifier';
 import { isPreviousDice, makeRoomForInlineDiceInsertion } from './tiptapInlineDice';
+import { isPreviousPoints } from './tiptapInlinePoints';
 import type { EditorView } from '@tiptap/pm/view';
 import { getRichClipboardSlice, isRichClipboardTableSelection } from './noteRichClipboardSelection';
 import { validateStructuralReplacement, validateTableClipboardTarget, type NoteContainerRejection } from './noteContainerPolicy';
@@ -106,11 +107,12 @@ function readClipboard(event: ClipboardEvent): SliceJSON | null {
 // duplicherebbe nomi e chiavi widget.
 function renamePastedInlineModifiers(state: EditorState, slice: Slice): Slice {
   const markType = state.schema.marks.inlineModifier;
-  if (!markType) return slice;
+  const pointsMarkType = state.schema.marks.inlinePoints;
+  if (!markType && !pointsMarkType) return slice;
   const used = new Set<string>();
   state.doc.descendants((node) => {
     if (!node.isText || !node.text || !node.text.includes(MODIFIER_CHAR)) return;
-    const mark = node.marks.find((item) => item.type === markType);
+    const mark = node.marks.find((item) => item.type === markType || item.type === pointsMarkType);
     if (mark) used.add(String(mark.attrs?.name ?? ''));
   });
   const freshId = (): string =>
@@ -130,7 +132,7 @@ function renamePastedInlineModifiers(state: EditorState, slice: Slice): Slice {
         touched = true;
         return;
       }
-      if (entry.type !== 'inlineModifier') return;
+      if (entry.type !== 'inlineModifier' && entry.type !== 'inlinePoints') return;
       const current = String(entry.attrs?.name ?? '');
       let next = current;
       if (used.has(next)) {
@@ -190,6 +192,12 @@ function isSingleDiceSlice(slice: Slice): boolean {
   return !!child && child.isText && child.text === MODIFIER_CHAR && child.marks.some((mark) => mark.type.name === 'inlineDice');
 }
 
+function isSinglePointsSlice(slice: Slice): boolean {
+  if (slice.content.childCount !== 1) return false;
+  const child = slice.content.firstChild;
+  return !!child && child.isText && child.text === MODIFIER_CHAR && child.marks.some((mark) => mark.type.name === 'inlinePoints');
+}
+
 export const NoteRichClipboard = Extension.create<{ onReject?: (reason: NoteContainerRejection) => void }>({
   name: 'noteRichClipboard',
   addOptions() { return { onReject: undefined }; },
@@ -233,8 +241,8 @@ export const NoteRichClipboard = Extension.create<{ onReject?: (reason: NoteCont
             // come Duplica: senza questo va a capo e la misura per riga lo
             // blocca sotto.
             let tr = view.state.tr;
-            const previousIsBox = isPreviousModifier(view.state, tr.selection.from) || isPreviousDice(view.state, tr.selection.from);
-            if ((isSingleModifierSlice(slice) || isSingleDiceSlice(slice)) && previousIsBox) {
+            const previousIsBox = isPreviousModifier(view.state, tr.selection.from) || isPreviousDice(view.state, tr.selection.from) || isPreviousPoints(view.state, tr.selection.from);
+            if ((isSingleModifierSlice(slice) || isSingleDiceSlice(slice) || isSinglePointsSlice(slice)) && previousIsBox) {
               makeRoomForInlineModifierInsertion(view.state, tr.selection.from);
               makeRoomForInlineDiceInsertion(view.state, tr.selection.from);
               tr = tr.insertText(' ', tr.selection.from);

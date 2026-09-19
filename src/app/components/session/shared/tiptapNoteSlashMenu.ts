@@ -3,6 +3,7 @@ import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } 
 import type { Editor } from '@tiptap/react';
 import { makeRoomForInlineModifierText } from './tiptapInlineModifier';
 import { makeRoomForInlineDiceText } from './tiptapInlineDice';
+import { makeRoomForInlinePointsText } from './tiptapInlinePoints';
 
 interface SlashState { slashPos: number | null }
 type SlashMeta = { type: 'open'; slashPos: number } | { type: 'close' };
@@ -49,6 +50,7 @@ export const NoteSlashMenuExtension = Extension.create({
           if (text !== '/' || !view.editable || from !== to || !view.state.selection.empty) return false;
           makeRoomForInlineModifierText(view, from, text);
           makeRoomForInlineDiceText(view, from, text);
+          makeRoomForInlinePointsText(view, from, text);
           const tr = view.state.tr.insertText('/', from, to);
           tr.setSelection(TextSelection.create(tr.doc, from + 1));
           withMeta(tr, { type: 'open', slashPos: from });

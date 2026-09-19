@@ -16,6 +16,7 @@ import { FontFamily } from './tiptapFontFamily';
 import { InlineIcon } from './tiptapInlineIcon';
 import { InlineModifier, collectModifiersFromJSON, publishModifierPeers, unpublishModifierPeers } from './tiptapInlineModifier';
 import { InlineDice } from './tiptapInlineDice';
+import { InlinePoints } from './tiptapInlinePoints';
 import { InlineCheckbox } from './tiptapInlineCheckbox';
 import { NOTE_TABLE_EXTENSIONS } from './tiptapNoteTable';
 import { NoteTableClipboardPaste } from './noteTableClipboard';
@@ -25,6 +26,7 @@ import { NoteSlashMenuExtension } from './tiptapNoteSlashMenu';
 import { NoteTableToolbar } from './NoteTableToolbar';
 import { NoteSlashMenu } from './NoteSlashMenu';
 import { NoteDiceMenu, NoteModifierMenu, NoteModifierRollBridge, NoteModifierTitleMenu } from './NoteModifierMenu';
+import { NotePointsMenu } from './NotePointsMenu';
 import { NoteSelectionToolbar } from './NoteSelectionToolbar';
 import { NoteContainerNotice } from './NoteContainerNotice';
 import { flattenRemovedLayoutNodes } from './tiptapLegacyMigration';
@@ -208,6 +210,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
       InlineIcon,
       InlineModifier,
       InlineDice,
+      InlinePoints,
       inlineCheckboxExtension,
       ...TIPTAP_BLOCK_EXTENSIONS,
       ...NOTE_TABLE_EXTENSIONS,
@@ -307,6 +310,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
       <NoteSlashMenu editor={editor} editable={editable} />
       <NoteModifierMenu editor={editor} editable={editable} />
       <NoteDiceMenu editor={editor} editable={editable} canPersist={canToggleInlineCheckbox} />
+      <NotePointsMenu editor={editor} editable={editable} />
       <NoteModifierTitleMenu editable={editable} />
       <NoteModifierRollBridge editor={editor} />
       <NoteSelectionToolbar editor={editor} editable={editable} />

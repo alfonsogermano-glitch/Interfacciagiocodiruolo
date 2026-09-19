@@ -112,11 +112,11 @@ export function collectModifiersFromJSON(doc: JSONContent | null | undefined): M
     const record = node as Record<string, unknown>;
     if (record['type'] === 'text' && typeof record['text'] === 'string' && Array.isArray(record['marks'])) {
       for (const mark of record['marks'] as Array<{ type?: string; attrs?: Record<string, unknown> }>) {
-        if (mark?.type === 'inlineModifier') {
+        if (mark?.type === 'inlineModifier' || mark?.type === 'inlinePoints') {
           found.push({
-            name: String(mark.attrs?.['name'] ?? MODIFIER_DEFAULT_NAME),
-            value: String(mark.attrs?.['value'] ?? MODIFIER_DEFAULT_VALUE),
-            formula: typeof mark.attrs?.['formula'] === 'string' ? (mark.attrs['formula'] as string) : '',
+            name: String(mark.attrs?.['name'] ?? (mark.type === 'inlinePoints' ? 'Punti' : MODIFIER_DEFAULT_NAME)),
+            value: String(mark.attrs?.['value'] ?? (mark.type === 'inlinePoints' ? 10 : MODIFIER_DEFAULT_VALUE)),
+            formula: mark.type === 'inlinePoints' ? '' : (typeof mark.attrs?.['formula'] === 'string' ? (mark.attrs['formula'] as string) : ''),
           });
         }
       }
@@ -158,6 +158,16 @@ function mergeModifierLookup(peers: ModifierSnapshot[], state: EditorState): Map
         value: String(mark.attrs.value ?? MODIFIER_DEFAULT_VALUE),
         formula: typeof mark.attrs.formula === 'string' ? mark.attrs.formula : '',
       });
+    });
+  }
+  const pointsMarkType = state.schema.marks.inlinePoints;
+  if (pointsMarkType) {
+    state.doc.descendants((node) => {
+      if (!node.isText || !node.text) return;
+      const mark = node.marks.find((item) => item.type === pointsMarkType);
+      if (!mark) return;
+      const name = String(mark.attrs.name ?? 'Punti');
+      lookup.set(name, { name, value: String(mark.attrs.value ?? 10), formula: '' });
     });
   }
   return lookup;
@@ -235,7 +245,7 @@ function getUniqueModifierName(state: EditorState, requestedName = MODIFIER_DEFA
   const names = new Set<string>();
   state.doc.descendants((node, pos) => {
     if (!node.isText || !node.text) return;
-    const mark = node.marks.find((item) => item.type === markType);
+    const mark = node.marks.find((item) => item.type === markType || item.type.name === 'inlinePoints');
     if (!mark) return;
 
     for (let offset = 0; offset < node.nodeSize; offset++) {
@@ -1357,17 +1367,19 @@ export const InlineModifier = Mark.create({
           // senza importare il modulo Dado ed evitare un ciclo): spazio vero e
           // restringimento come tra Modificatori.
           let previousIsDice = false;
+          let previousIsPoints = false;
           if (insertPos > 0 && tr.doc.textBetween(insertPos - 1, insertPos, '', '') === INLINE_MODIFIER_CHAR) {
             tr.doc.nodesBetween(insertPos - 1, insertPos, (node) => {
-              if ((previousIsModifier && previousIsDice) || !node.isText) return;
+              if (!node.isText) return;
               if (!previousIsModifier) previousIsModifier = node.marks.some((mark) => mark.type === markType);
               if (!previousIsDice) previousIsDice = node.marks.some((mark) => mark.type.name === 'inlineDice');
+              if (!previousIsPoints) previousIsPoints = node.marks.some((mark) => mark.type.name === 'inlinePoints');
             });
           }
 
-          if (previousIsModifier || previousIsDice) {
+          if (previousIsModifier || previousIsDice || previousIsPoints) {
             makeRoomForInlineModifierInsertion(state, insertPos);
-            if (previousIsDice && !previousIsModifier) {
+            if ((previousIsDice || previousIsPoints) && !previousIsModifier) {
               const diceWidget = getModifierWidgetAt(insertPos - 1);
               if (diceWidget) halveInlineBoxWidget(diceWidget);
             }

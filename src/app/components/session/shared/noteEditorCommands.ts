@@ -11,6 +11,7 @@ import {
   CircleDot,
   Cog,
   Dices,
+  Gauge,
   Image,
   Italic,
   List,
@@ -33,7 +34,7 @@ export type NoteCommandId =
   | 'bold' | 'italic' | 'underline' | 'strike' | 'fontSize' | 'fontFamily'
   | 'bulletList' | 'orderedList' | 'blockquote' | 'alignLeft' | 'alignCenter' | 'alignRight'
   | 'textBox' | 'collapse' | 'horizontalRule' | 'table' | 'taskList' | 'checkbox' | 'radio'
-  | 'image' | 'inlineIcon' | 'inlineModifier' | 'inlineDice' | 'undo';
+  | 'image' | 'inlineIcon' | 'inlineModifier' | 'inlineDice' | 'inlinePoints' | 'undo';
 
 export type NoteCommandGroup = 'text' | 'block' | 'history';
 export type NoteSecondaryPicker = 'fontSize' | 'fontFamily' | 'image' | 'inlineIcon';
@@ -107,6 +108,8 @@ export const NOTE_COMMANDS: readonly NoteCommandDescriptor[] = [
     canRun: (e) => e.can().insertInlineModifier(), isActive: () => false, run: (e) => e.chain().focus().insertInlineModifier().run() },
   { id: 'inlineDice', label: 'Dado', group: 'block', icon: Dices, selectionEligible: false,
     canRun: (e) => e.can().insertInlineDice(), isActive: () => false, run: (e) => e.chain().focus().insertInlineDice().run() },
+  { id: 'inlinePoints', label: 'Punti', group: 'block', icon: Gauge, selectionEligible: false,
+    canRun: (e) => e.can().insertInlinePoints(), isActive: () => false, run: (e) => e.chain().focus().insertInlinePoints().run() },
   { id: 'undo', label: 'Annulla', group: 'history', icon: Undo2, selectionEligible: false,
     canRun: (e) => e.can().undo(), isActive: () => false, run: (e) => e.chain().focus().undo().run() },
 ];
@@ -156,6 +159,7 @@ export function runSlashNoteCommand(editor: Editor, id: NoteCommandId, slashPos:
     case 'radio': return chain.insertInlineRadio().run();
     case 'inlineModifier': return chain.insertInlineModifier().run();
     case 'inlineDice': return chain.insertInlineDice().run();
+    case 'inlinePoints': return chain.insertInlinePoints().run();
     case 'undo': return chain.undo().run();
     case 'fontSize':
     case 'fontFamily':
