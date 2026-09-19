@@ -541,20 +541,41 @@ function isCompactModifier(element: HTMLElement): boolean {
   return element.dataset.modifierCompact === 'true';
 }
 
+// Larghezza intrinseca di un box compatto (Dado o Modificatore ridotto) senza
+// toccare il layout vivo: il clone fuori schermo evita il reflow intermedio
+// che allargherebbe il compatto prima di restringere gli espansi e manderebbe
+// l'ultimo elemento a capo in modo permanente.
+function getCompactIntrinsicWidth(element: HTMLElement): number {
+  const clone = element.cloneNode(true) as HTMLElement;
+  clone.style.position = 'fixed';
+  clone.style.left = '-99999px';
+  clone.style.top = '0';
+  clone.style.visibility = 'hidden';
+  clone.style.width = 'auto';
+  clone.style.minWidth = '0px';
+  clone.style.maxWidth = 'none';
+  clone.style.marginLeft = '0px';
+  clone.style.marginRight = '0px';
+  document.body.appendChild(clone);
+  const width = clone.getBoundingClientRect().width;
+  clone.remove();
+  return width;
+}
+
 function measureLine(items: Array<{ element: HTMLElement } & WidgetEntry>, lineRight: number) {
-  // I Modificatori compatti (Riduci) restano a dimensione contenuto - solo il
-  // valore centrato - e non partecipano alla divisione della riga.
+  // I Modificatori compatti (Riduci) e i Dadi restano a dimensione contenuto e
+  // non partecipano alla divisione della riga.
   const expanded = items.filter((item) => !isCompactModifier(item.element));
+  // Azzerare i margini riduce il totale: nessun wrap prima della lettura.
   for (const item of items) {
-    if (isCompactModifier(item.element)) {
-      item.element.style.marginLeft = '0px';
-      item.element.style.marginRight = '0px';
-      item.element.style.width = 'auto';
-    }
+    item.element.style.marginLeft = '0px';
+    item.element.style.marginRight = '0px';
   }
   if (expanded.length === 0) {
     for (let i = 0; i < items.length; i++) {
-      items[i].element.style.marginLeft = '0px';
+      if (isCompactModifier(items[i].element)) {
+        items[i].element.style.width = 'auto';
+      }
       items[i].element.style.marginRight = i === items.length - 1 ? `${CURSOR_ROOM}px` : '0px';
     }
     return;
@@ -570,30 +591,32 @@ function measureLine(items: Array<{ element: HTMLElement } & WidgetEntry>, lineR
     return;
   }
 
-  for (const item of expanded) {
-    item.element.style.marginLeft = '0px';
-    item.element.style.marginRight = '0px';
-  }
-
+  // Geometria con le larghezze preservate (riga ancora intera, senza wrap):
+  // da qui si ricavano inizio riga e spazi reali tra i box.
   const rects = items.map((item) => item.element.getBoundingClientRect());
   const lineLeft = rects[0].left;
   const currentWidth = rects.reduce((sum, rect) => sum + rect.width, 0);
   const currentSpan = rects[rects.length - 1].right - lineLeft;
   const realGap = Math.max(0, currentSpan - currentWidth);
-  const compactWidth = items.reduce(
-    (sum, item) => sum + (isCompactModifier(item.element) ? item.element.getBoundingClientRect().width : 0),
-    0,
-  );
+  let compactWidth = 0;
+  for (const item of items) {
+    if (isCompactModifier(item.element)) {
+      compactWidth += getCompactIntrinsicWidth(item.element);
+    }
+  }
   const available = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - END_INSERTION_ROOM - realGap - compactWidth);
   const width = Math.max(0, available / expanded.length);
 
-  for (const item of expanded) {
-    if (Math.abs(width - item.element.offsetWidth) > 1) {
+  // Un'unica applicazione senza letture intermedie: il browser rifluisce una
+  // sola volta direttamente verso il layout che sta sulla riga.
+  for (const item of items) {
+    if (isCompactModifier(item.element)) {
+      item.element.style.width = 'auto';
+    } else if (Math.abs(width - item.element.offsetWidth) > 1) {
       item.element.style.width = `${width}px`;
     }
   }
   for (let i = 0; i < items.length; i++) {
-    items[i].element.style.marginLeft = '0px';
     items[i].element.style.marginRight = i === items.length - 1 ? `${CURSOR_ROOM}px` : '0px';
   }
 }
