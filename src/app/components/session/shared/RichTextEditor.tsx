@@ -19,6 +19,7 @@ import { InlineDice } from './tiptapInlineDice';
 import { InlinePoints } from './tiptapInlinePoints';
 import { InlineCheckbox } from './tiptapInlineCheckbox';
 import { NOTE_TABLE_EXTENSIONS } from './tiptapNoteTable';
+import { Archivio } from './tiptapArchivio';
 import { NoteTableClipboardPaste } from './noteTableClipboard';
 import { NoteRichClipboard } from './tiptapNoteRichClipboard';
 import { NoteContainerGuard } from './tiptapNoteContainerGuard';
@@ -214,6 +215,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
       inlineCheckboxExtension,
       ...TIPTAP_BLOCK_EXTENSIONS,
       ...NOTE_TABLE_EXTENSIONS,
+      Archivio,
       containerGuardExtension,
       tableClipboardExtension,
       richClipboardExtension,

@@ -1,11 +1,11 @@
 import type { Node as PMNode, ResolvedPos, Slice } from '@tiptap/pm/model';
 import type { EditorState } from '@tiptap/pm/state';
 
-export type NoteStructuralContainer = 'textBox' | 'collapseBlock' | 'table';
+export type NoteStructuralContainer = 'textBox' | 'collapseBlock' | 'table' | 'archivio';
 export type NoteContainerRejection = 'max-depth' | 'table-in-table' | 'table-clipboard-in-table' | 'collapse-summary';
 export type NoteContainerDecision = { allowed: true } | { allowed: false; reason: NoteContainerRejection };
 
-const STRUCTURAL_TYPES = new Set<NoteStructuralContainer>(['textBox', 'collapseBlock', 'table']);
+const STRUCTURAL_TYPES = new Set<NoteStructuralContainer>(['textBox', 'collapseBlock', 'table', 'archivio']);
 
 function isStructuralType(typeName: string): typeName is NoteStructuralContainer {
   return STRUCTURAL_TYPES.has(typeName as NoteStructuralContainer);
@@ -42,7 +42,7 @@ export function isInsideCollapseSummary($pos: ResolvedPos): boolean {
 
 export function canInsertNoteContainer($pos: ResolvedPos, type: NoteStructuralContainer): NoteContainerDecision {
   if (isInsideCollapseSummary($pos)) return { allowed: false, reason: 'collapse-summary' };
-  if (type === 'table' && isInsideNoteTable($pos)) return { allowed: false, reason: 'table-in-table' };
+  if ((type === 'table' || type === 'archivio') && isInsideNoteTable($pos)) return { allowed: false, reason: 'table-in-table' };
   if (getStructuralDepth($pos) >= 2) return { allowed: false, reason: 'max-depth' };
   return { allowed: true };
 }

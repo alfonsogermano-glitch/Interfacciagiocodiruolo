@@ -6,6 +6,7 @@ import {
   AlignCenter,
   AlignLeft,
   AlignRight,
+  Archive,
   Bold,
   ChevronsDownUp,
   CircleDot,
@@ -33,7 +34,7 @@ import { canInsertNoteContainer } from './noteContainerPolicy';
 export type NoteCommandId =
   | 'bold' | 'italic' | 'underline' | 'strike' | 'fontSize' | 'fontFamily'
   | 'bulletList' | 'orderedList' | 'blockquote' | 'alignLeft' | 'alignCenter' | 'alignRight'
-  | 'textBox' | 'collapse' | 'horizontalRule' | 'table' | 'taskList' | 'checkbox' | 'radio'
+  | 'textBox' | 'collapse' | 'horizontalRule' | 'table' | 'archivio' | 'taskList' | 'checkbox' | 'radio'
   | 'image' | 'inlineIcon' | 'inlineModifier' | 'inlineDice' | 'inlinePoints' | 'undo';
 
 export type NoteCommandGroup = 'text' | 'block' | 'history';
@@ -57,7 +58,7 @@ export interface NoteCommandDescriptor {
   run?: (editor: Editor) => boolean;
 }
 
-const structuralCanRun = (type: 'textBox' | 'collapseBlock' | 'table') => (editor: Editor) =>
+const structuralCanRun = (type: 'textBox' | 'collapseBlock' | 'table' | 'archivio') => (editor: Editor) =>
   editor.isEditable && canInsertNoteContainer(editor.state.selection.$from, type).allowed;
 
 export const NOTE_COMMANDS: readonly NoteCommandDescriptor[] = [
@@ -94,6 +95,8 @@ export const NOTE_COMMANDS: readonly NoteCommandDescriptor[] = [
     canRun: (e) => e.can().setHorizontalRule(), isActive: () => false, run: (e) => e.chain().focus().setHorizontalRule().run() },
   { id: 'table', label: 'Tabella', group: 'block', icon: Table2, selectionEligible: false,
     canRun: structuralCanRun('table'), isActive: () => false, run: (e) => e.chain().focus().insertNoteTable().run() },
+  { id: 'archivio', label: 'Archivio', group: 'block', icon: Archive, selectionEligible: false,
+    canRun: structuralCanRun('archivio'), isActive: () => false, run: (e) => e.chain().focus().insertArchivio().run() },
   { id: 'taskList', label: 'Attività', group: 'block', icon: ListTodo, selectionEligible: false,
     canRun: (e) => e.can().toggleTaskList(), isActive: (e) => e.isActive('taskList'), run: (e) => e.chain().focus().toggleTaskList().run() },
   { id: 'checkbox', label: 'Checkbox', group: 'block', icon: SquareCheckBig, selectionEligible: false,
@@ -154,6 +157,7 @@ export function runSlashNoteCommand(editor: Editor, id: NoteCommandId, slashPos:
     case 'collapse': return chain.setCollapseBlock().run();
     case 'horizontalRule': return chain.setHorizontalRule().run();
     case 'table': return chain.insertNoteTable().run();
+    case 'archivio': return chain.insertArchivio().run();
     case 'taskList': return chain.toggleTaskList().run();
     case 'checkbox': return chain.insertInlineCheckbox().run();
     case 'radio': return chain.insertInlineRadio().run();

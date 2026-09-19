@@ -8,7 +8,7 @@ import { canInsertNoteContainer } from './noteContainerPolicy';
 // blocchi normali e contenitori strutturali, mentre la profondità massima e
 // Table-in-Table vengono governati centralmente da noteContainerPolicy.
 export const NOTE_CONTAINER_BLOCK_CONTENT =
-  'paragraph | bulletList | orderedList | taskList | blockquote | horizontalRule | image | textBox | collapseBlock | table';
+  'paragraph | bulletList | orderedList | taskList | blockquote | horizontalRule | image | textBox | collapseBlock | table | archivio';
 
 // Box di testo: un contenitore con bordo/sfondo distintivo attorno a blocchi
 // di testo semplice - nessuna NodeView React necessaria, puro renderHTML

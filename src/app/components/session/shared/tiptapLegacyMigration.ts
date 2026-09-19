@@ -1,6 +1,6 @@
 import type { JSONContent } from '@tiptap/core';
 
-const STRUCTURAL = new Set(['textBox', 'collapseBlock', 'table']);
+const STRUCTURAL = new Set(['textBox', 'collapseBlock', 'table', 'archivio']);
 const ORDINARY_BLOCKS = new Set([
   'paragraph', 'bulletList', 'orderedList', 'taskList', 'blockquote', 'horizontalRule', 'image',
 ]);
@@ -84,6 +84,11 @@ function sanitizeNode(node: JSONContent, context: LegacyContext): JSONContent[] 
       })),
     }));
     return [{ ...node, content: rows }];
+  }
+
+  if (type === 'archivio') {
+    if (context.structuralDepth >= 2 || context.insideTable) return [];
+    return [node];
   }
 
   if (type === 'collapseBody' || type === 'tableRow' || type === 'tableCell' || type === 'tableHeader' || type === 'row') {
