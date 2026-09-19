@@ -465,13 +465,33 @@
 
 /* Archivio (ArchivioView.tsx): blocco atomico non selezionabile (si
    cancella solo con Elimina dal suo menu) - senza questa eccezione
-   l'outline globale resterebbe accesa attorno alla tabella. Stesso stacco
-   verticale degli altri blocchi contenitore. */
+   l'outline globale resterebbe accesa attorno alla tabella. */
 .tiptap-content .tiptap-archivio.ProseMirror-selectednode {
   outline: none;
 }
-.tiptap-content .tiptap-archivio {
-  margin: 0 0 0.5rem 0;
+.tiptap-content .tiptap-archivio-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -0.25rem;
+  bottom: 0;
+  z-index: 10;
+  width: 0.5rem;
+  cursor: col-resize;
+}
+.tiptap-content .tiptap-archivio-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(50% - 0.5px);
+  width: 1px;
+  background: var(--dash-border-soft);
+  transition: background-color 0.12s, width 0.12s;
+}
+.tiptap-content .tiptap-archivio-resize-handle:hover::after {
+  left: calc(50% - 1px);
+  width: 2px;
+  background: var(--dash-accent);
 }
 
 /* GapCursor nativo di ProseMirror (bug segnalato dal vivo 2026-08-20,

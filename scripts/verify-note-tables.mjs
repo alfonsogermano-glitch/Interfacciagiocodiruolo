@@ -18,6 +18,11 @@ assert.match(tableSource, /canInsertNoteContainer\(state\.selection\.\$from, 'ta
 assert.match(tableSource, /insertTable\(\{ rows: 3, cols: 3, withHeaderRow: false \}\)/, 'table insertion must be 3x3');
 assert.match(tableSource, /import ['"]\.\/noteTableResize\.css['"]/, 'table resize styles must be loaded with the table extension');
 assert.match(tableSource, /resizable:\s*true/, 'Note tables must enable native mouse column resizing');
+assert.match(tableSource, /HollowgateTable\s*=\s*Table\.extend\(\{\s*selectable:\s*false/, 'the table block must not allow a ProseMirror node selection');
+assert.match(tableSource, /allowTableNodeSelection:\s*false/, 'table editing must not promote cell selections to a table node selection');
+for (const shortcut of ['Backspace', "'Mod-Backspace'", 'Delete', "'Mod-Delete'"]) {
+  assert.match(tableSource, new RegExp(`${shortcut}: \\(\\) => false`), `${shortcut} must not delete the table outside its menu`);
+}
 assert.match(tableSource, /NOTE_TABLE_CELL_MIN_WIDTH\s*=\s*48/, 'column resizing must preserve the existing 3rem minimum width');
 assert.match(tableSource, /cellMinWidth:\s*NOTE_TABLE_CELL_MIN_WIDTH/, 'TipTap resize must use the Hollowgate minimum width');
 assert.match(tableSource, /View:\s*HollowgateTableView/, 'resizable tables must use the Hollowgate TableView');

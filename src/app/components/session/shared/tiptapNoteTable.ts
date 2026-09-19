@@ -1,5 +1,5 @@
 import { Extension, type Extensions } from '@tiptap/core';
-import { TableKit, TableCell, TableHeader, TableView } from '@tiptap/extension-table';
+import { Table, TableKit, TableCell, TableHeader, TableView } from '@tiptap/extension-table';
 import { GapCursor } from '@tiptap/pm/gapcursor';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { Plugin, type EditorState } from '@tiptap/pm/state';
@@ -16,6 +16,19 @@ const NOTE_TABLE_CELL_MIN_WIDTH = 48;
 
 export const HollowgateTableCell = TableCell.extend({ content: NOTE_TABLE_CELL_CONTENT });
 export const HollowgateTableHeader = TableHeader.extend({ content: NOTE_TABLE_CELL_CONTENT });
+export const HollowgateTable = Table.extend({
+  selectable: false,
+
+  addKeyboardShortcuts() {
+    return {
+      ...this.parent?.(),
+      Backspace: () => false,
+      'Mod-Backspace': () => false,
+      Delete: () => false,
+      'Mod-Delete': () => false,
+    };
+  },
+});
 
 export interface ActiveNoteTable {
   node: PMNode;
@@ -340,14 +353,16 @@ export const NOTE_TABLE_EXTENSIONS: Extensions = [
   NoteTableContainerGapCursor,
   NoteTableResizeBootstrap,
   TableKit.configure({
-    table: {
-      resizable: true,
-      cellMinWidth: NOTE_TABLE_CELL_MIN_WIDTH,
-      View: HollowgateTableView,
-      HTMLAttributes: { class: 'tiptap-note-table' },
-    },
+    table: false,
     tableCell: false,
     tableHeader: false,
+  }),
+  HollowgateTable.configure({
+    resizable: true,
+    cellMinWidth: NOTE_TABLE_CELL_MIN_WIDTH,
+    View: HollowgateTableView,
+    HTMLAttributes: { class: 'tiptap-note-table' },
+    allowTableNodeSelection: false,
   }),
   HollowgateTableCell.configure({ HTMLAttributes: { class: 'tiptap-note-table-cell' } }),
   HollowgateTableHeader.configure({ HTMLAttributes: { class: 'tiptap-note-table-header' } }),

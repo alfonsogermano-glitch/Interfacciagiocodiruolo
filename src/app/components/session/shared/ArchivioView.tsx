@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
+import { usePortalContainer } from '../../ui/portal-container';
 import { placeFloatingNoteUI } from './noteFloatingPosition';
 import {
   ArrowDown,
@@ -125,10 +126,10 @@ function TriggerButton({
 const HOVER_DOTS =
   'absolute right-0 top-1/2 -translate-y-1/2 opacity-0 transition-opacity pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 focus-visible:opacity-100';
 
-// I menu dell'Archivio vivono in un portal fixed su body (stesso pattern di
-// NotePointsMenu): dentro la tabella sarebbero ritagliati dallo scroll
-// orizzontale e dai bordi arrotondati del contenitore.
+// Dentro la tabella i menu sarebbero ritagliati dallo scroll orizzontale.
+// Il portal tematizzato mantiene disponibili le variabili --dash-*.
 function MenuPortal({ anchor, children }: { anchor: { x: number; y: number } | null; children: ReactNode }) {
+  const portalContainer = usePortalContainer();
   if (!anchor || typeof document === 'undefined') return null;
   const placed = placeFloatingNoteUI({ left: anchor.x, right: anchor.x + 2, top: anchor.y, bottom: anchor.y }, 224, 360, 6);
   return createPortal(
@@ -148,7 +149,7 @@ function MenuPortal({ anchor, children }: { anchor: { x: number; y: number } | n
     >
       {children}
     </div>,
-    document.body,
+    portalContainer ?? document.body,
   );
 }
 
@@ -659,7 +660,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                         aria-label="Ridimensiona colonna"
                         contentEditable={false}
                         onMouseDown={(event) => startResize(event, colIndex)}
-                        className="absolute -right-1 top-0 h-full w-2 cursor-col-resize"
+                        className="tiptap-archivio-resize-handle"
                       />
                     )}
                   </th>
@@ -670,7 +671,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
               {rows.map((row, rowIndex) => (
                 <tr key={row.id} className="border-b border-[var(--dash-border-soft)] last:border-b-0">
                   {row.cells.map((cell, colIndex) => (
-                    <td key={cell.id} className="px-2 py-1.5 align-middle">
+                    <td key={cell.id} className="relative px-2 py-1.5 align-middle">
                       {colIndex === 0 ? (
                         <span className="group relative flex min-w-0 items-center gap-1">
                           <span className="flex min-w-0 flex-1 items-center">
@@ -734,6 +735,15 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                             <MenuPortal anchor={anchor}>{transformItems(cell, rowIndex, colIndex)}</MenuPortal>
                           )}
                         </span>
+                      )}
+                      {colIndex < columns.length - 1 && (
+                        <span
+                          role="separator"
+                          aria-label="Ridimensiona colonna"
+                          contentEditable={false}
+                          onMouseDown={(event) => startResize(event, colIndex)}
+                          className="tiptap-archivio-resize-handle"
+                        />
                       )}
                     </td>
                   ))}
