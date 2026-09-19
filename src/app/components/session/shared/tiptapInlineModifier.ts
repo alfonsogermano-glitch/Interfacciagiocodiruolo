@@ -494,6 +494,15 @@ function performMeasurement() {
 
     const blockRect = blockParent.getBoundingClientRect();
     const lineRight = blockRect.right;
+    // Un cambio di altezza dei Punti (per esempio nascondendo il titolo)
+    // puo' mandarli a capo per un solo frame. Raggrupparli dalla posizione
+    // visiva renderebbe quel wrap temporaneo permanente; nello stesso
+    // paragrafo i box con Punti costituiscono invece una sola riga logica e
+    // devono essere ridivisi insieme prima che il browser decida il wrap.
+    if (items.some((item) => item.element.classList.contains('tiptap-inline-points-widget'))) {
+      measureLine(items, lineRight);
+      continue;
+    }
     const lineGroups: Array<Array<{ element: HTMLElement } & WidgetEntry>> = [];
 
     for (const item of items) {

@@ -261,12 +261,27 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
 
   const controls = document.createElement('span');
   Object.assign(controls.style, { display: 'flex', alignItems: 'stretch', gap: '0.45em', width: '100%', minWidth: 0 });
-  const button = (kind: 'value' | 'max', labelText: string, delta: number) => {
+  const adjustmentZone = (kind: 'value' | 'max', delta: number) => {
     const node = document.createElement('button');
     node.type = 'button';
-    node.textContent = labelText;
+    node.textContent = delta < 0 ? '−1' : '+1';
     node.setAttribute('aria-label', `${delta < 0 ? 'Diminuisci' : 'Aumenta'} ${kind === 'value' ? data.name : `massimo ${data.name}`}`);
-    Object.assign(node.style, { flex: '0 0 2em', width: '2em', border: 0, background: 'transparent', color: 'var(--dash-muted)', fontSize: '1.05em', lineHeight: 1, cursor: 'pointer' });
+    Object.assign(node.style, {
+      position: 'absolute', top: 0, bottom: 0, [delta < 0 ? 'left' : 'right']: 0,
+      zIndex: 2, width: '1.65em', border: 0, background: 'transparent', color: 'var(--dash-muted)',
+      fontSize: '0.68em', fontWeight: 700, lineHeight: 1, opacity: 0, cursor: 'pointer', transition: 'opacity 120ms ease, background-color 120ms ease',
+    });
+    let hideTip: (() => void) | null = null;
+    const hide = () => { hideTip?.(); hideTip = null; node.style.opacity = '0'; node.style.background = 'transparent'; };
+    const show = () => {
+      node.style.opacity = '0.9';
+      node.style.background = 'color-mix(in srgb, var(--dash-accent) 18%, transparent)';
+      if (!hideTip) hideTip = showInlineBoxTipAbove(node, `${delta < 0 ? 'Diminuisci' : 'Aumenta'} di 1`);
+    };
+    node.addEventListener('mouseenter', show);
+    node.addEventListener('mouseleave', hide);
+    node.addEventListener('focus', show);
+    node.addEventListener('blur', hide);
     node.addEventListener('mousedown', (event) => {
       if (!view.editable) return;
       event.preventDefault(); event.stopPropagation();
@@ -277,7 +292,10 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
       const pos = getPos();
       if (typeof pos !== 'number') return;
       const current = getPointsAt(view.state, pos);
-      if (current) setPointsAttrs(view.state, (tr) => view.dispatch(tr), pos, { [kind]: current[kind] + delta });
+      if (current) {
+        hide();
+        setPointsAttrs(view.state, (tr) => view.dispatch(tr), pos, { [kind]: current[kind] + delta });
+      }
     });
     return node;
   };
@@ -288,7 +306,7 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
     input.step = 'any';
     input.value = String(current);
     input.setAttribute('aria-label', kind === 'value' ? `Valore ${data.name}` : `Massimo ${data.name}`);
-    Object.assign(input.style, { flex: '1 1 0', minWidth: 0, width: '100%', border: 0, borderLeft: '1px solid var(--dash-border-soft)', borderRight: '1px solid var(--dash-border-soft)', borderRadius: 0, outline: 'none', background: 'transparent', color: 'var(--dash-text-strong)', caretColor: 'auto', textAlign: 'center', fontWeight: 700, fontSize: '1em' });
+    Object.assign(input.style, { flex: '1 1 0', minWidth: 0, width: '100%', border: 0, borderRadius: 0, outline: 'none', background: 'transparent', color: 'var(--dash-text-strong)', caretColor: 'auto', textAlign: 'center', fontWeight: 700, fontSize: '1em' });
     const save = () => {
       const pos = getPos();
       const parsed = Number(input.value);
@@ -312,23 +330,23 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
     return input;
   };
 
-  const makeStepper = (kind: 'value' | 'max', current: number) => {
-    const stepper = document.createElement('span');
-    stepper.className = 'tiptap-inline-points-stepper';
-    Object.assign(stepper.style, { display: 'flex', flex: '1 1 0', minWidth: 0, minHeight: '2.35em', alignItems: 'stretch', overflow: 'hidden', border: '1px solid var(--dash-border-soft)', borderRadius: '0.5em', background: 'var(--dash-surface)' });
-    stepper.appendChild(button(kind, '−', -1));
-    stepper.appendChild(makeInput(kind, current));
-    stepper.appendChild(button(kind, '+', 1));
-    return stepper;
+  const makeValueBox = (kind: 'value' | 'max', current: number) => {
+    const box = document.createElement('span');
+    box.className = 'tiptap-inline-points-value-box';
+    Object.assign(box.style, { position: 'relative', display: 'flex', flex: '1 1 0', minWidth: 0, minHeight: '2.35em', alignItems: 'stretch', overflow: 'hidden', border: '1px solid var(--dash-border-soft)', borderRadius: '0.5em', background: 'var(--dash-surface)' });
+    box.appendChild(makeInput(kind, current));
+    box.appendChild(adjustmentZone(kind, -1));
+    box.appendChild(adjustmentZone(kind, 1));
+    return box;
   };
 
-  controls.appendChild(makeStepper('value', data.value));
+  controls.appendChild(makeValueBox('value', data.value));
   if (data.maxEnabled) {
     const slash = document.createElement('span');
     slash.textContent = '/';
     Object.assign(slash.style, { display: 'inline-flex', flex: '0 0 auto', alignItems: 'center', color: 'var(--dash-muted)', fontSize: '1.2em', fontWeight: 700 });
     controls.appendChild(slash);
-    controls.appendChild(makeStepper('max', data.max));
+    controls.appendChild(makeValueBox('max', data.max));
   }
 
   const startRename = (pos: number) => {

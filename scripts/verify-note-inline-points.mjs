@@ -13,7 +13,8 @@ const modifierMenu = await readFile(new URL('../src/app/components/session/share
 assert.match(points, /Mark\.create\([\s\S]*name:\s*'inlinePoints'/, 'Punti must be a persisted TipTap mark');
 assert.match(points, /name:[\s\S]*POINTS_DEFAULT_NAME[\s\S]*value:[\s\S]*POINTS_DEFAULT_VALUE[\s\S]*max:[\s\S]*POINTS_DEFAULT_MAX[\s\S]*maxEnabled:[\s\S]*default:\s*true[\s\S]*barVisible:[\s\S]*default:\s*true[\s\S]*titleVisible:[\s\S]*default:\s*true/, 'Punti must persist its complete numeric display state');
 assert.match(points, /input\.type = 'number'/, 'Punti must expose numeric fields');
-assert.match(points, /makeStepper[\s\S]*button\(kind, '−', -1\)[\s\S]*makeInput\(kind, current\)[\s\S]*button\(kind, '\+', 1\)/, 'current and maximum values must each use square decrement/input/increment steppers');
+assert.match(points, /makeValueBox[\s\S]*makeInput\(kind, current\)[\s\S]*adjustmentZone\(kind, -1\)[\s\S]*adjustmentZone\(kind, 1\)/, 'current and maximum values must keep direct input plus overlaid decrement/increment click zones');
+assert.match(points, /adjustmentZone[\s\S]*position:\s*'absolute'[\s\S]*opacity:\s*0[\s\S]*showInlineBoxTipAbove\(node,[\s\S]*di 1/, 'point adjustments must consume no layout width and reveal their action only on hover or focus');
 assert.match(points, /if \(data\.maxEnabled && data\.barVisible\)/, 'progress must only render with a maximum and when visible');
 assert.match(points, /ratio >= 0\.75[\s\S]*#22c55e[\s\S]*ratio >= 0\.5[\s\S]*#eab308[\s\S]*ratio >= 0\.25[\s\S]*#f97316[\s\S]*#ef4444/, 'progress must use four green-to-red thresholds');
 assert.match(points, /flexDirection:\s*'column'[\s\S]*tiptap-inline-points-menu-trigger/, 'Punti menu dots must be vertical');
@@ -44,5 +45,6 @@ assert.match(theme, /p:has\(\.tiptap-inline-points-widget\)[\s\S]*margin-bottom:
 assert.match(theme, /tiptap-points-adjacent-caret[\s\S]*caret-color:\s*transparent[\s\S]*tiptap-inline-points-caret/, 'the oversized native caret must be replaced beside Punti');
 assert.match(menu, /DANGER[\s\S]*dash-danger-text[\s\S]*dash-danger-bg/, 'Punti delete action must use the real red palette variables');
 assert.match(modifierMenu, /DANGER_ITEM_CLASS[\s\S]*dash-danger-text[\s\S]*dash-danger-bg/, 'Modifier and Dice delete actions must use the real red palette variables');
+assert.match(modifiers, /items\.some\(\(item\) => item\.element\.classList\.contains\('tiptap-inline-points-widget'\)\)[\s\S]*measureLine\(items, lineRight\)/, 'paragraphs containing Punti must recover as one logical line after transient wrapping');
 
 console.log('Inline points verification: PASS');
