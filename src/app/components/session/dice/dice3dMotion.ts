@@ -1,8 +1,8 @@
-export const DICE_3D_THROW_STRENGTH = 1.1;
-export const DICE_3D_MIN_SPEED_RATIO = 0.9;
-export const DICE_3D_MAX_SPEED_RATIO = 2.4;
-export const DICE_3D_MIN_SPIN = 6;
-export const DICE_3D_MAX_SPIN = 12;
+export const DICE_3D_THROW_STRENGTH = 1.6;
+export const DICE_3D_MIN_SPEED_RATIO = 1.3;
+export const DICE_3D_MAX_SPEED_RATIO = 3.1;
+export const DICE_3D_MIN_SPIN = 8;
+export const DICE_3D_MAX_SPIN = 15;
 export const DICE_3D_ROLL_TIMEOUT_MS = 8_000;
 
 type Dice3DVector3 = { x: number; y: number; z: number };
