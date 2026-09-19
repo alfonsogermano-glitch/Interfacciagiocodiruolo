@@ -19,6 +19,8 @@ assert.match(points, /ratio >= 0\.75[\s\S]*#22c55e[\s\S]*ratio >= 0\.5[\s\S]*#ea
 assert.match(points, /flexDirection:\s*'column'[\s\S]*tiptap-inline-points-menu-trigger/, 'Punti menu dots must be vertical');
 assert.match(points, /!data\.titleVisible[\s\S]*showInlineBoxTipAbove\(element, data\.name\)/, 'a hidden title must remain available through a palette tooltip');
 assert.match(points, /adjacentPointsCaret[\s\S]*tiptap-inline-points-caret[\s\S]*nudgeToRightOfTrailingPoints/, 'Punti must normalize adjacent caret rendering and allow placement after a trailing element');
+assert.match(points, /const previousBox = hasBoxAt\(pos - 1\)[\s\S]*const followingBox = hasBoxAt\(pos\)[\s\S]*halveInlineBoxWidget[\s\S]*tr\.insertText\(' ', pos \+ 1\)/, 'inserting Punti before or after an existing inline box must pre-shrink its neighbour and add a real separating space');
+assert.match(points, /width: replacedWidget \? `\$\{replacedWidget\.offsetWidth\}px` : '4em'/, 'new Punti widgets must start narrow enough to remain beside their neighbour until shared measurement runs');
 assert.match(points, /getUniquePointsName[\s\S]*inlineModifier[\s\S]*inlinePoints/, 'Punti names must share a unique namespace with Modificatori');
 assert.match(points, /duplicatePointsAt[\s\S]*createPointsId/, 'Punti must support duplicate with fresh identity');
 assert.match(points, /copyPointsToClipboard[\s\S]*wrapNoteClipboardHTML/, 'Punti must support rich copy');

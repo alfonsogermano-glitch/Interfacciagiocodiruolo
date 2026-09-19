@@ -213,6 +213,7 @@ function progressColor(value: number, max: number): string {
 
 function buildPointsWidget(view: EditorView, getPos: () => number | undefined, data: PointsData): HTMLElement {
   const element = document.createElement('span');
+  const replacedWidget = typeof getPos() === 'number' ? getInlineBoxWidgetAt(getPos()!) : null;
   element.className = 'tiptap-inline-points-widget';
   element.dataset.modifierCompact = 'false';
   element.dataset.pointsName = data.name;
@@ -221,7 +222,7 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
   element.setAttribute('role', 'group');
   element.setAttribute('aria-label', `${data.name}: ${data.value}${data.maxEnabled ? ` su ${data.max}` : ''}`);
   Object.assign(element.style, {
-    display: 'inline-flex', flexDirection: 'column', boxSizing: 'border-box', minWidth: '4em',
+    display: 'inline-flex', flexDirection: 'column', boxSizing: 'border-box', minWidth: '4em', width: replacedWidget ? `${replacedWidget.offsetWidth}px` : '4em',
     gap: '0.5em', padding: data.titleVisible ? '0.6em 0.7em' : '0.45em 1.8em 0.45em 0.45em', verticalAlign: 'middle', border: '1px solid var(--dash-border-soft)',
     borderRadius: '0.7em', background: 'var(--dash-surface-2)', color: 'var(--dash-text)', userSelect: 'none',
     position: 'relative', overflow: 'hidden',
@@ -441,17 +442,30 @@ export const InlinePoints = Mark.create({
         if (!dispatch) return true;
         const tr = state.tr.deleteSelection();
         let pos = tr.selection.from;
-        if (pos > 0 && tr.doc.textBetween(pos - 1, pos, '', '') === INLINE_POINTS_CHAR) {
-          let previousBox = false;
-          tr.doc.nodesBetween(pos - 1, pos, (node) => { if (node.isText) previousBox = node.marks.some((mark) => ['inlineModifier', 'inlineDice', 'inlinePoints'].includes(mark.type.name)); });
-          if (previousBox) {
-            const widget = getInlineBoxWidgetAt(pos - 1);
-            if (widget) halveInlineBoxWidget(widget);
-            tr.insertText(' ', pos); pos += 1;
-          }
+        const hasBoxAt = (boxPos: number) => {
+          if (boxPos < 0 || boxPos >= tr.doc.content.size || tr.doc.textBetween(boxPos, boxPos + 1, '', '') !== INLINE_POINTS_CHAR) return false;
+          let found = false;
+          tr.doc.nodesBetween(boxPos, boxPos + 1, (node) => {
+            if (node.isText) found = node.marks.some((mark) => ['inlineModifier', 'inlineDice', 'inlinePoints'].includes(mark.type.name));
+          });
+          return found;
+        };
+        const previousBox = hasBoxAt(pos - 1);
+        const followingBox = hasBoxAt(pos);
+        if (previousBox) {
+          const widget = getInlineBoxWidgetAt(pos - 1);
+          if (widget) halveInlineBoxWidget(widget);
+          tr.insertText(' ', pos); pos += 1;
         }
         tr.insert(pos, state.schema.text(INLINE_POINTS_CHAR, [markType.create({ id: createPointsId(), name: getUniquePointsName(state), value: POINTS_DEFAULT_VALUE, max: POINTS_DEFAULT_MAX, maxEnabled: true, barVisible: true, titleVisible: true })]));
-        tr.setSelection(TextSelection.create(tr.doc, pos + 1));
+        let selectionPos = pos + 1;
+        if (!previousBox && followingBox) {
+          const widget = getInlineBoxWidgetAt(pos);
+          if (widget) halveInlineBoxWidget(widget);
+          tr.insertText(' ', pos + 1);
+          selectionPos += 1;
+        }
+        tr.setSelection(TextSelection.create(tr.doc, selectionPos));
         dispatch(tr.scrollIntoView());
         return true;
       },
