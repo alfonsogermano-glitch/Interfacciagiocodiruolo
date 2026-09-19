@@ -105,7 +105,7 @@ export function DiceQuickRollFloating() {
                 </PopoverTrigger>
                 <PopoverContent data-dice-custom-selector-popover side="top" align="center" sideOffset={8} collisionPadding={8} className="z-[1100] w-max min-w-0 max-w-[min(20rem,calc(100vw-2rem))] border-[var(--dash-border)] bg-[var(--dash-panel)] p-2 text-[var(--dash-text)] shadow-2xl">
                   {customDice.length > 0 ? (
-                    <div data-dice-custom-selector-grid className="grid max-w-full grid-flow-col items-center gap-2 overflow-x-auto p-1 [scrollbar-width:thin]" style={{ gridTemplateRows: `repeat(${customGridRows}, minmax(0, 1fr))` }}>
+                    <div data-dice-custom-selector-grid className="grid max-w-full grid-flow-col items-center gap-2 overflow-x-auto p-1 [scrollbar-width:thin]" style={{ gridTemplateRows: `repeat(${customGridRows}, auto)` }}>
                       {customDice.map((die) => (
                         <Tooltip key={die.id}>
                           <TooltipTrigger asChild>
