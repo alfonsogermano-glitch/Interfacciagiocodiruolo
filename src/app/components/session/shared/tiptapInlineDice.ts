@@ -391,6 +391,7 @@ function buildDiceWidget(
 ): HTMLElement {
   const { name, formula, mode, quantity, customDie } = data;
   const element = document.createElement('span');
+  const replacedWidget = typeof getPos() === 'number' ? getInlineBoxWidgetAt(getPos()!) : null;
   element.className = 'tiptap-inline-dice-widget';
   element.dataset.diceName = name;
   // I Dadi non riempiono la riga: larghezza del contenuto (nome/formula)
@@ -406,6 +407,7 @@ function buildDiceWidget(
     flexDirection: 'column',
     boxSizing: 'border-box',
     minWidth: '4em',
+    width: replacedWidget ? `${replacedWidget.offsetWidth}px` : 'auto',
     minHeight: '2.5em',
     padding: '0.2em 0.5em',
     justifyContent: 'center',

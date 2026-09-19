@@ -720,6 +720,7 @@ function buildModifierWidget(
   formula: string,
 ): HTMLElement {
   const element = document.createElement('span');
+  const replacedWidget = typeof getPos() === 'number' ? getInlineBoxWidgetAt(getPos()!) : null;
   element.className = 'tiptap-inline-modifier-widget';
   element.dataset.modifierName = name;
   element.dataset.modifierValue = value;
@@ -732,6 +733,9 @@ function buildModifierWidget(
     flexDirection: 'column',
     boxSizing: 'border-box',
     minWidth: compact ? 'min-content' : '4em',
+    // Mantiene la geometria della riga durante il rebuild; la misura
+    // coordinata applica nel frame successivo la larghezza definitiva.
+    width: replacedWidget ? `${replacedWidget.offsetWidth}px` : compact ? 'auto' : '4em',
     // Compatto (Riduci): stessa altezza dell'espanso, valore centrato su
     // entrambi gli assi. Il respiro laterale (1.2em ~ quattro spazi) rende la
     // forma quasi quadrata con un solo numero.

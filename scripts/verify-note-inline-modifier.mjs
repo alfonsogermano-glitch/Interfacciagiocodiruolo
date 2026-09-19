@@ -116,6 +116,11 @@ assert.match(
 );
 assert.match(
   source,
+  /buildModifierWidget[\s\S]*replacedWidget = typeof getPos\(\) === 'number' \? getInlineBoxWidgetAt\(getPos\(\)!\)[\s\S]*width: replacedWidget \? `\$\{replacedWidget\.offsetWidth\}px` : compact \? 'auto' : '4em'/,
+  'editing a modifier must preserve its previous width until shared line measurement runs',
+);
+assert.match(
+  source,
   /isCompactModifier[\s\S]*measureLine[\s\S]*style\.width = 'auto'[\s\S]*compactWidth[\s\S]*available \/ expanded\.length/,
   'compact modifiers must shrink to content (value only) while expanded modifiers split the remaining line width',
 );

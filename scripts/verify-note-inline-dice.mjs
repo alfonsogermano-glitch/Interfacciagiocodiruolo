@@ -61,6 +61,7 @@ assert.doesNotMatch(modifierMenu, /DiceEditForm[\s\S]{0,2000}modifierFormulaHasD
 assert.match(dice, /dash-danger-bg[\s\S]*showInlineBoxTipAbove/, 'anomalous Standard dice must turn red and explain the reason in a tooltip');
 assert.match(dice, /2px solid var\(--dash-danger-border\)/, 'anomalous dice must use a thick vivid red border');
 assert.match(dice, /non riempiono la riga[\s\S]*dataset\.modifierCompact = 'true'/, 'dice must size to content instead of filling the line');
+assert.match(dice, /buildDiceWidget[\s\S]*replacedWidget = typeof getPos\(\) === 'number' \? getInlineBoxWidgetAt\(getPos\(\)!\)[\s\S]*width: replacedWidget \? `\$\{replacedWidget\.offsetWidth\}px` : 'auto'/, 'editing a dice must preserve its previous width until shared line measurement runs');
 assert.match(dice, /titleBold: \{[\s\S]*default: false[\s\S]*data-dice-title-bold[\s\S]*titleAlign: \{[\s\S]*data-dice-title-align/, 'dice names must persist title formatting like modifier titles');
 assert.match(dice, /applyModifierTitleFormat\(label, titleFormat\)/, 'dice widgets must render persisted title formatting');
 assert.doesNotMatch(dice, /tiptap-inline-dice-label[\s\S]{0,700}textTransform:\s*'uppercase'/, 'dice names must preserve saved casing');
