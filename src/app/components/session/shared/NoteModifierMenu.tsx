@@ -62,7 +62,7 @@ const MENU_HEIGHT = 236;
 const MENU_ITEM_CLASS =
   'flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-accent)] hover:text-[var(--dash-text-strong)]';
 const DANGER_ITEM_CLASS =
-  'flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs text-[var(--dash-danger-strong)] transition-colors hover:bg-[var(--dash-danger)] hover:text-[var(--dash-text-strong)]';
+  'flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs text-[var(--dash-danger-text)] transition-colors hover:bg-[var(--dash-danger-bg)]';
 
 interface NoteModifierMenuProps {
   editor: Editor;

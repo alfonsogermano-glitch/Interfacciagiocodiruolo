@@ -3,7 +3,7 @@ import { DOMSerializer, Slice } from '@tiptap/pm/model';
 import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
 import { isPreviousModifier, makeRoomForInlineModifierInsertion } from './tiptapInlineModifier';
 import { isPreviousDice, makeRoomForInlineDiceInsertion } from './tiptapInlineDice';
-import { isPreviousPoints } from './tiptapInlinePoints';
+import { isPreviousPoints, makeRoomForInlinePointsInsertion } from './tiptapInlinePoints';
 import type { EditorView } from '@tiptap/pm/view';
 import { getRichClipboardSlice, isRichClipboardTableSelection } from './noteRichClipboardSelection';
 import { validateStructuralReplacement, validateTableClipboardTarget, type NoteContainerRejection } from './noteContainerPolicy';
@@ -245,6 +245,7 @@ export const NoteRichClipboard = Extension.create<{ onReject?: (reason: NoteCont
             if ((isSingleModifierSlice(slice) || isSingleDiceSlice(slice) || isSinglePointsSlice(slice)) && previousIsBox) {
               makeRoomForInlineModifierInsertion(view.state, tr.selection.from);
               makeRoomForInlineDiceInsertion(view.state, tr.selection.from);
+              makeRoomForInlinePointsInsertion(view.state, tr.selection.from);
               tr = tr.insertText(' ', tr.selection.from);
             }
             view.dispatch(tr.replaceSelection(slice).scrollIntoView());

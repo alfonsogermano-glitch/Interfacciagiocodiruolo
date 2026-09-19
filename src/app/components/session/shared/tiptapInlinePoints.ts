@@ -6,6 +6,7 @@ import {
   getInlineBoxWidgetAt,
   halveInlineBoxWidget,
   registerInlineBoxWidget,
+  showInlineBoxTipAbove,
   unregisterInlineBoxWidget,
 } from './tiptapInlineModifier';
 import { wrapNoteClipboardHTML, type NoteClipboardSliceJSON } from './tiptapNoteRichClipboard';
@@ -37,6 +38,7 @@ export interface PointsData {
   max: number;
   maxEnabled: boolean;
   barVisible: boolean;
+  titleVisible: boolean;
 }
 
 function createPointsId(): string {
@@ -83,6 +85,14 @@ function getInlinePointsMark(state: EditorState, pos: number) {
   return found;
 }
 
+function adjacentPointsCaret(state: EditorState): { pos: number; side: number } | null {
+  if (!state.selection.empty) return null;
+  const pos = state.selection.from;
+  if (getInlinePointsMark(state, pos)) return { pos, side: -1 };
+  if (pos > 0 && getInlinePointsMark(state, pos - 1)) return { pos, side: 1 };
+  return null;
+}
+
 export function getPointsAt(state: EditorState, pos: number): PointsData | null {
   const mark = getInlinePointsMark(state, pos);
   if (!mark) return null;
@@ -92,6 +102,7 @@ export function getPointsAt(state: EditorState, pos: number): PointsData | null 
     max: finiteNumber(mark.attrs.max, POINTS_DEFAULT_MAX),
     maxEnabled: mark.attrs.maxEnabled !== false,
     barVisible: mark.attrs.barVisible !== false,
+    titleVisible: mark.attrs.titleVisible !== false,
   };
 }
 
@@ -111,6 +122,7 @@ export function setPointsAttrs(
     max: attrs.max === undefined ? finiteNumber(mark.attrs.max, POINTS_DEFAULT_MAX) : finiteNumber(attrs.max, POINTS_DEFAULT_MAX),
     maxEnabled: attrs.maxEnabled ?? (mark.attrs.maxEnabled !== false),
     barVisible: attrs.barVisible ?? (mark.attrs.barVisible !== false),
+    titleVisible: attrs.titleVisible ?? (mark.attrs.titleVisible !== false),
   };
   if (dispatch) dispatch(state.tr.removeMark(pos, pos + 1, markType).addMark(pos, pos + 1, markType.create(next)));
   return true;
@@ -185,10 +197,17 @@ export function makeRoomForInlinePointsText(view: EditorView, pos: number, text:
   return true;
 }
 
+export function makeRoomForInlinePointsInsertion(state: EditorState, pos: number): void {
+  if (!isPreviousPoints(state, pos)) return;
+  const widget = getInlineBoxWidgetAt(pos - 1);
+  if (widget) halveInlineBoxWidget(widget);
+}
+
 function progressColor(value: number, max: number): string {
   const ratio = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
-  if (ratio >= 0.5) return '#2fb981';
-  if (ratio >= 0.21) return '#f59e0b';
+  if (ratio >= 0.75) return '#22c55e';
+  if (ratio >= 0.5) return '#eab308';
+  if (ratio >= 0.25) return '#f97316';
   return '#ef4444';
 }
 
@@ -202,8 +221,8 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
   element.setAttribute('role', 'group');
   element.setAttribute('aria-label', `${data.name}: ${data.value}${data.maxEnabled ? ` su ${data.max}` : ''}`);
   Object.assign(element.style, {
-    display: 'inline-flex', flexDirection: 'column', boxSizing: 'border-box', minWidth: '12em',
-    gap: '0.55em', padding: '0.65em 0.75em', verticalAlign: 'middle', border: '1px solid var(--dash-border-soft)',
+    display: 'inline-flex', flexDirection: 'column', boxSizing: 'border-box', minWidth: '4em',
+    gap: '0.5em', padding: data.titleVisible ? '0.6em 0.7em' : '0.45em 1.8em 0.45em 0.45em', verticalAlign: 'middle', border: '1px solid var(--dash-border-soft)',
     borderRadius: '0.7em', background: 'var(--dash-surface-2)', color: 'var(--dash-text)', userSelect: 'none',
     position: 'relative', overflow: 'hidden',
   });
@@ -221,10 +240,10 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
   dots.setAttribute('role', 'button');
   dots.setAttribute('tabindex', '0');
   dots.setAttribute('aria-label', `Menu Punti ${data.name}`);
-  Object.assign(dots.style, { position: 'absolute', top: '0.55em', right: '0.6em', display: 'inline-flex', gap: '0.17em', padding: '0.25em', borderRadius: '0.3em', cursor: view.editable ? 'pointer' : 'default' });
+  Object.assign(dots.style, { position: 'absolute', top: data.titleVisible ? '0.55em' : '50%', right: '0.5em', transform: data.titleVisible ? '' : 'translateY(-50%)', display: 'inline-flex', flexDirection: 'column', gap: '0.12em', padding: '0.25em', borderRadius: '0.3em', cursor: view.editable ? 'pointer' : 'default' });
   for (let index = 0; index < 3; index += 1) {
     const dot = document.createElement('span');
-    Object.assign(dot.style, { width: '0.22em', height: '0.22em', borderRadius: '50%', background: 'var(--dash-muted)' });
+    Object.assign(dot.style, { width: '0.2em', height: '0.2em', borderRadius: '50%', background: 'var(--dash-muted)' });
     dots.appendChild(dot);
   }
 
@@ -240,13 +259,13 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
   }
 
   const controls = document.createElement('span');
-  Object.assign(controls.style, { display: 'flex', alignItems: 'center', gap: '0.65em', width: '100%' });
-  const button = (labelText: string, delta: number, color: string) => {
+  Object.assign(controls.style, { display: 'flex', alignItems: 'stretch', gap: '0.45em', width: '100%', minWidth: 0 });
+  const button = (kind: 'value' | 'max', labelText: string, delta: number) => {
     const node = document.createElement('button');
     node.type = 'button';
     node.textContent = labelText;
-    node.setAttribute('aria-label', `${delta < 0 ? 'Diminuisci' : 'Aumenta'} ${data.name}`);
-    Object.assign(node.style, { flex: '0 0 auto', width: '2.25em', height: '2.25em', border: 0, borderRadius: '50%', background: 'var(--dash-surface)', color, fontSize: '1.3em', lineHeight: 1, cursor: 'pointer' });
+    node.setAttribute('aria-label', `${delta < 0 ? 'Diminuisci' : 'Aumenta'} ${kind === 'value' ? data.name : `massimo ${data.name}`}`);
+    Object.assign(node.style, { flex: '0 0 2em', width: '2em', border: 0, background: 'transparent', color: 'var(--dash-muted)', fontSize: '1.05em', lineHeight: 1, cursor: 'pointer' });
     node.addEventListener('mousedown', (event) => {
       if (!view.editable) return;
       event.preventDefault(); event.stopPropagation();
@@ -257,19 +276,18 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
       const pos = getPos();
       if (typeof pos !== 'number') return;
       const current = getPointsAt(view.state, pos);
-      if (current) setPointsAttrs(view.state, (tr) => view.dispatch(tr), pos, { value: current.value + delta });
+      if (current) setPointsAttrs(view.state, (tr) => view.dispatch(tr), pos, { [kind]: current[kind] + delta });
     });
     return node;
   };
-  controls.appendChild(button('−', -1, '#ff2d78'));
-
   const makeInput = (kind: 'value' | 'max', current: number) => {
     const input = document.createElement('input');
+    input.className = 'tiptap-inline-points-input';
     input.type = 'number';
     input.step = 'any';
     input.value = String(current);
     input.setAttribute('aria-label', kind === 'value' ? `Valore ${data.name}` : `Massimo ${data.name}`);
-    Object.assign(input.style, { flex: '1 1 0', minWidth: 0, height: '2.2em', border: '1px solid var(--dash-border-soft)', borderRadius: '0.45em', outline: 'none', background: 'var(--dash-surface)', color: 'var(--dash-text-strong)', textAlign: 'center', fontWeight: 700, fontSize: '1em' });
+    Object.assign(input.style, { flex: '1 1 0', minWidth: 0, width: '100%', border: 0, borderLeft: '1px solid var(--dash-border-soft)', borderRight: '1px solid var(--dash-border-soft)', borderRadius: 0, outline: 'none', background: 'transparent', color: 'var(--dash-text-strong)', caretColor: 'auto', textAlign: 'center', fontWeight: 700, fontSize: '1em' });
     const save = () => {
       const pos = getPos();
       const parsed = Number(input.value);
@@ -288,37 +306,52 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
       if (event.key === 'Enter') { event.preventDefault(); input.blur(); }
       if (event.key === 'Escape') { event.preventDefault(); input.value = String(current); input.blur(); }
     });
-    input.addEventListener('blur', save);
+    input.addEventListener('focus', () => view.dom.classList.add('tiptap-points-control-focus'));
+    input.addEventListener('blur', () => { view.dom.classList.remove('tiptap-points-control-focus'); save(); });
     return input;
   };
-  controls.appendChild(makeInput('value', data.value));
+
+  const makeStepper = (kind: 'value' | 'max', current: number) => {
+    const stepper = document.createElement('span');
+    stepper.className = 'tiptap-inline-points-stepper';
+    Object.assign(stepper.style, { display: 'flex', flex: '1 1 0', minWidth: 0, minHeight: '2.35em', alignItems: 'stretch', overflow: 'hidden', border: '1px solid var(--dash-border-soft)', borderRadius: '0.5em', background: 'var(--dash-surface)' });
+    stepper.appendChild(button(kind, '−', -1));
+    stepper.appendChild(makeInput(kind, current));
+    stepper.appendChild(button(kind, '+', 1));
+    return stepper;
+  };
+
+  controls.appendChild(makeStepper('value', data.value));
   if (data.maxEnabled) {
     const slash = document.createElement('span');
     slash.textContent = '/';
-    Object.assign(slash.style, { color: 'var(--dash-muted)', fontSize: '1.3em', fontWeight: 700 });
+    Object.assign(slash.style, { display: 'inline-flex', flex: '0 0 auto', alignItems: 'center', color: 'var(--dash-muted)', fontSize: '1.2em', fontWeight: 700 });
     controls.appendChild(slash);
-    controls.appendChild(makeInput('max', data.max));
+    controls.appendChild(makeStepper('max', data.max));
   }
-  controls.appendChild(button('+', 1, '#2fb981'));
 
   const startRename = (pos: number) => {
     if (getPos() !== pos) return;
+    const temporaryHeader = !data.titleVisible;
+    if (temporaryHeader) element.prepend(header);
     const input = document.createElement('input');
     input.value = label.textContent ?? data.name;
     input.setAttribute('aria-label', 'Nome punti');
-    Object.assign(input.style, { width: '100%', minWidth: 0, border: 0, outline: '1px solid var(--dash-accent)', borderRadius: '0.25em', background: 'var(--dash-surface)', color: 'var(--dash-text-strong)', font: 'inherit', fontWeight: 700 });
+    Object.assign(input.style, { width: '100%', minWidth: 0, border: 0, outline: '1px solid var(--dash-accent)', borderRadius: '0.25em', background: 'var(--dash-surface)', color: 'var(--dash-text-strong)', caretColor: 'auto', font: 'inherit', fontWeight: 700 });
     let done = false;
     const finish = (save: boolean) => {
       if (done) return;
       done = true;
+      view.dom.classList.remove('tiptap-points-control-focus');
       input.removeEventListener('blur', onBlur);
       const next = save ? input.value.trim() || POINTS_DEFAULT_NAME : data.name;
       label.textContent = next;
       input.replaceWith(label);
+      if (temporaryHeader) header.remove();
       const currentPos = getPos();
       if (save && typeof currentPos === 'number') setPointsAttrs(view.state, (tr) => view.dispatch(tr), currentPos, { name: next });
     };
-    const onBlur = () => finish(true);
+    const onBlur = () => { view.dom.classList.remove('tiptap-points-control-focus'); finish(true); };
     input.addEventListener('mousedown', (event) => event.stopPropagation());
     input.addEventListener('keydown', (event) => {
       event.stopPropagation();
@@ -326,6 +359,7 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
       if (event.key === 'Escape') { event.preventDefault(); finish(false); view.focus(); }
     });
     input.addEventListener('blur', onBlur);
+    input.addEventListener('focus', () => view.dom.classList.add('tiptap-points-control-focus'));
     label.replaceWith(input);
     input.focus(); input.select();
   };
@@ -358,12 +392,26 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
   });
   dots.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openMenu(); } });
 
-  element.prepend(header);
+  if (data.titleVisible) element.prepend(header);
   element.appendChild(controls);
   element.appendChild(dots);
+
+  let hideTitleTip: (() => void) | null = null;
+  if (!data.titleVisible) {
+    const showTitleTip = () => {
+      if (!hideTitleTip && element.isConnected) hideTitleTip = showInlineBoxTipAbove(element, data.name);
+    };
+    const closeTitleTip = () => { hideTitleTip?.(); hideTitleTip = null; };
+    element.addEventListener('mouseenter', showTitleTip);
+    element.addEventListener('mouseleave', closeTitleTip);
+    element.addEventListener('focusin', showTitleTip);
+    element.addEventListener('focusout', closeTitleTip);
+  }
   registerInlineBoxWidget(element, { view, getPos });
   (element as HTMLElement & { __destroyPointsWidget?: () => void }).__destroyPointsWidget = () => {
     window.removeEventListener(NOTE_POINTS_RENAME_EVENT, onRename);
+    view.dom.classList.remove('tiptap-points-control-focus');
+    hideTitleTip?.();
     unregisterInlineBoxWidget(element);
   };
   return element;
@@ -380,6 +428,7 @@ export const InlinePoints = Mark.create({
       max: { default: POINTS_DEFAULT_MAX, parseHTML: (element) => finiteNumber(element.getAttribute('data-points-max'), POINTS_DEFAULT_MAX), renderHTML: (attrs) => ({ 'data-points-max': String(attrs.max) }) },
       maxEnabled: { default: true, parseHTML: (element) => element.getAttribute('data-points-max-enabled') !== 'false', renderHTML: (attrs) => ({ 'data-points-max-enabled': attrs.maxEnabled === false ? 'false' : 'true' }) },
       barVisible: { default: true, parseHTML: (element) => element.getAttribute('data-points-bar-visible') !== 'false', renderHTML: (attrs) => ({ 'data-points-bar-visible': attrs.barVisible === false ? 'false' : 'true' }) },
+      titleVisible: { default: true, parseHTML: (element) => element.getAttribute('data-points-title-visible') !== 'false', renderHTML: (attrs) => ({ 'data-points-title-visible': attrs.titleVisible === false ? 'false' : 'true' }) },
     };
   },
   parseHTML() { return [{ tag: 'span[data-inline-points]' }]; },
@@ -401,7 +450,7 @@ export const InlinePoints = Mark.create({
             tr.insertText(' ', pos); pos += 1;
           }
         }
-        tr.insert(pos, state.schema.text(INLINE_POINTS_CHAR, [markType.create({ id: createPointsId(), name: getUniquePointsName(state), value: POINTS_DEFAULT_VALUE, max: POINTS_DEFAULT_MAX, maxEnabled: true, barVisible: true })]));
+        tr.insert(pos, state.schema.text(INLINE_POINTS_CHAR, [markType.create({ id: createPointsId(), name: getUniquePointsName(state), value: POINTS_DEFAULT_VALUE, max: POINTS_DEFAULT_MAX, maxEnabled: true, barVisible: true, titleVisible: true })]));
         tr.setSelection(TextSelection.create(tr.doc, pos + 1));
         dispatch(tr.scrollIntoView());
         return true;
@@ -409,6 +458,17 @@ export const InlinePoints = Mark.create({
     };
   },
   addProseMirrorPlugins() {
+    const nudgeToRightOfTrailingPoints = (view: EditorView, pos: number, event: MouseEvent): boolean => {
+      if (event.defaultPrevented || !view.editable || event.button !== 0 || !view.state.selection.empty) return false;
+      if (!(event.target instanceof Element) || event.target.closest('.tiptap-inline-points-widget')) return false;
+      if (!getInlinePointsMark(view.state, pos)) return false;
+      const $pos = view.state.doc.resolve(pos);
+      if (!$pos.parent.isTextblock || $pos.parentOffset + 1 !== $pos.parent.content.size) return false;
+      if (event.clientX < view.coordsAtPos(pos + 1).left) return false;
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos + 1)));
+      return true;
+    };
+
     return [new Plugin({
       key: new PluginKey('inlinePointsWidget'),
       props: {
@@ -420,24 +480,54 @@ export const InlinePoints = Mark.create({
             if (!mark) return;
             const data: PointsData = {
               name: String(mark.attrs.name ?? POINTS_DEFAULT_NAME), value: finiteNumber(mark.attrs.value, POINTS_DEFAULT_VALUE),
-              max: finiteNumber(mark.attrs.max, POINTS_DEFAULT_MAX), maxEnabled: mark.attrs.maxEnabled !== false, barVisible: mark.attrs.barVisible !== false,
+              max: finiteNumber(mark.attrs.max, POINTS_DEFAULT_MAX), maxEnabled: mark.attrs.maxEnabled !== false, barVisible: mark.attrs.barVisible !== false, titleVisible: mark.attrs.titleVisible !== false,
             };
             for (let offset = 0; offset < node.nodeSize; offset += 1) {
               if (node.text.charAt(offset) !== INLINE_POINTS_CHAR) continue;
               const pointPos = pos + offset;
               decorations.push(Decoration.widget(pointPos, (view, getPos) => buildPointsWidget(view, getPos, data), {
                 side: 0,
-                key: `points:${mark.attrs.id ?? pointPos}:${data.name}:${data.value}:${data.max}:${data.maxEnabled}:${data.barVisible}`,
+                key: `points:${mark.attrs.id ?? pointPos}:${data.name}:${data.value}:${data.max}:${data.maxEnabled}:${data.barVisible}:${data.titleVisible}`,
                 destroy: (dom) => (dom as HTMLElement & { __destroyPointsWidget?: () => void }).__destroyPointsWidget?.(),
               }));
             }
           });
+          const caret = adjacentPointsCaret(state);
+          if (caret) {
+            decorations.push(Decoration.widget(caret.pos, () => {
+              const node = document.createElement('span');
+              node.className = 'tiptap-inline-points-caret';
+              node.setAttribute('aria-hidden', 'true');
+              return node;
+            }, { side: caret.side, key: `points-caret:${caret.pos}:${caret.side}` }));
+          }
           return DecorationSet.create(state.doc, decorations);
+        },
+        handleDOMEvents: {
+          mousedown(view, event) {
+            if (!view.editable || event.button !== 0 || !(event.target instanceof Element) || event.target.closest('.tiptap-inline-points-widget')) return false;
+            const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
+            if (!coords || !nudgeToRightOfTrailingPoints(view, coords.pos, event)) return false;
+            event.preventDefault();
+            view.focus();
+            return true;
+          },
         },
         handleTextInput(view, from, to, text) {
           if (view.editable && from === to) makeRoomForInlinePointsText(view, from, text);
           return false;
         },
+        handleClick(view, pos, event) {
+          return nudgeToRightOfTrailingPoints(view, pos, event);
+        },
+      },
+      view(view) {
+        const sync = () => view.dom.classList.toggle('tiptap-points-adjacent-caret', !!adjacentPointsCaret(view.state));
+        sync();
+        return {
+          update: sync,
+          destroy: () => view.dom.classList.remove('tiptap-points-adjacent-caret'),
+        };
       },
     })];
   },
