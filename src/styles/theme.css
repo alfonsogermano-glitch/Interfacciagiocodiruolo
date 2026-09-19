@@ -463,12 +463,15 @@
   outline-offset: 2px;
 }
 
-/* Archivio (ArchivioView.tsx): blocco atomico che resta tecnicamente
-   selezionato mentre si compilano le celle (gli input interni fermano il
-   mousedown, quindi la NodeSelection non si sposta mai) - senza questa
-   eccezione l'outline resterebbe accesa in permanenza attorno alla tabella. */
+/* Archivio (ArchivioView.tsx): blocco atomico non selezionabile (si
+   cancella solo con Elimina dal suo menu) - senza questa eccezione
+   l'outline globale resterebbe accesa attorno alla tabella. Stesso stacco
+   verticale degli altri blocchi contenitore. */
 .tiptap-content .tiptap-archivio.ProseMirror-selectednode {
   outline: none;
+}
+.tiptap-content .tiptap-archivio {
+  margin: 0 0 0.5rem 0;
 }
 
 /* GapCursor nativo di ProseMirror (bug segnalato dal vivo 2026-08-20,

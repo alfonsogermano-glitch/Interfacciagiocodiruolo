@@ -172,7 +172,9 @@ export const Archivio = Node.create({
   name: 'archivio',
   group: 'block',
   atom: true,
-  selectable: true,
+  // Come le tabelle ricche di informazioni: mai selezionabile come blocco,
+  // si cancella solo con Elimina dal suo menu.
+  selectable: false,
   defining: true,
   isolating: true,
 

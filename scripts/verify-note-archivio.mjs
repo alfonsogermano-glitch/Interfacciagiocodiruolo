@@ -67,8 +67,12 @@ assert.match(view, /MoreVertical/, 'archivio menu triggers must use vertical dot
 assert.doesNotMatch(view, /MoreHorizontal/, 'archivio menu triggers must not use horizontal dots');
 assert.match(view, /createPortal[\s\S]*data-note-contextual-ui/, 'archivio menus must render in a portal above clipped containers');
 assert.match(view, /placeFloatingNoteUI/, 'archivio menus must anchor next to their trigger inside the viewport');
+assert.match(view, /background:\s*'var\(--dash-panel\)'/, 'archivio portal menus must carry an opaque inline background');
+assert.match(view, /HOVER_DOTS[\s\S]*group-hover:opacity-100/, 'cell and header dots must be hover-only overlays without layout space');
+assert.match(node, /selectable:\s*false/, 'archivio must not be selectable as a block, only removable through its Elimina menu');
 const theme = await readFile(new URL('../src/styles/theme.css', import.meta.url), 'utf8');
 assert.match(theme, /\.tiptap-archivio\.ProseMirror-selectednode[\s\S]*outline:\s*none/, 'a selected archivio must not keep the global selection outline');
+assert.match(theme, /\.tiptap-archivio[\s\S]*margin:\s*0 0 0\.5rem 0/, 'archivio must keep the standard vertical spacing from other elements');
 
 // Nessun colore hardcoded: solo variabili di palette e classi Tailwind.
 for (const [name, source] of [['tiptapArchivio', node], ['ArchivioView', view]]) {

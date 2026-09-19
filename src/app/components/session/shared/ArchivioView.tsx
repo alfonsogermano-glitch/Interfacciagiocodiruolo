@@ -92,10 +92,12 @@ function TriggerButton({
   label,
   onOpen,
   children,
+  className = '',
 }: {
   label: string;
   onOpen: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   children: ReactNode;
+  className?: string;
 }) {
   return (
     <button
@@ -111,12 +113,17 @@ function TriggerButton({
         event.stopPropagation();
         onOpen(event);
       }}
-      className="inline-flex shrink-0 items-center justify-center rounded-md p-1 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
+      className={`inline-flex shrink-0 items-center justify-center rounded-md p-1 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] ${className}`}
     >
       {children}
     </button>
   );
 }
+
+// Puntini delle celle e delle intestazioni: overlay assoluto che non occupa
+// spazio, visibile solo in hover/focus come i menu di Punti e Modificatori.
+const HOVER_DOTS =
+  'absolute right-0 top-1/2 -translate-y-1/2 opacity-0 transition-opacity pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 focus-visible:opacity-100';
 
 // I menu dell'Archivio vivono in un portal fixed su body (stesso pattern di
 // NotePointsMenu): dentro la tabella sarebbero ritagliati dallo scroll
@@ -129,7 +136,14 @@ function MenuPortal({ anchor, children }: { anchor: { x: number; y: number } | n
       data-note-contextual-ui="true"
       data-archivio-menu="true"
       contentEditable={false}
-      style={{ position: 'fixed', top: placed.top, left: placed.left, zIndex: 9997 }}
+      style={{
+        position: 'fixed',
+        top: placed.top,
+        left: placed.left,
+        zIndex: 9997,
+        background: 'var(--dash-panel)',
+        backgroundColor: 'var(--dash-panel)',
+      }}
       className="max-h-[min(60vh,380px)] w-56 overflow-y-auto rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-lg"
     >
       {children}
@@ -598,7 +612,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                     key={column.id}
                     className="relative border-b border-[var(--dash-border-soft)] px-2 py-1.5 text-left align-middle"
                   >
-                    <span className="flex min-w-0 items-center gap-1">
+                    <span className="group flex min-w-0 items-center gap-1">
                       {renamingColumn === column.id ? (
                         <input
                           autoFocus
@@ -627,6 +641,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                       )}
                       <TriggerButton
                         label={`Menu colonna ${column.label}`}
+                        className={HOVER_DOTS}
                         onOpen={(event) => {
                           if (menu?.scope === 'column' && menu.col === colIndex) closeMenu();
                           else openMenu({ scope: 'column', col: colIndex }, event);
@@ -657,12 +672,13 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                   {row.cells.map((cell, colIndex) => (
                     <td key={cell.id} className="px-2 py-1.5 align-middle">
                       {colIndex === 0 ? (
-                        <span className="relative flex min-w-0 items-center gap-1">
+                        <span className="group relative flex min-w-0 items-center gap-1">
                           <span className="flex min-w-0 flex-1 items-center">
                             {renderCellEditor(cell, rowIndex, colIndex)}
                           </span>
                           <TriggerButton
                             label={`Menu riga ${rowIndex + 1}`}
+                            className={HOVER_DOTS}
                             onOpen={(event) => {
                               if (menu?.scope === 'row' && menu.row === rowIndex) closeMenu();
                               else openMenu({ scope: 'row', row: rowIndex }, event);
@@ -700,12 +716,13 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                           )}
                         </span>
                       ) : (
-                        <span className="relative flex min-w-0 items-center gap-1">
+                        <span className="group relative flex min-w-0 items-center gap-1">
                           <span className="flex min-w-0 flex-1 items-center justify-center">
                             {renderCellEditor(cell, rowIndex, colIndex)}
                           </span>
                           <TriggerButton
                             label={`Menu cella ${columnLabel(columns[colIndex])} riga ${rowIndex + 1}`}
+                            className={HOVER_DOTS}
                             onOpen={(event) => {
                               if (menu?.scope === 'cell' && menu.row === rowIndex && menu.col === colIndex) closeMenu();
                               else openMenu({ scope: 'cell', row: rowIndex, col: colIndex }, event);
