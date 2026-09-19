@@ -529,6 +529,14 @@ function getWidgetLineContainer(element: HTMLElement): HTMLElement | null {
   return editorRoot instanceof HTMLElement ? editorRoot : null;
 }
 
+function formulaKey(formula: string): string {
+  let hash = 0;
+  for (let index = 0; index < formula.length; index += 1) {
+    hash = (Math.imul(hash, 31) + formula.charCodeAt(index)) | 0;
+  }
+  return `${formula.length}:${hash}`;
+}
+
 function isCompactModifier(element: HTMLElement): boolean {
   return element.dataset.modifierCompact === 'true';
 }
@@ -1498,11 +1506,12 @@ export const InlineModifier = Mark.create({
                     (view, getPos) => buildModifierWidget(view, getPos, name, value, compact, titleFormat, formula),
                     {
                       side: 0,
-                      // Il key include nome e valore: cambiandoli il widget
+                      // Il key include nome, valore e formula: cambiandoli il widget
                       // viene ricostruito a vista (ProseMirror confronta i
                       // widget via spec.key) senza ricostruirlo a ogni
-                      // cambio di sola selezione.
-                      key: `modifier:${id ?? modifierPos}:${name}:${value}:${compact}:${titleKey}:${assessment.hasDice ? 1 : 0}:${assessment.anomalous ? 1 : 0}`,
+                      // cambio di sola selezione. La formula usa un hash
+                      // compatto per non appesantire la chiave con testi lunghi.
+                      key: `modifier:${id ?? modifierPos}:${name}:${value}:${compact}:${titleKey}:${formulaKey(formula)}:${assessment.hasDice ? 1 : 0}:${assessment.anomalous ? 1 : 0}`,
                       destroy: (node) => {
                         (node as HTMLElement & { __destroyModifierWidget?: () => void }).__destroyModifierWidget?.();
                         widgetEntries.delete(node as HTMLElement);
@@ -1545,9 +1554,18 @@ export const InlineModifier = Mark.create({
         view(editorView) {
           window.addEventListener('resize', scheduleMeasure);
           scheduleMeasure();
+          const containerObserver = typeof ResizeObserver === 'undefined'
+            ? null
+            : new ResizeObserver(() => scheduleMeasure());
+          try {
+            containerObserver?.observe(editorView.dom);
+          } catch {
+            /* layout senza ResizeObserver: resta il resize di finestra */
+          }
           return {
             destroy() {
               window.removeEventListener('resize', scheduleMeasure);
+              containerObserver?.disconnect();
               for (const [element, entry] of widgetEntries) {
                 if (entry.view === editorView) widgetEntries.delete(element);
               }

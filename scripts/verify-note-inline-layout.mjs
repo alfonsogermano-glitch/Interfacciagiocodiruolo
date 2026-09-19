@@ -27,5 +27,7 @@ assert.match(points, /buildPointsWidget[\s\S]*getInlineBoxWidgetAt\(getPos\(\)!\
 assert.match(modifier, /getWidgetLineContainer[\s\S]*display === 'block'[\s\S]*display === 'list-item'[\s\S]*display === 'table-cell'/, 'shared box measurement must use the nearest real line container inside nested blocks, lists and tables');
 assert.doesNotMatch(modifier, /widgetEntries\.clear\(\)/, 'destroying one editor must not clear inline box measurements owned by other editors');
 assert.match(modifier, /entry\.view === editorView[\s\S]*widgetEntries\.delete\(element\)/, 'editor teardown must remove only its own inline box measurements');
+assert.match(modifier, /new ResizeObserver\(\(\) => scheduleMeasure\(\)\)[\s\S]*observe\(editorView\.dom\)/, 'shared box measurement must follow editor container resizes, not only window resizes');
+assert.match(modifier, /function formulaKey\(formula: string\)[\s\S]*key: `modifier:[\s\S]*\$\{formulaKey\(formula\)\}/, 'modifier rebuilds must track formula text so tooltips and closures cannot go stale');
 
 console.log('Inline element layout verification: PASS');

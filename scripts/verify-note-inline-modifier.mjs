@@ -37,8 +37,8 @@ assert.match(
 );
 assert.match(
   source,
-  /assessModifierFormula[\s\S]*Decoration\.widget\([\s\S]*key:\s*`modifier:\$\{.*\}:\$\{.*\}:\$\{.*\}:\$\{compact\}:\$\{titleKey\}:\$\{assessment\.hasDice \? 1 : 0\}:\$\{assessment\.anomalous \? 1 : 0\}`/,
-  'inline modifier decoration must include name, value, compact, title format, dice and anomaly in the key to force rebuild on attribute change',
+  /assessModifierFormula[\s\S]*Decoration\.widget\([\s\S]*key:\s*`modifier:\$\{.*\}:\$\{.*\}:\$\{.*\}:\$\{compact\}:\$\{titleKey\}:\$\{formulaKey\(formula\)\}:\$\{assessment\.hasDice \? 1 : 0\}:\$\{assessment\.anomalous \? 1 : 0\}`/,
+  'inline modifier decoration must include name, value, compact, title format, formula, dice and anomaly in the key to force rebuild on attribute change',
 );
 assert.match(
   source,
