@@ -376,7 +376,7 @@ function ModifierEditForm({ modifierName, modifiers, lookup, initialValue, initi
       {modifiers.length > 0 && (
         <div>
           <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Modificatori</span>
-          <div className="flex max-h-28 flex-col gap-0.5 overflow-y-auto rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1">
+          <div className="note-modifier-reference-scroll flex max-h-28 flex-col gap-0.5 overflow-y-auto rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1">
             {modifiers.map((modifier) => (
               <Tooltip key={modifier.name}>
                 <TooltipTrigger asChild>
@@ -384,7 +384,7 @@ function ModifierEditForm({ modifierName, modifiers, lookup, initialValue, initi
                     type="button"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => insertTag(modifier.name)}
-                    className="truncate rounded-md px-2 py-1 text-left text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-accent)] hover:text-[var(--dash-text-strong)]"
+                    className="shrink-0 truncate rounded-md px-2 py-1 text-left text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-accent)] hover:text-[var(--dash-text-strong)]"
                   >
                     {modifier.name}
                   </button>
@@ -818,7 +818,7 @@ function DiceEditForm({ dicePos, modifiers, lookup, customDice, customDiceLoadin
         {modifiers.length > 0 && (
           <div>
             <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Modificatori</span>
-            <div className="flex max-h-28 flex-col gap-0.5 overflow-y-auto rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1">
+            <div className="note-modifier-reference-scroll flex max-h-28 flex-col gap-0.5 overflow-y-auto rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1">
               {modifiers.map((modifier) => (
                 <Tooltip key={modifier.name}>
                   <TooltipTrigger asChild>
@@ -826,7 +826,7 @@ function DiceEditForm({ dicePos, modifiers, lookup, customDice, customDiceLoadin
                       type="button"
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => insertTag(modifier.name)}
-                      className="truncate rounded-md px-2 py-1 text-left text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-accent)] hover:text-[var(--dash-text-strong)]"
+                      className="shrink-0 truncate rounded-md px-2 py-1 text-left text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-accent)] hover:text-[var(--dash-text-strong)]"
                     >
                       {modifier.name}
                     </button>

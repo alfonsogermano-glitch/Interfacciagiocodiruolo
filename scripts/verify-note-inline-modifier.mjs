@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('../src/app/components/session/shared/tiptapInlineModifier.ts', import.meta.url), 'utf8');
 const formulaSource = await readFile(new URL('../src/app/components/session/shared/modifierFormula.ts', import.meta.url), 'utf8');
 const menuSource = await readFile(new URL('../src/app/components/session/shared/NoteModifierMenu.tsx', import.meta.url), 'utf8');
+const globalStyles = await readFile(new URL('../src/styles/index.css', import.meta.url), 'utf8');
 const categoryIconSource = await readFile(new URL('../src/app/components/session/shared/noteElementCategoryIcon.ts', import.meta.url), 'utf8');
 
 assert.match(
@@ -11,6 +12,9 @@ assert.match(
   /Mark\.create[\s\S]*name:\s*'inlineModifier'/,
   'inline modifier must define a Mark with name "inlineModifier"',
 );
+assert.equal((menuSource.match(/note-modifier-reference-scroll/g) ?? []).length, 2, 'modifier and dice edit forms must share the visible reference-list scrollbar');
+assert.equal((menuSource.match(/shrink-0 truncate rounded-md px-2 py-1 text-left/g) ?? []).length, 2, 'modifier reference rows must retain their readable height in both edit forms');
+assert.match(globalStyles, /:not\(\.note-modifier-reference-scroll\)[\s\S]*\.note-modifier-reference-scroll \{[\s\S]*scrollbar-width:\s*thin[\s\S]*scrollbar-gutter:\s*stable[\s\S]*note-modifier-reference-scroll::\-webkit-scrollbar[\s\S]*display:\s*block/, 'modifier reference lists must opt out of the global hidden-scrollbar rule');
 assert.match(
   source,
   /addAttributes\(\)[\s\S]*name:[\s\S]*default:\s*MODIFIER_DEFAULT_NAME[\s\S]*value:[\s\S]*default:\s*MODIFIER_DEFAULT_VALUE[\s\S]*compact:[\s\S]*default:\s*false[\s\S]*titleBold:[\s\S]*default:\s*false[\s\S]*titleItalic:[\s\S]*default:\s*false[\s\S]*titleUnderline:[\s\S]*default:\s*false[\s\S]*titleStrike:[\s\S]*default:\s*false[\s\S]*titleFontSize:[\s\S]*default:\s*null[\s\S]*titleFontFamily:[\s\S]*default:\s*null[\s\S]*titleAlign:[\s\S]*default:\s*null/,

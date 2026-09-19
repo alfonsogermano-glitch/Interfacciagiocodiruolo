@@ -302,7 +302,8 @@
    come indizio di overflow orizzontale (es. un'immagine piu' larga del
    contenitore, vedi theme.css) - senza questa esclusione un overflow reale
    sarebbe scrollabile ma invisibile, indistinguibile da nessun overflow.
-   .tiptap-icon-popover-scroll (RichTextEditor.tsx, IconPicker) esclusa per
+   .tiptap-icon-popover-scroll (RichTextEditor.tsx, IconPicker) e
+   .note-modifier-reference-scroll (editor Modificatore/Dado) escluse per
    lo stesso identico motivo - 7 categorie/60 icone ben oltre l'altezza
    massima del contenitore, la scrollbar e' l'unico indizio che sotto c'e'
    altro da scorrere (bug segnalato dal vivo: overflow-y:auto reale ma
@@ -312,11 +313,11 @@
    regola viene DOPO theme.css nel cascade finale (gli @import di sopra si
    inseriscono prima del resto di questo file) - una regola successiva a
    parita' di specificita' vincerebbe comunque su quella scritta prima. */
-*:not(.tiptap-content):not(.tiptap-icon-popover-scroll):not(.custom-die-configurator-scroll) {
+*:not(.tiptap-content):not(.tiptap-icon-popover-scroll):not(.custom-die-configurator-scroll):not(.note-modifier-reference-scroll) {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-*:not(.tiptap-content):not(.tiptap-icon-popover-scroll):not(.custom-die-configurator-scroll)::-webkit-scrollbar {
+*:not(.tiptap-content):not(.tiptap-icon-popover-scroll):not(.custom-die-configurator-scroll):not(.note-modifier-reference-scroll)::-webkit-scrollbar {
   display: none;
 }
 
@@ -339,6 +340,28 @@
   border-radius: 999px;
 }
 .custom-die-configurator-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--dash-accent);
+}
+
+.note-modifier-reference-scroll {
+  scrollbar-width: thin !important;
+  scrollbar-color: var(--dash-accent-2) var(--dash-panel) !important;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+.note-modifier-reference-scroll::-webkit-scrollbar {
+  display: block !important;
+  width: 8px !important;
+}
+.note-modifier-reference-scroll::-webkit-scrollbar-track {
+  background: var(--dash-panel);
+}
+.note-modifier-reference-scroll::-webkit-scrollbar-thumb {
+  background: var(--dash-accent-2);
+  border: 2px solid var(--dash-panel);
+  border-radius: 999px;
+}
+.note-modifier-reference-scroll::-webkit-scrollbar-thumb:hover {
   background: var(--dash-accent);
 }
 
