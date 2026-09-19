@@ -314,13 +314,8 @@
   margin: 0 0 0.25rem 0;
 }
 
-/* Punti e' un widget inline alto: le righe che lo contengono richiedono un
-   intervallo verticale reale, altrimenti due paragrafi consecutivi fanno
-   combaciare i bordi dei box. Gli input numerici mantengono la semantica
-   number senza mostrare gli spinner nativi, gia' sostituiti dagli stepper. */
-.tiptap-content p:has(.tiptap-inline-points-widget) {
-  margin-bottom: 0.5rem;
-}
+/* Gli input numerici di Punti mantengono la semantica number senza mostrare
+   gli spinner nativi, gia' sostituiti dalle zone di regolazione laterali. */
 .tiptap-inline-points-input {
   appearance: none;
   -moz-appearance: textfield;

@@ -14,7 +14,9 @@ assert.match(points, /Mark\.create\([\s\S]*name:\s*'inlinePoints'/, 'Punti must 
 assert.match(points, /name:[\s\S]*POINTS_DEFAULT_NAME[\s\S]*value:[\s\S]*POINTS_DEFAULT_VALUE[\s\S]*max:[\s\S]*POINTS_DEFAULT_MAX[\s\S]*maxEnabled:[\s\S]*default:\s*true[\s\S]*barVisible:[\s\S]*default:\s*true[\s\S]*titleVisible:[\s\S]*default:\s*true/, 'Punti must persist its complete numeric display state');
 assert.match(points, /input\.type = 'number'/, 'Punti must expose numeric fields');
 assert.match(points, /makeValueBox[\s\S]*makeInput\(kind, current\)[\s\S]*adjustmentZone\(kind, -1\)[\s\S]*adjustmentZone\(kind, 1\)/, 'current and maximum values must keep direct input plus overlaid decrement/increment click zones');
-assert.match(points, /adjustmentZone[\s\S]*position:\s*'absolute'[\s\S]*opacity:\s*0[\s\S]*showInlineBoxTipAbove\(node,[\s\S]*di 1/, 'point adjustments must consume no layout width and reveal their action only on hover or focus');
+assert.match(points, /adjustmentZone[\s\S]*textContent = delta < 0 \? '−' : '\+'/, 'point adjustments must use concise minus and plus signs');
+assert.match(points, /adjustmentZone[\s\S]*position:\s*'absolute'[\s\S]*opacity:\s*0[\s\S]*style\.opacity = '1'/, 'point adjustments must consume no layout width and become clearly visible only on hover or focus');
+assert.doesNotMatch(points, /Diminuisci di 1|Aumenta di 1/, 'point adjustment zones must not open redundant tooltips');
 assert.match(points, /if \(data\.maxEnabled && data\.barVisible\)/, 'progress must only render with a maximum and when visible');
 assert.match(points, /ratio >= 0\.75[\s\S]*#22c55e[\s\S]*ratio >= 0\.5[\s\S]*#eab308[\s\S]*ratio >= 0\.25[\s\S]*#f97316[\s\S]*#ef4444/, 'progress must use four green-to-red thresholds');
 assert.match(points, /flexDirection:\s*'column'[\s\S]*tiptap-inline-points-menu-trigger/, 'Punti menu dots must be vertical');
@@ -41,10 +43,11 @@ assert.match(modifiers, /state\.schema\.marks\.inlinePoints[\s\S]*formula:\s*''/
 assert.match(clipboard, /entry\.type !== 'inlineModifier' && entry\.type !== 'inlinePoints'[\s\S]*isSinglePointsSlice/, 'pasted Punti must receive fresh identity/name handling and inline spacing');
 assert.match(clipboard, /makeRoomForInlinePointsInsertion/, 'pasting beside Punti must preserve equal inline box sizing');
 assert.match(theme, /tiptap-inline-points-input::\-webkit-inner-spin-button[\s\S]*appearance:\s*none/, 'Punti numeric inputs must hide native spinner arrows');
-assert.match(theme, /p:has\(\.tiptap-inline-points-widget\)[\s\S]*margin-bottom:\s*0\.5rem/, 'rows containing Punti must have visible vertical separation');
+assert.doesNotMatch(theme, /p:has\(\.tiptap-inline-points-widget\)[\s\S]*margin-bottom/, 'Punti rows must use the same paragraph spacing as Modificatori');
 assert.match(theme, /tiptap-points-adjacent-caret[\s\S]*caret-color:\s*transparent[\s\S]*tiptap-inline-points-caret/, 'the oversized native caret must be replaced beside Punti');
 assert.match(menu, /DANGER[\s\S]*dash-danger-text[\s\S]*dash-danger-bg/, 'Punti delete action must use the real red palette variables');
 assert.match(modifierMenu, /DANGER_ITEM_CLASS[\s\S]*dash-danger-text[\s\S]*dash-danger-bg/, 'Modifier and Dice delete actions must use the real red palette variables');
 assert.match(modifiers, /items\.some\(\(item\) => item\.element\.classList\.contains\('tiptap-inline-points-widget'\)\)[\s\S]*measureLine\(items, lineRight\)/, 'paragraphs containing Punti must recover as one logical line after transient wrapping');
+assert.match(points, /tiptap-inline-points-menu-trigger[\s\S]*position:\s*'absolute'[\s\S]*opacity:\s*0[\s\S]*element\.addEventListener\('mouseenter'[\s\S]*dots\.style\.opacity = '1'/, 'Punti menu dots must be an overlay shown only while hovering or focusing the element');
 
 console.log('Inline points verification: PASS');

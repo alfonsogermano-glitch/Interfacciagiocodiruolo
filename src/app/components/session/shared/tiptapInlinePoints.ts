@@ -223,13 +223,13 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
   element.setAttribute('aria-label', `${data.name}: ${data.value}${data.maxEnabled ? ` su ${data.max}` : ''}`);
   Object.assign(element.style, {
     display: 'inline-flex', flexDirection: 'column', boxSizing: 'border-box', minWidth: '4em', width: replacedWidget ? `${replacedWidget.offsetWidth}px` : '4em',
-    gap: '0.5em', padding: data.titleVisible ? '0.6em 0.7em' : '0.45em 1.8em 0.45em 0.45em', verticalAlign: 'middle', border: '1px solid var(--dash-border-soft)',
+    gap: '0.5em', padding: data.titleVisible ? '0.6em 0.7em' : '0.45em', verticalAlign: 'middle', border: '1px solid var(--dash-border-soft)',
     borderRadius: '0.7em', background: 'var(--dash-surface-2)', color: 'var(--dash-text)', userSelect: 'none',
     position: 'relative', overflow: 'hidden',
   });
 
   const header = document.createElement('span');
-  Object.assign(header.style, { display: 'flex', alignItems: 'center', minHeight: '1.3em', paddingRight: '1.5em' });
+  Object.assign(header.style, { display: 'flex', alignItems: 'center', minHeight: '1.3em' });
   const label = document.createElement('span');
   label.textContent = data.name;
   label.className = 'tiptap-inline-points-label';
@@ -241,7 +241,7 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
   dots.setAttribute('role', 'button');
   dots.setAttribute('tabindex', '0');
   dots.setAttribute('aria-label', `Menu Punti ${data.name}`);
-  Object.assign(dots.style, { position: 'absolute', top: data.titleVisible ? '0.55em' : '50%', right: '0.5em', transform: data.titleVisible ? '' : 'translateY(-50%)', display: 'inline-flex', flexDirection: 'column', gap: '0.12em', padding: '0.25em', borderRadius: '0.3em', cursor: view.editable ? 'pointer' : 'default' });
+  Object.assign(dots.style, { position: 'absolute', top: '0.35em', right: '0.35em', display: 'inline-flex', flexDirection: 'column', gap: '0.12em', padding: '0.25em', borderRadius: '0.3em', opacity: 0, transition: 'opacity 120ms ease', cursor: view.editable ? 'pointer' : 'default' });
   for (let index = 0; index < 3; index += 1) {
     const dot = document.createElement('span');
     Object.assign(dot.style, { width: '0.2em', height: '0.2em', borderRadius: '50%', background: 'var(--dash-muted)' });
@@ -264,19 +264,18 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
   const adjustmentZone = (kind: 'value' | 'max', delta: number) => {
     const node = document.createElement('button');
     node.type = 'button';
-    node.textContent = delta < 0 ? '−1' : '+1';
+    node.textContent = delta < 0 ? '−' : '+';
     node.setAttribute('aria-label', `${delta < 0 ? 'Diminuisci' : 'Aumenta'} ${kind === 'value' ? data.name : `massimo ${data.name}`}`);
     Object.assign(node.style, {
       position: 'absolute', top: 0, bottom: 0, [delta < 0 ? 'left' : 'right']: 0,
       zIndex: 2, width: '1.65em', border: 0, background: 'transparent', color: 'var(--dash-muted)',
-      fontSize: '0.68em', fontWeight: 700, lineHeight: 1, opacity: 0, cursor: 'pointer', transition: 'opacity 120ms ease, background-color 120ms ease',
+      fontSize: '0.9em', fontWeight: 800, lineHeight: 1, opacity: 0, cursor: 'pointer', transition: 'opacity 120ms ease, background-color 120ms ease',
     });
-    let hideTip: (() => void) | null = null;
-    const hide = () => { hideTip?.(); hideTip = null; node.style.opacity = '0'; node.style.background = 'transparent'; };
+    const hide = () => { node.style.opacity = '0'; node.style.background = 'transparent'; };
     const show = () => {
-      node.style.opacity = '0.9';
-      node.style.background = 'color-mix(in srgb, var(--dash-accent) 18%, transparent)';
-      if (!hideTip) hideTip = showInlineBoxTipAbove(node, `${delta < 0 ? 'Diminuisci' : 'Aumenta'} di 1`);
+      node.style.opacity = '1';
+      node.style.color = 'var(--dash-text-strong)';
+      node.style.background = 'color-mix(in srgb, var(--dash-accent) 28%, transparent)';
     };
     node.addEventListener('mouseenter', show);
     node.addEventListener('mouseleave', hide);
@@ -387,6 +386,11 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
     if (typeof detail?.pos === 'number') startRename(detail.pos);
   };
   window.addEventListener(NOTE_POINTS_RENAME_EVENT, onRename);
+
+  element.addEventListener('mouseenter', () => { dots.style.opacity = '1'; });
+  element.addEventListener('mouseleave', () => { if (document.activeElement !== dots) dots.style.opacity = '0'; });
+  dots.addEventListener('focus', () => { dots.style.opacity = '1'; });
+  dots.addEventListener('blur', () => { dots.style.opacity = '0'; });
 
   const openMenu = () => {
     if (!view.editable) return;
