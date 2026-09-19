@@ -47,10 +47,12 @@ export function CustomDieLibraryIcon({
   die,
   size = 'card',
   faceOffsetY = 0,
+  framedPair = false,
 }: {
   die: CustomDieLibraryIconData;
   size?: 'card' | 'compact';
   faceOffsetY?: number;
+  framedPair?: boolean;
 }) {
   const face = getCustomDieLibraryIconFace(die.faces);
   const compact = size === 'compact';
@@ -71,6 +73,19 @@ export function CustomDieLibraryIcon({
     const unitsFace = die.faces.find((candidate) => candidate.role === 'units' && candidate.isLibraryIcon === true)
       ?? die.faces.find((candidate) => candidate.role === 'units');
     if (tensFace && unitsFace) {
+      if (framedPair) {
+        return (
+          <span
+            data-custom-die-library-icon
+            data-custom-die-library-d100-pair
+            data-dice-skin={skinId}
+            className="relative flex flex-col items-center justify-center gap-[2px] rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface)] p-[3px]"
+          >
+            <CustomDieLibraryD100Shell die={die} face={tensFace} shellClass="h-7 w-7 rounded-md" iconClass="h-5 w-5" faceOffsetY={faceOffsetY} />
+            <CustomDieLibraryD100Shell die={die} face={unitsFace} shellClass="h-7 w-7 rounded-md" iconClass="h-5 w-5" faceOffsetY={faceOffsetY} />
+          </span>
+        );
+      }
       return (
         <span
           data-custom-die-library-icon
