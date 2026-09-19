@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
+import { placeFloatingNoteUI } from './noteFloatingPosition';
 import {
   ArrowDown,
   ArrowLeft,
@@ -12,7 +14,7 @@ import {
   Eye,
   EyeOff,
   Gauge,
-  MoreHorizontal,
+  MoreVertical,
   Pencil,
   Plus,
   SquareCheckBig,
@@ -92,7 +94,7 @@ function TriggerButton({
   children,
 }: {
   label: string;
-  onOpen: () => void;
+  onOpen: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   children: ReactNode;
 }) {
   return (
@@ -107,7 +109,7 @@ function TriggerButton({
       }}
       onClick={(event) => {
         event.stopPropagation();
-        onOpen();
+        onOpen(event);
       }}
       className="inline-flex shrink-0 items-center justify-center rounded-md p-1 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
     >
@@ -116,25 +118,57 @@ function TriggerButton({
   );
 }
 
-export function ArchivioView({ node, editor, getPos, selected, updateAttributes }: NodeViewProps) {
+// I menu dell'Archivio vivono in un portal fixed su body (stesso pattern di
+// NotePointsMenu): dentro la tabella sarebbero ritagliati dallo scroll
+// orizzontale e dai bordi arrotondati del contenitore.
+function MenuPortal({ anchor, children }: { anchor: { x: number; y: number } | null; children: ReactNode }) {
+  if (!anchor || typeof document === 'undefined') return null;
+  const placed = placeFloatingNoteUI({ left: anchor.x, right: anchor.x + 2, top: anchor.y, bottom: anchor.y }, 224, 360, 6);
+  return createPortal(
+    <div
+      data-note-contextual-ui="true"
+      data-archivio-menu="true"
+      contentEditable={false}
+      style={{ position: 'fixed', top: placed.top, left: placed.left, zIndex: 9997 }}
+      className="max-h-[min(60vh,380px)] w-56 overflow-y-auto rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-lg"
+    >
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
+export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
   const columns = normalizeArchivioColumns(node.attrs.columns as unknown);
   const rows = normalizeArchivioRows(node.attrs.rows as unknown, columns);
   const title = typeof node.attrs.title === 'string' ? (node.attrs.title as string) : 'Archivio';
   const titleVisible = (node.attrs.titleVisible as boolean) !== false;
 
   const [menu, setMenu] = useState<MenuState>(null);
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
   const [renamingColumn, setRenamingColumn] = useState<string | null>(null);
   const resizeRef = useRef<{ col: number; startX: number; startWidth: number } | null>(null);
+
+  const openMenu = (next: MenuState, event: ReactMouseEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setAnchor({ x: rect.left, y: rect.bottom });
+    setMenu(next);
+  };
+
+  const closeMenu = () => {
+    setMenu(null);
+    setAnchor(null);
+  };
 
   useEffect(() => {
     if (!menu) return;
     const outside = (event: PointerEvent) => {
       const target = event.target as Element | null;
       if (target?.closest('[data-archivio-menu="true"]') || target?.closest('[data-archivio-trigger="true"]')) return;
-      setMenu(null);
+      closeMenu();
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenu(null);
+      if (event.key === 'Escape') closeMenu();
     };
     document.addEventListener('pointerdown', outside, true);
     window.addEventListener('keydown', escape);
@@ -146,7 +180,7 @@ export function ArchivioView({ node, editor, getPos, selected, updateAttributes 
 
   const set = (patch: { title?: string; titleVisible?: boolean; columns?: ArchivioColumn[]; rows?: ArchivioRow[] }) => {
     updateAttributes(patch);
-    setMenu(null);
+    closeMenu();
   };
 
   const stopKeys = (event: ReactKeyboardEvent) => {
@@ -256,13 +290,14 @@ export function ArchivioView({ node, editor, getPos, selected, updateAttributes 
   };
 
   const focusCellEditor = (cellId: string) => {
-    setMenu(null);
+    closeMenu();
     window.requestAnimationFrame(() => {
       document.querySelector<HTMLElement>(`[data-archivio-cell-input="${cellId}"]`)?.focus();
     });
   };
 
   const duplicateArchive = () => {
+    closeMenu();
     const pos = getPos();
     if (typeof pos !== 'number') return;
     const freshColumns = columns.map((column) => ({ ...column, id: createViewId() }));
@@ -280,7 +315,6 @@ export function ArchivioView({ node, editor, getPos, selected, updateAttributes 
       rows: freshRows,
     });
     editor.view.dispatch(editor.view.state.tr.insert(pos + node.nodeSize, created));
-    setMenu(null);
   };
 
   const copyArchive = async () => {
@@ -296,7 +330,7 @@ export function ArchivioView({ node, editor, getPos, selected, updateAttributes 
       document.execCommand('copy');
       textarea.remove();
     }
-    setMenu(null);
+    closeMenu();
   };
 
   const deleteArchive = () => {
@@ -446,17 +480,13 @@ export function ArchivioView({ node, editor, getPos, selected, updateAttributes 
     const isFirst = colIndex === 0;
     const isSecond = colIndex === 1;
     return (
-      <div
-        data-archivio-menu="true"
-        contentEditable={false}
-        className="absolute left-0 top-full z-30 mt-1 min-w-52 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-xl"
-      >
+      <>
         <MenuItem
           icon={Pencil}
           label="Rinomina"
           onSelect={() => {
             setRenamingColumn(columns[colIndex]?.id ?? null);
-            setMenu(null);
+            closeMenu();
           }}
         />
         <MenuItem icon={ArrowUp} label="Ordinamento crescente" onSelect={() => sortByColumn(colIndex, 'asc')} />
@@ -497,20 +527,15 @@ export function ArchivioView({ node, editor, getPos, selected, updateAttributes 
             />
           </>
         )}
-      </div>
+      </>
     );
   };
 
   return (
-    <NodeViewWrapper
-      className={`tiptap-archivio ${selected ? 'tiptap-archivio-selected' : ''}`}
-      data-archivio-root="true"
-    >
+    <NodeViewWrapper className="tiptap-archivio" data-archivio-root="true">
       <div
         contentEditable={false}
-        className={`overflow-hidden rounded-xl border bg-[var(--dash-panel)] ${
-          selected ? 'border-[var(--dash-accent)]' : 'border-[var(--dash-border-soft)]'
-        }`}
+        className="overflow-hidden rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)]"
       >
         <div className="flex items-center justify-between gap-2 px-3 py-2">
           <div className="min-w-0 flex-1">
@@ -533,33 +558,30 @@ export function ArchivioView({ node, editor, getPos, selected, updateAttributes 
             <TriggerButton label="Aggiungi riga" onOpen={() => addRow(null, rows.length)}>
               <Plus className="h-4 w-4" aria-hidden="true" />
             </TriggerButton>
-            <div className="relative">
-              <TriggerButton
-                label="Menu archivio"
-                onOpen={() => setMenu(menu?.scope === 'block' ? null : { scope: 'block' })}
-              >
-                <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
-              </TriggerButton>
-              {menu?.scope === 'block' && (
-                <div
-                  data-archivio-menu="true"
-                  contentEditable={false}
-                  className="absolute right-0 top-full z-30 mt-1 min-w-52 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-xl"
-                >
-                  <MenuItem icon={Plus} label="Aggiungi riga" onSelect={() => addRow(null, rows.length)} />
-                  <MenuItem icon={Plus} label="Aggiungi colonna" onSelect={() => addColumnAt(columns.length)} />
-                  <MenuItem
-                    icon={titleVisible ? EyeOff : Eye}
-                    label={titleVisible ? 'Nascondi il Titolo' : 'Mostra il Titolo'}
-                    onSelect={() => set({ titleVisible: !titleVisible })}
-                  />
-                  <MenuItem icon={Copy} label="Duplica" onSelect={duplicateArchive} />
-                  <MenuItem icon={Clipboard} label="Copia" onSelect={copyArchive} />
-                  <MenuItem icon={Trash2} label="Elimina" danger onSelect={deleteArchive} />
-                </div>
-              )}
-            </div>
+            <TriggerButton
+              label="Menu archivio"
+              onOpen={(event) => {
+                if (menu?.scope === 'block') closeMenu();
+                else openMenu({ scope: 'block' }, event);
+              }}
+            >
+              <MoreVertical className="h-4 w-4" aria-hidden="true" />
+            </TriggerButton>
           </div>
+          {menu?.scope === 'block' && (
+            <MenuPortal anchor={anchor}>
+              <MenuItem icon={Plus} label="Aggiungi riga" onSelect={() => addRow(null, rows.length)} />
+              <MenuItem icon={Plus} label="Aggiungi colonna" onSelect={() => addColumnAt(columns.length)} />
+              <MenuItem
+                icon={titleVisible ? EyeOff : Eye}
+                label={titleVisible ? 'Nascondi il Titolo' : 'Mostra il Titolo'}
+                onSelect={() => set({ titleVisible: !titleVisible })}
+              />
+              <MenuItem icon={Copy} label="Duplica" onSelect={duplicateArchive} />
+              <MenuItem icon={Clipboard} label="Copia" onSelect={copyArchive} />
+              <MenuItem icon={Trash2} label="Elimina" danger onSelect={deleteArchive} />
+            </MenuPortal>
+          )}
         </div>
 
         <div className="overflow-x-auto px-2 pb-2">
@@ -605,14 +627,17 @@ export function ArchivioView({ node, editor, getPos, selected, updateAttributes 
                       )}
                       <TriggerButton
                         label={`Menu colonna ${column.label}`}
-                        onOpen={() =>
-                          setMenu(menu?.scope === 'column' && menu.col === colIndex ? null : { scope: 'column', col: colIndex })
-                        }
+                        onOpen={(event) => {
+                          if (menu?.scope === 'column' && menu.col === colIndex) closeMenu();
+                          else openMenu({ scope: 'column', col: colIndex }, event);
+                        }}
                       >
-                        <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                        <MoreVertical className="h-3.5 w-3.5" aria-hidden="true" />
                       </TriggerButton>
                     </span>
-                    {menu?.scope === 'column' && menu.col === colIndex && columnMenu(colIndex)}
+                    {menu?.scope === 'column' && menu.col === colIndex && (
+                      <MenuPortal anchor={anchor}>{columnMenu(colIndex)}</MenuPortal>
+                    )}
                     {colIndex < columns.length - 1 && (
                       <span
                         role="separator"
@@ -638,18 +663,15 @@ export function ArchivioView({ node, editor, getPos, selected, updateAttributes 
                           </span>
                           <TriggerButton
                             label={`Menu riga ${rowIndex + 1}`}
-                            onOpen={() =>
-                              setMenu(menu?.scope === 'row' && menu.row === rowIndex ? null : { scope: 'row', row: rowIndex })
-                            }
+                            onOpen={(event) => {
+                              if (menu?.scope === 'row' && menu.row === rowIndex) closeMenu();
+                              else openMenu({ scope: 'row', row: rowIndex }, event);
+                            }}
                           >
-                            <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                            <MoreVertical className="h-3.5 w-3.5" aria-hidden="true" />
                           </TriggerButton>
                           {menu?.scope === 'row' && menu.row === rowIndex && (
-                            <div
-                              data-archivio-menu="true"
-                              contentEditable={false}
-                              className="absolute left-0 top-full z-30 mt-1 min-w-52 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-xl"
-                            >
+                            <MenuPortal anchor={anchor}>
                               <MenuItem icon={Plus} label="Aggiungi riga prima" onSelect={() => addRow(rowIndex, rowIndex)} />
                               <MenuItem
                                 icon={Plus}
@@ -674,7 +696,7 @@ export function ArchivioView({ node, editor, getPos, selected, updateAttributes 
                                 onSelect={() => moveRow(rowIndex, 1)}
                               />
                               <MenuItem icon={Trash2} label="Cancella riga" danger onSelect={() => deleteRowAt(rowIndex)} />
-                            </div>
+                            </MenuPortal>
                           )}
                         </span>
                       ) : (
@@ -684,24 +706,15 @@ export function ArchivioView({ node, editor, getPos, selected, updateAttributes 
                           </span>
                           <TriggerButton
                             label={`Menu cella ${columnLabel(columns[colIndex])} riga ${rowIndex + 1}`}
-                            onOpen={() =>
-                              setMenu(
-                                menu?.scope === 'cell' && menu.row === rowIndex && menu.col === colIndex
-                                  ? null
-                                  : { scope: 'cell', row: rowIndex, col: colIndex },
-                              )
-                            }
+                            onOpen={(event) => {
+                              if (menu?.scope === 'cell' && menu.row === rowIndex && menu.col === colIndex) closeMenu();
+                              else openMenu({ scope: 'cell', row: rowIndex, col: colIndex }, event);
+                            }}
                           >
-                            <MoreHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                            <MoreVertical className="h-3.5 w-3.5" aria-hidden="true" />
                           </TriggerButton>
                           {menu?.scope === 'cell' && menu.row === rowIndex && menu.col === colIndex && (
-                            <div
-                              data-archivio-menu="true"
-                              contentEditable={false}
-                              className="absolute left-0 top-full z-30 mt-1 min-w-52 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-1 shadow-xl"
-                            >
-                              {transformItems(cell, rowIndex, colIndex)}
-                            </div>
+                            <MenuPortal anchor={anchor}>{transformItems(cell, rowIndex, colIndex)}</MenuPortal>
                           )}
                         </span>
                       )}

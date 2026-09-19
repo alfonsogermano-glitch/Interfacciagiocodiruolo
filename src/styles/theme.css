@@ -463,6 +463,14 @@
   outline-offset: 2px;
 }
 
+/* Archivio (ArchivioView.tsx): blocco atomico che resta tecnicamente
+   selezionato mentre si compilano le celle (gli input interni fermano il
+   mousedown, quindi la NodeSelection non si sposta mai) - senza questa
+   eccezione l'outline resterebbe accesa in permanenza attorno alla tabella. */
+.tiptap-content .tiptap-archivio.ProseMirror-selectednode {
+  outline: none;
+}
+
 /* GapCursor nativo di ProseMirror (bug segnalato dal vivo 2026-08-20,
    "appare nero con lo stile di default del browser") - forma/animazione
    invariate, solo il colore sovrascritto con l'accent del tema. Il CSS

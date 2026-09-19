@@ -62,6 +62,14 @@ assert.match(view, /Ridimensiona colonna[\s\S]*cursor-col-resize/, 'columns must
 assert.match(view, /ARCHIVIO_CELL_MIN_WIDTH/, 'column resize must respect the shared minimum width');
 assert.doesNotMatch(view, /row-resize|resize-row|cursor-row-resize/, 'archivio must not offer row height resizing');
 
+// Puntini verticali, menu in portal sopra lo sfondo, nessuna evidenziazione permanente.
+assert.match(view, /MoreVertical/, 'archivio menu triggers must use vertical dots');
+assert.doesNotMatch(view, /MoreHorizontal/, 'archivio menu triggers must not use horizontal dots');
+assert.match(view, /createPortal[\s\S]*data-note-contextual-ui/, 'archivio menus must render in a portal above clipped containers');
+assert.match(view, /placeFloatingNoteUI/, 'archivio menus must anchor next to their trigger inside the viewport');
+const theme = await readFile(new URL('../src/styles/theme.css', import.meta.url), 'utf8');
+assert.match(theme, /\.tiptap-archivio\.ProseMirror-selectednode[\s\S]*outline:\s*none/, 'a selected archivio must not keep the global selection outline');
+
 // Nessun colore hardcoded: solo variabili di palette e classi Tailwind.
 for (const [name, source] of [['tiptapArchivio', node], ['ArchivioView', view]]) {
   assert.doesNotMatch(source, /#[0-9a-fA-F]{3,8}/, `${name} must not hardcode hex colors`);
