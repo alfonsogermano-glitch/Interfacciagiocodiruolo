@@ -28,6 +28,7 @@ assert.match(points, /getUniquePointsName[\s\S]*inlineModifier[\s\S]*inlinePoint
 assert.match(points, /duplicatePointsAt[\s\S]*createPointsId/, 'Punti must support duplicate with fresh identity');
 assert.match(points, /copyPointsToClipboard[\s\S]*wrapNoteClipboardHTML/, 'Punti must support rich copy');
 assert.match(points, /deletePointsAt[\s\S]*state\.tr\.delete/, 'Punti must support delete');
+assert.match(points, /nextMaxEnabled[\s\S]*nextValue > nextMax[\s\S]*nextValue = nextMax/, 'lowering the maximum must clamp the current value instead of leaving it above the maximum');
 
 for (const label of ['Rinomina', 'Nascondi titolo', 'Mostra titolo', 'Nascondi la barra', 'Mostra la barra', 'Disabilita punteggio massimo', 'Abilita punteggio massimo', 'Duplica', 'Copia', 'Elimina']) {
   assert.ok(menu.includes(label), `Punti menu must include ${label}`);

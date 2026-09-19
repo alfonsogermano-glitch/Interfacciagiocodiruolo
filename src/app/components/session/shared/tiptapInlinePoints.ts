@@ -115,12 +115,18 @@ export function setPointsAttrs(
   const markType = state.schema.marks.inlinePoints;
   const mark = getInlinePointsMark(state, pos);
   if (!markType || !mark) return false;
+  const nextMaxEnabled = attrs.maxEnabled ?? (mark.attrs.maxEnabled !== false);
+  const nextMax = attrs.max === undefined ? finiteNumber(mark.attrs.max, POINTS_DEFAULT_MAX) : finiteNumber(attrs.max, POINTS_DEFAULT_MAX);
+  let nextValue = attrs.value === undefined ? finiteNumber(mark.attrs.value, POINTS_DEFAULT_VALUE) : finiteNumber(attrs.value, POINTS_DEFAULT_VALUE);
+  if (nextMaxEnabled && Number.isFinite(nextMax) && Number.isFinite(nextValue) && nextValue > nextMax) {
+    nextValue = nextMax;
+  }
   const next = {
     ...mark.attrs,
     name: attrs.name === undefined ? mark.attrs.name : getUniquePointsName(state, attrs.name.trim() || POINTS_DEFAULT_NAME, pos),
-    value: attrs.value === undefined ? finiteNumber(mark.attrs.value, POINTS_DEFAULT_VALUE) : finiteNumber(attrs.value, POINTS_DEFAULT_VALUE),
-    max: attrs.max === undefined ? finiteNumber(mark.attrs.max, POINTS_DEFAULT_MAX) : finiteNumber(attrs.max, POINTS_DEFAULT_MAX),
-    maxEnabled: attrs.maxEnabled ?? (mark.attrs.maxEnabled !== false),
+    value: nextValue,
+    max: nextMax,
+    maxEnabled: nextMaxEnabled,
     barVisible: attrs.barVisible ?? (mark.attrs.barVisible !== false),
     titleVisible: attrs.titleVisible ?? (mark.attrs.titleVisible !== false),
   };
