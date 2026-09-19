@@ -31,5 +31,7 @@ assert.match(modifier, /new ResizeObserver\(\(\) => scheduleMeasure\(\)\)[\s\S]*
 assert.match(modifier, /function formulaKey\(formula: string\)[\s\S]*key: `modifier:[\s\S]*\$\{formulaKey\(formula\)\}/, 'modifier rebuilds must track formula text so tooltips and closures cannot go stale');
 assert.match(modifier, /function getCompactIntrinsicWidth[\s\S]*cloneNode\(true\)[\s\S]*position.*fixed[\s\S]*width.*auto/, 'compact boxes must measure their intrinsic width offscreen instead of widening the live row before expanded boxes shrink');
 assert.match(modifier, /Un'unica applicazione senza letture intermedie/, 'row measurement must apply compact and expanded widths together after a single offscreen read');
+assert.match(modifier, /export function unregisterInlineBoxWidget[\s\S]*widgetEntries\.delete\(element\)[\s\S]*scheduleMeasure\(\)/, 'removing a box must re-measure the row so remaining elements reclaim its width');
+assert.match(modifier, /__destroyModifierWidget\?\.\(\)[\s\S]*unregisterInlineBoxWidget\(node/, 'modifier teardown must go through the rescheduling unregister path');
 
 console.log('Inline element layout verification: PASS');

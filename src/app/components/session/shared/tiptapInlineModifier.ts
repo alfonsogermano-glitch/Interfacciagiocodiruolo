@@ -640,7 +640,7 @@ export function registerInlineBoxWidget(
 }
 
 export function unregisterInlineBoxWidget(element: HTMLElement): void {
-  widgetEntries.delete(element);
+  if (widgetEntries.delete(element)) scheduleMeasure();
 }
 
 export function getInlineBoxWidgetAt(pos: number): HTMLElement | null {
@@ -1537,7 +1537,7 @@ export const InlineModifier = Mark.create({
                       key: `modifier:${id ?? modifierPos}:${name}:${value}:${compact}:${titleKey}:${formulaKey(formula)}:${assessment.hasDice ? 1 : 0}:${assessment.anomalous ? 1 : 0}`,
                       destroy: (node) => {
                         (node as HTMLElement & { __destroyModifierWidget?: () => void }).__destroyModifierWidget?.();
-                        widgetEntries.delete(node as HTMLElement);
+                        unregisterInlineBoxWidget(node as HTMLElement);
                       },
                     },
                   ),
