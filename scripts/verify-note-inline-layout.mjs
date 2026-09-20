@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [commands, editor, icon, checks, modifier, dice, points] = await Promise.all([
+const [commands, editor, icon, checks, modifier, dice, points, theme] = await Promise.all([
   readFile(new URL('../src/app/components/session/shared/noteEditorCommands.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/components/session/shared/RichTextEditor.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/components/session/shared/tiptapInlineIcon.ts', import.meta.url), 'utf8'),
@@ -9,6 +9,7 @@ const [commands, editor, icon, checks, modifier, dice, points] = await Promise.a
   readFile(new URL('../src/app/components/session/shared/tiptapInlineModifier.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/components/session/shared/tiptapInlineDice.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/components/session/shared/tiptapInlinePoints.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/styles/theme.css', import.meta.url), 'utf8'),
 ]);
 
 for (const command of ['checkbox', 'radio', 'inlineIcon', 'inlineModifier', 'inlineDice', 'inlinePoints']) {
@@ -33,5 +34,8 @@ assert.match(modifier, /function getCompactIntrinsicWidth[\s\S]*cloneNode\(true\
 assert.match(modifier, /Un'unica applicazione senza letture intermedie/, 'row measurement must apply compact and expanded widths together after a single offscreen read');
 assert.match(modifier, /export function unregisterInlineBoxWidget[\s\S]*widgetEntries\.delete\(element\)[\s\S]*scheduleMeasure\(\)/, 'removing a box must re-measure the row so remaining elements reclaim its width');
 assert.match(modifier, /__destroyModifierWidget\?\.\(\)[\s\S]*unregisterInlineBoxWidget\(node/, 'modifier teardown must go through the rescheduling unregister path');
+assert.match(modifier, /END_INSERTION_ROOM[\s\S]*markInlineRowTail[\s\S]*--tiptap-inline-row-tail-width/, 'the final widget must visually reclaim insertion room without changing its measured width');
+assert.match(theme, /data-inline-row-tail='true'[\s\S]*::after[\s\S]*z-index:\s*-1[\s\S]*pointer-events:\s*none/, 'the visual row extension must stay behind the caret and not intercept insertion clicks');
+assert.match(theme, /--tiptap-inline-row-tail-width/, 'the visual row extension must use the existing measured insertion reserve');
 
 console.log('Inline element layout verification: PASS');

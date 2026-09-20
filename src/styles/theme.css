@@ -326,6 +326,48 @@
   appearance: none;
 }
 
+/* I box inline mantengono 16px reali dopo il caret per inserimento, duplica e
+   incolla. Solo l'ultimo box della riga prolunga visivamente sfondo e bordo su
+   quella riserva: lo pseudo-elemento non partecipa al layout e non intercetta
+   il mouse, quindi misure, wrapping e posizione ProseMirror restano identici. */
+.tiptap-content :is(
+  .tiptap-inline-modifier-widget,
+  .tiptap-inline-dice-widget,
+  .tiptap-inline-points-widget
+)[data-inline-row-tail='true'] {
+  isolation: isolate;
+  overflow: visible !important;
+  border-right-color: transparent !important;
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+}
+.tiptap-content :is(
+  .tiptap-inline-modifier-widget,
+  .tiptap-inline-dice-widget,
+  .tiptap-inline-points-widget
+)[data-inline-row-tail='true']::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  top: -1px;
+  bottom: -1px;
+  left: 100%;
+  width: var(--tiptap-inline-row-tail-width, 16px);
+  border: 1px solid var(--dash-border-soft);
+  border-left: 0;
+  border-radius: 0 0.45em 0.45em 0;
+  background: var(--dash-surface-2);
+}
+.tiptap-content .tiptap-inline-dice-widget[data-inline-row-tail='true']::after {
+  border-color: var(--dash-accent-2);
+  border-left: 0;
+  background: color-mix(in srgb, var(--dash-accent-2) 22%, var(--dash-surface-2));
+}
+.tiptap-content .tiptap-inline-points-widget[data-inline-row-tail='true']::after {
+  border-radius: 0 0.7em 0.7em 0;
+}
+
 /* Il caret nativo assume l'altezza dell'intera line-box quando e' accanto a
    Punti. In quella sola posizione viene sostituito da un caret visivo della
    stessa altezza del testo, mantenendo invariata la selezione ProseMirror. */

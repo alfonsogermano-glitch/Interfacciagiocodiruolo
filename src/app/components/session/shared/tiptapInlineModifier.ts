@@ -448,6 +448,9 @@ export async function copyModifierToClipboard(view: EditorView, pos: number): Pr
 //    available line width equally. The visual gap is real document text, not
 //    widget margin, so caret position and insertion point stay in sync when a
 //    modifier wraps to the next line.
+//  • The last widget visually covers END_INSERTION_ROOM with a non-interactive
+//    CSS tail. Its layout width and margin stay unchanged, preserving every
+//    insertion, duplication and paste safeguard built around the real caret.
 // ---------------------------------------------------------------------------
 
 const CHAR_WIDTH = 8;
@@ -568,6 +571,7 @@ function measureLine(items: Array<{ element: HTMLElement } & WidgetEntry>, lineR
   const expanded = items.filter((item) => !isCompactModifier(item.element));
   // Azzerare i margini riduce il totale: nessun wrap prima della lettura.
   for (const item of items) {
+    delete item.element.dataset.inlineRowTail;
     item.element.style.marginLeft = '0px';
     item.element.style.marginRight = '0px';
   }
@@ -578,6 +582,7 @@ function measureLine(items: Array<{ element: HTMLElement } & WidgetEntry>, lineR
       }
       items[i].element.style.marginRight = i === items.length - 1 ? `${CURSOR_ROOM}px` : '0px';
     }
+    markInlineRowTail(items[items.length - 1].element);
     return;
   }
 
@@ -588,6 +593,7 @@ function measureLine(items: Array<{ element: HTMLElement } & WidgetEntry>, lineR
     if (Math.abs(target - expanded[0].element.offsetWidth) > 1) {
       expanded[0].element.style.width = `${target}px`;
     }
+    markInlineRowTail(expanded[0].element);
     return;
   }
 
@@ -619,6 +625,12 @@ function measureLine(items: Array<{ element: HTMLElement } & WidgetEntry>, lineR
   for (let i = 0; i < items.length; i++) {
     items[i].element.style.marginRight = i === items.length - 1 ? `${CURSOR_ROOM}px` : '0px';
   }
+  markInlineRowTail(items[items.length - 1].element);
+}
+
+function markInlineRowTail(element: HTMLElement) {
+  element.dataset.inlineRowTail = 'true';
+  element.style.setProperty('--tiptap-inline-row-tail-width', `${END_INSERTION_ROOM}px`);
 }
 
 function getModifierWidgetAt(pos: number): HTMLElement | null {
