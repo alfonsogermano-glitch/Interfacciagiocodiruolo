@@ -48,7 +48,9 @@ assert.doesNotMatch(theme, /p:has\(\.tiptap-inline-points-widget\)[\s\S]*margin-
 assert.match(theme, /tiptap-points-adjacent-caret[\s\S]*caret-color:\s*transparent[\s\S]*tiptap-inline-points-caret/, 'the oversized native caret must be replaced beside Punti');
 assert.match(menu, /DANGER[\s\S]*dash-danger-text[\s\S]*dash-danger-bg/, 'Punti delete action must use the real red palette variables');
 assert.match(modifierMenu, /DANGER_ITEM_CLASS[\s\S]*dash-danger-text[\s\S]*dash-danger-bg/, 'Modifier and Dice delete actions must use the real red palette variables');
-assert.match(modifiers, /items\.some\(\(item\) => item\.element\.classList\.contains\('tiptap-inline-points-widget'\)\)[\s\S]*measureLine\(items, lineRight\)/, 'paragraphs containing Punti must recover as one logical line after transient wrapping');
+assert.match(modifiers, /items\.some\(\(item\) => item\.element\.classList\.contains\('tiptap-inline-points-widget'\)\)[\s\S]*measureLine\(items, lineRight, trailingWidth\)/, 'paragraphs containing Punti must recover as one logical line after transient wrapping');
 assert.match(points, /tiptap-inline-points-menu-trigger[\s\S]*position:\s*'absolute'[\s\S]*zIndex:\s*3[\s\S]*opacity:\s*0[\s\S]*element\.addEventListener\('mouseenter'[\s\S]*dots\.style\.opacity = '1'/, 'Punti menu dots must be a hover-only overlay above the adjustment zones');
+
+assert.match(points, /isProtectedPointsAt[\s\S]*inlinePoints[\s\S]*blocksPointsDeletion[\s\S]*handleKeyDown/, 'points must refuse Backspace/Delete on their character (adjacent or selected) so only the menu Elimina removes them');
 
 console.log('Inline points verification: PASS');

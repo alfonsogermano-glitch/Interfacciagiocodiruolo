@@ -10,7 +10,7 @@ import { getNoteTableContainerArrowSelection, getNoteTableContainerGapTarget, is
 import './noteTableResize.css';
 
 export const NOTE_TABLE_CELL_CONTENT =
-  '(paragraph | bulletList | orderedList | blockquote | horizontalRule | image | taskList | textBox | collapseBlock)+';
+  '(paragraph | bulletList | orderedList | blockquote | horizontalRule | image | taskList | blockRow | textBox | collapseBlock)+';
 
 const NOTE_TABLE_CELL_MIN_WIDTH = 48;
 

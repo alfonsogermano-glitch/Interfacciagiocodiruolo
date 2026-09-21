@@ -25,6 +25,7 @@ import { NoteRichClipboard } from './tiptapNoteRichClipboard';
 import { NoteContainerGuard } from './tiptapNoteContainerGuard';
 import { NoteSlashMenuExtension } from './tiptapNoteSlashMenu';
 import { NoteTableToolbar } from './NoteTableToolbar';
+import { NoteRowGutter } from './NoteRowGutter';
 import { NoteSlashMenu } from './NoteSlashMenu';
 import { NoteDiceMenu, NoteModifierMenu, NoteModifierRollBridge, NoteModifierTitleMenu } from './NoteModifierMenu';
 import { NotePointsMenu } from './NotePointsMenu';
@@ -76,8 +77,28 @@ function isDocEmpty(doc: JSONContent | null | undefined): boolean {
   return docText(doc).trim() === '';
 }
 
+function canonicalizeNoteJSON(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalizeNoteJSON);
+  if (value && typeof value === 'object') {
+    const source = value as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(source).sort()) {
+      // ProseMirror omette i content vuoti nel toJSON (es. collapseSummary):
+      // un content assente e un content [] sono lo stesso documento.
+      if (key === 'content' && Array.isArray(source[key]) && (source[key] as unknown[]).length === 0) continue;
+      out[key] = canonicalizeNoteJSON(source[key]);
+    }
+    return out;
+  }
+  return value;
+}
+
+// Confronto canonico: l'ordine delle chiavi (es. riscrittura jsonb di
+// Supabase: text prima di type) e i content vuoti non sono differenze di
+// contenuto. Senza questo, ogni eco dal server risultava "diverso" e
+// scattava un setContent che azzerava menu slash, selezione e posizioni.
 function docsEqual(a: JSONContent | null | undefined, b: JSONContent | null | undefined): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return JSON.stringify(canonicalizeNoteJSON(a)) === JSON.stringify(canonicalizeNoteJSON(b));
 }
 
 const TIPTAP_EDITOR_PROPS = { attributes: { class: 'tiptap-content' } };
@@ -275,6 +296,17 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
     if (!editor) return;
     const migratedRichContent = flattenRemovedLayoutNodes(migrateHeadingsToFontSize(richContent));
     if (docsEqual(migratedRichContent, editor.getJSON())) return;
+    if (typeof console !== 'undefined') {
+      const a = JSON.stringify(migratedRichContent) ?? '';
+      const b = JSON.stringify(editor.getJSON()) ?? '';
+      let firstDiff = -1;
+      for (let i = 0; i < Math.min(a.length, b.length); i += 1) {
+        if (a[i] !== b[i]) { firstDiff = i; break; }
+      }
+      console.info(`[SlashTrace] setContent esterno: prop(${a.length}) vs editor(${b.length}), prima diff a ${firstDiff}`);
+      console.info(`[SlashTrace] prop: ...${a.slice(Math.max(0, firstDiff - 60), firstDiff + 100)}...`);
+      console.info(`[SlashTrace] editor: ...${b.slice(Math.max(0, firstDiff - 60), firstDiff + 100)}...`);
+    }
     if (isDocEmpty(migratedRichContent) && !isDocEmpty(editor.getJSON())) return;
     const { from, to } = editor.state.selection;
     editor.commands.setContent(migratedRichContent, { emitUpdate: false });
@@ -287,7 +319,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
   if (!editor) return null;
 
   return (
-    <div ref={editorShellRef} className={`relative max-w-full ${fillViewport ? 'h-full' : ''}`}>
+    <div ref={editorShellRef} className={`group relative max-w-full ${fillViewport ? 'h-full' : ''}`}>
       <div
         onClick={!editable ? onClickText : undefined}
         onMouseDown={editable ? (event) => {
@@ -309,6 +341,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
         <EditorContent editor={editor} />
       </div>
       <PermanentUndo editor={editor} editable={editable} />
+      <NoteRowGutter editor={editor} editable={editable} shellRef={editorShellRef} />
       <NoteSlashMenu editor={editor} editable={editable} />
       <NoteModifierMenu editor={editor} editable={editable} />
       <NoteDiceMenu editor={editor} editable={editable} canPersist={canToggleInlineCheckbox} />

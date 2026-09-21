@@ -1,6 +1,6 @@
 import { Mark, mergeAttributes } from '@tiptap/core';
 import { DOMSerializer, Fragment, Slice } from '@tiptap/pm/model';
-import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
+import { AllSelection, Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import {
   getInlineBoxWidgetAt,
@@ -207,6 +207,36 @@ export function makeRoomForInlinePointsInsertion(state: EditorState, pos: number
   if (!isPreviousPoints(state, pos)) return;
   const widget = getInlineBoxWidgetAt(pos - 1);
   if (widget) halveInlineBoxWidget(widget);
+}
+
+// I Punti si cancellano solo dalla voce Elimina del loro menu: stessa
+// protezione dei Modificatori, limitata ai caratteri marcati inlinePoints.
+function isProtectedPointsAt(state: EditorState, pos: number): boolean {
+  if (pos < 0 || pos >= state.doc.content.size) return false;
+  if (state.doc.textBetween(pos, pos + 1, '', '') !== INLINE_POINTS_CHAR) return false;
+  let found = false;
+  state.doc.nodesBetween(pos, pos + 1, (node, nodePos) => {
+    if (!node.isText || !node.text) return;
+    const offset = pos - nodePos;
+    if (offset < 0 || offset >= node.nodeSize || node.text.charAt(offset) !== INLINE_POINTS_CHAR) return;
+    if (node.marks.some((mark) => mark.type.name === 'inlinePoints')) found = true;
+  });
+  return found;
+}
+
+function blocksPointsDeletion(view: EditorView, event: KeyboardEvent): boolean {
+  if (!view.editable || (event.key !== 'Backspace' && event.key !== 'Delete')) return false;
+  if (event.altKey || event.ctrlKey || event.metaKey) return false;
+  const { selection } = view.state;
+  if (selection instanceof AllSelection || !(selection instanceof TextSelection)) return false;
+  if (selection.empty) {
+    const target = event.key === 'Backspace' ? selection.from - 1 : selection.from;
+    return isProtectedPointsAt(view.state, target);
+  }
+  for (let pos = selection.from; pos < selection.to; pos += 1) {
+    if (isProtectedPointsAt(view.state, pos)) return true;
+  }
+  return false;
 }
 
 function progressColor(value: number, max: number): string {
@@ -558,6 +588,9 @@ export const InlinePoints = Mark.create({
         handleTextInput(view, from, to, text) {
           if (view.editable && from === to) makeRoomForInlinePointsText(view, from, text);
           return false;
+        },
+        handleKeyDown(view, event) {
+          return blocksPointsDeletion(view, event);
         },
         handleClick(view, pos, event) {
           return nudgeToRightOfTrailingPoints(view, pos, event);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
 import { usePortalContainer } from '../../ui/portal-container';
@@ -75,32 +75,65 @@ export function NoteSlashMenu({ editor, editable }: NoteSlashMenuProps) {
   const [openSecondaryId, setOpenSecondaryId] = useState<NoteCommandId | null>(null);
   const commands = useMemo(() => NOTE_COMMANDS.filter((command) => command.id !== 'undo'), []);
 
+  const traceWasOpen = useRef(false);
+  const trace = useCallback((message: string) => {
+    if (typeof console !== 'undefined') console.info(`[SlashTrace] ${message}`);
+  }, []);
+
   const refresh = useCallback(() => {
     if (!editable) {
+      if (traceWasOpen.current) {
+        traceWasOpen.current = false;
+        trace('chiudo: non piu editabile (blur?)');
+      }
       setState(null);
       return;
     }
     const slashPos = getNoteSlashPosition(editor.state);
     if (slashPos === null) {
+      traceWasOpen.current = false;
       setState(null);
       setOpenSecondaryId(null);
       return;
     }
     if (!isValidNoteSlashTrigger(editor.state, slashPos)) {
+      if (traceWasOpen.current) {
+        traceWasOpen.current = false;
+        trace('chiudo: carattere / sparito dal documento');
+      }
       closeNoteSlashMenu(editor);
       setState(null);
       return;
     }
     const { selection } = editor.state;
     if (!selection.empty || selection.from !== slashPos + 1) {
+      if (traceWasOpen.current) {
+        traceWasOpen.current = false;
+        trace(`chiudo: selezione a ${selection.from} invece di ${slashPos + 1} (vuota: ${selection.empty ? 'si' : 'no'})`);
+      }
       closeNoteSlashMenu(editor);
       setState(null);
       return;
     }
     const coords = editor.view.coordsAtPos(slashPos + 1);
     const placed = placeFloatingNoteUI(coords, 248, Math.min(420, window.innerHeight * 0.7), 8);
+    if (!traceWasOpen.current) {
+      traceWasOpen.current = true;
+      trace(`menu aperto a ${slashPos}`);
+    }
     setState({ slashPos, ...placed });
-  }, [editor, editable]);
+  }, [editor, editable, trace]);
+
+  useEffect(() => {
+    trace('componente montato');
+    return () => {
+      if (typeof console !== 'undefined') console.info('[SlashTrace] componente smontato');
+    };
+  }, [editor, trace]);
+
+  useEffect(() => {
+    trace(`editabile: ${editable ? 'si' : 'no'}`);
+  }, [editable, trace]);
 
   useEffect(() => {
     refresh();
@@ -219,6 +252,11 @@ export function NoteSlashMenu({ editor, editable }: NoteSlashMenuProps) {
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Element | null;
       if (target?.closest('[data-note-slash-menu="true"], [data-note-contextual-picker="true"]')) return;
+      if (traceWasOpen.current) {
+        traceWasOpen.current = false;
+        const el = target instanceof Element ? (target.tagName + (target.className && typeof target.className === 'string' ? `.${target.className.split(' ').slice(0, 2).join('.')}` : '')) : String(target);
+        trace(`chiudo: pointerdown fuori (${el})`);
+      }
       closeNoteSlashMenu(editor);
     };
     document.addEventListener('pointerdown', onPointerDown, true);

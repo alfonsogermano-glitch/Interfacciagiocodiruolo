@@ -151,6 +151,16 @@ assert.match(
 );
 assert.match(
   source,
+  /isProtectedModifierAt[\s\S]*inlineModifier[\s\S]*blocksModifierDeletion[\s\S]*handleKeyDown/,
+  'modifiers must refuse Backspace/Delete on their character (adjacent or selected) so only the menu Elimina removes them',
+);
+assert.match(
+  source,
+  /AllSelection[\s\S]*!\(selection instanceof TextSelection\)/,
+  'whole-document, node and cell selections must stay free to delete structurally',
+);
+assert.match(
+  source,
   /setModifierAttrs\([\s\S]*removeMark[\s\S]*addMark/,
   'modifying attributes must replace the mark rather than mutating state in-place',
 );

@@ -2,7 +2,7 @@ import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { Mark, mergeAttributes } from '@tiptap/core';
 import { DOMSerializer, Fragment, Slice } from '@tiptap/pm/model';
-import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
+import { AllSelection, Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import { CustomDieLibraryIcon } from '../dice/CustomDieLibraryIcon';
 import { getCustomDieQuickRollMax, toCustomDieRollSnapshot, validateCustomDieDefinition } from '../dice/diceCustomDie';
@@ -282,6 +282,36 @@ export function makeRoomForInlineDiceInsertion(state: EditorState, pos: number):
   if (pos <= 0 || !getInlineDiceMark(state, pos - 1)) return;
   const widget = getInlineBoxWidgetAt(pos - 1);
   if (widget) halveInlineBoxWidget(widget);
+}
+
+// I Dadi si cancellano solo dalla voce Elimina del loro menu: stessa
+// protezione dei Modificatori, limitata ai caratteri marcati inlineDice.
+function isProtectedDiceAt(state: EditorState, pos: number): boolean {
+  if (pos < 0 || pos >= state.doc.content.size) return false;
+  if (state.doc.textBetween(pos, pos + 1, '', '') !== INLINE_MODIFIER_CHAR) return false;
+  let found = false;
+  state.doc.nodesBetween(pos, pos + 1, (node, nodePos) => {
+    if (!node.isText || !node.text) return;
+    const offset = pos - nodePos;
+    if (offset < 0 || offset >= node.nodeSize || node.text.charAt(offset) !== INLINE_MODIFIER_CHAR) return;
+    if (node.marks.some((mark) => mark.type.name === 'inlineDice')) found = true;
+  });
+  return found;
+}
+
+function blocksDiceDeletion(view: EditorView, event: KeyboardEvent): boolean {
+  if (!view.editable || (event.key !== 'Backspace' && event.key !== 'Delete')) return false;
+  if (event.altKey || event.ctrlKey || event.metaKey) return false;
+  const { selection } = view.state;
+  if (selection instanceof AllSelection || !(selection instanceof TextSelection)) return false;
+  if (selection.empty) {
+    const target = event.key === 'Backspace' ? selection.from - 1 : selection.from;
+    return isProtectedDiceAt(view.state, target);
+  }
+  for (let pos = selection.from; pos < selection.to; pos += 1) {
+    if (isProtectedDiceAt(view.state, pos)) return true;
+  }
+  return false;
 }
 
 /** Duplica: copia identica subito dopo l'originale (stesso nome, id fresco),
@@ -899,6 +929,9 @@ export const InlineDice = Mark.create({
             if (!view.editable || from !== to || !view.state.selection.empty) return false;
             if (!makeRoomForInlineDiceText(view, from, text)) return false;
             return false;
+          },
+          handleKeyDown(view, event) {
+            return blocksDiceDeletion(view, event);
           },
           handleClick(view, pos, event) {
             return nudgeToRightOfTrailingDice(view, pos, event);

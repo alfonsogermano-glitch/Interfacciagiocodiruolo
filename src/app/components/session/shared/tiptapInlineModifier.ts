@@ -1,6 +1,6 @@
 import { Mark, mergeAttributes, type JSONContent } from '@tiptap/core';
 import { DOMSerializer, Fragment, Slice } from '@tiptap/pm/model';
-import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
+import { AllSelection, Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import {
   encodeNoteClipboardSlice,
@@ -442,20 +442,23 @@ export async function copyModifierToClipboard(view: EditorView, pos: number): Pr
 // function groups widgets by block paragraph, then by visual line, sorts by
 // document position, sizes modifiers when widgets are created/rebuilt:
 //
-//  • Single modifier  → fills the line, leaving a real CURSOR_ROOM after it
-//    and a small END_INSERTION_ROOM after the caret.
+//  • Single modifier  → fills the line, leaving only a real CURSOR_ROOM
+//    after it for the caret. No extra END_INSERTION_ROOM: insertion,
+//    duplication and paste already shrink the previous box on demand
+//    (makeRoom*), so the reserve would only shorten the row visually.
 //  • Multiple modifiers → all widgets on the same visual line split the
 //    available line width equally. The visual gap is real document text, not
 //    widget margin, so caret position and insertion point stay in sync when a
 //    modifier wraps to the next line.
-//  • The last widget visually covers END_INSERTION_ROOM with a non-interactive
-//    CSS tail. Its layout width and margin stay unchanged, preserving every
-//    insertion, duplication and paste safeguard built around the real caret.
 // ---------------------------------------------------------------------------
 
 const CHAR_WIDTH = 8;
-const CURSOR_ROOM = CHAR_WIDTH;
-const END_INSERTION_ROOM = CHAR_WIDTH * 2;
+// Niente riserve a inizio/fine riga: i box occupano l'intera riga e
+// l'inserimento ai bordi passa dai pulsanti laterali (NoteRowGutter).
+// Il caret vive nel padding dell'editor; digitazione, slash, duplica e
+// incolla restringono comunque il box adiacente via makeRoom*.
+const CURSOR_ROOM = 0;
+const END_INSERTION_ROOM = 0;
 const MIN_GAP = CHAR_WIDTH;
 const MIN_MODIFIER_WIDTH = 64;
 
@@ -502,8 +505,9 @@ function performMeasurement() {
     // visiva renderebbe quel wrap temporaneo permanente; nello stesso
     // paragrafo i box con Punti costituiscono invece una sola riga logica e
     // devono essere ridivisi insieme prima che il browser decida il wrap.
+    const trailingWidth = trailingRowTextWidth(blockParent, items[items.length - 1].element);
     if (items.some((item) => item.element.classList.contains('tiptap-inline-points-widget'))) {
-      measureLine(items, lineRight);
+      measureLine(items, lineRight, trailingWidth);
       continue;
     }
     const lineGroups: Array<Array<{ element: HTMLElement } & WidgetEntry>> = [];
@@ -515,8 +519,11 @@ function performMeasurement() {
       else lineGroups.push([item]);
     }
 
+    // Il testo finale appartiene all'ultima riga visiva: solo il gruppo che
+    // contiene l'ultimo widget del paragrafo lo sottrae dalla misura.
+    const lastItem = items[items.length - 1];
     for (const lineItems of lineGroups) {
-      measureLine(lineItems, lineRight);
+      measureLine(lineItems, lineRight, lineItems.includes(lastItem) ? trailingWidth : 0);
     }
   }
 }
@@ -544,34 +551,29 @@ function isCompactModifier(element: HTMLElement): boolean {
   return element.dataset.modifierCompact === 'true';
 }
 
-// Larghezza intrinseca di un box compatto (Dado o Modificatore ridotto) senza
-// toccare il layout vivo: il clone fuori schermo evita il reflow intermedio
-// che allargherebbe il compatto prima di restringere gli espansi e manderebbe
-// l'ultimo elemento a capo in modo permanente.
-function getCompactIntrinsicWidth(element: HTMLElement): number {
-  const clone = element.cloneNode(true) as HTMLElement;
-  clone.style.position = 'fixed';
-  clone.style.left = '-99999px';
-  clone.style.top = '0';
-  clone.style.visibility = 'hidden';
-  clone.style.width = 'auto';
-  clone.style.minWidth = '0px';
-  clone.style.maxWidth = 'none';
-  clone.style.marginLeft = '0px';
-  clone.style.marginRight = '0px';
-  document.body.appendChild(clone);
-  const width = clone.getBoundingClientRect().width;
-  clone.remove();
-  return width;
+// Larghezza del testo vero dopo l'ultimo widget del paragrafo (0 se il
+// paragrafo finisce col box o con soli spazi): misurata con un Range sul DOM,
+// indipendente da allineamento e wrapping, cosi' la riga resta piena quando
+// non c'e' testo e si restringe solo del testo reale quando c'e'.
+function trailingRowTextWidth(blockParent: HTMLElement, lastWidget: HTMLElement): number {
+  try {
+    const range = document.createRange();
+    range.setStartAfter(lastWidget);
+    range.setEnd(blockParent, blockParent.childNodes.length);
+    if (!range.toString().trim()) return 0;
+    const width = range.getBoundingClientRect().width;
+    return width > 0 ? width : 0;
+  } catch {
+    return 0;
+  }
 }
 
-function measureLine(items: Array<{ element: HTMLElement } & WidgetEntry>, lineRight: number) {
+function measureLine(items: Array<{ element: HTMLElement } & WidgetEntry>, lineRight: number, trailingWidth = 0) {
   // I Modificatori compatti (Riduci) e i Dadi restano a dimensione contenuto e
   // non partecipano alla divisione della riga.
   const expanded = items.filter((item) => !isCompactModifier(item.element));
   // Azzerare i margini riduce il totale: nessun wrap prima della lettura.
   for (const item of items) {
-    delete item.element.dataset.inlineRowTail;
     item.element.style.marginLeft = '0px';
     item.element.style.marginRight = '0px';
   }
@@ -582,18 +584,24 @@ function measureLine(items: Array<{ element: HTMLElement } & WidgetEntry>, lineR
       }
       items[i].element.style.marginRight = i === items.length - 1 ? `${CURSOR_ROOM}px` : '0px';
     }
-    markInlineRowTail(items[items.length - 1].element);
     return;
   }
 
   if (items.length === 1) {
-    const lineLeft = expanded[0].element.getBoundingClientRect().left;
-    const target = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - END_INSERTION_ROOM);
+    const rect = expanded[0].element.getBoundingClientRect();
+    const lineLeft = rect.left;
+    // Testo digitato dopo l'ultimo box (es. via Testo del gutter): solo il
+    // testo vero va sottratto, mai lo spazio vuoto (altrimenti un box appena
+    // creato resterebbe stretto per sempre invece di riempire la riga).
+    const trailing = Math.min(
+      trailingWidth,
+      Math.max(0, lineRight - rect.right - CURSOR_ROOM),
+    );
+    const target = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - END_INSERTION_ROOM - trailing);
     expanded[0].element.style.marginRight = `${CURSOR_ROOM}px`;
     if (Math.abs(target - expanded[0].element.offsetWidth) > 1) {
       expanded[0].element.style.width = `${target}px`;
     }
-    markInlineRowTail(expanded[0].element);
     return;
   }
 
@@ -604,13 +612,23 @@ function measureLine(items: Array<{ element: HTMLElement } & WidgetEntry>, lineR
   const currentWidth = rects.reduce((sum, rect) => sum + rect.width, 0);
   const currentSpan = rects[rects.length - 1].right - lineLeft;
   const realGap = Math.max(0, currentSpan - currentWidth);
+  // Il compatto conta con la LARGHEZZA VIVA letta sopra (riga ancora intera),
+  // non con la sua larghezza di contenuto: se e' sopra un minimo imposto
+  // (es. i Dadi minWidth 4em) il valore intrinseco sotto-stima lo spazio reale
+  // occupato sulla riga e l'ultimo box espanso avanzerebbe oltre la fine riga
+  // mandando a capo il blocco e congelando lo spezzamento.
   let compactWidth = 0;
-  for (const item of items) {
-    if (isCompactModifier(item.element)) {
-      compactWidth += getCompactIntrinsicWidth(item.element);
+  for (let i = 0; i < items.length; i++) {
+    if (isCompactModifier(items[i].element)) {
+      compactWidth += rects[i].width;
     }
   }
-  const available = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - END_INSERTION_ROOM - realGap - compactWidth);
+  // Come sopra per il caso singolo: solo testo vero, mai spazio vuoto.
+  const trailing = Math.min(
+    trailingWidth,
+    Math.max(0, lineRight - rects[rects.length - 1].right - CURSOR_ROOM),
+  );
+  const available = Math.max(0, lineRight - lineLeft - CURSOR_ROOM - END_INSERTION_ROOM - realGap - compactWidth - trailing);
   const width = Math.max(0, available / expanded.length);
 
   // Un'unica applicazione senza letture intermedie: il browser rifluisce una
@@ -625,12 +643,6 @@ function measureLine(items: Array<{ element: HTMLElement } & WidgetEntry>, lineR
   for (let i = 0; i < items.length; i++) {
     items[i].element.style.marginRight = i === items.length - 1 ? `${CURSOR_ROOM}px` : '0px';
   }
-  markInlineRowTail(items[items.length - 1].element);
-}
-
-function markInlineRowTail(element: HTMLElement) {
-  element.dataset.inlineRowTail = 'true';
-  element.style.setProperty('--tiptap-inline-row-tail-width', `${END_INSERTION_ROOM}px`);
 }
 
 function getModifierWidgetAt(pos: number): HTMLElement | null {
@@ -715,6 +727,39 @@ function makeRoomNearModifier(pos: number, delta: number): void {
   // I compatti sono gia' al minimo (solo valore): non vanno schiacciati oltre.
   if (!widget || isCompactModifier(widget)) return;
   widget.style.width = `${Math.max(0, widget.offsetWidth - delta)}px`;
+}
+
+// I Modificatori si cancellano solo dalla voce Elimina del loro menu:
+// Backspace/Canc non devono rimuovere il loro carattere, ne' adiacente
+// (caret a ridosso) ne' coperto da una selezione di testo. Selezioni
+// strutturali (intero documento, nodi, celle) e gli altri elementi restano
+// liberi: la protezione copre solo i caratteri marcati inlineModifier.
+function isProtectedModifierAt(state: EditorState, pos: number): boolean {
+  if (pos < 0 || pos >= state.doc.content.size) return false;
+  if (state.doc.textBetween(pos, pos + 1, '', '') !== INLINE_MODIFIER_CHAR) return false;
+  let found = false;
+  state.doc.nodesBetween(pos, pos + 1, (node, nodePos) => {
+    if (!node.isText || !node.text) return;
+    const offset = pos - nodePos;
+    if (offset < 0 || offset >= node.nodeSize || node.text.charAt(offset) !== INLINE_MODIFIER_CHAR) return;
+    if (node.marks.some((mark) => mark.type.name === 'inlineModifier')) found = true;
+  });
+  return found;
+}
+
+function blocksModifierDeletion(view: EditorView, event: KeyboardEvent): boolean {
+  if (!view.editable || (event.key !== 'Backspace' && event.key !== 'Delete')) return false;
+  if (event.altKey || event.ctrlKey || event.metaKey) return false;
+  const { selection } = view.state;
+  if (selection instanceof AllSelection || !(selection instanceof TextSelection)) return false;
+  if (selection.empty) {
+    const target = event.key === 'Backspace' ? selection.from - 1 : selection.from;
+    return isProtectedModifierAt(view.state, target);
+  }
+  for (let pos = selection.from; pos < selection.to; pos += 1) {
+    if (isProtectedModifierAt(view.state, pos)) return true;
+  }
+  return false;
 }
 
 export function makeRoomForInlineModifierText(view: EditorView, pos: number, text: string): boolean {
@@ -1581,6 +1626,9 @@ export const InlineModifier = Mark.create({
             if (!view.editable || from !== to || !view.state.selection.empty) return false;
             if (!makeRoomForInlineModifierText(view, from, text)) return false;
             return false;
+          },
+          handleKeyDown(view, event) {
+            return blocksModifierDeletion(view, event);
           },
           handleClick(view, pos, event) {
             return nudgeToRightOfTrailingModifier(view, pos, event);

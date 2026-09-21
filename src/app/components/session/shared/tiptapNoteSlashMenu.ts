@@ -42,6 +42,9 @@ export const NoteSlashMenuExtension = Extension.create({
           if (meta?.type === 'close') return { slashPos: null };
           if (value.slashPos === null || !tr.docChanged) return value;
           const mapped = tr.mapping.mapResult(value.slashPos, 1);
+          if (mapped.deleted && typeof console !== 'undefined') {
+            console.info(`[SlashTrace] trigger cancellata da transazione (${tr.steps.length} passi)`);
+          }
           return mapped.deleted ? { slashPos: null } : { slashPos: mapped.pos };
         },
       },

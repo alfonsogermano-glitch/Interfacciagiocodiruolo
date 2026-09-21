@@ -40,6 +40,13 @@ function sanitizeNode(node: JSONContent, context: LegacyContext): JSONContent[] 
     return [{ ...node, content: content.length ? content : [{ type: 'paragraph' }] }];
   }
 
+  // Nuove righe di blocchi affiancati (tiptapBlockRow.ts): sono parte del
+  // documento corrente, non un wrapper legacy da appiattire.
+  if (type === 'blockRow') {
+    const content = (node.content ?? []).flatMap((child) => sanitizeNode(child, context));
+    return content.length ? [{ ...node, content }] : [];
+  }
+
   if (type === 'collapseBlock') {
     const summary = (node.content ?? []).find((child) => child.type === 'collapseSummary');
     const body = (node.content ?? []).find((child) => child.type === 'collapseBody');

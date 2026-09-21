@@ -326,48 +326,6 @@
   appearance: none;
 }
 
-/* I box inline mantengono 16px reali dopo il caret per inserimento, duplica e
-   incolla. Solo l'ultimo box della riga prolunga visivamente sfondo e bordo su
-   quella riserva: lo pseudo-elemento non partecipa al layout e non intercetta
-   il mouse, quindi misure, wrapping e posizione ProseMirror restano identici. */
-.tiptap-content :is(
-  .tiptap-inline-modifier-widget,
-  .tiptap-inline-dice-widget,
-  .tiptap-inline-points-widget
-)[data-inline-row-tail='true'] {
-  isolation: isolate;
-  overflow: visible !important;
-  border-right-color: transparent !important;
-  border-top-right-radius: 0 !important;
-  border-bottom-right-radius: 0 !important;
-}
-.tiptap-content :is(
-  .tiptap-inline-modifier-widget,
-  .tiptap-inline-dice-widget,
-  .tiptap-inline-points-widget
-)[data-inline-row-tail='true']::after {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  pointer-events: none;
-  top: -1px;
-  bottom: -1px;
-  left: 100%;
-  width: var(--tiptap-inline-row-tail-width, 16px);
-  border: 1px solid var(--dash-border-soft);
-  border-left: 0;
-  border-radius: 0 0.45em 0.45em 0;
-  background: var(--dash-surface-2);
-}
-.tiptap-content .tiptap-inline-dice-widget[data-inline-row-tail='true']::after {
-  border-color: var(--dash-accent-2);
-  border-left: 0;
-  background: color-mix(in srgb, var(--dash-accent-2) 22%, var(--dash-surface-2));
-}
-.tiptap-content .tiptap-inline-points-widget[data-inline-row-tail='true']::after {
-  border-radius: 0 0.7em 0.7em 0;
-}
-
 /* Il caret nativo assume l'altezza dell'intera line-box quando e' accanto a
    Punti. In quella sola posizione viene sostituito da un caret visivo della
    stessa altezza del testo, mantenendo invariata la selezione ProseMirror. */
@@ -615,6 +573,46 @@
 }
 .tiptap-collapse[data-open='false'] .tiptap-collapse-body {
   display: none;
+}
+
+/* Riga di blocchi affiancati (tiptapBlockRow.ts): testo, Box di testo e
+   Collapse consecutivi condividono la stessa riga visiva e si dividono la
+   larghezza in modo proporzionale via flex-grow equo (nessuna misura
+   dedicata). Niente wrap: sotto la quota minima (3ch ~ spazio+carattere+
+   spazio) gli elementi restano al minimo e tocca all'utente spezzare la riga
+   con Invio (che sposta la serie dal cursore alla fine riga su una riga
+   nuova). I margini verticali dei contenitori interni vengono annullati
+   perche' adesso vivono dentro la riga. */
+.tiptap-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.25rem;
+  align-items: stretch;
+  margin: 0 0 0.5rem 0;
+}
+.tiptap-row > * {
+  flex: 1 1 0;
+  min-width: 3ch;
+  margin-bottom: 0;
+}
+.tiptap-row > p {
+  margin: 0;
+  /* Il testo affiancato a Box/Collapse resta centrato sull'altezza del
+     vicino (gli altri elementi usano stretch per pari altezza, ma il testo
+     in alto sembrava "troppo alto" e scollegato dalla riga).
+     Hug-content invece di quota equa: un paragrafo corto non deve tenere
+     larga la sua quota lasciando spazio morto tra testo ed elemento
+     vicino — la distanza resta sempre il gap standard 0.25rem. Solo
+     Box e Collapse si dividono lo spazio restante in parti uguali. */
+  align-self: center;
+  flex: 0 1 auto;
+}
+/* Paragrafo vuoto in riga (slot di testo tra due elementi, nato da click nel
+   gap o da "+"): senza altezza minima il caret è un trattino invisibile e
+   non è cliccabile — con min-height è una vera riga di testo a metà altezza
+   dove scrivere o aprire "/" per metterci un elemento in mezzo. */
+.tiptap-row > p:empty {
+  min-height: 1.35em;
 }
 
 /* Il div contenteditable di ProseMirror (.tiptap-content) riceve dal

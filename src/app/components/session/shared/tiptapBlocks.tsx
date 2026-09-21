@@ -3,12 +3,13 @@ import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewP
 import { Selection, NodeSelection, Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { ChevronRight } from 'lucide-react';
 import { canInsertNoteContainer } from './noteContainerPolicy';
+import { BlockRow } from './tiptapBlockRow';
 
 // I contenitori Note condividono una sola espressione di contenuto: consente
 // blocchi normali e contenitori strutturali, mentre la profondità massima e
 // Table-in-Table vengono governati centralmente da noteContainerPolicy.
 export const NOTE_CONTAINER_BLOCK_CONTENT =
-  'paragraph | bulletList | orderedList | taskList | blockquote | horizontalRule | image | textBox | collapseBlock | table | archivio';
+  'paragraph | bulletList | orderedList | taskList | blockquote | horizontalRule | image | blockRow | textBox | collapseBlock | table | archivio';
 
 // Box di testo: un contenitore con bordo/sfondo distintivo attorno a blocchi
 // di testo semplice - nessuna NodeView React necessaria, puro renderHTML
@@ -55,7 +56,7 @@ export const TextBox = Node.create({
 // (CollapseBlock sotto). Non appartengono al gruppo 'block': possono
 // comparire SOLO come figli espliciti di collapseBlock (vedi il suo content
 // 'collapseSummary collapseBody'), mai da soli altrove nel documento.
-const CollapseSummary = Node.create({
+export const CollapseSummary = Node.create({
   name: 'collapseSummary',
   content: 'inline*',
   parseHTML() {
@@ -142,7 +143,7 @@ const CollapseSummary = Node.create({
   },
 });
 
-const CollapseBody = Node.create({
+export const CollapseBody = Node.create({
   name: 'collapseBody',
   content: `(${NOTE_CONTAINER_BLOCK_CONTENT})+`,
   parseHTML() {
@@ -407,4 +408,4 @@ const BlockClickSelect = Extension.create({
 // Estensioni da registrare in useEditor({ extensions: [...] }) - ogni tipo di
 // nodo deve comparire nell'array per entrare nello schema, inclusi i due
 // figli senza comando proprio (CollapseSummary/CollapseBody).
-export const TIPTAP_BLOCK_EXTENSIONS = [TextBox, CollapseSummary, CollapseBody, CollapseBlock, BlockClickSelect];
+export const TIPTAP_BLOCK_EXTENSIONS = [TextBox, CollapseSummary, CollapseBody, CollapseBlock, BlockRow, BlockClickSelect];
