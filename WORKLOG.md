@@ -1,15 +1,35 @@
 # WORKLOG — Stato progetto & consigli di workflow
 
-Ultimo aggiornamento: 2026-09-08
+Ultimo aggiornamento: 2026-09-23
 
 ## Stato attuale (verde)
 
-- **Branch**: `main` — working tree pulito.
-- **Ultimo SHA**: `dd05229` (base del lavoro: `54e7799`).
-- **CI GitHub Actions**: success sul commit `dd05229` (run 34269310620).
-- **Deploy production Vercel**: Ready (nessuna preview inviata).
+- **Branch**: `main` — working tree pulito, `npm run check` verde (41 verify).
+- **Ultimo lavoro**: fix creazione tab (focus, rinomina, cursore, undo) — vedi sotto.
+- **CI GitHub Actions**: verde sui commit recenti.
+- **Deploy production Vercel**: auto-deploy a ogni push su `main` (nessuna preview).
 
 ## Cosa è stato fatto di recente
+
+### Bug risolti: creazione tab (2026-09-23)
+Quattro sintomi collegati riportati dall'utente, più un regress dell'unità `+`:
+1. **Selezione che non passava alla tab creata**: `handleAddCustomTab`/duplica non
+   aggiornavano `tabOrder` (la fonte di `orderedTabs`) → l'effetto "tab attiva sparita"
+   girava nello stesso commit con la lista vecchia e riportava la selezione alla tab
+   precedente/alla prima. Ora l'id entra nello stesso batch di `setCurrentTab`.
+2. **Nome della tab non sempre evidenziato**: rinomina con `focus()+select()`
+   deterministici sull'input quando cambia `renamingTabId` (prima solo `autoFocus`,
+   perso nell'async della POST).
+3. **Cursore nella riga sbagliata**: il fallback del fix 1 marchiava anche
+   `pendingFocusTabId` su un'altra tab, il cui editor rubava il focus → risolto col fix 1.
+4. **Undo attivo su tab nuova**: il seed `setContent` entrava in prosemirror-history →
+   ora chain con `addToHistory:false` (tiptap v3 non espone `clearHistory`); le
+   digitazioni dell'utente non passano da quel percorso e restano annullabili.
+5. **Regress unità `+`** (commit `c99e38a`): wrapper stabile `data-tab-unit` per OGNI
+   tab → aggiungere una tab non rimonta più la vecchia ultima (che perdeva il focus del
+   click sul `+`); il `+` resta incollato all'ultima tab come unità flex unica.
+- Nuovo RED→GREEN: `scripts/verify-tab-create-focus.mjs` (agganciato al `check`) +
+  assert unit aggiornati in `verify-note-contextual-controls.mjs`.
 
 ### Bug risolto: bodyColor tintava le facce fotografiche 3D
 Con skin fotografica attiva il colore dado (`bodyColor`) sporcava il volto del dado.
