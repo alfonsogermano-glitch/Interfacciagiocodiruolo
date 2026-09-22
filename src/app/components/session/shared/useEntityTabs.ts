@@ -394,6 +394,14 @@ export function useEntityTabs({
         const exists = prev.some(t => t.id === mappedNote.id);
         return exists ? prev.map(t => (t.id === mappedNote.id ? mappedNote : t)) : [...prev, mappedNote];
       });
+      // Stessa atomicita' di setCustomTabs: orderedTabs deriva da tabOrder
+      // (stato separato) e l'effetto "la tab attiva e' sparita" gira nello
+      // stesso commit leggendo i valori vecchi. Senza questa riga il
+      // fallback scattava sempre (a defaultTabId o alla prima tab: "il
+      // focus non si sposta sulla tab creata") e marcava pendingFocusTabId
+      // sull'editor di un'altra tab, che rubava il focus alla rinomina e ci
+      // piazzava il cursore (bug creazione tab 2026-09-23).
+      setTabOrder(prev => (prev.includes(data.note.id) ? prev : [...prev, data.note.id]));
       setCurrentTab(data.note.id);
       // Entra subito in rinomina: il "+" crea e si passa direttamente al nome
       setRenamingTabId(data.note.id);
@@ -450,6 +458,10 @@ export function useEntityTabs({
         const exists = prev.some(t => t.id === mappedNote.id);
         return exists ? prev.map(t => (t.id === mappedNote.id ? mappedNote : t)) : [...prev, mappedNote];
       });
+      // Stessa atomicita' di handleAddCustomTab: senza l'id in tabOrder nel
+      // stesso commit, il fallback "tab attiva sparita" riportava la
+      // selezione alla tab precedente invece di seguire la copia.
+      setTabOrder(prev => (prev.includes(putData.note.id) ? prev : [...prev, putData.note.id]));
       setCurrentTab(putData.note.id);
     } catch (err) {
       console.error('Errore duplicazione tab:', err);

@@ -281,7 +281,25 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
     }
     if (isDocEmpty(migratedRichContent) && !isDocEmpty(editor.getJSON())) return;
     const { from, to } = editor.state.selection;
-    editor.commands.setContent(migratedRichContent, { emitUpdate: false });
+    // Il contenuto esterno (seed iniziale della tab, sync da broadcast) non
+    // e' un'azione dell'utente: senza questa meta la transazione di
+    // setContent finiva nello history di ProseMirror e il tasto Annulla si
+    // accendeva su una tab appena creata e vuota ("non ho scritto nulla") -
+    // annullare avrebbe per di piu' riportato il doc al contenitore vuoto di
+    // partenza. tiptap v3 (UndoRedo) non espone clearHistory, quindi si
+    // marca la transazione con addToHistory:false, la meta documentata di
+    // prosemirror-history ("prevent it from being rolled back by undo");
+    // setContent lavora sul tr condiviso della chain, quindi la meta resta
+    // sulla stessa transazione del replace. Le digitazioni dell'utente non
+    // passano da qui (docsEqual sopra le fa uscire in anticipo) e restano
+    // normalmente annullabili.
+    editor.chain()
+      .command(({ tr }) => {
+        tr.setMeta('addToHistory', false);
+        return true;
+      })
+      .setContent(migratedRichContent, { emitUpdate: false })
+      .run();
     const max = editor.state.doc.content.size;
     const nextFrom = Math.max(0, Math.min(from, max));
     const nextTo = Math.max(nextFrom, Math.min(to, max));

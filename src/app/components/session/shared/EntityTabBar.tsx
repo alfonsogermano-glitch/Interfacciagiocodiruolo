@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreVertical, Plus, Pencil, EyeOff, Eye, Trash2, Copy, Lock, AlertTriangle } from 'lucide-react';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
@@ -104,6 +104,19 @@ export function EntityTabBar({
     </Tooltip>
   ) : null;
 
+  // Rinomina deterministica: non ci si puo' fidare di <input autoFocus>
+  // montato dopo l'async della POST (nel frattempo il click sul "+" ha gia'
+  // perso il focus e altri effetti possono contenderselo - vedi anche il
+  // fallback tabOrder stale corretto in useEntityTabs). Appena
+  // renamingTabId cambia, focus + selezione del testo: il nome della nuova
+  // tab si apre sempre evidenziato e si digita subito sovrascrivendolo.
+  useEffect(() => {
+    if (!renamingTabId) return;
+    const input = tabsContainerRef.current?.querySelector<HTMLInputElement>('input[type="text"]');
+    input?.focus();
+    input?.select();
+  }, [renamingTabId]);
+
   return (
     <>
       {/* La barra riserva (pr-10 = 32px dell'Annulla + 8px di gap) lo slot
@@ -119,9 +132,9 @@ export function EntityTabBar({
       >
         {orderedTabs.map((tab, index) => {
           const isLastTab = index === orderedTabs.length - 1;
+          const withPlus = isLastTab && !!plusButton;
           const tabElement = (
             <div
-              key={tab.id}
               data-tab-id={tab.id}
               onPointerDown={(e) => handlePointerDownTab(e, tab.id)}
               className={`group relative flex items-center ${
@@ -186,19 +199,26 @@ export function EntityTabBar({
             </div>
           );
 
-          // Il "+" vive nella STESSA unita' flex dell'ultima tab: e' l'unico
-          // modo per far valere la regola "il + mai solo su una riga", che se
-          // l'unita' [ultima tab + +] non entra scende insieme alla riga dopo.
-          // L'Annulla NON fa parte dell'unita': resta fissata (absolute) alla
-          // fine della prima riga.
-          if (!isLastTab || !plusButton) return tabElement;
+          // Wrapper STABILE per OGNI tab: la struttura sotto ogni chiave non
+          // cambia mai quando cambia l'ultima tab (prima il wrapper [+ unit]
+          // esisteva solo sulla ultima: al clic sul "+" la vecchia ultima
+          // veniva ripatchata e rimontata, perdendo il focus del click).
+          // Il "+" vive nella STESSA unita' flex dell'ultima tab
+          // (data-tab-unit + withPlus): e' l'unico modo per far valere la
+          // regola "il + mai solo su una riga" - se l'unita' [ultima tab + +]
+          // non entra, scende insieme alla riga dopo. L'Annulla NON fa parte
+          // dell'unita': resta fissata (absolute) alla fine della prima riga.
           return (
-            <div key={tab.id} data-tab-plus-unit="true" className="flex shrink-0 items-center gap-2">
+            <div
+              key={tab.id}
+              data-tab-unit="true"
+              className={`flex items-center gap-2 ${withPlus ? 'shrink-0' : ''}`}
+            >
               {tabElement}
-              {draggedTabId && dragOverId === 'END' && (
+              {withPlus && draggedTabId && dragOverId === 'END' && (
                 <div className="h-6 w-0.5 rounded bg-[var(--dash-accent)]" />
               )}
-              {plusButton}
+              {withPlus && plusButton}
             </div>
           );
         })}
