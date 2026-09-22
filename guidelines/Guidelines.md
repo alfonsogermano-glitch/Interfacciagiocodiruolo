@@ -1,61 +1,48 @@
-**Add your own guidelines here**
-<!--
+# Guidelines — Hollow Gate
 
-System Guidelines
+Regole operative per gli AI agent (OpenCode e altri). Aggiornare questo file quando le regole del progetto cambiano.
+Riferimento vivente: `WORKLOG.md` (stato e regole dettagliate) e `docs/superpowers/` (specifiche, piani e report).
 
-Use this file to provide the AI with rules and guidelines you want it to follow.
-This template outlines a few examples of things you can add. You can add your own sections and format it to suit your needs
+---
 
-TIP: More context isn't always better. It can confuse the LLM. Try and add the most important rules you need
+## All'inizio di ogni sessione
 
-# General guidelines
+- Leggere `WORKLOG.md`: dà lo stato aggiornato del progetto, i commit recenti e le regole operativhe.
+- Per contesto su una feature, consultare la spec corrispondente in `docs/superpowers/specs/`.
+- Iniziare una sessione nuova per ogni task distinto (come da prassi in WORKLOG).
 
-Any general rules you want the AI to follow.
-For example:
+## General guidelines
 
-* Only use absolute positioning when necessary. Opt for responsive and well structured layouts that use flexbox and grid by default
-* Refactor code as you go to keep code clean
-* Keep file sizes small and put helper functions and components in their own files.
+- **Windows + PowerShell**: `core.autocrlf=true`, nessun `.gitattributes` → i file sorgenti sono CRLF.
+  Molti `verify-*.mjs` cercano stringhe con `\n` letterale: **in locale (CRLF) possono fallire falsamente, in CI (Linux, LF) passano**. Prima di dichiarare un verify rotto, testare su copie normalizzate a LF (vedi WORKLOG → workflow CRLF).
+- Mantenere i file piccoli: helper e componenti nei loro own file.
+- Preferire layout responsive con flex/grid; evitare absolute positioning quando non necessario.
+- Non introdurre nuove dipendenze senza averle richieste all'utente.
 
---------------
+## Regole di codice
 
-# Design system guidelines
-Rules for how the AI should make generations look like your company's design system
+- **Stack**: Vite + React 18 + TypeScript + Tailwind CSS v4 + Radix UI, editor **tiptap**, dadi 3D (`dice-box-threejs`), backend **Supabase** (`@supabase/supabase-js`).
+- Struttura principale: componenti in `src/app/`, feature dei dadi in `src/app/components/session/dice/`, editor note in `src/app/components/session/shared/`.
+- `src/app/components/session/shared/tiptapIconData.ts` è **generato** da `generate:note-icons` (210 icone Lucide): **non editarlo mai a mano**. Si rigenera automaticamente a ogni `typecheck`/`predev`/`prebuild` e sporca il working tree — è normale, non usare `git stash pop` cieco.
+- Config Supabase: `src/config/supabase.config.ts` (URL + anon key con fallback hardcoded). Le variabili `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` hanno la precedenza se presenti.
+- Ogni nuova feature con logica verificabile deve avere il suo script in `scripts/verify-*.mjs|mts` e la relativa voce in `package.json` (`verify:*` + inserimento in `check`), seguendo il pattern RED→GREEN dei verify esistenti.
 
-Additionally, if you select a design system to use in the prompt box, you can reference
-your design system's components, tokens, variables and components.
-For example:
+## Verifiche (NON skippare)
 
-* Use a base font-size of 14px
-* Date formats should always be in the format “Jun 10”
-* The bottom toolbar should only ever have a maximum of 4 items
-* Never use the floating action button with the bottom toolbar
-* Chips should always come in sets of 3 or more
-* Don't use a dropdown if there are 2 or fewer options
+- **`npm run check`** — obbligatorio prima di **ogni commit**: typecheck + tutti i verify + build.
+- `node scripts/verify-dice-skin-regressions.mjs` — step CI separato (non incluso in `check`).
+- `npm audit --audit-level=high` — deve restare pulito.
+- `npm run check` rigenera `tiptapIconData.ts` a ogni run → fare `git add` **dopo** il check, non prima.
 
-You can also create sub sections and add more specific details
-For example:
+## Git e deploy
 
+- **Stile commit**: prefissi `fix:` / `test:` / `feat:` in lower-case, body con i dettagli. Esempi: `git log --oneline -20`.
+- **Niente force-push.**
+- **Notificare l'utente prima di ogni push.**
+- **Vercel: SOLO deploy production, mai preview.** Il deploy parte automaticamente dal push su `main` (www.hollowgate.quest).
+- Workflow a due computer (fisso + portatile): `git pull` all'inizio del lavoro, `git add -A` → `commit` → `push` alla fine.
 
-## Button
-The Button component is a fundamental interactive element in our design system, designed to trigger actions or navigate
-users through the application. It provides visual feedback and clear affordances to enhance user experience.
+## Design
 
-### Usage
-Buttons should be used for important actions that users need to take, such as form submissions, confirming choices,
-or initiating processes. They communicate interactivity and should have clear, action-oriented labels.
-
-### Variants
-* Primary Button
-  * Purpose : Used for the main action in a section or page
-  * Visual Style : Bold, filled with the primary brand color
-  * Usage : One primary button per section to guide users toward the most important action
-* Secondary Button
-  * Purpose : Used for alternative or supporting actions
-  * Visual Style : Outlined with the primary color, transparent background
-  * Usage : Can appear alongside a primary button for less important actions
-* Tertiary Button
-  * Purpose : Used for the least important actions
-  * Visual Style : Text-only with no border, using primary color
-  * Usage : For actions that should be available but not emphasized
--->
+- Il tema di riferimento è `default_shadcn_theme.css` (root) — usare i token esistenti invece di introdurre valori ad hoc.
+- Per decisioni di design già prese, fare riferimento alle spec in `docs/superpowers/specs/` (dadi, pelle 3D, tabelle note, icone, ecc.) invece di re-inventare la soluzione.
