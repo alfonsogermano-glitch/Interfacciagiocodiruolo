@@ -136,8 +136,8 @@ assert.match(entityTabBar, /relative[^"]*pr-10/, 'Tab bar must reserve a fixed s
 assert.match(noteUndoButton, /absolute right-0 top-0/, 'Undo must stay pinned at the end of the first row');
 assert.doesNotMatch(entityTabBar, /data-note-tab-actions/, 'Undo and "+" must not be forced into one shared flex block');
 assert.match(entityTabBar, /const plusButton = canEdit \?/, 'Tab-add "+" must be a canEdit-gated element shared by both placements');
-assert.match(entityTabBar, /data-tab-plus-unit="true"[\s\S]*\{plusButton\}/, 'The tab-add "+" must live inside the same flex unit as the last tab');
-assert.match(entityTabBar, /isLastTab[\s\S]*data-tab-plus-unit/, 'The glued unit must wrap only the last tab');
+assert.match(entityTabBar, /data-tab-unit="true"[\s\S]*\{withPlus && plusButton\}/, 'The tab-add "+" must live inside the same flex unit as the last tab');
+assert.match(entityTabBar, /const withPlus = isLastTab && !!plusButton/, 'The glued unit must wrap only the last tab');
 assert.match(entityDetailView, /<NoteUndoScope>/, 'entity scheda must scope undo to its own mounted editor');
 assert.match(noteSubTabs, /<NoteUndoScope>/, 'note sub-tabs must scope undo to their own mounted editor');
 assert.match(editor, /useClaimNoteUndoScope\(editor\)/, 'the mounted editor must claim its tab-bar undo scope');
