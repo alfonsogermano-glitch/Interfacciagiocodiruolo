@@ -36,6 +36,10 @@ Riferimento vivente: `WORKLOG.md` (stato e regole dettagliate) e `docs/superpowe
 
 ## Git e deploy
 
+- **I deploy Vercel hanno un costo (budget limitato)**: NON pushare per ogni modifica.
+  - Lavorare in locale: dev server (`npm run dev` → localhost:5173) + `npm run check`.
+  - **Accumulare più modifiche** e fare **un unico commit/push** quando c'è abbastanza materiale.
+  - Confermare sempre all'utente prima del push.
 - **Stile commit**: prefissi `fix:` / `test:` / `feat:` in lower-case, body con i dettagli. Esempi: `git log --oneline -20`.
 - **Niente force-push.**
 - **Notificare l'utente prima di ogni push.**
