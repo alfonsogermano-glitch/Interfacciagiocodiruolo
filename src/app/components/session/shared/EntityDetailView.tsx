@@ -7,6 +7,7 @@ import { TurbePanel } from '../../TurbePanel';
 import { EquipmentPanel as LegacyEquipmentPanel } from '../../EquipmentPanel';
 import { DraggablePortrait } from './DraggablePortrait';
 import { EntityTabBar } from './EntityTabBar';
+import { NoteUndoScope } from './noteUndoScope';
 import { RichTextEditor } from './RichTextEditor';
 import { EntityDetailRail, type EntityDetailRailSection } from './EntityDetailRail';
 import { TokenStyleEditor } from '../../shared/TokenStyleEditor';
@@ -574,7 +575,7 @@ export function EntityDetailView({
         </div>
 
         {activeSection === 'scheda' && (
-        <>
+        <NoteUndoScope>
         <EntityTabBar canEdit={canEdit} tabs={tabs} tabIndicators={tabIndicators} />
 
         <fieldset disabled={!canEdit} className={!canEdit ? 'opacity-90' : ''}>
@@ -1471,7 +1472,7 @@ export function EntityDetailView({
             ) : null
           )}
         </fieldset>
-        </>
+        </NoteUndoScope>
         )}
 
         {activeSection === 'immagine' && (

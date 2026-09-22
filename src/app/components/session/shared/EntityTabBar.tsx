@@ -4,6 +4,8 @@ import { MoreVertical, Plus, Pencil, EyeOff, Eye, Trash2, Copy, Lock, AlertTrian
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { usePortalContainer } from '../../ui/portal-container';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
+import { NoteUndoButton } from './NoteUndoButton';
+import { useScopedNoteEditor } from './noteUndoScope';
 import type { UseEntityTabsResult } from './useEntityTabs';
 
 interface EntityTabBarProps {
@@ -79,99 +81,134 @@ export function EntityTabBar({
     customTabs,
   } = tabs;
 
+  // Editor montato sotto questa barra (contesto NoteUndoScope): la sua
+  // presenza decide sia la resa dell'Annulla sia lo slot pr-10 riservato a
+  // fine prima riga, cosi' lo slot non resta mai vuoto (tab di base senza
+  // editor) ne' manca quando il tasto c'e'.
+  const scopeEditor = useScopedNoteEditor();
+
+  // Pulsante "+" condiviso: vive nell'unita' dell'ultima tab quando le tab
+  // ci sono, e' figlio diretto della barra quando la barra e' vuota.
+  const plusButton = canEdit ? (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          onClick={() => (onAddTab ? onAddTab() : handleAddCustomTab())}
+          aria-label="Aggiungi tab"
+          className="flex items-center justify-center rounded-md border border-dashed border-[var(--dash-border-soft)] p-1.5 text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top">Aggiungi tab</TooltipContent>
+    </Tooltip>
+  ) : null;
+
   return (
     <>
+      {/* La barra riserva (pr-10 = 32px dell'Annulla + 8px di gap) lo slot
+          a fine della PRIMA riga e l'Annulla lo occupa in absolute: e'
+          quindi un punto di riferimento fisso per l'utente e non wrappa
+          mai, quante righe occupino le tab. Lo slot e' riservato solo se
+          c'e' davvero un editor (la barra su una tab base non ha Annulla). */}
       <div
         ref={tabsContainerRef}
-        className={`mb-4 flex flex-wrap items-center gap-2 border-b border-[var(--dash-border-soft)] pb-3 ${
-          draggedTabId ? 'pointer-events-none select-none' : ''
-        }`}
+        className={`mb-4 flex flex-wrap items-center gap-2 border-b border-[var(--dash-border-soft)] pb-3 relative ${
+          canEdit && scopeEditor ? 'pr-10 ' : ''
+        }${draggedTabId ? 'pointer-events-none select-none' : ''}`}
       >
-        {orderedTabs.map((tab) => (
-          <div
-            key={tab.id}
-            data-tab-id={tab.id}
-            onPointerDown={(e) => handlePointerDownTab(e, tab.id)}
-            className={`group relative flex items-center ${
-              dragOverId === tab.id
-                ? 'border-l-2 border-[var(--dash-accent)] pl-1'
-                : ''
-            }`}
-          >
-            <div className={draggedTabId === tab.id ? 'flex items-center opacity-40' : 'flex items-center'}>
-              {renamingTabId === tab.id ? (
-                <input
-                  type="text"
-                  autoFocus
-                  value={renameDraft}
-                  onChange={(e) => setRenameDraft(e.target.value)}
-                  onBlur={() => handleRenameCustomTab(tab.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleRenameCustomTab(tab.id);
-                    if (e.key === 'Escape') setRenamingTabId(null);
-                  }}
-                  className="w-28 rounded-md border border-[var(--dash-accent)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text)]"
-                />
-              ) : (
-                <button
-                  onClick={() => selectTabByClick(tab.id)}
-                  className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
-                    currentTab === tab.id
-                      ? 'border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
-                      : 'border border-transparent bg-transparent text-[var(--dash-text)] hover:bg-[var(--dash-panel)]'
-                  } ${tab.hidden ? 'opacity-50' : ''} ${tab.isCustom && canEdit ? 'pr-7' : ''}`}
-                >
-                  {tab.hidden && <EyeOff className="h-3 w-3" />}
-                  {tabIndicators[tab.id]?.locked && <Lock className="h-3 w-3" />}
-                  {tabIndicators[tab.id]?.warning && (
-                    <AlertTriangle className="h-3 w-3 text-[var(--dash-danger-text)]" />
-                  )}
-                  {tab.label}
-                </button>
-              )}
-
-              {/* Menu ⋮ — SOLO tab personalizzate. Sempre visibile (non piu'
-                  legato a group-hover); il menu a comparsa e' un portale in
-                  position:fixed (vedi sotto il map) per non finire tagliato
-                  dall'overflow-hidden del contenitore di EntityDetailView. */}
-              {tab.isCustom && canEdit && renamingTabId !== tab.id && (
-                <div className="absolute right-1 top-1/2 -translate-y-1/2">
-                  <button
-                    data-no-drag
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setMenuAnchorRect({ top: rect.bottom, right: window.innerWidth - rect.right });
-                      setOpenMenuTabId(prev => (prev === tab.id ? null : tab.id));
+        {orderedTabs.map((tab, index) => {
+          const isLastTab = index === orderedTabs.length - 1;
+          const tabElement = (
+            <div
+              key={tab.id}
+              data-tab-id={tab.id}
+              onPointerDown={(e) => handlePointerDownTab(e, tab.id)}
+              className={`group relative flex items-center ${
+                dragOverId === tab.id
+                  ? 'border-l-2 border-[var(--dash-accent)] pl-1'
+                  : ''
+              }`}
+            >
+              <div className={draggedTabId === tab.id ? 'flex items-center opacity-40' : 'flex items-center'}>
+                {renamingTabId === tab.id ? (
+                  <input
+                    type="text"
+                    autoFocus
+                    value={renameDraft}
+                    onChange={(e) => setRenameDraft(e.target.value)}
+                    onBlur={() => handleRenameCustomTab(tab.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleRenameCustomTab(tab.id);
+                      if (e.key === 'Escape') setRenamingTabId(null);
                     }}
-                    className="cursor-default rounded p-0.5 text-[var(--dash-text-strong)] transition-colors"
+                    className="w-28 rounded-md border border-[var(--dash-accent)] bg-[var(--dash-input)] px-2 py-1 text-sm text-[var(--dash-text)]"
+                  />
+                ) : (
+                  <button
+                    onClick={() => selectTabByClick(tab.id)}
+                    className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
+                      currentTab === tab.id
+                        ? 'border border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
+                        : 'border border-transparent bg-transparent text-[var(--dash-text)] hover:bg-[var(--dash-panel)]'
+                    } ${tab.hidden ? 'opacity-50' : ''} ${tab.isCustom && canEdit ? 'pr-7' : ''}`}
                   >
-                    <MoreVertical className="h-3.5 w-3.5" />
+                    {tab.hidden && <EyeOff className="h-3 w-3" />}
+                    {tabIndicators[tab.id]?.locked && <Lock className="h-3 w-3" />}
+                    {tabIndicators[tab.id]?.warning && (
+                      <AlertTriangle className="h-3 w-3 text-[var(--dash-danger-text)]" />
+                    )}
+                    {tab.label}
                   </button>
-                </div>
-              )}
+                )}
+
+                {/* Menu ⋮ — SOLO tab personalizzate. Sempre visibile (non piu'
+                    legato a group-hover); il menu a comparsa e' un portale in
+                    position:fixed (vedi sotto il map) per non finire tagliato
+                    dall'overflow-hidden del contenitore di EntityDetailView. */}
+                {tab.isCustom && canEdit && renamingTabId !== tab.id && (
+                  <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                    <button
+                      data-no-drag
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setMenuAnchorRect({ top: rect.bottom, right: window.innerWidth - rect.right });
+                        setOpenMenuTabId(prev => (prev === tab.id ? null : tab.id));
+                      }}
+                      className="cursor-default rounded p-0.5 text-[var(--dash-text-strong)] transition-colors"
+                    >
+                      <MoreVertical className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
 
-        {draggedTabId && dragOverId === 'END' && (
-          <div className="h-6 w-0.5 rounded bg-[var(--dash-accent)]" />
-        )}
+          // Il "+" vive nella STESSA unita' flex dell'ultima tab: e' l'unico
+          // modo per far valere la regola "il + mai solo su una riga", che se
+          // l'unita' [ultima tab + +] non entra scende insieme alla riga dopo.
+          // L'Annulla NON fa parte dell'unita': resta fissata (absolute) alla
+          // fine della prima riga.
+          if (!isLastTab || !plusButton) return tabElement;
+          return (
+            <div key={tab.id} data-tab-plus-unit="true" className="flex shrink-0 items-center gap-2">
+              {tabElement}
+              {draggedTabId && dragOverId === 'END' && (
+                <div className="h-6 w-0.5 rounded bg-[var(--dash-accent)]" />
+              )}
+              {plusButton}
+            </div>
+          );
+        })}
 
-        {canEdit && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={() => (onAddTab ? onAddTab() : handleAddCustomTab())}
-                aria-label="Aggiungi tab"
-                className="flex items-center justify-center rounded-md border border-dashed border-[var(--dash-border-soft)] p-1.5 text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top">Aggiungi tab</TooltipContent>
-          </Tooltip>
-        )}
+        {orderedTabs.length === 0 && plusButton}
+
+        {/* Annulla FISSA a fine della PRIMA riga: esce dal flusso flex            (absolute) e occupa lo slot che il contenitore riserva con pr-10,
+            quindi non wrappa mai ed e' sempre nello stesso punto per
+            l'utente, quante che siano le righe delle tab. */}
+        {canEdit && <NoteUndoButton />}
       </div>
 
       {openMenuTabId && menuAnchorRect && (() => {

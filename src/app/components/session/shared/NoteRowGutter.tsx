@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactElement, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactElement, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
 import { Plus, Type } from 'lucide-react';
@@ -41,6 +41,12 @@ interface GutterAnchor {
   blockPos: number | null;
   side: 'left' | 'right';
   top: number;
+  // Fascia verticale della riga (coordinate shell): il mouse su quella
+  // fascia rivela i pulsanti di bordo.
+  bandTop: number;
+  bandBottom: number;
+  // Caret o selezione raggiungono la riga con l'editor focalizzato.
+  active: boolean;
 }
 
 interface GutterMenuState {
@@ -73,6 +79,7 @@ function isBoxChar(doc: Editor['state']['doc'], pos: number): boolean {
 function gutterButton(
   anchor: GutterAnchor,
   active: boolean,
+  visible: boolean,
   onOpen: (anchor: GutterAnchor, event: React.MouseEvent<HTMLButtonElement>) => void,
 ): ReactElement {
   return (
@@ -94,7 +101,13 @@ function gutterButton(
       }}
       style={{ top: `${anchor.top}px`, ...(anchor.side === 'left' ? { left: '2px' } : { right: '2px' }) }}
       className={`absolute z-[20] flex h-4 w-4 items-center justify-center rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] text-[var(--dash-muted)] shadow-sm transition-all hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)] ${
-        active ? 'opacity-100 ring-1 ring-inset ring-[var(--dash-accent-2)]' : 'opacity-75 hover:opacity-100'
+        // Riga inattiva (nessun mouse, nessun caret): pulsante invisibile e
+        // non cliccabile, il documento resta pulito dai simboli laterali.
+        !visible
+          ? 'pointer-events-none opacity-0'
+          : active
+            ? 'opacity-100 ring-1 ring-inset ring-[var(--dash-accent-2)]'
+            : 'opacity-75 hover:opacity-100'
       }`}
     >
       <Plus className="h-3 w-3" aria-hidden="true" />
@@ -161,6 +174,10 @@ export function NoteRowGutter({
   const [menu, setMenu] = useState<GutterMenuState | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [openSecondaryId, setOpenSecondaryId] = useState<NoteCommandId | null>(null);
+  // Posizione del mouse (coord. viewport): senza mouse (tastiera/touch) il
+  // "+" resta affidato al solo caret. Aggiornata su rAF, non a ogni pixel.
+  const [pointerClient, setPointerClient] = useState<{ x: number; y: number } | null>(null);
+  const shellRectRef = useRef<DOMRect | null>(null);
 
   const refresh = useCallback(() => {
     const shell = shellRef.current;
@@ -169,7 +186,15 @@ export function NoteRowGutter({
       return;
     }
     const shellRect = shell.getBoundingClientRect();
+    shellRectRef.current = shellRect;
     const { doc } = editor.state;
+    const selection = editor.state.selection;
+    const focused = editor.isFocused;
+    // La riga e' "attiva" quando caret o selezione la raggiungono con
+    // l'editor focalizzato: estremi inclusivi, cosi' anche il GapCursor
+    // lampeggiante ai bordi rivela la riga adiacente.
+    const caretOn = (rowStart: number, rowEnd: number) =>
+      focused && selection.from <= rowEnd && selection.to >= rowStart;
     const found: GutterAnchor[] = [];
     doc.descendants((node, pos) => {
       // TextBox e Collapse: i due "+" aggiungono al lato scelto (il menu
@@ -182,8 +207,16 @@ export function NoteRowGutter({
           const rect = dom instanceof HTMLElement ? dom.getBoundingClientRect() : editor.view.coordsAtPos(pos + 1);
           if (rect.bottom >= shellRect.top && rect.top <= shellRect.bottom) {
             const center = (rect.top + rect.bottom) / 2 - shellRect.top - GUTTER_BUTTON / 2;
-            found.push({ key: `${pos}-row-left`, paraStart: -1, paraEnd: -1, blockPos: pos, side: 'left', top: center });
-            found.push({ key: `${pos}-row-right`, paraStart: -1, paraEnd: -1, blockPos: pos, side: 'right', top: Math.max(center, 46) });
+            const shared = {
+              paraStart: -1,
+              paraEnd: -1,
+              blockPos: pos,
+              bandTop: rect.top - shellRect.top,
+              bandBottom: rect.bottom - shellRect.top,
+              active: caretOn(pos, pos + node.nodeSize),
+            };
+            found.push({ key: `${pos}-row-left`, ...shared, side: 'left', top: center });
+            found.push({ key: `${pos}-row-right`, ...shared, side: 'right', top: center });
           }
         } catch {
           /* posizione non piu' valida: si ricalcola alla prossima transazione */
@@ -200,22 +233,16 @@ export function NoteRowGutter({
           const rect = dom instanceof HTMLElement ? dom.getBoundingClientRect() : editor.view.coordsAtPos(pos + 1);
           if (rect.bottom >= shellRect.top && rect.top <= shellRect.bottom) {
             const center = (rect.top + rect.bottom) / 2 - shellRect.top - GUTTER_BUTTON / 2;
-            found.push({
-              key: `${pos}-block-left`,
+            const shared = {
               paraStart: -1,
               paraEnd: -1,
               blockPos: pos,
-              side: 'left',
-              top: center,
-            });
-            found.push({
-              key: `${pos}-block-right`,
-              paraStart: -1,
-              paraEnd: -1,
-              blockPos: pos,
-              side: 'right',
-              top: Math.max(center, 46),
-            });
+              bandTop: rect.top - shellRect.top,
+              bandBottom: rect.bottom - shellRect.top,
+              active: caretOn(pos, pos + node.nodeSize),
+            };
+            found.push({ key: `${pos}-block-left`, ...shared, side: 'left', top: center });
+            found.push({ key: `${pos}-block-right`, ...shared, side: 'right', top: center });
           }
         } catch {
           /* posizione non piu' valida: si ricalcola alla prossima transazione */
@@ -237,15 +264,33 @@ export function NoteRowGutter({
       // di confine ha affinita' di riga ambigua e spiazza i pulsanti.
       const firstWidgetRect = getInlineBoxWidgetAt(start)?.getBoundingClientRect() ?? null;
       const lastWidgetRect = getInlineBoxWidgetAt(end - 1)?.getBoundingClientRect() ?? null;
+      // Fascia verticale dell'intero paragrafo: il mouse su qualsiasi sua
+      // riga visiva rivela i "+" di bordo, non solo la linea del box.
+      let bandTop = 0;
+      let bandBottom = 0;
+      try {
+        const paraDom = editor.view.nodeDOM(pos);
+        const bandRect = paraDom instanceof HTMLElement ? paraDom.getBoundingClientRect() : editor.view.coordsAtPos(start);
+        bandTop = bandRect.top - shellRect.top;
+        bandBottom = bandRect.bottom - shellRect.top;
+      } catch {
+        /* fascia non calcolabile: i pulsanti restano affidati al caret */
+      }
+      const shared = {
+        paraStart: start,
+        paraEnd: end,
+        blockPos: null,
+        bandTop,
+        bandBottom,
+        active: caretOn(pos, pos + node.nodeSize),
+      };
       if (startsWithBox) {
         try {
           const coords = firstWidgetRect ?? editor.view.coordsAtPos(start);
           if (coords.bottom >= shellRect.top && coords.top <= shellRect.bottom) {
             found.push({
               key: `${start}-left`,
-              paraStart: start,
-              paraEnd: end,
-              blockPos: null,
+              ...shared,
               side: 'left',
               top: (coords.top + coords.bottom) / 2 - shellRect.top - GUTTER_BUTTON / 2,
             });
@@ -263,16 +308,7 @@ export function NoteRowGutter({
             const contentRight = editor.view.dom.getBoundingClientRect().right - 6;
             if (contentRight - coords.right < INLINE_EDGE_CLICK_ROOM) {
               const rawTop = (coords.top + coords.bottom) / 2 - shellRect.top - GUTTER_BUTTON / 2;
-              found.push({
-                key: `${start}-right`,
-                paraStart: start,
-                paraEnd: end,
-                blockPos: null,
-                side: 'right',
-                // Il pulsante Annulla vive in alto a destra del contenitore:
-                // la prima riga appoggia il suo "+" poco piu' sotto.
-                top: Math.max(rawTop, 46),
-              });
+              found.push({ key: `${start}-right`, ...shared, side: 'right', top: rawTop });
             }
           }
         } catch {
@@ -282,7 +318,17 @@ export function NoteRowGutter({
       return false;
     });
     setAnchors((previous) => {
-      if (previous.length === found.length && previous.every((item, index) => item.key === found[index].key && Math.abs(item.top - found[index].top) < 1)) {
+      if (
+        previous.length === found.length &&
+        previous.every(
+          (item, index) =>
+            item.key === found[index].key &&
+            item.active === found[index].active &&
+            Math.abs(item.top - found[index].top) < 1 &&
+            Math.abs(item.bandTop - found[index].bandTop) < 1 &&
+            Math.abs(item.bandBottom - found[index].bandBottom) < 1,
+        )
+      ) {
         return previous;
       }
       if (typeof console !== 'undefined' && previous.length !== found.length) {
@@ -317,15 +363,52 @@ export function NoteRowGutter({
     refresh();
     editor.on('transaction', refreshAfterMeasure);
     editor.on('selectionUpdate', refreshAfterMeasure);
+    editor.on('focus', refresh);
+    editor.on('blur', refresh);
     window.addEventListener('resize', refresh);
     window.addEventListener('scroll', refresh, true);
     return () => {
       editor.off('transaction', refreshAfterMeasure);
       editor.off('selectionUpdate', refreshAfterMeasure);
+      editor.off('focus', refresh);
+      editor.off('blur', refresh);
       window.removeEventListener('resize', refresh);
       window.removeEventListener('scroll', refresh, true);
     };
   }, [editor, refresh, refreshAfterMeasure]);
+
+  // Il mouse rivela i "+" solo sulla riga sotto il puntatore: senza mouse
+  // (tastiera o touch) resta il caret. Un frame di stato al massimo, mai
+  // uno stato React per ogni pixel.
+  useEffect(() => {
+    let frame = 0;
+    let last: PointerEvent | null = null;
+    const flush = () => {
+      frame = 0;
+      if (last) setPointerClient({ x: last.clientX, y: last.clientY });
+    };
+    const onMove = (event: PointerEvent) => {
+      last = event;
+      if (frame) return;
+      frame = requestAnimationFrame(flush);
+    };
+    const onLeave = () => {
+      if (frame) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
+      setPointerClient(null);
+    };
+    document.addEventListener('pointermove', onMove, { passive: true });
+    document.documentElement.addEventListener('pointerleave', onLeave);
+    window.addEventListener('blur', onLeave);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      document.removeEventListener('pointermove', onMove);
+      document.documentElement.removeEventListener('pointerleave', onLeave);
+      window.removeEventListener('blur', onLeave);
+    };
+  }, []);
 
   useEffect(() => {
     if (!menu) return;
@@ -556,9 +639,26 @@ export function NoteRowGutter({
 
   if (!editable) return null;
 
+  // Visibilita' su richiesta: il "+" di una riga appare solo se il mouse e'
+  // nella sua fascia verticale (entro la larghezza dello shell, cosi' la
+  // sidebar non attiva le righe affiancate), oppure se caret/selezione
+  // hanno raggiunto la riga, oppure se il menu di quel "+" e' aperto.
+  const shellRect = shellRectRef.current;
+  const pointerShellX = pointerClient && shellRect ? pointerClient.x - shellRect.left : null;
+  const pointerShellY = pointerClient && shellRect ? pointerClient.y - shellRect.top : null;
+  const revealed = (anchor: GutterAnchor) =>
+    anchor.active ||
+    (menu !== null && anchor.key === menu.key) ||
+    (pointerShellX !== null &&
+      pointerShellY !== null &&
+      pointerShellX >= 0 &&
+      pointerShellX <= (shellRect?.width ?? 0) &&
+      pointerShellY >= anchor.bandTop &&
+      pointerShellY <= anchor.bandBottom);
+
   return (
     <>
-      {anchors.map((anchor) => gutterButton(anchor, menu !== null && anchor.key === menu.key, openMenu))}
+      {anchors.map((anchor) => gutterButton(anchor, menu !== null && anchor.key === menu.key, revealed(anchor), openMenu))}
       {menu &&
         createPortal(
           <div

@@ -1,6 +1,7 @@
 import { Plus, StickyNote } from 'lucide-react';
 import { useEntityTabs, type EntityCustomTab } from './useEntityTabs';
 import { EntityTabBar } from './EntityTabBar';
+import { NoteUndoScope } from './noteUndoScope';
 import { RichTextEditor } from './RichTextEditor';
 
 interface NoteSubTabsProps {
@@ -73,7 +74,7 @@ export function NoteSubTabs({ note, campaignId, accessToken, canEdit, onPersistS
   }
 
   return (
-    <>
+    <NoteUndoScope>
       <EntityTabBar
         canEdit={canEdit}
         tabs={nestedTabs}
@@ -103,6 +104,6 @@ export function NoteSubTabs({ note, campaignId, accessToken, canEdit, onPersistS
           onAutoFocusConsumed={() => nestedTabs.clearPendingFocusTab(selectedSubTab.id)}
         />
       ) : null}
-    </>
+    </NoteUndoScope>
   );
 }

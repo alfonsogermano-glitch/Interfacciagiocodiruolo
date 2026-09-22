@@ -6,8 +6,7 @@ import TextAlign from '@tiptap/extension-text-align';
 import Image from '@tiptap/extension-image';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
-import { Undo2 } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
+import { useClaimNoteUndoScope } from './noteUndoScope';
 import { MarkdownContent } from './MarkdownContent';
 import { parseLines } from './markdownHeadings';
 import { TIPTAP_BLOCK_EXTENSIONS } from './tiptapBlocks';
@@ -159,37 +158,6 @@ function NoteViewportFrame({ enabled, children }: { enabled: boolean; children: 
   );
 }
 
-function PermanentUndo({ editor, editable }: { editor: Editor; editable: boolean }) {
-  const [, refresh] = useState(0);
-  useEffect(() => {
-    const onTransaction = () => refresh((value) => value + 1);
-    editor.on('transaction', onTransaction);
-    return () => { editor.off('transaction', onTransaction); };
-  }, [editor]);
-  if (!editable) return null;
-  const disabled = !editor.can().undo();
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span data-note-contextual-ui="true" className="absolute right-2 top-2 z-[20] inline-flex">
-          <button
-            type="button"
-            data-note-contextual-ui="true"
-            aria-label="Annulla"
-            disabled={disabled}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => editor.chain().focus().undo().run()}
-            className={`flex h-8 w-8 items-center justify-center rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] text-[var(--dash-muted)] shadow-sm transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)] ${disabled ? 'cursor-not-allowed opacity-35' : ''}`}
-          >
-            <Undo2 className="h-4 w-4" />
-          </button>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent side="left" sideOffset={6}>Annulla</TooltipContent>
-    </Tooltip>
-  );
-}
-
 function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineCheckbox, autoFocus, onBlurEditor, onClickText, containerClassName, fillViewport, peerContents }: {
   richContent: JSONContent;
   onChangeRich: (json: JSONContent) => void;
@@ -262,6 +230,10 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
       onBlurEditor?.();
     },
   });
+
+  // Rivendica l'ambito Annulla della barra tab con l'istanza viva (vedi
+  // noteUndoScope.tsx): il tasto nella EntityTabBar agisce su questo editor.
+  useClaimNoteUndoScope(editor);
 
   useEffect(() => {
     if (!containerRejection) return;
@@ -340,7 +312,6 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
       >
         <EditorContent editor={editor} />
       </div>
-      <PermanentUndo editor={editor} editable={editable} />
       <NoteRowGutter editor={editor} editable={editable} shellRef={editorShellRef} />
       <NoteSlashMenu editor={editor} editable={editable} />
       <NoteModifierMenu editor={editor} editable={editable} />
