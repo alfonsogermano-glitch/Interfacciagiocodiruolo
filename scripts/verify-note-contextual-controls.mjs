@@ -4,12 +4,13 @@ import { readFile } from 'node:fs/promises';
 const read = (name) => readFile(new URL(`../src/app/components/session/shared/${name}`, import.meta.url), 'utf8');
 const readSession = (name) => readFile(new URL(`../src/app/components/session/${name}`, import.meta.url), 'utf8');
 const readDice = (name) => readFile(new URL(`../src/app/components/session/dice/${name}`, import.meta.url), 'utf8');
-const [commands, slash, selection, pickers, richClipboard, editor, slashPlugin, menuCss, entityTabBar, noteSubTabs, noteListRow, trashRow, sessionNotesPanel, modifierMenu, diceContext, diceCard, diceTypes] = await Promise.all([
+const [commands, slash, selection, pickers, richClipboard, editor, slashPlugin, menuCss, entityTabBar, noteSubTabs, noteListRow, trashRow, sessionNotesPanel, modifierMenu, diceContext, diceCard, diceTypes, entityDetailView, noteUndoButton, noteUndoScope] = await Promise.all([
   read('noteEditorCommands.ts'), read('NoteSlashMenu.tsx'), read('NoteSelectionToolbar.tsx'),
   read('NoteContextualPickers.tsx'), read('tiptapNoteRichClipboard.ts'), read('RichTextEditor.tsx'), read('tiptapNoteSlashMenu.ts'),
   read('noteContextualMenus.css'), read('EntityTabBar.tsx'), read('NoteSubTabs.tsx'), read('NoteListRow.tsx'), read('TrashRow.tsx'),
   readSession('SessionNotesPanel.tsx'), read('NoteModifierMenu.tsx'),
   readDice('DiceSessionContext.tsx'), readDice('DiceRollHistoryCard.tsx'), readDice('diceTypes.ts'),
+  read('EntityDetailView.tsx'), read('NoteUndoButton.tsx'), read('noteUndoScope.tsx'),
 ]);
 const diceRealtime = await readFile(new URL('../src/services/realtime/diceRealtime.ts', import.meta.url), 'utf8');
 
@@ -126,8 +127,24 @@ const order = ['containerGuardExtension','tableClipboardExtension','richClipboar
 assert.ok(order.every((index) => index >= 0) && order.every((index, i) => i === 0 || index > order[i - 1]), 'guard/table clipboard/rich clipboard/slash registration order must remain');
 assert.match(editor, /relatedTarget[\s\S]*removeAllRanges[\s\S]*onBlurEditor\?\.\(\)/, 'editor blur to empty space must clear orphaned DOM ranges so no ghost caret survives');
 assert.match(editor, /onMouseDown=\{editable \?[\s\S]*event\.target !== event\.currentTarget[\s\S]*clientWidth[\s\S]*preventDefault\(\)/, 'padding clicks must keep focus inside the editor instead of blur-reenter flicker');
-assert.match(editor, /PermanentUndo/, 'Undo must remain permanent outside Slash menu');
-assert.match(editor, /absolute right-2 top-2/, 'Undo must stay top-right');
+// L'Annulla e' uscito dal guscio dell'editor (con i suoi "+" laterali non
+// devono mai collidere) e vive ora a fine riga della EntityTabBar, agendo
+// sull'unico editor montato sotto quella barra tramite NoteUndoScope.
+assert.doesNotMatch(editor, /PermanentUndo/, 'Undo must leave the editor shell so gutter rows never collide with it');
+assert.match(entityTabBar, /<NoteUndoButton \/>/, 'Undo must remain permanent outside Slash menu, at the end of the tab row');
+assert.match(entityTabBar, /relative[^"]*pr-10/, 'Tab bar must reserve a fixed slot at the end of its first row for Undo');
+assert.match(noteUndoButton, /absolute right-0 top-0/, 'Undo must stay pinned at the end of the first row');
+assert.doesNotMatch(entityTabBar, /data-note-tab-actions/, 'Undo and "+" must not be forced into one shared flex block');
+assert.match(entityTabBar, /const plusButton = canEdit \?/, 'Tab-add "+" must be a canEdit-gated element shared by both placements');
+assert.match(entityTabBar, /data-tab-plus-unit="true"[\s\S]*\{plusButton\}/, 'The tab-add "+" must live inside the same flex unit as the last tab');
+assert.match(entityTabBar, /isLastTab[\s\S]*data-tab-plus-unit/, 'The glued unit must wrap only the last tab');
+assert.match(entityDetailView, /<NoteUndoScope>/, 'entity scheda must scope undo to its own mounted editor');
+assert.match(noteSubTabs, /<NoteUndoScope>/, 'note sub-tabs must scope undo to their own mounted editor');
+assert.match(editor, /useClaimNoteUndoScope\(editor\)/, 'the mounted editor must claim its tab-bar undo scope');
+assert.match(noteUndoButton, /editor\.chain\(\)\.focus\(\)\.undo\(\)\.run\(\)/, 'Undo action must remain unchanged');
+assert.match(noteUndoButton, /side="bottom">Annulla</, 'Undo tooltip must read Annulla and open below the tab row');
+assert.doesNotMatch(noteUndoButton, /ml-auto/, 'Undo must not rely on auto margins: it is pinned at the end of the first row');
+assert.match(noteUndoScope, /release\(gone: Editor\)|prev === gone/, 'scope release must be identity-guarded so a stale editor never clears the new one');
 
 assert.match(noteListRow, /title="Spostare questa nota nel cestino\?"/, 'top-level note soft-delete dialog title must describe moving to trash');
 assert.match(noteListRow, /confirmLabel="Sposta nel cestino"/, 'top-level note soft-delete confirmation must say Sposta nel cestino');

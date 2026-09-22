@@ -48,7 +48,14 @@ assert.match(editor, /<NoteRowGutter editor=\{editor\} editable=\{editable\} she
 assert.match(gutter, /BOX_MARK_NAMES[\s\S]*inlineModifier[\s\S]*inlineDice[\s\S]*inlinePoints/, 'gutter rows must trigger on modifier, dice and points edge boxes');
 assert.match(gutter, /data-note-row-gutter="true"[\s\S]*data-note-row-gutter-side/, 'gutter buttons must expose their row side without stealing editor focus');
 assert.match(gutter, /onMouseDown[\s\S]*preventDefault/, 'gutter buttons must not blur the editor on mousedown');
-assert.match(gutter, /opacity-75 hover:opacity-100/, 'gutter buttons must stay visible but unobtrusive until hovered');
+assert.match(gutter, /opacity-75 hover:opacity-100/, 'shown gutter buttons must stay unobtrusive until hovered');
+// Visibilita' su richiesta: i "+" spariscono dalle righe inactive in modo che
+// il documento resti pulito dai simboli laterali. Appaiono solo quando il
+// mouse entra nella fascia verticale della riga o quando caret/selezione
+// (editor focalizzato) raggiungono la riga.
+assert.match(gutter, /editor\.isFocused/, 'caret-driven gutter visibility must consider editor focus');
+assert.match(gutter, /pointermove/, 'gutter visibility must follow the pointer row by row');
+assert.match(gutter, /pointer-events-none opacity-0/, 'idle rows must hide their gutter buttons so the document stays clean');
 assert.match(gutter, /'Testo'[\s\S]*Type/, 'the gutter menu must offer Testo with an adequate icon inside Blocchi');
 assert.match(gutter, /NOTE_COMMANDS/, 'the gutter menu must reuse the slash command catalog');
 assert.match(gutter, /insertInlineAtEdge[\s\S]*insertContent\(' '\)/, 'left-edge insertion of modifiers and dice must prepare a real trailing space');
@@ -60,5 +67,9 @@ assert.match(gutter, /resolveMenuEdge[\s\S]*paraType\.create/, 'block buttons mu
 assert.match(gutter, /INLINE_EDGE_CLICK_ROOM = 40[\s\S]*contentRight - coords\.right < INLINE_EDGE_CLICK_ROOM/, 'the right button must hide when clickable room already allows direct slash typing');
 assert.match(gutter, /clampNewBoxToRow[\s\S]*room < widget\.offsetWidth/, 'new gutter boxes must be pre-shrunk to the remaining row before first paint');
 assert.match(gutter, /getInlineBoxWidgetAt\(start\)\?\.getBoundingClientRect|getInlineBoxWidgetAt\(end - 1\)\?\.getBoundingClientRect/, 'edge buttons must anchor to the real border widget rects, not ambiguous boundary coordinates');
+// Il "+" destro non deve mai cadere sotto la sua riga: con l'Annulla fuori
+// dall'editor non ci sono piu' collisioni da schivare, resta sempre centrato.
+assert.doesNotMatch(gutter, /Math\.max\((center|rawTop), 46\)/, 'right gutter buttons must stay vertically centered on their row');
+assert.doesNotMatch(gutter, /data-note-undo/, 'the gutter must not dodge controls that no longer live in the editor shell');
 
 console.log('Inline element layout verification: PASS');
