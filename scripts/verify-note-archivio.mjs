@@ -74,7 +74,7 @@ assert.match(view, /HOVER_DOTS[\s\S]*group-hover:opacity-100/, 'cell and header 
 assert.match(node, /selectable:\s*false/, 'archivio must not be selectable as a block, only removable through its Elimina menu');
 const theme = await readFile(new URL('../src/styles/theme.css', import.meta.url), 'utf8');
 assert.match(theme, /\.tiptap-archivio\.ProseMirror-selectednode[\s\S]*outline:\s*none/, 'a selected archivio must not keep the global selection outline');
-assert.match(theme, /\.tiptap-content \.tiptap-archivio\s*\{[^}]*margin:\s*0 0 0\.25rem 0/, 'archivio must use the same bottom spacing as a paragraph');
+assert.match(theme, /\.tiptap-content \.tiptap-archivio\s*\{[^}]*margin:\s*0 0 var\(--note-block-gap\) 0/, 'archivio must stack with the shared --note-block-gap standard (see verify-note-element-standards)');
 
 // Nessun colore hardcoded: solo variabili di palette e classi Tailwind.
 for (const [name, source] of [['tiptapArchivio', node], ['ArchivioView', view]]) {

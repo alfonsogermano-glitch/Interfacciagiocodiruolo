@@ -37,13 +37,13 @@ assert.match(viewportCss, /\.tiptap-viewport-scroll \.tiptap-content > :last-chi
 
 assert.match(
   noteSubTabs,
-  /className="min-h-\[3rem\] rounded-xl border border-\[var\(--dash-border-soft\)\] bg-\[var\(--dash-surface\)\] p-3"/,
-  'session note editor must use the same dash-surface background as character sheets',
+  /className="min-h-\[3rem\] rounded-\[var\(--note-block-radius\)\] border border-\[var\(--dash-border-soft\)\] bg-\[var\(--dash-surface\)\] p-3"/,
+  'session note editor must keep the shared --note-block-radius and the dash-surface background as character sheets',
 );
 assert.match(
   editor,
-  /DEFAULT_CONTAINER_CLASS\s*=\s*'min-h-\[3rem\] rounded-xl border border-\[var\(--dash-border-soft\)\] bg-\[var\(--dash-panel\)\] p-3'/,
-  'RichTextEditor global default must remain dash-panel so other contexts are unchanged',
+  /DEFAULT_CONTAINER_CLASS\s*=\s*'min-h-\[3rem\] rounded-\[var\(--note-block-radius\)\] border border-\[var\(--dash-border-soft\)\] bg-\[var\(--dash-panel\)\] p-3'/,
+  'RichTextEditor global default must keep the shared --note-block-radius and remain dash-panel so other contexts are unchanged',
 );
 
 console.log('Note viewport fill verification: PASS');

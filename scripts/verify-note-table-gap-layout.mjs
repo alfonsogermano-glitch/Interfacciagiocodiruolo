@@ -14,13 +14,13 @@ assert.match(
 
 assert.match(
   css,
-  /:is\(\.tiptap-textbox,\s*\.tiptap-collapse\)\s*\+\s*\.ProseMirror-gapcursor::after[\s\S]*?top:\s*calc\(0\.2rem\s*-\s*0\.5px\)\s*;/,
-  'the lower GapCursor line must remain centered halfway through the 0.4rem lower cell padding',
+  /:is\(\.tiptap-textbox,\s*\.tiptap-collapse\)\s*\+\s*\.ProseMirror-gapcursor::after[\s\S]*?top:\s*calc\(var\(--note-cell-padding-y\)\s*\/\s*2\s*-\s*0\.5px\)\s*;/,
+  'the lower GapCursor line must stay centered halfway through the --note-cell-padding-y lower cell padding',
 );
 
 assert.match(
   css,
-  /\.ProseMirror-gapcursor:has\(\+\s*:is\(\.tiptap-textbox,\s*\.tiptap-collapse\)\)::after[\s\S]*?top:\s*calc\(-0\.2rem\s*\+\s*0\.5px\)\s*;/,
+  /\.ProseMirror-gapcursor:has\(\+\s*:is\(\.tiptap-textbox,\s*\.tiptap-collapse\)\)::after[\s\S]*?top:\s*calc\(-1\s*\*\s*var\(--note-cell-padding-y\)\s*\/\s*2\s*\+\s*0\.5px\)\s*;/,
   'the upper GapCursor line must compensate the 1px render asymmetry while staying centered between the cell border and container',
 );
 
