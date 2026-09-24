@@ -443,8 +443,8 @@ function buildDiceWidget(
     justifyContent: 'center',
     alignItems: 'stretch',
     verticalAlign: 'middle',
-    border: '1px solid var(--dash-accent-2)',
-    borderRadius: '0.45em',
+    border: 'var(--note-border-width) solid var(--dash-accent-2)',
+    borderRadius: 'var(--note-widget-radius)',
     background: 'var(--dash-surface-2)',
     color: 'var(--dash-text)',
     userSelect: 'none',
@@ -555,9 +555,9 @@ function buildDiceWidget(
     flexDirection: 'column',
     gap: '0.11em',
     padding: '0.22em',
-    borderRadius: '0.3em',
+    borderRadius: 'var(--note-widget-menu-radius)',
     opacity: 0,
-    transition: 'opacity 120ms ease',
+    transition: 'opacity var(--note-ui-duration) ease',
     cursor: view.editable ? 'pointer' : 'default',
   });
   for (let i = 0; i < 3; i += 1) {

@@ -344,7 +344,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
   );
 }
 
-const DEFAULT_CONTAINER_CLASS = 'min-h-[3rem] rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3';
+const DEFAULT_CONTAINER_CLASS = 'min-h-[3rem] rounded-[var(--note-block-radius)] border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3';
 
 export function RichTextEditor({ legacyContent, richContent, onChangeRich, disabled, placeholder, className, fillViewport = true, autoFocusOnSelect, onAutoFocusConsumed, peerContents }: RichTextEditorProps) {
   const [isEditing, setIsEditing] = useState(() => !!autoFocusOnSelect && !disabled);
@@ -374,7 +374,7 @@ export function RichTextEditor({ legacyContent, richContent, onChangeRich, disab
         <div style={fillViewport ? { height: '100%' } : undefined} className={`${viewportClassName} ${containerClassName}`}>
           <div className="mb-2 rounded-lg border border-[var(--dash-accent)]/40 bg-[var(--dash-accent)]/10 px-3 py-2 text-xs text-[var(--dash-text)]">Formato precedente — modifica per aggiornare al nuovo editor.</div>
           <MarkdownContent content={legacyContent} />
-          <button type="button" onClick={() => onChangeRich(legacyToTipTapDoc(legacyContent))} className="mt-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-3 py-1.5 text-xs font-medium text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)]">Modifica con il nuovo editor</button>
+          <button type="button" onClick={() => onChangeRich(legacyToTipTapDoc(legacyContent))} className="mt-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-3 py-1.5 text-xs font-medium text-[var(--dash-text)] transition-colors duration-[var(--note-ui-duration)] hover:bg-[var(--dash-surface-2)]">Modifica con il nuovo editor</button>
         </div>
       </NoteViewportFrame>
     );

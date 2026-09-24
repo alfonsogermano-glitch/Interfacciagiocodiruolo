@@ -259,8 +259,8 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
   element.setAttribute('aria-label', `${data.name}: ${data.value}${data.maxEnabled ? ` su ${data.max}` : ''}`);
   Object.assign(element.style, {
     display: 'inline-flex', flexDirection: 'column', boxSizing: 'border-box', minWidth: '4em', width: replacedWidget ? `${replacedWidget.offsetWidth}px` : '4em',
-    gap: '0.5em', padding: data.titleVisible ? '0.6em 0.7em' : '0.45em', verticalAlign: 'middle', border: '1px solid var(--dash-border-soft)',
-    borderRadius: '0.7em', background: 'var(--dash-surface-2)', color: 'var(--dash-text)', userSelect: 'none',
+    gap: '0.5em', padding: data.titleVisible ? '0.6em 0.7em' : '0.45em', verticalAlign: 'middle', border: 'var(--note-border-width) solid var(--dash-border-soft)',
+    borderRadius: 'var(--note-widget-radius)', background: 'var(--dash-surface-2)', color: 'var(--dash-text)', userSelect: 'none',
     position: 'relative', overflow: 'hidden',
   });
 
@@ -277,7 +277,7 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
   dots.setAttribute('role', 'button');
   dots.setAttribute('tabindex', '0');
   dots.setAttribute('aria-label', `Menu Punti ${data.name}`);
-  Object.assign(dots.style, { position: 'absolute', zIndex: 3, top: '0.35em', right: '0.35em', display: 'inline-flex', flexDirection: 'column', gap: '0.12em', padding: '0.25em', borderRadius: '0.3em', opacity: 0, transition: 'opacity 120ms ease', cursor: view.editable ? 'pointer' : 'default' });
+  Object.assign(dots.style, { position: 'absolute', zIndex: 3, top: '0.32em', right: '0.32em', display: 'inline-flex', flexDirection: 'column', gap: '0.11em', padding: '0.22em', borderRadius: 'var(--note-widget-menu-radius)', opacity: 0, transition: 'opacity var(--note-ui-duration) ease', cursor: view.editable ? 'pointer' : 'default' });
   for (let index = 0; index < 3; index += 1) {
     const dot = document.createElement('span');
     Object.assign(dot.style, { width: '0.2em', height: '0.2em', borderRadius: '50%', background: 'var(--dash-muted)' });
@@ -290,7 +290,7 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
     Object.assign(track.style, { display: 'block', width: '100%', height: '0.5em', borderRadius: '999px', overflow: 'hidden', background: 'var(--dash-surface)' });
     const fill = document.createElement('span');
     const ratio = data.max > 0 ? Math.max(0, Math.min(100, data.value / data.max * 100)) : 0;
-    Object.assign(fill.style, { display: 'block', width: `${ratio}%`, height: '100%', background: progressColor(data.value, data.max), transition: 'width 160ms ease, background-color 160ms ease' });
+    Object.assign(fill.style, { display: 'block', width: `${ratio}%`, height: '100%', background: progressColor(data.value, data.max), transition: 'width var(--note-ui-duration) ease, background-color var(--note-ui-duration) ease' });
     track.appendChild(fill);
     element.appendChild(track);
   }
@@ -305,7 +305,7 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
     Object.assign(node.style, {
       position: 'absolute', top: 0, bottom: 0, [delta < 0 ? 'left' : 'right']: 0,
       zIndex: 2, width: '1.65em', border: 0, background: 'transparent', color: 'var(--dash-muted)',
-      fontSize: '0.9em', fontWeight: 800, lineHeight: 1, opacity: 0, cursor: 'pointer', transition: 'opacity 120ms ease, background-color 120ms ease',
+      fontSize: '0.9em', fontWeight: 800, lineHeight: 1, opacity: 0, cursor: 'pointer', transition: 'opacity var(--note-ui-duration) ease, background-color var(--note-ui-duration) ease',
     });
     const hide = () => { node.style.opacity = '0'; node.style.background = 'transparent'; };
     const show = () => {
@@ -368,7 +368,7 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
   const makeValueBox = (kind: 'value' | 'max', current: number) => {
     const box = document.createElement('span');
     box.className = 'tiptap-inline-points-value-box';
-    Object.assign(box.style, { position: 'relative', display: 'flex', flex: '1 1 0', minWidth: 0, minHeight: '2.35em', alignItems: 'stretch', overflow: 'hidden', border: '1px solid var(--dash-border-soft)', borderRadius: '0.5em', background: 'var(--dash-surface)' });
+    Object.assign(box.style, { position: 'relative', display: 'flex', flex: '1 1 0', minWidth: 0, minHeight: '2.35em', alignItems: 'stretch', overflow: 'hidden', border: 'var(--note-border-width) solid var(--dash-border-soft)', borderRadius: 'var(--note-widget-radius)', background: 'var(--dash-surface)' });
     box.appendChild(makeInput(kind, current));
     box.appendChild(adjustmentZone(kind, -1));
     box.appendChild(adjustmentZone(kind, 1));

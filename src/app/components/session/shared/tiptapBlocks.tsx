@@ -229,7 +229,7 @@ function CollapseBlockView({ node, updateAttributes, editor, getPos }: NodeViewP
         aria-label={open ? 'Comprimi' : 'Espandi'}
         className="tiptap-collapse-toggle"
       >
-        <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
+        <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform duration-[var(--note-ui-duration)] ${open ? 'rotate-90' : ''}`} />
       </button>
       <NodeViewContent className="tiptap-collapse-content" />
     </NodeViewWrapper>

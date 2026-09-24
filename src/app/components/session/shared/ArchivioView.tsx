@@ -75,7 +75,7 @@ function MenuItem({
         event.stopPropagation();
         if (!disabled) onSelect();
       }}
-      className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${
+      className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors duration-[var(--note-ui-duration)] ${
         disabled
           ? 'cursor-not-allowed opacity-40'
           : danger
@@ -114,7 +114,7 @@ function TriggerButton({
         event.stopPropagation();
         onOpen(event);
       }}
-      className={`inline-flex shrink-0 items-center justify-center rounded-md p-1 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-md p-1 text-[var(--dash-muted)] transition-colors duration-[var(--note-ui-duration)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] ${className}`}
     >
       {children}
     </button>
@@ -124,7 +124,7 @@ function TriggerButton({
 // Puntini delle celle e delle intestazioni: overlay assoluto che non occupa
 // spazio, visibile solo in hover/focus come i menu di Punti e Modificatori.
 const HOVER_DOTS =
-  'absolute right-0 top-1/2 -translate-y-1/2 opacity-0 transition-opacity pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 focus-visible:opacity-100';
+  'absolute right-0 top-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-[var(--note-ui-duration)] pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 focus-visible:opacity-100';
 
 // Dentro la tabella i menu sarebbero ritagliati dallo scroll orizzontale.
 // Il portal tematizzato mantiene disponibili le variabili --dash-*.
@@ -550,9 +550,9 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
     <NodeViewWrapper className="tiptap-archivio" data-archivio-root="true">
       <div
         contentEditable={false}
-        className="overflow-hidden rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)]"
+        className="overflow-hidden rounded-[var(--note-block-radius)] border border-[var(--dash-border-soft)] bg-[var(--dash-panel)]"
       >
-        <div className="flex items-center justify-between gap-2 px-3 py-2">
+        <div className="flex items-center justify-between gap-2 px-[var(--note-block-padding-x)] py-[var(--note-block-padding-y)]">
           <div className="min-w-0 flex-1">
             {titleVisible ? (
               <input
@@ -611,7 +611,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                 {columns.map((column, colIndex) => (
                   <th
                     key={column.id}
-                    className="relative border-b border-[var(--dash-border-soft)] px-2 py-1.5 text-left align-middle"
+                    className="relative border-b border-[var(--dash-border-soft)] px-[var(--note-cell-padding-x)] py-[var(--note-cell-padding-y)] text-left align-middle"
                   >
                     <span className="group flex min-w-0 items-center gap-1">
                       {renamingColumn === column.id ? (
@@ -671,7 +671,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
               {rows.map((row, rowIndex) => (
                 <tr key={row.id} className="border-b border-[var(--dash-border-soft)] last:border-b-0">
                   {row.cells.map((cell, colIndex) => (
-                    <td key={cell.id} className="relative px-2 py-1.5 align-middle">
+                    <td key={cell.id} className="relative px-[var(--note-cell-padding-x)] py-[var(--note-cell-padding-y)] align-middle">
                       {colIndex === 0 ? (
                         <span className="group relative flex min-w-0 items-center gap-1">
                           <span className="flex min-w-0 flex-1 items-center">

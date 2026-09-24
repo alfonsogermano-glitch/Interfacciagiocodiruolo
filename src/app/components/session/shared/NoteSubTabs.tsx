@@ -62,7 +62,7 @@ export function NoteSubTabs({ note, campaignId, accessToken, canEdit, onPersistS
               <button
                 type="button"
                 onClick={() => nestedTabs.handleAddCustomTab()}
-                className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-[var(--dash-border-soft)] px-3 py-1.5 text-sm text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
+                className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-[var(--dash-border-soft)] px-3 py-1.5 text-sm text-[var(--dash-muted)] transition-colors duration-[var(--note-ui-duration)] hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]"
               >
                 <Plus className="h-3.5 w-3.5" /> Crea la prima sotto-tab
               </button>
@@ -99,7 +99,7 @@ export function NoteSubTabs({ note, campaignId, accessToken, canEdit, onPersistS
           peerContents={nestedTabs.customTabs.filter((tab) => tab.id !== selectedSubTab.id).map((tab) => tab.content_rich)}
           disabled={!canEdit}
           placeholder="Scrivi qui..."
-          className="min-h-[3rem] rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-3"
+          className="min-h-[3rem] rounded-[var(--note-block-radius)] border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-3"
           autoFocusOnSelect={nestedTabs.pendingFocusTabId === selectedSubTab.id}
           onAutoFocusConsumed={() => nestedTabs.clearPendingFocusTab(selectedSubTab.id)}
         />

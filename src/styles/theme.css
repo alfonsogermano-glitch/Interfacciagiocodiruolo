@@ -1,6 +1,29 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* ===== STANDARD DEGLI ELEMENTI DELL'EDITOR NOTE =====
+     Un unico punto per ogni proprietà che deve restare identica fra gli
+     elementi della nota: interlinea, raggio dei pannelli, padding,
+     spessore dei bordi, celle, riga affiancata e durata transizioni.
+     Cambiare un valore qui riallinea tutti gli elementi; le regole
+     specifiche di un singolo elemento (bordatura accent dei Dadi, bordo
+     2px dell'hr, checkbox da 0.25rem, ecc.) restano nel codice di
+     quell'elemento con la motivazione. La procedura che fa rispettare
+     questo patto - parte di `npm run check` - e'
+     scripts/verify-note-element-standards.mjs: se un elemento usa un
+     letterale al posto del token, il check fallisce. */
+  --note-block-gap: 0.5rem;
+  --note-block-radius: 0.75rem;
+  --note-block-padding-y: 0.5rem;
+  --note-block-padding-x: 0.75rem;
+  --note-widget-radius: 0.45em;
+  --note-widget-menu-radius: 0.3em;
+  --note-border-width: 1px;
+  --note-cell-padding-y: 0.4rem;
+  --note-cell-padding-x: 0.5rem;
+  --note-row-gap: 0.25rem;
+  --note-ui-duration: 120ms;
+
   --font-size: 16px;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
@@ -189,11 +212,17 @@
 .tiptap-content ul {
   list-style: disc;
   padding-left: 1.5rem;
+  /* Senza margin esplicito l'elenco ereditava il default (0 nel preflight
+     Tailwind, nessun separazione dal blocco successivo): ora genera lo
+     standard 0.5rem come tutti gli altri blocchi impilati. */
+  margin: 0 0 var(--note-block-gap) 0;
 }
 
 .tiptap-content ol {
   list-style: decimal;
   padding-left: 1.5rem;
+  /* Stesso motivo di ul qui sopra: separazione standard 0.5rem. */
+  margin: 0 0 var(--note-block-gap) 0;
 }
 
 /* Lista di attivita' (TaskList/TaskItem, RichTextEditor.tsx - pulsante
@@ -228,7 +257,10 @@
 .tiptap-content ul[data-type='taskList'] {
   list-style: none;
   padding-left: 0;
-  margin: 0;
+  /* Prima margin: 0 (nessuna separazione dal blocco successivo): ora
+     standard 0.5rem, specificità dell'attributo che fa da eccezione alla
+     regola generica ul qui sopra. */
+  margin: 0 0 var(--note-block-gap) 0;
 }
 /* align-items:center sul <li> (prima versione di questa regola) centrava
    la checkbox correttamente per un task su una riga sola (verificato dal
@@ -268,7 +300,7 @@
   width: 1rem;
   height: 1rem;
   flex-shrink: 0;
-  border: 1px solid var(--dash-border-soft);
+  border: var(--note-border-width) solid var(--dash-border-soft);
   border-radius: 0.25rem;
   background: transparent;
   cursor: pointer;
@@ -311,7 +343,14 @@
    regola CSS dedicata, l'estensione scrive gia' da sola style="text-align:
    ..." sul paragrafo quando diverso dal default (left). */
 .tiptap-content p {
-  margin: 0 0 0.25rem 0;
+  /* Spazio interlinea standard dell'editor: 0.5rem (8px) - la stessa
+     distanza fra i primi due blocchi della nota (TextBox e Collapse).
+     Ogni blocco impilato genera questo margine inferiore; i widget inline
+     (Dadi, Modificatori, Punti, Checkbox) ci stanno dentro un paragrafo
+     e rispettano quindi lo standard per costruzione. (Prima 0.25rem:
+     metà standard - era il motivo per cui il blocco Dadi sembrava
+     schiacciato contro il vicino, segnalato 2026-09-24.) */
+  margin: 0 0 var(--note-block-gap) 0;
 }
 
 /* Gli input numerici di Punti mantengono la semantica number senza mostrare
@@ -357,7 +396,10 @@
    l'altezza del box cliccabile - raddoppiarlo raddoppia entrambi
    contemporaneamente, nessun'altra proprieta' necessaria. */
 .tiptap-content hr {
-  margin: 0.75rem 0;
+  /* Margine verticale bottom-only allo standard 0.5rem: con il vecchio
+     0.75rem 0 lo spazio SOPRA la riga (0.75rem per il margin collapsing)
+     differiva da quello di ogni altro blocco - ora e' uniforme. */
+  margin: 0 0 var(--note-block-gap) 0;
   border: none;
   border-top: 2px solid var(--dash-border-soft);
 }
@@ -369,8 +411,8 @@
    il preflight di Tailwind azzera bordo/margine/padding di default anche
    per <blockquote>. */
 .tiptap-content blockquote {
-  margin: 0 0 0.5rem 0;
-  padding-left: 0.75rem;
+  margin: 0 0 var(--note-block-gap) 0;
+  padding-left: var(--note-block-padding-x);
   border-left: 3px solid var(--dash-accent);
   color: var(--dash-muted);
 }
@@ -391,8 +433,18 @@
   display: block;
   max-width: 100%;
   height: auto;
-  margin: 0 0 0.5rem 0;
-  border-radius: 0.5rem;
+  margin: 0 0 var(--note-block-gap) 0;
+  border-radius: var(--note-block-radius);
+}
+
+/* Blocco di codice (codeBlock, gia' incluso in StarterKit - qui
+   StarterKit.configure({ heading: false }) disattiva solo gli heading):
+   nessuna regola precedente, ereditava margin 0 dal preflight Tailwind e
+   si attaccava al blocco sottostante. Ora genera lo standard 0.5rem come
+   tutti gli altri blocchi impilati. Solo il margine: l'aspetto del
+   blocco codice resta quello di default finche' non serve di piu'. */
+.tiptap-content pre {
+  margin: 0 0 var(--note-block-gap) 0;
 }
 
 /* Box di testo (tiptapBlocks.tsx, TextBox) - stessa palette gia' usata per
@@ -404,10 +456,10 @@
    layout dedicato necessario. */
 .tiptap-textbox {
   position: relative;
-  margin: 0 0 0.5rem 0;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--dash-accent) 40%, transparent);
+  margin: 0 0 var(--note-block-gap) 0;
+  padding: var(--note-block-padding-y) var(--note-block-padding-x);
+  border-radius: var(--note-block-radius);
+  border: var(--note-border-width) solid color-mix(in srgb, var(--dash-accent) 40%, transparent);
   background: color-mix(in srgb, var(--dash-accent) 10%, transparent);
 }
 .tiptap-textbox-content > *:last-child {
@@ -429,9 +481,10 @@
    commit d52f3af per l'adiacenza paragrafo/TextBox) - il click sopra/sotto
    il bordo visibile ricade quindi sull'elemento stesso (event.target =
    l'host del contenitore, i pseudo-elementi non sono targetabili
-   separatamente), non piu' sul contenitore nudo. Altezza fissa 8px invece
-   di un valore derivato da --dash-* perche' il margine stesso e' un valore
-   fisso (0.5rem) qui sopra, non una custom property. Verificato dal vivo
+   separatamente), non piu' sul contenitore nudo. Altezza derivata da
+   --note-block-gap (prima un fisso 8px, quando il margine non era un
+   token): l'estensione segue da sola ogni cambiamento futuro dello
+   standard di interlinea. Verificato dal vivo
    che l'estensione non viene tagliata dall'overflow-x:auto/padding di
    .tiptap-content (stessa area coinvolta nel fix del clipping
    dell'outline). */
@@ -443,15 +496,15 @@
   position: absolute;
   left: 0;
   right: 0;
-  height: 8px;
+  height: var(--note-block-gap);
 }
 .tiptap-textbox::before,
 .tiptap-collapse::before {
-  top: -8px;
+  top: calc(-1 * var(--note-block-gap));
 }
 .tiptap-textbox::after,
 .tiptap-collapse::after {
-  bottom: -8px;
+  bottom: calc(-1 * var(--note-block-gap));
 }
 
 /* Evidenziazione quando l'intero blocco (TextBox o Collapse) e' selezionato
@@ -470,7 +523,9 @@
   outline: none;
 }
 .tiptap-content .tiptap-archivio {
-  margin: 0 0 0.25rem 0;
+  /* Standard 0.5rem come ogni altro blocco (prima 0.25rem: metà
+     standard, schiacciava il blocco sottostante - 2026-09-24). */
+  margin: 0 0 var(--note-block-gap) 0;
 }
 .tiptap-content .tiptap-archivio-resize-handle {
   position: absolute;
@@ -489,7 +544,7 @@
   left: calc(50% - 0.5px);
   width: 1px;
   background: var(--dash-border-soft);
-  transition: background-color 0.12s, width 0.12s;
+  transition: background-color var(--note-ui-duration), width var(--note-ui-duration);
 }
 .tiptap-content .tiptap-archivio-resize-handle:hover::after {
   left: calc(50% - 1px);
@@ -535,10 +590,10 @@
   display: flex;
   align-items: flex-start;
   gap: 0.375rem;
-  margin: 0 0 0.5rem 0;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.75rem;
-  border: 1px solid var(--dash-border-soft);
+  margin: 0 0 var(--note-block-gap) 0;
+  padding: var(--note-block-padding-y) var(--note-block-padding-x);
+  border-radius: var(--note-block-radius);
+  border: var(--note-border-width) solid var(--dash-border-soft);
   background: var(--dash-panel);
 }
 .tiptap-collapse-toggle {
@@ -586,9 +641,9 @@
 .tiptap-row {
   display: flex;
   flex-wrap: nowrap;
-  gap: 0.25rem;
+  gap: var(--note-row-gap);
   align-items: stretch;
-  margin: 0 0 0.5rem 0;
+  margin: 0 0 var(--note-block-gap) 0;
 }
 .tiptap-row > * {
   flex: 1 1 0;
@@ -814,20 +869,23 @@
   border-collapse: collapse;
   width: 100%;
   min-width: 100% !important;
+  /* Separazione dal blocco successivo: standard 0.5rem (priva di margin
+     la tabella si attaccava al vicino sottostante). */
+  margin: 0 0 var(--note-block-gap) 0;
   color: color-mix(in srgb, var(--dash-text) 82%, var(--dash-muted));
-  outline: 1px solid color-mix(in srgb, var(--dash-text) 45%, var(--dash-border-soft));
+  outline: var(--note-border-width) solid color-mix(in srgb, var(--dash-text) 45%, var(--dash-border-soft));
   outline-offset: -1px;
 }
 .tiptap-content .tiptap-note-table-cell,
 .tiptap-content .tiptap-note-table-header {
   min-width: 3rem;
   height: 2.75rem;
-  padding: 0.4rem 0.5rem;
+  padding: var(--note-cell-padding-y) var(--note-cell-padding-x);
   vertical-align: middle;
-  border: 1px solid color-mix(in srgb, var(--dash-text) 45%, var(--dash-border-soft));
+  border: var(--note-border-width) solid color-mix(in srgb, var(--dash-text) 45%, var(--dash-border-soft));
   background: color-mix(in srgb, var(--dash-surface-2) 38%, transparent);
   cursor: text;
-  transition: background-color 0.12s, box-shadow 0.12s;
+  transition: background-color var(--note-ui-duration), box-shadow var(--note-ui-duration);
 }
 .tiptap-content .tiptap-note-table-cell:hover,
 .tiptap-content .tiptap-note-table-header:hover {
@@ -837,7 +895,7 @@
 .tiptap-content .tiptap-note-table-header {
   background: color-mix(in srgb, var(--dash-accent) 22%, var(--dash-surface-2));
   color: var(--dash-text-strong);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 .tiptap-content .tiptap-note-table-cell > p,
 .tiptap-content .tiptap-note-table-header > p { min-height: 1.5rem; }

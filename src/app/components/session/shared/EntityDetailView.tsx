@@ -1465,7 +1465,7 @@ export function EntityDetailView({
                 peerContents={tabs.customTabs.filter((peer) => peer.id !== tab.id).map((peer) => peer.content_rich)}
                 disabled={!canEdit}
                 placeholder="Scrivi qui..."
-                className="h-64 w-full overflow-y-auto rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4 text-sm text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
+                className="h-64 w-full overflow-y-auto rounded-[var(--note-block-radius)] border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4 text-sm text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
                 autoFocusOnSelect={tabs.pendingFocusTabId === tab.id}
                 onAutoFocusConsumed={() => tabs.clearPendingFocusTab(tab.id)}
               />
