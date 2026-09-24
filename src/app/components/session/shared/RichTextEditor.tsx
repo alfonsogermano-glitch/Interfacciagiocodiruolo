@@ -338,7 +338,7 @@ function TipTapEditor({ richContent, onChangeRich, editable, canToggleInlineChec
       <NoteModifierTitleMenu editable={editable} />
       <NoteModifierRollBridge editor={editor} />
       <NoteSelectionToolbar editor={editor} editable={editable} />
-      <NoteTableToolbar editor={editor} editable={editable} />
+      <NoteTableToolbar editor={editor} editable={editable} shellRef={editorShellRef} />
       <NoteContainerNotice reason={containerRejection} anchor={editorShellRef.current} />
     </div>
   );

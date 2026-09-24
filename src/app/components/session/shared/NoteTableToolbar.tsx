@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
 import {
@@ -19,7 +19,12 @@ import { findActiveTable, type ActiveNoteTable } from './tiptapNoteTable';
 import { writeTableToClipboard } from './noteTableClipboard';
 import { getNoteTableToolbarLeft } from './noteTableToolbarPosition';
 
-interface NoteTableToolbarProps { editor: Editor; editable: boolean }
+interface NoteTableToolbarProps {
+  editor: Editor;
+  editable: boolean;
+  /** Shell del gutter: il menu non deve entrare nella corona dei "+". */
+  shellRef: RefObject<HTMLDivElement | null>;
+}
 interface ToolbarPosition { top: number; left: number }
 
 function findRenderedNoteTable(dom: Node | null): HTMLTableElement | null {
@@ -74,7 +79,7 @@ function DeleteColumnIcon() {
   );
 }
 
-export function NoteTableToolbar({ editor, editable }: NoteTableToolbarProps) {
+export function NoteTableToolbar({ editor, editable, shellRef }: NoteTableToolbarProps) {
   const portalContainer = usePortalContainer();
   const [activeTable, setActiveTable] = useState<ActiveNoteTable | null>(null);
   const [position, setPosition] = useState<ToolbarPosition | null>(null);
@@ -93,16 +98,18 @@ export function NoteTableToolbar({ editor, editable }: NoteTableToolbarProps) {
     const hasHorizontalOverflow = horizontalViewport
       ? rect.width > horizontalViewport.clientWidth + 1
       : false;
+    const shellRect = shellRef.current?.getBoundingClientRect();
     const left = getNoteTableToolbarLeft({
       tableBounds: { left: rect.left, right: rect.right },
       visibleBounds: { left: visibleRect.left, right: visibleRect.right },
       hasHorizontalOverflow,
       viewportWidth: window.innerWidth,
+      shellRight: shellRect?.right,
     });
     const top = Math.max(8, Math.min(rect.top, window.innerHeight - 400));
     setActiveTable(nextActiveTable);
     setPosition({ top, left });
-  }, [editor, editable]);
+  }, [editor, editable, shellRef]);
 
   useEffect(() => {
     refresh();
