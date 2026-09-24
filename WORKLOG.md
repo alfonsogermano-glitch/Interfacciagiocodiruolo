@@ -4,12 +4,55 @@ Ultimo aggiornamento: 2026-09-24
 
 ## Stato attuale (verde)
 
-- **Branch**: `main` — working tree pulito, `npm run check` verde (typecheck + 41 verify + build).
-- **Ultimo lavoro**: tokenizzazione degli standard degli elementi note (`--note-*`) — vedi sotto.
+- **Branch**: `main` — working tree pulito, `npm run check` verde (typecheck + 42 verify + build).
+- **Ultimo lavoro**: menu tabella oltre la corona dei "+" del gutter (salto + fallback) — vedi sotto.
 - **CI GitHub Actions**: verde sui commit recenti.
 - **Deploy production Vercel**: auto-deploy a ogni push su `main` (nessuna preview).
 
 ## Cosa è stato fatto di recente
+
+### Menu tabella oltre la corona dei "+" del gutter (2026-09-24)
+Con una tabella dentro un Box di testo quasi a tutta larghezza, il menu
+tabella (portale `fixed`, z 9998) partiva da `bordoDestroTabella + 8px` ed
+entrava nella corona della shell dove vivono i "+" del gutter (`absolute`,
+`right 2px`, 16px, z 20): lo copriva con lo sfondo opaco (foto di
+regression dell'utente); in geometrie estreme il flip a sinistra copriva il
+"+" sinistro — la trappola esisteva su entrambi i lati. La prima risoluzione
+(clamp che scivolava il menu a sinistra della corona) è stata rifiutata
+dall'utente: **il menu non deve coprire l'ultima colonna della tabella**.
+Requisiti finali: menu sempre a destra dei "+" e mai sopra la tabella.
+Opzioni valutate: A ("sempre a destra anche senza spazio") non è sempre
+realizzabile — senza barra destra la shell finisce a ~14px dal bordo e i
+40px del menu non entrano; B ("+" con z-index sopra il menu) avrebbe
+piazzato il "+" su un pulsante ed è fragile perché il pannello note è
+`fixed z-[900]` con transform, che intrappola i "+" nel suo stacking
+context. Scelta **C — salto oltre la corona con fallback**:
+1. `test:` RED→GREEN `scripts/verify-note-table-toolbar-gutter.mjs`
+   (agganciato al check → 42 verify): costanti geometriche `GUTTER_EDGE = 2`,
+   `GUTTER_BUTTON_SIZE = 16`, `GUTTER_CROWN_MARGIN = 4` (con
+   `NOTE_TABLE_TOOLBAR_GUTTER_ZONE = 22`), `crownStart`, salto
+   `beyondCrown`, fallback `gutterLimit`, divieto del flip a sinistra,
+   `shellRef` passato dall'editor al menu.
+2. `fix:` `noteTableToolbarPosition.ts` — se la posizione naturale invade
+   la corona il menu **salta oltre il "+"** (`left = beyondCrown` =
+   corona + pulsante + margine = `shellRight + 2`); se il salto esce dal
+   viewport (shell a filo bordo, senza barra) si ricade su `gutterLimit` =
+   stacco 4px prima della corona — è l'unico caso in cui qualcosa deve
+   cedere e cedono i "+" mai visibili, non la tabella. Rimossi il flip a
+   sinistra e l'input `shellRight`; `NoteTableToolbar.tsx` accetta
+   `shellRef` e passa `shellRight: shellRect?.right`; `RichTextEditor.tsx`
+   inietta `shellRef={editorShellRef}` (lo stesso ref del gutter).
+   - Tabella stretta lontano dal bordo: posizione invariata (ancoraggio
+     naturale accanto alla tabella).
+   - Il menu resta **sempre** a destra: niente più flip sul "+" sinistro.
+3. Verifica live su `localhost:5173` (browser sperimentale desktop): scenario
+   box→tabella 3×3, `menu [818,858]` vs `+ [798,814]` → **gap 4px, zero
+   sovrapposizione**; tabella `[405.4,784.4]` e box `[392.6,797.2]` **non
+   coperti**; menu nel viewport; icone del rail destro `[863.4,881.4]`
+   libere con 5,4px di rispetto; console senza errori. (Con il codice
+   vecchio il menu sarebbe partito da 792.4 e avrebbe coperto interamente
+   la corona [798,814]; con la prima risoluzione copriva la colonna
+   finale.)
 
 ### Standard degli elementi note tokenizzati (2026-09-24)
 Contratto unico per le proprietà "standard" di ogni elemento dell'editor note,
