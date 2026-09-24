@@ -1,15 +1,52 @@
 # WORKLOG — Stato progetto & consigli di workflow
 
-Ultimo aggiornamento: 2026-09-23
+Ultimo aggiornamento: 2026-09-24
 
 ## Stato attuale (verde)
 
-- **Branch**: `main` — working tree pulito, `npm run check` verde (41 verify).
-- **Ultimo lavoro**: fix creazione tab (focus, rinomina, cursore, undo) — vedi sotto.
+- **Branch**: `main` — working tree pulito, `npm run check` verde (typecheck + 41 verify + build).
+- **Ultimo lavoro**: tokenizzazione degli standard degli elementi note (`--note-*`) — vedi sotto.
 - **CI GitHub Actions**: verde sui commit recenti.
 - **Deploy production Vercel**: auto-deploy a ogni push su `main` (nessuna preview).
 
 ## Cosa è stato fatto di recente
+
+### Standard degli elementi note tokenizzati (2026-09-24)
+Contratto unico per le proprietà "standard" di ogni elemento dell'editor note,
+con enforcement automatico in `npm run check`:
+1. `285c822` `test: add note element standards contract and align dependent verifies`
+   - Nuovo RED→GREEN `scripts/verify-note-element-standards.mjs` (11 sezioni):
+     token `--note-*` in `:root`, margini impilati, padding, raggi, bordi,
+     celle, riga affiancata, GapCursor da `--note-cell-padding-y`, geometria dei
+     widget (nessun letterale), raggio contenitori TSX e accoppiamento
+     `transition-* duration-[var(--note-ui-duration)]`. Rinomina in
+     `package.json` di `verify-note-block-spacing` in
+     `verify:note-element-standards`.
+   - Allineati a verde: `verify-note-archivio`, `verify-note-viewport-fill`,
+     `verify-note-table-gap-layout` (prima RED, poi GREEN).
+2. `1ece0fa` `fix: tokenize every standard note element property through --note-* vars`
+   - `theme.css`: blocco `:root` con 11 token + banner delle eccezioni volute;
+     convertiti 13 margini di impilamento, padding/raggi/bordi textbox+collapse,
+     raggio pannelli e img, outline e celle tabella, gap riga, indent
+     blockquote, hit-area (`8px`/`-8px` → calcoli su `--note-block-gap`),
+     testata tabella → `var(--font-weight-semibold)`, tutte le `0.12s` →
+     `--note-ui-duration`.
+   - `noteTableResize.css`: calcoli GapCursor da `var(--note-cell-padding-y)`.
+   - Widget inline: shell Dadi/Modificatori/Punti su `--note-widget-radius`
+     (Punti 0.7em → 0.45em), menu tre-punti unificato (`0.32em`/`0.11em`/
+     `0.22em` + `--note-widget-menu-radius`), raggi tooltip e tutte le
+     `120ms/160ms` → `--note-ui-duration`.
+   - TSX: raggi contenitori (Archivio, NoteSubTabs, `DEFAULT_CONTAINER_CLASS`,
+     EntityDetailView), padding header/celle Archivio, durate Tailwind
+     (Archivio ×3, bottone legacy RTE, bottone "nuova tab", chevron collapse).
+   - Eccezioni deliberate (letterali motivati nel banner `:root`): bordo
+     accent dei Dadi, hr `2px`, barra blockquote `3px`, checkbox `0.25rem`,
+     input rinomina Punti, raggi `50%`, pesi font dei widget (tipografia
+     propria dell'elemento), `p-4`/`text-sm` della variante compatta in
+     EntityDetailView (solo raggio tokenizzato).
+   - Delta visuali voluti: raggi contenitori 14px → 12px, img 8px → 12px,
+     shell Punti 0.7em → 0.45em, celle Archivio +0.6px di padding,
+     progress bar 160ms → 120ms.
 
 ### Bug risolti: creazione tab (2026-09-23)
 Quattro sintomi collegati riportati dall'utente, più un regress dell'unità `+`:
@@ -54,7 +91,7 @@ Ora `bodyColor` influenza SOLO gli edge; le facce restano fedeli alla texture fo
 
 ## Comandi di verifica (NON skippare)
 
-- `npm run check` — full: typecheck + 30 verify + build (obbligatorio prima di ogni commit).
+- `npm run check` — full: typecheck + 41 verify + build (obbligatorio prima di ogni commit).
 - `node scripts/verify-dice-skin-regressions.mjs` — step CI separato (non in `check`).
 - `npm audit --audit-level=high` — deve restare pulito.
 
