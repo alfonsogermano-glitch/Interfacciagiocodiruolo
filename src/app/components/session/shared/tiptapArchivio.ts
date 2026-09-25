@@ -1,12 +1,16 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
+import { AllSelection, TextSelection } from '@tiptap/pm/state';
 import { ArchivioView } from './ArchivioView';
 import { canInsertNoteContainer } from './noteContainerPolicy';
+import type { CustomDieRollSnapshot } from '../dice/diceTypes';
 
 // Archivio: tabella veloce per oggetti, persone ed elementi di gioco.
 // Blocco atomico (nessun contenuto ProseMirror dentro): l'intera griglia vive
 // negli attributi come JSON e viene disegnata dalla NodeView React. La prima
-// riga e' l'intestazione, la prima colonna (Nome) contiene solo testo.
+// riga e' l'intestazione, la prima colonna (Nome) contiene solo testo. Un
+// archivio nuovo nasce con quattro colonne (Nome/Tipo/Raggio d'azione/Danno)
+// e con la riga di esempio Arco Lungo - vedi createArchivioStarterRow.
 
 export const ARCHIVIO_CELL_MIN_WIDTH = 48;
 export const ARCHIVIO_DEFAULT_COLUMN_WIDTH = 160;
@@ -18,11 +22,16 @@ export const ARCHIVIO_CELL_KINDS: readonly ArchivioCellKind[] = ['text', 'dice',
 
 export const ARCHIVIO_CELL_LABEL: Record<ArchivioCellKind, string> = {
   text: 'Testo',
-  dice: 'Bottone',
+  dice: 'Dado',
   checkbox: 'Checkbox',
   points: 'Punti',
   modifier: 'Modificatore',
 };
+
+// Dado nella cella: a differenza dell'elemento Dado standard (titolo + valore,
+// larghezza del nome) qui resta solo il valore, la cella si misura sulla
+// colonna e puo' essere standard (formula) o custom (dado della libreria).
+export type ArchivioDiceMode = 'standard' | 'custom';
 
 export interface ArchivioCell {
   id: string;
@@ -31,6 +40,12 @@ export interface ArchivioCell {
   checked: boolean;
   value: number;
   max: number;
+  /** Modalita' del Dado: formula standard o dado Custom della libreria. */
+  mode: ArchivioDiceMode;
+  /** Quantita' di dadi Custom da tirare (come nell'elemento Dado standard). */
+  quantity: number;
+  /** Snapshot del dado Custom scelto: il tiro usa questo, non la libreria. */
+  customDie: CustomDieRollSnapshot | null;
 }
 
 export interface ArchivioColumn {
@@ -58,22 +73,54 @@ function isArchivioCellKind(value: unknown): value is ArchivioCellKind {
 }
 
 export function defaultArchivioCell(kind: ArchivioCellKind = 'text'): ArchivioCell {
-  if (kind === 'dice') return { id: createArchivioId(), kind, text: '1d6', checked: false, value: 0, max: 0 };
-  if (kind === 'checkbox') return { id: createArchivioId(), kind, text: '', checked: false, value: 0, max: 0 };
-  if (kind === 'points') return { id: createArchivioId(), kind, text: '', checked: false, value: 10, max: 10 };
-  if (kind === 'modifier') return { id: createArchivioId(), kind, text: '0', checked: false, value: 0, max: 0 };
-  return { id: createArchivioId(), kind: 'text', text: '', checked: false, value: 0, max: 0 };
+  const base: ArchivioCell = {
+    id: createArchivioId(),
+    kind,
+    text: '',
+    checked: false,
+    value: 0,
+    max: 0,
+    mode: 'standard',
+    quantity: 1,
+    customDie: null,
+  };
+  if (kind === 'dice') return { ...base, text: '1d6' };
+  if (kind === 'points') return { ...base, value: 10, max: 10 };
+  if (kind === 'modifier') return { ...base, text: '0' };
+  if (kind === 'text') return base;
+  return { ...base, kind: 'text' };
 }
 
 export function defaultArchivioColumns(): ArchivioColumn[] {
   return [
     { id: createArchivioId(), label: 'Nome', width: ARCHIVIO_DEFAULT_COLUMN_WIDTH },
     { id: createArchivioId(), label: 'Tipo', width: ARCHIVIO_DEFAULT_COLUMN_WIDTH },
+    { id: createArchivioId(), label: "Raggio d'azione", width: ARCHIVIO_DEFAULT_COLUMN_WIDTH },
+    { id: createArchivioId(), label: 'Danno', width: ARCHIVIO_DEFAULT_COLUMN_WIDTH },
   ];
 }
 
 export function defaultArchivioRows(columns: ArchivioColumn[]): ArchivioRow[] {
   return [{ id: createArchivioId(), cells: columns.map(() => defaultArchivioCell('text')) }];
+}
+
+// Riga di esempio del nuovo archivio: la colonna Danno nasce gia' come Dado
+// standard 1d6 (nessun titolo, larghezza della cella - vedi ArchivioView).
+export function createArchivioStarterRow(columns: ArchivioColumn[]): ArchivioRow {
+  const starterText: Record<string, string> = {
+    'Nome': 'Arco Lungo',
+    'Tipo': 'Distanza',
+    "Raggio d'azione": '15/30/45',
+  };
+  return {
+    id: createArchivioId(),
+    cells: columns.map((column) => {
+      if (column.label === 'Danno') return defaultArchivioCell('dice');
+      const text = starterText[column.label];
+      if (text === undefined) return defaultArchivioCell('text');
+      return { ...defaultArchivioCell('text'), text };
+    }),
+  };
 }
 
 export function normalizeArchivioColumns(raw: unknown): ArchivioColumn[] {
@@ -103,6 +150,12 @@ function normalizeArchivioCell(raw: unknown, fallbackKind: ArchivioCellKind): Ar
     checked: item.checked === true,
     value: kind === 'points' && value > max ? max : value,
     max,
+    mode: item.mode === 'custom' ? 'custom' : 'standard',
+    quantity: Math.max(1, finiteArchivioNumber(item.quantity, base.quantity)),
+    customDie:
+      typeof item.customDie === 'object' && item.customDie !== null
+        ? (item.customDie as CustomDieRollSnapshot)
+        : null,
   };
 }
 
@@ -146,6 +199,7 @@ export function sortArchivioRows(rows: ArchivioRow[], columnIndex: number, direc
 export function archivioCellDisplayText(cell: ArchivioCell): string {
   if (cell.kind === 'checkbox') return cell.checked ? 'Sì' : 'No';
   if (cell.kind === 'points') return `${cell.value}/${cell.max}`;
+  if (cell.kind === 'dice' && cell.mode === 'custom' && cell.customDie) return `${cell.quantity} ${cell.customDie.name}`;
   return cell.text;
 }
 
@@ -230,21 +284,39 @@ export const Archivio = Node.create({
     return {
       insertArchivio:
         () =>
-        ({ commands, state, editor }) => {
+        ({ commands, state, editor, tr, dispatch }) => {
           if (!editor.isEditable) return false;
           const decision = canInsertNoteContainer(state.selection.$from, 'archivio');
           if (!decision.allowed) return false;
           const columns = defaultArchivioColumns();
-          return commands.insertContent({
+          const inserted = commands.insertContent({
             type: this.name,
             attrs: {
               archiveId: createArchivioId(),
               title: ARCHIVIO_DEFAULT_TITLE,
               titleVisible: true,
               columns,
-              rows: defaultArchivioRows(columns),
+              rows: [createArchivioStarterRow(columns)],
             },
           });
+          if (!inserted || !dispatch) return inserted;
+          // Su nota vuota (o quando l'unico paragrafo di testo resta consumato
+          // dall'insert) il caso speciale di insertContentAt di Tiptap fa
+          // from -= 1 / to += 1 e il replace copre l'intero documento: dopo
+          // l'insert non esiste piu' alcun blocco di testo, TextSelection.near()
+          // cade sul fallback AllSelection, ProseMirror seleziona tutto e
+          // Chrome dipinge di blu tutti gli archivii della nota (il primo che
+          // si crea su nota vuota, tutti i presenti al secondo). Aggiungiamo un
+          // paragrafo di coda e ci piazziamo dentro.
+          if (tr.selection instanceof AllSelection) {
+            const end = tr.doc.content.size;
+            const paragraph = state.schema.nodes.paragraph;
+            if (paragraph) {
+              tr.insert(end, paragraph.create());
+              tr.setSelection(TextSelection.create(tr.doc, end + 1));
+            }
+          }
+          return true;
         },
     };
   },
@@ -253,7 +325,7 @@ export const Archivio = Node.create({
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     archivio: {
-      /** Inserisce un blocco Archivio con intestazione Nome/Tipo e una riga vuota. */
+      /** Inserisce un blocco Archivio con le quattro colonne predefinite e la riga di esempio. */
       insertArchivio: () => ReturnType;
     };
   }

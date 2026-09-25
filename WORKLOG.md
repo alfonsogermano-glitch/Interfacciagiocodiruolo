@@ -1,15 +1,70 @@
 # WORKLOG — Stato progetto & consigli di workflow
 
-Ultimo aggiornamento: 2026-09-24
+Ultimo aggiornamento: 2026-09-25
 
 ## Stato attuale (verde)
 
-- **Branch**: `main` — working tree pulito, `npm run check` verde (typecheck + 42 verify + build).
-- **Ultimo lavoro**: menu tabella oltre la corona dei "+" del gutter (salto + fallback) — vedi sotto.
+- **Branch**: `main` — 4 file modificati non committati (ArchivioView, tiptapArchivio, verify-note-archivio, WORKLOG) in attesa di conferma push, `npm run check` verde (typecheck + 42 verify + build).
+- **Ultimo lavoro**: archivio note (default 4 colonne, celle Dado con tiro in chat) + fix puntini `⋮` e posizionamento menù — vedi sotto.
 - **CI GitHub Actions**: verde sui commit recenti.
 - **Deploy production Vercel**: auto-deploy a ogni push su `main` (nessuna preview).
 
 ## Cosa è stato fatto di recente
+
+### Archivio note: default 4 colonne, celle Dado, fix puntini e menù (2026-09-25)
+Request dell'utente: nuovo archivio di default **1×4** (Nome / Tipo / Raggio
+d'azione / Danno) con riga di esempio "Arco Lungo | Distanza | 15/30/45 |
+Dado 1d6"; la cella Dado mostra **solo il valore** (nessun titolo), standard
+o custom, con pulsante di tiro a tutta larghezza della cella; click = tiro in
+chat intitolato `"<Nome riga> — <Colonna>"`; `⋮ → Modifica` riapre l'input
+della formula, `Dado standard`/`Scegli Dado custom…` dallo stesso menù.
+1. `test:` RED→GREEN `scripts/verify-note-archivio.mjs` (contratto: 4 colonne,
+   `rows: [createArchivioStarterRow(columns)]` — prima mancava l'array e
+   normalize azzerava la riga —, campi `mode`/`quantity`/`customDie`,
+   `useOptionalDiceSession`, menù dadi, etichette rinominate Bottone→Dado).
+2. `feat:` `tiptapArchivio.ts` + `ArchivioView.tsx` (colonne default, starter
+   row, widget dado senza titolo `w-full`, roll con `getModifierLookup`,
+   scope `'dice'` nel menù, picker libreria campagna).
+3. `fix:` **puntini `⋮` sempre visibili** — le varianti Tailwind senza nome
+   (`group-hover:`/`group-focus-within:`) rispondevano al `group` generico del
+   contenitore editor (`RichTextEditor`: div `group relative max-w-full h-full`)
+   e un solo focus dentro la nota accendeva **tutti** i `⋮` di **tutti** gli
+   archivii (l'utente lo leggeva come "seleziona tutti gli elementi archivio").
+   Fix con **gruppo nominato** `group/cell` su `th`/`td` + varianti
+   `group-hover/cell:`/`group-focus-within/cell:` in `HOVER_DOTS`; il verify
+   vieta le varianti senza nome e il `group` generico sulle celle.
+4. `fix:` **menù cella fuori posizione** — `MenuPortal` passava a
+   `placeFloatingNoteUI` un'altezza fissa **360px** contro ~206px reali: il
+   flip "sopra l'ancora" scattava anche quando il menù stava comodamente sotto
+   e con gli archivii bassi finiva in cima allo schermo, all'altezza della
+   barra delle tab. Fix: misura reale `offsetWidth/offsetHeight` in
+   `useLayoutEffect` + `ResizeObserver` (la lista dadi custom carica in async
+   e l'altezza cambia: menù 206px, picker 75px) + listener `resize`.
+5. Verifica live su `localhost:5173`: 32/32 `⋮` a opacity 0 a riposo e con il
+   focus nell'editor (prima tutti accesi); focus dentro una cella → solo quel
+   `⋮` = 1; hover reale → transizione 0 → 0.30 → 0.98 → 1; menù 2° archivio
+   `top = trigger.bottom + 6` (prima 15px in cima); flip sopra attaccato al
+   trigger (`bottom − h − 6`, h reale); picker 75px esatto; `Modifica` → input
+   `1d6` con focus; allineamento `⋮` th/td delta X = 0; console senza errori.
+6. `fix:` **creare un archivio selezionava tutto** (issue 2 dell'utente: blu
+   nativo Chrome su tutto il contenuto, al 1° archivio su nota vuota e al 2°/3°
+   quando il paragrafo di coda era l'unico testo rimasto). Causa radice
+   individuata con patch `Selection.*` + stack: `insertContentAt` di Tiptap sul
+   textblock vuoto fa `from -= 1; to += 1` → il replace copre **l'intero
+   documento** → dopo l'insert non resta alcun blocco di testo →
+   `selectionToInsertionEnd` → `TextSelection.near()` di prosemirror-state
+   cade nel fallback `|| new AllSelection($pos.node(0))` → ProseMirror
+   seleziona tutto e Chrome dipinge di blu ogni archivio (contenuto
+   contenteditable=false). Fix in `insertArchivio`: se `tr.selection` è
+   `AllSelection`, inserisce un paragrafo di coda e ci piazza il cursore
+   (`TextSelection.create(tr.doc, end + 1)`). RED→GREEN su
+   `verify-note-archivio.mjs` + `npm run check` verde.
+7. Verifica live bug 2 su `localhost:5173` (nota vuota → `/` → Archivio):
+   caret collassato nel `<p>` di coda, `selectednode = 0`, selezione vuota,
+   screenshot senza highlight blu; stesse verdi sullo scenario "2° archivio"
+   e su nota popolata (non-regressione); digitazione "x" finita nel paragrafo
+   sotto l'archivio (con la vecchia AllSelection una lettera avrebbe
+   cancellato tutto).
 
 ### Menu tabella oltre la corona dei "+" del gutter (2026-09-24)
 Con una tabella dentro un Box di testo quasi a tutta larghezza, il menu

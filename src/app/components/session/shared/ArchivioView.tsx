@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { usePortalContainer } from '../../ui/portal-container';
@@ -15,6 +15,7 @@ import {
   Eye,
   EyeOff,
   Gauge,
+  Library,
   MoreVertical,
   Pencil,
   Plus,
@@ -36,12 +37,21 @@ import {
   type ArchivioColumn,
   type ArchivioRow,
 } from './tiptapArchivio';
+import { useAuth } from '../../../auth/AuthContext';
+import { useCampaign } from '../../../campaigns/CampaignContext';
+import { loadCustomDice } from '../../../../services/supabase/diceCustomDiceService';
+import { CustomDieLibraryIcon } from '../dice/CustomDieLibraryIcon';
+import { toCustomDieRollSnapshot } from '../dice/diceCustomDie';
+import { useOptionalDiceSession } from '../dice/DiceSessionContext';
+import type { SavedCustomDie } from '../dice/diceTypes';
+import { getModifierLookup } from './tiptapInlineModifier';
 
 type MenuState =
   | { scope: 'block' }
   | { scope: 'column'; col: number }
   | { scope: 'row'; row: number }
   | { scope: 'cell'; row: number; col: number }
+  | { scope: 'dice'; row: number; col: number }
   | null;
 
 function createViewId(): string {
@@ -123,24 +133,55 @@ function TriggerButton({
 
 // Puntini delle celle e delle intestazioni: overlay assoluto che non occupa
 // spazio, visibile solo in hover/focus come i menu di Punti e Modificatori.
+// Il gruppo ha il nome "cell" perche' il contenitore generico dell'editor e'
+// gia' un "group" senza nome: le varianti senza nome risponderebbero a quel
+// gruppo e tutti i puntini della nota resterebbero visibili con il focus.
 const HOVER_DOTS =
-  'absolute right-0 top-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-[var(--note-ui-duration)] pointer-events-none group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 focus-visible:opacity-100';
+  'absolute right-0 top-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-[var(--note-ui-duration)] pointer-events-none group-hover/cell:pointer-events-auto group-hover/cell:opacity-100 group-focus-within/cell:pointer-events-auto group-focus-within/cell:opacity-100 focus-visible:opacity-100';
 
 // Dentro la tabella i menu sarebbero ritagliati dallo scroll orizzontale.
 // Il portal tematizzato mantiene disponibili le variabili --dash-*.
 function MenuPortal({ anchor, children }: { anchor: { x: number; y: number } | null; children: ReactNode }) {
   const portalContainer = usePortalContainer();
-  if (!anchor || typeof document === 'undefined') return null;
-  const placed = placeFloatingNoteUI({ left: anchor.x, right: anchor.x + 2, top: anchor.y, bottom: anchor.y }, 224, 360, 6);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  // Prima del misuraggio il menù resta sotto l'ancora: useLayoutEffect lo
+  // riposiziona prima del paint, quindi non si vede alcuno scatto.
+  const initial = anchor ? { top: anchor.y, left: anchor.x } : null;
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!anchor || !el) return;
+    const place = () => {
+      const placed = placeFloatingNoteUI(
+        { left: anchor.x, right: anchor.x + 2, top: anchor.y, bottom: anchor.y },
+        el.offsetWidth,
+        el.offsetHeight,
+        6,
+      );
+      el.style.top = `${placed.top}px`;
+      el.style.left = `${placed.left}px`;
+    };
+    place();
+    // Le voci (per esempio i dadi custom caricati in async) possono cambiare
+    // l'altezza: finché il contenuto si ridimensiona si rimisura.
+    const observer = new ResizeObserver(place);
+    observer.observe(el);
+    window.addEventListener('resize', place);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', place);
+    };
+  }, [anchor, children]);
+  if (!anchor || !initial || typeof document === 'undefined') return null;
   return createPortal(
     <div
+      ref={menuRef}
       data-note-contextual-ui="true"
       data-archivio-menu="true"
       contentEditable={false}
       style={{
         position: 'fixed',
-        top: placed.top,
-        left: placed.left,
+        top: initial.top,
+        left: initial.left,
         zIndex: 9997,
         background: 'var(--dash-panel)',
         backgroundColor: 'var(--dash-panel)',
@@ -162,6 +203,15 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
   const [menu, setMenu] = useState<MenuState>(null);
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
   const [renamingColumn, setRenamingColumn] = useState<string | null>(null);
+  // Le celle Dado mostrano il pulsante di tiro; l'input della formula riappare
+  // solo quando si sceglie "Modifica" dal menu della cella.
+  const [editingCellId, setEditingCellId] = useState<string | null>(null);
+  const [customDice, setCustomDice] = useState<SavedCustomDie[]>([]);
+  const [customDiceLoading, setCustomDiceLoading] = useState(false);
+  const customDiceLoadSequenceRef = useRef(0);
+  const { user } = useAuth();
+  const { activeCampaign } = useCampaign();
+  const diceSession = useOptionalDiceSession();
   const resizeRef = useRef<{ col: number; startX: number; startWidth: number } | null>(null);
 
   const openMenu = (next: MenuState, event: ReactMouseEvent<HTMLButtonElement>) => {
@@ -304,8 +354,64 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
     updateAttributes({ rows: next });
   };
 
+  // Libreria dadi Custom della campagna, caricata all'apertura del selettore.
+  const loadDiceLibrary = async () => {
+    const sequence = ++customDiceLoadSequenceRef.current;
+    if (!user?.id || !activeCampaign?.id) {
+      setCustomDice([]);
+      setCustomDiceLoading(false);
+      return;
+    }
+    setCustomDiceLoading(true);
+    try {
+      const loaded = await loadCustomDice(activeCampaign.id, user.id);
+      if (sequence !== customDiceLoadSequenceRef.current) return;
+      setCustomDice(loaded);
+    } catch (error) {
+      console.error("Errore caricamento dadi Custom per l'Archivio:", error);
+      if (sequence === customDiceLoadSequenceRef.current) setCustomDice([]);
+    } finally {
+      if (sequence === customDiceLoadSequenceRef.current) setCustomDiceLoading(false);
+    }
+  };
+
+  // Nome del tiro in chat: "<Nome riga> - <colonna>" (es. "Arco Lungo — Danno").
+  const diceRollName = (rowIndex: number, colIndex: number) => {
+    const rowName = (rows[rowIndex]?.cells[0]?.text ?? '').trim();
+    const label = columnLabel(columns[colIndex]);
+    return rowName ? `${rowName} — ${label}` : label;
+  };
+
+  const rollCellDice = (rowIndex: number, colIndex: number) => {
+    const cell = rows[rowIndex]?.cells[colIndex];
+    if (!cell || cell.kind !== 'dice' || !diceSession) return;
+    const name = diceRollName(rowIndex, colIndex);
+    try {
+      if (cell.mode === 'custom') {
+        if (!cell.customDie) return;
+        diceSession.submitInlineCustomDieRoll({ name, quantity: cell.quantity, customDie: cell.customDie });
+        return;
+      }
+      const formula = cell.text.trim();
+      if (!formula) return;
+      // I tag "[Nome]" si risolvono sui valori correnti della nota, come
+      // nell'elemento Dado standard (stesso lookup, stesso evento di tiro).
+      const lookup = getModifierLookup(editor.view);
+      const resolveName = (refName: string) => {
+        const entry = lookup.get(refName);
+        return entry ? { value: entry.value, formula: entry.formula } : null;
+      };
+      diceSession.submitModifierRoll({ name, expression: formula, formula, resolveName });
+    } catch (error) {
+      console.error('Errore tiro Dado Archivio:', error);
+    }
+  };
+
   const focusCellEditor = (cellId: string) => {
     closeMenu();
+    // Nelle celle Dado l'input e' nascosto dietro il pulsante di tiro: lo
+    // montiamo prima, poi il rAF lo mette a fuoco.
+    setEditingCellId(cellId);
     window.requestAnimationFrame(() => {
       document.querySelector<HTMLElement>(`[data-archivio-cell-input="${cellId}"]`)?.focus();
     });
@@ -423,17 +529,54 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
       );
     }
     if (cell.kind === 'dice') {
+      // "Modifica" riapre la formula; di default la cella e' un pulsante di
+      // tiro a tutta larghezza, senza titolo: solo il valore (o la faccia del
+      // dado Custom con la quantita').
+      if (editingCellId === cell.id) {
+        return (
+          <input
+            data-archivio-cell-input={cell.id}
+            value={cell.text}
+            onChange={(event) => updateCell(rowIndex, colIndex, { text: event.target.value })}
+            onBlur={() => setEditingCellId((current) => (current === cell.id ? null : current))}
+            onMouseDown={(event) => event.stopPropagation()}
+            onKeyDown={stopKeys}
+            aria-label="Dado"
+            placeholder="1d6"
+            className="min-w-0 flex-1 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-2 py-1 font-mono text-xs font-semibold text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
+          />
+        );
+      }
+      const rollLabel = `Tira ${diceRollName(rowIndex, colIndex)}`;
       return (
-        <input
-          data-archivio-cell-input={cell.id}
-          value={cell.text}
-          onChange={(event) => updateCell(rowIndex, colIndex, { text: event.target.value })}
-          onMouseDown={(event) => event.stopPropagation()}
-          onKeyDown={stopKeys}
-          aria-label="Bottone"
-          placeholder="1d6"
-          className="min-w-0 flex-1 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-2 py-1 font-mono text-xs font-semibold text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
-        />
+        <button
+          type="button"
+          contentEditable={false}
+          data-archivio-dice="true"
+          onMouseDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+            rollCellDice(rowIndex, colIndex);
+          }}
+          aria-label={rollLabel}
+          title={rollLabel}
+          className="flex h-8 w-full min-w-0 items-center justify-center gap-1.5 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-2 font-mono text-xs font-semibold text-[var(--dash-text)] transition-colors duration-[var(--note-ui-duration)] hover:border-[var(--dash-accent)] hover:bg-[var(--dash-surface)] hover:text-[var(--dash-text-strong)] overflow-hidden"
+        >
+          {cell.mode === 'custom' && cell.customDie ? (
+            <>
+              <span className="text-sm font-bold leading-none">{cell.quantity}</span>
+              <CustomDieLibraryIcon die={cell.customDie} size="compact" faceOffsetY={3} />
+            </>
+          ) : (
+            <>
+              <Dices className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 truncate">{cell.text || '1d6'}</span>
+            </>
+          )}
+        </button>
       );
     }
     if (cell.kind === 'modifier') {
@@ -467,7 +610,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
   const transformItems = (cell: ArchivioCell, rowIndex: number, colIndex: number) => {
     const options: Array<{ kind: ArchivioCellKind; label: string; icon: typeof Type }> = [
       { kind: 'text', label: 'Trasforma in testo', icon: Type },
-      { kind: 'dice', label: 'Trasforma in Bottone', icon: Dices },
+      { kind: 'dice', label: 'Trasforma in Dado', icon: Dices },
       { kind: 'checkbox', label: 'Trasforma in checkbox', icon: SquareCheckBig },
       { kind: 'points', label: 'Trasforma in Punti', icon: Gauge },
       { kind: 'modifier', label: 'Trasforma in modificatore', icon: Cog },
@@ -476,6 +619,27 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
       <>
         {cell.kind !== 'text' && (
           <MenuItem icon={Pencil} label="Modifica" onSelect={() => focusCellEditor(cell.id)} />
+        )}
+        {cell.kind === 'dice' && (
+          <>
+            <MenuItem
+              icon={Dices}
+              label="Dado standard"
+              disabled={cell.mode !== 'custom'}
+              onSelect={() => {
+                updateCell(rowIndex, colIndex, { mode: 'standard' });
+                closeMenu();
+              }}
+            />
+            <MenuItem
+              icon={Library}
+              label="Scegli Dado custom…"
+              onSelect={() => {
+                void loadDiceLibrary();
+                setMenu({ scope: 'dice', row: rowIndex, col: colIndex });
+              }}
+            />
+          </>
         )}
         {options
           .filter((option) => option.kind !== cell.kind)
@@ -487,6 +651,46 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
               onSelect={() => transformCell(rowIndex, colIndex, option.kind)}
             />
           ))}
+      </>
+    );
+  };
+
+  // Sottolista: dadi della libreria della campagna per la cella Dado.
+  const dicePickerItems = (rowIndex: number, colIndex: number) => {
+    const cell = rows[rowIndex]?.cells[colIndex];
+    return (
+      <>
+        <MenuItem
+          icon={Dices}
+          label="Dado standard"
+          disabled={cell?.mode !== 'custom'}
+          onSelect={() => {
+            if (cell) updateCell(rowIndex, colIndex, { mode: 'standard' });
+            closeMenu();
+          }}
+        />
+        <div className="my-1 h-px bg-[var(--dash-border-soft)]" />
+        {customDiceLoading ? (
+          <p className="px-2.5 py-1.5 text-xs text-[var(--dash-muted)]">Caricamento dadi…</p>
+        ) : customDice.length === 0 ? (
+          <p className="px-2.5 py-1.5 text-xs text-[var(--dash-muted)]">Nessun dado Custom salvato.</p>
+        ) : (
+          customDice.map((die) => (
+            <MenuItem
+              key={die.id}
+              icon={Dices}
+              label={die.name}
+              onSelect={() => {
+                updateCell(rowIndex, colIndex, {
+                  mode: 'custom',
+                  customDie: toCustomDieRollSnapshot(die),
+                  quantity: Math.max(1, cell?.quantity ?? 1),
+                });
+                closeMenu();
+              }}
+            />
+          ))
+        )}
       </>
     );
   };
@@ -525,7 +729,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
               onSelect={() => moveColumn(colIndex, 1)}
             />
             <MenuItem icon={Type} label="Converti tutto in testo" onSelect={() => convertColumn(colIndex, 'text')} />
-            <MenuItem icon={Dices} label="Converti tutto in bottoni" onSelect={() => convertColumn(colIndex, 'dice')} />
+            <MenuItem icon={Dices} label="Converti tutto in dadi" onSelect={() => convertColumn(colIndex, 'dice')} />
             <MenuItem icon={Cog} label="Converti tutto in Modificatori" onSelect={() => convertColumn(colIndex, 'modifier')} />
             <MenuItem
               icon={SquareCheckBig}
@@ -611,9 +815,9 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                 {columns.map((column, colIndex) => (
                   <th
                     key={column.id}
-                    className="relative border-b border-[var(--dash-border-soft)] px-[var(--note-cell-padding-x)] py-[var(--note-cell-padding-y)] text-left align-middle"
+                    className="group/cell relative border-b border-[var(--dash-border-soft)] px-[var(--note-cell-padding-x)] py-[var(--note-cell-padding-y)] text-left align-middle"
                   >
-                    <span className="group flex min-w-0 items-center gap-1">
+                    <span className="relative flex min-w-0 items-center gap-1">
                       {renamingColumn === column.id ? (
                         <input
                           autoFocus
@@ -671,9 +875,9 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
               {rows.map((row, rowIndex) => (
                 <tr key={row.id} className="border-b border-[var(--dash-border-soft)] last:border-b-0">
                   {row.cells.map((cell, colIndex) => (
-                    <td key={cell.id} className="relative px-[var(--note-cell-padding-x)] py-[var(--note-cell-padding-y)] align-middle">
+                    <td key={cell.id} className="group/cell relative px-[var(--note-cell-padding-x)] py-[var(--note-cell-padding-y)] align-middle">
                       {colIndex === 0 ? (
-                        <span className="group relative flex min-w-0 items-center gap-1">
+                        <span className="relative flex min-w-0 items-center gap-1">
                           <span className="flex min-w-0 flex-1 items-center">
                             {renderCellEditor(cell, rowIndex, colIndex)}
                           </span>
@@ -717,7 +921,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                           )}
                         </span>
                       ) : (
-                        <span className="group relative flex min-w-0 items-center gap-1">
+                        <span className="relative flex min-w-0 items-center gap-1">
                           <span className="flex min-w-0 flex-1 items-center justify-center">
                             {renderCellEditor(cell, rowIndex, colIndex)}
                           </span>
@@ -733,6 +937,9 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                           </TriggerButton>
                           {menu?.scope === 'cell' && menu.row === rowIndex && menu.col === colIndex && (
                             <MenuPortal anchor={anchor}>{transformItems(cell, rowIndex, colIndex)}</MenuPortal>
+                          )}
+                          {menu?.scope === 'dice' && menu.row === rowIndex && menu.col === colIndex && (
+                            <MenuPortal anchor={anchor}>{dicePickerItems(rowIndex, colIndex)}</MenuPortal>
                           )}
                         </span>
                       )}
