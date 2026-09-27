@@ -57,6 +57,7 @@ export function SavedCustomDieCard(props: {
           <DropdownMenuTrigger asChild>
             <button
               aria-label="Menu dado Custom"
+              data-menu-dots="true"
               className="m-1 rounded-md p-2 text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]"
             >
               <MoreVertical className="h-4 w-4" />

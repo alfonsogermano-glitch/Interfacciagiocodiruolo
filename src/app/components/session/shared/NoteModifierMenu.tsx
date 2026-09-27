@@ -493,7 +493,7 @@ function ModifierEditPanel({ top, left, name, modifiers, lookup, initialValue, i
 
 // Il Dado Standard conserva Valore e Modificatori; il Custom sostituisce
 // entrambi con scelta del dado salvato e quantità.
-function DiceEditForm({ dicePos, modifiers, lookup, customDice, customDiceLoading, initialName, initialTitle, initialFormula, initialMode, initialQuantity, initialCustomDie, onSave, onCancel }: {
+function DiceEditForm({ dicePos, modifiers, lookup, customDice, customDiceLoading, initialName, initialTitle, initialFormula, initialMode, initialQuantity, initialCustomDie, showName = true, onSave, onCancel }: {
   dicePos: number;
   modifiers: ModifierSnapshot[];
   lookup: Map<string, ModifierSnapshot>;
@@ -505,6 +505,9 @@ function DiceEditForm({ dicePos, modifiers, lookup, customDice, customDiceLoadin
   initialMode: DiceMode;
   initialQuantity: number;
   initialCustomDie: CustomDieRollSnapshot | null;
+  /** false = niente campo Nome (cella Dado dell'Archivio: il nome del tiro
+   *  lo da la riga, non il dado). Valore/Modificatori restano invariati. */
+  showName?: boolean;
   onSave: (name: string, formula: string, title: ModifierTitleFormat, mode: DiceMode, quantity: number, customDie: CustomDieRollSnapshot | null) => void;
   onCancel: () => void;
 }) {
@@ -646,6 +649,9 @@ function DiceEditForm({ dicePos, modifiers, lookup, customDice, customDiceLoadin
     if (!el || el.dataset.initialized) return;
     el.dataset.initialized = 'true';
     appendFormulaSegments(el, standardFormulaDraftRef.current);
+    // Senza il campo Nome l'autoFocus non ha destinazione: il focus va
+    // direttamente sul Valore (stessa posizione di fine testo).
+    if (showName === false) el.focus();
     try {
       const range = document.createRange();
       range.selectNodeContents(el);
@@ -763,32 +769,34 @@ function DiceEditForm({ dicePos, modifiers, lookup, customDice, customDiceLoadin
 
   return (
     <div className="flex flex-col gap-2 p-1">
-      <label className="block">
-        <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Nome</span>
-        <input
-          autoFocus
-          ref={nameRef}
-          value={nameDraft}
-          maxLength={MODIFIER_VALUE_MAX_LENGTH}
-          // Marcatore rename: il menu titolo "/" consuma qui Invio/Escape e
-          // frecce quando e' aperto (stesse opzioni del titolo Modificatore).
-          data-note-modifier-rename="true"
-          aria-label="Nome dado"
-          onChange={(event) => {
-            const next = event.target.value;
-            setNameDraft(next);
-            setError(null);
-            applyModifierTitleFormat(event.target, titleFormat);
-            syncTitleMenu(next, event.target.selectionStart ?? next.length);
-          }}
-          onKeyDown={(event) => {
-            if (titleMenuOpenRef.current && (event.key === 'Enter' || event.key === 'Escape' || event.key.startsWith('Arrow'))) return;
-            if (event.key === 'Enter') { event.preventDefault(); confirm(); }
-          }}
-          placeholder="Dado"
-          className="w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
-        />
-      </label>
+      {showName !== false && (
+        <label className="block">
+          <span className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Nome</span>
+          <input
+            autoFocus
+            ref={nameRef}
+            value={nameDraft}
+            maxLength={MODIFIER_VALUE_MAX_LENGTH}
+            // Marcatore rename: il menu titolo "/" consuma qui Invio/Escape e
+            // frecce quando e' aperto (stesse opzioni del titolo Modificatore).
+            data-note-modifier-rename="true"
+            aria-label="Nome dado"
+            onChange={(event) => {
+              const next = event.target.value;
+              setNameDraft(next);
+              setError(null);
+              applyModifierTitleFormat(event.target, titleFormat);
+              syncTitleMenu(next, event.target.selectionStart ?? next.length);
+            }}
+            onKeyDown={(event) => {
+              if (titleMenuOpenRef.current && (event.key === 'Enter' || event.key === 'Escape' || event.key.startsWith('Arrow'))) return;
+              if (event.key === 'Enter') { event.preventDefault(); confirm(); }
+            }}
+            placeholder="Dado"
+            className="w-full rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1.5 text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
+          />
+        </label>
+      )}
       <fieldset>
         <legend className="mb-1 block px-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--dash-muted)]">Tipo</legend>
         <div className="grid grid-cols-2 gap-1.5">
@@ -901,7 +909,7 @@ function DiceEditForm({ dicePos, modifiers, lookup, customDice, customDiceLoadin
   );
 }
 
-function DiceEditPanel({ top, left, name, modifiers, lookup, customDice, customDiceLoading, initialName, initialTitle, initialFormula, initialMode, initialQuantity, initialCustomDie, dicePos, onSave, onCancel }: {
+export function DiceEditPanel({ top, left, name, modifiers, lookup, customDice, customDiceLoading, initialName, initialTitle, initialFormula, initialMode, initialQuantity, initialCustomDie, dicePos, showName = true, onSave, onCancel }: {
   top: number;
   left: number;
   name: string;
@@ -916,6 +924,8 @@ function DiceEditPanel({ top, left, name, modifiers, lookup, customDice, customD
   initialQuantity: number;
   initialCustomDie: CustomDieRollSnapshot | null;
   dicePos: number;
+  /** false = niente campo Nome nella finestra (Dado dentro l'Archivio). */
+  showName?: boolean;
   onSave: (name: string, formula: string, title: ModifierTitleFormat, mode: DiceMode, quantity: number, customDie: CustomDieRollSnapshot | null) => void;
   onCancel: () => void;
 }) {
@@ -978,6 +988,7 @@ function DiceEditPanel({ top, left, name, modifiers, lookup, customDice, customD
         initialMode={initialMode}
         initialQuantity={initialQuantity}
         initialCustomDie={initialCustomDie}
+        showName={showName}
         onSave={onSave}
         onCancel={onCancel}
       />

@@ -505,25 +505,44 @@ function performMeasurement() {
     // visiva renderebbe quel wrap temporaneo permanente; nello stesso
     // paragrafo i box con Punti costituiscono invece una sola riga logica e
     // devono essere ridivisi insieme prima che il browser decida il wrap.
-    const trailingWidth = trailingRowTextWidth(blockParent, items[items.length - 1].element);
+    let trailingWidth = trailingRowTextWidth(blockParent, items[items.length - 1].element);
     if (items.some((item) => item.element.classList.contains('tiptap-inline-points-widget'))) {
       measureLine(items, lineRight, trailingWidth);
       continue;
     }
-    const lineGroups: Array<Array<{ element: HTMLElement } & WidgetEntry>> = [];
-
-    for (const item of items) {
-      const top = item.element.getBoundingClientRect().top;
-      const line = lineGroups.find((group) => Math.abs(group[0].element.getBoundingClientRect().top - top) < 2);
-      if (line) line.push(item);
-      else lineGroups.push([item]);
-    }
-
-    // Il testo finale appartiene all'ultima riga visiva: solo il gruppo che
-    // contiene l'ultimo widget del paragrafo lo sottrae dalla misura.
     const lastItem = items[items.length - 1];
-    for (const lineItems of lineGroups) {
-      measureLine(lineItems, lineRight, lineItems.includes(lastItem) ? trailingWidth : 0);
+    // Le scritture di questa stessa misura (width auto sul Dado ricostruito,
+    // split del Modificatore) possono wrappare un box DOPO che il gruppo di
+    // riga e' stato chiuso o lasciare un larghezza non piu' allineata alla
+    // riga che il browser ha deciso: riverifica posizioni E larghezze e
+    // misura di nuovo finche' non sono stabili, senza affidarsi solo al
+    // resize del contenitore (che non scatta se l'altezza non cambia).
+    const snapshot = () => items.map((item) => {
+      const rect = item.element.getBoundingClientRect();
+      return `${Math.round(rect.top)}:${item.element.offsetWidth}`;
+    });
+    for (let pass = 0; pass < 3; pass += 1) {
+      const before = snapshot();
+      trailingWidth = trailingRowTextWidth(blockParent, lastItem.element);
+      const lineGroups: Array<Array<{ element: HTMLElement } & WidgetEntry>> = [];
+
+      for (const item of items) {
+        const top = item.element.getBoundingClientRect().top;
+        const line = lineGroups.find((group) => Math.abs(group[0].element.getBoundingClientRect().top - top) < 2);
+        if (line) line.push(item);
+        else lineGroups.push([item]);
+      }
+
+      // Un Dado wrappato sotto il suo Modificatore rientra sulla stessa riga
+      // se ristretto il Modificatore ci sta ancora; altrimenti resta wrappato.
+      const measureGroups = mergeWrappedDiceGroups(lineGroups, lineRight, trailingWidth, lastItem);
+      // Il testo finale appartiene all'ultima riga visiva: solo il gruppo che
+      // contiene l'ultimo widget del paragrafo lo sottrae dalla misura.
+      for (const lineItems of measureGroups) {
+        measureLine(lineItems, lineRight, lineItems.includes(lastItem) ? trailingWidth : 0);
+      }
+      const after = snapshot();
+      if (before.every((entry, index) => entry === after[index])) break;
     }
   }
 }
@@ -643,6 +662,82 @@ function measureLine(items: Array<{ element: HTMLElement } & WidgetEntry>, lineR
   for (let i = 0; i < items.length; i++) {
     items[i].element.style.marginRight = i === items.length - 1 ? `${CURSOR_ROOM}px` : '0px';
   }
+}
+
+// Un Dado wrappato sulla riga sotto rientra nella riga del Modificatore che
+// lo precede quando, tra i due widget, c'e' solo spazio e la riga unita con
+// tutti gli box espansi ristretti tiene ancora un MODIFICATORE di almeno la
+// soglia minima (soglia letta dal min-width reale del box, 4em). Se non ci
+// sta, il wrap resta reale: il gruppo torna a measureLine che fa riempire la
+// riga al Modificatore e lascia il Dado a dimensione contenuto sotto.
+function mergeWrappedDiceGroups(
+  lineGroups: Array<Array<{ element: HTMLElement } & WidgetEntry>>,
+  lineRight: number,
+  trailingWidth: number,
+  lastItem: { element: HTMLElement } & WidgetEntry,
+): Array<Array<{ element: HTMLElement } & WidgetEntry>> {
+  const measureGroups: Array<Array<{ element: HTMLElement } & WidgetEntry>> = [];
+  for (let index = 0; index < lineGroups.length; index += 1) {
+    let current = lineGroups[index];
+    let merged = false;
+    while (index + 1 < lineGroups.length) {
+      const next = lineGroups[index + 1];
+      // Solo un Dado in testa alla riga successiva: e' lui a dover rientrare.
+      if (!next[0].element.classList.contains('tiptap-inline-dice-widget')) break;
+      const gapRange = document.createRange();
+      gapRange.setStartAfter(current[current.length - 1].element);
+      gapRange.setEndBefore(next[0].element);
+      // Testo reale tra i due widget: la riga va divisa come misura normalmente.
+      if (gapRange.toString().replace(/[\s\u200b]+/g, '')) break;
+      const all = [...current, ...next];
+      const rects = all.map((item) => item.element.getBoundingClientRect());
+      let expandedCount = 0;
+      let compactWidth = 0;
+      let minWidth = MIN_MODIFIER_WIDTH;
+      for (let i = 0; i < all.length; i += 1) {
+        if (isCompactModifier(all[i].element)) {
+          compactWidth += rects[i].width;
+        } else {
+          expandedCount += 1;
+          const boxMin = parseFloat(window.getComputedStyle(all[i].element).minWidth);
+          if (Number.isFinite(boxMin) && boxMin > minWidth) minWidth = boxMin;
+        }
+      }
+      if (expandedCount === 0) break;
+      // Gaps reali: rettangoli per le coppie ancora sulla stessa riga, range
+      // DOM per il salto di riga (solo spazio, larghezza misurata li').
+      let gaps = 0;
+      for (let i = 1; i < all.length; i += 1) {
+        if (Math.abs(rects[i - 1].top - rects[i].top) < 2) {
+          gaps += Math.max(0, rects[i].left - rects[i - 1].right);
+        } else {
+          const range = document.createRange();
+          range.setStartAfter(all[i - 1].element);
+          range.setEndBefore(all[i].element);
+          gaps += range.getBoundingClientRect().width;
+        }
+      }
+      const trailing = all.includes(lastItem) ? trailingWidth : 0;
+      const available = lineRight - rects[0].left - CURSOR_ROOM - END_INSERTION_ROOM - gaps - compactWidth - trailing;
+      const share = Math.floor(available / expandedCount);
+      if (share < minWidth) break;
+      // Unica applicazione: il browser riverifica il wrap una sola volta.
+      for (let i = 0; i < all.length; i += 1) {
+        if (isCompactModifier(all[i].element)) {
+          all[i].element.style.width = 'auto';
+        } else {
+          all[i].element.style.width = `${share}px`;
+        }
+        all[i].element.style.marginLeft = '0px';
+        all[i].element.style.marginRight = i === all.length - 1 ? `${CURSOR_ROOM}px` : '0px';
+      }
+      current = all;
+      index += 1;
+      merged = true;
+    }
+    if (!merged) measureGroups.push(current);
+  }
+  return measureGroups;
 }
 
 function getModifierWidgetAt(pos: number): HTMLElement | null {
@@ -905,7 +1000,8 @@ function buildModifierWidget(
     borderRadius: 'var(--note-widget-menu-radius)',
     opacity: 0,
     transition: 'opacity var(--note-ui-duration) ease',
-    cursor: view.editable ? 'pointer' : 'default',
+    // Regola universale dei menu ⋮: freccia, mai manina.
+    cursor: 'default',
   });
   for (let i = 0; i < 3; i += 1) {
     const dot = document.createElement('span');

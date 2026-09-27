@@ -6,7 +6,9 @@ import {
   extractModifierRefs,
   isValidModifierFormula,
   modifierFormulaHasDice,
+  modifierRefTipText,
   parseModifierValue,
+  splitModifierFormula,
 } from '../src/app/components/session/shared/modifierFormula.ts';
 import type { DiceRng } from '../src/app/components/session/dice/diceTypes.ts';
 
@@ -81,5 +83,16 @@ assert.match(describeFormulaAnomaly('1d6+', anomalyLookup, 'Attacco') ?? '', /Fo
 assert.match(describeFormulaAnomaly('1d6+"Attacco"', anomalyLookup, 'Attacco') ?? '', /se' stessa/);
 assert.match(describeFormulaAnomaly('1d6+"Mana"', anomalyLookup, 'Attacco') ?? '', /"Mana" non trovato/);
 assert.match(describeFormulaAnomaly('1d6+"Mana"', anomalyLookup) ?? '', /"Mana" non trovato/);
+
+// Segmenti per i pill con tooltip: tag separati dal testo, in ordine.
+assert.deepEqual(splitModifierFormula('1d6+"Forza"+2'), [
+  { kind: 'text', text: '1d6+' },
+  { kind: 'tag', name: 'Forza' },
+  { kind: 'text', text: '+2' },
+]);
+assert.deepEqual(splitModifierFormula('1d6'), [{ kind: 'text', text: '1d6' }]);
+assert.equal(modifierRefTipText('Forza', { value: '+2', formula: '' }), '+2');
+assert.equal(modifierRefTipText('Attacco', { value: '+2', formula: '"Forza"+1' }), '"Forza"+1');
+assert.equal(modifierRefTipText('Mana'), '"Mana" non trovato');
 
 console.log('Modifier formula verification: PASS');

@@ -277,7 +277,7 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
   dots.setAttribute('role', 'button');
   dots.setAttribute('tabindex', '0');
   dots.setAttribute('aria-label', `Menu Punti ${data.name}`);
-  Object.assign(dots.style, { position: 'absolute', zIndex: 3, top: '0.32em', right: '0.32em', display: 'inline-flex', flexDirection: 'column', gap: '0.11em', padding: '0.22em', borderRadius: 'var(--note-widget-menu-radius)', opacity: 0, transition: 'opacity var(--note-ui-duration) ease', cursor: view.editable ? 'pointer' : 'default' });
+  Object.assign(dots.style, { position: 'absolute', zIndex: 3, top: '0.32em', right: '0.32em', display: 'inline-flex', flexDirection: 'column', gap: '0.11em', padding: '0.22em', borderRadius: 'var(--note-widget-menu-radius)', opacity: 0, transition: 'opacity var(--note-ui-duration) ease', cursor: 'default' });
   for (let index = 0; index < 3; index += 1) {
     const dot = document.createElement('span');
     Object.assign(dot.style, { width: '0.2em', height: '0.2em', borderRadius: '50%', background: 'var(--dash-muted)' });

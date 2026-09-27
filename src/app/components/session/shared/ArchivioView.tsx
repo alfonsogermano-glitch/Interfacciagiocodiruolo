@@ -1,6 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
+import type { EditorView } from '@tiptap/pm/view';
 import { usePortalContainer } from '../../ui/portal-container';
 import { placeFloatingNoteUI } from './noteFloatingPosition';
 import {
@@ -15,7 +16,6 @@ import {
   Eye,
   EyeOff,
   Gauge,
-  Library,
   MoreVertical,
   Pencil,
   Plus,
@@ -41,17 +41,17 @@ import { useAuth } from '../../../auth/AuthContext';
 import { useCampaign } from '../../../campaigns/CampaignContext';
 import { loadCustomDice } from '../../../../services/supabase/diceCustomDiceService';
 import { CustomDieLibraryIcon } from '../dice/CustomDieLibraryIcon';
-import { toCustomDieRollSnapshot } from '../dice/diceCustomDie';
 import { useOptionalDiceSession } from '../dice/DiceSessionContext';
 import type { SavedCustomDie } from '../dice/diceTypes';
-import { getModifierLookup } from './tiptapInlineModifier';
+import { getModifierLookup, MODIFIER_TITLE_FORMAT_DEFAULTS, showInlineBoxTipAbove } from './tiptapInlineModifier';
+import { FORMULA_TAG_CLASS, modifierRefTipText, splitModifierFormula } from './modifierFormula';
+import { DiceEditPanel } from './NoteModifierMenu';
 
 type MenuState =
   | { scope: 'block' }
   | { scope: 'column'; col: number }
   | { scope: 'row'; row: number }
   | { scope: 'cell'; row: number; col: number }
-  | { scope: 'dice'; row: number; col: number }
   | null;
 
 function createViewId(): string {
@@ -104,11 +104,15 @@ function TriggerButton({
   onOpen,
   children,
   className = '',
+  plain = false,
 }: {
   label: string;
   onOpen: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   children: ReactNode;
   className?: string;
+  /** Niente riquadro di sfondo in hover: nelle celle Dado il trigger sta sopra
+   *  la formula e un bg pieno coprirebbe il bordo delle pill "Nome". */
+  plain?: boolean;
 }) {
   return (
     <button
@@ -116,6 +120,7 @@ function TriggerButton({
       contentEditable={false}
       aria-label={label}
       data-archivio-trigger="true"
+      data-menu-dots="true"
       onMouseDown={(event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -124,7 +129,7 @@ function TriggerButton({
         event.stopPropagation();
         onOpen(event);
       }}
-      className={`inline-flex shrink-0 items-center justify-center rounded-md p-1 text-[var(--dash-muted)] transition-colors duration-[var(--note-ui-duration)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-md p-1 text-[var(--dash-muted)] transition-colors duration-[var(--note-ui-duration)] ${plain ? '' : 'hover:bg-[var(--dash-surface-2)]'} hover:text-[var(--dash-text)] ${className}`}
     >
       {children}
     </button>
@@ -137,7 +142,16 @@ function TriggerButton({
 // gia' un "group" senza nome: le varianti senza nome risponderebbero a quel
 // gruppo e tutti i puntini della nota resterebbero visibili con il focus.
 const HOVER_DOTS =
-  'absolute right-0 top-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-[var(--note-ui-duration)] pointer-events-none group-hover/cell:pointer-events-auto group-hover/cell:opacity-100 group-focus-within/cell:pointer-events-auto group-focus-within/cell:opacity-100 focus-visible:opacity-100';
+  'absolute right-0 top-1/2 -translate-y-1/2 z-[2] opacity-0 transition-opacity duration-[var(--note-ui-duration)] pointer-events-none group-hover/cell:pointer-events-auto group-hover/cell:opacity-100 group-focus-within/cell:pointer-events-auto group-focus-within/cell:opacity-100 focus-visible:opacity-100';
+
+// Nella cella Dado i puntini stanno in alto a destra, INSET dal bordo del
+// pulsante di tiro (right-1/top-1: a filo di bordo coprivano la cornice
+// arrotondata della cella) e z-[2] gli da' la precedenza di selezione sulle
+// pill "Nome" della formula (z-[1]) che arrivano al bordo - la pill ha un'ampia
+// zona cliccabile, i puntini no, quindi quando si sovrappongono devono vincere
+// loro. Con plain non hanno sfondo: un bg pieno coprirebbe il bordo della pill.
+const HOVER_DOTS_TOP =
+  'absolute right-1 top-1 z-[2] opacity-0 transition-opacity duration-[var(--note-ui-duration)] pointer-events-none group-hover/cell:pointer-events-auto group-hover/cell:opacity-100 group-focus-within/cell:pointer-events-auto group-focus-within/cell:opacity-100 focus-visible:opacity-100';
 
 // Dentro la tabella i menu sarebbero ritagliati dallo scroll orizzontale.
 // Il portal tematizzato mantiene disponibili le variabili --dash-*.
@@ -194,6 +208,58 @@ function MenuPortal({ anchor, children }: { anchor: { x: number; y: number } | n
   );
 }
 
+function DiceFormulaText({ formula, view, className }: { formula: string; view: EditorView; className?: string }) {
+  const tipRef = useRef<(() => void) | null>(null);
+  const titleRef = useRef<{ host: HTMLElement; value: string } | null>(null);
+  const restoreTitle = () => {
+    if (titleRef.current) {
+      titleRef.current.host.setAttribute('title', titleRef.current.value);
+      titleRef.current = null;
+    }
+  };
+  useEffect(() => () => {
+    tipRef.current?.();
+    tipRef.current = null;
+    restoreTitle();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const segments = splitModifierFormula(formula);
+  return (
+    <span className={className}>
+      {segments.map((segment, index) =>
+        segment.kind === 'text' ? (
+          <Fragment key={index}>{segment.text}</Fragment>
+        ) : (
+          <span
+            key={index}
+            data-modifier-tag={segment.name}
+            className={FORMULA_TAG_CLASS}
+            onMouseEnter={(event) => {
+              if (tipRef.current) return;
+              const host = event.currentTarget.closest('[title]') as HTMLElement | null;
+              if (host) {
+                titleRef.current = { host, value: host.getAttribute('title') ?? host.getAttribute('aria-label') ?? '' };
+                host.removeAttribute('title');
+              }
+              tipRef.current = showInlineBoxTipAbove(
+                event.currentTarget,
+                modifierRefTipText(segment.name, getModifierLookup(view).get(segment.name)),
+              );
+            }}
+            onMouseLeave={() => {
+              tipRef.current?.();
+              tipRef.current = null;
+              restoreTitle();
+            }}
+          >
+            {segment.name}
+          </span>
+        ),
+      )}
+    </span>
+  );
+}
+
 export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
   const columns = normalizeArchivioColumns(node.attrs.columns as unknown);
   const rows = normalizeArchivioRows(node.attrs.rows as unknown, columns);
@@ -203,15 +269,17 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
   const [menu, setMenu] = useState<MenuState>(null);
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
   const [renamingColumn, setRenamingColumn] = useState<string | null>(null);
-  // Le celle Dado mostrano il pulsante di tiro; l'input della formula riappare
-  // solo quando si sceglie "Modifica" dal menu della cella.
-  const [editingCellId, setEditingCellId] = useState<string | null>(null);
+  // Le celle Dado mostrano il pulsante di tiro; "Modifica" apre la stessa
+  // finestra di modifica dell'elemento Dado (DiceEditPanel, senza il campo
+  // Nome: il nome del tiro lo danno riga e colonna).
+  const [diceEdit, setDiceEdit] = useState<{ row: number; col: number; y: number } | null>(null);
   const [customDice, setCustomDice] = useState<SavedCustomDie[]>([]);
   const [customDiceLoading, setCustomDiceLoading] = useState(false);
   const customDiceLoadSequenceRef = useRef(0);
   const { user } = useAuth();
   const { activeCampaign } = useCampaign();
   const diceSession = useOptionalDiceSession();
+  const portalContainer = usePortalContainer();
   const resizeRef = useRef<{ col: number; startX: number; startWidth: number } | null>(null);
 
   const openMenu = (next: MenuState, event: ReactMouseEvent<HTMLButtonElement>) => {
@@ -242,6 +310,31 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
       window.removeEventListener('keydown', escape);
     };
   }, [menu]);
+
+  // Finestra di modifica Dado: chiude con Escape o con un click fuori
+  // (stesse regole del menu Dado tradizionale; il pannello stesso porta
+  // data-note-dice-menu e i click al suo interno restano in).
+  useEffect(() => {
+    if (!diceEdit) return;
+    const outside = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (target?.closest('[data-note-dice-menu="true"]')) return;
+      setDiceEdit(null);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDiceEdit(null);
+    };
+    document.addEventListener('pointerdown', outside, true);
+    window.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside, true);
+      window.removeEventListener('keydown', escape);
+    };
+  }, [diceEdit]);
+
+  // Lookup dei Modificatori della nota: la finestra di modifica Dado
+  // dell'Archivio propone gli stessi [Modificatori] dell'elemento Dado.
+  const diceModifierLookup = diceEdit ? getModifierLookup(editor.view) : null;
 
   const set = (patch: { title?: string; titleVisible?: boolean; columns?: ArchivioColumn[]; rows?: ArchivioRow[] }) => {
     updateAttributes(patch);
@@ -375,6 +468,16 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
     }
   };
 
+  // "Modifica" sulle celle Dado: apre la finestra condivisa con l'elemento
+  // Dado (Tipo Standard/Custom, Valore, Modificatori) caricando la libreria
+  // dei dadi Custom della campagna per il selettore.
+  const openDiceEditor = (rowIndex: number, colIndex: number) => {
+    const openY = anchor?.y ?? window.innerHeight / 2;
+    closeMenu();
+    setDiceEdit({ row: rowIndex, col: colIndex, y: openY });
+    void loadDiceLibrary();
+  };
+
   // Nome del tiro in chat: "<Nome riga> - <colonna>" (es. "Arco Lungo — Danno").
   const diceRollName = (rowIndex: number, colIndex: number) => {
     const rowName = (rows[rowIndex]?.cells[0]?.text ?? '').trim();
@@ -409,9 +512,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
 
   const focusCellEditor = (cellId: string) => {
     closeMenu();
-    // Nelle celle Dado l'input e' nascosto dietro il pulsante di tiro: lo
-    // montiamo prima, poi il rAF lo mette a fuoco.
-    setEditingCellId(cellId);
+    // L'input della cella e' gia' montato: il rAF lo mette a fuoco.
     window.requestAnimationFrame(() => {
       document.querySelector<HTMLElement>(`[data-archivio-cell-input="${cellId}"]`)?.focus();
     });
@@ -529,24 +630,10 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
       );
     }
     if (cell.kind === 'dice') {
-      // "Modifica" riapre la formula; di default la cella e' un pulsante di
-      // tiro a tutta larghezza, senza titolo: solo il valore (o la faccia del
-      // dado Custom con la quantita').
-      if (editingCellId === cell.id) {
-        return (
-          <input
-            data-archivio-cell-input={cell.id}
-            value={cell.text}
-            onChange={(event) => updateCell(rowIndex, colIndex, { text: event.target.value })}
-            onBlur={() => setEditingCellId((current) => (current === cell.id ? null : current))}
-            onMouseDown={(event) => event.stopPropagation()}
-            onKeyDown={stopKeys}
-            aria-label="Dado"
-            placeholder="1d6"
-            className="min-w-0 flex-1 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-2 py-1 font-mono text-xs font-semibold text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
-          />
-        );
-      }
+      // La cella e' sempre un pulsante di tiro a tutta larghezza, senza
+      // titolo: solo il valore (o la faccia del dado Custom con la
+      // quantita'). Il tasto Modifica del menu apre la finestra condivisa
+      // di modifica Dado (DiceEditPanel), qui senza il campo Nome.
       const rollLabel = `Tira ${diceRollName(rowIndex, colIndex)}`;
       return (
         <button
@@ -563,18 +650,25 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
           }}
           aria-label={rollLabel}
           title={rollLabel}
-          className="flex h-8 w-full min-w-0 items-center justify-center gap-1.5 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-2 font-mono text-xs font-semibold text-[var(--dash-text)] transition-colors duration-[var(--note-ui-duration)] hover:border-[var(--dash-accent)] hover:bg-[var(--dash-surface)] hover:text-[var(--dash-text-strong)] overflow-hidden"
+          className="relative flex min-h-8 w-full min-w-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-2 py-1 font-mono text-xs font-semibold text-[var(--dash-text)] transition-colors duration-[var(--note-ui-duration)] hover:border-[var(--dash-accent)] hover:bg-[var(--dash-surface)] hover:text-[var(--dash-text-strong)] overflow-hidden"
         >
+          <Dices
+            aria-hidden="true"
+            className="pointer-events-none absolute -left-[0.22em] -bottom-[0.3em] h-[1.7em] w-[1.7em] text-[var(--dash-accent-2)] opacity-50"
+          />
           {cell.mode === 'custom' && cell.customDie ? (
-            <>
-              <span className="text-sm font-bold leading-none">{cell.quantity}</span>
-              <CustomDieLibraryIcon die={cell.customDie} size="compact" faceOffsetY={3} />
-            </>
+            <span className="relative z-[1] flex items-center justify-center gap-1.5">
+              {/* Quantita' grande quanto il dado custom (shell compact h-8 =
+                  2rem): faceOffsetY nullo per tenere la faccia al centro. */}
+              <span className="text-[2rem] font-bold leading-none">{cell.quantity}</span>
+              <CustomDieLibraryIcon die={cell.customDie} size="compact" />
+            </span>
           ) : (
-            <>
-              <Dices className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              <span className="min-w-0 truncate">{cell.text || '1d6'}</span>
-            </>
+            <DiceFormulaText
+              formula={cell.text || '1d6'}
+              view={editor.view}
+              className="relative z-[1] min-w-0 break-words text-center"
+            />
           )}
         </button>
       );
@@ -618,28 +712,14 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
     return (
       <>
         {cell.kind !== 'text' && (
-          <MenuItem icon={Pencil} label="Modifica" onSelect={() => focusCellEditor(cell.id)} />
-        )}
-        {cell.kind === 'dice' && (
-          <>
-            <MenuItem
-              icon={Dices}
-              label="Dado standard"
-              disabled={cell.mode !== 'custom'}
-              onSelect={() => {
-                updateCell(rowIndex, colIndex, { mode: 'standard' });
-                closeMenu();
-              }}
-            />
-            <MenuItem
-              icon={Library}
-              label="Scegli Dado custom…"
-              onSelect={() => {
-                void loadDiceLibrary();
-                setMenu({ scope: 'dice', row: rowIndex, col: colIndex });
-              }}
-            />
-          </>
+          <MenuItem
+            icon={Pencil}
+            label="Modifica"
+            onSelect={() => {
+              if (cell.kind === 'dice') openDiceEditor(rowIndex, colIndex);
+              else focusCellEditor(cell.id);
+            }}
+          />
         )}
         {options
           .filter((option) => option.kind !== cell.kind)
@@ -651,46 +731,6 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
               onSelect={() => transformCell(rowIndex, colIndex, option.kind)}
             />
           ))}
-      </>
-    );
-  };
-
-  // Sottolista: dadi della libreria della campagna per la cella Dado.
-  const dicePickerItems = (rowIndex: number, colIndex: number) => {
-    const cell = rows[rowIndex]?.cells[colIndex];
-    return (
-      <>
-        <MenuItem
-          icon={Dices}
-          label="Dado standard"
-          disabled={cell?.mode !== 'custom'}
-          onSelect={() => {
-            if (cell) updateCell(rowIndex, colIndex, { mode: 'standard' });
-            closeMenu();
-          }}
-        />
-        <div className="my-1 h-px bg-[var(--dash-border-soft)]" />
-        {customDiceLoading ? (
-          <p className="px-2.5 py-1.5 text-xs text-[var(--dash-muted)]">Caricamento dadi…</p>
-        ) : customDice.length === 0 ? (
-          <p className="px-2.5 py-1.5 text-xs text-[var(--dash-muted)]">Nessun dado Custom salvato.</p>
-        ) : (
-          customDice.map((die) => (
-            <MenuItem
-              key={die.id}
-              icon={Dices}
-              label={die.name}
-              onSelect={() => {
-                updateCell(rowIndex, colIndex, {
-                  mode: 'custom',
-                  customDie: toCustomDieRollSnapshot(die),
-                  quantity: Math.max(1, cell?.quantity ?? 1),
-                });
-                closeMenu();
-              }}
-            />
-          ))
-        )}
       </>
     );
   };
@@ -803,7 +843,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
           )}
         </div>
 
-        <div className="overflow-x-auto px-2 pb-2">
+        <div className="tiptap-archivio-scroll overflow-x-auto px-2 pb-2">
           <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
             <colgroup>
               {columns.map((column) => (
@@ -927,7 +967,8 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                           </span>
                           <TriggerButton
                             label={`Menu cella ${columnLabel(columns[colIndex])} riga ${rowIndex + 1}`}
-                            className={HOVER_DOTS}
+                            plain={cell.kind === 'dice'}
+                            className={cell.kind === 'dice' ? HOVER_DOTS_TOP : HOVER_DOTS}
                             onOpen={(event) => {
                               if (menu?.scope === 'cell' && menu.row === rowIndex && menu.col === colIndex) closeMenu();
                               else openMenu({ scope: 'cell', row: rowIndex, col: colIndex }, event);
@@ -937,9 +978,6 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                           </TriggerButton>
                           {menu?.scope === 'cell' && menu.row === rowIndex && menu.col === colIndex && (
                             <MenuPortal anchor={anchor}>{transformItems(cell, rowIndex, colIndex)}</MenuPortal>
-                          )}
-                          {menu?.scope === 'dice' && menu.row === rowIndex && menu.col === colIndex && (
-                            <MenuPortal anchor={anchor}>{dicePickerItems(rowIndex, colIndex)}</MenuPortal>
                           )}
                         </span>
                       )}
@@ -967,6 +1005,40 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
           </table>
         </div>
       </div>
+      {diceEdit && diceModifierLookup && rows[diceEdit.row]?.cells[diceEdit.col] && (
+        createPortal(
+          <DiceEditPanel
+            key={`archivio-dice-${diceEdit.row}-${diceEdit.col}`}
+            top={Math.max(8, Math.min(diceEdit.y + 8, window.innerHeight - 320))}
+            left={Math.max(
+              8,
+              Math.min(
+                editor.view.dom.getBoundingClientRect().left + editor.view.dom.getBoundingClientRect().width / 2 - 116,
+                window.innerWidth - 240,
+              ),
+            )}
+            name={diceRollName(diceEdit.row, diceEdit.col)}
+            modifiers={[...diceModifierLookup.values()]}
+            lookup={diceModifierLookup}
+            customDice={customDice}
+            customDiceLoading={customDiceLoading}
+            initialName=""
+            initialTitle={MODIFIER_TITLE_FORMAT_DEFAULTS}
+            initialFormula={rows[diceEdit.row].cells[diceEdit.col].text || '1d6'}
+            initialMode={rows[diceEdit.row].cells[diceEdit.col].mode}
+            initialQuantity={rows[diceEdit.row].cells[diceEdit.col].quantity}
+            initialCustomDie={rows[diceEdit.row].cells[diceEdit.col].customDie}
+            dicePos={-1}
+            showName={false}
+            onSave={(_name, formula, _title, mode, quantity, customDie) => {
+              updateCell(diceEdit.row, diceEdit.col, { text: formula || '1d6', mode, quantity, customDie });
+              setDiceEdit(null);
+            }}
+            onCancel={() => setDiceEdit(null)}
+          />,
+          portalContainer ?? document.body,
+        )
+      )}
     </NodeViewWrapper>
   );
 }

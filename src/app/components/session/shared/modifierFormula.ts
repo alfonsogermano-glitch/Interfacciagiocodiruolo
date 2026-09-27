@@ -293,6 +293,36 @@ export function extractModifierRefs(text: string): string[] | null {
   return refs;
 }
 
+export type ModifierFormulaSegment =
+  | { kind: 'text'; text: string }
+  | { kind: 'tag'; name: string };
+
+/** Stile delle pill "Nome" condiviso tra finestra di modifica, widget Dado e
+ *  cella Dado dell'Archivio: i riferimenti non sono mai testo tra virgolette. */
+export const FORMULA_TAG_CLASS =
+  'mx-0.5 inline-flex items-center rounded-md border border-[var(--dash-accent-2)] bg-[var(--dash-accent)]/20 px-1.5 py-px font-mono text-xs text-[var(--dash-text-strong)]';
+
+/** Segmenti testuali e tag "..." di una formula, in ordine di comparsa. */
+export function splitModifierFormula(formula: string): ModifierFormulaSegment[] {
+  const segments: ModifierFormulaSegment[] = [];
+  const pattern = /"([^"]*)"/g;
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(formula)) !== null) {
+    if (match.index > last) segments.push({ kind: 'text', text: formula.slice(last, match.index) });
+    segments.push({ kind: 'tag', name: match[1] });
+    last = match.index + match[0].length;
+  }
+  if (last < formula.length) segments.push({ kind: 'text', text: formula.slice(last) });
+  return segments;
+}
+
+/** Testo del tooltip su una pill: formula o valore del Modificatore. */
+export function modifierRefTipText(name: string, entry?: ModifierReference | null): string {
+  if (!entry) return `"${name}" non trovato`;
+  return entry.formula || entry.value || '—';
+}
+
 export interface ModifierReference {
   value: string;
   formula: string;

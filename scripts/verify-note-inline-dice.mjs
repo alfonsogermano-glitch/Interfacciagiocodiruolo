@@ -30,6 +30,16 @@ assert.match(dice, /buildDiceWidget[\s\S]*position:\s*'relative'[\s\S]*overflow:
 assert.match(dice, /duplicateDiceAt[\s\S]*makeRoomForInlineDiceInsertion[\s\S]*createDiceId/, 'duplicating dice must stay beside the original with a fresh id');
 assert.match(dice, /copyDiceToClipboard[\s\S]*wrapNoteClipboardHTML/, 'copying dice must write the rich element for exact paste');
 assert.match(dice, /NOTE_DICE_MENU_EVENT[\s\S]*NOTE_MODIFIER_ROLL_EVENT/, 'dice must open its own dots menu and roll through the shared roll event');
+assert.match(
+  dice,
+  /dots\.addEventListener\('mouseenter'[\s\S]*var\(--dash-text\)[\s\S]*dots\.addEventListener\('mouseleave'[\s\S]*var\(--dash-muted\)/,
+  'hovering the dice dots directly must light up the circles like the other menu triggers',
+);
+assert.doesNotMatch(
+  dice,
+  /dots\.style\.background\s*=/,
+  'the dice dots container must stay transparent so the widget background shows behind it and the formula pill border is never covered',
+);
 assert.match(dice, /assessDiceFormula[\s\S]*extractModifierRefs[\s\S]*modifierFormulaHasDice/, 'Standard dice formulas must validate modifier references and detect dice like modifier formulas');
 
 // Slash menu.
@@ -59,6 +69,7 @@ assert.doesNotMatch(modifierMenu, /DiceEditForm[\s\S]{0,2000}modifierFormulaHasD
 
 // Appearance, sizing and title behavior.
 assert.match(dice, /dash-danger-bg[\s\S]*showInlineBoxTipAbove/, 'anomalous Standard dice must turn red and explain the reason in a tooltip');
+assert.match(dice, /splitModifierFormula\(formula\)[\s\S]*data-modifier-tag[\s\S]*showInlineBoxTipAbove/, 'dice widgets must render [Nome] references as tooltip tags instead of quoted text');
 assert.match(dice, /2px solid var\(--dash-danger-border\)/, 'anomalous dice must use a thick vivid red border');
 assert.match(dice, /non riempiono la riga[\s\S]*dataset\.modifierCompact = 'true'/, 'dice must size to content instead of filling the line');
 assert.match(dice, /buildDiceWidget[\s\S]*replacedWidget = typeof getPos\(\) === 'number' \? getInlineBoxWidgetAt\(getPos\(\)!\)[\s\S]*width: replacedWidget \? `\$\{replacedWidget\.offsetWidth\}px` : 'auto'/, 'editing a dice must preserve its previous width until shared line measurement runs');

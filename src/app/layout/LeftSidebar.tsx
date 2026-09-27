@@ -6,12 +6,20 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/toolti
 
 interface LeftSidebarProps {
   view: 'home' | 'dashboard' | 'campaign-home';
+  // Tab GM attivo nella vista dashboard - serve a evidenziare "Personaggi" /
+  // "Campagne" con lo stesso criterio del TopBar (nessun tab GM attivo fuori
+  // dalla dashboard, quindi nessuna icona accesa in home o in una campagna).
+  activeSection?: string | null;
   onGoHome: () => void;
   onGoToHomeSection: (section: 'characters' | 'campaigns') => void;
   onGoToCharacters: () => void;
   onGoToCampaigns: () => void;
   campaigns: Campaign[];
-  activeCampaignId?: string | null;
+  // Campagna selezionata ESPlicitamente in questa sessione (non
+  // activeCampaignId, ripristinato da localStorage): solo su questa si
+  // accende l'alone "selezionata", altrimenti brilla al caricamento
+  // anche senza che l'utente abbia cliccato nulla.
+  selectedCampaignId?: string | null;
   onSelectCampaign: (campaign: Campaign) => void;
 }
 
@@ -31,10 +39,10 @@ function SidebarButton({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className={`flex w-full flex-col items-center gap-1 rounded-lg border-l-2 py-2 transition-colors ${
+      className={`flex w-full flex-col items-center gap-1 rounded-lg py-2 transition-colors ${
         active
-          ? 'border-l-[var(--dash-accent)] bg-[var(--dash-accent)]/15 text-[var(--dash-text-strong)]'
-          : 'border-l-transparent text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]'
+          ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
+          : 'text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]'
       }`}
     >
       <Icon className="h-5 w-5" />
@@ -96,12 +104,13 @@ function MarqueeName({ name }: { name: string }) {
 
 export function LeftSidebar({
   view,
+  activeSection = null,
   onGoHome,
   onGoToHomeSection,
   onGoToCharacters,
   onGoToCampaigns,
   campaigns,
-  activeCampaignId,
+  selectedCampaignId = null,
   onSelectCampaign,
 }: LeftSidebarProps) {
   return (
@@ -116,8 +125,8 @@ export function LeftSidebar({
 
       <nav className="flex w-full flex-col items-center gap-1 px-2">
         <SidebarButton icon={Home} label="Panoramica" onClick={onGoHome} active={view === 'home'} />
-        <SidebarButton icon={Users} label="Personaggi" onClick={onGoToCharacters} />
-        <SidebarButton icon={Scroll} label="Campagne" onClick={onGoToCampaigns} />
+        <SidebarButton icon={Users} label="Personaggi" onClick={onGoToCharacters} active={activeSection === 'characters'} />
+        <SidebarButton icon={Scroll} label="Campagne" onClick={onGoToCampaigns} active={activeSection === 'campaigns'} />
       </nav>
 
       <div className="my-2 h-px w-10 bg-[var(--dash-border-soft)]" />
@@ -132,12 +141,12 @@ export function LeftSidebar({
                 <button
                   type="button"
                   onClick={() => onSelectCampaign(campaign)}
-                  className={`flex flex-col items-center justify-center gap-1 overflow-hidden rounded-lg border transition-colors ${
+                  className={`flex flex-col items-center justify-center gap-1 overflow-hidden rounded-lg border transition-[background-color,border-color,box-shadow] ${
                     campaign.logoUrl ? 'p-0' : 'px-1.5 py-2'
                   } ${
-                    campaign.id === activeCampaignId
-                      ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)]'
-                      : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)]/60 hover:bg-[var(--dash-surface-2)]'
+                    campaign.id === selectedCampaignId
+                      ? 'border-[var(--dash-accent)] bg-[var(--dash-surface-2)] shadow-[0_0_16px_var(--dash-accent)]/50'
+                      : 'border-[var(--dash-border)] bg-[var(--dash-surface-2)]/60 hover:border-[var(--dash-accent)] hover:bg-[var(--dash-surface-2)] hover:shadow-[0_0_12px_var(--dash-accent)]/35'
                   }`}
                   style={{ width: '100%', aspectRatio: '1 / 1' }}
                 >

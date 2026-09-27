@@ -111,6 +111,7 @@ export function SavedDiceFormulaCard({
                 ref={menuButtonRef}
                 type="button"
                 aria-label="Menu formula"
+                data-menu-dots="true"
                 className="rounded-md p-2 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
               >
                 <MoreVertical className="h-4 w-4" />

@@ -863,6 +863,18 @@
   border-radius: 4px;
 }
 
+/* Menu ⋮ a tre puntini: regola universale del sito - la freccia rimane
+   freccia, mai la manina. Copre i trigger marcati data-menu-dots (bottone
+   Archivio/kebab/card dadi/tab/nota campagna) e i trigger inline della nota
+   (classe .tiptap-inline-*-menu-trigger). !important per resistere a
+   cursor-pointer ereditato o aggiunto in futuro. */
+[data-menu-dots],
+.tiptap-inline-dice-menu-trigger,
+.tiptap-inline-modifier-menu-trigger,
+.tiptap-inline-points-menu-trigger {
+  cursor: default !important;
+}
+
 /* Note tables */
 .tiptap-note-table {
   table-layout: fixed;

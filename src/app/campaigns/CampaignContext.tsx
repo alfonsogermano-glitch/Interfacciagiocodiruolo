@@ -24,6 +24,13 @@ type CampaignContextValue = {
   joinedCampaigns: Campaign[];
   activeCampaign: Campaign | null;
   activeCampaignId: string;
+  // Selezione ESPlicita dell'utente in questa sessione (click su una tile/
+  // ingresso in una campagna): serve all'alone della colonna sinistra, che
+  // deve accendersi solo dopo una scelta dell'utente. Diversa da
+  // activeCampaignId, che viene ripristinato da localStorage al caricamento
+  // (e auto-corretto sulla prima campagna): da sola accenderebbe l'alone
+  // anche senza che nessuno abbia selezionato nulla.
+  selectedCampaignId: string | null;
   isLoading: boolean;
   setActiveCampaign: (campaign: Campaign) => void;
   createCampaign: (input: CampaignCreateInput) => Promise<Campaign>;
@@ -68,6 +75,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   const [activeCampaignId, setActiveCampaignId] = useState<string>(
     () => localStorage.getItem(ACTIVE_CAMPAIGN_LS_KEY) ?? LEGACY_CAMPAIGN_ID
   );
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [joinedCampaigns, setJoinedCampaigns] = useState<Campaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -232,6 +240,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
 
   const setActiveCampaign = useCallback((campaign: Campaign) => {
     setActiveCampaignId(campaign.id);
+    setSelectedCampaignId(campaign.id);
     localStorage.setItem(ACTIVE_CAMPAIGN_LS_KEY, campaign.id);
     if (campaign.ownerId === session?.user?.id) {
       void markCampaignOpened(campaign.id);
@@ -260,6 +269,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
 
     // Seleziona la nuova campagna automaticamente
     setActiveCampaignId(created.id);
+    setSelectedCampaignId(created.id);
     localStorage.setItem(ACTIVE_CAMPAIGN_LS_KEY, created.id);
 
     return created;
@@ -324,6 +334,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     joinedCampaigns,
     activeCampaign,
     activeCampaignId,
+    selectedCampaignId,
     isLoading,
     setActiveCampaign,
     createCampaign,
@@ -341,6 +352,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     joinedCampaigns,
     activeCampaign,
     activeCampaignId,
+    selectedCampaignId,
     isLoading,
     setActiveCampaign,
     createCampaign,

@@ -307,18 +307,46 @@
    lo stesso identico motivo - 7 categorie/60 icone ben oltre l'altezza
    massima del contenitore, la scrollbar e' l'unico indizio che sotto c'e'
    altro da scorrere (bug segnalato dal vivo: overflow-y:auto reale ma
-   scrollbar invisibile per via di questa stessa regola). L'esclusione va
+   scrollbar invisibile per via di questa stessa regola).
+   .tiptap-archivio-scroll (ArchivioView.tsx) escluso per la stessa
+   ragione in orizzontale: la griglia Archivio e' contenuta dalla sua
+   shell (overflow-hidden del riquadro) e quando le colonne superano la
+   larghezza della nota la sola scrollbar segnala che a destra c'e'
+   altro da vedere - l'ultima cella veniva tagliata senza alcun indizio.
+   L'esclusione va
    per forza nel SELETTORE qui (non una regola scrollbar-width separata
    altrove, es. in theme.css): stessa specificita' di *:not(...), ma questa
    regola viene DOPO theme.css nel cascade finale (gli @import di sopra si
    inseriscono prima del resto di questo file) - una regola successiva a
    parita' di specificita' vincerebbe comunque su quella scritta prima. */
-*:not(.tiptap-content):not(.tiptap-icon-popover-scroll):not(.custom-die-configurator-scroll):not(.note-modifier-reference-scroll) {
+*:not(.tiptap-content):not(.tiptap-icon-popover-scroll):not(.custom-die-configurator-scroll):not(.note-modifier-reference-scroll):not(.tiptap-archivio-scroll) {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-*:not(.tiptap-content):not(.tiptap-icon-popover-scroll):not(.custom-die-configurator-scroll):not(.note-modifier-reference-scroll)::-webkit-scrollbar {
+*:not(.tiptap-content):not(.tiptap-icon-popover-scroll):not(.custom-die-configurator-scroll):not(.note-modifier-reference-scroll):not(.tiptap-archivio-scroll)::-webkit-scrollbar {
   display: none;
+}
+
+/* Scrollbar della griglia Archivio: stile dei scrollbar nota (accent-2
+   su panel), dimensione contenuta per stare dentro il riquadro. */
+.tiptap-archivio-scroll {
+  scrollbar-width: thin !important;
+  scrollbar-color: var(--dash-accent-2) var(--dash-panel) !important;
+}
+.tiptap-archivio-scroll::-webkit-scrollbar {
+  display: block !important;
+  height: 8px !important;
+}
+.tiptap-archivio-scroll::-webkit-scrollbar-track {
+  background: var(--dash-panel);
+}
+.tiptap-archivio-scroll::-webkit-scrollbar-thumb {
+  background: var(--dash-accent-2);
+  border: 2px solid var(--dash-panel);
+  border-radius: 999px;
+}
+.tiptap-archivio-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--dash-accent);
 }
 
 .custom-die-configurator-scroll {

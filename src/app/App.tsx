@@ -184,7 +184,7 @@ const ACTIVE_TAB_LS_KEY = 'hsc-active-main-tab';
 
 function AuthGate() {
   const { user, isLoading, signOut, isPasswordRecovery, clearPasswordRecovery } = useAuth();
-  const { setActiveCampaign, activeCampaign, campaigns } = useCampaign();
+  const { setActiveCampaign, selectedCampaignId, campaigns } = useCampaign();
 
   // sessionStorage (non localStorage): la vista corrente deve sopravvivere
   // a un refresh (F5, stessa scheda) ma NON a una chiusura completa del
@@ -388,12 +388,13 @@ function AuthGate() {
         leftSidebar={
           <LeftSidebar
             view={view}
+            activeSection={view === 'dashboard' ? activeGmTab : null}
             onGoHome={goToHome}
             onGoToHomeSection={goToHomeSection}
             onGoToCharacters={() => { goToDashboard(); changeActiveGmTab('characters'); }}
             onGoToCampaigns={() => { goToDashboard(); changeActiveGmTab('campaigns'); }}
             campaigns={campaigns}
-            activeCampaignId={activeCampaign?.id}
+            selectedCampaignId={selectedCampaignId}
             onSelectCampaign={(campaign) => goToDashboard(campaign)}
           />
         }

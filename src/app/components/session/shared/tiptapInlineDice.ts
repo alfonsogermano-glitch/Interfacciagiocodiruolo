@@ -30,10 +30,13 @@ import {
 import { describeFormulaAnomaly } from './modifierFormula';
 import { buildNoteElementCategoryIcon } from './noteElementCategoryIcon';
 import {
+  FORMULA_TAG_CLASS,
   extractModifierRefs,
   isValidModifierFormula,
   modifierFormulaHasDice,
+  modifierRefTipText,
   parseModifierValue,
+  splitModifierFormula,
 } from './modifierFormula';
 
 declare module '@tiptap/core' {
@@ -503,6 +506,7 @@ function buildDiceWidget(
     zIndex: 1,
   });
   let customPreviewRoot: Root | null = null;
+  let activePillTip: (() => void) | null = null;
   if (mode === 'custom' && customDie) {
     valueEl.dataset.noteCustomDieValue = 'true';
     Object.assign(valueEl.style, {
@@ -536,7 +540,30 @@ function buildDiceWidget(
     customPreviewRoot = createRoot(preview);
     customPreviewRoot.render(createElement(CustomDieLibraryIcon, { die: customDie, size: 'compact', faceOffsetY: 3 }));
   } else {
-    valueEl.textContent = formula;
+    for (const segment of splitModifierFormula(formula)) {
+      if (segment.kind === 'text') {
+        valueEl.appendChild(document.createTextNode(segment.text));
+        continue;
+      }
+      const pill = document.createElement('span');
+      pill.setAttribute('data-modifier-tag', segment.name);
+      pill.className = FORMULA_TAG_CLASS;
+      pill.textContent = segment.name;
+      pill.addEventListener('mouseenter', () => {
+        if (activePillTip || !pill.isConnected) return;
+        const anomalyHost = element as HTMLElement & { __hideAnomalyTip?: (() => void) | null };
+        anomalyHost.__hideAnomalyTip?.();
+        activePillTip = showInlineBoxTipAbove(
+          pill,
+          modifierRefTipText(segment.name, getModifierLookup(view).get(segment.name)),
+        );
+      });
+      pill.addEventListener('mouseleave', () => {
+        activePillTip?.();
+        activePillTip = null;
+      });
+      valueEl.appendChild(pill);
+    }
   }
 
   const dots = document.createElement('span');
@@ -557,8 +584,10 @@ function buildDiceWidget(
     padding: '0.22em',
     borderRadius: 'var(--note-widget-menu-radius)',
     opacity: 0,
-    transition: 'opacity var(--note-ui-duration) ease',
-    cursor: view.editable ? 'pointer' : 'default',
+    transition: 'opacity var(--note-ui-duration) ease, background-color var(--note-ui-duration) ease',
+    // Regola universale dei menu ⋮: freccia, mai manina (il resto del widget
+    // resta pointer perche' e' il pulsante di tiro).
+    cursor: 'default',
   });
   for (let i = 0; i < 3; i += 1) {
     const dot = document.createElement('span');
@@ -567,6 +596,7 @@ function buildDiceWidget(
       height: '0.15em',
       borderRadius: '50%',
       background: 'var(--dash-muted)',
+      transition: 'background-color var(--note-ui-duration) ease',
       pointerEvents: 'none',
     });
     dots.appendChild(dot);
@@ -629,6 +659,18 @@ function buildDiceWidget(
   element.addEventListener('mouseleave', () => { if (document.activeElement !== dots) dots.style.opacity = '0'; });
   dots.addEventListener('focus', () => { dots.style.opacity = '1'; });
   dots.addEventListener('blur', () => { dots.style.opacity = '0'; });
+  // Hover diretto sui puntini: si illuminano come gli altri trigger (sfondo
+  // pannello + pallini al testo pieno), non solo compaiono dal hover del box.
+  // Hover diretto sui puntini: i pallini si illuminano (muted -> testo), ma il
+  // contenitore resta trasparente - dietro i puntini si vede il colore di fondo
+  // del Dado e un bg pieno coprirebbe il bordo della pill "Nome" che arriva
+  // fin qui (i puntini restano comunque in primo piano: zIndex sopra la pill).
+  dots.addEventListener('mouseenter', () => {
+    for (const dot of dots.children) (dot as HTMLElement).style.background = 'var(--dash-text)';
+  });
+  dots.addEventListener('mouseleave', () => {
+    for (const dot of dots.children) (dot as HTMLElement).style.background = 'var(--dash-muted)';
+  });
 
   const diceLookup = getModifierLookup(view);
   const assessment = mode === 'custom'
@@ -682,6 +724,8 @@ function buildDiceWidget(
   registerInlineBoxWidget(element, { view, getPos });
   (element as HTMLElement & { __destroyDiceWidget?: () => void }).__destroyDiceWidget = () => {
     (element as HTMLElement & { __hideAnomalyTip?: (() => void) | null }).__hideAnomalyTip?.();
+    activePillTip?.();
+    activePillTip = null;
     customPreviewRoot?.unmount();
     unregisterInlineBoxWidget(element);
   };

@@ -102,6 +102,29 @@ assert.match(view, /ARCHIVIO_CELL_MIN_WIDTH/, 'column resize must respect the sh
 assert.ok((view.match(/className="tiptap-archivio-resize-handle"/g) ?? []).length >= 2, 'every vertical cell divider must expose the column resize handle');
 assert.doesNotMatch(view, /row-resize|resize-row|cursor-row-resize/, 'archivio must not offer row height resizing');
 
+// Scroll orizzontale: la griglia resta un contenitore locale dentro la
+// shell (l'overflow-hidden del riquadro tiene le celle dentro il frame
+// arrotondato) e la sua scrollbar deve essere visibile. La regola globale
+// di index.css nasconde ogni scrollbar dell'app: l'ultima cella veniva
+// tagliata sulla destra senza alcun indizio, mentre la Tabella non aveva
+// il problema perche' il suo overflow arriva ai scrollbar visibili a
+// livello di nota (.tiptap-content/.tiptap-viewport-scroll, esclusi dalla
+// regola globale).
+assert.match(view, /tiptap-archivio-scroll overflow-x-auto/, 'archivio grid must keep a local horizontal scroller marked with tiptap-archivio-scroll');
+assert.match(view, /overflow-hidden rounded-\[var\(--note-block-radius\)\]/, 'archivio shell must keep clipping so cells never spill past the rounded frame');
+const indexCss = await readFile(new URL('../src/styles/index.css', import.meta.url), 'utf8');
+assert.match(indexCss, /:not\(\.tiptap-archivio-scroll\)/, 'the global scrollbar-hiding selectors in index.css must exclude the archivio scroller');
+assert.match(indexCss, /\.tiptap-archivio-scroll\s*\{[^}]*scrollbar-width:\s*thin/, 'the archivio scroller must expose a styled thin scrollbar');
+assert.match(indexCss, /\.tiptap-archivio-scroll::-webkit-scrollbar\s*\{[^}]*display:\s*block/, 'the archivio webkit scrollbar must be forced visible');
+
+// Creazione su misura: alla prima creazione le colonne dividono la
+// larghezza reale della nota invece di nascere 160px fissi (640px che
+// tagliavano l'ultima cella quando la tab e' piu' stretta).
+assert.match(node, /fitArchivioColumnsToEditor\(editor, columns\)/, 'insertArchivio must fit the default columns to the editor width');
+assert.match(node, /editor\.view\.dom/, 'the fit must measure the rendered editor');
+assert.match(node, /Math\.floor\(available \/ columns\.length\)/, 'the fit must split the available width across the columns');
+assert.match(node, /Math\.max\(ARCHIVIO_CELL_MIN_WIDTH/, 'the fit must respect the shared minimum column width');
+
 // Puntini verticali, menu in portal sopra lo sfondo, nessuna evidenziazione permanente.
 assert.match(view, /MoreVertical/, 'archivio menu triggers must use vertical dots');
 assert.doesNotMatch(view, /MoreHorizontal/, 'archivio menu triggers must not use horizontal dots');
@@ -140,7 +163,9 @@ assert.ok(
 );
 
 // Cella Dado: pulsante a tutta larghezza senza titolo, click = tiro in chat
-// intitolato "<Nome riga> - <colonna>"; Modifica riapre l'input della formula.
+// intitolato "<Nome riga> - <colonna>"; il testo puo' andare a capo (nessun
+// troncamento) e Modifica apre la finestra condivisa DiceEditPanel (senza il
+// campo Nome: il nome del tiro lo danno riga e colonna).
 assert.match(view, /data-archivio-dice="true"/, 'dice cells must render a roll button instead of a bare input');
 assert.match(view, /data-archivio-dice="true"[\s\S]{0,1200}?w-full/, 'the dice roll button must fill the cell width');
 assert.match(
@@ -160,14 +185,64 @@ assert.match(
   /submitInlineCustomDieRoll\(\{ name, quantity: cell\.quantity, customDie: cell\.customDie \}\)/,
   'custom dice cells must submit a custom die roll',
 );
+// Rendering cella Dado custom: quantita' grande quanto il dado (shell compact
+// h-8 = 2rem) e faccia centrata (niente faceOffsetY che la spostava giu').
+assert.match(
+  view,
+  /text-\[2rem\] font-bold leading-none">\{cell\.quantity\}/,
+  'the custom quantity must render as big as the compact custom die (2rem)',
+);
+assert.doesNotMatch(
+  view,
+  /<CustomDieLibraryIcon die=\{cell\.customDie\} size="compact" faceOffsetY/,
+  'the archivio custom die icon must stay centered (no faceOffsetY shift)',
+);
 assert.match(view, /getModifierLookup\(editor\.view\)/, 'archivio rolls must resolve [Nome] tags like inline rolls');
 assert.match(view, /`\$\{rowName\} — \$\{label\}`/, 'dice rolls must be titled "<Nome riga> - <colonna>"');
-assert.match(view, /editingCellId === cell\.id/, '"Modifica" must reopen the formula input for dice cells');
-for (const label of ['Dado standard', 'Scegli Dado custom\u2026']) {
-  assert.ok(view.includes(label), `dice cell menu must include ${label}`);
-}
+assert.match(view, /openDiceEditor\(rowIndex, colIndex\)/, '"Modifica" must open the shared dice edit window for dice cells');
+assert.match(view, /<DiceEditPanel[\s\S]{0,2400}?showName=\{false\}/, 'the dice window must hide the Nome field in archivio cells');
+assert.match(
+  view,
+  /onSave=\{\(_name, formula, _title, mode, quantity, customDie\)/,
+  'saving the dice window must persist mode/quantity/customDie back into the cell',
+);
+assert.doesNotMatch(view, /Scegli Dado custom/, 'the dice cell menu must not offer a separate custom die picker');
+assert.doesNotMatch(view, /label="Dado standard"/, 'the dice cell menu must not offer a standard/custom toggle outside the edit window');
+assert.match(view, /min-h-8[\s\S]{0,1600}?break-words/, 'dice cell text must wrap to multiple lines instead of truncating');
+assert.match(view, /function DiceFormulaText[\s\S]*splitModifierFormula[\s\S]*data-modifier-tag[\s\S]*FORMULA_TAG_CLASS[\s\S]*showInlineBoxTipAbove/, 'dice cells must render [Nome] references as tooltip tags instead of quoted text');
+assert.match(view, /<DiceFormulaText\s+formula=\{cell\.text \|\| '1d6'\}/, 'dice cells must display their formula through DiceFormulaText');
 assert.match(view, /loadCustomDice\(activeCampaign\.id, user\.id\)/, 'the custom die picker must load the campaign dice library');
-assert.match(view, /toCustomDieRollSnapshot\(die\)/, 'picking a library die must store a roll snapshot');
+
+// Puntini cella Dado: in alto a destra ma INSET dal bordo arrotondato del
+// pulsante (a filo coprivano la cornice), sopra le pill della formula (la pill
+// ha un'ampia zona cliccabile, i puntini no, quindi quando si sovrappongono
+// devono vincere loro) e senza riquadro di sfondo in hover (coprirebbe il
+// bordo della pill); manina sul pulsante di tiro come nel Dado normale.
+assert.match(
+  view,
+  /const HOVER_DOTS_TOP =\s*'absolute right-1 top-1 z-\[2\]/,
+  'dice cell dots must sit inset from the top-right corner with z-index above the formula pills',
+);
+assert.match(
+  view,
+  /cell\.kind === 'dice' \? HOVER_DOTS_TOP : HOVER_DOTS/,
+  'dice cells must use the top-right dots variant',
+);
+assert.match(
+  view,
+  /plain=\{cell\.kind === 'dice'\}/,
+  'dice cell dots must not paint an opaque hover box over the formula pills',
+);
+assert.match(
+  view,
+  /plain \? '' : 'hover:bg-\[var\(--dash-surface-2\)\]'/,
+  'TriggerButton must be able to drop the hover background for dice cells',
+);
+assert.match(
+  view,
+  /data-archivio-dice="true"[\s\S]{0,900}?min-h-8 w-full min-w-0 cursor-pointer/,
+  'the dice roll button must keep the pointer cursor like the inline dice widget',
+);
 
 assert.match(node, /selectable:\s*false/, 'archivio must not be selectable as a block, only removable through its Elimina menu');
 const theme = await readFile(new URL('../src/styles/theme.css', import.meta.url), 'utf8');

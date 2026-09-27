@@ -1538,6 +1538,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                         type="button"
                         className="inline-flex shrink-0 items-center justify-center rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
                         aria-label="Menu campagna"
+                        data-menu-dots="true"
                       >
                         <MoreVertical className="h-4 w-4" />
                       </button>

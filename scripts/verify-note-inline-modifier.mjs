@@ -121,8 +121,18 @@ assert.match(
 );
 assert.match(
   source,
-  /isCompactModifier[\s\S]*measureLine[\s\S]*style\.width = 'auto'[\s\S]*compactWidth[\s\S]*available \/ expanded\.length/,
+  /isCompactModifier[\s\S]*measureLine[\s\S]*style\.width = 'auto'[\s\S]*compactWidth[\s\S]*available \/ expanded.length/,
   'compact modifiers must shrink to content (value only) while expanded modifiers split the remaining line width',
+);
+assert.match(
+  source,
+  /function mergeWrappedDiceGroups[\s\S]*tiptap-inline-dice-widget[\s\S]*\\u200b[\s\S]*share < minWidth/,
+  'a dice wrapped under its modifier must rejoin the row only when a whitespace-only gap and the shrunk split still clear the box min-width floor',
+);
+assert.match(
+  source,
+  /for \(let pass = 0; pass < 3; pass \+= 1\)[\s\S]*snapshot\(\)[\s\S]*mergeWrappedDiceGroups/,
+  'line measurement must re-verify visual rows after its own width writes instead of trusting a single grouping pass',
 );
 assert.match(
   source,

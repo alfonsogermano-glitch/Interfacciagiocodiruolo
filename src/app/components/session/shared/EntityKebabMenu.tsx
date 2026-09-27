@@ -162,6 +162,7 @@ export function EntityKebabMenu({
     >
       <button
         type="button"
+        data-menu-dots="true"
         ref={buttonRef}
         onClick={(e) => {
           e.stopPropagation();

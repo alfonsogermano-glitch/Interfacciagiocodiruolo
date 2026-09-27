@@ -183,6 +183,7 @@ export function EntityTabBar({
                   <div className="absolute right-1 top-1/2 -translate-y-1/2">
                     <button
                       data-no-drag
+                      data-menu-dots="true"
                       onClick={(e) => {
                         e.stopPropagation();
                         const rect = e.currentTarget.getBoundingClientRect();

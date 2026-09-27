@@ -1,4 +1,4 @@
-import { Node, mergeAttributes } from '@tiptap/core';
+import { Node, mergeAttributes, type Editor } from '@tiptap/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { AllSelection, TextSelection } from '@tiptap/pm/state';
 import { ArchivioView } from './ArchivioView';
@@ -222,6 +222,33 @@ function parseArchivioJSONAttribute(value: unknown): unknown {
   }
 }
 
+// Alla creazione la griglia deve occupare la larghezza della nota: le
+// quattro colonne predefinite (160px l'una, 640px totali) venivano tagliate
+// sulla destra quando la tab e' piu' stretta e la sola scrollbar (rimasta
+// invisibile per la regola globale di index.css) non dava alcun indizio.
+// Le larghezze si misurano sull'editor in questo momento (il menu slash
+// viene aperto con l'editor montato e visibile); se la misura non e'
+// disponibile restano i default, che comunque la tabella assorbe grazie a
+// table-layout:fixed + width:100% quando la nota e' piu' larga (le colonne
+// si dilatano a tutta larghezza).
+function fitArchivioColumnsToEditor(editor: Editor, columns: ArchivioColumn[]): void {
+  try {
+    const dom = editor.view.dom as HTMLElement;
+    const styles = dom.ownerDocument.defaultView?.getComputedStyle(dom);
+    if (!styles) return;
+    const contentWidth = dom.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
+    // Bordo della shell (1px * 2) + padding px-2 della griglia (8px * 2):
+    // le due strisce che sottraggono larghezza visibile alla tabella dentro
+    // il riquadro (vedi ArchivioView).
+    const available = contentWidth - 2 - 16;
+    if (!Number.isFinite(available) || available <= 0) return;
+    const width = Math.max(ARCHIVIO_CELL_MIN_WIDTH, Math.floor(available / columns.length));
+    for (const column of columns) column.width = width;
+  } catch {
+    // Misura non disponibile: si tengono le larghezze predefinite.
+  }
+}
+
 export const Archivio = Node.create({
   name: 'archivio',
   group: 'block',
@@ -289,6 +316,7 @@ export const Archivio = Node.create({
           const decision = canInsertNoteContainer(state.selection.$from, 'archivio');
           if (!decision.allowed) return false;
           const columns = defaultArchivioColumns();
+          fitArchivioColumnsToEditor(editor, columns);
           const inserted = commands.insertContent({
             type: this.name,
             attrs: {
