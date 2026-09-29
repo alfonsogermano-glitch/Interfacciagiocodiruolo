@@ -1,5 +1,5 @@
 import { useState, useEffect, type ReactNode } from 'react';
-import { User, Brain, Heart, Star, Lock, AlertTriangle } from 'lucide-react';
+import { User, Brain, Heart, Star, Lock, AlertTriangle, Plus, Minus } from 'lucide-react';
 import { FrischezzaTracker } from '../../FrischezzaTracker';
 import { FoliaSpiral } from '../../FoliaSpiral';
 import { ConditionsPanel } from '../../ConditionsPanel';
@@ -471,7 +471,7 @@ export function EntityDetailView({
     <>
     {tabs.draggedTabId && <div className="fixed inset-0 z-[9999] cursor-grabbing" />}
     <div className="flex overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)]">
-      <div className="min-w-0 flex-1 p-5">
+      <div className="group min-w-0 flex-1 p-5">
         <div className={!canEdit ? 'opacity-90' : ''}>
           <div className="mb-4 flex items-start gap-4">
             <DraggablePortrait
@@ -611,7 +611,7 @@ export function EntityDetailView({
                             canEdit ? '' : 'invisible'
                           }`}
                         >
-                          −
+                          <Minus className="h-3.5 w-3.5" />
                         </button>
                         <span className="text-lg font-semibold text-[var(--dash-text-strong)]">{value}</span>
                         <button
@@ -625,7 +625,7 @@ export function EntityDetailView({
                             canEdit ? '' : 'invisible'
                           }`}
                         >
-                          +
+                          <Plus className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     </div>

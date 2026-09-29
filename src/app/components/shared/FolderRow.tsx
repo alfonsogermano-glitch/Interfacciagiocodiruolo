@@ -141,7 +141,7 @@ export function FolderRow({
           <div data-no-drag>
             <EntityKebabMenu
               colors={colors}
-              buttonClassName="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]"
+              buttonClassName="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
               items={[
                 {
                   key: 'icon',

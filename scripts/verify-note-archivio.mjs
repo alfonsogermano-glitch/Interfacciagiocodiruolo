@@ -185,16 +185,16 @@ assert.match(
   /submitInlineCustomDieRoll\(\{ name, quantity: cell\.quantity, customDie: cell\.customDie \}\)/,
   'custom dice cells must submit a custom die roll',
 );
-// Rendering cella Dado custom: quantita' grande quanto il dado (shell compact
-// h-8 = 2rem) e faccia centrata (niente faceOffsetY che la spostava giu').
+// Rendering cella Dado custom: quantita' grande quanto il dado (shell mini
+// h-6 = 24px) e faccia centrata (niente faceOffsetY che la spostava giu').
 assert.match(
   view,
-  /text-\[2rem\] font-bold leading-none">\{cell\.quantity\}/,
-  'the custom quantity must render as big as the compact custom die (2rem)',
+  /text-2xl font-bold leading-none">\{cell\.quantity\}/,
+  'the custom quantity must render as big as the mini custom die (24px)',
 );
 assert.doesNotMatch(
   view,
-  /<CustomDieLibraryIcon die=\{cell\.customDie\} size="compact" faceOffsetY/,
+  /<CustomDieLibraryIcon die=\{cell\.customDie\}[^/]*faceOffsetY/,
   'the archivio custom die icon must stay centered (no faceOffsetY shift)',
 );
 assert.match(view, /getModifierLookup\(editor\.view\)/, 'archivio rolls must resolve [Nome] tags like inline rolls');
@@ -208,7 +208,7 @@ assert.match(
 );
 assert.doesNotMatch(view, /Scegli Dado custom/, 'the dice cell menu must not offer a separate custom die picker');
 assert.doesNotMatch(view, /label="Dado standard"/, 'the dice cell menu must not offer a standard/custom toggle outside the edit window');
-assert.match(view, /min-h-8[\s\S]{0,1600}?break-words/, 'dice cell text must wrap to multiple lines instead of truncating');
+assert.match(view, /min-h-7[\s\S]{0,1600}?break-words/, 'dice cell text must wrap to multiple lines instead of truncating');
 assert.match(view, /function DiceFormulaText[\s\S]*splitModifierFormula[\s\S]*data-modifier-tag[\s\S]*FORMULA_TAG_CLASS[\s\S]*showInlineBoxTipAbove/, 'dice cells must render [Nome] references as tooltip tags instead of quoted text');
 assert.match(view, /<DiceFormulaText\s+formula=\{cell\.text \|\| '1d6'\}/, 'dice cells must display their formula through DiceFormulaText');
 assert.match(view, /loadCustomDice\(activeCampaign\.id, user\.id\)/, 'the custom die picker must load the campaign dice library');
@@ -228,19 +228,25 @@ assert.match(
   /cell\.kind === 'dice' \? HOVER_DOTS_TOP : HOVER_DOTS/,
   'dice cells must use the top-right dots variant',
 );
-assert.match(
+const triggerBtn = (view.match(/function TriggerButton\(\{[\s\S]{0,900}?\}\) \{/) ?? [''])[0];
+assert.doesNotMatch(
+  triggerBtn,
+  /plain/,
+  'TriggerButton must not carry the old plain prop anymore (frameless rule made it useless)',
+);
+assert.doesNotMatch(
+  triggerBtn,
+  /hover:bg/,
+  'TriggerButton must not paint a hover background over the formula pills (frameless rule)',
+);
+assert.doesNotMatch(
   view,
   /plain=\{cell\.kind === 'dice'\}/,
   'dice cell dots must not paint an opaque hover box over the formula pills',
 );
 assert.match(
   view,
-  /plain \? '' : 'hover:bg-\[var\(--dash-surface-2\)\]'/,
-  'TriggerButton must be able to drop the hover background for dice cells',
-);
-assert.match(
-  view,
-  /data-archivio-dice="true"[\s\S]{0,900}?min-h-8 w-full min-w-0 cursor-pointer/,
+  /data-archivio-dice="true"[\s\S]{0,900}?min-h-7 w-full min-w-0 cursor-pointer/,
   'the dice roll button must keep the pointer cursor like the inline dice widget',
 );
 

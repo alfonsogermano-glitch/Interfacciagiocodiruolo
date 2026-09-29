@@ -1,15 +1,349 @@
 # WORKLOG — Stato progetto & consigli di workflow
 
-Ultimo aggiornamento: 2026-09-27
+Ultimo aggiornamento: 2026-09-29
 
 ## Stato attuale (verde)
 
-- **Branch**: `main` — file modificati non committati in attesa di conferma push (ArchivioView, tiptapInlineDice, tiptapInlineModifier, tiptapInlinePoints, EntityKebabMenu, EntityTabBar, DiceFormulaFolderRow, SavedDiceFormulaCard, SavedCustomDieCard, CampaignHome, theme.css, modifierFormula, NoteModifierMenu, tiptapArchivio, LeftSidebar, App, CampaignContext, index.css, package.json, verify aggiornate + verify-menu-dots-cursor.mjs, WORKLOG), `npm run check` verde (typecheck + 59 verify + build).
-- **Ultimo lavoro**: cella Dado custom Archivio — quantità grande quanto il dado + faccia centrata (vedi sotto).
+- **Branch**: `main` — commit più recente `983f65e` (cursore ⋮ + cella dado custom) già pushato; **non committati** i lavori successivi (altezza Archivio compatta, regola cursore disabled universale, menù dado Custom in palette, "Svuota" disabled, standard animazioni icone), `npm run check` verde (typecheck + 62 verify + build).
+- **Ultimo lavoro**: menu ⋮ senza cornice e visibili solo all'elemento evidenziato (regola globale `[data-menu-dots]` opacity in theme.css + `group` sui contenitori); fix verify copia `--dash-panel`. `npm run check` verde, test live 7/7.
 - **CI GitHub Actions**: verde sui commit recenti.
 - **Deploy production Vercel**: auto-deploy a ogni push su `main` (nessuna preview).
 
 ## Cosa è stato fatto di recente
+
+### Standard animazioni icone: regola globale hover su tutti i pulsanti/menù + indice icone non animate (2026-09-28)
+Request dell'utente: recuperare ed estendere le animazioni icone (iniziose
+delle sezioni GM — Ambientazione/PNG-Mostri/Personaggi — e mai estese al
+resto), con un progressivo standard animato per TUTTE le icone, e produrre
+un indice delle icone ancora non animate per i round futuri.
+1. Analisi: in `index.css` esistevano 6 keyframes (`locationArrowPulse`
+   0.8s, `cancelWiggle` 0.55s, `trashShake` 0.55s, `plusPulse` 0.75s,
+   `editWrite` 0.65s, `saveDiskInsert` 0.7s) usati con
+   `group-hover:animate-[...]` solo in 6 file (CampaignsPage,
+   EnvironmentManager, MyCharactersPage, VisualAssetsManager,
+   EquipmentCatalogPage, CatalogItemEditorModal); ~150 occorrenze in ~70
+   file restavano immuni.
+2. `feat:` `index.css` — **regola universale** accanto ai keyframes: hover su
+   `button:not(:disabled)`, `[role='button']` e `[role='menuitem']`
+   (non `data-disabled`) anima l'icona lucide con la stessa animazione/durata
+   dello standard: `lucide-plus`→plusPulse, `lucide-save`→saveDiskInsert,
+   `lucide-x`→cancelWiggle, `lucide-pen`/`lucide-pencil`→editWrite (nota:
+   `Edit2` è alias di Pen in lucide-react 0.487), `lucide-trash-2`→trashShake,
+   `lucide-chevron-*`/`lucide-arrow-*`/`lucide-archive`/`lucide-rotate-ccw`
+   →locationArrowPulse. Un solo punto copre il sito senza toccare i ~150 TSX;
+   gli usi `group-hover:animate-[...]` esistenti restano (stessa animazione,
+   nessun conflitto); disabilitati e icone fuori da pulsanti/voci menù non
+   animano.
+3. `test:` nuovo `scripts/verify-icon-animations.mjs`, iscritto in `check`
+   come `verify:icon-animations` (ora 62 verify); esteso nel round 1 sotto
+   (8 keyframes, 15 famiglie, menuitem coperto, `button:disabled` mai).
+4. Verifica live CDP `icon-anim-test.mjs` **14/14 PASS** (incluso round 1):
+   ogni icona anima con la durata corretta; bottone disabilitato →
+   `animationName: none`; icona fuori pulsante → `none`; frame reali
+   letti dal DOM (matrice scale, drop-shadow).
+5. Censimento completo (file interi, escluse icone interne UI): **90 icone
+   distinte fuori standard** → indice nella sotto-sezione seguente.
+6. Criterio **funzione → stile** approvato dall'utente: *moto* se l'icona
+   descrive un movimento nello spazio dell'azione (Play/Upload/Undo),
+   *trasformazione* se rappresenta un cambio di stato (Eye→battito,
+   Copy→duplicato), *micro-movimento* per le icone-menù (⋮/Search/Sparkles).
+
+#### Round 1 — Occhio + Copia: prime trasformazioni (2026-09-28)
+Gruppo scelto dall'utente fra i candidati B (il più numeroso dopo Loader2,
+tutti in bottoni/menù, nessun uso decorativo): introduce lo stile
+**trasformazione**, che mancava fra i 6 keyframes (tutti moto).
+1. `feat:` `index.css` — 2 nuovi keyframes: `eyeBlink` 0.65s (doppio
+   battito via compressione verticale `scale(1.14,0.1)`→rimbalzo→secondo
+   battito, vale per Eye **ed** EyeOff = feedback dello stato visibile) e
+   `copyPop` 0.7s (il doppione si stacca: `translate(-3px,-3px)
+   scale(1.15)` con rimbalzo + `filter: drop-shadow(...)` in sync che
+   disegna la silhouette dell'originale dietro). Famiglie aggiunte alla
+   regola universale: `.lucide-eye`/`.lucide-eye-off`→eyeBlink,
+   `.lucide-copy`/`.lucide-copy-plus`→copyPop.
+2. `test:` `verify-icon-animations.mjs` estesa a 8 keyframes + 15 famiglie.
+3. Verifica live 14/14 con frame reali: Eye `matrix(1.05,0,0,0.63,0,0)`,
+   Copy `matrix(1.11,...)` + `drop-shadow(rgba(10,10,10,0.72) 2.2px 2.2px 0)`;
+   disabilitato/fuori-pulsante restano `none`.
+4. `npm run check` verde (62 verify + build). Badge statici (EntityCard,
+   DraggablePortrait, "Segreto") non animano: non stanno in un button →
+   la regola universale li risparmia da sola.
+5. `fix:` (rifiniture chieste dall'utente, iterate) **pausa tra i cicli**
+   allungata: entrambi i keyframes durano **1.8s** — occhio: battito
+   ~0.54s (primi 30%) + ~1.26s fermo; copia: scatto ~0.43s + ~1.37s fermo.
+6. `fix:` **`copyPop` ridisegnata su richiesta ("confusionaria")**: prima
+   faceva due spinte + rimbalzi + fantasma che pulsava; ora **un solo
+   scatto netto** (il doppione si stacca una volta e rientra, drop-shadow
+   compare/scompare una volta per ciclo) poi lunga pausa.
+7. `fix:` **l'icona Copia partiva senza mouse sul bottone** (in due punti,
+   entrambi confermati dall'utente con screenshot): (a) card campagna in
+   CampaignsPage = `role="button"` con dentro il `<button>` del codice;
+   (b) card "Campagne recenti" in HomeScreen:249 = **`<button>` per
+   intero** con dentro il `div[role=button]` del codice (261). Rimozione
+   semplice di `[role='button']` non bastava (caso b). **Formula finale
+   "interattivo piu' prossimo" con `:has`** per ogni famiglia:
+   `button:hover:not(:has([role='button'] .icona)) .icona` +
+   `[role='button']:hover:not(:has(button .icona)) .icona` +
+   `[role='menuitem']:hover` (invariato) — l'icona anima SOLO
+   dall'interattivo che la contiene davvero: mouse sulla card grande →
+   nessuna animazione, mouse sul bottone/div del codice → anima. Gruppi
+   multi-icona con `:is()`. Verify estesa (formula :has obbligatoria,
+   anti-regresso sul role=button "nudo").
+8. Verifica live ora **24/24 PASS**: pausa confermata (a ~1s l'occhio e'
+   a riposo), mouse via → `none`, card role=button → ferma / bottone
+   interno → `copyPop`, **card-button HomeScreen lontano dal codice →
+   ferma / sul div codice → `copyPop`**, scroll → hover rivalutato.
+9. `change:` **frecce verticali separate**: `arrowUpPulse`/`arrowDownPulse`
+   nuovi keyframes sull'asse Y (su: prima sale poi rientra; giu': prima
+   scende poi rientra — mai X, come richiesto). `arrow-up`/`chevron-up` e
+   `arrow-down`/`chevron-down` escono dalla famiglia orizzontale
+   `locationArrowPulse` (che resta per left/right + archive + rotate-ccw);
+   allineati i 2 `ChevronDown` con classe Tailwind in
+    CatalogItemEditorModal (754/890). Verify: +2 keyframes, +2 famiglie.
+    Test: ArrowUp `matrix(..., 0, -0.71)`, ArrowDown `matrix(..., 0, +0.93)`
+    → tx=0, solo asse Y.
+10. `change:` **copia ridisegnata piu' volte su richiesta**: prima split
+    diagonale (`copySplit*`, bocciato), poi lampeggio fill-opacity
+    (`copyFillFront/Back`) — bocciato dall'utente ("ancora non va bene").
+    Design finale su **direttiva esplicita**: alternanza chiaro<->scuro
+    con z-order corretto ("quando il quadrato dietro si illumina il +
+    torna chiaro"). Fase A: davanti pieno colore icona, dietro solo
+    contorno, `+` SCURO (pannello); fase B: davanti col fill del pannello
+    (si confonde col fondo = "spento"), dietro illuminato (fill chiaro con
+    `d` chiuso in rettangolo), `+` torna colore icona. Ciclo **2.4s**
+    continuo: `copyFrontSwap` (fill currentColor 0-38% <-> pannello
+    44-84%), `copyBackSwap` (fill-opacity 0<->1 sfasato + snap `d` aperto
+    -> rettangolo chiuso (2,2)-(16,16) r2 dove non si vede),
+    `copyMarkSwap` (stroke del +: pannello in faseA, currentColor in
+    faseB). Fuori hover si torna a `fill:none`. Quadrati fermi
+    (`transform: none`). Storia tentativi falliti: `clip-path:
+    path(evenodd, ...)` (Chrome allinea male le coordinate `path()` su
+    SVG al viewBox: assoluto=rect sparito, relativo=brandelli) e
+    `mask-image` data-URI (funzionava ma **pixelloso** per l'utente) ->
+    entrambi ABANDONATI, zero mask/clip nel CSS (verify lo impone).
+10b. `fix:` **`var(--dash-bg)` non esisteva nel browser**: i colori tema
+    vivono su `[data-dashboard-palette='...']` (9 palette in index.css) e
+    senza quell'attributo (root pre-login, test CDP) `var(--dash-bg)` e'
+    invalido -> il keyframe decadeva e il fill del front cadeva su `none`
+    (scoperto campionando getComputedStyle a t=120/600/1400/2000ms).
+    Sostituito con **`var(--dash-panel, #0a0a0a)`** (fallback esplicito):
+    `--dash-panel` e' la variabile tema usata ovunque nel sito (9 usi).
+    Test con palette `noir` iniettata sul DOM + confronti relativi fase
+    A/B (non stringhe colore, che mistiano oklch/rgb).
+11. `add:` **round 2 — ⋮/⋯ + Sparkles + UserPlus/UserMinus** (tutte in
+    pulsanti/menu reali): `dotsWaveV`/`dotsWaveH` onda fra i3 puntini con
+    sfasamento via `animation-delay: 0/0.53s/1.06s` (giro1.6s con pausa);
+    `signPulse` il segno + / - (ultimi figli, `:nth-child(n+3)`) pulsa in
+    scale1.45 (giro1.4s); `sparkleTwinkle` scintille a gruppi sfalsati
+    (stella +0.45s, crocetta dx 0s, crocetta sx +0.9s, giro1.8s) — scale
+    con `transform-box: fill-box`. Scoperta: `MoreVertical`/`MoreHorizontal`
+    sono alias lucide di `ellipsis-*` → classi DOM **`lucide-ellipsis-vertical`**
+    / **`lucide-ellipsis`** (non lucide-more-*). I `animation-delay` servono
+    `!important` perché la shorthand `animation:` del selettore hover ha
+    specificita' piu' alta. Test live **36/36**, verify estesa a21 famiglie.
+12. `fix:` **+ / − disallineati nelle card ambiti della scheda
+    personaggi** (EntityDetailView:585): erano testo Unicode (`−` U+2212 e
+    `+` U+002B) con metriche verticali diverse nel font → sostituiti con
+    le icone `Minus`/`Plus` (h-3.5, stessa geometria lucide: linee centrate
+    a y=12, come DiceNumericStepper). Bonus: il `+` ora anima con
+    `plusPulse` in hover grazie alla regola universale. Nessun altro
+    testo `+`/`−` isolato nel codice.
+13. `fix:` **"+" di CopyPlus sempre visibile, senza maschere**: l'ordine
+    lucide mette le2 linee del + PRIME e il rect (disegnato dopo) le
+    copre quando si riempie. Soluzione finale: **ordine DOM custom** nel
+    modulo locale `src/app/components/IconeCopia.tsx` (createLucideIcon,
+    stesse geometrie/classi lucide) — `Copy`: `[path(dietro), rect(davanti)]`,
+    `CopyPlus`: `[path, rect, line, line]` (+ ULTIME = sopra tutto).
+    Il CSS identifica front/back **per tag** (`> rect`, `> path`,
+    `> line`), non per `:last-child` (che con l'ordine custom
+    cambierebbe significato). 13 file importano Copy/CopyPlus da lì
+    (rimossi dagli import lucide-react). Il + inverte lo stroke via
+    `copyMarkSwap` in fase col davanti -> sempre leggibile in entrambe le
+    fasi. **Storia**: prima `clip-path: path(evenodd)` (coordinate
+    non allineate al viewBox) poi `mask-image` data-URI (pixelloso) ->
+    abbandonati; la soluzione "dietro sotto, davanti sopra, + ultime" non
+    ha bisogno di clip/mask alcuna. Verify: letture IconeCopia (ordine
+    path-prima-di-rect, anti-regresso ordine lucide) + assenza
+    mask/clip-path nel CSS. Test live: `ord === 'path,rect'` /
+    `'path,rect,line,line'`, swap colore fra fase A e B, mask `none`.
+14. Regola universale: tutte le regole button hanno anche
+    `:not([aria-disabled='true'])` (15 regole) — le voci di
+    `EntityKebabMenu` usano `aria-disabled` e prima avrebbero animato da
+    disabilitate; verify aggiornata con asserzione esplicita.
+    Utente: "bene, le ho trovate e vanno benissimo" su ⋮/⋯+Sparkles+User.
+15. `change:` **menu ⋮ senza cornice + visibili solo all'elemento
+    evidenziato** (richiesta utente con screenshot di un ⋮ in cerchio con
+    bordo). Controllo completo sito: la cornice era
+    `MyCharactersPage.photoCornerButtonClass` (`rounded-full border
+    border-white/25 bg-black/50`) + `CampaignHome` menu campagna
+    (`rounded-xl border bg-panel`) + sfondi persistenti sui kebab foto.
+    Standard unico in `theme.css`: `[data-menu-dots] { opacity: 0;
+    transition: opacity 140ms }` visibile con `.group:hover`,
+    `.group:focus-within`, `:hover` diretto (fallback), `:focus-visible`,
+    `[aria-expanded='true']` (menù aperto), e SEMPRE su touch
+    (`@media (hover: none)`). Rimossi bordi/sfondi persistenti dai trigger
+    (photoCorner ×2, menu campagna); `group` aggiunto ai contenitori che
+    ne mancavano: EntityCard (list+grid), EntityDetailView header (kebab
+    PG/PNG/Mostro), articles dice ×3, `data-tab-unit` EntityTabBar,
+    toolbar home campagna, toolbar blocco Archivio. `aria-expanded` su
+    EntityKebabMenu e trigger ⋮ EntityTabBar. I trigger inline della nota
+    hanno già il loro sistema JS (mouseenter sull'elemento) — invariati;
+    breadcrumb/pagination "…" non sono menù ⋮ — non toccati. Verify
+    `verify-menu-dots-cursor` estesa: regole opacity/theme.css + no
+    `border` nei trigger (costanti photoCorner, kebab default, tag
+    menu campagna, classi dice/TabBar/TriggerButton). Test live CDP
+    **7/7** (nascosti di default, hover group→1, mouse fuori→0,
+    aria-expanded→1, fallback hover diretto, border none) + screenshot.
+    Fix verify copia: le righe `var\(--dash-bg\)` erano sfuggite al
+    replaceAll (escape backslash) — ora puntano `var(--dash-panel,
+    #0a0a0a)`.
+
+16. `change:` **⋮ senza sfondo all'hover + animazione di LUCE al posto
+    dell'onda** (richiesta utente: niente fondo quando si punta i tre
+    puntini; i puntini non devono muoversi, devono accendersi a turno —
+    alto → centro → basso → centro, poi senso inverso, ritmo moderato).
+    (a) Rimossi tutti gli `hover:bg-*` dai trigger `data-menu-dots`:
+    menu campagna + kebab foto CampaignHome, kebab foto
+    MyCharactersPage, dice DiceFormulaFolderRow/SavedCustomDieCard/
+    SavedDiceFormulaCard, kebab default EntityKebabMenu, buttonClassName
+    NoteListRow/FolderRow, TriggerButton ArchivioView (proposito
+    `plain` rimosso del tutto: prop, destruzione, call-site e
+    commento). (b) `index.css`: keyframes `dotsWaveV/H` (movimento
+    `translateY/X`) sostituiti da6 keyframes di sola `opacity`
+    `dotsLightVTop/VCenter/VBottom` + `HLeft/HCenter/HRight` (ciclo4
+    step su 2.4s, crossfade ~11%, pallino acceso=1 / spento=0.3; il
+    centrale batte due volte a ciclo). Regole hover universali ora
+    longhand (`animation-duration/timing/iteration-count` su `> *`) e
+    le nth-child danno `animation-name` per POSIZIONE REALE — ordine
+    SVG lucide: nth1=centro, nth2=alto/destra, nth3=basso/sinistra.
+    Fuori hover resta solo il nome → nulla parte. (c) Verify:
+    `verify-icon-animations` (keyframes list + families con
+    `animation(?:-name)?:`), `verify-menu-dots-cursor` (ora vieta anche
+    `hover:bg`, + campioni NoteListRow/FolderRow),
+    `verify-note-archivio` (assert `plain`/hover:bg rimpiazzate con
+    doesNotMatch). Test live CDP **19/19** (`dots-light-test.mjs`:
+    animation-name/durata/infinite per i3 pallini V e H, `transform:
+    none`, trigger senza bg/bordo, sequenza argmax solo con transizioni
+    del ciclo, ogni pallino si spegne, fuori hover torna `0s`) + **7/7**
+    opacity (`dots-test.mjs`) + screenshot `light-top/center/bottom.png`
+    (fasi: alto, centro, basso acceso) e `light-horiz.png`.
+    Fix follow-up utente: il ciclo "sembrava iniziare random" —
+    `animation-name` statico con duration che passava da0s a2.4s non
+    azzerava il tempo di animazione; l'intera shorthand `animation:`
+    (name+duration) vive ora SOLO nei6 blocchi hover con `:nth-child`
+     → ogni ingresso del mouse fa ripartire da t=0 = pallino ALTO (test
+     restart: 3 hover successivi tutti `t1.00/c0.30/b0.30`).
+
+17. `change:` **Archivio: ⋮ solo con caret/freccia nella cella + righe
+    nota senza caret agli estremi e paragrafo di coda garantito**
+    (richieste utente: i puntini delle celle tabella devono apparire solo
+    quando il caret o il mouse sono sulla cella, non all'hover della nota;
+    eliminare il cursore lampeggiante che compare in testa/fine riga —
+    con i "+" l'inserimento agli estremi passa da lì, il caret serve solo
+    tra un elemento ed un altro; ripristinare la riga vuota automatica
+    sotto l'ultima riga piena per poter scrivere sotto).
+    (a) `ArchivioView.TriggerButton`: nuova prop `cell` → attributo
+    `data-menu-dots-cell` sui3 trigger (Menu colonna/riga/cella) — shorthand
+    `cell={true}` (il shorthand solo `cell` con l'omonima variabile della
+    map era ambiguo). (b) `theme.css`: reveal generico esclude
+    `:not([data-menu-dots-cell])`; reveal celle via `.group/cell:hover`
+    e `.group/cell:focus-within` (batte le utility Tailwind in @layer).
+    (c) `tiptapBlockRow.ts` — P2: `exitRowSelection()` (pura, esportata)
+    + `exitRowTo()` (dispatch): il caret nel gap ESTREMO della riga esce
+    sul lato corrispondente (paragrafo → fine/inizio testo; altra riga →
+    coda ultimo elemento / testa primo elemento) invece di essere
+    risucchiato nel primo/ultimo figlio; usata in `onTransaction` (nudge
+    con `isHead`/`isTail`), in `moveAcrossRowItems` (Left/Right in
+    gap estremo) e in `moveOutOfRowVertical` (rimossi i2 GapCursor di
+    attesa al confine → stessa `near()` per paragraph e blockRow).
+    (d) P3: `createBlockRowTrailingParagraphPlugin()` (`appendTransaction`
+    idempotente) registrato da `BlockRow.addProseMirrorPlugins`: se
+    l'ultimo blocco è una blockRow appende sempre un paragrafo vuoto.
+    (e) Verify nuovo `verify-note-row-extremes.mjs` (funzionale: uscite
+    up/down/trai righe, fallback null, append/idempotenza/non-docChanged +
+    assert statici no `new GapCursor(`) con voce in `check`; verify
+    `menu-dots-cursor` estesa (punto7 celle Archivio) e raggio0 la
+    vecchia soglia220 (il blocco reveal è più lungo ora). `npm run check`
+    verde. Contesto P2/P3 confermato dall'utente con domanda esplicita:
+    righe della nota, caret che va nella riga di testo adiacente.
+
+
+#### Indice icone senza standard (per round futuri — censimento statico, verificare a mano i contesti "in pulsante")
+**A. Già coperte dalla regola globale**: Plus, Save, X, Edit2/Pencil
+(`lucide-pen`/`lucide-pencil`), Trash2, ChevronDown/Up/Left/Right,
+ArrowDown/Up/Left/Right, Archive, RotateCcw, Eye/EyeOff, Copy/CopyPlus
+(round 1), **MoreVertical/MoreHorizontal (round 2, `lucide-ellipsis-*`),
+Sparkles, UserPlus/UserMinus**.
+
+**B. Candidate per nuovi keyframes (icone-azione, priorità per occorrenze)**:
+`Loader2` 24 (esclusa: spin di caricamento, non hover),
+`Search` 8 → lente che fa zoom (6 usi in input decorativi,2 in menu),
+`Dices` 6 → dadi che rimbalzano, `Play` 6 → slancio avanti (riuso
+locationArrowPulse; diversi usi decorativi), `FolderPlus` 6, `KeyRound` 6,
+`Shapes` 4 → trasformazione, `Palette` 3 → oscillazione,
+`Undo2`+`RefreshCw` 6 → ritorno/refresh, `Upload`+`FileDown` 2 →
+salita/discesa.
+
+**C. Da valutare caso per caso** (spesso stato/decorative, non sempre in
+pulsante): `AlertTriangle` 9, `MapPin` 9, `Swords` 8, `CheckCircle` 8,
+`Skull` 7, `User` 6, `BookOpen` 6, `Ghost` 5, `Shield` 5, `Users` 5,
+`Package` 5, `Heart` 4, `AlertCircle` 4, `Lock` 4, `Brain` 4, `Check` 4,
+`Star` 2, `Zap` 2, `Bookmark` 2, `DoorOpen` 3, `FileText` 3, `UserCog` 3 e
+le ~40 restanti a singola occorrenza (Bell, LogOut, Settings, Bug,
+Newspaper, Lightbulb, Globe, Upload, Command...).
+
+**D. Esclusa**: `Loader2` (animato da `animate-spin` durante il caricamento);
+icone interne componenti UI (CheckIcon/CircleIcon/Chevron*Icon Radix e i
+componenti wrapper `Icon`/`DropdownMenuItem`/`DialogHeader`).
+
+### Regola universale: cursore simbolo di divieto su tutti i disabilitati + menù dado Custom in palette (2026-09-28)
+Request dell'utente: (1) nel menù del dado Custom nella libreria dadi le voci
+evidenziate non combaciavano con l'etichetta del dado; (2) ogni pulsante non
+selezionabile del sito deve mostrare, oltre agli effetti grafici, il cursore
+simbolo di divieto - regola fondamentale su TUTTI i pulsanti.
+1. `fix:` `SavedCustomDieCard.tsx` — voci del menù ⋮ con la palette della
+   libreria (`focus:bg-[var(--dash-surface-2)] focus:text-[var(--dash-text-strong)]`,
+   separatore `bg-[var(--dash-border)]`, Elimina con focus rosso): prima
+   ereditavano i token fissi shadcn `--accent`/`--border` (grigio non
+   palette-aware) — unica card della libreria anomala rispetto a
+   SavedDiceFormulaCard/DiceFormulaFolderRow.
+2. `fix:` `theme.css` — regola universale `button:disabled, input:disabled,
+   select:disabled, textarea:disabled, [aria-disabled='true'] { cursor:
+   not-allowed !important; }`: batte cursor-pointer ereditato dalle card e
+   gli inline `style={{cursor:'pointer'}}`; le eccezioni `cursor-wait`
+   (attesa) usano la variante Tailwind v4 `disabled:cursor-wait!` (3 file).
+3. `fix:` `ui/button.tsx` — rimosso `disabled:pointer-events-none` (il
+   disabled era non colpibile e il cursore ereditato dal genitore): ora
+   `disabled:cursor-not-allowed` dichiarato.
+4. `test:` nuovo `scripts/verify-disabled-cursor.mjs` (regola globale,
+   Tira/Salva con disabled nativo, button.tsx, eccezioni wait con `!`)
+   iscritto in `check` (`verify:disabled-cursor`); `verify-saved-dice-menu-layer`
+   estesa a SavedCustomDieCard (3 voci con className + separatore palette);
+   `npm run check` verde (typecheck + 61 verify + build).
+5. Verifica live CDP `disabled-cursor-test.mjs` **8/8 PASS**: not-allowed su
+   button in card manina, button con inline pointer, input/select/textarea,
+   aria-disabled; abilitato senza regresso; eccezione `wait` preservata.
+6. `fix:` "Svuota" (`SessionDicePanel`) diventa come gli altri due:
+   `disabled={items.length===0&&editingId===null&&name===DEFAULT_FORMULA_NAME}`
+   (niente da cancellare = builder gia' alle condizioni iniziali) con lo
+   stesso `disabled:opacity-40` di Tira/Salva formula; asserzioni in
+   `verify-disabled-cursor`, `npm run check` verde.
+
+### Blocco Archivio più compatto in altezza (2026-09-28)
+Request dell'utente: il blocco Archivio era troppo alto/ingombrante (larghezza
+ok, dimensione del dado ok) - tanto spazio vuoto per poche righe.
+1. `fix:` `ArchivioView.tsx` — solo altezza, larghezza invariata: header
+   `py-[var(--note-block-padding-y)]` → `py-1` (40→32px), th/td
+   `py-[var(--note-cell-padding-y)]` → `py-1` (px resta la variabile
+   standard), wrapper scroll `pb-2` → `pb-1`, pulsante cella Dado
+   `min-h-8 py-1` → `min-h-7 py-0.5` (con il dado mini 24px il min-h-8 non
+   serviva più).
+2. `test:` verify aggiornate ai contratti compatti: `verify-note-element-standards`
+   (header/celle Archivio con `py-1` + px standard) e `verify-note-archivio`
+   (`min-h-7`); `npm run check` verde.
+3. Misura live CDP (`archivio-height-measure.mjs`, 1 riga): blocco
+   **124.6px → 99px (-21%)** — header 40→32, thead 29.3→24.5, riga
+   45.3→36.5, pb 8→4; con N righe il risparmio è ~9.5px per riga.
+   Screenshot dopo: `archivio-after.png`.
 
 ### Cella Dado custom Archivio: quantità grande quanto il dado + faccia centrata (2026-09-27)
 Request dell'utente: nella cella Dado dell'Archivio con dado custom, la
@@ -26,6 +360,12 @@ l'icona del dado appariva spostata verso il basso.
 4. Verifica live CDP: `dice-cell-check.mjs` con le classi REALI del bundle —
    **4/4 PASS** (`font-size=32px`, shell `h=32px`, numero/dado/faccia tutti
    center-Y `33`) + screenshot; le due asserzioni coprono il JSX React.
+5. `fix:` rifinitura (2026-09-28): 32px risultava troppo grande → nuova size
+   `mini` in `CustomDieLibraryIcon` (shell `h-6 w-6`, glifo `h-4 w-4`, d100
+   `h-3 w-3`, fallback `text-[8px]`, img `p-0.5`) e cella Archivio passata a
+   `size="mini"` + numero `text-2xl` (24px); verify aggiornate, live CDP
+   **4/4 PASS** (`font-size=24px`, shell `h=24px`, center-Y `29`), `npm run
+   check` verde.
 
 ### Regola universale: i menu ⋮ restano freccia, mai manina (2026-09-27)
 Request dell'utente: quando il mouse è sopra i tre puntini ⋮ di un elemento

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 function read(path){return fs.readFileSync(new URL(`../${path}`,import.meta.url),'utf8')}
 const card=read('src/app/components/session/dice/SavedDiceFormulaCard.tsx');
+const customDie=read('src/app/components/session/dice/SavedCustomDieCard.tsx');
 const picker=read('src/app/components/session/dice/DiceLibraryIconPicker.tsx');
 const panel=read('src/app/components/session/dice/SessionDicePanel.tsx');
 const historyCard=read('src/app/components/session/dice/DiceRollHistoryCard.tsx');
@@ -21,4 +22,11 @@ for(const token of ['icon_name: string | null;','iconName?: string | null;','ico
 assert.ok(panel.includes('setFormulaIcon'),'dice panel must own icon persistence');assert.match(panel,/updateDiceFormula\([^,]+,\s*\{\s*iconName\s*\}\)/,'dice panel must persist icon changes');assert.match(panel,/iconName\s*:\s*f\.iconName/,'formula duplication must preserve icon');assert.ok(panel.includes('f.iconName??undefined')||panel.includes('f.iconName ?? undefined'),'saved formula rolls must pass custom icon');
 assert.ok(context.includes('formulaIconName:request.formulaIconName')||context.includes('formulaIconName: request.formulaIconName'));assert.ok(context.includes('formulaIconName:previous.formulaIconName')||context.includes('formulaIconName: previous.formulaIconName'));
 assert.ok(historyCard.includes('NoteIconGlyph'));assert.ok(historyCard.includes('result.formulaIconName'));assert.ok(historyCard.includes('data-dice-roll-formula-icon'));
+// Dado Custom: le voci del menù devono usare la palette della libreria
+// (surface-2/text-strong in focus, separatore --dash-border), non i token
+// fissi shadcn (--accent) che non combaciavano con l'etichetta evidenziata.
+for(const token of ['bg-[var(--dash-panel)]','border-[var(--dash-border)]','text-[var(--dash-text)]','focus:bg-[var(--dash-surface-2)]','focus:text-[var(--dash-text-strong)]','<DropdownMenuSeparator className="bg-[var(--dash-border)]"'])assert.ok(customDie.includes(token),`custom die menu missing ${token}`);
+const customItems=[...customDie.matchAll(/<DropdownMenuItem[^>]*>/g)].map((m)=>m[0]);
+assert.equal(customItems.length,3,'expected 3 custom die menu items');
+for(const item of customItems)assert.match(item,/className=/,'every custom die menu item must carry palette-aware classes');
 console.log('Saved dice formula menu, icon picker, and roll chat icon verification passed.');

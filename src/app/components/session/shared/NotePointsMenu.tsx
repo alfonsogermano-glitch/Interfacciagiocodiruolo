@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
-import { Ban, Clipboard, Copy, Eye, EyeOff, Gauge, Pencil, Trash2, Type } from 'lucide-react';
+import { Ban, Clipboard, Eye, EyeOff, Gauge, Pencil, Trash2, Type } from 'lucide-react';
+import { Copy } from '@/app/components/IconeCopia';
 import { usePortalContainer } from '../../ui/portal-container';
 import { placeFloatingNoteUI } from './noteFloatingPosition';
 import {

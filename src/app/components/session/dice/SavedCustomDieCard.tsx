@@ -1,8 +1,14 @@
 import { useRef, type DragEvent, type PointerEvent } from 'react';
-import { Copy, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { Copy } from '@/app/components/IconeCopia';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../../ui/dropdown-menu';
 import { CustomDieLibraryIcon } from './CustomDieLibraryIcon';
 import type { SavedCustomDie } from './diceTypes.ts';
+
+// Voci di menù con la stessa palette della libreria (surface-2 in focus,
+// come l'etichetta del dado in hover): senza --accent shadcn fisso, che non
+// combaciava con le card sorelle (SavedDiceFormulaCard/DiceFormulaFolderRow).
+const menuItemClass = 'focus:bg-[var(--dash-surface-2)] focus:text-[var(--dash-text-strong)]';
 
 export function SavedCustomDieCard(props: {
   die: SavedCustomDie;
@@ -39,7 +45,7 @@ export function SavedCustomDieCard(props: {
       onPointerDownCapture={handlePointerDownCapture}
       onDragStart={handleDragStart}
       onDragEnd={onDragEnd}
-      className="flex items-stretch overflow-hidden caret-transparent rounded-xl border border-[var(--dash-border)] bg-[var(--dash-surface)]"
+      className="group flex items-stretch overflow-hidden caret-transparent rounded-xl border border-[var(--dash-border)] bg-[var(--dash-surface)]"
     >
       <button
         type="button"
@@ -58,7 +64,7 @@ export function SavedCustomDieCard(props: {
             <button
               aria-label="Menu dado Custom"
               data-menu-dots="true"
-              className="m-1 rounded-md p-2 text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]"
+              className="m-1 rounded-md p-2 text-[var(--dash-muted)]"
             >
               <MoreVertical className="h-4 w-4" />
             </button>
@@ -67,16 +73,16 @@ export function SavedCustomDieCard(props: {
             align="end"
             className="z-[1000] border-[var(--dash-border)] bg-[var(--dash-panel)] text-[var(--dash-text)]"
           >
-            <DropdownMenuItem onClick={onEdit}>
+            <DropdownMenuItem onClick={onEdit} className={menuItemClass}>
               <Pencil className="mr-2 h-4 w-4" />
               Modifica
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={onDuplicate}>
+            <DropdownMenuItem onClick={onDuplicate} className={menuItemClass}>
               <Copy className="mr-2 h-4 w-4" />
               Duplica
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onDelete} className="text-red-400">
+            <DropdownMenuSeparator className="bg-[var(--dash-border)]" />
+            <DropdownMenuItem onClick={onDelete} className="text-red-400 focus:bg-[var(--dash-surface-2)] focus:text-red-400">
               <Trash2 className="mr-2 h-4 w-4" />
               Elimina
             </DropdownMenuItem>

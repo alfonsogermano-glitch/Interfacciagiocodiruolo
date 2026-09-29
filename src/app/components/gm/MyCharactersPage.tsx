@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Plus, Loader2, Pencil, Trash2,
-  Copy, CopyPlus, UserPlus, UserMinus, UserCog, Undo2, Search, Eye, EyeOff, MapPin, ArrowLeft, Sparkles,
+  UserPlus, UserMinus, UserCog, Undo2, Search, Eye, EyeOff, MapPin, ArrowLeft, Sparkles,
   DoorOpen, X, Users,
 } from 'lucide-react';
+import { Copy, CopyPlus } from '@/app/components/IconeCopia';
 import { useJoinByCodeFlow } from '../../../hooks/useJoinByCodeFlow';
 import { JoinCampaignCharacterDialog } from '../session/shared/JoinCampaignCharacterDialog';
 import { useAuth, supabase } from '../../auth/AuthContext';
@@ -113,7 +114,7 @@ const entityKebabButtonClass =
   'flex h-8 w-8 items-center justify-center rounded-full border border-[var(--dash-border-soft)] bg-black/40 text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text-strong)]';
 
 const photoCornerButtonClass =
-  'flex h-7 w-7 items-center justify-center rounded-full border border-white/25 bg-black/50 text-white transition-colors hover:border-[var(--dash-accent-2)]';
+  'flex h-7 w-7 items-center justify-center rounded-full text-white transition-colors hover:text-white';
 
 function sortByNameOrDate<T extends { name: string; createdAt?: string; updatedAt?: string }>(items: T[], mode: SortMode): T[] {
   const copy = [...items];

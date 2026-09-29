@@ -50,14 +50,15 @@ export function CustomDieLibraryIcon({
   framedPair = false,
 }: {
   die: CustomDieLibraryIconData;
-  size?: 'card' | 'compact';
+  size?: 'card' | 'compact' | 'mini';
   faceOffsetY?: number;
   framedPair?: boolean;
 }) {
   const face = getCustomDieLibraryIconFace(die.faces);
   const compact = size === 'compact';
-  const shellClass = compact ? 'h-8 w-8 rounded-md' : 'h-10 w-10 rounded-lg';
-  const faceIconClass = compact ? 'h-5 w-5' : 'h-6 w-6';
+  const mini = size === 'mini';
+  const shellClass = mini ? 'h-6 w-6 rounded-[5px]' : compact ? 'h-8 w-8 rounded-md' : 'h-10 w-10 rounded-lg';
+  const faceIconClass = mini ? 'h-4 w-4' : compact ? 'h-5 w-5' : 'h-6 w-6';
   const skinId = die.skinId ?? 'none';
   const appearance: DiceAppearance = {
     bodyColor: die.bodyColor,
@@ -91,10 +92,10 @@ export function CustomDieLibraryIcon({
           data-custom-die-library-icon
           data-custom-die-library-d100-pair
           data-dice-skin={skinId}
-          className={`relative flex ${compact ? 'gap-[2px]' : 'gap-1'} items-center justify-center`}
+          className={`relative flex ${mini || compact ? 'gap-[2px]' : 'gap-1'} items-center justify-center`}
         >
-          <CustomDieLibraryD100Shell die={die} face={tensFace} shellClass={compact ? 'h-4 w-4 rounded-[4px]' : 'h-8 w-8 rounded-md'} iconClass={compact ? 'h-3 w-3' : 'h-4 w-4'} faceOffsetY={faceOffsetY} />
-          <CustomDieLibraryD100Shell die={die} face={unitsFace} shellClass={compact ? 'h-4 w-4 rounded-[4px]' : 'h-8 w-8 rounded-md'} iconClass={compact ? 'h-3 w-3' : 'h-4 w-4'} faceOffsetY={faceOffsetY} />
+          <CustomDieLibraryD100Shell die={die} face={tensFace} shellClass={mini ? 'h-3 w-3 rounded-[3px]' : compact ? 'h-4 w-4 rounded-[4px]' : 'h-8 w-8 rounded-md'} iconClass={mini ? 'h-2.5 w-2.5' : compact ? 'h-3 w-3' : 'h-4 w-4'} faceOffsetY={faceOffsetY} />
+          <CustomDieLibraryD100Shell die={die} face={unitsFace} shellClass={mini ? 'h-3 w-3 rounded-[3px]' : compact ? 'h-4 w-4 rounded-[4px]' : 'h-8 w-8 rounded-md'} iconClass={mini ? 'h-2.5 w-2.5' : compact ? 'h-3 w-3' : 'h-4 w-4'} faceOffsetY={faceOffsetY} />
         </span>
       );
     }
@@ -109,7 +110,7 @@ export function CustomDieLibraryIcon({
       >
         <DiceSkinSurface appearance={appearance} className="flex h-full w-full items-center justify-center text-[var(--dash-accent)]">
           <span className="relative z-10 flex h-full w-full items-center justify-center" style={faceOffsetY ? { transform: `translateY(${faceOffsetY}px)` } : undefined}>
-            <span className={`${compact ? 'text-[9px]' : 'text-xs'} font-bold leading-none`} style={{ color: die.symbolColor }}>d{die.sides}</span>
+            <span className={`${mini ? 'text-[8px]' : compact ? 'text-[9px]' : 'text-xs'} font-bold leading-none`} style={{ color: die.symbolColor }}>d{die.sides}</span>
           </span>
         </DiceSkinSurface>
       </span>
@@ -129,7 +130,7 @@ export function CustomDieLibraryIcon({
             ? <NoteIconGlyph name={face.visual.iconName} className={`${faceIconClass} drop-shadow-[0_0_2px_rgba(255,255,255,0.65)]`} />
             : face.visual.kind === 'text'
               ? <CustomDieTextFace text={face.visual.text} color={die.symbolColor} className="h-full w-full drop-shadow-[0_0_2px_rgba(255,255,255,0.65)]" />
-              : <img draggable={false} data-custom-die-image-untinted src={face.visual.publicUrl} className={`${compact ? 'p-0.5' : 'p-1'} h-full w-full object-contain drop-shadow-[0_0_2px_rgba(255,255,255,0.65)]`} />}
+              : <img draggable={false} data-custom-die-image-untinted src={face.visual.publicUrl} className={`${mini || compact ? 'p-0.5' : 'p-1'} h-full w-full object-contain drop-shadow-[0_0_2px_rgba(255,255,255,0.65)]`} />}
         </span>
       </DiceSkinSurface>
     </span>

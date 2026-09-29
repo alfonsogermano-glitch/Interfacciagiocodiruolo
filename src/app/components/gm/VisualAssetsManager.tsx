@@ -397,7 +397,7 @@ export function VisualAssetsManager({
               type="button"
               onClick={() => void handleRegenerateThumbnails()}
               disabled={isRegeneratingThumbnails}
-              className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-4 py-2 text-sm text-[var(--dash-text-strong)] hover:bg-[var(--dash-surface)] disabled:cursor-wait disabled:opacity-60"
+              className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-4 py-2 text-sm text-[var(--dash-text-strong)] hover:bg-[var(--dash-surface)] disabled:cursor-wait! disabled:opacity-60"
             >
               {isRegeneratingThumbnails ? 'Rigenerazione…' : 'Rigenera anteprime mancanti'}
             </button>

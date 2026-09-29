@@ -195,13 +195,13 @@ assert.doesNotMatch(dice + modifier + points, /120ms|160ms/, 'literal transition
 assert.match(lineWith(archivioView, 'overflow-hidden rounded', 'Archivio'), /rounded-\[var\(--note-block-radius\)\]/, 'Archivio shell radius must be the shared standard');
 assert.match(
   lineWith(archivioView, 'justify-between gap-2', 'Archivio header'),
-  /px-\[var\(--note-block-padding-x\)\] py-\[var\(--note-block-padding-y\)\]/,
-  'Archivio header padding must be the panel standard',
+  /px-\[var\(--note-block-padding-x\)\] py-1/,
+  'Archivio header must keep the standard horizontal padding with a compact py-1 (tight block height, 2026-09-28)',
 );
 const archivioCellLines = archivioView.split('\n').filter((l) => l.includes('px-[var(--note-cell-padding-x)]'));
 assert.equal(archivioCellLines.length, 2, 'Archivio th/td cell lines not found');
 for (const line of archivioCellLines) {
-  assert.match(line, /px-\[var\(--note-cell-padding-x\)\] py-\[var\(--note-cell-padding-y\)\]/, 'Archivio cells must use the shared cell padding standard');
+  assert.match(line, /px-\[var\(--note-cell-padding-x\)\] py-1/, 'Archivio cells must keep the standard horizontal padding with a compact py-1 (tight block height, 2026-09-28)');
 }
 assert.match(lineWith(subTabs, 'min-h-[3rem]', 'NoteSubTabs editor'), /rounded-\[var\(--note-block-radius\)\]/, 'session note editor radius must be the shared standard');
 assert.match(lineWith(editor, 'DEFAULT_CONTAINER_CLASS', 'RichTextEditor'), /rounded-\[var\(--note-block-radius\)\]/, 'default editor container radius must be the shared standard');

@@ -65,6 +65,399 @@
   }
   
 }
+/* eyeBlink: doppio battito rapido (~0.54s) poi pausa a riposo (~1.26s)
+   fino a 100%, cosi' il loop non appare frenetico */
+@keyframes eyeBlink {
+  0%, 100% {
+    transform: scale(1, 1);
+  }
+
+  3% {
+    transform: scale(1.14, 0.1);
+  }
+
+  7% {
+    transform: scale(1, 0.96);
+  }
+
+  11% {
+    transform: scale(1.1, 0.16);
+  }
+
+  15% {
+    transform: scale(1, 1.06);
+  }
+
+  19% {
+    transform: scale(1.04, 0.6);
+  }
+
+  24% {
+    transform: scale(1, 1.02);
+  }
+
+  30% {
+    transform: scale(1, 1);
+  }
+}
+/* Copia/Duplica: alternanza chiaro<->scuro - i quadrati restano fermi e
+   si illumina a turno: prima il davanti pieno chiaro (col dietro spento,
+   sotto, si vede solo come contorno), poi il davanti SCURO opaco
+   (var(--dash-panel, #0a0a0a)) con il dietro pieno chiaro che appare SOLO nella sua
+   parte visibile fuori dal davanti (l'ordine DOM custom di IconeCopia.tsx
+   mette il dietro sotto: niente sovrapposizione fastidiosa). Il + di
+   copy-plus e' sempre l'ultimo figlio (sopra tutto) e inverte lo stroke
+   scuro<->chiaro in fase con il davanti, cosi' resta sempre visibile.
+   Ciclo di 2.4s continuo (nessuna pausa), transizioni ~0.15s. Il fill
+   anima su fill: currentColor (fuori hover torna fill:none
+   dell'attributo). Il path del dietro in lucide e' APERTO (forma a L,
+   manca il lato destro-basso): il suo fill da solo e' una sagoma tagliata
+   in diagonale e non si legge - quindi durante il riempimento il d viene
+   sostituito con lo stesso rettangolo CHIUSO (2,2)-(16,16) raggio 2; lo
+   snap di d avviene a fill-opacity: 0 dove non si vede. */
+@keyframes copyFrontSwap {
+  0%, 38% {
+    fill: currentColor;
+  }
+
+  44%, 84% {
+    fill: var(--dash-panel, #0a0a0a);
+  }
+
+  90%, 100% {
+    fill: currentColor;
+  }
+}
+@keyframes copyBackSwap {
+  0%, 40% {
+    fill-opacity: 0;
+    d: path("M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2");
+  }
+
+  46% {
+    fill-opacity: 0;
+    d: path("M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z");
+  }
+
+  52%, 82% {
+    fill-opacity: 1;
+    d: path("M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z");
+  }
+
+  88% {
+    fill-opacity: 0;
+    d: path("M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2Z");
+  }
+
+  94%, 100% {
+    fill-opacity: 0;
+    d: path("M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2");
+  }
+}
+@keyframes copyMarkSwap {
+  0%, 38% {
+    stroke: var(--dash-panel, #0a0a0a);
+  }
+
+  44%, 84% {
+    stroke: currentColor;
+  }
+
+  90%, 100% {
+    stroke: var(--dash-panel, #0a0a0a);
+  }
+}
+/* Frecce verticali: movimento sull'asse Y secondo l'orientamento -
+   su: prima sale poi scende; giu': prima scende poi sale. Mai X. */
+@keyframes arrowUpPulse {
+  0%, 100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-4px);
+  }
+}
+@keyframes arrowDownPulse {
+  0%, 100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(4px);
+  }
+}
+
+/* ===== STANDARD ANIMAZIONI ICONE PER PULSANTI E MENU =====
+   Regola universale del sito: hover su un pulsante o voce di menu non
+   disabilitata -> l'icona svolge il suo micro-movimento, con gli stessi
+   keyframes e le stesse durate degli usi pionieristici (Ambiente,
+   Personaggi/PNG/Mostri, Cataloghi). Copre tutto il sito da un unico
+   punto senza toccare i TSX; gli usi esistenti con
+   group-hover:animate-[...] restano compatibili (stessa animazione).
+   Le icone fuori da questa mappa sono ancora senza standard: vedi indice
+   nel worklog (es. Play, Dices, MoreVertical, Palette...). */
+/* Formula "interattivo piu' prossimo" (usa :has): l'icona anima solo se
+   l'hover arriva sul contenitore che la contiene DAVVERO, mai da un
+   <button> o role=button remoto. Es. reale: la card "Campagne recenti"
+   e' essa stessa un <button> con dentro il div[role=button] del codice
+   invito: mouse sulla card -> NESSUNA animazione; mouse sul bottone
+   codice -> la copia anima. Vale anche per card role=button con button
+   dentro (es. card campagna in CampaignsPage). */
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-plus)) .lucide-plus,
+[role='button']:not([aria-disabled='true']):hover:not(:has(button .lucide-plus)) .lucide-plus,
+[role='menuitem']:not([data-disabled]):hover .lucide-plus {
+  animation: plusPulse 0.75s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-save)) .lucide-save,
+[role='button']:not([aria-disabled='true']):hover:not(:has(button .lucide-save)) .lucide-save,
+[role='menuitem']:not([data-disabled]):hover .lucide-save {
+  animation: saveDiskInsert 0.7s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-x)) .lucide-x,
+[role='button']:not([aria-disabled='true']):hover:not(:has(button .lucide-x)) .lucide-x,
+[role='menuitem']:not([data-disabled]):hover .lucide-x {
+  animation: cancelWiggle 0.55s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-eye, .lucide-eye-off))) :is(.lucide-eye, .lucide-eye-off),
+[role='button']:not([aria-disabled='true']):hover:not(:has(button :is(.lucide-eye, .lucide-eye-off))) :is(.lucide-eye, .lucide-eye-off),
+[role='menuitem']:not([data-disabled]):hover :is(.lucide-eye, .lucide-eye-off) {
+  animation: eyeBlink 1.8s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-copy, .lucide-copy-plus))) :is(.lucide-copy, .lucide-copy-plus) > rect,
+[role='button']:not([aria-disabled='true']):hover:not(:has(button :is(.lucide-copy, .lucide-copy-plus))) :is(.lucide-copy, .lucide-copy-plus) > rect,
+[role='menuitem']:not([data-disabled]):hover :is(.lucide-copy, .lucide-copy-plus) > rect {
+  fill: currentColor;
+  animation: copyFrontSwap 2.4s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-copy, .lucide-copy-plus))) :is(.lucide-copy, .lucide-copy-plus) > path,
+[role='button']:not([aria-disabled='true']):hover:not(:has(button :is(.lucide-copy, .lucide-copy-plus))) :is(.lucide-copy, .lucide-copy-plus) > path,
+[role='menuitem']:not([data-disabled]):hover :is(.lucide-copy, .lucide-copy-plus) > path {
+  fill: currentColor;
+  animation: copyBackSwap 2.4s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-copy, .lucide-copy-plus))) :is(.lucide-copy, .lucide-copy-plus) > line,
+[role='button']:not([aria-disabled='true']):hover:not(:has(button :is(.lucide-copy, .lucide-copy-plus))) :is(.lucide-copy, .lucide-copy-plus) > line,
+[role='menuitem']:not([data-disabled]):hover :is(.lucide-copy, .lucide-copy-plus) > line {
+  animation: copyMarkSwap 2.4s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-pen, .lucide-pencil))) :is(.lucide-pen, .lucide-pencil),
+[role='button']:not([aria-disabled='true']):hover:not(:has(button :is(.lucide-pen, .lucide-pencil))) :is(.lucide-pen, .lucide-pencil),
+[role='menuitem']:not([data-disabled]):hover :is(.lucide-pen, .lucide-pencil) {
+  animation: editWrite 0.65s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-trash-2)) .lucide-trash-2,
+[role='button']:not([aria-disabled='true']):hover:not(:has(button .lucide-trash-2)) .lucide-trash-2,
+[role='menuitem']:not([data-disabled]):hover .lucide-trash-2 {
+  animation: trashShake 0.55s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-arrow-up, .lucide-chevron-up))) :is(.lucide-arrow-up, .lucide-chevron-up),
+[role='button']:not([aria-disabled='true']):hover:not(:has(button :is(.lucide-arrow-up, .lucide-chevron-up))) :is(.lucide-arrow-up, .lucide-chevron-up),
+[role='menuitem']:not([data-disabled]):hover :is(.lucide-arrow-up, .lucide-chevron-up) {
+  animation: arrowUpPulse 0.8s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-arrow-down, .lucide-chevron-down))) :is(.lucide-arrow-down, .lucide-chevron-down),
+[role='button']:not([aria-disabled='true']):hover:not(:has(button :is(.lucide-arrow-down, .lucide-chevron-down))) :is(.lucide-arrow-down, .lucide-chevron-down),
+[role='menuitem']:not([data-disabled]):hover :is(.lucide-arrow-down, .lucide-chevron-down) {
+  animation: arrowDownPulse 0.8s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-chevron-left, .lucide-chevron-right, .lucide-arrow-left, .lucide-arrow-right, .lucide-archive, .lucide-rotate-ccw))) :is(.lucide-chevron-left, .lucide-chevron-right, .lucide-arrow-left, .lucide-arrow-right, .lucide-archive, .lucide-rotate-ccw),
+[role='button']:not([aria-disabled='true']):hover:not(:has(button :is(.lucide-chevron-left, .lucide-chevron-right, .lucide-arrow-left, .lucide-arrow-right, .lucide-archive, .lucide-rotate-ccw))) :is(.lucide-chevron-left, .lucide-chevron-right, .lucide-arrow-left, .lucide-arrow-right, .lucide-archive, .lucide-rotate-ccw),
+[role='menuitem']:not([data-disabled]):hover :is(.lucide-chevron-left, .lucide-chevron-right) {
+  animation: locationArrowPulse 0.8s ease-in-out infinite;
+}
+/* Menu ... (⋮/⋯): un pallino luminoso percorre i3 puntini SENZA muoverli -
+   solo intensita' di luce (opacity). Ciclo a4 step (alto -> centro ->
+   basso -> centro) in 2.4s moderati, poi risale da solo: effetto "un punto
+   di luce che va su e giu". Ogni pallino ha il suo keyframe (il centrale
+   batte due volte a ciclo) e i crossfade ~11% evitano spegnimenti netti.
+   Attenzione: <MoreVertical>/<MoreHorizontal> sono alias di ellipsis-* ->
+   le classi DOM sono lucide-ellipsis-vertical / lucide-ellipsis; nei
+   figli SVG l'ORDINE e' centro, poi primo e ultimo (cy5/cy19, cx19/cx5),
+   quindi il keyframe di ogni pallino va assegnato per posizione reale. */
+@keyframes dotsLightVTop {
+  0%, 14% {
+    opacity: 1;
+  }
+
+  25%, 89% {
+    opacity: 0.3;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes dotsLightVCenter {
+  0%, 14% {
+    opacity: 0.3;
+  }
+
+  25%, 39% {
+    opacity: 1;
+  }
+
+  50%, 64% {
+    opacity: 0.3;
+  }
+
+  75%, 89% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.3;
+  }
+}
+@keyframes dotsLightVBottom {
+  0%, 39% {
+    opacity: 0.3;
+  }
+
+  50%, 64% {
+    opacity: 1;
+  }
+
+  75%, 100% {
+    opacity: 0.3;
+  }
+}
+@keyframes dotsLightHLeft {
+  0%, 14% {
+    opacity: 1;
+  }
+
+  25%, 89% {
+    opacity: 0.3;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes dotsLightHCenter {
+  0%, 14% {
+    opacity: 0.3;
+  }
+
+  25%, 39% {
+    opacity: 1;
+  }
+
+  50%, 64% {
+    opacity: 0.3;
+  }
+
+  75%, 89% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.3;
+  }
+}
+@keyframes dotsLightHRight {
+  0%, 39% {
+    opacity: 0.3;
+  }
+
+  50%, 64% {
+    opacity: 1;
+  }
+
+  75%, 100% {
+    opacity: 0.3;
+  }
+}
+/* UserPlus/UserMinus: il segno + / - (gli ultimi figli) pulsa - scale
+   con transform-box: fill-box per crescere sul proprio centro. */
+@keyframes signPulse {
+  0%, 65%, 100% {
+    transform: scale(1);
+  }
+
+  30% {
+    transform: scale(1.45);
+  }
+}
+/* Sparkles: le scintille lampeggiano a gruppi sfalsati (stella grande
+   a +0.45s, crocetta in alto-dx a 0s, crocetta in basso-sx a +0.9s). */
+@keyframes sparkleTwinkle {
+  0%, 70%, 100% {
+    transform: scale(1);
+  }
+
+  35% {
+    transform: scale(1.55);
+  }
+}
+
+/* Menu ... (⋮/⋯): l'intera animazione vive SOLO dentro l'hover, quindi
+   ogni ingresso del mouse la fa ripartire da t=0 = pallino ALTO acceso,
+   mai da un punto a caso del ciclo. Ogni pallino prende il suo keyframe
+   per POSIZIONE REALE (nth1 = centro, nth2 = alto/destra, nth3 =
+   basso/sinistra - vedi sopra). */
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-ellipsis-vertical)) .lucide-ellipsis-vertical > :nth-child(1),
+[role='button']:not([aria-disabled='true']):hover:not(:has(button .lucide-ellipsis-vertical)) .lucide-ellipsis-vertical > :nth-child(1),
+[role='menuitem']:not([data-disabled]):hover .lucide-ellipsis-vertical > :nth-child(1) {
+  animation: dotsLightVCenter 2.4s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-ellipsis-vertical)) .lucide-ellipsis-vertical > :nth-child(2),
+[role='button']:not([aria-disabled='true']):hover:not(:has(button .lucide-ellipsis-vertical)) .lucide-ellipsis-vertical > :nth-child(2),
+[role='menuitem']:not([data-disabled]):hover .lucide-ellipsis-vertical > :nth-child(2) {
+  animation: dotsLightVTop 2.4s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-ellipsis-vertical)) .lucide-ellipsis-vertical > :nth-child(3),
+[role='button']:not([aria-disabled='true']):hover:not(:has(button .lucide-ellipsis-vertical)) .lucide-ellipsis-vertical > :nth-child(3),
+[role='menuitem']:not([data-disabled]):hover .lucide-ellipsis-vertical > :nth-child(3) {
+  animation: dotsLightVBottom 2.4s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-ellipsis)) .lucide-ellipsis > :nth-child(1),
+[role='button']:not([aria-disabled='true']):hover:not(:has(button .lucide-ellipsis)) .lucide-ellipsis > :nth-child(1),
+[role='menuitem']:not([data-disabled]):hover .lucide-ellipsis > :nth-child(1) {
+  animation: dotsLightHCenter 2.4s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-ellipsis)) .lucide-ellipsis > :nth-child(2),
+[role='button']:not([aria-disabled='true']):hover:not(:has(button .lucide-ellipsis)) .lucide-ellipsis > :nth-child(2),
+[role='menuitem']:not([data-disabled]):hover .lucide-ellipsis > :nth-child(2) {
+  animation: dotsLightHRight 2.4s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-ellipsis)) .lucide-ellipsis > :nth-child(3),
+[role='button']:not([aria-disabled='true']):hover:not(:has(button .lucide-ellipsis)) .lucide-ellipsis > :nth-child(3),
+[role='menuitem']:not([data-disabled]):hover .lucide-ellipsis > :nth-child(3) {
+  animation: dotsLightHLeft 2.4s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-user-plus, .lucide-user-minus))) :is(.lucide-user-plus, .lucide-user-minus) > :nth-child(n+3),
+[role='button']:not([aria-disabled='true']):hover:not(:has(button :is(.lucide-user-plus, .lucide-user-minus))) :is(.lucide-user-plus, .lucide-user-minus) > :nth-child(n+3),
+[role='menuitem']:not([data-disabled]):hover :is(.lucide-user-plus, .lucide-user-minus) > :nth-child(n+3) {
+  animation: signPulse 1.4s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-sparkles)) .lucide-sparkles > *,
+[role='button']:not([aria-disabled='true']):hover:not(:has(button .lucide-sparkles)) .lucide-sparkles > *,
+[role='menuitem']:not([data-disabled]):hover .lucide-sparkles > * {
+  animation: sparkleTwinkle 1.8s ease-in-out infinite;
+}
+/* Sparkles: sfasamento fra i gruppi di scintille - ritardi statici con
+   !important per vincere la shorthand `animation:` (delay incluso) del
+   selettore hover, che ha specificita' piu' alta. */
+.lucide-sparkles > :nth-child(1) {
+  animation-delay: 0.45s !important;
+}
+.lucide-sparkles > :nth-child(2),
+.lucide-sparkles > :nth-child(3) {
+  animation-delay: 0s !important;
+}
+.lucide-sparkles > :nth-child(4),
+.lucide-sparkles > :nth-child(5) {
+  animation-delay: 0.9s !important;
+}
+.lucide-sparkles > *,
+.lucide-user-plus > :nth-child(n+3),
+.lucide-user-minus > :nth-child(n+3) {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
 [data-dashboard-palette='cthulhu'] {
   --dash-bg: #0a0a0a;
   --dash-surface: #151313;

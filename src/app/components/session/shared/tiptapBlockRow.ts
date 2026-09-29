@@ -1,7 +1,7 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import { Fragment, type Node as PMNode } from '@tiptap/pm/model';
 import { GapCursor } from '@tiptap/pm/gapcursor';
-import { Selection, type Transaction, TextSelection } from '@tiptap/pm/state';
+import { Plugin, PluginKey, Selection, type EditorState, type Transaction, TextSelection } from '@tiptap/pm/state';
 import type { Editor } from '@tiptap/react';
 
 // Righe di blocchi affiancati (TextBox, Collapse, paragrafi "Testo"): piu'
@@ -79,6 +79,53 @@ function caretIntoRowItem(
   tr.setSelection(Selection.near(resolved, -1));
 }
 
+// Esci dalla riga di elementi sul lato indicato (-1 sopra, +1 sotto): con il
+// sistema dei "+" agli estremi il caret non deve mai restare in testa/fine
+// riga - esce verso il blocco adiacente: paragrafo -> fine/inizio del suo
+// testo, altra riga di elementi -> coda dell'ultimo elemento sopra / testa
+// del primo sotto. null = nessun blocco idoneo da quel lato (il chiamante
+// decide il fallback).
+export function exitRowSelection(state: EditorState, rowPos: number, dir: -1 | 1): Selection | null {
+  const $row = state.doc.resolve(rowPos);
+  const parent = $row.parent;
+  const neighborIndex = $row.index() + dir;
+  if (neighborIndex < 0 || neighborIndex >= parent.childCount) return null;
+  let off = $row.start();
+  for (let k = 0; k < neighborIndex; k += 1) off += parent.child(k).nodeSize;
+  const neighbor = parent.child(neighborIndex);
+  if (neighbor.type.name !== 'paragraph' && neighbor.type.name !== 'blockRow') return null;
+  const target = dir < 0 ? off + neighbor.nodeSize - 1 : off + 1;
+  return Selection.near(state.doc.resolve(target), dir < 0 ? -1 : 1);
+}
+
+function exitRowTo(editor: Editor, rowPos: number, dir: -1 | 1): boolean {
+  const sel = exitRowSelection(editor.state, rowPos, dir);
+  if (!sel) return false;
+  editor.view.dispatch(editor.state.tr.setSelection(sel));
+  return true;
+}
+
+// Punto di scrittura finale: se l'ultimo blocco della nota e' una riga di
+// elementi, in coda c'e' SEMPRE un paragrafo vuoto dove scrivere sotto
+// l'ultima riga (senza, non c'e' dove atterrare con click/frecce e il caret
+// finiva risucchiato dentro l'ultima riga). Idempotente: appena il paragrafo
+// c'e' non tocca piu' nulla; se l'utente lo cancella torna subito. Una
+// fabbrica per editor, cosi' ogni view ha la sua istanza di plugin.
+export function createBlockRowTrailingParagraphPlugin(): Plugin {
+  return new Plugin({
+    key: new PluginKey('blockRowTrailingParagraph'),
+    appendTransaction: (transactions, _oldState, newState) => {
+      if (!transactions.some((transaction) => transaction.docChanged)) return null;
+      const last = newState.doc.lastChild;
+      if (!last || last.type.name !== 'blockRow') return null;
+      return newState.tr.insert(
+        newState.doc.content.size,
+        newState.schema.nodes.paragraph.create(),
+      );
+    },
+  });
+}
+
 export const BlockRow = Node.create({
   name: 'blockRow',
   group: 'block',
@@ -91,6 +138,10 @@ export const BlockRow = Node.create({
   },
   renderHTML({ HTMLAttributes }) {
     return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'block-row', class: 'tiptap-row' }), 0];
+  },
+
+  addProseMirrorPlugins() {
+    return [createBlockRowTrailingParagraphPlugin()];
   },
 
   addCommands() {
@@ -174,16 +225,15 @@ export const BlockRow = Node.create({
   // un elemento vuoto da riempire subito dopo, col caret gia' dentro).
   onTransaction({ editor, transaction }: { editor: Editor; transaction: Transaction }) {
     const { state } = editor;
-    // Niente caret nei gap di riga: il testo in riga nasce SOLO dal "+"
+    // Niente caret ai margini della riga: il testo in riga nasce SOLO dal "+"
     // (Testo a inizio/fine riga, poi eventuali altri elementi sempre col "+").
     // Qualunque caret nel gap diretto della riga — TextSelection da mouse/drop
     // o GapCursor del plugin GapCursor che cattura frecce e click ai bordi —
-    // viene spostato nel vicino (seguente, o precedente se ultimo gap): il
-    // browser lo disegnerebbe in alto e la scrittura lì confonde.
+    // viene sistemato: nei gap interni nel vicino elemento (tra un elemento ed
+    // un altro), agli estremi esce nella riga di testo adiacente. Il browser lo
+    // disegnerebbe in alto e la scrittura lì confonde.
     // Solo caret collassato, mai in composizione IME. Le GapCursor delle
     // tabelle non arrivano qui (parent diverso da blockRow).
-    // La materializzazione resta SOLO tra le righe (sotto): serve a Up/Down
-    // per dare una vera riga di testo dove scrivere tra le righe.
     if (
       !editor.view.composing &&
       !transaction.getMeta('blockRowNudge') &&
@@ -200,9 +250,16 @@ export const BlockRow = Node.create({
         const idx = $from.index(rowDepth);
         const pick = idx < row.childCount ? idx : idx - 1;
         if (pick >= 0 && pick < row.childCount) {
+          const atEnd = pick !== idx;
+          const isHead = !atEnd && idx === 0;
+          const isTail = atEnd && idx === row.childCount;
+          // Estremi di riga (gap iniziale/finali): il caret non entra in
+          // testa/fine riga (ci pensano i "+") ma esce sul lato corrispondente,
+          // nella riga di testo adiacente (sotto e' SEMPRE presente il
+          // paragrafo di coda garantito da blockRowTrailingParagraph).
+          if ((isHead || isTail) && exitRowTo(editor, rowPos, isHead ? -1 : 1)) return;
           let off = rowPos + 1;
           for (let k = 0; k < pick; k += 1) off += row.child(k).nodeSize;
-          const atEnd = pick !== idx;
           const target = atEnd ? off + row.child(pick).nodeSize - 1 : off + 1;
           const nudge = state.tr.setSelection(Selection.near(state.doc.resolve(target), atEnd ? -1 : 1));
           nudge.setMeta('blockRowNudge', true);
@@ -296,8 +353,12 @@ function moveAcrossRowItems(editor: Editor, dir: 1 | -1): boolean {
     return true;
   };
   // Caret già nel gap diretto della riga: mai restarci, vai nel vicino.
+  // Agli estremi invece si esce dalla riga (i "+" gestiscono l'inserimento
+  // in testa/fine): verso il paragrafo adiacente, o l'altra riga più vicina.
   if ($from.parent.type.name === 'blockRow') {
     const idx = $from.index(rowDepth);
+    if (dir > 0 && idx >= row.childCount && exitRowTo(editor, rowPos, 1)) return true;
+    if (dir < 0 && idx === 0 && exitRowTo(editor, rowPos, -1)) return true;
     return jumpInto(dir > 0 ? idx : idx - 1, dir < 0);
   }
   let childIndex = -1;
@@ -364,32 +425,25 @@ function moveOutOfRowVertical(editor: Editor, dir: -1 | 1): boolean {
     if (!inGap && state.doc.textBetween(childStart + 1, $from.pos, undefined, '').length > 0) return false;
     if (rowIndex <= 0) return false;
     const prev = parent.child(rowIndex - 1);
+    if (prev.type.name !== 'paragraph' && prev.type.name !== 'blockRow') return false;
+    // Sopra: paragrafo -> coda del suo testo; altra riga di elementi -> coda
+    // del suo ultimo elemento. Niente GapCursor di attesa al confine: con i
+    // "+" agli estremi il caret esce e basta (stessa espressione per entrambi:
+    // near-backward dalla fine della riga corrente).
     const tr = state.tr;
-    if (prev.type.name === 'paragraph') {
-      tr.setSelection(Selection.near(state.doc.resolve(rowPos - 1), -1));
-    } else {
-      // Niente riga auto-creata: GapCursor visibile al confine, in attesa.
-      // Un TextSelection lì il browser non lo disegna (resta il caret
-      // dentro l'elemento); il GapCursor invece ha il suo widget
-      // lampeggiante. La riga nasce solo scrivendo o con Invio.
-      const $gap = state.doc.resolve(rowPos);
-      if (!(GapCursor as unknown as { valid: ($pos: unknown) => boolean }).valid($gap)) return false;
-      tr.setSelection(new GapCursor($gap));
-    }
+    tr.setSelection(Selection.near(state.doc.resolve(rowPos - 1), -1));
     view.dispatch(tr);
     return true;
   }
   if (!inGap && state.doc.textBetween($from.pos, childEnd - 1, undefined, '').length > 0) return false;
   if (rowIndex >= parent.childCount - 1) return false;
   const next = parent.child(rowIndex + 1);
+  if (next.type.name !== 'paragraph' && next.type.name !== 'blockRow') return false;
+  // Sotto: paragrafo -> inizio del suo testo (sotto l'ultima riga e' SEMPRE
+  // presente il paragrafo di coda, garantito da blockRowTrailingParagraph);
+  // altra riga di elementi -> testa del suo primo elemento.
   const tr = state.tr;
-  if (next.type.name === 'paragraph') {
-    tr.setSelection(Selection.near(state.doc.resolve(rowEnd), 1));
-  } else {
-    const $gap = state.doc.resolve(rowEnd);
-    if (!(GapCursor as unknown as { valid: ($pos: unknown) => boolean }).valid($gap)) return false;
-    tr.setSelection(new GapCursor($gap));
-  }
+  tr.setSelection(Selection.near(state.doc.resolve(rowEnd), 1));
   view.dispatch(tr);
   return true;
 }

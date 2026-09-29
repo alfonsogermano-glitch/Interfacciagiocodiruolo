@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreVertical, Plus, Pencil, EyeOff, Eye, Trash2, Copy, Lock, AlertTriangle } from 'lucide-react';
+import { MoreVertical, Plus, Pencil, EyeOff, Eye, Trash2, Lock, AlertTriangle } from 'lucide-react';
+import { Copy } from '@/app/components/IconeCopia';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { usePortalContainer } from '../../ui/portal-container';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
@@ -184,6 +185,7 @@ export function EntityTabBar({
                     <button
                       data-no-drag
                       data-menu-dots="true"
+                      aria-expanded={openMenuTabId === tab.id}
                       onClick={(e) => {
                         e.stopPropagation();
                         const rect = e.currentTarget.getBoundingClientRect();
@@ -213,7 +215,7 @@ export function EntityTabBar({
             <div
               key={tab.id}
               data-tab-unit="true"
-              className={`flex items-center gap-2 ${withPlus ? 'shrink-0' : ''}`}
+              className={`group flex items-center gap-2 ${withPlus ? 'shrink-0' : ''}`}
             >
               {tabElement}
               {withPlus && draggedTabId && dragOverId === 'END' && (

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type * as React from 'react';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
-import { ArrowLeft, Clipboard, Copy, GripVertical, Maximize2, Minimize2, Pencil, Save, Trash2, Wrench, X } from 'lucide-react';
+import { ArrowLeft, Clipboard, GripVertical, Maximize2, Minimize2, Pencil, Save, Trash2, Wrench, X } from 'lucide-react';
+import { Copy } from '@/app/components/IconeCopia';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import { usePortalContainer } from '../../ui/portal-container';
 import { useAuth } from '../../../auth/AuthContext';

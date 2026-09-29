@@ -6,13 +6,13 @@ import {
   BetweenHorizontalStart,
   BetweenVerticalEnd,
   BetweenVerticalStart,
-  Copy,
   Eye,
   EyeOff,
   PanelLeft,
   PanelTop,
   Trash2,
 } from 'lucide-react';
+import { Copy } from '@/app/components/IconeCopia';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 import { usePortalContainer } from '../../ui/portal-container';
 import { findActiveTable, type ActiveNoteTable } from './tiptapNoteTable';

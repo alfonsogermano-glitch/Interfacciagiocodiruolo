@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, FolderPlus } from 'lucide-react';
-import { Copy, UserMinus, UserX, Eye, EyeOff, Search, Trash2 } from 'lucide-react';
+import { Copy } from '@/app/components/IconeCopia';
+import { UserMinus, UserX, Eye, EyeOff, Search, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { SectionHeader } from './shared/SectionHeader';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Pencil, EyeOff, Eye, Trash2, Copy, FolderInput, Lock, Globe, Shapes } from 'lucide-react';
+import { Pencil, EyeOff, Eye, Trash2, FolderInput, Lock, Globe, Shapes } from 'lucide-react';
+import { Copy } from '@/app/components/IconeCopia';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { usePortalContainer } from '../../ui/portal-container';
 import { useAuth } from '../../../auth/AuthContext';
@@ -194,7 +195,7 @@ export function NoteListRow({ note, tabs, canEdit, isGm, folders, colors, isSele
         <div data-no-drag>
           <EntityKebabMenu
             colors={colors}
-            buttonClassName="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]"
+            buttonClassName="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
             items={[
               {
                 key: 'rename',

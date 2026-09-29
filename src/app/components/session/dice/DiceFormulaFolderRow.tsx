@@ -73,7 +73,7 @@ export function DiceFormulaFolderRow({
         onPointerDownCapture={handlePointerDownCapture}
         onDragStart={handleDragStart}
         onDragEnd={onDragEnd}
-        className="flex min-h-12 items-center rounded-xl border border-[var(--dash-border)] bg-[var(--dash-surface)] transition-colors hover:border-[var(--dash-border-soft)]"
+        className="group flex min-h-12 items-center rounded-xl border border-[var(--dash-border)] bg-[var(--dash-surface)] transition-colors hover:border-[var(--dash-border-soft)]"
       >
         <button
           type="button"
@@ -100,7 +100,7 @@ export function DiceFormulaFolderRow({
                 type="button"
                 aria-label="Menu cartella"
                 data-menu-dots="true"
-                className="rounded-md p-2 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
+                className="rounded-md p-2 text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text)]"
               >
                 <MoreVertical className="h-4 w-4" />
               </button>

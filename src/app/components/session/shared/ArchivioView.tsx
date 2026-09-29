@@ -11,7 +11,6 @@ import {
   ArrowUp,
   Clipboard,
   Cog,
-  Copy,
   Dices,
   Eye,
   EyeOff,
@@ -23,6 +22,7 @@ import {
   Trash2,
   Type,
 } from 'lucide-react';
+import { Copy } from '@/app/components/IconeCopia';
 import {
   ARCHIVIO_CELL_MIN_WIDTH,
   ARCHIVIO_DEFAULT_COLUMN_WIDTH,
@@ -104,15 +104,15 @@ function TriggerButton({
   onOpen,
   children,
   className = '',
-  plain = false,
+  cell = false,
 }: {
   label: string;
   onOpen: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   children: ReactNode;
   className?: string;
-  /** Niente riquadro di sfondo in hover: nelle celle Dado il trigger sta sopra
-   *  la formula e un bg pieno coprirebbe il bordo delle pill "Nome". */
-  plain?: boolean;
+  /** Trigger di una cella/th Archivio: visibile solo con la cella attiva
+   *  (freccia sulla cella o caret dentro), mai per l'hover della nota. */
+  cell?: boolean;
 }) {
   return (
     <button
@@ -121,6 +121,7 @@ function TriggerButton({
       aria-label={label}
       data-archivio-trigger="true"
       data-menu-dots="true"
+      data-menu-dots-cell={cell ? 'true' : undefined}
       onMouseDown={(event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -129,7 +130,7 @@ function TriggerButton({
         event.stopPropagation();
         onOpen(event);
       }}
-      className={`inline-flex shrink-0 items-center justify-center rounded-md p-1 text-[var(--dash-muted)] transition-colors duration-[var(--note-ui-duration)] ${plain ? '' : 'hover:bg-[var(--dash-surface-2)]'} hover:text-[var(--dash-text)] ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-md p-1 text-[var(--dash-muted)] transition-colors duration-[var(--note-ui-duration)] hover:text-[var(--dash-text)] ${className}`}
     >
       {children}
     </button>
@@ -149,7 +150,8 @@ const HOVER_DOTS =
 // arrotondata della cella) e z-[2] gli da' la precedenza di selezione sulle
 // pill "Nome" della formula (z-[1]) che arrivano al bordo - la pill ha un'ampia
 // zona cliccabile, i puntini no, quindi quando si sovrappongono devono vincere
-// loro. Con plain non hanno sfondo: un bg pieno coprirebbe il bordo della pill.
+// loro. I trigger ⋮ non hanno sfondo in hover (regola del sito): un bg
+// qui coprirebbe il bordo della pill.
 const HOVER_DOTS_TOP =
   'absolute right-1 top-1 z-[2] opacity-0 transition-opacity duration-[var(--note-ui-duration)] pointer-events-none group-hover/cell:pointer-events-auto group-hover/cell:opacity-100 group-focus-within/cell:pointer-events-auto group-focus-within/cell:opacity-100 focus-visible:opacity-100';
 
@@ -650,7 +652,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
           }}
           aria-label={rollLabel}
           title={rollLabel}
-          className="relative flex min-h-8 w-full min-w-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-2 py-1 font-mono text-xs font-semibold text-[var(--dash-text)] transition-colors duration-[var(--note-ui-duration)] hover:border-[var(--dash-accent)] hover:bg-[var(--dash-surface)] hover:text-[var(--dash-text-strong)] overflow-hidden"
+              className="relative flex min-h-7 w-full min-w-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-2 py-0.5 font-mono text-xs font-semibold text-[var(--dash-text)] transition-colors duration-[var(--note-ui-duration)] hover:border-[var(--dash-accent)] hover:bg-[var(--dash-surface)] hover:text-[var(--dash-text-strong)] overflow-hidden"
         >
           <Dices
             aria-hidden="true"
@@ -658,10 +660,10 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
           />
           {cell.mode === 'custom' && cell.customDie ? (
             <span className="relative z-[1] flex items-center justify-center gap-1.5">
-              {/* Quantita' grande quanto il dado custom (shell compact h-8 =
-                  2rem): faceOffsetY nullo per tenere la faccia al centro. */}
-              <span className="text-[2rem] font-bold leading-none">{cell.quantity}</span>
-              <CustomDieLibraryIcon die={cell.customDie} size="compact" />
+              {/* Quantita' grande quanto il dado custom (shell mini h-6 =
+                  24px): faceOffsetY nullo per tenere la faccia al centro. */}
+              <span className="text-2xl font-bold leading-none">{cell.quantity}</span>
+              <CustomDieLibraryIcon die={cell.customDie} size="mini" />
             </span>
           ) : (
             <DiceFormulaText
@@ -796,7 +798,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
         contentEditable={false}
         className="overflow-hidden rounded-[var(--note-block-radius)] border border-[var(--dash-border-soft)] bg-[var(--dash-panel)]"
       >
-        <div className="flex items-center justify-between gap-2 px-[var(--note-block-padding-x)] py-[var(--note-block-padding-y)]">
+        <div className="flex items-center justify-between gap-2 px-[var(--note-block-padding-x)] py-1">
           <div className="min-w-0 flex-1">
             {titleVisible ? (
               <input
@@ -813,7 +815,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
               />
             ) : null}
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="group flex shrink-0 items-center gap-1">
             <TriggerButton label="Aggiungi riga" onOpen={() => addRow(null, rows.length)}>
               <Plus className="h-4 w-4" aria-hidden="true" />
             </TriggerButton>
@@ -843,7 +845,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
           )}
         </div>
 
-        <div className="tiptap-archivio-scroll overflow-x-auto px-2 pb-2">
+        <div className="tiptap-archivio-scroll overflow-x-auto px-2 pb-1">
           <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
             <colgroup>
               {columns.map((column) => (
@@ -855,7 +857,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                 {columns.map((column, colIndex) => (
                   <th
                     key={column.id}
-                    className="group/cell relative border-b border-[var(--dash-border-soft)] px-[var(--note-cell-padding-x)] py-[var(--note-cell-padding-y)] text-left align-middle"
+                    className="group/cell relative border-b border-[var(--dash-border-soft)] px-[var(--note-cell-padding-x)] py-1 text-left align-middle"
                   >
                     <span className="relative flex min-w-0 items-center gap-1">
                       {renamingColumn === column.id ? (
@@ -886,6 +888,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                       )}
                       <TriggerButton
                         label={`Menu colonna ${column.label}`}
+                        cell={true}
                         className={HOVER_DOTS}
                         onOpen={(event) => {
                           if (menu?.scope === 'column' && menu.col === colIndex) closeMenu();
@@ -915,7 +918,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
               {rows.map((row, rowIndex) => (
                 <tr key={row.id} className="border-b border-[var(--dash-border-soft)] last:border-b-0">
                   {row.cells.map((cell, colIndex) => (
-                    <td key={cell.id} className="group/cell relative px-[var(--note-cell-padding-x)] py-[var(--note-cell-padding-y)] align-middle">
+                    <td key={cell.id} className="group/cell relative px-[var(--note-cell-padding-x)] py-1 align-middle">
                       {colIndex === 0 ? (
                         <span className="relative flex min-w-0 items-center gap-1">
                           <span className="flex min-w-0 flex-1 items-center">
@@ -923,6 +926,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                           </span>
                           <TriggerButton
                             label={`Menu riga ${rowIndex + 1}`}
+                            cell={true}
                             className={HOVER_DOTS}
                             onOpen={(event) => {
                               if (menu?.scope === 'row' && menu.row === rowIndex) closeMenu();
@@ -967,7 +971,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                           </span>
                           <TriggerButton
                             label={`Menu cella ${columnLabel(columns[colIndex])} riga ${rowIndex + 1}`}
-                            plain={cell.kind === 'dice'}
+                            cell={true}
                             className={cell.kind === 'dice' ? HOVER_DOTS_TOP : HOVER_DOTS}
                             onOpen={(event) => {
                               if (menu?.scope === 'cell' && menu.row === rowIndex && menu.col === colIndex) closeMenu();

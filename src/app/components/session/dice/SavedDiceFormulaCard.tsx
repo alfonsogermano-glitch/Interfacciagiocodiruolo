@@ -1,5 +1,6 @@
 import { useRef, useState, type DragEvent, type PointerEvent } from 'react';
-import { Copy, Dices, Eye, EyeOff, MoreVertical, Pencil, Shapes, Trash2 } from 'lucide-react';
+import { Dices, Eye, EyeOff, MoreVertical, Pencil, Shapes, Trash2 } from 'lucide-react';
+import { Copy } from '@/app/components/IconeCopia';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -72,7 +73,7 @@ export function SavedDiceFormulaCard({
         onPointerDownCapture={handlePointerDownCapture}
         onDragStart={handleDragStart}
         onDragEnd={onDragEnd}
-        className="flex items-stretch overflow-hidden caret-transparent rounded-xl border border-[var(--dash-border)] bg-[var(--dash-surface)] transition-colors hover:border-[var(--dash-border-soft)]"
+        className="group flex items-stretch overflow-hidden caret-transparent rounded-xl border border-[var(--dash-border)] bg-[var(--dash-surface)] transition-colors hover:border-[var(--dash-border-soft)]"
       >
         <button
           type="button"
@@ -112,7 +113,7 @@ export function SavedDiceFormulaCard({
                 type="button"
                 aria-label="Menu formula"
                 data-menu-dots="true"
-                className="rounded-md p-2 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
+                className="rounded-md p-2 text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text)]"
               >
                 <MoreVertical className="h-4 w-4" />
               </button>

@@ -74,7 +74,7 @@ export function EntityKebabMenu({
   items,
   colors,
   footer,
-  buttonClassName = 'flex h-8 w-8 items-center justify-center rounded-lg text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]',
+  buttonClassName = 'flex h-8 w-8 items-center justify-center rounded-lg text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]',
   menuWidthClassName = 'w-60',
   menuWidthPx = 240,
   boundaryElement = null,
@@ -163,6 +163,7 @@ export function EntityKebabMenu({
       <button
         type="button"
         data-menu-dots="true"
+        aria-expanded={open}
         ref={buttonRef}
         onClick={(e) => {
           e.stopPropagation();

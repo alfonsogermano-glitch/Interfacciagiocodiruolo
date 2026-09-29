@@ -99,7 +99,7 @@ export function DiceQuickRollFloating() {
 
               <Popover open={selector} onOpenChange={setSelector}>
                 <PopoverTrigger asChild>
-                  <button data-dice-custom-toolbar type="button" className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-[var(--dash-border)] bg-[var(--dash-surface)] text-[var(--dash-accent)] hover:border-[var(--dash-accent)] disabled:cursor-wait disabled:opacity-50">
+                  <button data-dice-custom-toolbar type="button" className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-[var(--dash-border)] bg-[var(--dash-surface)] text-[var(--dash-accent)] hover:border-[var(--dash-accent)] disabled:cursor-wait! disabled:opacity-50">
                     <CustomDiceQuestionIcon className="h-9 w-9" />
                   </button>
                 </PopoverTrigger>
@@ -109,12 +109,12 @@ export function DiceQuickRollFloating() {
                       {customDice.map((die) => (
                         <Tooltip key={die.id}>
                           <TooltipTrigger asChild>
-                            <button type="button" aria-label={`${die.name} · d${die.sides}`} onClick={() => { setEntries((value) => addCustomQuickDie(value, die.id, die.quickRollQuantity)); }} className={`relative flex ${die.sides === 100 ? 'h-[4.5rem]' : 'h-9'} w-9 items-center justify-center rounded-md hover:bg-[var(--dash-surface-2)]`}>
+                            <button type="button" aria-label={`${die.name} Â· d${die.sides}`} onClick={() => { setEntries((value) => addCustomQuickDie(value, die.id, die.quickRollQuantity)); }} className={`relative flex ${die.sides === 100 ? 'h-[4.5rem]' : 'h-9'} w-9 items-center justify-center rounded-md hover:bg-[var(--dash-surface-2)]`}>
                               <CustomDieLibraryIcon die={die} size="compact" framedPair={die.sides === 100} />
                               {customQty(die.id) > 0 && <span className="absolute -right-1 -top-1 z-20 rounded-full bg-[var(--dash-accent)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--dash-text-strong)]">{customQty(die.id)}</span>}
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent side="top" className="!animate-none">{die.name} · d{die.sides}</TooltipContent>
+                          <TooltipContent side="top" className="!animate-none">{die.name} Â· d{die.sides}</TooltipContent>
                         </Tooltip>
                       ))}
                     </div>

@@ -751,7 +751,7 @@ export function CatalogItemEditorModal({
                   </span>
 
                   {isIconPickerOpen ? (
-                    <ChevronDown className="h-4 w-4 text-[var(--dash-muted)] group-hover:animate-[locationArrowPulse_0.8s_ease-in-out_infinite]" />
+                    <ChevronDown className="h-4 w-4 text-[var(--dash-muted)] group-hover:animate-[arrowDownPulse_0.8s_ease-in-out_infinite]" />
                   ) : (
                     <ChevronRight className="h-4 w-4 text-[var(--dash-muted)] group-hover:animate-[locationArrowPulse_0.8s_ease-in-out_infinite]" />
                   )}
@@ -887,7 +887,7 @@ export function CatalogItemEditorModal({
                     className="group inline-flex items-center gap-2 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-3 py-2 text-xs text-[var(--dash-text-strong)] hover:bg-[var(--dash-surface-2)]"
                   >
                     {isImagePickerOpen ? (
-                      <ChevronDown className="h-4 w-4 group-hover:animate-[locationArrowPulse_0.8s_ease-in-out_infinite]" />
+                      <ChevronDown className="h-4 w-4 group-hover:animate-[arrowDownPulse_0.8s_ease-in-out_infinite]" />
                     ) : (
                       <ChevronRight className="h-4 w-4 group-hover:animate-[locationArrowPulse_0.8s_ease-in-out_infinite]" />
                     )}

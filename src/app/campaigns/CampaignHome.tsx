@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import {
   Play, Square, Loader2, AlertTriangle, Users, Ghost, Skull,
-  KeyRound, Check, MoreVertical, Pencil, Copy, CopyPlus, UserCog, FileDown, Trash2, UserMinus, Undo2,
+  KeyRound, Check, MoreVertical, Pencil, UserCog, FileDown, Trash2, UserMinus, Undo2,
   LayoutGrid, Package,
 } from 'lucide-react';
+import { Copy, CopyPlus } from '@/app/components/IconeCopia';
 import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
 import { useCampaignChannel } from '../../services/realtime/campaignChannel';
@@ -55,7 +56,7 @@ function getCurrentPaletteColors() {
 }
 
 const photoCornerButtonClass =
-  'rounded-lg bg-black/40 p-1 text-white/80 transition-colors hover:bg-black/60 hover:text-white';
+  'rounded-lg p-1 text-white/80 transition-colors hover:text-white';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 const AUTO_CLOSE_AFTER_MS = 60 * 60 * 1000; // 1 ora
@@ -1478,7 +1479,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
             basso rende quel residuo costante indipendentemente dall'altezza
             del contenitore, in entrambi i rami. */}
         {playersLoaded && (
-          <div className="absolute inset-x-0 bottom-2 z-40 grid grid-cols-1 gap-6 px-8 md:grid-cols-[320px_1fr]">
+                <div className="group absolute inset-x-0 bottom-2 z-40 grid grid-cols-1 gap-6 px-8 md:grid-cols-[320px_1fr]">
             <div className="flex flex-col gap-3">
               {isOwner && (
                 <div className="flex gap-2">
@@ -1536,7 +1537,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                     <DropdownMenuTrigger asChild>
                       <button
                         type="button"
-                        className="inline-flex shrink-0 items-center justify-center rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
+                        className="inline-flex shrink-0 items-center justify-center rounded-xl px-2.5 text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text)]"
                         aria-label="Menu campagna"
                         data-menu-dots="true"
                       >

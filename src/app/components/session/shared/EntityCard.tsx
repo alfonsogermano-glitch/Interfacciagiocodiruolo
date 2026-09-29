@@ -68,7 +68,7 @@ export function EntityCard({
     return (
       <div
         onClick={onClick}
-        className={`flex items-center gap-3 rounded-xl border ${shellClass} py-2 pl-2 pr-3 transition-colors hover:border-[var(--dash-accent)] ${
+        className={`group flex items-center gap-3 rounded-xl border ${shellClass} py-2 pl-2 pr-3 transition-colors hover:border-[var(--dash-accent)] ${
           onClick ? 'cursor-pointer' : ''
         }`}
       >
@@ -136,7 +136,7 @@ export function EntityCard({
   return (
     <div
       onClick={onClick}
-      className={`relative flex items-stretch overflow-hidden rounded-2xl border ${shellClass} transition-colors hover:border-[var(--dash-accent)] ${
+      className={`group relative flex items-stretch overflow-hidden rounded-2xl border ${shellClass} transition-colors hover:border-[var(--dash-accent)] ${
         onClick ? 'cursor-pointer' : ''
       }`}
     >

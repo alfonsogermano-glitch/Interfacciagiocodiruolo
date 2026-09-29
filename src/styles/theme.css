@@ -714,8 +714,8 @@
    passa dalla colonna di testo alla barra. Reset esplicito a default su
    tutta la barra e i suoi discendenti (icone SVG comprese), poi pointer
    solo sui controlli davvero cliccabili (bottoni/select non disabilitati) -
-   quelli disabilitati (vedi cursor-not-allowed in ToolbarButton/
-   FontSizeSelect) restano con la freccia normale, non pointer. */
+   quelli disabilitati mostrano il simbolo di divieto (regola universale
+   button:disabled più sotto), mai pointer. */
 .tiptap-toolbar,
 .tiptap-toolbar * {
   cursor: default;
@@ -873,6 +873,52 @@
 .tiptap-inline-modifier-menu-trigger,
 .tiptap-inline-points-menu-trigger {
   cursor: default !important;
+}
+
+/* Menu ⋮ a tre puntini: nessuna cornice (niente bordo ne sfondo proprio)
+   e visibilita' solo quando l'elemento viene evidenziato: hover/focus del
+   contenitore .group, hover diretto di fallback, focus da tastiera, menù
+   aperto (aria-expanded). Su dispositivi touch (media hover:none, nessun
+   puntatore) resta sempre visibile. I trigger inline della nota hanno gia'
+   il loro sistema JS (mouseenter sull'elemento) e non sono marcati.
+   Eccezione Archivio (data-menu-dots-cell): i trigger delle celle sono
+   esclusi dall'hover/focus della NOTA (con il focus ovunque nell'editor
+   si accendevano tutti insieme) e si accendono SOLO con la loro cella -
+   .group/cell:hover = freccia del mouse sulla cella, .group/cell:
+   focus-within = caret/selezione dentro la cella - piu' focus tastiera,
+   menù aperto e touch. */
+[data-menu-dots] {
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+.group:hover [data-menu-dots]:not([data-menu-dots-cell]),
+.group:focus-within [data-menu-dots]:not([data-menu-dots-cell]),
+[data-menu-dots]:not([data-menu-dots-cell]):hover,
+.group\/cell:hover [data-menu-dots],
+.group\/cell:focus-within [data-menu-dots],
+[data-menu-dots]:focus-visible,
+[data-menu-dots][aria-expanded='true'] {
+  opacity: 1;
+}
+@media (hover: none) {
+  [data-menu-dots] {
+    opacity: 1;
+  }
+}
+
+/* Pulsanti disabilitati: regola universale del sito - oltre agli effetti
+   grafici (opacity) il cursore diventa il simbolo di divieto, su TUTTI i
+   controlli non selezionabili (disabled nativo e aria-disabled). !important
+   batte il cursor-pointer ereditato dalle card e gli inline style
+   cursor:'pointer'; le eccezioni volute (attesa di caricamento) usano la
+   variante Tailwind "!" (es. disabled:cursor-wait!). La specificita vince
+   anche su [data-menu-dots] per gli trigger spenti. */
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed !important;
 }
 
 /* Note tables */

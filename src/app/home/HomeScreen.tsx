@@ -1,7 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
   Check,
-  Copy,
   DoorOpen,
   KeyRound,
   Loader2,
@@ -12,6 +11,7 @@ import {
   X,
   Zap,
 } from 'lucide-react';
+import { Copy } from '@/app/components/IconeCopia';
 import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from '../campaigns/CampaignContext';
 import { CampaignForm } from '../campaigns/CampaignSelector';
