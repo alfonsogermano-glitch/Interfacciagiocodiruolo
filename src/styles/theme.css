@@ -662,6 +662,73 @@
   align-self: center;
   flex: 0 1 auto;
 }
+/* I Punti sono un box "a larghezza adattabile": quando stanno da soli nel
+   paragrafo (data-points-fills, valutato dal widget alla costruzione) il
+   paragrafo partecipa alla divisione equa dello spazio di riga insieme a Box
+   e Collapse, come chiesto dalla regola fissa — un elemento senza larghezza
+   propria si divide il resto in parti uguali. Restano a larghezza propria
+   (hug, regola sopra) gli elementi il cui ingombro è dettato da variabili:
+   Dado e Modificatore, la cui larghezza segue nome/formula, e i Punti
+   affiancati a testo o box (larghezza nominale + makeRoom). */
+.tiptap-row > p:has(.tiptap-inline-points-widget[data-points-fills]) {
+  flex: 1 1 0;
+  align-self: stretch;
+  /* Il paragrafo diventa il frame del box: il widget riempie anche
+     l'altezza, cosi' il rettangolo Punti combacia con quello della
+     TextBox affiancata invece di restare piu' basso con vuoto sotto. */
+  display: flex;
+}
+.tiptap-row > p:has(.tiptap-inline-points-widget[data-points-fills]) > span[data-inline-points] {
+  /* Il mark span (renderHTML del mark) avvolge widget + ZWSP ed e' il
+     vero figlio flex del paragrafo. Senza questa regola, dopo il rebuild
+     del widget (modifica Punti dal menu, es. togliere il massimo) si
+     rimpicciolisce al contenuto e lascia spazio morto fra Punti e la
+     TextBox affiancata invece di restare nel frame. */
+  flex: 1 1 0;
+}
+.tiptap-row > p:has(.tiptap-inline-points-widget[data-points-fills]) > .tiptap-inline-points-widget {
+  /* Stira l'altezza (figlio di flex) e distribuisce header/barra/numeri
+     nello spazio extra; senza spazio extra non cambia nulla. */
+  justify-content: space-between;
+}
+/* Il Dado in riga deve avere l'ALTEZZA dell'elemento accanto (feedback
+   2026-10-03: il box Dado risultava piu' basso della TextBox affiancata).
+   Stesso principio dei Punti fills per la sola altezza: il paragrafo fa da
+   frame verticale (align-self stretch, altezza della riga) e il widget
+   riempie quell'altezza. La LARGHEZZA resta a contenuto (regola hug di
+   Dado/Modificatore sopra): solo align-self, niente flex o quota. */
+.tiptap-row > p:has(.tiptap-inline-dice-widget) {
+  align-self: stretch;
+}
+.tiptap-row > p:has(.tiptap-inline-dice-widget) .tiptap-inline-dice-widget {
+  height: 100%;
+}
+/* Collapse in riga dentro il wrapper React del node view (figlio diretto
+   della riga e' .react-renderer.node-collapseBlock, non .tiptap-collapse):
+   il margin-bottom del blocco resta altrimenti dentro il wrapper (8px di
+   spazio morto sotto il box visivo) e il box non riempie l'altezza della
+   riga, quindi il Dado affiancato - che invece riempie - risultava piu'
+   alto del Collapse (feedback 2026-10-03). height:100% (wrapper a altezza
+   definita perche' e' figlio stretch della riga) tiene i due box della
+   stessa altezza sia a collapse chiuso sia aperto. */
+.tiptap-row > .node-collapseBlock > .tiptap-collapse {
+  margin-bottom: 0;
+  height: 100%;
+  box-sizing: border-box;
+}
+/* Allineamento d'altezza del Dado solo a collapse CHIUSO (feedback
+   2026-10-03): con il Collapse aperto il Dado resta a misura naturale e
+   centrato sul lato (come il testo accanto agli altri box), invece di
+   stirarsi per tutta l'altezza del corpo espanso. */
+.tiptap-row:has(> .node-collapseBlock .tiptap-collapse[data-open='true'])
+  > p:has(.tiptap-inline-dice-widget) {
+  align-self: center;
+}
+.tiptap-row:has(> .node-collapseBlock .tiptap-collapse[data-open='true'])
+  > p:has(.tiptap-inline-dice-widget)
+  .tiptap-inline-dice-widget {
+  height: auto;
+}
 /* Paragrafo vuoto in riga (slot di testo tra due elementi, nato da click nel
    gap o da "+"): senza altezza minima il caret è un trattino invisibile e
    non è cliccabile — con min-height è una vera riga di testo a metà altezza

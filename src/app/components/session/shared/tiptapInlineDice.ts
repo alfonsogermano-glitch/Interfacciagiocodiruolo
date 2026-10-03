@@ -29,6 +29,7 @@ import {
 } from './tiptapInlineModifier';
 import { describeFormulaAnomaly } from './modifierFormula';
 import { buildNoteElementCategoryIcon } from './noteElementCategoryIcon';
+import { deleteInlineBoxAndRowResidue } from './tiptapBlockRow';
 import {
   FORMULA_TAG_CLASS,
   extractModifierRefs,
@@ -348,7 +349,7 @@ export function deleteDiceAt(
 ): boolean {
   const currentMark = getInlineDiceMark(state, pos);
   if (!currentMark) return false;
-  if (dispatch) dispatch(state.tr.delete(pos, pos + 1));
+  if (dispatch) deleteInlineBoxAndRowResidue(state, dispatch, pos);
   return true;
 }
 

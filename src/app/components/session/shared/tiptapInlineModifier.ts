@@ -9,6 +9,7 @@ import {
 } from './tiptapNoteRichClipboard';
 import { describeFormulaAnomaly, extractModifierRefs, isValidModifierFormula, modifierFormulaHasDice, parseModifierValue } from './modifierFormula';
 import { buildNoteElementCategoryIcon } from './noteElementCategoryIcon';
+import { deleteInlineBoxAndRowResidue } from './tiptapBlockRow';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -379,7 +380,7 @@ export function deleteModifierAt(
 ): boolean {
   const currentMark = getInlineModifierMark(state, pos);
   if (!currentMark) return false;
-  if (dispatch) dispatch(state.tr.delete(pos, pos + 1));
+  if (dispatch) deleteInlineBoxAndRowResidue(state, dispatch, pos);
   return true;
 }
 

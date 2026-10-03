@@ -45,6 +45,7 @@ interface TableCellContext {
   cell: PMNode;
   cellPos: number;
   table: PMNode;
+  tablePos: number;
   tableStart: number;
   relativeCellPos: number;
 }
@@ -82,11 +83,13 @@ function findTableCellContext($pos: ResolvedPos): TableCellContext | null {
   const cell = $pos.node(cellDepth);
   const cellPos = $pos.before(cellDepth);
   const table = $pos.node(tableDepth);
-  const tableStart = $pos.start(tableDepth);
+  const tablePos = $pos.before(tableDepth);
+  const tableStart = tablePos + 1;
   return {
     cell,
     cellPos,
     table,
+    tablePos,
     tableStart,
     relativeCellPos: cellPos - tableStart,
   };
@@ -129,6 +132,7 @@ function verticalNeighborCell(context: TableCellContext, dir: VerticalDirection)
     cell,
     cellPos: context.tableStart + relativeCellPos,
     table: context.table,
+    tablePos: context.tablePos,
     tableStart: context.tableStart,
     relativeCellPos,
   };
@@ -143,6 +147,29 @@ function structuralGapSelection(
   if (!structural) return null;
   const containerPos = context.cellPos + 1;
   const gapPos = side === 'before' ? containerPos : containerPos + structural.nodeSize;
+  const $gap = state.doc.resolve(gapPos);
+  return isValidNoteTableGapCursor($gap) ? new GapCursor($gap) : null;
+}
+
+/**
+ * Outer edge of the table: the gap immediately before/after the whole table
+ * node. Without this, tableEditing's Selection.near swallows the arrow and
+ * drops the caret into neighbouring text, so the visible gap between the
+ * table and the adjacent top-level element (Archivio/TextBox) never appears
+ * when moving outward from inside the table. Returns null when there is no
+ * sibling on that side (doc boundary: the standard gapcursor plugin already
+ * owns those positions) or when the outer gap is not a valid GapCursor
+ * position (e.g. a plain paragraph neighbour), which leaves ordinary arrow
+ * motion untouched.
+ */
+function tableOuterGapSelection(
+  state: EditorState,
+  context: TableCellContext,
+  dir: VerticalDirection,
+): GapCursor | null {
+  const gapPos = dir < 0 ? context.tablePos : context.tablePos + context.table.nodeSize;
+  const hasSibling = dir < 0 ? gapPos > 0 : gapPos < state.doc.content.size;
+  if (!hasSibling) return null;
   const $gap = state.doc.resolve(gapPos);
   return isValidNoteTableGapCursor($gap) ? new GapCursor($gap) : null;
 }
@@ -174,7 +201,7 @@ export function getNoteTableContainerArrowSelection(
     // For an ordinary current cell, entering a structural-only neighbour must
     // land on its outer gap instead of jumping directly into its inner text.
     const next = verticalNeighborCell(current, dir);
-    if (!next) return null;
+    if (!next) return tableOuterGapSelection(state, current, dir);
     return structuralGapSelection(state, next, dir > 0 ? 'before' : 'after');
   }
 
@@ -191,7 +218,7 @@ export function getNoteTableContainerArrowSelection(
     if (!movingOutward) return null;
 
     const next = verticalNeighborCell(current, dir);
-    if (!next) return null;
+    if (!next) return tableOuterGapSelection(state, current, dir);
     const nextStructuralGap = structuralGapSelection(state, next, dir > 0 ? 'before' : 'after');
     if (nextStructuralGap) return nextStructuralGap;
 

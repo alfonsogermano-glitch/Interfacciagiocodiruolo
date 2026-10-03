@@ -131,6 +131,30 @@ assert.equal(arrowSelection(currentBoxDoc, 'current-box', 'end', 1, false), null
 const mixedDoc = kdoc(ktable(krow(kcell(kp('prefix'), kbox('textBox', 'mixed-box')))));
 assert.equal(arrowSelection(mixedDoc, 'mixed-box', 'end', 1), null, 'a cell with additional direct content must not be treated as totally occupied by the structural element');
 
+// Outer table edge: moving out of the table must land on the gap between
+// the table and the adjacent sibling instead of being swallowed by
+// tableEditing's Selection.near (Archivio above / TextBox below bug).
+const siblingAboveDoc = kdoc(kbox('textBox', 'above'), ktable(krow(kcell(kp('cell')))));
+const siblingAboveTablePos = nodePos(siblingAboveDoc, 'table');
+const outerUp = arrowSelection(siblingAboveDoc, 'cell', 'start', -1);
+assert.ok(outerUp instanceof GapCursor, 'ArrowUp from the top cell must expose the gap before the table');
+assert.equal(outerUp.head, siblingAboveTablePos, 'the outer gap must sit exactly before the table node');
+
+const tableEdgeCell = kcell(kp('cell'));
+const tableEdgeFixture = ktable(krow(tableEdgeCell));
+const siblingBelowDoc = kdoc(tableEdgeFixture, kbox('textBox', 'under'));
+const siblingBelowTablePos = nodePos(siblingBelowDoc, 'table');
+const siblingBelowTableEnd = siblingBelowTablePos + siblingBelowDoc.nodeAt(siblingBelowTablePos).nodeSize;
+const outerDown = arrowSelection(siblingBelowDoc, 'cell', 'end', 1);
+assert.ok(outerDown instanceof GapCursor, 'ArrowDown from the bottom cell must expose the gap after the table');
+assert.equal(outerDown.head, siblingBelowTableEnd, 'the outer gap must sit exactly after the table node');
+
+const plainBelowDoc = kdoc(tableEdgeFixture, kp('plain'));
+assert.equal(arrowSelection(plainBelowDoc, 'cell', 'end', 1), null, 'a plain paragraph below the table must not receive a gap cursor');
+
+const docBoundaryDoc = kdoc(tableEdgeFixture);
+assert.equal(arrowSelection(docBoundaryDoc, 'cell', 'end', 1), null, 'the doc-end boundary is owned by the standard gapcursor plugin');
+
 const gapTravelDoc = kdoc(ktable(
   krow(kcell(kbox('textBox', 'gap-a'))),
   krow(kcell(kbox('collapseBlock', 'gap-b'))),

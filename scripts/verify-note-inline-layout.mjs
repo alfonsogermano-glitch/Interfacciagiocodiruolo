@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [commands, editor, icon, checks, modifier, dice, points, gutter] = await Promise.all([
+const [commands, editor, icon, checks, modifier, dice, points, gutter, theme] = await Promise.all([
   readFile(new URL('../src/app/components/session/shared/noteEditorCommands.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/components/session/shared/RichTextEditor.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/components/session/shared/tiptapInlineIcon.ts', import.meta.url), 'utf8'),
@@ -10,6 +10,7 @@ const [commands, editor, icon, checks, modifier, dice, points, gutter] = await P
   readFile(new URL('../src/app/components/session/shared/tiptapInlineDice.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/components/session/shared/tiptapInlinePoints.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/components/session/shared/NoteRowGutter.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/styles/theme.css', import.meta.url), 'utf8'),
 ]);
 
 for (const command of ['checkbox', 'radio', 'inlineIcon', 'inlineModifier', 'inlineDice', 'inlinePoints']) {
@@ -24,7 +25,8 @@ assert.match(checks, /buildRadioWidget[\s\S]*width:\s*'1em'[\s\S]*height:\s*'1em
 
 assert.match(modifier, /buildModifierWidget[\s\S]*getInlineBoxWidgetAt\(getPos\(\)!\)[\s\S]*replacedWidget\.offsetWidth/, 'modifiers must preserve their previous width during rebuild');
 assert.match(dice, /buildDiceWidget[\s\S]*getInlineBoxWidgetAt\(getPos\(\)!\)[\s\S]*replacedWidget\.offsetWidth/, 'dice must preserve their previous width during rebuild');
-assert.match(points, /buildPointsWidget[\s\S]*getInlineBoxWidgetAt\(getPos\(\)!\)[\s\S]*replacedWidget\.offsetWidth/, 'points must preserve their previous width during rebuild');
+assert.match(points, /width: fills \? '100%'/, 'points must fill their equal-share row slot only when alone in the row paragraph');
+assert.match(points, /fills = inRow && \$pos\.parent\.childCount === 1 && \$pos\.parent\.textContent === INLINE_POINTS_CHAR/, 'the equal-share fill must be decided by the paragraph content inside a blockRow');
 
 assert.match(modifier, /getWidgetLineContainer[\s\S]*display === 'block'[\s\S]*display === 'list-item'[\s\S]*display === 'table-cell'/, 'shared box measurement must use the nearest real line container inside nested blocks, lists and tables');
 assert.doesNotMatch(modifier, /widgetEntries\.clear\(\)/, 'destroying one editor must not clear inline box measurements owned by other editors');
@@ -71,5 +73,15 @@ assert.match(gutter, /getInlineBoxWidgetAt\(start\)\?\.getBoundingClientRect|get
 // dall'editor non ci sono piu' collisioni da schivare, resta sempre centrato.
 assert.doesNotMatch(gutter, /Math\.max\((center|rawTop), 46\)/, 'right gutter buttons must stay vertically centered on their row');
 assert.doesNotMatch(gutter, /data-note-undo/, 'the gutter must not dodge controls that no longer live in the editor shell');
+
+// Regola fissa del layout riga: gli elementi a larghezza adattabile (Box,
+// Collapse, Punti) si dividono lo spazio in parti uguali; restano hug quelli
+// a larghezza fissa o detta da variabili (Dado, Modificatore: nome/formula).
+assert.match(theme, /\.tiptap-row > p:has\(\.tiptap-inline-points-widget\[data-points-fills\]\)\s*\{\s*flex: 1 1 0;\s*align-self: stretch;/, 'the points slot must join the equal-share split of the row');
+assert.match(gutter, /kind === 'inlinePoints'\) \{[\s\S]{0,600}?addBlockToRow\(\{ kind: 'paragraph', side: state\.side, pos: state\.paraStart - 1 \}\)/, 'edge insertion of points must prepare their own row paragraph, never share the neighbour one');
+assert.match(gutter, /\$start\.node\(\$start\.depth - 1\)\?\.type\.name === 'blockRow'\) return false/, 'paragraph borders inside a row must not duplicate the row-level plus buttons in the same gutter column');
+assert.match(theme, /\.tiptap-row > p:has\(\.tiptap-inline-points-widget\[data-points-fills\]\)\s*\{[\s\S]{0,300}?display: flex;/, 'the points frame must stretch its widget to the full row height beside the textbox');
+assert.match(theme, /\.tiptap-row > \* \{\s*flex: 1 1 0;/, 'direct row children must share the row width in equal parts');
+assert.match(theme, /\.tiptap-row > p \{[\s\S]*?flex: 0 1 auto;/, 'plain text paragraphs must stay hug-content so short text never leaves dead space');
 
 console.log('Inline element layout verification: PASS');

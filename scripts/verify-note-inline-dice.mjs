@@ -102,5 +102,6 @@ assert.match(richClipboard, /isSingleDiceSlice\(slice\)[\s\S]*previousIsBox/, 'a
 assert.match(selection, /data-note-dice-menu="true"/, 'selection toolbar must stay hidden while the dice menu or edit panel is open');
 
 assert.match(dice, /isProtectedDiceAt[\s\S]*inlineDice[\s\S]*blocksDiceDeletion[\s\S]*handleKeyDown/, 'dice must refuse Backspace/Delete on their character (adjacent or selected) so only the menu Elimina removes them');
+assert.match(dice, /deleteDiceAt[\s\S]*deleteInlineBoxAndRowResidue/, 'delete must remove the single marked character and the residual empty row paragraph');
 
 console.log('Inline dice verification: PASS');

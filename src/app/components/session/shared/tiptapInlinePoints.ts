@@ -10,6 +10,7 @@ import {
   unregisterInlineBoxWidget,
 } from './tiptapInlineModifier';
 import { wrapNoteClipboardHTML, type NoteClipboardSliceJSON } from './tiptapNoteRichClipboard';
+import { deleteInlineBoxAndRowResidue } from './tiptapBlockRow';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -154,7 +155,7 @@ export function duplicatePointsAt(state: EditorState, dispatch: ((transaction: T
 
 export function deletePointsAt(state: EditorState, dispatch: ((transaction: Transaction) => void) | undefined, pos: number): boolean {
   if (!getInlinePointsMark(state, pos)) return false;
-  if (dispatch) dispatch(state.tr.delete(pos, pos + 1));
+  if (dispatch) deleteInlineBoxAndRowResidue(state, dispatch, pos);
   return true;
 }
 
@@ -249,8 +250,27 @@ function progressColor(value: number, max: number): string {
 
 function buildPointsWidget(view: EditorView, getPos: () => number | undefined, data: PointsData): HTMLElement {
   const element = document.createElement('span');
-  const replacedWidget = typeof getPos() === 'number' ? getInlineBoxWidgetAt(getPos()!) : null;
   element.className = 'tiptap-inline-points-widget';
+  const widgetPos = getPos();
+  const replacedWidget = typeof widgetPos === 'number' ? getInlineBoxWidgetAt(widgetPos) : null;
+  // I Punti riempiono la quota di riga (larghezza piena + paragrafo che
+  // cresce) SOLO quando stanno da soli nel paragrafo e il paragrafo è
+  // dentro una riga: con testo o un altro box affiancato il box torna alla
+  // larghezza nominale, cosi' makeRoom puo' convivere come prima.
+  let fills = false;
+  if (typeof widgetPos === 'number') {
+    try {
+      const $pos = view.state.doc.resolve(widgetPos);
+      let inRow = false;
+      for (let depth = $pos.depth; depth > 0; depth -= 1) {
+        if ($pos.node(depth).type.name === 'blockRow') { inRow = true; break; }
+      }
+      fills = inRow && $pos.parent.childCount === 1 && $pos.parent.textContent === INLINE_POINTS_CHAR;
+    } catch {
+      /* pos non risolvibile: larghezza nominale */
+    }
+  }
+  if (fills) element.dataset.pointsFills = 'true';
   element.dataset.modifierCompact = 'false';
   element.dataset.pointsName = data.name;
   element.dataset.pointsValue = String(data.value);
@@ -258,7 +278,8 @@ function buildPointsWidget(view: EditorView, getPos: () => number | undefined, d
   element.setAttribute('role', 'group');
   element.setAttribute('aria-label', `${data.name}: ${data.value}${data.maxEnabled ? ` su ${data.max}` : ''}`);
   Object.assign(element.style, {
-    display: 'inline-flex', flexDirection: 'column', boxSizing: 'border-box', minWidth: '4em', width: replacedWidget ? `${replacedWidget.offsetWidth}px` : '4em',
+    display: 'inline-flex', flexDirection: 'column', boxSizing: 'border-box', minWidth: '4em',
+    width: fills ? '100%' : replacedWidget ? `${replacedWidget.offsetWidth}px` : '4em',
     gap: '0.5em', padding: data.titleVisible ? '0.6em 0.7em' : '0.45em', verticalAlign: 'middle', border: 'var(--note-border-width) solid var(--dash-border-soft)',
     borderRadius: 'var(--note-widget-radius)', background: 'var(--dash-surface-2)', color: 'var(--dash-text)', userSelect: 'none',
     position: 'relative', overflow: 'hidden',

@@ -257,6 +257,11 @@ export function NoteRowGutter({
       for (let depth = $start.depth; depth >= 0; depth -= 1) {
         if (($start.node(depth).type.spec as { tableRole?: string }).tableRole) return false;
       }
+      // Una riga espone solo i due "+" di riga: il bordo di un paragrafo
+      // con box dentro la riga resterebbe un doppione sovrapposto nella
+      // stessa colonna del gutter (stessa regola già applicata a
+      // TextBox/Collapse sopra).
+      if ($start.depth >= 1 && $start.node($start.depth - 1)?.type.name === 'blockRow') return false;
       const startsWithBox = isBoxChar(doc, start);
       const endsWithBox = isBoxChar(doc, end - 1);
       if (!startsWithBox && !endsWithBox) return false;
@@ -434,7 +439,9 @@ export function NoteRowGutter({
 
   const openMenu = useCallback((anchor: GutterAnchor, event: React.MouseEvent<HTMLButtonElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
-    const placed = placeFloatingNoteUI(rect, 248, Math.min(420, window.innerHeight * 0.7), 8);
+    // Altezza piena del menu (entrambe le sezioni): con la stima vecchia di
+    // 420px l'ultima riga di icone usciva fuori e restava solo scrollabile.
+    const placed = placeFloatingNoteUI(rect, 248, Math.min(640, window.innerHeight * 0.85), 8);
     setMenu({ key: anchor.key, side: anchor.side, paraStart: anchor.paraStart, paraEnd: anchor.paraEnd, blockPos: anchor.blockPos, ...placed });
     setSelectedIndex(0);
     setOpenSecondaryId(null);
@@ -488,6 +495,20 @@ export function NoteRowGutter({
   const insertInlineAtEdge = useCallback(
     (state: GutterMenuState, kind: 'inlineModifier' | 'inlineDice' | 'inlinePoints') => {
       const edge = state.side === 'left' ? state.paraStart : state.paraEnd;
+      if (kind === 'inlinePoints') {
+        // I Punti hanno un paragrafo proprio nella riga anche dal "+" di
+        // bordo: nello stesso paragrafo di un altro box il loro box a
+        // larghezza piena andrebbe a capo sotto il vicino, invece di
+        // dividerne lo spazio come la regola di riga richiede.
+        const ok = editor.commands.addBlockToRow({ kind: 'paragraph', side: state.side, pos: state.paraStart - 1 });
+        if (ok) {
+          editor.commands.insertInlinePoints();
+          clampNewBoxToRow();
+          editor.chain().focus().run();
+          return;
+        }
+        // Fallback: il paragrafo non e' piu' valido, si inserisce al bordo.
+      }
       if (state.side === 'right') {
         editor.chain().focus().setTextSelection({ from: edge, to: edge }).run();
         if (kind === 'inlineModifier') editor.commands.insertInlineModifier();
@@ -531,13 +552,37 @@ export function NoteRowGutter({
       // Affiancamento: Testo / Box di testo / Collapse sul "+" di un blocco
       // si aggiungono alla riga (o la creano se il blocco e' da solo),
       // invece di creare una riga di paragrafo attorno al blocco.
+      // Stessa regola per le voci inline (Dado/Modificatore/Punti/Checkbox/
+      // Radio): preparano con addBlockToRow il paragrafo affiancato nella
+      // riga e ci nascono dentro col caret gia' posizionato. Prima finivano
+      // in un paragraph grezzo creato accanto al blocco — il Dado su una
+      // textbox appariva "in basso" fuori riga, e sul "+" di riga
+      // (resolveMenuEdge su blockRow = null) non facevano proprio nulla.
       if (state.blockPos !== null) {
+        const isInlineInsert =
+          command.id === 'inlineModifier' ||
+          command.id === 'inlineDice' ||
+          command.id === 'inlinePoints' ||
+          command.id === 'checkbox' ||
+          command.id === 'radio';
         const kind =
-          command.id === 'gutterText' ? 'paragraph' : command.id === 'textBox' ? 'textBox' : command.id === 'collapse' ? 'collapseBlock' : null;
+          command.id === 'gutterText' ? 'paragraph'
+          : command.id === 'textBox' ? 'textBox'
+          : command.id === 'collapse' ? 'collapseBlock'
+          : isInlineInsert ? 'paragraph'
+          : null;
         if (kind) {
           const ok = editor.commands.addBlockToRow({ kind, side: state.side, pos: state.blockPos });
           if (!ok && typeof console !== 'undefined') {
             console.info('[NoteRowGutter] blocco scaduto, riprova dal + aggiornato');
+          }
+          if (ok && isInlineInsert) {
+            if (command.id === 'inlineModifier') editor.commands.insertInlineModifier();
+            else if (command.id === 'inlineDice') editor.commands.insertInlineDice();
+            else if (command.id === 'inlinePoints') editor.commands.insertInlinePoints();
+            else if (command.id === 'checkbox') editor.commands.insertInlineCheckbox();
+            else editor.commands.insertInlineRadio();
+            clampNewBoxToRow();
           }
           editor.chain().focus().run();
           setMenu(null);
@@ -639,6 +684,12 @@ export function NoteRowGutter({
 
   if (!editable) return null;
 
+  // Qualsiasi "+" laterale (riga, box standalone o widget di bordo): solo le
+  // icone dei blocchi - il caret non e' in un testo dove applicare
+  // grassetto/elenco/allineamento, quelle voci non facevano nulla. Il testo
+  // resta al menu "/" (NoteSlashMenu), che lavora su un caret reale.
+  const menuGroups: readonly ('text' | 'block')[] = ['block'];
+
   // Visibilita' su richiesta: il "+" di una riga appare solo se il mouse e'
   // nella sua fascia verticale (entro la larghezza dello shell, cosi' la
   // sidebar non attiva le righe affiancate), oppure se caret/selezione
@@ -667,9 +718,9 @@ export function NoteRowGutter({
             role="menu"
             aria-label="Aggiungi alla riga"
             style={{ position: 'fixed', top: menu.top, left: menu.left, zIndex: 9998 }}
-            className="tiptap-slash-menu max-h-[min(70vh,420px)] w-[248px] overflow-y-auto rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-2 shadow-lg"
+            className="tiptap-slash-menu max-h-[min(85vh,640px)] w-[248px] overflow-y-auto rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-2 shadow-lg"
           >
-            {(['text', 'block'] as const).map((group) => (
+            {menuGroups.map((group) => (
               <div
                 key={group}
                 data-note-slash-section="true"

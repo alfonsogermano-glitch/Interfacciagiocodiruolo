@@ -3,7 +3,7 @@ import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewP
 import { Selection, NodeSelection, Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { ChevronRight } from 'lucide-react';
 import { canInsertNoteContainer } from './noteContainerPolicy';
-import { BlockRow } from './tiptapBlockRow';
+import { BlockRow, reassertCollapseSelectionAfterRender } from './tiptapBlockRow';
 
 // I contenitori Note condividono una sola espressione di contenuto: consente
 // blocchi normali e contenitori strutturali, mentre la profondità massima e
@@ -45,6 +45,26 @@ export const TextBox = Node.create({
           if (!editor.isEditable) return false;
           const decision = canInsertNoteContainer(state.selection.$from, 'textBox');
           if (!decision.allowed) return false;
+          // Caret in un paragrafo con testo (primo livello o dentro una riga):
+          // la box si AFFIANCA nella stessa riga tramite addBlockToRow, con il
+          // caret gia' posizionato nel nuovo box. Con l'insertContent puro la
+          // box nasceva come blocco separato SOTTO il testo (e a inizio testo
+          // SOPRA): "scrivo del testo e la textbox scende in basso", con
+          // l'unico workaround di rimettere il caret tutto a sinistra. Il
+          // lato segue il caret: a inizio testo la box prima, altrimenti
+          // dopo. Paragrafi vuoti (linea fresca col "/") restano sul
+          // vecchio inserimento: non c'e' testo da affiancare.
+          const $from = state.selection.$from;
+          const inRowParagraph = $from.depth === 2 && $from.node(1).type.name === 'blockRow';
+          if (
+            state.selection.empty &&
+            $from.parent.type.name === 'paragraph' &&
+            $from.parent.textContent.length > 0 &&
+            ($from.depth === 1 || inRowParagraph)
+          ) {
+            const side = $from.pos === $from.start($from.depth) ? 'left' : 'right';
+            if (commands.addBlockToRow({ kind: 'textBox', side, pos: $from.before($from.depth) })) return true;
+          }
           return commands.insertContent({ type: this.name, content: [{ type: 'paragraph' }] });
         },
     };
@@ -194,36 +214,56 @@ function CollapseBlockView({ node, updateAttributes, editor, getPos }: NodeViewP
       className="tiptap-collapse"
       data-open={open}
       onMouseDown={(e) => {
-        // .tiptap-collapse-toggle esclusa insieme al contentDOM: mousedown e
-        // click sono due eventi SEPARATI (il primo bolla comunque fino a
-        // qui, lo stopPropagation della freccina sul proprio onClick sotto
-        // agisce solo sul click, non retroattivamente su questo mousedown
-        // gia' passato) - senza questa esclusione, cliccare la freccina
-        // selezionerebbe anche l'intero blocco invece di limitarsi ad
-        // aprirlo/chiuderlo.
+        // .tiptap-collapse-content esclusa (testo normale, caret nativo) e
+        // anche .tiptap-collapse-toggle: al mousedown della freccia non si
+        // deve creare/selezionare nulla (l'apertura è gestita dal suo onClick
+        // sotto, che rimette poi esplicitamente la NodeSelection sul box —
+        // vedi lì). Senza l'esclusione il mousedown della freccina
+        // selezionerebbe il blocco un istante prima ancora che il click
+        // scatti, con l'evidenziazione che lampeggia.
         if ((e.target as HTMLElement).closest('.tiptap-collapse-content, .tiptap-collapse-toggle')) return;
         const pos = getPos();
         if (typeof pos !== 'number') return;
         e.preventDefault();
         editor.view.dispatch(editor.view.state.tr.setSelection(NodeSelection.create(editor.view.state.doc, pos)).setMeta('pointer', true));
+        // Il preventDefault sopra blocca anche il focus di default del
+        // browser e ProseMirror non lo fa da solo per un mousedown su
+        // nodeview: il focus restava sul BODY, quindi Canc/Backspace non
+        // arrivavano mai all'editor e la collapse selezionata non si
+        // cancellava (l'unico effetto visivo era la freccia col focus,
+        // nel suo caso). Focus esplicito DOPO il dispatch (la selezione
+        // NodeSelection creata sopra viene preservata).
+        editor.view.focus();
       }}
     >
       <button
         type="button"
         contentEditable={false}
+        // Il click nativo su un <button> gli assegnerebbe il focus (anello
+        // di evidenziazione sulla freccia, e Canc/Backspace poi arriverebbero
+        // al button non-editabile invece che all'editor). preventDefault sul
+        // mousedown impedisce SOLO il focus di default: il click si genera
+        // comunque e la selezione in corso (es. NodeSelection sul box) resta
+        // intatta, quindi dopo il toggle la tastiera funziona ancora.
+        onMouseDown={(e) => e.preventDefault()}
         onClick={(e) => {
-          // Il pulsante vive fuori dal contentDOM: senza stopPropagation, il
-          // click bollerebbe fino al click-handling nativo di ProseMirror
-          // per i nodi selectable, selezionando l'intero blocco OLTRE ad
-          // aprirlo/chiuderlo - innocuo (il toggle funziona comunque) ma
-          // visivamente confuso (l'evidenziazione da selezione lampeggia ad
-          // ogni click sulla freccina). Il mousedown che precede questo
-          // click e' gestito separatamente: escluso esplicitamente
-          // dall'onMouseDown del wrapper sopra (.tiptap-collapse-toggle
-          // nel suo closest()), che altrimenti selezionerebbe il blocco un
-          // istante prima ancora che questo handler scatti.
+          // Il pulsante vive fuori dal contentDOM: il click nativo di
+          // ProseMirror su view.dom (che gira PRIMA di questo handler React,
+          // root esterno) risolve il punto piu' vicino e ci infila un caret
+          // dentro il sommario — da li Canc avrebbe mangiato i caratteri del
+          // titolo invece di agire sul blocco. Lo stopPropagation qui ferma
+          // solo la propagazione residua verso l'alto; la selezione viene
+          // rimessa sotto con una transazione esplicita. La freccia e' un
+          // controllo del BOX: dopo il toggle il box resta selezionato
+          // (NodeSelection + focus), cosi' la tastiera (Canc/Backspace)
+          // continua ad agire sul blocco appena interagito.
           e.stopPropagation();
           updateAttributes({ open: !open });
+          const pos = getPos();
+          if (typeof pos === 'number') {
+            editor.view.dispatch(editor.view.state.tr.setSelection(NodeSelection.create(editor.view.state.doc, pos)).setMeta('pointer', true));
+            editor.view.focus();
+          }
         }}
         aria-expanded={open}
         aria-label={open ? 'Comprimi' : 'Espandi'}
@@ -277,6 +317,26 @@ export const CollapseBlock = Node.create({
           if (!editor.isEditable) return false;
           const decision = canInsertNoteContainer(state.selection.$from, 'collapseBlock');
           if (!decision.allowed) return false;
+          // Stessa affiancamento di setTextBox sopra, per il paragrafo di
+          // PRIMO LIVELLO con testo: con l'insertContent puro il Collapse
+          // nasceva come blocco separato SOTTO il testo (e a inizio testo
+          // SOPRA) — "il collapse si crea sulla seconda riga quando lo
+          // inserisco dopo l'elemento Dado", quando il Dado e' in un
+          // paragrafo libero. Con addBlockToRow il paragrafo + Collapse
+          // diventano una riga affiancata (il lato segue il caret). In riga
+          // l'insertContent si comporta gia' bene: il Collapse nasce come
+          // figlio subito dopo il Dado, sulla stessa riga visiva. Paragrafi
+          // vuoti (linea fresca col "/") restano sul vecchio inserimento.
+          const $at = state.selection.$from;
+          if (
+            state.selection.empty &&
+            $at.parent.type.name === 'paragraph' &&
+            $at.parent.textContent.length > 0 &&
+            $at.depth === 1
+          ) {
+            const side = $at.pos === $at.start($at.depth) ? 'left' : 'right';
+            if (commands.addBlockToRow({ kind: 'collapseBlock', side, pos: $at.before($at.depth) })) return true;
+          }
           const inserted = commands.insertContent({
             type: this.name,
             attrs: { open: false },
@@ -294,6 +354,11 @@ export const CollapseBlock = Node.create({
             if ($from.node(depth).type.name !== this.name) continue;
             const pos = $from.before(depth);
             tr.setSelection(TextSelection.create(tr.doc, pos + 2));
+            // Il nodeview React monta il DOM in modo asincrono e il
+            // DOMObserver di ProseMirror puo' riportare il caret dov'era
+            // prima della creazione (revert misurato con l'harness):
+            // re-assert a frame di distanza, idempotente.
+            reassertCollapseSelectionAfterRender(editor.view, pos + 2);
             return true;
           }
           return false;
@@ -393,6 +458,11 @@ const BlockClickSelect = Extension.create({
                   tr.setMeta('pointer', true);
                   view.dispatch(tr);
                   event.preventDefault();
+                  // Stessa post-correzione del Collapse sopra: senza focus
+                  // esplicito il preventDefault lascia il focus sul BODY e
+                  // Canc/Backspace sulla TextBox selezionata non arrivano
+                  // all'editor. Il focus conserva la NodeSelection appena creata.
+                  view.focus();
                   return true;
                 }
               }

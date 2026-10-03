@@ -257,8 +257,8 @@ assert.match(
 );
 assert.match(
   source,
-  /deleteModifierAt[\s\S]*delete\([\s\S]*pos,\s*pos \+ 1\)/,
-  'delete must remove the single marked character without touching neighbours',
+  /deleteModifierAt[\s\S]*deleteInlineBoxAndRowResidue/,
+  'delete must remove the single marked character and the residual empty row paragraph',
 );
 assert.match(
   source,

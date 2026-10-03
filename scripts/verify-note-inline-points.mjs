@@ -23,11 +23,11 @@ assert.match(points, /flexDirection:\s*'column'[\s\S]*tiptap-inline-points-menu-
 assert.match(points, /!data\.titleVisible[\s\S]*showInlineBoxTipAbove\(element, data\.name\)/, 'a hidden title must remain available through a palette tooltip');
 assert.match(points, /adjacentPointsCaret[\s\S]*tiptap-inline-points-caret[\s\S]*nudgeToRightOfTrailingPoints/, 'Punti must normalize adjacent caret rendering and allow placement after a trailing element');
 assert.match(points, /const previousBox = hasBoxAt\(pos - 1\)[\s\S]*const followingBox = hasBoxAt\(pos\)[\s\S]*halveInlineBoxWidget[\s\S]*tr\.insertText\(' ', pos \+ 1\)/, 'inserting Punti before or after an existing inline box must pre-shrink its neighbour and add a real separating space');
-assert.match(points, /width: replacedWidget \? `\$\{replacedWidget\.offsetWidth\}px` : '4em'/, 'new Punti widgets must start narrow enough to remain beside their neighbour until shared measurement runs');
+assert.match(points, /width: fills \? '100%' : replacedWidget \? `\$\{replacedWidget\.offsetWidth\}px` : '4em'/, 'Punti must fill their equal-share row slot when alone in the paragraph and keep the nominal width otherwise');
 assert.match(points, /getUniquePointsName[\s\S]*inlineModifier[\s\S]*inlinePoints/, 'Punti names must share a unique namespace with Modificatori');
 assert.match(points, /duplicatePointsAt[\s\S]*createPointsId/, 'Punti must support duplicate with fresh identity');
 assert.match(points, /copyPointsToClipboard[\s\S]*wrapNoteClipboardHTML/, 'Punti must support rich copy');
-assert.match(points, /deletePointsAt[\s\S]*state\.tr\.delete/, 'Punti must support delete');
+assert.match(points, /deletePointsAt[\s\S]*deleteInlineBoxAndRowResidue/, 'Punti must support delete and drop the residual empty row paragraph');
 assert.match(points, /nextMaxEnabled[\s\S]*nextValue > nextMax[\s\S]*nextValue = nextMax/, 'lowering the maximum must clamp the current value instead of leaving it above the maximum');
 
 for (const label of ['Rinomina', 'Nascondi titolo', 'Mostra titolo', 'Nascondi la barra', 'Mostra la barra', 'Disabilita punteggio massimo', 'Abilita punteggio massimo', 'Duplica', 'Copia', 'Elimina']) {
@@ -44,7 +44,7 @@ assert.match(modifiers, /state\.schema\.marks\.inlinePoints[\s\S]*formula:\s*''/
 assert.match(clipboard, /entry\.type !== 'inlineModifier' && entry\.type !== 'inlinePoints'[\s\S]*isSinglePointsSlice/, 'pasted Punti must receive fresh identity/name handling and inline spacing');
 assert.match(clipboard, /makeRoomForInlinePointsInsertion/, 'pasting beside Punti must preserve equal inline box sizing');
 assert.match(theme, /tiptap-inline-points-input::\-webkit-inner-spin-button[\s\S]*appearance:\s*none/, 'Punti numeric inputs must hide native spinner arrows');
-assert.doesNotMatch(theme, /p:has\(\.tiptap-inline-points-widget\)[\s\S]*margin-bottom/, 'Punti rows must use the same paragraph spacing as Modificatori');
+assert.doesNotMatch(theme, /\.tiptap-row > p:has\(\.tiptap-inline-points-widget\[data-points-fills\]\)\s*\{[^}]*margin/, 'Punti rows must use the same paragraph spacing as Modificatori');
 assert.match(theme, /tiptap-points-adjacent-caret[\s\S]*caret-color:\s*transparent[\s\S]*tiptap-inline-points-caret/, 'the oversized native caret must be replaced beside Punti');
 assert.match(menu, /DANGER[\s\S]*dash-danger-text[\s\S]*dash-danger-bg/, 'Punti delete action must use the real red palette variables');
 assert.match(modifierMenu, /DANGER_ITEM_CLASS[\s\S]*dash-danger-text[\s\S]*dash-danger-bg/, 'Modifier and Dice delete actions must use the real red palette variables');

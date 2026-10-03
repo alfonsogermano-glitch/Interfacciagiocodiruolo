@@ -1,6 +1,6 @@
 # WORKLOG — Stato progetto & consigli di workflow
 
-Ultimo aggiornamento: 2026-09-29
+Ultimo aggiornamento: 2026-10-03
 
 ## Stato attuale (verde)
 
@@ -265,6 +265,457 @@ tutti in bottoni/menù, nessun uso decorativo): introduce lo stile
     vecchia soglia220 (il blocco reveal è più lungo ora). `npm run check`
     verde. Contesto P2/P3 confermato dall'utente con domanda esplicita:
     righe della nota, caret che va nella riga di testo adiacente.
+
+18. `fix:` **"+" del gutter: tutte le voci finiscono nella stessa riga del
+    target (bug: textbox + Dado appariva "in basso")** (segnalazione
+    utente: crea una textbox, "+" → Dado, il box dado finiva sotto la
+    textbox fuori riga; lamenta anche assenza di un controllo generale
+    delle combinazioni "+"). (a) Causa: in `NoteRowGutter.choose` solo
+    Testo/Box/Collapse passavano da `addBlockToRow`; le voci inline
+    (Dado/Modificatore/Punti, e anche Checkbox/Radio) cadevano in
+    `resolveMenuEdge`, che con `blockPos` fa un `insert` di paragraph
+    GREZZO accanto al blocco (→ "in basso") e su un blockRow ritorna
+    `null` (→ non faceva nulla). (b) Fix: ramo `blockPos` ora calcola
+    `isInlineInsert` (i5 id) → `addBlockToRow({kind:'paragraph'})` prepara
+    il paragrafo affiancato nella riga e gli insert inline ci nascono
+    dentro col caret già posizionato (`clampNewBoxToRow` dopo); return
+    anticipato prima di `resolveMenuEdge`. (c) Refactor: la logica di
+    `addBlockToRow` è estratta in `applyBlockToRow(tr, schema, opts)`
+    (pura, esportata; `blockRowItemNode` ora prende lo schema) per essere
+    testabile senza editor. (d) **Verify definitivo
+    `verify-note-row-insertions.mjs`** (voce in `check`): matrice completa
+    5 target (textbox/collapse/paragraph standalone, figlio in riga,
+    riga intera) × 3 kind × 2 side = **30 combinazioni funzionali** con
+    invarianti (target SEMPRE dentro un blockRow = nessun paragrafo
+    orfano "in basso", nuovo elemento al bordo scelto e vuoto, caret
+    dentro la riga, `doc.childCount` invariato) + caso di regressione
+    textbox+Dado + wiring statico del gutter (i5 inline → addBlockToRow,
+    insert dopo ok, return prima di resolveMenuEdge, vecchia catena kind
+    rimossa). `npm run check` verde.
+
+19. `fix:` **Punti "schiacciato in fondo" nella riga (regola fissa:
+    elementi a larghezza adattabile si dividono lo spazio in parti
+    uguali)** (segnalazione utente: riga [textbox, dado, punti] → il box
+    Punti restava piccolo/troncato "Pun..." in fondo; dopo il primo
+    tentativo il risultato era peggiorato: dado in alto e Punti larghi
+    sotto, entrambi nello stesso paragrafo). (a) Cause: `.tiptap-row > p`
+    è deliberatamente hug (`flex: 0 1 auto`, centrato — pensato per il
+    testo affiancato); shell del widget con `width` fisso `'4em'`; e il
+    "+" di bordo dei box inline (`insertInlineAtEdge`, `blockPos: null`)
+    inseriva i Punti nello STESSO paragrafo del box vicino, dove un box
+    a larghezza piena va a capo sotto il dado. Dado/Modificatore restano
+    hug perché la loro larghezza è detta da variabili (nome/formula).
+    (b) `NoteRowGutter.insertInlineAtEdge`: i Punti dal "+" di bordo
+    preparano ora un paragrafo proprio con `addBlockToRow({kind:
+    'paragraph', pos: state.paraStart - 1})` — come dal "+" di riga —
+    così ogni box sta nel suo `p`; fallback al vecchio bordo se il
+    paragrafo è scaduto. (c) `tiptapInlinePoints.buildPointsWidget`:
+    calcola `fills` (il `p` è dentro `blockRow` E contiene solo lo ZWSP
+    dei Punti) → `width: '100%'` + `data-points-fills`, altrimenti la
+    larghezza nominale di prima (`replacedWidget` px / `'4em'`, makeRoom
+    invariato). (d) `theme.css`: quota equa solo per
+    `p:has(.tiptap-inline-points-widget[data-points-fills])` →
+    `flex: 1 1 0; align-self: stretch`.     (e) Verify: shell ternaria e
+    selettore `[data-points-fills]` in `verify-note-inline-points`;
+    `verify-note-inline-layout` (assert `fills`, quota equa theme,
+    wiring `addBlockToRow` dal bordo) + tutti gli altri invariati.
+    (f) **Doppie "+" ai lati**: i paragrafi con box dentro la riga
+    esponevano anche i loro bordi, che nella colonna fissa del gutter si
+    sovrapponevano ai `row-left`/`row-right` (top quasi uguali). Fix in
+    `NoteRowGutter.refresh`: i `p` figli di `blockRow` non espongono
+    bordi (stessa regola già applicata a TextBox/Collapse) → restano solo
+    i due `+` di riga. (g) **Altezza**: il widget Punti dentro il `p`
+    fills ora è un figlio di `p { display: flex }` → si stira a tutta
+    l'altezza della riga (e `justify-content: space-between` distribuisce
+    header/barra/numeri) così il rettangolo Punti combacia con quello
+    della TextBox affiancata invece di restare più basso con vuoto sotto;
+    verificato con test CDP (iniezione riga replicata: riga/textbox/
+    widget tutti alla stessa altezza). `npm run check` verde (EXIT 0).
+
+20. `fix:` **Spazio vuoto residuo dopo l'eliminazione di un box inline**
+    (segnalazione utente: "quando si elimina un elemento, che sia in
+    mezzo o all'inizio o alla fine, si crea uno spazio vuoto" — screenshot
+    [textbox][buco ~60px][textbox]). (a) Causa: i `delete*At` dei tre box
+    (Punti/Modificatore/Dado) cancellavano solo lo ZWSP marcato
+    (`tr.delete(pos, pos+1)`) lasciando il paragrafo che ospitava il box
+    vuoto nella riga: `.tiptap-row > p { flex: 0 1 auto }` + `min-width:
+    3ch` → un buco visivo dove che si trovi il box eliminato. Il
+    cleanup `onTransaction` di `tiptapBlockRow` tocca solo righe con
+    SOLO p vuoti (o singolo p) — con altri figli il p orfano restava.
+    (b) Nuova funzione condivisa `deleteInlineBoxAndRowResidue` in
+    `tiptapBlockRow.ts`: cancella il carattere e, se il `p` di riga che
+    lo conteneva è rimasto senza contenuto visivo (solo spazi/ZWSP, con
+    strip) e la riga ha altri figli (`childCount > 1`), cancella anche il
+    `p` nel transazione stesso e sistema il caret col `Selection.near`
+    sul figlio adiacente. Con un solo figlio si lascia perdere (ci
+    pensa lo srotolamento della riga vuota); fuori riga nessun effetto.
+    (c) `deletePointsAt`/`deleteModifierAt`/`deleteDiceAt` chiamano
+    l'helper (import da `./tiptapBlockRow`, nessuna circolarità). Non ci
+    sono altri percorsi di eliminazione: Backspace/Canc sui box è
+    bloccato (`blocks*Deletion`) → solo il menu "Elimina".
+    (d) Verify: test **funzionali** in `verify-note-row-extremes` (mezzo
+    inizio/fine, solo spaziatore separativo, testo residuo tenuto, p
+    unico figlio tenuto, standalone intatto, caret nel figlio
+    sopravvissuto) + assert statici nei verify Punti/Modificatore/Dado.
+    `npm run check` verde (EXIT 0). Punti (a)-(g) del punto 19 e questo
+    punto NON sono ancora committati.
+
+21. `fix:` **Regole cursore nelle righe di elementi (margine esterno + gap
+    interno)** (segnalazione utente: "il cursore non deve stare ai margini
+    esterni della riga, solo fra due elementi; fra due textbox il cursore
+    non appare; il dado lo mostra anche se è l'ultimo"). (a) Regola margine:
+    nuova funzione pura `rowEdgeExitTarget(state)` in `tiptapBlockRow.ts` —
+    una TextSelection vuota esattamente all'inizio del PRIMO figlio o alla
+    fine dell'ULTIMO figlio di una riga esce dal lato corrispondente
+    (`exitRowSelection` → paragrafo adiacente o altra riga). Solo figli
+    PARAGRAFI non vuoti (Box/Collapse hanno bordo/padding: il caret dentro
+    è dentro l'elemento), solo transazione di sola selezione (`!docChanged`:
+    mentre si scrive il caret resta dov'è) e solo senza meta
+    `blockRowNudge` (l'atterraggio di un exit non deve risaltare).
+    (b) Meta anti-loop: `exitRowTo`, `jumpInto` (frecce fra elementi) e i
+    due dispatch di `moveOutOfRowVertical` taggano `blockRowNudge` — ogni
+    selezione piazzata volutamente salta i nudge, così da un margine si
+    esce una volta sola. (c) Gap interni: in `onTransaction` una GapCursor
+    in un gap INTERNO della riga resta dov'è (prima veniva nudgata dentro
+    un figlio e fra due Box non appariva nulla); restano invariati head/tail
+    che escono. (d) Nuovo plugin `createBlockRowGapCursorPlugin` (registrato
+    in `addProseMirrorPlugins`): il plugin gapcursor standard rifiuta i
+    click interni (`GapCursor.valid` falso per i paragrafi adiacenti, e
+    `handleClick` rifiuta comunque quando il figlio è NodeSelection-able
+    come TextBox/Collapse) → qui si crea la GapCursor noi; se `posAtCoords`
+    finisce dentro un figlio con bordo (Box: il click a meta' del gap
+    visivo cade nel padding), si confronta `event.clientX` con il rect del
+    figlio: a sinistra del bordo (o a destra del suo bordo destro) il click
+    era nel gap → GapCursor sul confine, altrimenti è un click sul
+    contenuto e si comporta normalmente. (e) Verify: casi funzionali P4 in
+    `verify-note-row-extremes.mjs` per `rowEdgeExitTarget` (primi/ultimi/
+    medi, figlio unico, textBox, slot vuoto, fuori riga, GapCursor,
+    selezione non vuota) + assert sorgente (meta in `exitRowTo` e nei
+    dispatch, keep GapCursor interni, wiring regola margine, plugin). Schema
+    verify esteso con `textBox` come figlio di riga. (f) Misura CDP reale
+    (harness `cursor-harness.mjs`, 18 fixture, confronto
+    baseline→postfix3): tutti gli `internal0` ora danno GapCursor visibile
+    (`GAP-between`, widget `w`) — compresi tb_tb/dice_tb/collapse_tb; margini
+    esterni (`beforeRow`, `tail`, click di bordo) ora `exited-doc` (prima
+    `EXT-CARET`); frecce invariate (escono tutte correttamente); GapCursor
+    fra righe adiacenti e caret su righe libere invariati. Casi aperti da
+    validare a mano su localhost: click su widget Dado/Punti in testo riga
+    (prima finiva nel figlio vicino, ora esce a doc). `npm run check` verde
+    (EXIT 0). Punti 19-21 NON sono ancora committati.
+    (g) Fix sintomi residui 2026-10-01 — A) click fra due textbox: la guard
+    `index <= 0` abortiva quando `posAtCoords` risolveva dentro il PRIMO
+    figlio (caso tipico del click nel gap fra due Box, dove il bordo
+    sinistro del gap è appena a destra di `child0.right`): rimossa, resta
+    solo la target guard (`target <= 0 || target >= childCount`, margini
+    gestiti da head/tail). B) frecce su/giù "bloccate" attorno a textbox:
+    da paragrafo adiacente alla riga il gapcursor creava GapCursor sul
+    bordo ESTERNO, `exitRowTo` lo respingeva sullo stesso caret → loop;
+    nuovo `enterAdjacentRowVertical` (solo depth 1 + `endOfTextblock` +
+    fratello `blockRow`, `Selection.near` + meta nudge) e
+    `moveOutOfRowVertical` con `rowDepth < 0` che delega a lì; con
+    `rowIndex <= 0` (nessun blocco sopra la prima riga) esplicita la
+    GapCursor sul gap adiacente (`GapCursor.valid` con cast @internal come
+    `noteTableContainerGapCursor`) — la lasciava fare al gapcursor standard
+    che dava il bordo in-testa. C) textbox inserita dopo testo cadeva nella
+    riga sottostante: `setTextBox` in `tiptapBlocks.tsx` usa ora
+    `addBlockToRow({kind:'textBox', side, pos})` quando il caret è vuoto in
+    paragrafo top-level (depth 1) o in paragrafo-in-riga (depth 2,
+    node(1)=blockRow) CON testo (`textContent.length > 0`), side = left se
+    caret a `contentStart` altrimenti right; paragrafi vuoti restano su
+    `insertContent` (flusso slash su riga fresca invariato). Verify: assert
+    sorgente `new GapCursor(` esteso a `moveOutOfRowVertical`. Misura:
+    harness 219 righe confronto postfix3→postfix5 = 0 diff; `dbg-arrows`
+    A/B/C/D/E tutti in movimento (D con GapCursor esplicita a doc-start,
+    non più bordo in-testa); `dbg-tb`/`dbg-tb2` Fix C: righe attese in
+    tutti i flussi (caret inizio/fine, con/senza spazio, slash, vuoto,
+    in-row); click fix A verificati con press reale (120ms: gapA/gapMid/
+    gapB → GapCursor interno, click contenuto → caret) — con press
+    sintetico 0ms un race `selectionchange`→`readDOMChange` riscrive la
+    selezione (non riproducibile con click umano). `npm run check` verde
+    (EXIT 0). Punti 19-21 NON sono ancora committati.
+
+22. `fix:` **Frecce verticali in uscita dalla Tabella (gap verso i nodi
+    adiacenti)** (segnalazione utente 2026-10-02: ↑ dalla tabella verso
+    l'Archivio sopra non mostrava il cursore verticale fra i due; ↓ dalla
+    tabella verso la TextBox sotto idem; nelle direzioni inverse sì).
+    (a) Diagnosi riprodotta in CDP (`dbg-tablegap.mjs`): l'uscita verticale
+    dalla tabella viene inghiottita dal `arrow()` di prosemirror-tables
+    (`tableEditing`: `atEndOfCell` ok, `nextCell` null → `Selection.near`
+    sul bordo esterno; se atterra in un testo diverso da quello corrente
+    `maybeSetSelection` ritorna true e il plugin gapcursor standard non gira
+    mai). L'asimmetria dipende da cosa c'è dall'altro lato: se la near
+    coincide col caret corrente (eq → false) il gap appariva lo stesso, con
+    un paragrafo sopra l'Archivio o la TextBox sotto la near trova testo
+    diverso → swallow. (b) Fix in `noteTableContainerGapCursor.ts`:
+    `TableCellContext` espone `tablePos` (`before(tableDepth)`); nuova
+    `tableOuterGapSelection(state, context, dir)` che al bordo esterno
+    (`verticalNeighborCell` null) ritorna GapCursor sul gap subito
+    prima/dopo il nodo tabella se `isValidNoteTableGapCursor` lo valida
+    (Archivio atom / TextBox isolating → sì; paragrafo plain → null, status
+    quo per la regola "solo fra due elementi"), con guardia `hasSibling`
+    (ai confini del doc resta null: quelle posizioni sono già del gapcursor
+    standard — un primo tentativo senza guardia ha fatto fallire l'assert
+    "mixed" del verify). Chiamata dai due rami (`TextSelection` e `GapCursor`
+    in movingOutward) dell'hook capture-phase preesistente (priority 1100),
+    quindi previene `tableEditing`. (c) Verify: nuovi casi in
+    `verify-note-table-container-gap.mjs` (textBox sopra + tabella →
+    GapCursor esattamente a `tablePos`; tabella + textBox sotto → dopo
+    `tablePos + nodeSize`; paragrafo plain sotto → null; tabella ultima al
+    doc → null). Misura CDP: `[p, archivio, tabella]` ↑ ora GapCursor@15
+    (prima TextSelection a fine paragrafo), `[tabella, textBox]` ↓ ora
+    GapCursor@20 (prima TextSelection dentro la TextBox), ↓ dal gap entra
+    nella TextBox; controlli negativi invariati (paragrafo plain → caret nel
+    paragrafo; archivio al doc-start invariato). Harness 219 righe
+    postfix5→postfix7 = 0 diff; `dbg-arrows` A/B/C/D/E invariati;
+    `npm run check` verde (EXIT 0). Punti 19-22 NON sono ancora committati.
+
+23. `fix:` **Matrice di controllo generale cursore/gap (M1-M5) + due fix
+    reali emersi** (task 2026-10-02: distinguere bug veri da asimmetrie
+    documentate su tutti gli elementi). (a) Harness CDP
+    `%TEMP%\opencode\dbg-matrix.mjs` (mode `full`/`probe`/`probe2`):
+    oracle unico `GapCursor.valid` (già l'oracle del sito via
+    `isValidNoteTableGapCursor`) + eccezioni note E1-E4 (p→riga in basso,
+    riga→p in alto con meta `blockRowNudge`, riga→riga); 16 elementi ×
+    16 in coppie: M1 frecce su/giù ai 4 bordi, M2 confini doc, M3 click e
+    bordi interni della riga, M4 celle tabella (5 varianti + riga doppia),
+    M5 click sul gap esterna. Wrapper `P` resiliente (retry+reinstall su
+    race), guardie null con SKIP esplicito, `clickAt` azzera
+    `view.input.lastClick` (PM rileva doppio-click a <500ms e azzera il
+    plugin `handleClick`: artefatto da 2 click ravvicinati, non bug).
+    (b) **Bug reale 1 - gap interna in testa riga verso non-paragrafo**:
+    `moveOutOfRowVertical` (dir<0, prev non paragrafo) ritorna false → il
+    gapcursor standard creava GapCursor a `rowPos+1` (margine interno
+    vietato dalle regole) e `onTransaction` non poteva uscire
+    (`exitRowTo` vuole un paragrafo adiacente). Fix in
+    `tiptapBlockRow.ts::onTransaction`, ramo isHead/isTail: se
+    `exitRowTo` fallisce e la selection è GapCursor → GapCursor sul
+    confine ESTERNO (`rowPos`/`rowPos+row.nodeSize`) se `GapCursor.valid`
+    lo ammette, altrimenti `Selection.near` nel testo del blocco adiacente;
+    meta `blockRowNudge`. (c) **Bug reale 2 - Punti bloccavano la freccia
+    su**: `Decoration.widget(side:0)` degli inlinePoints precede il testo
+    nel DOM → `view.endOfTextblock('up')` (DOM-based) torna false anche a
+    inizio paragrafo → `enterAdjacentRowVertical` non partiva mai (0
+    dispatch riprovato con dispatch-stack; il dado reale idem, il fixture
+    con ZW non decorato lo nascondeva). Fix: fallback doc-based
+    (`textBetween(start,pos)` vuoto = bordo effettivo), OR-combinato con
+    il vecchio check. (d) **Classificazioni - NON bug**: `edge=true`
+    (`rowEdgeExitTarget`) è la condizione interna voluta per l'uscita
+    nudge, non violazione (harness: nota, mai FAIL); click su div box →
+    `BlockClickSelect` NodeSelection (comportamento voluto, INFO);
+    click ravvicinato → doppio-click PM (harness); riga `pEmpty,pEmpty`
+    srotolata in paragrafo dalla regola "riga vuota" (SKIP); PLACE-FAIL su
+    hr/image/arch senza testo (strutturale). (e) Misure: run finale
+    1588 casi → **0 FAIL, 0 OBS** (M1 832 pass, M3 245, M4 30/30 incluso
+    S4 dopo fix `forEach` harness che leggeva l'offset come indice riga,
+    M5 157 + 99 INFO tutte artefatti di geometria/box); cluster `X,row:up`
+    e `row,ptsP:up` ora PASS; harness postfix7→postfix8 = 0 diff (nessuna
+    regressione); `npm run check` verde (EXIT 0, anche
+    `verify-note-row-extremes` aggiornato al codice ristrutturato: regex
+    isHead/isTail + eccezione `onTransaction` per il `new GapCursor(`
+    del fix (b)). Punti 19-23 NON sono ancora committati.
+
+24. `fix:` **Feedback utente: "+" laterale solo Blocchi + menu "/" ingrandito**
+    (2026-10-02: nei menù "+" appariva anche Testo; il menu "/" tagliava
+    l'ultima riga di icone). (a) `NoteRowGutter.tsx`: `menuGroups` ora
+    sempre `['block']` per tutti e 3 i "+" (riga, box standalone, widget
+    bordo) — Testo resta solo al menu "/". (b) `NoteSlashMenu.tsx`: stima
+    `placeFloatingNoteUI(coords, 248, Math.min(640, innerHeight*0.85), 8)`
+    + `max-h-[min(85vh,640px)]` (prima 420px/70vh → ultima riga fuori).
+    (c) Harness CDP 4 fasi (`dbg-guttermenu.mjs`, typing reale slash via
+    `Input.dispatchKeyEvent`): A/B/C → 1 sezione "Blocchi" 14 voci;
+    D → 2 sezioni (Testo+Blocchi) 25 voci, `truncated:false`,
+    `lastItemVisible:true`, `maxH 640px` → **4/4 PASS**. (d) Diagnosi
+    FASE D (menu "/" che non si apriva in harness): doppia istanza del
+    modulo `tiptapNoteSlashMenu` — vite aveva trasformato l'import
+    relativo del componente con `?t=<timestamp>` stale mentre l'import
+    diretto dell'harness era senza query → due `PluginKey`
+    (`noteSlashMenu$1` vs `noteSlashMenu$`) e slot diversi; artefatto
+    dell'harness (nell'app un solo grafo), risolto scoprendo l'URL reale
+    dal resource timing e usando quello per `sme`/`smo`. Rimossi tutti i
+    TEMP-DEBUG/trace da `NoteSlashMenu.tsx`. `npm run check` verde
+    (EXIT 0), mojibake 0. Punti 19-24 NON sono ancora committati.
+
+25. `fix:` **Riga Punti+TextBox: spazio morto dopo una modifica ai Punti**
+    (2026-10-02, feedback utente con screenshot: rimuovendo il massimo dal
+    menu Punti il box si restringe ma la TextBox accanto resta ferma e nel
+    mezzo resta vuoto). (a) Diagnosi via harness CDP
+    `%TEMP%\opencode\dbg-pointsrow.mjs` (4 misure: inserimento →
+    `maxEnabled:false` → cambio value → resize): la riga è
+    `row > p(flex frame, :has data-points-fills) > span[data-inline-points]
+    (mark span del renderHTML, figlio flex del p) > widget(width:100%)`.
+    Al rebuild del widget (la key della decoration include max/maxEnabled →
+    nuovo elemento) lo span mark si ricolloca come flex item con
+    `flex:0 1 auto` e si rimpicciolisce al contenuto (455→234px): il frame
+    `p` resta pieno ma dentro resta vuoto → gap 225px fra Punti e TextBox;
+    `measureLine` non corregge perche' `getWidgetLineContainer` si ferma allo
+    span (display:block) e la sua "fine riga" e' gia' lo span ristretto
+    (auto-consistente). (b) Fix CSS in `theme.css`: nuova regola
+    `.tiptap-row > p:has(...[data-points-fills]) > span[data-inline-points]
+    { flex: 1 1 0; }` — il mark span riempie il frame in tutti gli stati.
+    (c) Verifica: harness 4/4 stati con `gapWrapToBox:4` (solo il gap di
+    riga standard) e `deadRight:0`; altezze invariare (105/105/105);
+    `npm run check` verde (EXIT 0), mojibake 0. Punti 19-25 NON sono ancora
+    committati.
+
+26. `fix:` **Feedback utente: caret verticale fra due righe + altezza Dado pari
+    al vicino** (2026-10-03, screenshot: riga [Punti+TextBox] sopra riga
+    [Dado+TextBox]). (a) Cursore fra righe: `moveOutOfRowVertical` (su da
+    inizio riga, figlio precedente = altra riga) atterrava con `Selection.near`
+    dentro la riga sopra (coda dell'ultimo elemento) — nessun cursore visibile
+    nel gap; la spec di `.repro/driver.ts` ("Scenario utente: Up da inizio
+    riga 2 → caret tra le righe, X digitata resta li'") non era implementata.
+    Fix in `tiptapBlockRow.ts`: nuovo ramo nel keydown — GapCursor sul
+    confine (`GapCursor.valid(rowPos)`, stessa posizione gia' usata sopra la
+    prima riga) quando su sale da inizio riga con un'altra riga sopra, piu'
+    ramo che muove una GapCursor fra due righe su/gi' con meta
+    `blockRowNudge` (senza la meta la regola margine risbatterebbe il caret
+    in testa alla riga sotto e si entrerebbe in un loop gap<->testa a ogni
+    pressione); il ramo intercetta SOLO gap fra due `blockRow`, tabelle e
+    confini doc restano al default. Verifica harness CDP
+    `%TEMP%\opencode\dbg-rowcaret.mjs` (A righe plain / B Punti+Dado): su da
+    inizio riga2 → GapCursor sul confine (widget `.ProseMirror-gapcursor`
+    nel gap, y fra le righe), X digitata li' → paragrafo top-level fra le
+    righe (`[row, paragraph:X, row, p']`), su da figlio2 idem, giu' da fine
+    riga1 → testa riga2 invariato, sequenza su ripetuti riga2 → gap → coda
+    riga1 (nudge, nessun rimbalzo) → fermo; il click nel gap resta
+    NodeSelection sulla riga (invariato). (b) Altezza Dado: `theme.css`
+    nuove regole `.tiptap-row > p:has(.tiptap-inline-dice-widget) {
+    align-self: stretch; }` + `... .tiptap-inline-dice-widget { height: 100%
+    }` — il Dado riempie l'altezza della riga (pari alla TextBox accanto)
+    restando a larghezza contenuto (hug, invariata). Harness
+    `%TEMP%\opencode\dbg-diceheight.mjs`: box wrappata 88px → Dado 88px
+    (delta 0), riga sola naturale 41=41, Dado+testo invariato, larghezza
+    64px ovunque; Punti invariati. (c) `npm run check` verde (EXIT 0),
+    mojibake 0. Punti 19-26 NON sono ancora committati.
+
+27. `fix:` **Feedback utente: il Collapse si crea su una seconda riga quando lo
+    si inserisce dopo l'elemento Dado** (2026-10-03). Il Dado finisce in un
+    paragrafo di PRIMO LIVELLO (riga con un solo paragrafo che viene srotolata
+    dal cleanup, oppure Dado digitato in una nota fresca): lì
+    `setCollapseBlock` usava solo `commands.insertContent`, che il Collapse lo
+    pone come blocco separato SOTTO il paragrafo (e a inizio testo SOPRA) —
+    stessa sintassi che `setTextBox` ha appena risolto con l'affiancamento.
+    Fix in `tiptapBlocks.tsx`: branch speculare a `setTextBox` — caret in
+    collasso, paragrafo con testo, `depth === 1` → `addBlockToRow({
+    kind: 'collapseBlock', side })` (lato dal caret: a inizio a sinistra,
+    altrimenti a destra) che wrappa paragrafo + Collapse in una riga
+    affiancata, caret gia' nel sommario. Solo primo livello: IN RIGA
+    l'insertContent si comporta gia' bene (harness: il Collapse nasce figlio
+    subito dopo il Dado, stessa riga visiva) e non va cambiato; paragrafi
+    vuoti (linea fresca col "/") restano sul vecchio inserimento. Verifica
+    harness `%TEMP%\opencode\dbg-collapse.mjs` (E = Dado top-level / in riga,
+    G = casi limite): post-fix Dado top-level con caret a fine/inizio → riga
+    [Dado, Collapse]/[Collapse, Dado] affiancati sulla stessa riga visiva
+    (rettangoli con stesso `top`), caret nel sommario; in riga (caret dopo
+    Dado, in TextBox, a inizio Dado) e linea fresca vuota invariati. Nota:
+    emerso anche errore TS2451 (`const $from` doppio nel comando, che faceva
+    tornare 500 il transform di vite) — rinominato `$at`. `npm run check`
+    verde (EXIT 0), mojibake 0. Punti 19-27 NON sono ancora committati.
+
+28. `fix:` **Feedback utente: il Dado non era allineato d'altezza al Collapse
+    (e non deve allinearsi quando il Collapse è aperto)** (2026-10-03). Due
+    difetti in theme.css, entrambi misurati sull'harness: (a) a collapse
+    CHIUSO il box visivo `.tiptap-collapse` risultava 8px più corto del Dado
+    affiancato — il figlio diretto della riga è il wrapper React del node
+    view (`.react-renderer.node-collapseBlock`), quindi la regola
+    `.tiptap-row > * { margin-bottom: 0 }` azzera il margine del WRAPPER ma
+    non quello del blocco interno, che restava dentro il wrapper come 8px di
+    spazio morto sotto il box; (b) a collapse APERTO il Dado si stirava per
+    tutta l'altezza del corpo espanso, mentre il feedback chiede
+    l'allineamento SOLO da chiuso. Fix in theme.css (dopo le regole Dado del
+    punto 26): `.tiptap-row > .node-collapseBlock > .tiptap-collapse {
+    margin-bottom: 0; height: 100%; box-sizing: border-box; }` (box pieno del
+    wrapper in entrambi gli stati) e coppia di regole
+    `:has(> .node-collapseBlock .tiptap-collapse[data-open='true'])` che
+    riportano il paragrafo Dado a `align-self: center` + widget `height:
+    auto` (misura naturale, centrato come il testo vicino agli altri box).
+    Verifica con harness `%TEMP%\opencode\dbg-dicecollapse.mjs` — montaggio
+    CORRETTO solo dopo aver montato l'editor con `<EditorContent>` React:
+    con `new Editor` da solo `editor.contentComponent` resta assente e
+    ReactNodeViewRenderer ritorna `{}` (il Collapse cade sul renderHTML
+    statico senza classe/padding/freccia, geometria NON rappresentativa —
+    le prime misure ingannevoli mostravano "tutto allineato"). Numeriche
+    post-fix: chiuso Dado 41 = Collapse 41 (delta 0, era 48 vs 40), aperto
+    Dado 41 naturale centrato vs Collapse 68 (delta -27, era stirato 76),
+    riga con TextBox invariata 41/41, toggle chiuso↔aperto reversibile.
+    Screenshot `%TEMP%\opencode\dicecollapse.png`. `npm run check` verde
+    (EXIT 0), mojibake 0. Punti 19-28 NON sono ancora committati.
+
+29. `fix:` **Feedback utente: la Collapse selezionata con il mouse non si
+    cancellava con Canc, e il tasto evidenziava la freccia** (2026-10-03).
+    Riprodotto con harness `%TEMP%\opencode\dbg-collapse-delete.mjs` (editor
+    montato con `<EditorContent>` React, doc resettato per scenario, click e
+    tasto reali via CDP): baseline — click sul bordo creava NodeSelection ma
+    `activeElement` restava `BODY` (il `preventDefault` sul mousedown blocca
+    il focus di default e ProseMirror non lo imposta da solo per i nodeview,
+    quindi il Delete non arrivava mai all'editor), click sulla freccia dava
+    `activeElement = BUTTON` (anello di focus sulla freccia, come nel
+    report), stessa falla sulla TextBox. Fix in `tiptapBlocks.tsx`: (1)
+    `CollapseBlockView.onMouseDown` → `editor.view.focus()` dopo il dispatch
+    della NodeSelection; (2) `BlockClickSelect.mousedown` → `view.focus()`
+    dopo `preventDefault` (TextBox); (3) toggle `onMouseDown` con
+    `preventDefault` (nessun focus/anello, il click si genera comunque);
+    (4) probe `%TEMP%\opencode\dbg-probe-toggle.mjs` (fasi separate
+    mousedown/mouseup) ha mostrato che la selezione si rompeva nella fase
+    CLICK: il click nativo di ProseMirror su `view.dom` (che gira prima
+    dell'onClick React) risolveva il punto più vicino e infilava un caret nel
+    sommario — da lì il Canc mangiava i caratteri del titolo invece di
+    agire sul blocco; risolto nell'onClick del toggle con dispatch
+    esplicito di NodeSelection + `editor.view.focus()` dopo
+    `updateAttributes` (la freccia è un controllo del box: dopo il toggle il
+    box resta selezionato). Verifica harness post-fix, tutti gli scenari
+    verdi: bordo destro/sinistro, freccia, sequenza completa
+    bordo→freccia→Canc e TextBox cancellano il blocco intero
+    (`top: [paragraph, paragraph]`, focus su PM-DOM); click sul sommario
+    (testo) invariato, cancella il carattere. Nota latente NON toccata:
+    `noteTableResize.css` punta a `.tiptap-row > .tiptap-collapse` ma il
+    figlio diretto della riga è il wrapper React
+    (`.react-renderer.node-collapseBlock`), quindi quelle regole non
+    matchano il collapse. `npm run check` verde (EXIT 0), mojibake 0.
+    Punti 19-29 NON sono ancora committati.
+
+30. `fix:` **Feedback utente: Invio nel titolo della Collapse creava una
+    seconda box invece di andare nel corpo, e la creazione slash non
+    lasciava il caret nel titolo** (2026-10-03). Riprodotto con harness
+    `%TEMP%\opencode\dbg-collapse-enter.mjs` (editor React montato, doc
+    resettato per scenario, keymap/selector reali, spy `view.dispatch` con
+    stack + log transazioni via listener): due cause distinte.
+    **Bug Invio**: i keymap tiptap sono costruiti sull'elenco estensioni
+    INVERTITO (`sortExtensions([...extensions].reverse())` in `@tiptap/core`)
+    → il keymap di BlockRow gira PRIMA di CollapseSummary e
+    `splitBlockRowAtCaret` tagliava il `blockRow` in due box (la seconda
+    senza sommario = contenuto invalido); stessa cosa a metà del corpo
+    (Invio nel body → split della box in due). Fix A in
+    `tiptapBlockRow.ts::splitBlockRowAtCaret`: guard in cima — se
+    `from`/`to` cade in `collapseSummary` o `collapseBody` (ancestor walk)
+    restituisce `false` e lascia il campo a CollapseSummary/default.
+    **Bug caret slash**: due sovrapposizioni — (a) i rami di
+    `applyBlockToRow` con riga esistente atterravano nel corpo via
+    `caretIntoRowItem`/`Selection.near` backward (branche 1-2: 12/paragraph
+    invece di 9/summary); (b) ~2-4ms dopo la dispatch il `readDOMChange`
+    di ProseMirror-view (stack: `DOMObserver.observer → flush →
+    handleDOMChange → readDOMChange`) spedisce una transazione SENZA step
+    che riporta il caret alla posizione vecchia nel DOM (il nodeview React
+    monta/rimonta in modo asincrono e la correzione DOM arriva dopo).
+    Fix P1: `applyBlockToRow` ora posiziona il caret a `+2` (primo punto
+    di testo in `collapseSummary`) per `kind==='collapseBlock'` in tutti e
+    quattro i rami (insertIntoRow, row-children, row-target, standalone)
+    tramite helper locale `placeRowCaret`; paragrafo/TextBox invariati.
+    Fix P2: `reassertCollapseSelectionAfterRender(view, from)` (esportata
+    da `tiptapBlockRow.ts`) — `queueMicrotask` (cattura il doc
+    post-dispatch) + `requestAnimationFrame`, guard su `isDestroyed` ed
+    identità del doc, dispatch solo se la selezione differisce (quindi
+    idempotente): cablata nel comando `addBlockToRow` e nel percorso
+    `insertContent` di `setCollapseBlock` (`tiptapBlocks.tsx`). Verifica
+    harness post-fix, tutti gli scenari verdi: slash riga vuota/dopo testo/
+    in riga → caret nel titolo dopo il revert (`tiptapBlockRow.ts` stack
+    visibile nello spy), gutter standalone/riga/paragrafo → titolo, Invio
+    nel titolo in riga → **una sola box, `open:true`, caret nel corpo**
+    (riga intatta), standalone invariato, Invio in paragrafo di riga →
+    riga divisa come prima (nessuna regressione), Invio nel corpo →
+    a capo dentro lo stesso box. Regressione `dbg-collapse-delete.mjs`
+    6/6 verdi. `npm run check` verde (EXIT 0), mojibake 0.
+    Punti 19-30 NON sono ancora committati.
 
 
 #### Indice icone senza standard (per round futuri — censimento statico, verificare a mano i contesti "in pulsante")
