@@ -87,7 +87,7 @@ export function defaultArchivioCell(kind: ArchivioCellKind = 'text'): ArchivioCe
   if (kind === 'dice') return { ...base, text: '1d6' };
   if (kind === 'points') return { ...base, value: 10, max: 10 };
   if (kind === 'modifier') return { ...base, text: '0' };
-  if (kind === 'text') return base;
+  if (kind === 'text' || kind === 'checkbox') return base;
   return { ...base, kind: 'text' };
 }
 

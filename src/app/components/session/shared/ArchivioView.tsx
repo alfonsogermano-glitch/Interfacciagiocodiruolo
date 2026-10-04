@@ -589,13 +589,15 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
       return (
         <input
           type="checkbox"
+          data-archivio-checkbox="true"
           data-archivio-cell-input={cell.id}
           checked={cell.checked}
           onChange={(event) => updateCell(rowIndex, colIndex, { checked: event.target.checked })}
           onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
           onKeyDown={stopKeys}
           aria-label="Checkbox"
-          className="h-4 w-4 shrink-0 accent-[var(--dash-accent)]"
+          className="tiptap-archivio-checkbox h-4 w-4 shrink-0 cursor-pointer"
         />
       );
     }
@@ -705,11 +707,11 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
 
   const transformItems = (cell: ArchivioCell, rowIndex: number, colIndex: number) => {
     const options: Array<{ kind: ArchivioCellKind; label: string; icon: typeof Type }> = [
-      { kind: 'text', label: 'Trasforma in testo', icon: Type },
+      { kind: 'text', label: 'Trasforma in Testo', icon: Type },
       { kind: 'dice', label: 'Trasforma in Dado', icon: Dices },
-      { kind: 'checkbox', label: 'Trasforma in checkbox', icon: SquareCheckBig },
+      { kind: 'checkbox', label: 'Trasforma in Checkbox', icon: SquareCheckBig },
       { kind: 'points', label: 'Trasforma in Punti', icon: Gauge },
-      { kind: 'modifier', label: 'Trasforma in modificatore', icon: Cog },
+      { kind: 'modifier', label: 'Trasforma in Modificatore', icon: Cog },
     ];
     return (
       <>
@@ -717,6 +719,8 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
           <MenuItem
             icon={Pencil}
             label="Modifica"
+            // Il pannello di modifica Checkbox verra' definito nel prossimo passo.
+            disabled={cell.kind === 'checkbox'}
             onSelect={() => {
               if (cell.kind === 'dice') openDiceEditor(rowIndex, colIndex);
               else focusCellEditor(cell.id);
@@ -966,7 +970,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                         </span>
                       ) : (
                         <span className="relative flex min-w-0 items-center gap-1">
-                          <span className="flex min-w-0 flex-1 items-center justify-center">
+                          <span className={`flex min-w-0 flex-1 items-center ${cell.kind === 'checkbox' ? 'justify-start' : 'justify-center'}`}>
                             {renderCellEditor(cell, rowIndex, colIndex)}
                           </span>
                           <TriggerButton

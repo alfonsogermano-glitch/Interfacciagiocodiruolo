@@ -1,7 +1,9 @@
 export const DICE_3D_THROW_STRENGTH = 1.6;
-export const DICE_3D_MIN_SPEED_RATIO = 1.3;
+// Higher floors keep weak randomized throws moving and tumbling; vectors
+// already inside the range retain their original speed, spin and direction.
+export const DICE_3D_MIN_SPEED_RATIO = 2.0;
 export const DICE_3D_MAX_SPEED_RATIO = 3.1;
-export const DICE_3D_MIN_SPIN = 8;
+export const DICE_3D_MIN_SPIN = 10;
 export const DICE_3D_MAX_SPIN = 15;
 export const DICE_3D_ROLL_TIMEOUT_MS = 8_000;
 

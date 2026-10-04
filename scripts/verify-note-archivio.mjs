@@ -92,7 +92,7 @@ for (const label of ['Aggiungi riga prima', 'Aggiungi riga dopo', 'Aggiungi colo
 }
 
 // Celle dati: i cinque tipi con trasformazione ed editing dedicato.
-for (const label of ['Trasforma in testo', 'Trasforma in Dado', 'Trasforma in checkbox', 'Trasforma in Punti', 'Trasforma in modificatore', 'Modifica']) {
+for (const label of ['Trasforma in Testo', 'Trasforma in Dado', 'Trasforma in Checkbox', 'Trasforma in Punti', 'Trasforma in Modificatore', 'Modifica']) {
   assert.ok(view.includes(label), `data cells must support ${label}`);
 }
 

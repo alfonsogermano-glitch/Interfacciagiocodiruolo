@@ -243,6 +243,8 @@ function setTableContainerGapCursor(view: EditorView, event: MouseEvent): boolea
 
 function setTableContainerGapCursorFromArrow(view: EditorView, event: KeyboardEvent): boolean {
   if (!view.editable || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
+  if (event.target instanceof Element && event.target.closest('input, textarea, select, button, [contenteditable="false"]')) return false;
+  if (view.dom.ownerDocument.querySelector('[data-note-slash-menu="true"]')) return false;
   const dir = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : null;
   if (!dir) return false;
 

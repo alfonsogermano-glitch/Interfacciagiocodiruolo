@@ -353,6 +353,32 @@
   margin: 0 0 var(--note-block-gap) 0;
 }
 
+/* Checkbox delle celle Archivio: stesso bordo e spunta della checkbox
+   standard della nota, con la semantica e la tastiera del controllo nativo. */
+.tiptap-archivio-checkbox {
+  appearance: none;
+  position: relative;
+  box-sizing: border-box;
+  border: 2px solid var(--dash-text);
+  border-radius: 0.22em;
+  background: transparent;
+}
+.tiptap-archivio-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 0.25em;
+  height: 0.5em;
+  border: solid var(--dash-text);
+  border-width: 0 0.12em 0.12em 0;
+  transform: translateY(-0.04em) rotate(45deg);
+  pointer-events: none;
+}
+.tiptap-archivio-checkbox:focus-visible {
+  outline: 2px solid var(--dash-accent);
+  outline-offset: 2px;
+}
 /* Gli input numerici di Punti mantengono la semantica number senza mostrare
    gli spinner nativi, gia' sostituiti dalle zone di regolazione laterali. */
 .tiptap-inline-points-input {
@@ -384,6 +410,37 @@
   display: none;
 }
 @keyframes tiptap-points-caret-blink {
+  50% { opacity: 0; }
+}
+
+/* Accanto al Dado il caret nativo puo' restare invisibile o troppo alto.
+   Il widget a larghezza zero lo sostituisce con una linea a contrasto,
+   appena fuori dal bordo del box, senza allargare il paragrafo. */
+.tiptap-content.tiptap-dice-adjacent-caret {
+  caret-color: transparent;
+}
+.tiptap-inline-dice-caret {
+  display: inline-block;
+  position: relative;
+  width: 0;
+  height: 1.15em;
+  vertical-align: -0.15em;
+  pointer-events: none;
+}
+.ProseMirror-focused .tiptap-inline-dice-caret::after {
+  content: '';
+  position: absolute;
+  left: 1px;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: var(--dash-accent);
+  animation: tiptap-dice-caret-blink 1.1s steps(1) infinite;
+}
+.ProseMirror-focused .tiptap-inline-dice-caret[data-side='left']::after {
+  left: -3px;
+}
+@keyframes tiptap-dice-caret-blink {
   50% { opacity: 0; }
 }
 
@@ -574,6 +631,17 @@
 .tiptap-content .ProseMirror-gapcursor:after {
   border-top-color: var(--dash-accent);
 }
+.tiptap-content .ProseMirror-gapcursor.note-universal-row-gap {
+  height: 1.15em;
+  transform: translateY(-50%);
+}
+.tiptap-content .ProseMirror-gapcursor.note-universal-row-gap:after {
+  top: 0;
+  width: 2px;
+  height: 100%;
+  border: 0;
+  background: var(--dash-accent);
+}
 
 /* Collapse (tiptapBlocks.tsx, CollapseBlock/CollapseBlockView) - il corpo si
    nasconde via CSS puro in base all'attributo data-open sul wrapper (non su
@@ -702,6 +770,11 @@
 }
 .tiptap-row > p:has(.tiptap-inline-dice-widget) .tiptap-inline-dice-widget {
   height: 100%;
+}
+/* Un Dado finale conserva il caret a destra: una piccola area cliccabile
+   dentro l'editor evita che il bordo coincida con il limite del contentDOM. */
+.tiptap-row > p:last-child:has(> span[data-inline-dice]:last-child) {
+  padding-right: var(--note-row-gap);
 }
 /* Collapse in riga dentro il wrapper React del node view (figlio diretto
    della riga e' .react-renderer.node-collapseBlock, non .tiptap-collapse):

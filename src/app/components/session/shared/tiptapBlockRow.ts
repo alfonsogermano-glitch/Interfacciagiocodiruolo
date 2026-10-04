@@ -122,6 +122,8 @@ function exitRowTo(editor: Editor, rowPos: number, dir: -1 | 1): boolean {
 // la scrittura e gli elementi incorniciati:
 // - solo figli PARAGRAFI: Box e Collapse hanno bordo/padding, il caret dentro
 //   di loro e' visivamente dentro l'elemento, non a margine;
+// - il bordo destro di un Dado finale e' ammesso: e' un box visivo anche
+//   se nello schema e' un carattere inline marcato dentro un paragrafo;
 // - figlio non vuoto: uno slot di testo vuoto e' il posto dove scrivere;
 // - il chiamante inoltre guarda transaction.docChanged (mentre si scrive il
 //   caret resta dov'e') e il meta blockRowNudge (l'atterraggio di un exit non
@@ -148,9 +150,38 @@ export function rowEdgeExitTarget(state: EditorState): { rowPos: number; dir: -1
   if (child.type.name !== 'paragraph' || child.content.size === 0) return null;
   const childPos = $from.posAtIndex(childIdx, rowDepth);
   const rowPos = $from.before(rowDepth);
-  if (isLast && sel.from === childPos + child.nodeSize - 1) return { rowPos, dir: 1 };
-  if (isFirst && sel.from === childPos + 1) return { rowPos, dir: -1 };
+  if (isLast && sel.from === childPos + child.nodeSize - 1) {
+    // Il Dado e' un box visivo, pur vivendo in un paragrafo come carattere
+    // marcato: il suo bordo destro resta un punto di scrittura anche quando
+    // e' l'ultimo elemento della riga (come il bordo di un box incorniciato).
+    // Anche il testo aggiunto dopo il Dado fa parte del suo slot: spostare
+    // il caret fuori a ogni transazione di selezione impediva Backspace.
+    let hasDice = false;
+    child.forEach(node => {
+      if (node.isText && node.text?.includes('\u200b') && node.marks.some(mark => mark.type.name === 'inlineDice')) hasDice = true;
+    });
+    if (hasDice) return null;
+    return { rowPos, dir: 1 };
+  }
+  if (isFirst && sel.from === childPos + 1) {
+    if (startsWithInlineDice(child)) return null;
+    return { rowPos, dir: -1 };
+  }
   return null;
+}
+
+function endsWithInlineDice(node: PMNode): boolean {
+  const last = node.lastChild;
+  return node.type.name === 'paragraph' && Boolean(
+    last?.isText && last.text?.endsWith('\u200b') && last.marks.some(mark => mark.type.name === 'inlineDice'),
+  );
+}
+
+function startsWithInlineDice(node: PMNode): boolean {
+  const first = node.firstChild;
+  return node.type.name === 'paragraph' && Boolean(
+    first?.isText && first.text?.startsWith('\u200b') && first.marks.some(mark => mark.type.name === 'inlineDice'),
+  );
 }
 
 // Click in un gap INTERNO della riga (tra due elementi): il cursore di attesa
@@ -161,8 +192,9 @@ export function rowEdgeExitTarget(state: EditorState): { rowPos: number; dir: -1
 // adiacente e' NodeSelection-able (TextBox/Collapse). Il caret finiva quindi
 // dentro un figlio qualsiasi, sparito fra i due box. Qui lo creiamo noi: la
 // GapCursor viene disegnata dal widget ProseMirror-gapcursor e onTransaction
-// la conserva (ramo gap interni). Ai margini esterni (idx 0 / childCount) non
-// intercetta: lì escono la regola head/tail e la regola margine.
+// la conserva (ramo gap interni). Dopo un Dado si preferisce il caret di
+// testo sul suo bordo destro, anche se finale; gli altri margini esterni
+// restano gestiti dalle regole head/tail e margine.
 export function createBlockRowGapCursorPlugin(): Plugin {
   return new Plugin({
     key: new PluginKey('blockRowGapCursor'),
@@ -184,8 +216,23 @@ export function createBlockRowGapCursorPlugin(): Plugin {
           for (let k = 0; k < childIndex; k += 1) off += row.child(k).nodeSize;
           return off;
         };
+        const caretAfterDice = (target: number): boolean => {
+          if (target <= 0 || !endsWithInlineDice(row.child(target - 1))) return false;
+          const diceEnd = startOf(target) - 1;
+          view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, diceEnd)));
+          view.focus();
+          return true;
+        };
+        const caretBeforeDice = (target: number): boolean => {
+          if (target < 0 || target >= row.childCount || !startsWithInlineDice(row.child(target))) return false;
+          view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, startOf(target) + 1)));
+          view.focus();
+          return true;
+        };
         if ($pos.parent.type.name === 'blockRow') {
           // La posizione e' gia' nel gap di riga: subito GapCursor.
+          if (index > 0 && index <= row.childCount && caretAfterDice(index)) return true;
+          if (caretBeforeDice(index)) return true;
           if (index <= 0 || index >= row.childCount) return false;
           view.dispatch(view.state.tr.setSelection(new GapCursor(view.state.doc.resolve(startOf(index)))));
           return true;
@@ -207,6 +254,8 @@ export function createBlockRowGapCursorPlugin(): Plugin {
         const rect = dom.getBoundingClientRect();
         if (event.clientX >= rect.left && event.clientX <= rect.right) return false;
         const target = event.clientX < rect.left ? index : index + 1;
+        if (target > 0 && target <= row.childCount && caretAfterDice(target)) return true;
+        if (caretBeforeDice(target)) return true;
         if (target <= 0 || target >= row.childCount) return false;
         view.dispatch(view.state.tr.setSelection(new GapCursor(view.state.doc.resolve(startOf(target)))));
         return true;
@@ -702,9 +751,54 @@ function enterAdjacentRowVertical(editor: Editor, dir: -1 | 1): boolean {
   // riga atterrerebbe col caret sul suo contentStart, che la regola margine
   // rispingerebbe fuori (rimbalzo).
   const edge = dir < 0 ? sibStart + sibling.nodeSize - 1 : sibStart + 1;
-  const tr = state.tr.setSelection(Selection.near(state.doc.resolve(edge), dir));
+  const tr = state.tr.setSelection(visibleVerticalSelection(state.doc, edge, dir));
   tr.setMeta('blockRowNudge', true);
   view.dispatch(tr);
+  return true;
+}
+
+// Selection.near vede anche il corpo nascosto: risalendo da un gap o dal
+// paragrafo di coda di una Collapse chiusa deve invece raggiungere il titolo.
+function visibleVerticalSelection(doc: PMNode, pos: number, dir: -1 | 1): Selection {
+  const selection = Selection.near(doc.resolve(pos), dir);
+  for (let depth = selection.$from.depth; depth >= 1; depth -= 1) {
+    const node = selection.$from.node(depth);
+    if (node.type.name !== 'collapseBlock' || node.attrs.open) continue;
+    const summaryStart = selection.$from.before(depth) + 2;
+    return TextSelection.create(doc, summaryStart + (dir < 0 ? node.firstChild!.content.size : 0));
+  }
+  return selection;
+}
+
+function isVerticalContainer(node: PMNode | null): boolean {
+  return node?.type.name === 'blockRow' || node?.type.name === 'collapseBlock';
+}
+
+function moveOutOfCollapseVertical(editor: Editor, dir: -1 | 1): boolean {
+  const { state, view } = editor;
+  if (!(state.selection instanceof TextSelection)) return false;
+  const { $from } = state.selection;
+  let depth = $from.depth;
+  while (depth > 0 && $from.node(depth).type.name !== 'collapseBlock') depth -= 1;
+  if (!depth) return false;
+  const collapse = $from.node(depth);
+  // Aperto: attraversare titolo e paragrafi del corpo prima di uscire.
+  // Chiuso: il solo titolo costituisce il bordo visibile.
+  if (collapse.attrs.open) {
+    for (let d = $from.depth - 1; d >= depth; d -= 1) {
+      const index = dir < 0 ? $from.index(d) : $from.indexAfter(d);
+      if (index !== (dir < 0 ? 0 : $from.node(d).childCount)) return false;
+    }
+  } else if ($from.parent.type.name !== 'collapseSummary') {
+    return false;
+  }
+  if (!view.endOfTextblock(dir < 0 ? 'up' : 'down')) return false;
+  const pos = dir < 0 ? $from.before(depth) : $from.after(depth);
+  const $gap = state.doc.resolve(pos);
+  if (!isVerticalContainer(dir < 0 ? $gap.nodeBefore : $gap.nodeAfter)) return false;
+  const gapCursor = GapCursor as unknown as { valid: (pos: typeof $gap) => boolean };
+  if (!gapCursor.valid($gap)) return false;
+  view.dispatch(state.tr.setSelection(new GapCursor($gap)));
   return true;
 }
 
@@ -712,7 +806,7 @@ function moveOutOfRowVertical(editor: Editor, dir: -1 | 1): boolean {
   const { state, view } = editor;
   const { $from } = state.selection;
   if (!state.selection.empty) return false;
-  // Gap verticale FRA DUE righe (GapCursor sul confine, disegnata dal widget
+  // Gap verticale FRA DUE righe/Collapse (GapCursor sul confine, widget
   // di attesa): su/gi' entrano nel blocco adiacente con la stessa meta
   // blockRowNudge degli altri atterraggi. Senza la meta, dalla coda della riga
   // sopra la regola margine risbatterebbe il caret in testa alla riga sotto e
@@ -721,11 +815,8 @@ function moveOutOfRowVertical(editor: Editor, dir: -1 | 1): boolean {
   if (state.selection instanceof GapCursor && $from.parent.type.name !== 'blockRow') {
     const before = $from.nodeBefore;
     const after = $from.nodeAfter;
-    if (before?.type.name === 'blockRow' && after?.type.name === 'blockRow') {
-      const target =
-        dir < 0
-          ? Selection.near(state.doc.resolve($from.pos - 1), -1)
-          : Selection.near(state.doc.resolve($from.pos + 1), 1);
+    if (isVerticalContainer(before) && isVerticalContainer(after)) {
+      const target = visibleVerticalSelection(state.doc, $from.pos + dir, dir);
       const tr = state.tr.setSelection(target);
       tr.setMeta('blockRowNudge', true);
       view.dispatch(tr);
@@ -734,7 +825,7 @@ function moveOutOfRowVertical(editor: Editor, dir: -1 | 1): boolean {
     return false;
   }
   const rowDepth = findBlockRowDepth($from);
-  if (rowDepth < 0) return enterAdjacentRowVertical(editor, dir);
+  if (rowDepth < 0) return moveOutOfCollapseVertical(editor, dir) || enterAdjacentRowVertical(editor, dir);
   if (rowDepth < 1) return false;
   const rowPos = $from.before(rowDepth);
   const row = $from.node(rowDepth);
@@ -748,6 +839,7 @@ function moveOutOfRowVertical(editor: Editor, dir: -1 | 1): boolean {
   // (box con più paragrafi, corpo collapse) resta il default coordinato.
   let childStart = -1;
   let childEnd = -1;
+  let inClosedSummary = false;
   if (!inGap) {
     let off = rowPos + 1;
     for (let k = 0; k < row.childCount; k += 1) {
@@ -755,6 +847,10 @@ function moveOutOfRowVertical(editor: Editor, dir: -1 | 1): boolean {
       if ($from.pos >= off && $from.pos <= off + child.nodeSize) {
         childStart = off;
         childEnd = off + child.nodeSize;
+        if (child.type.name === 'collapseBlock' && !child.attrs.open && $from.parent.type.name === 'collapseSummary') {
+          inClosedSummary = true;
+          // Il corpo chiuso non conta come testo sotto al titolo.
+        }
         break;
       }
       off += child.nodeSize;
@@ -764,7 +860,9 @@ function moveOutOfRowVertical(editor: Editor, dir: -1 | 1): boolean {
   if (dir < 0) {
     // Solo se sopra il caret non c'è più testo nel suo elemento (o caret
     // nel gap: lì sopra non c'è mai niente, si esce comunque).
-    if (!inGap && state.doc.textBetween(childStart + 1, $from.pos, undefined, '').length > 0) return false;
+    if (!inGap && (inClosedSummary
+      ? !view.endOfTextblock('up')
+      : state.doc.textBetween(childStart + 1, $from.pos, undefined, '').length > 0)) return false;
     // Niente sopra la riga (e' il primo blocco): si esce sopra la riga con
     // la GapCursor del gap adiacente (punto di attesa sopra la prima riga).
     // Lasciando fare al gapcursor standard, quando il primo figlio e' unBox
@@ -781,14 +879,14 @@ function moveOutOfRowVertical(editor: Editor, dir: -1 | 1): boolean {
       return true;
     }
     const prev = parent.child(rowIndex - 1);
-    if (prev.type.name !== 'paragraph' && prev.type.name !== 'blockRow') return false;
+    if (prev.type.name !== 'paragraph' && !isVerticalContainer(prev)) return false;
     // Sopra: paragrafo -> coda del suo testo. Tra DUE righe di elementi ->
     // GapCursor di attesa sul confine fra le righe (stessa posizione già
     // usata sopra la prima riga): è il cursore verticale visibile che mancava
     // fra riga superiore e inferiore, e la scrittura lì crea la riga di testo
     // fra le due. Se il gap non fosse valido (caso limite) si cade nella
     // vecchia coda dell'ultimo elemento della riga sopra.
-    if (prev.type.name === 'blockRow') {
+    if (isVerticalContainer(prev)) {
       const $gap = state.doc.resolve(rowPos);
       const gapCursorType = GapCursor as unknown as {
         valid: (pos: ReturnType<Editor['state']['doc']['resolve']>) => boolean;
@@ -799,20 +897,30 @@ function moveOutOfRowVertical(editor: Editor, dir: -1 | 1): boolean {
       }
     }
     const tr = state.tr;
-    tr.setSelection(Selection.near(state.doc.resolve(rowPos - 1), -1));
+    tr.setSelection(visibleVerticalSelection(state.doc, rowPos - 1, -1));
     tr.setMeta('blockRowNudge', true);
     view.dispatch(tr);
     return true;
   }
-  if (!inGap && state.doc.textBetween($from.pos, childEnd - 1, undefined, '').length > 0) return false;
+  if (!inGap && (inClosedSummary
+    ? !view.endOfTextblock('down')
+    : state.doc.textBetween($from.pos, childEnd - 1, undefined, '').length > 0)) return false;
   if (rowIndex >= parent.childCount - 1) return false;
   const next = parent.child(rowIndex + 1);
-  if (next.type.name !== 'paragraph' && next.type.name !== 'blockRow') return false;
+  if (next.type.name !== 'paragraph' && !isVerticalContainer(next)) return false;
+  if (isVerticalContainer(next)) {
+    const $gap = state.doc.resolve(rowEnd);
+    const gapCursor = GapCursor as unknown as { valid: (pos: typeof $gap) => boolean };
+    if (gapCursor.valid($gap)) {
+      view.dispatch(state.tr.setSelection(new GapCursor($gap)));
+      return true;
+    }
+  }
   // Sotto: paragrafo -> inizio del suo testo (sotto l'ultima riga e' SEMPRE
   // presente il paragrafo di coda, garantito da blockRowTrailingParagraph);
-  // altra riga di elementi -> testa del suo primo elemento.
+  // altra riga/Collapse -> gap di attesa, poi testo visibile del vicino.
   const tr = state.tr;
-  tr.setSelection(Selection.near(state.doc.resolve(rowEnd), 1));
+  tr.setSelection(visibleVerticalSelection(state.doc, rowEnd, 1));
   tr.setMeta('blockRowNudge', true);
   view.dispatch(tr);
   return true;

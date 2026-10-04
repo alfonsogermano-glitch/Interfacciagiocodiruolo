@@ -718,6 +718,132 @@ tutti in bottoni/menù, nessun uso decorativo): introduce lo stile
     Punti 19-30 NON sono ancora committati.
 
 
+31. `fix:` **Frecce verticali fra tre Collapse su righe diverse: mancava
+    il cursore intermedio** (2026-10-04). Riprodotto con editor React e
+    tasti reali CDP in `%TEMP%\opencode\dbg-collapse-arrows.mjs`: Down
+    saltava da titolo a titolo; Up poteva selezionare il corpo nascosto
+    della Collapse chiusa. Stesso problema con Collapse dentro blockRow.
+    In `tiptapBlockRow.ts`: uscita verticale della Collapse standalone
+    verso il GapCursor esterno valido, attraversamento del gap fra
+    Collapse/righe in entrambe le direzioni, atterraggio nel testo visibile
+    (titolo se chiusa, corpo se aperta). Per la Collapse chiusa in riga il
+    bordo si misura con `endOfTextblock`, senza contare il corpo nascosto;
+    Down fra righe espone ora il gap come Up. Il verify row-extremes
+    riconosce anche il nuovo gestore verticale Collapse autorizzato a
+    creare GapCursor. Harness con assert PASS: tre Collapse chiuse,
+    standalone e in righe, ciclo Down/Up con sosta visibile in entrambi i
+    gap; scrittura nel gap crea un paragrafo e mantiene le tre Collapse;
+    Collapse aperte: uscita dal corpo e rientro nel corpo visibile.
+    `npm run check` PASS (typecheck, tutti i verify, build).
+    Modifiche del punto 31 non ancora committate.
+
+32. `fix:` **Caret lampeggiante a destra del Dado, sia intermedio sia
+    ultimo in riga** (2026-10-04). Due screenshot utente: Collapse + Dado
+    + TextBox, e Collapse + Dado finale. Riprodotto con harness React/CDP
+    `%TEMP%\opencode\dbg-dice-right-caret.mjs`: nel primo caso il click
+    creava un GapCursor della riga invece del caret nativo dopo il Dado;
+    nel secondo `rowEdgeExitTarget` rispediva la selezione sotto la riga
+    anche dopo ArrowRight. In `tiptapBlockRow.ts` il bordo destro del
+    carattere Dado marcato finale e' ora esente dalla regola margine; il
+    plugin dei gap di riga seleziona la fine del paragrafo Dado quando si
+    clicca subito dopo, invece del gap strutturale. In `theme.css` il
+    paragrafo con Dado finale riserva il gap standard a destra come area
+    cliccabile dentro il contentDOM. Harness con assert PASS in entrambe
+    le configurazioni: click destro, ArrowRight e selezione esplicita
+    restano dopo il Dado; coordinate del caret nativo coincidenti con il
+    bordo destro del widget; scrittura sul lato destro resta nella riga
+    e mantiene un solo Dado. Esteso `verify-note-row-extremes.mjs` per
+    distinguere Dado finale e testo normale dopo un Dado.
+    `npm run check` PASS (typecheck, verify, build).
+    Punti 31-32 non ancora committati.
+
+33. `fix:` **Follow-up Dado: caret a destra ancora invisibile e Backspace
+    bloccato sul testo dopo un Dado finale** (2026-10-04). Il punto 32
+    verificava la posizione della selezione, ma non la linea effettivamente
+    disegnata dal browser. In `tiptapInlineDice.ts` aggiunto un caret
+    decorato a larghezza zero subito dopo il Dado (solo TextSelection
+    collassata), con linea di 2px, colore accent e lampeggio CSS in
+    `theme.css`; il caret nativo viene nascosto solo in quella posizione.
+    Il click dopo un Dado finale usa anche il bordo reale del widget e il
+    gap finale della riga puo' selezionare il suo punto di testo destro.
+    Backspace riprodotto con tasti CDP: dopo la scrittura, transazioni di
+    sola selezione innescavano la regola margine e rispedivano il caret
+    sotto la riga, impedendo la cancellazione. `rowEdgeExitTarget` ora
+    mantiene editabile anche il testo nello slot finale contenente il
+    Dado, non solo lo ZWSP finale. Aggiornato il relativo test funzionale.
+    Harness `%TEMP%\opencode\dbg-dice-right-caret.mjs` PASS: caret
+    decorato a destra, stile/colore/altezza/animazione verificati; click e
+    ArrowRight; scrittura di "right" e cinque Backspace reali eliminano
+    un carattere alla volta in entrambe le configurazioni; ulteriore
+    Backspace conserva il Dado. Ispezionati gli screenshot
+    `%TEMP%\opencode\dice-caret-middle.png` e `dice-caret-last.png`
+    (sola fase del blink congelata per la cattura): linea visibile in
+    entrambi. `npm run check` PASS (typecheck, verify, build).
+    Punti 31-33 non ancora committati.
+
+34. `fix:` **Caret sinistro del Dado troppo alto rispetto al destro**
+    (2026-10-04). Esteso il caret decorato del punto 33 a entrambi i lati
+    dello ZWSP Dado: stessa altezza 1.15em, spessore 2px, colore accent
+    e lampeggio; il solo offset orizzontale cambia per stare fuori dal
+    bordo sinistro/destro. Il click nel gap prima del Dado seleziona il
+    suo punto di testo sinistro invece del GapCursor di riga; tale punto
+    resta ammesso anche quando il Dado e' il primo figlio della riga.
+    Harness CDP PASS nelle configurazioni Dado intermedio/finale:
+    click sinistro/destro producono caret decorati della stessa altezza
+    (20.696px con font 18px), ArrowRight attraversa il Dado, scrittura e
+    cinque Backspace cancellano il testo e conservano il Dado.
+    Screenshot del lato sinistro ispezionato in
+    `%TEMP%\opencode\dice-caret-left-last.png` (blink congelato per la
+    cattura). `npm run check` PASS. Punti 31-34 non ancora committati.
+
+35. `fix:` **Regola universale delle frecce: stesso percorso completo con
+    Down/Right e Up/Left, senza saltare lettere, spazi, elementi o righe**
+    (2026-10-04). Censiti i gestori separati di BlockRow, gapcursor e
+    tabella: creavano percorsi diversi, con uscita al bordo visuale o
+    atterraggio diretto nel vicino. Nuova estensione
+    `noteCaretNavigation.ts::NoteCaretNavigation`, registrata in
+    `TIPTAP_BLOCK_EXTENSIONS` con priority 2000: percorso ordinato unico
+    nel documento, tutti i punti testo (grapheme Unicode interi), limiti
+    degli elementi inline e gap strutturali raggiungibili. Down e Right
+    avanzano di un punto, Up e Left arretrano di un punto, anche nel testo.
+    I corpi delle Collapse chiuse sono esclusi; i corpi aperti, tutti i
+    paragrafi, liste e celle di tabella si attraversano senza salti.
+    Gli atomi senza testo PM espongono i confini esterni; Archivio resta
+    non selezionabile e i suoi campi hanno il proprio focus. Capture prima
+    dei gestori storici, meta blockRowNudge per evitare deviazioni della
+    regola margine, nessun wrap agli estremi. Menù slash, input, pulsanti,
+    composizione IME e combinazioni con modificatori conservano i propri
+    eventi; anche il capture della tabella rispetta input/menu.
+    Cache del percorso per identità del doc, ricerca binaria del punto
+    corrente. Gap fra box in riga posizionato sul confine reale fra i
+    rettangoli DOM, con linea verticale di altezza testo e colore accent.
+    Nuovo `scripts/verify-note-caret-navigation.mjs` incluso dal verify
+    row-extremes e quindi in `npm run check`: PASS su percorso misto di
+    147 punti, andata/ritorno, Unicode, corpi nascosti, tabelle e atomi.
+    Harness `%TEMP%\opencode\dbg-universal-note-arrows.mjs`: 440 tasti
+    reali CDP, 8 configurazioni PASS (testo, Collapse chiuse/aperte, righe,
+    tutti gli inline, liste, tabelle, confini Archivio/HR). Per Archivio
+    solo nodeview minimale nel browser harness: quello React necessita
+    dei provider app; schema reale e test funzionale dei confini invariati.
+    Input Punti e menu slash ricevono le proprie frecce. Regressione Dado
+    PASS: caret dei due lati, scrittura/Backspace e protezione dell'elemento;
+    geometria gap fra box verificata (x 586 coincide col centro del gap,
+    altezza 20.696px, linea 2px con font 18px). `npm run check` PASS.
+    Punti 31-35 non ancora committati.
+
+36. `fix:` **Lancio 3D mediamente vigoroso: alzata la forza minima dei
+    tiri deboli** (2026-10-04). In `dice3dMotion.ts`, calibrazione gia'
+    applicata ai vettori del renderer: velocita' orizzontale minima da
+    1.3 a 2.0 volte il lato corto del viewport (+54%), rotazione minima
+    da 8 a 10 (+25%). Massimi 3.1/15 e strength generale 1.6 invariati,
+    cosi' la variazione casuale resta nei tiri gia' vigorosi. Il clamp
+    alza solo i vettori sotto soglia mantenendo direzione, asse e velocita'
+    verticale; non introduce un nuovo sorteggio. Esteso il verify 3D con
+    tiri prima deboli e vettori diversi gia' entro la fascia: nuove soglie
+    rispettate, variazioni conservate, limiti superiori invariati.
+    `npm run check` PASS (typecheck, verify, build).
+    Punti 31-36 non ancora committati.
+
 #### Indice icone senza standard (per round futuri — censimento statico, verificare a mano i contesti "in pulsante")
 **A. Già coperte dalla regola globale**: Plus, Save, X, Edit2/Pencil
 (`lucide-pen`/`lucide-pencil`), Trash2, ChevronDown/Up/Left/Right,
@@ -1120,6 +1246,26 @@ Ora `bodyColor` influenza SOLO gli edge; le facce restano fedeli alla texture fo
      `verify-ice/lightning/poison-skin-consistency.mjs`.
    - `package.json` `overrides`: `browserslist@4.28.9` (transitivo) → audit CI pulito.
    - `package-lock.json` aggiornato (solo pacchetti dati: browserslist, caniuse-lite, ecc.).
+
+37. `feat:` **Checkbox Archivio: inserimento standard a sinistra con menu
+    di trasformazione** (2026-10-04). `defaultArchivioCell('checkbox')` ora
+    restituisce la cella base senza convertire in testo; la cella viene
+    disegnata come `<input type="checkbox">` nativo allineato a sinistra,
+    con `appearance:none` e bordo/spunta identici alla checkbox inline della
+    nota. Sostituisce il contenuto precedente della cella. Menu a cinque voci
+    (icone Lucide): **Modifica** (disabilitata, pannello da definire),
+    **Trasforma in Testo**, **Trasforma in Dado**, **Trasforma in Punti**,
+    **Trasforma in Modificatore**; ogni trasforma chiama
+    `defaultArchivioCell(kind)` cancellando i campi specifici (valore,
+    massimale, quantita', snapshot custom). Click e **Spazio** su checkbox
+    con focus commutano lo stato; persistenza dopo `setContent`. Verifica
+    Archivio PASS (include le etichette aggiornate con maiuscola). Harness
+    `%TEMP%\opencode\dbg-archivio-checkbox.mjs` PASS: allineamento a
+    sinistra, geometria 16×16, cinque voci esatte con icone, Modifica
+    disabilitata, click/Spazio toggle, quattro trasformazioni cicliche,
+    persistenza e cella vicina invariata. `npm run check` PASS (typecheck,
+    verify, build).
+    Punti 31-37 non ancora committati.
 
 ## Comandi di verifica (NON skippare)
 

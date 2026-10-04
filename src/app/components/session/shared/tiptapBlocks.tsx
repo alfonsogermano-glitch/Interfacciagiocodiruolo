@@ -4,6 +4,7 @@ import { Selection, NodeSelection, Plugin, PluginKey, TextSelection } from '@tip
 import { ChevronRight } from 'lucide-react';
 import { canInsertNoteContainer } from './noteContainerPolicy';
 import { BlockRow, reassertCollapseSelectionAfterRender } from './tiptapBlockRow';
+import { NoteCaretNavigation } from './noteCaretNavigation';
 
 // I contenitori Note condividono una sola espressione di contenuto: consente
 // blocchi normali e contenitori strutturali, mentre la profondità massima e
@@ -478,4 +479,4 @@ const BlockClickSelect = Extension.create({
 // Estensioni da registrare in useEditor({ extensions: [...] }) - ogni tipo di
 // nodo deve comparire nell'array per entrare nello schema, inclusi i due
 // figli senza comando proprio (CollapseSummary/CollapseBody).
-export const TIPTAP_BLOCK_EXTENSIONS = [TextBox, CollapseSummary, CollapseBody, CollapseBlock, BlockRow, BlockClickSelect];
+export const TIPTAP_BLOCK_EXTENSIONS = [TextBox, CollapseSummary, CollapseBody, CollapseBlock, BlockRow, BlockClickSelect, NoteCaretNavigation];

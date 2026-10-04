@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import './verify-note-caret-navigation.mjs';
 import { readFile } from 'node:fs/promises';
 import { Schema } from '@tiptap/pm/model';
 import { EditorState, TextSelection } from '@tiptap/pm/state';
@@ -22,6 +23,7 @@ const schema = new Schema({
     textBox: { group: 'block', content: 'paragraph*' },
     archivio: { group: 'block', content: 'paragraph?' },
   },
+  marks: { inlineDice: {} },
 });
 const p = (text = '') => schema.nodes.paragraph.create(null, text ? schema.text(text) : undefined);
 const row = (...children) => schema.nodes.blockRow.create(null, children);
@@ -239,6 +241,25 @@ assert.equal(
   null,
   'the start of the paragraph after a textBox is not the row head',
 );
+// Il bordo destro di un Dado finale e' un punto di scrittura del box,
+// non il margine di una riga di testo ordinaria.
+const dieText = schema.text('\u200b', [schema.marks.inlineDice.create()]);
+const dieParagraph = schema.nodes.paragraph.create(null, dieText);
+const dieDoc = doc(row(schema.nodes.textBox.create(null, p('box')), dieParagraph), p());
+const dieEnd = nodePos(dieDoc, 'paragraph', '\u200b') + 2;
+assert.equal(
+  rowEdgeExitTarget(EditorState.create({ schema, doc: dieDoc, selection: TextSelection.create(dieDoc, dieEnd) })),
+  null,
+  'the caret after a final dice must remain at the visible right edge of the widget',
+);
+const afterDieParagraph = schema.nodes.paragraph.create(null, [dieText, schema.text('after')]);
+const afterDieDoc = doc(row(p('before'), afterDieParagraph), p());
+const afterDiePos = nodePos(afterDieDoc, 'paragraph', '\u200bafter');
+assert.equal(
+  rowEdgeExitTarget(EditorState.create({ schema, doc: afterDieDoc, selection: TextSelection.create(afterDieDoc, afterDiePos + afterDieParagraph.nodeSize - 1) })),
+  null,
+  'text typed after a final dice must remain editable instead of being nudged out of the row',
+);
 // Slot di testo vuoto: e' il posto dove scrivere, resta dov'e'.
 assert.equal(
   rowEdgeExitTarget(stateAt(edgeRow4 + 2)),
@@ -297,14 +318,17 @@ assert.ok(
       // Uscita verticale con nessun blocco sopra la prima riga: GapCursor
       // esplicita sul gap adiacente (stessa famiglia del plugin sopra, il
       // gapcursor standard darebbe il bordo esterno della riga).
-      .replace(/function moveOutOfRowVertical[\s\S]*?\n\}/, '')
+       .replace(/function moveOutOfRowVertical[\s\S]*?\n\}/, '')
+      // Collapse standalone: stesso gap verticale esterno, senza entrare
+      // nel corpo nascosto durante la navigazione tra contenitori.
+      .replace(/function moveOutOfCollapseVertical[\s\S]*?\n\}/, '')
       // onTransaction: fallback head/tail - quando exitRowTo non ha un
       // paragrafo adiacente (hr/Box/tabella/lista) la GapCursor interna
       // viene spostata sul confine ESTERNO della riga (GapCursor.valid) o
       // nel testo adiacente: stessa famiglia, stessa meta blockRowNudge.
       .replace(/onTransaction\(\{ editor, transaction[\s\S]*?\n {2}\},/, ''),
   ),
-  'only the internal gap cursor plugin (and the matching vertical exit) may construct a GapCursor',
+  'only the internal gap cursor plugin and row/collapse vertical exits may construct a GapCursor',
 );
 assert.match(
   source,

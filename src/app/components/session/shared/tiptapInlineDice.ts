@@ -878,6 +878,12 @@ export const InlineDice = Mark.create({
 
   addProseMirrorPlugins() {
     const markName = this.name;
+    const diceCaretSide = (state: EditorState): 'left' | 'right' | null => {
+      if (!(state.selection instanceof TextSelection) || !state.selection.empty) return null;
+      const pos = state.selection.from;
+      if (isPreviousDice(state, pos)) return 'right';
+      return getInlineDiceMark(state, pos) ? 'left' : null;
+    };
 
     // Stesso ritocco di selezione del Modificatore per il caso d'angolo in
     // cui il Dado e' l'ULTIMO carattere del blocco.
@@ -887,19 +893,18 @@ export const InlineDice = Mark.create({
       if (!view.state.selection.empty) return false;
       if (!(event.target instanceof Element)) return false;
       if (event.target.closest(DICE_WIDGET_SELECTOR)) return false;
-      const markType = view.state.schema.marks.inlineDice;
-      if (!markType || view.state.doc.textBetween(pos, pos + 1) !== INLINE_MODIFIER_CHAR) return false;
-      let hasDiceMark = false;
-      view.state.doc.nodesBetween(pos, pos + 1, (node) => {
-        if (node.isText && node.text === INLINE_MODIFIER_CHAR) hasDiceMark = node.marks.some((mark) => mark.type === markType);
-      });
-      if (!hasDiceMark) return false;
       const $pos = view.state.doc.resolve(pos);
       if (!$pos.parent.isTextblock) return false;
-      if ($pos.parentOffset + 1 !== $pos.parent.content.size) return false;
-      if (event.clientX < view.coordsAtPos(pos + 1).left) return false;
-      if (view.state.selection.from === pos + 1) return true;
-      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos + 1)));
+      const dicePos = $pos.end() - 1;
+      if (!isProtectedDiceAt(view.state, dicePos)) return false;
+      const widget = getInlineBoxWidgetAt(dicePos);
+      if (!widget || !view.dom.contains(widget)) return false;
+      const rect = widget.getBoundingClientRect();
+      // La geometria del widget e' il riferimento visivo: con il caret
+      // decorato, coordsAtPos/posAtCoords possono risolvere prima dello ZWSP.
+      if (event.clientX < rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return false;
+      if (view.state.selection.from === dicePos + 1) return true;
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, dicePos + 1)));
       return true;
     };
 
@@ -953,6 +958,19 @@ export const InlineDice = Mark.create({
                 );
               }
             });
+            // Il caret nativo accanto allo ZWSP non e' affidabile
+            // visivamente. Disegniamo un caret esplicito, senza occupare
+            // larghezza o modificare il documento/la selezione.
+            const side = diceCaretSide(state);
+            if (side) {
+              decorations.push(Decoration.widget(state.selection.from, () => {
+                const caret = document.createElement('span');
+                caret.className = 'tiptap-inline-dice-caret';
+                caret.dataset.side = side;
+                caret.setAttribute('aria-hidden', 'true');
+                return caret;
+              }, { side: -1, key: `dice-caret:${state.selection.from}:${side}` }));
+            }
             return DecorationSet.create(state.doc, decorations);
           },
           handleDOMEvents: {
@@ -981,6 +999,14 @@ export const InlineDice = Mark.create({
           handleClick(view, pos, event) {
             return nudgeToRightOfTrailingDice(view, pos, event);
           },
+        },
+        view(view) {
+          const sync = () => view.dom.classList.toggle('tiptap-dice-adjacent-caret', !!diceCaretSide(view.state));
+          sync();
+          return {
+            update: sync,
+            destroy: () => view.dom.classList.remove('tiptap-dice-adjacent-caret'),
+          };
         },
       }),
     ];
