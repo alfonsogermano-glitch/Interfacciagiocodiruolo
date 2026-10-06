@@ -8,5 +8,5 @@ assert.ok(context.includes('buildDefaultStandardDiceStyles') && context.includes
 assert.ok(context.includes('loadStandardDiceStyles(campaignId, ownerProfileId)'));
 assert.ok(context.includes('saveStandardDiceStyles(campaignId, ownerProfileId, completed)'));
 assert.ok(session.includes('useDiceAppearance()'),'session must consume appearance context');
-assert.ok(session.includes('<DiceAppearanceProvider>') && session.includes('<DiceSessionProviderBody>'),'appearance provider must wrap the dice session body');
+assert.ok(session.includes('<DiceAppearanceProvider>') && /<DiceSessionProviderBody[ >]/.test(session),'appearance provider must wrap the dice session body');
 console.log('verify-dice-appearance-context: PASS');

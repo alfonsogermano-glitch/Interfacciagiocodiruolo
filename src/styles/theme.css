@@ -379,6 +379,20 @@
   outline: 2px solid var(--dash-accent);
   outline-offset: 2px;
 }
+/* Luminosita' progressiva, applicata anche alle anteprime: la palette
+   resta quella corrente e lo stato pieno conserva la luminosita' originale. */
+.tiptap-archivio-checkbox[data-checkbox-state] {
+  transition: opacity var(--note-ui-duration) ease;
+}
+.tiptap-archivio-checkbox[data-checkbox-state='0'] {
+  opacity: 0.4;
+}
+.tiptap-archivio-checkbox[data-checkbox-state='1'] {
+  opacity: 0.75;
+}
+.tiptap-archivio-checkbox[data-checkbox-state='2'] {
+  opacity: 1;
+}
 /* Gli input numerici di Punti mantengono la semantica number senza mostrare
    gli spinner nativi, gia' sostituiti dalle zone di regolazione laterali. */
 .tiptap-inline-points-input {

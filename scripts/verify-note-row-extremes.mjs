@@ -8,6 +8,7 @@ import {
   exitRowSelection,
   rowEdgeExitTarget,
   createBlockRowTrailingParagraphPlugin,
+  noteNeedsTrailingParagraph,
   deleteInlineBoxAndRowResidue,
 } from '../src/app/components/session/shared/tiptapBlockRow.ts';
 
@@ -23,7 +24,7 @@ const schema = new Schema({
     textBox: { group: 'block', content: 'paragraph*' },
     archivio: { group: 'block', content: 'paragraph?' },
   },
-  marks: { inlineDice: {} },
+  marks: { inlineDice: {}, inlineModifier: {}, inlinePoints: {}, inlineCheckbox: {}, inlineRadio: {}, inlineIcon: {} },
 });
 const p = (text = '') => schema.nodes.paragraph.create(null, text ? schema.text(text) : undefined);
 const row = (...children) => schema.nodes.blockRow.create(null, children);
@@ -135,6 +136,29 @@ assert.equal(afterGuarded.doc.childCount, guardedDoc.childCount, 'a doc that alr
 const noopState = EditorState.create({ schema, doc: appendDoc, plugins: [trailingPlugin] });
 const afterNoop = noopState.apply(noopState.tr.setMeta('blockRowNudge', true));
 assert.equal(afterNoop.doc, appendDoc, 'non-docChanged transactions must not append anything');
+
+// La sequenza della foto termina con un paragrafo-widget Modificatore,
+// non con blockRow: deve esserci comunque una vera riga scrivibile sotto.
+for (const name of ['inlineDice', 'inlineModifier', 'inlinePoints', 'inlineCheckbox', 'inlineRadio', 'inlineIcon']) {
+  const widget = schema.text('\u200b', [schema.marks[name].create()]);
+  const widgetParagraph = schema.nodes.paragraph.create(null, [widget]);
+  const fixture = doc(p('prima'), schema.nodes.archivio.create(null, p('tab')), widgetParagraph);
+  assert.equal(noteNeedsTrailingParagraph(fixture), true, `${name} alone must have a text line below`);
+  const state = EditorState.create({ schema, doc: fixture, plugins: [createBlockRowTrailingParagraphPlugin()] });
+  const changed = state.apply(state.tr.insertText('x', 1));
+  assert.equal(changed.doc.lastChild.type.name, 'paragraph');
+  assert.equal(changed.doc.lastChild.content.size, 0, `${name} must gain an empty trailing paragraph`);
+  assert.equal(noteNeedsTrailingParagraph(changed.doc), false, 'the repair must be idempotent');
+  const tailStart = changed.doc.content.size - changed.doc.lastChild.nodeSize;
+  const deleted = changed.apply(changed.tr.delete(tailStart, changed.doc.content.size));
+  assert.equal(deleted.doc.lastChild.content.size, 0, 'deleting the text line must restore it');
+  assert.equal(deleted.doc.childCount, changed.doc.childCount, 'restoration must not duplicate trailing lines');
+  assert.equal(noteNeedsTrailingParagraph(doc(schema.nodes.paragraph.create(null, [widget, schema.text(' testo')]))), false,
+    'a text paragraph containing a widget must remain ordinary text');
+}
+assert.equal(noteNeedsTrailingParagraph(doc(p('testo'))), false, 'ordinary text must not gain an extra line');
+assert.equal(noteNeedsTrailingParagraph(doc(p())), false, 'an empty document must not grow');
+assert.equal(noteNeedsTrailingParagraph(doc(schema.nodes.archivio.create(null, p('tab')))), true, 'a final archive needs a text line too');
 
 // --- Sorgente: nessun GapCursor di attesa più agli estremi ------------------
 

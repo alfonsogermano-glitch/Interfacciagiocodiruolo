@@ -10,6 +10,7 @@ import { HollowgateDice3DRenderer } from './dice3dRenderer.ts';
 import { projectRollTo3D } from './dice3dProjection.ts';
 import { isDice3DAbortError } from './dice3dTypes.ts';
 import { cryptoDiceRng, rollDiceFormula } from './diceEngine.ts';
+import { saveRollEntry } from '../../../../services/supabase/chatService';
 import { getCustomDieQuickRollMax } from './diceCustomDie.ts';
 import { ModifierFormulaError, evaluateModifierFormula, type ModifierReference } from '../shared/modifierFormula.ts';
 import { parseModifierValue } from '../shared/tiptapInlineModifier.ts';
@@ -48,6 +49,8 @@ interface DiceSessionValue {
   /** Tiro Custom da elemento Dado nelle Note: usa lo snapshot salvato, niente Ritira. */
   submitInlineCustomDieRoll: (input: InlineCustomDieRollSubmit) => RollResult | null;
   reroll: (resultId: string) => RollResult | null;
+  /** Ritira un tiro noto anche solo dal suo RollResult (es. ricaricato dalla chat). */
+  rerollResult: (previous: RollResult) => RollResult | null;
   clearLocalHistory: () => void;
   historyOpen: boolean;
   historyUnread: boolean;
@@ -91,7 +94,19 @@ function isAbortError(error: unknown) {
     || (error instanceof Error && error.name === 'AbortError');
 }
 
-function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
+interface DiceSessionProviderProps {
+  children: React.ReactNode;
+  /**
+   * Segnala che un tiro pubblico ha FINITO di rotolare ed e' entrato nella
+   * timeline della chat, con il tiro e il created_at del server (null se non
+   * disponibile). Usa `roll.rollerId` per distinguere la propria attivita'
+   * da quella altrui: il proprio tiro non deve accendere il pallino della
+   * propria chat.
+   */
+  onRollIngested?: (roll: RollResult, serverCreatedAt: string | null) => void;
+}
+
+function DiceSessionProviderBody({ children, onRollIngested }: DiceSessionProviderProps) {
   const { user, session } = useAuth();
   const { activeCampaign } = useCampaign();
   const { styles: standardStyles } = useDiceAppearance();
@@ -107,6 +122,17 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
   const activeAnimationRollIdRef = useRef<string | null>(null);
   const activeAbortControllerRef = useRef<AbortController | null>(null);
   const isGm = activeCampaign?.ownerId === user?.id;
+
+  // Ref per sempre-ultima-callback: ingestRoll resta stabile e non ha bisogno
+  // di dipendere dallo stato corrente del pannello chat nella sidebar.
+  const onRollIngestedRef = useRef(onRollIngested);
+  onRollIngestedRef.current = onRollIngested;
+
+  // Tiri pubblici in attesa di fine rotolamento: entrano nella timeline della
+  // chat (e accendono il pallino) solo quando il dado ha finito di rotolare,
+  // esattamente come la cronica tiri. La coda viene svuotata a reveal, a
+  // cambio campagna e a Pulisci chat.
+  const pendingChatRolls = useRef(new Map<string, RollResult>());
 
   const setHistoryOpen = useCallback((open: boolean) => {
     historyOpenRef.current = open;
@@ -124,6 +150,18 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
         : entry
     )));
     if (!historyOpenRef.current) setHistoryUnread(true);
+    // Chat: il tiro finito di rotolare entra nella timeline (persistenza nel
+    // DB, card nella chat aperta via merge dei tiri rivelati, pallino se la
+    // chat e' chiusa / timestamp "visto" se e' aperta). Prima della fine del
+    // rotolamento la riga non esiste nel DB: aprirlo a meta' tiro non fa
+    // comparire il risultato in anticipo.
+    const pending = pendingChatRolls.current.get(resultId);
+    if (pending) {
+      pendingChatRolls.current.delete(resultId);
+      void saveRollEntry(pending).then((serverCreatedAt) => {
+        onRollIngestedRef.current?.(pending, serverCreatedAt);
+      });
+    }
   }, []);
 
   const stopActiveAnimation = useCallback((revealInterrupted: boolean) => {
@@ -190,6 +228,14 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
     if (seenRollIds.current.has(result.id)) return false;
     seenRollIds.current.add(result.id);
     setEntries((current) => [...current, { result, revealState: 'pending', receivedAt: Date.now() }]);
+    // Tiro pubblico: accoda per la persistenza in chat a fine rotolamento
+    // (idempotente: se anche gli altri client provano l'insert, il conflitto
+    // sull'id viene ignorato). Deve avvenire PRIMA di playAnimation, che con
+    // animazioni disattivate rivela (e quindi svuota la coda) sincronamente.
+    // Il pallino segue lo stesso momento.
+    if (result.visibility === 'public') {
+      pendingChatRolls.current.set(result.id, result);
+    }
     playAnimation(result);
     return true;
   }, [playAnimation]);
@@ -217,6 +263,7 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     stopActiveAnimation(false);
     seenRollIds.current.clear();
+    pendingChatRolls.current.clear();
     setEntries([]);
     setHistoryUnread(false);
     setHistoryOpen(false);
@@ -470,9 +517,7 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
     [entries],
   );
 
-  const reroll = useCallback((resultId: string) => {
-    const previous = rolls.find((roll) => roll.id === resultId);
-    if (!previous) return null;
+  const rerollResult = useCallback((previous: RollResult): RollResult | null => {
     return submitLocalRoll({
       items: previous.sourceItems.map((item) => item.kind === 'custom-die'
         ? {
@@ -488,10 +533,18 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
       formulaIconName: previous.formulaIconName,
       visibility: previous.visibility,
     });
-  }, [rolls, submitLocalRoll]);
+  }, [submitLocalRoll]);
+
+  const reroll = useCallback((resultId: string) => {
+    const previous = rolls.find((roll) => roll.id === resultId);
+    return previous ? rerollResult(previous) : null;
+  }, [rolls, rerollResult]);
 
   const clearLocalHistory = useCallback(() => {
     stopActiveAnimation(false);
+    // I tiri ancora in rotolamento non devono finire in chat dopo un
+    // "Pulisci": la coda di attesa va svuotata insieme alle entry.
+    pendingChatRolls.current.clear();
     setEntries([]);
     setHistoryUnread(false);
   }, [stopActiveAnimation]);
@@ -502,6 +555,7 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
     submitModifierRoll,
     submitInlineCustomDieRoll,
     reroll,
+    rerollResult,
     clearLocalHistory,
     historyOpen,
     historyUnread,
@@ -521,6 +575,7 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
     markHistoryRead,
     openHistory,
     reroll,
+    rerollResult,
     rolls,
     setAnimationContainer,
     setAnimationsEnabled,
@@ -533,10 +588,10 @@ function DiceSessionProviderBody({ children }: { children: React.ReactNode }) {
   return <DiceSessionContext.Provider value={value}>{children}</DiceSessionContext.Provider>;
 }
 
-export function DiceSessionProvider({ children }: { children: React.ReactNode }) {
+export function DiceSessionProvider({ children, onRollIngested }: DiceSessionProviderProps) {
   return (
     <DiceAppearanceProvider>
-      <DiceSessionProviderBody>{children}</DiceSessionProviderBody>
+      <DiceSessionProviderBody onRollIngested={onRollIngested}>{children}</DiceSessionProviderBody>
     </DiceAppearanceProvider>
   );
 }

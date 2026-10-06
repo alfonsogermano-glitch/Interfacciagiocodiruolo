@@ -225,8 +225,8 @@ assert.match(
 );
 assert.match(
   view,
-  /cell\.kind === 'dice' \? HOVER_DOTS_TOP : HOVER_DOTS/,
-  'dice cells must use the top-right dots variant',
+  /cell\.kind === 'dice' \|\| cell\.kind === 'modifier' \? HOVER_DOTS_TOP : HOVER_DOTS/,
+  'dice and modifier cells must use the top-right dots variant',
 );
 const triggerBtn = (view.match(/function TriggerButton\(\{[\s\S]{0,900}?\}\) \{/) ?? [''])[0];
 assert.doesNotMatch(

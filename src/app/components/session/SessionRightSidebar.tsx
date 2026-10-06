@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { MessageSquare, FileText, StickyNote, Dices } from 'lucide-react';
 import { SlideOverPanel } from './SlideOverPanel';
 import { SessionCharactersPanel } from './SessionCharactersPanel';
@@ -6,13 +6,24 @@ import { SessionNotesPanel } from './SessionNotesPanel';
 import { SessionDicePanel } from './dice/SessionDicePanel';
 import { DiceRollHistoryDrawer } from './dice/DiceRollHistoryDrawer';
 import { DiceSessionProvider } from './dice/DiceSessionContext';
+import type { RollResult } from './dice/diceTypes';
+import { SessionChatPanel } from './SessionChatPanel';
+import { useCampaign } from '../../campaigns/CampaignContext';
+import { useAuth } from '../../auth/AuthContext';
+import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
+import {
+  loadLatestChatAt,
+  readChatLastSeen,
+  writeChatLastSeen,
+  type ChatMessage,
+} from '../../../services/supabase/chatService';
 import type { SessionEntityOpenRequest } from '../../campaigns/CampaignHome';
 import './sessionPanelResize.css';
 
 type SessionPanelId = 'chat' | 'characters' | 'notes' | 'dice';
 
 const ICONS: { id: SessionPanelId; label: string; icon: typeof FileText; enabled: boolean }[] = [
-  { id: 'chat', label: 'Chat', icon: MessageSquare, enabled: false },
+  { id: 'chat', label: 'Chat', icon: MessageSquare, enabled: true },
   { id: 'characters', label: 'Schede', icon: FileText, enabled: true },
   { id: 'notes', label: 'Note', icon: StickyNote, enabled: true },
   { id: 'dice', label: 'Dadi', icon: Dices, enabled: true },
@@ -21,6 +32,9 @@ const ICONS: { id: SessionPanelId; label: string; icon: typeof FileText; enabled
 const NOTES_PANEL_STORAGE_KEY = 'hollowgate.notes.panel-width';
 const NOTES_PANEL_DEFAULT_WIDTH = 1024;
 const NOTES_PANEL_MIN_WIDTH = 640;
+const CHAT_PANEL_STORAGE_KEY = 'hollowgate.chat.panel-width';
+const CHAT_PANEL_DEFAULT_WIDTH = 480;
+const CHAT_PANEL_MIN_WIDTH = 320;
 const CHARACTERS_PANEL_STORAGE_KEY = 'hollowgate.characters.panel-width';
 const CHARACTERS_PANEL_DEFAULT_WIDTH = 1024;
 const CHARACTERS_PANEL_MIN_WIDTH = 640;
@@ -43,6 +57,15 @@ function clampNotesPanelWidth(width: number, viewportWidth: number) {
     viewportWidth - LEFT_SIDEBAR_WIDTH - SESSION_RAIL_WIDTH - NOTES_PANEL_VIEWPORT_GAP,
   );
   const minWidth = Math.min(NOTES_PANEL_MIN_WIDTH, maxWidth);
+  return Math.min(Math.max(width, minWidth), maxWidth);
+}
+
+function clampChatPanelWidth(width: number, viewportWidth: number) {
+  const maxWidth = Math.max(
+    0,
+    viewportWidth - LEFT_SIDEBAR_WIDTH - SESSION_RAIL_WIDTH - NOTES_PANEL_VIEWPORT_GAP,
+  );
+  const minWidth = Math.min(CHAT_PANEL_MIN_WIDTH, maxWidth);
   return Math.min(Math.max(width, minWidth), maxWidth);
 }
 
@@ -78,6 +101,18 @@ function readStoredNotesPanelWidth() {
     return clampNotesPanelWidth(candidate, window.innerWidth);
   } catch {
     return clampNotesPanelWidth(NOTES_PANEL_DEFAULT_WIDTH, window.innerWidth);
+  }
+}
+
+function readStoredChatPanelWidth() {
+  if (typeof window === 'undefined') return CHAT_PANEL_DEFAULT_WIDTH;
+  try {
+    const stored = window.localStorage.getItem(CHAT_PANEL_STORAGE_KEY);
+    const parsed = stored === null ? CHAT_PANEL_DEFAULT_WIDTH : Number(stored);
+    const candidate = Number.isFinite(parsed) ? parsed : CHAT_PANEL_DEFAULT_WIDTH;
+    return clampChatPanelWidth(candidate, window.innerWidth);
+  } catch {
+    return clampChatPanelWidth(CHAT_PANEL_DEFAULT_WIDTH, window.innerWidth);
   }
 }
 
@@ -127,17 +162,77 @@ interface SessionRightSidebarProps {
 export function SessionRightSidebar({ openCharacterRequest = null }: SessionRightSidebarProps) {
   const [openPanel, setOpenPanel] = useState<SessionPanelId | null>(null);
   const notesPanelResizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
+  const chatPanelResizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const charactersPanelResizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const dicePanelResizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const charactersSidebarResizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const [notesPanelWidth, setNotesPanelWidth] = useState(readStoredNotesPanelWidth);
+  const [chatPanelWidth, setChatPanelWidth] = useState(readStoredChatPanelWidth);
   const [charactersPanelWidth, setCharactersPanelWidth] = useState(readStoredCharactersPanelWidth);
   const [dicePanelWidth, setDicePanelWidth] = useState(readStoredDicePanelWidth);
   const [charactersSidebarWidth, setCharactersSidebarWidth] = useState(readStoredCharactersSidebarWidth);
   const [isResizingNotesPanel, setIsResizingNotesPanel] = useState(false);
+  const [isResizingChatPanel, setIsResizingChatPanel] = useState(false);
   const [isResizingCharactersPanel, setIsResizingCharactersPanel] = useState(false);
   const [isResizingDicePanel, setIsResizingDicePanel] = useState(false);
   const [isResizingCharactersSidebar, setIsResizingCharactersSidebar] = useState(false);
+
+  // Pallino "nuovi messaggi" sull'icona Chat.
+  const { activeCampaignId } = useCampaign();
+  const { user } = useAuth();
+  const [chatUnread, setChatUnread] = useState(false);
+  const [incomingChatMessage, setIncomingChatMessage] = useState<ChatMessage | null>(null);
+
+  // All'ingresso in una campagna: se esiste una voce di chat DI ALTRI piu'
+  // recente dell'ultimo visto, accendi il pallino (copre anche cio' che e'
+  // arrivato con il browser chiuso). Le voci proprie sono escluse: i propri
+  // tiri/messaggi non rendono "non letta" la propria chat.
+  useEffect(() => {
+    if (!activeCampaignId || !user) return;
+    let cancelled = false;
+    setChatUnread(false);
+    void loadLatestChatAt(activeCampaignId, user.id).then((latest) => {
+      if (cancelled || !latest) return;
+      const lastSeen = readChatLastSeen(activeCampaignId);
+      if (!lastSeen || latest > lastSeen) setChatUnread(true);
+    });
+    return () => { cancelled = true; };
+  }, [activeCampaignId, user?.id]);
+
+  // Aprire la chat spegne il pallino (i messaggi sono sotto gli occhi).
+  useEffect(() => {
+    if (openPanel === 'chat') setChatUnread(false);
+  }, [openPanel]);
+
+  // Tiro pubblico entrato nella timeline della chat (mio o di altri):
+  // pallino se la chat e' chiusa E il tiro e' di altri (come i messaggi, i
+  // propri tiri non dislettono la propria chat); se e' aperta il tiro e' gia'
+  // visibile e si marca solo il timestamp "visto".
+  const handleRollIngested = useCallback((roll: RollResult, serverCreatedAt: string | null) => {
+    if (openPanel === 'chat') {
+      if (serverCreatedAt && activeCampaignId) writeChatLastSeen(activeCampaignId, serverCreatedAt);
+    } else if (!user || roll.rollerId !== user.id) {
+      setChatUnread(true);
+    }
+  }, [activeCampaignId, openPanel, user]);
+
+  // Messaggi degli altri partecipanti in tempo reale: pallino se la chat e'
+  // chiusa, aggiunta diretta alla timeline se e' aperta.
+  useCampaignChannel(activeCampaignId, {
+    onBroadcast: {
+      chat_message: (message) => {
+        const entry = message?.payload?.entry as ChatMessage | undefined;
+        if (!entry || entry.kind !== 'message') return;
+        if (user && entry.senderId === user.id) return;
+        if (openPanel === 'chat') {
+          writeChatLastSeen(activeCampaignId, entry.createdAt);
+          setIncomingChatMessage(entry);
+        } else {
+          setChatUnread(true);
+        }
+      },
+    },
+  });
 
   const togglePanel = (id: SessionPanelId) => {
     setOpenPanel(prev => (prev === id ? null : id));
@@ -151,6 +246,7 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
   useEffect(() => {
     const clampToViewport = () => {
       setNotesPanelWidth((currentWidth) => clampNotesPanelWidth(currentWidth, window.innerWidth));
+      setChatPanelWidth((currentWidth) => clampChatPanelWidth(currentWidth, window.innerWidth));
       setCharactersPanelWidth((currentWidth) => clampCharactersPanelWidth(currentWidth, window.innerWidth));
       setDicePanelWidth((currentWidth) => clampDicePanelWidth(currentWidth, window.innerWidth));
     };
@@ -169,6 +265,14 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
       // Il resize continua a funzionare anche se lo storage locale e' bloccato.
     }
   }, [notesPanelWidth]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CHAT_PANEL_STORAGE_KEY, String(Math.round(chatPanelWidth)));
+    } catch {
+      // Il resize continua a funzionare anche se lo storage locale e' bloccato.
+    }
+  }, [chatPanelWidth]);
 
   useEffect(() => {
     try {
@@ -221,6 +325,35 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
     }
     notesPanelResizeRef.current = null;
     setIsResizingNotesPanel(false);
+  };
+
+  const handleChatPanelResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    chatPanelResizeRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: chatPanelWidth,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setIsResizingChatPanel(true);
+  };
+
+  const handleChatPanelResizePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const resize = chatPanelResizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    const requestedWidth = resize.startWidth + (resize.startX - event.clientX);
+    setChatPanelWidth(clampChatPanelWidth(requestedWidth, window.innerWidth));
+  };
+
+  const finishChatPanelResize = (event: React.PointerEvent<HTMLDivElement>) => {
+    const resize = chatPanelResizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    chatPanelResizeRef.current = null;
+    setIsResizingChatPanel(false);
   };
 
   const handleCharactersPanelResizePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -339,6 +472,35 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
     </div>
   );
 
+  const chatPanelResizeHandle = (
+    <div
+      data-chat-panel-resizer="true"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Ridimensiona finestra chat"
+      aria-valuemin={CHAT_PANEL_MIN_WIDTH}
+      aria-valuenow={Math.round(chatPanelWidth)}
+      onPointerDown={handleChatPanelResizePointerDown}
+      onPointerMove={handleChatPanelResizePointerMove}
+      onPointerUp={finishChatPanelResize}
+      onPointerCancel={finishChatPanelResize}
+      onLostPointerCapture={() => {
+        chatPanelResizeRef.current = null;
+        setIsResizingChatPanel(false);
+      }}
+      style={{ left: -4, width: 9, touchAction: 'none' }}
+      className="group absolute inset-y-0 z-30 cursor-col-resize"
+    >
+      <div
+        className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${
+          isResizingChatPanel
+            ? 'bg-[var(--dash-accent)]'
+            : 'bg-transparent group-hover:bg-[var(--dash-accent)]'
+        }`}
+      />
+    </div>
+  );
+
   const charactersPanelResizeHandle = (
     <div
       data-character-panel-resizer="true"
@@ -426,14 +588,14 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
     </div>
   );
 
-  const resizablePanelOpen = openPanel === 'notes' || openPanel === 'characters' || openPanel === 'dice';
+  const resizablePanelOpen = openPanel === 'notes' || openPanel === 'chat' || openPanel === 'characters' || openPanel === 'dice';
   const activePanelWidth =
-    openPanel === 'notes' ? notesPanelWidth : openPanel === 'characters' ? charactersPanelWidth : openPanel === 'dice' ? dicePanelWidth : undefined;
+    openPanel === 'notes' ? notesPanelWidth : openPanel === 'chat' ? chatPanelWidth : openPanel === 'characters' ? charactersPanelWidth : openPanel === 'dice' ? dicePanelWidth : undefined;
   const activePanelResizeHandle =
-    openPanel === 'notes' ? notesPanelResizeHandle : openPanel === 'characters' ? charactersPanelResizeHandle : openPanel === 'dice' ? dicePanelResizeHandle : undefined;
+    openPanel === 'notes' ? notesPanelResizeHandle : openPanel === 'chat' ? chatPanelResizeHandle : openPanel === 'characters' ? charactersPanelResizeHandle : openPanel === 'dice' ? dicePanelResizeHandle : undefined;
 
   return (
-    <DiceSessionProvider>
+    <DiceSessionProvider onRollIngested={handleRollIngested}>
       <>
         <aside className="relative z-[950] flex h-full w-20 shrink-0 flex-col items-center gap-1 border-l border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
           {ICONS.map(({ id, label, icon: Icon, enabled }) => (
@@ -451,7 +613,16 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
                     : 'text-[var(--dash-muted)] opacity-40 cursor-not-allowed'
               }`}
             >
-              <Icon className="h-[18px] w-[18px]" />
+              <span className="relative inline-flex">
+                <Icon className="h-[18px] w-[18px]" />
+                {id === 'chat' && chatUnread && openPanel !== 'chat' && (
+                  <span
+                    data-chat-unread
+                    aria-hidden="true"
+                    className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[var(--dash-accent)] ring-1 ring-[var(--dash-sidebar-bg)]"
+                  />
+                )}
+              </span>
               {label}
             </button>
           ))}
@@ -464,6 +635,7 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
           panelWidth={activePanelWidth}
           leftResizeHandle={activePanelResizeHandle}
         >
+          {openPanel === 'chat' && <SessionChatPanel incomingMessage={incomingChatMessage} />}
           {openPanel === 'characters' && (
             <div
               data-session-characters-resizable="true"

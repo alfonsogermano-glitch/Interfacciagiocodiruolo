@@ -63,7 +63,7 @@ assert.match(sessionRightSidebar, /data-character-sidebar-resizer="true"/, 'Sche
 assert.match(sessionRightSidebar, /resize\.startWidth \+ \(event\.clientX - resize\.startX\)/, 'dragging Schede internal divider right must enlarge the list');
 assert.match(sessionRightSidebar, /data-session-characters-resizable="true"/, 'Schede must render inside a dedicated resizable shell');
 assert.match(sessionRightSidebar, /--characters-list-width/, 'Schede shell must receive the dynamic list width CSS variable');
-assert.match(sessionRightSidebar, /resizablePanelOpen = openPanel === 'notes' \|\| openPanel === 'characters'/, 'both Notes and Schede must bypass the shared max-width only while active');
+assert.match(sessionRightSidebar, /resizablePanelOpen = openPanel === 'notes' \|\| openPanel === 'chat' \|\| openPanel === 'characters' \|\| openPanel === 'dice'/, 'Notes, Chat, Schede and Dadi must bypass the shared max-width only while active');
 assert.match(sessionRightSidebar, /openPanel === 'characters' \? charactersPanelWidth/, 'Schede outer width must be selected independently from Notes');
 assert.match(sessionRightSidebar, /openPanel === 'characters' \? charactersPanelResizeHandle/, 'Schede outer resize handle must be selected independently from Notes');
 

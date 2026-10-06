@@ -844,6 +844,25 @@ tutti in bottoni/menù, nessun uso decorativo): introduce lo stile
     `npm run check` PASS (typecheck, verify, build).
     Punti 31-36 non ancora committati.
 
+39. `fix:` **Stati visivi checkbox Archivio: opacità progressiva e simboli
+    asterisco/bandiera rifiniti** (2026-10-05). Tre livelli: vuota 0.4,
+    mezzo 0.75, piena 1.0 — il simbolo pieno mantiene la luminosità
+    originale della palette. Mezzo asterisco ora **+**, pieno `*`; bandiera
+    mezzi stati con contorno (vuoto) e riempimento (piena), come i simboli
+    geometrici. CSS `tiptap-archivio-checkbox[data-checkbox-state]` con
+    `opacity` e transizione su `--note-ui-duration`. Anteprima pannello
+    aggiornata con attributi `data-checkbox-state` su ogni stadio.
+    `npm run check` PASS.
+
+40. `refactor:` **Quantità checkbox Archivio spostata nel menu a tre puntini**
+    (2026-10-05). Lo stepper per il numero di checkbox (1–50) è stato
+    rimosso dal pannello Modifica e inserito direttamente nel menu a tre
+    puntini della cella, sopra la voce "Modifica". Così l'utente varia
+    rapidamente la quantità senza aprire il pannello; il pannello Modifica
+    resta per simboli, Mezzo valore e anteprima. `DiceNumericStepper`
+    condiviso, limiti 1–50, aggiornamento immediato via `updateCell`.
+    `npm run check` PASS.
+
 #### Indice icone senza standard (per round futuri — censimento statico, verificare a mano i contesti "in pulsante")
 **A. Già coperte dalla regola globale**: Plus, Save, X, Edit2/Pencil
 (`lucide-pen`/`lucide-pencil`), Trash2, ChevronDown/Up/Left/Right,
@@ -1267,6 +1286,39 @@ Ora `bodyColor` influenza SOLO gli edge; le facce restano fedeli alla texture fo
     verify, build).
     Punti 31-37 non ancora committati.
 
+38. `feat:` **Modifica Checkbox Archivio: quantità 1–50, simboli e Mezzo
+    valore** (2026-10-05). Voce Modifica attiva: pannello tematizzato nel
+    PortalContainer della dashboard, posizionato con le dimensioni reali,
+    trascinabile come il pannello Dado, con Salva/Annulla, Escape e click
+    fuori. Stepper condiviso DiceNumericStepper (minus/input centrale/plus),
+    minimo 1 massimo 50. Catalogo di 12 simboli: X, Spunta, Cerchio,
+    Triangolo, Quadrato, Rombo, Stella, Cuore, Più, Asterisco, Bandiera e
+    Fulmine; SVG e anteprima condivisi fra pannello e casella. Opzione
+    Mezzo valore: ogni casella ha stato indipendente 0/1/2 (vuota/mezzo/piena)
+    e ciclo 0→1→2→0; senza opzione 0→2→0. X intermedia '/', geometrie
+    e cuore/fulmine a contorno poi pieni, spunta e asterisco parziali,
+    plus prima trattino, bandiera prima asta. Anteprima visiva del ciclo.
+    Nuovo modello puro `archivioCheckbox.ts`: normalizzazione bounded,
+    migrazione delle vecchie checkbox checked, array stati indipendenti,
+    quantità crescente aggiunge caselle vuote e decrescente conserva il
+    prefisso. Disattivando Mezzo valore, stati intermedi diventano pieni.
+    `ArchivioCell` persiste configurazione e stati; sorting/copia testo
+    riconoscono i mezzi. Cella allineata a sinistra con wrap fino a 50
+    caselle, role checkbox/aria-checked mixed e attivazione da tastiera.
+    Nuova riga conserva quantità/simbolo/opzione della riga di riferimento
+    ma azzera tutte le marcature. Test funzionale
+    `scripts/verify-archivio-checkbox.mts` agganciato a verify:note-archivio.
+    Harness con editor e provider React reali:
+    `%TEMP%\opencode\dbg-archivio-checkbox-edit.mjs` PASS su limiti,
+    12 cicli con SVG intermedi diversi, 9 palette (endpoint colore con
+    transition disabilitata nel solo harness), persistenza, resizing,
+    binario, Salva/Annulla/Escape/click fuori e viewport. Test capacità
+    `dbg-checkbox-capacity.mjs` PASS: 50 caselle dentro la cella, toggle
+    dell'ultima e nuova riga con configurazione copiata e stati vuoti.
+    Screenshot pannello ispezionato: `archivio-checkbox-edit.png`.
+    `npm run check` PASS (typecheck, tutti i verify, build).
+    Punto 38 non ancora committato.
+
 ## Comandi di verifica (NON skippare)
 
 - `npm run check` — full: typecheck + 41 verify + build (obbligatorio prima di ogni commit).
@@ -1285,6 +1337,61 @@ Ora `bodyColor` influenza SOLO gli edge; le facce restano fedeli alla texture fo
 - Niente force-push. Budget commit limitato → notificare l'utente prima di ogni push.
 - Vercel: SOLO deploy production, mai preview.
 - Stile commit: `fix:` / `test:` / lower-case, body con dettagli. Vedere `git log --oneline -20`.
+
+41. `feat:` **Punti Archivio: riquadro unico con +/- integrati e toggle Massimo** (2026-10-05). Creando o convertendo una cella Punti dentro l'Archivio, compare un solo riquadro con valore iniziale 0, pulsanti −/⁺ ai lati (stile identico all'elemento Punti standalone), senza titolo né barra di progresso. Il menu della cella ha due voci principali: **Abilita/Disabilita Massimo** (attiva/disattiva il campo massimo e la barra) e le solite trasformazioni in Testo/Dado/Checkbox/Modificatore. Niente voce Modifica, niente pannello secondario. Aggiunto campo `maxEnabled` su `ArchivioCell` e normalizzazione. `npm run check` PASS.
+
+42. `fix:` **Input Punti Archivio: niente spinner nativi e larghezza fluida** (2026-10-05). Nelle celle Punti dentro l'Archivio i campi numerici (valore e massimo) non mostrano più gli spinner nativi del browser (`appearance:none`, `-moz-appearance:textfield`, webkit spinner hidden). Le due caselle ora usano `flex-1 min-w-0` invece di larghezza fissa: si espandono per occupare tutto lo spazio disponibile tra i pulsanti −/⁺, sia quando c'è solo il valore sia quando c'è anche il massimo. `npm run check` PASS.
+
+43. `fix:` **Punti Archivio: tre puntini fuori dalla casella, numero centrato** (2026-10-05). I tre puntini del menu sono ora posizionati **fuori dalla casella di testo**, all'estrema destra della cella (`absolute right-[0.5rem]`), senza sovrapporsi al pulsante +. Il numero dentro la casella di testo ora è **perfettamente centrato** (rimosso `pr-[1.65em]` asimmetrico). Il gruppo flex interno usa `justify-center` per allineare il contenuto. `npm run check` PASS.
+
+44. `fix:` **Punti Archivio: pulsante + ripristinato, menu fuori dalla casella** (2026-10-05). Ripristinato il pulsante `+` a destra del campo valore. Il menu a tre puntini ora usa `right-[0.5rem]` posizionato rispetto alla cella (contenitore `relative`), posizionato **fuori dalla casella di testo** a destra del pulsante `+`. Il numero è centrato grazie a `text-center` e padding simmetrico. `npm run check` PASS.
+
+45. `feat:` **Punti Archivio: struttura completa con due gruppi −/+ separati** (2026-10-05). Struttura finale come richiesto:
+   - Con massimo: `[−] [ valore ] [ + ] [ / ] [−] [ max ] [ + ] [ ⋮ ]`
+   - Senza massimo: `[−] [ valore ] [ + ] [ ⋮ ]`
+   Il menu a tre puntini è **fuori dalla casella di testo**, posizionato `absolute right-[0.5rem]` rispetto alla cella. Il pulsante `+` del valore è sempre presente. Il gruppo max ha i propri pulsanti `−/+` quando abilitato. Numero centrato grazie a `text-center` e padding simmetrico. `npm run check` PASS.
+
+46. `fix:` **Punti Archivio: overflow su colonna fissa + menu ⋮ mai aperto** (2026-10-05). Due bug reali trovati con harness CDP che monta l'editor:
+   - **Overflow**: la tabella Archivio usa `table-layout:fixed`, ma i gruppi `[−][input][+]` della cella Punti non avevano `min-w-0`: il `min-width:auto` (basato sull'intrinseco ~170px dell'input `type=number`) impediva la compressione, quindi contenuto e ⋮ (assoluto) sforavano nella colonna Danno adiacente. Fix: `min-w-0` su entrambi i gruppi e sui wrapper, pulsanti `−/+` con `shrink-0`, gap ridotti a `gap-0.5`, pulsanti `w-3.5`, input `px-0.5` (compatto anche a 130px di colonna).
+   - **Menu mai renderizzato**: il branch `cell.kind === 'points'` in `ArchivioView` montava il trigger ⋮ ma **non** il `<MenuPortal>` con `transformItems` — il menu non appariva mai. Fix: trigger spostato nel branch td (in flusso, `HOVER_DOTS_INLINE`, fuori dalle caselle) + `MenuPortal` aggiunto, come per le altre celle.
+   - Coerenza: la voce "Disabilita/Abilita Massimo" ora chiude il menu dopo la selezione (`closeMenu()`), come le altre voci azione; lo stepper checkbox resta aperto (multi-azione).
+   - Harness `dbg-points-cell.mjs` (CDP, headless Chrome): PASS — nessun overflow a 130/160/360px, numeri centrati, struttura esatta `[− val + / − max + ⋮]` e `[− val + ⋮]`, ⋮ fuori dalle caselle, menu con toggle Massimo apre/chiude e roundtrip, hover che rivela −/+ e ⋮. Screenshot `points-cell.png`. `npm run check` PASS.
+
+47. `feat:` **Punti Archivio: stepper condiviso `DiceNumericStepper` dentro la casella** (2026-10-05). Su scelta esplicita dell'utente, i due gruppi manuali `[−][input][+]` sono stati sostituiti dallo stepper condiviso del sito `DiceNumericStepper`: `+`/`−` stanno **dentro** la casella, agli lati del numero, stesso stile usato ovunque (menu checkbox, quantità, pannelli dadi). Con massimo: `[− 10 +] / [− 10 +] ⋮`; senza massimo: `[− 10 +] ⋮`; i tre puntini restano fuori dalle caselle ma dentro la cella (`HOVER_DOTS_INLINE` in flusso + `MenuPortal`). Fix di supporto:
+   - Input dello stepper con `min-w-[3ch]` (prima `min-w-0`): in colonna stretta l'input (basis 0) collassava a larghezza 0 e **i numeri sparivano del tutto**; ora resta spazio minimo per le cifre anche a 130px (22.6px garantiti, larghezza piena 80.5px a 360px di colonna).
+   - Contenuto cella con `justify-start`: l'eventuale overflow (colonne < ~130px) finisce verso destra, sotto i puntini (`z-[2]` vince), invece di sforare a sinistra nel bordo della cella.
+   - Harness: fixture con somma colonne = 770px (larghezza disponibile della tabella nel fixture) per rendere i pixel renderizzati pari agli attributi — con `table-layout:fixed` e somma inferiore il browser dilata le colonne in proporzione; resize colonna via `setNodeMarkup` (il comando `updateAttributes` ritorna false se la selection è fuori dal nodo archivio); nuove assertion: td = 160/130/360 e larghezza cifre ≥ 20px. PASS: cifre visibili, struttura, menu con toggle Massimo, roundtrip, hover. Screenshot `points-cell.png`. `npm run check` PASS.
+
+48. `fix:` **Punti Archivio: font 12px come le altre celle + puntini compatti** (2026-10-05). Feedback utente: i tre puntini occupavano troppo spazio e con il Massimo risultava tutto schiacciato; il font era più grande delle altre celle (che usano tutte `text-xs`). Fix:
+   - Input degli stepper della cella Punti a **`text-xs` (12px)** via `[&_input]:text-xs` sul wrapper (gli altri usi dello stepper condiviso restano `text-sm`), padding orizzontale ridotto a `px-0.5` (`[&_input]:px-0.5`), slash `/` a `text-xs`.
+   - Trigger puntini della cella Punti con `padding="p-0.5"` (nuovo prop opzionale `padding` su `TriggerButton`, default `p-1` invariato per tutti gli altri): 22px → 18px di larghezza.
+   - Harness: assertion font = 12px e larghezza trigger ≤ 18.5px; soglia cifre aggiustata a ≥ 17px (min-w-[3ch] si ricalcola a ~19.4px con font 12). PASS a 160/130/360px. `npm run check` PASS.
+
+49. `fix:` **Punti Archivio: stepper compatto h-7 con pulsanti w-7** (2026-10-05). Feedback utente: pulsanti `+`/`−` sproporzionati rispetto al numero centrale e caselle troppo alte. Fix (override solo sulla cella, lo stepper condiviso resta h-9/w-9 altrove):
+   - `[&>div]:h-7`: i due riquadri ora sono **28px di altezza, identici al pulsante Dado della stessa riga** (`min-h-7`), la riga non è più plus alta delle altre.
+   - `[&_button]:w-7`: pulsanti `−`/`+` a 28px (da 36): a 360px di colonna il numero centrale passa da ~84px a ~100px; in colonna stretta i pulsanti si comprimono comunque fino a 14px (icona).
+   - Harness: nuove assertion altezza stepper = altezza dado (`stepper.h === diceH === 28`) e pulsanti ≤ 28.5px (160 e 360). PASS a 160/130/360px, screenshot conferma allineamento visivo con il dado. `npm run check` PASS.
+50. `fix:` **Punti Archivio: pulsanti laterali ancora più compatti**. Pulsanti −/+ da 28 a 20px, icone da 14 a 12px; altezza 28px e font 12px mantenuti. Typecheck e harness browser PASS.
+
+51. `feat:` **Modificatore nell'Archivio senza titolo e con pannello condiviso**. La cella mostra il valore centrato (font 12px, altezza minima 28px), con menu Modifica e Trasforma in Testo/Dado/Checkbox/Punti. Modifica usa direttamente `ModifierEditPanel`, lo stesso componente del Modificatore standalone: Valore, Formula, riferimenti, validazione, Salva/Annulla e trascinamento. Formula persistita negli attributi della cella, con valore delle celle precedenti preservato. Le celle senza titolo non diventano riferimenti nominati; possono usare i modificatori della nota. Formule anomale evidenziate, valori/formule con dadi collegati al tiro tramite il contesto dadi. Pannello identificato tramite ID della cella, chiusura con Escape/click esterno. Harness CDP PASS: migrazione, menu esatto, pannello condiviso, salvataggio/riapertura, riferimenti mancanti, Annulla/Escape. `npm run check` PASS completo.
+52. `fix:` **Ingranaggio Modificatore Archivio e riga scrivibile dopo gli elementi**. Aggiunto Cog decorativo in basso a sinistra nella cella Modificatore, semitrasparente e dietro il valore. Riprodotta via CDP la sequenza Dado/Punti/Archivio/Modificatore della foto: il documento terminava con il paragrafo-widget (ZWSP), senza una riga vuota reale. Esteso `createBlockRowTrailingParagraphPlugin` ai paragrafi contenenti solo widget e ai blocchi finali; riparazione anche al montaggio/attivazione dell'editor per note già salvate, senza aggiungere un passo Annulla. Il paragrafo finale resta unico e viene ripristinato se cancellato. Test permanenti per tutti i tipi widget, idempotenza, cancellazione e paragrafi misti con testo. Harness browser PASS: riga iniziale, click mouse, frecce giù/su, scrittura, Invio, reload e ripristino della coda. Pannello Modificatore Archivio ancora PASS; `npm run check` PASS completo.
+53. `test:` **Regressione di chiusura dell'editor Note** (2026-10-05). Inventariata la copertura precedente: diverse verifiche erano sul sorgente e gli harness browser vivevano solo in temp. Aggiunti fixture condivisi e runner permanenti nel progetto:
+   - `verify-note-combination-matrix.mjs`: 18 tipi/casi, tutte le sequenze di 1/2/3 elementi (6.174 documenti), 170.716 passi del cursore avanti/indietro, 864 inserimenti laterali, JSON roundtrip, scrittura, Annulla/Ripristina, riga finale e preservazione dei contenuti. Integrato in `npm run check`.
+   - `verify-notes.mjs`: esegue tutte le 29 suite delle note, incluse quelle preesistenti di Radio/hit area/Icone/Annulla non presenti in check.
+   - `verify-notes-browser.mjs` + `note-browser-driver.mjs`: Chrome/CDP senza dipendenze aggiunte, Vite dedicato avviato/chiuso automaticamente. NodeView e componente `RichTextEditor` reali con provider; 1.076 layout a 1.100/360px, 41.104 passi dei quattro handler freccia, 36 scenari con eventi nativi mouse/frecce/digitazione/Invio, roundtrip e undo/redo. Archivio: 20 trasformazioni, 3 pannelli condivisi, 11 operazioni CRUD/conversione, Punti con/senza massimo a larghezze renderizzate 130/160/360px. Componente della pagina: attivazione da sola lettura, salvataggio controllato, checkbox/radio senza spostamento caret, menu slash e Modificatore normale a due larghezze.
+   - Difetto concreto trovato: disabilitando Massimo nei Punti Archivio, il valore rimaneva limitato al massimo nascosto. Corretto clamp sia in update sia in normalizzazione; il valore senza massimo resta invariato dopo reload, riabilitando il massimo torna il limite. Export testo coerente senza `/max` quando disabilitato. Caso incluso nel runner browser.
+   - Comando completo `npm run verify:notes-all` PASS; `npm run check` PASS completo. Ultimo report browser: `notes-regression-report.json` nella temp `opencode`. Copertura e limiti documentati in `docs/NOTE-REGRESSION.md`: editor chiuso con baseline verificata, roundtrip locale JSON/componente (non test remoto Supabase). Nessun blocco residuo rilevato nelle verifiche eseguite.
+54. `feat:` **Chat: pannello strutturato con filtri e cronologia tiri** (2026-10-05). Nuovo `SessionChatPanel` ispirato al mockup: tab Tutti/Chat/Tiri/File con indicatore attivo, lista scorrevole con auto-scroll, card tiri che riusano `DiceRollHistoryCard` (avatar, nome, formula, totale, Ritira), campo messaggio in basso con placeholder e bottoni allega/immagine/emoji. Icona Chat nella rail di sessione ora abilitata (`enabled: true`). Typecheck PASS.
+55. `fix:` **Chat: resize, avatar grande e invio messaggi** (2026-10-05). (1) Pannello Chat ridimensionabile come gli altri: nuovo `chatPanelWidth` con clamp 320–viewport, handle `data-chat-panel-resizer`, persistenza `hollowgate.chat.panel-width`, incluso in `resizablePanelOpen`. (2) Variant `chat` di `DiceRollHistoryCard`: avatar 40px (da 28px) con iniziale più grande. (3) Invio messaggi funzionante: `handleSend` aggiunge alla lista locale `messages` con avatar e nome da `useAuth`, bolle chat stile messaggistica, auto-scroll su nuovi messaggi. Typecheck PASS.
+56. `feat:` **Chat: menu tre puntini con Pulisci chat** (2026-10-05). Bottone `MoreVertical` in fondo alla fila tab, menu dropdown con singola voce danger "Pulisci chat" (stile Elimina), dialog di conferma con avvertimento che cancellando la chat vengono eliminati anche gli allegati, azione `handleClearChat` che svuota messaggi locali e storico tiri. Typecheck PASS.
+57. `feat:` **Chat: persistenza Supabase e rimozione Pulisci chat** (2026-10-05). La chat ora usa il database Supabase invece dello stato locale: nuova tabella `chat_messages` (migration `20261005195000_chat_messages.sql`, fix cast `auth.uid()::text` nella policy DELETE per errore `text = uuid`) con RLS per lettura/inserimento autenticati e cancellazione riservata all'autore o al GM. Nuovo service `chatService.ts` con `loadChatMessages`, `sendChatMessage`, `deleteChatMessage`. `SessionChatPanel` caricamento messaggi da DB all'apertura, invio asincrono con salvataggio, nuovi messaggi in coda (ordine `created_at` ascendente). Rimosso menu "Pulisci chat" e dialog di conferma: la chat non si cancella, i messaggi persistono. Typecheck PASS.
+58. `feat:` **Chat: timeline unificata persistita — testi + tiri (+ allegati futuri)** (2026-10-05). La chat salva tutto, non solo i testi: migration `supabase/20261005220000_chat_messages_kind_payload.sql` aggiunge `kind text ('message'|'roll'|'attachment')` e `payload jsonb` più indice `(campaign_id, created_at)`. `chatService`: `ChatMessage.kind`/`roll`, `saveRollEntry(roll)` che upserta il tiro con `id = roll.id` e `ignoreDuplicates` (idempotente: ogni client che riceve il tiro via realtime o in locale può tentare l'insert, la riga nasce una sola volta); tiri `secret` non persistiti. `DiceSessionContext`: `ingestRoll` salva il tiro pubblico in chat, nuovo `rerollResult(previous)` (refactor di `reroll`) così funziona anche sui tiri ricaricati dal DB. `SessionChatPanel`: timeline unica ordinata per tempo (voci DB + merge dei tiri locali non ancora in DB, dedup per id), tab con filtro per `kind` (Chat = testi + tiri modifier, Tiri = tutti i tiri, File = vuoto in attesa allegati). Typecheck PASS.
+59. `feat:` **Chat: menu ⋮ "Pulisci chat" ripristinato con cancellazione DB** (2026-10-05). Ritorno del menu tre puntini a fine tab row (voce danger "Pulisci chat" + dialog di conferma). Nuova `clearChatMessages(campaignId)` in `chatService`: delete delle righe della campagna limitato dalla RLS (GM cancella tutta la timeline, giocatore i propri); dopo la cancellazione la timeline viene ricaricata dal DB (mostra solo ciò che è stato realmente rimosso) e `clearLocalHistory` svuota i tiri locali di sessione, altrimenti il merge li ri-aggiungerebbe. Typecheck + `npm run check` verdi (fix preesistente: `verify-note-panel-resize` non contemplava Chat/Dadi in `resizablePanelOpen`).
+60. `feat:` **Chat: pallino "nuovi messaggi" sull'icona della barra destra** (2026-10-05). Pallino (`data-chat-unread`, stile `bg-[var(--dash-accent)]` + ring) sull'icona Chat nella rail quando arrivano messaggi nuovi, **anche da altri partecipanti**: nuovo evento broadcast `chat_message` su `campaignChannel` (tipo + `KNOWN_BROADCAST_EVENTS`), inviato da `SessionChatPanel.handleSend` dopo il salvataggio. `SessionRightSidebar` (sempre montato) ascolta: mittente ignoro, chat chiusa → pallino, chat aperta → il messaggio viene passato come prop `incomingMessage` al pannello che lo appende in coda (dedup per id). Persistenza del "visto": `hollowgate.chat.last-seen.<campaignId>` in localStorage con timestamp `created_at` **del server** (confronto lessicografico ISO esatto, immune a sfasamenti di orologio); al montaggio `loadLatestChatMessageAt` confronta col messaggio più recente → pallino anche per messaggi arrivati con browser chiuso; il pannello segna il visto al load e dopo ogni invio (altrimenti riaprirebbe col pallino sul proprio messaggio). Pallino spento all'apertura del pannello. Typecheck PASS.
+61. `feat:` **Chat: pallino anche per i tiri di dado** (2026-10-05). Come per la cronica tiri, un tiro pubblico (mio o di altri) segnala la chat: `DiceSessionProvider` accetta `onRollIngested(serverCreatedAt)` invocato da `ingestRoll` dopo `saveRollEntry` (ora restituisce il `created_at` del server, rileggendolo dalla riga esistente in caso di conflitto d'insert). La sidebar, se il pannello chat è chiuso, accende il pallino; se è aperto, marca il tiro come visto (nessun falso pallino al riavvio). `loadLatestChatAt` (rinominata, senza filtro `kind`) confronta all'ingresso l'ultima voce **sia messaggi sia tiri** col timestamp "visto", così anche i tiri arrivati con il browser chiuso accendono il pallino; il load del pannello segna l'ultima voce di qualunque tipo. Tiri segreti esclusi (non persistiti in chat). Typecheck PASS.
+62. `fix:` **Chat: tiri e pallino a fine rotolamento** (2026-10-05). Prima il tiro veniva salvato in DB e segnalava la chat (pallino) all'inizio del tiro: aprirla durante l'animazione mostrava il risultato in anticipo. Ora `ingestRoll` accoda solo (`pendingChatRolls` Map id→result, prima di `playAnimation` perché con 3D disattivo il reveal è sincrono) e il salvataggio + `onRollIngested` avvengono in `revealRoll`, l'unico canale di "fine dado" (successo, errore, reveal immediato, interruzione): la riga nel DB nasce a rotolamento finito, quindi la cronica tiri e la chat si comportano allo stesso modo (card e pallino insieme, allineati anche fra client diversi). Coda svuotata a cambio campagna e a `clearLocalHistory` (Pulisci chat: niente tiri che rientrano dopo lo svuotamento). Durata della finestra di persistenza = durata animazione; idempotenza su più client già garantita dall'upsert. Typecheck PASS.
+63. `fix:` **Chat: il pallino non si accende più per la propria attività** (2026-10-05). Segnalato in test: tirando con la chat chiusa e facendo refresh si ritrovava il pallino, perché i propri tiri accendevano il pallino della propria chat (i propri messaggi invece no) e il controllo d'ingresso guardava l'ultima voce in assoluto. Fix in tre punti: (1) `onRollIngested` ora passa il `RollResult` e la sidebar non accende il pallino se `roll.rollerId === user.id`; (2) `loadLatestChatAt(campaignId, excludeOwnFrom?)` filtra con `sender_id != user.id` — al rientro conta solo l'ultima voce **di altri**, quindi i propri tiri non riaccendono nulla mentre i messaggi/tiri altrui non letti sì; (3) `writeChatLastSeen` diventa monotona (non abbassa mai il valore: interleaving fra messaggi e rivelazioni di tiro poteva far prevalere un `created_at` più vecchio). Typecheck PASS.
+    Punti 31-63 non ancora committati.
 
 ## Verifiche "di unione" per file tipici
 

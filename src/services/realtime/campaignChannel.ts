@@ -27,6 +27,7 @@ type BroadcastEvent =
   | 'members_change'
   | 'notes_change'
   | 'dice_roll'
+  | 'chat_message'
   | 'notification'
   | 'character_owner_change';
 const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = [
@@ -37,6 +38,7 @@ const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = [
   'members_change',
   'notes_change',
   'dice_roll',
+  'chat_message',
   'notification',
   'character_owner_change',
 ];

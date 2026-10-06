@@ -420,10 +420,11 @@ function ModifierEditForm({ modifierName, modifiers, lookup, initialValue, initi
   );
 }
 
-function ModifierEditPanel({ top, left, name, modifiers, lookup, initialValue, initialFormula, onSave, onCancel }: {
+export function ModifierEditPanel({ top, left, name, modifierName = name, modifiers, lookup, initialValue, initialFormula, onSave, onCancel }: {
   top: number;
   left: number;
   name: string;
+  modifierName?: string;
   modifiers: ModifierSnapshot[];
   lookup: Map<string, ModifierSnapshot>;
   initialValue: string;
@@ -480,7 +481,7 @@ function ModifierEditPanel({ top, left, name, modifiers, lookup, initialValue, i
         <span className="min-w-0 flex-1 truncate">{name}</span>
       </div>
       <ModifierEditForm
-        modifierName={name}
+        modifierName={modifierName}
         modifiers={modifiers}
         lookup={lookup}
         initialValue={initialValue}

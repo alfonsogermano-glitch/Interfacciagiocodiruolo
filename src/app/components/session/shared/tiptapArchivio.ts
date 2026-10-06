@@ -4,6 +4,7 @@ import { AllSelection, TextSelection } from '@tiptap/pm/state';
 import { ArchivioView } from './ArchivioView';
 import { canInsertNoteContainer } from './noteContainerPolicy';
 import type { CustomDieRollSnapshot } from '../dice/diceTypes';
+import { normalizeArchivioCheckbox, archivioCheckboxValue, archivioCheckboxText, type ArchivioCheckboxConfig } from './archivioCheckbox';
 
 // Archivio: tabella veloce per oggetti, persone ed elementi di gioco.
 // Blocco atomico (nessun contenuto ProseMirror dentro): l'intera griglia vive
@@ -33,13 +34,17 @@ export const ARCHIVIO_CELL_LABEL: Record<ArchivioCellKind, string> = {
 // colonna e puo' essere standard (formula) o custom (dado della libreria).
 export type ArchivioDiceMode = 'standard' | 'custom';
 
-export interface ArchivioCell {
+export interface ArchivioCell extends ArchivioCheckboxConfig {
   id: string;
   kind: ArchivioCellKind;
   text: string;
+  /** Formula del Modificatore; text conserva il valore, anche per le celle esistenti. */
+  formula: string;
   checked: boolean;
   value: number;
   max: number;
+  /** Per Punti: se true mostra il massimo e la barra, se false solo il valore. */
+  maxEnabled: boolean;
   /** Modalita' del Dado: formula standard o dado Custom della libreria. */
   mode: ArchivioDiceMode;
   /** Quantita' di dadi Custom da tirare (come nell'elemento Dado standard). */
@@ -77,12 +82,15 @@ export function defaultArchivioCell(kind: ArchivioCellKind = 'text'): ArchivioCe
     id: createArchivioId(),
     kind,
     text: '',
+    formula: '',
     checked: false,
     value: 0,
     max: 0,
+    maxEnabled: true,
     mode: 'standard',
     quantity: 1,
     customDie: null,
+    ...normalizeArchivioCheckbox({}),
   };
   if (kind === 'dice') return { ...base, text: '1d6' };
   if (kind === 'points') return { ...base, value: 10, max: 10 };
@@ -143,13 +151,18 @@ function normalizeArchivioCell(raw: unknown, fallbackKind: ArchivioCellKind): Ar
   const kind = isArchivioCellKind(item.kind) ? item.kind : fallbackKind;
   const value = finiteArchivioNumber(item.value, base.value);
   const max = finiteArchivioNumber(item.max, base.max);
+  const maxEnabled = item.maxEnabled === false ? false : true;
+  const checkbox = normalizeArchivioCheckbox(item);
   return {
     id: typeof item.id === 'string' && item.id ? item.id : createArchivioId(),
     kind,
     text: typeof item.text === 'string' ? String(item.text) : base.text,
-    checked: item.checked === true,
-    value: kind === 'points' && value > max ? max : value,
+    formula: typeof item.formula === 'string' ? item.formula : '',
+    ...checkbox,
+    checked: kind === 'checkbox' ? checkbox.checkboxStates[0] === 2 : item.checked === true,
+    value: kind === 'points' && maxEnabled && value > max ? max : value,
     max,
+    maxEnabled,
     mode: item.mode === 'custom' ? 'custom' : 'standard',
     quantity: Math.max(1, finiteArchivioNumber(item.quantity, base.quantity)),
     customDie:
@@ -178,7 +191,7 @@ export function normalizeArchivioRows(raw: unknown, columns: ArchivioColumn[]): 
 }
 
 export function archivioCellSortValue(cell: ArchivioCell): string | number {
-  if (cell.kind === 'checkbox') return cell.checked ? 1 : 0;
+  if (cell.kind === 'checkbox') return archivioCheckboxValue(cell);
   if (cell.kind === 'points') return cell.value;
   return (cell.text ?? '').toLocaleLowerCase();
 }
@@ -197,8 +210,8 @@ export function sortArchivioRows(rows: ArchivioRow[], columnIndex: number, direc
 }
 
 export function archivioCellDisplayText(cell: ArchivioCell): string {
-  if (cell.kind === 'checkbox') return cell.checked ? 'Sì' : 'No';
-  if (cell.kind === 'points') return `${cell.value}/${cell.max}`;
+  if (cell.kind === 'checkbox') return archivioCheckboxText(cell);
+  if (cell.kind === 'points') return cell.maxEnabled === false ? String(cell.value) : `${cell.value}/${cell.max}`;
   if (cell.kind === 'dice' && cell.mode === 'custom' && cell.customDie) return `${cell.quantity} ${cell.customDie.name}`;
   return cell.text;
 }

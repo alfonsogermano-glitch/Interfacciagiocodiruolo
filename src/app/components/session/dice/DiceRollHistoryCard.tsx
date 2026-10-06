@@ -61,19 +61,20 @@ function CompareOutcome({ result }: { result: RollComparisonResult }) {
   );
 }
 
-export function DiceRollHistoryCard({ result, onReroll }: { result: RollResult; onReroll: () => void }) {
+export function DiceRollHistoryCard({ result, onReroll, variant = 'default' }: { result: RollResult; onReroll: () => void; variant?: 'default' | 'chat' }) {
   const primary = formatPrimaryRollResult(result);
   const { getStandardAppearance } = useDiceAppearance();
   const hasGroupedCustomResults = result.diceGroups.some((group) => group.customDieSnapshot?.resultDisplayMode === 'grouped');
   const groupedResultTotal = result.total ?? result.diceGroups.reduce((count, group) => count + group.rolls.filter((die) => die.active && die.physicalRole !== 'units').length, 0);
+  const avatarSize = variant === 'chat' ? 'h-10 w-10' : 'h-7 w-7';
   return (
     <article data-dice-roll-history-card className="rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 p-2 shadow-md">
       <div className="flex items-stretch gap-2">
         <div data-dice-player-actions className="flex self-stretch shrink-0 flex-col items-center gap-1">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--dash-border)] bg-[var(--dash-surface-2)]">
+          <div className={`flex ${avatarSize} shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--dash-border)] bg-[var(--dash-surface-2)]`}>
             {result.rollerAvatarUrl
               ? <img src={result.rollerAvatarUrl} alt="" className="h-full w-full object-cover" />
-              : <span className="text-xs font-semibold text-[var(--dash-text)]">{result.rollerName.slice(0, 1).toUpperCase()}</span>}
+              : <span className={`font-semibold text-[var(--dash-text)] ${variant === 'chat' ? 'text-sm' : 'text-xs'}`}>{result.rollerName.slice(0, 1).toUpperCase()}</span>}
           </div>
           {result.origin !== 'modifier' && (
             <Tooltip>

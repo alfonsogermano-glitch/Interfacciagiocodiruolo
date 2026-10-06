@@ -264,23 +264,51 @@ export function createBlockRowGapCursorPlugin(): Plugin {
   });
 }
 
-// Punto di scrittura finale: se l'ultimo blocco della nota e' una riga di
-// elementi, in coda c'e' SEMPRE un paragrafo vuoto dove scrivere sotto
-// l'ultima riga (senza, non c'e' dove atterrare con click/frecce e il caret
-// finiva risucchiato dentro l'ultima riga). Idempotente: appena il paragrafo
-// c'e' non tocca piu' nulla; se l'utente lo cancella torna subito. Una
-// fabbrica per editor, cosi' ogni view ha la sua istanza di plugin.
+const NOTE_WIDGET_MARKS = new Set(['inlineDice', 'inlineModifier', 'inlinePoints', 'inlineCheckbox', 'inlineRadio', 'inlineIcon']);
+
+/** A widget-only paragraph is an element row, not the empty text line below it. */
+export function noteNeedsTrailingParagraph(doc: PMNode): boolean {
+  const last = doc.lastChild;
+  if (!last) return false;
+  if (!last.isTextblock) return true;
+  if (last.type.name !== 'paragraph' || !last.content.size) return false;
+  let hasWidget = false;
+  let hasText = false;
+  last.forEach(child => {
+    if (!child.isText) { hasText = true; return; }
+    const widget = child.marks.some(mark => NOTE_WIDGET_MARKS.has(mark.type.name)) && child.text?.includes('\u200b');
+    if (widget) hasWidget = true;
+    if (/[^\s\u200b]/u.test(child.text ?? '')) hasText = true;
+  });
+  return hasWidget && !hasText;
+}
+
+// Dopo righe di elementi, blocchi e paragrafi contenenti solo widget serve
+// una vera riga vuota. Copre anche documenti salvati senza la riga finale:
+// appendTransaction da solo non viene chiamato al primo montaggio.
 export function createBlockRowTrailingParagraphPlugin(): Plugin {
   return new Plugin({
     key: new PluginKey('blockRowTrailingParagraph'),
     appendTransaction: (transactions, _oldState, newState) => {
       if (!transactions.some((transaction) => transaction.docChanged)) return null;
-      const last = newState.doc.lastChild;
-      if (!last || last.type.name !== 'blockRow') return null;
+      if (!noteNeedsTrailingParagraph(newState.doc)) return null;
       return newState.tr.insert(
         newState.doc.content.size,
         newState.schema.nodes.paragraph.create(),
       );
+    },
+    view(view) {
+      let frame = 0;
+      const schedule = () => {
+        if (frame || !view.editable || !noteNeedsTrailingParagraph(view.state.doc)) return;
+        frame = window.requestAnimationFrame(() => {
+          frame = 0;
+          if (!view.editable || !noteNeedsTrailingParagraph(view.state.doc)) return;
+          view.dispatch(view.state.tr.insert(view.state.doc.content.size, view.state.schema.nodes.paragraph.create()).setMeta('addToHistory', false));
+        });
+      };
+      schedule();
+      return { update: schedule, destroy: () => window.cancelAnimationFrame(frame) };
     },
   });
 }

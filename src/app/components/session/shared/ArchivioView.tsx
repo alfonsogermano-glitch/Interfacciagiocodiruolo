@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import React, { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import type { EditorView } from '@tiptap/pm/view';
@@ -23,6 +23,7 @@ import {
   Type,
 } from 'lucide-react';
 import { Copy } from '@/app/components/IconeCopia';
+import { DiceNumericStepper } from '../dice/DiceNumericStepper';
 import {
   ARCHIVIO_CELL_MIN_WIDTH,
   ARCHIVIO_DEFAULT_COLUMN_WIDTH,
@@ -43,9 +44,13 @@ import { loadCustomDice } from '../../../../services/supabase/diceCustomDiceServ
 import { CustomDieLibraryIcon } from '../dice/CustomDieLibraryIcon';
 import { useOptionalDiceSession } from '../dice/DiceSessionContext';
 import type { SavedCustomDie } from '../dice/diceTypes';
-import { getModifierLookup, MODIFIER_TITLE_FORMAT_DEFAULTS, showInlineBoxTipAbove } from './tiptapInlineModifier';
-import { FORMULA_TAG_CLASS, modifierRefTipText, splitModifierFormula } from './modifierFormula';
-import { DiceEditPanel } from './NoteModifierMenu';
+import { assessModifierFormula, getModifierLookup, MODIFIER_TITLE_FORMAT_DEFAULTS, showInlineBoxTipAbove } from './tiptapInlineModifier';
+import { describeFormulaAnomaly, FORMULA_TAG_CLASS, modifierRefTipText, parseModifierValue, splitModifierFormula } from './modifierFormula';
+import { DiceEditPanel, ModifierEditPanel } from './NoteModifierMenu';
+import { ArchivioCheckboxEditPanel } from './ArchivioCheckboxEditPanel';
+import { ArchivioCheckboxSymbolView } from './ArchivioCheckboxSymbol';
+import { normalizeArchivioCheckbox, nextArchivioCheckboxState } from './archivioCheckbox';
+import type { NoteRect } from './noteFloatingPosition';
 
 type MenuState =
   | { scope: 'block' }
@@ -105,6 +110,7 @@ function TriggerButton({
   children,
   className = '',
   cell = false,
+  padding = 'p-1',
 }: {
   label: string;
   onOpen: (event: ReactMouseEvent<HTMLButtonElement>) => void;
@@ -113,6 +119,9 @@ function TriggerButton({
   /** Trigger di una cella/th Archivio: visibile solo con la cella attiva
    *  (freccia sulla cella o caret dentro), mai per l'hover della nota. */
   cell?: boolean;
+  /** Padding del riquadro: la cella Punti lo riduce (p-0.5) per non
+   *  consumare larghezza nella colonna già stretta dai due stepper. */
+  padding?: string;
 }) {
   return (
     <button
@@ -130,7 +139,7 @@ function TriggerButton({
         event.stopPropagation();
         onOpen(event);
       }}
-      className={`inline-flex shrink-0 items-center justify-center rounded-md p-1 text-[var(--dash-muted)] transition-colors duration-[var(--note-ui-duration)] hover:text-[var(--dash-text)] ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-md ${padding} text-[var(--dash-muted)] transition-colors duration-[var(--note-ui-duration)] hover:text-[var(--dash-text)] ${className}`}
     >
       {children}
     </button>
@@ -154,6 +163,13 @@ const HOVER_DOTS =
 // qui coprirebbe il bordo della pill.
 const HOVER_DOTS_TOP =
   'absolute right-1 top-1 z-[2] opacity-0 transition-opacity duration-[var(--note-ui-duration)] pointer-events-none group-hover/cell:pointer-events-auto group-hover/cell:opacity-100 group-focus-within/cell:pointer-events-auto group-focus-within/cell:opacity-100 focus-visible:opacity-100';
+
+// Puntini in flusso (non assoluti) per la cella Punti: stanno DENTRO la
+// cella, dopo il gruppo massimo, fuori dalle caselle di testo, e occupano
+// spazio reale per non finire sopra la cella adiacente. Con table-layout:fixed
+// la cella ha larghezza fissa, quindi il contenuto deve stringere (min-w-0).
+const HOVER_DOTS_INLINE =
+  'shrink-0 z-[2] opacity-0 transition-opacity duration-[var(--note-ui-duration)] pointer-events-none group-hover/cell:pointer-events-auto group-hover/cell:opacity-100 group-focus-within/cell:pointer-events-auto group-focus-within/cell:opacity-100 focus-visible:opacity-100';
 
 // Dentro la tabella i menu sarebbero ritagliati dallo scroll orizzontale.
 // Il portal tematizzato mantiene disponibili le variabili --dash-*.
@@ -275,6 +291,9 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
   // finestra di modifica dell'elemento Dado (DiceEditPanel, senza il campo
   // Nome: il nome del tiro lo danno riga e colonna).
   const [diceEdit, setDiceEdit] = useState<{ row: number; col: number; y: number } | null>(null);
+  const [checkboxEdit, setCheckboxEdit] = useState<{ row: number; col: number; id: string; anchor: NoteRect } | null>(null);
+  const [modifierEdit, setModifierEdit] = useState<{ id: string; y: number } | null>(null);
+  const [, refreshModifiers] = useState(0);
   const [customDice, setCustomDice] = useState<SavedCustomDie[]>([]);
   const [customDiceLoading, setCustomDiceLoading] = useState(false);
   const customDiceLoadSequenceRef = useRef(0);
@@ -283,6 +302,33 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
   const diceSession = useOptionalDiceSession();
   const portalContainer = usePortalContainer();
   const resizeRef = useRef<{ col: number; startX: number; startWidth: number } | null>(null);
+  const hasModifiers = rows.some(row => row.cells.some(cell => cell.kind === 'modifier'));
+  useEffect(() => {
+    if (!hasModifiers) return;
+    const refresh = () => refreshModifiers(revision => revision + 1);
+    editor.on('transaction', refresh);
+    return () => { editor.off('transaction', refresh); };
+  }, [editor, hasModifiers]);
+  const modifierLookup = getModifierLookup(editor.view);
+  const modifierEditRow = modifierEdit ? rows.findIndex(row => row.cells.some(cell => cell.id === modifierEdit.id && cell.kind === 'modifier')) : -1;
+  const modifierEditCol = modifierEditRow >= 0 ? rows[modifierEditRow].cells.findIndex(cell => cell.id === modifierEdit?.id) : -1;
+  const editingModifier = modifierEditRow >= 0 ? rows[modifierEditRow].cells[modifierEditCol] : null;
+
+  useEffect(() => {
+    if (!modifierEdit) return;
+    if (!editingModifier) { setModifierEdit(null); return; }
+    const outside = (event: PointerEvent) => {
+      if ((event.target as Element | null)?.closest('[data-note-modifier-menu="true"], [role="tooltip"]')) return;
+      setModifierEdit(null);
+    };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setModifierEdit(null); };
+    document.addEventListener('pointerdown', outside, true);
+    window.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside, true);
+      window.removeEventListener('keydown', escape);
+    };
+  }, [modifierEdit, editingModifier?.id]);
 
   const openMenu = (next: MenuState, event: ReactMouseEvent<HTMLButtonElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -352,7 +398,13 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
     const reference = referenceIndex !== null ? rows[referenceIndex] : rows[rows.length - 1];
     const cells = columns.map((_, index) => {
       if (index === 0) return defaultArchivioCell('text');
-      return defaultArchivioCell(reference?.cells[index]?.kind ?? 'text');
+      const source = reference?.cells[index];
+      const cell = defaultArchivioCell(source?.kind ?? 'text');
+      if (source?.kind === 'checkbox') {
+        const config = normalizeArchivioCheckbox(source);
+        return { ...cell, ...config, checkboxStates: config.checkboxStates.map(() => 0 as const), checked: false };
+      }
+      return cell;
     });
     const next = [...rows];
     next.splice(Math.max(0, Math.min(insertAt, next.length)), 0, { id: createViewId(), cells });
@@ -441,7 +493,7 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
             cells: row.cells.map((cell, c) => {
               if (c !== colIndex) return cell;
               const merged = { ...cell, ...patch };
-              if (merged.kind === 'points' && merged.value > merged.max) merged.value = merged.max;
+              if (merged.kind === 'points' && merged.maxEnabled !== false && merged.value > merged.max) merged.value = merged.max;
               return merged;
             }),
           },
@@ -476,8 +528,31 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
   const openDiceEditor = (rowIndex: number, colIndex: number) => {
     const openY = anchor?.y ?? window.innerHeight / 2;
     closeMenu();
+    setModifierEdit(null);
+    setCheckboxEdit(null);
     setDiceEdit({ row: rowIndex, col: colIndex, y: openY });
     void loadDiceLibrary();
+  };
+
+  const openCheckboxEditor = (rowIndex: number, colIndex: number) => {
+    const cell = rows[rowIndex]?.cells[colIndex];
+    if (!cell) return;
+    const point = anchor ?? { x: editor.view.dom.getBoundingClientRect().left, y: window.innerHeight / 2 };
+    closeMenu();
+    setDiceEdit(null);
+    setModifierEdit(null);
+    setCheckboxEdit({ row: rowIndex, col: colIndex, id: cell.id,
+      anchor: { left: point.x, right: point.x + 2, top: point.y, bottom: point.y } });
+  };
+
+  const openModifierEditor = (rowIndex: number, colIndex: number) => {
+    const cell = rows[rowIndex]?.cells[colIndex];
+    if (!cell || cell.kind !== 'modifier') return;
+    const y = anchor?.y ?? window.innerHeight / 2;
+    closeMenu();
+    setDiceEdit(null);
+    setCheckboxEdit(null);
+    setModifierEdit({ id: cell.id, y });
   };
 
   // Nome del tiro in chat: "<Nome riga> - <colonna>" (es. "Arco Lungo — Danno").
@@ -586,50 +661,61 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
 
   const renderCellEditor = (cell: ArchivioCell, rowIndex: number, colIndex: number) => {
     if (cell.kind === 'checkbox') {
+      const config = normalizeArchivioCheckbox(cell);
       return (
-        <input
-          type="checkbox"
-          data-archivio-checkbox="true"
-          data-archivio-cell-input={cell.id}
-          checked={cell.checked}
-          onChange={(event) => updateCell(rowIndex, colIndex, { checked: event.target.checked })}
-          onMouseDown={(event) => event.stopPropagation()}
-          onClick={(event) => event.stopPropagation()}
-          onKeyDown={stopKeys}
-          aria-label="Checkbox"
-          className="tiptap-archivio-checkbox h-4 w-4 shrink-0 cursor-pointer"
-        />
+        <span role="group" aria-label="Checkbox della cella" className="flex min-w-0 flex-1 flex-wrap items-center justify-start gap-1">
+          {config.checkboxStates.map((state, index) => (
+            <button key={index} type="button" role="checkbox" contentEditable={false}
+              data-archivio-checkbox="true" data-checkbox-index={index} data-checkbox-state={state}
+              data-archivio-cell-input={index === 0 ? cell.id : undefined}
+              aria-checked={state === 1 ? 'mixed' : state === 2}
+              aria-label={`Checkbox ${index + 1} di ${config.checkboxCount}: ${state === 0 ? 'vuota' : state === 1 ? 'mezzo valore' : 'piena'}`}
+              onMouseDown={event => event.stopPropagation()} onKeyDown={stopKeys}
+              onClick={event => {
+                event.stopPropagation();
+                const checkboxStates = config.checkboxStates.map((value, i) => i === index ? nextArchivioCheckboxState(value, config.checkboxHalf) : value);
+                updateCell(rowIndex, colIndex, { ...config, checkboxStates, checked: checkboxStates[0] === 2 });
+              }}
+              className="tiptap-archivio-checkbox h-4 w-4 shrink-0 cursor-pointer p-0 text-[var(--dash-text)]">
+              <ArchivioCheckboxSymbolView symbol={config.checkboxSymbol} state={state} className="h-full w-full" />
+            </button>
+          ))}
+        </span>
       );
     }
-    if (cell.kind === 'points') {
+if (cell.kind === 'points') {
+      const maxEnabled = cell.maxEnabled !== false;
+      // Stepper condiviso del sito (DiceNumericStepper): il + e il - stanno
+      // DENTRO la casella, ai lati del numero, stesso stile usato ovunque
+      // (menu checkbox, quantita', pannelli dadi). Con massimo il gruppo si
+      // ripete con lo slash: [valore] / [massimo], poi i puntini in flusso.
       return (
-        <span className="flex min-w-0 flex-1 items-center justify-center gap-1">
-          <input
-            type="number"
-            data-archivio-cell-input={cell.id}
+        <span
+          className="relative flex min-w-0 items-center justify-start gap-0.5 group/points flex-1 [&>div]:h-7 [&_button]:w-5 [&_button_svg]:h-3 [&_button_svg]:w-3 [&_input]:text-xs [&_input]:px-0.5"
+          onMouseDown={(event) => event.stopPropagation()}
+          onKeyDown={stopKeys}
+        >
+          <DiceNumericStepper
             value={cell.value}
-            onChange={(event) => {
-              const parsed = Number(event.target.value);
-              if (Number.isFinite(parsed)) updateCell(rowIndex, colIndex, { value: parsed });
-            }}
-            onMouseDown={(event) => event.stopPropagation()}
-            onKeyDown={stopKeys}
-            aria-label="Valore punti"
-            className="w-12 min-w-0 rounded border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-1 py-0.5 text-center text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
+            onChange={(value) => updateCell(rowIndex, colIndex, { value })}
+            min={0}
+            integer
+            fullWidth
+            ariaLabel="Valore punti"
           />
-          <span className="text-[var(--dash-muted)]">/</span>
-          <input
-            type="number"
-            value={cell.max}
-            onChange={(event) => {
-              const parsed = Number(event.target.value);
-              if (Number.isFinite(parsed)) updateCell(rowIndex, colIndex, { max: parsed });
-            }}
-            onMouseDown={(event) => event.stopPropagation()}
-            onKeyDown={stopKeys}
-            aria-label="Massimo punti"
-            className="w-12 min-w-0 rounded border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-1 py-0.5 text-center text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
-          />
+          {maxEnabled && (
+            <React.Fragment>
+              <span className="flex-shrink-0 text-xs text-[var(--dash-muted)]">/</span>
+              <DiceNumericStepper
+                value={cell.max}
+                onChange={(value) => updateCell(rowIndex, colIndex, { max: value })}
+                min={0}
+                integer
+                fullWidth
+                ariaLabel="Massimo punti"
+              />
+            </React.Fragment>
+          )}
         </span>
       );
     }
@@ -678,17 +764,37 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
       );
     }
     if (cell.kind === 'modifier') {
+      // Nessun nome proprio: le formule fanno riferimento ai modificatori
+      // della nota, senza registrare la cella come modificatore nominato.
+      const assessment = assessModifierFormula('', cell.formula, modifierLookup);
+      const rollable = !assessment.anomalous && (cell.formula.trim() ? assessment.hasDice : parseModifierValue(cell.text)?.kind === 'dice');
+      const tip = assessment.anomalous ? describeFormulaAnomaly(cell.formula, modifierLookup, '') : cell.formula.trim();
       return (
-        <input
-          data-archivio-cell-input={cell.id}
-          value={cell.text}
-          onChange={(event) => updateCell(rowIndex, colIndex, { text: event.target.value })}
-          onMouseDown={(event) => event.stopPropagation()}
+        <button
+          type="button"
+          contentEditable={false}
+          data-archivio-modifier="true"
+          data-modifier-anomalous={assessment.anomalous ? 'true' : 'false'}
+          title={tip || undefined}
+          onMouseDown={(event) => { event.preventDefault(); event.stopPropagation(); }}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (!rollable || !diceSession) return;
+            diceSession.submitModifierRoll({
+              name: diceRollName(rowIndex, colIndex), expression: cell.text, formula: cell.formula,
+              resolveName: name => { const entry = modifierLookup.get(name); return entry ? { value: entry.value, formula: entry.formula } : null; },
+            });
+          }}
           onKeyDown={stopKeys}
           aria-label="Modificatore"
-          placeholder="0"
-          className="min-w-0 flex-1 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-2 py-1 font-mono text-xs text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
-        />
+          className={`relative flex min-h-7 w-full min-w-0 items-center justify-center rounded-md border px-2 py-0.5 text-center text-xs font-semibold whitespace-pre-wrap break-words overflow-hidden ${assessment.anomalous
+            ? 'border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] text-[var(--dash-danger-text)]'
+            : rollable ? 'cursor-pointer border-[var(--dash-accent-2)] bg-[var(--dash-surface-2)] text-[var(--dash-text)]'
+              : 'cursor-default border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] text-[var(--dash-text)]'}`}
+        >
+          <Cog aria-hidden="true" data-note-element-category-icon="Cog" className="pointer-events-none absolute -left-[0.4em] -bottom-[0.3em] h-[1.7em] w-[1.7em] text-[var(--dash-accent-2)] opacity-50" />
+          <span className="relative z-[1]">{cell.text || '0'}</span>
+        </button>
       );
     }
     return (
@@ -715,14 +821,35 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
     ];
     return (
       <>
-        {cell.kind !== 'text' && (
+        {cell.kind === 'checkbox' && (
+          <label className="block px-2.5 py-1 space-y-1 text-xs text-[var(--dash-text)]">
+            <span>Numero di checkbox</span>
+            <DiceNumericStepper
+              value={cell.checkboxCount ?? 1}
+              onChange={(value) => updateCell(rowIndex, colIndex, { checkboxCount: value })}
+              min={1}
+              max={50}
+              integer
+              fullWidth
+              ariaLabel="Numero di checkbox"
+            />
+          </label>
+        )}
+        {cell.kind === 'points' && (
+          <MenuItem
+            icon={cell.maxEnabled !== false ? Gauge : Gauge}
+            label={cell.maxEnabled !== false ? 'Disabilita Massimo' : 'Abilita Massimo'}
+            onSelect={() => { updateCell(rowIndex, colIndex, { maxEnabled: !cell.maxEnabled }); closeMenu(); }}
+          />
+        )}
+        {cell.kind !== 'text' && cell.kind !== 'points' && (
           <MenuItem
             icon={Pencil}
             label="Modifica"
-            // Il pannello di modifica Checkbox verra' definito nel prossimo passo.
-            disabled={cell.kind === 'checkbox'}
             onSelect={() => {
               if (cell.kind === 'dice') openDiceEditor(rowIndex, colIndex);
+              else if (cell.kind === 'checkbox') openCheckboxEditor(rowIndex, colIndex);
+              else if (cell.kind === 'modifier') openModifierEditor(rowIndex, colIndex);
               else focusCellEditor(cell.id);
             }}
           />
@@ -968,15 +1095,14 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                             </MenuPortal>
                           )}
                         </span>
-                      ) : (
-                        <span className="relative flex min-w-0 items-center gap-1">
-                          <span className={`flex min-w-0 flex-1 items-center ${cell.kind === 'checkbox' ? 'justify-start' : 'justify-center'}`}>
-                            {renderCellEditor(cell, rowIndex, colIndex)}
-                          </span>
+) : (cell.kind === 'points' ? (
+                        <span className="relative flex min-w-0 items-center justify-center gap-0.5 group/points">
+                          {renderCellEditor(cell, rowIndex, colIndex)}
                           <TriggerButton
                             label={`Menu cella ${columnLabel(columns[colIndex])} riga ${rowIndex + 1}`}
                             cell={true}
-                            className={cell.kind === 'dice' ? HOVER_DOTS_TOP : HOVER_DOTS}
+                            className={HOVER_DOTS_INLINE}
+                            padding="p-0.5"
                             onOpen={(event) => {
                               if (menu?.scope === 'cell' && menu.row === rowIndex && menu.col === colIndex) closeMenu();
                               else openMenu({ scope: 'cell', row: rowIndex, col: colIndex }, event);
@@ -988,7 +1114,27 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
                             <MenuPortal anchor={anchor}>{transformItems(cell, rowIndex, colIndex)}</MenuPortal>
                           )}
                         </span>
-                      )}
+                      ) : (
+                        <span className="relative flex min-w-0 items-center gap-1">
+                          <span className={`flex min-w-0 flex-1 items-center ${cell.kind === 'checkbox' ? 'justify-start' : 'justify-center'}`}>
+                            {renderCellEditor(cell, rowIndex, colIndex)}
+                          </span>
+                          <TriggerButton
+                            label={`Menu cella ${columnLabel(columns[colIndex])} riga ${rowIndex + 1}`}
+                            cell={true}
+                            className={cell.kind === 'dice' || cell.kind === 'modifier' ? HOVER_DOTS_TOP : HOVER_DOTS}
+                            onOpen={(event) => {
+                              if (menu?.scope === 'cell' && menu.row === rowIndex && menu.col === colIndex) closeMenu();
+                              else openMenu({ scope: 'cell', row: rowIndex, col: colIndex }, event);
+                            }}
+                          >
+                            <MoreVertical className="h-3.5 w-3.5" aria-hidden="true" />
+                          </TriggerButton>
+                          {menu?.scope === 'cell' && menu.row === rowIndex && menu.col === colIndex && (
+                            <MenuPortal anchor={anchor}>{transformItems(cell, rowIndex, colIndex)}</MenuPortal>
+                          )}
+                        </span>
+                      )) }
                       {colIndex < columns.length - 1 && (
                         <span
                           role="separator"
@@ -1013,6 +1159,34 @@ export function ArchivioView({ node, editor, getPos, updateAttributes }: NodeVie
           </table>
         </div>
       </div>
+      {checkboxEdit && rows[checkboxEdit.row]?.cells[checkboxEdit.col]?.id === checkboxEdit.id && rows[checkboxEdit.row].cells[checkboxEdit.col].kind === 'checkbox' && createPortal(
+        <ArchivioCheckboxEditPanel key={checkboxEdit.id} anchor={checkboxEdit.anchor}
+          initial={normalizeArchivioCheckbox(rows[checkboxEdit.row].cells[checkboxEdit.col])}
+          onSave={config => {
+            updateCell(checkboxEdit.row, checkboxEdit.col, { ...config, checked: config.checkboxStates[0] === 2 });
+            setCheckboxEdit(null);
+          }}
+          onCancel={() => setCheckboxEdit(null)} />,
+        portalContainer ?? document.body,
+      )}
+      {modifierEdit && editingModifier && createPortal(
+        <ModifierEditPanel
+          key={editingModifier.id}
+          top={Math.max(8, Math.min(modifierEdit.y + 8, window.innerHeight - 320))}
+          left={Math.max(8, Math.min(editor.view.dom.getBoundingClientRect().left + editor.view.dom.getBoundingClientRect().width / 2 - 116, window.innerWidth - 240))}
+          name={diceRollName(modifierEditRow, modifierEditCol)}
+          modifierName=""
+          modifiers={[...modifierLookup.values()]}
+          lookup={modifierLookup}
+          initialValue={editingModifier.text || '0'}
+          initialFormula={editingModifier.formula}
+          onSave={(value, formula) => {
+            updateCell(modifierEditRow, modifierEditCol, { text: value, formula });
+            setModifierEdit(null);
+          }}
+          onCancel={() => setModifierEdit(null)} />,
+        portalContainer ?? document.body,
+      )}
       {diceEdit && diceModifierLookup && rows[diceEdit.row]?.cells[diceEdit.col] && (
         createPortal(
           <DiceEditPanel
