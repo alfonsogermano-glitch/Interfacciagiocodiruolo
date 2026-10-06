@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { getSupabaseConfig } from '../config/supabase.config';
+import { contentFetch } from '../services/storage/contentFetch';
 
 const config = getSupabaseConfig();
 
@@ -17,6 +18,7 @@ const noOpLock = async <R>(_name: string, _acquireTimeout: number, fn: () => Pro
 
 export const supabase = isSupabaseConfigured
   ? createClient(config.url, config.anonKey, {
+      global: { fetch: contentFetch },
       auth: {
         lock: noOpLock,
       },

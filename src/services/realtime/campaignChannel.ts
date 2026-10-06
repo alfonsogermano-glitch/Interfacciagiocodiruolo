@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../app/auth/AuthContext';
+import { selectedContentMode } from '../storage/persistenceMode';
 
 // Registro condiviso, a livello di modulo (non React), di canali Realtime
 // con conteggio riferimenti. Risolve alla radice il bug trovato il
@@ -107,6 +108,9 @@ function createEntry(topic: string): ChannelEntry {
   // ogni consumer.
   const subscribeChannel = async () => {
     if (!entry.isActive) return;
+    // Modalita' Locale: nessuna connessione Realtime, i canali sono locali
+    // (topic di campagna e profilo convivono sullo stesso dispositivo).
+    if (selectedContentMode() === 'local') { setReady(entry, true); return; }
     await supabase.realtime.setAuth();
     if (!entry.isActive) return;
 
@@ -243,9 +247,13 @@ export function useRealtimeChannel(topic: string | null | undefined, options: Us
   }, []);
 
   const send = useCallback(async (event: BroadcastEvent, payload: Record<string, unknown>) => {
+    if (selectedContentMode() === 'local') {
+      safeForEach(entryRef.current?.broadcastListeners.get(event), { payload }, `local:${event}`);
+      return;
+    }
     const ch = entryRef.current?.channel;
     if (ch) await ch.send({ type: 'broadcast', event, payload });
-  }, []);
+  }, [topic]);
 
   const presenceState = useCallback(() => entryRef.current?.channel?.presenceState() ?? {}, []);
 

@@ -1,4 +1,5 @@
 import type { StorageAdapter, BaseStoredEntity, EntityId } from './storageAdapter';
+import { persistenceKey } from './persistenceMode';
 
 type LocalStorageAdapterOptions<T> = {
   normalize?: (item: unknown) => T;
@@ -20,10 +21,12 @@ export function createLocalStorageAdapter<T extends BaseStoredEntity>(
   storageKey: string,
   options: LocalStorageAdapterOptions<T> = {}
 ): StorageAdapter<T> {
+  const key = persistenceKey(storageKey);
+
   const read = (): T[] => {
     if (typeof window === 'undefined') return [];
 
-    const rawItems = safeParseArray(window.localStorage.getItem(storageKey));
+    const rawItems = safeParseArray(window.localStorage.getItem(key));
 
     const items = options.normalize
       ? rawItems.map(options.normalize)
@@ -34,7 +37,7 @@ export function createLocalStorageAdapter<T extends BaseStoredEntity>(
 
   const write = (items: T[]) => {
     if (typeof window === 'undefined') return;
-    window.localStorage.setItem(storageKey, JSON.stringify(items));
+    window.localStorage.setItem(key, JSON.stringify(items));
   };
 
   return {

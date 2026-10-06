@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabaseClient';
+import { contentFetch as fetch } from '../storage/contentFetch';
 import type { Character } from '../../types/character';
 import type { RulesetId } from '../../app/campaigns/campaignTypes';
 import { readDashboardSettings } from '../settings/dashboardSettings';
@@ -23,8 +24,8 @@ const indexedDbCharactersStorage = createIndexedDbAdapter<StoredCharacter>(
 );
 
 function shouldUseLocalMode(): boolean {
-  const settings = readDashboardSettings();
-  return settings.saveMode === 'local' || !supabase;
+  // With a configured client, the selected transport routes both modes.
+  return !supabase;
 }
 
 async function loadLocalCharacters(campaignId: string): Promise<StoredCharacter[]> {

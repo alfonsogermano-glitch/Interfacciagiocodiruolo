@@ -11,6 +11,7 @@ import { projectRollTo3D } from './dice3dProjection.ts';
 import { isDice3DAbortError } from './dice3dTypes.ts';
 import { cryptoDiceRng, rollDiceFormula } from './diceEngine.ts';
 import { saveRollEntry } from '../../../../services/supabase/chatService';
+import { selectedContentMode } from '../../../../services/storage/persistenceMode';
 import { getCustomDieQuickRollMax } from './diceCustomDie.ts';
 import { ModifierFormulaError, evaluateModifierFormula, type ModifierReference } from '../shared/modifierFormula.ts';
 import { parseModifierValue } from '../shared/tiptapInlineModifier.ts';
@@ -315,6 +316,7 @@ function DiceSessionProviderBody({ children, onRollIngested }: DiceSessionProvid
   }, [activeCampaign, standardStyles, user]);
 
   const dispatchRoll = useCallback((result: RollResult) => {
+    if (selectedContentMode() === 'local') return;
     if (!activeCampaign || !user) return;
     if (result.visibility === 'public') {
       void publicChannel.send('dice_roll', result as unknown as Record<string, unknown>).catch((error) => {

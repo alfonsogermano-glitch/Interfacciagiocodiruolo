@@ -2123,3 +2123,4 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
     </div>
   );
 }
+import { contentFetch as fetch } from '../../services/storage/contentFetch';

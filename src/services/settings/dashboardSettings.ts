@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabaseClient';
+import { setPersistenceIdentity } from '../storage/persistenceMode';
 import { isTauriRuntime } from '../runtime/runtimeEnvironment';
 import {
   loadTauriDashboardSettings,
@@ -285,6 +286,11 @@ export function readDashboardSettings(): DashboardSettings {
 }
 
 export async function loadDashboardSettings(ownerProfileId: string | null): Promise<DashboardSettings> {
+  setPersistenceIdentity(ownerProfileId);
+  const deviceSettings = readSettingsSynchronously(ownerProfileId);
+  cachedDashboardSettings = deviceSettings;
+  // An explicit device choice wins over a cloud preference from another device.
+  if (deviceSettings.saveMode === 'local') return deviceSettings;
   if (typeof window === 'undefined') {
     cachedDashboardSettings = DEFAULT_DASHBOARD_SETTINGS;
     return cachedDashboardSettings;
@@ -295,7 +301,7 @@ export async function loadDashboardSettings(ownerProfileId: string | null): Prom
     const supabaseSettings = await loadFromSupabase(ownerProfileId);
 
     if (supabaseSettings) {
-      cachedDashboardSettings = supabaseSettings;
+      cachedDashboardSettings = { ...supabaseSettings, saveMode: deviceSettings.saveMode };
       saveToLocalStorage(cachedDashboardSettings, ownerProfileId);
 
       try {
@@ -378,9 +384,11 @@ export async function loadDashboardSettings(ownerProfileId: string | null): Prom
 }
 
 export async function saveDashboardSettings(settings: DashboardSettings, ownerProfileId: string | null): Promise<void> {
+  setPersistenceIdentity(ownerProfileId);
   cachedDashboardSettings = normalizeDashboardSettings(settings);
   saveToLocalStorage(cachedDashboardSettings, ownerProfileId);
   void saveToIndexedDb(cachedDashboardSettings, ownerProfileId);
+  if (cachedDashboardSettings.saveMode === 'local') return;
   try {
     await saveToSupabase(cachedDashboardSettings, ownerProfileId);
   } catch (error) {

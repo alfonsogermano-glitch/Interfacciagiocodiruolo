@@ -12,6 +12,7 @@ import type { Character } from '../../../types/character';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
 import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, deleteCharacter as deleteCharacterFromSupabase, mapRowToCharacter, isLastActiveCharacterForOwner } from '../../../services/supabase/charactersService';
 import { generateUUID } from '../../../lib/uuid';
+import { persistenceKey, selectedContentMode } from '../../../services/storage/persistenceMode';
 import { useAuth, supabase } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useRuleset } from '../../campaigns/RulesetContext';
@@ -68,7 +69,7 @@ export function PlayerCharacters({
       console.error('Errore caricamento personaggi da Supabase:', error);
       if (loadSeqRef.current !== mySeq) return;
       try {
-        const savedCharacters = window.localStorage.getItem(PLAYER_CHARACTERS_STORAGE_KEY);
+        const savedCharacters = window.localStorage.getItem(persistenceKey(PLAYER_CHARACTERS_STORAGE_KEY));
         if (savedCharacters) {
           const parsed = JSON.parse(savedCharacters);
           if (Array.isArray(parsed)) {
@@ -143,6 +144,7 @@ export function PlayerCharacters({
 
     const subscribeChannel = async () => {
       if (!isActive) return;
+      if (selectedContentMode() === 'local') return;
       await supabase.realtime.setAuth(); // necessario per l'autorizzazione sui canali privati
 
       // hasScheduledRetry si azzera ad ogni SUBSCRIBED riuscito (a differenza
@@ -200,7 +202,7 @@ export function PlayerCharacters({
 
     // Salva anche su localStorage come backup
     try {
-      window.localStorage.setItem(PLAYER_CHARACTERS_STORAGE_KEY, JSON.stringify(characters));
+      window.localStorage.setItem(persistenceKey(PLAYER_CHARACTERS_STORAGE_KEY), JSON.stringify(characters));
     } catch (error) {
       console.error('Errore backup localStorage:', error);
     }

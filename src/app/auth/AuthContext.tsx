@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { supabase as _supabaseClient } from '../../lib/supabaseClient';
+import { setPersistenceIdentity } from '../../services/storage/persistenceMode';
 
 const SUPABASE_URL = `https://${projectId}.supabase.co`;
 const SERVER_BASE = `${SUPABASE_URL}/functions/v1/make-server-771c5bfd`;
@@ -84,9 +85,11 @@ async function buildUserFromSession(session: Session): Promise<AuthUser> {
 
   if (error || !profile) {
     console.log('Profilo non trovato a DB, uso fallback da identities:', error?.message);
+    setPersistenceIdentity(session.user.id);
     return { ...fallbackUserFromIdentities(session), role };
   }
 
+  setPersistenceIdentity(session.user.id);
   return {
     id: session.user.id,
     email: profile.email ?? session.user.email ?? '',
@@ -115,8 +118,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession()
       .then(async ({ data: { session: existingSession } }) => {
         if (!isMounted) return;
+        const builtUser = existingSession ? await buildUserFromSession(existingSession) : null;
+        if (!existingSession) setPersistenceIdentity(null);
+        setUser(builtUser);
         setSession(existingSession);
-        setUser(existingSession ? await buildUserFromSession(existingSession) : null);
       })
       .catch((err) => {
         console.log('Errore nel recupero della sessione iniziale:', err);
@@ -139,8 +144,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setTimeout(async () => {
         if (!isMounted) return;
         try {
+          const builtUser = nextSession ? await buildUserFromSession(nextSession) : null;
+          if (!nextSession) setPersistenceIdentity(null);
+          setUser(builtUser);
           setSession(nextSession);
-          setUser(nextSession ? await buildUserFromSession(nextSession) : null);
         } catch (err) {
           console.log('Errore nella gestione del cambio di stato auth:', err);
         } finally {

@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { Scroll, Plus, ChevronDown, ChevronRight } from 'lucide-react';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
-import { loadSituations, saveSituation as saveSituationToSupabase, deleteSituation as deleteSituationFromSupabase } from '../../../services/supabase/entitiesService';
+import { loadSituations, loadEnvironments, saveSituation as saveSituationToSupabase, deleteSituation as deleteSituationFromSupabase } from '../../../services/supabase/entitiesService';
 import { generateUUID } from '../../../lib/uuid';
+import { persistenceKey } from '../../../services/storage/persistenceMode';
 
 type EnvironmentSummary = {
   id: string;
@@ -25,7 +26,6 @@ interface Situation {
 }
 
 const SITUATIONS_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.situations;
-const ENVIRONMENTS_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.environments;
 
 // Nessuna situazione di default: gli utenti creano le proprie situazioni
 
@@ -38,6 +38,7 @@ export function SituationsManager({
 }: SituationsManagerProps) {
   const { activeCampaignId } = useCampaign();
   const [situations, setSituations] = useState<Situation[]>([]);
+  const [environments, setEnvironments] = useState<EnvironmentSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -54,7 +55,7 @@ export function SituationsManager({
         console.error('Errore caricamento situazioni da Supabase:', error);
 
         try {
-          const savedSituations = window.localStorage.getItem(SITUATIONS_STORAGE_KEY);
+          const savedSituations = window.localStorage.getItem(persistenceKey(SITUATIONS_STORAGE_KEY));
           if (savedSituations) {
             const parsedSituations = JSON.parse(savedSituations);
             if (Array.isArray(parsedSituations)) {
@@ -74,35 +75,31 @@ export function SituationsManager({
       }
     }
 
+    async function loadEnvironmentList() {
+      try {
+        setEnvironments(await loadEnvironments(activeCampaignId));
+      } catch (error) {
+        console.error('Errore caricamento luoghi:', error);
+        setEnvironments([]);
+      }
+    }
+
     loadData();
-   }, [storageRefreshKey]);
+    loadEnvironmentList();
+   }, [storageRefreshKey, activeCampaignId]);
 
   useEffect(() => {
     if (isLoading) return;
 
     try {
       window.localStorage.setItem(
-        SITUATIONS_STORAGE_KEY,
+        persistenceKey(SITUATIONS_STORAGE_KEY),
         JSON.stringify(situations)
       );
     } catch (error) {
       console.error('Errore nel salvataggio delle situazioni su localStorage:', error);
     }
   }, [situations, isLoading]);
-
-  const [environments] = useState<EnvironmentSummary[]>(() => {
-  if (typeof window === 'undefined') return [];
-
-  try {
-    const saved = window.localStorage.getItem(ENVIRONMENTS_STORAGE_KEY);
-    if (!saved) return [];
-
-    const parsed = JSON.parse(saved);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-});
 
   const addSituation = async () => {
     const newSituation: Situation = {

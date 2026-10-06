@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { projectId } from '/utils/supabase/info';
 import { useRealtimeChannel } from '../../services/realtime/campaignChannel';
 import { useAuth } from '../auth/AuthContext';
+import { selectedContentMode } from '../../services/storage/persistenceMode';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
@@ -46,6 +47,11 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchNotifications = useCallback(async () => {
+    if (selectedContentMode() === 'local') {
+      setNotifications([]);
+      setIsLoading(false);
+      return;
+    }
     if (!session?.access_token) {
       setIsLoading(false);
       return;
@@ -82,6 +88,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   });
 
   const markAsRead = useCallback(async (id: string) => {
+    if (selectedContentMode() === 'local') return;
     if (!session?.access_token) return;
     try {
       const res = await fetch(`${SERVER_BASE}/notifications/${id}/read`, {
@@ -97,6 +104,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   }, [session?.access_token]);
 
   const markAllAsRead = useCallback(async () => {
+    if (selectedContentMode() === 'local') return;
     if (!session?.access_token) return;
     try {
       const res = await fetch(`${SERVER_BASE}/notifications/read-all`, {
@@ -111,6 +119,9 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   }, [session?.access_token]);
 
   const respondToInvite = useCallback(async (id: string, action: 'accept' | 'decline'): Promise<{ campaignId?: string }> => {
+    if (selectedContentMode() === 'local') {
+      throw new Error('Inviti e adesioni richiedono la modalità Cloud.');
+    }
     if (!session?.access_token) return {};
     const res = await fetch(`${SERVER_BASE}/notifications/${id}/respond`, {
       method: 'POST',

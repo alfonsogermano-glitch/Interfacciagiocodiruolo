@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Loader2, X, Camera, Settings as SettingsIcon, UserCircle2, Shield } from 'lucide-react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { SupabaseDebug } from './SupabaseDebug';
+import { AdminUsersPanel } from './AdminUsersPanel';
 import { useAuth, supabase, USER_ROLE_LABELS } from '../auth/AuthContext';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import type { DashboardSettings } from '../../services/settings/dashboardSettings';
@@ -50,6 +51,7 @@ async function getCroppedBlob(imageSrc: string, area: Area): Promise<Blob> {
 
 export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialTab = 'general' }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'administration'>(initialTab);
+  const [adminTab, setAdminTab] = useState<'database' | 'users'>('database');
   const { user, refreshUser, isAdmin } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -278,7 +280,7 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
                   </div>
                 </div>
               </div>
-              <div className="border-b border-[var(--dash-border)] pb-5">
+              <div>
                 <h4 className="mb-3 text-sm font-medium text-[var(--dash-text-strong)]">Modalità salvataggio</h4>
                 <div className="space-y-3">
                   <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
@@ -292,7 +294,7 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
                     <input type="radio" name="saveMode" value="local" checked={draft.saveMode === 'local'} onChange={() => onChangeDraft(previous => ({ ...previous, saveMode: 'local' }))} className="mt-1" />
                     <span>
                       <span className="block text-sm font-medium text-[var(--dash-text-strong)]">Locale sul dispositivo</span>
-                      <span className="mt-1 block text-xs text-[var(--dash-muted)]">Salva i dati sul dispositivo dell'utente. In questa fase prepara la dashboard al futuro salvataggio locale stabile.</span>
+                      <span className="mt-1 block text-xs text-[var(--dash-muted)]">Salva campagne, schede, note, chat, dadi e immagini sul dispositivo. Inviti e collaborazione fra utenti richiedono Cloud. Il cambio archivio ricarica l'app e non trasferisce automaticamente i dati.</span>
                     </span>
                   </label>
                 </div>
@@ -311,8 +313,22 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
         ) : activeTab === 'administration' ? (
           isAdmin && (
             <div>
-              <h4 className="mb-3 text-sm font-medium text-[var(--dash-text-strong)]">Database Supabase</h4>
-              <SupabaseDebug />
+              <div className="mb-5 flex flex-wrap gap-2" aria-label="Sezioni Amministrazione">
+                {([{ id: 'database', label: 'Database' }, { id: 'users', label: 'Gestione Utenti' }] as const).map((tab) => (
+                  <button key={tab.id} type="button" onClick={() => setAdminTab(tab.id)} aria-pressed={adminTab === tab.id}
+                    className={`rounded-md border px-3 py-2 text-sm transition-colors ${adminTab === tab.id
+                      ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
+                      : 'border-[var(--dash-border)] bg-[var(--dash-panel)] text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]'}`}>
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              {adminTab === 'database' ? (
+                <>
+                  <h4 className="mb-3 text-sm font-medium text-[var(--dash-text-strong)]">Database Supabase</h4>
+                  <SupabaseDebug />
+                </>
+              ) : <AdminUsersPanel />}
               <div className="mt-6 flex justify-end">
                 <button type="button" onClick={onCancel} className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm">Chiudi</button>
               </div>

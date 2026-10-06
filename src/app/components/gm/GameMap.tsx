@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Map, MapPin, Plus, X } from 'lucide-react';
-import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
 import { generateUUID } from '../../../lib/uuid';
+import { useCampaignDocument } from '../shared/useCampaignDocument';
 
 interface Location {
   id: string;
@@ -22,46 +22,13 @@ interface GameMapState {
   mapNotes: string;
 }
 
-const MAP_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.maps;
-
 const DEFAULT_MAP_STATE: GameMapState = {
   locations: [],
   mapNotes: ''
 };
 
 export function GameMap() {
-  const [mapState, setMapState] = useState<GameMapState>(() => {
-    if (typeof window === 'undefined') {
-      return DEFAULT_MAP_STATE;
-    }
-
-    try {
-      const savedMap = window.localStorage.getItem(MAP_STORAGE_KEY);
-
-      if (!savedMap) {
-        return DEFAULT_MAP_STATE;
-      }
-
-      const parsedMap = JSON.parse(savedMap);
-
-      if (!parsedMap || typeof parsedMap !== 'object') {
-        return DEFAULT_MAP_STATE;
-      }
-
-      return {
-        locations: Array.isArray(parsedMap.locations)
-          ? parsedMap.locations
-          : DEFAULT_MAP_STATE.locations,
-        mapNotes:
-          typeof parsedMap.mapNotes === 'string'
-            ? parsedMap.mapNotes
-            : ''
-      };
-    } catch (error) {
-      console.error('Errore nel caricamento della mappa da localStorage:', error);
-      return DEFAULT_MAP_STATE;
-    }
-  });
+  const [mapState, setMapState] = useCampaignDocument<GameMapState>('map', DEFAULT_MAP_STATE);
 
   const { locations, mapNotes } = mapState;
 
@@ -71,16 +38,6 @@ export function GameMap() {
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        MAP_STORAGE_KEY,
-        JSON.stringify(mapState)
-      );
-    } catch (error) {
-      console.error('Errore nel salvataggio della mappa su localStorage:', error);
-    }
-  }, [mapState]);
 
   const updateLocations = (nextLocations: Location[]) => {
     setMapState(prev => ({

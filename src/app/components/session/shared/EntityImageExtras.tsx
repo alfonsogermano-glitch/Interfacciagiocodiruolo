@@ -212,15 +212,7 @@ export function EntityImageExtras<T extends EntityImageExtrasEntity>({
         const ext = file.name.split('.').pop() ?? 'png';
         const filePath = `${user.id}/${entity.id || generateUUID()}-cover-${Date.now()}.${ext}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from(storageBucket)
-          .upload(filePath, file, { upsert: true });
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from(storageBucket)
-          .getPublicUrl(filePath);
+        const { publicUrl } = await uploadContentAsset(storageBucket, filePath, file, { upsert: true });
 
         onUpdate({ ...entity, coverImageUrl: publicUrl });
       } catch (err) {
@@ -333,3 +325,4 @@ export function EntityImageExtras<T extends EntityImageExtrasEntity>({
     </div>
   );
 }
+import { uploadContentAsset } from '../../../../services/storage/contentAssets';

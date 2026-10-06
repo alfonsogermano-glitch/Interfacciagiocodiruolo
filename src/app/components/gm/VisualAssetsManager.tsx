@@ -213,15 +213,7 @@ export function VisualAssetsManager({
         const ext = file.name.split('.').pop() ?? 'png';
         const filePath = `${user.id}/${assetId}-${Date.now()}.${ext}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from('visual-assets')
-          .upload(filePath, file, { upsert: true });
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('visual-assets')
-          .getPublicUrl(filePath);
+        const { publicUrl } = await uploadContentAsset('visual-assets', filePath, file, { upsert: true });
 
         await saveAsset(publicUrl);
       } catch (err) {
@@ -534,4 +526,4 @@ export function VisualAssetsManager({
 
 
 
-
+import { uploadContentAsset } from '../../../services/storage/contentAssets';

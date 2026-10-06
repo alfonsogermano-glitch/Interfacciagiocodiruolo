@@ -1,4 +1,5 @@
 import { CAMPAIGN_STORAGE_KEYS } from '../../../../services/campaign/campaignStorageKeys';
+import { persistenceKey } from '../../../../services/storage/persistenceMode';
 import { MONSTER_BASE_CATALOG } from '../../../../data/monsterBaseCatalog';
 import { MONSTER_TRAITS_CATALOG } from '../../../../data/monsterTraitsCatalog';
 import { MONSTER_SPECIAL_ACTIONS_CATALOG } from '../../../../data/monsterSpecialActionsCatalog';
@@ -12,7 +13,7 @@ export function readStoredEnvironmentSummaries(campaignId = ''): EnvironmentSumm
   if (typeof window === 'undefined') return [];
 
   try {
-    const saved = window.localStorage.getItem(CAMPAIGN_STORAGE_KEYS.environments);
+    const saved = window.localStorage.getItem(persistenceKey(CAMPAIGN_STORAGE_KEYS.environments));
     if (!saved) return [];
 
     const parsed = JSON.parse(saved);

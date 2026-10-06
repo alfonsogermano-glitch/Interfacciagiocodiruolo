@@ -1,4 +1,5 @@
 import type { BaseStoredEntity, EntityId, StorageAdapter } from './storageAdapter';
+import { persistenceOwner } from './persistenceMode';
 
 type IndexedDbAdapterOptions<T> = {
   normalize?: (item: unknown) => T;
@@ -10,14 +11,13 @@ const DB_VERSION = 3;
 
 function openDatabase(storeName: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = window.indexedDB.open(DB_NAME, DB_VERSION);
+    const request = window.indexedDB.open(`${DB_NAME}:${persistenceOwner()}`, DB_VERSION);
 
     request.onupgradeneeded = () => {
       const db = request.result;
 
-      if (!db.objectStoreNames.contains(storeName)) {
-        db.createObjectStore(storeName, { keyPath: 'id' });
-      }
+      for (const name of new Set([storeName, 'characters', 'equipmentCatalog', 'hsc-visual-assets']))
+        if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, { keyPath: 'id' });
     };
 
     request.onsuccess = () => {
@@ -54,10 +54,11 @@ async function withStore<T>(
     const store = transaction.objectStore(storeName);
     const request = callback(store);
 
-    request.onsuccess = () => resolve(request.result);
+    let result: T;
+    request.onsuccess = () => { result = request.result; };
     request.onerror = () => reject(request.error);
 
-    transaction.oncomplete = () => db.close();
+    transaction.oncomplete = () => { db.close(); resolve(result); };
     transaction.onerror = () => {
       db.close();
       reject(transaction.error);

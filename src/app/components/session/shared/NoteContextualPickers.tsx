@@ -127,9 +127,7 @@ export function NoteImagePicker({ trigger, open, onOpenChange, onChoose }: Picke
     try {
       const ext = file.name.split('.').pop() ?? 'jpg';
       const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from('note-images').upload(path, file);
-      if (error) throw error;
-      const { data: { publicUrl } } = supabase.storage.from('note-images').getPublicUrl(path);
+      const { publicUrl } = await uploadContentAsset('note-images', path, file);
       onChoose(publicUrl);
       onOpenChange(false);
     } catch (error) {
@@ -163,3 +161,4 @@ export function NoteImagePicker({ trigger, open, onOpenChange, onChoose }: Picke
     </Popover>
   );
 }
+import { uploadContentAsset } from '../../../../services/storage/contentAssets';

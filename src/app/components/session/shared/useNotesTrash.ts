@@ -210,3 +210,4 @@ export function useNotesTrash({ campaignId, accessToken, enabled }: UseNotesTras
     emptyTrash,
   };
 }
+import { contentFetch as fetch } from '../../../../services/storage/contentFetch';

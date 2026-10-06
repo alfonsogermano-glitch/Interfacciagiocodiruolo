@@ -2,8 +2,14 @@ import { useEffect, useState } from 'react';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { Plus, CheckCircle, Circle } from 'lucide-react';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
-import { loadClues, saveClue as saveClueToSupabase, deleteClue as deleteClueFromSupabase } from '../../../services/supabase/entitiesService';
+import {
+  loadClues,
+  loadEnvironments,
+  saveClue as saveClueToSupabase,
+  deleteClue as deleteClueFromSupabase
+} from '../../../services/supabase/entitiesService';
 import { generateUUID } from '../../../lib/uuid';
+import { persistenceKey } from '../../../services/storage/persistenceMode';
 
 type EnvironmentSummary = {
   id: string;
@@ -11,8 +17,6 @@ type EnvironmentSummary = {
   adventureId?: string | null;
   name: string;
 };
-
-const ENVIRONMENTS_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.environments;
 
 interface Clue {
   id: string;
@@ -39,6 +43,7 @@ export function CluesManager({
 }: CluesManagerProps) {
   const { activeCampaignId } = useCampaign();
   const [clues, setClues] = useState<Clue[]>([]);
+  const [environments, setEnvironments] = useState<EnvironmentSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newClue, setNewClue] = useState({
@@ -60,7 +65,7 @@ export function CluesManager({
         console.error('Errore caricamento indizi da Supabase:', error);
 
         try {
-          const savedClues = window.localStorage.getItem(CLUES_STORAGE_KEY);
+          const savedClues = window.localStorage.getItem(persistenceKey(CLUES_STORAGE_KEY));
           if (savedClues) {
             const parsedClues = JSON.parse(savedClues);
             if (Array.isArray(parsedClues)) {
@@ -80,35 +85,31 @@ export function CluesManager({
       }
     }
 
+    async function loadEnvironmentList() {
+      try {
+        setEnvironments(await loadEnvironments(activeCampaignId));
+      } catch (error) {
+        console.error('Errore caricamento luoghi:', error);
+        setEnvironments([]);
+      }
+    }
+
     loadData();
-    }, [storageRefreshKey]);
+    loadEnvironmentList();
+    }, [storageRefreshKey, activeCampaignId]);
 
   useEffect(() => {
     if (isLoading) return;
 
     try {
       window.localStorage.setItem(
-        CLUES_STORAGE_KEY,
+        persistenceKey(CLUES_STORAGE_KEY),
         JSON.stringify(clues)
       );
     } catch (error) {
       console.error('Errore nel salvataggio degli indizi su localStorage:', error);
     }
   }, [clues, isLoading]);
-
-  const [environments] = useState<EnvironmentSummary[]>(() => {
-  if (typeof window === 'undefined') return [];
-
-  try {
-    const saved = window.localStorage.getItem(ENVIRONMENTS_STORAGE_KEY);
-    if (!saved) return [];
-
-    const parsed = JSON.parse(saved);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-});
 
   const addClue = async () => {
   if (!newClue.title) return;

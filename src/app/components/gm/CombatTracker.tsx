@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Swords, Heart, Shield } from 'lucide-react';
-import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
 import { generateUUID } from '../../../lib/uuid';
+import { useCampaignDocument } from '../shared/useCampaignDocument';
+import { useCampaign } from '../../campaigns/CampaignContext';
+import { loadMonsters } from '../../../services/supabase/entitiesService';
 
 interface Combatant {
   id: string;
@@ -42,10 +44,6 @@ type MonsterSummary = {
   notes?: string;
 };
 
-const COMBAT_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.combat;
-const MONSTERS_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.monsters;
-const ACTIVE_ENCOUNTER_STORAGE_KEY = 'hsc_active_encounter';
-
 const DEFAULT_COMBAT_STATE: CombatState = {
   combatants: [],
   round: 1,
@@ -54,91 +52,20 @@ const DEFAULT_COMBAT_STATE: CombatState = {
 };
 
 export function CombatTracker() {
-  const [combatState, setCombatState] = useState<CombatState>(() => {
-    if (typeof window === 'undefined') return DEFAULT_COMBAT_STATE;
+  const [combatState, setCombatState] = useCampaignDocument<CombatState>('combat', DEFAULT_COMBAT_STATE);
+  const { activeCampaignId } = useCampaign();
 
-    try {
-      const savedCombat = window.localStorage.getItem(COMBAT_STORAGE_KEY);
-      if (!savedCombat) return DEFAULT_COMBAT_STATE;
-
-      const parsedCombat = JSON.parse(savedCombat);
-      if (!parsedCombat || typeof parsedCombat !== 'object') {
-        return DEFAULT_COMBAT_STATE;
-      }
-
-      const combatants = Array.isArray(parsedCombat.combatants)
-        ? parsedCombat.combatants.filter(
-            (c: Partial<Combatant>) =>
-              c &&
-              typeof c.id === 'string' &&
-              typeof c.name === 'string' &&
-              (c.type === 'player' || c.type === 'monster')
-          )
-        : [];
-
-      return {
-        combatants: combatants.slice(0, 50) as Combatant[],
-        round: typeof parsedCombat.round === 'number' ? parsedCombat.round : 1,
-        currentTurn:
-          typeof parsedCombat.currentTurn === 'number'
-            ? parsedCombat.currentTurn
-            : 0,
-        inCombat:
-          typeof parsedCombat.inCombat === 'boolean'
-            ? parsedCombat.inCombat
-            : false
-      };
-    } catch {
-      return DEFAULT_COMBAT_STATE;
-    }
-  });
-
-  const [activeEncounter] = useState<ActiveEncounter | null>(() => {
-    if (typeof window === 'undefined') return null;
-
-    try {
-      const saved = window.localStorage.getItem(ACTIVE_ENCOUNTER_STORAGE_KEY);
-      if (!saved) return null;
-
-      const parsed = JSON.parse(saved);
-      if (!parsed || typeof parsed !== 'object') return null;
-      if (!Array.isArray(parsed.monsterIds)) return null;
-      if (!Array.isArray(parsed.npcIds)) return null;
-
-      return parsed as ActiveEncounter;
-    } catch {
-      return null;
-    }
-  });
+  const [activeEncounter] = useCampaignDocument<ActiveEncounter | null>('active-encounter', null);
 
   const { combatants, round, currentTurn, inCombat } = combatState;
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(COMBAT_STORAGE_KEY, JSON.stringify(combatState));
-    } catch (error) {
-      console.error('Errore nel salvataggio del combattimento:', error);
-    }
-  }, [combatState]);
 
-  const readMonsters = (): MonsterSummary[] => {
-    if (typeof window === 'undefined') return [];
+  const readMonsters = (): Promise<MonsterSummary[]> => loadMonsters(activeCampaignId);
 
-    try {
-      const saved = window.localStorage.getItem(MONSTERS_STORAGE_KEY);
-      if (!saved) return [];
-
-      const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  };
-
-  const importEncounterMonsters = () => {
+  const importEncounterMonsters = async () => {
     if (!activeEncounter) return;
 
-    const monsters = readMonsters().filter(monster =>
+    const monsters = (await readMonsters()).filter(monster =>
       activeEncounter.monsterIds.includes(monster.id)
     );
 

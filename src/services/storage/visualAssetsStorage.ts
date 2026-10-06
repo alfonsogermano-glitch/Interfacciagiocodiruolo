@@ -6,6 +6,7 @@ import { isTauriRuntime } from '../runtime/runtimeEnvironment';
 import { createIndexedDbAdapter } from './indexedDbAdapter';
 import type { StorageAdapter } from './storageAdapter';
 import { tauriSqliteVisualAssetsStorage } from './tauriSqliteVisualAssetsStorage';
+import { persistenceKey } from './persistenceMode';
 
 // Catalogo cornici condiviso tra PG/PNG/Mostri (Fase 5 della migrazione
 // EntityDetailView, generalizzazione a PG/PNG di cio' che prima era
@@ -173,7 +174,7 @@ function assetPreviewOnly(asset: VisualAsset): VisualAsset {
 const FRAME_ASSETS_PERSISTENT_CACHE_PREFIX = 'hsc_visual_assets_type_cache:';
 
 function getPersistentTypeCacheKey(campaignId: string, types: VisualAssetType[]): string {
-  return `${FRAME_ASSETS_PERSISTENT_CACHE_PREFIX}${campaignId}:${Array.from(new Set(types)).sort().join('|')}`;
+  return persistenceKey(`${FRAME_ASSETS_PERSISTENT_CACHE_PREFIX}${campaignId}:${Array.from(new Set(types)).sort().join('|')}`);
 }
 
 function readPersistentTypeCache(campaignId: string, types: VisualAssetType[]): VisualAsset[] | null {
@@ -453,7 +454,7 @@ export async function loadVisualAssetsByType(
   campaignId: string,
   type: VisualAssetType
 ): Promise<VisualAsset[]> {
-  const cacheKey = `${campaignId}:${type}`;
+  const cacheKey = persistenceKey(`${campaignId}:${type}`);
   const cached = visualAssetsTypeCache.get(cacheKey);
 
   if (cached && isCacheFresh(cached.at)) {
@@ -504,7 +505,7 @@ export async function loadVisualAssetsByTypes(
   options: { preferPersistentCache?: boolean } = {}
 ): Promise<VisualAsset[]> {
   const normalizedTypes = Array.from(new Set(types)).sort();
-  const cacheKey = `${campaignId}:${normalizedTypes.join('|')}`;
+  const cacheKey = persistenceKey(`${campaignId}:${normalizedTypes.join('|')}`);
   const cached = visualAssetsTypeCache.get(cacheKey);
 
   if (cached && isCacheFresh(cached.at)) {

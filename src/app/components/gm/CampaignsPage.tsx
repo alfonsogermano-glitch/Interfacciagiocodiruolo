@@ -149,6 +149,7 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
   const allCampaigns = useMemo(() => [...ownedCampaigns, ...joinedEnriched], [ownedCampaigns, joinedEnriched]);
 
   useEffect(() => {
+    if (selectedContentMode() === 'local') return;
     const channels: Record<string, ReturnType<typeof supabase.channel>> = {};
 
     allCampaigns.forEach((campaign) => {
@@ -467,3 +468,5 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
     </div>
   );
 }
+import { contentFetch as fetch } from '../../../services/storage/contentFetch';
+import { selectedContentMode } from '../../../services/storage/persistenceMode';

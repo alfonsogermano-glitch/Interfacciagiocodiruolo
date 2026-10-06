@@ -298,12 +298,8 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
     setError(null);
     try {
       const blob = await getCroppedBlob(rawImageSrc, croppedAreaPixels);
-      const { error: uploadError } = await supabase.storage
-        .from(bucket)
-        .upload(storagePath, blob, { upsert: true, contentType: 'image/jpeg' });
-      if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(storagePath);
-      const uploadedUrl = `${publicUrl}?t=${Date.now()}`;
+      const { publicUrl } = await uploadContentAsset(bucket, storagePath, blob, { upsert: true, contentType: 'image/jpeg' });
+      const uploadedUrl = publicUrl.startsWith('data:') ? publicUrl : `${publicUrl}?t=${Date.now()}`;
 
       let uploadedSourceUrl: string | undefined;
       if (selectedFile && preserveSource) {
@@ -312,12 +308,8 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
         // dall'ultimo quadrato salvato.
         const sourceBlob = await getResizedSourceBlob(selectedFile, MAX_SOURCE_DIMENSION);
         const sourcePath = deriveSourceStoragePath(storagePath);
-        const { error: sourceUploadError } = await supabase.storage
-          .from(bucket)
-          .upload(sourcePath, sourceBlob, { upsert: true, contentType: 'image/jpeg' });
-        if (sourceUploadError) throw sourceUploadError;
-        const { data: { publicUrl: sourcePublicUrl } } = supabase.storage.from(bucket).getPublicUrl(sourcePath);
-        uploadedSourceUrl = `${sourcePublicUrl}?t=${Date.now()}`;
+        const { publicUrl: sourcePublicUrl } = await uploadContentAsset(bucket, sourcePath, sourceBlob, { upsert: true, contentType: 'image/jpeg' });
+        uploadedSourceUrl = sourcePublicUrl.startsWith('data:') ? sourcePublicUrl : `${sourcePublicUrl}?t=${Date.now()}`;
       }
 
       // Marcato prima di chiamare onUploaded (che fa risalire il nuovo
@@ -505,3 +497,4 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
     </>
   );
 }
+import { uploadContentAsset } from '../../../services/storage/contentAssets';

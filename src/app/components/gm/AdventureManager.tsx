@@ -3,6 +3,7 @@ import { GitBranch, Plus, Edit2, Trash2, Star } from 'lucide-react';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
 import type { Adventure, AdventureKind } from '../../../types/adventure';
 import { loadAdventures, saveAdventure as saveAdventureToSupabase, deleteAdventure as deleteAdventureFromSupabase } from '../../../services/supabase/entitiesService';
+import { persistenceKey } from '../../../services/storage/persistenceMode';
 import { generateUUID } from '../../../lib/uuid';
 
 const ADVENTURES_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.adventures;
@@ -44,7 +45,7 @@ export function AdventureManager({
         return null;
       }
 
-      return window.localStorage.getItem(ACTIVE_ADVENTURE_STORAGE_KEY) ?? null;
+      return window.localStorage.getItem(persistenceKey(ACTIVE_ADVENTURE_STORAGE_KEY)) ?? null;
     }
   );
 
@@ -66,7 +67,7 @@ setAdventures(
         console.error('Errore caricamento avventure da Supabase:', error);
 
         try {
-          const savedAdventures = window.localStorage.getItem(ADVENTURES_STORAGE_KEY);
+          const savedAdventures = window.localStorage.getItem(persistenceKey(ADVENTURES_STORAGE_KEY));
           if (savedAdventures) {
             const parsedAdventures = JSON.parse(savedAdventures);
             if (Array.isArray(parsedAdventures)) {
@@ -94,7 +95,7 @@ setAdventures(
 
     try {
       window.localStorage.setItem(
-        ADVENTURES_STORAGE_KEY,
+        persistenceKey(ADVENTURES_STORAGE_KEY),
         JSON.stringify(adventures)
       );
     } catch (error) {
@@ -117,7 +118,7 @@ setAdventures(
 
     try {
       window.localStorage.setItem(
-        ACTIVE_ADVENTURE_STORAGE_KEY,
+        persistenceKey(ACTIVE_ADVENTURE_STORAGE_KEY),
         selectedAdventureId
       );
     } catch (error) {

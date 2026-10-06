@@ -45,6 +45,7 @@ import {
 } from '../../../services/supabase/entitiesService';
 import { duplicateEntityNotes } from '../../../services/supabase/entityNotesService';
 import { useRealtimeChannel } from '../../../services/realtime/campaignChannel';
+import { selectedContentMode } from '../../../services/storage/persistenceMode';
 import { createEmptyMonster } from './monsters/monstersUtils';
 import type { Character } from '../../../types/character';
 import type { Adventure } from '../../../types/adventure';
@@ -376,6 +377,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   // a differenza di CampaignHome.tsx, da cui il reload manuale necessario
   // dopo un claim/release segnalato il 2026-07-22.
   useEffect(() => {
+    if (selectedContentMode() === 'local') return;
     const campaignIds = Array.from(new Set([...campaigns, ...joinedCampaigns].map(c => c.id)));
     const channels: Record<string, ReturnType<typeof supabase.channel>> = {};
 

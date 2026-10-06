@@ -323,10 +323,13 @@ function AuthGate() {
   };
 
   const saveSettingsAndClose = async () => {
+    const modeChanged = dashboardSettings.saveMode !== draftDashboardSettings.saveMode;
     updateDashboardSettings(draftDashboardSettings);
     setDashboardSettings(draftDashboardSettings);
     await saveDashboardSettings(draftDashboardSettings, user?.id ?? null);
     setIsSettingsOpen(false);
+    // Remount consumers and discard the previous archive's in-memory caches.
+    if (modeChanged) window.location.reload();
   };
 
   const goToDashboard = (campaign?: Parameters<typeof setActiveCampaign>[0]) => {

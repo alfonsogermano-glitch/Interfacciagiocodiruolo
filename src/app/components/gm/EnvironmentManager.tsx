@@ -104,11 +104,11 @@ import type { Adventure } from '../../../types/adventure';
 import { HorrorButton } from '../ui/HorrorButton';
 import {
   loadEnvironments,
+  loadAdventures,
   saveEnvironment as saveEnvironmentToStorage,
   deleteEnvironment as deleteEnvironmentFromStorage
 } from '../../../services/supabase/entitiesService';
 import { generateUUID } from '../../../lib/uuid';
-import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
 
 interface Environment {
   id: string;
@@ -126,8 +126,6 @@ interface Environment {
   npcsPresent: string[];
   sortOrder?: number;
 }
-
-const ADVENTURES_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.adventures;
 
 const LOCATION_TYPE_OPTIONS: Array<{
   value: NonNullable<Environment['locationType']>;
@@ -320,31 +318,26 @@ export function EnvironmentManager({
   };
 
 useEffect(() => {
-  const loadAdventures = () => {
-    if (typeof window === 'undefined') return;
+  let cancelled = false;
 
+  const reloadAdventures = async () => {
     try {
-      const saved = window.localStorage.getItem(ADVENTURES_STORAGE_KEY);
-      if (!saved) {
-        setAdventures([]);
-        return;
-      }
-
-      const parsed = JSON.parse(saved);
-      setAdventures(Array.isArray(parsed) ? parsed : []);
+      const list = await loadAdventures(campaignId);
+      if (!cancelled) setAdventures(list);
     } catch {
-      setAdventures([]);
+      if (!cancelled) setAdventures([]);
     }
   };
 
-  loadAdventures();
+  void reloadAdventures();
 
-  window.addEventListener('focus', loadAdventures);
-  window.addEventListener('storage', loadAdventures);
+  window.addEventListener('focus', reloadAdventures);
+  window.addEventListener('storage', reloadAdventures);
 
   return () => {
-    window.removeEventListener('focus', loadAdventures);
-    window.removeEventListener('storage', loadAdventures);
+    cancelled = true;
+    window.removeEventListener('focus', reloadAdventures);
+    window.removeEventListener('storage', reloadAdventures);
   };
 }, [campaignId]);
 

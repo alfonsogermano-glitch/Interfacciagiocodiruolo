@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabaseClient';
+import { persistenceKey } from '../storage/persistenceMode';
 import type { RollResult } from '../../app/components/session/dice/diceTypes';
 
 export type ChatEntryKind = 'message' | 'roll' | 'attachment';
@@ -147,7 +148,7 @@ export async function clearChatMessages(campaignId: string): Promise<void> {
 // ---------------------------------------------------------------
 
 function chatLastSeenKey(campaignId: string): string {
-  return `hollowgate.chat.last-seen.${campaignId}`;
+  return persistenceKey(`hollowgate.chat.last-seen.${campaignId}`);
 }
 
 export function readChatLastSeen(campaignId: string): string | null {

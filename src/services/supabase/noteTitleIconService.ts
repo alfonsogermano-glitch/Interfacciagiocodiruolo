@@ -102,3 +102,4 @@ export async function duplicateCampaignNoteWithTitleIcon(
 
   return createData.note.id;
 }
+import { contentFetch as fetch } from '../storage/contentFetch';

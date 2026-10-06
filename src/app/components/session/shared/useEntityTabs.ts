@@ -771,3 +771,4 @@ export function useEntityTabs({
 }
 
 export type UseEntityTabsResult = ReturnType<typeof useEntityTabs>;
+import { contentFetch as fetch } from '../../../../services/storage/contentFetch';

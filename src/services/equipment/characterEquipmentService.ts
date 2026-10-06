@@ -5,57 +5,104 @@ import type {
   UpdateCharacterEquipmentInput
 } from '../../types/equipment';
 
-import { CAMPAIGN_STORAGE_KEYS } from '../campaign/campaignStorageKeys';
 import { getEquipmentCatalogForManagement } from './equipmentCatalogService';
 import { generateUUID } from '../../lib/uuid';
-
-const STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.characterEquipment;
+import { mapCharacterEquipmentRow } from '../../lib/mappers/equipmentMappers';
+import { supabase } from '../../lib/supabaseClient';
 
 type EquipmentStore = Record<string, CharacterEquipmentItem[]>;
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function nowIso(): string {
   return new Date().toISOString();
 }
 
-function canUseStorage(): boolean {
-  return typeof window !== 'undefined' && !!window.localStorage;
+function isUuid(value: unknown): value is string {
+  return typeof value === 'string' && UUID_PATTERN.test(value);
 }
 
-function readStore(): EquipmentStore {
-  if (!canUseStorage()) {
-    return {};
-  }
-
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return {};
-    }
-
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? (parsed as EquipmentStore) : {};
-  } catch {
-    return {};
-  }
+function positiveQuantity(value: unknown): number {
+  const quantity = Number(value);
+  return Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
 }
 
-function writeStore(store: EquipmentStore): void {
-  if (!canUseStorage()) {
-    return;
+function rowToItem(row: any): CharacterEquipmentItem | null {
+  if (!row || typeof row.character_id !== 'string') return null;
+
+  if (typeof row.name === 'string') {
+    const mapped = mapCharacterEquipmentRow(row);
+    return {
+      ...mapped,
+      description: mapped.description ?? '',
+      quantity: positiveQuantity(mapped.quantity),
+      customData: mapped.customData ?? {}
+    };
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  const payload = row.payload;
+  if (payload && typeof payload === 'object' && typeof payload.id === 'string') {
+    return {
+      ...payload,
+      characterId: row.character_id,
+      description: typeof payload.description === 'string' ? payload.description : '',
+      quantity: positiveQuantity(payload.quantity),
+      customData:
+        payload.customData && typeof payload.customData === 'object'
+          ? payload.customData
+          : {}
+    } as CharacterEquipmentItem;
+  }
+
+  return null;
 }
 
-function getCharacterItems(characterId: string): CharacterEquipmentItem[] {
-  const store = readStore();
+async function readStore(): Promise<EquipmentStore> {
+  if (!supabase) throw new Error('Archivio non disponibile');
+  const { data, error } = await supabase.from('character_equipment').select('*');
+  if (error) throw new Error(error.message);
+  const store: EquipmentStore = {};
+  for (const row of data ?? []) {
+    const item = rowToItem(row);
+    if (item) (store[item.characterId] ??= []).push(item);
+  }
+  return store;
+}
+
+async function writeStore(store: EquipmentStore): Promise<void> {
+  if (!supabase) throw new Error('Archivio non disponibile');
+  const rows = Object.entries(store).flatMap(([characterId, items]) =>
+    items.map((item) => ({
+      id: item.id,
+      character_id: characterId,
+      catalog_item_id: isUuid(item.catalogItemId) ? item.catalogItemId : null,
+      name: item.name,
+      description: item.description ?? '',
+      type: item.type,
+      is_vehicle: Boolean(item.isVehicle),
+      location: item.location,
+      inseparabile: Boolean(item.inseparabile),
+      quantity: positiveQuantity(item.quantity),
+      source: item.source,
+      custom_data: item.customData ?? {},
+      created_at: item.createdAt,
+      updated_at: item.updatedAt
+    }))
+  );
+  if (!rows.length) return;
+  const { error } = await supabase
+    .from('character_equipment')
+    .upsert(rows, { onConflict: 'id' });
+  if (error) throw new Error(error.message);
+}
+
+async function getCharacterItems(characterId: string): Promise<CharacterEquipmentItem[]> {
+  const store = await readStore();
   return store[characterId] ?? [];
 }
 
-function setCharacterItems(characterId: string, items: CharacterEquipmentItem[]): void {
-  const store = readStore();
-  store[characterId] = items;
-  writeStore(store);
+async function setCharacterItems(characterId: string, items: CharacterEquipmentItem[]): Promise<void> {
+  await writeStore({ [characterId]: items });
 }
 
 export async function getCharacterEquipment(
@@ -91,8 +138,7 @@ export async function addCharacterEquipmentFromCatalog(
     updatedAt: nowIso()
   };
 
-  const items = getCharacterItems(input.characterId);
-  setCharacterItems(input.characterId, [...items, newItem]);
+  await setCharacterItems(input.characterId, [newItem]);
 
   return newItem;
 }
@@ -117,8 +163,7 @@ export async function addCustomCharacterEquipment(
     updatedAt: nowIso()
   };
 
-  const items = getCharacterItems(input.characterId);
-  setCharacterItems(input.characterId, [...items, newItem]);
+  await setCharacterItems(input.characterId, [newItem]);
 
   return newItem;
 }
@@ -127,7 +172,7 @@ export async function updateCharacterEquipment(
   id: string,
   patch: UpdateCharacterEquipmentInput
 ): Promise<CharacterEquipmentItem> {
-  const store = readStore();
+  const store = await readStore();
 
   for (const characterId of Object.keys(store)) {
     const items = store[characterId];
@@ -153,8 +198,7 @@ export async function updateCharacterEquipment(
       updatedAt: nowIso()
     };
 
-    store[characterId] = items.map(item => (item.id === id ? updated : item));
-    writeStore(store);
+    await setCharacterItems(characterId, [updated]);
 
     return updated;
   }
@@ -163,7 +207,7 @@ export async function updateCharacterEquipment(
 }
 
 export async function removeCharacterEquipment(id: string): Promise<void> {
-  const store = readStore();
+  const store = await readStore();
 
   for (const characterId of Object.keys(store)) {
     const items = store[characterId];
@@ -173,8 +217,9 @@ export async function removeCharacterEquipment(id: string): Promise<void> {
       continue;
     }
 
-    store[characterId] = items.filter(item => item.id !== id);
-    writeStore(store);
+    if (!supabase) throw new Error('Archivio non disponibile');
+    const { error } = await supabase.from('character_equipment').delete().eq('id', id);
+    if (error) throw new Error(error.message);
     return;
   }
 

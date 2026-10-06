@@ -67,13 +67,13 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>(
     () => {
       try {
-        const cached = localStorage.getItem(CAMPAIGNS_CACHE_LS_KEY);
+        const cached = localStorage.getItem(persistenceKey(CAMPAIGNS_CACHE_LS_KEY));
         return cached ? JSON.parse(cached) : [];
       } catch { return []; }
     }
   );
   const [activeCampaignId, setActiveCampaignId] = useState<string>(
-    () => localStorage.getItem(ACTIVE_CAMPAIGN_LS_KEY) ?? LEGACY_CAMPAIGN_ID
+    () => localStorage.getItem(persistenceKey(ACTIVE_CAMPAIGN_LS_KEY)) ?? LEGACY_CAMPAIGN_ID
   );
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
   const [joinedCampaigns, setJoinedCampaigns] = useState<Campaign[]>([]);
@@ -83,6 +83,8 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
 
   const fetchCampaigns = useCallback(async () => {
     if (!session?.access_token) {
+      setCampaigns([]);
+      setJoinedCampaigns([]);
       setIsLoading(false);
       return;
     }
@@ -101,7 +103,9 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
       const { campaigns: fetched } = await res.json();
       const list: Campaign[] = fetched ?? [];
       setCampaigns(list);
-      try { localStorage.setItem(CAMPAIGNS_CACHE_LS_KEY, JSON.stringify(list)); } catch { /* quota */ }
+      const storedActive = localStorage.getItem(persistenceKey(ACTIVE_CAMPAIGN_LS_KEY));
+      if (storedActive && list.some((campaign) => campaign.id === storedActive)) setActiveCampaignId(storedActive);
+      try { localStorage.setItem(persistenceKey(CAMPAIGNS_CACHE_LS_KEY), JSON.stringify(list)); } catch { /* quota */ }
     } catch (err) {
       console.log('Errore di rete fetch campagne:', err);
     } finally {
@@ -201,7 +205,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     if (!active) {
       const first = campaigns[0];
       setActiveCampaignId(first.id);
-      localStorage.setItem(ACTIVE_CAMPAIGN_LS_KEY, first.id);
+      localStorage.setItem(persistenceKey(ACTIVE_CAMPAIGN_LS_KEY), first.id);
       return;
     }
   }, [campaigns, joinedCampaigns, activeCampaignId, isLoading]);
@@ -241,7 +245,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
   const setActiveCampaign = useCallback((campaign: Campaign) => {
     setActiveCampaignId(campaign.id);
     setSelectedCampaignId(campaign.id);
-    localStorage.setItem(ACTIVE_CAMPAIGN_LS_KEY, campaign.id);
+    localStorage.setItem(persistenceKey(ACTIVE_CAMPAIGN_LS_KEY), campaign.id);
     if (campaign.ownerId === session?.user?.id) {
       void markCampaignOpened(campaign.id);
     }
@@ -263,14 +267,14 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
     const created: Campaign = data.campaign;
     setCampaigns(prev => {
       const next = [...prev, created];
-      try { localStorage.setItem(CAMPAIGNS_CACHE_LS_KEY, JSON.stringify(next)); } catch { /* quota */ }
+      try { localStorage.setItem(persistenceKey(CAMPAIGNS_CACHE_LS_KEY), JSON.stringify(next)); } catch { /* quota */ }
       return next;
     });
 
     // Seleziona la nuova campagna automaticamente
     setActiveCampaignId(created.id);
     setSelectedCampaignId(created.id);
-    localStorage.setItem(ACTIVE_CAMPAIGN_LS_KEY, created.id);
+    localStorage.setItem(persistenceKey(ACTIVE_CAMPAIGN_LS_KEY), created.id);
 
     return created;
   }, [accessToken]);
@@ -287,7 +291,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
 
     setCampaigns(prev => {
       const next = prev.map(c => c.id === id ? data.campaign : c);
-      try { localStorage.setItem(CAMPAIGNS_CACHE_LS_KEY, JSON.stringify(next)); } catch { /* quota */ }
+      try { localStorage.setItem(persistenceKey(CAMPAIGNS_CACHE_LS_KEY), JSON.stringify(next)); } catch { /* quota */ }
       return next;
     });
   }, [accessToken]);
@@ -319,7 +323,7 @@ export function CampaignProvider({ children }: { children: React.ReactNode }) {
 
     setCampaigns(prev => {
       const next = prev.filter(c => c.id !== id);
-      try { localStorage.setItem(CAMPAIGNS_CACHE_LS_KEY, JSON.stringify(next)); } catch { /* quota */ }
+      try { localStorage.setItem(persistenceKey(CAMPAIGNS_CACHE_LS_KEY), JSON.stringify(next)); } catch { /* quota */ }
       return next;
     });
   }, [accessToken]);
@@ -379,3 +383,5 @@ export function useCampaign(): CampaignContextValue {
   if (!ctx) throw new Error('useCampaign deve essere usato dentro CampaignProvider');
   return ctx;
 }
+import { contentFetch as fetch } from '../../services/storage/contentFetch';
+import { persistenceKey } from '../../services/storage/persistenceMode';

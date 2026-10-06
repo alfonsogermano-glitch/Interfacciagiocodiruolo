@@ -1,4 +1,5 @@
 import { supabase } from '../../app/auth/AuthContext';
+import { uploadContentAsset, removeContentAsset } from '../storage/contentAssets';
 const BUCKET = 'dice-face-assets';
 const MAX_SOURCE_BYTES = 8 * 1024 * 1024;
 const TARGET_SIZE = 512;
@@ -27,13 +28,9 @@ export async function normalizeDiceFaceImage(file: File): Promise<Blob> {
 export async function uploadDiceFaceAsset(input: { campaignId: string; ownerProfileId: string; customDieId: string; file: File }) {
   const blob = await normalizeDiceFaceImage(input.file);
   const assetPath = `${input.campaignId}/${input.ownerProfileId}/${input.customDieId}/${crypto.randomUUID()}.webp`;
-  const { error } = await supabase.storage.from(BUCKET).upload(assetPath, blob, { contentType: 'image/webp', upsert: false });
-  if (error) throw new Error(`Errore caricamento immagine faccia: ${error.message}`);
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(assetPath);
-  return { assetPath, publicUrl: data.publicUrl };
+  return uploadContentAsset(BUCKET, assetPath, blob, { contentType: 'image/webp', upsert: false });
 }
 
 export async function removeDiceFaceAsset(assetPath: string): Promise<void> {
-  const { error } = await supabase.storage.from(BUCKET).remove([assetPath]);
-  if (error) throw new Error(`Errore eliminazione immagine faccia: ${error.message}`);
+  await removeContentAsset(BUCKET, assetPath);
 }

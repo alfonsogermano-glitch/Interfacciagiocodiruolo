@@ -9,8 +9,8 @@ import { SectionHeader } from '../ui/SectionHeader';
 import { EmptyState } from '../ui/EmptyState';
 import { isSupabaseConfigured, supabase } from '../../../lib/supabaseClient';
 import { generateUUID } from '../../../lib/uuid';
-
-const ACTIVE_ENCOUNTER_STORAGE_KEY = 'hsc_active_encounter';
+import { persistenceKey } from '../../../services/storage/persistenceMode';
+import { saveCampaignDocument } from '../../../services/storage/campaignDocuments';
 
 type ActiveEncounter = {
   id: string;
@@ -50,7 +50,7 @@ function readArray<T>(key: string): T[] {
   if (typeof window === 'undefined') return [];
 
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = window.localStorage.getItem(persistenceKey(key));
     if (!raw) return [];
 
     const parsed = JSON.parse(raw);
@@ -187,7 +187,7 @@ export function SceneEncounterManager() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [activeCampaignId]);
 
   const selectedEnvironment =
     environments.find(env => env.id === selectedEnvironmentId) ?? null;
@@ -210,7 +210,7 @@ export function SceneEncounterManager() {
     };
   }, [selectedEnvironment, npcs, monsters, clues, situations]);
 
-  const startEncounter = () => {
+  const startEncounter = async () => {
     if (!selectedEnvironment) return;
 
     const encounter: ActiveEncounter = {
@@ -225,10 +225,8 @@ export function SceneEncounterManager() {
       startedAt: new Date().toISOString()
     };
 
-    window.localStorage.setItem(
-      ACTIVE_ENCOUNTER_STORAGE_KEY,
-      JSON.stringify(encounter)
-    );
+    try { await saveCampaignDocument(activeCampaignId, 'active-encounter', encounter); }
+    catch (error) { setToastMessage(error instanceof Error ? error.message : 'Salvataggio incontro non riuscito'); return; }
 
     setToastMessage(`Encounter avviato: ${selectedEnvironment.name}`);
 

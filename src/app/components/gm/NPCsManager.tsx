@@ -6,6 +6,7 @@ import { useRuleset } from '../../campaigns/RulesetContext';
 import { RulesetBadge } from '../../campaigns/RulesetGate';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
+import { persistenceKey } from '../../../services/storage/persistenceMode';
 import { generateUUID } from '../../../lib/uuid';
 import {
   loadNPCs, saveNPC, deleteNPC, loadAdventures,
@@ -118,7 +119,9 @@ export function NPCsManager({ navigationTarget = null }: NPCsManagerProps) {
   const [selectedAdventureFilterId, setSelectedAdventureFilterId] = useState('all');
   const [includeUnassignedInAdventureFilter, setIncludeUnassignedInAdventureFilter] = useState(false);
   const [activeAdventureId, setActiveAdventureId] = useState<string | null>(() =>
-    typeof window === 'undefined' ? null : window.localStorage.getItem(CAMPAIGN_STORAGE_KEYS.activeAdventure)
+    typeof window === 'undefined'
+      ? null
+      : window.localStorage.getItem(persistenceKey(CAMPAIGN_STORAGE_KEYS.activeAdventure))
   );
 
   useEffect(() => {
@@ -140,7 +143,7 @@ export function NPCsManager({ navigationTarget = null }: NPCsManagerProps) {
   }, [activeCampaignId]);
 
   useEffect(() => {
-    const sync = () => setActiveAdventureId(window.localStorage.getItem(CAMPAIGN_STORAGE_KEYS.activeAdventure));
+    const sync = () => setActiveAdventureId(window.localStorage.getItem(persistenceKey(CAMPAIGN_STORAGE_KEYS.activeAdventure)));
     sync();
     window.addEventListener('focus', sync);
     return () => window.removeEventListener('focus', sync);

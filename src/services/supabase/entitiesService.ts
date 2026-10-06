@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabaseClient';
 import { readDashboardSettings } from '../settings/dashboardSettings';
+import { persistenceKey, persistenceOwner, selectedContentMode } from '../storage/persistenceMode';
 import { isTauriRuntime } from '../runtime/runtimeEnvironment';
 import {
   deleteTauriEntity,
@@ -37,12 +38,11 @@ type EntityCollection =
   | 'adventures';
 
 function shouldUseLocalMode(): boolean {
-  const settings = readDashboardSettings();
-  return settings.saveMode === 'local' || !supabase;
+  return !supabase;
 }
 
 function getLocalEntityKey(campaignId: string, collection: EntityCollection): string {
-  return `hsc_local_entities:${campaignId}:${collection}`;
+  return persistenceKey(`hsc_local_entities:${campaignId}:${collection}`);
 }
 
 function loadLocalEntities<T>(campaignId: string, collection: EntityCollection): T[] {
@@ -116,9 +116,16 @@ function saveLocalEntity<T extends { id: string }>(
 function deleteLocalEntity(collection: EntityCollection, entityId: string): void {
   if (typeof window === 'undefined') return;
 
+  const suffix = `:${persistenceOwner()}:${selectedContentMode()}`;
+
   for (let index = 0; index < window.localStorage.length; index += 1) {
     const key = window.localStorage.key(index);
-    if (!key || !key.includes(`:${collection}`)) continue;
+    if (
+      !key ||
+      !key.startsWith('hsc_local_entities:') ||
+      !key.includes(`:${collection}:`) ||
+      !key.endsWith(suffix)
+    ) continue;
 
     try {
       const raw = window.localStorage.getItem(key);

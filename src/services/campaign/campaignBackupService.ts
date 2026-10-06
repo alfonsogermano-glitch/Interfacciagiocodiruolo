@@ -1,7 +1,9 @@
 import { CAMPAIGN_STORAGE_KEYS } from './campaignStorageKeys';
+import { persistenceKey } from '../storage/persistenceMode';
 import type { CampaignBackup, CampaignBackupData } from './campaignBackupTypes';
 
-function safeParseArray(value: string | null): unknown[] {
+function safeParseArray(key: string): unknown[] {
+  const value = window.localStorage.getItem(persistenceKey(key));
   if (!value) {
     return [];
   }
@@ -14,7 +16,8 @@ function safeParseArray(value: string | null): unknown[] {
   }
 }
 
-function safeParseAny(value: string | null): unknown | null {
+function safeParseAny(key: string): unknown | null {
+  const value = window.localStorage.getItem(persistenceKey(key));
   if (!value) {
     return null;
   }
@@ -24,6 +27,10 @@ function safeParseAny(value: string | null): unknown | null {
   } catch {
     return null;
   }
+}
+
+function writeValue(key: string, value: unknown): void {
+  window.localStorage.setItem(persistenceKey(key), JSON.stringify(value));
 }
 
 function ensureWindowAvailable(): void {
@@ -36,42 +43,18 @@ export function exportCampaignBackup(): CampaignBackup {
   ensureWindowAvailable();
 
   const data: CampaignBackupData = {
-    playerCharacters: safeParseArray(
-      window.localStorage.getItem(CAMPAIGN_STORAGE_KEYS.playerCharacters)
-    ),
-    npcs: safeParseArray(
-      window.localStorage.getItem(CAMPAIGN_STORAGE_KEYS.npcs)
-    ),
-    monsters: safeParseArray(
-      window.localStorage.getItem(CAMPAIGN_STORAGE_KEYS.monsters)
-    ),
-    clues: safeParseArray(
-      window.localStorage.getItem(CAMPAIGN_STORAGE_KEYS.clues)
-    ),
-    environments: safeParseArray(
-      window.localStorage.getItem(CAMPAIGN_STORAGE_KEYS.environments)
-    ),
-    situations: safeParseArray(
-      window.localStorage.getItem(CAMPAIGN_STORAGE_KEYS.situations)
-    ),
-    maps: safeParseAny(
-      window.localStorage.getItem(CAMPAIGN_STORAGE_KEYS.maps)
-    ),
-    combat: safeParseAny(
-      window.localStorage.getItem(CAMPAIGN_STORAGE_KEYS.combat)
-    ),
-    equipmentCatalog: safeParseArray(
-      window.localStorage.getItem(CAMPAIGN_STORAGE_KEYS.equipmentCatalog)
-    ),
-    characterEquipment: safeParseArray(
-      window.localStorage.getItem(CAMPAIGN_STORAGE_KEYS.characterEquipment)
-    ),
-    adventures: safeParseArray(
-      window.localStorage.getItem(CAMPAIGN_STORAGE_KEYS.adventures)
-    ),
-    visualAssets: safeParseArray(
-    window.localStorage.getItem(CAMPAIGN_STORAGE_KEYS.visualAssets)
-    )
+    playerCharacters: safeParseArray(CAMPAIGN_STORAGE_KEYS.playerCharacters),
+    npcs: safeParseArray(CAMPAIGN_STORAGE_KEYS.npcs),
+    monsters: safeParseArray(CAMPAIGN_STORAGE_KEYS.monsters),
+    clues: safeParseArray(CAMPAIGN_STORAGE_KEYS.clues),
+    environments: safeParseArray(CAMPAIGN_STORAGE_KEYS.environments),
+    situations: safeParseArray(CAMPAIGN_STORAGE_KEYS.situations),
+    maps: safeParseAny(CAMPAIGN_STORAGE_KEYS.maps),
+    combat: safeParseAny(CAMPAIGN_STORAGE_KEYS.combat),
+    equipmentCatalog: safeParseArray(CAMPAIGN_STORAGE_KEYS.equipmentCatalog),
+    characterEquipment: safeParseArray(CAMPAIGN_STORAGE_KEYS.characterEquipment),
+    adventures: safeParseArray(CAMPAIGN_STORAGE_KEYS.adventures),
+    visualAssets: safeParseArray(CAMPAIGN_STORAGE_KEYS.visualAssets)
   };
 
   return {
@@ -128,61 +111,16 @@ export function importCampaignBackup(backup: CampaignBackup): void {
     throw new Error('Struttura backup non valida.');
   }
 
-  window.localStorage.setItem(
-    CAMPAIGN_STORAGE_KEYS.playerCharacters,
-    JSON.stringify(backup.data.playerCharacters ?? [])
-  );
-
-  window.localStorage.setItem(
-    CAMPAIGN_STORAGE_KEYS.npcs,
-    JSON.stringify(backup.data.npcs ?? [])
-  );
-
-  window.localStorage.setItem(
-    CAMPAIGN_STORAGE_KEYS.monsters,
-    JSON.stringify(backup.data.monsters ?? [])
-  );
-
-  window.localStorage.setItem(
-    CAMPAIGN_STORAGE_KEYS.clues,
-    JSON.stringify(backup.data.clues ?? [])
-  );
-
-  window.localStorage.setItem(
-    CAMPAIGN_STORAGE_KEYS.environments,
-    JSON.stringify(backup.data.environments ?? [])
-  );
-
-  window.localStorage.setItem(
-    CAMPAIGN_STORAGE_KEYS.situations,
-    JSON.stringify(backup.data.situations ?? [])
-  );
-
-  window.localStorage.setItem(
-  CAMPAIGN_STORAGE_KEYS.maps,
-  JSON.stringify(backup.data.maps ?? null)
-  );
-
-  window.localStorage.setItem(
-    CAMPAIGN_STORAGE_KEYS.combat,
-    JSON.stringify(backup.data.combat ?? null)
-  );
-
-  window.localStorage.setItem(
-    CAMPAIGN_STORAGE_KEYS.equipmentCatalog,
-    JSON.stringify(backup.data.equipmentCatalog ?? [])
-  );
-
-  window.localStorage.setItem(
-    CAMPAIGN_STORAGE_KEYS.characterEquipment,
-    JSON.stringify(backup.data.characterEquipment ?? [])
-  );
-  window.localStorage.setItem(
-    CAMPAIGN_STORAGE_KEYS.adventures,
-    JSON.stringify(backup.data.adventures ?? [])
-  );
-  window.localStorage.setItem(
-  CAMPAIGN_STORAGE_KEYS.visualAssets,
-  JSON.stringify(backup.data.visualAssets ?? [])
-);
+  writeValue(CAMPAIGN_STORAGE_KEYS.playerCharacters, backup.data.playerCharacters ?? []);
+  writeValue(CAMPAIGN_STORAGE_KEYS.npcs, backup.data.npcs ?? []);
+  writeValue(CAMPAIGN_STORAGE_KEYS.monsters, backup.data.monsters ?? []);
+  writeValue(CAMPAIGN_STORAGE_KEYS.clues, backup.data.clues ?? []);
+  writeValue(CAMPAIGN_STORAGE_KEYS.environments, backup.data.environments ?? []);
+  writeValue(CAMPAIGN_STORAGE_KEYS.situations, backup.data.situations ?? []);
+  writeValue(CAMPAIGN_STORAGE_KEYS.maps, backup.data.maps ?? null);
+  writeValue(CAMPAIGN_STORAGE_KEYS.combat, backup.data.combat ?? null);
+  writeValue(CAMPAIGN_STORAGE_KEYS.equipmentCatalog, backup.data.equipmentCatalog ?? []);
+  writeValue(CAMPAIGN_STORAGE_KEYS.characterEquipment, backup.data.characterEquipment ?? []);
+  writeValue(CAMPAIGN_STORAGE_KEYS.adventures, backup.data.adventures ?? []);
+  writeValue(CAMPAIGN_STORAGE_KEYS.visualAssets, backup.data.visualAssets ?? []);
 }

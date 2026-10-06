@@ -32,8 +32,7 @@ function nowIso(): string {
 }
 
 function shouldUseLocalMode(): boolean {
-  const settings = readDashboardSettings();
-  return settings.saveMode === 'local' || !supabase;
+  return !supabase;
 }
 
 function createStandardCatalogItem(

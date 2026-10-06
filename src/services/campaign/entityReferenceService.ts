@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabaseClient';
 import { CAMPAIGN_STORAGE_KEYS } from './campaignStorageKeys';
 import { loadAdventures } from '../supabase/entitiesService';
+import { persistenceKey } from '../storage/persistenceMode';
 
 type RawReference = {
   id?: string;
@@ -53,7 +54,7 @@ function loadReferencesFromLocalStorage(
   if (typeof window === 'undefined') return [];
 
   try {
-    const saved = window.localStorage.getItem(storageKey);
+    const saved = window.localStorage.getItem(persistenceKey(storageKey));
     if (!saved) return [];
 
     const parsed = JSON.parse(saved);
