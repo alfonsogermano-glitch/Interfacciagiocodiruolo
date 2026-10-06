@@ -9,17 +9,25 @@ const SERVER_BASE = `${SUPABASE_URL}/functions/v1/make-server-771c5bfd`;
 // Riusa il singleton da supabaseClient.ts per evitare istanze multiple
 export const supabase = _supabaseClient!;
 
+export type UserRole = 'admin' | 'standard';
+export const USER_ROLE_LABELS: Record<UserRole, string> = {
+  admin: 'Amministratore',
+  standard: 'Utente Standard',
+};
+
 export type AuthUser = {
   id: string;
   email: string;
   displayName: string;
   avatarUrl?: string;
+  role: UserRole;
 };
 
 type AuthContextValue = {
   user: AuthUser | null;
   session: Session | null;
   isLoading: boolean;
+  isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, displayName?: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -58,10 +66,16 @@ function fallbackUserFromIdentities(session: Session): AuthUser {
     avatarUrl = data.avatar_url ?? data.picture ?? undefined;
   }
 
-  return { id: session.user.id, email: session.user.email ?? '', displayName, avatarUrl };
+  return { id: session.user.id, email: session.user.email ?? '', displayName, avatarUrl, role: 'standard' };
 }
 
 async function buildUserFromSession(session: Session): Promise<AuthUser> {
+  const { data: applicationRole } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', session.user.id)
+    .maybeSingle();
+  const role: UserRole = applicationRole?.role === 'admin' ? 'admin' : 'standard';
   const { data: profile, error } = await supabase
     .from('profiles')
     .select('display_name, avatar_url, email')
@@ -70,7 +84,7 @@ async function buildUserFromSession(session: Session): Promise<AuthUser> {
 
   if (error || !profile) {
     console.log('Profilo non trovato a DB, uso fallback da identities:', error?.message);
-    return fallbackUserFromIdentities(session);
+    return { ...fallbackUserFromIdentities(session), role };
   }
 
   return {
@@ -78,6 +92,7 @@ async function buildUserFromSession(session: Session): Promise<AuthUser> {
     email: profile.email ?? session.user.email ?? '',
     displayName: profile.display_name,
     avatarUrl: profile.avatar_url ?? undefined,
+    role,
   };
 }
 
@@ -202,6 +217,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, session, isLoading, signIn, signUp, signOut,
+      isAdmin: user?.role === 'admin',
       isPasswordRecovery,
       clearPasswordRecovery: () => {
         setIsPasswordRecovery(false);

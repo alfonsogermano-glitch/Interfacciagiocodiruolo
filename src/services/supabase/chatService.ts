@@ -175,19 +175,16 @@ export function writeChatLastSeen(campaignId: string, createdAt: string): void {
 }
 
 /**
- * created_at dell'ultima voce di chat della campagna (messaggio o tiro).
- * Se `excludeOwnFrom` e' fornito (id dell'utente corrente), ignora le voci
- * proprie: la propria attivita' non deve accendere il pallino della propria
- * chat al rientro, mentre i messaggi/tiri altrui non letti sì.
+ * created_at dell'ultima voce di chat della campagna (messaggio o tiro,
+ * incluso i propri: il proprio tiro con chat chiusa deve accendere il
+ * pallino al rientro, come la cronica tiri). Null se assente.
  */
-export async function loadLatestChatAt(campaignId: string, excludeOwnFrom?: string): Promise<string | null> {
+export async function loadLatestChatAt(campaignId: string): Promise<string | null> {
   if (!supabase) return null;
-  let query = supabase
+  const { data, error } = await supabase
     .from('chat_messages')
     .select('created_at')
-    .eq('campaign_id', campaignId);
-  if (excludeOwnFrom) query = query.neq('sender_id', excludeOwnFrom);
-  const { data, error } = await query
+    .eq('campaign_id', campaignId)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();

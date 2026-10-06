@@ -1,13 +1,16 @@
 import { useState } from 'react';
+import { useAuth } from '../auth/AuthContext';
 import { isSupabaseConfigured, supabase } from '../../lib/supabaseClient';
 import { testSupabaseConnection } from '../../services/supabase/testConnection';
 import { RefreshCw, CheckCircle, XCircle, AlertTriangle, Trash2 } from 'lucide-react';
 
 export function SupabaseDebug() {
+  const { isAdmin } = useAuth();
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<any>(null);
 
   const runTests = async () => {
+    if (!isAdmin) return;
     setTesting(true);
     setResult(null);
 
@@ -35,11 +38,14 @@ export function SupabaseDebug() {
   };
 
   const clearLocalStorage = () => {
+    if (!isAdmin) return;
     if (confirm('Sicuro di voler cancellare tutti i dati localStorage? Questa operazione ricaricherà la pagina.')) {
       localStorage.clear();
       window.location.reload();
     }
   };
+
+  if (!isAdmin) return null;
 
   return (
     <div className="bg-[var(--dash-input)] border border-[var(--dash-border)] rounded-lg p-4">

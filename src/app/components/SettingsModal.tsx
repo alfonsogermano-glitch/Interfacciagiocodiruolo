@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback } from 'react';
-import { Loader2, X, Camera, Settings as SettingsIcon, UserCircle2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Loader2, X, Camera, Settings as SettingsIcon, UserCircle2, Shield } from 'lucide-react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { SupabaseDebug } from './SupabaseDebug';
-import { useAuth, supabase } from '../auth/AuthContext';
+import { useAuth, supabase, USER_ROLE_LABELS } from '../auth/AuthContext';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import type { DashboardSettings } from '../../services/settings/dashboardSettings';
 import { normalizeDisplayName, validateDisplayName } from '../../lib/validateDisplayName';
@@ -48,8 +49,8 @@ async function getCroppedBlob(imageSrc: string, area: Area): Promise<Blob> {
 }
 
 export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialTab = 'general' }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<'general' | 'profile'>(initialTab);
-  const { user, refreshUser } = useAuth();
+  const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'administration'>(initialTab);
+  const { user, refreshUser, isAdmin } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
@@ -159,9 +160,9 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
 
   // ── Vista di ritaglio: sostituisce tutto il modal mentre attiva ──
   if (rawImageSrc) {
-    return (
+    return createPortal(
       <div data-dashboard-palette={draft.palette}
-        style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 1000,
+        style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 20000,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
         <div style={{ backgroundColor: 'var(--dash-bg)', border: '1px solid var(--dash-border-soft)',
                       borderRadius: 16, padding: '1.75rem', width: '100%', maxWidth: 420, fontFamily: 'sans-serif' }}>
@@ -197,13 +198,13 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
             </button>
           </div>
         </div>
-      </div>
+      </div>, document.body
     );
   }
 
-  return (
-    <div data-dashboard-palette={draft.palette}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4">
+  return createPortal(
+    <div data-dashboard-palette={draft.palette} role="dialog" aria-modal="true" aria-label="Impostazioni"
+      className="fixed inset-0 z-[20000] flex items-center justify-center bg-black/70 px-4">
       <div className="w-full max-w-2xl rounded-2xl border border-[var(--dash-border)] bg-[var(--dash-surface)] p-6 text-[var(--dash-text)] shadow-2xl max-h-[90vh] overflow-y-auto">
 
         <div className="mb-5 flex items-center justify-between">
@@ -211,10 +212,11 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
             <div className="text-xs uppercase tracking-[0.14em] text-[var(--dash-accent-2)]">
               Impostazioni
             </div>
-            <h3 className="mt-2 text-xl font-semibold text-[var(--dash-text-strong)]">
-              {activeTab === 'general' ? 'Personalizzazione & Database' : 'Profilo utente'}
-            </h3>
           </div>
+          <button type="button" onClick={onCancel} aria-label="Chiudi Impostazioni"
+            className="rounded-md p-2 text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]">
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Tab */}
@@ -235,6 +237,16 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
             }`}>
             <UserCircle2 className="h-4 w-4" /> Profilo
           </button>
+          {isAdmin && (
+            <button type="button" onClick={() => setActiveTab('administration')}
+              className={`flex items-center gap-2 border-b-2 px-3 py-2 text-sm transition-colors ${
+                activeTab === 'administration'
+                  ? 'border-[var(--dash-accent)] text-[var(--dash-text-strong)]'
+                  : 'border-transparent text-[var(--dash-muted)] hover:text-[var(--dash-text)]'
+              }`}>
+              <Shield className="h-4 w-4" /> Amministrazione
+            </button>
+          )}
         </div>
 
         {activeTab === 'general' ? (
@@ -285,10 +297,6 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
                   </label>
                 </div>
               </div>
-              <div>
-                <h4 className="text-sm font-medium text-[var(--dash-text-strong)] mb-3">Database Supabase</h4>
-                <SupabaseDebug />
-              </div>
             </div>
 
             <div className="mt-6 flex justify-end gap-3 border-t border-[var(--dash-border)] pt-4">
@@ -300,6 +308,16 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
               </button>
             </div>
           </>
+        ) : activeTab === 'administration' ? (
+          isAdmin && (
+            <div>
+              <h4 className="mb-3 text-sm font-medium text-[var(--dash-text-strong)]">Database Supabase</h4>
+              <SupabaseDebug />
+              <div className="mt-6 flex justify-end">
+                <button type="button" onClick={onCancel} className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm">Chiudi</button>
+              </div>
+            </div>
+          )
         ) : (
           <>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.75rem' }}>
@@ -333,6 +351,9 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
               <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
             </div>
 
+            <div className="mb-5 text-sm text-[var(--dash-muted)]">
+              Tipologia utente: <span className="text-[var(--dash-text-strong)]">{USER_ROLE_LABELS[user?.role ?? 'standard']}</span>
+            </div>
             <div style={{ marginBottom: '1.25rem' }}>
               <label style={labelStyle}>Nome visualizzato</label>
               <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)}
@@ -361,6 +382,6 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
           </>
         )}
       </div>
-    </div>
+    </div>, document.body
   );
 }

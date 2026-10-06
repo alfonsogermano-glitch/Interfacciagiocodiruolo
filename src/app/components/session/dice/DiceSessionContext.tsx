@@ -98,12 +98,12 @@ interface DiceSessionProviderProps {
   children: React.ReactNode;
   /**
    * Segnala che un tiro pubblico ha FINITO di rotolare ed e' entrato nella
-   * timeline della chat, con il tiro e il created_at del server (null se non
-   * disponibile). Usa `roll.rollerId` per distinguere la propria attivita'
-   * da quella altrui: il proprio tiro non deve accendere il pallino della
-   * propria chat.
+   * timeline della chat, con il created_at del server (null se non
+   * disponibile). Usato dalla barra destra per accendere il pallino
+   * sull'icona Chat quando il pannello e' chiuso (anche per i propri tiri,
+   * come la cronica tiri), o per marcare il tiro come visto quando e' aperto.
    */
-  onRollIngested?: (roll: RollResult, serverCreatedAt: string | null) => void;
+  onRollIngested?: (serverCreatedAt: string | null) => void;
 }
 
 function DiceSessionProviderBody({ children, onRollIngested }: DiceSessionProviderProps) {
@@ -159,7 +159,7 @@ function DiceSessionProviderBody({ children, onRollIngested }: DiceSessionProvid
     if (pending) {
       pendingChatRolls.current.delete(resultId);
       void saveRollEntry(pending).then((serverCreatedAt) => {
-        onRollIngestedRef.current?.(pending, serverCreatedAt);
+        onRollIngestedRef.current?.(serverCreatedAt);
       });
     }
   }, []);

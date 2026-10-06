@@ -6,7 +6,6 @@ import { SessionNotesPanel } from './SessionNotesPanel';
 import { SessionDicePanel } from './dice/SessionDicePanel';
 import { DiceRollHistoryDrawer } from './dice/DiceRollHistoryDrawer';
 import { DiceSessionProvider } from './dice/DiceSessionContext';
-import type { RollResult } from './dice/diceTypes';
 import { SessionChatPanel } from './SessionChatPanel';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useAuth } from '../../auth/AuthContext';
@@ -183,38 +182,36 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
   const [chatUnread, setChatUnread] = useState(false);
   const [incomingChatMessage, setIncomingChatMessage] = useState<ChatMessage | null>(null);
 
-  // All'ingresso in una campagna: se esiste una voce di chat DI ALTRI piu'
-  // recente dell'ultimo visto, accendi il pallino (copre anche cio' che e'
-  // arrivato con il browser chiuso). Le voci proprie sono escluse: i propri
-  // tiri/messaggi non rendono "non letta" la propria chat.
+  // All'ingresso in una campagna: se esiste una voce di chat (messaggio o
+  // tiro, anche propri) piu' recente dell'ultimo visto, accendi il pallino
+  // (copre anche cio' che e' arrivato con il browser chiuso).
   useEffect(() => {
-    if (!activeCampaignId || !user) return;
+    if (!activeCampaignId) return;
     let cancelled = false;
     setChatUnread(false);
-    void loadLatestChatAt(activeCampaignId, user.id).then((latest) => {
+    void loadLatestChatAt(activeCampaignId).then((latest) => {
       if (cancelled || !latest) return;
       const lastSeen = readChatLastSeen(activeCampaignId);
       if (!lastSeen || latest > lastSeen) setChatUnread(true);
     });
     return () => { cancelled = true; };
-  }, [activeCampaignId, user?.id]);
+  }, [activeCampaignId]);
 
   // Aprire la chat spegne il pallino (i messaggi sono sotto gli occhi).
   useEffect(() => {
     if (openPanel === 'chat') setChatUnread(false);
   }, [openPanel]);
 
-  // Tiro pubblico entrato nella timeline della chat (mio o di altri):
-  // pallino se la chat e' chiusa E il tiro e' di altri (come i messaggi, i
-  // propri tiri non dislettono la propria chat); se e' aperta il tiro e' gia'
-  // visibile e si marca solo il timestamp "visto".
-  const handleRollIngested = useCallback((roll: RollResult, serverCreatedAt: string | null) => {
+  // Tiro pubblico entrato nella timeline della chat (mio o di altri): pallino
+  // se la chat e' chiusa — anche per i propri tiri, come la cronica tiri —
+  // altrimenti il tiro e' gia' visibile e si marca solo il timestamp "visto".
+  const handleRollIngested = useCallback((serverCreatedAt: string | null) => {
     if (openPanel === 'chat') {
       if (serverCreatedAt && activeCampaignId) writeChatLastSeen(activeCampaignId, serverCreatedAt);
-    } else if (!user || roll.rollerId !== user.id) {
+    } else {
       setChatUnread(true);
     }
-  }, [activeCampaignId, openPanel, user]);
+  }, [activeCampaignId, openPanel]);
 
   // Messaggi degli altri partecipanti in tempo reale: pallino se la chat e'
   // chiusa, aggiunta diretta alla timeline se e' aperta.
