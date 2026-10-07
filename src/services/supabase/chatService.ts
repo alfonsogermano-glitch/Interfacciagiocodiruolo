@@ -4,6 +4,21 @@ import type { RollResult } from '../../app/components/session/dice/diceTypes';
 
 export type ChatEntryKind = 'message' | 'roll' | 'attachment';
 
+/** Citazione di un messaggio/tiro allegato al messaggio che si sta scrivendo. */
+export interface ChatQuote {
+  senderName: string;
+  content: string;
+  kind: ChatEntryKind;
+}
+
+/** Reazione emoji lasciata su un messaggio (una per utente per messaggio). */
+export interface ChatReaction {
+  char: string;
+  userId: string;
+  userName: string;
+  createdAt: string;
+}
+
 export interface ChatMessage {
   id: string;
   campaignId: string;
@@ -15,9 +30,14 @@ export interface ChatMessage {
   createdAt: string;
   /** Presente solo per kind='roll': tiro completo serializzato. */
   roll?: RollResult;
+  /** Citazione persistita in payload.quote (solo per kind='message'). */
+  quote?: ChatQuote;
+  /** Reazioni emoji della riga (colonna reactions JSONB). */
+  reactions?: ChatReaction[];
 }
 
 function rowToEntry(row: any): ChatMessage {
+  const payload = row.payload && typeof row.payload === 'object' ? row.payload : null;
   return {
     id: row.id,
     campaignId: row.campaign_id,
@@ -27,7 +47,9 @@ function rowToEntry(row: any): ChatMessage {
     senderAvatarUrl: row.sender_avatar_url ?? undefined,
     content: row.content ?? '',
     createdAt: row.created_at,
-    roll: row.kind === 'roll' && row.payload ? (row.payload as RollResult) : undefined,
+    roll: row.kind === 'roll' && payload ? (payload as RollResult) : undefined,
+    quote: row.kind !== 'roll' && payload && payload.quote ? (payload.quote as ChatQuote) : undefined,
+    reactions: Array.isArray(row.reactions) ? (row.reactions as ChatReaction[]) : [],
   };
 }
 
@@ -55,6 +77,7 @@ export async function sendChatMessage(input: {
   senderName: string;
   senderAvatarUrl?: string;
   content: string;
+  quote?: ChatQuote;
 }): Promise<ChatMessage | null> {
   if (!supabase) {
     console.warn('[chatService] Supabase non configurato');
@@ -69,6 +92,7 @@ export async function sendChatMessage(input: {
       sender_avatar_url: input.senderAvatarUrl ?? null,
       kind: 'message',
       content: input.content,
+      payload: input.quote ? { quote: input.quote } : undefined,
     })
     .select('*')
     .single();
@@ -78,6 +102,65 @@ export async function sendChatMessage(input: {
   }
   console.log(`[chatService] Messaggio salvato: ${data.id}`);
   return rowToEntry(data);
+}
+
+/**
+ * Toggle della reazione emoji dell'utente su un messaggio (una reazione per
+ * utente per messaggio: la stessa emoji la rimuove, una diversa la sostituisce).
+ * Read-modify-write sulla colonna reactions: nessuna transazione client-side,
+ * le scritture concorrenti di utenti diversi sono comunque tollerabili qui.
+ * Ritorna la lista aggiornata o null se la riga non esiste/c'e' stato errore
+ * (usato anche per i tiri solo-locali, che nel DB non hanno riga).
+ */
+export async function toggleChatReaction(
+  messageId: string,
+  input: { char: string; userId: string; userName: string },
+): Promise<ChatReaction[] | null> {
+  if (!supabase) return null;
+  // .limit(1) invece di .single()/maybeSingle(): in Locale l'Accept a riga
+  // singola darebbe 406/PGRST116 sulle righe assenti (localRest).
+  const { data: rows, error: readError } = await supabase
+    .from('chat_messages')
+    .select('reactions')
+    .eq('id', messageId)
+    .limit(1);
+  if (readError) {
+    console.error('[chatService] Errore lettura reazioni:', readError);
+    return null;
+  }
+  const row = Array.isArray(rows) ? rows[0] : null;
+  if (!row) {
+    console.warn('[chatService] Reazioni ignorate: riga chat inesistente', messageId);
+    return null;
+  }
+  const current: ChatReaction[] = Array.isArray(row.reactions) ? row.reactions : [];
+  const mine = current.filter((reaction) => reaction.userId !== input.userId);
+  const alreadySame = current.some(
+    (reaction) => reaction.userId === input.userId && reaction.char === input.char,
+  );
+  const next: ChatReaction[] = alreadySame
+    ? mine
+    : [...mine, {
+        char: input.char,
+        userId: input.userId,
+        userName: input.userName,
+        createdAt: new Date().toISOString(),
+      }];
+  const { data: updated, error } = await supabase
+    .from('chat_messages')
+    .update({ reactions: next })
+    .eq('id', messageId)
+    .select('reactions')
+    .limit(1);
+  if (error) {
+    console.error('[chatService] Errore salvataggio reazione:', error);
+    return null;
+  }
+  if (!Array.isArray(updated) || updated.length === 0) {
+    console.warn('[chatService] Reazione non salvata: riga non trovata', messageId);
+    return null;
+  }
+  return next;
 }
 
 /**
