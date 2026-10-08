@@ -64,8 +64,6 @@ function CompareOutcome({ result }: { result: RollComparisonResult }) {
 export function DiceRollHistoryCard({ result, onReroll, variant = 'default' }: { result: RollResult; onReroll: () => void; variant?: 'default' | 'chat' }) {
   const primary = formatPrimaryRollResult(result);
   const { getStandardAppearance } = useDiceAppearance();
-  const hasGroupedCustomResults = result.diceGroups.some((group) => group.customDieSnapshot?.resultDisplayMode === 'grouped');
-  const groupedResultTotal = result.total ?? result.diceGroups.reduce((count, group) => count + group.rolls.filter((die) => die.active && die.physicalRole !== 'units').length, 0);
   const avatarSize = variant === 'chat' ? 'h-10 w-10' : 'h-7 w-7';
   return (
     <article data-dice-roll-history-card className="rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 p-2 shadow-md">
@@ -175,7 +173,6 @@ export function DiceRollHistoryCard({ result, onReroll, variant = 'default' }: {
               }))}
             {result.comparisons.map((comparison) => <CompareOutcome key={comparison.itemId} result={comparison} />)}
           </div>
-          {hasGroupedCustomResults && <div data-custom-die-grouped-total className="mt-1 text-right text-[11px] font-semibold text-[var(--dash-text-strong)]">Totale: {groupedResultTotal}</div>}
         </div>
       </div>
     </article>

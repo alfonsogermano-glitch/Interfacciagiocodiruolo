@@ -1,14 +1,29 @@
 import { supabase } from '../../lib/supabaseClient';
 import { persistenceKey } from '../storage/persistenceMode';
-import type { RollResult } from '../../app/components/session/dice/diceTypes';
+import type { DiceSkinId, RollCustomDieFace, RollResult } from '../../app/components/session/dice/diceTypes';
 
 export type ChatEntryKind = 'message' | 'roll' | 'attachment';
+
+/** Faccia custom uscita in un tiro, con i colori/skin del dado per poterla
+ rigenerare graficamente nella citazione (banner composer + bolle chat). */
+export interface ChatQuoteDiceFace {
+  face: RollCustomDieFace;
+  symbolColor?: string;
+  bodyColor?: string;
+  skinId?: DiceSkinId;
+  textureScale?: number;
+  /** Quante volte la stessa faccia e' uscita (raggruppamento "xN"). */
+  count: number;
+}
 
 /** Citazione di un messaggio/tiro allegato al messaggio che si sta scrivendo. */
 export interface ChatQuote {
   senderName: string;
   content: string;
   kind: ChatEntryKind;
+  /** Solo per kind='roll' con dadi custom: facce visive da mostrare al
+   posto della conversione testuale. */
+  diceFaces?: ChatQuoteDiceFace[];
 }
 
 /** Reazione emoji lasciata su un messaggio (una per utente per messaggio). */
@@ -17,6 +32,23 @@ export interface ChatReaction {
   userId: string;
   userName: string;
   createdAt: string;
+}
+
+/** Allegato file condiviso in chat: qui ci sono solo i metadati, i bytes
+ stanno nello storage scelto dall'utente al caricamento (Locale = IndexedDB
+ via contentAssets, Cloud = bucket Supabase Storage). */
+export interface ChatAttachment {
+  /** Nome originale completo con estensione (card in chat + nome proposto
+   nella finestra "Salva con nome"). */
+  fileName: string;
+  /** Dimensione in byte (limite massimo 50 MB, validato al caricamento). */
+  size: number;
+  contentType: string;
+  bucket: string;
+  /** Path dentro il bucket o id dell'asset locale (`bucket/path`). */
+  assetPath: string;
+  /** Dove sono finiti i bytes al caricamento: determina come scaricarli. */
+  storage: 'local' | 'cloud';
 }
 
 export interface ChatMessage {
@@ -32,6 +64,8 @@ export interface ChatMessage {
   roll?: RollResult;
   /** Citazione persistita in payload.quote (solo per kind='message'). */
   quote?: ChatQuote;
+  /** Allegato persistito in payload.attachment (solo per kind='attachment'). */
+  attachment?: ChatAttachment;
   /** Reazioni emoji della riga (colonna reactions JSONB). */
   reactions?: ChatReaction[];
 }
@@ -49,6 +83,9 @@ function rowToEntry(row: any): ChatMessage {
     createdAt: row.created_at,
     roll: row.kind === 'roll' && payload ? (payload as RollResult) : undefined,
     quote: row.kind !== 'roll' && payload && payload.quote ? (payload.quote as ChatQuote) : undefined,
+    attachment: row.kind === 'attachment' && payload && payload.attachment
+      ? (payload.attachment as ChatAttachment)
+      : undefined,
     reactions: Array.isArray(row.reactions) ? (row.reactions as ChatReaction[]) : [],
   };
 }
@@ -101,6 +138,45 @@ export async function sendChatMessage(input: {
     return null;
   }
   console.log(`[chatService] Messaggio salvato: ${data.id}`);
+  return rowToEntry(data);
+}
+
+/**
+ * Salva un allegato file nella timeline della chat (kind='attachment').
+ * Il payload contiene solo i metadati (ChatAttachment): i bytes restano dove
+ * ha caricato l'utente - IndexedDB in Locale, bucket Storage in Cloud - e
+ * vengono letti di nuovo solo al momento del download.
+ * content = fileName, utile per leggere l'elenco anche come testo piano.
+ */
+export async function sendChatAttachment(input: {
+  campaignId: string;
+  senderId: string;
+  senderName: string;
+  senderAvatarUrl?: string;
+  attachment: ChatAttachment;
+}): Promise<ChatMessage | null> {
+  if (!supabase) {
+    console.warn('[chatService] Supabase non configurato');
+    return null;
+  }
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .insert({
+      campaign_id: input.campaignId,
+      sender_id: input.senderId,
+      sender_name: input.senderName,
+      sender_avatar_url: input.senderAvatarUrl ?? null,
+      kind: 'attachment',
+      content: input.attachment.fileName,
+      payload: { attachment: input.attachment },
+    })
+    .select('*')
+    .single();
+  if (error) {
+    console.error('[chatService] Errore invio allegato chat:', error);
+    return null;
+  }
+  console.log(`[chatService] Allegato salvato: ${data.id}`);
   return rowToEntry(data);
 }
 

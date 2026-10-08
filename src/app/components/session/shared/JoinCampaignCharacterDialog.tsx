@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { User, Sparkles, Loader2 } from 'lucide-react';
+import { User, Sparkles, Loader2, X } from 'lucide-react';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../../ui/paletteColors';
 import type { RulesetId } from '../../../campaigns/campaignTypes';
 
@@ -128,9 +128,10 @@ export function JoinCampaignCharacterDialog({
             type="button"
             onClick={onClose}
             style={{ border: `1px solid ${colors.border}`, color: colors.text }}
-            className="rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
-          >
-            Annulla
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
+            >
+              <X className="h-4 w-4 shrink-0" aria-hidden="true" />
+              Annulla
           </button>
         </div>
       </div>

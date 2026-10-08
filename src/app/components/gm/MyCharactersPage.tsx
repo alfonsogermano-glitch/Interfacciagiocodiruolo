@@ -1900,8 +1900,9 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
                 type="button"
                 onClick={() => { setCopyDialogEntry(null); setCopyTargetId(null); }}
                 style={{ border: `1px solid ${menuColors.border}`, color: menuColors.text }}
-                className="rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
+                className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
               >
+                <X className="h-4 w-4 shrink-0" aria-hidden="true" />
                 Annulla
               </button>
               <button

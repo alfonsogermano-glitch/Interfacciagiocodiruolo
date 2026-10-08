@@ -1,11 +1,24 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent as ReactChangeEvent, type ClipboardEvent as ReactClipboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { MessageSquare, Plus, Smile, Image as ImageIcon, MoreVertical, Trash2, Quote, X } from 'lucide-react';
+import { MessageSquare, Plus, Smile, MoreVertical, Trash2, Quote, X, Check, FileDown, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { Copy } from '../IconeCopia';
+import { ImageSun } from '../IconeImmagine';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { useDiceSession } from './dice/DiceSessionContext';
 import { EmojiPicker } from './EmojiPicker';
+import { parseQuotedPaste } from './chatPaste';
+import {
+  MAX_ATTACHMENT_BYTES,
+  saveAttachmentToDisk,
+  splitAttachmentName,
+  uploadChatAttachment,
+} from './chatAttachments';
 import { EmojiFlag, FlagText, flagImageName } from './EmojiFlag';
 import { DiceRollHistoryCard } from './dice/DiceRollHistoryCard';
+import { CustomDieFaceResult } from './dice/CustomDieFaceResult';
 import type { RollResult } from './dice/diceTypes';
+import { formatPrimaryRollResult, rollResultSummary } from './dice/diceResultSummary';
 import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { usePortalContainer } from '../ui/portal-container';
@@ -13,20 +26,25 @@ import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
 import {
   loadChatMessages,
   sendChatMessage,
+  sendChatAttachment,
   clearChatMessages,
   writeChatLastSeen,
   toggleChatReaction,
+  deleteChatMessage,
+  type ChatAttachment,
   type ChatMessage,
   type ChatQuote,
   type ChatReaction,
 } from '../../../services/supabase/chatService';
+import { removeContentAsset } from '../../../services/storage/contentAssets';
 
 type ChatTab = 'all' | 'chat' | 'rolls' | 'files';
 
-/** Voce della timeline unificata: messaggio di testo o tiro. */
+/** Voce della timeline unificata: messaggio di testo, tiro o allegato file. */
 type TimelineItem =
   | { key: string; time: number; kind: 'message'; message: ChatMessage }
-  | { key: string; time: number; kind: 'roll'; roll: RollResult; reactions?: ChatReaction[] };
+  | { key: string; time: number; kind: 'roll'; roll: RollResult; reactions?: ChatReaction[] }
+  | { key: string; time: number; kind: 'attachment'; message: ChatMessage };
 
 const TABS: { id: ChatTab; label: string }[] = [
   { id: 'all', label: 'Tutti' },
@@ -35,13 +53,110 @@ const TABS: { id: ChatTab; label: string }[] = [
   { id: 'files', label: 'File' },
 ];
 
+/** Faccia custom raggruppata per la citazione: stessa identita' visiva
+ (icona/immagine/testo) = un blocco con il conteggio "xN". */
+function customDiceFacesForRoll(roll: RollResult): NonNullable<ChatQuote['diceFaces']> {
+  const faces = new Map<string, NonNullable<ChatQuote['diceFaces']>[number]>();
+  for (const group of roll.diceGroups) {
+    for (const die of group.rolls) {
+      if (!die.active || die.physicalRole === 'units' || !die.customFace) continue;
+      const visual = die.customFace.visual;
+      const key = visual.kind === 'icon'
+        ? `icon:${visual.iconName}`
+        : visual.kind === 'image'
+          ? `image:${visual.publicUrl}`
+          : `text:${visual.text}`;
+      const existing = faces.get(key);
+      if (existing) {
+        existing.count += 1;
+        continue;
+      }
+      faces.set(key, {
+        face: die.customFace,
+        symbolColor: die.customFace.symbolColor ?? group.customDieSnapshot?.symbolColor,
+        bodyColor: group.customDieSnapshot?.bodyColor,
+        skinId: group.customDieSnapshot?.skinId,
+        textureScale: group.customDieSnapshot?.textureScale,
+        count: 1,
+      });
+    }
+  }
+  return [...faces.values()];
+}
+
+/** Contenuto della citazione: per i tiri con dadi custom mostra le facce
+ visive (icona/immagine xN) invece della conversione testuale; per il resto
+ il testo come prima. */
+function ChatQuoteContent({ quote }: { quote: ChatQuote }) {
+  const diceFaces = quote.diceFaces;
+  if (!diceFaces || diceFaces.length === 0) {
+    return <div className="line-clamp-2 text-xs text-[var(--dash-muted)]">{quote.content}</div>;
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      {quote.content && (
+        <span className="min-w-0 truncate text-xs text-[var(--dash-muted)]">{quote.content}</span>
+      )}
+      {diceFaces.map((item, index) => (
+        <span
+          key={`${item.face.index}:${item.face.visual.kind}:${index}`}
+          className="inline-flex shrink-0 items-center gap-1"
+          title={item.face.label ?? undefined}
+        >
+          <CustomDieFaceResult
+            face={item.face}
+            className="h-4 w-4"
+            symbolColor={item.symbolColor}
+            bodyColor={item.bodyColor}
+            skinId={item.skinId}
+            textureScale={item.textureScale}
+          />
+          {item.count > 1 && (
+            <span className="text-[11px] font-semibold text-[var(--dash-muted)]">×{item.count}</span>
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** Avatar del mittente: condiviso dalla bolla messaggio e dalla card allegato. */
+function ChatSenderAvatar({ message }: { message: ChatMessage }) {
+  return (
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--dash-border)] bg-[var(--dash-surface-2)]">
+      {message.senderAvatarUrl
+        ? <img src={message.senderAvatarUrl} alt="" className="h-full w-full object-cover" />
+        : <span className="text-xs font-semibold text-[var(--dash-text)]">{message.senderName.slice(0, 1).toUpperCase()}</span>}
+    </div>
+  );
+}
+
 /** Contenuto da citare per un item della timeline (testo o sintesi del tiro). */
 function quoteForItem(item: TimelineItem): ChatQuote {
   if (item.kind === 'roll') {
-    return {
+    const quote: ChatQuote = {
       senderName: item.roll.rollerName,
       kind: 'roll',
-      content: `${item.roll.formulaText || item.roll.formulaName || 'Tiro'} → ${item.roll.total}`,
+      content: rollResultSummary(item.roll),
+    };
+    const diceFaces = customDiceFacesForRoll(item.roll);
+    if (diceFaces.length > 0) {
+      // Le facce visive sostituiscono l'elenco testuale: il contenuto resta
+      // solo la formula (con il totale, quando il tiro e' traducibile).
+      const formula = item.roll.formulaText || item.roll.formulaName || 'Tiro';
+      const primary = formatPrimaryRollResult(item.roll);
+      quote.diceFaces = diceFaces;
+      quote.content = primary !== null ? `${formula} → ${primary}` : formula;
+    }
+    return quote;
+  }
+  if (item.kind === 'attachment') {
+    // Non usata in pratica (sugli allegati il bottone Citazione non compare):
+    // il ramo tiene però il tipo esaustivo.
+    return {
+      senderName: item.message.senderName,
+      kind: 'message',
+      content: item.message.attachment?.fileName ?? '',
     };
   }
   return {
@@ -62,8 +177,29 @@ function groupReactions(reactions: ChatReaction[] | undefined): Array<[string, C
   return [...groups.entries()];
 }
 
+/** Testo della voce per la copia negli appunti. La citazione resta marcata
+ come blockquote ("> ") cosi' che l'incollo nel composer la riconosca e
+ ricostruisca la struttura citazione invece di buttare tutto nel testo. */
+function copyTextOfItem(item: TimelineItem): string {
+  // Anche qui il ramo non viene usato (Copia non compare sugli allegati).
+  if (item.kind === 'attachment') return item.message.attachment?.fileName ?? '';
+  if (item.kind === 'message') {
+    const quote = item.message.quote;
+    if (quote) {
+      const quoted = `${quote.senderName}: ${quote.content}`
+        .split('\n')
+        .map((line) => `> ${line}`)
+        .join('\n');
+      return `${quoted}\n\n${item.message.content}`;
+    }
+    return item.message.content;
+  }
+  const roll = item.roll;
+  return `${roll.rollerName}: ${rollResultSummary(roll)}`;
+}
+
 export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?: ChatMessage | null }) {
-  const { rolls, rerollResult, clearLocalHistory } = useDiceSession();
+  const { rolls, rerollResult, clearLocalHistory, removeRoll } = useDiceSession();
   const { user } = useAuth();
   const { activeCampaign } = useCampaign();
   const [activeTab, setActiveTab] = useState<ChatTab>('all');
@@ -72,9 +208,17 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  // Dialog di conferma cancellazione (id della voce) e feedback "Copiato".
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const copyTimerRef = useRef<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // File picker nascosto del pulsante "+" (qualsiasi tipo di file) e stato di
+  // caricamento per disabilitare il bottone durante l'upload.
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const emojiPanelRef = useRef<HTMLDivElement>(null);
   const caretRef = useRef<number | null>(null);
@@ -86,6 +230,10 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
   const [hoveredEntryId, setHoveredEntryId] = useState<string | null>(null);
   const [reactionPicker, setReactionPicker] = useState<{ id: string; top: number; left: number } | null>(null);
   const [replyQuote, setReplyQuote] = useState<ChatQuote | null>(null);
+  // Reazioni sui tiri di sessione: la loro riga in `entries` potrebbe non
+  // esserci ancora (o non esserci mai, tiri segreti), quindi lo stato delle
+  // reazioni vive qui ed e' unito alla timeline nel merge.
+  const [sessionRollReactions, setSessionRollReactions] = useState<Record<string, ChatReaction[]>>({});
   // Container dei portali dentro l'albero [data-dashboard-palette]: ci arrivano
   // le variabili --dash-* (su document.body lo sfondo del picker sarebbe vuoto).
   const portalTarget = usePortalContainer();
@@ -100,10 +248,23 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
     setEntries((prev) => prev.map((entry) => (
       entry.id === messageId ? { ...entry, reactions: next } : entry
     )));
+    setSessionRollReactions((prev) => ({ ...prev, [messageId]: next }));
   }, []);
 
+  // Voce cancellata da un altro partecipante: la rimuove dalla timeline e
+  // anche dalla copia locale del tiro (se e' presente nella sessione).
+  const handleChatDeleteBroadcast = useCallback((msg: { payload?: Record<string, unknown> } | null) => {
+    const messageId = typeof msg?.payload?.messageId === 'string' ? msg.payload.messageId : null;
+    if (!messageId) return;
+    setEntries((prev) => prev.filter((entry) => entry.id !== messageId));
+    removeRoll(messageId);
+  }, [removeRoll]);
+
   const chatChannel = useCampaignChannel(activeCampaign?.id, {
-    onBroadcast: { chat_reaction: handleChatReactionBroadcast },
+    onBroadcast: {
+      chat_reaction: handleChatReactionBroadcast,
+      chat_delete: handleChatDeleteBroadcast,
+    },
   });
 
   // Messaggio in tempo reale ricevuto mentre il pannello e' aperto:
@@ -206,6 +367,29 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
     focusRequestedRef.current = true;
   }, []);
 
+  // Incollo intelligente nel composer: il formato "> Nome: citazione\n\ncorpo"
+  // prodotto dalla copia viene riconosciuto (parseQuotedPaste) e ricostruisce
+  // la citazione strutturata (banner di risposta) con il resto nel campo.
+  const handleComposerPaste = useCallback((event: ReactClipboardEvent<HTMLInputElement>) => {
+    const parsed = parseQuotedPaste(event.clipboardData.getData('text/plain'));
+    if (!parsed) return;
+    event.preventDefault();
+    setReplyQuote({ senderName: parsed.senderName, content: parsed.content, kind: 'message' });
+    const input = event.currentTarget;
+    let start: number | null = null;
+    let end: number | null = null;
+    if (inputTouchedRef.current) {
+      start = input.selectionStart;
+      end = input.selectionEnd;
+    }
+    const caret = (start ?? input.value.length) + parsed.body.length;
+    setMessage((prev) => (
+      start === null ? prev + parsed.body : prev.slice(0, start) + parsed.body + prev.slice(end ?? start)
+    ));
+    caretRef.current = caret;
+    focusRequestedRef.current = true;
+  }, []);
+
   // Aggiorna la reazione dell'utente su una voce e la broadcasta agli altri.
   const applyReaction = useCallback(async (entryId: string, char: string) => {
     if (!user) return;
@@ -218,6 +402,7 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
     setEntries((prev) => prev.map((entry) => (
       entry.id === entryId ? { ...entry, reactions } : entry
     )));
+    setSessionRollReactions((prev) => ({ ...prev, [entryId]: reactions }));
     void chatChannel.send('chat_reaction', { messageId: entryId, reactions }).catch((error) => {
       console.error('[Chat] Errore broadcast reazione:', error);
     });
@@ -247,6 +432,61 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
     setReactionPicker(null);
     if (target) void applyReaction(target.id, char);
   }, [reactionPicker, applyReaction]);
+
+  // Cancella la voce senza conferme: la toglie subito dalla timeline, la
+  // elimina dal DB (se la riga esiste) e lo broadcasta agli altri client.
+  const deleteEntry = useCallback(async (entryId: string) => {
+    setReactionPicker(null);
+    setSelectedEntryId(null);
+    const target = entries.find((entry) => entry.id === entryId);
+    setEntries((prev) => prev.filter((entry) => entry.id !== entryId));
+    // Toglie anche la copia locale del tiro: senza questo il merge dei tiri
+    // di sessione riporterebbe la voce appena cancellata.
+    removeRoll(entryId);
+    await deleteChatMessage(entryId);
+    // Allegato proprio: elimina anche i bytes dallo storage (best effort).
+    // Solo i miei: per quelli degli altri la RLS potrebbe non cancellare la
+    // riga e il file resterebbe comunque raggiungibile dalla chat.
+    if (target?.kind === 'attachment' && target.attachment && user && target.senderId === user.id) {
+      void removeContentAsset(target.attachment.bucket, target.attachment.assetPath, target.attachment.storage)
+        .catch((error) => console.warn('[Chat] Allegato non rimosso dallo storage:', error));
+    }
+    void chatChannel.send('chat_delete', { messageId: entryId }).catch((error) => {
+      console.error('[Chat] Errore broadcast cancellazione:', error);
+    });
+  }, [chatChannel, removeRoll, entries, user]);
+
+  // Copia: solo negli appunti (feedback "Copiato" per 1,5s). NON tocca il
+  // composer: il testo puo' essere incollato in un'altra chat o in un altro
+  // programma, e incollando qui dentro il formato blockquote viene comunque
+  // riconosciuto da handleComposerPaste. Per citare nella stessa chat c'e' il
+  // bottone Citazione.
+  const copyEntry = useCallback((entry: TimelineItem) => {
+    void navigator.clipboard.writeText(copyTextOfItem(entry)).then(() => {
+      setCopiedId(entry.key);
+      if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = window.setTimeout(() => setCopiedId(null), 1500);
+    }).catch((error) => {
+      console.warn('[Chat] Copia negli appunti non riuscita:', error);
+    });
+  }, []);
+
+  useEffect(() => () => {
+    if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
+  }, []);
+
+  // Click sulla card allegato: apre la finestra "Salva con nome" con il file
+  // pronto su disco (dove la File System Access API non c'e' si ripiega sul
+  // download del browser).
+  const handleDownloadAttachment = useCallback((message: ChatMessage) => {
+    const attachment = message.attachment;
+    if (!attachment) return;
+    saveAttachmentToDisk(attachment).catch((error) => {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      console.error('[Chat] Download allegato non riuscito:', error);
+      toast.error('Impossibile scaricare il file.');
+    });
+  }, []);
 
   useEffect(() => {
     if (!activeCampaign) {
@@ -280,23 +520,29 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
       const time = Date.parse(entry.createdAt) || 0;
       if (entry.kind === 'roll' && entry.roll) {
         items.push({ key: entry.id, time, kind: 'roll', roll: entry.roll, reactions: entry.reactions });
+      } else if (entry.kind === 'attachment') {
+        items.push({ key: entry.id, time, kind: 'attachment', message: entry });
       } else {
         items.push({ key: entry.id, time, kind: 'message', message: entry });
       }
     }
     for (const roll of rolls) {
       if (dbIds.has(roll.id)) continue;
-      items.push({ key: roll.id, time: roll.createdAt, kind: 'roll', roll });
+      // Le reazioni dei tiri di sessione vivono in sessionRollReactions: la
+      // riga in `entries` puo' non esserci ancora (salvataggio a fine tiro).
+      items.push({ key: roll.id, time: roll.createdAt, kind: 'roll', roll, reactions: sessionRollReactions[roll.id] ?? [] });
     }
     items.sort((a, b) => a.time - b.time);
     return items;
-  }, [entries, rolls]);
+  }, [entries, rolls, sessionRollReactions]);
 
   const visibleItems = useMemo(() => timeline.filter((item) => {
     if (activeTab === 'all') return true;
-    if (activeTab === 'files') return false;
+    // Il tab File elenca solo gli allegati; la Chat resta per testi (e tiri
+    // modifier), i Tiri per il resto.
+    if (activeTab === 'files') return item.kind === 'attachment';
     if (activeTab === 'rolls') return item.kind === 'roll';
-    return item.kind === 'message' || item.roll.origin === 'modifier';
+    return item.kind === 'message' || (item.kind === 'roll' && item.roll.origin === 'modifier');
   }), [timeline, activeTab]);
 
   useEffect(() => {
@@ -348,6 +594,18 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
     setConfirmClear(false);
     setMenuOpen(false);
     if (!activeCampaign) return;
+    // Prima di svuotare la timeline elimina dallo storage i bytes dei MIEI
+    // allegati (best effort): quelli degli altri restano intatti perche' la
+    // RLS potrebbe non cancellarne la riga e il file deve restare valido.
+    for (const entry of entries) {
+      if (entry.kind === 'attachment' && entry.attachment && user && entry.senderId === user.id) {
+        try {
+          await removeContentAsset(entry.attachment.bucket, entry.attachment.assetPath, entry.attachment.storage);
+        } catch (error) {
+          console.warn('[Chat] Allegato non rimosso dallo storage:', error);
+        }
+      }
+    }
     await clearChatMessages(activeCampaign.id);
     // Ricarica dal DB: mostra esattamente ciò che la RLS ha permesso di
     // cancellare (GM: tutta la timeline; giocatore: i propri messaggi).
@@ -357,6 +615,62 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
     // li ri-aggiungerebbe in merge pur essendo stati cancellati dal DB.
     clearLocalHistory();
     console.log('[Chat] chat svuotata');
+  };
+
+  // Pulsante "+" della composer: qualsiasi tipo di file, max 50 MB. Il file
+  // viene caricato nel posto giusto scelto dall'utente (Locale = IndexedDB,
+  // Cloud = bucket Storage) e poi condiviso in chat come card cliccabile.
+  const handleFilePicked = async (event: ReactChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Reset immediato: permette di riesceglierlo anche dopo un errore.
+    event.target.value = '';
+    if (!file) return;
+    if (!user || !activeCampaign) {
+      toast.error('Impossibile condividere il file: campagna o account non disponibili.');
+      return;
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      toast.error(`"${file.name}" supera la dimensione massima di 50 MB.`);
+      return;
+    }
+    setUploadingFile(true);
+    let attachment: ChatAttachment | null = null;
+    try {
+      attachment = await uploadChatAttachment({
+        file,
+        campaignId: activeCampaign.id,
+        userId: user.id,
+      });
+      const saved = await sendChatAttachment({
+        campaignId: activeCampaign.id,
+        senderId: user.id,
+        senderName: user.displayName,
+        senderAvatarUrl: user.avatarUrl,
+        attachment,
+      });
+      if (!saved) throw new Error('Salvataggio allegato non riuscito');
+      setEntries((prev) => [...prev, saved]);
+      // L'allegato e' visibile solo nei tab Tutti/File: dopo un invio riuscito
+      // passa a Tutti, altrimenti chi e' su un altro tab vedrebbe "nulla".
+      setActiveTab('all');
+      console.log('[Chat] Allegato condiviso:', saved.content);
+      // Anche il proprio allegato diventa "visto" (pallino come per i testi).
+      writeChatLastSeen(activeCampaign.id, saved.createdAt);
+      void chatChannel.send('chat_message', { entry: saved }).catch((error) => {
+        console.error('[Chat] Errore broadcast allegato chat:', error);
+      });
+    } catch (error) {
+      // Upload riuscito ma insert fallito (o upload fallito): se i bytes ci
+      // sono non lasciarli orfani nello storage.
+      if (attachment) {
+        void removeContentAsset(attachment.bucket, attachment.assetPath, attachment.storage)
+          .catch(() => { /* best effort */ });
+      }
+      console.error('[Chat] Caricamento allegato non riuscito:', error);
+      toast.error(error instanceof Error && error.message ? error.message : 'Caricamento del file non riuscito.');
+    } finally {
+      setUploadingFile(false);
+    }
   };
 
   return (
@@ -403,7 +717,7 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
         </div>
       </div>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+      <div ref={scrollRef} className="session-chat-scroll min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
         {loading ? (
           <div className="flex h-full items-center justify-center">
             <p className="text-sm text-[var(--dash-muted)]">Caricamento chat...</p>
@@ -414,45 +728,86 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
             <p className="text-sm text-[var(--dash-muted)]">
               {activeTab === 'files' ? 'Nessun file condiviso' : 'Nessun messaggio ancora'}
             </p>
-            <p className="text-xs text-[var(--dash-muted)] opacity-60">
-              Scrivi qualcosa per iniziare la conversazione
-            </p>
+            {activeTab !== 'files' && (
+              <p className="text-xs text-[var(--dash-muted)] opacity-60">
+                Scrivi qualcosa per iniziare la conversazione
+              </p>
+            )}
           </div>
         ) : (
           <>
             {visibleItems.map((item) => {
-              const reactions = item.kind === 'message' ? item.message.reactions : item.reactions;
+              const reactions = item.kind === 'roll' ? item.reactions : item.message.reactions;
               const grouped = groupReactions(reactions);
-              // I tiri solo-locali non hanno riga nel DB: niente reazioni su di essi.
-              const canAct = item.kind === 'message' || item.reactions !== undefined;
-              const showActions = canAct && (selectedEntryId === item.key || hoveredEntryId === item.key);
+              const attachment = item.kind === 'attachment' ? item.message.attachment : undefined;
+              const attachmentName = splitAttachmentName(attachment?.fileName ?? '');
+              // Le azioni compaiono su ogni voce (tiri di sessione compresi);
+              // sugli allegati solo Reagisci e Cancella (niente citazione/copia
+              // per un file). Reagire serve pero' una riga persistita: i tiri
+              // segreti non hanno riga in chat su cui salvare la reazione.
+              const canReact = item.kind !== 'roll' || item.roll.visibility === 'public';
+              const showActions = selectedEntryId === item.key || hoveredEntryId === item.key;
               const actions = showActions ? (
                 <div className="absolute -top-3 right-0 z-20 flex gap-1">
+                  {canReact && (
+                    <button
+                      type="button"
+                      aria-label="Reagisci con emoji"
+                      title="Reagisci con emoji"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleReactionPicker(item.key, event.currentTarget);
+                      }}
+                      className="rounded-full border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 text-[var(--dash-muted)] shadow-sm transition-colors hover:text-[var(--dash-accent)]"
+                    >
+                      <Smile className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {item.kind !== 'attachment' && (
+                    <button
+                      type="button"
+                      aria-label="Citazione"
+                      title="Citazione"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setReactionPicker(null);
+                        setReplyQuote(quoteForItem(item));
+                        inputRef.current?.focus();
+                      }}
+                      className="rounded-full border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 text-[var(--dash-muted)] shadow-sm transition-colors hover:text-[var(--dash-accent)]"
+                    >
+                      <Quote className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {item.kind !== 'attachment' && (
+                    <button
+                      type="button"
+                      aria-label={copiedId === item.key ? 'Copiato' : 'Copia'}
+                      title={copiedId === item.key ? 'Copiato!' : 'Copia'}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setReactionPicker(null);
+                        copyEntry(item);
+                      }}
+                      className="rounded-full border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 text-[var(--dash-muted)] shadow-sm transition-colors hover:text-[var(--dash-accent)]"
+                    >
+                      {copiedId === item.key
+                        ? <Check className="h-3.5 w-3.5" />
+                        : <Copy className="h-3.5 w-3.5" />}
+                    </button>
+                  )}
                   <button
                     type="button"
-                    aria-label="Reagisci con emoji"
-                    title="Reagisci con emoji"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      toggleReactionPicker(item.key, event.currentTarget);
-                    }}
-                    className="rounded-full border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 text-[var(--dash-muted)] shadow-sm transition-colors hover:text-[var(--dash-accent)]"
-                  >
-                    <Smile className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Citazione"
-                    title="Citazione"
+                    aria-label="Cancella"
+                    title="Cancella"
                     onClick={(event) => {
                       event.stopPropagation();
                       setReactionPicker(null);
-                      setReplyQuote(quoteForItem(item));
-                      inputRef.current?.focus();
+                      setConfirmDelete(item.key);
                     }}
-                    className="rounded-full border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 text-[var(--dash-muted)] shadow-sm transition-colors hover:text-[var(--dash-accent)]"
+                    className="rounded-full border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 text-[var(--dash-muted)] shadow-sm transition-colors hover:text-red-400"
                   >
-                    <Quote className="h-3.5 w-3.5" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               ) : null;
@@ -462,7 +817,6 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
                   title={grouped.map(([, list]) => list.map((reaction) => reaction.userName).join(', ')).join(' · ')}
                 >
                   {grouped.map(([char, list]) => {
-                    const mine = Boolean(user && list.some((reaction) => reaction.userId === user.id));
                     const names = list.map((reaction) => reaction.userName).join(', ');
                     return (
                       <button
@@ -474,9 +828,7 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
                           event.stopPropagation();
                           void applyReaction(item.key, char);
                         }}
-                        className={`flex items-center gap-0.5 rounded-full px-1 py-0.5 transition-transform hover:scale-110 ${
-                          mine ? 'bg-[var(--dash-surface-2)] ring-1 ring-[var(--dash-accent)]' : ''
-                        }`}
+                        className="flex items-center gap-0.5 rounded-full px-1 py-0.5 transition-transform hover:scale-110"
                       >
                         {flagImageName(char)
                           ? <EmojiFlag char={char} className="h-3.5 w-3.5" />
@@ -503,11 +855,7 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
                 >
                   {item.kind === 'message' ? (
                     <div className="flex items-start gap-2">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--dash-border)] bg-[var(--dash-surface-2)]">
-                        {item.message.senderAvatarUrl
-                          ? <img src={item.message.senderAvatarUrl} alt="" className="h-full w-full object-cover" />
-                          : <span className="text-xs font-semibold text-[var(--dash-text)]">{item.message.senderName.slice(0, 1).toUpperCase()}</span>}
-                      </div>
+                      <ChatSenderAvatar message={item.message} />
                       <div className="min-w-0 flex-1">
                         <div className="text-xs font-semibold text-[var(--dash-text-strong)]">{item.message.senderName}</div>
                         <div className="relative mt-0.5">
@@ -517,13 +865,42 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
                                 <div className="text-[11px] font-semibold text-[var(--dash-accent)]">
                                   {item.message.quote.senderName}
                                 </div>
-                                <div className="line-clamp-2 text-xs text-[var(--dash-muted)]">
-                                  {item.message.quote.content}
-                                </div>
+                                <ChatQuoteContent quote={item.message.quote} />
                               </div>
                             )}
                             <FlagText>{item.message.content}</FlagText>
                           </div>
+                          {actions}
+                          {badges}
+                        </div>
+                      </div>
+                    </div>
+                  ) : item.kind === 'attachment' ? (
+                    <div className="flex items-start gap-2">
+                      <ChatSenderAvatar message={item.message} />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-semibold text-[var(--dash-text-strong)]">{item.message.senderName}</div>
+                        <div className="relative mt-0.5">
+                          {/* Card allegato: nome + estensione accanto all'icona
+                              di download. Il click apre la finestra "Salva con
+                              nome" con il file pronto su disco. */}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                aria-label={`Scarica ${attachment?.fileName ?? 'file'}`}
+                                onClick={() => handleDownloadAttachment(item.message)}
+                                className="flex w-full min-w-0 items-center gap-2 rounded-lg rounded-tl-none border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-2 text-left text-sm text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)]"
+                              >
+                                <FileDown className="h-4 w-4 shrink-0 text-[var(--dash-accent)]" aria-hidden="true" />
+                                <span className="min-w-0 truncate font-semibold">
+                                  {attachmentName.base}
+                                  <span className="font-normal text-[var(--dash-muted)]">{attachmentName.ext}</span>
+                                </span>
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">Scarica {attachment?.fileName ?? 'file'}</TooltipContent>
+                          </Tooltip>
                           {actions}
                           {badges}
                         </div>
@@ -555,9 +932,7 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
                 <div className="text-[11px] font-semibold text-[var(--dash-accent)]">
                   {replyQuote.senderName}
                 </div>
-                <div className="truncate text-xs text-[var(--dash-muted)]">
-                  {replyQuote.content}
-                </div>
+                <ChatQuoteContent quote={replyQuote} />
               </div>
               <button
                 type="button"
@@ -576,31 +951,60 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
               type="text"
               value={message}
               onChange={(event) => setMessage(event.target.value)}
+              onPaste={handleComposerPaste}
               onKeyDown={(event) => { if (event.key === 'Enter') handleSend(); }}
               onFocus={() => { inputTouchedRef.current = true; }}
               placeholder={replyQuote ? 'Rispondi...' : 'Scrivi qualcosa...'}
               className="min-w-0 flex-1 bg-transparent text-sm text-[var(--dash-text)] outline-none placeholder:text-[var(--dash-muted)]"
             />
-            <button type="button" aria-label="Allega" className="rounded-md p-1 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]">
-              <Plus className="h-4 w-4" />
-            </button>
-            <button type="button" aria-label="Immagine" className="rounded-md p-1 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]">
-              <ImageIcon className="h-4 w-4" />
-            </button>
-            <button
-              ref={emojiButtonRef}
-              type="button"
-              aria-label="Emoji"
-              aria-expanded={emojiOpen}
-              onClick={() => setEmojiOpen((open) => !open)}
-              className={`rounded-md p-1 transition-colors ${
-                emojiOpen
-                  ? 'bg-[var(--dash-surface-2)] text-[var(--dash-accent)]'
-                  : 'text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]'
-              }`}
-            >
-              <Smile className="h-4 w-4" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Inserisci file"
+                  disabled={uploadingFile}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="rounded-md p-1 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] disabled:opacity-40"
+                >
+                  {uploadingFile
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Plus className="h-4 w-4" />}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Inserisci file</TooltipContent>
+            </Tooltip>
+            {/* Qualsiasi tipo di file (nessun accept): il limite dei 50 MB e
+                il routing Locale/Cloud sono gestiti in handleFilePicked. */}
+            <input ref={fileInputRef} type="file" className="hidden" onChange={handleFilePicked} />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" aria-label="Inserisci immagine" className="rounded-md p-1 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]">
+                  <ImageSun className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Inserisci immagine</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  ref={emojiButtonRef}
+                  type="button"
+                  aria-label="Inserisci emoji"
+                  aria-expanded={emojiOpen}
+                  onClick={() => setEmojiOpen((open) => !open)}
+                  className={`rounded-md p-1 transition-colors ${
+                    emojiOpen
+                      ? 'bg-[var(--dash-surface-2)] text-[var(--dash-accent)]'
+                      : 'text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]'
+                  }`}
+                >
+                  <Smile className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              {/* Il tooltip sparisce appena il picker e' aperto: con il pannello
+                  aperto sopra il bottone non deve comparire sopra le emoji. */}
+              {!emojiOpen && <TooltipContent side="top">Inserisci emoji</TooltipContent>}
+            </Tooltip>
             {emojiOpen && (
               <div ref={emojiPanelRef} className="absolute bottom-full right-0 z-50 mb-2">
                 <EmojiPicker onPick={insertEmoji} />
@@ -625,6 +1029,35 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
         portalTarget ?? document.body,
       )}
 
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Cancella messaggio">
+          <div className="w-full max-w-sm rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] p-4 shadow-xl">
+            <h2 className="text-sm font-semibold text-[var(--dash-text-strong)]">Cancella messaggio</h2>
+            <p className="mt-2 text-xs leading-relaxed text-[var(--dash-muted)]">
+              Il messaggio verrà eliminato per tutti. Vuoi continuare?
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(null)}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-1.5 text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)]"
+              >
+                <X className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={() => { const id = confirmDelete; setConfirmDelete(null); void deleteEntry(id); }}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-[var(--dash-danger-bg)] px-3 py-1.5 text-xs font-semibold text-[var(--dash-danger-text)] transition-colors hover:brightness-110"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Cancella
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmClear && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Pulisci chat">
           <div className="w-full max-w-sm rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] p-4 shadow-xl">
@@ -636,8 +1069,9 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
               <button
                 type="button"
                 onClick={() => setConfirmClear(false)}
-                className="flex flex-1 items-center justify-center rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-1.5 text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)]"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-1.5 text-xs text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)]"
               >
+                <X className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 Annulla
               </button>
               <button

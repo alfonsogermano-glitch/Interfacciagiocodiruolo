@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, FolderPlus } from 'lucide-react';
+import { Loader2, FolderPlus, X } from 'lucide-react';
 import { Copy } from '@/app/components/IconeCopia';
 import { UserMinus, UserX, Eye, EyeOff, Search, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
@@ -1073,8 +1073,9 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
               type="button"
               onClick={() => { setShowCopyDialog(false); setCopyTargetId(null); }}
               style={{ border: `1px solid ${menuColors.border}`, color: menuColors.text }}
-              className="rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-80"
             >
+              <X className="h-4 w-4 shrink-0" aria-hidden="true" />
               Annulla
             </button>
             <button

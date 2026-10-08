@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Loader2, Plus, Trash2, Image as ImageIcon, X } from 'lucide-react';
+import { Loader2, Plus, Trash2, X } from 'lucide-react';
+import { ImageSun } from '../components/IconeImmagine';
 import { supabase } from '../auth/AuthContext';
 
 const ADMIN_USER_ID = '3c298159-e7d1-4507-ad06-b44765968162';
@@ -218,7 +219,7 @@ export function NewsPage() {
                 style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.4rem 0.8rem',
                          borderRadius: 999, backgroundColor: 'transparent', border: '1px solid #444',
                          color: '#ccc', fontSize: '0.78rem', cursor: 'pointer' }}>
-                {isUploadingImage ? <Loader2 size={13} className="animate-spin" /> : <ImageIcon size={13} />}
+                {isUploadingImage ? <Loader2 size={13} className="animate-spin" /> : <ImageSun className="h-3.5 w-3.5" />}
                 {isUploadingImage ? 'Caricamento...' : 'Aggiungi immagine'}
               </button>
               <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} style={{ display: 'none' }} />
@@ -228,8 +229,9 @@ export function NewsPage() {
 
             <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1.25rem', borderTop: '1px solid #292929', paddingTop: '1rem' }}>
               <button type="button" onClick={resetCompose} disabled={isPublishing}
-                style={{ flex: 1, padding: '0.55rem', borderRadius: 999, backgroundColor: 'transparent',
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', flex: 1, padding: '0.55rem', borderRadius: 999, backgroundColor: 'transparent',
                          border: '1px solid #444', color: '#aaa', fontSize: '0.8rem', cursor: 'pointer' }}>
+                <X className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 Annulla
               </button>
               <button type="button" onClick={handlePublish}

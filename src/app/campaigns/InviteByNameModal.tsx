@@ -90,9 +90,10 @@ export function InviteByNameModal({ campaignId, onClose }: InviteByNameModalProp
             )}
             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
               <button type="button" onClick={onClose} disabled={isSending}
-                style={{ flex: 1, padding: '0.65rem', borderRadius: 999, backgroundColor: 'transparent',
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', flex: 1, padding: '0.65rem', borderRadius: 999, backgroundColor: 'transparent',
                          border: '1px solid var(--dash-border)', color: 'var(--dash-muted)',
                          fontSize: '0.875rem', cursor: 'pointer' }}>
+                <X className="h-4 w-4 shrink-0" aria-hidden="true" />
                 Annulla
               </button>
               <button type="button" onClick={handleSend} disabled={isSending || !displayName.trim()}

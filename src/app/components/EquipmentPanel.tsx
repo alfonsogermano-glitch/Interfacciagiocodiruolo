@@ -815,8 +815,9 @@ export function EquipmentPanel({ equipment, onUpdate }: EquipmentPanelProps) {
                 setShowAdd(false);
                 setNewItem(INITIAL_NEW_ITEM);
               }}
-              className="flex-1 rounded border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-1.5 text-sm text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)]"
+              className="inline-flex items-center justify-center gap-1.5 flex-1 rounded border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-1.5 text-sm text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)]"
             >
+              <X className="h-4 w-4 shrink-0" aria-hidden="true" />
               Annulla
             </button>
             <button

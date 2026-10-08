@@ -143,8 +143,9 @@ export function CampaignForm({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)] hover:bg-[var(--dash-surface-2)]"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)] hover:bg-[var(--dash-surface-2)]"
         >
+          <X className="h-4 w-4 shrink-0" aria-hidden="true" />
           Annulla
         </button>
         <button
@@ -416,8 +417,9 @@ export function CampaignSelector({ onClose }: { onClose: () => void }) {
               <button
                 type="button"
                 onClick={() => setConfirmDelete(null)}
-                className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)]"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)]"
               >
+                <X className="h-4 w-4 shrink-0" aria-hidden="true" />
                 Annulla
               </button>
               <button

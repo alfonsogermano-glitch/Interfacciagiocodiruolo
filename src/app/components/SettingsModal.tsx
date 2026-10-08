@@ -187,10 +187,11 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
             onChange={e => setZoom(Number(e.target.value))}
             style={{ width: '100%', marginTop: '1.25rem', accentColor: 'var(--dash-accent)' }} />
           <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem' }}>
-            <button type="button" onClick={cancelCrop}
-              style={{ flex: 1, padding: '0.6rem', borderRadius: 999, backgroundColor: 'transparent',
-                       border: '1px solid var(--dash-border)', color: 'var(--dash-muted)', fontSize: '0.875rem', cursor: 'pointer' }}>
-              Annulla
+              <button type="button" onClick={cancelCrop}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', flex: 1, padding: '0.6rem', borderRadius: 999, backgroundColor: 'transparent',
+                         border: '1px solid var(--dash-border)', color: 'var(--dash-muted)', fontSize: '0.875rem', cursor: 'pointer' }}>
+                <X className="h-4 w-4 shrink-0" aria-hidden="true" />
+                Annulla
             </button>
             <button type="button" onClick={confirmCrop}
               style={{ flex: 1, padding: '0.6rem', borderRadius: 999, backgroundColor: 'transparent',
@@ -386,7 +387,8 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
 
             <div className="mt-6 flex justify-end gap-3 border-t border-[var(--dash-border)] pt-4">
               <button type="button" onClick={onCancel} disabled={isSavingProfile}
-                className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]">
+                className="inline-flex items-center gap-2 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]">
+                <X className="h-4 w-4 shrink-0" aria-hidden="true" />
                 Annulla
               </button>
               <button type="button" onClick={handleSaveProfile} disabled={isSavingProfile}

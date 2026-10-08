@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ImagePlus, Pencil } from 'lucide-react';
+import { Pencil } from 'lucide-react';
+import { ImageSun } from '../components/IconeImmagine';
 import { useAuth } from '../auth/AuthContext';
 import { ImageCropUploadModal } from '../components/shared/ImageCropUploadModal';
 import { ImageAssetPicker } from '../components/shared/ImageAssetPicker';
@@ -57,7 +58,7 @@ export function CampaignCoverEditor({
           onClick={() => setShowEditor(true)}
           className="absolute inset-0 z-[15] flex flex-col items-center gap-2 pt-10 text-[var(--dash-muted)] transition-colors hover:bg-black/10 hover:text-[var(--dash-text)]"
         >
-          <ImagePlus size={22} />
+          <ImageSun className="h-[22px] w-[22px]" />
           <span className="text-sm font-medium">Clicca per aggiungere un'immagine di copertina</span>
         </button>
       )}

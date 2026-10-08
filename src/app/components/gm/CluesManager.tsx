@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useCampaign } from '../../campaigns/CampaignContext';
-import { Plus, CheckCircle, Circle } from 'lucide-react';
+import { Plus, CheckCircle, Circle, X } from 'lucide-react';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
 import {
   loadClues,
@@ -251,8 +251,9 @@ export function CluesManager({
             </button>
             <button
               onClick={() => setShowAddForm(false)}
-              className="bg-[var(--dash-border)] text-[var(--dash-muted)] rounded px-4 py-2 hover:bg-[var(--dash-input)]"
+              className="inline-flex items-center gap-1.5 bg-[var(--dash-border)] text-[var(--dash-muted)] rounded px-4 py-2 hover:bg-[var(--dash-input)]"
             >
+              <X className="h-4 w-4 shrink-0" aria-hidden="true" />
               Annulla
             </button>
           </div>

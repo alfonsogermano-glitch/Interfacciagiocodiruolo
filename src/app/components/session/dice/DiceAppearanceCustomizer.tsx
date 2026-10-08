@@ -174,7 +174,7 @@ export function DiceAppearanceCustomizer({ onClose }: { onClose: () => void }) {
         </div>
 
         <footer className="flex justify-end gap-2 border-t border-[var(--dash-border)] p-4">
-          <button type="button" data-dice-appearance-cancel disabled={busy} onClick={onClose} className="rounded-lg border border-[var(--dash-border)] px-4 py-2 text-sm text-[var(--dash-muted)] disabled:opacity-40">Annulla</button>
+          <button type="button" data-dice-appearance-cancel disabled={busy} onClick={onClose} className="inline-flex items-center gap-2 rounded-lg border border-[var(--dash-border)] px-4 py-2 text-sm text-[var(--dash-muted)] disabled:opacity-40"><X className="h-4 w-4 shrink-0" aria-hidden="true" />Annulla</button>
           <button
             type="button"
             data-dice-appearance-save

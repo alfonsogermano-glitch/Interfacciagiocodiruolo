@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Fragment } from 'react';
 import {
   Play, Square, Loader2, AlertTriangle, Users, Ghost, Skull,
   KeyRound, Check, MoreVertical, Pencil, UserCog, FileDown, Trash2, UserMinus, Undo2,
-  LayoutGrid, Package,
+  LayoutGrid, Package, X,
 } from 'lucide-react';
 import { Copy, CopyPlus } from '@/app/components/IconeCopia';
 import { useAuth } from '../auth/AuthContext';
@@ -1819,8 +1819,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                 type="button"
                 onClick={() => { setCopyDialogChar(null); setCopyTargetCampaignId(null); setCopyCharError(null); }}
                 disabled={isCopyingChar}
-                className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)]"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)]"
               >
+                <X className="h-4 w-4 shrink-0" aria-hidden="true" />
                 Annulla
               </button>
               <button
@@ -1855,8 +1856,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                 type="button"
                 onClick={() => setRemovePlayerTarget(null)}
                 disabled={isRemovingPlayer}
-                className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)]"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)]"
               >
+                <X className="h-4 w-4 shrink-0" aria-hidden="true" />
                 Annulla
               </button>
               <button
@@ -1996,8 +1998,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                 type="button"
                 onClick={() => { setCopyEntityDialog(null); setCopyEntityTargetId(null); setCopyEntityError(null); }}
                 disabled={isCopyingEntity}
-                className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)]"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)]"
               >
+                <X className="h-4 w-4 shrink-0" aria-hidden="true" />
                 Annulla
               </button>
               <button
@@ -2077,8 +2080,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                 type="button"
                 onClick={() => setConfirmDeleteOpen(false)}
                 disabled={isDeleting}
-                className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)]"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)]"
               >
+                <X className="h-4 w-4 shrink-0" aria-hidden="true" />
                 Annulla
               </button>
               <button

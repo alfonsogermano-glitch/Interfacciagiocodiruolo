@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Loader2, Upload, RotateCcw, Trash2, Images } from 'lucide-react';
+import { Loader2, Upload, RotateCcw, Trash2, Images, X } from 'lucide-react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { supabase } from '../../auth/AuthContext';
 import { renderShapeSvgChild } from './TokenShapePreview';
@@ -464,8 +464,9 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
           <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1.25rem' }}>
             {!hasNothingToCancel && (
               <button type="button" onClick={handleCancelCrop} disabled={isUploading}
-                style={{ flex: 1, padding: '0.6rem', borderRadius: 999, backgroundColor: 'transparent',
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', flex: 1, padding: '0.6rem', borderRadius: 999, backgroundColor: 'transparent',
                          border: '1px solid var(--dash-border)', color: 'var(--dash-muted)', fontSize: '0.875rem', cursor: 'pointer' }}>
+                <X className="h-4 w-4 shrink-0" aria-hidden="true" />
                 Annulla
               </button>
             )}

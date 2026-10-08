@@ -1,6 +1,6 @@
 import './noteInlineRadioInteraction';
+import type { ComponentType } from 'react';
 import type { Editor } from '@tiptap/react';
-import type { LucideIcon } from 'lucide-react';
 import {
   ALargeSmall,
   AlignCenter,
@@ -13,7 +13,6 @@ import {
   Cog,
   Dices,
   Gauge,
-  Image,
   Italic,
   List,
   ListOrdered,
@@ -29,6 +28,7 @@ import {
   Underline,
   Undo2,
 } from 'lucide-react';
+import { ImageSun } from '../../IconeImmagine';
 import { canInsertNoteContainer } from './noteContainerPolicy';
 
 export type NoteCommandId =
@@ -50,7 +50,10 @@ export interface NoteCommandDescriptor {
   id: NoteCommandId;
   label: string;
   group: NoteCommandGroup;
-  icon: LucideIcon;
+  // Non LucideIcon: il comando "Immagine" usa l'icona animata custom
+  // ImageSun (cornice+sole+montagna). Basta che accetti className, che e'
+  // l'unico modo in cui le icone dei comandi vengono renderizzate.
+  icon: ComponentType<{ className?: string }>;
   selectionEligible: boolean;
   secondaryPicker?: NoteSecondaryPicker;
   canRun: (editor: Editor) => boolean;
@@ -103,7 +106,7 @@ export const NOTE_COMMANDS: readonly NoteCommandDescriptor[] = [
     canRun: (e) => e.can().insertInlineCheckbox(), isActive: () => false, run: (e) => e.chain().focus().insertInlineCheckbox().run() },
   { id: 'radio', label: 'Radio button', group: 'block', icon: CircleDot, selectionEligible: false,
     canRun: (e) => e.can().insertInlineRadio(), isActive: () => false, run: (e) => e.chain().focus().insertInlineRadio().run() },
-  { id: 'image', label: 'Immagine', group: 'block', icon: Image, selectionEligible: false, secondaryPicker: 'image',
+  { id: 'image', label: 'Immagine', group: 'block', icon: ImageSun, selectionEligible: false, secondaryPicker: 'image',
     canRun: (e) => e.can().setImage({ src: 'about:blank' }), isActive: () => false },
   { id: 'inlineIcon', label: 'Icone', group: 'block', icon: Shapes, selectionEligible: false, secondaryPicker: 'inlineIcon',
     canRun: (e) => e.can().insertIcon('Sword'), isActive: () => false },

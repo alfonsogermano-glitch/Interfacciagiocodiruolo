@@ -213,13 +213,13 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
     }
   }, [activeCampaignId, openPanel]);
 
-  // Messaggi degli altri partecipanti in tempo reale: pallino se la chat e'
-  // chiusa, aggiunta diretta alla timeline se e' aperta.
+  // Messaggi e allegati degli altri partecipanti in tempo reale: pallino se
+  // la chat e' chiusa, aggiunta diretta alla timeline se e' aperta.
   useCampaignChannel(activeCampaignId, {
     onBroadcast: {
       chat_message: (message) => {
         const entry = message?.payload?.entry as ChatMessage | undefined;
-        if (!entry || entry.kind !== 'message') return;
+        if (!entry || (entry.kind !== 'message' && entry.kind !== 'attachment')) return;
         if (user && entry.senderId === user.id) return;
         if (openPanel === 'chat') {
           writeChatLastSeen(activeCampaignId, entry.createdAt);

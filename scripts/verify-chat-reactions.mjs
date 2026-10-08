@@ -67,6 +67,50 @@ assert.match(sendBody, /setReplyQuote\(null\)/, 'citazione non azzerata dopo l\'
 assert.match(panel, /data-chat-entry/, 'marker selezione messaggio assente');
 assert.match(panel, /aria-label="Reagisci con emoji"/, 'icona reazione assente');
 assert.match(panel, /aria-label="Citazione"/, 'icona citazione assente');
+
+// Pannello: cancellazione CON dialog di conferma + broadcast ai peer.
+assert.match(panel, /aria-label="Cancella"/, 'icona cancella messaggio assente');
+assert.match(panel, /setConfirmDelete\(item\.key\)/, 'Cancella non apre la conferma');
+assert.match(panel, /void deleteEntry\(id\)/, 'dialog conferma non invoca deleteEntry');
+assert.match(panel, /await deleteChatMessage\(entryId\)/, 'deleteChatMessage non chiamata');
+assert.match(
+  panel,
+  /chat_delete', \{ messageId: entryId \}/,
+  'broadcast chat_delete mancante',
+);
+assert.match(panel, /chat_delete: handleChatDeleteBroadcast/, 'listener chat_delete non registrato');
+assert.match(channel, /'chat_delete',/, 'evento chat_delete non nel canale');
+
+// Pannello: icona Copia (animazione copy gia' in CSS/IconeCopia) + feedback.
+assert.match(panel, /copiedId === item\.key \? 'Copiato' : 'Copia'/, 'icona Copia assente');
+assert.match(panel, /from '\.\.\/IconeCopia'/, 'Copy non importata da IconeCopia');
+assert.match(panel, /navigator\.clipboard\.writeText\(copyTextOfItem\(/, 'copia negli appunti mancante');
+assert.match(panel, /setCopiedId\(entry\.key\)/, 'feedback Copiato mancante');
+
+// Copia = SOLO appunti: non popola né mette a fuoco il composer (il testo puo'
+// essere incollato in un'altra chat o in un altro programma esterno). Il
+// formato blockquote resta negli appunti e l'incollo nel composer e' sempre
+// riconosciuto da parseQuotedPaste; per citare nella stessa chat serve il
+// bottone Citazione.
+assert.match(panel, /\.map\(\(line\) => `> \$\{line\}`\)/, 'formato blockquote della copia assente');
+assert.match(panel, /onPaste=\{handleComposerPaste\}/, 'paste intelligente nel composer assente');
+assert.match(panel, /parseQuotedPaste\(/, 'handler paste non usa parseQuotedPaste');
+const copyEntryBody = /const copyEntry = useCallback\(\(entry: TimelineItem\) => \{([\s\S]*?)\}, \[\]\);/.exec(panel);
+assert.ok(copyEntryBody, 'copyEntry assente');
+assert.ok(
+  !/setReplyQuote\(|setMessage\(|caretRef\.current|inputRef\.current\?\.focus\(\)/.test(copyEntryBody[1]),
+  'Copia non deve popolare né mettere a fuoco il composer',
+);
+// Sintesi roll: i dadi custom/solo-immagini (total null) devono descrivere le
+// facce uscite - mai "-> null" come con il totale grezzo.
+assert.match(panel, /content: rollResultSummary\(item\.roll\)/, 'quoteForItem roll non usa rollResultSummary');
+assert.match(panel, /\$\{roll\.rollerName\}: \$\{rollResultSummary\(roll\)\}/, 'copyTextOfItem roll non usa rollResultSummary');
+assert.ok(!/→ \$\{item\.roll\.total\}/.test(panel), 'sintesi roll vecchia con total grezzo ancora presente');
+const pasteModule = await readFile(
+  new URL('../src/app/components/session/chatPaste.ts', import.meta.url),
+  'utf8',
+);
+assert.match(pasteModule, /export function parseQuotedPaste/, 'modulo parseQuotedPaste mancante');
 assert.match(panel, /toggleReactionPicker/, 'apertura picker reazioni assente');
 assert.match(panel, /setReplyQuote\(quoteForItem\(item\)\)/, 'citazione non costruita dall\'item');
 assert.match(panel, /data-reaction-picker/, 'picker reazioni non marcato per il click esterno');
@@ -94,13 +138,43 @@ assert.match(
   /chat_reaction', \{ messageId: entryId, reactions \}/,
   'broadcast reazione mancante',
 );
-assert.match(panel, /onBroadcast: \{ chat_reaction: /, 'listener broadcast reazione non registrato');
+assert.match(panel, /onBroadcast: \{\s*chat_reaction: handleChatReactionBroadcast/, 'listener broadcast reazione non registrato');
 
 // Pannello: blocco citazione in composizione e nelle bolle.
 assert.match(panel, /aria-label="Annulla citazione"/, 'annullo citazione assente');
 assert.match(panel, /placeholder=\{replyQuote \? 'Rispondi\.\.\.' : 'Scrivi qualcosa\.\.\.'\}/, 'placeholder contestuale assente');
 assert.match(panel, /item\.message\.quote &&/, 'citazione non renderizzata nella bolla');
 assert.match(panel, /line-clamp-2/, 'testo citato non troncato nella bolla');
+
+// Pannello: le quattro azioni (Emoji/Cita/Copia/Elimina) compaiono anche sui
+// tiri di sessione - i dadi custom appena tirati non hanno (ancora) la riga in
+// `entries`: le reazioni vivono in sessionRollReactions e l'Elimina toglie
+// anche la copia locale del tiro tramite removeRoll.
+assert.match(panel, /reactions: sessionRollReactions\[roll\.id\] \?\? \[\]/, 'tiri di sessione senza reazioni unite');
+assert.match(
+  panel,
+  /const canReact = item\.kind !== 'roll' \|\| item\.roll\.visibility === 'public'/,
+  'gate reazioni sui tiri (solo con riga persistita) assente',
+);
+assert.ok(!/canAct\b/.test(panel), 'vecchio gate canAct ancora presente');
+assert.match(panel, /removeRoll\(entryId\)/, 'Elimina non toglie la copia locale del tiro');
+assert.match(panel, /removeRoll\(messageId\)/, 'broadcast chat_delete non toglie la copia locale');
+assert.match(
+  panel,
+  /setSessionRollReactions\(\(prev\) => \(\{ \.\.\.prev, \[messageId\]: next \}\)\)/,
+  'reazioni broadcast non unite ai tiri di sessione',
+);
+
+// Citazione con facce visive: ChatQuote.diceFaces raccoglie le facce custom
+// uscite e ChatQuoteContent le mostra (icona/immagine xN) al posto della
+// conversione testuale, sia nel banner composer sia nella bolla del messaggio.
+assert.match(service, /diceFaces\?: ChatQuoteDiceFace\[\]/, 'ChatQuote senza facce custom');
+assert.match(service, /export interface ChatQuoteDiceFace/, 'tipo ChatQuoteDiceFace mancante');
+assert.match(panel, /diceFaces = customDiceFacesForRoll\(item\.roll\)/, 'quoteForItem non raccoglie le facce custom');
+assert.match(panel, /function ChatQuoteContent/, 'componente ChatQuoteContent mancante');
+assert.match(panel, /<ChatQuoteContent quote=\{replyQuote\} \/>/, 'banner composer senza ChatQuoteContent');
+assert.match(panel, /<ChatQuoteContent quote=\{item\.message\.quote\} \/>/, 'bolla messaggio senza ChatQuoteContent');
+assert.match(panel, /<CustomDieFaceResult/, 'faccia custom non renderizzata nella citazione');
 
 // Catena di verifica.
 assert.ok(pkg.scripts['verify:chat-reactions'], 'script verify:chat-reactions mancante');

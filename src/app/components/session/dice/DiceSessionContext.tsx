@@ -53,6 +53,9 @@ interface DiceSessionValue {
   /** Ritira un tiro noto anche solo dal suo RollResult (es. ricaricato dalla chat). */
   rerollResult: (previous: RollResult) => RollResult | null;
   clearLocalHistory: () => void;
+  /** Toglie un tiro dalla sessione locale: copre i tiri non persistiti e la
+   copia locale di tiri che esistono anche nel DB (usato dall'Elimina chat). */
+  removeRoll: (resultId: string) => void;
   historyOpen: boolean;
   historyUnread: boolean;
   setHistoryOpen: (open: boolean) => void;
@@ -551,6 +554,13 @@ function DiceSessionProviderBody({ children, onRollIngested }: DiceSessionProvid
     setHistoryUnread(false);
   }, [stopActiveAnimation]);
 
+  const removeRoll = useCallback((resultId: string) => {
+    // Se il tiro e' ancora in coda per la persistenza, non deve piu' essere
+    // salvato: la cancellazione dalla chat e' immediata.
+    pendingChatRolls.current.delete(resultId);
+    setEntries((current) => current.filter((entry) => entry.result.id !== resultId));
+  }, []);
+
   const value = useMemo<DiceSessionValue>(() => ({
     rolls,
     submitLocalRoll,
@@ -559,6 +569,7 @@ function DiceSessionProviderBody({ children, onRollIngested }: DiceSessionProvid
     reroll,
     rerollResult,
     clearLocalHistory,
+    removeRoll,
     historyOpen,
     historyUnread,
     setHistoryOpen,
@@ -576,6 +587,7 @@ function DiceSessionProviderBody({ children, onRollIngested }: DiceSessionProvid
     historyUnread,
     markHistoryRead,
     openHistory,
+    removeRoll,
     reroll,
     rerollResult,
     rolls,

@@ -115,8 +115,9 @@ export function NewCharacterModal({ onClose, onAdd }: NewCharacterModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-[#2a1a1a] border border-[#4a0e0e] rounded px-4 py-2 text-[#8b7355] hover:bg-[#3a1a1a] transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 flex-1 bg-[#2a1a1a] border border-[#4a0e0e] rounded px-4 py-2 text-[#8b7355] hover:bg-[#3a1a1a] transition-colors"
             >
+              <X className="h-4 w-4 shrink-0" aria-hidden="true" />
               Annulla
             </button>
             <button

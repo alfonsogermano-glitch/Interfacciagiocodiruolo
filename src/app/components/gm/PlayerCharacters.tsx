@@ -1172,9 +1172,10 @@ const showToast = (message: string) => {
 
         <button
           onClick={closeImportChoiceModal}
-          className="w-full rounded-md border border-[var(--dash-border-soft)] bg-transparent px-4 py-3 text-sm text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface)] hover:text-[var(--dash-text-strong)]"
-        >
-          Annulla
+            className="flex w-full items-center justify-center gap-2 rounded-md border border-[var(--dash-border-soft)] bg-transparent px-4 py-3 text-sm text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface)] hover:text-[var(--dash-text-strong)]"
+          >
+            <X className="h-4 w-4 shrink-0" aria-hidden="true" />
+            Annulla
         </button>
       </div>
     </div>

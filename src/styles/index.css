@@ -20,6 +20,73 @@
   25% { transform: translateX(-1px) rotate(-5deg); }
   75% { transform: translateX(1px) rotate(5deg); }
 }
+@keyframes smilePop {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  35% { transform: scale(1.3) rotate(-8deg); }
+  70% { transform: scale(1.1) rotate(6deg); }
+}
+/* Citazione: NESSUN movimento (era fastidioso) - solo riempimento alternato
+   delle due virgolette: l'icone di lucide-quote ha due path, il primo e'
+   la virgoletta DESTRA e il secondo la SINISTRA. Fuori hover il fill torna
+   a none dell'attributo, come per copy. */
+@keyframes quoteFillA {
+  0%, 40% { fill: currentColor; }
+  50%, 90% { fill: var(--dash-panel, #0a0a0a); }
+  100% { fill: currentColor; }
+}
+@keyframes quoteFillB {
+  0%, 40% { fill: var(--dash-panel, #0a0a0a); }
+  50%, 90% { fill: currentColor; }
+  100% { fill: var(--dash-panel, #0a0a0a); }
+}
+/* Icona "Inserisci immagine" (IconeImmagine.tsx: chat, note, news, copertina
+   campagna, faccia dadi): il sole PARTE
+   dall'ANGOLO ALTO SINISTRO e cala lungo un arco (prima quasi orizzontale,
+   poi sempre piu' ripido) dirigendosi verso l'ANGOLO BASSO DESTRO, andando a
+   tramontare DIETRO la montagna (disegnata dopo, con fill opaco: quando ci
+   entra dentro sparisce). E' interamente dietro dal 72% e continua a
+   scivolare nascosto fino al 78%, dove salta fuori dal bordo sinistro con
+   opacity 0 (invisibile: dall'angolo basso destro non si puo' arrivare
+   "passando" senza farsi vedere) e tra 78% e 100% rientra scivolando in
+   orizzontale fino alla posizione di riposo.
+   0% = posizione di riposo (l'angolo alto sinistro), quindi all'hover non ci
+   sono salti. Ciclo 4.5s.
+   FLUIDITA': timing LINEARE + keyframe campionati a LUNGHEZZA D'ARCO
+   uniforme sulla parabola di Bezier P0=(6,6) P1=(18,6) P2=(18,18), cosi' la
+   velocita' e' costante per tutto il ciclo: con ease-in-out il sole
+   rallentava e ripartiva ad ogni keyframe (movimento ondulato). Il tratto di
+   rientro e' una retta orizzontale da translate(-6px, 0px), cioe' fuori dal
+   clip dell'interno (invisibile anche ad opacity 1), percorsa a velocita'
+   prossima a quella di discesa, ed arriva orizzontale come la discesa
+   riparte: nessun scossone di direzione alla giuntura del ciclo. */
+@keyframes chatSoleTramonta {
+  0% { transform: translate(0, 0); opacity: 1; }
+  7.8% { transform: translate(1.95px, 0.09px); opacity: 1; }
+  15.6% { transform: translate(3.87px, 0.38px); opacity: 1; }
+  23.4% { transform: translate(5.74px, 0.92px); opacity: 1; }
+  31.2% { transform: translate(7.48px, 1.79px); opacity: 1; }
+  39% { transform: translate(9px, 3px); opacity: 1; }
+  46.8% { transform: translate(10.21px, 4.52px); opacity: 1; }
+  54.6% { transform: translate(11.08px, 6.26px); opacity: 1; }
+  62.4% { transform: translate(11.62px, 8.13px); opacity: 1; }
+  70.2% { transform: translate(11.91px, 10.05px); opacity: 1; }
+  78% { transform: translate(12px, 12px); opacity: 0; }
+  78.01% { transform: translate(-6px, 0px); opacity: 0; }
+  78.02% { transform: translate(-6px, 0px); opacity: 1; }
+  100% { transform: translate(0, 0); opacity: 1; }
+}
+/* La montagna e' CHIARA (currentColor, uguale al sole) finche il sole lo e':
+   i due si fondono e si vede solo la sagoma esterna che affonda. Mentre il
+   sole sta finendo di sparire dietro la cresta si SCURA (var(--dash-surface)
+   = colore di fondo): la transizione accompagna il tramonto (il sole e'
+   interamente nascosto al 72%). Resta scura finche il sole e' fuori dal
+   riquadro, poi si riacende mentre lui rientra dal bordo sinistro (visibile
+   dall'85%). Stessa durata del sole -> in fase. */
+@keyframes chatMontagnaTramonta {
+  0%, 65% { fill: currentColor; }
+  75%, 84% { fill: var(--dash-surface); }
+  88%, 100% { fill: currentColor; }
+}
 @keyframes plusPulse {
   0%, 100% {
     transform: scale(1);
@@ -251,6 +318,45 @@ button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button']
 [role='menuitem']:not([data-disabled]):hover .lucide-trash-2 {
   animation: trashShake 0.55s ease-in-out infinite;
 }
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-smile)) .lucide-smile,
+[role='button']:not([aria-disabled='true']):hover:not(:has(button .lucide-smile)) .lucide-smile,
+[role='menuitem']:not([data-disabled]):hover .lucide-smile {
+  animation: smilePop 0.6s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-quote)) .lucide-quote > path:nth-child(1),
+[role='button']:not([aria-disabled='true']):hover:not(:has(button .lucide-quote)) .lucide-quote > path:nth-child(1),
+[role='menuitem']:not([data-disabled]):hover .lucide-quote > path:nth-child(1) {
+  fill: currentColor;
+  animation: quoteFillA 2s ease-in-out infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-quote)) .lucide-quote > path:nth-child(2),
+[role='button']:not([aria-disabled='true']):hover:not(:has(button .lucide-quote)) .lucide-quote > path:nth-child(2),
+[role='menuitem']:not([data-disabled]):hover .lucide-quote > path:nth-child(2) {
+  fill: currentColor;
+  animation: quoteFillB 2s ease-in-out infinite;
+}
+/* Icona "Inserisci immagine" (IconeImmagine.tsx): usata dal composer della
+   chat, dai comandi "Immagine" delle note (slash menu + gutter), dal CTA
+   copertina campagna, dalle news e dalla faccia dadi. Sole e montagna hanno
+   animazioni diverse ma la STESSA durata, quindi restano in fase (la
+   montagna si scura proprio quando il sole e' interamente dietro di lei).
+   Entrambe in LINEAR, non ease-in-out: il sole deve viaggiare a velocita'
+   costante, altrimenti rallenta e riparte ad ogni keyframe. Forma breve
+   della formula universale: icone dentro bottone reale, mai dentro
+   contenitori remoti role=button. La clausola label.cursor-pointer copre la
+   faccia dadi, che e' un <label> con dentro l'input file (non un bottone):
+   hover sulla label = hover sul "pulsante". */
+button:not(:disabled):not([aria-disabled='true']):hover .chat-sole,
+label.cursor-pointer:hover .chat-sole {
+  animation: chatSoleTramonta 4.5s linear infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover .chat-montagna,
+label.cursor-pointer:hover .chat-montagna {
+  animation: chatMontagnaTramonta 4.5s linear infinite;
+}
+button:not(:disabled):not([aria-disabled='true']):hover .chat-montagna {
+  animation: chatMontagnaTramonta 4.5s linear infinite;
+}
 button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-arrow-up, .lucide-chevron-up))) :is(.lucide-arrow-up, .lucide-chevron-up),
 [role='button']:not([aria-disabled='true']):hover:not(:has(button :is(.lucide-arrow-up, .lucide-chevron-up))) :is(.lucide-arrow-up, .lucide-chevron-up),
 [role='menuitem']:not([data-disabled]):hover :is(.lucide-arrow-up, .lucide-chevron-up) {
@@ -261,9 +367,9 @@ button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button']
 [role='menuitem']:not([data-disabled]):hover :is(.lucide-arrow-down, .lucide-chevron-down) {
   animation: arrowDownPulse 0.8s ease-in-out infinite;
 }
-button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-chevron-left, .lucide-chevron-right, .lucide-arrow-left, .lucide-arrow-right, .lucide-archive, .lucide-rotate-ccw))) :is(.lucide-chevron-left, .lucide-chevron-right, .lucide-arrow-left, .lucide-arrow-right, .lucide-archive, .lucide-rotate-ccw),
-[role='button']:not([aria-disabled='true']):hover:not(:has(button :is(.lucide-chevron-left, .lucide-chevron-right, .lucide-arrow-left, .lucide-arrow-right, .lucide-archive, .lucide-rotate-ccw))) :is(.lucide-chevron-left, .lucide-chevron-right, .lucide-arrow-left, .lucide-arrow-right, .lucide-archive, .lucide-rotate-ccw),
-[role='menuitem']:not([data-disabled]):hover :is(.lucide-chevron-left, .lucide-chevron-right) {
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-chevron-left, .lucide-chevron-right, .lucide-arrow-left, .lucide-arrow-right, .lucide-archive, .lucide-rotate-ccw, .lucide-undo-2))) :is(.lucide-chevron-left, .lucide-chevron-right, .lucide-arrow-left, .lucide-arrow-right, .lucide-archive, .lucide-rotate-ccw, .lucide-undo-2),
+[role='button']:not([aria-disabled='true']):hover:not(:has(button :is(.lucide-chevron-left, .lucide-chevron-right, .lucide-arrow-left, .lucide-arrow-right, .lucide-archive, .lucide-rotate-ccw, .lucide-undo-2))) :is(.lucide-chevron-left, .lucide-chevron-right, .lucide-arrow-left, .lucide-arrow-right, .lucide-archive, .lucide-rotate-ccw, .lucide-undo-2),
+[role='menuitem']:not([data-disabled]):hover :is(.lucide-chevron-left, .lucide-chevron-right, .lucide-undo-2) {
   animation: locationArrowPulse 0.8s ease-in-out infinite;
 }
 /* Menu ... (⋮/⋯): un pallino luminoso percorre i3 puntini SENZA muoverli -
@@ -712,11 +818,11 @@ button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button']
    regola viene DOPO theme.css nel cascade finale (gli @import di sopra si
    inseriscono prima del resto di questo file) - una regola successiva a
    parita' di specificita' vincerebbe comunque su quella scritta prima. */
-*:not(.tiptap-content):not(.tiptap-icon-popover-scroll):not(.custom-die-configurator-scroll):not(.note-modifier-reference-scroll):not(.tiptap-archivio-scroll) {
+*:not(.tiptap-content):not(.tiptap-icon-popover-scroll):not(.custom-die-configurator-scroll):not(.note-modifier-reference-scroll):not(.tiptap-archivio-scroll):not(.session-chat-scroll) {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-*:not(.tiptap-content):not(.tiptap-icon-popover-scroll):not(.custom-die-configurator-scroll):not(.note-modifier-reference-scroll):not(.tiptap-archivio-scroll)::-webkit-scrollbar {
+*:not(.tiptap-content):not(.tiptap-icon-popover-scroll):not(.custom-die-configurator-scroll):not(.note-modifier-reference-scroll):not(.tiptap-archivio-scroll):not(.session-chat-scroll)::-webkit-scrollbar {
   display: none;
 }
 
@@ -742,24 +848,29 @@ button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button']
   background: var(--dash-accent);
 }
 
+.session-chat-scroll,
 .custom-die-configurator-scroll {
   scrollbar-width: thin !important;
   scrollbar-color: var(--dash-accent-2) var(--dash-panel) !important;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
 }
+.session-chat-scroll::-webkit-scrollbar,
 .custom-die-configurator-scroll::-webkit-scrollbar {
   display: block !important;
   width: 10px !important;
 }
+.session-chat-scroll::-webkit-scrollbar-track,
 .custom-die-configurator-scroll::-webkit-scrollbar-track {
   background: var(--dash-panel);
 }
+.session-chat-scroll::-webkit-scrollbar-thumb,
 .custom-die-configurator-scroll::-webkit-scrollbar-thumb {
   background: var(--dash-accent-2);
   border: 2px solid var(--dash-panel);
   border-radius: 999px;
 }
+.session-chat-scroll::-webkit-scrollbar-thumb:hover,
 .custom-die-configurator-scroll::-webkit-scrollbar-thumb:hover {
   background: var(--dash-accent);
 }

@@ -94,7 +94,7 @@ assert.match(picker, /Nessuna emoji trovata per/, 'stato vuoto ricerca assente')
 assert.match(panel, /import { EmojiPicker } from '\.\/EmojiPicker'/, 'import picker mancante');
 assert.match(panel, /<EmojiPicker onPick={insertEmoji} \/>/, 'picker non renderizzato');
 assert.match(panel, /<FlagText>\{item\.message\.content\}<\/FlagText>/, 'bolle chat senza rendering bandiere');
-const buttonIndex = panel.indexOf('aria-label="Emoji"');
+const buttonIndex = panel.indexOf('aria-label="Inserisci emoji"');
 assert.ok(buttonIndex >= 0, 'bottone Emoji assente');
 const buttonSlice = panel.slice(buttonIndex, buttonIndex + 400);
 assert.match(buttonSlice, /aria-expanded=\{emojiOpen\}/, 'bottone Emoji senza aria-expanded');
@@ -107,6 +107,13 @@ assert.match(panel, /emojiPanelRef\.current\?\./, 'chiusura click esterno sul pa
 assert.match(panel, /emojiButtonRef\.current\?\./, 'chiusura click esterno sul bottone assente');
 assert.match(panel, /if \(event\.key === 'Escape'\) setEmojiOpen\(false\)/, 'chiusura Escape assente');
 assert.match(panel, /bottom-full right-0 z-50/, 'posizionamento pannello errato');
+
+// Tooltip sulla riga di inserimento: "+" = file, icona immagine, emoji.
+assert.match(panel, /import \{ Tooltip, TooltipContent, TooltipTrigger \} from '\.\.\/ui\/tooltip'/, 'import Tooltip mancante');
+const tooltipTexts = ['Inserisci file', 'Inserisci immagine', 'Inserisci emoji'];
+for (const text of tooltipTexts) {
+  assert.ok(panel.includes(`<TooltipContent side="top">${text}</TooltipContent>`), `tooltip "${text}" assente`);
+}
 
 // Catena di verifica.
 assert.ok(pkg.scripts['verify:emoji-picker'], 'script verify:emoji-picker mancante');

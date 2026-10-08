@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabaseClient';
-import { persistenceOwner, selectedContentMode } from './persistenceMode';
+import { persistenceOwner, selectedContentMode, type ContentMode } from './persistenceMode';
 import { withLocalContent } from './localContentStore';
 
 export async function uploadContentAsset(bucket: string, path: string, blob: Blob, options: { upsert?: boolean; contentType?: string } = {}) {
@@ -26,9 +26,22 @@ export async function uploadContentAsset(bucket: string, path: string, blob: Blo
   return { publicUrl: supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl, assetPath: path };
 }
 
-export async function removeContentAsset(bucket: string, path: string): Promise<void> {
+/** Legge un asset caricato in Locale (data-URL in IndexedDB). Usato per gli
+ allegati chat, dove la modalita' in cui il file e' stato caricato (payload.
+ storage) puo' differire dalla modalita' corrente: qui si legge sempre il
+ negozio locale. Ritorna null se il file non c'e' piu'. */
+export async function loadContentAssetDataUrl(bucket: string, path: string): Promise<string | null> {
   const owner = persistenceOwner();
-  if (selectedContentMode() === 'local') {
+  return (await withLocalContent(owner, false, (tables) =>
+    (tables._assets ?? []).find((row) => row.id === `${bucket}/${path}`)?.data_url ?? null
+  )) ?? null;
+}
+
+/** Rimuove un asset. `mode` (opzionale) forza il negozio da svuotare:
+ senza, si segue la modalita' di salvataggio corrente come prima. */
+export async function removeContentAsset(bucket: string, path: string, mode?: ContentMode): Promise<void> {
+  const owner = persistenceOwner();
+  if ((mode ?? selectedContentMode()) === 'local') {
     await withLocalContent(owner, true, (tables) => { tables._assets = (tables._assets ?? []).filter((row) => row.id !== `${bucket}/${path}`); });
     return;
   }
