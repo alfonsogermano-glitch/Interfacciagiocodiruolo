@@ -2,30 +2,19 @@ import { useEffect, useState } from 'react';
 import {
   Plus,
   BookOpen,
-  FileText,
   Trash2,
   Edit2,
   CheckCircle2,
   Loader2,
   X,
   ChevronDown,
-  Swords,
-  Skull,
-  Castle,
-  Sparkles
 } from 'lucide-react';
 import { useCampaign } from './CampaignContext';
-import { RULESETS, VISIBLE_RULESETS, type Campaign, type CampaignCreateInput, type RulesetId } from './campaignTypes';
+import { RULESETS, type Campaign, type CampaignCreateInput, type RulesetId } from './campaignTypes';
+import { RulesetChoices } from './RulesetChoices';
+import { RULESET_ICONS } from '../components/shared/RulesetTag';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 
-const RULESET_ICONS: Record<RulesetId, React.ReactNode> = {
-  hsc: <Skull className="h-4 w-4" />,
-  dnd5e: <Swords className="h-4 w-4" />,
-  pathfinder: <Castle className="h-4 w-4" />,
-  coc7e: <FileText className="h-4 w-4" />,
-  cocclassic: <BookOpen className="h-4 w-4" />,
-  custom: <Sparkles className="h-4 w-4" />,
-};
 
 // ─── Create/Edit Form ───────────────────────────────────────────────────────
 
@@ -70,7 +59,7 @@ export function CampaignForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-3">
       <div>
         <label className="mb-1.5 block text-sm text-[var(--dash-text)]">Nome campagna *</label>
         <input
@@ -96,7 +85,7 @@ export function CampaignForm({
       </div>
 
       <div>
-        <label className="mb-2 block text-sm text-[var(--dash-text)]">Regolamento</label>
+        <h3 className="mb-2 text-lg font-semibold tracking-wide text-[var(--dash-text-strong)]">Scegli il regolamento</h3>
         {rulesetLocked && (
           <p className="mb-2 text-xs text-[var(--dash-muted)]">
             Il set di regole non può essere cambiato: questa campagna contiene già{' '}
@@ -107,36 +96,7 @@ export function CampaignForm({
             ].filter(Boolean).join(', ')}.
           </p>
         )}
-        <div className="grid gap-2 sm:grid-cols-2">
-          {VISIBLE_RULESETS.map(rs => (
-            <button
-              key={rs.id}
-              type="button"
-              disabled={rulesetLocked}
-              onClick={() => setRuleset(rs.id)}
-              className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                ruleset === rs.id
-                  ? 'border-[var(--dash-accent)] bg-[var(--dash-panel)] ring-1 ring-[var(--dash-accent)]/40'
-                  : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] hover:border-[var(--dash-accent)]/50'
-              }`}
-            >
-              <span className="mt-0.5 shrink-0 text-[var(--dash-accent)]">
-                {RULESET_ICONS[rs.id]}
-              </span>
-              <span>
-                <span className="block text-sm font-medium text-[var(--dash-text-strong)]">
-                  {rs.name}
-                </span>
-                <span className="mt-0.5 block text-xs text-[var(--dash-muted)] line-clamp-2">
-                  {rs.description}
-                </span>
-              </span>
-              {ruleset === rs.id && (
-                <CheckCircle2 className="ml-auto mt-0.5 h-4 w-4 shrink-0 text-[var(--dash-accent)]" />
-              )}
-            </button>
-          ))}
-        </div>
+        <RulesetChoices selected={ruleset} disabled={rulesetLocked} onChoose={setRuleset} />
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
@@ -194,12 +154,12 @@ function CampaignCard({
       )}
 
       {/* Ruleset badge */}
-      <div className="mb-3 flex items-center gap-2">
+      {campaign.ruleset !== 'custom' && <div className="mb-3 flex items-center gap-2">
         <span className="flex items-center gap-1.5 rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2.5 py-1 text-xs text-[var(--dash-text)]">
           {RULESET_ICONS[campaign.ruleset]}
           {rs.name}
         </span>
-      </div>
+      </div>}
 
       <h3 className="mb-1 pr-16 text-base font-semibold text-[var(--dash-text-strong)]">
         {campaign.name}

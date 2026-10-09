@@ -34,6 +34,7 @@ export function RulesetGate({
 /** Badge compatto che mostra il regolamento attivo — da inserire negli header dei manager */
 export function RulesetBadge({ className = '' }: { className?: string }) {
   const { ruleset } = useRuleset();
+  if (ruleset.id === 'custom') return null;
 
   return (
     <Tooltip>

@@ -24,6 +24,7 @@ export interface ChatQuote {
   /** Solo per kind='roll' con dadi custom: facce visive da mostrare al
    posto della conversione testuale. */
   diceFaces?: ChatQuoteDiceFace[];
+  image?: ChatAttachment;
 }
 
 /** Reazione emoji lasciata su un messaggio (una per utente per messaggio). */
@@ -44,6 +45,10 @@ export interface ChatAttachment {
   /** Dimensione in byte (limite massimo 50 MB, validato al caricamento). */
   size: number;
   contentType: string;
+  /** Immagini inviate dal pulsante dedicato; gli altri allegati restano file. */
+  display?: 'image';
+  imageWidth?: number;
+  imageHeight?: number;
   bucket: string;
   /** Path dentro il bucket o id dell'asset locale (`bucket/path`). */
   assetPath: string;

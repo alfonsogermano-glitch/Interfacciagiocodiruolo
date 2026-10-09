@@ -450,7 +450,7 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
 
       {showCampaignForm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-6 shadow-2xl">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-surface)] p-6 shadow-2xl">
             <h3 className="mb-4 text-lg font-semibold text-[var(--dash-text-strong)]">Nuova campagna</h3>
             {campaignFormError && (
               <div className="mb-4 rounded-lg border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] px-3 py-2 text-sm text-[var(--dash-danger-text)]">

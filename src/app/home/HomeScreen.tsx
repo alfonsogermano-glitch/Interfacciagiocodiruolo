@@ -322,7 +322,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
       {/* ─── Modale: crea nuova campagna ───────────────────────────────────── */}
       {showCampaignForm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-surface)] p-6 shadow-2xl">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-[var(--dash-accent)] bg-[var(--dash-surface)] p-5 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold tracking-wide text-[var(--dash-text-strong)]">Nuova campagna</h3>
               <button

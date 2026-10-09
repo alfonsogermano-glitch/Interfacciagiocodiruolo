@@ -10,6 +10,22 @@ export const CHAT_ATTACHMENTS_BUCKET = 'chat-attachments';
 /** Dimensione massima di un allegato: 50 MB (byte). */
 export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
 
+/** Verifica che il browser possa visualizzarla e conserva le proporzioni. */
+export async function readChatImageSize(file: File): Promise<{ imageWidth: number; imageHeight: number }> {
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    if (!image.naturalWidth || !image.naturalHeight) throw new Error('Dimensioni immagine non valide.');
+    return { imageWidth: image.naturalWidth, imageHeight: image.naturalHeight };
+  } catch {
+    throw new Error('Immagine non leggibile. Scegli un formato supportato dal browser (ad esempio PNG, JPEG, GIF o WebP).');
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 /** Estensione con punto (".pdf") del nome file; vuota se assente o anomala. */
 export function attachmentExt(fileName: string): string {
   const dot = fileName.lastIndexOf('.');
@@ -86,6 +102,28 @@ interface SaveFilePickerWindow {
   showSaveFilePicker?: (options?: { suggestedName?: string }) => Promise<{
     createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }>;
   }>;
+}
+
+/** Gli appunti interoperabili richiedono PNG, anche per JPEG/GIF/WebP. */
+export async function chatImageClipboardBlob(attachment: ChatAttachment): Promise<Blob> {
+  const blob = await resolveAttachmentBlob(attachment);
+  const url = URL.createObjectURL(blob);
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Copia immagine non disponibile.');
+    context.drawImage(image, 0, 0);
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((png) => png ? resolve(png) : reject(new Error('Conversione immagine non riuscita.')), 'image/png');
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 /**

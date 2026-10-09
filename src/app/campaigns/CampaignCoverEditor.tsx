@@ -52,29 +52,19 @@ export function CampaignCoverEditor({
     <div className="relative">
       <CampaignBannerDisplay campaign={campaign} size="full" />
 
-      {canEdit && !campaign.coverImageUrl && (
-        <button
-          type="button"
-          onClick={() => setShowEditor(true)}
-          className="absolute inset-0 z-[15] flex flex-col items-center gap-2 pt-10 text-[var(--dash-muted)] transition-colors hover:bg-black/10 hover:text-[var(--dash-text)]"
-        >
-          <ImageSun className="h-[22px] w-[22px]" />
-          <span className="text-sm font-medium">Clicca per aggiungere un'immagine di copertina</span>
-        </button>
-      )}
-
       {canEdit && (
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               type="button"
+              aria-label={campaign.coverImageUrl ? 'Modifica immagine di copertina' : 'Aggiungi immagine di copertina'}
               onClick={() => setShowEditor(true)}
               className="absolute right-3 top-3 z-30 flex h-8 w-8 items-center justify-center rounded-full border border-[var(--dash-border-soft)] bg-black/50 text-white backdrop-blur-sm transition-colors hover:bg-black/70"
             >
-              <Pencil size={15} />
+              {campaign.coverImageUrl ? <Pencil size={15} /> : <ImageSun className="h-[22px] w-[22px]" />}
             </button>
           </TooltipTrigger>
-          <TooltipContent>Modifica immagine di copertina</TooltipContent>
+          <TooltipContent>{campaign.coverImageUrl ? 'Modifica immagine di copertina' : 'Aggiungi immagine di copertina'}</TooltipContent>
         </Tooltip>
       )}
 

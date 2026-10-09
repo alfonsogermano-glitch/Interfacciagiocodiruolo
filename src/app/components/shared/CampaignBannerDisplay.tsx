@@ -82,6 +82,13 @@ const SIZE_PRESETS: Record<CampaignBannerSize, SizePreset> = {
 // sopra qualunque immagine di copertina.
 const TEXT_SHADOW_STYLE = { textShadow: '0 1px 3px rgba(0,0,0,0.85), 0 1px 12px rgba(0,0,0,0.5)' };
 
+// Contrasto locale doppio: bianco sullo scuro, contorno nero sul chiaro.
+// Funziona anche sulle foto miste, senza stimare un colore medio del banner.
+const DATE_CONTRAST_STYLE = {
+  color: '#fff',
+  textShadow: '-1px -1px 0 #000, 0 -1px 0 #000, 1px -1px 0 #000, -1px 0 0 #000, 1px 0 0 #000, -1px 1px 0 #000, 0 1px 0 #000, 1px 1px 0 #000, 0 1px 3px rgba(0,0,0,0.8)',
+};
+
 /**
  * Porzione statica del banner di copertina campagna (immagine + sfumatura +
  * logo/nome/descrizione/ruleset+data sovrapposti, più un eventuale slot
@@ -166,7 +173,7 @@ export function CampaignBannerDisplay({
             <span style={preset.badgeTextShadow ? TEXT_SHADOW_STYLE : undefined}>
               <RulesetTag rulesetId={campaign.ruleset} />
             </span>
-            <span style={TEXT_SHADOW_STYLE}>
+            <span style={DATE_CONTRAST_STYLE}>
               Creata il {new Date(campaign.createdAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
             </span>
           </div>

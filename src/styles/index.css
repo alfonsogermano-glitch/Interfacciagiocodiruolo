@@ -372,6 +372,47 @@ button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button']
 [role='menuitem']:not([data-disabled]):hover :is(.lucide-chevron-left, .lucide-chevron-right, .lucide-undo-2) {
   animation: locationArrowPulse 0.8s ease-in-out infinite;
 }
+@keyframes rerollCounterclockwise {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
+}
+button[data-dice-reroll]:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-rotate-ccw)) .lucide-rotate-ccw,
+button[data-image-crop-action='reset']:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-rotate-ccw)) .lucide-rotate-ccw {
+  transform-origin: center;
+  animation: rerollCounterclockwise 1.2s linear infinite;
+}
+@keyframes cropCollectionBackSwap {
+  0%, 38%, 90%, 100% { fill: var(--dash-panel, #0a0a0a); }
+  44%, 84% { fill: currentColor; }
+}
+.collection-front {
+  fill: var(--dash-panel, #0a0a0a);
+}
+button[data-image-crop-action='collection']:not(:disabled):hover .collection-back {
+  animation: cropCollectionBackSwap 2.4s ease-in-out infinite;
+}
+button[data-image-crop-action='collection']:not(:disabled):hover .collection-front {
+  animation: copyFrontSwap 2.4s ease-in-out infinite;
+}
+button[data-image-crop-action='collection']:not(:disabled):hover .collection-mark {
+  animation: copyMarkSwap 2.4s ease-in-out infinite;
+}
+@keyframes cropConfirmCheck {
+  0%, 100% { transform: scale(1); }
+  40% { transform: scale(1.2); }
+  65% { transform: scale(0.95); }
+}
+@keyframes rulesetChoiceGlow {
+  0%, 100% { filter: brightness(1); transform: scale(1); }
+  50% { filter: brightness(1.3); transform: scale(1.08); }
+}
+button[data-ruleset-choice]:not(:disabled):hover .ruleset-choice-icon {
+  animation: rulesetChoiceGlow 1.6s ease-in-out infinite;
+}
+button[data-image-crop-action='confirm']:not(:disabled):hover .lucide-check {
+  transform-origin: center;
+  animation: cropConfirmCheck 1.2s ease-in-out infinite;
+}
 /* Menu ... (⋮/⋯): un pallino luminoso percorre i3 puntini SENZA muoverli -
    solo intensita' di luce (opacity). Ciclo a4 step (alto -> centro ->
    basso -> centro) in 2.4s moderati, poi risale da solo: effetto "un punto

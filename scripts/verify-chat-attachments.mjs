@@ -17,6 +17,19 @@ const sidebar = await readFile(
   'utf8',
 );
 const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+const imagePreview = await readFile(new URL('../src/app/components/session/ChatImageAttachment.tsx', import.meta.url), 'utf8');
+
+// Immagini: stesso payload/storage degli allegati, proporzioni preservate e
+// URL temporanei rilasciati quando la voce viene rimossa o cambia asset.
+assert.match(service, /display\?: 'image';/, 'metadato anteprima immagine mancante');
+assert.match(panel, /accept="image\/\*"/, 'picker immagini senza filtro');
+assert.match(panel, /onClick=\{\(\) => imageInputRef\.current\?\.click\(\)\}/, 'pulsante immagine inattivo');
+assert.match(panel, /await readChatImageSize\(file\)/, 'immagine non validata prima del salvataggio');
+assert.match(panel, /attachment\?\.display === 'image'/, 'immagini non distinte dagli allegati generici');
+assert.match(imagePreview, /resolveAttachmentBlob\(attachment\)/, 'anteprima non usa lo storage originale');
+assert.match(imagePreview, /h-auto w-full max-w-full/, 'anteprima non proporzionale alla larghezza chat');
+assert.match(imagePreview, /aspectRatio:/, 'spazio immagine non riservato durante il caricamento');
+assert.match(imagePreview, /URL\.revokeObjectURL\(objectUrl\)/, 'URL anteprima non rilasciato');
 
 // ---------------------------------------------------------------
 // Migration: bucket chat-attachments (50 MB, qualsiasi mime) + policy.
@@ -146,9 +159,12 @@ assert.match(panel, /\{attachmentName\.base\}/, 'nome base non renderizzato');
 assert.match(panel, /\{attachmentName\.ext\}/, 'estensione non renderizzata');
 assert.match(panel, /onClick=\{\(\) => handleDownloadAttachment\(item\.message\)\}/, 'click card non scarica');
 assert.match(panel, /handleDownloadAttachment = useCallback/, 'handler download assente');
-// Sugli allegati solo Reagisci e Cancella: Citazione e Copia nascoste.
+// File generici: due azioni. Immagini: anche Citazione e Copia.
+assert.match(panel, /const canQuoteAndCopy = item\.kind !== 'attachment' \|\| attachment\?\.display === 'image'/);
+assert.match(panel, /new ClipboardItem\(\{ 'image\/png': chatImageClipboardBlob\(image\) \}\)/);
+assert.match(service, /image\?: ChatAttachment;/);
 assert.equal(
-  (panel.match(/\{item\.kind !== 'attachment' && \(/g) ?? []).length,
+  (panel.match(/\{canQuoteAndCopy && \(/g) ?? []).length,
   2,
   'Citazione/Copia non entrambe condizionate all\'allegato',
 );

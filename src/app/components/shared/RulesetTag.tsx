@@ -15,6 +15,7 @@ export function RulesetTag({
 }: {
   rulesetId: RulesetId;
 }) {
+  if (rulesetId === 'custom') return null;
   const ruleset = RULESETS[rulesetId] ?? RULESETS.custom;
   // Sfondo neutro scuro quasi opaco (non a tinta del ruleset.color, che a
   // opacità piena farebbe sparire il testo/bordo dello stesso colore) -

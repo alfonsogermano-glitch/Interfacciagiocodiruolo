@@ -4,12 +4,15 @@ import { MessageSquare, Plus, Smile, MoreVertical, Trash2, Quote, X, Check, File
 import { toast } from 'sonner';
 import { Copy } from '../IconeCopia';
 import { ImageSun } from '../IconeImmagine';
+import { ChatImageAttachment } from './ChatImageAttachment';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { useDiceSession } from './dice/DiceSessionContext';
 import { EmojiPicker } from './EmojiPicker';
 import { parseQuotedPaste } from './chatPaste';
 import {
   MAX_ATTACHMENT_BYTES,
+  chatImageClipboardBlob,
+  readChatImageSize,
   saveAttachmentToDisk,
   splitAttachmentName,
   uploadChatAttachment,
@@ -88,6 +91,9 @@ function customDiceFacesForRoll(roll: RollResult): NonNullable<ChatQuote['diceFa
  visive (icona/immagine xN) invece della conversione testuale; per il resto
  il testo come prima. */
 function ChatQuoteContent({ quote }: { quote: ChatQuote }) {
+  if (quote.image) {
+    return <div className="w-24 max-w-full"><ChatImageAttachment attachment={quote.image} onDownload={() => { void saveAttachmentToDisk(quote.image!).catch(() => toast.error('Impossibile scaricare l’immagine.')); }} /></div>;
+  }
   const diceFaces = quote.diceFaces;
   if (!diceFaces || diceFaces.length === 0) {
     return <div className="line-clamp-2 text-xs text-[var(--dash-muted)]">{quote.content}</div>;
@@ -151,12 +157,11 @@ function quoteForItem(item: TimelineItem): ChatQuote {
     return quote;
   }
   if (item.kind === 'attachment') {
-    // Non usata in pratica (sugli allegati il bottone Citazione non compare):
-    // il ramo tiene però il tipo esaustivo.
     return {
       senderName: item.message.senderName,
       kind: 'message',
       content: item.message.attachment?.fileName ?? '',
+      image: item.message.attachment?.display === 'image' ? item.message.attachment : undefined,
     };
   }
   return {
@@ -181,7 +186,7 @@ function groupReactions(reactions: ChatReaction[] | undefined): Array<[string, C
  come blockquote ("> ") cosi' che l'incollo nel composer la riconosca e
  ricostruisca la struttura citazione invece di buttare tutto nel testo. */
 function copyTextOfItem(item: TimelineItem): string {
-  // Anche qui il ramo non viene usato (Copia non compare sugli allegati).
+  // Rappresentazione testuale del file; le immagini vengono copiate come PNG.
   if (item.kind === 'attachment') return item.message.attachment?.fileName ?? '';
   if (item.kind === 'message') {
     const quote = item.message.quote;
@@ -218,6 +223,7 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
   // File picker nascosto del pulsante "+" (qualsiasi tipo di file) e stato di
   // caricamento per disabilitare il bottone durante l'upload.
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const emojiPanelRef = useRef<HTMLDivElement>(null);
@@ -225,9 +231,10 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
   const focusRequestedRef = useRef(false);
   const inputTouchedRef = useRef(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
-  // Selezione messaggio (mostra le azioni emoji/citazione) e picker reazioni.
-  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+  // Hover della voce (mostra i tre puntini) e menu kebab aperto (id della voce).
   const [hoveredEntryId, setHoveredEntryId] = useState<string | null>(null);
+  const [kebabOpenId, setKebabOpenId] = useState<string | null>(null);
+  const [kebabOpensUp, setKebabOpensUp] = useState(false);
   const [reactionPicker, setReactionPicker] = useState<{ id: string; top: number; left: number } | null>(null);
   const [replyQuote, setReplyQuote] = useState<ChatQuote | null>(null);
   // Reazioni sui tiri di sessione: la loro riga in `entries` potrebbe non
@@ -310,22 +317,20 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
     };
   }, [emojiOpen]);
 
-  // Click fuori dai messaggi: deseleziona e chiude il picker delle reazioni.
-  // I click dentro una voce [data-chat-entry] o dentro il picker sono gestiti
-  // dai rispettivi handler e qui non devono fare nulla.
+  // Click fuori dal picker delle reazioni: lo chiude. I click dentro una voce
+  // [data-chat-entry] o dentro il picker sono gestiti dai rispettivi handler
+  // e qui non devono fare nulla.
   useEffect(() => {
-    if (!reactionPicker && selectedEntryId === null) return;
+    if (!reactionPicker) return;
     const outside = (event: PointerEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.closest?.('[data-reaction-picker]')) return;
       if (target?.closest?.('[data-chat-entry]')) return;
-      setSelectedEntryId(null);
       setReactionPicker(null);
     };
     const escape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       setReactionPicker(null);
-      setSelectedEntryId(null);
     };
     document.addEventListener('pointerdown', outside, true);
     window.addEventListener('keydown', escape);
@@ -333,7 +338,27 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
       document.removeEventListener('pointerdown', outside, true);
       window.removeEventListener('keydown', escape);
     };
-  }, [reactionPicker, selectedEntryId]);
+  }, [reactionPicker]);
+
+  // Menu kebab (tre puntini): click fuori dal menu o Escape lo chiudono.
+  useEffect(() => {
+    if (!kebabOpenId) return;
+    const outside = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest?.('[data-chat-kebab]')) return;
+      setKebabOpenId(null);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setKebabOpenId(null);
+    };
+    document.addEventListener('pointerdown', outside, true);
+    window.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside, true);
+      window.removeEventListener('keydown', escape);
+    };
+  }, [kebabOpenId]);
 
   // Dopo l'inserimento di un'emoji il valore dell'input cambia: riapplica
   // focus e posizione del cursore (React potrebbe resettarli sul nuovo valore).
@@ -370,7 +395,14 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
   // Incollo intelligente nel composer: il formato "> Nome: citazione\n\ncorpo"
   // prodotto dalla copia viene riconosciuto (parseQuotedPaste) e ricostruisce
   // la citazione strutturata (banner di risposta) con il resto nel campo.
-  const handleComposerPaste = useCallback((event: ReactClipboardEvent<HTMLInputElement>) => {
+  const handleComposerPaste = (event: ReactClipboardEvent<HTMLInputElement>) => {
+    const imageItem = Array.from(event.clipboardData.items).find((item) => item.kind === 'file' && item.type.startsWith('image/'));
+    const image = imageItem?.getAsFile();
+    if (image) {
+      event.preventDefault();
+      void handleAttachmentFile(image, 'image');
+      return;
+    }
     const parsed = parseQuotedPaste(event.clipboardData.getData('text/plain'));
     if (!parsed) return;
     event.preventDefault();
@@ -388,7 +420,7 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
     ));
     caretRef.current = caret;
     focusRequestedRef.current = true;
-  }, []);
+  };
 
   // Aggiorna la reazione dell'utente su una voce e la broadcasta agli altri.
   const applyReaction = useCallback(async (entryId: string, char: string) => {
@@ -437,7 +469,6 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
   // elimina dal DB (se la riga esiste) e lo broadcasta agli altri client.
   const deleteEntry = useCallback(async (entryId: string) => {
     setReactionPicker(null);
-    setSelectedEntryId(null);
     const target = entries.find((entry) => entry.id === entryId);
     setEntries((prev) => prev.filter((entry) => entry.id !== entryId));
     // Toglie anche la copia locale del tiro: senza questo il merge dei tiri
@@ -462,12 +493,21 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
   // riconosciuto da handleComposerPaste. Per citare nella stessa chat c'e' il
   // bottone Citazione.
   const copyEntry = useCallback((entry: TimelineItem) => {
-    void navigator.clipboard.writeText(copyTextOfItem(entry)).then(() => {
+    const image = entry.kind === 'attachment' && entry.message.attachment?.display === 'image' ? entry.message.attachment : undefined;
+    if (image && (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined')) {
+      toast.error('Questo browser non supporta la copia delle immagini negli appunti.');
+      return;
+    }
+    const copy = image
+      ? navigator.clipboard.write([new ClipboardItem({ 'image/png': chatImageClipboardBlob(image) })])
+      : navigator.clipboard.writeText(copyTextOfItem(entry));
+    void copy.then(() => {
       setCopiedId(entry.key);
       if (copyTimerRef.current) window.clearTimeout(copyTimerRef.current);
       copyTimerRef.current = window.setTimeout(() => setCopiedId(null), 1500);
     }).catch((error) => {
       console.warn('[Chat] Copia negli appunti non riuscita:', error);
+      toast.error('Impossibile copiare negli appunti.');
     });
   }, []);
 
@@ -620,11 +660,20 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
   // Pulsante "+" della composer: qualsiasi tipo di file, max 50 MB. Il file
   // viene caricato nel posto giusto scelto dall'utente (Locale = IndexedDB,
   // Cloud = bucket Storage) e poi condiviso in chat come card cliccabile.
-  const handleFilePicked = async (event: ReactChangeEvent<HTMLInputElement>) => {
+  const handleFilePicked = async (event: ReactChangeEvent<HTMLInputElement>, display?: 'image') => {
     const file = event.target.files?.[0];
     // Reset immediato: permette di riesceglierlo anche dopo un errore.
     event.target.value = '';
     if (!file) return;
+    await handleAttachmentFile(file, display);
+  };
+
+  const handleAttachmentFile = async (file: File, display?: 'image') => {
+    if (uploadingFile) return;
+    if (display === 'image' && !file.type.startsWith('image/')) {
+      toast.error('Seleziona un file immagine.');
+      return;
+    }
     if (!user || !activeCampaign) {
       toast.error('Impossibile condividere il file: campagna o account non disponibili.');
       return;
@@ -636,11 +685,13 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
     setUploadingFile(true);
     let attachment: ChatAttachment | null = null;
     try {
+      const imageSize = display === 'image' ? await readChatImageSize(file) : undefined;
       attachment = await uploadChatAttachment({
         file,
         campaignId: activeCampaign.id,
         userId: user.id,
       });
+      if (display === 'image') Object.assign(attachment, { display: 'image', ...imageSize });
       const saved = await sendChatAttachment({
         campaignId: activeCampaign.id,
         senderId: user.id,
@@ -717,7 +768,7 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
         </div>
       </div>
 
-      <div ref={scrollRef} className="session-chat-scroll min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+      <div ref={scrollRef} className="session-chat-scroll min-h-0 flex-1 space-y-2 overflow-y-auto p-3 pr-5">
         {loading ? (
           <div className="flex h-full items-center justify-center">
             <p className="text-sm text-[var(--dash-muted)]">Caricamento chat...</p>
@@ -741,74 +792,101 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
               const grouped = groupReactions(reactions);
               const attachment = item.kind === 'attachment' ? item.message.attachment : undefined;
               const attachmentName = splitAttachmentName(attachment?.fileName ?? '');
-              // Le azioni compaiono su ogni voce (tiri di sessione compresi);
-              // sugli allegati solo Reagisci e Cancella (niente citazione/copia
-              // per un file). Reagire serve pero' una riga persistita: i tiri
-              // segreti non hanno riga in chat su cui salvare la reazione.
+              const canQuoteAndCopy = item.kind !== 'attachment' || attachment?.display === 'image';
+              // Tre puntini nel gutter destro (fuori dal post, tra il post e
+              // la scrollbar), visibili solo all'hover della voce; il menu che
+              // si apre al click elenca le sole icone, in colonna. Sui file
+              // generici solo Reagisci e Cancella; sulle immagini anche Citazione/Copia.
+              // Reagire serve pero' una riga
+              // persistita: i tiri segreti non hanno riga in chat su cui
+              // salvare la reazione.
               const canReact = item.kind !== 'roll' || item.roll.visibility === 'public';
-              const showActions = selectedEntryId === item.key || hoveredEntryId === item.key;
-              const actions = showActions ? (
-                <div className="absolute -top-3 right-0 z-20 flex gap-1">
-                  {canReact && (
-                    <button
-                      type="button"
-                      aria-label="Reagisci con emoji"
-                      title="Reagisci con emoji"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        toggleReactionPicker(item.key, event.currentTarget);
-                      }}
-                      className="rounded-full border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 text-[var(--dash-muted)] shadow-sm transition-colors hover:text-[var(--dash-accent)]"
-                    >
-                      <Smile className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  {item.kind !== 'attachment' && (
-                    <button
-                      type="button"
-                      aria-label="Citazione"
-                      title="Citazione"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setReactionPicker(null);
-                        setReplyQuote(quoteForItem(item));
-                        inputRef.current?.focus();
-                      }}
-                      className="rounded-full border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 text-[var(--dash-muted)] shadow-sm transition-colors hover:text-[var(--dash-accent)]"
-                    >
-                      <Quote className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  {item.kind !== 'attachment' && (
-                    <button
-                      type="button"
-                      aria-label={copiedId === item.key ? 'Copiato' : 'Copia'}
-                      title={copiedId === item.key ? 'Copiato!' : 'Copia'}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setReactionPicker(null);
-                        copyEntry(item);
-                      }}
-                      className="rounded-full border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 text-[var(--dash-muted)] shadow-sm transition-colors hover:text-[var(--dash-accent)]"
-                    >
-                      {copiedId === item.key
-                        ? <Check className="h-3.5 w-3.5" />
-                        : <Copy className="h-3.5 w-3.5" />}
-                    </button>
-                  )}
+              const showKebab = hoveredEntryId === item.key || kebabOpenId === item.key;
+              const kebab = showKebab ? (
+                <div data-chat-kebab className="absolute -right-5 inset-y-0 z-40 w-5">
                   <button
                     type="button"
-                    aria-label="Cancella"
-                    title="Cancella"
+                    aria-label="Menu azioni"
+                    title="Menu azioni"
                     onClick={(event) => {
                       event.stopPropagation();
                       setReactionPicker(null);
-                      setConfirmDelete(item.key);
+                      const buttonRect = event.currentTarget.getBoundingClientRect();
+                      const viewportRect = scrollRef.current?.getBoundingClientRect();
+                      const actionCount = (canReact ? 1 : 0) + (canQuoteAndCopy ? 2 : 0) + 1;
+                      const menuHeight = actionCount * 25 + 10;
+                      setKebabOpensUp((viewportRect?.bottom ?? window.innerHeight) - buttonRect.bottom < menuHeight + 8);
+                      setKebabOpenId((prev) => (prev === item.key ? null : item.key));
                     }}
-                    className="rounded-full border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 text-[var(--dash-muted)] shadow-sm transition-colors hover:text-red-400"
+                    className="mt-1 flex h-5 w-5 items-center justify-center rounded-md text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <MoreVertical className="h-4 w-4" />
                   </button>
+                  {kebabOpenId === item.key && (
+                    <div className={`absolute right-0 z-50 flex flex-col items-center gap-1 rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 shadow-lg ${kebabOpensUp ? 'top-1 -mt-1 -translate-y-full' : 'top-6 mt-1'}`}>
+                      {canReact && (
+                        <button
+                          type="button"
+                          aria-label="Reagisci con emoji"
+                          title="Reagisci con emoji"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setKebabOpenId(null);
+                            toggleReactionPicker(item.key, event.currentTarget);
+                          }}
+                          className="rounded-full border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 text-[var(--dash-muted)] shadow-sm transition-colors hover:text-[var(--dash-accent)]"
+                        >
+                          <Smile className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      {canQuoteAndCopy && (
+                        <button
+                          type="button"
+                          aria-label="Citazione"
+                          title="Citazione"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setReactionPicker(null);
+                            setReplyQuote(quoteForItem(item));
+                            inputRef.current?.focus();
+                          }}
+                          className="rounded-full border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 text-[var(--dash-muted)] shadow-sm transition-colors hover:text-[var(--dash-accent)]"
+                        >
+                          <Quote className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      {canQuoteAndCopy && (
+                        <button
+                          type="button"
+                          aria-label={copiedId === item.key ? 'Copiato' : 'Copia'}
+                          title={copiedId === item.key ? 'Copiato!' : 'Copia'}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setReactionPicker(null);
+                            copyEntry(item);
+                          }}
+                          className="rounded-full border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 text-[var(--dash-muted)] shadow-sm transition-colors hover:text-[var(--dash-accent)]"
+                        >
+                          {copiedId === item.key
+                            ? <Check className="h-3.5 w-3.5" />
+                            : <Copy className="h-3.5 w-3.5" />}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        aria-label="Cancella"
+                        title="Cancella"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setReactionPicker(null);
+                          setConfirmDelete(item.key);
+                        }}
+                        className="rounded-full border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 text-[var(--dash-muted)] shadow-sm transition-colors hover:text-red-400"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : null;
               const badges = grouped.length > 0 ? (
@@ -847,7 +925,6 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
                   data-chat-entry
                   className="relative"
                   onClick={() => {
-                    setSelectedEntryId(item.key);
                     if (reactionPicker?.id !== item.key) setReactionPicker(null);
                   }}
                   onMouseEnter={() => setHoveredEntryId(item.key)}
@@ -870,7 +947,6 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
                             )}
                             <FlagText>{item.message.content}</FlagText>
                           </div>
-                          {actions}
                           {badges}
                         </div>
                       </div>
@@ -881,27 +957,23 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
                       <div className="min-w-0 flex-1">
                         <div className="text-xs font-semibold text-[var(--dash-text-strong)]">{item.message.senderName}</div>
                         <div className="relative mt-0.5">
-                          {/* Card allegato: nome + estensione accanto all'icona
-                              di download. Il click apre la finestra "Salva con
-                              nome" con il file pronto su disco. */}
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                type="button"
-                                aria-label={`Scarica ${attachment?.fileName ?? 'file'}`}
-                                onClick={() => handleDownloadAttachment(item.message)}
-                                className="flex w-full min-w-0 items-center gap-2 rounded-lg rounded-tl-none border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-2 text-left text-sm text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)]"
-                              >
-                                <FileDown className="h-4 w-4 shrink-0 text-[var(--dash-accent)]" aria-hidden="true" />
-                                <span className="min-w-0 truncate font-semibold">
-                                  {attachmentName.base}
-                                  <span className="font-normal text-[var(--dash-muted)]">{attachmentName.ext}</span>
-                                </span>
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">Scarica {attachment?.fileName ?? 'file'}</TooltipContent>
-                          </Tooltip>
-                          {actions}
+                          {/* Immagine proporzionale o card file; click = Salva con nome. */}
+                          {attachment?.display === 'image' ? (
+                            <ChatImageAttachment attachment={attachment} onDownload={() => handleDownloadAttachment(item.message)} />
+                          ) : (
+                            <button
+                              type="button"
+                              aria-label={`Scarica ${attachment?.fileName ?? 'file'}`}
+                              onClick={() => handleDownloadAttachment(item.message)}
+                              className="flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg rounded-tl-none border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-2 text-left text-sm text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-surface-2)]"
+                            >
+                              <FileDown className="h-4 w-4 shrink-0 text-[var(--dash-accent)]" aria-hidden="true" />
+                              <span className="min-w-0 truncate font-semibold">
+                                {attachmentName.base}
+                                <span className="font-normal text-[var(--dash-muted)]">{attachmentName.ext}</span>
+                              </span>
+                            </button>
+                          )}
                           {badges}
                         </div>
                       </div>
@@ -913,10 +985,10 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
                         onReroll={() => { rerollResult(item.roll); }}
                         variant="chat"
                       />
-                      {actions}
                       {badges}
                     </div>
                   )}
+                  {kebab}
                 </div>
               );
             })}
@@ -976,9 +1048,10 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
             {/* Qualsiasi tipo di file (nessun accept): il limite dei 50 MB e
                 il routing Locale/Cloud sono gestiti in handleFilePicked. */}
             <input ref={fileInputRef} type="file" className="hidden" onChange={handleFilePicked} />
+            <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={(event) => { void handleFilePicked(event, 'image'); }} />
             <Tooltip>
               <TooltipTrigger asChild>
-                <button type="button" aria-label="Inserisci immagine" className="rounded-md p-1 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]">
+                <button type="button" aria-label="Inserisci immagine" disabled={uploadingFile} onClick={() => imageInputRef.current?.click()} className="rounded-md p-1 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] disabled:opacity-40">
                   <ImageSun className="h-4 w-4" />
                 </button>
               </TooltipTrigger>

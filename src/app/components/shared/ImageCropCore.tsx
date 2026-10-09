@@ -1,5 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Loader2, Upload, RotateCcw, Trash2, Images, X } from 'lucide-react';
+import { Check, Loader2, RotateCcw, Trash2, X } from 'lucide-react';
+import { Images } from '../IconeRaccoltaImmagini';
+import { ImageSun } from '../IconeImmagine';
 import Cropper, { type Area } from 'react-easy-crop';
 import { supabase } from '../../auth/AuthContext';
 import { renderShapeSvgChild } from './TokenShapePreview';
@@ -375,14 +377,14 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.65rem 1.25rem',
                      borderRadius: 999, backgroundColor: 'transparent', border: '1.5px solid var(--dash-accent)',
                      color: 'var(--dash-accent)', fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer' }}>
-            <Upload size={16} /> Scegli immagine
+            <ImageSun className="h-5 w-5 shrink-0" /> Scegli immagine
           </button>
           {onPickFromCollection && (
-            <button type="button" onClick={onPickFromCollection}
+            <button type="button" data-image-crop-action="collection" onClick={onPickFromCollection}
               style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.1rem',
                        borderRadius: 999, backgroundColor: 'transparent', border: '1px solid var(--dash-border)',
                        color: 'var(--dash-muted)', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
-              <Images size={15} /> Raccolta immagini
+              <Images className="h-5 w-5 shrink-0" /> Raccolta immagini
             </button>
           )}
           {onRemove && (
@@ -390,7 +392,7 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
               style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.1rem',
                        borderRadius: 999, backgroundColor: 'transparent', border: '1.5px solid var(--dash-danger-border)',
                        color: 'var(--dash-danger-text)', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer' }}>
-              <Trash2 size={14} /> Elimina logo
+              <Trash2 className="h-5 w-5 shrink-0" /> Elimina logo
             </button>
           )}
           {error && <p style={{ color: 'var(--dash-danger-text)', fontSize: '0.8rem' }}>{error}</p>}
@@ -437,15 +439,15 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
                        padding: '0.5rem', borderRadius: 999, backgroundColor: 'transparent',
                        border: '1px solid var(--dash-border)', color: 'var(--dash-muted)', fontSize: '0.8rem',
                        cursor: isUploading ? 'not-allowed' : 'pointer' }}>
-              <Upload size={13} /> Carica nuova immagine
+              <ImageSun className="h-5 w-5 shrink-0" /> Carica nuova immagine
             </button>
             {onPickFromCollection && (
-              <button type="button" onClick={onPickFromCollection} disabled={isUploading}
+              <button type="button" data-image-crop-action="collection" onClick={onPickFromCollection} disabled={isUploading}
                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
                          padding: '0.5rem', borderRadius: 999, backgroundColor: 'transparent',
                          border: '1px solid var(--dash-border)', color: 'var(--dash-muted)', fontSize: '0.8rem',
                          cursor: isUploading ? 'not-allowed' : 'pointer' }}>
-                <Images size={13} /> Raccolta immagini
+                <Images className="h-5 w-5 shrink-0" /> Raccolta immagini
               </button>
             )}
             {onRemove && (
@@ -454,7 +456,7 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
                          padding: '0.5rem 0.9rem', borderRadius: 999, backgroundColor: 'transparent',
                          border: '1px solid var(--dash-danger-border)', color: 'var(--dash-danger-text)', fontSize: '0.8rem',
                          cursor: isUploading ? 'not-allowed' : 'pointer' }}>
-                <Trash2 size={13} /> Elimina
+                <Trash2 className="h-5 w-5 shrink-0" /> Elimina
               </button>
             )}
           </div>
@@ -466,29 +468,29 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
               <button type="button" onClick={handleCancelCrop} disabled={isUploading}
                 style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', flex: 1, padding: '0.6rem', borderRadius: 999, backgroundColor: 'transparent',
                          border: '1px solid var(--dash-border)', color: 'var(--dash-muted)', fontSize: '0.875rem', cursor: 'pointer' }}>
-                <X className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <X className="h-5 w-5 shrink-0" aria-hidden="true" />
                 Annulla
               </button>
             )}
             <Tooltip>
               <TooltipTrigger asChild>
-                <button type="button" onClick={() => { setCrop({ x: 0, y: 0 }); setZoom(1); }} disabled={isUploading}
+                <button type="button" data-image-crop-action="reset" onClick={() => { setCrop({ x: 0, y: 0 }); setZoom(1); }} disabled={isUploading}
                   aria-label="Ripristina zoom e posizione"
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
-                           width: 40, padding: '0.6rem', borderRadius: 999, backgroundColor: 'transparent',
+                           width: 40, flexShrink: 0, padding: '0.6rem', borderRadius: 999, backgroundColor: 'transparent',
                            border: '1px solid var(--dash-border)', color: 'var(--dash-muted)', cursor: isUploading ? 'not-allowed' : 'pointer' }}>
-                  <RotateCcw size={15} />
+                  <RotateCcw className="h-5 w-5 shrink-0" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top">Ripristina zoom e posizione</TooltipContent>
             </Tooltip>
             {!autosaveDebounceMs && (
-              <button type="button" onClick={handleConfirm} disabled={isUploading}
+              <button type="button" data-image-crop-action="confirm" onClick={handleConfirm} disabled={isUploading}
                 style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
                          padding: '0.6rem', borderRadius: 999, backgroundColor: 'transparent',
                          border: '1.5px solid var(--dash-accent)', color: 'var(--dash-accent)', fontWeight: 600,
                          fontSize: '0.875rem', cursor: isUploading ? 'not-allowed' : 'pointer', opacity: isUploading ? 0.6 : 1 }}>
-                {isUploading && <Loader2 size={14} className="animate-spin" />}
+                {isUploading ? <Loader2 className="h-5 w-5 shrink-0 animate-spin" /> : <Check className="h-5 w-5 shrink-0" />}
                 {isUploading ? 'Caricamento...' : 'Conferma'}
               </button>
             )}

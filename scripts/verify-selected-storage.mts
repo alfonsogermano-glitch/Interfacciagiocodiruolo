@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { contentFetch } from '../src/services/storage/contentFetch.ts';
 import { setPersistenceIdentity, persistenceKey } from '../src/services/storage/persistenceMode.ts';
 import { withLocalContent } from '../src/services/storage/localContentStore.ts';
+import { isRulesetCompatible, RULESETS, VISIBLE_RULESETS } from '../src/app/campaigns/campaignTypes.ts';
 
 const preferences = new Map<string, string>();
 Object.defineProperty(globalThis, 'localStorage', { value: {
@@ -37,6 +38,24 @@ async function api(path: string, method = 'GET', body?: unknown) {
 // persistent archive as direct Supabase queries, without a remote request.
 const campaign = (await api('campaigns', 'POST', { name: 'Local campaign' })).campaign;
 assert.equal((await api('campaigns')).campaigns[0].id, campaign.id);
+
+// Campagna personalizzata: conserva l'identità custom e nasce senza entità,
+// note o librerie dadi. Compatibilità indipendente dall'utente proprietario.
+assert.ok(VISIBLE_RULESETS.some((ruleset) => ruleset.id === 'custom'));
+const customCampaign = (await api('campaigns', 'POST', { name: '  Pagina bianca  ', description: 'Senza regole', ruleset: 'custom' })).campaign;
+assert.equal(customCampaign.name, 'Pagina bianca');
+assert.equal(customCampaign.description, 'Senza regole');
+assert.equal(customCampaign.ruleset, 'custom');
+await withLocalContent('alice', false, (tables) => {
+  for (const table of ['characters', 'npcs', 'monsters', 'entity_notes', 'dice_formulas', 'dice_custom_dice', 'dice_formula_folders']) {
+    assert.equal((tables[table] ?? []).filter((row) => row.campaign_id === customCampaign.id).length, 0, `${table} precompilato nella campagna custom`);
+  }
+});
+for (const ruleset of Object.keys(RULESETS)) {
+  assert.equal(isRulesetCompatible(ruleset as keyof typeof RULESETS, null, 'custom'), ruleset === 'custom');
+  assert.equal(isRulesetCompatible('custom', null, ruleset as keyof typeof RULESETS), ruleset === 'custom');
+}
+await api(`campaigns/${customCampaign.id}`, 'DELETE');
 const folder = (await api(`campaigns/${campaign.id}/folders`, 'POST', { entityType: 'campaignnotes', name: 'Folder' })).folder;
 const note = (await api(`campaigns/${campaign.id}/notes`, 'POST', { entityType: 'campaign', entityId: campaign.id, tabName: 'Test', folderId: folder.id })).note;
 const rich = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Persisted' }] }] };

@@ -66,8 +66,8 @@ export function DiceRollHistoryCard({ result, onReroll, variant = 'default' }: {
   const { getStandardAppearance } = useDiceAppearance();
   const avatarSize = variant === 'chat' ? 'h-10 w-10' : 'h-7 w-7';
   return (
-    <article data-dice-roll-history-card className="rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 p-2 shadow-md">
-      <div className="flex items-stretch gap-2">
+    <article data-dice-roll-history-card className={variant === 'chat' ? '' : 'rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 p-2 shadow-md'}>
+      <div className={`flex gap-2 ${variant === 'chat' ? 'items-start' : 'items-stretch'}`}>
         <div data-dice-player-actions className="flex self-stretch shrink-0 flex-col items-center gap-1">
           <div className={`flex ${avatarSize} shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--dash-border)] bg-[var(--dash-surface-2)]`}>
             {result.rollerAvatarUrl
@@ -86,9 +86,11 @@ export function DiceRollHistoryCard({ result, onReroll, variant = 'default' }: {
           )}
         </div>
         <div className="min-w-0 flex-1">
+          {variant === 'chat' && <div className="text-xs font-semibold text-[var(--dash-text-strong)]">{result.rollerName}</div>}
+          <div className={variant === 'chat' ? 'mt-0.5 rounded-lg rounded-tl-none border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-2 text-sm text-[var(--dash-text)]' : ''}>
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <div className="break-words text-sm font-semibold leading-tight text-[var(--dash-text-strong)]">{result.rollerName}</div>
+              {variant !== 'chat' && <div className="break-words text-sm font-semibold leading-tight text-[var(--dash-text-strong)]">{result.rollerName}</div>}
               {(result.formulaId || result.visibility === 'secret' || result.origin === 'modifier') && (
                 <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5">
                   {(result.formulaId || result.origin === 'modifier') && (
@@ -172,6 +174,7 @@ export function DiceRollHistoryCard({ result, onReroll, variant = 'default' }: {
               );
               }))}
             {result.comparisons.map((comparison) => <CompareOutcome key={comparison.itemId} result={comparison} />)}
+          </div>
           </div>
         </div>
       </div>

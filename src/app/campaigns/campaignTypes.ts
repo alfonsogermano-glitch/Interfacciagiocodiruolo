@@ -20,7 +20,7 @@ export const RULESETS: Record<RulesetId, RulesetDefinition> = {
   hsc: {
     id: 'hsc',
     name: 'High School Cthulhu',
-    description: 'Horror cosmico ambientato in un liceo giapponese. Usa Freschezza, Audacia e Follia.',
+    description: 'Horror cosmico in un liceo americano.',
     color: '#8b1a1a',
     stats: ['Corpo', 'Mente', 'Spirito', 'Influenza'],
     healthLabel: 'Freschezza',
@@ -70,7 +70,7 @@ export const RULESETS: Record<RulesetId, RulesetDefinition> = {
   custom: {
     id: 'custom',
     name: 'Regolamento personalizzato',
-    description: 'Usa la dashboard come strumento generico, adattala al tuo sistema.',
+    description: 'Un mondo di gioco con le tue regole.',
     color: '#27ae60',
     stats: [],
     healthLabel: 'Salute',
