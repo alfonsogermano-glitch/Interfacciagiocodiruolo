@@ -160,3 +160,40 @@ export function isPrivateChatUnread(message: PrivateChatMessage, userId: string)
   const seen = readPrivateChatLastSeen(message.campaignId, userId, message.senderId);
   return !seen || message.createdAt > seen;
 }
+
+function threadKey(message: PrivateChatMessage): string {
+  return message.senderId < message.recipientId
+    ? `${message.senderId}:${message.recipientId}`
+    : `${message.recipientId}:${message.senderId}`;
+}
+/** Ricarica autorevole dell'inbox dopo un caricamento dal server: i fili
+ * eliminati con la pulizia della chat privata spariscono anche dallo stato
+ * locale, senza rimuovere gli arrivi in tempo reale piu' recenti della
+ * richiesta (che il snapshot del server puo' non aver ancora visto). */
+export function refreshPrivateInbox(current: PrivateChatMessage[], inbox: PrivateChatMessage[]): PrivateChatMessage[] {
+  const threads = new Set(inbox.map(threadKey));
+  const recentLimit = new Date(Date.now() - 60_000).toISOString();
+  const alive = current.filter((message) => threads.has(threadKey(message)) || message.createdAt > recentLimit);
+  return mergePrivateMessages(alive, inbox);
+}
+
+/** Elimina definitivamente tutta la conversazione tra senderId e peerId: prima
+ * i file caricati dall'utente vengono rimossi fisicamente dallo Storage, poi la
+ * funzione security definer elimina i messaggi della coppia e i riferimenti a
+ * tutti i file di entrambe le cartelle. Nessun soft-delete: la conversazione
+ * sparisce per entrambi i partecipanti. */
+export async function clearPrivateChat(campaignId: string, peerId: string, senderId: string): Promise<void> {
+  requireId(peerId);
+  const client = cloudClient();
+  const ownDir = `${campaignId}/${senderId}/${peerId}`;
+  const listed = await client.storage.from(PRIVATE_CHAT_BUCKET).list(ownDir, { limit: 1000 });
+  if (!listed.error && listed.data?.length) {
+    await client.storage.from(PRIVATE_CHAT_BUCKET).remove(listed.data.map((file) => `${ownDir}/${file.name}`));
+  }
+  const { error } = await client.rpc('clear_private_chat_conversation', {
+    p_campaign: campaignId,
+    p_peer_a: senderId,
+    p_peer_b: peerId,
+  });
+  if (error) throw databaseError(error.message, error.code);
+}

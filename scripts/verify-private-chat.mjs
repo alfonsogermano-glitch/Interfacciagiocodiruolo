@@ -105,14 +105,35 @@ try {
   const gmMessage = (await asUser('gm', () => send('gm', 'bob', 'messaggio dal GM'))).rows[0];
   assert.equal((await asUser('gm', countMessages)).rows[0].id, gmMessage.id, 'GM vede soltanto la propria conversazione');
 
+  // --- Pulizia definitiva conversazione (clear_private_chat_conversation) ---
+  const clearPath = `${ids.campaign}/${ids.alice}/${ids.bob}/clear.png`;
+  await asUser('alice', () => db.query("insert into storage.objects(bucket_id,name) values('private-chat-attachments',$1)", [clearPath]));
+  await asUser('alice', () => send('alice', 'bob', 'da eliminare'));
+  await asUser('bob', () => send('bob', 'alice', 'da eliminare anche questo'));
+  await asUser('gm', () => send('gm', 'bob', 'rimane'));
+  assert.equal((await asUser('alice', countMessages)).rows.filter(r => r.content === 'da eliminare' || r.content === 'da eliminare anche questo').length, 2);
+  await assert.rejects(asUser('bob', () => db.query('select clear_private_chat_conversation($1,$2,$3)', [ids.campaign, ids.alice, ids.bob])), /primo mittente/, 'solo il primo mittente pulisce la coppia');
+  await asUser('alice', () => db.query('select clear_private_chat_conversation($1,$2,$3)', [ids.campaign, ids.alice, ids.bob]));
+  assert.equal((await asUser('alice', countMessages)).rows.filter(r => r.content === 'da eliminare' || r.content === 'da eliminare anche questo').length, 0, 'messaggi della coppia eliminati');
+  assert.equal((await asUser('bob', countMessages)).rows.filter(r => r.content === 'rimane').length, 1, 'conversazione GM-Bob intatta');
+  assert.equal((await asUser('alice', objectCount)).rows.filter(r => r.name === clearPath || r.name === path).length, 0, 'file della coppia eliminati');
+  await assert.rejects(asUser('gm', () => db.query('select clear_private_chat_conversation($1,$2,$3)', [ids.campaign, ids.alice, ids.bob])), 'GM estraneo alla conversazione');
+  await assert.rejects(asUser('outsider', () => db.query('select clear_private_chat_conversation($1,$2,$3)', [ids.campaign, ids.alice, ids.bob])), 'estraneo alla campagna');
+  await assert.rejects(asUser('bob', () => db.query('select clear_private_chat_conversation($1,$2,$3)', [ids.campaign, ids.gm, ids.bob])), /primo mittente/, 'il destinatario non pulisce la conversazione aperta dal GM');
+  await asUser('gm', () => db.query('select clear_private_chat_conversation($1,$2,$3)', [ids.campaign, ids.gm, ids.bob]));
+  assert.equal((await asUser('bob', countMessages)).rows.filter(r => r.content === 'rimane').length, 0, 'il GM pulisce la propria conversazione');
+  await asUser('gm', () => db.query('select clear_private_chat_conversation($1,$2,$3)', [ids.campaign, ids.gm, ids.bob])); // pulizia ripetuta: idempotente
+  const survivorPath = `${ids.campaign}/${ids.alice}/${ids.bob}/sopravvissuto.png`;
+  await asUser('alice', () => db.query("insert into storage.objects(bucket_id,name) values('private-chat-attachments',$1)", [survivorPath]));
+
   await db.query('delete from campaign_members where campaign_id=$1 and profile_id=$2', [ids.campaign, ids.bob]);
   assert.equal((await asUser('bob', countMessages)).rows.length, 0, 'membro rimosso perde accesso');
   assert.equal((await asUser('bob', objectCount)).rows.length, 0);
   await assert.rejects(asUser('alice', () => send('alice', 'bob')), 'nessun nuovo messaggio a membro rimosso');
-  assert.equal((await asUser('alice', () => db.query('delete from storage.objects where name=$1 returning id', [path]))).rows.length, 1, 'mittente può pulire il file anche dopo rimozione destinatario');
+  assert.equal((await asUser('alice', () => db.query('delete from storage.objects where name=$1 returning id', [survivorPath]))).rows.length, 1, 'mittente può pulire il file anche dopo rimozione destinatario');
   await db.query('update campaigns set deleted_at=now() where id=$1', [ids.campaign]);
   assert.equal((await asUser('alice', countMessages)).rows.length, 0, 'campagna cancellata revoca accesso');
-  console.log('Private chat PostgreSQL RLS: PASS (pair-only, GM isolation, private storage guards, forged sender/asset denial, deletion, membership revocation, idempotence).');
+  console.log('Private chat PostgreSQL RLS: PASS (pair-only, GM isolation, private storage guards, forged sender/asset denial, deletion, membership revocation, clear-conversation first-sender-only, idempotence).');
 } finally { await db.close(); }
 
 const unit = await build({

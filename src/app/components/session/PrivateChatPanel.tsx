@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type ClipboardEvent } from 'react';
-import { Check, FileDown, Loader2, LockKeyhole, Plus, Send, Smile, Trash2, X } from 'lucide-react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent } from 'react';
+import { Check, FileDown, Loader2, LockKeyhole, MoreVertical, Plus, Send, Smile, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../auth/AuthContext';
 import { Copy } from '../IconeCopia';
@@ -10,7 +10,7 @@ import { EmojiPicker } from './EmojiPicker';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { chatImageClipboardBlob, MAX_ATTACHMENT_BYTES, readChatImageSize, saveAttachmentToDisk, uploadPrivateChatAttachment } from './chatAttachments';
 import { removeContentAsset } from '../../../services/storage/contentAssets';
-import { belongsToPrivateThread, deletePrivateChatMessage, loadPrivateChatMessages, markPrivateChatSeen, PRIVATE_CHAT_PAGE_SIZE, sendPrivateChatMessage, type CampaignChatParticipant, type PrivateChatMessage } from '../../../services/supabase/privateChatService';
+import { belongsToPrivateThread, clearPrivateChat, deletePrivateChatMessage, loadPrivateChatMessages, markPrivateChatSeen, PRIVATE_CHAT_PAGE_SIZE, sendPrivateChatMessage, type CampaignChatParticipant, type PrivateChatMessage } from '../../../services/supabase/privateChatService';
 import type { ChatAttachment } from '../../../services/supabase/chatService';
 
 interface Props {
@@ -21,10 +21,11 @@ interface Props {
   canSend: boolean;
   online: boolean;
   onMessages: (messages: PrivateChatMessage[]) => void;
+  onCleared?: () => void;
   onClose: () => void;
 }
 
-export function PrivateChatPanel({ campaignId, peer, messages, refreshToken, canSend, online, onMessages, onClose }: Props) {
+export function PrivateChatPanel({ campaignId, peer, messages, refreshToken, canSend, online, onMessages, onCleared, onClose }: Props) {
   const { user } = useAuth();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -32,9 +33,12 @@ export function PrivateChatPanel({ campaignId, peer, messages, refreshToken, can
   const [hasOlder, setHasOlder] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PrivateChatMessage | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const [visible, setVisible] = useState(document.visibilityState === 'visible');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -42,12 +46,25 @@ export function PrivateChatPanel({ campaignId, peer, messages, refreshToken, can
   const fileRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const olderHeightRef = useRef<number | null>(null);
   const stickToBottom = useRef(true);
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onMessagesRef = useRef(onMessages);
   onMessagesRef.current = onMessages;
   const feed = messages.filter((message) => !message.deletedAt && user && belongsToPrivateThread(message, user.id, peer.id));
+  // "Pulisci chat privata" spetta solo all'autore della conversazione, cioe' al
+  // mittente del primo messaggio della coppia (e solo se entrambi sono ancora
+  // membri: la funzione server lo verifica). L'elenco inbox del pannello
+  // genitore e' completo (paginato fino in fondo), quindi il primo messaggio
+  // della coppia e' sempre presente anche se non tutti i fili sono aperti.
+  const canClear = useMemo(() => {
+    if (!user || !canSend) return false;
+    const thread = messages
+      .filter((message) => belongsToPrivateThread(message, user.id, peer.id))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+    return thread.length > 0 && thread[0].senderId === user.id;
+  }, [messages, user?.id, peer.id, canSend]);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +93,14 @@ export function PrivateChatPanel({ campaignId, peer, messages, refreshToken, can
     window.addEventListener('keydown', escape);
     return () => { document.removeEventListener('pointerdown', close); window.removeEventListener('keydown', escape); };
   }, [emojiOpen]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (event: PointerEvent) => { if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('pointerdown', close);
+    window.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('pointerdown', close); window.removeEventListener('keydown', escape); };
+  }, [menuOpen]);
   useLayoutEffect(() => {
     const element = scrollRef.current;
     if (!element) return;
@@ -153,12 +178,30 @@ export function PrivateChatPanel({ campaignId, peer, messages, refreshToken, can
     } catch (reason) { toast.error(reason instanceof Error ? reason.message : 'Cancellazione non riuscita.'); }
     finally { setDeleting(false); }
   };
+  const clearChat = async () => {
+    if (!user || clearing || !canSend || !canClear) return;
+    setClearing(true);
+    setConfirmClear(false);
+    setMenuOpen(false);
+    try {
+      await clearPrivateChat(campaignId, peer.id, user.id);
+      onCleared?.();
+      toast.success('Chat privata pulita.');
+    } catch (reason) { toast.error(reason instanceof Error ? reason.message : 'Pulizia non riuscita.'); }
+    finally { setClearing(false); }
+  };
 
   return <div data-private-chat-panel className="flex min-h-0 flex-1 flex-col bg-[var(--dash-panel)] text-[var(--dash-text)]">
     <div className="flex shrink-0 items-center gap-2 border-b border-[var(--dash-border)] px-3 py-2">
       <LockKeyhole className="h-4 w-4 shrink-0 text-[var(--dash-accent)]" />
       <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">Privato · {peer.name}{peer.isGm ? ' · GM' : ''}</p><p className="text-[10px] text-[var(--dash-muted)]">Solo tu e {peer.name} · {online ? 'Online' : 'Offline'}</p></div>
-      <button type="button" aria-label="Torna alla chat campagna" onClick={onClose} className="rounded-md p-1 hover:bg-[var(--dash-surface-2)]"><X className="h-4 w-4" /></button>
+      <div className="relative" ref={menuRef}>
+        <button type="button" aria-label="Menu conversazione privata" title="Menu conversazione privata" onClick={() => setMenuOpen((open) => !open)} className="rounded-md p-1 hover:bg-[var(--dash-surface-2)]"><MoreVertical className="h-4 w-4" /></button>
+        {menuOpen && <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 shadow-lg">
+          {canClear && <button type="button" onClick={() => { setMenuOpen(false); setConfirmClear(true); }} disabled={clearing} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-[var(--dash-danger-text)] hover:bg-[var(--dash-surface-2)]"><Trash2 className="h-4 w-4" />Pulisci chat privata</button>}
+          <button type="button" onClick={onClose} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-[var(--dash-surface-2)]"><X className="h-4 w-4" />Torna alla campagna</button>
+        </div>}
+      </div>
     </div>
     <div ref={scrollRef} className="session-chat-scroll min-h-0 flex-1 space-y-2 overflow-y-auto p-3" onScroll={() => {
       const element = scrollRef.current;
@@ -209,5 +252,6 @@ export function PrivateChatPanel({ campaignId, peer, messages, refreshToken, can
       <input ref={imageRef} type="file" accept="image/*" className="hidden" onChange={(event) => picked(event, true)} />
     </form>
     {deleteTarget && <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4"><div role="dialog" aria-modal="true" aria-label="Cancella messaggio privato" className="rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)] p-4"><p className="mb-3 text-sm">Cancellare questo messaggio privato per entrambi?</p><div className="flex justify-end gap-2"><button type="button" disabled={deleting} onClick={() => setDeleteTarget(null)} className="inline-flex items-center gap-1 rounded border border-[var(--dash-border)] px-3 py-1 text-sm"><X className="h-4 w-4 shrink-0" aria-hidden="true" />Annulla</button><button type="button" disabled={deleting} onClick={() => void remove()} className="inline-flex items-center gap-1 rounded bg-[var(--dash-accent)] px-3 py-1 text-sm"><Trash2 className="h-4 w-4" />Cancella</button></div></div></div>}
+    {confirmClear && canClear && <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4"><div role="dialog" aria-modal="true" aria-label="Pulisci chat privata" className="rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)] p-4"><p className="mb-1 text-sm font-semibold">Pulisci chat privata</p><p className="mb-3 text-xs text-[var(--dash-muted)]">Verranno eliminati definitivamente tutti i messaggi e i file condivisi con {peer.name}, per entrambi.</p><div className="flex justify-end gap-2"><button type="button" disabled={clearing} onClick={() => setConfirmClear(false)} className="inline-flex items-center gap-1 rounded border border-[var(--dash-border)] px-3 py-1 text-sm"><X className="h-4 w-4 shrink-0" aria-hidden="true" />Annulla</button><button type="button" disabled={clearing} onClick={() => void clearChat()} className="inline-flex items-center gap-1 rounded bg-[var(--dash-accent)] px-3 py-1 text-sm"><Trash2 className="h-4 w-4" />Pulisci</button></div></div></div>}
   </div>;
 }

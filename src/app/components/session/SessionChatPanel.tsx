@@ -207,6 +207,9 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
   const { rolls, rerollResult, clearLocalHistory, removeRoll } = useDiceSession();
   const { user } = useAuth();
   const { activeCampaign } = useCampaign();
+  // "Pulisci chat" (timeline intera) è un potere del GM della campagna: la
+  // voce di menu e il dialogo sono visibili solo a chi la possiede.
+  const isGm = Boolean(activeCampaign && user && activeCampaign.ownerId === user.id);
   const [activeTab, setActiveTab] = useState<ChatTab>('all');
   const [message, setMessage] = useState('');
   const [entries, setEntries] = useState<ChatMessage[]>([]);
@@ -633,7 +636,7 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
   const handleClearChat = async () => {
     setConfirmClear(false);
     setMenuOpen(false);
-    if (!activeCampaign) return;
+    if (!activeCampaign || !isGm) return;
     // Prima di svuotare la timeline elimina dallo storage i bytes dei MIEI
     // allegati (best effort): quelli degli altri restano intatti perche' la
     // RLS potrebbe non cancellarne la riga e il file deve restare valido.
@@ -744,28 +747,30 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
             )}
           </button>
         ))}
-        <div ref={menuRef} className="relative ml-auto">
-          <button
-            type="button"
-            aria-label="Menu chat"
-            onClick={() => setMenuOpen((open) => !open)}
-            className="rounded-md p-1.5 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
-          >
-            <MoreVertical className="h-4 w-4" />
-          </button>
-          {menuOpen && (
-            <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 shadow-lg">
-              <button
-                type="button"
-                onClick={() => { setMenuOpen(false); setConfirmClear(true); }}
-                className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs text-[var(--dash-danger-text)] transition-colors hover:bg-[var(--dash-danger-bg)]"
-              >
-                <Trash2 className="h-3.5 w-3.5 shrink-0" />
-                Pulisci chat
-              </button>
-            </div>
-          )}
-        </div>
+        {isGm && (
+          <div ref={menuRef} className="relative ml-auto">
+            <button
+              type="button"
+              aria-label="Menu chat"
+              onClick={() => setMenuOpen((open) => !open)}
+              className="rounded-md p-1.5 text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => { setMenuOpen(false); setConfirmClear(true); }}
+                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs text-[var(--dash-danger-text)] transition-colors hover:bg-[var(--dash-danger-bg)]"
+                >
+                  <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                  Pulisci chat
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div ref={scrollRef} className="session-chat-scroll min-h-0 flex-1 space-y-2 overflow-y-auto p-3 pr-5">
@@ -1131,7 +1136,7 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
         </div>
       )}
 
-      {confirmClear && (
+      {confirmClear && isGm && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Pulisci chat">
           <div className="w-full max-w-sm rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] p-4 shadow-xl">
             <h2 className="text-sm font-semibold text-[var(--dash-text-strong)]">Pulisci chat</h2>

@@ -166,4 +166,57 @@ do $$ begin
   end if;
 end $$;
 
+-- Pulizia definitiva della conversazione. Elimina i messaggi della coppia e i
+-- riferimenti a entrambe le cartelle di file, senza soft-delete. Security
+-- definer: la RLS normale non consente di cancellare i messaggi altrui. La
+-- funzione riceve entrambi i partecipanti e verifica che il richiedente sia uno
+-- dei due: il GM non puo' cancellare conversazioni tra altri utenti. La pulizia
+-- e' inoltre riservata all'autore della conversazione, cioe' al mittente del
+-- primo messaggio della coppia; una conversazione gia' vuota e' un no-op.
+create or replace function public.clear_private_chat_conversation(p_campaign uuid, p_peer_a text, p_peer_b text)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare
+  v_user text := (select auth.uid())::text;
+  v_peer text;
+  v_author text;
+begin
+  if v_user is null
+     or p_peer_a is null or p_peer_b is null
+     or p_peer_a = p_peer_b
+     or (v_user <> p_peer_a and v_user <> p_peer_b)
+     or not public.private_chat_is_member(p_campaign::text, p_peer_a)
+     or not public.private_chat_is_member(p_campaign::text, p_peer_b) then
+    raise exception 'Partecipanti non autorizzati';
+  end if;
+  v_peer := case when v_user = p_peer_a then p_peer_b else p_peer_a end;
+
+  select m.sender_id into v_author
+  from public.private_chat_messages m
+  where m.campaign_id = p_campaign
+    and ((m.sender_id = v_user and m.recipient_id = v_peer)
+      or (m.sender_id = v_peer and m.recipient_id = v_user))
+  order by m.created_at, m.id
+  limit 1;
+  if v_author is not null and v_author <> v_user then
+    raise exception 'Solo il primo mittente della conversazione puo'' pulirla';
+  end if;
+
+  delete from storage.objects
+  where bucket_id = 'private-chat-attachments'
+    and split_part(name, '/', 1) = p_campaign::text
+    and (
+      (split_part(name, '/', 2) = v_user and split_part(name, '/', 3) = v_peer)
+      or (split_part(name, '/', 2) = v_peer and split_part(name, '/', 3) = v_user)
+    );
+
+  delete from private_chat_messages
+  where campaign_id = p_campaign
+    and ((sender_id = v_user and recipient_id = v_peer)
+      or (sender_id = v_peer and recipient_id = v_user));
+  return true;
+end;
+$$;
+revoke all on function public.clear_private_chat_conversation(uuid, text, text) from public;
+grant execute on function public.clear_private_chat_conversation(uuid, text, text) to authenticated;
+
 commit;

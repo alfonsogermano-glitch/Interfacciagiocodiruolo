@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { onlineCampaignParticipants } from '../src/services/realtime/campaignPresence';
-import { belongsToPrivateThread, mergePrivateMessages, privateChatRow, isPrivateChatUnread, markPrivateChatSeen, readPrivateChatLastSeen, sendPrivateChatMessage, type PrivateChatMessage } from '../src/services/supabase/privateChatService';
+import { belongsToPrivateThread, clearPrivateChat, mergePrivateMessages, privateChatRow, isPrivateChatUnread, markPrivateChatSeen, readPrivateChatLastSeen, sendPrivateChatMessage, type PrivateChatMessage } from '../src/services/supabase/privateChatService';
 import { uploadPrivateChatAttachment } from '../src/app/components/session/chatAttachments';
 import { setPersistenceIdentity } from '../src/services/storage/persistenceMode';
 
@@ -40,6 +40,7 @@ setPersistenceIdentity('alice');
 preferences.set('hsc_dashboard_settings:alice', JSON.stringify({ saveMode: 'local' }));
 await assert.rejects(sendPrivateChatMessage({ campaignId: 'campaign', senderId: 'alice', recipientId: '10000000-0000-0000-0000-000000000002', content: 'non inviare' }), /Cloud/);
 await assert.rejects(uploadPrivateChatAttachment({ file: new File(['test'], 'test.txt'), campaignId: 'campaign', senderId: 'alice', recipientId: 'bob' }), /Cloud/);
+await assert.rejects(clearPrivateChat('campaign', '10000000-0000-0000-0000-000000000002', 'alice'), /Cloud/);
 
 const service = readFileSync('src/services/supabase/privateChatService.ts', 'utf8');
 const attachments = readFileSync('src/app/components/session/chatAttachments.ts', 'utf8');
@@ -48,6 +49,7 @@ assert.ok(!service.includes("type: 'broadcast'"), 'nessun contenuto privato in b
 assert.match(service, /event: 'INSERT'.*private_chat_messages/);
 assert.match(service, /event: 'UPDATE'.*private_chat_messages/);
 assert.doesNotMatch(service, /event: 'DELETE'/);
+assert.match(service, /rpc\('clear_private_chat_conversation'/, 'pulizia conversazione via RPC security definer');
 const privateResolver = attachments.slice(attachments.indexOf('if (attachment.bucket === PRIVATE_CHAT_BUCKET)'), attachments.indexOf("if (attachment.storage === 'local')"));
 assert.match(privateResolver, /\.download\(attachment\.assetPath\)/);
 assert.doesNotMatch(privateResolver, /getPublicUrl|fetch\(/);

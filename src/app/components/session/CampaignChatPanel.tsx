@@ -5,7 +5,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
 import { onlineCampaignParticipants } from '../../../services/realtime/campaignPresence';
 import { selectedContentMode } from '../../../services/storage/persistenceMode';
-import { isPrivateChatUnread, loadPrivateChatInbox, loadPrivateChatParticipants, mergePrivateMessages, privateChatPeer, subscribePrivateChat, type CampaignChatParticipant, type PrivateChatMessage } from '../../../services/supabase/privateChatService';
+import { belongsToPrivateThread, isPrivateChatUnread, loadPrivateChatInbox, loadPrivateChatParticipants, mergePrivateMessages, privateChatPeer, refreshPrivateInbox, subscribePrivateChat, type CampaignChatParticipant, type PrivateChatMessage } from '../../../services/supabase/privateChatService';
 import type { ChatMessage } from '../../../services/supabase/chatService';
 import { SessionChatPanel } from './SessionChatPanel';
 import { PrivateChatPanel } from './PrivateChatPanel';
@@ -30,6 +30,9 @@ function CampaignChatContent({ campaignId, incomingMessage, onPrivateConversatio
   const [liveReady, setLiveReady] = useState(false);
   const [loadingDirectory, setLoadingDirectory] = useState(cloud);
   const merge = useCallback((incoming: PrivateChatMessage[]) => setMessages((current) => mergePrivateMessages(current, incoming)), []);
+  const clearThread = useCallback((peerId: string) => {
+    setMessages((current) => current.filter((message) => !belongsToPrivateThread(message, user?.id ?? '', peerId)));
+  }, [user?.id]);
   useCampaignChannel(campaignId, {
     onPresenceSync: setPresence,
     onBroadcast: { members_change: () => setRevision((value) => value + 1) },
@@ -54,12 +57,12 @@ function CampaignChatContent({ campaignId, incomingMessage, onPrivateConversatio
       if (cancelled) return;
       setParticipants(people);
       if (!people.some((participant) => participant.id === user.id)) { setMessages([]); setPeer(null); }
-      else merge(inbox);
+      else setMessages((current) => refreshPrivateInbox(current, inbox));
       setError(null);
     }).catch((reason) => { if (!cancelled) setError(reason instanceof Error ? reason.message : 'Chat privata non disponibile.'); })
       .finally(() => { if (!cancelled) setLoadingDirectory(false); });
     return () => { cancelled = true; };
-  }, [campaignId, user?.id, cloud, revision, merge]);
+  }, [campaignId, user?.id, cloud, revision]);
   useEffect(() => {
     const seen = () => setSeenRevision((value) => value + 1);
     const focus = () => { if (document.visibilityState === 'visible') setRevision((value) => value + 1); };
@@ -100,7 +103,7 @@ function CampaignChatContent({ campaignId, incomingMessage, onPrivateConversatio
         {[...threads.values()].reverse().map((other) => <button type="button" key={other.id} onClick={() => setPeer(other)} aria-pressed={peer?.id === other.id} className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs ${peer?.id === other.id ? 'bg-[var(--dash-surface-2)] text-[var(--dash-accent)]' : 'text-[var(--dash-muted)]'}`}><LockKeyhole className="h-3 w-3" /><span className="max-w-28 truncate">{other.name}</span>{!!unread.get(other.id) && <span className="rounded-full bg-[var(--dash-accent)] px-1 text-[9px] text-[var(--dash-text-strong)]">{unread.get(other.id)}</span>}</button>)}
       </div>
     </div>
-    {currentPeer && cloud ? <PrivateChatPanel key={currentPeer.id} campaignId={campaignId} peer={currentPeer} messages={messages} refreshToken={revision} canSend={participants.some((participant) => participant.id === currentPeer.id)} online={online.some((participant) => participant.id === currentPeer.id)} onMessages={merge} onClose={() => setPeer(null)} />
+    {currentPeer && cloud ? <PrivateChatPanel key={currentPeer.id} campaignId={campaignId} peer={currentPeer} messages={messages} refreshToken={revision} canSend={participants.some((participant) => participant.id === currentPeer.id)} online={online.some((participant) => participant.id === currentPeer.id)} onMessages={merge} onCleared={() => clearThread(currentPeer.id)} onClose={() => setPeer(null)} />
       : <div className="min-h-0 flex-1"><SessionChatPanel incomingMessage={incomingMessage} /></div>}
   </div>;
 }

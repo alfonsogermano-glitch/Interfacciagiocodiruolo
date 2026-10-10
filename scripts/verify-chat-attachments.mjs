@@ -203,6 +203,14 @@ assert.match(
 );
 assert.match(panel, /entry\.kind === 'attachment' && entry\.attachment && user && entry\.senderId === user\.id/,
   'pulizia storage non limitata ai propri allegati');
+// La "Pulisci chat" della timeline pubblica e' un potere del GM.
+assert.match(
+  panel,
+  /const isGm = Boolean\(activeCampaign && user && activeCampaign\.ownerId === user\.id\)/,
+  'chat pubblica: isGm dal proprietario della campagna',
+);
+assert.match(panel, /\{isGm && \(/, 'menu Pulisci chat visibile solo al GM');
+assert.match(panel, /\{confirmClear && isGm && \(/, 'dialogo Pulisci chat visibile solo al GM');
 
 // ---------------------------------------------------------------
 // Sidebar: il broadcast chat_message deve far passare anche gli allegati.

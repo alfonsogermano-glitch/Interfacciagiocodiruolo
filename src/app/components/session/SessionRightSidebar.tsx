@@ -7,7 +7,7 @@ import { SessionDicePanel } from './dice/SessionDicePanel';
 import { DiceRollHistoryDrawer } from './dice/DiceRollHistoryDrawer';
 import { DiceSessionProvider } from './dice/DiceSessionContext';
 import { CampaignChatPanel } from './CampaignChatPanel';
-import { isPrivateChatUnread, loadPrivateChatInbox, mergePrivateMessages, subscribePrivateChat, type PrivateChatMessage } from '../../../services/supabase/privateChatService';
+import { isPrivateChatUnread, loadPrivateChatInbox, mergePrivateMessages, refreshPrivateInbox, subscribePrivateChat, type PrivateChatMessage } from '../../../services/supabase/privateChatService';
 import { selectedContentMode } from '../../../services/storage/persistenceMode';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useAuth } from '../../auth/AuthContext';
@@ -198,7 +198,11 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
     const merge = (incoming: PrivateChatMessage[]) => {
       if (!cancelled) setPrivateMessages((current) => mergePrivateMessages(current, incoming));
     };
-    const refresh = () => { void loadPrivateChatInbox(activeCampaignId).then(merge).catch(() => { /* Errore mostrato nel pannello chat. */ }); };
+    const refresh = () => {
+      void loadPrivateChatInbox(activeCampaignId).then((inbox) => {
+        if (!cancelled) setPrivateMessages((current) => refreshPrivateInbox(current, inbox));
+      }).catch(() => { /* Errore mostrato nel pannello chat. */ });
+    };
     const seen = () => setPrivateSeenRevision((value) => value + 1);
     const focus = () => { if (document.visibilityState === 'visible') refresh(); };
     const unsubscribe = subscribePrivateChat(activeCampaignId, user.id, (message) => merge([message]), (ready) => { if (ready) refresh(); });

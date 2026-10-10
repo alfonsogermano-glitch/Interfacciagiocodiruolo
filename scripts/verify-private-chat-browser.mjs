@@ -58,9 +58,9 @@ try {
       const chain={select(){return chain},eq(field,value){state.filters.push([field,value]);return chain},is(field,value){state.filters.push([field,value]);return chain},or(value){const match=/sender_id.eq.([^,)]+)/.exec(value);if(match)state.peer=match[1];return chain},order(){return chain},limit(value){state.limit=value;return chain},insert(value){state.insert=value;s.calls.push({operation:'insert',...value});return chain},single(){return Promise.resolve(result())},then(resolve,reject){return Promise.resolve(result()).then(resolve,reject)}};
       return chain;
     };
-    s.client={rpc:async()=>({data:s.people,error:null}),from(table){s.calls.push({operation:'query',table});if(table!=='private_chat_messages')throw Error('Unexpected public table');return query()},
+    s.client={rpc:async(name,args)=>{s.calls.push({operation:'rpc',name,args});return {data:s.people,error:null}},from(table){s.calls.push({operation:'query',table});if(table!=='private_chat_messages')throw Error('Unexpected public table');return query()},
       channel(){const handlers=[];const channel={on(type,filter,callback){handlers.push({filter,callback});return channel},subscribe(callback){s.listeners.add(handlers);setTimeout(()=>callback('SUBSCRIBED'),0);return channel},handlers};return channel},removeChannel(channel){s.listeners.delete(channel.handlers);return Promise.resolve()},
-      storage:{from(bucket){return {upload:async(path,file)=>{s.calls.push({operation:'upload',bucket,path});s.assets.set(path,file);return {error:null}},download:async(path)=>({data:s.assets.get(path),error:null}),remove:async(paths)=>{paths.forEach(path=>s.assets.delete(path));return {error:null}},getPublicUrl(){throw Error('Private publicUrl forbidden')}}}}};
+      storage:{from(bucket){return {upload:async(path,file)=>{s.calls.push({operation:'upload',bucket,path});s.assets.set(path,file);return {error:null}},download:async(path)=>({data:s.assets.get(path),error:null}),remove:async(paths)=>{paths.forEach(path=>s.assets.delete(path));return {error:null}},list:async(path)=>({data:[...s.assets.keys()].filter(key=>key.startsWith(`${path}/`)).map(key=>({name:key.slice(path.length+1)})),error:null}),getPublicUrl(){throw Error('Private publicUrl forbidden')}}}}};
     s.emit=(row)=>{s.rows.push(row);for(const handlers of s.listeners)for(const handler of handlers)if(handler.filter.event==='INSERT')handler.callback({new:row})};
     const host=document.createElement('div');
     host.style.cssText='position:fixed;top:16px;left:16px;width:340px;height:700px;z-index:99999;background:#222;--dash-text:#ddd;--dash-text-strong:#fff;--dash-muted:#aaa;--dash-border:#666;--dash-panel:#252525;--dash-surface:#333;--dash-surface-2:#383838;--dash-accent:#d4aa68;--dash-danger-text:#f99';
@@ -73,6 +73,17 @@ try {
   const initial = await browser.evaluate(() => ({ portraits:document.querySelectorAll('[data-campaign-online-portraits] button[aria-label^="Messaggio privato"]').length, text:window.__PC.host.textContent }));
   assert.equal(initial.portraits, 3, 'solo Alice/Bob/GM online, Bob deduplicato');
   assert.ok(!initial.text.includes('Carol'));
+  // L'autore della conversazione e' il primo mittente: il GM apre la coppia
+  // GM-Alice e solo lui vedra' "Pulisci chat privata" nel menu.
+  await browser.evaluate(() => window.__PC.emit(window.__PC.row(4, 1, 'Il GM apre la conversazione privata')));
+  await sleep(200);
+  await browser.evaluate(() => document.querySelector('button[aria-label^="Messaggio privato a GM"]').click());
+  await sleep(250);
+  await browser.evaluate(() => document.querySelector('[data-private-chat-panel] button[aria-label="Menu conversazione privata"]').click());
+  await sleep(80);
+  assert.equal(await browser.evaluate(() => window.__PC.host.textContent.includes('Pulisci chat privata')), false, 'il destinatario non vede Pulisci chat privata');
+  await browser.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.includes('Torna alla campagna')).click());
+  await sleep(120);
   await browser.evaluate(() => document.querySelector('button[aria-label="Messaggio privato a Bob"]').click());
   await sleep(300);
   assert.equal(await browser.evaluate(() => window.__PC.privateOpen), true);
@@ -96,7 +107,9 @@ try {
   await sleep(200);
   assert.equal(await browser.evaluate(() => document.querySelectorAll('[data-campaign-online-portraits] button[aria-label^="Messaggio privato"]').length), 2);
   assert.ok(await browser.evaluate(() => window.__PC.host.textContent.includes('Offline')));
-  await browser.evaluate(() => document.querySelector('button[aria-label="Torna alla chat campagna"]').click());
+  await browser.evaluate(() => document.querySelector('button[aria-label="Menu conversazione privata"]').click());
+  await sleep(80);
+  await browser.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.includes('Torna alla campagna')).click());
   await sleep(120);
   await browser.evaluate(() => window.__PC.emit(window.__PC.row(2,1,'Risposta privata mentre leggo il pubblico')));
   await sleep(200);
@@ -106,6 +119,30 @@ try {
   await browser.evaluate(() => [...window.__PC.host.querySelectorAll('button')].find(button=>button.textContent.includes('Bob')).click());
   await sleep(250);
   assert.ok(await browser.evaluate(() => window.__PC.host.textContent.includes('Risposta privata mentre leggo il pubblico')));
+  // --- Menu tre puntini + Pulisci chat privata ---
+  const headerBeforeClear = await browser.evaluate(() => ({
+    hasXInHeader: !!document.querySelector('[data-private-chat-panel] button[aria-label="Torna alla chat campagna"]'),
+    hasKebab: !!document.querySelector('[data-private-chat-panel] button[aria-label="Menu conversazione privata"]'),
+  }));
+  assert.equal(headerBeforeClear.hasXInHeader, false, 'X sostituita dai tre puntini');
+  assert.equal(headerBeforeClear.hasKebab, true);
+  await browser.evaluate(() => document.querySelector('[data-private-chat-panel] button[aria-label="Menu conversazione privata"]').click());
+  await sleep(80);
+  assert.ok(await browser.evaluate(() => window.__PC.host.textContent.includes('Pulisci chat privata')));
+  await browser.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.includes('Pulisci chat privata')).click());
+  await sleep(80);
+  assert.ok(await browser.evaluate(() => window.__PC.host.textContent.includes('Verranno eliminati definitivamente')));
+  await browser.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Pulisci').click());
+  await sleep(250);
+  assert.equal(await browser.evaluate(() => window.__PC.host.textContent.includes('Risposta privata mentre leggo il pubblico')), false);
+  assert.ok(await browser.evaluate(() => window.__PC.host.textContent.includes('Nessun messaggio privato')));
+  const clearCall = await browser.evaluate(() => {
+    const call = window.__PC.calls.find((entry) => entry.operation === 'rpc' && entry.name === 'clear_private_chat_conversation');
+    return call ? { peerA: call.args.p_peer_a, peerB: call.args.p_peer_b } : null;
+  });
+  assert.ok(clearCall, 'pulizia conversazione via RPC');
+  assert.equal(clearCall.peerA, '10000000-0000-0000-0000-000000000001');
+  assert.equal(clearCall.peerB, '10000000-0000-0000-0000-000000000002');
   await browser.evaluate(async () => {
     const canvas=document.createElement('canvas');canvas.width=600;canvas.height=300;
     const context=canvas.getContext('2d');context.fillStyle='#a36';context.fillRect(0,0,600,300);
@@ -145,5 +182,5 @@ try {
   await sleep(300);
   assert.equal(await browser.evaluate(()=>!!document.querySelector('[data-private-chat-panel]')),false,'cambio account chiude il vecchio privato');
   assert.equal(await browser.evaluate(()=>window.__PC.host.textContent.includes('Bob')),false,'cronologia del precedente account non riutilizzata');
-  console.log('Private chat browser: PASS (online portraits, duplicate/offline filtering, recipient targeting, public/private isolation, unread inbox, private images/files, proportional preview, narrow-panel layout).');
+  console.log('Private chat browser: PASS (online portraits, duplicate/offline filtering, recipient targeting, public/private isolation, unread inbox, kebab menu and conversation clear, private images/files, proportional preview, narrow-panel layout).');
 } finally { await browser.close(); }
