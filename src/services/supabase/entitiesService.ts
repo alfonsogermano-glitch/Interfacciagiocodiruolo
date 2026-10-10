@@ -11,6 +11,8 @@ import type { D20Stats } from '../../app/components/ruleset/D20StatBlock';
 import { isRulesetCompatible, type RulesetId } from '../../app/campaigns/campaignTypes';
 import type { TokenBorderStyle, TokenBorderThickness } from '../../types/tokenStyle';
 import type { ImageCrop } from '../../types/imageCrop';
+import type { Chapter } from '../../types/chapter';
+import { normalizeLegacyChapterValue } from '../campaign/chapterMigration';
 
 /**
  * Servizio completo per gestire TUTTE le entità del gioco
@@ -24,9 +26,6 @@ const FRONTEND_ONLY_FIELDS = [
   'isDirty',          // Flag per tracciare modifiche locali
   'createdAt',        // Gestito da trigger DB
   'updatedAt',        // Gestito da trigger DB
-  'isActive',         // Stato UI per avventura attiva, gestito da localStorage
-  'kind',             // Tipo avventura (intro/standard/final), solo UI
-  'nextAdventureIds'  // Collegamenti tra avventure, solo UI
 ];
 
 type EntityCollection =
@@ -35,7 +34,7 @@ type EntityCollection =
   | 'environments'
   | 'clues'
   | 'situations'
-  | 'adventures';
+  | 'chapters';
 
 function shouldUseLocalMode(): boolean {
   return !supabase;
@@ -49,8 +48,15 @@ function loadLocalEntities<T>(campaignId: string, collection: EntityCollection):
   if (typeof window === 'undefined') return [];
 
   try {
-    const raw = window.localStorage.getItem(getLocalEntityKey(campaignId, collection));
-    return raw ? JSON.parse(raw) : [];
+    const key = getLocalEntityKey(campaignId, collection);
+    let raw = window.localStorage.getItem(key);
+    if (!raw && collection === 'chapters') {
+      raw = window.localStorage.getItem(persistenceKey(`hsc_local_entities:${campaignId}:adventures`));
+    }
+    const parsed = raw ? JSON.parse(raw) : [];
+    const normalized = normalizeLegacyChapterValue(Array.isArray(parsed) ? parsed : []);
+    if (raw) window.localStorage.setItem(key, JSON.stringify(normalized));
+    return normalized;
   } catch {
     return [];
   }
@@ -61,7 +67,7 @@ async function loadLocalModeEntities<T extends { id: string }>(
   collection: EntityCollection
 ): Promise<T[]> {
   if (isTauriRuntime()) {
-    return loadTauriEntities<T>(campaignId, collection);
+    return normalizeLegacyChapterValue(await loadTauriEntities<T>(campaignId, collection));
   }
 
   return loadLocalEntities<T>(campaignId, collection);
@@ -146,7 +152,7 @@ function deleteLocalEntity(collection: EntityCollection, entityId: string): void
 const UUID_FIELDS = [
   'id',
   'campaignId',
-  'adventureId',
+  'chapterId',
   'environmentId',
   'parentLocationId',
   'characterId',
@@ -231,7 +237,7 @@ export interface NPC {
   tokenBorderLabel?: string | null;
   tokenBorderVisible?: boolean | null;
   environmentId?: string | null;
-  adventureId?: string | null;
+  chapterId?: string | null;
 
   name: string;
   role: string;
@@ -421,7 +427,7 @@ export async function saveNPC(campaignId: string | null, npc: NPC): Promise<void
     if (error.code === '23503' && error.message.includes('environment_id')) {
       console.warn('Environment non trovato nel DB, salvo NPC senza collegamento:', dbData.environment_id);
 
-      const dataWithoutEnv = { ...dbData, environment_id: null, adventure_id: null };
+      const dataWithoutEnv = { ...dbData, environment_id: null, chapter_id: null };
       const { error: retryError } = await supabase
         .from('npcs')
         .upsert(dataWithoutEnv);
@@ -464,7 +470,7 @@ export async function unassignNPCFromCampaign(npcId: string): Promise<void> {
 
   const { error } = await supabase
     .from('npcs')
-    .update({ campaign_id: null, adventure_id: null })
+    .update({ campaign_id: null, chapter_id: null })
     .eq('id', npcId);
 
   if (error) throw error;
@@ -484,7 +490,7 @@ export async function assignNPCToCampaign(
   // dalla campagna a cui viene assegnato invece di restare NULL.
   const { error } = await supabase
     .from('npcs')
-    .update({ campaign_id: targetCampaign.id, adventure_id: null, ruleset: entityRuleset ?? targetCampaign.ruleset })
+    .update({ campaign_id: targetCampaign.id, chapter_id: null, ruleset: entityRuleset ?? targetCampaign.ruleset })
     .eq('id', npcId);
 
   if (error) throw error;
@@ -518,7 +524,7 @@ export async function copyNPCToCampaign(npcId: string, targetCampaignId: string,
 
   if (fetchError || !original) throw fetchError ?? new Error('PNG non trovato');
 
-  const { id, created_at, updated_at, owner_profile_id, adventure_id, environment_id, ...rest } = original as any;
+  const { id, created_at, updated_at, owner_profile_id, chapter_id, environment_id, ...rest } = original as any;
   const { error } = await supabase
     .from('npcs')
     .insert({ ...rest, campaign_id: targetCampaignId, owner_profile_id: ownerProfileId });
@@ -528,7 +534,7 @@ export async function copyNPCToCampaign(npcId: string, targetCampaignId: string,
 
 /**
  * Duplica un PNG nella STESSA campagna (copia 1:1) - a differenza di
- * copyNPCToCampaign qui sopra, campaign_id/adventure_id/environment_id
+ * copyNPCToCampaign qui sopra, campaign_id/chapter_id/environment_id
  * restano quelli originali (restano validi, e' la stessa campagna), solo
  * il nome cambia. Ritorna la nuova riga mappata (a differenza di
  * copyNPCToCampaign che torna void) perche' il chiamante deve sapere il
@@ -569,7 +575,7 @@ export interface Monster {
   tokenBorderLabel?: string | null;
   tokenBorderVisible?: boolean | null;
   baseMonsterId?: string | null;
-  adventureId?: string | null;
+  chapterId?: string | null;
   environmentId?: string | null;
   mapLocationId?: string | null;
   isDirty?: boolean;
@@ -797,7 +803,7 @@ export async function saveMonster(campaignId: string, monster: Monster): Promise
     if (error.code === '23503' && error.message.includes('environment_id')) {
       console.warn('Environment non trovato nel DB, salvo mostro senza collegamento:', dbData.environment_id);
 
-      const dataWithoutEnv = { ...dbData, environment_id: null, adventure_id: null };
+      const dataWithoutEnv = { ...dbData, environment_id: null, chapter_id: null };
       const { error: retryError } = await supabase
         .from('monsters')
         .upsert(dataWithoutEnv);
@@ -835,7 +841,7 @@ export async function unassignMonsterFromCampaign(monsterId: string): Promise<vo
 
   const { error } = await supabase
     .from('monsters')
-    .update({ campaign_id: null, adventure_id: null })
+    .update({ campaign_id: null, chapter_id: null })
     .eq('id', monsterId);
 
   if (error) throw error;
@@ -855,7 +861,7 @@ export async function assignMonsterToCampaign(
   // dalla campagna a cui viene assegnato invece di restare NULL.
   const { error } = await supabase
     .from('monsters')
-    .update({ campaign_id: targetCampaign.id, adventure_id: null, ruleset: entityRuleset ?? targetCampaign.ruleset })
+    .update({ campaign_id: targetCampaign.id, chapter_id: null, ruleset: entityRuleset ?? targetCampaign.ruleset })
     .eq('id', monsterId);
 
   if (error) throw error;
@@ -889,7 +895,7 @@ export async function copyMonsterToCampaign(monsterId: string, targetCampaignId:
 
   if (fetchError || !original) throw fetchError ?? new Error('Mostro non trovato');
 
-  const { id, created_at, updated_at, owner_profile_id, adventure_id, environment_id, ...rest } = original as any;
+  const { id, created_at, updated_at, owner_profile_id, chapter_id, environment_id, ...rest } = original as any;
   const { error } = await supabase
     .from('monsters')
     .insert({ ...rest, campaign_id: targetCampaignId, owner_profile_id: ownerProfileId });
@@ -899,7 +905,7 @@ export async function copyMonsterToCampaign(monsterId: string, targetCampaignId:
 
 /**
  * Duplica un mostro nella STESSA campagna (copia 1:1) - stessa logica di
- * duplicateNPC qui sopra: campaign_id/adventure_id/environment_id restano
+ * duplicateNPC qui sopra: campaign_id/chapter_id/environment_id restano
  * quelli originali, solo il nome cambia. Ritorna la nuova riga mappata per
  * poter duplicare anche le entity_notes subito dopo.
  */
@@ -930,7 +936,7 @@ export async function duplicateMonster(monsterId: string): Promise<Monster> {
 export interface Environment {
   id: string;
   campaignId: string;
-  adventureId?: string | null;
+  chapterId?: string | null;
   parentLocationId?: string | null;
   mapLocationId?: string | null;
   locationType?: 'area' | 'building' | 'room' | 'poi' | 'other';
@@ -990,20 +996,20 @@ export async function saveEnvironment(campaignId: string, environment: Environme
     // Se fallisce per foreign key constraint
     if (error.code === '23503') {
       // Controlla quale foreign key sta fallendo
-      if (error.message.includes('adventure_id')) {
-        console.warn('Adventure non trovata nel DB, salvo environment senza adventure:', dbData.adventure_id);
+      if (error.message.includes('chapter_id')) {
+        console.warn('Capitolo non trovato nel DB, salvo il luogo senza capitolo:', dbData.chapter_id);
 
-        const dataWithoutAdventure = { ...dbData, adventure_id: null };
+        const dataWithoutChapter = { ...dbData, chapter_id: null };
         const { error: retryError } = await supabase
           .from('environments')
-          .upsert(dataWithoutAdventure);
+          .upsert(dataWithoutChapter);
 
         if (retryError) {
-          console.error('Errore salvataggio ambiente (retry):', retryError, dataWithoutAdventure);
+          console.error('Errore salvataggio ambiente (retry):', retryError, dataWithoutChapter);
           throw retryError;
         }
 
-        console.info('Environment salvato senza adventure. Crea prima l\'avventura e poi riassegna l\'ambiente.');
+        console.info('Luogo salvato senza capitolo. Crea prima il capitolo e poi riassegna il luogo.');
         return;
       }
 
@@ -1049,7 +1055,7 @@ export async function deleteEnvironment(environmentId: string): Promise<void> {
 export interface Clue {
   id: string;
   campaignId: string;
-  adventureId?: string | null;
+  chapterId?: string | null;
   environmentId?: string | null;
   title: string;
   description: string;
@@ -1104,7 +1110,7 @@ export async function saveClue(campaignId: string, clue: Clue): Promise<void> {
     if (error.code === '23503' && error.message.includes('environment_id')) {
       console.warn('Environment non trovato nel DB, salvo indizio senza collegamento:', dbData.environment_id);
 
-      const dataWithoutEnv = { ...dbData, environment_id: null, adventure_id: null };
+      const dataWithoutEnv = { ...dbData, environment_id: null, chapter_id: null };
       const { error: retryError } = await supabase
         .from('clues')
         .upsert(dataWithoutEnv);
@@ -1142,7 +1148,7 @@ export async function deleteClue(clueId: string): Promise<void> {
 export interface Situation {
   id: string;
   campaignId: string;
-  adventureId?: string | null;
+  chapterId?: string | null;
   environmentId?: string | null;
   title: string;
   trigger: string;
@@ -1206,7 +1212,7 @@ export async function saveSituation(campaignId: string, situation: Situation): P
     if (error.code === '23503' && error.message.includes('environment_id')) {
       console.warn('Environment non trovato nel DB, salvo situazione senza collegamento:', dbData.environment_id);
 
-      const dataWithoutEnv = { ...dbData, environment_id: null, adventure_id: null };
+      const dataWithoutEnv = { ...dbData, environment_id: null, chapter_id: null };
       const { error: retryError } = await supabase
         .from('situations')
         .upsert(dataWithoutEnv);
@@ -1239,75 +1245,58 @@ export async function deleteSituation(situationId: string): Promise<void> {
   if (error) throw error;
 }
 
-// ============= ADVENTURE =============
+// ============= CHAPTER =============
 
-export interface Adventure {
-  id: string;
-  campaignId: string;
-  title: string;
-  description: string;
-  notes: string;
-  kind: 'intro' | 'standard' | 'final';
-  isActive: boolean;
-  nextAdventureIds: string[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export async function loadAdventures(campaignId: string): Promise<Adventure[]> {
+export async function loadChapters(campaignId: string): Promise<Chapter[]> {
   if (shouldUseLocalMode()) {
-  return loadLocalModeEntities<Adventure>(campaignId, 'adventures');
+  return loadLocalModeEntities<Chapter>(campaignId, 'chapters');
 }
 
   const { data, error } = await supabase
-    .from('adventures')
+    .from('chapters')
     .select('*')
     .eq('campaign_id', campaignId);
 
   if (error) {
-    console.error('Errore caricamento avventure da Supabase:', error);
+    console.error('Errore caricamento capitoli da Supabase:', error);
     throw error;
   }
 
-  return (data || []).map(toCamelCase);
+  return (data || []).map(toCamelCase).map(normalizeLegacyChapterValue);
 }
 
-export async function saveAdventure(campaignId: string, adventure: Adventure): Promise<void> {
+export async function saveChapter(campaignId: string, chapter: Chapter): Promise<void> {
   if (shouldUseLocalMode()) {
-  await saveLocalModeEntity<Adventure>(campaignId, 'adventures', { ...adventure, campaignId });
+  await saveLocalModeEntity<Chapter>(campaignId, 'chapters', { ...chapter, campaignId });
   return;
 }
 
   const dbData = toSnakeCase(sanitizeUUIDs({
-    ...adventure,
+    ...chapter,
     campaignId
   }));
 
   const { error } = await supabase
-    .from('adventures')
+    .from('chapters')
     .upsert(dbData);
 
   if (error) {
-    console.error('Errore salvataggio avventura:', error, dbData);
+    console.error('Errore salvataggio capitolo:', error, dbData);
     throw error;
   }
 }
 
-export async function deleteAdventure(adventureId: string): Promise<void> {
+export async function deleteChapter(chapterId: string): Promise<void> {
   if (shouldUseLocalMode()) {
-  await deleteLocalModeEntity('adventures', adventureId);
+  await deleteLocalModeEntity('chapters', chapterId);
   return;
 }
 
   const { error } = await supabase
-    .from('adventures')
+    .from('chapters')
     .delete()
-    .eq('id', adventureId);
+    .eq('id', chapterId);
 
   if (error) throw error;
 }
-
-
-
-
 

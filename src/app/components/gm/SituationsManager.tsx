@@ -9,14 +9,14 @@ import { persistenceKey } from '../../../services/storage/persistenceMode';
 type EnvironmentSummary = {
   id: string;
   campaignId?: string | null;
-  adventureId?: string | null;
+  chapterId?: string | null;
   name: string;
 };
 
 interface Situation {
   id: string;
   campaignId: string;
-  adventureId?: string | null;
+  chapterId?: string | null;
   environmentId?: string | null;
   title: string;
   trigger: string;
@@ -105,7 +105,7 @@ export function SituationsManager({
     const newSituation: Situation = {
        id: generateUUID(),
        campaignId: activeCampaignId,
-       adventureId: null,
+       chapterId: null,
        environmentId: null,
        title: 'Nuova Situazione',
        trigger: '',
@@ -220,7 +220,7 @@ export function SituationsManager({
       const updatedSituation = {
         ...situation,
         environmentId: e.target.value || null,
-        adventureId: selectedEnvironment?.adventureId ?? null
+        chapterId: selectedEnvironment?.chapterId ?? null
       };
 
       setSituations(prev =>

@@ -46,7 +46,7 @@ export async function testSupabaseConnection() {
       'character_equipment',
       'npcs',
       'monsters',
-      'adventures',
+      'chapters',
       'environments',
       'clues',
       'situations',

@@ -22,7 +22,7 @@ const PRIMARY_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'npcs', label: 'PNG', icon: Ghost },
   { id: 'monsters', label: 'Mostri', icon: Swords },
   { id: 'environments', label: 'Luoghi', icon: Bookmark },
-  { id: 'adventures', label: 'Avventure', icon: GitBranch },
+  { id: 'chapters', label: 'Capitoli', icon: GitBranch },
   { id: 'map', label: 'Mappa', icon: Map },
   { id: 'clues', label: 'Indizi', icon: Lightbulb },
   { id: 'situations', label: 'Situazioni', icon: Scroll },

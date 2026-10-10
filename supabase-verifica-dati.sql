@@ -10,7 +10,7 @@ FROM information_schema.columns
 WHERE table_name = 'environments'
   AND column_name IN (
     'parent_location_id',
-    'adventure_id',
+    'chapter_id',
     'map_location_id',
     'location_type',
     'icon_id',
@@ -28,7 +28,7 @@ SELECT
   name,
   parent_location_id,
   location_type,
-  adventure_id,
+  chapter_id,
   environment_id
 FROM environments
 ORDER BY name;
@@ -40,7 +40,7 @@ FROM information_schema.columns
 WHERE table_name = 'monsters'
   AND column_name IN (
     'environment_id',
-    'adventure_id',
+    'chapter_id',
     'base_monster_id',
     'freschezza',
     'max_freschezza',
@@ -72,7 +72,7 @@ FROM information_schema.columns
 WHERE table_name = 'npcs'
   AND column_name IN (
     'environment_id',
-    'adventure_id',
+    'chapter_id',
     'personality',
     'freschezza',
     'max_freschezza',

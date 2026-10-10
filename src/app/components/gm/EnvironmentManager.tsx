@@ -100,11 +100,11 @@ import {
   Crosshair
 } from 'lucide-react';
 import { useCampaignEntitySelection } from '../../../hooks/useCampaignEntitySelection';
-import type { Adventure } from '../../../types/adventure';
+import type { Chapter } from '../../../types/chapter';
 import { HorrorButton } from '../ui/HorrorButton';
 import {
   loadEnvironments,
-  loadAdventures,
+  loadChapters,
   saveEnvironment as saveEnvironmentToStorage,
   deleteEnvironment as deleteEnvironmentFromStorage
 } from '../../../services/supabase/entitiesService';
@@ -113,7 +113,7 @@ import { generateUUID } from '../../../lib/uuid';
 interface Environment {
   id: string;
   campaignId: string;
-  adventureId?: string | null;
+  chapterId?: string | null;
   parentLocationId?: string | null;
   mapLocationId?: string | null;
   locationType?: 'area' | 'building' | 'room' | 'poi' | 'other';
@@ -145,7 +145,7 @@ function normalizeEnvironment(
   return {
     id: item.id ?? generateUUID(),
     campaignId: item.campaignId ?? fallbackCampaignId,
-    adventureId: item.adventureId ?? null,
+    chapterId: item.chapterId ?? null,
     parentLocationId: item.parentLocationId ?? null,
     mapLocationId: item.mapLocationId ?? null,
     locationType: item.locationType ?? 'other',
@@ -283,7 +283,7 @@ export function EnvironmentManager({
   const [environments, setEnvironmentsLocal] = useState<Environment[]>([]);
 
   const [isLoadingFromSupabase, setIsLoadingFromSupabase] = useState(true);
-  const [adventures, setAdventures] = useState<Adventure[]>([]);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
 
   useEffect(() => {
     async function loadFromSupabase() {
@@ -320,24 +320,24 @@ export function EnvironmentManager({
 useEffect(() => {
   let cancelled = false;
 
-  const reloadAdventures = async () => {
+  const reloadChapters = async () => {
     try {
-      const list = await loadAdventures(campaignId);
-      if (!cancelled) setAdventures(list);
+      const list = await loadChapters(campaignId);
+      if (!cancelled) setChapters(list);
     } catch {
-      if (!cancelled) setAdventures([]);
+      if (!cancelled) setChapters([]);
     }
   };
 
-  void reloadAdventures();
+  void reloadChapters();
 
-  window.addEventListener('focus', reloadAdventures);
-  window.addEventListener('storage', reloadAdventures);
+  window.addEventListener('focus', reloadChapters);
+  window.addEventListener('storage', reloadChapters);
 
   return () => {
     cancelled = true;
-    window.removeEventListener('focus', reloadAdventures);
-    window.removeEventListener('storage', reloadAdventures);
+    window.removeEventListener('focus', reloadChapters);
+    window.removeEventListener('storage', reloadChapters);
   };
 }, [campaignId]);
 
@@ -484,7 +484,7 @@ const [dropTarget, setDropTarget] = useState<{
     const newEnv: Environment = {
       id: generateUUID(),
       campaignId,
-      adventureId: null,
+      chapterId: null,
       parentLocationId: null,
       mapLocationId: null,
       locationType: 'other',
@@ -971,23 +971,23 @@ const locationTooltipClass =
   <span className={locationTooltipClass}>Tipo luogo</span>
 </span>
 
-  {currentEnv.adventureId && (
+  {currentEnv.chapterId && (
   <button
     type="button"
     onClick={() => {
-      const adventureId = currentEnv.adventureId;
-      if (!adventureId) return;
+      const chapterId = currentEnv.chapterId;
+      if (!chapterId) return;
 
       onNavigate?.({
-        tabId: 'adventures',
-        entityId: adventureId,
-        entityType: 'adventure'
+        tabId: 'chapters',
+        entityId: chapterId,
+        entityType: 'chapter'
       });
     }}
     className={locationClickableBadgeClass}
   >
-    {adventures.find(adventure => adventure.id === currentEnv.adventureId)?.title ?? 'Avventura'}
-    <span className={locationTooltipClass}>Vai all'avventura collegata</span>
+    {chapters.find(chapter => chapter.id === currentEnv.chapterId)?.title ?? 'Capitolo'}
+    <span className={locationTooltipClass}>Vai al capitolo collegato</span>
   </button>
 )}
 
@@ -1087,28 +1087,28 @@ const locationTooltipClass =
 
                 <div>
                   <label className="mb-2 block text-[var(--dash-text)]">
-                    Avventura collegata
+                    Capitolo collegato
                   </label>
 
                   <select
-                    value={currentEnv.adventureId ?? ''}
+                    value={currentEnv.chapterId ?? ''}
                     onChange={e =>
                       updateEnvironment({
                         ...currentEnv,
-                        adventureId: e.target.value || null
+                        chapterId: e.target.value || null
                       })
                     }
                     className="w-full rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text)]"
                   >
                     <option value="">Tutta la campagna</option>
 
-                    {adventures
-                      .filter(adventure =>
-                        adventure.campaignId == null || adventure.campaignId === campaignId
+                    {chapters
+                      .filter(chapter =>
+                        chapter.campaignId == null || chapter.campaignId === campaignId
                         )
-                      .map(adventure => (
-                        <option key={adventure.id} value={adventure.id}>
-                          {adventure.title}
+                      .map(chapter => (
+                        <option key={chapter.id} value={chapter.id}>
+                          {chapter.title}
                         </option>
                       ))}
                   </select>
@@ -1335,12 +1335,12 @@ const locationTooltipClass =
             ) : (
               <div className="space-y-4">
                 <div>
-                  <h3 className="mb-2 text-[var(--dash-text)]">Avventura</h3>
+                  <h3 className="mb-2 text-[var(--dash-text)]">Capitolo</h3>
                   <p className="text-[var(--dash-muted)]">
-                    {currentEnv.adventureId
-                      ? adventures.find(
-                          adventure => adventure.id === currentEnv.adventureId
-                        )?.title ?? 'Avventura non trovata'
+                    {currentEnv.chapterId
+                      ? chapters.find(
+                          chapter => chapter.id === currentEnv.chapterId
+                        )?.title ?? 'Capitolo non trovato'
                       : 'Tutta la campagna'}
                   </p>
                 </div>

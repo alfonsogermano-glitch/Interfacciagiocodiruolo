@@ -27,7 +27,7 @@ type ActiveEncounter = {
 type EnvironmentSummary = {
   id: string;
   campaignId?: string | null;
-  adventureId?: string | null;
+  chapterId?: string | null;
   name: string;
   description?: string;
   atmosphere?: string;
@@ -38,7 +38,7 @@ type LinkedEntity = {
   name?: string;
   title?: string;
   environmentId?: string | null;
-  adventureId?: string | null;
+  chapterId?: string | null;
   description?: string;
   role?: string;
   discovered?: boolean;
@@ -64,7 +64,7 @@ function mapEnvironmentFromSupabase(item: any): EnvironmentSummary {
   return {
     id: item.id,
     campaignId: item.campaign_id ?? item.campaignId ?? null,
-    adventureId: item.adventure_id ?? item.adventureId ?? null,
+    chapterId: item.chapter_id ?? item.chapterId ?? null,
     name: item.name ?? 'Luogo senza nome',
     description: item.description ?? '',
     atmosphere: item.atmosphere ?? ''
@@ -77,7 +77,7 @@ function mapLinkedEntityFromSupabase(item: any): LinkedEntity {
     name: item.name ?? undefined,
     title: item.title ?? undefined,
     environmentId: item.environment_id ?? item.environmentId ?? null,
-    adventureId: item.adventure_id ?? item.adventureId ?? null,
+    chapterId: item.chapter_id ?? item.chapterId ?? null,
     description: item.description ?? '',
     role: item.role ?? '',
     discovered: item.discovered ?? false

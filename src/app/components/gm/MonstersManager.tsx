@@ -6,10 +6,10 @@ import { useRuleset } from '../../campaigns/RulesetContext';
 import { RulesetBadge } from '../../campaigns/RulesetGate';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { loadEnvironmentReferences } from '../../../services/campaign/entityReferenceService';
-import { formatCampaignAdventureLabel } from '../../../services/campaign/campaignAdventureLabel';
+import { formatCampaignChapterLabel } from '../../../services/campaign/campaignChapterLabel';
 import { MONSTER_BASE_CATALOG } from '../../../data/monsterBaseCatalog';
-import { loadMonsters, saveMonster, deleteMonster, loadAdventures } from '../../../services/supabase/entitiesService';
-import type { Adventure } from '../../../types/adventure';
+import { loadMonsters, saveMonster, deleteMonster, loadChapters } from '../../../services/supabase/entitiesService';
+import type { Chapter } from '../../../types/chapter';
 import type { Monster, MonstersManagerProps, NavigationTarget, EnvironmentSummary } from './monsters/monstersTypes';
 import {
   createEmptyMonster,
@@ -61,7 +61,7 @@ export function MonstersManager({ navigationTarget = null, onNavigate }: Monster
 
   const [monsters, setMonsters] = useState<Monster[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [adventures, setAdventures] = useState<Adventure[]>([]);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
   const [environments, setEnvironments] = useState<EnvironmentSummary[]>([]);
 
   const [selectedMonsterId, setSelectedMonsterId] = useState<string | null>(null);
@@ -93,9 +93,9 @@ export function MonstersManager({ navigationTarget = null, onNavigate }: Monster
 
   useEffect(() => {
     let cancelled = false;
-    loadAdventures(activeCampaignId)
-      .then(list => { if (!cancelled) setAdventures(list); })
-      .catch(err => console.error('Errore caricamento avventure:', err));
+    loadChapters(activeCampaignId)
+      .then(list => { if (!cancelled) setChapters(list); })
+      .catch(err => console.error('Errore caricamento capitoli:', err));
     return () => { cancelled = true; };
   }, [activeCampaignId]);
 
@@ -238,11 +238,11 @@ export function MonstersManager({ navigationTarget = null, onNavigate }: Monster
 
   const narrativeFilteredMonsters = narrativeFilter === 'all'
     ? monsters.filter(monster => monster.campaignId === activeCampaignId)
-    : monsters.filter(monster => monster.adventureId === narrativeFilter);
+    : monsters.filter(monster => monster.chapterId === narrativeFilter);
 
   const quickFilteredMonsters = narrativeFilteredMonsters.filter(monster => {
-    if (archiveQuickFilter === 'campaign') return Boolean(monster.adventureId || monster.environmentId);
-    if (archiveQuickFilter === 'unassigned') return !monster.adventureId && !monster.environmentId;
+    if (archiveQuickFilter === 'campaign') return Boolean(monster.chapterId || monster.environmentId);
+    if (archiveQuickFilter === 'unassigned') return !monster.chapterId && !monster.environmentId;
     return true;
   });
 
@@ -316,8 +316,8 @@ export function MonstersManager({ navigationTarget = null, onNavigate }: Monster
                 className="w-full rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text)]"
               >
                 <option value="all">Tutta la campagna</option>
-                {adventures.map(adventure => (
-                  <option key={adventure.id} value={adventure.id}>{adventure.title}</option>
+                {chapters.map(chapter => (
+                  <option key={chapter.id} value={chapter.id}>{chapter.title}</option>
                 ))}
               </select>
             </div>
@@ -366,7 +366,7 @@ export function MonstersManager({ navigationTarget = null, onNavigate }: Monster
                   variant={viewMode}
                   name={monster.name || 'Mostro senza nome'}
                   subtitle={monster.description}
-                  secondaryText={formatCampaignAdventureLabel(activeCampaign?.name, monster.adventureId ? adventures.find(a => a.id === monster.adventureId)?.title ?? null : null)}
+                  secondaryText={formatCampaignChapterLabel(activeCampaign?.name, monster.chapterId ? chapters.find(a => a.id === monster.chapterId)?.title ?? null : null)}
                   photoUrl={monster.portraitImageUrl}
                   photoSourceUrl={monster.portraitSourceImageUrl}
                   photoCropArea={monster.portraitCropArea}

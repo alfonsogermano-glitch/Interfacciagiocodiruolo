@@ -20,10 +20,10 @@ import { useEntityTabs, type EntityTabsEntityType } from './useEntityTabs';
 import { useRuleset } from '../../../campaigns/RulesetContext';
 import { RulesetTag } from '../../shared/RulesetTag';
 import type { Stile, Viaggio, Trait } from '../../../../types/character';
-import type { Adventure } from '../../../../types/adventure';
+import type { Chapter } from '../../../../types/chapter';
 import { STYLE_TRAITS, JOURNEY_TRAITS } from '../../../../data/traits';
 import { VIAGGI_PER_STILE, calculateAmbiti, NOTABLE_CITIZENS, LATER_SENTINEL } from '../../../../data/characterCalculations';
-import { loadNPCs, loadAdventures } from '../../../../services/supabase/entitiesService';
+import { loadNPCs, loadChapters } from '../../../../services/supabase/entitiesService';
 import { loadCharacters } from '../../../../services/supabase/charactersService';
 import { loadEnvironmentReferences, type EntityReference } from '../../../../services/campaign/entityReferenceService';
 import { FreschezzaMaxEditor, FreschezzaBoxesEditor as MonsterFreschezzaBoxesEditor } from '../../gm/monsters/MonsterFreschezzaComponents';
@@ -202,7 +202,7 @@ export function EntityDetailView({
   const [pendingOrigin, setPendingOrigin] = useState<{ style: Stile; viaggio: Viaggio; triggeredBy: 'style' | 'viaggio' } | null>(null);
   const [campaignNpcs, setCampaignNpcs] = useState<Array<{ id: string; name: string; visibleToPlayers?: boolean }>>([]);
   const [campaignCharacters, setCampaignCharacters] = useState<Array<{ id: string; name: string }>>([]);
-  const [campaignAdventures, setCampaignAdventures] = useState<Adventure[]>([]);
+  const [campaignChapters, setCampaignChapters] = useState<Chapter[]>([]);
   const [campaignEnvironments, setCampaignEnvironments] = useState<EntityReference[]>([]);
 
   // Stessa determinazione di ruleset gia' usata in NPCManager.tsx
@@ -260,26 +260,26 @@ export function EntityDetailView({
   }, [campaignId, entityType]);
 
   // Pool "Ambito narrativo"/"Luogo" per PNG e Mostri, stesso concetto di
-  // NPCManager.tsx/MonstersManager.tsx (adventureId/environmentId) ma qui
+  // NPCManager.tsx/MonstersManager.tsx (chapterId/environmentId) ma qui
   // l'entita' potrebbe non avere ancora una campagna: senza campaignId questi
   // campi non hanno senso (nessuna pool da cui scegliere) e restano nascosti,
-  // vedi sotto. I PG non hanno un concetto di Avventura (a differenza di
-  // PNG/Mostri, un PG non viene posizionato dal GM in un'avventura
+  // vedi sotto. I PG non hanno un concetto di Capitolo (a differenza di
+  // PNG/Mostri, un PG non viene posizionato dal GM in un capitolo
   // specifica), quindi restano esclusi qui.
   useEffect(() => {
     if (!campaignId || (entityType !== 'npc' && entityType !== 'monster')) {
-      setCampaignAdventures([]);
+      setCampaignChapters([]);
       setCampaignEnvironments([]);
       return;
     }
     let cancelled = false;
     (async () => {
-      const [adventures, environments] = await Promise.all([
-        loadAdventures(campaignId),
+      const [chapters, environments] = await Promise.all([
+        loadChapters(campaignId),
         loadEnvironmentReferences(campaignId),
       ]);
       if (cancelled) return;
-      setCampaignAdventures(adventures);
+      setCampaignChapters(chapters);
       setCampaignEnvironments(environments);
     })();
     return () => { cancelled = true; };
@@ -1034,13 +1034,13 @@ export function EntityDetailView({
                 <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
                   <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Ambito narrativo</div>
                   <select
-                    value={entity.adventureId ?? ''}
-                    onChange={(e) => onUpdate({ ...entity, adventureId: e.target.value || null })}
+                    value={entity.chapterId ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, chapterId: e.target.value || null })}
                     className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1.5 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
                   >
                     <option value="">Tutta la campagna</option>
-                    {campaignAdventures.map((adventure) => (
-                      <option key={adventure.id} value={adventure.id}>{adventure.title}</option>
+                    {campaignChapters.map((chapter) => (
+                      <option key={chapter.id} value={chapter.id}>{chapter.title}</option>
                     ))}
                   </select>
                 </div>
@@ -1056,7 +1056,7 @@ export function EntityDetailView({
                   >
                     <option value="">Nessun luogo</option>
                     {campaignEnvironments
-                      .filter((environment) => !entity.adventureId || environment.adventureId == null || environment.adventureId === entity.adventureId)
+                      .filter((environment) => !entity.chapterId || environment.chapterId == null || environment.chapterId === entity.chapterId)
                       .map((environment) => (
                         <option key={environment.id} value={environment.id}>{environment.name}</option>
                       ))}
@@ -1211,13 +1211,13 @@ export function EntityDetailView({
                 <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
                   <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Ambito narrativo</div>
                   <select
-                    value={entity.adventureId ?? ''}
-                    onChange={(e) => onUpdate({ ...entity, adventureId: e.target.value || null, environmentId: null })}
+                    value={entity.chapterId ?? ''}
+                    onChange={(e) => onUpdate({ ...entity, chapterId: e.target.value || null, environmentId: null })}
                     className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1.5 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
                   >
                     <option value="">Tutta la campagna</option>
-                    {campaignAdventures.map((adventure) => (
-                      <option key={adventure.id} value={adventure.id}>{adventure.title}</option>
+                    {campaignChapters.map((chapter) => (
+                      <option key={chapter.id} value={chapter.id}>{chapter.title}</option>
                     ))}
                   </select>
                 </div>
@@ -1233,7 +1233,7 @@ export function EntityDetailView({
                   >
                     <option value="">Nessun luogo</option>
                     {campaignEnvironments
-                      .filter((environment) => !entity.adventureId || environment.adventureId == null || environment.adventureId === entity.adventureId)
+                      .filter((environment) => !entity.chapterId || environment.chapterId == null || environment.chapterId === entity.chapterId)
                       .map((environment) => (
                         <option key={environment.id} value={environment.id}>{environment.name}</option>
                       ))}

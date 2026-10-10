@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabaseClient';
 import { CAMPAIGN_STORAGE_KEYS } from './campaignStorageKeys';
-import { loadAdventures } from '../supabase/entitiesService';
+import { loadChapters } from '../supabase/entitiesService';
 import { persistenceKey } from '../storage/persistenceMode';
 
 type RawReference = {
@@ -9,6 +9,8 @@ type RawReference = {
   title?: string;
   campaignId?: string | null;
   campaign_id?: string | null;
+  chapterId?: string | null;
+  chapter_id?: string | null;
   adventureId?: string | null;
   adventure_id?: string | null;
   parentLocationId?: string | null;
@@ -19,7 +21,7 @@ export type EntityReference = {
   id: string;
   name: string;
   campaignId: string | null;
-  adventureId?: string | null;
+  chapterId?: string | null;
   parentLocationId?: string | null;
 };
 
@@ -40,7 +42,7 @@ function normalizeReferences(
       id: String(item.id),
       name: String(item.name ?? item.title ?? 'Senza nome'),
       campaignId: item.campaignId ?? item.campaign_id ?? null,
-      adventureId: item.adventureId ?? item.adventure_id ?? null,
+      chapterId: item.chapterId ?? item.chapter_id ?? item.adventureId ?? item.adventure_id ?? null,
       parentLocationId: item.parentLocationId ?? item.parent_location_id ?? null
     }))
     .filter(item => item.campaignId == null || item.campaignId === campaignId)
@@ -76,7 +78,7 @@ async function loadReferencesFromSupabase(
 
   const selectColumns =
     tableName === 'environments'
-      ? `id,${nameColumn},campaign_id,adventure_id,parent_location_id`
+      ? `id,${nameColumn},campaign_id,chapter_id,parent_location_id`
       : `id,${nameColumn},campaign_id`;
 
   const { data, error } = await supabase
@@ -175,19 +177,19 @@ export async function loadEntityReferenceBundle(
 }
 
 
-export async function loadAdventureReferences(
+export async function loadChapterReferences(
   campaignId?: string
 ): Promise<EntityReference[]> {
   const resolvedCampaignId = campaignId ?? '';
 
   try {
-    const adventures = await loadAdventures(resolvedCampaignId);
+    const chapters = await loadChapters(resolvedCampaignId);
 
-    return normalizeReferences(adventures, resolvedCampaignId);
+    return normalizeReferences(chapters, resolvedCampaignId);
   } catch (error) {
-    console.error('Errore caricamento riferimenti Avventure:', error);
+    console.error('Errore caricamento riferimenti Capitoli:', error);
     return loadReferencesFromLocalStorage(
-      CAMPAIGN_STORAGE_KEYS.adventures,
+      CAMPAIGN_STORAGE_KEYS.chapters,
       resolvedCampaignId
     );
   }

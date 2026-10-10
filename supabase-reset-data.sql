@@ -10,7 +10,7 @@ DELETE FROM npcs WHERE campaign_id = '10000000-0000-0000-0000-000000000001';
 DELETE FROM clues WHERE campaign_id = '10000000-0000-0000-0000-000000000001';
 DELETE FROM situations WHERE campaign_id = '10000000-0000-0000-0000-000000000001';
 DELETE FROM environments WHERE campaign_id = '10000000-0000-0000-0000-000000000001';
-DELETE FROM adventures WHERE campaign_id = '10000000-0000-0000-0000-000000000001';
+DELETE FROM chapters WHERE campaign_id = '10000000-0000-0000-0000-000000000001';
 DELETE FROM character_equipment WHERE character_id IN (
   SELECT id FROM characters WHERE campaign_id = '10000000-0000-0000-0000-000000000001'
 );
@@ -45,8 +45,8 @@ SELECT 'situations', COUNT(*)
 FROM situations
 WHERE campaign_id = '10000000-0000-0000-0000-000000000001'
 UNION ALL
-SELECT 'adventures', COUNT(*)
-FROM adventures
+SELECT 'chapters', COUNT(*)
+FROM chapters
 WHERE campaign_id = '10000000-0000-0000-0000-000000000001';
 
 -- Risultato atteso: tutte le righe dovrebbero essere 0

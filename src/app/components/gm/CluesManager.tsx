@@ -14,14 +14,14 @@ import { persistenceKey } from '../../../services/storage/persistenceMode';
 type EnvironmentSummary = {
   id: string;
   campaignId?: string | null;
-  adventureId?: string | null;
+  chapterId?: string | null;
   name: string;
 };
 
 interface Clue {
   id: string;
   campaignId: string;
-  adventureId?: string | null;
+  chapterId?: string | null;
   environmentId?: string | null;
   title: string;
   description: string;
@@ -117,8 +117,8 @@ export function CluesManager({
   const clueToAdd = {
     id: generateUUID(),
     campaignId: activeCampaignId,
-    adventureId:
-      environments.find(env => env.id === newClue.environmentId)?.adventureId ?? null,
+    chapterId:
+      environments.find(env => env.id === newClue.environmentId)?.chapterId ?? null,
     environmentId: newClue.environmentId || null,
     title: newClue.title,
     description: newClue.description,

@@ -69,7 +69,7 @@ assert.equal((await api(`campaigns/${campaign.id}/trash`)).notes.length, 0);
 await api(`notes/${note.id}/purge`, 'DELETE');
 assert.equal((await api(`campaigns/${campaign.id}/notes?entityType=campaign&entityId=${campaign.id}`)).notes.length, 0);
 
-for (const table of ['characters', 'npcs', 'monsters', 'environments', 'clues', 'situations', 'adventures', 'equipment_catalog', 'character_equipment', 'dice_formulas', 'dice_custom_dice', 'image_assets', 'campaign_documents']) {
+for (const table of ['characters', 'npcs', 'monsters', 'environments', 'clues', 'situations', 'chapters', 'equipment_catalog', 'character_equipment', 'dice_formulas', 'dice_custom_dice', 'image_assets', 'campaign_documents']) {
   const id = crypto.randomUUID();
   const inserted = await client.from(table).insert({ id, campaign_id: campaign.id, name: table }).select('*').single();
   assert.equal(inserted.error, null, JSON.stringify(inserted.error)); assert.equal(inserted.data.id, id);

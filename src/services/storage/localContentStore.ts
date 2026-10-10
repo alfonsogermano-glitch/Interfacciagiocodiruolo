@@ -1,3 +1,5 @@
+import { migrateLegacyChapterTables } from '../campaign/chapterMigration';
+
 export type ContentRow = Record<string, any>;
 export type ContentTables = Record<string, ContentRow[]>;
 const DATABASE = 'hollowgate-selected-content';
@@ -5,8 +7,22 @@ let database: Promise<IDBDatabase> | null = null;
 
 function openDatabase(): Promise<IDBDatabase> {
   if (!database) database = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DATABASE, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore('accounts');
+    const request = indexedDB.open(DATABASE, 2);
+    request.onupgradeneeded = (event) => {
+      const oldVersion = (event as IDBVersionChangeEvent).oldVersion;
+      const store = oldVersion === 0
+        ? request.result.createObjectStore('accounts')
+        : request.transaction!.objectStore('accounts');
+      if (oldVersion < 2) {
+        const cursor = store.openCursor();
+        cursor.onsuccess = () => {
+          const current = cursor.result;
+          if (!current) return;
+          current.update(migrateLegacyChapterTables(current.value ?? {}));
+          current.continue();
+        };
+      }
+    };
     request.onsuccess = () => {
       request.result.onversionchange = () => { request.result.close(); database = null; };
       resolve(request.result);

@@ -1,4 +1,7 @@
+import { normalizeLegacyChapterValue } from '../campaign/chapterMigration';
+
 const DB_PATH = 'sqlite:high-school-cthulhu.db';
+let chapterMigration: Promise<void> | null = null;
 
 export type TauriEntityCollection =
   | 'characters'
@@ -7,7 +10,7 @@ export type TauriEntityCollection =
   | 'environments'
   | 'clues'
   | 'situations'
-  | 'adventures'
+  | 'chapters'
   | 'equipmentCatalog'
   | 'characterEquipment';
 
@@ -51,6 +54,45 @@ async function ensureEntityTable(): Promise<void> {
       primary key (id, collection)
     )
   `);
+  if (!chapterMigration) chapterMigration = migrateLegacyChapterEntities(db);
+  await chapterMigration;
+}
+
+async function migrateLegacyChapterEntities(db: TauriSqlDatabase): Promise<void> {
+  const legacyCollection = 'adventures';
+  const rows = await db.select(`
+    select id, campaign_id, collection, payload, created_at, updated_at
+    from campaign_entities
+  `) as Array<{ id: string; campaign_id: string; collection: string; payload: string; created_at: string; updated_at: string }>;
+  if (!rows.length) return;
+
+  await db.execute('begin');
+  try {
+    for (const row of rows) {
+      const collection = row.collection === legacyCollection ? 'chapters' : row.collection;
+      const payload = JSON.stringify(normalizeLegacyChapterValue(JSON.parse(row.payload)));
+      if (collection === row.collection && payload === row.payload) continue;
+      const conflict = row.collection === legacyCollection
+        ? 'on conflict(id, collection) do nothing'
+        : `on conflict(id, collection) do update set
+            campaign_id = excluded.campaign_id,
+            payload = excluded.payload,
+            updated_at = excluded.updated_at`;
+      await db.execute(`
+        insert into campaign_entities(id, campaign_id, collection, payload, created_at, updated_at)
+        values (?, ?, ?, ?, ?, ?)
+        ${conflict}
+      `, [row.id, row.campaign_id, collection, payload, row.created_at, row.updated_at]);
+      if (row.collection === legacyCollection) {
+        await db.execute('delete from campaign_entities where id = ? and collection = ?', [row.id, legacyCollection]);
+      }
+    }
+    await db.execute('commit');
+  } catch (error) {
+    await db.execute('rollback');
+    chapterMigration = null;
+    throw error;
+  }
 }
 
 export async function loadTauriEntities<T extends StoredEntity>(
@@ -70,7 +112,7 @@ export async function loadTauriEntities<T extends StoredEntity>(
     [campaignId, collection]
   ) as Array<{ payload: string }>;
 
-  return rows.map(row => JSON.parse(row.payload) as T);
+  return rows.map(row => normalizeLegacyChapterValue(JSON.parse(row.payload)) as T);
 }
 
 export async function saveTauriEntity<T extends StoredEntity>(

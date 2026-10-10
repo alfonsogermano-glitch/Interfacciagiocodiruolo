@@ -42,8 +42,8 @@ const SessionRightSidebar = lazy(() =>
   import('./components/session/SessionRightSidebar').then(module => ({ default: module.SessionRightSidebar }))
 );
 
-const AdventureManager = lazy(() =>
-  import('./components/gm/AdventureManager').then(module => ({ default: module.AdventureManager }))
+const ChapterManager = lazy(() =>
+  import('./components/gm/ChapterManager').then(module => ({ default: module.ChapterManager }))
 );
 const PlayerCharacters = lazy(() =>
   import('./components/gm/PlayerCharacters').then(module => ({ default: module.PlayerCharacters }))
@@ -127,8 +127,8 @@ function Dashboard({ activeTab, navigationTarget, onNavigate, onEnterCampaign, r
       <Suspense fallback={<LazyFeatureFallback />}>
         {activeTab === 'phases' && <GamePhases />}
 
-        {activeTab === 'adventures' && (
-          <AdventureManager campaignId={activeCampaignId} />
+        {activeTab === 'chapters' && (
+          <ChapterManager campaignId={activeCampaignId} />
         )}
 
         {activeTab === 'players' && <PlayerCharacters navigationTarget={navigationTarget} />}
@@ -181,6 +181,7 @@ function Dashboard({ activeTab, navigationTarget, onNavigate, onEnterCampaign, r
 
 const VIEW_LS_KEY = 'hsc-current-view';
 const ACTIVE_TAB_LS_KEY = 'hsc-active-main-tab';
+const normalizeGmTab = (tabId: string) => tabId === 'adventures' ? 'chapters' : tabId;
 
 function AuthGate() {
   const { user, isLoading, signOut, isPasswordRecovery, clearPasswordRecovery } = useAuth();
@@ -208,7 +209,7 @@ function AuthGate() {
   const [activeGmTab, setActiveGmTab] = useState(() => {
     if (typeof window === 'undefined') return 'phases';
 
-    return window.sessionStorage.getItem(ACTIVE_TAB_LS_KEY) ?? 'phases';
+    return normalizeGmTab(window.sessionStorage.getItem(ACTIVE_TAB_LS_KEY) ?? 'phases');
   });
 
   const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | null>(null);
@@ -280,14 +281,15 @@ function AuthGate() {
   }, [isLoading, user]);
 
   const changeActiveGmTab = (tabId: string) => {
-    setActiveGmTab(tabId);
+    const normalizedTabId = normalizeGmTab(tabId);
+    setActiveGmTab(normalizedTabId);
     // Cambiare tab (anche ricliccare quello attuale, es. "Personaggi" nella
     // LeftSidebar) riporta sempre alla vista di riposo di quel tab, non
     // riprende un dettaglio lasciato aperto in precedenza.
     setRightSidebarContext(null);
 
     try {
-      window.sessionStorage.setItem(ACTIVE_TAB_LS_KEY, tabId);
+      window.sessionStorage.setItem(ACTIVE_TAB_LS_KEY, normalizedTabId);
     } catch (error) {
       console.error('Errore nel salvataggio del tab attivo:', error);
     }

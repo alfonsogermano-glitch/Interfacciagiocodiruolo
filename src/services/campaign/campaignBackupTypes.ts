@@ -9,13 +9,22 @@ export interface CampaignBackupData {
   combat: unknown | null;
   equipmentCatalog: unknown[];
   characterEquipment: unknown[];
-  adventures: unknown[];
+  chapters: unknown[];
   visualAssets?: unknown[];
 }
 
 export interface CampaignBackup {
-  version: 1;
+  version: 2;
   app: 'high-school-cthulhu-dashboard';
   exportedAt: string;
   data: CampaignBackupData;
 }
+
+export interface LegacyCampaignBackup {
+  version: 1;
+  app: 'high-school-cthulhu-dashboard';
+  exportedAt: string;
+  data: Partial<CampaignBackupData> & { adventures?: unknown[] };
+}
+
+export type ImportableCampaignBackup = CampaignBackup | LegacyCampaignBackup;

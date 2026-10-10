@@ -49,14 +49,14 @@ export type EnvironmentSummary = {
   id: string;
   name: string;
   campaignId?: string | null;
-  adventureId?: string | null;
+  chapterId?: string | null;
   parentLocationId?: string | null;
 };
 
 export interface Monster extends BaseCampaignEntity {
   ruleset?: RulesetId | null;
   baseMonsterId?: string | null;
-  adventureId?: string | null;
+  chapterId?: string | null;
   environmentId?: string | null;
   mapLocationId?: string | null;
   customLocationName?: string;

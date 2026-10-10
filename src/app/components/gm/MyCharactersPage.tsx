@@ -14,7 +14,7 @@ import { isRulesetCompatible, VISIBLE_RULESETS, type RulesetId } from '../../cam
 import { RulesetPickerDialog } from '../../campaigns/RulesetPickerDialog';
 import { RulesetTag } from '../shared/RulesetTag';
 import { CharacterCreationWizard } from './CharacterCreationWizard';
-import { formatCampaignAdventureLabel } from '../../../services/campaign/campaignAdventureLabel';
+import { formatCampaignChapterLabel } from '../../../services/campaign/campaignChapterLabel';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Switch } from '../ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
@@ -34,7 +34,7 @@ import {
   isLastActiveCharacterForOwner,
 } from '../../../services/supabase/charactersService';
 import {
-  loadNPCsByOwner, loadMonstersByOwner, loadAdventures,
+  loadNPCsByOwner, loadMonstersByOwner, loadChapters,
   assignNPCToCampaign, assignMonsterToCampaign,
   unassignNPCFromCampaign, unassignMonsterFromCampaign,
   copyNPCToCampaign, copyMonsterToCampaign,
@@ -48,7 +48,7 @@ import { useRealtimeChannel } from '../../../services/realtime/campaignChannel';
 import { selectedContentMode } from '../../../services/storage/persistenceMode';
 import { createEmptyMonster } from './monsters/monstersUtils';
 import type { Character } from '../../../types/character';
-import type { Adventure } from '../../../types/adventure';
+import type { Chapter } from '../../../types/chapter';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/paletteColors';
 import { generateUUID } from '../../../lib/uuid';
@@ -153,14 +153,14 @@ function filterEntries(
   all: CatalogEntry[],
   filter: EntityFilter,
   campaignFilterId: string,
-  adventureFilterId: string,
+  chapterFilterId: string,
   rulesetFilterId: string
 ): CatalogEntry[] {
   let result = all;
   if (filter === 'assigned') result = result.filter(e => e.entity.campaignId);
   if (filter === 'unassigned') result = result.filter(e => !e.entity.campaignId);
   if (campaignFilterId) result = result.filter(e => e.entity.campaignId === campaignFilterId);
-  if (adventureFilterId) result = result.filter(e => e.entity.adventureId === adventureFilterId);
+  if (chapterFilterId) result = result.filter(e => e.entity.chapterId === chapterFilterId);
   // Confronto diretto (non isRulesetCompatible, che tratta ruleset null come
   // "jolly" per la validazione di assegnazione): qui, quando l'utente sceglie
   // un set di regole specifico, un'entita' senza ruleset confermato (dato
@@ -171,34 +171,34 @@ function filterEntries(
   return result;
 }
 
-// Opzioni del select gerarchico Campagna/Avventura dei pannelli Filtri
+// Opzioni del select gerarchico Campagna/Capitolo dei pannelli Filtri
 // avanzati (PG/PNG/Mostri): ogni campagna e' un'opzione selezionabile a se',
-// con le sue avventure subito sotto come opzioni indentate "└─" - flatMap
+// con i suoi capitoli subito sotto come opzioni indentate "└─" - flatMap
 // (non un <optgroup>, la cui label non e' selezionabile: qui la campagna
 // stessa deve restare un'opzione cliccabile).
-function buildCampaignAdventureOptions(
+function buildCampaignChapterOptions(
   campaignList: { id: string; name: string; suffix?: string }[],
-  adventuresByCampaignId: Map<string, Adventure[]>
+  chaptersByCampaignId: Map<string, Chapter[]>
 ) {
   return campaignList.flatMap(c => {
-    const adventures = adventuresByCampaignId.get(c.id) ?? [];
+    const chapters = chaptersByCampaignId.get(c.id) ?? [];
     return [
       <option key={c.id} value={c.id}>{c.name}{c.suffix ? ` ${c.suffix}` : ''}</option>,
-      ...adventures.map(a => (
+      ...chapters.map(a => (
         <option key={`${c.id}::${a.id}`} value={`${c.id}::${a.id}`}>{`  └─ ${a.title}`}</option>
       )),
     ];
   });
 }
 
-// Decodifica il valore composito "campaignId::adventureId" del select
-// gerarchico sopra - solo di presentazione: campaignFilter/adventureFilter
+// Decodifica il valore composito "campaignId::chapterId" del select
+// gerarchico sopra - solo di presentazione: campaignFilter/chapterFilter
 // restano le due uniche fonti di verita' del filtro, questa funzione le
 // deriva dal valore scelto, non introduce un terzo stato da tenere
 // sincronizzato.
-function decodeCampaignAdventureValue(raw: string): { campaignId: string; adventureId: string } {
-  const [campaignId = '', adventureId = ''] = raw.split('::');
-  return { campaignId, adventureId };
+function decodeCampaignChapterValue(raw: string): { campaignId: string; chapterId: string } {
+  const [campaignId = '', chapterId = ''] = raw.split('::');
+  return { campaignId, chapterId };
 }
 
 // Ricerca client-side sui dati gia' caricati, stesso pattern semplice
@@ -352,7 +352,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   // Precompilati disponibili nelle campagne proprie/partecipate - stessa
   // union owned+joined gia' usata per allCampaignOptions sopra. Ricaricata
   // quando cambia l'insieme di campagne, non ad ogni render (stesso pattern
-  // di allCampaignIdsKey/adventuresByCampaignId piu' sotto in questo file).
+  // di allCampaignIdsKey/chaptersByCampaignId piu' sotto in questo file).
   const myAndJoinedCampaignIdsKey = [...campaigns, ...joinedCampaigns].map(c => c.id).join(',');
   const loadAvailable = async () => {
     const ids = Array.from(new Set([...campaigns, ...joinedCampaigns].map(c => c.id)));
@@ -842,7 +842,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [npcViewMode, setNpcViewMode] = useState<ViewMode>('grid');
   const [npcFiltersOpen, setNpcFiltersOpen] = useState(false);
   const [npcCampaignFilter, setNpcCampaignFilter] = useState('');
-  const [npcAdventureFilter, setNpcAdventureFilter] = useState('');
+  const [npcChapterFilter, setNpcChapterFilter] = useState('');
   const [npcRulesetFilter, setNpcRulesetFilter] = useState('');
   const [npcPage, setNpcPage] = useState(1);
   const [npcPageSize, setNpcPageSize] = useState<number>(12);
@@ -862,7 +862,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   const [monsterViewMode, setMonsterViewMode] = useState<ViewMode>('grid');
   const [monsterFiltersOpen, setMonsterFiltersOpen] = useState(false);
   const [monsterCampaignFilter, setMonsterCampaignFilter] = useState('');
-  const [monsterAdventureFilter, setMonsterAdventureFilter] = useState('');
+  const [monsterChapterFilter, setMonsterChapterFilter] = useState('');
   const [monsterRulesetFilter, setMonsterRulesetFilter] = useState('');
   const [monsterPage, setMonsterPage] = useState(1);
   const [monsterPageSize, setMonsterPageSize] = useState<number>(12);
@@ -912,8 +912,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   // stesso comportamento di MonstersManager.tsx (altrimenti si potrebbe
   // restare su una pagina che i nuovi risultati non hanno piu').
   useEffect(() => { setCharPage(1); }, [charSearch, charFilter, charCampaignFilter, charRulesetFilter, charSort, charPageSize]);
-  useEffect(() => { setNpcPage(1); }, [npcSearch, npcFilter, npcCampaignFilter, npcAdventureFilter, npcRulesetFilter, npcSort, npcPageSize]);
-  useEffect(() => { setMonsterPage(1); }, [monsterSearch, monsterFilter, monsterCampaignFilter, monsterAdventureFilter, monsterRulesetFilter, monsterSort, monsterPageSize]);
+  useEffect(() => { setNpcPage(1); }, [npcSearch, npcFilter, npcCampaignFilter, npcChapterFilter, npcRulesetFilter, npcSort, npcPageSize]);
+  useEffect(() => { setMonsterPage(1); }, [monsterSearch, monsterFilter, monsterCampaignFilter, monsterChapterFilter, monsterRulesetFilter, monsterSort, monsterPageSize]);
 
   const entityName = (entry: CatalogEntry) =>
     entry.entity.name?.trim() || (entry.kind === 'npc' ? 'PNG senza nome' : 'Mostro senza nome');
@@ -923,48 +923,48 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     return campaigns.find(c => c.id === campaignId)?.name ?? 'Campagna sconosciuta';
   };
 
-  // Avventure per campagna, fonte unica sia per i badge "Nome Campagna -
-  // Nome Avventura" (adventureTitlesById sotto) sia per popolare il select
-  // gerarchico Campagna/Avventura dei pannelli Filtri (PG/PNG/Mostri) - a
+  // Capitoli per campagna, fonte unica sia per i badge "Nome Campagna -
+  // Nome Capitolo" (chapterTitlesById sotto) sia per popolare il select
+  // gerarchico Campagna/Capitolo dei pannelli Filtri (PG/PNG/Mostri) - a
   // differenza del vecchio fetch-per-badge (limitato alle sole campagne che
-  // avevano gia' un'entita' con avventura assegnata), qui serve la lista
+  // avevano gia' un'entita' con capitolo assegnato), qui serve la lista
   // completa di ogni campagna, dato che il select deve mostrare tutte le
-  // avventure subito, non solo dopo aver scelto una campagna. campaigns e'
+  // capitoli subito, non solo dopo aver scelto una campagna. campaigns e'
   // owned, joinedCampaigns e' partecipate (PG puo' appartenere a entrambe,
   // PNG/Mostri solo a owned - fetchare l'unione e' un superset innocuo).
-  const [adventuresByCampaignId, setAdventuresByCampaignId] = useState<Map<string, Adventure[]>>(new Map());
+  const [chaptersByCampaignId, setChaptersByCampaignId] = useState<Map<string, Chapter[]>>(new Map());
   const allCampaignIdsKey = [...campaigns, ...joinedCampaigns].map(c => c.id).join(',');
 
   useEffect(() => {
     const ids = Array.from(new Set([...campaigns, ...joinedCampaigns].map(c => c.id)));
     if (ids.length === 0) {
-      setAdventuresByCampaignId(new Map());
+      setChaptersByCampaignId(new Map());
       return;
     }
 
     let cancelled = false;
-    Promise.all(ids.map(id => loadAdventures(id).then(list => [id, list] as const)))
+    Promise.all(ids.map(id => loadChapters(id).then(list => [id, list] as const)))
       .then(pairs => {
         if (cancelled) return;
-        setAdventuresByCampaignId(new Map(pairs));
+        setChaptersByCampaignId(new Map(pairs));
       })
       .catch(error => {
-        console.error('Errore caricamento avventure per i filtri:', error);
+        console.error('Errore caricamento capitoli per i filtri:', error);
       });
     return () => { cancelled = true; };
   }, [allCampaignIdsKey]);
 
-  // Titoli avventura per il badge "Nome Campagna - Nome Avventura" sulle
+  // Titoli capitolo per il badge "Nome Campagna - Nome Capitolo" sulle
   // card di questa pagina (stesso formato di MonstersManager.tsx/
-  // NPCManager.tsx, vedi formatCampaignAdventureLabel) - derivato dalla
+  // NPCManager.tsx, vedi formatCampaignChapterLabel) - derivato dalla
   // mappa sopra invece di un fetch proprio.
-  const adventureTitlesById = useMemo(() => {
+  const chapterTitlesById = useMemo(() => {
     const map = new Map<string, string>();
-    for (const list of adventuresByCampaignId.values()) {
-      for (const adventure of list) map.set(adventure.id, adventure.title);
+    for (const list of chaptersByCampaignId.values()) {
+      for (const chapter of list) map.set(chapter.id, chapter.title);
     }
     return map;
-  }, [adventuresByCampaignId]);
+  }, [chaptersByCampaignId]);
 
   // applica un aggiornamento locale ottimistico sullo stato giusto (npcs o monsters) in base al kind
   const applyEntityUpdate = (entry: CatalogEntry, updater: (entity: NPC | Monster) => NPC | Monster) => {
@@ -992,7 +992,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     campaignId: null,
     ruleset,
     environmentId: null,
-    adventureId: null,
+    chapterId: null,
     name: '',
     role: '',
     description: '',
@@ -1329,7 +1329,7 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
           <span className="truncate">
             {isUnassigned
               ? 'Nessuna campagna'
-              : formatCampaignAdventureLabel(campaignName, entity.adventureId ? adventureTitlesById.get(entity.adventureId) : null)}
+              : formatCampaignChapterLabel(campaignName, entity.chapterId ? chapterTitlesById.get(entity.chapterId) : null)}
           </span>
         </div>
       </EntityCard>
@@ -1352,8 +1352,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
     labelPluralLower: string; // "PNG" / "mostri"
     campaignFilter: string;
     setCampaignFilter: (id: string) => void;
-    adventureFilter: string;
-    setAdventureFilter: (id: string) => void;
+    chapterFilter: string;
+    setChapterFilter: (id: string) => void;
     rulesetFilter: string;
     setRulesetFilter: (id: string) => void;
     filtersOpen: boolean;
@@ -1365,13 +1365,13 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   }) => {
     const {
       entries, filter, setFilter, sort, setSort, search, setSearch, viewMode, setViewMode, isLoading, labelSingular, labelPluralLower,
-      campaignFilter, setCampaignFilter, adventureFilter, setAdventureFilter,
+      campaignFilter, setCampaignFilter, chapterFilter, setChapterFilter,
       rulesetFilter, setRulesetFilter,
       filtersOpen, setFiltersOpen, page, setPage, pageSize, setPageSize,
     } = params;
     const assigned = entries.filter(e => e.entity.campaignId);
     const unassigned = entries.filter(e => !e.entity.campaignId);
-    const filtered = sortEntries(searchEntries(filterEntries(entries, filter, campaignFilter, adventureFilter, rulesetFilter), search), sort);
+    const filtered = sortEntries(searchEntries(filterEntries(entries, filter, campaignFilter, chapterFilter, rulesetFilter), search), sort);
     const { pageItems: paged, totalPages, safePage, startIndex, endIndex } = paginateItems(filtered, page, pageSize);
 
     return (
@@ -1389,18 +1389,18 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
           filtersPanel={
             <div className="grid gap-3 lg:grid-cols-4">
               <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
-                <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Campagna / Avventura</div>
+                <div className="text-sm font-semibold text-[var(--dash-text-strong)]">Campagna / Capitolo</div>
                 <select
-                  value={adventureFilter ? `${campaignFilter}::${adventureFilter}` : campaignFilter}
+                  value={chapterFilter ? `${campaignFilter}::${chapterFilter}` : campaignFilter}
                   onChange={e => {
-                    const { campaignId, adventureId } = decodeCampaignAdventureValue(e.target.value);
+                    const { campaignId, chapterId } = decodeCampaignChapterValue(e.target.value);
                     setCampaignFilter(campaignId);
-                    setAdventureFilter(adventureId);
+                    setChapterFilter(chapterId);
                   }}
                   className="mt-2 w-full rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)]"
                 >
                   <option value="">Tutte le campagne</option>
-                  {buildCampaignAdventureOptions(campaigns, adventuresByCampaignId)}
+                  {buildCampaignChapterOptions(campaigns, chaptersByCampaignId)}
                 </select>
               </div>
 
@@ -1749,8 +1749,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         labelPluralLower: 'PNG',
         campaignFilter: npcCampaignFilter,
         setCampaignFilter: setNpcCampaignFilter,
-        adventureFilter: npcAdventureFilter,
-        setAdventureFilter: setNpcAdventureFilter,
+        chapterFilter: npcChapterFilter,
+        setChapterFilter: setNpcChapterFilter,
         rulesetFilter: npcRulesetFilter,
         setRulesetFilter: setNpcRulesetFilter,
         filtersOpen: npcFiltersOpen,
@@ -1776,8 +1776,8 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
         labelPluralLower: 'mostri',
         campaignFilter: monsterCampaignFilter,
         setCampaignFilter: setMonsterCampaignFilter,
-        adventureFilter: monsterAdventureFilter,
-        setAdventureFilter: setMonsterAdventureFilter,
+        chapterFilter: monsterChapterFilter,
+        setChapterFilter: setMonsterChapterFilter,
         rulesetFilter: monsterRulesetFilter,
         setRulesetFilter: setMonsterRulesetFilter,
         filtersOpen: monsterFiltersOpen,

@@ -25,7 +25,7 @@ export function readStoredEnvironmentSummaries(campaignId = ''): EnvironmentSumm
         id: String(item.id),
         name: String(item.name ?? 'Luogo senza nome'),
         campaignId: item.campaignId ?? item.campaign_id ?? null,
-        adventureId: item.adventureId ?? item.adventure_id ?? null,
+        chapterId: item.chapterId ?? item.chapter_id ?? null,
         parentLocationId: item.parentLocationId ?? item.parent_location_id ?? null
       }))
       .filter(item => item.campaignId == null || item.campaignId === campaignId);
@@ -43,7 +43,7 @@ export function mergeEnvironmentReferencesWithStoredDetails(
 
   return references.map(reference => ({
     ...reference,
-    adventureId: reference.adventureId ?? storedById.get(reference.id)?.adventureId ?? null,
+    chapterId: reference.chapterId ?? storedById.get(reference.id)?.chapterId ?? null,
     parentLocationId: reference.parentLocationId ?? storedById.get(reference.id)?.parentLocationId ?? null
   }));
 }
@@ -64,7 +64,7 @@ export function createEmptyMonster(campaignId = '', ownerProfileId?: string, rul
     updatedAt: now,
 
     baseMonsterId: null,
-    adventureId: null,
+    chapterId: null,
     environmentId: null,
     mapLocationId: null,
     customLocationName: '',
@@ -130,7 +130,7 @@ export function createMonsterFromBase(baseId: string, campaignId = '', ownerProf
     baseMonsterId: base.id,
     campaignId,
     ownerProfileId,
-    adventureId: null,
+    chapterId: null,
     environmentId: null,
     mapLocationId: null,
     customLocationName: '',
@@ -192,7 +192,7 @@ export function normalizeMonster(monster: Partial<Monster> & { id?: string; name
     baseMonsterId: monster.baseMonsterId ?? null,
     campaignId: monster.campaignId ?? '',
     ownerProfileId: monster.ownerProfileId,
-    adventureId: monster.adventureId ?? null,
+    chapterId: monster.chapterId ?? null,
     environmentId: monster.environmentId ?? null,
     mapLocationId: monster.mapLocationId ?? null,
     customLocationName: monster.customLocationName ?? '',

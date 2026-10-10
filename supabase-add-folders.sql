@@ -114,7 +114,7 @@ create trigger trg_check_monster_folder_type
   for each row execute function check_monster_folder_type();
 
 -- =====================================================
--- RLS: stesso pattern di adventures/environments in
+-- RLS: stesso pattern di chapters/environments in
 -- supabase-fix-rls-gm-tables.sql - lettura per proprietario campagna o
 -- membro, scrittura solo per il proprietario (GM). Coerente con "cartelle
 -- gestite solo dal GM, visibili identiche a tutti".

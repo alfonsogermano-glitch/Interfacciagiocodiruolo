@@ -1,6 +1,7 @@
 import { CAMPAIGN_STORAGE_KEYS } from './campaignStorageKeys';
 import { persistenceKey } from '../storage/persistenceMode';
-import type { CampaignBackup, CampaignBackupData } from './campaignBackupTypes';
+import type { CampaignBackup, CampaignBackupData, ImportableCampaignBackup } from './campaignBackupTypes';
+import { LEGACY_CHAPTER_STORAGE_KEYS, normalizeLegacyChapterValue } from './chapterMigration';
 
 function safeParseArray(key: string): unknown[] {
   const value = window.localStorage.getItem(persistenceKey(key));
@@ -14,6 +15,11 @@ function safeParseArray(key: string): unknown[] {
   } catch {
     return [];
   }
+}
+
+function safeParseArrayWithFallback(key: string, legacyKey: string): unknown[] {
+  if (window.localStorage.getItem(persistenceKey(key)) !== null) return safeParseArray(key);
+  return normalizeLegacyChapterValue(safeParseArray(legacyKey));
 }
 
 function safeParseAny(key: string): unknown | null {
@@ -53,12 +59,12 @@ export function exportCampaignBackup(): CampaignBackup {
     combat: safeParseAny(CAMPAIGN_STORAGE_KEYS.combat),
     equipmentCatalog: safeParseArray(CAMPAIGN_STORAGE_KEYS.equipmentCatalog),
     characterEquipment: safeParseArray(CAMPAIGN_STORAGE_KEYS.characterEquipment),
-    adventures: safeParseArray(CAMPAIGN_STORAGE_KEYS.adventures),
+    chapters: safeParseArrayWithFallback(CAMPAIGN_STORAGE_KEYS.chapters, LEGACY_CHAPTER_STORAGE_KEYS.chapters),
     visualAssets: safeParseArray(CAMPAIGN_STORAGE_KEYS.visualAssets)
   };
 
   return {
-    version: 1,
+    version: 2,
     app: 'high-school-cthulhu-dashboard',
     exportedAt: new Date().toISOString(),
     data
@@ -83,13 +89,13 @@ export function downloadCampaignBackup(filename = 'high-school-cthulhu-campagna.
   URL.revokeObjectURL(url);
 }
 
-export async function readCampaignBackupFromFile(file: File): Promise<CampaignBackup> {
+export async function readCampaignBackupFromFile(file: File): Promise<ImportableCampaignBackup> {
   const text = await file.text();
-  const parsed = JSON.parse(text) as CampaignBackup;
+  const parsed = JSON.parse(text) as ImportableCampaignBackup;
 
   if (
     !parsed ||
-    parsed.version !== 1 ||
+    (parsed.version !== 1 && parsed.version !== 2) ||
     parsed.app !== 'high-school-cthulhu-dashboard' ||
     !parsed.data
   ) {
@@ -99,28 +105,30 @@ export async function readCampaignBackupFromFile(file: File): Promise<CampaignBa
   return parsed;
 }
 
-export function importCampaignBackup(backup: CampaignBackup): void {
+export function importCampaignBackup(backup: ImportableCampaignBackup): void {
   ensureWindowAvailable();
 
   if (
     !backup ||
-    backup.version !== 1 ||
+    (backup.version !== 1 && backup.version !== 2) ||
     backup.app !== 'high-school-cthulhu-dashboard' ||
     !backup.data
   ) {
     throw new Error('Struttura backup non valida.');
   }
 
-  writeValue(CAMPAIGN_STORAGE_KEYS.playerCharacters, backup.data.playerCharacters ?? []);
-  writeValue(CAMPAIGN_STORAGE_KEYS.npcs, backup.data.npcs ?? []);
-  writeValue(CAMPAIGN_STORAGE_KEYS.monsters, backup.data.monsters ?? []);
-  writeValue(CAMPAIGN_STORAGE_KEYS.clues, backup.data.clues ?? []);
-  writeValue(CAMPAIGN_STORAGE_KEYS.environments, backup.data.environments ?? []);
-  writeValue(CAMPAIGN_STORAGE_KEYS.situations, backup.data.situations ?? []);
+  const data = normalizeLegacyChapterValue(backup.data);
+  writeValue(CAMPAIGN_STORAGE_KEYS.playerCharacters, data.playerCharacters ?? []);
+  writeValue(CAMPAIGN_STORAGE_KEYS.npcs, data.npcs ?? []);
+  writeValue(CAMPAIGN_STORAGE_KEYS.monsters, data.monsters ?? []);
+  writeValue(CAMPAIGN_STORAGE_KEYS.clues, data.clues ?? []);
+  writeValue(CAMPAIGN_STORAGE_KEYS.environments, data.environments ?? []);
+  writeValue(CAMPAIGN_STORAGE_KEYS.situations, data.situations ?? []);
   writeValue(CAMPAIGN_STORAGE_KEYS.maps, backup.data.maps ?? null);
   writeValue(CAMPAIGN_STORAGE_KEYS.combat, backup.data.combat ?? null);
   writeValue(CAMPAIGN_STORAGE_KEYS.equipmentCatalog, backup.data.equipmentCatalog ?? []);
   writeValue(CAMPAIGN_STORAGE_KEYS.characterEquipment, backup.data.characterEquipment ?? []);
-  writeValue(CAMPAIGN_STORAGE_KEYS.adventures, backup.data.adventures ?? []);
+  const legacyChapters = backup.version === 1 ? backup.data.adventures : undefined;
+  writeValue(CAMPAIGN_STORAGE_KEYS.chapters, data.chapters ?? normalizeLegacyChapterValue(legacyChapters ?? []));
   writeValue(CAMPAIGN_STORAGE_KEYS.visualAssets, backup.data.visualAssets ?? []);
 }

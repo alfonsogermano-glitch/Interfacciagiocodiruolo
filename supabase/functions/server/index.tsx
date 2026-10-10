@@ -3122,9 +3122,10 @@ app.put("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c)
     return c.json({ error: "Il personaggio non appartiene a questa campagna" }, 400);
   }
 
+  const updateBody = await c.req.json();
   const {
     sheetData, name, style, viaggio, portraitUrl,
-    portraitImageUrl, portraitSourceImageUrl, portraitCropArea, adventureId,
+    portraitImageUrl, portraitSourceImageUrl, portraitCropArea,
     portraitFrameAssetId, portraitFrameRotationDegrees,
     portraitFrameOffsetX, portraitFrameOffsetY,
     portraitFrameScaleX, portraitFrameScaleY,
@@ -3134,11 +3135,13 @@ app.put("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c)
     coverFrameScaleX, coverFrameScaleY, coverFrameAssetId,
     tokenColor, tokenBackgroundColor, tokenBorderStyle,
     tokenBorderThickness, tokenBorderLabel, tokenBorderVisible,
-  } = await c.req.json();
+  } = updateBody;
+  // Compatibilità di rollout per client già aperti prima della migrazione.
+  const chapterId = Object.prototype.hasOwnProperty.call(updateBody, 'chapterId')
+    ? updateBody.chapterId
+    : updateBody.adventureId;
 
-  const { error: updateError } = await admin
-    .from("characters")
-    .update({
+  const characterUpdate = {
       name,
       style,
       viaggio,
@@ -3146,7 +3149,6 @@ app.put("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c)
       portrait_image_url: portraitImageUrl ?? null,
       portrait_source_image_url: portraitSourceImageUrl ?? null,
       portrait_crop_area: portraitCropArea ?? null,
-      adventure_id: adventureId ?? null,
       portrait_frame_asset_id: portraitFrameAssetId ?? null,
       portrait_frame_rotation_degrees: portraitFrameRotationDegrees ?? 0,
       portrait_frame_offset_x: portraitFrameOffsetX ?? 0,
@@ -3171,8 +3173,19 @@ app.put("/make-server-771c5bfd/campaigns/:id/characters/:characterId", async (c)
       token_border_label: tokenBorderLabel ?? null,
       token_border_visible: tokenBorderVisible ?? null,
       sheet_data: sheetData,
-    })
+  };
+  let { error: updateError } = await admin
+    .from("characters")
+    .update({ ...characterUpdate, chapter_id: chapterId ?? null })
     .eq("id", characterId);
+
+  // Consente di distribuire questa funzione prima del rename PostgreSQL.
+  if (updateError && /chapter_id|schema cache/i.test(updateError.message)) {
+    ({ error: updateError } = await admin
+      .from("characters")
+      .update({ ...characterUpdate, adventure_id: chapterId ?? null })
+      .eq("id", characterId));
+  }
 
   if (updateError) {
     console.log("Errore update personaggio (GM):", updateError);

@@ -135,13 +135,13 @@ export default function LandingPage() {
           {/* Testo hero in cima */}
           <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', paddingTop: '1rem' }}>
             <img src="/title-main.png" alt="Varca la Soglia" style={{ maxWidth:'45%', height:'auto', objectFit:'contain' }} />
-            <img src="/title-sub.png" alt="Il Virtual Tabletop per le tue avventure horror" style={{ maxWidth:'55%', height:'auto', objectFit:'contain' }} />
+            <img src="/title-sub.png" alt="Il Virtual Tabletop per le tue campagne horror" style={{ maxWidth:'55%', height:'auto', objectFit:'contain' }} />
           </div>
 
           {/* Card features in fondo */}
           <div style={{ display: 'flex', gap: '1.5rem', width: '100%', maxWidth: 1200 }}>
             {[
-              { icon: <BookOpen size={28} />, title: 'Gestisci Campagne', desc: 'Organizza avventure, elementi di gioco e scenari in un unico posto.' },
+              { icon: <BookOpen size={28} />, title: 'Gestisci Campagne', desc: 'Organizza capitoli, elementi di gioco e scenari in un unico posto.' },
               { icon: <Users size={28} />, title: 'Crea Personaggi unici', desc: 'Schede con abilità, equipaggiamento e storia.' },
               { icon: <Wifi size={28} />, title: 'Gioca Online', desc: 'Sessioni in tempo reale con il tuo gruppo ovunque.' },
               { icon: <Settings size={28} />, title: 'Regolamenti integrati', desc: 'Regolamenti GDR disponibili o personalizzabili.' },

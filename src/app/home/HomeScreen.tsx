@@ -199,7 +199,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
             >
               <UserCircle2 className="mb-4 h-9 w-9" />
               <h3 className="text-lg font-semibold tracking-wide">Crea personaggio</h3>
-              <p className="mt-1 text-sm text-white/80">Dai vita a un nuovo eroe pronto per l'avventura.</p>
+              <p className="mt-1 text-sm text-white/80">Dai vita a un nuovo eroe pronto a entrare nella storia.</p>
             </button>
 
             <button

@@ -2,11 +2,11 @@
 -- senza autenticazione (RLS mai abilitato). Trovate durante un audit
 -- successivo al fix di isolamento di dashboard_settings, verificato
 -- empiricamente con richieste REST usando solo la chiave anon pubblica
--- (nessuna sessione): visual_assets, equipment_catalog, adventures,
+-- (nessuna sessione): visual_assets, equipment_catalog, chapters,
 -- environments, situations, clues restituivano righe reali; character_equipment
 -- risultava vuota ma comunque interrogabile.
 --
--- adventures/environments: lettura consentita anche ai membri campagna
+-- chapters/environments: lettura consentita anche ai membri campagna
 -- (necessaria a EntityDetailView.tsx, usato anche lato giocatore in sessione
 -- da SessionCharactersPanel.tsx per le select Ambito narrativo/Luogo).
 -- Scrittura solo al proprietario campagna (GM).
@@ -19,18 +19,18 @@
 -- dei PG vive in characters.sheet_data) - protetta per coerenza/difesa in
 -- profondita', nessun impatto funzionale atteso.
 
-alter table adventures enable row level security;
-create policy adventures_select_own_or_member on adventures for select
+alter table chapters enable row level security;
+create policy chapters_select_own_or_member on chapters for select
   using (
-    exists (select 1 from campaigns where campaigns.id = adventures.campaign_id and campaigns.owner_profile_id = auth.uid()::text)
-    or exists (select 1 from campaign_members where campaign_members.campaign_id = adventures.campaign_id and campaign_members.profile_id = auth.uid()::text)
+    exists (select 1 from campaigns where campaigns.id = chapters.campaign_id and campaigns.owner_profile_id = auth.uid()::text)
+    or exists (select 1 from campaign_members where campaign_members.campaign_id = chapters.campaign_id and campaign_members.profile_id = auth.uid()::text)
   );
-create policy adventures_insert_own on adventures for insert
-  with check (exists (select 1 from campaigns where campaigns.id = adventures.campaign_id and campaigns.owner_profile_id = auth.uid()::text));
-create policy adventures_update_own on adventures for update
-  using (exists (select 1 from campaigns where campaigns.id = adventures.campaign_id and campaigns.owner_profile_id = auth.uid()::text));
-create policy adventures_delete_own on adventures for delete
-  using (exists (select 1 from campaigns where campaigns.id = adventures.campaign_id and campaigns.owner_profile_id = auth.uid()::text));
+create policy chapters_insert_own on chapters for insert
+  with check (exists (select 1 from campaigns where campaigns.id = chapters.campaign_id and campaigns.owner_profile_id = auth.uid()::text));
+create policy chapters_update_own on chapters for update
+  using (exists (select 1 from campaigns where campaigns.id = chapters.campaign_id and campaigns.owner_profile_id = auth.uid()::text));
+create policy chapters_delete_own on chapters for delete
+  using (exists (select 1 from campaigns where campaigns.id = chapters.campaign_id and campaigns.owner_profile_id = auth.uid()::text));
 
 alter table environments enable row level security;
 create policy environments_select_own_or_member on environments for select

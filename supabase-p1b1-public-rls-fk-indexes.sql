@@ -5,10 +5,10 @@
 do $$
 declare
   v_targets text[] := array[
-    'adventures.adventures_delete_own',
-    'adventures.adventures_insert_own',
-    'adventures.adventures_select_own_or_member',
-    'adventures.adventures_update_own',
+    'chapters.chapters_delete_own',
+    'chapters.chapters_insert_own',
+    'chapters.chapters_select_own_or_member',
+    'chapters.chapters_update_own',
     'campaign_members.campaign_members_select_if_member_or_owner',
     'campaigns.campaigns_insert_own',
     'campaigns.campaigns_select_own',

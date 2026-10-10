@@ -4,7 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../../ui/tooltip';
 
 // Ricerca/ordinamento/vista/toggle-filtri genuinamente riusabili tra
 // contesti diversi (indagati confrontando MonstersManager.tsx con
-// MyCharactersPage.tsx): il *contenuto* dei filtri (campagna/avventura/tag)
+// MyCharactersPage.tsx): il *contenuto* dei filtri (campagna/capitolo/tag)
 // resta invece specifico di ciascun contesto chiamante e va passato come
 // `children`/`filtersPanel`, non definito qui.
 export type SortMode = 'recent' | 'oldest' | 'updated' | 'name' | 'name-desc';
@@ -23,7 +23,7 @@ interface EntityFilterToolbarProps {
   // ordinamento e pulsante Filtri.
   children?: ReactNode;
   // Pannello "Filtri avanzati" (contenuto specifico del contesto, es. select
-  // Campagna/Avventura). Se omesso, il pulsante "Filtri" non viene mostrato.
+  // Campagna/Capitolo). Se omesso, il pulsante "Filtri" non viene mostrato.
   filtersOpen?: boolean;
   onToggleFilters?: () => void;
   filtersPanel?: ReactNode;

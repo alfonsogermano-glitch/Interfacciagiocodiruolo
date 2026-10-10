@@ -7,7 +7,7 @@
 -- ENVIRONMENTS: Aggiunta campi gerarchici e strutturali
 -- =====================================================
 ALTER TABLE environments
-  ADD COLUMN IF NOT EXISTS adventure_id UUID REFERENCES adventures(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS chapter_id UUID REFERENCES chapters(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS parent_location_id UUID REFERENCES environments(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS map_location_id TEXT,
   ADD COLUMN IF NOT EXISTS location_type TEXT CHECK (location_type IN ('area', 'building', 'room', 'poi', 'other')),
@@ -22,7 +22,7 @@ ALTER TABLE environments
 -- =====================================================
 ALTER TABLE npcs
   ADD COLUMN IF NOT EXISTS environment_id UUID REFERENCES environments(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS adventure_id UUID REFERENCES adventures(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS chapter_id UUID REFERENCES chapters(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS personality TEXT,
   ADD COLUMN IF NOT EXISTS secrets TEXT,
   ADD COLUMN IF NOT EXISTS location TEXT,
@@ -47,7 +47,7 @@ ALTER TABLE npcs
 -- =====================================================
 ALTER TABLE monsters
   ADD COLUMN IF NOT EXISTS environment_id UUID REFERENCES environments(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS adventure_id UUID REFERENCES adventures(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS chapter_id UUID REFERENCES chapters(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS base_monster_id TEXT,
   ADD COLUMN IF NOT EXISTS map_location_id TEXT,
   ADD COLUMN IF NOT EXISTS custom_location_name TEXT,
@@ -85,7 +85,7 @@ ALTER TABLE clues
 -- SITUATIONS: Aggiunta campi e conversione consequences
 -- =====================================================
 ALTER TABLE situations
-  ADD COLUMN IF NOT EXISTS adventure_id UUID REFERENCES adventures(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS chapter_id UUID REFERENCES chapters(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS environment_id UUID REFERENCES environments(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS trigger TEXT,
   ADD COLUMN IF NOT EXISTS consequences_array JSONB DEFAULT '[]'::jsonb,
@@ -107,28 +107,28 @@ WHERE consequences_array = '[]'::jsonb;
 
 -- Environments
 CREATE INDEX IF NOT EXISTS idx_environments_campaign ON environments(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_environments_adventure ON environments(adventure_id);
+CREATE INDEX IF NOT EXISTS idx_environments_chapter ON environments(chapter_id);
 CREATE INDEX IF NOT EXISTS idx_environments_parent ON environments(parent_location_id);
 
 -- NPCs
 CREATE INDEX IF NOT EXISTS idx_npcs_campaign ON npcs(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_npcs_environment ON npcs(environment_id);
-CREATE INDEX IF NOT EXISTS idx_npcs_adventure ON npcs(adventure_id);
+CREATE INDEX IF NOT EXISTS idx_npcs_chapter ON npcs(chapter_id);
 
 -- Monsters
 CREATE INDEX IF NOT EXISTS idx_monsters_campaign ON monsters(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_monsters_environment ON monsters(environment_id);
-CREATE INDEX IF NOT EXISTS idx_monsters_adventure ON monsters(adventure_id);
+CREATE INDEX IF NOT EXISTS idx_monsters_chapter ON monsters(chapter_id);
 
 -- Clues
 CREATE INDEX IF NOT EXISTS idx_clues_campaign ON clues(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_clues_environment ON clues(environment_id);
-CREATE INDEX IF NOT EXISTS idx_clues_adventure ON clues(adventure_id);
+CREATE INDEX IF NOT EXISTS idx_clues_chapter ON clues(chapter_id);
 
 -- Situations
 CREATE INDEX IF NOT EXISTS idx_situations_campaign ON situations(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_situations_environment ON situations(environment_id);
-CREATE INDEX IF NOT EXISTS idx_situations_adventure ON situations(adventure_id);
+CREATE INDEX IF NOT EXISTS idx_situations_chapter ON situations(chapter_id);
 
 -- =====================================================
 -- COMMENTI

@@ -9,10 +9,10 @@ import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorag
 import { persistenceKey } from '../../../services/storage/persistenceMode';
 import { generateUUID } from '../../../lib/uuid';
 import {
-  loadNPCs, saveNPC, deleteNPC, loadAdventures,
+  loadNPCs, saveNPC, deleteNPC, loadChapters,
   type NPC
 } from '../../../services/supabase/entitiesService';
-import type { Adventure } from '../../../types/adventure';
+import type { Chapter } from '../../../types/chapter';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/paletteColors';
 import { EntityCard } from '../session/shared/EntityCard';
 import { EntityKebabMenu } from '../session/shared/EntityKebabMenu';
@@ -66,7 +66,7 @@ function createEmptyNpcDraft(campaignId: string, ruleset: NPC['ruleset'], ownerP
     campaignId,
     ruleset,
     environmentId: null,
-    adventureId: null,
+    chapterId: null,
     name: '',
     role: '',
     description: '',
@@ -100,7 +100,7 @@ export function NPCsManager({ navigationTarget = null }: NPCsManagerProps) {
 
   const [npcs, setNpcs] = useState<NPC[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [adventures, setAdventures] = useState<Adventure[]>([]);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
 
   const [selectedNpcId, setSelectedNpcId] = useState<string | null>(null);
   const [draftNpc, setDraftNpc] = useState<NPC | null>(null);
@@ -115,13 +115,13 @@ export function NPCsManager({ navigationTarget = null }: NPCsManagerProps) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
 
-  const [useActiveAdventureFilter, setUseActiveAdventureFilter] = useState(false);
-  const [selectedAdventureFilterId, setSelectedAdventureFilterId] = useState('all');
-  const [includeUnassignedInAdventureFilter, setIncludeUnassignedInAdventureFilter] = useState(false);
-  const [activeAdventureId, setActiveAdventureId] = useState<string | null>(() =>
+  const [useActiveChapterFilter, setUseActiveChapterFilter] = useState(false);
+  const [selectedChapterFilterId, setSelectedChapterFilterId] = useState('all');
+  const [includeUnassignedInChapterFilter, setIncludeUnassignedInChapterFilter] = useState(false);
+  const [activeChapterId, setActiveChapterId] = useState<string | null>(() =>
     typeof window === 'undefined'
       ? null
-      : window.localStorage.getItem(persistenceKey(CAMPAIGN_STORAGE_KEYS.activeAdventure))
+      : window.localStorage.getItem(persistenceKey(CAMPAIGN_STORAGE_KEYS.activeChapter))
   );
 
   useEffect(() => {
@@ -136,27 +136,27 @@ export function NPCsManager({ navigationTarget = null }: NPCsManagerProps) {
 
   useEffect(() => {
     let cancelled = false;
-    loadAdventures(activeCampaignId)
-      .then(list => { if (!cancelled) setAdventures(list); })
-      .catch(err => console.error('Errore caricamento avventure:', err));
+    loadChapters(activeCampaignId)
+      .then(list => { if (!cancelled) setChapters(list); })
+      .catch(err => console.error('Errore caricamento capitoli:', err));
     return () => { cancelled = true; };
   }, [activeCampaignId]);
 
   useEffect(() => {
-    const sync = () => setActiveAdventureId(window.localStorage.getItem(persistenceKey(CAMPAIGN_STORAGE_KEYS.activeAdventure)));
+    const sync = () => setActiveChapterId(window.localStorage.getItem(persistenceKey(CAMPAIGN_STORAGE_KEYS.activeChapter)));
     sync();
     window.addEventListener('focus', sync);
     return () => window.removeEventListener('focus', sync);
   }, []);
 
-  const effectiveAdventureFilterId = useActiveAdventureFilter
-    ? activeAdventureId
-    : selectedAdventureFilterId === 'all' ? null : selectedAdventureFilterId;
-  const isFilteringSpecificAdventure = effectiveAdventureFilterId !== null;
+  const effectiveChapterFilterId = useActiveChapterFilter
+    ? activeChapterId
+    : selectedChapterFilterId === 'all' ? null : selectedChapterFilterId;
+  const isFilteringSpecificChapter = effectiveChapterFilterId !== null;
 
   useEffect(() => {
-    if (!isFilteringSpecificAdventure) setIncludeUnassignedInAdventureFilter(false);
-  }, [isFilteringSpecificAdventure]);
+    if (!isFilteringSpecificChapter) setIncludeUnassignedInChapterFilter(false);
+  }, [isFilteringSpecificChapter]);
 
   useEffect(() => {
     if (navigationTarget?.tabId !== 'npcs') return;
@@ -174,19 +174,19 @@ export function NPCsManager({ navigationTarget = null }: NPCsManagerProps) {
     setSelectedNpcId(target.id);
   }, [navigationTarget, npcs]);
 
-  const adventureFilteredNpcs = npcs.filter(npc => {
-    if (!effectiveAdventureFilterId) return true;
-    if (npc.adventureId === effectiveAdventureFilterId) return true;
-    if (includeUnassignedInAdventureFilter && npc.adventureId == null) return true;
+  const chapterFilteredNpcs = npcs.filter(npc => {
+    if (!effectiveChapterFilterId) return true;
+    if (npc.chapterId === effectiveChapterFilterId) return true;
+    if (includeUnassignedInChapterFilter && npc.chapterId == null) return true;
     return false;
   });
 
-  const filteredNpcs = sortNpcs(searchNpcs(adventureFilteredNpcs, search), sort);
+  const filteredNpcs = sortNpcs(searchNpcs(chapterFilteredNpcs, search), sort);
   const { pageItems, totalPages, safePage, startIndex, endIndex } = paginateItems(filteredNpcs, page, pageSize);
 
   useEffect(() => {
     setPage(1);
-  }, [search, sort, pageSize, effectiveAdventureFilterId, includeUnassignedInAdventureFilter]);
+  }, [search, sort, pageSize, effectiveChapterFilterId, includeUnassignedInChapterFilter]);
 
   const selectedNpc: NPC | null = selectedNpcId
     ? npcs.find(npc => npc.id === selectedNpcId) ?? (draftNpc?.id === selectedNpcId ? draftNpc : null)
@@ -239,7 +239,7 @@ export function NPCsManager({ navigationTarget = null }: NPCsManagerProps) {
     }
   };
 
-  const activeAdventureTitle = adventures.find(adventure => adventure.id === activeAdventureId)?.title ?? null;
+  const activeChapterTitle = chapters.find(chapter => chapter.id === activeChapterId)?.title ?? null;
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -279,14 +279,14 @@ export function NPCsManager({ navigationTarget = null }: NPCsManagerProps) {
               <div>
                 <label className="mb-2 block text-sm text-[var(--dash-text-strong)]">Filtro narrativo</label>
                 <select
-                  value={selectedAdventureFilterId}
-                  onChange={e => setSelectedAdventureFilterId(e.target.value)}
-                  disabled={useActiveAdventureFilter}
+                  value={selectedChapterFilterId}
+                  onChange={e => setSelectedChapterFilterId(e.target.value)}
+                  disabled={useActiveChapterFilter}
                   className="w-full rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text)] disabled:opacity-50"
                 >
                   <option value="all">Tutta la campagna</option>
-                  {adventures.map(adventure => (
-                    <option key={adventure.id} value={adventure.id}>{adventure.title}</option>
+                  {chapters.map(chapter => (
+                    <option key={chapter.id} value={chapter.id}>{chapter.title}</option>
                   ))}
                 </select>
               </div>
@@ -294,40 +294,40 @@ export function NPCsManager({ navigationTarget = null }: NPCsManagerProps) {
               <label className="flex items-center gap-3 text-sm text-[var(--dash-text-strong)]">
                 <input
                   type="checkbox"
-                  checked={useActiveAdventureFilter}
-                  onChange={e => setUseActiveAdventureFilter(e.target.checked)}
+                  checked={useActiveChapterFilter}
+                  onChange={e => setUseActiveChapterFilter(e.target.checked)}
                   className="h-4 w-4 accent-[var(--dash-accent)]"
                 />
-                Usa automaticamente l'avventura attiva
+                Usa automaticamente il capitolo attivo
               </label>
 
               <label
                 className={`flex items-center gap-3 text-sm ${
-                  isFilteringSpecificAdventure ? 'text-[var(--dash-text-strong)]' : 'text-[var(--dash-muted)]'
+                  isFilteringSpecificChapter ? 'text-[var(--dash-text-strong)]' : 'text-[var(--dash-muted)]'
                 }`}
               >
                 <input
                   type="checkbox"
-                  checked={includeUnassignedInAdventureFilter}
-                  onChange={e => setIncludeUnassignedInAdventureFilter(e.target.checked)}
-                  disabled={!isFilteringSpecificAdventure}
+                  checked={includeUnassignedInChapterFilter}
+                  onChange={e => setIncludeUnassignedInChapterFilter(e.target.checked)}
+                  disabled={!isFilteringSpecificChapter}
                   className="h-4 w-4 accent-[var(--dash-accent)]"
                 />
-                Mostra anche i PNG non assegnati ad alcuna avventura
+                Mostra anche i PNG non assegnati ad alcun capitolo
               </label>
 
               <div className="text-xs text-[var(--dash-muted)]">
-                {useActiveAdventureFilter
-                  ? activeAdventureTitle
-                    ? includeUnassignedInAdventureFilter
-                      ? `Filtro attivo: avventura corrente (${activeAdventureTitle}) + PNG non assegnati`
-                      : `Filtro attivo: avventura corrente (${activeAdventureTitle})`
-                    : 'Filtro attivo: nessuna avventura attiva selezionata'
-                  : selectedAdventureFilterId === 'all'
+                {useActiveChapterFilter
+                  ? activeChapterTitle
+                    ? includeUnassignedInChapterFilter
+                      ? `Filtro attivo: capitolo corrente (${activeChapterTitle}) + PNG non assegnati`
+                      : `Filtro attivo: capitolo corrente (${activeChapterTitle})`
+                    : 'Filtro attivo: nessun capitolo attivo selezionato'
+                  : selectedChapterFilterId === 'all'
                     ? 'Filtro attivo: tutta la campagna'
-                    : includeUnassignedInAdventureFilter
-                      ? `Filtro attivo: ${adventures.find(a => a.id === selectedAdventureFilterId)?.title ?? 'Avventura'} + PNG non assegnati`
-                      : `Filtro attivo: ${adventures.find(a => a.id === selectedAdventureFilterId)?.title ?? 'Avventura'}`}
+                    : includeUnassignedInChapterFilter
+                      ? `Filtro attivo: ${chapters.find(a => a.id === selectedChapterFilterId)?.title ?? 'Capitolo'} + PNG non assegnati`
+                      : `Filtro attivo: ${chapters.find(a => a.id === selectedChapterFilterId)?.title ?? 'Capitolo'}`}
               </div>
             </div>
           }

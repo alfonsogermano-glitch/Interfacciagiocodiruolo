@@ -133,15 +133,18 @@ CREATE TABLE IF NOT EXISTS monsters (
 );
 
 -- =====================================================
--- TABELLA: adventures (Avventure/Scenari)
+-- TABELLA: chapters (Capitoli/Scenari)
 -- =====================================================
-CREATE TABLE IF NOT EXISTS adventures (
+CREATE TABLE IF NOT EXISTS chapters (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   campaign_id UUID REFERENCES campaigns(id) ON DELETE CASCADE,
 
   title TEXT NOT NULL,
   description TEXT,
   synopsis TEXT,
+  kind TEXT NOT NULL DEFAULT 'standard' CHECK (kind IN ('intro', 'standard', 'final')),
+  is_active BOOLEAN NOT NULL DEFAULT false,
+  next_chapter_ids UUID[] NOT NULL DEFAULT '{}'::UUID[],
 
   -- Dati strutturati (JSONB)
   scenes JSONB DEFAULT '[]'::jsonb,
@@ -185,7 +188,7 @@ CREATE TABLE IF NOT EXISTS environments (
 CREATE TABLE IF NOT EXISTS clues (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   campaign_id UUID REFERENCES campaigns(id) ON DELETE CASCADE,
-  adventure_id UUID REFERENCES adventures(id) ON DELETE SET NULL,
+  chapter_id UUID REFERENCES chapters(id) ON DELETE SET NULL,
 
   title TEXT NOT NULL,
   description TEXT,
@@ -251,10 +254,10 @@ CREATE INDEX IF NOT EXISTS idx_character_equipment_character ON character_equipm
 CREATE INDEX IF NOT EXISTS idx_character_equipment_catalog ON character_equipment(catalog_item_id);
 CREATE INDEX IF NOT EXISTS idx_npcs_campaign ON npcs(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_monsters_campaign ON monsters(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_adventures_campaign ON adventures(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_chapters_campaign ON chapters(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_environments_campaign ON environments(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_clues_campaign ON clues(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_clues_adventure ON clues(adventure_id);
+CREATE INDEX IF NOT EXISTS idx_clues_chapter ON clues(chapter_id);
 CREATE INDEX IF NOT EXISTS idx_situations_campaign ON situations(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_visual_assets_campaign ON visual_assets(campaign_id);
 
@@ -320,7 +323,7 @@ CREATE TRIGGER update_npcs_updated_at BEFORE UPDATE ON npcs
 CREATE TRIGGER update_monsters_updated_at BEFORE UPDATE ON monsters
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_adventures_updated_at BEFORE UPDATE ON adventures
+CREATE TRIGGER update_chapters_updated_at BEFORE UPDATE ON chapters
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_environments_updated_at BEFORE UPDATE ON environments
