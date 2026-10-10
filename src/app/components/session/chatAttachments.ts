@@ -2,6 +2,7 @@ import { supabase } from '../../../lib/supabaseClient';
 import { selectedContentMode } from '../../../services/storage/persistenceMode';
 import { loadContentAssetDataUrl, uploadContentAsset } from '../../../services/storage/contentAssets';
 import type { ChatAttachment } from '../../../services/supabase/chatService';
+import { PRIVATE_CHAT_BUCKET } from '../../../services/supabase/privateChatService';
 
 /** Bucket degli allegati chat: qualsiasi tipo di file (nessun vincolo di
  mime), limite 50 MB imposto anche dalla migration del bucket. */
@@ -86,6 +87,12 @@ export async function uploadChatAttachment(input: {
  modalita' corrente: il file potrebbe essere stato salvato in Locale prima di
  uno switch su Cloud, o viceversa). */
 export async function resolveAttachmentBlob(attachment: ChatAttachment): Promise<Blob> {
+  if (attachment.bucket === PRIVATE_CHAT_BUCKET) {
+    if (!supabase) throw new Error('Supabase non disponibile');
+    const { data, error } = await supabase.storage.from(PRIVATE_CHAT_BUCKET).download(attachment.assetPath);
+    if (error) throw error;
+    return data;
+  }
   if (attachment.storage === 'local') {
     const dataUrl = await loadContentAssetDataUrl(attachment.bucket, attachment.assetPath);
     if (!dataUrl) throw new Error('File non trovato nello storage locale');
@@ -96,6 +103,18 @@ export async function resolveAttachmentBlob(attachment: ChatAttachment): Promise
   const response = await fetch(publicUrl);
   if (!response.ok) throw new Error(`Download non riuscito (${response.status})`);
   return response.blob();
+}
+
+/** File privati: sempre Cloud, bucket NON pubblico e nessun publicUrl. */
+export async function uploadPrivateChatAttachment(input: { file: File; campaignId: string; senderId: string; recipientId: string }): Promise<ChatAttachment> {
+  if (selectedContentMode() === 'local') throw new Error('I messaggi privati tra utenti richiedono una campagna Cloud.');
+  if (!supabase) throw new Error('Supabase non disponibile');
+  if (input.file.size > MAX_ATTACHMENT_BYTES) throw new Error('Il file supera la dimensione massima di 50 MB.');
+  const contentType = input.file.type || 'application/octet-stream';
+  const assetPath = `${input.campaignId}/${input.senderId}/${input.recipientId}/${crypto.randomUUID()}-${safeAttachmentPathName(input.file.name)}`;
+  const { error } = await supabase.storage.from(PRIVATE_CHAT_BUCKET).upload(assetPath, input.file, { contentType, upsert: false });
+  if (error) throw error;
+  return { fileName: input.file.name, size: input.file.size, contentType, bucket: PRIVATE_CHAT_BUCKET, assetPath, storage: 'cloud' };
 }
 
 interface SaveFilePickerWindow {

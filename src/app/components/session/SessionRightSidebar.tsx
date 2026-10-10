@@ -6,7 +6,9 @@ import { SessionNotesPanel } from './SessionNotesPanel';
 import { SessionDicePanel } from './dice/SessionDicePanel';
 import { DiceRollHistoryDrawer } from './dice/DiceRollHistoryDrawer';
 import { DiceSessionProvider } from './dice/DiceSessionContext';
-import { SessionChatPanel } from './SessionChatPanel';
+import { CampaignChatPanel } from './CampaignChatPanel';
+import { isPrivateChatUnread, loadPrivateChatInbox, mergePrivateMessages, subscribePrivateChat, type PrivateChatMessage } from '../../../services/supabase/privateChatService';
+import { selectedContentMode } from '../../../services/storage/persistenceMode';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useAuth } from '../../auth/AuthContext';
 import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
@@ -181,6 +183,36 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
   const { user } = useAuth();
   const [chatUnread, setChatUnread] = useState(false);
   const [incomingChatMessage, setIncomingChatMessage] = useState<ChatMessage | null>(null);
+  const [privateOpen, setPrivateOpen] = useState(false);
+  const [privateMessages, setPrivateMessages] = useState<PrivateChatMessage[]>([]);
+  const [, setPrivateSeenRevision] = useState(0);
+  const cloudChat = selectedContentMode() === 'cloud';
+  const privateUnread = !!user && privateMessages.some((message) => isPrivateChatUnread(message, user.id));
+
+  // Rimane montato con la chat chiusa: gli arrivi privati accendono il
+  // pallino senza passare dal broadcast condiviso della campagna.
+  useEffect(() => {
+    setPrivateMessages([]);
+    if (!activeCampaignId || !user || !cloudChat) return;
+    let cancelled = false;
+    const merge = (incoming: PrivateChatMessage[]) => {
+      if (!cancelled) setPrivateMessages((current) => mergePrivateMessages(current, incoming));
+    };
+    const refresh = () => { void loadPrivateChatInbox(activeCampaignId).then(merge).catch(() => { /* Errore mostrato nel pannello chat. */ }); };
+    const seen = () => setPrivateSeenRevision((value) => value + 1);
+    const focus = () => { if (document.visibilityState === 'visible') refresh(); };
+    const unsubscribe = subscribePrivateChat(activeCampaignId, user.id, (message) => merge([message]), (ready) => { if (ready) refresh(); });
+    refresh();
+    window.addEventListener('hollowgate:private-chat-seen', seen);
+    window.addEventListener('storage', seen);
+    document.addEventListener('visibilitychange', focus);
+    return () => {
+      cancelled = true; unsubscribe();
+      window.removeEventListener('hollowgate:private-chat-seen', seen);
+      window.removeEventListener('storage', seen);
+      document.removeEventListener('visibilitychange', focus);
+    };
+  }, [activeCampaignId, user?.id, cloudChat]);
 
   // All'ingresso in una campagna: se esiste una voce di chat (messaggio o
   // tiro, anche propri) piu' recente dell'ultimo visto, accendi il pallino
@@ -199,19 +231,19 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
 
   // Aprire la chat spegne il pallino (i messaggi sono sotto gli occhi).
   useEffect(() => {
-    if (openPanel === 'chat') setChatUnread(false);
-  }, [openPanel]);
+    if (openPanel === 'chat' && !privateOpen) setChatUnread(false);
+  }, [openPanel, privateOpen]);
 
   // Tiro pubblico entrato nella timeline della chat (mio o di altri): pallino
   // se la chat e' chiusa — anche per i propri tiri, come la cronica tiri —
   // altrimenti il tiro e' gia' visibile e si marca solo il timestamp "visto".
   const handleRollIngested = useCallback((serverCreatedAt: string | null) => {
-    if (openPanel === 'chat') {
+    if (openPanel === 'chat' && !privateOpen) {
       if (serverCreatedAt && activeCampaignId) writeChatLastSeen(activeCampaignId, serverCreatedAt);
     } else {
       setChatUnread(true);
     }
-  }, [activeCampaignId, openPanel]);
+  }, [activeCampaignId, openPanel, privateOpen]);
 
   // Messaggi e allegati degli altri partecipanti in tempo reale: pallino se
   // la chat e' chiusa, aggiunta diretta alla timeline se e' aperta.
@@ -221,7 +253,7 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
         const entry = message?.payload?.entry as ChatMessage | undefined;
         if (!entry || (entry.kind !== 'message' && entry.kind !== 'attachment')) return;
         if (user && entry.senderId === user.id) return;
-        if (openPanel === 'chat') {
+        if (openPanel === 'chat' && !privateOpen) {
           writeChatLastSeen(activeCampaignId, entry.createdAt);
           setIncomingChatMessage(entry);
         } else {
@@ -612,7 +644,7 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
             >
               <span className="relative inline-flex">
                 <Icon className="h-[18px] w-[18px]" />
-                {id === 'chat' && chatUnread && openPanel !== 'chat' && (
+                {id === 'chat' && (privateUnread || (chatUnread && (openPanel !== 'chat' || privateOpen))) && (
                   <span
                     data-chat-unread
                     aria-hidden="true"
@@ -632,7 +664,7 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
           panelWidth={activePanelWidth}
           leftResizeHandle={activePanelResizeHandle}
         >
-          {openPanel === 'chat' && <SessionChatPanel incomingMessage={incomingChatMessage} />}
+          {openPanel === 'chat' && <CampaignChatPanel incomingMessage={incomingChatMessage} onPrivateConversationChange={setPrivateOpen} />}
           {openPanel === 'characters' && (
             <div
               data-session-characters-resizable="true"

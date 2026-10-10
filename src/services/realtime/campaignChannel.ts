@@ -140,6 +140,7 @@ function createEntry(topic: string): ChannelEntry {
       }
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
         setReady(entry, false);
+        safeForEach(entry.presenceListeners, {}, 'presence:disconnected');
         if (entry.hasScheduledRetry) return;
         entry.hasScheduledRetry = true;
         (async () => {
@@ -227,6 +228,9 @@ export function useRealtimeChannel(topic: string | null | undefined, options: Us
 
     const presenceHandler: PresenceHandler = (state) => { optionsRef.current.onPresenceSync?.(state); };
     entry.presenceListeners.add(presenceHandler);
+    // Un consumer aperto dopo il sync (es. la chat) deve ricevere subito
+    // la fotografia già disponibile, senza attendere una nuova join/leave.
+    safeForEach(new Set([presenceHandler]), entry.channel?.presenceState() ?? {}, 'presence:snapshot');
     unregisterFns.push(() => entry.presenceListeners.delete(presenceHandler));
 
     const readyHandler: ReadyHandler = (ready) => setIsReady(ready);

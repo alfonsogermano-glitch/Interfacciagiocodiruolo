@@ -540,16 +540,17 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   });
 
   useEffect(() => {
-    if (!channelReady || !characterLookupDone) return;
-    if (isOwner) {
-      void track({ role: 'gm', online_at: new Date().toISOString() });
-    } else if (ownCharacterId) {
-      void track({ role: 'player', characterId: ownCharacterId, online_at: new Date().toISOString() });
-    }
+    if (!channelReady || !user?.id) return;
+    void track({
+      profileId: user.id,
+      role: isOwner ? 'gm' : 'player',
+      ...(ownCharacterId ? { characterId: ownCharacterId } : {}),
+      online_at: new Date().toISOString(),
+    });
     return () => {
-      if (isOwner || ownCharacterId) void untrack();
+      void untrack();
     };
-  }, [channelReady, characterLookupDone, isOwner, ownCharacterId, track, untrack]);
+  }, [channelReady, user?.id, isOwner, ownCharacterId, track, untrack]);
 
   const handleToggleSession = async () => {
     if (!activeCampaign?.id) return;
