@@ -1,3 +1,5 @@
+import type { SceneContextMetadata, SceneMapRegion } from './mapGeometry';
+
 export type SceneStatus = 'draft' | 'ready' | 'completed';
 
 export interface Scene {
@@ -8,10 +10,14 @@ export interface Scene {
   description: string;
   notes: string;
   status: SceneStatus;
-  environmentId: string | null;
+  /** Compatibility link for locations created before the spatial cutover. */
+  environmentId?: string | null;
   imageUrl: string | null;
   sortOrder: number;
   nextSceneIds: string[];
+  mapRegions: SceneMapRegion[];
+  contextMetadata: SceneContextMetadata;
+  sourceEnvironment?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 }

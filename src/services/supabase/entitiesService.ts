@@ -14,6 +14,7 @@ import type { ImageCrop } from '../../types/imageCrop';
 import type { Chapter } from '../../types/chapter';
 import type { Scene } from '../../types/scene';
 import { normalizeLegacyChapterValue } from '../campaign/chapterMigration';
+import { normalizeChapterSpatialValue, normalizeSceneSpatialValue } from '../campaign/spatialDomainMigration';
 
 /**
  * Servizio completo per gestire TUTTE le entità del gioco
@@ -1251,7 +1252,7 @@ export async function deleteSituation(situationId: string): Promise<void> {
 
 export async function loadChapters(campaignId: string): Promise<Chapter[]> {
   if (shouldUseLocalMode()) {
-  return loadLocalModeEntities<Chapter>(campaignId, 'chapters');
+  return (await loadLocalModeEntities<Chapter>(campaignId, 'chapters')).map(normalizeChapterSpatialValue);
 }
 
   const { data, error } = await supabase
@@ -1264,18 +1265,18 @@ export async function loadChapters(campaignId: string): Promise<Chapter[]> {
     throw error;
   }
 
-  return (data || []).map(toCamelCase).map(normalizeLegacyChapterValue);
+  return (data || []).map(toCamelCase).map(normalizeLegacyChapterValue).map(normalizeChapterSpatialValue);
 }
 
 export async function saveChapter(campaignId: string, chapter: Chapter): Promise<void> {
+  const normalized = normalizeChapterSpatialValue({ ...chapter, campaignId });
   if (shouldUseLocalMode()) {
-  await saveLocalModeEntity<Chapter>(campaignId, 'chapters', { ...chapter, campaignId });
+  await saveLocalModeEntity<Chapter>(campaignId, 'chapters', normalized);
   return;
 }
 
   const dbData = toSnakeCase(sanitizeUUIDs({
-    ...chapter,
-    campaignId
+    ...normalized,
   }));
 
   const { error } = await supabase
@@ -1305,21 +1306,21 @@ export async function deleteChapter(chapterId: string): Promise<void> {
 // ============= SCENE =============
 
 export async function loadScenes(campaignId: string): Promise<Scene[]> {
-  if (shouldUseLocalMode()) return loadLocalModeEntities<Scene>(campaignId, 'scenes');
+  if (shouldUseLocalMode()) return (await loadLocalModeEntities<Scene>(campaignId, 'scenes')).map(normalizeSceneSpatialValue);
   if (!supabase) return [];
   const { data, error } = await supabase.from('scenes').select('*').eq('campaign_id', campaignId)
     .order('sort_order', { ascending: true }).order('created_at', { ascending: true }).order('id', { ascending: true });
   if (error) throw error;
-  return (data ?? []).map(toCamelCase);
+  return (data ?? []).map(toCamelCase).map(normalizeSceneSpatialValue);
 }
 
 export async function saveScene(campaignId: string, scene: Scene): Promise<void> {
-  const normalized: Scene = {
+  const normalized = normalizeSceneSpatialValue({
     ...scene,
     campaignId,
     title: scene.title.trim(),
     nextSceneIds: [...new Set(scene.nextSceneIds)].filter(id => id !== scene.id),
-  };
+  });
   if (!normalized.title) throw new Error('Il titolo della scena è obbligatorio.');
   if (shouldUseLocalMode()) {
     await saveLocalModeEntity(campaignId, 'scenes', normalized);

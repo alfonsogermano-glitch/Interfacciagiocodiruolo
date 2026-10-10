@@ -386,6 +386,20 @@ const normalizeInitial = (value: string) =>
     return items.find(item => item.id === id)?.name ?? null;
   };
 
+  // I collegamenti ai luoghi aprono i Capitoli (macro-luoghi) dopo il cutover
+  // spaziale: se il riferimento ambiente conosce già il capitolo migrato si
+  // passa quello, altrimenti si invia l'ID legacy "environment" che il
+  // ChapterManager risolve tramite i marker sourceEnvironment.
+  const handleEnvironmentNavigate = (environmentId: string) => {
+    const chapterId = environmentOptions.find(option => option.id === environmentId)?.chapterId ?? null;
+
+    handleLinkedEntityNavigate(
+      chapterId
+        ? { tabId: 'chapters', entityId: chapterId, entityType: 'chapter' }
+        : { tabId: 'chapters', entityId: environmentId, entityType: 'environment' }
+    );
+  };
+
   const findLinkName = (options: LinkOption[], id: string) => {
     return options.find(option => option.id === id)?.name ?? 'Elemento non trovato';
   };
@@ -648,8 +662,8 @@ const normalizeInitial = (value: string) =>
                 key={`env-${id}`}
                 icon={<Bookmark className="h-3 w-3" />}
                 label={findLinkName(environmentOptions, id)}
-                tooltip="Vai al luogo collegato"
-                onClick={() => handleLinkedEntityNavigate({ tabId: 'environments', entityId: id, entityType: 'environment' })}
+                tooltip="Vai al macro-luogo collegato"
+                onClick={() => handleEnvironmentNavigate(id)}
               />
             ))}
             {item.linkedNpcIds?.map(id => (

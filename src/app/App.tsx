@@ -57,9 +57,6 @@ const CampaignsPage = lazy(() =>
 const NPCsManager = lazy(() =>
   import('./components/gm/NPCsManager').then(module => ({ default: module.NPCsManager }))
 );
-const EnvironmentManager = lazy(() =>
-  import('./components/gm/EnvironmentManager').then(module => ({ default: module.EnvironmentManager }))
-);
 const CluesManager = lazy(() =>
   import('./components/gm/CluesManager').then(module => ({ default: module.CluesManager }))
 );
@@ -128,7 +125,7 @@ function Dashboard({ activeTab, navigationTarget, onNavigate, onEnterCampaign, r
         {activeTab === 'phases' && <GamePhases />}
 
         {activeTab === 'chapters' && (
-          <ChapterManager campaignId={activeCampaignId} />
+          <ChapterManager campaignId={activeCampaignId} navigationTarget={navigationTarget} />
         )}
 
         {activeTab === 'players' && <PlayerCharacters navigationTarget={navigationTarget} />}
@@ -144,14 +141,6 @@ function Dashboard({ activeTab, navigationTarget, onNavigate, onEnterCampaign, r
           <NPCsManager navigationTarget={navigationTarget} />
         )}
         {activeTab === 'map' && <GameMap />}
-
-        {activeTab === 'environments' && (
-          <EnvironmentManager
-            campaignId={activeCampaignId}
-            navigationTarget={navigationTarget}
-            onNavigate={onNavigate}
-          />
-        )}
 
         {activeTab === 'scene-encounter' && <SceneEncounterManager />}
         {activeTab === 'clues' && <CluesManager />}
@@ -181,7 +170,10 @@ function Dashboard({ activeTab, navigationTarget, onNavigate, onEnterCampaign, r
 
 const VIEW_LS_KEY = 'hsc-current-view';
 const ACTIVE_TAB_LS_KEY = 'hsc-active-main-tab';
-const normalizeGmTab = (tabId: string) => tabId === 'adventures' ? 'chapters' : tabId;
+// Mappa retrocompatibile: "adventures" (pre-capitoli) e "environments"
+// (pre-cutover spaziale, rimosso dall'UI) aprono i Capitoli.
+const normalizeGmTab = (tabId: string) =>
+  tabId === 'adventures' || tabId === 'environments' ? 'chapters' : tabId;
 
 function AuthGate() {
   const { user, isLoading, signOut, isPasswordRecovery, clearPasswordRecovery } = useAuth();

@@ -1,4 +1,5 @@
 import { migrateLegacyChapterTables } from '../campaign/chapterMigration';
+import { migrateEnvironmentDomainTables } from '../campaign/spatialDomainMigration';
 
 export type ContentRow = Record<string, any>;
 export type ContentTables = Record<string, ContentRow[]>;
@@ -7,7 +8,7 @@ let database: Promise<IDBDatabase> | null = null;
 
 function openDatabase(): Promise<IDBDatabase> {
   if (!database) database = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DATABASE, 2);
+    const request = indexedDB.open(DATABASE, 3);
     request.onupgradeneeded = (event) => {
       const oldVersion = (event as IDBVersionChangeEvent).oldVersion;
       const store = oldVersion === 0
@@ -19,6 +20,15 @@ function openDatabase(): Promise<IDBDatabase> {
           const current = cursor.result;
           if (!current) return;
           current.update(migrateLegacyChapterTables(current.value ?? {}));
+          current.continue();
+        };
+      }
+      if (oldVersion < 3) {
+        const cursor = store.openCursor();
+        cursor.onsuccess = () => {
+          const current = cursor.result;
+          if (!current) return;
+          current.update(migrateEnvironmentDomainTables(migrateLegacyChapterTables(current.value ?? {})));
           current.continue();
         };
       }

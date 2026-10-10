@@ -2,20 +2,41 @@ import { useEffect, useMemo, useState } from 'react';
 import { GitBranch, Plus, Edit2, Trash2, Star } from 'lucide-react';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
 import type { Chapter, ChapterKind } from '../../../types/chapter';
-import { loadChapters, saveChapter as saveChapterToSupabase, deleteChapter as deleteChapterFromSupabase } from '../../../services/supabase/entitiesService';
+import type { Scene } from '../../../types/scene';
+import {
+  loadChapters,
+  loadEnvironments,
+  loadScenes,
+  saveChapter as saveChapterToSupabase,
+  saveScene as saveSceneToSupabase,
+  deleteChapter as deleteChapterFromSupabase
+} from '../../../services/supabase/entitiesService';
 import { persistenceKey } from '../../../services/storage/persistenceMode';
 import { generateUUID } from '../../../lib/uuid';
 import { LEGACY_CHAPTER_STORAGE_KEYS, normalizeLegacyChapterValue } from '../../../services/campaign/chapterMigration';
 import { ChapterScenesEditor } from './ChapterScenesEditor';
+import {
+  migrateEnvironmentDomainTables,
+  normalizeChapterSpatialValue,
+  normalizeSceneSpatialValue,
+  resolveChapterNavigation
+} from '../../../services/campaign/spatialDomainMigration';
 
 const CHAPTERS_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.chapters;
 const ACTIVE_CHAPTER_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.activeChapter;
 
 // Nessun capitolo predefinito: gli utenti costruiscono la propria struttura.
 
+export type ChapterManagerNavigationTarget = {
+  tabId: string;
+  entityId?: string;
+  entityType?: string;
+};
+
 interface ChapterManagerProps {
   campaignId?: string;
   storageRefreshKey?: number;
+  navigationTarget?: ChapterManagerNavigationTarget | null;
 }
 
 function nowIso(): string {
@@ -46,7 +67,8 @@ function getKindLabel(kind: ChapterKind): string {
 
 export function ChapterManager({
   campaignId: providedCampaignId = '',
-  storageRefreshKey = 0
+  storageRefreshKey = 0,
+  navigationTarget = null
 }: ChapterManagerProps) {
   const campaignId = providedCampaignId;
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -69,27 +91,68 @@ export function ChapterManager({
   useEffect(() => {
     async function loadData() {
       try {
-        const loadedChapters = await loadChapters(campaignId);
+        const [loadedChapters, loadedEnvironments, loadedScenes] = await Promise.all([
+          loadChapters(campaignId),
+          loadEnvironments(campaignId).catch(error => {
+            console.error('Errore caricamento luoghi legacy:', error);
+            return [];
+          }),
+          loadScenes(campaignId).catch(error => {
+            console.error('Errore caricamento scene:', error);
+            return [] as Scene[];
+          })
+        ]);
         const legacyChapters = readStoredChapters(LEGACY_CHAPTER_STORAGE_KEYS.chapters);
         const relevantLegacyChapters = legacyChapters.filter(chapter => chapter.campaignId === campaignId);
         const legacyById = new Map(relevantLegacyChapters.map(chapter => [chapter.id, chapter]));
         const migratedChapters = loadedChapters.map(chapter => {
           const normalized = normalizeLegacyChapterValue(chapter);
           const legacy = legacyById.get(chapter.id);
-          return {
+          return normalizeChapterSpatialValue({
             ...normalized,
             kind: legacy?.kind ?? normalized.kind ?? 'standard',
             isActive: legacy?.isActive ?? normalized.isActive ?? false,
             nextChapterIds: legacy?.nextChapterIds ?? normalized.nextChapterIds ?? [],
             createdAt: normalized.createdAt ?? new Date().toISOString(),
             updatedAt: normalized.updatedAt ?? normalized.createdAt ?? new Date().toISOString(),
-          };
+          });
         });
         const loadedIds = new Set(migratedChapters.map(chapter => chapter.id));
         migratedChapters.push(...relevantLegacyChapters.filter(chapter => !loadedIds.has(chapter.id)));
-        setChapters(migratedChapters);
+
+        // Cutover lato client: le Environment diventano Capitoli/Scene senza
+        // rimuovere la conservazione di compatibilità (le righe luogo restano
+        // intatte in storage/DB e vengono rileggute al prossimo caricamento).
+        const loadedSceneIds = new Set(loadedScenes.map(scene => scene.id));
+        const campaignEnvironments = loadedEnvironments.filter(
+          environment => !environment.campaignId || environment.campaignId === campaignId
+        );
+        const tables = migrateEnvironmentDomainTables({
+          chapters: migratedChapters,
+          scenes: loadedScenes,
+          environments: campaignEnvironments,
+        });
+        const mergedChapters = (tables.chapters ?? []).map(row =>
+          normalizeChapterSpatialValue(row as Chapter)
+        );
+        const mergedScenes = (tables.scenes ?? []).map(row =>
+          normalizeSceneSpatialValue(row as Scene)
+        );
+        setChapters(mergedChapters);
+
+        const createdChapters = mergedChapters.filter(chapter => !loadedIds.has(chapter.id));
+        const createdScenes = mergedScenes.filter(scene => !loadedSceneIds.has(scene.id));
+        if (createdChapters.length || createdScenes.length || relevantLegacyChapters.length) {
+          // Con capitoli legacy da fondere si risalvano tutti (arricchiscono i
+          // capitoli esistenti con kind/isActive/nextChapterIds); altrimenti
+          // solo i nuovi capitoli/scene prodotti dalla conversione.
+          const chaptersToPersist = relevantLegacyChapters.length ? mergedChapters : createdChapters;
+          await Promise.all([
+            ...chaptersToPersist.map(chapter => saveChapterToSupabase(campaignId, chapter)),
+            ...createdScenes.map(scene => saveSceneToSupabase(campaignId, scene)),
+          ]);
+        }
         if (relevantLegacyChapters.length) {
-          await Promise.all(migratedChapters.map(chapter => saveChapterToSupabase(campaignId, chapter)));
           const remainingLegacy = legacyChapters.filter(chapter => chapter.campaignId !== campaignId);
           if (remainingLegacy.length) {
             window.localStorage.setItem(persistenceKey(LEGACY_CHAPTER_STORAGE_KEYS.chapters), JSON.stringify(remainingLegacy));
@@ -136,6 +199,22 @@ export function ChapterManager({
     filteredChapters.find(chapter => chapter.id === selectedChapterId)
     ?? null;
 
+  // Navigazione dagli archivi (Mostri/Archivio Oggetti): accetta sia target
+  // "chapter" sia target legacy "environment", mappando i vecchi ID tramite i
+  // marker persistiti della migrazione (sourceEnvironment).
+  useEffect(() => {
+    if (!navigationTarget) return;
+    if (navigationTarget.tabId !== 'chapters') return;
+    if (navigationTarget.entityType !== 'chapter' && navigationTarget.entityType !== 'environment') return;
+    if (!navigationTarget.entityId) return;
+
+    const target = resolveChapterNavigation(navigationTarget.entityId, filteredChapters);
+    if (!target) return;
+
+    setSelectedChapterId(target.id);
+    setIsEditing(false);
+  }, [navigationTarget, filteredChapters]);
+
   useEffect(() => {
     if (!selectedChapterId) {
       return;
@@ -155,7 +234,7 @@ export function ChapterManager({
   const addChapter = async () => {
     const timestamp = nowIso();
 
-    const newChapter: Chapter = {
+    const newChapter: Chapter = normalizeChapterSpatialValue({
       id: generateUUID(),
       campaignId,
       title: 'Nuovo Capitolo',
@@ -165,8 +244,11 @@ export function ChapterManager({
       isActive: filteredChapters.length === 0,
       nextChapterIds: [],
       createdAt: timestamp,
-      updatedAt: timestamp
-    };
+      updatedAt: timestamp,
+      mapUrl: null,
+      mapMetadata: { imageUrl: null, gridVisible: true, gridColumns: 20, gridRows: 20 },
+      locationMetadata: {},
+    });
 
     setChapters(prev => {
       const next = [...prev, newChapter];
@@ -298,7 +380,7 @@ export function ChapterManager({
           <div>
             <h2 className="text-[var(--dash-text)]">Capitoli</h2>
             <p className="text-sm text-[var(--dash-muted)]">
-              Struttura narrativa della campagna
+              Macro-luoghi e mappe della campagna
             </p>
           </div>
 
@@ -321,7 +403,7 @@ export function ChapterManager({
                 Struttura campagna vuota
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-[var(--dash-text)]">
-                Crea il primo capitolo per iniziare a costruire il percorso narrativo.
+                Crea il primo macro-luogo e assegna la sua mappa generale.
               </p>
             </div>
           ) : (
@@ -442,6 +524,13 @@ export function ChapterManager({
                   />
                 </div>
 
+                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
+                  <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Mappa del macro-luogo</div>
+                  <label className="block text-sm text-[var(--dash-text)]">URL immagine mappa<input value={selectedChapter.mapUrl ?? ''} onChange={e => updateChapter({ ...selectedChapter, mapUrl: e.target.value || null, mapMetadata: { ...selectedChapter.mapMetadata, imageUrl: e.target.value || null } })} className="mt-1 w-full rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2" /></label>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-sm text-[var(--dash-text)]">Colonne griglia<input type="number" min={1} value={selectedChapter.mapMetadata.gridColumns} onChange={e => updateChapter({ ...selectedChapter, mapMetadata: { ...selectedChapter.mapMetadata, gridColumns: Math.max(1, Number(e.target.value) || 1) } })} className="mt-1 w-full rounded border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2" /></label><label className="text-sm text-[var(--dash-text)]">Righe griglia<input type="number" min={1} value={selectedChapter.mapMetadata.gridRows} onChange={e => updateChapter({ ...selectedChapter, mapMetadata: { ...selectedChapter.mapMetadata, gridRows: Math.max(1, Number(e.target.value) || 1) } })} className="mt-1 w-full rounded border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2" /></label></div>
+                  <label className="mt-3 flex items-center gap-2 text-sm text-[var(--dash-text)]"><input type="checkbox" checked={selectedChapter.mapMetadata.gridVisible} onChange={e => updateChapter({ ...selectedChapter, mapMetadata: { ...selectedChapter.mapMetadata, gridVisible: e.target.checked } })} />Mostra griglia</label>
+                </div>
+
                 <div>
                   <label className="mb-2 block text-[var(--dash-text)]">Tipo Capitolo</label>
                   <select
@@ -529,6 +618,11 @@ export function ChapterManager({
                   </p>
                 </div>
 
+                <div>
+                  <h3 className="mb-2 text-[var(--dash-text)]">Mappa generale</h3>
+                  {selectedChapter.mapUrl ? <img src={selectedChapter.mapUrl} alt={`Mappa di ${selectedChapter.title}`} className="max-h-80 w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] object-contain" /> : <p className="text-[var(--dash-muted)]">Nessuna mappa assegnata.</p>}
+                </div>
+
                 <div className="rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] p-4">
                   <h3 className="mb-2 text-[var(--dash-text)]">Stato</h3>
                   <p className="text-[var(--dash-muted)]">
@@ -572,10 +666,10 @@ export function ChapterManager({
               Nessun capitolo selezionato
             </div>
             <h3 className="mt-2 text-xl font-semibold text-[var(--dash-text-strong)]">
-              Seleziona un nodo narrativo
+              Seleziona un macro-luogo
             </h3>
             <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-[var(--dash-text)]">
-              Apri un capitolo esistente oppure crea la prima diramazione della campagna.
+              Apri un capitolo esistente oppure crea la prima mappa della campagna.
             </p>
           </div>
         )}

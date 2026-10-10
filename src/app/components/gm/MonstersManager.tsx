@@ -7,6 +7,7 @@ import { RulesetBadge } from '../../campaigns/RulesetGate';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { loadEnvironmentReferences } from '../../../services/campaign/entityReferenceService';
 import { formatCampaignChapterLabel } from '../../../services/campaign/campaignChapterLabel';
+import { resolveChapterIdForEnvironment } from '../../../services/campaign/spatialDomainMigration';
 import { MONSTER_BASE_CATALOG } from '../../../data/monsterBaseCatalog';
 import { loadMonsters, saveMonster, deleteMonster, loadChapters } from '../../../services/supabase/entitiesService';
 import type { Chapter } from '../../../types/chapter';
@@ -253,6 +254,21 @@ export function MonstersManager({ navigationTarget = null, onNavigate }: Monster
     setPage(1);
   }, [search, sort, pageSize, archiveQuickFilter, narrativeFilter]);
 
+  // Dopo il cutover spaziale il badge "Luogo" apre il Capitolo macro-luogo.
+  // I vecchi ID ambienti vengono mappati tramite i marker persistiti della
+  // migrazione (sourceEnvironment sui capitoli); se la mappatura non esiste
+  // ancora si passa l'ID legacy e il ChapterManager lo risolve al caricamento.
+  const handleLuogoNavigate = (monster: Monster) => {
+    const chapterId =
+      monster.chapterId ?? resolveChapterIdForEnvironment(monster.environmentId, chapters);
+
+    handleLinkedEntityNavigate(
+      chapterId
+        ? { tabId: 'chapters', entityId: chapterId, entityType: 'chapter' }
+        : { tabId: 'chapters', entityId: monster.environmentId ?? undefined, entityType: 'environment' }
+    );
+  };
+
   const renderLuogoBadge = (monster: Monster) =>
     monster.environmentId ? (
       <Tooltip>
@@ -262,7 +278,7 @@ export function MonstersManager({ navigationTarget = null, onNavigate }: Monster
             onClick={event => {
               event.preventDefault();
               event.stopPropagation();
-              handleLinkedEntityNavigate({ tabId: 'environments', entityId: monster.environmentId ?? undefined, entityType: 'environment' });
+              handleLuogoNavigate(monster);
             }}
             className="inline-flex max-w-[200px] items-center gap-1 truncate rounded-md border border-[var(--dash-accent)] bg-[var(--dash-panel)] px-2 py-0.5 text-[10px] font-semibold text-[var(--dash-text-strong)] transition-colors hover:border-[var(--dash-accent-2)] hover:text-[var(--dash-accent-2)]"
           >

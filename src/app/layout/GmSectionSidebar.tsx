@@ -21,7 +21,8 @@ const PRIMARY_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'players', label: 'Schede', icon: FileText },
   { id: 'npcs', label: 'PNG', icon: Ghost },
   { id: 'monsters', label: 'Mostri', icon: Swords },
-  { id: 'environments', label: 'Luoghi', icon: Bookmark },
+  // "environments"/Luoghi non ha più voce attiva: il cutover spaziale porta i
+  // luoghi macro dentro Capitoli (tab 'chapters').
   { id: 'chapters', label: 'Capitoli', icon: GitBranch },
   { id: 'map', label: 'Mappa', icon: Map },
   { id: 'clues', label: 'Indizi', icon: Lightbulb },

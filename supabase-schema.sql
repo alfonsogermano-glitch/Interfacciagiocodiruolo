@@ -145,6 +145,10 @@ CREATE TABLE IF NOT EXISTS chapters (
   kind TEXT NOT NULL DEFAULT 'standard' CHECK (kind IN ('intro', 'standard', 'final')),
   is_active BOOLEAN NOT NULL DEFAULT false,
   next_chapter_ids UUID[] NOT NULL DEFAULT '{}'::UUID[],
+  map_url TEXT,
+  map_metadata JSONB NOT NULL DEFAULT '{}'::JSONB CHECK (jsonb_typeof(map_metadata) = 'object'),
+  location_metadata JSONB NOT NULL DEFAULT '{}'::JSONB CHECK (jsonb_typeof(location_metadata) = 'object'),
+  source_environment JSONB CHECK (source_environment IS NULL OR jsonb_typeof(source_environment) = 'object'),
 
   -- Dati strutturati (JSONB)
   npcs JSONB DEFAULT '[]'::jsonb,
@@ -198,12 +202,34 @@ CREATE TABLE IF NOT EXISTS scenes (
   image_url TEXT,
   sort_order INTEGER NOT NULL DEFAULT 0 CHECK (sort_order >= 0),
   next_scene_ids UUID[] NOT NULL DEFAULT '{}'::UUID[],
+  map_regions JSONB NOT NULL DEFAULT '[]'::JSONB CHECK (
+    jsonb_typeof(map_regions) = 'array'
+    AND NOT jsonb_path_exists(map_regions, '$[*] ? (@.type() != "object")')
+  ),
+  context_metadata JSONB NOT NULL DEFAULT '{}'::JSONB CHECK (jsonb_typeof(context_metadata) = 'object'),
+  source_environment JSONB CHECK (source_environment IS NULL OR jsonb_typeof(source_environment) = 'object'),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT scenes_chapter_campaign_fkey FOREIGN KEY (campaign_id, chapter_id)
     REFERENCES chapters(campaign_id, id) ON DELETE CASCADE,
   CONSTRAINT scenes_no_self_next CHECK (NOT (id = ANY(next_scene_ids)))
 );
+
+CREATE TABLE IF NOT EXISTS environment_narrative_mapping (
+  environment_id UUID PRIMARY KEY,
+  root_environment_id UUID NOT NULL,
+  chapter_id UUID NOT NULL,
+  scene_id UUID,
+  target_kind TEXT NOT NULL CHECK (target_kind IN ('chapter', 'scene')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (
+    (target_kind = 'chapter' AND scene_id IS NULL AND environment_id = root_environment_id)
+    OR (target_kind = 'scene' AND scene_id IS NOT NULL AND environment_id <> root_environment_id)
+  )
+);
+CREATE UNIQUE INDEX IF NOT EXISTS environment_narrative_mapping_scene_uidx
+  ON environment_narrative_mapping(scene_id) WHERE scene_id IS NOT NULL;
+ALTER TABLE environment_narrative_mapping ENABLE ROW LEVEL SECURITY;
 
 -- =====================================================
 -- TABELLA: clues (Indizi)
@@ -248,6 +274,11 @@ CREATE TABLE IF NOT EXISTS situations (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE npcs ADD COLUMN IF NOT EXISTS scene_id UUID REFERENCES scenes(id) ON DELETE SET NULL;
+ALTER TABLE monsters ADD COLUMN IF NOT EXISTS scene_id UUID REFERENCES scenes(id) ON DELETE SET NULL;
+ALTER TABLE clues ADD COLUMN IF NOT EXISTS scene_id UUID REFERENCES scenes(id) ON DELETE SET NULL;
+ALTER TABLE situations ADD COLUMN IF NOT EXISTS scene_id UUID REFERENCES scenes(id) ON DELETE SET NULL;
+
 -- =====================================================
 -- TABELLA: visual_assets (Asset Visuali)
 -- =====================================================
@@ -276,12 +307,16 @@ CREATE INDEX IF NOT EXISTS idx_equipment_catalog_campaign ON equipment_catalog(c
 CREATE INDEX IF NOT EXISTS idx_character_equipment_character ON character_equipment(character_id);
 CREATE INDEX IF NOT EXISTS idx_character_equipment_catalog ON character_equipment(catalog_item_id);
 CREATE INDEX IF NOT EXISTS idx_npcs_campaign ON npcs(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_npcs_scene ON npcs(scene_id);
 CREATE INDEX IF NOT EXISTS idx_monsters_campaign ON monsters(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_monsters_scene ON monsters(scene_id);
 CREATE INDEX IF NOT EXISTS idx_chapters_campaign ON chapters(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_environments_campaign ON environments(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_clues_campaign ON clues(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_clues_chapter ON clues(chapter_id);
+CREATE INDEX IF NOT EXISTS idx_clues_scene ON clues(scene_id);
 CREATE INDEX IF NOT EXISTS idx_situations_campaign ON situations(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_situations_scene ON situations(scene_id);
 CREATE INDEX IF NOT EXISTS idx_visual_assets_campaign ON visual_assets(campaign_id);
 
 -- =====================================================

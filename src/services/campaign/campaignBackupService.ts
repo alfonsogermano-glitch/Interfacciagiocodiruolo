@@ -2,6 +2,10 @@ import { CAMPAIGN_STORAGE_KEYS } from './campaignStorageKeys';
 import { persistenceKey } from '../storage/persistenceMode';
 import type { CampaignBackup, CampaignBackupData, ImportableCampaignBackup } from './campaignBackupTypes';
 import { LEGACY_CHAPTER_STORAGE_KEYS, normalizeLegacyChapterValue } from './chapterMigration';
+import { migrateBackupToSpatialDomain } from './spatialDomainMigration';
+
+const BACKUP_VERSION = 3 as const;
+const ACCEPTED_BACKUP_VERSIONS = [1, 2, 3] as const;
 
 function safeParseArray(key: string): unknown[] {
   const value = window.localStorage.getItem(persistenceKey(key));
@@ -64,11 +68,25 @@ export function exportCampaignBackup(): CampaignBackup {
     visualAssets: safeParseArray(CAMPAIGN_STORAGE_KEYS.visualAssets)
   };
 
+  // Il backup v3 è già normalizzato sul dominio spaziale: le Environment
+  // restano solo come input di compatibilità e la conversione è idempotente
+  // (nessuna creazione di capitoli/scene duplicati).
+  const converted = migrateBackupToSpatialDomain({
+    chapters: data.chapters,
+    scenes: data.scenes,
+    environments: data.environments
+  });
+
   return {
-    version: 2,
+    version: BACKUP_VERSION,
     app: 'high-school-cthulhu-dashboard',
     exportedAt: new Date().toISOString(),
-    data
+    data: {
+      ...data,
+      chapters: converted.chapters,
+      scenes: converted.scenes,
+      environments: converted.environments
+    }
   };
 }
 
@@ -96,7 +114,7 @@ export async function readCampaignBackupFromFile(file: File): Promise<Importable
 
   if (
     !parsed ||
-    (parsed.version !== 1 && parsed.version !== 2) ||
+    !ACCEPTED_BACKUP_VERSIONS.includes(parsed.version as (typeof ACCEPTED_BACKUP_VERSIONS)[number]) ||
     parsed.app !== 'high-school-cthulhu-dashboard' ||
     !parsed.data
   ) {
@@ -111,7 +129,7 @@ export function importCampaignBackup(backup: ImportableCampaignBackup): void {
 
   if (
     !backup ||
-    (backup.version !== 1 && backup.version !== 2) ||
+    !ACCEPTED_BACKUP_VERSIONS.includes(backup.version as (typeof ACCEPTED_BACKUP_VERSIONS)[number]) ||
     backup.app !== 'high-school-cthulhu-dashboard' ||
     !backup.data
   ) {
@@ -123,14 +141,25 @@ export function importCampaignBackup(backup: ImportableCampaignBackup): void {
   writeValue(CAMPAIGN_STORAGE_KEYS.npcs, data.npcs ?? []);
   writeValue(CAMPAIGN_STORAGE_KEYS.monsters, data.monsters ?? []);
   writeValue(CAMPAIGN_STORAGE_KEYS.clues, data.clues ?? []);
-  writeValue(CAMPAIGN_STORAGE_KEYS.environments, data.environments ?? []);
   writeValue(CAMPAIGN_STORAGE_KEYS.situations, data.situations ?? []);
   writeValue(CAMPAIGN_STORAGE_KEYS.maps, backup.data.maps ?? null);
   writeValue(CAMPAIGN_STORAGE_KEYS.combat, backup.data.combat ?? null);
   writeValue(CAMPAIGN_STORAGE_KEYS.equipmentCatalog, backup.data.equipmentCatalog ?? []);
   writeValue(CAMPAIGN_STORAGE_KEYS.characterEquipment, backup.data.characterEquipment ?? []);
   const legacyChapters = backup.version === 1 ? backup.data.adventures : undefined;
-  writeValue(CAMPAIGN_STORAGE_KEYS.chapters, data.chapters ?? normalizeLegacyChapterValue(legacyChapters ?? []));
-  writeValue(CAMPAIGN_STORAGE_KEYS.scenes, data.scenes ?? []);
+  const sourceChapters = data.chapters ?? normalizeLegacyChapterValue(legacyChapters ?? []);
   writeValue(CAMPAIGN_STORAGE_KEYS.visualAssets, backup.data.visualAssets ?? []);
+
+  // Anche i backup v1/v2 con soli luoghi legacy vengono convertiti sul dominio
+  // Capitolo/Scena. Le Environment sopravvivono come input di compatibilità e
+  // la conversione non duplica capitoli/scene già presenti nel backup.
+  const converted = migrateBackupToSpatialDomain({
+    chapters: sourceChapters,
+    scenes: data.scenes,
+    environments: data.environments
+  });
+
+  writeValue(CAMPAIGN_STORAGE_KEYS.environments, converted.environments);
+  writeValue(CAMPAIGN_STORAGE_KEYS.chapters, converted.chapters);
+  writeValue(CAMPAIGN_STORAGE_KEYS.scenes, converted.scenes);
 }

@@ -1,6 +1,6 @@
 # WORKLOG — Stato progetto & consigli di workflow
 
-Ultimo aggiornamento: 2026-10-03
+Ultimo aggiornamento: 2026-10-10
 
 ## Stato attuale (verde)
 
@@ -10,6 +10,61 @@ Ultimo aggiornamento: 2026-10-03
 - **Deploy production Vercel**: auto-deploy a ogni push su `main` (nessuna preview).
 
 ## Cosa è stato fatto di recente
+
+### Cutover spaziale client: Environment -> Capitolo macro-luogo (2026-10-10)
+Request dell'utente: completare il cutover spaziale gia' in corso (migration SQL
+`20261010140000_environment_chapter_scene_cutover.sql`, tipi Chapter/Scene con
+campi mappa, editor scene) sul lato client, senza cancellare i dati ambienti
+esistenti.
+1. `spatialDomainMigration.ts`: accanto a `normalizeChapterSpatialValue`,
+   `normalizeSceneSpatialValue` e `migrateEnvironmentDomainTables` aggiunti
+   helper puri `migrateBackupToSpatialDomain` (normalizzazione backup),
+   `buildEnvironmentChapterMapping`, `resolveChapterIdForEnvironment` e
+   `resolveChapterNavigation` (ID ambiente legacy -> capitolo tramite i marker
+   persistiti `sourceEnvironment`/`environmentId`).
+2. `ChapterManager.tsx`: carica anche `loadEnvironments`/`loadScenes`, migra in
+   locale merge/persist senza perdere capitoli/scene esistenti (le Environment
+   restano storage di compatibilita', mai cancellate) e accetta
+   `navigationTarget` selezionando il capitolo anche da target "environment"
+   legacy. Default spaziali capitolo (griglia 20x20, mapUrl da
+   `mapMetadata.imageUrl`) gia' garantiti da `normalizeChapterSpatialValue`;
+   UI mappa/editor invariata.
+3. Navigazione: badge "Luogo" di `MonstersManager` e collegamenti luogo di
+   `EquipmentCatalogPage` puntano al tab `chapters` con `entityType: 'chapter'`
+   (capitolo risolto) oppure `'environment'` con l'ID legacy se la mappatura
+   non esiste ancora; `ChapterManager` risolve entrambi i tipi.
+4. UI: rimossa la voce "Luoghi" da `GmSectionSidebar` e la route
+   EnvironmentManager da `App.tsx`; `normalizeGmTab` mappa `environments` (e
+   `adventures`) su `chapters` per retrocompatibilita'. Il componente
+   `EnvironmentManager` resta nel codice, non montato e invariato.
+5. Backup: `campaignBackupTypes`/`campaignBackupService` passano a versione 3
+   (chapters + scenes, environments solo input di compatibilita'); l'import
+   accetta 1/2/3 e converte i luoghi legacy senza duplicare capitoli/scene
+   (dedup per id e per `sourceEnvironment.id`).
+6. Test: nuovo `scripts/verify-spatial-domain-migration.mts` puro TypeScript
+   (`verify:spatial-domain-migration`, dentro `precheck`): conversione locale
+   camel/snake, collisioni UUID, idempotence, default spaziali, filtro regioni,
+   normalizzazione backup, risoluzione navigazione.
+7. Verifiche: `npm run typecheck` e `npm run precheck` (private-chat,
+   chapters-domain, scenes-domain, environment-cutover,
+   spatial-domain-migration) verdi.
+8. Applicazione: la migration cutover e' stata eseguita con successo
+   dall'utente sul progetto Supabase (`njcnkovruynhtsgzgrxi`, RLS abilitata);
+   le query live confermano 5 mapping, 3 capitoli da luoghi, 2 scene da luoghi,
+   3 capitoli con mappa, 2 scene con contesto, helper table rimossa e ripuntaggio
+   npcs/monsters/clues/situations coerente. La migration e' un unico blocco
+   `DO $mig$` per sopravvivere all'esecuzione statement-per-statement del SQL
+   Editor Supabase (nessuna temp/helper table tra le statement).
+9. Smoke test browser: nuovo `scripts/verify-chapters-browser.mjs`
+   (`verify:chapters-browser`, fuori da `check` come gli altri test browser)
+   monta `ChapterManager` reale in Chromium con `entitiesService`/`sonner`
+   stubbati e prova conversione client Environment -> Capitolo/Scene (UUID e
+   marker `sourceEnvironment`/`environmentId` conservati), editor mappa
+   macro-luogo (URL + griglia), nuova Scena con regione rettangolare e variante
+   contestuale, assenza di selettori Luogo/ambiente nella scena e selezione del
+   capitolo da `navigationTarget` legacy `entityType: 'environment'`. Verifiche
+   statiche: sidebar/App senza voce e route Luoghi, navigazioni archivi verso
+   `chapters`. PASS.
 
 ### Standard animazioni icone: regola globale hover su tutti i pulsanti/menù + indice icone non animate (2026-09-28)
 Request dell'utente: recuperare ed estendere le animazioni icone (iniziose
