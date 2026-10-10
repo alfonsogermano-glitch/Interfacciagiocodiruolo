@@ -6,6 +6,7 @@ import { loadChapters, saveChapter as saveChapterToSupabase, deleteChapter as de
 import { persistenceKey } from '../../../services/storage/persistenceMode';
 import { generateUUID } from '../../../lib/uuid';
 import { LEGACY_CHAPTER_STORAGE_KEYS, normalizeLegacyChapterValue } from '../../../services/campaign/chapterMigration';
+import { ChapterScenesEditor } from './ChapterScenesEditor';
 
 const CHAPTERS_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.chapters;
 const ACTIVE_CHAPTER_STORAGE_KEY = CAMPAIGN_STORAGE_KEYS.activeChapter;
@@ -562,6 +563,7 @@ export function ChapterManager({
                 </div>
               </div>
             )}
+            <ChapterScenesEditor key={selectedChapter.id} campaignId={campaignId} chapter={selectedChapter} />
           </div>
         ) : (
           <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-12 text-center">

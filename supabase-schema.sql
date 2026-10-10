@@ -147,7 +147,6 @@ CREATE TABLE IF NOT EXISTS chapters (
   next_chapter_ids UUID[] NOT NULL DEFAULT '{}'::UUID[],
 
   -- Dati strutturati (JSONB)
-  scenes JSONB DEFAULT '[]'::jsonb,
   npcs JSONB DEFAULT '[]'::jsonb,
   clues JSONB DEFAULT '[]'::jsonb,
 
@@ -180,6 +179,30 @@ CREATE TABLE IF NOT EXISTS environments (
 
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =====================================================
+-- TABELLA: scenes (Scene narrative private del GM)
+-- =====================================================
+CREATE UNIQUE INDEX IF NOT EXISTS chapters_campaign_id_id_uidx ON chapters(campaign_id, id);
+
+CREATE TABLE IF NOT EXISTS scenes (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+  chapter_id UUID NOT NULL,
+  environment_id UUID REFERENCES environments(id) ON DELETE SET NULL,
+  title TEXT NOT NULL CHECK (length(btrim(title)) > 0),
+  description TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'ready', 'completed')),
+  image_url TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0 CHECK (sort_order >= 0),
+  next_scene_ids UUID[] NOT NULL DEFAULT '{}'::UUID[],
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT scenes_chapter_campaign_fkey FOREIGN KEY (campaign_id, chapter_id)
+    REFERENCES chapters(campaign_id, id) ON DELETE CASCADE,
+  CONSTRAINT scenes_no_self_next CHECK (NOT (id = ANY(next_scene_ids)))
 );
 
 -- =====================================================

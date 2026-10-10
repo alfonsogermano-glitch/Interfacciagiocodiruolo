@@ -11,6 +11,7 @@ export type TauriEntityCollection =
   | 'clues'
   | 'situations'
   | 'chapters'
+  | 'scenes'
   | 'equipmentCatalog'
   | 'characterEquipment';
 

@@ -10,6 +10,7 @@ export const CAMPAIGN_STORAGE_KEYS = {
   equipmentCatalog: 'gdr-dashboard-equipment-catalog',
   characterEquipment: 'gdr-dashboard-character-equipment',
   chapters: 'gdr-dashboard-chapters',
+  scenes: 'gdr-dashboard-scenes',
   activeCampaign: 'gdr-dashboard-active-campaign',
   activeChapter: 'gdr-dashboard-active-chapter',
   visualAssets: 'hsc-visual-assets'

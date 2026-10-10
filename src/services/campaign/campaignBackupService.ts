@@ -60,6 +60,7 @@ export function exportCampaignBackup(): CampaignBackup {
     equipmentCatalog: safeParseArray(CAMPAIGN_STORAGE_KEYS.equipmentCatalog),
     characterEquipment: safeParseArray(CAMPAIGN_STORAGE_KEYS.characterEquipment),
     chapters: safeParseArrayWithFallback(CAMPAIGN_STORAGE_KEYS.chapters, LEGACY_CHAPTER_STORAGE_KEYS.chapters),
+    scenes: safeParseArray(CAMPAIGN_STORAGE_KEYS.scenes),
     visualAssets: safeParseArray(CAMPAIGN_STORAGE_KEYS.visualAssets)
   };
 
@@ -130,5 +131,6 @@ export function importCampaignBackup(backup: ImportableCampaignBackup): void {
   writeValue(CAMPAIGN_STORAGE_KEYS.characterEquipment, backup.data.characterEquipment ?? []);
   const legacyChapters = backup.version === 1 ? backup.data.adventures : undefined;
   writeValue(CAMPAIGN_STORAGE_KEYS.chapters, data.chapters ?? normalizeLegacyChapterValue(legacyChapters ?? []));
+  writeValue(CAMPAIGN_STORAGE_KEYS.scenes, data.scenes ?? []);
   writeValue(CAMPAIGN_STORAGE_KEYS.visualAssets, backup.data.visualAssets ?? []);
 }

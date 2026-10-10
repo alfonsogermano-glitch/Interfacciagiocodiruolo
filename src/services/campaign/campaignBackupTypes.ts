@@ -10,6 +10,7 @@ export interface CampaignBackupData {
   equipmentCatalog: unknown[];
   characterEquipment: unknown[];
   chapters: unknown[];
+  scenes?: unknown[];
   visualAssets?: unknown[];
 }
 

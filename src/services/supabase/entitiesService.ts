@@ -12,6 +12,7 @@ import { isRulesetCompatible, type RulesetId } from '../../app/campaigns/campaig
 import type { TokenBorderStyle, TokenBorderThickness } from '../../types/tokenStyle';
 import type { ImageCrop } from '../../types/imageCrop';
 import type { Chapter } from '../../types/chapter';
+import type { Scene } from '../../types/scene';
 import { normalizeLegacyChapterValue } from '../campaign/chapterMigration';
 
 /**
@@ -34,7 +35,8 @@ type EntityCollection =
   | 'environments'
   | 'clues'
   | 'situations'
-  | 'chapters';
+  | 'chapters'
+  | 'scenes';
 
 function shouldUseLocalMode(): boolean {
   return !supabase;
@@ -1300,3 +1302,50 @@ export async function deleteChapter(chapterId: string): Promise<void> {
   if (error) throw error;
 }
 
+// ============= SCENE =============
+
+export async function loadScenes(campaignId: string): Promise<Scene[]> {
+  if (shouldUseLocalMode()) return loadLocalModeEntities<Scene>(campaignId, 'scenes');
+  if (!supabase) return [];
+  const { data, error } = await supabase.from('scenes').select('*').eq('campaign_id', campaignId)
+    .order('sort_order', { ascending: true }).order('created_at', { ascending: true }).order('id', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map(toCamelCase);
+}
+
+export async function saveScene(campaignId: string, scene: Scene): Promise<void> {
+  const normalized: Scene = {
+    ...scene,
+    campaignId,
+    title: scene.title.trim(),
+    nextSceneIds: [...new Set(scene.nextSceneIds)].filter(id => id !== scene.id),
+  };
+  if (!normalized.title) throw new Error('Il titolo della scena è obbligatorio.');
+  if (shouldUseLocalMode()) {
+    await saveLocalModeEntity(campaignId, 'scenes', normalized);
+    return;
+  }
+  const { error } = await supabase.from('scenes').upsert(toSnakeCase(sanitizeUUIDs(normalized)));
+  if (error) throw error;
+}
+
+export async function deleteScene(campaignId: string, sceneId: string): Promise<void> {
+  const scenes = await loadScenes(campaignId);
+  for (const scene of scenes) {
+    if (scene.id !== sceneId && scene.nextSceneIds.includes(sceneId)) {
+      await saveScene(campaignId, { ...scene, nextSceneIds: scene.nextSceneIds.filter(id => id !== sceneId) });
+    }
+  }
+  if (shouldUseLocalMode()) {
+    await deleteLocalModeEntity('scenes', sceneId);
+    return;
+  }
+  const { error } = await supabase.from('scenes').delete().eq('id', sceneId);
+  if (error) throw error;
+}
+
+export async function reorderScenes(campaignId: string, ordered: Scene[]): Promise<Scene[]> {
+  const normalized = ordered.map((scene, sortOrder) => ({ ...scene, sortOrder }));
+  for (const scene of normalized) await saveScene(campaignId, scene);
+  return normalized;
+}

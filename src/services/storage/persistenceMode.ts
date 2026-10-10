@@ -16,7 +16,7 @@ export function persistenceKey(key: string): string {
 
 export const CONTENT_TABLES = new Set([
   'campaigns', 'entity_notes', 'folders', 'characters', 'npcs', 'monsters',
-  'environments', 'clues', 'situations', 'chapters', 'equipment_catalog',
+  'environments', 'clues', 'situations', 'chapters', 'scenes', 'equipment_catalog',
   'character_equipment', 'dice_formulas', 'dice_formula_folders', 'dice_custom_dice',
   'dice_standard_styles', 'chat_messages', 'image_assets', 'visual_assets', 'campaign_documents',
 ]);
