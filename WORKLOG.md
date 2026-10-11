@@ -11,6 +11,84 @@ Ultimo aggiornamento: 2026-10-11
 
 ## Cosa è stato fatto di recente
 
+### Rifinitura workspace sessione live (2026-10-11)
+1. La testata dell'albero mostra il portrait della campagna (o l'iniziale come
+   fallback); la colonna Capitoli/Scene e' ridimensionabile su desktop e salva
+   la larghezza in locale.
+2. Il quick-roll segue il bordo destro dell'albero; la Scena attiva non mostra
+   piu' l'icona occhio ambigua.
+3. La mappa centrale e' priva di card, margini, titolo e descrizione, mantenendo
+   griglia e regioni pubblicate.
+4. La rail destra del GM aggiunge gli strumenti esistenti Scene/Incontri e
+   Combattimento; la rail del giocatore resta limitata agli strumenti condivisi.
+5. Start/Pausa/Stop dell'incontro sono disponibili direttamente sulle Scene
+   nell'albero GM. La scheda Incontri resta consultabile per anteprima ed entita'
+   collegate, ma non duplica piu' i tre pulsanti operativi.
+6. Ogni nuova sessione elimina l'eventuale `active-encounter` precedente, quindi
+   tutte le Scene partono spente. Stop elimina il documento invece di tentare di
+   salvare un payload `null`, non ammesso dal database.
+7. Pausa e' un toggle: durante la sospensione conserva l'icona pausa lampeggiante;
+   un secondo clic riprende lo stesso incontro. Play appare solo a Scena spenta.
+8. La top bar della sessione ospita una toolbar mappa centrata con Muovi,
+   Seleziona, Griglia, Misura, Disegna, Puntina, Nebbia, Muri e Puntatore.
+   In questa fase gestisce solo la selezione visuale dello strumento. Seleziona
+   usa un'area tratteggiata con cursore; ogni icona ha una micro-animazione hover
+   specifica, disattivata quando il sistema richiede movimento ridotto.
+9. Le animazioni multipart della toolbar mantengono fermo il corpo dell'icona:
+   Muovi alterna l'estensione degli assi, Seleziona fa percorrere al cursore il
+   perimetro tratteggiato, Griglia accende una cella alla volta, Misura si
+   riempie e svuota, Nebbia varia solo opacita' e Puntina ha un ciclo piu' lento.
+10. Nebbia usa ora un ciclo opacita' piu' lento. Muri costruisce otto mattoni
+    nell'ordine 3-2-3 dal basso verso l'alto, poi li dissolve insieme; Puntatore
+    muove una freccia diagonale avanti e indietro verso un punto fisso.
+11. Ridotta l'escursione di opacita' di Nebbia; i mattoni hanno separatori ad
+    alto contrasto. Il cursore Seleziona e' piu' grande, non ruota e mantiene la
+    punta sul perimetro tratteggiato durante l'intero giro.
+12. Avvicinate verticalmente le tre file del muro per evitare l'effetto sospeso;
+    il ciclo di dissolvenza di Nebbia e' stato rallentato a 4.2 secondi.
+13. Ingranditi i mattoni senza alterare schema e separatori. Nebbia conserva il
+    ciclo lento ma ripristina l'escursione visiva originale 34%-100%.
+14. Il ciclo completo di Nebbia dura 6 secondi: ciascuna transizione tra
+    chiaro e scuro dura circa 3 secondi con interpolazione morbida.
+15. Corretto il conflitto di specificita' CSS che faceva prevalere la durata
+    generale di 0.62 secondi: Nebbia applica ora realmente la durata dedicata.
+16. Ingranditi ulteriormente i mattoni del muro fino a occupare quasi interamente
+    il viewBox, conservando separatori e schema 3-2-3.
+17. Seleziona parte dall'angolo inferiore destro con il corpo della freccia oltre
+    il quadrato. Muri aggiunge una quarta fila superiore da due mattoni, per una
+    sequenza complessiva 3-2-3-2.
+18. La campanella oscilla su hover/focus e mostra il tooltip dinamico Notifiche o
+    Nuove Notifiche. Il menu utente usa i tre puntini verticali al posto della
+    freccia.
+19. Il menu utente si chiude con click esterno o Esc. La campanella oscilla in
+    loop con una pausa tra i cicli e rispetta la preferenza reduced motion.
+20. Le tre Azioni rapide non si sollevano piu' in hover e adottano il bordo
+    accentato con ombra luminosa di Campagne recenti. I bordi delle quattro
+    card principali sono stati portati a 2px.
+21. Le quattro card principali condividono ora anche il leggero sollevamento in
+    hover. Portati a 2px i bordi delle scorciatoie campagna nella sidebar.
+22. L'animazione dei tre puntini del menu account parte soltanto passando sulla
+    relativa icona, non piu' passando su nome o ritratto.
+23. Il loop con pausa della campanella viene eseguito soltanto durante hover o
+    focus, anziche' restare sempre attivo.
+24. Gestione campagna apre ora Capitoli e Scene, posti al primo livello della
+    sidebar. Il workspace distingue i contenuti assegnati alla mappa generale
+    del Capitolo da quelli locali alla Scena; Mappa, Eventi e Fasi legacy
+    restano temporaneamente accessibili nel gruppo secondario per non perdere
+    dati prima della migrazione.
+25. Il riepilogo e la costruzione dell'incontro di una Scena includono anche i
+    contenuti generali del Capitolo, oltre ai contenuti assegnati direttamente
+    alla Scena.
+26. I pannelli contenuti di Capitolo e Scena consentono di assegnare e rimuovere
+    PNG, mostri, indizi ed eventi. La rimozione da una Scena riporta l'elemento
+    al Capitolo; la rimozione dal Capitolo lo lascia disponibile nell'archivio.
+27. Le viste contenuti di Capitolo e Scena si sincronizzano subito dopo ogni
+    assegnazione, senza richiedere un reload o un cambio di schermata.
+28. Il workspace Capitoli e Scene non impila piu' tutti gli editor: il Capitolo
+    usa le schede Panoramica, Mappa, Contenuti, Scene e Diramazioni; ogni Scena
+    usa Dettagli, Mappa, Contenuti e Diramazioni, mostrando una sola area alla
+    volta.
+
 ### Pubblicazione della Scena nella sessione live (2026-10-11)
 1. Aggiunto lo snapshot runtime pubblico `ActiveScenePublication`: contiene
    titolo/descrizione giocatori, Capitolo, mappa/griglia, regioni e contesto,

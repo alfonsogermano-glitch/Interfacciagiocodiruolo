@@ -11,8 +11,10 @@ Campagna
 ```
 
 - **Campagna**: contenitore complessivo del gioco, dei partecipanti e degli archivi.
-- **Capitolo**: blocco narrativo della campagna. È il termine unico per ogni genere e regolamento.
-- **Scena**: unità concreta giocabile, preparata privatamente dal GM e collegabile a un luogo opzionale. Il luogo è riutilizzabile; la scena descrive ciò che accade.
+- **Capitolo**: blocco narrativo della campagna e contesto generale. La sua mappa può contenere direttamente PNG, mostri, indizi, eventi e incontri che non appartengono a un singolo focus.
+- **Scena**: unità concreta giocabile e focus circoscritto della mappa o della trama del Capitolo. Può avere mappa, regioni, contenuti e incontro propri senza sostituire i contenuti generali del Capitolo.
+
+L'assegnazione dei contenuti segue due livelli espliciti: un'entità con `chapterId` e senza `sceneId` appartiene al contesto generale del Capitolo; un'entità con `sceneId` appartiene al focus della Scena. Durante la preparazione e il runtime, una Scena eredita il contesto generale del proprio Capitolo e vi aggiunge i contenuti locali. La costruzione dell'incontro segue la stessa regola e include entrambi gli insiemi.
 
 Il termine precedente "Avventura" resta soltanto nei migratori necessari a leggere dati creati dalle versioni precedenti; non appartiene più al dominio o all'interfaccia.
 

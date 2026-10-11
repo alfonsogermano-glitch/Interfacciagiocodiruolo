@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Bell, Bug, Check, ChevronDown, LogOut, Newspaper, Search, Settings, UserPlus, X } from 'lucide-react';
+import { useEffect, useRef, useState, type SVGProps } from 'react';
+import { Bell, Bug, Check, CloudFog, LogOut, MapPin, MoreVertical, Newspaper, Pencil, Search, Settings, UserPlus, X } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications, type NotificationRow } from '../notifications/NotificationsContext';
 import { useCampaign } from '../campaigns/CampaignContext';
@@ -15,15 +15,85 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
 } from '../components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
 interface TopBarProps {
   activeSection?: string | null;
+  sessionWorkspaceActive?: boolean;
   onLogout: () => void;
   onOpenSettings: (tab: 'general' | 'profile') => void;
   onReportBug: () => void;
 }
+
+function MoveMapIcon(props: SVGProps<SVGSVGElement>) {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <g className="map-tool-move-vertical"><path d="M12 3v18" /><path d="m8.5 6 3.5-3 3.5 3M8.5 18l3.5 3 3.5-3" /></g>
+    <g className="map-tool-move-horizontal"><path d="M3 12h18" /><path d="m6 8.5-3 3.5 3 3.5M18 8.5l3 3.5-3 3.5" /></g>
+    <circle cx="12" cy="12" r="1.25" fill="currentColor" stroke="none" />
+  </svg>;
+}
+
+function SelectMapIcon(props: SVGProps<SVGSVGElement>) {
+  return <svg viewBox="0 0 24 24" overflow="visible" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <rect x="4" y="4" width="15" height="15" rx="2" strokeDasharray="3 2" />
+    <g className="map-tool-select-cursor" strokeWidth="2.2">
+      <path d="m26 26-7-7" />
+      <path d="M19 24v-5h5" />
+    </g>
+  </svg>;
+}
+
+function GridMapIcon(props: SVGProps<SVGSVGElement>) {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" {...props}>
+    {[4, 10, 16].flatMap(y => [4, 10, 16].map(x => <rect key={`${x}-${y}`} className="map-tool-grid-cell" x={x} y={y} width="4" height="4" rx="0.6" />))}
+  </svg>;
+}
+
+function MeasureMapIcon(props: SVGProps<SVGSVGElement>) {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <g transform="rotate(42 12 12)">
+      <rect className="map-tool-measure-fill" x="7.8" y="3" width="8.4" height="18" rx="1.5" stroke="none" fill="currentColor" opacity="0.32" />
+      <rect x="7" y="2" width="10" height="20" rx="2" />
+      <path d="M8 6h4M8 9h2.5M8 12h4M8 15h2.5M8 18h4" />
+    </g>
+  </svg>;
+}
+
+function WallsMapIcon(props: SVGProps<SVGSVGElement>) {
+  const bricks = [
+    [1, 17], [8.5, 17], [16, 17],
+    [4.75, 11.5], [12.25, 11.5],
+    [1, 6], [8.5, 6], [16, 6],
+    [4.75, 0.5], [12.25, 0.5],
+  ];
+  return <svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1.2" {...props}>
+    {bricks.map(([x, y], index) => <rect key={`${x}-${y}`} className={`map-tool-wall-brick map-tool-wall-brick-${index + 1}`} x={x} y={y} width="6.8" height="5" rx="0.6" stroke="var(--dash-panel)" strokeWidth="1" />)}
+  </svg>;
+}
+
+function PointerMapIcon(props: SVGProps<SVGSVGElement>) {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <circle cx="5" cy="19" r="1.6" fill="currentColor" stroke="none" />
+    <g className="map-tool-pointer-arrow">
+      <path d="M18 5 8 15" />
+      <path d="M8 10v5h5" />
+    </g>
+  </svg>;
+}
+
+const SESSION_MAP_TOOLS = [
+  { id: 'move', label: 'Muovi', icon: MoveMapIcon },
+  { id: 'select', label: 'Seleziona', icon: SelectMapIcon },
+  { id: 'grid', label: 'Griglia', icon: GridMapIcon },
+  { id: 'measure', label: 'Misura', icon: MeasureMapIcon },
+  { id: 'draw', label: 'Disegna', icon: Pencil },
+  { id: 'pin', label: 'Puntina', icon: MapPin },
+  { id: 'fog', label: 'Nebbia', icon: CloudFog },
+  { id: 'walls', label: 'Muri', icon: WallsMapIcon },
+  { id: 'pointer', label: 'Puntatore', icon: PointerMapIcon },
+] as const;
 
 const SEARCH_PLACEHOLDERS: Record<string, string> = {
   monsters: 'Cerca mostro...',
@@ -221,10 +291,30 @@ function NotificationRowItem({ notification }: { notification: NotificationRow }
   );
 }
 
-export function TopBar({ activeSection, onLogout, onOpenSettings, onReportBug }: TopBarProps) {
+export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout, onOpenSettings, onReportBug }: TopBarProps) {
   const { user } = useAuth();
   const { notifications, unreadCount, markAllAsRead } = useNotifications();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const [activeMapTool, setActiveMapTool] = useState<(typeof SESSION_MAP_TOOLS)[number]['id']>('move');
+
+  useEffect(() => {
+    if (!isUserMenuOpen) return;
+
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!userMenuRef.current?.contains(event.target as Node)) setIsUserMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsUserMenuOpen(false);
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isUserMenuOpen]);
 
   const displayName = user?.displayName ?? 'Utente';
   const initials = displayName.trim().charAt(0).toUpperCase() || '?';
@@ -234,8 +324,20 @@ export function TopBar({ activeSection, onLogout, onOpenSettings, onReportBug }:
     <header className="sticky top-0 z-[1000] flex h-12 shrink-0 items-center gap-2 border-b border-[var(--dash-border)] bg-[var(--dash-surface)] px-4">
       <div className="flex-1" />
 
+      {sessionWorkspaceActive && (
+        <div data-session-map-toolbar className="absolute left-2 right-24 flex items-center justify-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:left-1/2 md:right-auto md:-translate-x-1/2">
+          <div className="flex items-center gap-1 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)]/90 p-1 shadow-lg">
+            {SESSION_MAP_TOOLS.map(({ id, label, icon: Icon }) => (
+              <button key={id} type="button" data-map-tool={id} aria-label={label} title={label} aria-pressed={activeMapTool === id} onClick={() => setActiveMapTool(id)} className={`grid h-8 w-8 shrink-0 place-items-center rounded-md transition-colors ${activeMapTool === id ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]' : 'text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]'}`}>
+                <Icon className="h-4.5 w-4.5" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Search */}
-      <div className="flex w-48 items-center gap-2 rounded-full border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-1.5 text-[var(--dash-muted)]">
+      <div className={`${sessionWorkspaceActive ? 'hidden' : 'flex'} w-48 items-center gap-2 rounded-full border border-[var(--dash-border)] bg-[var(--dash-surface)] px-3 py-1.5 text-[var(--dash-muted)]`}>
         <Search className="h-4 w-4 shrink-0" />
         <input
           type="text"
@@ -246,18 +348,24 @@ export function TopBar({ activeSection, onLogout, onOpenSettings, onReportBug }:
 
       {/* Notifications */}
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            aria-label="Notifiche"
-            className="relative flex items-center justify-center rounded-full border border-[var(--dash-border)] bg-[var(--dash-surface)] p-2 text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text)]"
-          >
-            <Bell className="h-4 w-4" />
-            {unreadCount > 0 && (
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[var(--dash-danger-border)]" />
-            )}
-          </button>
-        </DropdownMenuTrigger>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                data-notification-button
+                aria-label={unreadCount > 0 ? 'Nuove Notifiche' : 'Notifiche'}
+                className="relative flex items-center justify-center rounded-full border border-[var(--dash-border)] bg-[var(--dash-surface)] p-2 text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text)]"
+              >
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[var(--dash-danger-border)]" />
+                )}
+              </button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent>{unreadCount > 0 ? 'Nuove Notifiche' : 'Notifiche'}</TooltipContent>
+        </Tooltip>
         <DropdownMenuContent
           align="end"
           className="w-80 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-0 text-[var(--dash-text)]"
@@ -285,7 +393,7 @@ export function TopBar({ activeSection, onLogout, onOpenSettings, onReportBug }:
       </DropdownMenu>
 
       {/* User */}
-      <div className="relative">
+      <div ref={userMenuRef} className="relative">
         <button
           type="button"
           onClick={() => setIsUserMenuOpen(open => !open)}
@@ -304,7 +412,9 @@ export function TopBar({ activeSection, onLogout, onOpenSettings, onReportBug }:
             </span>
           )}
           <span className="text-sm text-[var(--dash-text)]">{displayName}</span>
-          <ChevronDown className="h-3.5 w-3.5 text-[var(--dash-muted)]" />
+          <span data-account-menu-dots className="grid h-5 w-5 place-items-center">
+            <MoreVertical className="h-3.5 w-3.5 text-[var(--dash-muted)]" />
+          </span>
         </button>
 
         {isUserMenuOpen && (

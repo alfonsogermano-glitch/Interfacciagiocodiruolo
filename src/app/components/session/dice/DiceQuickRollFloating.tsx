@@ -77,7 +77,7 @@ export function DiceQuickRollFloating() {
 
   return (
     <>
-      <div className="fixed bottom-5 left-28 z-[945] flex items-center gap-2" data-dice-quick-roll-floating>
+      <div className="fixed bottom-5 z-[945] flex items-center gap-2" style={{ left: 'calc(var(--session-tree-edge, 100px) + 12px)' }} data-dice-quick-roll-floating>
         <button type="button" data-dice-history-toggle onClick={() => historyOpen ? closeHistory() : openHistory()} aria-label={historyOpen ? 'Nascondi storico tiri' : 'Mostra storico tiri'} className="relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[var(--dash-border)] bg-[var(--dash-panel)] text-[var(--dash-text)] shadow-lg">
           {historyOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           {historyUnread && !historyOpen && <span data-dice-history-unread className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[var(--dash-accent)] ring-1 ring-[var(--dash-bg)]" />}

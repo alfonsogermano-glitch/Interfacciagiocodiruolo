@@ -951,3 +951,142 @@ button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button']
   animation-timing-function: linear;
   animation-iteration-count: infinite;
 }
+
+@keyframes mapToolMoveVertical {
+  0%, 100% { transform: scaleY(1.2); }
+  50% { transform: scaleY(0.84); }
+}
+
+@keyframes notificationBellRing {
+  0%, 35%, 100% { transform: rotate(0deg); }
+  7% { transform: rotate(14deg); }
+  14% { transform: rotate(-12deg); }
+  21% { transform: rotate(8deg); }
+  28% { transform: rotate(-5deg); }
+}
+
+[data-notification-button]:hover .lucide-bell,
+[data-notification-button]:focus-visible .lucide-bell {
+  transform-origin: 50% 15%;
+  animation: notificationBellRing 2.8s ease-in-out infinite;
+}
+
+/* Il bottone account comprende anche avatar e nome: limita l'effetto dei
+   puntini alla sola icona, invece di ereditarlo dall'hover del bottone. */
+[data-account-menu-dots] .lucide-ellipsis-vertical > * {
+  animation: none !important;
+}
+
+[data-account-menu-dots]:hover .lucide-ellipsis-vertical > :nth-child(1) {
+  animation: dotsLightVCenter 2.4s ease-in-out infinite !important;
+}
+
+[data-account-menu-dots]:hover .lucide-ellipsis-vertical > :nth-child(2) {
+  animation: dotsLightVTop 2.4s ease-in-out infinite !important;
+}
+
+[data-account-menu-dots]:hover .lucide-ellipsis-vertical > :nth-child(3) {
+  animation: dotsLightVBottom 2.4s ease-in-out infinite !important;
+}
+
+@keyframes mapToolMoveHorizontal {
+  0%, 100% { transform: scaleX(0.84); }
+  50% { transform: scaleX(1.2); }
+}
+
+@keyframes mapToolSelectTrack {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-15px, 0); }
+  50% { transform: translate(-15px, -15px); }
+  75% { transform: translate(0, -15px); }
+}
+
+@keyframes mapToolGridCell {
+  0%, 10% { fill: currentColor; fill-opacity: 0.95; }
+  12%, 100% { fill: transparent; fill-opacity: 0; }
+}
+
+@keyframes mapToolMeasureFill {
+  0%, 100% { transform: scaleY(0); opacity: 0.15; }
+  50% { transform: scaleY(1); opacity: 0.55; }
+}
+
+@keyframes mapToolDraw {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  45% { transform: translate(2px, -2px) rotate(-7deg); }
+  75% { transform: translate(-1px, 1px) rotate(3deg); }
+}
+
+@keyframes mapToolPin {
+  0%, 100% { transform: translateY(0); }
+  42% { transform: translateY(-3px); }
+  68% { transform: translateY(1px); }
+}
+
+@keyframes mapToolFog {
+  0%, 100% { opacity: 0.34; }
+  50% { opacity: 1; }
+}
+
+@keyframes mapToolPointer {
+  0%, 100% { transform: translate(2px, -2px); }
+  50% { transform: translate(-1px, 1px); }
+}
+
+@keyframes mapToolWallBrick1 { 0%, 4%, 94%, 100% { opacity: 0; } 7%, 88% { opacity: 1; } }
+@keyframes mapToolWallBrick2 { 0%, 11%, 94%, 100% { opacity: 0; } 14%, 88% { opacity: 1; } }
+@keyframes mapToolWallBrick3 { 0%, 18%, 94%, 100% { opacity: 0; } 21%, 88% { opacity: 1; } }
+@keyframes mapToolWallBrick4 { 0%, 28%, 94%, 100% { opacity: 0; } 31%, 88% { opacity: 1; } }
+@keyframes mapToolWallBrick5 { 0%, 38%, 94%, 100% { opacity: 0; } 41%, 88% { opacity: 1; } }
+@keyframes mapToolWallBrick6 { 0%, 50%, 94%, 100% { opacity: 0; } 53%, 88% { opacity: 1; } }
+@keyframes mapToolWallBrick7 { 0%, 61%, 94%, 100% { opacity: 0; } 64%, 88% { opacity: 1; } }
+@keyframes mapToolWallBrick8 { 0%, 72%, 94%, 100% { opacity: 0; } 75%, 88% { opacity: 1; } }
+@keyframes mapToolWallBrick9 { 0%, 78%, 94%, 100% { opacity: 0; } 81%, 88% { opacity: 1; } }
+@keyframes mapToolWallBrick10 { 0%, 83%, 94%, 100% { opacity: 0; } 86%, 88% { opacity: 1; } }
+
+[data-session-map-toolbar] [data-map-tool]:hover svg,
+[data-session-map-toolbar] [data-map-tool]:focus-visible svg {
+  transform-origin: center;
+  animation-duration: 0.62s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+[data-map-tool='move']:hover .map-tool-move-vertical, [data-map-tool='move']:focus-visible .map-tool-move-vertical { transform-origin: 12px 12px; animation: mapToolMoveVertical 0.9s ease-in-out infinite; }
+[data-map-tool='move']:hover .map-tool-move-horizontal, [data-map-tool='move']:focus-visible .map-tool-move-horizontal { transform-origin: 12px 12px; animation: mapToolMoveHorizontal 0.9s ease-in-out infinite; }
+[data-map-tool='select']:hover .map-tool-select-cursor, [data-map-tool='select']:focus-visible .map-tool-select-cursor { animation: mapToolSelectTrack 2.2s linear infinite; }
+[data-map-tool='grid']:hover .map-tool-grid-cell, [data-map-tool='grid']:focus-visible .map-tool-grid-cell { animation: mapToolGridCell 1.8s linear infinite; }
+[data-map-tool='grid'] .map-tool-grid-cell:nth-child(2) { animation-delay: 0.2s; }
+[data-map-tool='grid'] .map-tool-grid-cell:nth-child(3) { animation-delay: 0.4s; }
+[data-map-tool='grid'] .map-tool-grid-cell:nth-child(4) { animation-delay: 0.6s; }
+[data-map-tool='grid'] .map-tool-grid-cell:nth-child(5) { animation-delay: 0.8s; }
+[data-map-tool='grid'] .map-tool-grid-cell:nth-child(6) { animation-delay: 1s; }
+[data-map-tool='grid'] .map-tool-grid-cell:nth-child(7) { animation-delay: 1.2s; }
+[data-map-tool='grid'] .map-tool-grid-cell:nth-child(8) { animation-delay: 1.4s; }
+[data-map-tool='grid'] .map-tool-grid-cell:nth-child(9) { animation-delay: 1.6s; }
+[data-map-tool='measure']:hover .map-tool-measure-fill, [data-map-tool='measure']:focus-visible .map-tool-measure-fill { transform-box: fill-box; transform-origin: top; animation: mapToolMeasureFill 1.8s ease-in-out infinite; }
+[data-map-tool='draw']:hover svg, [data-map-tool='draw']:focus-visible svg { animation-name: mapToolDraw; }
+[data-session-map-toolbar] [data-map-tool='pin']:hover svg,
+[data-session-map-toolbar] [data-map-tool='pin']:focus-visible svg { animation: mapToolPin 0.9s ease-in-out infinite; }
+[data-session-map-toolbar] [data-map-tool='fog']:hover svg,
+[data-session-map-toolbar] [data-map-tool='fog']:focus-visible svg {
+  animation: mapToolFog 6s ease-in-out infinite;
+}
+[data-map-tool='walls']:hover .map-tool-wall-brick-1, [data-map-tool='walls']:focus-visible .map-tool-wall-brick-1 { animation: mapToolWallBrick1 4.2s ease-in-out infinite; }
+[data-map-tool='walls']:hover .map-tool-wall-brick-2, [data-map-tool='walls']:focus-visible .map-tool-wall-brick-2 { animation: mapToolWallBrick2 4.2s ease-in-out infinite; }
+[data-map-tool='walls']:hover .map-tool-wall-brick-3, [data-map-tool='walls']:focus-visible .map-tool-wall-brick-3 { animation: mapToolWallBrick3 4.2s ease-in-out infinite; }
+[data-map-tool='walls']:hover .map-tool-wall-brick-4, [data-map-tool='walls']:focus-visible .map-tool-wall-brick-4 { animation: mapToolWallBrick4 4.2s ease-in-out infinite; }
+[data-map-tool='walls']:hover .map-tool-wall-brick-5, [data-map-tool='walls']:focus-visible .map-tool-wall-brick-5 { animation: mapToolWallBrick5 4.2s ease-in-out infinite; }
+[data-map-tool='walls']:hover .map-tool-wall-brick-6, [data-map-tool='walls']:focus-visible .map-tool-wall-brick-6 { animation: mapToolWallBrick6 4.2s ease-in-out infinite; }
+[data-map-tool='walls']:hover .map-tool-wall-brick-7, [data-map-tool='walls']:focus-visible .map-tool-wall-brick-7 { animation: mapToolWallBrick7 4.2s ease-in-out infinite; }
+[data-map-tool='walls']:hover .map-tool-wall-brick-8, [data-map-tool='walls']:focus-visible .map-tool-wall-brick-8 { animation: mapToolWallBrick8 4.2s ease-in-out infinite; }
+[data-map-tool='walls']:hover .map-tool-wall-brick-9, [data-map-tool='walls']:focus-visible .map-tool-wall-brick-9 { animation: mapToolWallBrick9 4.2s ease-in-out infinite; }
+[data-map-tool='walls']:hover .map-tool-wall-brick-10, [data-map-tool='walls']:focus-visible .map-tool-wall-brick-10 { animation: mapToolWallBrick10 4.2s ease-in-out infinite; }
+[data-map-tool='pointer']:hover .map-tool-pointer-arrow, [data-map-tool='pointer']:focus-visible .map-tool-pointer-arrow { animation: mapToolPointer 1.4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-notification-button]:hover .lucide-bell,
+  [data-notification-button]:focus-visible .lucide-bell,
+  [data-session-map-toolbar] [data-map-tool] svg,
+  [data-session-map-toolbar] [data-map-tool] svg * { animation: none !important; }
+}

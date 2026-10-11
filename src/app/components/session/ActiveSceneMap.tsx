@@ -1,18 +1,18 @@
 import type { ActiveScenePublication } from '../../../types/activeScene';
 
-export function ActiveSceneMap({ scene }: { scene: ActiveScenePublication }) {
+export function ActiveSceneMap({ scene, unframed = false }: { scene: ActiveScenePublication; unframed?: boolean }) {
   const grid = scene.mapMetadata;
   const backgroundSize = `${100 / grid.gridColumns}% ${100 / grid.gridRows}%`;
 
   if (!scene.mapUrl) {
     return scene.sceneImageUrl ? (
-      <img src={scene.sceneImageUrl} alt={scene.title} className="block max-h-[65vh] w-full rounded-xl object-contain" />
+      <img src={scene.sceneImageUrl} alt={scene.title} className={`block w-full object-contain ${unframed ? '' : 'max-h-[65vh] rounded-xl'}`} />
     ) : null;
   }
 
   return (
     <div
-      className="relative overflow-hidden rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-input)]"
+      className={`relative overflow-hidden bg-[var(--dash-input)] ${unframed ? '' : 'rounded-xl border border-[var(--dash-border-soft)]'}`}
       style={grid.gridVisible ? {
         backgroundImage: 'linear-gradient(to right, color-mix(in srgb, var(--dash-text) 15%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--dash-text) 15%, transparent) 1px, transparent 1px)',
         backgroundSize,

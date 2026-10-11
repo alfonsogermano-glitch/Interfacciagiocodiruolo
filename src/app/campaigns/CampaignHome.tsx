@@ -46,6 +46,7 @@ import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizar
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../components/ui/paletteColors';
 import type { Character } from '../../types/character';
 import { SessionWorkspace } from '../components/session/SessionWorkspace';
+import { deleteCampaignDocument } from '../../services/storage/campaignDocuments';
 
 // Stessa funzione di MyCharactersPage.tsx (non condivisa in un modulo a
 // parte: e' un one-liner che legge il DOM, non vale la pena un import
@@ -563,6 +564,10 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
     setIsToggling(true);
     const nextActive = !sessionActive;
     try {
+      if (nextActive && isOwner) {
+        await deleteCampaignDocument(activeCampaign.id, 'active-encounter');
+        try { window.localStorage.removeItem('hsc_active_encounter'); } catch { /* Storage may be unavailable. */ }
+      }
       const accessToken = session?.access_token ?? publicAnonKey;
       await fetch(`${SERVER_BASE}/campaigns/${activeCampaign.id}/session`, {
         method: 'POST',
@@ -1456,7 +1461,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
   }
 
   if (sessionActive && activeCampaign) {
-    return <SessionWorkspace campaignId={activeCampaign.id} campaignName={activeCampaign.name} isOwner={isOwner} onEndSession={handleToggleSession} />;
+    return <SessionWorkspace campaignId={activeCampaign.id} campaignName={activeCampaign.name} campaignLogoUrl={activeCampaign.logoUrl} isOwner={isOwner} onEndSession={handleToggleSession} />;
   }
 
   return (

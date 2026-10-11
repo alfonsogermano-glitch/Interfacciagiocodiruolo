@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { GitBranch, Plus, Edit2, Trash2, Star } from 'lucide-react';
+import { Boxes, Clapperboard, GitBranch, LayoutDashboard, Map as MapIcon, Plus, Edit2, Trash2, Star, Waypoints } from 'lucide-react';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
 import type { Chapter, ChapterKind } from '../../../types/chapter';
 import type { Scene } from '../../../types/scene';
@@ -15,6 +15,7 @@ import { persistenceKey } from '../../../services/storage/persistenceMode';
 import { generateUUID } from '../../../lib/uuid';
 import { LEGACY_CHAPTER_STORAGE_KEYS, normalizeLegacyChapterValue } from '../../../services/campaign/chapterMigration';
 import { ChapterScenesEditor } from './ChapterScenesEditor';
+import { NarrativeScopeContent } from './NarrativeScopeContent';
 import {
   migrateEnvironmentDomainTables,
   normalizeChapterSpatialValue,
@@ -87,6 +88,7 @@ export function ChapterManager({
   );
 
   const [isEditing, setIsEditing] = useState(false);
+  const [activePanel, setActivePanel] = useState<'overview' | 'map' | 'content' | 'scenes' | 'flow'>('overview');
 
   useEffect(() => {
     async function loadData() {
@@ -213,6 +215,7 @@ export function ChapterManager({
 
     setSelectedChapterId(target.id);
     setIsEditing(false);
+    setActivePanel('overview');
   }, [navigationTarget, filteredChapters]);
 
   useEffect(() => {
@@ -378,9 +381,9 @@ export function ChapterManager({
       <div className="space-y-4 lg:col-span-1">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-[var(--dash-text)]">Capitoli</h2>
+            <h2 className="text-[var(--dash-text)]">Capitoli e Scene</h2>
             <p className="text-sm text-[var(--dash-muted)]">
-              Macro-luoghi e mappe della campagna
+              Struttura narrativa, mappe generali e focus giocabili
             </p>
           </div>
 
@@ -403,7 +406,7 @@ export function ChapterManager({
                 Struttura campagna vuota
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-[var(--dash-text)]">
-                Crea il primo macro-luogo e assegna la sua mappa generale.
+                Crea il primo capitolo e assegna, se serve, la sua mappa generale.
               </p>
             </div>
           ) : (
@@ -413,6 +416,7 @@ export function ChapterManager({
                 onClick={() => {
                   setSelectedChapterId(chapter.id);
                   setIsEditing(false);
+                  setActivePanel('overview');
                 }}
                 className={`cursor-pointer rounded-xl border p-4 transition-colors ${
                   selectedChapterId === chapter.id
@@ -479,9 +483,23 @@ export function ChapterManager({
               </div>
             </div>
 
+            <div className="mb-6 grid grid-cols-2 gap-2 border-b border-[var(--dash-border-soft)] pb-4 sm:grid-cols-5">
+              {([
+                ['overview', 'Panoramica', LayoutDashboard],
+                ['map', 'Mappa', MapIcon],
+                ['content', 'Contenuti', Boxes],
+                ['scenes', 'Scene', Clapperboard],
+                ['flow', 'Diramazioni', Waypoints],
+              ] as const).map(([id, label, Icon]) => (
+                <button key={id} type="button" onClick={() => setActivePanel(id)} className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs transition-colors ${activePanel === id ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]' : 'border-[var(--dash-border-soft)] bg-[var(--dash-panel)] text-[var(--dash-muted)] hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]'}`}>
+                  <Icon className="h-4 w-4" />{label}
+                </button>
+              ))}
+            </div>
+
             {isEditing ? (
               <div className="space-y-4">
-                <div>
+                <div className={activePanel === 'overview' ? '' : 'hidden'}>
                   <label className="mb-2 block text-[var(--dash-text)]">Titolo</label>
                   <input
                     type="text"
@@ -496,7 +514,7 @@ export function ChapterManager({
                   />
                 </div>
 
-                <div>
+                <div className={activePanel === 'overview' ? '' : 'hidden'}>
                   <label className="mb-2 block text-[var(--dash-text)]">Descrizione</label>
                   <textarea
                     value={selectedChapter.description}
@@ -510,7 +528,7 @@ export function ChapterManager({
                   />
                 </div>
 
-                <div>
+                <div className={activePanel === 'overview' ? '' : 'hidden'}>
                   <label className="mb-2 block text-[var(--dash-text)]">Note GM</label>
                   <textarea
                     value={selectedChapter.notes}
@@ -524,14 +542,14 @@ export function ChapterManager({
                   />
                 </div>
 
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
-                  <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Mappa del macro-luogo</div>
+                <div className={`${activePanel === 'map' ? '' : 'hidden'} rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4`}>
+                  <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Mappa generale del capitolo</div>
                   <label className="block text-sm text-[var(--dash-text)]">URL immagine mappa<input value={selectedChapter.mapUrl ?? ''} onChange={e => updateChapter({ ...selectedChapter, mapUrl: e.target.value || null, mapMetadata: { ...selectedChapter.mapMetadata, imageUrl: e.target.value || null } })} className="mt-1 w-full rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2" /></label>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-sm text-[var(--dash-text)]">Colonne griglia<input type="number" min={1} value={selectedChapter.mapMetadata.gridColumns} onChange={e => updateChapter({ ...selectedChapter, mapMetadata: { ...selectedChapter.mapMetadata, gridColumns: Math.max(1, Number(e.target.value) || 1) } })} className="mt-1 w-full rounded border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2" /></label><label className="text-sm text-[var(--dash-text)]">Righe griglia<input type="number" min={1} value={selectedChapter.mapMetadata.gridRows} onChange={e => updateChapter({ ...selectedChapter, mapMetadata: { ...selectedChapter.mapMetadata, gridRows: Math.max(1, Number(e.target.value) || 1) } })} className="mt-1 w-full rounded border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2" /></label></div>
                   <label className="mt-3 flex items-center gap-2 text-sm text-[var(--dash-text)]"><input type="checkbox" checked={selectedChapter.mapMetadata.gridVisible} onChange={e => updateChapter({ ...selectedChapter, mapMetadata: { ...selectedChapter.mapMetadata, gridVisible: e.target.checked } })} />Mostra griglia</label>
                 </div>
 
-                <div>
+                <div className={activePanel === 'overview' ? '' : 'hidden'}>
                   <label className="mb-2 block text-[var(--dash-text)]">Tipo Capitolo</label>
                   <select
                     value={selectedChapter.kind}
@@ -549,7 +567,7 @@ export function ChapterManager({
                   </select>
                 </div>
 
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
+                <div className={`${activePanel === 'overview' ? '' : 'hidden'} rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4`}>
                   <div className="mb-3 flex items-center justify-between">
                     <div className="text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
                       Capitolo attivo
@@ -572,7 +590,7 @@ export function ChapterManager({
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4">
+                <div className={`${activePanel === 'flow' ? '' : 'hidden'} rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4`}>
                   <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">
                     Possibili capitoli successivi
                   </div>
@@ -604,26 +622,26 @@ export function ChapterManager({
               </div>
             ) : (
               <div className="space-y-4">
-                <div>
+                <div className={activePanel === 'overview' ? '' : 'hidden'}>
                   <h3 className="mb-2 text-[var(--dash-text)]">Descrizione</h3>
                   <p className="text-[var(--dash-muted)]">
                     {selectedChapter.description || 'Nessuna descrizione'}
                   </p>
                 </div>
 
-                <div>
+                <div className={activePanel === 'overview' ? '' : 'hidden'}>
                   <h3 className="mb-2 text-[var(--dash-text)]">Note GM</h3>
                   <p className="text-[var(--dash-muted)]">
                     {selectedChapter.notes || 'Nessuna nota'}
                   </p>
                 </div>
 
-                <div>
+                <div className={activePanel === 'map' ? '' : 'hidden'}>
                   <h3 className="mb-2 text-[var(--dash-text)]">Mappa generale</h3>
                   {selectedChapter.mapUrl ? <img src={selectedChapter.mapUrl} alt={`Mappa di ${selectedChapter.title}`} className="max-h-80 w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] object-contain" /> : <p className="text-[var(--dash-muted)]">Nessuna mappa assegnata.</p>}
                 </div>
 
-                <div className="rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] p-4">
+                <div className={`${activePanel === 'overview' ? '' : 'hidden'} rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] p-4`}>
                   <h3 className="mb-2 text-[var(--dash-text)]">Stato</h3>
                   <p className="text-[var(--dash-muted)]">
                     {selectedChapter.isActive
@@ -632,7 +650,7 @@ export function ChapterManager({
                   </p>
                 </div>
 
-                <div className="rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] p-4">
+                <div className={`${activePanel === 'flow' ? '' : 'hidden'} rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] p-4`}>
                   <h3 className="mb-2 text-[var(--dash-text)]">Prossimi capitoli</h3>
 
                   {(selectedChapter.nextChapterIds ?? []).length === 0 ? (
@@ -657,7 +675,12 @@ export function ChapterManager({
                 </div>
               </div>
             )}
-            <ChapterScenesEditor key={selectedChapter.id} campaignId={campaignId} chapter={selectedChapter} />
+            <div className={activePanel === 'content' ? 'mt-2' : 'hidden'}>
+              <NarrativeScopeContent campaignId={campaignId} chapterId={selectedChapter.id} />
+            </div>
+            <div className={activePanel === 'scenes' ? '' : 'hidden'}>
+              <ChapterScenesEditor key={selectedChapter.id} campaignId={campaignId} chapter={selectedChapter} />
+            </div>
           </div>
         ) : (
           <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-12 text-center">
@@ -666,10 +689,10 @@ export function ChapterManager({
               Nessun capitolo selezionato
             </div>
             <h3 className="mt-2 text-xl font-semibold text-[var(--dash-text-strong)]">
-              Seleziona un macro-luogo
+              Seleziona un capitolo
             </h3>
             <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-[var(--dash-text)]">
-              Apri un capitolo esistente oppure crea la prima mappa della campagna.
+              Apri un capitolo esistente oppure crea il primo blocco narrativo della campagna.
             </p>
           </div>
         )}

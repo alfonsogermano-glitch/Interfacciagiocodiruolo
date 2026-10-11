@@ -199,9 +199,9 @@ function AuthGate() {
   }, [user, isLoading]);
 
   const [activeGmTab, setActiveGmTab] = useState(() => {
-    if (typeof window === 'undefined') return 'phases';
+    if (typeof window === 'undefined') return 'chapters';
 
-    return normalizeGmTab(window.sessionStorage.getItem(ACTIVE_TAB_LS_KEY) ?? 'phases');
+    return normalizeGmTab(window.sessionStorage.getItem(ACTIVE_TAB_LS_KEY) ?? 'chapters');
   });
 
   const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | null>(null);
@@ -343,7 +343,7 @@ function AuthGate() {
 
   const goToManagement = () => {
     setSessionWorkspaceActive(false);
-    changeActiveGmTab('map');
+    changeActiveGmTab('chapters');
     sessionStorage.setItem(VIEW_LS_KEY, 'dashboard');
     setView('dashboard');
   };
@@ -412,6 +412,7 @@ function AuthGate() {
         topbar={
           <TopBar
             activeSection={view === 'dashboard' ? activeGmTab : null}
+            sessionWorkspaceActive={view === 'campaign-home' && sessionWorkspaceActive}
             onLogout={() => void signOut()}
             onOpenSettings={(tab) => openSettings(tab)}
             onReportBug={() => setIsReportBugOpen(true)}

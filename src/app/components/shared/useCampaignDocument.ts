@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { toast } from 'sonner';
 import { useCampaign } from '../../campaigns/CampaignContext';
-import { loadCampaignDocumentOrNull, saveCampaignDocument } from '../../../services/storage/campaignDocuments';
+import { deleteCampaignDocument, loadCampaignDocumentOrNull, saveCampaignDocument } from '../../../services/storage/campaignDocuments';
 import { persistenceKey } from '../../../services/storage/persistenceMode';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
 
@@ -30,8 +30,10 @@ function readLegacyDocument<T>(key: string): T | null {
   }
 }
 
-export function useCampaignDocument<T>(key: string, fallback: T): [T, Dispatch<SetStateAction<T>>] {
+export function useCampaignDocument<T>(key: string, fallback: T, options?: { enabled?: boolean; deleteWhenNull?: boolean }): [T, Dispatch<SetStateAction<T>>] {
   const { activeCampaignId } = useCampaign();
+  const enabled = options?.enabled ?? true;
+  const deleteWhenNull = options?.deleteWhenNull ?? false;
   const scope = persistenceKey(`${activeCampaignId}:${key}`);
   const [record, setRecord] = useState({ scope, value: fallback, ready: false, dirty: false });
   const queue = useRef(Promise.resolve());
@@ -41,6 +43,10 @@ export function useCampaignDocument<T>(key: string, fallback: T): [T, Dispatch<S
     let cancelled = false;
     legacyKeyRef.current = null;
     setRecord({ scope, value: fallback, ready: false, dirty: false });
+    if (!enabled) {
+      setRecord({ scope, value: fallback, ready: true, dirty: false });
+      return () => { cancelled = true; };
+    }
 
     void loadCampaignDocumentOrNull<T>(activeCampaignId, key).then((stored) => {
       if (cancelled) return;
@@ -66,20 +72,21 @@ export function useCampaignDocument<T>(key: string, fallback: T): [T, Dispatch<S
     });
 
     return () => { cancelled = true; };
-  }, [scope]);
+  }, [scope, enabled]);
 
   useEffect(() => {
-    if (!record.ready || !record.dirty || record.scope !== scope) return;
+    if (!enabled || !record.ready || !record.dirty || record.scope !== scope) return;
     const value = record.value;
     queue.current = queue.current.catch(() => {}).then(async () => {
       if (persistenceKey(`${activeCampaignId}:${key}`) !== scope) return;
-      await saveCampaignDocument(activeCampaignId, key, value);
+      if (deleteWhenNull && value === null) await deleteCampaignDocument(activeCampaignId, key);
+      else await saveCampaignDocument(activeCampaignId, key, value);
       if (legacyKeyRef.current) {
         try { window.localStorage.removeItem(legacyKeyRef.current); } catch { /* quota */ }
         legacyKeyRef.current = null;
       }
     }).catch((error) => { toast.error(`Salvataggio ${key}: ${error.message}`); });
-  }, [record.value, record.ready]);
+  }, [record.value, record.ready, enabled, deleteWhenNull]);
 
   const setValue: Dispatch<SetStateAction<T>> = (update) => setRecord((current) => ({
     ...current, dirty: true,

@@ -18,22 +18,20 @@ interface GmSectionSidebarProps {
 }
 
 const PRIMARY_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: 'chapters', label: 'Capitoli e Scene', icon: GitBranch },
+  { id: 'scene-encounter', label: 'Preparazione', icon: Play },
   { id: 'players', label: 'Schede', icon: FileText },
   { id: 'npcs', label: 'PNG', icon: Ghost },
   { id: 'monsters', label: 'Mostri', icon: Swords },
-  // "environments"/Luoghi non ha più voce attiva: il cutover spaziale porta i
-  // luoghi macro dentro Capitoli (tab 'chapters').
-  { id: 'chapters', label: 'Capitoli', icon: GitBranch },
-  { id: 'map', label: 'Mappa', icon: Map },
   { id: 'clues', label: 'Indizi', icon: Lightbulb },
-  { id: 'situations', label: 'Situazioni', icon: Scroll },
-  { id: 'combat', label: 'Combattimento', icon: Swords },
+  { id: 'equipment-catalog', label: 'Archivio Oggetti', icon: Bookmark },
 ];
 
 const SECONDARY_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
+  { id: 'map', label: 'Mappa legacy', icon: Map },
+  { id: 'situations', label: 'Eventi legacy', icon: Scroll },
   { id: 'phases', label: 'Fasi di Gioco', icon: Play },
-  { id: 'scene-encounter', label: 'Scene', icon: Play },
-  { id: 'equipment-catalog', label: 'Archivio Oggetti', icon: Bookmark },
+  { id: 'combat', label: 'Combattimento', icon: Swords },
   { id: 'visual-assets', label: 'Asset Grafici', icon: Image },
 ];
 

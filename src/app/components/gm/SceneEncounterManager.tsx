@@ -1,33 +1,18 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Eye, EyeOff, Ghost, Lightbulb, MapPin, Play, Scroll, Swords } from 'lucide-react';
+import { Ghost, Lightbulb, MapPin, Play, Scroll, Swords } from 'lucide-react';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
 import { buildActiveScenePublication } from '../../../services/campaign/activeScene';
 import { loadChapters, loadScenes } from '../../../services/supabase/entitiesService';
-import { saveCampaignDocument } from '../../../services/storage/campaignDocuments';
 import { persistenceKey, selectedContentMode } from '../../../services/storage/persistenceMode';
 import { isSupabaseConfigured, supabase } from '../../../lib/supabaseClient';
-import { generateUUID } from '../../../lib/uuid';
 import type { Chapter } from '../../../types/chapter';
 import type { Scene } from '../../../types/scene';
 import { useActiveScene } from '../session/useActiveScene';
 import { ActiveSceneMap } from '../session/ActiveSceneMap';
 import { EmptyState } from '../ui/EmptyState';
-import { HorrorButton } from '../ui/HorrorButton';
 import { HorrorCard } from '../ui/HorrorCard';
 import { SectionHeader } from '../ui/SectionHeader';
-
-type ActiveEncounter = {
-  id: string;
-  campaignId: string;
-  environmentId: string;
-  environmentName: string;
-  npcIds: string[];
-  monsterIds: string[];
-  clueIds: string[];
-  situationIds: string[];
-  startedAt: string;
-};
 
 type LinkedEntity = {
   id: string;
@@ -74,9 +59,8 @@ export function SceneEncounterManager() {
   const [monsters, setMonsters] = useState<LinkedEntity[]>([]);
   const [clues, setClues] = useState<LinkedEntity[]>([]);
   const [situations, setSituations] = useState<LinkedEntity[]>([]);
-  const [busy, setBusy] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const { activeScene, channelReady, publish, clear } = useActiveScene(activeCampaignId);
+  const { activeScene } = useActiveScene(activeCampaignId);
 
   useEffect(() => {
     let cancelled = false;
@@ -128,6 +112,7 @@ export function SceneEncounterManager() {
   const sceneData = useMemo(() => {
     const belongs = (item: LinkedEntity) => !!selectedScene && (
       item.sceneId === selectedScene.id
+      || (!item.sceneId && item.chapterId === selectedScene.chapterId)
       || (!item.sceneId && !!selectedScene.environmentId && item.environmentId === selectedScene.environmentId)
     );
     return {
@@ -138,52 +123,10 @@ export function SceneEncounterManager() {
     };
   }, [selectedScene, npcs, monsters, clues, situations]);
 
-  const notify = (message: string) => {
-    setToastMessage(message);
-    window.setTimeout(() => setToastMessage(null), 2600);
-  };
-
-  const publishScene = async () => {
-    if (!selectedScene || !selectedChapter || selectedScene.status !== 'ready') return;
-    setBusy(true);
-    try {
-      await publish(buildActiveScenePublication(activeCampaignId, selectedScene, selectedChapter));
-      notify(`Scena pubblicata: ${selectedScene.title}`);
-    } catch (error) {
-      setToastMessage(error instanceof Error ? error.message : 'Pubblicazione scena non riuscita.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const clearScene = async () => {
-    setBusy(true);
-    try { await clear(); notify('Scena rimossa dalla sessione.'); }
-    catch (error) { setToastMessage(error instanceof Error ? error.message : 'Rimozione scena non riuscita.'); }
-    finally { setBusy(false); }
-  };
-
-  const startEncounter = async () => {
-    if (!selectedScene) return;
-    const encounter: ActiveEncounter = {
-      id: generateUUID(),
-      campaignId: activeCampaignId,
-      environmentId: selectedScene.environmentId ?? selectedScene.id,
-      environmentName: selectedScene.title,
-      npcIds: sceneData.npcs.map(item => item.id),
-      monsterIds: sceneData.monsters.map(item => item.id),
-      clueIds: sceneData.clues.map(item => item.id),
-      situationIds: sceneData.situations.map(item => item.id),
-      startedAt: new Date().toISOString(),
-    };
-    try { await saveCampaignDocument(activeCampaignId, 'active-encounter', encounter); notify(`Encounter avviato: ${selectedScene.title}`); }
-    catch (error) { setToastMessage(error instanceof Error ? error.message : 'Salvataggio encounter non riuscito.'); }
-  };
-
   return (
     <div className="space-y-6">
       <HorrorCard className="p-6">
-        <SectionHeader title="Scene & Encounter" description="Pubblica una Scena preparata nella sessione live o avvia il relativo incontro." icon={<Play className="h-8 w-8" />} />
+        <SectionHeader title="Scene & Encounter" description="Consulta la Scena e le entita collegate durante la sessione." icon={<Play className="h-8 w-8" />} />
         <select value={selectedSceneId} onChange={event => setSelectedSceneId(event.target.value)} className="w-full rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text)]">
           <option value="">Seleziona scena...</option>
           {orderedScenes.map(scene => <option key={scene.id} value={scene.id}>{chapters.find(chapter => chapter.id === scene.chapterId)?.title ?? 'Capitolo'} · {scene.title} ({scene.status === 'ready' ? 'pronta' : scene.status === 'completed' ? 'conclusa' : 'preparazione'})</option>)}
@@ -205,13 +148,6 @@ export function SceneEncounterManager() {
                 <span className="rounded-full border border-[var(--dash-border-soft)] px-3 py-1 text-xs text-[var(--dash-muted)]">{selectedScene.status === 'ready' ? 'Pronta' : selectedScene.status === 'completed' ? 'Conclusa' : 'In preparazione'}</span>
               </div>
               {previewScene && <ActiveSceneMap scene={previewScene} />}
-              <div className="flex flex-wrap gap-3">
-                <HorrorButton type="button" onClick={() => void publishScene()} disabled={busy || !channelReady || selectedScene.status !== 'ready'}><Eye className="h-4 w-4" />{activeScene?.sceneId === selectedScene.id ? 'Ripubblica scena' : 'Pubblica in sessione'}</HorrorButton>
-                {activeScene && <HorrorButton type="button" onClick={() => void clearScene()} disabled={busy || !channelReady}><EyeOff className="h-4 w-4" />Nascondi scena attiva</HorrorButton>}
-                <HorrorButton type="button" onClick={() => void startEncounter()} disabled={busy}><Play className="h-4 w-4" />Avvia encounter</HorrorButton>
-              </div>
-              {selectedScene.status !== 'ready' && <p className="text-xs text-amber-300">Imposta la Scena come “Pronta” nel Capitolo prima di pubblicarla.</p>}
-              {!channelReady && <p className="text-xs text-[var(--dash-muted)]">Connessione alla sessione live in corso...</p>}
             </div>
           </HorrorCard>
 

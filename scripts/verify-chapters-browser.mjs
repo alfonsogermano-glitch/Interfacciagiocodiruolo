@@ -12,6 +12,10 @@ const store = () => window.__CM.store;
 export async function loadChapters(campaignId) { return store().chapters.filter(c => c.campaignId === campaignId); }
 export async function loadEnvironments(campaignId) { return store().environments.filter(e => !e.campaignId || e.campaignId === campaignId); }
 export async function loadScenes(campaignId) { return store().scenes.filter(s => s.campaignId === campaignId); }
+export async function loadNPCs() { return store().npcs; }
+export async function loadMonsters() { return store().monsters; }
+export async function loadClues() { return store().clues; }
+export async function loadSituations() { return store().situations; }
 const upsert = (rows, row) => { const i = rows.findIndex(r => r.id === row.id); if (i >= 0) rows[i] = row; else rows.push(row); };
 export async function saveChapter(campaignId, chapter) {
   window.__CM.savedChapters.push(chapter);
@@ -28,6 +32,10 @@ export async function reorderScenes(campaignId, scenes) {
   store().scenes.push(...scenes);
   return scenes;
 }
+export async function saveNPC(campaignId, npc) { upsert(store().npcs, npc); }
+export async function saveMonster(campaignId, monster) { upsert(store().monsters, monster); }
+export async function saveClue(campaignId, clue) { upsert(store().clues, clue); }
+export async function saveSituation(campaignId, situation) { upsert(store().situations, situation); }
 export async function loadEquipmentCatalog() { return []; }
 `,
   sonner: `export const toast = { success() {}, error() {}, info() {}, warning() {}, message() {} };`,
@@ -55,7 +63,7 @@ const source = bundle.outputFiles[0].text;
 //     dirette verso i Capitoli.
 const sidebar = readFileSync('src/app/layout/GmSectionSidebar.tsx', 'utf8');
 assert.ok(!/\{\s*id:\s*'environments'/.test(sidebar), 'la sidebar non deve piu avere la voce Luoghi/environments');
-assert.ok(/id:\s*'chapters',\s*label:\s*'Capitoli'/.test(sidebar), 'la voce Capitoli resta attiva nella sidebar');
+assert.ok(/PRIMARY_SECTIONS[^]*?id:\s*'chapters',\s*label:\s*'Capitoli e Scene'/.test(sidebar), 'Capitoli e Scene apre la navigazione primaria');
 const app = readFileSync('src/app/App.tsx', 'utf8');
 assert.ok(!app.includes('<EnvironmentManager'), 'App non monta piu EnvironmentManager');
 assert.ok(app.includes("tabId === 'environments'"), 'tab legacy environments mappato su chapters');
@@ -85,6 +93,8 @@ try {
       campaignId, rootId, childId, secondRootId, savedChapters: [], savedScenes: [],
       store: {
         chapters: [], scenes: [],
+        npcs: [{ id: 'npc-1', campaignId, name: 'Dottor West', role: 'Medico', description: '', personality: '', secrets: '', location: '', chapterId: null, sceneId: null }],
+        monsters: [], clues: [], situations: [],
         environments: [
           env(rootId, 'Manicomio di Arkham', null, 'https://maps.example/manicomio.png'),
           env(childId, 'Camera 3', rootId),
@@ -130,7 +140,7 @@ try {
   const text = () => browser.evaluate(() => window.__CM.host.textContent);
   const scope = (expression) => `(() => { const host = window.__CM.host; ${expression} })()`;
 
-  await poll(() => window.__CM.host.textContent.includes('Macro-luoghi e mappe della campagna'), 'intestazione Capitoli');
+  await poll(() => window.__CM.host.textContent.includes('Struttura narrativa, mappe generali e focus giocabili'), 'intestazione Capitoli e Scene');
 
   // 1) Conversione client: radici -> Capitoli, discendenti -> Scene.
   const converted = await browser.evaluate(() => ({
@@ -167,13 +177,25 @@ try {
     card.closest('div.cursor-pointer').click();
     return true;
   `));
+  await browser.evaluate(scope(`[...host.querySelectorAll('button')].find(b => b.textContent.trim() === 'Scene').click(); return true;`));
   await poll(() => window.__CM.host.textContent.includes('Scene del capitolo'), 'sezione Scene del capitolo');
   assert.ok(await browser.evaluate(scope(`return [...host.querySelectorAll('button')].some(b => b.textContent.includes('Camera 3'))`)), 'la scena convertita e selezionabile');
   assert.equal(await browser.evaluate(scope(`return [...host.querySelectorAll('section select')].some(select => /luogo|ambiente/i.test(select.textContent)) ? 1 : 0`)), 0, 'nessun selettore Luogo nella scena');
   assert.ok(await browser.evaluate(scope(`return !!host.querySelector('img[src*="manicomio.png"]')`)), 'anteprima mappa del macro-luogo');
 
+  // Il contenuto nasce in archivio e puo' essere assegnato alla mappa generale.
+  await browser.evaluate(scope(`[...host.querySelectorAll('button')].find(b => b.textContent.trim() === 'Contenuti').click(); return true;`));
+  await browser.evaluate(scope(`
+    const select=host.querySelector('select[aria-label="Aggiungi PNG"]');
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'npc-1');
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+    return true;
+  `));
+  await poll(() => window.__CM.store.npcs[0]?.chapterId === window.__CM.rootId && !window.__CM.store.npcs[0]?.sceneId, 'assegnazione PNG al Capitolo');
+
   // 3) Editor Capitolo: mappa generale + griglia.
   await browser.evaluate(scope(`host.querySelector('div.mb-6.flex.items-start.justify-between button').click(); return true;`));
+  await browser.evaluate(scope(`[...host.querySelectorAll('button')].find(b => b.textContent.trim() === 'Mappa').click(); return true;`));
   const mapLabel = await poll(scope(`const label=[...host.querySelectorAll('label')].find(l => l.textContent.includes('URL immagine mappa')); return label ? 1 : 0`), 'form mappa macro-luogo');
   assert.equal(mapLabel, 1);
   await browser.evaluate(scope(`
@@ -199,17 +221,17 @@ try {
   assert.equal(chapterSaved.mapMetadata.imageUrl, 'https://maps.example/nuova-mappa.png', 'imageUrl sincronizzato in mapMetadata');
 
   // 4) Nuova Scena: regione rettangolare + variante contestuale, nessun Luogo.
+  await browser.evaluate(scope(`[...host.querySelectorAll('button')].find(b => b.textContent.trim() === 'Scene').click(); return true;`));
   await poll(() => window.__CM.host.textContent.includes('Nuova scena'), 'pulsante Nuova scena');
   await browser.evaluate(scope(`
     [...host.querySelectorAll('button')].find(b => b.textContent.includes('Nuova scena')).click();
     return true;
   `));
-  await poll(scope(`return host.textContent.includes('Regioni sulla mappa') ? 1 : 0`), 'pannello regioni');
-  assert.equal(await browser.evaluate(scope(`return [...host.querySelectorAll('section select')].some(select => /luogo|ambiente/i.test(select.textContent)) ? 1 : 0`)), 0, 'la scena non ha selettore ambiente');
+  assert.equal(await browser.evaluate(scope(`return [...host.querySelectorAll('[data-chapter-scenes-editor] select')].some(select => /luogo|ambiente/i.test(select.textContent)) ? 1 : 0`)), 0, 'la scena non ha selettore ambiente');
   const setSceneField = async (labelText, value) => {
     await browser.evaluate(scope(`
       const set=(el,v)=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,v);el.dispatchEvent(new Event('input',{bubbles:true}));};
-      const section=host.querySelector('section');
+      const section=host.querySelector('[data-chapter-scenes-editor]');
       const label=[...section.querySelectorAll('label')].find(l=>l.textContent.includes(${JSON.stringify(labelText)}));
       set(label.querySelector('input'),${JSON.stringify(value)});
       return true;
@@ -220,17 +242,41 @@ try {
   await setSceneField('Momento del giorno', 'Notte');
   await setSceneField('Periodo', 'Dopo epidemia');
   await browser.evaluate(scope(`
-    const section=host.querySelector('section');
+    const editor=host.querySelector('[data-chapter-scenes-editor]');
+    [...editor.querySelectorAll('button')].find(b => b.textContent.trim() === 'Contenuti').click();
+    return true;
+  `));
+  await browser.evaluate(scope(`
+    const select=host.querySelector('[data-chapter-scenes-editor] select[aria-label="Aggiungi PNG"]');
+    Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'npc-1');
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+    return true;
+  `));
+  const focusedNpc = await poll(() => window.__CM.store.npcs[0]?.sceneId ? window.__CM.store.npcs[0] : null, 'spostamento PNG nella Scena');
+  assert.equal(focusedNpc.chapterId, '7e347267-2e36-4a20-8ab6-be39aa866560', 'il focus conserva il Capitolo padre');
+  await browser.evaluate(scope(`
+    host.querySelector('[data-chapter-scenes-editor] button[aria-label="Rimuovi Dottor West"]').click();
+    return true;
+  `));
+  await poll(() => window.__CM.store.npcs[0]?.chapterId === window.__CM.rootId && !window.__CM.store.npcs[0]?.sceneId, 'ritorno PNG al Capitolo');
+  await browser.evaluate(scope(`
+    const editor=host.querySelector('[data-chapter-scenes-editor]');
+    [...editor.querySelectorAll('button')].find(b => b.textContent.trim() === 'Mappa').click();
+    return true;
+  `));
+  await poll(scope(`return host.textContent.includes('Regioni sulla mappa') ? 1 : 0`), 'pannello regioni');
+  await browser.evaluate(scope(`
+    const section=host.querySelector('[data-chapter-scenes-editor]');
     [...section.querySelectorAll('button')].find(b=>b.textContent.includes('Area')).click();
     return true;
   `));
   await poll(scope(`
-    const numbers=[...window.__CM.host.querySelector('section').querySelectorAll('input[type=number]')];
+    const numbers=[...window.__CM.host.querySelector('[data-chapter-scenes-editor]').querySelectorAll('input[type=number]')];
     return numbers.length === 4 ? 1 : 0;
   `), 'quattro coordinate della regione');
   await browser.evaluate(scope(`
     const set=(el,v)=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,v);el.dispatchEvent(new Event('input',{bubbles:true}));};
-    const section=host.querySelector('section');
+    const section=host.querySelector('[data-chapter-scenes-editor]');
     const numbers=[...section.querySelectorAll('input[type=number]')];
     set(numbers[2],'35');
     [...section.querySelectorAll('button')].find(b=>b.textContent.includes('Salva')).click();

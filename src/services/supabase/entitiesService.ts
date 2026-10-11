@@ -241,6 +241,7 @@ export interface NPC {
   tokenBorderVisible?: boolean | null;
   environmentId?: string | null;
   chapterId?: string | null;
+  sceneId?: string | null;
 
   name: string;
   role: string;
@@ -579,6 +580,7 @@ export interface Monster {
   tokenBorderVisible?: boolean | null;
   baseMonsterId?: string | null;
   chapterId?: string | null;
+  sceneId?: string | null;
   environmentId?: string | null;
   mapLocationId?: string | null;
   isDirty?: boolean;
@@ -1059,6 +1061,7 @@ export interface Clue {
   id: string;
   campaignId: string;
   chapterId?: string | null;
+  sceneId?: string | null;
   environmentId?: string | null;
   title: string;
   description: string;
@@ -1152,6 +1155,7 @@ export interface Situation {
   id: string;
   campaignId: string;
   chapterId?: string | null;
+  sceneId?: string | null;
   environmentId?: string | null;
   title: string;
   trigger: string;

@@ -185,7 +185,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
             <button
               type="button"
               onClick={() => { setCampaignFormError(null); setShowCampaignForm(true); }}
-              className="group relative overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-gradient-to-br from-indigo-600 to-indigo-950 p-6 text-left text-white shadow-lg transition-all hover:-translate-y-1 hover:shadow-2xl"
+              className="group relative overflow-hidden rounded-2xl border-2 border-[var(--dash-border-soft)] bg-gradient-to-br from-indigo-600 to-indigo-950 p-6 text-left text-white shadow-lg transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
             >
               <Scroll className="mb-4 h-9 w-9" />
               <h3 className="text-lg font-semibold tracking-wide">Crea campagna</h3>
@@ -195,7 +195,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
             <button
               type="button"
               onClick={openRulesetPicker}
-              className="group relative overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-gradient-to-br from-rose-700 to-red-950 p-6 text-left text-white shadow-lg transition-all hover:-translate-y-1 hover:shadow-2xl"
+              className="group relative overflow-hidden rounded-2xl border-2 border-[var(--dash-border-soft)] bg-gradient-to-br from-rose-700 to-red-950 p-6 text-left text-white shadow-lg transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
             >
               <UserCircle2 className="mb-4 h-9 w-9" />
               <h3 className="text-lg font-semibold tracking-wide">Crea personaggio</h3>
@@ -205,7 +205,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
             <button
               type="button"
               onClick={openJoinFlow}
-              className="group relative overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-gradient-to-br from-emerald-600 to-teal-950 p-6 text-left text-white shadow-lg transition-all hover:-translate-y-1 hover:shadow-2xl"
+              className="group relative overflow-hidden rounded-2xl border-2 border-[var(--dash-border-soft)] bg-gradient-to-br from-emerald-600 to-teal-950 p-6 text-left text-white shadow-lg transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
             >
               <DoorOpen className="mb-4 h-9 w-9" />
               <h3 className="text-lg font-semibold tracking-wide">Unisciti a sessione</h3>
@@ -249,7 +249,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
               <button
                 type="button"
                 onClick={() => onEnterCampaign(mostRecentCampaign)}
-                className="w-full group relative flex flex-col overflow-hidden rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-left transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
+                className="w-full group relative flex flex-col overflow-hidden rounded-2xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] text-left transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
               >
                 <CampaignBannerDisplay
                   campaign={mostRecentCampaign}

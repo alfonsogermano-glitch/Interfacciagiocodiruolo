@@ -141,7 +141,7 @@ export function LeftSidebar({
                 <button
                   type="button"
                   onClick={() => onSelectCampaign(campaign)}
-                  className={`flex flex-col items-center justify-center gap-1 overflow-hidden rounded-lg border transition-[background-color,border-color,box-shadow] ${
+                  className={`flex flex-col items-center justify-center gap-1 overflow-hidden rounded-lg border-2 transition-[background-color,border-color,box-shadow] ${
                     campaign.logoUrl ? 'p-0' : 'px-1.5 py-2'
                   } ${
                     campaign.id === selectedCampaignId

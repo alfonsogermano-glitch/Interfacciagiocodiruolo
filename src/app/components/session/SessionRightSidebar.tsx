@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { MessageSquare, FileText, StickyNote, Dices } from 'lucide-react';
+import { MessageSquare, FileText, StickyNote, Dices, MapPinned, Swords } from 'lucide-react';
 import { SlideOverPanel } from './SlideOverPanel';
 import { SessionCharactersPanel } from './SessionCharactersPanel';
 import { SessionNotesPanel } from './SessionNotesPanel';
@@ -19,15 +19,22 @@ import {
   type ChatMessage,
 } from '../../../services/supabase/chatService';
 import type { SessionEntityOpenRequest } from '../../campaigns/CampaignHome';
+import { CombatTracker } from '../gm/CombatTracker';
+import { SceneEncounterManager } from '../gm/SceneEncounterManager';
 import './sessionPanelResize.css';
 
-type SessionPanelId = 'chat' | 'characters' | 'notes' | 'dice';
+type SessionPanelId = 'chat' | 'characters' | 'notes' | 'dice' | 'encounters' | 'combat';
 
 const ICONS: { id: SessionPanelId; label: string; icon: typeof FileText; enabled: boolean }[] = [
   { id: 'chat', label: 'Chat', icon: MessageSquare, enabled: true },
   { id: 'characters', label: 'Schede', icon: FileText, enabled: true },
   { id: 'notes', label: 'Note', icon: StickyNote, enabled: true },
   { id: 'dice', label: 'Dadi', icon: Dices, enabled: true },
+];
+
+const GM_ICONS: { id: SessionPanelId; label: string; icon: typeof FileText; enabled: boolean }[] = [
+  { id: 'encounters', label: 'Incontri', icon: MapPinned, enabled: true },
+  { id: 'combat', label: 'Combatti', icon: Swords, enabled: true },
 ];
 
 const NOTES_PANEL_STORAGE_KEY = 'hollowgate.notes.panel-width';
@@ -179,8 +186,9 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
   const [isResizingCharactersSidebar, setIsResizingCharactersSidebar] = useState(false);
 
   // Pallino "nuovi messaggi" sull'icona Chat.
-  const { activeCampaignId } = useCampaign();
+  const { activeCampaign, activeCampaignId } = useCampaign();
   const { user } = useAuth();
+  const isOwner = !!user && activeCampaign?.ownerId === user.id;
   const [chatUnread, setChatUnread] = useState(false);
   const [incomingChatMessage, setIncomingChatMessage] = useState<ChatMessage | null>(null);
   const [privateOpen, setPrivateOpen] = useState(false);
@@ -631,7 +639,7 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
     <DiceSessionProvider onRollIngested={handleRollIngested}>
       <>
         <aside className="relative z-[950] flex h-full w-20 shrink-0 flex-col items-center gap-1 border-l border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
-          {ICONS.map(({ id, label, icon: Icon, enabled }) => (
+          {(isOwner ? [...ICONS, ...GM_ICONS] : ICONS).map(({ id, label, icon: Icon, enabled }) => (
             <button
               key={id}
               type="button"
@@ -681,6 +689,8 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
           )}
           {openPanel === 'notes' && <SessionNotesPanel />}
           {openPanel === 'dice' && <SessionDicePanel />}
+          {openPanel === 'encounters' && isOwner && <div className="h-full overflow-y-auto p-6"><SceneEncounterManager /></div>}
+          {openPanel === 'combat' && isOwner && <div className="h-full overflow-y-auto p-6"><CombatTracker /></div>}
         </SlideOverPanel>
 
         <DiceRollHistoryDrawer />
