@@ -48,7 +48,9 @@ La pagina Gestione → Scene carica i Capitoli e le Scene persistenti. Soltanto 
 
 Lo snapshot contiene esclusivamente dati pubblici: identificativi, titolo e descrizione per i giocatori, Capitolo, mappa, griglia, regioni e variante contestuale. Le `notes` della Scena non vengono copiate. La migration `20261011100000_active_scene_publication.sql` consente ai membri della campagna di leggere soltanto il documento `active-scene`; gli altri `campaign_documents` e tutte le Scene sorgente restano privati del proprietario. Un vincolo JSON impedisce inoltre di inserire per errore `notes`, `gmNotes` o `sourceEnvironment` nello snapshot pubblico.
 
-Il cambio o la rimozione della Scena attiva viene persistito e inviato in tempo reale come `active_scene_change`. In `CampaignHome` i giocatori vedono lo snapshot soltanto durante una sessione attiva; il GM vede anche le note private, caricate separatamente dalla tabella Scene protetta. `active-encounter` resta un documento distinto per Combat Tracker e composizione dell'incontro.
+Il cambio o la rimozione della Scena attiva viene persistito e inviato in tempo reale come `active_scene_change`. Quando la sessione parte, `CampaignHome` lascia posto a `SessionWorkspace`: albero Capitoli/Scene a sinistra, mappa dell'ultimo Capitolo pubblicato al centro e menu sessione a destra. Il GM carica l'intero albero privato e può pubblicare una Scena pronta con un click; il giocatore riceve soltanto il Capitolo e la Scena pubblicati, senza interrogare le tabelle private. Terminare la sessione non elimina `active-scene`, così la successiva apertura ripristina l'ultima mappa giocata. `active-encounter` resta un documento distinto per Combat Tracker e composizione dell'incontro.
+
+La home della campagna non mostra più un riquadro Scena attiva. L'accesso **Gestione campagna** è nel menu a tre puntini accanto a **Invita giocatori**, immediatamente dopo **Impostazioni Campagna**.
 
 ## Persistenza
 

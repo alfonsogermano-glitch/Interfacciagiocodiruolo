@@ -45,8 +45,7 @@ import {
 import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../components/ui/paletteColors';
 import type { Character } from '../../types/character';
-import { ActiveScenePanel } from '../components/session/ActiveScenePanel';
-import { useActiveScene } from '../components/session/useActiveScene';
+import { SessionWorkspace } from '../components/session/SessionWorkspace';
 
 // Stessa funzione di MyCharactersPage.tsx (non condivisa in un modulo a
 // parte: e' un one-liner che legge il DOM, non vale la pena un import
@@ -73,6 +72,7 @@ export type SessionEntityOpenRequest = { kind: 'pg' | 'png' | 'mostro'; id: stri
 interface CampaignHomeProps {
   onGoToManagement: () => void;
   onOpenSessionEntity: (kind: 'pg' | 'png' | 'mostro', id: string) => void;
+  onSessionStateChange?: (active: boolean) => void;
 }
 
 type PlayerCharacterSummary = {
@@ -123,7 +123,7 @@ function pillClass(active: boolean) {
   }`;
 }
 
-export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: CampaignHomeProps) {
+export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionStateChange }: CampaignHomeProps) {
   const { user, session } = useAuth();
   const { activeCampaign, campaigns, joinedCampaigns, refreshCampaigns, refreshJoinedCampaigns, updateCampaign, deleteCampaign, generateInviteCode } = useCampaign();
 
@@ -209,11 +209,14 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   const lookupSeqRef = useRef(0);
   const isOwner = activeCampaign?.ownerId === user?.id;
   const sessionActive = localSessionActive ?? !!activeCampaign?.sessionActive;
-  const { activeScene } = useActiveScene(activeCampaign?.id);
 
   useEffect(() => {
     setLocalSessionActive(activeCampaign?.sessionActive ?? false);
   }, [activeCampaign?.id, activeCampaign?.sessionActive]);
+
+  useEffect(() => {
+    onSessionStateChange?.(sessionActive);
+  }, [onSessionStateChange, sessionActive]);
 
   useEffect(() => {
     if (!activeCampaign?.id) return;
@@ -1452,6 +1455,10 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
       .map(renderCard);
   }
 
+  if (sessionActive && activeCampaign) {
+    return <SessionWorkspace campaignId={activeCampaign.id} campaignName={activeCampaign.name} isOwner={isOwner} onEndSession={handleToggleSession} />;
+  }
+
   return (
     <div className="flex h-full flex-col overflow-y-auto text-left select-none">
       <div className="relative">
@@ -1486,15 +1493,6 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                 <div className="group absolute inset-x-0 bottom-2 z-40 grid grid-cols-1 gap-6 px-8 md:grid-cols-[320px_1fr]">
             <div className="flex flex-col gap-3">
               {isOwner && (
-                <>
-                <button
-                  type="button"
-                  onClick={onGoToManagement}
-                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] px-3 py-1.5 text-xs font-semibold text-[var(--dash-accent-2)] transition-colors hover:bg-[var(--dash-surface-2)]"
-                >
-                  <Settings2 className="h-3.5 w-3.5" />
-                  Gestione campagna
-                </button>
                 <div className="flex gap-2">
                 <button
                   type="button"
@@ -1567,6 +1565,12 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                       >
                         <Pencil className="h-4 w-4" /> Impostazioni Campagna
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={onGoToManagement}
+                        className="text-[var(--dash-text)] focus:bg-[var(--dash-surface-2)] focus:text-[var(--dash-text-strong)]"
+                      >
+                        <Settings2 className="h-4 w-4" /> Gestione campagna
+                      </DropdownMenuItem>
                       <DropdownMenuItem disabled className="text-[var(--dash-text)]">
                         <Copy className="h-4 w-4" /> Duplica Campagna
                         <span className="ml-auto text-[10px] text-[var(--dash-muted)]">Prossimamente</span>
@@ -1595,7 +1599,6 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                   </DropdownMenu>
                 )}
                 </div>
-                </>
               )}
             </div>
 
@@ -1630,9 +1633,6 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
           (pt-6), a compensare lo spazio gia' presente sotto la riga
           overlay del banner (ora bottom-2, altezza-indipendente). */}
       <div className="flex flex-1 flex-col gap-6 p-8 pt-1">
-      {activeCampaign && activeScene && (isOwner || sessionActive) && (
-        <ActiveScenePanel campaignId={activeCampaign.id} scene={activeScene} isOwner={isOwner} />
-      )}
       {playersLoaded && (
         <div className="grid w-full grid-cols-1 gap-6 md:grid-cols-[320px_1fr]">
           {/* Colonna 1: card GM compatta (non il riquadro verticale con

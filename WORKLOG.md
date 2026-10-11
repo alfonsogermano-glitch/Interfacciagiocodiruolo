@@ -21,19 +21,23 @@ Ultimo aggiornamento: 2026-10-11
    aggiornamenti, nasconde la Scena attiva e continua ad avviare encounter con
    PNG/mostri/indizi/situazioni assegnati alla Scena. L'editor del Capitolo ora
    consente di impostare esplicitamente Preparazione/Pronta/Conclusa.
-3. `active_scene_change` usa il canale realtime condiviso. `CampaignHome`
-   mostra ai giocatori la Scena solo durante la sessione attiva; mappa e regioni
-   sono pubbliche, mentre il GM carica le note private separatamente dalla
-   tabella Scene owner-only.
+3. `active_scene_change` usa il canale realtime condiviso. Avviando la sessione
+   `CampaignHome` viene sostituita da `SessionWorkspace`: albero Capitoli/Scene
+   a sinistra, mappa dell'ultimo Capitolo pubblicato al centro e sidebar
+   sessione a destra. Il GM carica l'intero albero owner-only e pubblica una
+   Scena pronta con un click; il giocatore vede solo il ramo pubblicato e non
+   interroga Capitoli/Scene private. `active-scene` non viene cancellata alla
+   chiusura, quindi la prossima sessione riparte dall'ultima mappa giocata.
 4. Migration `20261011100000_active_scene_publication.sql`: policy SELECT per
    i membri limitata al solo `active-scene`; scritture sempre owner-only;
    constraint JSON vieta `notes`, `gmNotes` e `sourceEnvironment`. Migration
    idempotente, applicata con successo al progetto Supabase.
 5. Test: `verify:active-scene` PASS su PGlite (RLS, isolamento documenti,
    member read-only, shape pubblica, idempotenza); `verify:active-scene-browser`
-   PASS in Chromium (mappa/regione, contenuti giocatore, nessun load delle
-   Scene private lato player, note visibili solo al GM). Typecheck, precheck e
-   smoke Capitoli PASS.
+   PASS in Chromium (workspace, albero completo GM, ramo pubblico player,
+   mappa/regione, cambio Scena e nessun load privato lato player). La home non
+   mostra più la Scena attiva; **Gestione campagna** è nel menu a tre puntini,
+   subito dopo **Impostazioni Campagna**. Typecheck e smoke Capitoli PASS.
 
 ### Cutover spaziale client: Environment -> Capitolo macro-luogo (2026-10-10)
 Request dell'utente: completare il cutover spaziale gia' in corso (migration SQL

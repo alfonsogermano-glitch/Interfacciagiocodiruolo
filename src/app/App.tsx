@@ -215,6 +215,7 @@ function AuthGate() {
   // SessionRightSidebar si riattivi anche ri-cliccando la stessa entita'.
   const [sessionEntityRequestSeq, setSessionEntityRequestSeq] = useState(0);
   const [sessionEntityOpenRequest, setSessionEntityOpenRequest] = useState<SessionEntityOpenRequest | null>(null);
+  const [sessionWorkspaceActive, setSessionWorkspaceActive] = useState(false);
   const openSessionEntity = (kind: SessionEntityOpenRequest['kind'], id: string) => {
     const requestId = sessionEntityRequestSeq + 1;
     setSessionEntityRequestSeq(requestId);
@@ -330,21 +331,25 @@ function AuthGate() {
     setRightSidebarContext(null);
     if (campaign) {
       setActiveCampaign(campaign);
+      setSessionWorkspaceActive(!!campaign.sessionActive);
       sessionStorage.setItem(VIEW_LS_KEY, 'campaign-home');
       setView('campaign-home');
     } else {
+      setSessionWorkspaceActive(false);
       sessionStorage.setItem(VIEW_LS_KEY, 'dashboard');
       setView('dashboard');
     }
   };
 
   const goToManagement = () => {
+    setSessionWorkspaceActive(false);
     changeActiveGmTab('map');
     sessionStorage.setItem(VIEW_LS_KEY, 'dashboard');
     setView('dashboard');
   };
 
   const goToHome = () => {
+    setSessionWorkspaceActive(false);
     setRightSidebarContext(null);
     sessionStorage.setItem(VIEW_LS_KEY, 'home');
     setView('home');
@@ -382,7 +387,7 @@ function AuthGate() {
     <>
       <AppShell
         settings={dashboardSettings}
-        leftSidebar={
+        leftSidebar={view === 'campaign-home' && sessionWorkspaceActive ? null : (
           <LeftSidebar
             view={view}
             activeSection={view === 'dashboard' ? activeGmTab : null}
@@ -394,7 +399,7 @@ function AuthGate() {
             selectedCampaignId={selectedCampaignId}
             onSelectCampaign={(campaign) => goToDashboard(campaign)}
           />
-        }
+        )}
         rightSidebar={
           <Suspense fallback={<LazyFeatureFallback />}>
             {view === 'dashboard' && !['characters', 'campaigns'].includes(activeGmTab) ? (
@@ -422,7 +427,7 @@ function AuthGate() {
           />
         ) : view === 'campaign-home' ? (
           <Suspense fallback={<LazyFeatureFallback />}>
-            <CampaignHome onGoToManagement={goToManagement} onOpenSessionEntity={openSessionEntity} />
+            <CampaignHome onGoToManagement={goToManagement} onOpenSessionEntity={openSessionEntity} onSessionStateChange={setSessionWorkspaceActive} />
           </Suspense>
         ) : (
           <Dashboard
