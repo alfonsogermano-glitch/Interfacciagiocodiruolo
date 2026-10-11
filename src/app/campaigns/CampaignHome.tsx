@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Fragment } from 'react';
 import {
   Play, Square, Loader2, AlertTriangle, Users, Ghost, Skull,
   KeyRound, Check, MoreVertical, Pencil, UserCog, FileDown, Trash2, UserMinus, Undo2,
-  LayoutGrid, Package, X,
+  LayoutGrid, Package, Settings2, X,
 } from 'lucide-react';
 import { Copy, CopyPlus } from '@/app/components/IconeCopia';
 import { useAuth } from '../auth/AuthContext';
@@ -1486,6 +1486,15 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                 <div className="group absolute inset-x-0 bottom-2 z-40 grid grid-cols-1 gap-6 px-8 md:grid-cols-[320px_1fr]">
             <div className="flex flex-col gap-3">
               {isOwner && (
+                <>
+                <button
+                  type="button"
+                  onClick={onGoToManagement}
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-[var(--dash-accent)] bg-[var(--dash-panel)] px-3 py-1.5 text-xs font-semibold text-[var(--dash-accent-2)] transition-colors hover:bg-[var(--dash-surface-2)]"
+                >
+                  <Settings2 className="h-3.5 w-3.5" />
+                  Gestione campagna
+                </button>
                 <div className="flex gap-2">
                 <button
                   type="button"
@@ -1585,8 +1594,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
-              </div>
-            )}
+                </div>
+                </>
+              )}
             </div>
 
             <div className="flex flex-wrap justify-end gap-2">

@@ -38,6 +38,7 @@ assert.match(managerSource, /await publish\(buildActiveScenePublication/, 'pubbl
 assert.match(managerSource, /await clear\(\)/, 'rimozione della scena attiva disponibile');
 assert.ok(!/notes:\s*scene\.notes/.test(publicationSource), 'le note GM non entrano nello snapshot pubblico');
 assert.match(homeSource, /activeScene && \(isOwner \|\| sessionActive\)/, 'il giocatore vede la scena solo durante la sessione');
+assert.match(homeSource, /onClick=\{onGoToManagement\}/, 'il GM ha un accesso visibile alla Gestione campagna');
 
 const source = bundle.outputFiles[0].text;
 const browser = await startNoteBrowser();
