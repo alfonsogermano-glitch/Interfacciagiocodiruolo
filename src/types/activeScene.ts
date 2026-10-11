@@ -1,0 +1,36 @@
+import type { ChapterMapMetadata, SceneContextMetadata, SceneMapRegion } from './mapGeometry';
+
+/** Snapshot pubblico e immutabile della Scena pubblicata in sessione. */
+export interface ActiveScenePublication {
+  id: string;
+  campaignId: string;
+  sceneId: string;
+  chapterId: string;
+  title: string;
+  description: string;
+  chapterTitle: string;
+  mapUrl: string | null;
+  sceneImageUrl: string | null;
+  mapMetadata: ChapterMapMetadata;
+  mapRegions: SceneMapRegion[];
+  contextMetadata: SceneContextMetadata;
+  publishedAt: string;
+}
+
+export function isActiveScenePublication(value: unknown): value is ActiveScenePublication {
+  if (!value || typeof value !== 'object') return false;
+  const item = value as Record<string, unknown>;
+  return typeof item.id === 'string'
+    && typeof item.campaignId === 'string'
+    && typeof item.sceneId === 'string'
+    && typeof item.chapterId === 'string'
+    && typeof item.title === 'string'
+    && typeof item.description === 'string'
+    && typeof item.chapterTitle === 'string'
+    && (item.mapUrl === null || typeof item.mapUrl === 'string')
+    && (item.sceneImageUrl === null || typeof item.sceneImageUrl === 'string')
+    && !!item.mapMetadata && typeof item.mapMetadata === 'object'
+    && Array.isArray(item.mapRegions)
+    && !!item.contextMetadata && typeof item.contextMetadata === 'object'
+    && typeof item.publishedAt === 'string';
+}

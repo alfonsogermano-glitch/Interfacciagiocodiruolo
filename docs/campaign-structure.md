@@ -35,12 +35,20 @@ Regole del cutover:
 
 La gestione strutturale è separata dalla sessione live:
 
-- La **Gestione campagna**, accessibile solo al GM, crea e organizza capitoli, scene, luoghi ed entità dell'archivio.
+- La **Gestione campagna**, accessibile solo al GM, crea e organizza capitoli, scene ed entità dell'archivio.
 - La **Sessione di gioco** pubblica una scena preparata e consente modifiche operative: scena attiva, token, visibilità, condizioni, valori temporanei e inserimento di entità già esistenti.
 - Gli elementi improvvisati durante la sessione appartengono inizialmente alla scena; il GM può successivamente promuoverli nell'archivio della campagna.
 - La sessione non crea o riorganizza la struttura dei capitoli.
 
 Regola architetturale: **la gestione modifica il mondo della campagna; la sessione modifica lo stato corrente della scena**.
+
+### Pubblicazione della Scena attiva
+
+La pagina Gestione → Scene carica i Capitoli e le Scene persistenti. Soltanto una Scena con stato `ready` può essere pubblicata. La pubblicazione crea un nuovo snapshot runtime `active-scene`: modificare successivamente la Scena preparata non cambia ciò che vedono i giocatori finché il GM non la ripubblica.
+
+Lo snapshot contiene esclusivamente dati pubblici: identificativi, titolo e descrizione per i giocatori, Capitolo, mappa, griglia, regioni e variante contestuale. Le `notes` della Scena non vengono copiate. La migration `20261011100000_active_scene_publication.sql` consente ai membri della campagna di leggere soltanto il documento `active-scene`; gli altri `campaign_documents` e tutte le Scene sorgente restano privati del proprietario. Un vincolo JSON impedisce inoltre di inserire per errore `notes`, `gmNotes` o `sourceEnvironment` nello snapshot pubblico.
+
+Il cambio o la rimozione della Scena attiva viene persistito e inviato in tempo reale come `active_scene_change`. In `CampaignHome` i giocatori vedono lo snapshot soltanto durante una sessione attiva; il GM vede anche le note private, caricate separatamente dalla tabella Scene protetta. `active-encounter` resta un documento distinto per Combat Tracker e composizione dell'incontro.
 
 ## Persistenza
 
@@ -62,3 +70,5 @@ La migration `supabase/migrations/20261010120000_chapters_domain_rename.sql` rin
 La migration `supabase/migrations/20261010130000_campaign_scenes.sql` crea il dominio Scene persistente, i vincoli di integrità, il cleanup dei collegamenti e le policy private del GM.
 
 La migration `supabase/migrations/20261010140000_environment_chapter_scene_cutover.sql` converte le Environment in Capitoli/Scene mantenendo le sorgenti come compatibilità, con mapping persistente e idempotente (`environment_narrative_mapping`). La conversione locale e la normalizzazione dei backup sono verificate dal verifier puro TypeScript `scripts/verify-spatial-domain-migration.mts` (`npm run verify:spatial-domain-migration`, incluso in `precheck`).
+
+La migration `supabase/migrations/20261011100000_active_scene_publication.sql` abilita la lettura member-only del solo snapshot pubblico `active-scene` e ne impone la forma sanitizzata. `scripts/verify-active-scene-publication.mjs` verifica RLS, isolamento degli altri documenti, divieto di scrittura ai membri, forma pubblica e idempotenza; `scripts/verify-active-scene-browser.mjs` verifica mappa/regioni e separazione delle note GM in Chromium.

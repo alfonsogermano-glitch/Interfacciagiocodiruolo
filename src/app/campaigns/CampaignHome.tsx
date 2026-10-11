@@ -45,6 +45,8 @@ import {
 import { CharacterCreationWizard } from '../components/gm/CharacterCreationWizard';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../components/ui/paletteColors';
 import type { Character } from '../../types/character';
+import { ActiveScenePanel } from '../components/session/ActiveScenePanel';
+import { useActiveScene } from '../components/session/useActiveScene';
 
 // Stessa funzione di MyCharactersPage.tsx (non condivisa in un modulo a
 // parte: e' un one-liner che legge il DOM, non vale la pena un import
@@ -207,6 +209,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
   const lookupSeqRef = useRef(0);
   const isOwner = activeCampaign?.ownerId === user?.id;
   const sessionActive = localSessionActive ?? !!activeCampaign?.sessionActive;
+  const { activeScene } = useActiveScene(activeCampaign?.id);
 
   useEffect(() => {
     setLocalSessionActive(activeCampaign?.sessionActive ?? false);
@@ -1617,6 +1620,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity }: Campaign
           (pt-6), a compensare lo spazio gia' presente sotto la riga
           overlay del banner (ora bottom-2, altezza-indipendente). */}
       <div className="flex flex-1 flex-col gap-6 p-8 pt-1">
+      {activeCampaign && activeScene && (isOwner || sessionActive) && (
+        <ActiveScenePanel campaignId={activeCampaign.id} scene={activeScene} isOwner={isOwner} />
+      )}
       {playersLoaded && (
         <div className="grid w-full grid-cols-1 gap-6 md:grid-cols-[320px_1fr]">
           {/* Colonna 1: card GM compatta (non il riquadro verticale con

@@ -401,3 +401,15 @@ CREATE TRIGGER update_visual_assets_updated_at BEFORE UPDATE ON visual_assets
 -- =====================================================
 -- NOTA: Le policy RLS vanno configurate tramite l'interfaccia Supabase
 -- per gestire i permessi di accesso ai dati per campagna
+-- Active Scene publication: campaign_documents remains owner-writable, while
+-- campaign members may read only the sanitized live snapshot.
+drop policy if exists campaign_documents_active_scene_member_read on public.campaign_documents;
+create policy campaign_documents_active_scene_member_read on public.campaign_documents
+  for select to authenticated using (
+    document_key = 'active-scene'
+    and exists (
+      select 1 from public.campaign_members member
+      where member.campaign_id = campaign_documents.campaign_id
+        and member.profile_id::text = (select auth.uid())::text
+    )
+  );

@@ -169,7 +169,7 @@ try {
   `));
   await poll(() => window.__CM.host.textContent.includes('Scene del capitolo'), 'sezione Scene del capitolo');
   assert.ok(await browser.evaluate(scope(`return [...host.querySelectorAll('button')].some(b => b.textContent.includes('Camera 3'))`)), 'la scena convertita e selezionabile');
-  assert.equal(await browser.evaluate(scope(`return host.querySelector('section select') ? 1 : 0`)), 0, 'nessun selettore Luogo nella scena');
+  assert.equal(await browser.evaluate(scope(`return [...host.querySelectorAll('section select')].some(select => /luogo|ambiente/i.test(select.textContent)) ? 1 : 0`)), 0, 'nessun selettore Luogo nella scena');
   assert.ok(await browser.evaluate(scope(`return !!host.querySelector('img[src*="manicomio.png"]')`)), 'anteprima mappa del macro-luogo');
 
   // 3) Editor Capitolo: mappa generale + griglia.
@@ -205,7 +205,7 @@ try {
     return true;
   `));
   await poll(scope(`return host.textContent.includes('Regioni sulla mappa') ? 1 : 0`), 'pannello regioni');
-  assert.equal(await browser.evaluate(scope(`return host.querySelector('section select') ? 1 : 0`)), 0, 'la scena non ha selettore ambiente');
+  assert.equal(await browser.evaluate(scope(`return [...host.querySelectorAll('section select')].some(select => /luogo|ambiente/i.test(select.textContent)) ? 1 : 0`)), 0, 'la scena non ha selettore ambiente');
   const setSceneField = async (labelText, value) => {
     await browser.evaluate(scope(`
       const set=(el,v)=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,v);el.dispatchEvent(new Event('input',{bubbles:true}));};

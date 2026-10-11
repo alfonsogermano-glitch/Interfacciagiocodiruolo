@@ -1,6 +1,6 @@
 # WORKLOG — Stato progetto & consigli di workflow
 
-Ultimo aggiornamento: 2026-10-10
+Ultimo aggiornamento: 2026-10-11
 
 ## Stato attuale (verde)
 
@@ -10,6 +10,30 @@ Ultimo aggiornamento: 2026-10-10
 - **Deploy production Vercel**: auto-deploy a ogni push su `main` (nessuna preview).
 
 ## Cosa è stato fatto di recente
+
+### Pubblicazione della Scena nella sessione live (2026-10-11)
+1. Aggiunto lo snapshot runtime pubblico `ActiveScenePublication`: contiene
+   titolo/descrizione giocatori, Capitolo, mappa/griglia, regioni e contesto,
+   ma non le note GM. Pubblicazione e rimozione usano il documento campagna
+   `active-scene`; `active-encounter` resta invariato per il Combat Tracker.
+2. `SceneEncounterManager` ora seleziona Scene/Capitoli canonici invece delle
+   Environment, pubblica solo Scene in stato `ready`, ripubblica gli
+   aggiornamenti, nasconde la Scena attiva e continua ad avviare encounter con
+   PNG/mostri/indizi/situazioni assegnati alla Scena. L'editor del Capitolo ora
+   consente di impostare esplicitamente Preparazione/Pronta/Conclusa.
+3. `active_scene_change` usa il canale realtime condiviso. `CampaignHome`
+   mostra ai giocatori la Scena solo durante la sessione attiva; mappa e regioni
+   sono pubbliche, mentre il GM carica le note private separatamente dalla
+   tabella Scene owner-only.
+4. Migration `20261011100000_active_scene_publication.sql`: policy SELECT per
+   i membri limitata al solo `active-scene`; scritture sempre owner-only;
+   constraint JSON vieta `notes`, `gmNotes` e `sourceEnvironment`. Migration
+   idempotente, applicata con successo al progetto Supabase.
+5. Test: `verify:active-scene` PASS su PGlite (RLS, isolamento documenti,
+   member read-only, shape pubblica, idempotenza); `verify:active-scene-browser`
+   PASS in Chromium (mappa/regione, contenuti giocatore, nessun load delle
+   Scene private lato player, note visibili solo al GM). Typecheck, precheck e
+   smoke Capitoli PASS.
 
 ### Cutover spaziale client: Environment -> Capitolo macro-luogo (2026-10-10)
 Request dell'utente: completare il cutover spaziale gia' in corso (migration SQL

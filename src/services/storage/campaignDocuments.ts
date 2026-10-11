@@ -16,3 +16,9 @@ export async function saveCampaignDocument<T>(campaignId: string, key: string, v
   const { error } = await supabase.from('campaign_documents').upsert({ campaign_id: campaignId, document_key: key, payload: value, updated_at: new Date().toISOString() }, { onConflict: 'campaign_id,document_key' });
   if (error) throw new Error(error.message);
 }
+
+export async function deleteCampaignDocument(campaignId: string, key: string): Promise<void> {
+  if (!supabase) throw new Error('Archivio non disponibile');
+  const { error } = await supabase.from('campaign_documents').delete().eq('campaign_id', campaignId).eq('document_key', key);
+  if (error) throw new Error(error.message);
+}

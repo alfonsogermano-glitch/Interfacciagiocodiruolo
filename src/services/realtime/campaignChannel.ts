@@ -25,6 +25,7 @@ type BroadcastEvent =
   | 'UPDATE'
   | 'DELETE'
   | 'session_change'
+  | 'active_scene_change'
   | 'members_change'
   | 'notes_change'
   | 'dice_roll'
@@ -38,6 +39,7 @@ const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = [
   'UPDATE',
   'DELETE',
   'session_change',
+  'active_scene_change',
   'members_change',
   'notes_change',
   'dice_roll',
