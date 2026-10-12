@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Boxes, Clapperboard, GitBranch, LayoutDashboard, Map as MapIcon, Plus, Edit2, Trash2, Star, Waypoints } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Boxes, Clapperboard, GitBranch, LayoutDashboard, Map as MapIcon, PanelLeftClose, PanelLeftOpen, Plus, Edit2, Save, Star, Trash2, Upload, Waypoints, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
 import type { Chapter, ChapterKind } from '../../../types/chapter';
 import type { Scene } from '../../../types/scene';
@@ -11,8 +12,9 @@ import {
   saveScene as saveSceneToSupabase,
   deleteChapter as deleteChapterFromSupabase
 } from '../../../services/supabase/entitiesService';
-import { persistenceKey } from '../../../services/storage/persistenceMode';
+import { persistenceKey, persistenceOwner } from '../../../services/storage/persistenceMode';
 import { generateUUID } from '../../../lib/uuid';
+import { uploadContentAsset } from '../../../services/storage/contentAssets';
 import { LEGACY_CHAPTER_STORAGE_KEYS, normalizeLegacyChapterValue } from '../../../services/campaign/chapterMigration';
 import { ChapterScenesEditor } from './ChapterScenesEditor';
 import { NarrativeScopeContent } from './NarrativeScopeContent';
@@ -42,6 +44,36 @@ interface ChapterManagerProps {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function canvasToWebp(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => canvas.toBlob(
+    blob => blob ? resolve(blob) : reject(new Error('Ottimizzazione mappa non riuscita.')),
+    'image/webp',
+    quality,
+  ));
+}
+
+async function createMapRenditions(file: File): Promise<{ preview: Blob; display: Blob }> {
+  const bitmap = await createImageBitmap(file);
+  const render = (maxEdge: number) => {
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Elaborazione mappa non disponibile.');
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  };
+  try {
+    const displayCanvas = render(4096);
+    const previewCanvas = render(1200);
+    const [display, preview] = await Promise.all([canvasToWebp(displayCanvas, 0.82), canvasToWebp(previewCanvas, 0.78)]);
+    return { display, preview };
+  } finally {
+    bitmap.close();
+  }
 }
 
 function readStoredChapters(key: string): Chapter[] {
@@ -88,7 +120,11 @@ export function ChapterManager({
   );
 
   const [isEditing, setIsEditing] = useState(false);
+  const [chapterDraft, setChapterDraft] = useState<Chapter | null>(null);
+  const [isUploadingMap, setIsUploadingMap] = useState(false);
+  const mapFileInputRef = useRef<HTMLInputElement>(null);
   const [activePanel, setActivePanel] = useState<'overview' | 'map' | 'content' | 'scenes' | 'flow'>('overview');
+  const [chapterListCollapsed, setChapterListCollapsed] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -200,6 +236,86 @@ export function ChapterManager({
   const selectedChapter =
     filteredChapters.find(chapter => chapter.id === selectedChapterId)
     ?? null;
+  const isChapterDirty = !!selectedChapter && !!chapterDraft
+    && JSON.stringify(chapterDraft) !== JSON.stringify(selectedChapter);
+
+  useEffect(() => {
+    if (!isChapterDirty) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, [isChapterDirty]);
+
+  const discardChapterDraft = () => {
+    setChapterDraft(null);
+    setIsEditing(false);
+  };
+
+  const confirmDiscardChapterDraft = () => !isChapterDirty
+    || window.confirm('Le modifiche non salvate andranno perse. Continuare?');
+
+  const beginChapterEditing = () => {
+    if (!selectedChapter) return;
+    setChapterDraft(structuredClone(selectedChapter));
+    setIsEditing(true);
+  };
+
+  const saveChapterDraft = async () => {
+    if (!chapterDraft) return;
+    if (chapterDraft.isActive && !selectedChapter?.isActive) await setActiveChapter(chapterDraft.id);
+    await updateChapter(chapterDraft);
+    setChapterDraft(null);
+    setIsEditing(false);
+    toast.success('Capitolo salvato.');
+  };
+
+  const cancelChapterEditing = () => {
+    if (!confirmDiscardChapterDraft()) return;
+    discardChapterDraft();
+  };
+
+  const changePanel = (panel: typeof activePanel) => {
+    if (panel === activePanel) return;
+    if (isEditing) {
+      if (!confirmDiscardChapterDraft()) return;
+      discardChapterDraft();
+    }
+    setActivePanel(panel);
+  };
+
+  const handleMapFile = async (file: File | null) => {
+    if (!file || !chapterDraft) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Seleziona un file immagine valido.');
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error('La mappa non può superare 50 MB.');
+      return;
+    }
+
+    setIsUploadingMap(true);
+    try {
+      const extension = file.name.split('.').pop()?.toLowerCase() || 'png';
+      const basePath = `${persistenceOwner()}/${campaignId}/chapter-maps/${generateUUID()}`;
+      const { display, preview } = await createMapRenditions(file);
+      const [{ publicUrl }, { publicUrl: displayUrl }, { publicUrl: previewUrl }] = await Promise.all([
+        uploadContentAsset('visual-assets', `${basePath}.${extension}`, file, { contentType: file.type, upsert: false }),
+        uploadContentAsset('visual-assets', `${basePath}-display.webp`, display, { contentType: 'image/webp', upsert: false }),
+        uploadContentAsset('visual-assets', `${basePath}-preview.webp`, preview, { contentType: 'image/webp', upsert: false }),
+      ]);
+      setChapterDraft(current => current ? {
+        ...current,
+        mapUrl: publicUrl,
+        mapMetadata: { ...current.mapMetadata, imageUrl: publicUrl, displayUrl, previewUrl, source: 'upload', fileName: file.name },
+      } : current);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Caricamento mappa non riuscito.');
+    } finally {
+      setIsUploadingMap(false);
+      if (mapFileInputRef.current) mapFileInputRef.current.value = '';
+    }
+  };
 
   // Navigazione dagli archivi (Mostri/Archivio Oggetti): accetta sia target
   // "chapter" sia target legacy "environment", mappando i vecchi ID tramite i
@@ -215,6 +331,7 @@ export function ChapterManager({
 
     setSelectedChapterId(target.id);
     setIsEditing(false);
+    setChapterDraft(null);
     setActivePanel('overview');
   }, [navigationTarget, filteredChapters]);
 
@@ -267,6 +384,7 @@ export function ChapterManager({
     });
 
     setSelectedChapterId(newChapter.id);
+    setChapterDraft(structuredClone(newChapter));
     setIsEditing(true);
 
     try {
@@ -328,6 +446,7 @@ export function ChapterManager({
   if (selectedChapterId === id) {
     setSelectedChapterId(fallbackId);
     setIsEditing(false);
+    setChapterDraft(null);
   }
 
   try {
@@ -362,98 +481,78 @@ export function ChapterManager({
       return;
     }
 
-    const currentNext = selectedChapter.nextChapterIds ?? [];
+    const source = chapterDraft ?? selectedChapter;
+    const currentNext = source.nextChapterIds ?? [];
 
     const alreadyLinked = currentNext.includes(targetId);
 
     const updatedChapter: Chapter = {
-      ...selectedChapter,
+      ...source,
       nextChapterIds: alreadyLinked
         ? currentNext.filter(id => id !== targetId)
         : [...currentNext, targetId]
     };
 
-    updateChapter(updatedChapter);
+    setChapterDraft(updatedChapter);
   };
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <div className="space-y-4 lg:col-span-1">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-[var(--dash-text)]">Capitoli e Scene</h2>
-            <p className="text-sm text-[var(--dash-muted)]">
-              Struttura narrativa, mappe generali e focus giocabili
-            </p>
+    <div className={`grid gap-4 ${chapterListCollapsed ? 'grid-cols-[minmax(0,1fr)]' : 'grid-cols-[220px_minmax(0,1fr)]'}`}>
+      <div className={`${chapterListCollapsed ? 'hidden' : 'block'} sticky top-4 max-h-[calc(100vh-7rem)] self-start space-y-2 overflow-y-auto pr-1`}>
+        <div className="flex items-center justify-between gap-2 px-1">
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold text-[var(--dash-text-strong)]">Capitoli</h2>
+            <p className="text-[10px] uppercase tracking-[0.12em] text-[var(--dash-muted)]">{filteredChapters.length} totali</p>
           </div>
 
           <button
             onClick={addChapter}
-            className="rounded-lg border-2 border-[var(--dash-border)] bg-[var(--dash-border)] p-2 text-[var(--dash-text)] transition-colors hover:bg-[var(--dash-border)]"
+            aria-label="Nuovo capitolo"
+            title="Nuovo capitolo"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-[var(--dash-border)] bg-[var(--dash-panel)] text-[var(--dash-text)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text-strong)]"
           >
-            <Plus className="h-5 w-5" />
+            <Plus className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1">
           {filteredChapters.length === 0 ? (
-            <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-5 py-8 text-center">
-              <GitBranch className="mx-auto mb-3 h-10 w-10 text-[var(--dash-muted)]" />
-              <div className="text-xs uppercase tracking-[0.16em] text-[var(--dash-accent-2)]">
-                Nessun capitolo
-              </div>
-              <h3 className="mt-2 text-lg font-semibold text-[var(--dash-text-strong)]">
-                Struttura campagna vuota
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-[var(--dash-text)]">
-                Crea il primo capitolo e assegna, se serve, la sua mappa generale.
-              </p>
+            <div className="rounded-lg border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-3 py-5 text-center">
+              <GitBranch className="mx-auto mb-2 h-6 w-6 text-[var(--dash-muted)]" />
+              <p className="text-xs text-[var(--dash-muted)]">Nessun capitolo</p>
             </div>
           ) : (
             filteredChapters.map(chapter => (
-              <div
+              <button
+                type="button"
                 key={chapter.id}
                 onClick={() => {
+                  if (chapter.id === selectedChapterId) return;
+                  if (!confirmDiscardChapterDraft()) return;
+                  discardChapterDraft();
                   setSelectedChapterId(chapter.id);
-                  setIsEditing(false);
                   setActivePanel('overview');
                 }}
-                className={`cursor-pointer rounded-xl border p-4 transition-colors ${
+                className={`relative w-full rounded-lg border px-2.5 py-2 text-left transition-colors ${
                   selectedChapterId === chapter.id
-                    ? 'border-[var(--dash-accent)] bg-[var(--dash-panel)]'
+                    ? 'border-[var(--dash-accent)] bg-[var(--dash-panel)] shadow-[inset_3px_0_0_var(--dash-accent)]'
                     : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] hover:border-[var(--dash-accent)]'
                 }`}
               >
-                <div className="mb-2 flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="truncate font-medium text-[var(--dash-text-strong)]">
-                      {chapter.title}
-                    </h3>
-
-                    <p className="mt-1 text-sm text-[var(--dash-text)]">
-                      {getKindLabel(chapter.kind)}
-                    </p>
-                  </div>
-
-                  {chapter.isActive && (
-                    <span className="rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2 py-1 text-[10px] uppercase tracking-[0.08em] text-[var(--dash-text-strong)]">
-                      Attivo
-                    </span>
-                  )}
+                <h3 className="truncate pr-2 text-sm font-medium text-[var(--dash-text-strong)]">{chapter.title}</h3>
+                <div className="mt-1 flex items-center gap-1.5 text-[10px] text-[var(--dash-muted)]">
+                  <span>{getKindLabel(chapter.kind)}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{(chapter.nextChapterIds ?? []).length} uscite</span>
+                  {chapter.isActive && <><span aria-hidden="true">·</span><span className="text-[var(--dash-accent-2)]">Attivo</span></>}
                 </div>
-
-                <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[var(--dash-muted)]">
-                  <span className="rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-2 py-0.5">
-                    {(chapter.nextChapterIds ?? []).length} uscite
-                  </span>
-                </div>
-              </div>
+              </button>
             ))
           )}
         </div>
       </div>
 
-      <div className="lg:col-span-2">
+      <div className="min-w-0">
         {selectedChapter ? (
           <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-6">
             <div className="mb-6 flex items-start justify-between">
@@ -468,14 +567,31 @@ export function ChapterManager({
 
               <div className="flex gap-2">
                 <button
-                  onClick={() => setIsEditing(prev => !prev)}
+                  type="button"
+                  data-chapter-list-toggle
+                  onClick={() => setChapterListCollapsed(collapsed => !collapsed)}
+                  aria-label={chapterListCollapsed ? 'Mostra elenco Capitoli' : 'Nascondi elenco Capitoli'}
+                  title={chapterListCollapsed ? 'Mostra elenco Capitoli' : 'Nascondi elenco Capitoli'}
+                  className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-2 text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-accent)] hover:text-[var(--dash-text-strong)]"
+                >
+                  {chapterListCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+                </button>
+                {isEditing ? <>
+                  <button type="button" onClick={() => void saveChapterDraft()} disabled={!isChapterDirty || isUploadingMap} aria-label="Salva modifiche Capitolo" title="Salva modifiche" className="rounded-md border border-[var(--dash-accent)] bg-[var(--dash-accent)] p-2 text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-accent-2)] disabled:cursor-not-allowed disabled:opacity-40"><Save className="h-4 w-4" /></button>
+                  <button type="button" onClick={cancelChapterEditing} aria-label="Annulla modifiche Capitolo" title="Annulla modifiche" className="rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-2 text-[var(--dash-muted)] transition-colors hover:border-[var(--dash-danger-border)] hover:text-[var(--dash-danger-text)]"><X className="h-4 w-4" /></button>
+                </> : <button
+                  onClick={beginChapterEditing}
+                  aria-label="Modifica Capitolo"
+                  title="Modifica Capitolo"
                   className="rounded-md border border-[var(--dash-accent)] bg-[var(--dash-accent)] p-2 text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-accent-2)]"
                 >
                   <Edit2 className="h-4 w-4" />
-                </button>
+                </button>}
 
                 <button
   onClick={() => deleteChapter(selectedChapter.id)}
+  aria-label="Elimina Capitolo"
+  title="Elimina Capitolo"
   className="rounded-md border border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] p-2 text-[var(--dash-danger-text)] transition-colors hover:bg-[var(--dash-danger-hover)]"
 >
   <Trash2 className="h-4 w-4" />
@@ -491,25 +607,20 @@ export function ChapterManager({
                 ['scenes', 'Scene', Clapperboard],
                 ['flow', 'Diramazioni', Waypoints],
               ] as const).map(([id, label, Icon]) => (
-                <button key={id} type="button" onClick={() => setActivePanel(id)} className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs transition-colors ${activePanel === id ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]' : 'border-[var(--dash-border-soft)] bg-[var(--dash-panel)] text-[var(--dash-muted)] hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]'}`}>
+                <button key={id} type="button" onClick={() => changePanel(id)} className={`flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs transition-colors ${activePanel === id ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]' : 'border-[var(--dash-border-soft)] bg-[var(--dash-panel)] text-[var(--dash-muted)] hover:border-[var(--dash-accent)] hover:text-[var(--dash-text)]'}`}>
                   <Icon className="h-4 w-4" />{label}
                 </button>
               ))}
             </div>
 
-            {isEditing ? (
+            {isEditing && chapterDraft ? (
               <div className="space-y-4">
                 <div className={activePanel === 'overview' ? '' : 'hidden'}>
                   <label className="mb-2 block text-[var(--dash-text)]">Titolo</label>
                   <input
                     type="text"
-                    value={selectedChapter.title}
-                    onChange={e =>
-                      updateChapter({
-                        ...selectedChapter,
-                        title: e.target.value
-                      })
-                    }
+                    value={chapterDraft.title}
+                    onChange={e => setChapterDraft({ ...chapterDraft, title: e.target.value })}
                     className="w-full rounded px-3 py-2 border-2 border-[var(--dash-border)] bg-[var(--dash-input)] text-[var(--dash-text)]"
                   />
                 </div>
@@ -517,13 +628,8 @@ export function ChapterManager({
                 <div className={activePanel === 'overview' ? '' : 'hidden'}>
                   <label className="mb-2 block text-[var(--dash-text)]">Descrizione</label>
                   <textarea
-                    value={selectedChapter.description}
-                    onChange={e =>
-                      updateChapter({
-                        ...selectedChapter,
-                        description: e.target.value
-                      })
-                    }
+                    value={chapterDraft.description}
+                    onChange={e => setChapterDraft({ ...chapterDraft, description: e.target.value })}
                     className="w-full h-28 resize-none rounded px-3 py-2 border-2 border-[var(--dash-border)] bg-[var(--dash-input)] text-[var(--dash-text)]"
                   />
                 </div>
@@ -531,34 +637,24 @@ export function ChapterManager({
                 <div className={activePanel === 'overview' ? '' : 'hidden'}>
                   <label className="mb-2 block text-[var(--dash-text)]">Note GM</label>
                   <textarea
-                    value={selectedChapter.notes}
-                    onChange={e =>
-                      updateChapter({
-                        ...selectedChapter,
-                        notes: e.target.value
-                      })
-                    }
+                    value={chapterDraft.notes}
+                    onChange={e => setChapterDraft({ ...chapterDraft, notes: e.target.value })}
                     className="w-full h-28 resize-none rounded px-3 py-2 border-2 border-[var(--dash-border)] bg-[var(--dash-input)] text-[var(--dash-text)]"
                   />
                 </div>
 
                 <div className={`${activePanel === 'map' ? '' : 'hidden'} rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4`}>
                   <div className="mb-3 text-sm uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Mappa generale del capitolo</div>
-                  <label className="block text-sm text-[var(--dash-text)]">URL immagine mappa<input value={selectedChapter.mapUrl ?? ''} onChange={e => updateChapter({ ...selectedChapter, mapUrl: e.target.value || null, mapMetadata: { ...selectedChapter.mapMetadata, imageUrl: e.target.value || null } })} className="mt-1 w-full rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2" /></label>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-sm text-[var(--dash-text)]">Colonne griglia<input type="number" min={1} value={selectedChapter.mapMetadata.gridColumns} onChange={e => updateChapter({ ...selectedChapter, mapMetadata: { ...selectedChapter.mapMetadata, gridColumns: Math.max(1, Number(e.target.value) || 1) } })} className="mt-1 w-full rounded border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2" /></label><label className="text-sm text-[var(--dash-text)]">Righe griglia<input type="number" min={1} value={selectedChapter.mapMetadata.gridRows} onChange={e => updateChapter({ ...selectedChapter, mapMetadata: { ...selectedChapter.mapMetadata, gridRows: Math.max(1, Number(e.target.value) || 1) } })} className="mt-1 w-full rounded border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2" /></label></div>
-                  <label className="mt-3 flex items-center gap-2 text-sm text-[var(--dash-text)]"><input type="checkbox" checked={selectedChapter.mapMetadata.gridVisible} onChange={e => updateChapter({ ...selectedChapter, mapMetadata: { ...selectedChapter.mapMetadata, gridVisible: e.target.checked } })} />Mostra griglia</label>
+                  <label className="block text-sm text-[var(--dash-text)]">URL immagine mappa<input value={chapterDraft.mapMetadata.source === 'upload' ? '' : chapterDraft.mapUrl ?? ''} placeholder="https://..." onChange={e => setChapterDraft({ ...chapterDraft, mapUrl: e.target.value || null, mapMetadata: { ...chapterDraft.mapMetadata, imageUrl: e.target.value || null, displayUrl: null, previewUrl: null, source: 'url', fileName: null } })} className="mt-1 w-full rounded border-2 border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2" /></label>
+                  <div className="mt-3 flex flex-wrap items-center gap-2"><input ref={mapFileInputRef} type="file" accept="image/*" className="hidden" onChange={event => void handleMapFile(event.target.files?.[0] ?? null)} /><button type="button" disabled={isUploadingMap} onClick={() => mapFileInputRef.current?.click()} className="inline-flex items-center gap-2 rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-sm text-[var(--dash-text)] hover:border-[var(--dash-accent)] disabled:opacity-50"><Upload className="h-4 w-4" />{isUploadingMap ? 'Caricamento...' : 'Scegli file dal PC'}</button><span className="text-xs text-[var(--dash-muted)]">Immagini fino a 50 MB</span></div>
+                  {chapterDraft.mapMetadata.source === 'upload' && chapterDraft.mapMetadata.fileName && <p className="mt-2 truncate text-xs text-[var(--dash-muted)]" title={chapterDraft.mapMetadata.fileName}>{chapterDraft.mapMetadata.fileName}</p>}
                 </div>
 
                 <div className={activePanel === 'overview' ? '' : 'hidden'}>
                   <label className="mb-2 block text-[var(--dash-text)]">Tipo Capitolo</label>
                   <select
-                    value={selectedChapter.kind}
-                    onChange={e =>
-                      updateChapter({
-                        ...selectedChapter,
-                        kind: e.target.value as ChapterKind
-                      })
-                    }
+                    value={chapterDraft.kind}
+                    onChange={e => setChapterDraft({ ...chapterDraft, kind: e.target.value as ChapterKind })}
                     className="w-full rounded px-3 py-2 border-2 border-[var(--dash-border)] bg-[var(--dash-input)] text-[var(--dash-text)]"
                   >
                     <option value="intro">Introduttivo</option>
@@ -575,15 +671,15 @@ export function ChapterManager({
 
                     <button
                       type="button"
-                      onClick={() => setActiveChapter(selectedChapter.id)}
+                      onClick={() => setChapterDraft({ ...chapterDraft, isActive: true })}
                       className={`flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
-                        selectedChapter.isActive
+                        chapterDraft.isActive
                           ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
                           : 'border-[var(--dash-border-soft)] bg-[var(--dash-panel)] text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]'
                       }`}
                     >
                       <Star className="h-4 w-4" />
-                      {selectedChapter.isActive
+                      {chapterDraft.isActive
                         ? 'Già attivo'
                         : 'Imposta come attivo'}
                     </button>
@@ -605,7 +701,7 @@ export function ChapterManager({
                         >
                           <input
                             type="checkbox"
-                            checked={(selectedChapter.nextChapterIds ?? []).includes(chapter.id)}
+                            checked={(chapterDraft.nextChapterIds ?? []).includes(chapter.id)}
                             onChange={() => toggleNextChapter(chapter.id)}
                             className="h-4 w-4 accent-[var(--dash-accent)]"
                           />
@@ -638,7 +734,7 @@ export function ChapterManager({
 
                 <div className={activePanel === 'map' ? '' : 'hidden'}>
                   <h3 className="mb-2 text-[var(--dash-text)]">Mappa generale</h3>
-                  {selectedChapter.mapUrl ? <img src={selectedChapter.mapUrl} alt={`Mappa di ${selectedChapter.title}`} className="max-h-80 w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] object-contain" /> : <p className="text-[var(--dash-muted)]">Nessuna mappa assegnata.</p>}
+                  {selectedChapter.mapUrl ? <img src={selectedChapter.mapMetadata.previewUrl ?? selectedChapter.mapUrl} alt={`Mappa di ${selectedChapter.title}`} className="max-h-80 w-full rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] object-contain" /> : <p className="text-[var(--dash-muted)]">Nessuna mappa assegnata.</p>}
                 </div>
 
                 <div className={`${activePanel === 'overview' ? '' : 'hidden'} rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] p-4`}>
@@ -684,6 +780,7 @@ export function ChapterManager({
           </div>
         ) : (
           <div className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-12 text-center">
+            {chapterListCollapsed && <button type="button" data-chapter-list-toggle onClick={() => setChapterListCollapsed(false)} aria-label="Mostra elenco Capitoli" className="mx-auto mb-4 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-2 text-[var(--dash-muted)]"><PanelLeftOpen className="h-4 w-4" /></button>}
             <GitBranch className="mx-auto mb-4 h-16 w-16 text-[var(--dash-muted)]" />
             <div className="text-xs uppercase tracking-[0.16em] text-[var(--dash-accent-2)]">
               Nessun capitolo selezionato

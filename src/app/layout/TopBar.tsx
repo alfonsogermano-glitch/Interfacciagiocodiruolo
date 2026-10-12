@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type SVGProps } from 'react';
-import { Bell, Bug, Check, CloudFog, LogOut, MapPin, MoreVertical, Newspaper, Pencil, Search, Settings, UserPlus, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Bell, Bug, Check, CloudFog, Hexagon, LogOut, MapPin, Minus, MoreVertical, Newspaper, Pencil, Plus, Search, Settings, Square as SquareIcon, UserPlus, X } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications, type NotificationRow } from '../notifications/NotificationsContext';
 import { useCampaign } from '../campaigns/CampaignContext';
@@ -16,6 +17,8 @@ import {
   DropdownMenuContent,
 } from '../components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
+import { usePortalContainer } from '../components/ui/portal-container';
+import { setActiveSessionMapTool, updateSessionGrid, useActiveSessionMapTool, useSessionGrid } from '../components/session/mapToolStore';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
@@ -29,9 +32,8 @@ interface TopBarProps {
 
 function MoveMapIcon(props: SVGProps<SVGSVGElement>) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <g className="map-tool-move-vertical"><path d="M12 3v18" /><path d="m8.5 6 3.5-3 3.5 3M8.5 18l3.5 3 3.5-3" /></g>
-    <g className="map-tool-move-horizontal"><path d="M3 12h18" /><path d="m6 8.5-3 3.5 3 3.5M18 8.5l3 3.5-3 3.5" /></g>
-    <circle cx="12" cy="12" r="1.25" fill="currentColor" stroke="none" />
+    <g className="map-tool-move-vertical"><path d="M12 9V2M12 2 8.5 5.5M12 2l3.5 3.5M12 15v7M12 22l-3.5-3.5M12 22l3.5-3.5" /></g>
+    <g className="map-tool-move-horizontal"><path d="M9 12H2M2 12l3.5-3.5M2 12l3.5 3.5M15 12h7M22 12l-3.5-3.5M22 12l-3.5 3.5" /></g>
   </svg>;
 }
 
@@ -296,7 +298,10 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
   const { notifications, unreadCount, markAllAsRead } = useNotifications();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
-  const [activeMapTool, setActiveMapTool] = useState<(typeof SESSION_MAP_TOOLS)[number]['id']>('move');
+  const activeMapTool = useActiveSessionMapTool();
+  const { settings: gridSettings, editable: gridEditable } = useSessionGrid();
+  const [gridPanelOpen, setGridPanelOpen] = useState(false);
+  const portalTarget = usePortalContainer();
 
   useEffect(() => {
     if (!isUserMenuOpen) return;
@@ -328,11 +333,18 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
         <div data-session-map-toolbar className="absolute left-2 right-24 flex items-center justify-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:left-1/2 md:right-auto md:-translate-x-1/2">
           <div className="flex items-center gap-1 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)]/90 p-1 shadow-lg">
             {SESSION_MAP_TOOLS.map(({ id, label, icon: Icon }) => (
-              <button key={id} type="button" data-map-tool={id} aria-label={label} title={label} aria-pressed={activeMapTool === id} onClick={() => setActiveMapTool(id)} className={`grid h-8 w-8 shrink-0 place-items-center rounded-md transition-colors ${activeMapTool === id ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]' : 'text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]'}`}>
+              <button key={id} type="button" data-map-tool={id} aria-label={label} title={label} aria-pressed={activeMapTool === id} onClick={() => { setActiveSessionMapTool(id); setGridPanelOpen(id === 'grid' ? open => !open : false); }} className={`grid h-8 w-8 shrink-0 place-items-center rounded-md transition-colors ${activeMapTool === id ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]' : 'text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]'}`}>
                 <Icon className="h-4.5 w-4.5" />
               </button>
             ))}
           </div>
+          {gridPanelOpen && createPortal(<div data-session-grid-panel className="fixed left-1/2 top-14 z-[1100] w-[min(92vw,550px)] -translate-x-1/2 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)] p-2.5 text-xs text-[var(--dash-text)] shadow-2xl">
+            <div className="grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)_200px]">
+              <div className="flex justify-center gap-1.5 border-b border-[var(--dash-border-soft)] pb-2 sm:flex-col sm:border-b-0 sm:border-r sm:pb-0 sm:pr-2">{([['square', SquareIcon, 'Quadrata'], ['hex-flat', Hexagon, 'Esagonale piatta'], ['hex-pointy', Hexagon, 'Esagonale a punta']] as const).map(([type, Icon, label]) => <button key={type} type="button" disabled={!gridEditable} title={label} aria-label={label} aria-pressed={gridSettings.type === type} onClick={() => updateSessionGrid({ type, visible: true })} className={`grid h-9 w-9 place-items-center rounded-md border ${gridSettings.type === type ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/20 text-[var(--dash-accent-2)]' : 'border-transparent text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]'} disabled:opacity-50`}><Icon className={`h-5 w-5 ${type === 'hex-pointy' ? 'rotate-90' : ''}`} /></button>)}</div>
+              <div className="space-y-2 sm:px-1"><label className="flex items-center justify-between gap-3 text-[11px] font-medium">Mostra griglia<input type="checkbox" disabled={!gridEditable} checked={gridSettings.visible} onChange={event => updateSessionGrid({ visible: event.target.checked })} className="h-4 w-4 accent-[var(--dash-accent)]" /></label><label className="flex items-center justify-between gap-3 text-[11px] font-medium">Snap alla griglia<input type="checkbox" disabled={!gridEditable} checked={gridSettings.snap} onChange={event => updateSessionGrid({ snap: event.target.checked })} className="h-4 w-4 accent-[var(--dash-accent)]" /></label><label className="flex items-center justify-between gap-3 text-[11px] font-medium"><span>Colore griglia</span><input type="color" disabled={!gridEditable} value={gridSettings.color ?? '#38bdf8'} onChange={event => updateSessionGrid({ color: event.target.value, visible: true })} className="h-7 w-16 cursor-pointer rounded border border-[var(--dash-border-soft)] bg-transparent p-0.5 disabled:cursor-not-allowed disabled:opacity-50" aria-label="Colore griglia" /></label><label className="block text-[11px]"><span className="mb-0.5 flex justify-between"><span>Opacità griglia</span><span>{Math.round(gridSettings.opacity * 100)}%</span></span><input type="range" min="0" max="1" step="0.05" disabled={!gridEditable} value={gridSettings.opacity} onChange={event => updateSessionGrid({ opacity: Number(event.target.value), visible: true })} className="block h-4 w-full accent-[var(--dash-accent)]" /></label></div>
+              <div className="space-y-1.5 border-t border-[var(--dash-border-soft)] pt-2 sm:border-l sm:border-t-0 sm:pl-2.5 sm:pt-0"><div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] text-[var(--dash-muted)]"><span className="leading-tight">Distanza per cella</span><span className="leading-tight">Unità</span><input aria-label="Distanza per cella" type="number" min="0.1" step="0.1" disabled={!gridEditable} value={gridSettings.distance} onChange={event => updateSessionGrid({ distance: Math.max(0.1, Number(event.target.value) || 0.1) })} className="h-8 w-full rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 text-xs text-[var(--dash-text)]" /><input aria-label="Unità" value={gridSettings.unit} disabled={!gridEditable} onChange={event => updateSessionGrid({ unit: event.target.value })} className="h-8 w-full rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 text-xs text-[var(--dash-text)]" /></div><p className="text-[10px] leading-tight text-[var(--dash-muted)]">Valore reale per cella, usato anche dal righello.</p><div><div className="mb-0.5 text-[11px] text-[var(--dash-muted)]">Dimensione cella</div><div data-session-grid-size-stepper className="flex h-8 items-stretch overflow-hidden rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)]"><button type="button" aria-label="Diminuisci dimensione cella" disabled={!gridEditable || gridSettings.cellSize <= 2} onClick={() => updateSessionGrid({ cellSize: Math.max(2, gridSettings.cellSize - 1) })} className="flex w-9 items-center justify-center text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] disabled:opacity-40"><Minus className="h-3.5 w-3.5" /></button><input type="number" aria-label="Dimensione cella" min="2" max="500" disabled={!gridEditable} value={gridSettings.cellSize} onChange={event => updateSessionGrid({ cellSize: Math.min(500, Math.max(2, Number(event.target.value) || 2)) })} className="min-w-0 flex-1 appearance-none border-x border-[var(--dash-border)] bg-transparent px-1 text-center text-xs text-[var(--dash-text)] outline-none [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none" /><button type="button" aria-label="Aumenta dimensione cella" disabled={!gridEditable || gridSettings.cellSize >= 500} onClick={() => updateSessionGrid({ cellSize: Math.min(500, gridSettings.cellSize + 1) })} className="flex w-9 items-center justify-center text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] disabled:opacity-40"><Plus className="h-3.5 w-3.5" /></button></div></div></div>
+            </div>
+          </div>, portalTarget ?? document.body)}
         </div>
       )}
 

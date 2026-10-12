@@ -17,6 +17,10 @@ export function normalizeChapterSpatialValue(chapter: Partial<Chapter> & Pick<Ch
     mapUrl: chapter.mapUrl ?? metadata.imageUrl ?? null,
     mapMetadata: {
       imageUrl: metadata.imageUrl ?? chapter.mapUrl ?? null,
+      previewUrl: metadata.previewUrl ?? null,
+      displayUrl: metadata.displayUrl ?? null,
+      source: metadata.source,
+      fileName: metadata.fileName ?? null,
       gridVisible: metadata.gridVisible ?? true,
       gridColumns: Math.max(1, Number(metadata.gridColumns) || 20),
       gridRows: Math.max(1, Number(metadata.gridRows) || 20),

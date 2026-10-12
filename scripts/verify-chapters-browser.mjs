@@ -140,7 +140,7 @@ try {
   const text = () => browser.evaluate(() => window.__CM.host.textContent);
   const scope = (expression) => `(() => { const host = window.__CM.host; ${expression} })()`;
 
-  await poll(() => window.__CM.host.textContent.includes('Struttura narrativa, mappe generali e focus giocabili'), 'intestazione Capitoli e Scene');
+  await poll(() => window.__CM.host.textContent.includes('Capitoli') && window.__CM.host.textContent.includes('2 totali'), 'navigazione compatta Capitoli');
 
   // 1) Conversione client: radici -> Capitoli, discendenti -> Scene.
   const converted = await browser.evaluate(() => ({
@@ -174,9 +174,12 @@ try {
   // 2) Selezione Capitolo -> editor scene + anteprima mappa generale.
   await browser.evaluate(scope(`
     const card = [...host.querySelectorAll('h3')].find(h => h.textContent.trim() === 'Manicomio di Arkham');
-    card.closest('div.cursor-pointer').click();
+    card.closest('button').click();
     return true;
   `));
+  await browser.evaluate(scope(`host.querySelector('button[aria-label="Nascondi elenco Capitoli"]').click(); return true;`));
+  assert.ok(await browser.evaluate(scope(`return !!host.querySelector('button[aria-label="Mostra elenco Capitoli"]')`)), 'il workspace espone il comando per riaprire la lista');
+  await browser.evaluate(scope(`host.querySelector('button[aria-label="Mostra elenco Capitoli"]').click(); return true;`));
   await browser.evaluate(scope(`[...host.querySelectorAll('button')].find(b => b.textContent.trim() === 'Scene').click(); return true;`));
   await poll(() => window.__CM.host.textContent.includes('Scene del capitolo'), 'sezione Scene del capitolo');
   assert.ok(await browser.evaluate(scope(`return [...host.querySelectorAll('button')].some(b => b.textContent.includes('Camera 3'))`)), 'la scena convertita e selezionabile');
@@ -194,8 +197,8 @@ try {
   await poll(() => window.__CM.store.npcs[0]?.chapterId === window.__CM.rootId && !window.__CM.store.npcs[0]?.sceneId, 'assegnazione PNG al Capitolo');
 
   // 3) Editor Capitolo: mappa generale + griglia.
-  await browser.evaluate(scope(`host.querySelector('div.mb-6.flex.items-start.justify-between button').click(); return true;`));
   await browser.evaluate(scope(`[...host.querySelectorAll('button')].find(b => b.textContent.trim() === 'Mappa').click(); return true;`));
+  await browser.evaluate(scope(`host.querySelector('button[aria-label="Modifica Capitolo"]').click(); return true;`));
   const mapLabel = await poll(scope(`const label=[...host.querySelectorAll('label')].find(l => l.textContent.includes('URL immagine mappa')); return label ? 1 : 0`), 'form mappa macro-luogo');
   assert.equal(mapLabel, 1);
   await browser.evaluate(scope(`
@@ -204,20 +207,13 @@ try {
     set(urlLabel.querySelector('input'),'https://maps.example/nuova-mappa.png');
     return true;
   `));
-  await poll(() => {
-    const chapter = window.__CM.store.chapters.find(c => c.id === window.__CM.rootId);
-    return chapter && chapter.mapUrl === 'https://maps.example/nuova-mappa.png' ? chapter : null;
-  }, 'salvataggio URL mappa del Capitolo');
-  await browser.evaluate(scope(`
-    const set=(el,v)=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(el,v);el.dispatchEvent(new Event('input',{bubbles:true}));};
-    const gridLabel=[...host.querySelectorAll('label')].find(l=>l.textContent.includes('Colonne griglia'));
-    set(gridLabel.querySelector('input'),'12');
-    return true;
-  `));
+  assert.equal(await browser.evaluate(scope(`return [...host.querySelectorAll('label')].some(label => label.textContent.includes('Colonne griglia')) ? 1 : 0`)), 0, 'la griglia non si configura nella gestione Capitolo');
+  assert.equal(await browser.evaluate(() => window.__CM.store.chapters.find(c => c.id === window.__CM.rootId)?.mapUrl), 'https://maps.example/manicomio.png', 'la bozza non salva automaticamente');
+  await browser.evaluate(scope(`host.querySelector('button[aria-label="Salva modifiche Capitolo"]').click(); return true;`));
   const chapterSaved = await poll(() => {
     const chapter = window.__CM.store.chapters.find(c => c.id === window.__CM.rootId);
-    return chapter && chapter.mapMetadata.gridColumns === 12 && chapter.mapUrl === 'https://maps.example/nuova-mappa.png' ? chapter : null;
-  }, 'salvataggio griglia del Capitolo');
+    return chapter && chapter.mapUrl === 'https://maps.example/nuova-mappa.png' ? chapter : null;
+  }, 'salvataggio mappa del Capitolo');
   assert.equal(chapterSaved.mapMetadata.imageUrl, 'https://maps.example/nuova-mappa.png', 'imageUrl sincronizzato in mapMetadata');
 
   // 4) Nuova Scena: regione rettangolare + variante contestuale, nessun Luogo.
@@ -241,6 +237,8 @@ try {
   await setSceneField('Titolo', 'Deposito notturno');
   await setSceneField('Momento del giorno', 'Notte');
   await setSceneField('Periodo', 'Dopo epidemia');
+  await browser.evaluate(scope(`host.querySelector('[data-chapter-scenes-editor] button[aria-label="Salva modifiche Scena"]').click(); return true;`));
+  await poll(() => window.__CM.savedScenes.some(scene => scene.title === 'Deposito notturno'), 'salvataggio dettagli Scena');
   await browser.evaluate(scope(`
     const editor=host.querySelector('[data-chapter-scenes-editor]');
     [...editor.querySelectorAll('button')].find(b => b.textContent.trim() === 'Contenuti').click();
@@ -265,6 +263,7 @@ try {
     return true;
   `));
   await poll(scope(`return host.textContent.includes('Regioni sulla mappa') ? 1 : 0`), 'pannello regioni');
+  await browser.evaluate(scope(`host.querySelector('[data-chapter-scenes-editor] button[aria-label="Modifica Scena"]').click(); return true;`));
   await browser.evaluate(scope(`
     const section=host.querySelector('[data-chapter-scenes-editor]');
     [...section.querySelectorAll('button')].find(b=>b.textContent.includes('Area')).click();
@@ -279,10 +278,10 @@ try {
     const section=host.querySelector('[data-chapter-scenes-editor]');
     const numbers=[...section.querySelectorAll('input[type=number]')];
     set(numbers[2],'35');
-    [...section.querySelectorAll('button')].find(b=>b.textContent.includes('Salva')).click();
+    section.querySelector('button[aria-label="Salva modifiche Scena"]').click();
     return true;
   `));
-  const savedScene = await poll(() => window.__CM.savedScenes.find(s => s.title === 'Deposito notturno'), 'salvataggio scena');
+  const savedScene = await poll(() => window.__CM.savedScenes.find(s => s.title === 'Deposito notturno' && s.mapRegions.length === 1), 'salvataggio scena');
   assert.equal(savedScene.chapterId, '7e347267-2e36-4a20-8ab6-be39aa866560', 'scena salvata nel capitolo corrente');
   assert.equal(savedScene.mapRegions.length, 1, 'una regione salvata');
   assert.deepEqual(savedScene.mapRegions[0].geometry, { kind: 'rect', rect: { x: 10, y: 10, width: 35, height: 20 } }, 'geometria rettangolare percentuale');
@@ -293,7 +292,7 @@ try {
   // 5) Navigazione legacy dagli archivi: entityType "environment" -> Capitolo.
   await browser.evaluate(scope(`
     const card = [...host.querySelectorAll('h3')].find(h => h.textContent.trim() === 'Dunwich');
-    card.closest('div.cursor-pointer').click();
+    card.closest('button').click();
     return true;
   `));
   await poll(() => window.__CM.host.querySelector('h2.text-2xl')?.textContent.trim() === 'Dunwich', 'selezione manuale Dunwich');

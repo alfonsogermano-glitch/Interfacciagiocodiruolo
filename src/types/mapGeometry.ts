@@ -23,9 +23,25 @@ export interface SceneMapRegion {
 
 export interface ChapterMapMetadata {
   imageUrl: string | null;
+  previewUrl?: string | null;
+  displayUrl?: string | null;
+  source?: 'url' | 'upload';
+  fileName?: string | null;
   gridVisible: boolean;
   gridColumns: number;
   gridRows: number;
+}
+
+export type SessionGridType = 'square' | 'hex-flat' | 'hex-pointy';
+export interface SessionGridSettings {
+  visible: boolean;
+  type: SessionGridType;
+  color?: string;
+  opacity: number;
+  snap: boolean;
+  distance: number;
+  unit: string;
+  cellSize: number;
 }
 
 export interface SceneContextMetadata {

@@ -88,6 +88,94 @@ Ultimo aggiornamento: 2026-10-11
     usa le schede Panoramica, Mappa, Contenuti, Scene e Diramazioni; ogni Scena
     usa Dettagli, Mappa, Contenuti e Diramazioni, mostrando una sola area alla
     volta.
+29. La colonna Capitoli e' stata ridotta a 220px con intestazione e schede
+    compatte: titolo, tipo, uscite e stato attivo occupano due sole righe.
+30. L'elenco Capitoli resta affiancato al workspace gia' da viewport medi,
+    scorre indipendentemente se contiene molte voci e puo' essere nascosto o
+    riaperto con un pulsante, lasciando all'editor tutta la larghezza.
+31. Rimosso il breakpoint responsivo dalla griglia Capitoli: elenco e gestione
+    restano sempre affiancati finche' l'utente non chiude manualmente l'elenco.
+32. Rimosso il vecchio `lg:col-span-2` dal pannello di gestione, che nella nuova
+    griglia lo spingeva erroneamente sotto l'elenco anziche' affiancarlo.
+33. L'editor Capitolo usa ora una bozza esplicita: la penna diventa Salva e
+    compare Annulla, con avviso prima di perdere modifiche cambiando Capitolo o
+    scheda. Le icone elenco sono animate e la mappa accetta file immagine fino
+    a 50 MB tramite persistenza locale/cloud.
+34. Applicato lo stesso flusso visualizzazione/modifica alle Scene: penna,
+    Salva, Annulla e conferma prima di scartare una bozza cambiando Scena o
+    scheda.
+35. Allineato a 50 MB il limite del bucket Supabase `visual-assets`, usato
+    dalle mappe caricate dal PC; prima il client accettava il file ma Storage
+    lo rifiutava con il limite precedente del bucket.
+36. Le mappe caricate dal PC generano una miniatura WebP per le anteprime di
+    gestione, mostrano il nome file senza esporre l'URL Storage e mantengono
+    l'originale per la sessione. Rimossi dalla scheda Capitolo i controlli della
+    griglia, demandati alla toolbar della mappa.
+37. Rimossa la vecchia griglia di sfondo da `ActiveSceneMap`: compariva soltanto
+    durante il primo download della mappa e poi veniva coperta dall'immagine.
+38. La mappa di sessione usa ora un viewport pan/zoom: la rotellina ingrandisce
+    rispetto al puntatore e lo strumento Muovi trascina la superficie tramite
+    Pointer Events. Lo strumento attivo e' condiviso con la toolbar e gli
+    oggetti futuri possono escludere il pan con `data-map-interactive`.
+39. Separati i quattro bracci dell'icona Muovi e mantenuto lo stesso cursore
+    durante il drag. Lo zoom scende fino a 0.3x sopra uno sfondo sfocato della
+    mappa; pan e zoom persistono localmente per utente/browser e Capitolo.
+40. All'avvio della sessione GM e giocatori entrano nell'ultimo Capitolo attivo
+    senza selezionare la Scena pubblicata nella sessione precedente. Per i
+    giocatori lo snapshot pubblico ricostruisce solo Capitolo e mappa.
+41. Introdotto Lock Map esclusivo GM: da sbloccata Muovi posiziona la mappa
+    sulla tavolozza, da bloccata sposta la vista privata dell'utente. Posizione
+    e lock persistono nel documento campagna e nello snapshot pubblico; il
+    pannello Capitoli/Scene e' ora solo GM e richiudibile.
+42. Ammorbiditi gli scatti della rotellina con una transizione breve della
+    trasformazione di zoom, disattivata durante il trascinamento per non
+    introdurre ritardo nel pan; regolata la sensibilita' a `0.0008` per ottenere
+    incrementi minimi e controllabili anche con rotelline a scatti marcati.
+43. Stabilizzato lo zoom rapido mantenendo viewport e mappa su layer compositi.
+    In sessione viene mostrata subito la miniatura WebP; l'originale la
+    sostituisce soltanto dopo download e decodifica completi. I nuovi upload
+    producono anche una versione WebP da 4096 px a qualita' 0.82 dedicata alla sessione, mentre
+    il file originale viene caricato in background come ultimo stadio per
+    garantire piena definizione allo zoom massimo.
+44. Il cursore Muovi e' ora contestuale: scuro sulla tavolozza o sugli elementi
+    bloccati, luminoso sugli elementi con `data-map-movable="true"`. La mappa
+    espone automaticamente tale stato in base al Lock Map.
+45. La chat fotografa il precedente timestamp di lettura prima di marcare la
+    timeline come vista e inserisce una riga rossa `Novita'` davanti al primo
+    elemento che risultava non letto all'apertura.
+46. Attivato lo strumento Griglia della sessione: pannello con griglia quadrata,
+    esagonale piatta/a punta, visibilita', opacita', snap, distanza, unita' e
+    dimensione cella. Il livello segue pan/zoom/Lock Map, persiste per Capitolo
+    ed e' pubblicato ai giocatori; lo snap e' pronto per gli oggetti futuri.
+47. Corretto il pannello Griglia invisibile: era ritagliato dall'overflow
+    orizzontale della toolbar. Ora viene montato tramite portal nel contenitore
+    della palette, sopra la sessione e fuori da ogni clipping.
+48. La griglia copre ora l'intera tavolozza, anche fuori dalla mappa, seguendo
+    pan e zoom della vista. Unita' predefinita `Metri`, distanza esplicitata
+    come valore per cella destinato anche al righello e cella minima ridotta da
+    20 a 2 px.
+49. Sincronizzato lo zoom griglia/mappa: la griglia non calcola piu' scala e
+    offset separatamente, ma vive nello stesso layer trasformato della
+    tavolozza e condivide la medesima interpolazione GPU.
+50. Corrette le tassellazioni esagonali: la variante a punta usa righe
+    sfalsate ogni 1,5 raggi e quella piatta colonne sfalsate alla stessa
+    distanza, formando reticoli continui senza spazi tra gli esagoni.
+51. Il trascinamento con il tasto sinistro resta disponibile anche usando
+    Griglia, Puntina e Puntatore, oltre a Muovi; gli strumenti che impiegano il
+    drag per altre operazioni continuano invece a escludere il pan.
+52. Il pannello Griglia permette di scegliere il colore con lo stesso input
+    colore usato dagli altri editor; il valore persiste per Capitolo, viene
+    pubblicato ai giocatori e usa il ciano predefinito per i dati precedenti.
+53. Compattato il pannello Griglia, allineati distanza e unita' e uniformato lo
+    stepper della dimensione cella agli altri editor, rimuovendo gli spinner
+    numerici nativi ridondanti.
+54. Ridotta la tipografia del pannello Griglia mantenendo etichette a 11 px e
+    valori a 12 px, con pesi e contrasto invariati per preservare leggibilita'.
+55. Rimossa la riga vuota sopra distanza e unita', ridotti ulteriormente
+    padding e spazi del pannello e migrato il vecchio valore predefinito `ft`
+    a `Metri` nelle impostazioni dei Capitoli.
+56. Il controllo numerico Distanza per cella incrementa e decrementa ora di
+    0,1 anziche' 0,5 tramite le frecce native.
 
 ### Pubblicazione della Scena nella sessione live (2026-10-11)
 1. Aggiunto lo snapshot runtime pubblico `ActiveScenePublication`: contiene

@@ -1,24 +1,44 @@
+import { useEffect, useState } from 'react';
 import type { ActiveScenePublication } from '../../../types/activeScene';
 
 export function ActiveSceneMap({ scene, unframed = false }: { scene: ActiveScenePublication; unframed?: boolean }) {
-  const grid = scene.mapMetadata;
-  const backgroundSize = `${100 / grid.gridColumns}% ${100 / grid.gridRows}%`;
+  const previewUrl = scene.mapMetadata.previewUrl;
+  const fullMapUrl = scene.mapMetadata.displayUrl ?? scene.mapUrl;
+  const [displayMapUrl, setDisplayMapUrl] = useState(previewUrl ?? fullMapUrl);
+
+  useEffect(() => {
+    if (!fullMapUrl || !previewUrl || previewUrl === fullMapUrl) {
+      setDisplayMapUrl(fullMapUrl);
+      return;
+    }
+    let cancelled = false;
+    setDisplayMapUrl(previewUrl);
+    const fullMap = new Image();
+    fullMap.src = fullMapUrl;
+    void fullMap.decode().catch(() => {}).then(() => {
+      if (cancelled || !fullMap.complete || fullMap.naturalWidth <= 0) return;
+      setDisplayMapUrl(fullMapUrl);
+      if (!scene.mapMetadata.displayUrl || !scene.mapUrl || scene.mapUrl === fullMapUrl) return;
+      const originalMap = new Image();
+      originalMap.src = scene.mapUrl;
+      void originalMap.decode().catch(() => {}).then(() => {
+        if (!cancelled && originalMap.complete && originalMap.naturalWidth > 0) setDisplayMapUrl(scene.mapUrl);
+      });
+    });
+    return () => { cancelled = true; };
+  }, [fullMapUrl, previewUrl, scene.mapMetadata.displayUrl, scene.mapUrl]);
 
   if (!scene.mapUrl) {
     return scene.sceneImageUrl ? (
-      <img src={scene.sceneImageUrl} alt={scene.title} className={`block w-full object-contain ${unframed ? '' : 'max-h-[65vh] rounded-xl'}`} />
+      <img src={scene.sceneImageUrl} alt={scene.title} draggable={false} className={`block w-full object-contain ${unframed ? '' : 'max-h-[65vh] rounded-xl'}`} />
     ) : null;
   }
 
   return (
     <div
       className={`relative overflow-hidden bg-[var(--dash-input)] ${unframed ? '' : 'rounded-xl border border-[var(--dash-border-soft)]'}`}
-      style={grid.gridVisible ? {
-        backgroundImage: 'linear-gradient(to right, color-mix(in srgb, var(--dash-text) 15%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--dash-text) 15%, transparent) 1px, transparent 1px)',
-        backgroundSize,
-      } : undefined}
     >
-      <img src={scene.mapUrl} alt={`Mappa di ${scene.chapterTitle}`} className="block h-auto w-full" />
+      <img src={displayMapUrl ?? fullMapUrl} alt={`Mappa di ${scene.chapterTitle}`} draggable={false} decoding="async" className="block h-auto w-full [backface-visibility:hidden]" />
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-label={`Aree di ${scene.title}`}>
         {scene.mapRegions.map(region => region.geometry.kind === 'rect' ? (
           <rect

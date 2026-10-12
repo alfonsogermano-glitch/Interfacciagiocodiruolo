@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent as ReactChangeEvent, type ClipboardEvent as ReactClipboardEvent } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent as ReactChangeEvent, type ClipboardEvent as ReactClipboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { MessageSquare, Plus, Smile, MoreVertical, Trash2, Quote, X, Check, FileDown, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -31,6 +31,7 @@ import {
   sendChatMessage,
   sendChatAttachment,
   clearChatMessages,
+  readChatLastSeen,
   writeChatLastSeen,
   toggleChatReaction,
   deleteChatMessage,
@@ -214,6 +215,7 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
   const [message, setMessage] = useState('');
   const [entries, setEntries] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [unreadWindow, setUnreadWindow] = useState<{ after: number; through: number } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   // Dialog di conferma cancellazione (id della voce) e feedback "Copiato".
@@ -537,6 +539,7 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
       return;
     }
     console.log(`[Chat] caricamento timeline per campagna ${activeCampaign.id}`);
+    const previousLastSeen = readChatLastSeen(activeCampaign.id);
     setLoading(true);
     loadChatMessages(activeCampaign.id).then((loaded) => {
       console.log(`[Chat] caricate ${loaded.length} voci dal DB`);
@@ -549,6 +552,9 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
         .map((entry) => entry.createdAt)
         .sort()
         .pop();
+      const after = previousLastSeen ? Date.parse(previousLastSeen) : Number.NaN;
+      const through = latestSeen ? Date.parse(latestSeen) : Number.NaN;
+      setUnreadWindow(Number.isFinite(after) && Number.isFinite(through) && through > after ? { after, through } : null);
       if (latestSeen) writeChatLastSeen(activeCampaign.id, latestSeen);
     });
   }, [activeCampaign?.id]);
@@ -587,6 +593,10 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
     if (activeTab === 'rolls') return item.kind === 'roll';
     return item.kind === 'message' || (item.kind === 'roll' && item.roll.origin === 'modifier');
   }), [timeline, activeTab]);
+  const firstUnreadVisibleKey = useMemo(() => {
+    if (!unreadWindow) return null;
+    return visibleItems.find(item => item.time > unreadWindow.after && item.time <= unreadWindow.through)?.key ?? null;
+  }, [unreadWindow, visibleItems]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -925,8 +935,9 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
                 </div>
               ) : null;
               return (
+                <Fragment key={item.key}>
+                {item.key === firstUnreadVisibleKey && <div data-chat-unread-divider className="flex items-center gap-2 py-1" role="separator" aria-label="Inizio nuovi messaggi"><div className="h-px min-w-0 flex-1 bg-red-500/80" /><span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">Novità</span></div>}
                 <div
-                  key={item.key}
                   data-chat-entry
                   className="relative"
                   onClick={() => {
@@ -995,6 +1006,7 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
                   )}
                   {kebab}
                 </div>
+                </Fragment>
               );
             })}
           </>
