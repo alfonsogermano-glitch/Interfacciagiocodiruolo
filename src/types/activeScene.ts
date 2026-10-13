@@ -12,7 +12,7 @@ export interface ActiveScenePublication {
   mapUrl: string | null;
   sceneImageUrl: string | null;
   mapMetadata: ChapterMapMetadata;
-  mapPlacement?: { x: number; y: number; locked: boolean };
+  mapPlacement?: { x: number; y: number; locked: boolean; width?: number; height?: number };
   gridSettings?: SessionGridSettings;
   mapRegions: SceneMapRegion[];
   contextMetadata: SceneContextMetadata;

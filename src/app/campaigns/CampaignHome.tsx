@@ -134,7 +134,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
   const [ownCharacterId, setOwnCharacterId] = useState<string | null>(null);
   const [characterLookupDone, setCharacterLookupDone] = useState(false);
   const [autoClosedNotice, setAutoClosedNotice] = useState(false);
-  const autoCloseCheckedRef = useRef(false);
+  const autoCloseCheckedCampaignRef = useRef<string | null>(null);
   const [gmDisplayName, setGmDisplayName] = useState<string | null>(null);
   const [gmAvatarUrl, setGmAvatarUrl] = useState<string | null>(null);
   const [playerRows, setPlayerRows] = useState<PlayerRow[]>([]);
@@ -209,11 +209,15 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
   const availabilityToggleLocksRef = useRef<Set<string>>(new Set());
   const lookupSeqRef = useRef(0);
   const isOwner = activeCampaign?.ownerId === user?.id;
-  const sessionActive = localSessionActive ?? !!activeCampaign?.sessionActive;
+  const sessionActivatedAt = activeCampaign?.sessionActivatedAt ? Date.parse(activeCampaign.sessionActivatedAt) : NaN;
+  const sessionExpired = !!activeCampaign?.sessionActive
+    && Number.isFinite(sessionActivatedAt)
+    && Date.now() - sessionActivatedAt > AUTO_CLOSE_AFTER_MS;
+  const sessionActive = !sessionExpired && (localSessionActive ?? !!activeCampaign?.sessionActive);
 
   useEffect(() => {
-    setLocalSessionActive(activeCampaign?.sessionActive ?? false);
-  }, [activeCampaign?.id, activeCampaign?.sessionActive]);
+    setLocalSessionActive(sessionExpired ? false : activeCampaign?.sessionActive ?? false);
+  }, [activeCampaign?.id, activeCampaign?.sessionActive, sessionExpired]);
 
   useEffect(() => {
     onSessionStateChange?.(sessionActive);
@@ -229,23 +233,24 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
   // lungo (es. ha chiuso il browser senza terminarla esplicitamente) e la
   // chiude automaticamente, senza intaccare le disconnessioni brevi/pausa
   useEffect(() => {
-    if (!isOwner || !activeCampaign?.id || autoCloseCheckedRef.current) return;
+    if (!isOwner || !activeCampaign?.id || autoCloseCheckedCampaignRef.current === activeCampaign.id) return;
     if (!activeCampaign.sessionActive) return;
 
     const activatedAt = activeCampaign.sessionActivatedAt ? new Date(activeCampaign.sessionActivatedAt).getTime() : null;
     if (!activatedAt) return;
 
-    autoCloseCheckedRef.current = true;
+    autoCloseCheckedCampaignRef.current = activeCampaign.id;
 
     if (Date.now() - activatedAt > AUTO_CLOSE_AFTER_MS) {
+      setLocalSessionActive(false);
       const accessToken = session?.access_token ?? publicAnonKey;
-      fetch(`${SERVER_BASE}/campaigns/${activeCampaign.id}/session`, {
+      void fetch(`${SERVER_BASE}/campaigns/${activeCampaign.id}/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ active: false }),
       })
-        .then(() => {
-          setLocalSessionActive(false);
+        .then(response => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
           setAutoClosedNotice(true);
           void refreshCampaigns();
         })

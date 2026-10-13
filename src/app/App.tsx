@@ -331,7 +331,8 @@ function AuthGate() {
     setRightSidebarContext(null);
     if (campaign) {
       setActiveCampaign(campaign);
-      setSessionWorkspaceActive(!!campaign.sessionActive);
+      // CampaignHome validates cached session timestamps before enabling the live workspace.
+      setSessionWorkspaceActive(false);
       sessionStorage.setItem(VIEW_LS_KEY, 'campaign-home');
       setView('campaign-home');
     } else {

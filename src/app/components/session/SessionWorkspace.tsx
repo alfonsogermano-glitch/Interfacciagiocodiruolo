@@ -144,7 +144,7 @@ export function SessionWorkspace({
     : selectedChapter
       ? { ...chapterPreview(selectedChapter, mapPlacements[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.mapPlacement : undefined)), gridSettings: chapterGrids[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.gridSettings : undefined) ?? DEFAULT_SESSION_GRID }
       : publicChapterPreview;
-  const mapPlacement = display?.mapPlacement ?? { x: 0, y: 0, locked: false };
+  const mapPlacement: MapPlacement = display?.mapPlacement ?? { x: 0, y: 0, locked: false };
   const chooseScene = async (scene: Scene, chapter: Chapter) => {
     setSelectedChapterId(chapter.id);
     setSelectedSceneId(scene.id);
@@ -169,9 +169,15 @@ export function SessionWorkspace({
 
   useEffect(() => {
     const settings = display?.gridSettings ?? DEFAULT_SESSION_GRID;
-    const normalizedSettings = settings.unit.trim().toLowerCase() === 'ft' ? { ...settings, unit: 'Metri' } : settings;
+    const normalizedSettings = {
+      ...settings,
+      visible: true,
+      opacity: settings.visible === false ? 0 : settings.opacity,
+      unit: settings.unit.trim().toLowerCase() === 'ft' ? 'Metri' : settings.unit,
+      lineStyle: settings.lineStyle ?? 'solid',
+    };
     configureSessionGrid(normalizedSettings, isOwner && Boolean(display), isOwner ? updateGridSettings : null);
-    if (isOwner && display && normalizedSettings !== settings) updateGridSettings(normalizedSettings);
+    if (isOwner && display && (settings.visible === false || settings.unit !== normalizedSettings.unit || !settings.lineStyle)) updateGridSettings(normalizedSettings);
     return () => configureSessionGrid(DEFAULT_SESSION_GRID, false, null);
   }, [display?.chapterId, display?.gridSettings, display?.id, display?.mapPlacement, isOwner]);
 
@@ -281,7 +287,7 @@ export function SessionWorkspace({
 
       <main className="relative min-h-0 overflow-hidden bg-[radial-gradient(circle_at_center,#262a31_0%,#14161b_58%,#0d0f13_100%)]">
         {isOwner && treeHidden && <button type="button" onClick={() => setTreeHidden(false)} aria-label="Mostra pannello Capitoli e Scene" title="Mostra pannello" className="absolute left-3 top-3 z-40 rounded-lg border border-white/15 bg-black/60 p-2 text-white/70 shadow-lg backdrop-blur hover:text-white"><PanelLeftOpen className="h-4 w-4" /></button>}
-        {display ? (display.mapUrl || display.sceneImageUrl ? <MapViewport key={`${display.campaignId}:${display.chapterId}`} mapId={`${display.campaignId}:${display.chapterId}`} backgroundUrl={display.mapMetadata.previewUrl ?? display.mapUrl ?? display.sceneImageUrl} isOwner={isOwner} mapPlacement={mapPlacement} gridSettings={display.gridSettings ?? DEFAULT_SESSION_GRID} onMapPlacementChange={updateMapPlacement}><ActiveSceneMap scene={display} unframed /></MapViewport> : <div className="grid h-full min-h-[55vh] place-items-center px-8 text-center"><div><Map className="mx-auto h-12 w-12 text-white/20" /><p className="mt-3 text-sm text-white/45">Nessuna mappa assegnata a questo Capitolo.</p></div></div>) : <div className="grid h-full min-h-[60vh] place-items-center text-center"><div><Map className="mx-auto h-14 w-14 text-white/15" /><h1 className="mt-4 text-xl font-semibold text-white/70">In attesa della mappa</h1><p className="mt-2 text-sm text-white/40">Il Game Master selezionerà il Capitolo da giocare.</p></div></div>}
+        {display ? (display.mapUrl || display.sceneImageUrl ? <MapViewport key={`${display.campaignId}:${display.chapterId}`} mapId={`${display.campaignId}:${display.chapterId}`} backgroundUrl={display.mapMetadata.previewUrl ?? display.mapUrl ?? display.sceneImageUrl} isOwner={isOwner} mapPlacement={mapPlacement} gridSettings={display.gridSettings ?? DEFAULT_SESSION_GRID} onMapPlacementChange={updateMapPlacement}><ActiveSceneMap scene={display} unframed fill={Boolean(mapPlacement.width && mapPlacement.height)} /></MapViewport> : <div className="grid h-full min-h-[55vh] place-items-center px-8 text-center"><div><Map className="mx-auto h-12 w-12 text-white/20" /><p className="mt-3 text-sm text-white/45">Nessuna mappa assegnata a questo Capitolo.</p></div></div>) : <div className="grid h-full min-h-[60vh] place-items-center text-center"><div><Map className="mx-auto h-14 w-14 text-white/15" /><h1 className="mt-4 text-xl font-semibold text-white/70">In attesa della mappa</h1><p className="mt-2 text-sm text-white/40">Il Game Master selezionerà il Capitolo da giocare.</p></div></div>}
       </main>
     </div>
   );

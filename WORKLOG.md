@@ -176,6 +176,25 @@ Ultimo aggiornamento: 2026-10-11
     a `Metri` nelle impostazioni dei Capitoli.
 56. Il controllo numerico Distanza per cella incrementa e decrementa ora di
     0,1 anziche' 0,5 tramite le frecce native.
+57. Eliminato il flash della workspace live al rientro dopo un timeout: la
+    scadenza viene verificata prima del render usando il timestamp in cache, la
+    UI torna subito alla campagna e il cleanup remoto prosegue in background.
+58. Attivato lo snap durante il trascinamento della mappa sbloccata: la griglia
+    quadrata aggancia l'angolo superiore sinistro a vertici, centri e meta' dei
+    lati; le esagonali allineano il centro dell'elemento al centro cella.
+59. Aggiunto `Adatta mappa` per la griglia quadrata e la mappa sbloccata: la
+    modalita' esatta allinea tutti i bordi deformando minimamente l'immagine,
+    mentre quella proporzionale preserva il rapporto originale e allinea il
+    lato che richiede la variazione minore. Le dimensioni persistono e vengono
+    pubblicate ai giocatori insieme alla posizione.
+60. Il menu `Adatta mappa` permette anche di ripristinare le dimensioni e le
+    proporzioni responsive originali, mantenendo la posizione corrente.
+61. Rimosso il controllo ridondante `Mostra griglia`: opacita' zero nasconde il
+    livello mentre lo snap resta indipendente. Aggiunti gli stili linea intera,
+    tratteggiata e puntinata, con nodi maggiorati alle intersezioni di
+    quadrati ed esagoni; la scelta persiste e viene pubblicata ai giocatori.
+62. Aggiunti gli stili `Incroci` e `Angoli` per tutte le geometrie; i cinque
+    stili sono ora raccolti in un menu a tendina compatto anziche' in pulsanti.
 
 ### Pubblicazione della Scena nella sessione live (2026-10-11)
 1. Aggiunto lo snapshot runtime pubblico `ActiveScenePublication`: contiene

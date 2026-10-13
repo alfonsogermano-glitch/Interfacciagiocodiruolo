@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ActiveScenePublication } from '../../../types/activeScene';
 
-export function ActiveSceneMap({ scene, unframed = false }: { scene: ActiveScenePublication; unframed?: boolean }) {
+export function ActiveSceneMap({ scene, unframed = false, fill = false }: { scene: ActiveScenePublication; unframed?: boolean; fill?: boolean }) {
   const previewUrl = scene.mapMetadata.previewUrl;
   const fullMapUrl = scene.mapMetadata.displayUrl ?? scene.mapUrl;
   const [displayMapUrl, setDisplayMapUrl] = useState(previewUrl ?? fullMapUrl);
@@ -30,15 +30,15 @@ export function ActiveSceneMap({ scene, unframed = false }: { scene: ActiveScene
 
   if (!scene.mapUrl) {
     return scene.sceneImageUrl ? (
-      <img src={scene.sceneImageUrl} alt={scene.title} draggable={false} className={`block w-full object-contain ${unframed ? '' : 'max-h-[65vh] rounded-xl'}`} />
+      <img src={scene.sceneImageUrl} alt={scene.title} draggable={false} className={`block w-full object-contain ${fill ? 'h-full' : ''} ${unframed ? '' : 'max-h-[65vh] rounded-xl'}`} />
     ) : null;
   }
 
   return (
     <div
-      className={`relative overflow-hidden bg-[var(--dash-input)] ${unframed ? '' : 'rounded-xl border border-[var(--dash-border-soft)]'}`}
+      className={`relative overflow-hidden bg-[var(--dash-input)] ${fill ? 'h-full w-full' : ''} ${unframed ? '' : 'rounded-xl border border-[var(--dash-border-soft)]'}`}
     >
-      <img src={displayMapUrl ?? fullMapUrl} alt={`Mappa di ${scene.chapterTitle}`} draggable={false} decoding="async" className="block h-auto w-full [backface-visibility:hidden]" />
+      <img src={displayMapUrl ?? fullMapUrl} alt={`Mappa di ${scene.chapterTitle}`} draggable={false} decoding="async" className={`block w-full [backface-visibility:hidden] ${fill ? 'h-full object-fill' : 'h-auto'}`} />
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-label={`Aree di ${scene.title}`}>
         {scene.mapRegions.map(region => region.geometry.kind === 'rect' ? (
           <rect

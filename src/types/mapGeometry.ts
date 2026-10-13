@@ -33,9 +33,11 @@ export interface ChapterMapMetadata {
 }
 
 export type SessionGridType = 'square' | 'hex-flat' | 'hex-pointy';
+export type SessionGridLineStyle = 'solid' | 'dashed' | 'dotted' | 'crosses' | 'corners';
 export interface SessionGridSettings {
   visible: boolean;
   type: SessionGridType;
+  lineStyle?: SessionGridLineStyle;
   color?: string;
   opacity: number;
   snap: boolean;
