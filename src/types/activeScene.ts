@@ -1,4 +1,5 @@
 import type { ChapterMapMetadata, SceneContextMetadata, SceneMapRegion, SessionGridSettings } from './mapGeometry';
+import type { SessionMapToken } from './sessionMapToken';
 
 /** Snapshot pubblico e immutabile della Scena pubblicata in sessione. */
 export interface ActiveScenePublication {
@@ -14,6 +15,7 @@ export interface ActiveScenePublication {
   mapMetadata: ChapterMapMetadata;
   mapPlacement?: { x: number; y: number; locked: boolean; width?: number; height?: number };
   gridSettings?: SessionGridSettings;
+  mapTokens?: SessionMapToken[];
   mapRegions: SceneMapRegion[];
   contextMetadata: SceneContextMetadata;
   publishedAt: string;

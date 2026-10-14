@@ -4,7 +4,7 @@ import type { SessionGridLineStyle, SessionGridSettings, SessionGridType } from 
 export type { SessionGridLineStyle, SessionGridSettings, SessionGridType } from '../../../types/mapGeometry';
 
 export type SessionMapTool = 'move' | 'select' | 'grid' | 'measure' | 'draw' | 'pin' | 'fog' | 'walls' | 'pointer';
-export const DEFAULT_SESSION_GRID: SessionGridSettings = { visible: true, type: 'square', lineStyle: 'solid', color: '#38bdf8', opacity: 0, snap: false, distance: 5, unit: 'Metri', cellSize: 100 };
+export const DEFAULT_SESSION_GRID: SessionGridSettings = { visible: true, type: 'square', lineStyle: 'solid', color: '#38bdf8', opacity: 0, snap: false, squareSnapMode: 'half-step', distance: 5, unit: 'Metri', cellSize: 100 };
 
 let activeMapTool: SessionMapTool = 'move';
 const listeners = new Set<() => void>();

@@ -273,7 +273,10 @@
    dentro (es. card campagna in CampaignsPage). */
 button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-plus)) .lucide-plus,
 [role='button']:not([aria-disabled='true']):hover:not(:has(button .lucide-plus)) .lucide-plus,
-[role='menuitem']:not([data-disabled]):hover .lucide-plus {
+[role='menuitem']:not([data-disabled]):hover .lucide-plus,
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-minus)) .lucide-minus,
+[role='button']:not([aria-disabled='true']):hover:not(:has(button .lucide-minus)) .lucide-minus,
+[role='menuitem']:not([data-disabled]):hover .lucide-minus {
   animation: plusPulse 0.75s ease-in-out infinite;
 }
 button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] .lucide-save)) .lucide-save,
@@ -993,6 +996,38 @@ button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button']
 
 [data-map-viewport][data-map-tool-active='move'][data-map-move-target='movable'] {
   cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32' fill='none' stroke='%23e0f2fe' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 11V2M16 2l-4 4M16 2l4 4M16 21v9M16 30l-4-4M16 30l4-4M11 16H2M2 16l4-4M2 16l4 4M21 16h9M30 16l-4-4M30 16l-4 4'/%3E%3C/svg%3E") 16 16, move;
+}
+
+[data-session-grid-panel]:has([data-session-map-fit]) [data-session-grid-size-stepper] {
+  margin-right: 6.5rem;
+}
+
+[data-session-grid-panel] [data-session-map-fit] {
+  bottom: 4.5rem !important;
+  height: 2.0625rem;
+  transform: translateY(2px);
+  width: 6rem;
+}
+
+[data-session-grid-panel] [data-session-map-fit] > button {
+  box-sizing: border-box;
+  height: 100% !important;
+  min-height: 0;
+}
+
+[data-session-grid-panel] [data-session-grid-size-stepper] > button {
+  flex: 0 0 1.5rem !important;
+  width: 1.5rem !important;
+}
+
+[data-session-grid-panel] [data-session-grid-size-stepper] > input {
+  flex: 1 1 auto !important;
+  width: auto !important;
+}
+
+[data-session-grid-panel] [data-session-grid-size-stepper] > button svg {
+  height: 0.6875rem;
+  width: 0.6875rem;
 }
 
 @keyframes mapLockClose {

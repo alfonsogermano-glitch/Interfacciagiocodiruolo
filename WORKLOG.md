@@ -195,6 +195,43 @@ Ultimo aggiornamento: 2026-10-11
     quadrati ed esagoni; la scelta persiste e viene pubblicata ai giocatori.
 62. Aggiunti gli stili `Incroci` e `Angoli` per tutte le geometrie; i cinque
     stili sono ora raccolti in un menu a tendina compatto anziche' in pulsanti.
+63. Rifinita la resa dei marcatori: gli incroci sono piccoli e centrati nelle
+    celle invece di affollare ogni vertice, mentre gli angoli quadrati sono
+    accorciati e separati per non ricostruire il contorno della cella.
+64. Ridisegnato `Angoli` per la griglia quadrata come una trama di piccoli nodi
+    diagonali a quattro bracci sulle intersezioni, equivalente visivo dei nodi
+    a tre bracci prodotti naturalmente dalle geometrie esagonali.
+65. Ridotta l'ampiezza dei nodi diagonali di `Angoli` sulla griglia quadrata per
+    renderli meno invasivi sulle mappe dettagliate.
+66. Compattati ulteriormente i nodi diagonali quadrati per una resa piu'
+    discreta anche con celle di piccole dimensioni.
+67. `Adatta` resta visibile con la griglia quadrata anche a mappa bloccata,
+    mostrando il motivo della disabilitazione; il comando condivide la riga
+    dello stepper Dimensione cella e non aumenta l'altezza del pannello.
+68. Allineato verticalmente `Adatta` allo stepper Dimensione cella, eliminando
+    lo sfalsamento verso il bordo inferiore del pannello.
+69. Rifinito l'ancoraggio verticale di `Adatta` a 32 px dal fondo per centrarlo
+    esattamente sulla riga dello stepper.
+70. Bilanciate le larghezze di `Adatta` e Dimensione cella; ridotte le aree dei
+    pulsanti laterali e le icone piu'/meno per privilegiare il valore centrale.
+71. Reso espandibile il valore centrale dello stepper con pulsanti laterali
+    realmente fissi e compatti, abbassato lievemente `Adatta` e applicata a
+    `Minus` la stessa animazione hover globale gia' usata da `Plus`.
+72. Rimosso l'override CSS che abbassava `Adatta` di 4 px rispetto allo stepper:
+    il controllo usa ora un solo ancoraggio verticale, senza compensazioni in
+    conflitto.
+73. Uniformata definitivamente l'altezza di `Adatta` allo stepper mantenendo il
+    bordo inferiore comune e rimuovendo la maggiorazione che spostava il bordo
+    superiore verso l'alto.
+74. Vincolati contenitore e pulsante `Adatta` alla stessa altezza esplicita di
+    2rem dello stepper, evitando differenze residue introdotte dagli stili
+    globali dei pulsanti.
+75. Adeguata l'altezza effettiva di `Adatta` a 30 px mantenendo fisso il bordo
+    inferiore: il confronto visivo mostrava lo stepper renderizzato a tale
+    altezza nonostante la classe nominale `h-8`.
+76. Calibrato `Adatta` sui riferimenti pixel del controllo adiacente: altezza
+    aumentata di 4 px e traslazione verso il basso di 3 px per far coincidere
+    contemporaneamente bordo superiore e inferiore.
 
 ### Pubblicazione della Scena nella sessione live (2026-10-11)
 1. Aggiunto lo snapshot runtime pubblico `ActiveScenePublication`: contiene

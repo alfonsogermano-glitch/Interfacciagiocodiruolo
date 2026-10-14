@@ -33,6 +33,8 @@ import type { CropAreaPercent } from '../shared/SourceCroppedImage';
 import { useFolderDragDrop } from './shared/useFolderDragDrop';
 import { TokenDragGhost } from './shared/TokenDragGhost';
 import { useIsPointerOverRect } from '../shared/useIsPointerOverRect';
+import { dropSessionMapToken } from './sessionMapTokenDropStore';
+import type { SessionMapTokenVisual } from '../../../types/sessionMapToken';
 
 interface PlayerCharacter extends Character {
   player: string;
@@ -54,6 +56,24 @@ interface ListEntry {
   portraitCropArea?: CropAreaPercent | null;
   ownerProfileId?: string | null;
   hiddenFromPlayers?: boolean;
+}
+
+function toSessionMapTokenVisual(kind: EntityKind, entity: any): SessionMapTokenVisual {
+  return {
+    entityKind: kind,
+    entityId: entity.id,
+    name: entity.name,
+    portraitImageUrl: entity.portraitImageUrl ?? null,
+    portraitSourceImageUrl: entity.portraitSourceImageUrl ?? null,
+    portraitCropArea: entity.portraitCropArea ?? null,
+    tokenColor: entity.tokenColor ?? null,
+    tokenBackgroundColor: entity.tokenBackgroundColor ?? null,
+    tokenBorderStyle: entity.tokenBorderStyle ?? null,
+    tokenBorderThickness: entity.tokenBorderThickness ?? null,
+    tokenBorderVisible: entity.tokenBorderVisible ?? null,
+    tokenBorderLabel: entity.tokenBorderLabel ?? null,
+    hiddenFromPlayers: kind !== 'pg' && !entity.visibleToPlayers,
+  };
 }
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
@@ -578,7 +598,15 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     onReorderFolders: () => {},
     onMoveCard: () => {},
     onNestFolder: () => {},
-    onDropOutside: undefined,
+    onDropOutside: (item, clientX, clientY) => {
+      const separator = item.id.indexOf(':');
+      if (separator === -1) return;
+      const kind = item.id.slice(0, separator) as EntityKind;
+      const id = item.id.slice(separator + 1);
+      const source = kind === 'pg' ? characters : kind === 'png' ? npcs : monsters;
+      const entity = source.find((candidate: any) => candidate.id === id);
+      if (entity) dropSessionMapToken(toSessionMapTokenVisual(kind, entity), clientX, clientY);
+    },
   });
 
   // Risolve l'entita' attualmente trascinata a partire dall'id composito
@@ -679,6 +707,10 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     listColumnRef,
     ghostFallbackIcon: brandFallbackIcon,
     toGhostShapeEntity: (n) => n,
+    onDropOutside: (item, clientX, clientY) => {
+      const entity = npcs.find((npc) => npc.id === item.id);
+      if (entity) dropSessionMapToken(toSessionMapTokenVisual('png', entity), clientX, clientY);
+    },
   });
   const monsterSection = useFolderSection({
     entityType: 'monster',
@@ -705,6 +737,10 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     listColumnRef,
     ghostFallbackIcon: brandFallbackIcon,
     toGhostShapeEntity: (m) => m,
+    onDropOutside: (item, clientX, clientY) => {
+      const entity = monsters.find((monster) => monster.id === item.id);
+      if (entity) dropSessionMapToken(toSessionMapTokenVisual('mostro', entity), clientX, clientY);
+    },
   });
 
   // "Nessun PNG/mostro" (Fase 4): per il GM va valutato sulla cartella

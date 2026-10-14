@@ -1,5 +1,5 @@
-import { TokenShapePreview } from './TokenShapePreview';
-import { TOKEN_SHAPE_SPECS, getTokenStrokeWidth } from './tokenShapes';
+import { TokenShapePreview } from "./TokenShapePreview";
+import { TOKEN_SHAPE_SPECS, getTokenStrokeWidth } from "./tokenShapes";
 import {
   DEFAULT_TOKEN_COLOR,
   DEFAULT_TOKEN_BACKGROUND_COLOR,
@@ -8,8 +8,8 @@ import {
   DEFAULT_TOKEN_BORDER_VISIBLE,
   type TokenBorderStyle,
   type TokenBorderThickness,
-} from '../../../types/tokenStyle';
-import type { CropAreaPercent } from './SourceCroppedImage';
+} from "../../../types/tokenStyle";
+import type { CropAreaPercent } from "./SourceCroppedImage";
 
 const TOKEN_SIZE = 64;
 const IDENTITY_CROP = { x: 0, y: 0, scale: 1 };
@@ -42,15 +42,20 @@ export interface TokenGhostShapeEntity {
 export function TokenGhostShape({
   entity,
   fallbackIcon,
+  size = TOKEN_SIZE,
 }: {
   entity: TokenGhostShapeEntity;
   fallbackIcon: React.ReactNode;
+  size?: number;
 }) {
   const color = entity.tokenColor ?? DEFAULT_TOKEN_COLOR;
-  const backgroundColor = entity.tokenBackgroundColor ?? DEFAULT_TOKEN_BACKGROUND_COLOR;
+  const backgroundColor =
+    entity.tokenBackgroundColor ?? DEFAULT_TOKEN_BACKGROUND_COLOR;
   const style = entity.tokenBorderStyle ?? DEFAULT_TOKEN_BORDER_STYLE;
-  const thickness = entity.tokenBorderThickness ?? DEFAULT_TOKEN_BORDER_THICKNESS;
-  const borderVisible = entity.tokenBorderVisible ?? DEFAULT_TOKEN_BORDER_VISIBLE;
+  const thickness =
+    entity.tokenBorderThickness ?? DEFAULT_TOKEN_BORDER_THICKNESS;
+  const borderVisible =
+    entity.tokenBorderVisible ?? DEFAULT_TOKEN_BORDER_VISIBLE;
   const geometry = TOKEN_SHAPE_SPECS[style].geometry;
   const strokeWidth = getTokenStrokeWidth(style, thickness);
 
@@ -68,7 +73,7 @@ export function TokenGhostShape({
       geometry={geometry}
       strokeWidth={strokeWidth}
       borderVisible={borderVisible}
-      style={{ width: TOKEN_SIZE, height: TOKEN_SIZE }}
+      style={{ width: size, height: size }}
     />
   );
 }

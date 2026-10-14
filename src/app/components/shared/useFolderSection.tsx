@@ -1,16 +1,33 @@
-import { useEffect, useState } from 'react';
-import { projectId } from '/utils/supabase/info';
+import { useEffect, useState } from "react";
+import { projectId } from "/utils/supabase/info";
 import {
-  loadFolders, createFolder, renameFolder, reorderFolder, deleteFolder, deleteFolderCascade, setFolderParent, setFolderIcon,
-  getFolderDepth, getFolderPath, getDescendantFolders, countFolderContentsRecursive, isValidFolderNestTarget, MAX_FOLDER_DEPTH,
-  type Folder, type FolderEntityType,
-} from '../../../services/supabase/foldersService';
-import { useFolderDragDrop, reorderIds } from '../session/shared/useFolderDragDrop';
-import { type EntityKebabMenuColors } from '../session/shared/EntityKebabMenu';
-import { FolderRow } from './FolderRow';
-import { DragGhost } from './DragGhost';
-import { useIsPointerOverRect } from './useIsPointerOverRect';
-import type { TokenGhostShapeEntity } from './TokenGhostShape';
+  loadFolders,
+  createFolder,
+  renameFolder,
+  reorderFolder,
+  deleteFolder,
+  deleteFolderCascade,
+  setFolderParent,
+  setFolderIcon,
+  getFolderDepth,
+  getFolderPath,
+  getDescendantFolders,
+  countFolderContentsRecursive,
+  isValidFolderNestTarget,
+  MAX_FOLDER_DEPTH,
+  type Folder,
+  type FolderEntityType,
+} from "../../../services/supabase/foldersService";
+import {
+  useFolderDragDrop,
+  reorderIds,
+} from "../session/shared/useFolderDragDrop";
+import { type EntityKebabMenuColors } from "../session/shared/EntityKebabMenu";
+import { FolderRow } from "./FolderRow";
+import { DragGhost } from "./DragGhost";
+import { useIsPointerOverRect } from "./useIsPointerOverRect";
+import type { TokenGhostShapeEntity } from "./TokenGhostShape";
+import type { DraggedItem } from "../session/shared/useFolderDragDrop";
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
@@ -20,19 +37,30 @@ const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-7
 // guardia finale prima di inviare la richiesta in handleNestFolder: un solo
 // punto di verita' chiamato in due momenti diversi del ciclo di vita del drag.
 function computeFolderRowDropState(
-  dnd: { draggedItem: { kind: 'folder' | 'card'; id: string } | null; dropTarget: { type: string; folderId?: string } | null },
+  dnd: {
+    draggedItem: { kind: "folder" | "card"; id: string } | null;
+    dropTarget: { type: string; folderId?: string } | null;
+  },
   folder: Folder,
   foldersById: Map<string, Folder>,
-): 'none' | 'valid' | 'invalid' {
+): "none" | "valid" | "invalid" {
   const target = dnd.dropTarget;
-  if (!target || (target.type !== 'into-folder' && target.type !== 'nest-into-folder') || target.folderId !== folder.id) {
-    return 'none';
+  if (
+    !target ||
+    (target.type !== "into-folder" && target.type !== "nest-into-folder") ||
+    target.folderId !== folder.id
+  ) {
+    return "none";
   }
-  if (dnd.draggedItem?.kind !== 'folder') return 'valid'; // card: nessun vincolo di profondita'/ciclo
-  return isValidFolderNestTarget(dnd.draggedItem.id, folder.id, foldersById) ? 'valid' : 'invalid';
+  if (dnd.draggedItem?.kind !== "folder") return "valid"; // card: nessun vincolo di profondita'/ciclo
+  return isValidFolderNestTarget(dnd.draggedItem.id, folder.id, foldersById)
+    ? "valid"
+    : "invalid";
 }
 
-export interface UseFolderSectionParams<T extends { id: string; folderId?: string | null }> {
+export interface UseFolderSectionParams<
+  T extends { id: string; folderId?: string | null },
+> {
   entityType: FolderEntityType;
   campaignId: string | null;
   /** Solo per decidere QUANDO ricaricare/resettare il drill-down - tipicamente
@@ -72,7 +100,10 @@ export interface UseFolderSectionParams<T extends { id: string; folderId?: strin
    *  navigazione; il chiamante deve ripulire i PROPRI item (folderId=null
    *  sui referenziati per il caso non-cascade, o un reload completo per il
    *  caso cascade) - specifico per entita', l'hook non tocca mai items. */
-  onFolderDeleted: (deletedFolderId: string, cascade: boolean) => void | Promise<void>;
+  onFolderDeleted: (
+    deletedFolderId: string,
+    cascade: boolean,
+  ) => void | Promise<void>;
   /** Container DOM condiviso tra piu' istanze dell'hook (le diverse sezioni
    *  di una stessa pagina) - stesso containerRef passato a useFolderDragDrop. */
   containerRef?: React.RefObject<HTMLDivElement | null>;
@@ -100,6 +131,8 @@ export interface UseFolderSectionParams<T extends { id: string; folderId?: strin
   /** Riduce un item T ai soli campi che la vista tonda sa disegnare - vedi
    *  lo stesso parametro su DragGhost.tsx. */
   toGhostShapeEntity?: (item: T) => TokenGhostShapeEntity;
+  /** Riceve i rilasci che non appartengono alla gerarchia di cartelle. */
+  onDropOutside?: (item: DraggedItem, clientX: number, clientY: number) => void;
 }
 
 export interface UseFolderSectionResult {
@@ -155,17 +188,38 @@ export interface UseFolderSectionResult {
  * dall'esterno) e, nel chiamante, eventuali stati specifici dell'entita'
  * (playerRows/npcs/monsters) che restano fuori da qui.
  */
-export function useFolderSection<T extends { id: string; folderId?: string | null }>({
-  entityType, campaignId, sessionKey, accessToken, canEdit, enabled, items, renderCard, renderGhostCard, itemLabel,
-  onMoveCard, onFolderDeleted, containerRef, maxVisibleDescendantShortcuts, menuColors,
-  listColumnRef, ghostFallbackIcon, toGhostShapeEntity,
+export function useFolderSection<
+  T extends { id: string; folderId?: string | null },
+>({
+  entityType,
+  campaignId,
+  sessionKey,
+  accessToken,
+  canEdit,
+  enabled,
+  items,
+  renderCard,
+  renderGhostCard,
+  itemLabel,
+  onMoveCard,
+  onFolderDeleted,
+  containerRef,
+  maxVisibleDescendantShortcuts,
+  menuColors,
+  listColumnRef,
+  ghostFallbackIcon,
+  toGhostShapeEntity,
+  onDropOutside,
 }: UseFolderSectionParams<T>): UseFolderSectionResult {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
-  const [renameFolderDraft, setRenameFolderDraft] = useState('');
-  const [deleteFolderTarget, setDeleteFolderTarget] = useState<Folder | null>(null);
-  const [deleteFolderCascadeContent, setDeleteFolderCascadeContent] = useState(false);
+  const [renameFolderDraft, setRenameFolderDraft] = useState("");
+  const [deleteFolderTarget, setDeleteFolderTarget] = useState<Folder | null>(
+    null,
+  );
+  const [deleteFolderCascadeContent, setDeleteFolderCascadeContent] =
+    useState(false);
   const [isDeletingFolder, setIsDeletingFolder] = useState(false);
   const [iconPickerFolder, setIconPickerFolder] = useState<Folder | null>(null);
 
@@ -180,10 +234,16 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
       return;
     }
     let cancelled = false;
-    loadFolders(campaignId, entityType, SERVER_BASE, accessToken ?? '')
-      .then((loaded) => { if (!cancelled) setFolders(loaded); })
-      .catch((err) => console.error(`Errore caricamento cartelle ${entityType}:`, err));
-    return () => { cancelled = true; };
+    loadFolders(campaignId, entityType, SERVER_BASE, accessToken ?? "")
+      .then((loaded) => {
+        if (!cancelled) setFolders(loaded);
+      })
+      .catch((err) =>
+        console.error(`Errore caricamento cartelle ${entityType}:`, err),
+      );
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId, sessionKey, enabled, entityType]);
 
@@ -191,20 +251,28 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
   const folderPath = getFolderPath(currentFolderId, foldersById);
   const createDisabledReason =
     getFolderDepth(currentFolderId, foldersById) >= MAX_FOLDER_DEPTH
-      ? 'Limite di 5 livelli di annidamento raggiunto' : null;
+      ? "Limite di 5 livelli di annidamento raggiunto"
+      : null;
 
   const handleCreateFolder = async () => {
     if (!campaignId || !accessToken) return;
     try {
-      const folder = await createFolder(campaignId, entityType, 'Nuova cartella', SERVER_BASE, accessToken, currentFolderId);
+      const folder = await createFolder(
+        campaignId,
+        entityType,
+        "Nuova cartella",
+        SERVER_BASE,
+        accessToken,
+        currentFolderId,
+      );
       setFolders((prev) => [...prev, folder]);
       // Entra subito in rinomina, stesso pattern di handleAddCustomTab in
       // useEntityTabs.ts: crea e passa direttamente al nome invece di
       // lasciare "Nuova cartella" come placeholder da rinominare dopo.
       setRenamingFolderId(folder.id);
-      setRenameFolderDraft('Nuova cartella');
+      setRenameFolderDraft("Nuova cartella");
     } catch (err) {
-      console.error('Errore creazione cartella:', err);
+      console.error("Errore creazione cartella:", err);
     }
   };
 
@@ -212,36 +280,52 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
     const name = renameFolderDraft.trim();
     setRenamingFolderId(null);
     if (!name || name === folder.name || !accessToken) return;
-    setFolders((prev) => prev.map((f) => (f.id === folder.id ? { ...f, name } : f)));
+    setFolders((prev) =>
+      prev.map((f) => (f.id === folder.id ? { ...f, name } : f)),
+    );
     try {
       await renameFolder(folder.id, name, SERVER_BASE, accessToken);
     } catch (err) {
-      console.error('Errore rinomina cartella:', err);
+      console.error("Errore rinomina cartella:", err);
       setFolders((prev) => prev.map((f) => (f.id === folder.id ? folder : f)));
     }
   };
 
   // Riordina solo tra i fratelli del nodo trascinato (stesso parentFolderId,
   // incluso il caso radice/null).
-  const handleReorderFolders = async (draggedId: string, beforeId: string | null) => {
+  const handleReorderFolders = async (
+    draggedId: string,
+    beforeId: string | null,
+  ) => {
     if (!accessToken) return;
     const dragged = folders.find((f) => f.id === draggedId);
     if (!dragged) return;
-    const siblingIds = folders.filter((f) => f.parentFolderId === dragged.parentFolderId).map((f) => f.id);
+    const siblingIds = folders
+      .filter((f) => f.parentFolderId === dragged.parentFolderId)
+      .map((f) => f.id);
     const reorderedSiblingIds = reorderIds(siblingIds, draggedId, beforeId);
-    const positionById = new Map(reorderedSiblingIds.map((id, idx) => [id, idx]));
+    const positionById = new Map(
+      reorderedSiblingIds.map((id, idx) => [id, idx]),
+    );
     const byId = new Map(folders.map((f) => [f.id, f]));
 
-    setFolders((prev) => prev.map((f) => (positionById.has(f.id) ? { ...f, position: positionById.get(f.id)! } : f)));
+    setFolders((prev) =>
+      prev.map((f) =>
+        positionById.has(f.id)
+          ? { ...f, position: positionById.get(f.id)! }
+          : f,
+      ),
+    );
 
     await Promise.all(
       reorderedSiblingIds.map((id) => {
         const original = byId.get(id);
         const newPosition = positionById.get(id)!;
         if (original && original.position === newPosition) return null;
-        return reorderFolder(id, newPosition, SERVER_BASE, accessToken)
-          .catch((err) => console.error('Errore riordino cartella:', err));
-      })
+        return reorderFolder(id, newPosition, SERVER_BASE, accessToken).catch(
+          (err) => console.error("Errore riordino cartella:", err),
+        );
+      }),
     );
   };
 
@@ -250,21 +334,40 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
   // l'header della cartella che gia' la contiene, si promuove al genitore
   // DI QUEL genitore invece di un no-op - vedi lo stesso principio in
   // FolderBreadcrumb (il penultimo segmento del breadcrumb).
-  const handleNestFolder = async (folderId: string, newParentFolderId: string | null) => {
+  const handleNestFolder = async (
+    folderId: string,
+    newParentFolderId: string | null,
+  ) => {
     if (!accessToken) return;
     const original = folders.find((f) => f.id === folderId);
     if (!original) return;
     let resolvedParentId = newParentFolderId;
-    if (newParentFolderId !== null && newParentFolderId === original.parentFolderId) {
+    if (
+      newParentFolderId !== null &&
+      newParentFolderId === original.parentFolderId
+    ) {
       const currentParent = folders.find((f) => f.id === newParentFolderId);
       resolvedParentId = currentParent?.parentFolderId ?? null;
     }
-    if (resolvedParentId !== null && !isValidFolderNestTarget(folderId, resolvedParentId, foldersById)) return;
-    setFolders((prev) => prev.map((f) => (f.id === folderId ? { ...f, parentFolderId: resolvedParentId } : f)));
+    if (
+      resolvedParentId !== null &&
+      !isValidFolderNestTarget(folderId, resolvedParentId, foldersById)
+    )
+      return;
+    setFolders((prev) =>
+      prev.map((f) =>
+        f.id === folderId ? { ...f, parentFolderId: resolvedParentId } : f,
+      ),
+    );
     try {
-      await setFolderParent(folderId, resolvedParentId, SERVER_BASE, accessToken);
+      await setFolderParent(
+        folderId,
+        resolvedParentId,
+        SERVER_BASE,
+        accessToken,
+      );
     } catch (err) {
-      console.error('Errore spostamento cartella:', err);
+      console.error("Errore spostamento cartella:", err);
       setFolders((prev) => prev.map((f) => (f.id === folderId ? original : f)));
     }
   };
@@ -277,17 +380,20 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
     onMoveCard,
     onNestFolder: handleNestFolder,
     containerRef,
+    onDropOutside,
   });
 
   const selectFolderIcon = async (iconId: string | null) => {
     const folder = iconPickerFolder;
     setIconPickerFolder(null);
     if (!folder || !accessToken) return;
-    setFolders((prev) => prev.map((f) => (f.id === folder.id ? { ...f, icon: iconId } : f)));
+    setFolders((prev) =>
+      prev.map((f) => (f.id === folder.id ? { ...f, icon: iconId } : f)),
+    );
     try {
       await setFolderIcon(folder.id, iconId, SERVER_BASE, accessToken);
     } catch (err) {
-      console.error('Errore impostazione icona cartella:', err);
+      console.error("Errore impostazione icona cartella:", err);
       setFolders((prev) => prev.map((f) => (f.id === folder.id ? folder : f)));
     }
   };
@@ -295,7 +401,11 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
 
   const deleteFolderContents = (() => {
     if (!deleteFolderTarget) return null;
-    const counts = countFolderContentsRecursive(deleteFolderTarget.id, folders, items);
+    const counts = countFolderContentsRecursive(
+      deleteFolderTarget.id,
+      folders,
+      items,
+    );
     if (counts.itemCount + counts.folderCount === 0) return null;
     return counts;
   })();
@@ -317,15 +427,25 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
     try {
       if (cascade) {
         await deleteFolderCascade(targetId, SERVER_BASE, accessToken);
-        setFolders(await loadFolders(campaignId, entityType, SERVER_BASE, accessToken));
+        setFolders(
+          await loadFolders(campaignId, entityType, SERVER_BASE, accessToken),
+        );
       } else {
         await deleteFolder(targetId, SERVER_BASE, accessToken);
-        setFolders((prev) => prev.filter((f) => f.id !== targetId).map((f) => (f.parentFolderId === targetId ? { ...f, parentFolderId: null } : f)));
+        setFolders((prev) =>
+          prev
+            .filter((f) => f.id !== targetId)
+            .map((f) =>
+              f.parentFolderId === targetId
+                ? { ...f, parentFolderId: null }
+                : f,
+            ),
+        );
       }
       setDeleteFolderTarget(null);
       await onFolderDeleted(targetId, cascade);
     } catch (err) {
-      console.error('Errore eliminazione cartella:', err);
+      console.error("Errore eliminazione cartella:", err);
     } finally {
       setIsDeletingFolder(false);
     }
@@ -335,7 +455,14 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
   const reloadFolders = async () => {
     if (!campaignId) return;
     try {
-      setFolders(await loadFolders(campaignId, entityType, SERVER_BASE, accessToken ?? ''));
+      setFolders(
+        await loadFolders(
+          campaignId,
+          entityType,
+          SERVER_BASE,
+          accessToken ?? "",
+        ),
+      );
     } catch (err) {
       console.error(`Errore ricaricamento cartelle ${entityType}:`, err);
     }
@@ -349,12 +476,18 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
     const childFolders = folders
       .filter((f) => f.parentFolderId === currentFolderId)
       .sort((a, b) => a.position - b.position);
-    const directItems = items.filter((it) => (it.folderId ?? null) === currentFolderId);
+    const directItems = items.filter(
+      (it) => (it.folderId ?? null) === currentFolderId,
+    );
 
     return (
       <>
         {childFolders.map((folder) => {
-          const counts = countFolderContentsRecursive(folder.id, folders, items);
+          const counts = countFolderContentsRecursive(
+            folder.id,
+            folders,
+            items,
+          );
           const descendantFolders = getDescendantFolders(folder.id, folders);
           return (
             <FolderRow
@@ -368,14 +501,25 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
               isRenaming={renamingFolderId === folder.id}
               renameDraft={renameFolderDraft}
               onRenameDraftChange={setRenameFolderDraft}
-              onStartRename={() => { setRenamingFolderId(folder.id); setRenameFolderDraft(folder.name); }}
+              onStartRename={() => {
+                setRenamingFolderId(folder.id);
+                setRenameFolderDraft(folder.name);
+              }}
               onCommitRename={() => handleCommitFolderRename(folder)}
               onCancelRename={() => setRenamingFolderId(null)}
-              onRequestDelete={() => { setDeleteFolderTarget(folder); setDeleteFolderCascadeContent(false); }}
+              onRequestDelete={() => {
+                setDeleteFolderTarget(folder);
+                setDeleteFolderCascadeContent(false);
+              }}
               onOpenIconPicker={() => setIconPickerFolder(folder)}
-              onPointerDown={(e) => dnd.handlePointerDown(e, { kind: 'folder', id: folder.id })}
+              onPointerDown={(e) =>
+                dnd.handlePointerDown(e, { kind: "folder", id: folder.id })
+              }
               dropState={computeFolderRowDropState(dnd, folder, foldersById)}
-              isDimmed={dnd.draggedItem?.kind === 'folder' && dnd.draggedItem.id === folder.id}
+              isDimmed={
+                dnd.draggedItem?.kind === "folder" &&
+                dnd.draggedItem.id === folder.id
+              }
               maxVisibleDescendantShortcuts={maxVisibleDescendantShortcuts}
               colors={menuColors}
             />
@@ -385,9 +529,13 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
           <div
             key={it.id}
             className={
-              dnd.draggedItem?.kind === 'card' && dnd.draggedItem.id === it.id ? 'cursor-grabbing opacity-40' : ''
+              dnd.draggedItem?.kind === "card" && dnd.draggedItem.id === it.id
+                ? "cursor-grabbing opacity-40"
+                : ""
             }
-            onPointerDown={(e) => dnd.handlePointerDown(e, { kind: 'card', id: it.id })}
+            onPointerDown={(e) =>
+              dnd.handlePointerDown(e, { kind: "card", id: it.id })
+            }
           >
             {renderCard(it)}
           </div>
@@ -403,7 +551,10 @@ export function useFolderSection<T extends { id: string; folderId?: string | nul
   // insideList deve reagire. listColumnRef assente = isPointerOverList
   // sempre forzato a true sotto (mai "fuori lista"), comportamento
   // invariato per chi non lo passa.
-  const isPointerOverList = useIsPointerOverRect(listColumnRef, dnd.pointerPosition);
+  const isPointerOverList = useIsPointerOverRect(
+    listColumnRef,
+    dnd.pointerPosition,
+  );
 
   const renderGhost = (): React.ReactNode => (
     <DragGhost

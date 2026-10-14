@@ -34,6 +34,7 @@ export interface ChapterMapMetadata {
 
 export type SessionGridType = 'square' | 'hex-flat' | 'hex-pointy';
 export type SessionGridLineStyle = 'solid' | 'dashed' | 'dotted' | 'crosses' | 'corners';
+export type SquareGridSnapMode = 'half-step' | 'cell-center';
 export interface SessionGridSettings {
   visible: boolean;
   type: SessionGridType;
@@ -41,6 +42,7 @@ export interface SessionGridSettings {
   color?: string;
   opacity: number;
   snap: boolean;
+  squareSnapMode?: SquareGridSnapMode;
   distance: number;
   unit: string;
   cellSize: number;
