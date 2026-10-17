@@ -12,7 +12,7 @@ import { configureSessionGrid, DEFAULT_SESSION_GRID, type SessionGridSettings } 
 import { useActiveScene } from './useActiveScene';
 import { useCampaignDocument } from '../shared/useCampaignDocument';
 import type { SessionMapToken, SessionMapTokenVisual } from '../../../types/sessionMapToken';
-import { reorderMapObjects, type MapLayerMove } from './mapObjectLayers';
+import { doBoundsOverlap, getRotatedSquareBounds, reorderMapObjects, type MapLayerMove } from './mapObjectLayers';
 
 const TREE_WIDTH_STORAGE_KEY = 'hollowgate.session.tree-width';
 const TREE_DEFAULT_WIDTH = 280;
@@ -184,7 +184,7 @@ export function SessionWorkspace({
   const addMapToken = (visual: SessionMapTokenVisual, position: { x: number; y: number }, size: number) => {
     if (!display) return;
     const now = new Date().toISOString();
-    updateMapTokens([...(display.mapTokens ?? []), { ...visual, ...position, id: crypto.randomUUID(), locked: false, visible: true, showLabel: false, labelColor: 'var(--dash-surface)', size, rotation: 0, createdAt: now, updatedAt: now }]);
+    updateMapTokens([...(display.mapTokens ?? []), { ...visual, ...position, id: crypto.randomUUID(), locked: false, visible: true, showLabel: false, labelColor: 'var(--dash-surface)', size, rotation: 0, magnetEnabled: false, magnetGroupId: null, conditions: [], createdAt: now, updatedAt: now }]);
   };
 
   const moveMapTokens = (positions: Record<string, { x: number; y: number }>) => {
@@ -198,26 +198,140 @@ export function SessionWorkspace({
 
   const moveMapTokenLayer = (tokenId: string, move: MapLayerMove) => {
     if (!display) return;
-    updateMapTokens(reorderMapObjects(display.mapTokens ?? [], tokenId, move));
+    const tokens = display.mapTokens ?? [];
+    const fallbackSize = display.gridSettings?.cellSize ?? DEFAULT_SESSION_GRID.cellSize;
+    updateMapTokens(reorderMapObjects(tokens, tokenId, move, (first, second) => {
+      const firstSize = Math.max(8, first.size ?? fallbackSize);
+      const secondSize = Math.max(8, second.size ?? fallbackSize);
+      return doBoundsOverlap(
+        getRotatedSquareBounds(first, firstSize, first.rotation ?? 0),
+        getRotatedSquareBounds(second, secondSize, second.rotation ?? 0),
+      );
+    }));
+  };
+
+  const moveMapTokensLayer = (tokenIds: string[], move: MapLayerMove) => {
+    if (!display || tokenIds.length === 0) return;
+    const tokens = display.mapTokens ?? [];
+    const ids = new Set(tokenIds);
+    const selected = tokens.filter(token => ids.has(token.id));
+    const remaining = tokens.filter(token => !ids.has(token.id));
+    if (move === 'front') { updateMapTokens([...remaining, ...selected]); return; }
+    if (move === 'back') { updateMapTokens([...selected, ...remaining]); return; }
+    const fallbackSize = display.gridSettings?.cellSize ?? DEFAULT_SESSION_GRID.cellSize;
+    const selectedBounds = selected.map(token => getRotatedSquareBounds(token, Math.max(8, token.size ?? fallbackSize), token.rotation ?? 0));
+    const selectedIndices = selected.map(token => tokens.findIndex(candidate => candidate.id === token.id));
+    const edgeIndex = move === 'forward' ? Math.max(...selectedIndices) : Math.min(...selectedIndices);
+    let candidate: SessionMapToken | undefined;
+    if (move === 'forward') {
+      candidate = tokens.find((token, index) => index > edgeIndex && !ids.has(token.id) && selectedBounds.some(bounds => doBoundsOverlap(bounds, getRotatedSquareBounds(token, Math.max(8, token.size ?? fallbackSize), token.rotation ?? 0))));
+    } else {
+      for (let index = edgeIndex - 1; index >= 0; index -= 1) {
+        const token = tokens[index];
+        if (!ids.has(token.id) && selectedBounds.some(bounds => doBoundsOverlap(bounds, getRotatedSquareBounds(token, Math.max(8, token.size ?? fallbackSize), token.rotation ?? 0)))) { candidate = token; break; }
+      }
+    }
+    if (!candidate) return;
+    const candidateIndex = remaining.findIndex(token => token.id === candidate?.id);
+    const next = [...remaining];
+    next.splice(move === 'forward' ? candidateIndex + 1 : candidateIndex, 0, ...selected);
+    updateMapTokens(next);
   };
 
   const setMapTokenLocked = (tokenId: string, locked: boolean) => {
     if (!display) return;
-    updateMapTokens((display.mapTokens ?? []).map(token => token.id === tokenId
-      ? { ...token, locked, updatedAt: new Date().toISOString() }
+    const tokens = display.mapTokens ?? [];
+    const target = tokens.find(token => token.id === tokenId);
+    const now = new Date().toISOString();
+    updateMapTokens(tokens.map(token => token.id === tokenId || (target?.magnetGroupId && token.magnetGroupId === target.magnetGroupId)
+      ? { ...token, locked, updatedAt: now }
       : token));
   };
 
   const updateMapToken = (tokenId: string, update: Partial<SessionMapToken>) => {
     if (!display) return;
-    updateMapTokens((display.mapTokens ?? []).map(token => token.id === tokenId
-      ? { ...token, ...update, updatedAt: new Date().toISOString() }
+    const tokens = display.mapTokens ?? [];
+    const target = tokens.find(token => token.id === tokenId);
+    const sharedUpdate = Object.fromEntries(Object.entries(update).filter(([key]) => ['visible', 'showLabel', 'labelColor'].includes(key)));
+    const now = new Date().toISOString();
+    updateMapTokens(tokens.map(token => {
+      if (token.id === tokenId) return { ...token, ...update, updatedAt: now };
+      if (target?.magnetGroupId && token.magnetGroupId === target.magnetGroupId && Object.keys(sharedUpdate).length > 0) return { ...token, ...sharedUpdate, updatedAt: now };
+      return token;
+    }));
+  };
+
+  const updateMapTokensBatch = (tokenIds: string[], update: Partial<SessionMapToken>) => {
+    if (!display) return;
+    const ids = new Set(tokenIds);
+    const now = new Date().toISOString();
+    updateMapTokens((display.mapTokens ?? []).map(token => ids.has(token.id) ? { ...token, ...update, updatedAt: now } : token));
+  };
+
+  const updateMapTokenTransforms = (updates: Record<string, Partial<SessionMapToken>>) => {
+    if (!display) return;
+    const now = new Date().toISOString();
+    updateMapTokens((display.mapTokens ?? []).map(token => updates[token.id]
+      ? { ...token, ...updates[token.id], updatedAt: now }
       : token));
+  };
+
+  const setMapTokenMagnetEnabled = (tokenId: string, enabled: boolean) => {
+    if (!display) return;
+    const tokens = display.mapTokens ?? [];
+    const target = tokens.find(token => token.id === tokenId);
+    if (!target) return;
+    const next = tokens.map(token => token.id === tokenId ? { ...token, magnetEnabled: enabled, magnetGroupId: enabled ? token.magnetGroupId : null } : token);
+    const remainingGroup = target.magnetGroupId ? next.filter(token => token.magnetGroupId === target.magnetGroupId) : [];
+    updateMapTokens(remainingGroup.length === 1 ? next.map(token => token.id === remainingGroup[0].id ? { ...token, magnetGroupId: null } : token) : next);
+  };
+
+  const linkMapTokens = (tokenId: string, otherTokenId: string) => {
+    if (!display || tokenId === otherTokenId) return;
+    const tokens = display.mapTokens ?? [];
+    const token = tokens.find(candidate => candidate.id === tokenId);
+    const other = tokens.find(candidate => candidate.id === otherTokenId);
+    if (!token || !other || !token.magnetEnabled || !other.magnetEnabled) return;
+    const groupId = token.magnetGroupId ?? other.magnetGroupId ?? crypto.randomUUID();
+    const mergedGroupIds = new Set([token.magnetGroupId, other.magnetGroupId].filter(Boolean));
+    updateMapTokens(tokens.map(candidate => candidate.id === tokenId || candidate.id === otherTokenId || (candidate.magnetGroupId && mergedGroupIds.has(candidate.magnetGroupId))
+      ? { ...candidate, magnetGroupId: groupId }
+      : candidate));
+  };
+
+  const unlinkMapToken = (tokenId: string) => {
+    if (!display) return;
+    const tokens = display.mapTokens ?? [];
+    const target = tokens.find(token => token.id === tokenId);
+    if (!target?.magnetGroupId) return;
+    const next = tokens.map(token => token.id === tokenId ? { ...token, magnetGroupId: null } : token);
+    const remaining = next.filter(token => token.magnetGroupId === target.magnetGroupId);
+    updateMapTokens(remaining.length === 1 ? next.map(token => token.id === remaining[0].id ? { ...token, magnetGroupId: null } : token) : next);
   };
 
   const deleteMapToken = (tokenId: string) => {
     if (!display) return;
-    updateMapTokens((display.mapTokens ?? []).filter(token => token.id !== tokenId));
+    const tokens = display.mapTokens ?? [];
+    const deleted = tokens.find(token => token.id === tokenId);
+    const next = tokens.filter(token => token.id !== tokenId);
+    const remaining = deleted?.magnetGroupId ? next.filter(token => token.magnetGroupId === deleted.magnetGroupId) : [];
+    updateMapTokens(remaining.length === 1 ? next.map(token => token.id === remaining[0].id ? { ...token, magnetGroupId: null } : token) : next);
+  };
+
+  const deleteMapTokensBatch = (tokenIds: string[]) => {
+    if (!display) return;
+    const ids = new Set(tokenIds);
+    const next = (display.mapTokens ?? []).filter(token => !ids.has(token.id));
+    const groupCounts = new globalThis.Map<string, number>();
+    next.forEach(token => { if (token.magnetGroupId) groupCounts.set(token.magnetGroupId, (groupCounts.get(token.magnetGroupId) ?? 0) + 1); });
+    updateMapTokens(next.map(token => token.magnetGroupId && groupCounts.get(token.magnetGroupId) === 1 ? { ...token, magnetGroupId: null } : token));
+  };
+
+  const createMapTokenMagnetGroup = (tokenIds: string[]) => {
+    if (!display || tokenIds.length < 2) return;
+    const ids = new Set(tokenIds);
+    const groupId = crypto.randomUUID();
+    updateMapTokens((display.mapTokens ?? []).map(token => ids.has(token.id) ? { ...token, magnetEnabled: true, magnetGroupId: groupId } : token));
   };
 
   useEffect(() => {
@@ -347,7 +461,7 @@ export function SessionWorkspace({
 
       <main className="relative min-h-0 overflow-hidden bg-[radial-gradient(circle_at_center,#262a31_0%,#14161b_58%,#0d0f13_100%)]">
         {isOwner && treeHidden && <button type="button" onClick={() => setTreeHidden(false)} aria-label="Mostra pannello Capitoli e Scene" title="Mostra pannello" className="absolute left-3 top-3 z-40 rounded-lg border border-white/15 bg-black/60 p-2 text-white/70 shadow-lg backdrop-blur hover:text-white"><PanelLeftOpen className="h-4 w-4" /></button>}
-        {display ? (display.mapUrl || display.sceneImageUrl ? <MapViewport key={`${display.campaignId}:${display.chapterId}`} mapId={`${display.campaignId}:${display.chapterId}`} backgroundUrl={display.mapMetadata.previewUrl ?? display.mapUrl ?? display.sceneImageUrl} isOwner={isOwner} mapPlacement={mapPlacement} gridSettings={display.gridSettings ?? DEFAULT_SESSION_GRID} mapTokens={(display.mapTokens ?? []).filter(token => isOwner || !token.hiddenFromPlayers)} onMapPlacementChange={updateMapPlacement} onTokenDrop={addMapToken} onTokensMove={moveMapTokens} onTokenLayerMove={moveMapTokenLayer} onTokenLockChange={setMapTokenLocked} onTokenChange={updateMapToken} onTokenDelete={deleteMapToken}><ActiveSceneMap scene={display} unframed fill={Boolean(mapPlacement.width && mapPlacement.height)} /></MapViewport> : <div className="grid h-full min-h-[55vh] place-items-center px-8 text-center"><div><Map className="mx-auto h-12 w-12 text-white/20" /><p className="mt-3 text-sm text-white/45">Nessuna mappa assegnata a questo Capitolo.</p></div></div>) : <div className="grid h-full min-h-[60vh] place-items-center text-center"><div><Map className="mx-auto h-14 w-14 text-white/15" /><h1 className="mt-4 text-xl font-semibold text-white/70">In attesa della mappa</h1><p className="mt-2 text-sm text-white/40">Il Game Master selezionerà il Capitolo da giocare.</p></div></div>}
+        {display ? (display.mapUrl || display.sceneImageUrl ? <MapViewport key={`${display.campaignId}:${display.chapterId}`} mapId={`${display.campaignId}:${display.chapterId}`} backgroundUrl={display.mapMetadata.previewUrl ?? display.mapUrl ?? display.sceneImageUrl} isOwner={isOwner} mapPlacement={mapPlacement} gridSettings={display.gridSettings ?? DEFAULT_SESSION_GRID} mapTokens={(display.mapTokens ?? []).filter(token => isOwner || !token.hiddenFromPlayers)} onMapPlacementChange={updateMapPlacement} onTokenDrop={addMapToken} onTokensMove={moveMapTokens} onTokenLayerMove={moveMapTokenLayer} onTokensLayerMove={moveMapTokensLayer} onTokenLockChange={setMapTokenLocked} onTokenChange={updateMapToken} onTokensChange={updateMapTokensBatch} onTokenTransformsChange={updateMapTokenTransforms} onTokenDelete={deleteMapToken} onTokensDelete={deleteMapTokensBatch} onTokensCreateMagnetGroup={createMapTokenMagnetGroup} onTokenMagnetEnabledChange={setMapTokenMagnetEnabled} onTokenMagnetLink={linkMapTokens} onTokenMagnetUnlink={unlinkMapToken}><ActiveSceneMap scene={display} unframed fill={Boolean(mapPlacement.width && mapPlacement.height)} /></MapViewport> : <div className="grid h-full min-h-[55vh] place-items-center px-8 text-center"><div><Map className="mx-auto h-12 w-12 text-white/20" /><p className="mt-3 text-sm text-white/45">Nessuna mappa assegnata a questo Capitolo.</p></div></div>) : <div className="grid h-full min-h-[60vh] place-items-center text-center"><div><Map className="mx-auto h-14 w-14 text-white/15" /><h1 className="mt-4 text-xl font-semibold text-white/70">In attesa della mappa</h1><p className="mt-2 text-sm text-white/40">Il Game Master selezionerà il Capitolo da giocare.</p></div></div>}
       </main>
     </div>
   );

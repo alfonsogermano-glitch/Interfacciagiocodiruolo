@@ -27,7 +27,7 @@ import { FolderRow } from "./FolderRow";
 import { DragGhost } from "./DragGhost";
 import { useIsPointerOverRect } from "./useIsPointerOverRect";
 import type { TokenGhostShapeEntity } from "./TokenGhostShape";
-import type { DraggedItem } from "../session/shared/useFolderDragDrop";
+import type { DraggedItem, DragGrabOffset } from "../session/shared/useFolderDragDrop";
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
@@ -96,6 +96,7 @@ export interface UseFolderSectionParams<
    *  (endpoint ed effetti collaterali diversi per PG/PNG/Mostri/altre
    *  entita'). */
   onMoveCard: (itemId: string, folderId: string | null) => void;
+  onReorderCards?: (itemId: string, beforeItemId: string | null) => void;
   /** Dopo un'eliminazione di cartella l'hook ha gia' aggiornato folders/
    *  navigazione; il chiamante deve ripulire i PROPRI item (folderId=null
    *  sui referenziati per il caso non-cascade, o un reload completo per il
@@ -132,7 +133,7 @@ export interface UseFolderSectionParams<
    *  lo stesso parametro su DragGhost.tsx. */
   toGhostShapeEntity?: (item: T) => TokenGhostShapeEntity;
   /** Riceve i rilasci che non appartengono alla gerarchia di cartelle. */
-  onDropOutside?: (item: DraggedItem, clientX: number, clientY: number) => void;
+  onDropOutside?: (item: DraggedItem, clientX: number, clientY: number, grabOffset: DragGrabOffset) => void;
 }
 
 export interface UseFolderSectionResult {
@@ -202,6 +203,7 @@ export function useFolderSection<
   renderGhostCard,
   itemLabel,
   onMoveCard,
+  onReorderCards,
   onFolderDeleted,
   containerRef,
   maxVisibleDescendantShortcuts,
@@ -378,6 +380,7 @@ export function useFolderSection<
     folderIds: folders.map((f) => f.id),
     onReorderFolders: handleReorderFolders,
     onMoveCard,
+    onReorderCards,
     onNestFolder: handleNestFolder,
     containerRef,
     onDropOutside,
@@ -528,18 +531,18 @@ export function useFolderSection<
         {directItems.map((it) => (
           <div
             key={it.id}
-            className={
-              dnd.draggedItem?.kind === "card" && dnd.draggedItem.id === it.id
-                ? "cursor-grabbing opacity-40"
-                : ""
-            }
+            data-folder-card-id={it.id}
+            data-folder-entity-type={entityType}
+            className={`relative ${dnd.draggedItem?.kind === "card" && dnd.draggedItem.id === it.id ? "cursor-grabbing opacity-40" : ""}`}
             onPointerDown={(e) =>
               dnd.handlePointerDown(e, { kind: "card", id: it.id })
             }
           >
+            {dnd.dropTarget?.type === "reorder-card" && dnd.dropTarget.beforeCardId === it.id && <div data-card-drop-line className="pointer-events-none absolute -top-px left-2 right-2 z-10 h-0.5 bg-[var(--dash-accent)]" />}
             {renderCard(it)}
           </div>
         ))}
+        {dnd.dropTarget?.type === "reorder-card" && dnd.dropTarget.beforeCardId === null && <div data-card-drop-line className="mx-2 h-0.5 bg-[var(--dash-accent)]" />}
       </>
     );
   };

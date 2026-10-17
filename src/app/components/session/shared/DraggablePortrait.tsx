@@ -26,6 +26,7 @@ export function DraggablePortrait({
   size = 56,
   chrome = 'framed',
   onPointerDown,
+  dragEnabled = Boolean(onPointerDown),
   hiddenFromPlayers = false,
   hiddenBadgePosition = 'top-right',
   tokenColor,
@@ -62,6 +63,7 @@ export function DraggablePortrait({
    *  off-screen + dataTransfer.setDragImage) ma nel chiamante, che conosce
    *  pointerPosition/draggedItem dell'hook (vedi TokenDragGhost.tsx). */
   onPointerDown?: (e: React.PointerEvent) => void;
+  dragEnabled?: boolean;
   hiddenFromPlayers?: boolean;
   hiddenBadgePosition?: 'center' | 'top-right';
   tokenColor?: string | null;
@@ -81,13 +83,13 @@ export function DraggablePortrait({
   const borderVisible = tokenBorderVisible ?? DEFAULT_TOKEN_BORDER_VISIBLE;
   const geometry = TOKEN_SHAPE_SPECS[style].geometry;
   const strokeWidth = getTokenStrokeWidth(style, thickness);
+  const tokenSize = Math.min(TOKEN_SIZE, size);
 
   return (
     <div
-      onPointerDown={onPointerDown}
-      className={`group relative shrink-0 overflow-hidden ${
+      className={`relative shrink-0 overflow-hidden ${
         isFlush ? '' : 'rounded-2xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] shadow-lg'
-      } ${onPointerDown ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      }`}
       style={isFlush ? { width: size, height: '100%' } : { width: size, height: size }}
     >
       {url || (sourceImageUrl && cropArea) ? (
@@ -102,27 +104,31 @@ export function DraggablePortrait({
       ) : (
         <div className="flex h-full w-full items-center justify-center">{fallbackIcon}</div>
       )}
-      {onPointerDown && (
+      {dragEnabled && (
         <div
-          className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100"
-          style={{ backgroundColor: 'rgba(0,0,0,0.35)' }}
+          data-token-drag-handle
+          onPointerDown={onPointerDown}
+          className="group/token absolute inset-0 m-auto cursor-grab rounded-full active:cursor-grabbing"
+          style={{ width: tokenSize, height: tokenSize }}
         >
-          <TokenShapePreview
-            clipId={`${clipIdBase}-hover`}
-            name={name}
-            portraitImageUrl={url}
-            portraitSourceImageUrl={sourceImageUrl}
-            portraitCropArea={cropArea}
-            fallbackContent={!url ? fallbackIcon : undefined}
-            crop={IDENTITY_CROP}
-            color={color}
-            backgroundColor={backgroundColor}
-            geometry={geometry}
-            strokeWidth={strokeWidth}
-            borderVisible={borderVisible}
-            borderLabel={tokenBorderLabel}
-            style={{ width: TOKEN_SIZE, height: TOKEN_SIZE }}
-          />
+          <div className="pointer-events-none h-full w-full rounded-full bg-black/35 opacity-0 transition-opacity duration-150 group-hover/token:opacity-100">
+            <TokenShapePreview
+              clipId={`${clipIdBase}-hover`}
+              name={name}
+              portraitImageUrl={url}
+              portraitSourceImageUrl={sourceImageUrl}
+              portraitCropArea={cropArea}
+              fallbackContent={!url ? fallbackIcon : undefined}
+              crop={IDENTITY_CROP}
+              color={color}
+              backgroundColor={backgroundColor}
+              geometry={geometry}
+              strokeWidth={strokeWidth}
+              borderVisible={borderVisible}
+              borderLabel={tokenBorderLabel}
+              style={{ width: tokenSize, height: tokenSize }}
+            />
+          </div>
         </div>
       )}
       {hiddenFromPlayers && (

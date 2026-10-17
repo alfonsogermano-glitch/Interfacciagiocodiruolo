@@ -35,11 +35,13 @@ export interface TokenDragGhostEntity {
 export function TokenDragGhost({
   entity,
   pointerPosition,
+  grabOffset,
   fallbackIcon,
   insideList = false,
 }: {
   entity: TokenDragGhostEntity | null;
   pointerPosition: { x: number; y: number } | null;
+  grabOffset?: { x: number; y: number };
   fallbackIcon: React.ReactNode;
   /** Vero quando il puntatore e' attualmente dentro i confini della colonna
    *  lista (vedi isPointerOverList in SessionCharactersPanel.tsx, ricalcolato
@@ -53,8 +55,9 @@ export function TokenDragGhost({
   const portalContainer = usePortalContainer();
   if (!entity || !pointerPosition) return null;
 
+  const tokenGrabOffset = grabOffset ?? { x: 0.5, y: 0.5 };
   const ghostStyle: React.CSSProperties = {
-    position: 'fixed', left: pointerPosition.x + 14, top: pointerPosition.y + 14, zIndex: 2000,
+    position: 'fixed', left: pointerPosition.x - tokenGrabOffset.x * 64, top: pointerPosition.y - tokenGrabOffset.y * 64, zIndex: 2000,
   };
 
   if (insideList) {

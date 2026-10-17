@@ -19,6 +19,13 @@ export interface SessionMapTokenVisual {
   hiddenFromPlayers?: boolean;
 }
 
+export interface SessionMapTokenCondition {
+  id: string;
+  name: string;
+  standardKey?: string;
+  custom?: boolean;
+}
+
 export interface SessionMapToken extends SessionMapTokenVisual {
   id: string;
   x: number;
@@ -29,6 +36,9 @@ export interface SessionMapToken extends SessionMapTokenVisual {
   labelColor?: string;
   size?: number;
   rotation?: number;
+  magnetEnabled?: boolean;
+  magnetGroupId?: string | null;
+  conditions?: SessionMapTokenCondition[];
   createdAt: string;
   updatedAt: string;
 }

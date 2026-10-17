@@ -18,6 +18,7 @@ export const UNFILED_DROP_ID = 'UNFILED' as const;
 
 export type FolderDropTarget =
   | { type: 'reorder-folder'; beforeFolderId: string | null } // null = in coda
+  | { type: 'reorder-card'; beforeCardId: string | null }
   | { type: 'into-folder'; folderId: string }
   | { type: 'nest-into-folder'; folderId: string }
   | { type: 'unfiled' };
@@ -25,7 +26,10 @@ export type FolderDropTarget =
 export interface DraggedItem {
   kind: FolderDragKind;
   id: string;
+  group?: string;
 }
+
+export interface DragGrabOffset { x: number; y: number }
 
 /**
  * Riordina un array spostando `id` prima di `beforeId` (null = in coda).
@@ -100,9 +104,11 @@ export function resolveFolderDropTarget(
   draggedKind: FolderDragKind,
   entityType: string,
   draggedId?: string,
+  draggedGroup?: string,
 ): FolderDropTarget | null {
+  const effectiveEntityType = draggedGroup ? `${entityType}:${draggedGroup}` : entityType;
   const els = Array.from(container.querySelectorAll<HTMLElement>('[data-folder-id]'))
-    .filter((el) => el.dataset.folderEntityType === entityType);
+    .filter((el) => el.dataset.folderEntityType === effectiveEntityType);
 
   let beforeFolderId: string | null = null;
   let overUnfiled = false;
@@ -125,7 +131,20 @@ export function resolveFolderDropTarget(
   if (draggedKind === 'card') {
     if (overFolderId) return { type: 'into-folder', folderId: overFolderId };
     if (overUnfiled) return { type: 'unfiled' };
-    return null; // fuori da qualunque target riconosciuto: nessun'azione al rilascio
+    const allCards = Array.from(container.querySelectorAll<HTMLElement>('[data-folder-card-id]'))
+      .filter(el => el.dataset.folderEntityType === effectiveEntityType);
+    const cardColumn = allCards.find(el => {
+      const rect = el.getBoundingClientRect();
+      return clientX >= rect.left && clientX <= rect.right;
+    });
+    if (!cardColumn) return null;
+    const cards = allCards.filter(el => el.dataset.folderCardId !== draggedId);
+    const beforeCard = cards.find(el => clientY < el.getBoundingClientRect().top + el.getBoundingClientRect().height / 2);
+    const beforeCardId = beforeCard?.dataset.folderCardId ?? null;
+    const currentIds = allCards.map(el => el.dataset.folderCardId!);
+    const reorderedIds = reorderIds(currentIds, draggedId ?? '', beforeCardId);
+    if (currentIds.every((id, index) => reorderedIds[index] === id)) return null;
+    return { type: 'reorder-card', beforeCardId };
   }
 
   // draggedKind === 'folder': sopra un'altra cartella (non se stessa) = la
@@ -161,6 +180,7 @@ export interface UseFolderDragDropParams {
    *  quel sottoinsieme. */
   onReorderFolders: (draggedId: string, beforeId: string | null) => void;
   onMoveCard: (cardId: string, folderId: string | null) => void;
+  onReorderCards?: (cardId: string, beforeCardId: string | null) => void;
   /** Annidamento/promozione di una cartella: newParentFolderId = id di
    *  un'altra cartella (diventa figlia) o null (diventa/torna radice). */
   onNestFolder: (folderId: string, newParentFolderId: string | null) => void;
@@ -178,7 +198,7 @@ export interface UseFolderDragDropParams {
    *  logica di ricezione da costruire ora. Non invocato per draggedKind
    *  'folder' (il riordino cartelle senza target riconosciuto resta un
    *  no-op, comportamento invariato). */
-  onDropOutside?: (item: DraggedItem, clientX: number, clientY: number) => void;
+  onDropOutside?: (item: DraggedItem, clientX: number, clientY: number, grabOffset: DragGrabOffset) => void;
 }
 
 /**
@@ -219,6 +239,7 @@ export function useFolderDragDrop({
   folderIds,
   onReorderFolders,
   onMoveCard,
+  onReorderCards,
   onNestFolder,
   containerRef: externalContainerRef,
   onDropOutside,
@@ -231,6 +252,7 @@ export function useFolderDragDrop({
   // principio di "l'hook e' solo meccanica" gia' seguito per
   // draggedItem/dropTarget.
   const [pointerPosition, setPointerPosition] = useState<{ x: number; y: number } | null>(null);
+  const [grabOffset, setGrabOffset] = useState<DragGrabOffset>({ x: 0.5, y: 0.5 });
   const ownContainerRef = useRef<HTMLDivElement | null>(null);
   const containerRef = externalContainerRef ?? ownContainerRef;
   const dropTargetRef = useRef<FolderDropTarget | null>(null);
@@ -247,7 +269,9 @@ export function useFolderDragDrop({
   // modo sincrono nello stesso gestore che chiama setDraggedItem elimina la
   // dipendenza dal giro di render, esattamente come gia' fa dropTargetRef.
   const draggedItemRef = useRef<DraggedItem | null>(null);
-  const pointerStartRef = useRef<{ x: number; y: number; item: DraggedItem } | null>(null);
+  const pointerStartRef = useRef<{ x: number; y: number; item: DraggedItem; grabOffset: DragGrabOffset } | null>(null);
+  const moveFrameRef = useRef<number | null>(null);
+  const pendingMoveRef = useRef<{ x: number; y: number } | null>(null);
 
   const handlePointerDown = (e: React.PointerEvent, item: DraggedItem) => {
     if (!canEdit) return;
@@ -259,19 +283,32 @@ export function useFolderDragDrop({
     // trascinare un PG col fallback icon (un <img>, a differenza delle vecchie
     // icone lucide non trascinabili) faceva "trascinare" l'intera finestra.
     e.preventDefault();
-    pointerStartRef.current = { x: e.clientX, y: e.clientY, item };
+    const dragHandle = target.closest('[data-token-drag-handle]');
+    const rect = dragHandle?.getBoundingClientRect();
+    const nextGrabOffset = rect ? {
+      x: Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)),
+      y: Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height)),
+    } : { x: 0.5, y: 0.5 };
+    setGrabOffset(nextGrabOffset);
+    pointerStartRef.current = { x: e.clientX, y: e.clientY, item, grabOffset: nextGrabOffset };
   };
 
   useEffect(() => {
     const handleMove = (e: PointerEvent) => {
       if (draggedItemRef.current) {
-        const current = draggedItemRef.current;
-        setPointerPosition({ x: e.clientX, y: e.clientY });
-        const container = containerRef.current;
-        if (!container) return;
-        const target = resolveFolderDropTarget(e.clientX, e.clientY, container, current.kind, entityType, current.id);
-        dropTargetRef.current = target;
-        setDropTarget(target);
+        pendingMoveRef.current = { x: e.clientX, y: e.clientY };
+        if (moveFrameRef.current === null) moveFrameRef.current = window.requestAnimationFrame(() => {
+          moveFrameRef.current = null;
+          const position = pendingMoveRef.current;
+          const current = draggedItemRef.current;
+          if (!position || !current) return;
+          setPointerPosition(position);
+          const container = containerRef.current;
+          if (!container) return;
+          const target = resolveFolderDropTarget(position.x, position.y, container, current.kind, entityType, current.id, current.group);
+          dropTargetRef.current = target;
+          setDropTarget(target);
+        });
         return;
       }
 
@@ -313,15 +350,20 @@ export function useFolderDragDrop({
             onMoveCard(current.id, target.folderId);
           } else if (current.kind === 'card' && target.type === 'unfiled') {
             onMoveCard(current.id, null);
+          } else if (current.kind === 'card' && target.type === 'reorder-card') {
+            onReorderCards?.(current.id, target.beforeCardId);
           }
         } else if (current.kind === 'card') {
-          onDropOutside?.(current, e.clientX, e.clientY);
+          onDropOutside?.(current, e.clientX, e.clientY, pointerStartRef.current?.grabOffset ?? { x: 0.5, y: 0.5 });
         }
         draggedItemRef.current = null;
         setDraggedItem(null);
         setDropTarget(null);
         setPointerPosition(null);
         dropTargetRef.current = null;
+        pendingMoveRef.current = null;
+        if (moveFrameRef.current !== null) window.cancelAnimationFrame(moveFrameRef.current);
+        moveFrameRef.current = null;
       }
       pointerStartRef.current = null;
     };
@@ -331,6 +373,7 @@ export function useFolderDragDrop({
     return () => {
       window.removeEventListener('pointermove', handleMove);
       window.removeEventListener('pointerup', handleUp);
+      if (moveFrameRef.current !== null) window.cancelAnimationFrame(moveFrameRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draggedItem, folderIds, entityType]);
@@ -340,6 +383,7 @@ export function useFolderDragDrop({
     draggedItem,
     dropTarget,
     pointerPosition,
+    grabOffset,
     handlePointerDown,
   };
 }

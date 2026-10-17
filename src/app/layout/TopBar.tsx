@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type SVGProps } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, Bug, Check, ChevronDown, CloudFog, Hexagon, LogOut, MapPin, Minus, MoreVertical, Newspaper, Pencil, Plus, Search, Settings, Square as SquareIcon, UserPlus, X } from 'lucide-react';
+import { Bell, Bug, Check, ChevronDown, CloudFog, Crosshair, Eye, EyeOff, Hexagon, LassoSelect, LogOut, MapPin, Minus, MoreVertical, Newspaper, Pencil, Plus, Search, Settings, Square as SquareIcon, UserPlus, X } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications, type NotificationRow } from '../notifications/NotificationsContext';
 import { useCampaign } from '../campaigns/CampaignContext';
@@ -18,7 +18,7 @@ import {
 } from '../components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { usePortalContainer } from '../components/ui/portal-container';
-import { requestSessionMapFit, setActiveSessionMapTool, updateSessionGrid, useActiveSessionMapTool, useSessionGrid, useSessionMapFitAvailable } from '../components/session/mapToolStore';
+import { requestSessionMapCenter, requestSessionMapFit, setActiveSessionMapTool, setSessionMapMeasureMode, setSessionMapMeasurementsVisibleToAll, setSessionMapSelectionArmed, setSessionMapSelectionMode, updateSessionGrid, useActiveSessionMapTool, useSessionGrid, useSessionMapCenterAvailable, useSessionMapFitAvailable, useSessionMapMeasureMode, useSessionMapMeasurementsVisibleToAll, useSessionMapSelectionMode, type SessionMapMeasureMode } from '../components/session/mapToolStore';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
@@ -45,6 +45,18 @@ function SelectMapIcon(props: SVGProps<SVGSVGElement>) {
       <path d="M19 24v-5h5" />
     </g>
   </svg>;
+}
+
+function MeasureConeIcon(props: SVGProps<SVGSVGElement>) {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M4 12 21 5v14Z" /><circle cx="4" cy="12" r="1.8" fill="currentColor" stroke="none" /></svg>;
+}
+
+function MeasureLineIcon(props: SVGProps<SVGSVGElement>) {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" {...props}><path d="M5 18 19 6" /><circle cx="5" cy="18" r="2" fill="currentColor" stroke="none" /><circle cx="19" cy="6" r="2" fill="currentColor" stroke="none" /></svg>;
+}
+
+function MeasureCircleIcon(props: SVGProps<SVGSVGElement>) {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" /></svg>;
 }
 
 function GridMapIcon(props: SVGProps<SVGSVGElement>) {
@@ -299,9 +311,19 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const activeMapTool = useActiveSessionMapTool();
+  const selectionMode = useSessionMapSelectionMode();
+  const measureMode = useSessionMapMeasureMode();
+  const measurementsVisibleToAll = useSessionMapMeasurementsVisibleToAll();
   const { settings: gridSettings, editable: gridEditable } = useSessionGrid();
   const mapFitAvailable = useSessionMapFitAvailable();
+  const mapCenterAvailable = useSessionMapCenterAvailable();
   const [gridPanelOpen, setGridPanelOpen] = useState(false);
+  const [selectPanelOpen, setSelectPanelOpen] = useState(false);
+  const [selectPanelPosition, setSelectPanelPosition] = useState({ left: 0, top: 0 });
+  const [measurePanelOpen, setMeasurePanelOpen] = useState(false);
+  const [measurePanelPosition, setMeasurePanelPosition] = useState({ left: 0, top: 0 });
+  const [measurementVisibilityTooltipOpen, setMeasurementVisibilityTooltipOpen] = useState(false);
+  const measurementVisibilityHoveredRef = useRef(false);
   const [mapFitMenuOpen, setMapFitMenuOpen] = useState(false);
   const portalTarget = usePortalContainer();
 
@@ -327,6 +349,25 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
     if (!mapFitAvailable) setMapFitMenuOpen(false);
   }, [mapFitAvailable]);
 
+  useEffect(() => {
+    if (!selectPanelOpen) return;
+    const closeOutsideSelectionPalette = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('[data-map-tool="select"], [data-session-select-panel]')) return;
+      setSelectPanelOpen(false);
+      setSessionMapSelectionArmed(false);
+    };
+    document.addEventListener('pointermove', closeOutsideSelectionPalette);
+    return () => document.removeEventListener('pointermove', closeOutsideSelectionPalette);
+  }, [selectPanelOpen]);
+
+  useEffect(() => {
+    if (!measurePanelOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setMeasurePanelOpen(false); };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [measurePanelOpen]);
+
   const displayName = user?.displayName ?? 'Utente';
   const initials = displayName.trim().charAt(0).toUpperCase() || '?';
   const searchPlaceholder = (activeSection && SEARCH_PLACEHOLDERS[activeSection]) || 'Cerca...';
@@ -339,10 +380,20 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
         <div data-session-map-toolbar className="absolute left-2 right-24 flex items-center justify-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:left-1/2 md:right-auto md:-translate-x-1/2">
           <div className="flex items-center gap-1 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)]/90 p-1 shadow-lg">
             {SESSION_MAP_TOOLS.map(({ id, label, icon: Icon }) => (
-              <button key={id} type="button" data-map-tool={id} aria-label={label} title={label} aria-pressed={activeMapTool === id} onClick={() => { setActiveSessionMapTool(id); setGridPanelOpen(id === 'grid' ? open => !open : false); setMapFitMenuOpen(false); }} className={`grid h-8 w-8 shrink-0 place-items-center rounded-md transition-colors ${activeMapTool === id ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]' : 'text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]'}`}>
-                <Icon className="h-4.5 w-4.5" />
-              </button>
+              <Tooltip key={id}>
+                <TooltipTrigger asChild><button type="button" data-map-tool={id} aria-label={label} aria-pressed={activeMapTool === id} onPointerEnter={event => { if (id !== 'select') return; const rect = event.currentTarget.getBoundingClientRect(); setSelectPanelPosition({ left: rect.left + rect.width / 2, top: rect.bottom }); setSelectPanelOpen(true); }} onClick={event => { if (id === 'select') { const rect = event.currentTarget.getBoundingClientRect(); setSelectPanelPosition({ left: rect.left + rect.width / 2, top: rect.bottom }); setSessionMapSelectionArmed(false); setSelectPanelOpen(true); setMeasurePanelOpen(false); } else if (id === 'measure') { const rect = event.currentTarget.getBoundingClientRect(); setMeasurePanelPosition({ left: rect.left + rect.width / 2, top: rect.bottom }); setSessionMapSelectionArmed(false); setActiveSessionMapTool('measure'); setSelectPanelOpen(false); setMeasurePanelOpen(open => !open); } else { setSessionMapSelectionArmed(false); setActiveSessionMapTool(id); setSelectPanelOpen(false); setMeasurePanelOpen(false); } setGridPanelOpen(id === 'grid' ? open => !open : false); setMapFitMenuOpen(false); }} className={`grid h-8 w-8 shrink-0 place-items-center rounded-md transition-colors ${activeMapTool === id ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]' : 'text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]'}`}>
+                  <Icon className="h-4.5 w-4.5" />
+                </button></TooltipTrigger>
+                {id !== 'select' && <TooltipContent side="bottom">{label}</TooltipContent>}
+              </Tooltip>
             ))}
+            <span aria-hidden="true" className="mx-0.5 h-5 w-px bg-[var(--dash-border-soft)]" />
+            <Tooltip>
+              <TooltipTrigger asChild><button type="button" data-session-map-center aria-label="Centra la visuale sulla mappa" disabled={!mapCenterAvailable} onClick={requestSessionMapCenter} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] disabled:cursor-not-allowed disabled:opacity-35">
+                <Crosshair className="h-4.5 w-4.5" />
+              </button></TooltipTrigger>
+              <TooltipContent side="bottom">Centra la visuale sulla mappa</TooltipContent>
+            </Tooltip>
           </div>
           {gridPanelOpen && createPortal(<div data-session-grid-panel className="fixed left-1/2 top-14 z-[1100] w-[min(92vw,550px)] -translate-x-1/2 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)] p-2.5 text-xs text-[var(--dash-text)] shadow-2xl">
             <div className="grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)_200px]">
@@ -352,6 +403,14 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
             </div>
             {gridSettings.type === 'square' && gridSettings.snap && <label className="flex items-center justify-between gap-3 border-t border-[var(--dash-border-soft)] pt-2 text-[11px] font-medium"><span>Posizionamento oggetti</span><select disabled={!gridEditable} aria-label="Posizionamento oggetti sulla griglia quadrata" value={gridSettings.squareSnapMode ?? 'half-step'} onChange={event => updateSessionGrid({ squareSnapMode: event.target.value as 'half-step' | 'cell-center' })} className="h-8 rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 text-xs text-[var(--dash-text)]"><option value="half-step">Mezzo passo</option><option value="cell-center">Centro casella</option></select></label>}
             {gridEditable && gridSettings.type === 'square' && <div data-session-map-fit className="absolute bottom-8 right-2.5 w-20"><button type="button" disabled={!mapFitAvailable} title={mapFitAvailable ? 'Adatta la mappa alla griglia' : 'Sblocca la mappa per adattarla'} aria-haspopup="menu" aria-expanded={mapFitAvailable && mapFitMenuOpen} onClick={() => setMapFitMenuOpen(open => !open)} className="flex h-8 w-full items-center justify-between rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface-2)] px-2 text-[10px] font-medium text-[var(--dash-text)] hover:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-40"><span>Adatta</span><ChevronDown className={`h-3 w-3 transition-transform ${mapFitMenuOpen ? 'rotate-180' : ''}`} /></button>{mapFitAvailable && mapFitMenuOpen && <div role="menu" className="absolute bottom-full right-0 z-10 mb-1 w-48 overflow-hidden rounded-md border border-[var(--dash-border)] bg-[var(--dash-panel)] shadow-xl"><button type="button" role="menuitem" onClick={() => { requestSessionMapFit('exact'); setMapFitMenuOpen(false); }} className="block w-full px-2.5 py-2 text-left text-[11px] hover:bg-[var(--dash-surface-2)]"><span className="block font-medium">Adatta entrambi i lati</span><span className="block text-[10px] text-[var(--dash-muted)]">Allineamento esatto</span></button><button type="button" role="menuitem" onClick={() => { requestSessionMapFit('proportional'); setMapFitMenuOpen(false); }} className="block w-full border-t border-[var(--dash-border-soft)] px-2.5 py-2 text-left text-[11px] hover:bg-[var(--dash-surface-2)]"><span className="block font-medium">Mantieni proporzioni</span><span className="block text-[10px] text-[var(--dash-muted)]">Allinea il lato più vicino</span></button><button type="button" role="menuitem" onClick={() => { requestSessionMapFit('reset'); setMapFitMenuOpen(false); }} className="block w-full border-t border-[var(--dash-border-soft)] px-2.5 py-2 text-left text-[11px] hover:bg-[var(--dash-surface-2)]"><span className="block font-medium">Ripristina mappa originale</span><span className="block text-[10px] text-[var(--dash-muted)]">Rimuove l'adattamento</span></button></div>}</div>}
+           </div>, portalTarget ?? document.body)}
+          {selectPanelOpen && createPortal(<div data-session-select-panel onPointerLeave={() => { setSelectPanelOpen(false); setSessionMapSelectionArmed(false); }} className="fixed z-[1100] flex -translate-x-1/2 gap-1 rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 shadow-2xl" style={{ left: selectPanelPosition.left, top: selectPanelPosition.top }}>
+             <Tooltip><TooltipTrigger asChild><button type="button" aria-label="Selezione rettangolare" aria-pressed={selectionMode === 'rectangle'} onClick={() => { setActiveSessionMapTool('select'); setSessionMapSelectionMode('rectangle'); setSessionMapSelectionArmed(true); setSelectPanelOpen(false); setMeasurePanelOpen(false); }} className={`grid h-8 w-8 place-items-center rounded-md border transition-colors ${selectionMode === 'rectangle' ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/20 text-[var(--dash-text-strong)]' : 'border-transparent text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]'}`}><SquareIcon className="h-4 w-4" /></button></TooltipTrigger><TooltipContent side="bottom">Seleziona a Rettangolo</TooltipContent></Tooltip>
+             <Tooltip><TooltipTrigger asChild><button type="button" aria-label="Selezione a mano libera" aria-pressed={selectionMode === 'freehand'} onClick={() => { setActiveSessionMapTool('select'); setSessionMapSelectionMode('freehand'); setSessionMapSelectionArmed(true); setSelectPanelOpen(false); setMeasurePanelOpen(false); }} className={`grid h-8 w-8 place-items-center rounded-md border transition-colors ${selectionMode === 'freehand' ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/20 text-[var(--dash-text-strong)]' : 'border-transparent text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]'}`}><LassoSelect className="h-4 w-4" /></button></TooltipTrigger><TooltipContent side="bottom">Seleziona a Mano libera</TooltipContent></Tooltip>
+           </div>, portalTarget ?? document.body)}
+          {measurePanelOpen && createPortal(<div data-session-measure-panel className="fixed z-[1100] flex -translate-x-1/2 gap-1 rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] p-1 shadow-2xl" style={{ left: measurePanelPosition.left, top: measurePanelPosition.top }}>
+            {([['line', 'Linea', MeasureLineIcon], ['circle', 'Cerchio', MeasureCircleIcon], ['cone', 'Cono', MeasureConeIcon]] as const).map(([mode, label, Icon]) => <Tooltip key={mode}><TooltipTrigger asChild><button type="button" aria-label={label} aria-pressed={measureMode === mode} onClick={() => setSessionMapMeasureMode(mode as SessionMapMeasureMode)} className={`grid h-8 w-8 place-items-center rounded-md border transition-colors ${measureMode === mode ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/20 text-[var(--dash-text-strong)]' : 'border-transparent text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]'}`}><Icon data-static-icon={mode === 'line' ? true : undefined} className="h-4 w-4" /></button></TooltipTrigger><TooltipContent side="bottom">{label}</TooltipContent></Tooltip>)}
+            <Tooltip open={measurementVisibilityTooltipOpen}><TooltipTrigger asChild><button type="button" aria-label={measurementsVisibleToAll ? 'Visibile a tutti' : 'Visibile solo a me'} aria-pressed={!measurementsVisibleToAll} onPointerEnter={() => { measurementVisibilityHoveredRef.current = true; setMeasurementVisibilityTooltipOpen(true); }} onPointerLeave={() => { measurementVisibilityHoveredRef.current = false; setMeasurementVisibilityTooltipOpen(false); }} onFocus={() => setMeasurementVisibilityTooltipOpen(true)} onBlur={() => { if (!measurementVisibilityHoveredRef.current) setMeasurementVisibilityTooltipOpen(false); }} onClick={() => setSessionMapMeasurementsVisibleToAll(!measurementsVisibleToAll)} className={`grid h-8 w-8 place-items-center rounded-md border transition-colors ${measurementsVisibleToAll ? 'border-transparent text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]' : 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/20 text-[var(--dash-text-strong)]'}`}>{measurementsVisibleToAll ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}</button></TooltipTrigger><TooltipContent side="bottom">{measurementsVisibleToAll ? 'Visibile a tutti' : 'Visibile solo a me'}</TooltipContent></Tooltip>
           </div>, portalTarget ?? document.body)}
         </div>
       )}

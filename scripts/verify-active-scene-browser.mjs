@@ -88,8 +88,17 @@ assert.match(viewportSource, /snapToSessionGrid[\s\S]*gridSettings[\s\S]*pan\.ob
 assert.match(viewportSource, /mapTokens\.slice\(tokenIndex \+ 1\)[\s\S]*!candidate\.locked[\s\S]*isBoundsFullyContained/, 'un oggetto trascina solo oggetti sbloccati interamente contenuti e posti sopra');
 assert.match(viewportSource, /aria-label="Livelli"[\s\S]*Porta sopra[\s\S]*Porta sotto[\s\S]*In primo piano[\s\S]*In fondo/, 'il menu token espone l’icona e i comandi dei livelli');
 for (const tokenControl of ['Ridimensiona token', 'Ruota token', 'Colore etichetta', 'Elimina token']) assert.match(viewportSource, new RegExp(tokenControl), `il menu token espone ${tokenControl}`);
+assert.match(viewportSource, /Magnet[\s\S]*Elementi magnetici[\s\S]*Scollega questo elemento dal gruppo/, 'il menu token permette di attivare, collegare e scollegare la calamita');
+assert.match(viewportSource, /STANDARD_TOKEN_CONDITIONS[\s\S]*Rimuovi tutte[\s\S]*Condizione personalizzata/, 'il menu token gestisce condizioni standard e personalizzate');
+assert.match(viewportSource, /const visibleConditions = conditions[\s\S]*Math\.cos\(angle\)[\s\S]*Math\.sin\(angle\)/, 'le condizioni vengono distribuite lungo il bordo circolare del token');
+assert.match(viewportSource, /standardKey === 'dead'[\s\S]*death-skull\.svg/, 'la condizione Morte usa il teschio vettoriale dedicato');
+assert.match(viewportSource, /token\.magnetGroupId[\s\S]*linkedTokens[\s\S]*gesture\.origins/, 'il movimento include tutti i membri del gruppo magnetico mantenendo gli offset');
+assert.match(viewportSource, /const factor = distance \/ gesture\.startDistance[\s\S]*Object\.entries\(gesture\.origins\)/, 'il resize applica lo stesso fattore a ogni membro magnetico');
+assert.match(workspaceSource, /const linkMapTokens[\s\S]*mergedGroupIds[\s\S]*const unlinkMapToken/, 'i gruppi magnetici persistenti possono essere uniti e scollegati senza catene cicliche');
 assert.match(viewportSource, /beginTokenTransform[\s\S]*startDistance[\s\S]*kind === 'resize'[\s\S]*Math\.atan2/, 'resize proporzionale e rotazione avvengono tramite maniglie dirette');
 assert.match(viewportSource, /preferredX = tokenRight \+ 12[\s\S]*bg-\[var\(--dash-panel\)\]/, 'il menu token si apre accanto al token e usa la palette attiva');
+assert.match(topBarSource, /data-session-map-center[\s\S]*Centra la visuale sulla mappa[\s\S]*Crosshair/, 'la barra centrale espone il comando per ritrovare la mappa');
+assert.match(viewportSource, /configureSessionMapCenter[\s\S]*viewport\.clientWidth \/ 2[\s\S]*viewport\.clientHeight \/ 2/, 'il comando centra la visuale sul centro geometrico della mappa');
 assert.match(mapObjectLayersSource, /move === 'front'[\s\S]*objects\.length - 1[\s\S]*move === 'back'[\s\S]*Math\.min[\s\S]*Math\.max/, 'le operazioni di livello coprono spostamento singolo e assoluto');
 assert.match(gridSnapSource, /Math\.round\(position\.x \/ step\)[\s\S]*Math\.round\(position\.y \/ step\)/, 'la griglia quadrata aggancia l’angolo a mezze celle');
 assert.match(gridSnapSource, /squareSnapMode === 'cell-center'[\s\S]*target\.x - radius[\s\S]*objectSize\.width \/ 2/, 'la griglia quadrata puo agganciare il centro dell’oggetto al centro cella');

@@ -1,6 +1,7 @@
 import type { SessionMapTokenVisual } from '../../../types/sessionMapToken';
 
-type SessionMapTokenDropHandler = (visual: SessionMapTokenVisual, clientX: number, clientY: number) => boolean;
+export interface SessionMapTokenGrabOffset { x: number; y: number }
+type SessionMapTokenDropHandler = (visual: SessionMapTokenVisual, clientX: number, clientY: number, grabOffset: SessionMapTokenGrabOffset) => boolean;
 
 let dropHandler: SessionMapTokenDropHandler | null = null;
 
@@ -11,6 +12,6 @@ export function registerSessionMapTokenDropHandler(handler: SessionMapTokenDropH
   };
 }
 
-export function dropSessionMapToken(visual: SessionMapTokenVisual, clientX: number, clientY: number) {
-  return dropHandler?.(visual, clientX, clientY) ?? false;
+export function dropSessionMapToken(visual: SessionMapTokenVisual, clientX: number, clientY: number, grabOffset: SessionMapTokenGrabOffset = { x: 0.5, y: 0.5 }) {
+  return dropHandler?.(visual, clientX, clientY, grabOffset) ?? false;
 }

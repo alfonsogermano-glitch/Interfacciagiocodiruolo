@@ -12,6 +12,7 @@ import { FolderIconPicker } from '../shared/FolderIconPicker';
 import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/paletteColors';
 import { projectId } from '/utils/supabase/info';
 import type { Character } from '../../../types/character';
+import type { TokenBorderStyle, TokenBorderThickness } from '../../../types/tokenStyle';
 import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, mapRowToCharacter, unassignCharacterFromCampaign, isLastActiveCharacterForOwner } from '../../../services/supabase/charactersService';
 import {
   loadNPCs, loadMonsters,
@@ -28,9 +29,9 @@ import { useRuleset } from '../../campaigns/RulesetContext';
 import { isRulesetCompatible, type RulesetId } from '../../campaigns/campaignTypes';
 import { EntityKebabMenu } from './shared/EntityKebabMenu';
 import { EntityDetailView } from './shared/EntityDetailView';
-import { EntityPortraitImage } from '../shared/EntityPortraitImage';
+import { DraggablePortrait } from './shared/DraggablePortrait';
 import type { CropAreaPercent } from '../shared/SourceCroppedImage';
-import { useFolderDragDrop } from './shared/useFolderDragDrop';
+import { reorderIds, useFolderDragDrop } from './shared/useFolderDragDrop';
 import { TokenDragGhost } from './shared/TokenDragGhost';
 import { useIsPointerOverRect } from '../shared/useIsPointerOverRect';
 import { dropSessionMapToken } from './sessionMapTokenDropStore';
@@ -56,6 +57,12 @@ interface ListEntry {
   portraitCropArea?: CropAreaPercent | null;
   ownerProfileId?: string | null;
   hiddenFromPlayers?: boolean;
+  tokenColor?: string | null;
+  tokenBackgroundColor?: string | null;
+  tokenBorderStyle?: TokenBorderStyle | null;
+  tokenBorderThickness?: TokenBorderThickness | null;
+  tokenBorderVisible?: boolean | null;
+  tokenBorderLabel?: string | null;
 }
 
 function toSessionMapTokenVisual(kind: EntityKind, entity: any): SessionMapTokenVisual {
@@ -597,15 +604,36 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     folderIds: [],
     onReorderFolders: () => {},
     onMoveCard: () => {},
+    onReorderCards: (itemId, beforeItemId) => {
+      const separator = itemId.indexOf(':');
+      if (separator === -1) return;
+      const kind = itemId.slice(0, separator) as EntityKind;
+      if (beforeItemId && !beforeItemId.startsWith(`${kind}:`)) return;
+      const movedId = itemId.slice(separator + 1);
+      const beforeId = beforeItemId ? beforeItemId.slice(beforeItemId.indexOf(':') + 1) : null;
+      const reorder = <T extends { id: string }>(items: T[]) => {
+        const moved = items.find(item => item.id === movedId);
+        if (!moved) return items;
+        const next = items.filter(item => item.id !== movedId);
+        const index = beforeId ? next.findIndex(item => item.id === beforeId) : next.length;
+        next.splice(index < 0 ? next.length : index, 0, moved);
+        return next;
+      };
+      if (kind === 'pg') setCharacters(reorder);
+      else if (kind === 'png') setNpcs(reorder);
+      else setMonsters(reorder);
+    },
     onNestFolder: () => {},
-    onDropOutside: (item, clientX, clientY) => {
+    onDropOutside: (item, clientX, clientY, grabOffset) => {
+      const listRect = listColumnRef.current?.getBoundingClientRect();
+      if (listRect && clientX >= listRect.left && clientX <= listRect.right && clientY >= listRect.top && clientY <= listRect.bottom) return;
       const separator = item.id.indexOf(':');
       if (separator === -1) return;
       const kind = item.id.slice(0, separator) as EntityKind;
       const id = item.id.slice(separator + 1);
       const source = kind === 'pg' ? characters : kind === 'png' ? npcs : monsters;
       const entity = source.find((candidate: any) => candidate.id === id);
-      if (entity) dropSessionMapToken(toSessionMapTokenVisual(kind, entity), clientX, clientY);
+      if (entity) dropSessionMapToken(toSessionMapTokenVisual(kind, entity), clientX, clientY, grabOffset);
     },
   });
 
@@ -655,6 +683,8 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     portraitSourceUrl: n.portraitSourceImageUrl,
     portraitCropArea: n.portraitCropArea,
     hiddenFromPlayers: !n.visibleToPlayers,
+    tokenColor: n.tokenColor, tokenBackgroundColor: n.tokenBackgroundColor, tokenBorderStyle: n.tokenBorderStyle,
+    tokenBorderThickness: n.tokenBorderThickness, tokenBorderVisible: n.tokenBorderVisible, tokenBorderLabel: n.tokenBorderLabel,
   });
   const monsterToEntry = (m: any): ListEntry => ({
     kind: 'mostro', id: m.id, name: m.name, subtitle: 'Mostro',
@@ -662,6 +692,8 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     portraitSourceUrl: m.portraitSourceImageUrl,
     portraitCropArea: m.portraitCropArea,
     hiddenFromPlayers: !m.visibleToPlayers,
+    tokenColor: m.tokenColor, tokenBackgroundColor: m.tokenBackgroundColor, tokenBorderStyle: m.tokenBorderStyle,
+    tokenBorderThickness: m.tokenBorderThickness, tokenBorderVisible: m.tokenBorderVisible, tokenBorderLabel: m.tokenBorderLabel,
   });
 
   // Fase 4: PNG e Mostri (mai Personaggi, resta piatta) organizzabili in
@@ -694,6 +726,14 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     renderGhostCard: (n) => renderListItem(npcToEntry(n)),
     itemLabel: 'PNG',
     onMoveCard: handleMoveNpcFolder,
+    onReorderCards: (itemId, beforeItemId) => setNpcs(current => {
+      const folderId = current.find(item => item.id === itemId)?.folderId ?? null;
+      const directIds = current.filter(item => (item.folderId ?? null) === folderId).map(item => item.id);
+      const orderedIds = reorderIds(directIds, itemId, beforeItemId);
+      const orderedItems = orderedIds.map(id => current.find(item => item.id === id)!);
+      let index = 0;
+      return current.map(item => directIds.includes(item.id) ? orderedItems[index++] : item);
+    }),
     onFolderDeleted: async (deletedFolderId, cascade) => {
       if (cascade) {
         setNpcs(await loadNPCs(activeCampaignId));
@@ -707,9 +747,11 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     listColumnRef,
     ghostFallbackIcon: brandFallbackIcon,
     toGhostShapeEntity: (n) => n,
-    onDropOutside: (item, clientX, clientY) => {
+    onDropOutside: (item, clientX, clientY, grabOffset) => {
+      const listRect = listColumnRef.current?.getBoundingClientRect();
+      if (listRect && clientX >= listRect.left && clientX <= listRect.right && clientY >= listRect.top && clientY <= listRect.bottom) return;
       const entity = npcs.find((npc) => npc.id === item.id);
-      if (entity) dropSessionMapToken(toSessionMapTokenVisual('png', entity), clientX, clientY);
+      if (entity) dropSessionMapToken(toSessionMapTokenVisual('png', entity), clientX, clientY, grabOffset);
     },
   });
   const monsterSection = useFolderSection({
@@ -724,6 +766,14 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     renderGhostCard: (m) => renderListItem(monsterToEntry(m)),
     itemLabel: 'Mostri',
     onMoveCard: handleMoveMonsterFolder,
+    onReorderCards: (itemId, beforeItemId) => setMonsters(current => {
+      const folderId = current.find(item => item.id === itemId)?.folderId ?? null;
+      const directIds = current.filter(item => (item.folderId ?? null) === folderId).map(item => item.id);
+      const orderedIds = reorderIds(directIds, itemId, beforeItemId);
+      const orderedItems = orderedIds.map(id => current.find(item => item.id === id)!);
+      let index = 0;
+      return current.map(item => directIds.includes(item.id) ? orderedItems[index++] : item);
+    }),
     onFolderDeleted: async (deletedFolderId, cascade) => {
       if (cascade) {
         setMonsters(await loadMonsters(activeCampaignId));
@@ -737,9 +787,11 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
     listColumnRef,
     ghostFallbackIcon: brandFallbackIcon,
     toGhostShapeEntity: (m) => m,
-    onDropOutside: (item, clientX, clientY) => {
+    onDropOutside: (item, clientX, clientY, grabOffset) => {
+      const listRect = listColumnRef.current?.getBoundingClientRect();
+      if (listRect && clientX >= listRect.left && clientX <= listRect.right && clientY >= listRect.top && clientY <= listRect.bottom) return;
       const entity = monsters.find((monster) => monster.id === item.id);
-      if (entity) dropSessionMapToken(toSessionMapTokenVisual('mostro', entity), clientX, clientY);
+      if (entity) dropSessionMapToken(toSessionMapTokenVisual('mostro', entity), clientX, clientY, grabOffset);
     },
   });
 
@@ -769,41 +821,36 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
   // inseguono lo stesso pointermove/pointerup in conflitto. "Personaggi"
   // (mai foderata) e il fallback piatto di PNG/Mostri per i non-GM restano
   // sull'unico dnd standalone, comportamento Fase 3 invariato.
-  const renderListItem = (entry: ListEntry, options?: { disableOwnDrag?: boolean }) => (
+  const renderListItem = (entry: ListEntry, _options?: { disableOwnDrag?: boolean }) => (
     <button
       key={`${entry.kind}-${entry.id}`}
       type="button"
+      data-folder-card-id={`${entry.kind}:${entry.id}`}
+      data-folder-entity-type={`session-entity:${entry.kind}`}
+      onPointerDown={!_options?.disableOwnDrag && canDragEntity(entry.kind, entry.ownerProfileId) ? (e) => dnd.handlePointerDown(e, { kind: 'card', id: `${entry.kind}:${entry.id}`, group: entry.kind }) : undefined}
       onClick={() => setSelected({ kind: entry.kind, id: entry.id })}
-      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors ${
+      className={`relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors ${
         selected?.kind === entry.kind && selected.id === entry.id ? 'bg-[var(--dash-surface-2)]' : 'hover:bg-[var(--dash-surface-2)]/50'
       }`}
     >
-      <div className="relative h-9 w-9 shrink-0">
-        <div
-          onPointerDown={options?.disableOwnDrag ? undefined : (e) => {
-            if (canDragEntity(entry.kind, entry.ownerProfileId)) {
-              dnd.handlePointerDown(e, { kind: 'card', id: `${entry.kind}:${entry.id}` });
-            }
-          }}
-          className={`h-full w-full overflow-hidden rounded-md bg-[var(--dash-input)] ${
-            canDragEntity(entry.kind, entry.ownerProfileId) ? 'cursor-grab active:cursor-grabbing' : ''
-          }`}
-        >
-          {entry.portraitUrl || (entry.portraitSourceUrl && entry.portraitCropArea) ? (
-            <EntityPortraitImage
-              portraitImageUrl={entry.portraitUrl}
-              portraitSourceImageUrl={entry.portraitSourceUrl}
-              portraitCropArea={entry.portraitCropArea}
-              alt={entry.name}
-              style={{ width: '100%', height: '100%' }}
-              draggable={false}
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center">
-              {brandFallbackIcon}
-            </div>
-          )}
-        </div>
+      {dnd.dropTarget?.type === 'reorder-card' && dnd.dropTarget.beforeCardId === `${entry.kind}:${entry.id}` && <div data-card-drop-line className="pointer-events-none absolute -top-px left-3 right-3 h-0.5 bg-[var(--dash-accent)]" />}
+      <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-[var(--dash-input)]">
+        <DraggablePortrait
+          url={entry.portraitUrl}
+          sourceImageUrl={entry.portraitSourceUrl}
+          cropArea={entry.portraitCropArea}
+          name={entry.name}
+          fallbackIcon={brandFallbackIcon}
+          size={36}
+          chrome="flush"
+          dragEnabled={canDragEntity(entry.kind, entry.ownerProfileId)}
+          tokenColor={entry.tokenColor}
+          tokenBackgroundColor={entry.tokenBackgroundColor}
+          tokenBorderStyle={entry.tokenBorderStyle}
+          tokenBorderThickness={entry.tokenBorderThickness}
+          tokenBorderVisible={entry.tokenBorderVisible}
+          tokenBorderLabel={entry.tokenBorderLabel}
+        />
         {entry.hiddenFromPlayers && (
           <div className="pointer-events-none absolute -bottom-1 -right-1 z-[3] flex h-4 w-4 items-center justify-center rounded-full border border-white/20 bg-black/75">
             <EyeOff className="h-2.5 w-2.5 text-white" />
@@ -830,7 +877,10 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
               portraitSourceUrl: c.portraitSourceImageUrl,
               portraitCropArea: c.portraitCropArea,
               ownerProfileId: (c as any).ownerProfileId,
+              tokenColor: c.tokenColor, tokenBackgroundColor: c.tokenBackgroundColor, tokenBorderStyle: c.tokenBorderStyle,
+              tokenBorderThickness: c.tokenBorderThickness, tokenBorderVisible: c.tokenBorderVisible, tokenBorderLabel: c.tokenBorderLabel,
             }))}
+            {dnd.draggedItem?.group === 'pg' && dnd.dropTarget?.type === 'reorder-card' && dnd.dropTarget.beforeCardId === null && <div data-card-drop-line className="mx-3 h-0.5 bg-[var(--dash-accent)]" />}
             {characters.length === 0 && <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Nessun personaggio.</div>}
           </div>
         )}
@@ -937,7 +987,7 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
             accessToken={session?.access_token}
             isHSC={isHSC}
             showRail={false}
-            onPointerDown={canDragEntity('pg', (selectedChar as any).ownerProfileId) ? (e) => dnd.handlePointerDown(e, { kind: 'card', id: `pg:${selectedChar.id}` }) : undefined}
+            onPointerDown={canDragEntity('pg', (selectedChar as any).ownerProfileId) ? (e) => dnd.handlePointerDown(e, { kind: 'card', id: `pg:${selectedChar.id}`, group: 'pg' }) : undefined}
             headerAction={canEdit ? (
               <EntityKebabMenu
                 colors={menuColors}
@@ -991,7 +1041,7 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
             accessToken={session?.access_token}
             isHSC={isHSC}
             showRail={false}
-            onPointerDown={canDragEntity('png') ? (e) => dnd.handlePointerDown(e, { kind: 'card', id: `png:${selectedNpc.id}` }) : undefined}
+            onPointerDown={canDragEntity('png') ? (e) => dnd.handlePointerDown(e, { kind: 'card', id: `png:${selectedNpc.id}`, group: 'png' }) : undefined}
             headerAction={isOwner ? (
               <EntityKebabMenu
                 colors={menuColors}
@@ -1013,7 +1063,7 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
             accessToken={session?.access_token}
             isHSC={isHSC}
             showRail={false}
-            onPointerDown={canDragEntity('mostro') ? (e) => dnd.handlePointerDown(e, { kind: 'card', id: `mostro:${selectedMonster.id}` }) : undefined}
+            onPointerDown={canDragEntity('mostro') ? (e) => dnd.handlePointerDown(e, { kind: 'card', id: `mostro:${selectedMonster.id}`, group: 'mostro' }) : undefined}
             headerAction={isOwner ? (
               <EntityKebabMenu
                 colors={menuColors}
@@ -1185,6 +1235,7 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
         tokenBorderVisible: draggedEntityInfo.entity.tokenBorderVisible,
       } : null}
       pointerPosition={dnd.pointerPosition}
+      grabOffset={dnd.grabOffset}
       insideList={isPointerOverList}
       fallbackIcon={brandFallbackIcon}
     />

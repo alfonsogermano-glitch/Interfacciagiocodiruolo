@@ -80,10 +80,11 @@ export function DragGhost<T extends { id: string }>({
   })();
 
   if (!content) return null;
+  const tokenOutsideList = dnd.draggedItem.kind === 'card' && !insideList && toGhostShapeEntity && fallbackIcon;
 
   return createPortal(
     <div
-      style={{ position: 'fixed', left: dnd.pointerPosition.x + 14, top: dnd.pointerPosition.y + 14, zIndex: 2000 }}
+      style={{ position: 'fixed', left: tokenOutsideList ? dnd.pointerPosition.x - dnd.grabOffset.x * 64 : dnd.pointerPosition.x + 14, top: tokenOutsideList ? dnd.pointerPosition.y - dnd.grabOffset.y * 64 : dnd.pointerPosition.y + 14, zIndex: 2000 }}
       className="pointer-events-none"
     >
       {content}

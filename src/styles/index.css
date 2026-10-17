@@ -294,6 +294,19 @@ button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button']
 [role='menuitem']:not([data-disabled]):hover :is(.lucide-eye, .lucide-eye-off) {
   animation: eyeBlink 1.8s ease-in-out infinite;
 }
+[data-static-icon] {
+  animation: none !important;
+}
+
+img[src="/condition-paralyzed-v3.png"] {
+  filter: brightness(0) invert(1) !important;
+  opacity: 1 !important;
+}
+
+[data-token-condition-list] {
+  scrollbar-width: none;
+}
+[data-token-condition-list]::-webkit-scrollbar { display: none; }
 button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-copy, .lucide-copy-plus))) :is(.lucide-copy, .lucide-copy-plus) > rect,
 [role='button']:not([aria-disabled='true']):hover:not(:has(button :is(.lucide-copy, .lucide-copy-plus))) :is(.lucide-copy, .lucide-copy-plus) > rect,
 [role='menuitem']:not([data-disabled]):hover :is(.lucide-copy, .lucide-copy-plus) > rect {
@@ -360,14 +373,14 @@ label.cursor-pointer:hover .chat-montagna {
 button:not(:disabled):not([aria-disabled='true']):hover .chat-montagna {
   animation: chatMontagnaTramonta 4.5s linear infinite;
 }
-button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-arrow-up, .lucide-chevron-up))) :is(.lucide-arrow-up, .lucide-chevron-up),
-[role='button']:not([aria-disabled='true']):hover:not(:has(button :is(.lucide-arrow-up, .lucide-chevron-up))) :is(.lucide-arrow-up, .lucide-chevron-up),
-[role='menuitem']:not([data-disabled]):hover :is(.lucide-arrow-up, .lucide-chevron-up) {
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-arrow-up, .lucide-chevron-up, .lucide-chevrons-up))) :is(.lucide-arrow-up, .lucide-chevron-up, .lucide-chevrons-up),
+[role='button']:not([aria-disabled='true']):hover:not(:has(button :is(.lucide-arrow-up, .lucide-chevron-up, .lucide-chevrons-up))) :is(.lucide-arrow-up, .lucide-chevron-up, .lucide-chevrons-up),
+[role='menuitem']:not([data-disabled]):hover :is(.lucide-arrow-up, .lucide-chevron-up, .lucide-chevrons-up) {
   animation: arrowUpPulse 0.8s ease-in-out infinite;
 }
-button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-arrow-down, .lucide-chevron-down))) :is(.lucide-arrow-down, .lucide-chevron-down),
-[role='button']:not([aria-disabled='true']):hover:not(:has(button :is(.lucide-arrow-down, .lucide-chevron-down))) :is(.lucide-arrow-down, .lucide-chevron-down),
-[role='menuitem']:not([data-disabled]):hover :is(.lucide-arrow-down, .lucide-chevron-down) {
+button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-arrow-down, .lucide-chevron-down, .lucide-chevrons-down))) :is(.lucide-arrow-down, .lucide-chevron-down, .lucide-chevrons-down),
+[role='button']:not([aria-disabled='true']):hover:not(:has(button :is(.lucide-arrow-down, .lucide-chevron-down, .lucide-chevrons-down))) :is(.lucide-arrow-down, .lucide-chevron-down, .lucide-chevrons-down),
+[role='menuitem']:not([data-disabled]):hover :is(.lucide-arrow-down, .lucide-chevron-down, .lucide-chevrons-down) {
   animation: arrowDownPulse 0.8s ease-in-out infinite;
 }
 button:not(:disabled):not([aria-disabled='true']):hover:not(:has([role='button'] :is(.lucide-chevron-left, .lucide-chevron-right, .lucide-arrow-left, .lucide-arrow-right, .lucide-archive, .lucide-rotate-ccw, .lucide-undo-2))) :is(.lucide-chevron-left, .lucide-chevron-right, .lucide-arrow-left, .lucide-arrow-right, .lucide-archive, .lucide-rotate-ccw, .lucide-undo-2),
