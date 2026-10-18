@@ -108,7 +108,22 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
       if (!ownedRes.ok) throw new Error('Errore caricamento campagne possedute');
       const { campaigns: ownedData } = await ownedRes.json();
       if (loadSeqRef.current !== mySeq) return;
-      setOwnedCampaigns((ownedData ?? []).map((c: any) => ({ ...c, isOwned: true })));
+      const ownedEnriched = await Promise.all((ownedData ?? []).map(async (campaign: any) => {
+        try {
+          const charsRes = await fetch(`${SERVER_BASE}/campaigns/${campaign.id}/characters`, { headers: { Authorization: `Bearer ${accessToken}` } });
+          if (!charsRes.ok) return { ...campaign, isOwned: true };
+          const charsData = await charsRes.json();
+          return {
+            ...campaign,
+            isOwned: true,
+            characters: (charsData.characters ?? []).map((ch: any) => ({ id: ch.id, name: ch.name, ownerProfileId: ch.owner_profile_id })),
+          };
+        } catch {
+          return { ...campaign, isOwned: true };
+        }
+      }));
+      if (loadSeqRef.current !== mySeq) return;
+      setOwnedCampaigns(ownedEnriched);
 
       // Arricchisce ciascuna campagna partecipata con i personaggi attivi e i
       // nomi dei membri; /members (dati completi) nega l'accesso ai

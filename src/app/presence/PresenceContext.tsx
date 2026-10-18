@@ -16,6 +16,8 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user?.id || selectedContentMode() === 'local') { setOnlineProfileIds(new Set()); return; }
     const channel = supabase.channel('online:all', { config: { private: false, presence: { key: user.id } } });
+    const refreshPresence = () => { void channel.track({ profileId: user.id, online_at: new Date().toISOString() }); };
+    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') refreshPresence(); };
     channel.on('presence', { event: 'sync' }, () => {
       const ids = new Set<string>();
       Object.values(channel.presenceState()).forEach((presences: any) => presences.forEach((presence: any) => {
@@ -23,10 +25,20 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       }));
       setOnlineProfileIds(ids);
     }).subscribe(status => {
-      if (status === 'SUBSCRIBED') void channel.track({ profileId: user.id, online_at: new Date().toISOString() });
+      if (status === 'SUBSCRIBED') refreshPresence();
     });
-    const heartbeat = window.setInterval(() => { void channel.track({ profileId: user.id, online_at: new Date().toISOString() }); }, 15000);
-    return () => { window.clearInterval(heartbeat); void supabase.removeChannel(channel); };
+    const heartbeat = window.setInterval(refreshPresence, 5000);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    window.addEventListener('focus', refreshPresence);
+    window.addEventListener('online', refreshPresence);
+    return () => {
+      window.clearInterval(heartbeat);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('focus', refreshPresence);
+      window.removeEventListener('online', refreshPresence);
+      void channel.untrack();
+      void supabase.removeChannel(channel);
+    };
   }, [user?.id]);
 
   return (
