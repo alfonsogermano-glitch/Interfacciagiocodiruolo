@@ -10,12 +10,16 @@ import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { RulesetTag } from '../shared/RulesetTag';
 import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
-import { useOnlinePresence } from '../../presence/PresenceContext';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
-function CampaignPresenceWatcher({ campaignId, onSync }: { campaignId: string; onSync: (state: Record<string, any>) => void }) {
-  useCampaignChannel(campaignId, { onPresenceSync: onSync });
+function CampaignPresenceWatcher({ campaignId, profileId, onSync }: { campaignId: string; profileId?: string; onSync: (state: Record<string, any>) => void }) {
+  const { isReady, track, untrack } = useCampaignChannel(campaignId, { onPresenceSync: onSync });
+  useEffect(() => {
+    if (!isReady || !profileId) return;
+    void track({ profileId, role: 'online', online_at: new Date().toISOString() });
+    return () => { void untrack(); };
+  }, [isReady, profileId, track, untrack]);
   return null;
 }
 
@@ -59,7 +63,6 @@ interface CampaignsPageProps {
 
 export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProps) {
   const { session, user } = useAuth();
-  const { onlineProfileIds } = useOnlinePresence();
   const { createCampaign, joinedCampaigns } = useCampaign();
 
   const [ownedCampaigns, setOwnedCampaigns] = useState<OverviewCampaign[]>([]);
@@ -76,6 +79,7 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const loadSeqRef = useRef(0);
   const [onlineCharIds, setOnlineCharIds] = useState<Record<string, Set<string>>>({});
+  const [onlineProfileIds, setOnlineProfileIds] = useState<Record<string, Set<string>>>({});
 
   const [showCampaignForm, setShowCampaignForm] = useState(false);
   const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
@@ -251,10 +255,15 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
 
   return (
     <div className="space-y-6 select-none">
-      {selectedContentMode() !== 'local' && allCampaigns.filter(campaign => campaign.characters.length > 0).map(campaign => <CampaignPresenceWatcher key={campaign.id} campaignId={campaign.id} onSync={state => {
-        const ids = new Set<string>();
-        Object.values(state).forEach((presences: any) => presences.forEach((presence: any) => { if (presence.role === 'player' && presence.characterId) ids.add(presence.characterId); }));
-        setOnlineCharIds(previous => ({ ...previous, [campaign.id]: ids }));
+      {selectedContentMode() !== 'local' && allCampaigns.filter(campaign => campaign.characters.length > 0).map(campaign => <CampaignPresenceWatcher key={campaign.id} campaignId={campaign.id} profileId={user?.id} onSync={state => {
+        const characterIds = new Set<string>();
+        const profileIds = new Set<string>();
+        Object.values(state).forEach((presences: any) => presences.forEach((presence: any) => {
+          if (typeof presence.profileId === 'string') profileIds.add(presence.profileId);
+          if (presence.role === 'player' && presence.characterId) characterIds.add(presence.characterId);
+        }));
+        setOnlineCharIds(previous => ({ ...previous, [campaign.id]: characterIds }));
+        setOnlineProfileIds(previous => ({ ...previous, [campaign.id]: profileIds }));
       }} />)}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Campagne</h2>
@@ -393,9 +402,9 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
                             {ch.name}
                             <span
                               role="status"
-                              aria-label={onlineCharIds[campaign.id]?.has(ch.id) ? 'Dentro la campagna' : ch.ownerProfileId && onlineProfileIds.has(ch.ownerProfileId) ? 'Online' : 'Offline'}
-                              title={onlineCharIds[campaign.id]?.has(ch.id) ? 'Dentro la campagna' : ch.ownerProfileId && onlineProfileIds.has(ch.ownerProfileId) ? 'Online' : 'Offline'}
-                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${onlineCharIds[campaign.id]?.has(ch.id) ? 'bg-green-400' : ch.ownerProfileId && onlineProfileIds.has(ch.ownerProfileId) ? 'bg-amber-400' : 'bg-gray-600'}`}
+                              aria-label={ch.ownerProfileId && onlineProfileIds[campaign.id]?.has(ch.ownerProfileId) ? onlineCharIds[campaign.id]?.has(ch.id) ? 'Dentro la campagna' : 'Online' : 'Offline'}
+                              title={ch.ownerProfileId && onlineProfileIds[campaign.id]?.has(ch.ownerProfileId) ? onlineCharIds[campaign.id]?.has(ch.id) ? 'Dentro la campagna' : 'Online' : 'Offline'}
+                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${ch.ownerProfileId && onlineProfileIds[campaign.id]?.has(ch.ownerProfileId) ? onlineCharIds[campaign.id]?.has(ch.id) ? 'bg-green-400' : 'bg-amber-400' : 'bg-gray-600'}`}
                             />
                           </button>
                           {i < campaign.characters.length - 1 && <span className="ml-1">,</span>}
