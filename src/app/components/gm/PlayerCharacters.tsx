@@ -13,7 +13,8 @@ import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorag
 import { loadCharacters, loadCharactersViaServer, saveCharacter as saveCharacterToSupabase, saveCharacterAsGm, deleteCharacter as deleteCharacterFromSupabase, mapRowToCharacter, isLastActiveCharacterForOwner } from '../../../services/supabase/charactersService';
 import { generateUUID } from '../../../lib/uuid';
 import { persistenceKey, selectedContentMode } from '../../../services/storage/persistenceMode';
-import { useAuth, supabase } from '../../auth/AuthContext';
+import { useAuth } from '../../auth/AuthContext';
+import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useRuleset } from '../../campaigns/RulesetContext';
 import { RulesetBadge } from '../../campaigns/RulesetGate';
@@ -107,94 +108,24 @@ export function PlayerCharacters({
     loadData();
   }, [storageRefreshKey, loadData]);
 
-  useEffect(() => {
-    if (!activeCampaignId) return;
-
-    let isActive = true;
-    let currentChannel: ReturnType<typeof supabase.channel> | null = null;
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-    let retryCount = 0;
-    const MAX_RETRIES = 5;
-
-    const handleBroadcast = (msg: any) => {
-      const data = msg?.payload ?? {};
-      const operation = data.operation as string | undefined;
-
-      if (operation === 'DELETE') {
-        const deletedId = data.old_record?.id;
-        if (!deletedId) return;
-        setCharacters(prev => prev.filter(c => c.id !== deletedId));
-        return;
-      }
-      const row = data.record;
-      if (!row) return;
-      const mapped = mapRowToCharacter(row) as PlayerCharacter;
-      setCharacters(prev => {
-        const exists = prev.some(c => c.id === mapped.id);
-        const next = exists
-          ? prev.map(c => (c.id === mapped.id ? { ...mapped, ownerDisplayName: (c as any).ownerDisplayName } : c))
-          : [...prev, mapped];
-        return next.sort((a, b) => {
-          const at = (a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0;
-          const bt = (b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0;
-          return at - bt;
-        });
-      });
-    };
-
-    const subscribeChannel = async () => {
-      if (!isActive) return;
-      if (selectedContentMode() === 'local') return;
-      await supabase.realtime.setAuth(); // necessario per l'autorizzazione sui canali privati
-
-      // hasScheduledRetry si azzera ad ogni SUBSCRIBED riuscito (a differenza
-      // del precedente "settled", che restava true per sempre dopo il primo
-      // aggancio e bloccava il retry se il canale moriva più tardi durante la
-      // sessione - bug reale, trovato e corretto in CampaignHome.tsx il
-      // 2026-07-19, stesso difetto qui perché questo file era la fonte del
-      // pattern copiato altrove).
-      let hasScheduledRetry = false;
-      const ch = supabase
-        .channel(`campaign:${activeCampaignId}`, { config: { private: true } })
-        .on('broadcast', { event: 'INSERT' }, handleBroadcast)
-        .on('broadcast', { event: 'UPDATE' }, handleBroadcast)
-        .on('broadcast', { event: 'DELETE' }, handleBroadcast)
-        .subscribe((status) => {
-          if (!isActive) return;
-
-          if (status === 'SUBSCRIBED') {
-            retryCount = 0;
-            hasScheduledRetry = false;
-            return;
-          }
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            if (hasScheduledRetry) return;
-            hasScheduledRetry = true;
-            if (currentChannel === ch) currentChannel = null;
-            (async () => {
-              try {
-                await supabase.removeChannel(ch);
-              } catch { /* ignora */ }
-              if (retryCount >= MAX_RETRIES) return;
-              retryCount += 1;
-              retryTimeout = setTimeout(() => { if (isActive) subscribeChannel(); }, 1000);
-            })();
-          }
-        });
-
-      currentChannel = ch;
-    };
-
-    subscribeChannel();
-
-    return () => {
-      isActive = false;
-      if (retryTimeout) clearTimeout(retryTimeout);
-      if (currentChannel) {
-        try { supabase.removeChannel(currentChannel); } catch { /* ignora */ }
-      }
-    };
-  }, [activeCampaignId]);
+  const handleCharacterBroadcast = (msg: any) => {
+    const data = msg?.payload ?? {};
+    if (data.operation === 'DELETE') {
+      const deletedId = data.old_record?.id;
+      if (deletedId) setCharacters(prev => prev.filter(character => character.id !== deletedId));
+      return;
+    }
+    const row = data.record;
+    if (!row) return;
+    const mapped = mapRowToCharacter(row) as PlayerCharacter;
+    setCharacters(prev => {
+      const next = prev.some(character => character.id === mapped.id)
+        ? prev.map(character => character.id === mapped.id ? { ...mapped, ownerDisplayName: (character as any).ownerDisplayName } : character)
+        : [...prev, mapped];
+      return next.sort((a, b) => ((a as any).createdAt ? new Date((a as any).createdAt).getTime() : 0) - ((b as any).createdAt ? new Date((b as any).createdAt).getTime() : 0));
+    });
+  };
+  useCampaignChannel(selectedContentMode() === 'local' ? null : activeCampaignId, { onBroadcast: { INSERT: handleCharacterBroadcast, UPDATE: handleCharacterBroadcast, DELETE: handleCharacterBroadcast } });
 
   // Salva su Supabase quando i personaggi cambiano
   useEffect(() => {

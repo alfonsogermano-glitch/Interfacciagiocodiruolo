@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Users, User, KeyRound, Check, Camera, Loader2, Plus } from 'lucide-react';
 import { Copy } from '@/app/components/IconeCopia';
-import { useAuth, supabase } from '../../auth/AuthContext';
+import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { CampaignForm } from '../../campaigns/CampaignSelector';
 import { RULESETS, VISIBLE_RULESETS, type RulesetId, type CampaignCreateInput } from '../../campaigns/campaignTypes';
@@ -9,8 +9,14 @@ import { ImageCropUploadModal } from '../shared/ImageCropUploadModal';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { RulesetTag } from '../shared/RulesetTag';
+import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
+
+function CampaignPresenceWatcher({ campaignId, onSync }: { campaignId: string; onSync: (state: Record<string, any>) => void }) {
+  useCampaignChannel(campaignId, { onPresenceSync: onSync });
+  return null;
+}
 
 interface OverviewCampaign {
   id: string;
@@ -148,33 +154,6 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
 
   const allCampaigns = useMemo(() => [...ownedCampaigns, ...joinedEnriched], [ownedCampaigns, joinedEnriched]);
 
-  useEffect(() => {
-    if (selectedContentMode() === 'local') return;
-    const channels: Record<string, ReturnType<typeof supabase.channel>> = {};
-
-    allCampaigns.forEach((campaign) => {
-      if (campaign.characters.length === 0 || channels[campaign.id]) return;
-      const ch = supabase
-        .channel(`campaign:${campaign.id}`, { config: { private: true } })
-        .on('presence', { event: 'sync' }, () => {
-          const state = ch.presenceState();
-          const ids = new Set<string>();
-          Object.values(state).forEach((presences: any) => {
-            presences.forEach((p: any) => {
-              if (p.role === 'player' && p.characterId) ids.add(p.characterId);
-            });
-          });
-          setOnlineCharIds(prev => ({ ...prev, [campaign.id]: ids }));
-        })
-        .subscribe();
-      channels[campaign.id] = ch;
-    });
-
-    return () => {
-      Object.values(channels).forEach((ch) => supabase.removeChannel(ch));
-    };
-  }, [allCampaigns.map(c => c.id).join(',')]);
-
   const allCharacterNames = useMemo(() => {
     const names = new Set<string>();
     allCampaigns.forEach(c => c.characters.forEach(ch => names.add(ch.name)));
@@ -255,6 +234,11 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
 
   return (
     <div className="space-y-6 select-none">
+      {selectedContentMode() !== 'local' && allCampaigns.filter(campaign => campaign.characters.length > 0).map(campaign => <CampaignPresenceWatcher key={campaign.id} campaignId={campaign.id} onSync={state => {
+        const ids = new Set<string>();
+        Object.values(state).forEach((presences: any) => presences.forEach((presence: any) => { if (presence.role === 'player' && presence.characterId) ids.add(presence.characterId); }));
+        setOnlineCharIds(previous => ({ ...previous, [campaign.id]: ids }));
+      }} />)}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Campagne</h2>
         <button

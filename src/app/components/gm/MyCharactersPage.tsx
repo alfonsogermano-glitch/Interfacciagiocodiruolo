@@ -7,7 +7,7 @@ import {
 import { Copy, CopyPlus } from '@/app/components/IconeCopia';
 import { useJoinByCodeFlow } from '../../../hooks/useJoinByCodeFlow';
 import { JoinCampaignCharacterDialog } from '../session/shared/JoinCampaignCharacterDialog';
-import { useAuth, supabase } from '../../auth/AuthContext';
+import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useRuleset } from '../../campaigns/RulesetContext';
 import { isRulesetCompatible, VISIBLE_RULESETS, type RulesetId } from '../../campaigns/campaignTypes';
@@ -44,7 +44,7 @@ import {
   type NPC, type Monster
 } from '../../../services/supabase/entitiesService';
 import { duplicateEntityNotes } from '../../../services/supabase/entityNotesService';
-import { useRealtimeChannel } from '../../../services/realtime/campaignChannel';
+import { useCampaignChannel, useRealtimeChannel } from '../../../services/realtime/campaignChannel';
 import { selectedContentMode } from '../../../services/storage/persistenceMode';
 import { createEmptyMonster } from './monsters/monstersUtils';
 import type { Character } from '../../../types/character';
@@ -54,6 +54,11 @@ import { PALETTE_COLORS, DEFAULT_PALETTE_COLORS, type PaletteId } from '../ui/pa
 import { generateUUID } from '../../../lib/uuid';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
+
+function CharacterCampaignWatcher({ campaignId, onPresence, onMembersChange }: { campaignId: string; onPresence: (state: Record<string, any>) => void; onMembersChange: () => void }) {
+  useCampaignChannel(campaignId, { onPresenceSync: onPresence, onBroadcast: { members_change: onMembersChange } });
+  return null;
+}
 
 type OwnedCharacter = Character & { player: string; notes: string; ownerProfileId: string; campaignId: string | null; ruleset: RulesetId | null; createdAt?: string; updatedAt?: string };
 type CatalogEntry = { kind: 'npc'; entity: NPC } | { kind: 'monster'; entity: Monster };
@@ -376,34 +381,6 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
   // entrambe le liste di questa pagina - prima nessuno lo ascoltava qui,
   // a differenza di CampaignHome.tsx, da cui il reload manuale necessario
   // dopo un claim/release segnalato il 2026-07-22.
-  useEffect(() => {
-    if (selectedContentMode() === 'local') return;
-    const campaignIds = Array.from(new Set([...campaigns, ...joinedCampaigns].map(c => c.id)));
-    const channels: Record<string, ReturnType<typeof supabase.channel>> = {};
-
-    campaignIds.forEach((campaignId) => {
-      const ch = supabase
-        .channel(`campaign:${campaignId}`, { config: { private: true } })
-        .on('presence', { event: 'sync' }, () => {
-          const state = ch.presenceState();
-          const isGmOnline = Object.values(state).some((presences: any) =>
-            presences.some((p: any) => p.role === 'gm')
-          );
-          setGmOnlineFor(prev => ({ ...prev, [campaignId]: isGmOnline }));
-        })
-        .on('broadcast', { event: 'members_change' }, () => {
-          void load();
-          void loadAvailable();
-        })
-        .subscribe();
-      channels[campaignId] = ch;
-    });
-
-    return () => {
-      Object.values(channels).forEach((ch) => supabase.removeChannel(ch));
-    };
-  }, [myAndJoinedCampaignIdsKey]);
-
   // Condivide il canale personale con notifiche e tiri segreti: nessun
   // consumer aggiunge callback Supabase dopo la subscribe.
   useRealtimeChannel(user?.id ? `profile:${user.id}` : null, {
@@ -1537,6 +1514,10 @@ export function MyCharactersPage({ detailContext, onOpenDetail, onCloseDetail }:
 
   return (
     <>
+    {selectedContentMode() !== 'local' && Array.from(new Set([...campaigns, ...joinedCampaigns].map(campaign => campaign.id))).map(campaignId => <CharacterCampaignWatcher key={campaignId} campaignId={campaignId} onPresence={state => {
+      const isGmOnline = Object.values(state).some((presences: any) => presences.some((presence: any) => presence.role === 'gm'));
+      setGmOnlineFor(previous => ({ ...previous, [campaignId]: isGmOnline }));
+    }} onMembersChange={() => { void load(); void loadAvailable(); }} />)}
     <div className={`space-y-6 select-none ${detailContext ? 'pointer-events-none' : ''}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1 rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1">
