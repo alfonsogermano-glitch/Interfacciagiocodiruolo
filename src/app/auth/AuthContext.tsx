@@ -38,6 +38,12 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const beforeSignOutHandlers = new Set<() => void | Promise<void>>();
+
+export function registerBeforeSignOut(handler: () => void | Promise<void>) {
+  beforeSignOutHandlers.add(handler);
+  return () => beforeSignOutHandlers.delete(handler);
+}
 
 function fallbackUserFromIdentities(session: Session): AuthUser {
   const identities = session.user.identities ?? [];
@@ -208,6 +214,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    const results = await Promise.allSettled(Array.from(beforeSignOutHandlers, handler => handler()));
+    results.forEach(result => {
+      if (result.status === 'rejected') console.error('Errore rimozione presenza prima del logout:', result.reason);
+    });
     try {
       await supabase.removeAllChannels();
     } catch (error) {

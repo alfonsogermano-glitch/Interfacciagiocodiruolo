@@ -5,7 +5,7 @@ import {
   LayoutGrid, Package, Settings2, X,
 } from 'lucide-react';
 import { Copy, CopyPlus } from '@/app/components/IconeCopia';
-import { useAuth } from '../auth/AuthContext';
+import { registerBeforeSignOut, useAuth } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
 import { useCampaignChannel } from '../../services/realtime/campaignChannel';
 import { useOnlinePresence } from '../presence/PresenceContext';
@@ -581,7 +581,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
     const refreshWhenVisible = () => { if (document.visibilityState === 'visible') refreshPresence(); };
     refreshPresence();
     document.addEventListener('visibilitychange', refreshWhenVisible);
+    const unregisterBeforeSignOut = registerBeforeSignOut(untrack);
     return () => {
+      unregisterBeforeSignOut();
       document.removeEventListener('visibilitychange', refreshWhenVisible);
       void untrack();
     };

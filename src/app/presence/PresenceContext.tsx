@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { useAuth, supabase } from '../auth/AuthContext';
+import { registerBeforeSignOut, useAuth, supabase } from '../auth/AuthContext';
 import { selectedContentMode } from '../../services/storage/persistenceMode';
 
 type PresenceContextValue = {
@@ -30,12 +30,15 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
     document.addEventListener('visibilitychange', refreshWhenVisible);
     window.addEventListener('focus', refreshPresence);
     window.addEventListener('online', refreshPresence);
+    const unregisterBeforeSignOut = registerBeforeSignOut(async () => { await channel.untrack(); });
     return () => {
+      unregisterBeforeSignOut();
       document.removeEventListener('visibilitychange', refreshWhenVisible);
       window.removeEventListener('focus', refreshPresence);
       window.removeEventListener('online', refreshPresence);
-      void channel.untrack();
-      void supabase.removeChannel(channel);
+      void (async () => {
+        try { await channel.untrack(); } finally { await supabase.removeChannel(channel); }
+      })();
     };
   }, [user?.id]);
 
