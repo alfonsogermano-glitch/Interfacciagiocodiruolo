@@ -18,6 +18,8 @@ interface EntityCardProps {
   hiddenBadge?: boolean;
   /** Badge extra dopo la descrizione, accanto alla campagna (es. RulesetTag). */
   badge?: ReactNode;
+  /** Indicatore compatto mostrato accanto al nome (es. stato online). */
+  nameIndicator?: ReactNode;
   cornerAction?: ReactNode;
   children?: ReactNode;
   /** Bordo/sfondo accent-colorato al posto del neutro standard - per
@@ -49,6 +51,7 @@ export function EntityCard({
   onClick,
   hiddenBadge,
   badge,
+  nameIndicator,
   cornerAction,
   children,
   variant = 'grid',
@@ -104,7 +107,7 @@ export function EntityCard({
 
         <div className="flex min-w-0 flex-1 items-center justify-between gap-4">
           <div className="min-w-0 max-w-xs shrink-0">
-            <h3 className="truncate font-serif text-sm font-semibold text-[var(--dash-text-strong)]">{name || 'Senza nome'}</h3>
+            <div className="flex min-w-0 items-center gap-1.5"><h3 className="truncate font-serif text-sm font-semibold text-[var(--dash-text-strong)]">{name || 'Senza nome'}</h3>{nameIndicator}</div>
             {subtitle && <p className="truncate text-xs text-[var(--dash-muted)]">{subtitle}</p>}
           </div>
 
@@ -185,7 +188,7 @@ export function EntityCard({
       )}
 
       <div className="flex min-w-0 flex-1 flex-col p-2.5 pr-9">
-        <h3 className="truncate font-serif text-base font-semibold text-[var(--dash-text-strong)]">{name || 'Senza nome'}</h3>
+        <div className="flex min-w-0 items-center gap-1.5"><h3 className="truncate font-serif text-base font-semibold text-[var(--dash-text-strong)]">{name || 'Senza nome'}</h3>{nameIndicator}</div>
         {subtitle && <p className="truncate text-sm text-[var(--dash-muted)]">{subtitle}</p>}
         {secondaryText && (
           <p className="mt-1 line-clamp-2 text-xs text-[var(--dash-muted)]">{secondaryText}</p>

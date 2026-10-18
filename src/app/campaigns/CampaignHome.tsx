@@ -130,6 +130,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
 
   const [isToggling, setIsToggling] = useState(false);
   const [gmOnline, setGmOnline] = useState(false);
+  const [onlineProfileIds, setOnlineProfileIds] = useState<Set<string>>(() => new Set());
   const [localSessionActive, setLocalSessionActive] = useState<boolean | null>(null);
   const [ownCharacterId, setOwnCharacterId] = useState<string | null>(null);
   const [characterLookupDone, setCharacterLookupDone] = useState(false);
@@ -556,6 +557,9 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
       DELETE: handleEntityBroadcast,
     },
     onPresenceSync: (state) => {
+      const profileIds = new Set<string>();
+      Object.values(state).forEach((presences: any) => presences.forEach((presence: any) => { if (typeof presence.profileId === 'string') profileIds.add(presence.profileId); }));
+      setOnlineProfileIds(profileIds);
       const online = Object.values(state).some((presences: any) =>
         presences.some((p: any) => p.role === 'gm')
       );
@@ -1189,6 +1193,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
       key={ch.id}
       variant="grid"
       name={ch.name}
+      nameIndicator={<span role="status" aria-label={onlineProfileIds.has(row.profileId) ? 'Online' : 'Offline'} title={onlineProfileIds.has(row.profileId) ? 'Online' : 'Offline'} className={`h-2.5 w-2.5 shrink-0 rounded-full border border-black/30 ${onlineProfileIds.has(row.profileId) ? 'bg-emerald-400' : 'bg-slate-500'}`} />}
       subtitle={ch.styleViaggio}
       secondaryText={ch.description}
       onClick={() => onOpenSessionEntity('pg', ch.id)}
