@@ -27,11 +27,22 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       setOnlineProfileIds(ids);
     };
     channel
+      .on('broadcast', { event: 'online_status' }, ({ payload }) => {
+        if (typeof payload?.profileId !== 'string') return;
+        setOnlineProfileIds(previous => {
+          const next = new Set(previous);
+          if (payload.online) next.add(payload.profileId); else next.delete(payload.profileId);
+          return next;
+        });
+      })
       .on('presence', { event: 'sync' }, syncOnlineProfiles)
       .on('presence', { event: 'join' }, syncOnlineProfiles)
       .on('presence', { event: 'leave' }, syncOnlineProfiles)
       .subscribe(status => {
-      if (status === 'SUBSCRIBED') refreshPresence();
+      if (status === 'SUBSCRIBED') {
+        refreshPresence();
+        void channel.send({ type: 'broadcast', event: 'online_status', payload: { profileId: user.id, online: true } });
+      }
     });
     document.addEventListener('visibilitychange', refreshWhenVisible);
     window.addEventListener('focus', refreshPresence);
@@ -41,6 +52,7 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       document.removeEventListener('visibilitychange', refreshWhenVisible);
       window.removeEventListener('focus', refreshPresence);
       window.removeEventListener('online', refreshPresence);
+      await channel.send({ type: 'broadcast', event: 'online_status', payload: { profileId: user.id, online: false } });
       await channel.untrack();
     });
     return () => {

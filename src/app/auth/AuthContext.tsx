@@ -222,12 +222,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     results?.forEach(result => {
       if (result.status === 'rejected') console.error('Errore rimozione presenza prima del logout:', result.reason);
     });
-    try {
-      await supabase.removeAllChannels();
-    } catch (error) {
-      console.error('Errore chiusura canali Realtime prima del logout:', error);
-    }
-    await supabase.auth.signOut();
+    void supabase.removeAllChannels().catch(error => {
+      console.error('Errore chiusura canali Realtime durante il logout:', error);
+    });
+    await supabase.auth.signOut({ scope: 'local' });
   };
 
   const refreshUser = async () => {
