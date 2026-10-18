@@ -35,7 +35,6 @@ type BroadcastEvent =
   | 'notification'
   | 'map_measurement'
   | 'map_token_action'
-  | 'presence_status'
   | 'character_owner_change';
 const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = [
   'INSERT',
@@ -52,7 +51,6 @@ const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = [
   'notification',
   'map_measurement',
   'map_token_action',
-  'presence_status',
   'character_owner_change',
 ];
 
@@ -300,12 +298,4 @@ export function useRealtimeChannel(topic: string | null | undefined, options: Us
 /** Convenience wrapper: stesso hook, topic già formattato per una campagna. */
 export function useCampaignChannel(campaignId: string | null | undefined, options: UseRealtimeChannelOptions = {}): UseRealtimeChannelResult {
   return useRealtimeChannel(campaignId ? `campaign:${campaignId}` : null, options);
-}
-
-export async function clearCampaignPresence(campaignId: string) {
-  const entry = registry.get(`campaign:${campaignId}`);
-  if (!entry) return;
-  entry.desiredPresence = null;
-  reconcilePresence(entry);
-  await entry.presenceQueue;
 }

@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './auth/AuthContext';
-import { PresenceProvider } from './presence/PresenceContext';
 import { CampaignPresenceCoordinator } from './presence/CampaignPresenceCoordinator';
 import LandingPage from './landing/LandingPage';
 import { PrivacyPolicy } from './legal/PrivacyPolicy';
@@ -483,15 +482,13 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <PresenceProvider>
-        <CampaignProvider>
-          <NotificationsProvider>
-            <RulesetProvider>
-              <AuthGate />
-            </RulesetProvider>
-          </NotificationsProvider>
-        </CampaignProvider>
-      </PresenceProvider>
+      <CampaignProvider>
+        <NotificationsProvider>
+          <RulesetProvider>
+            <AuthGate />
+          </RulesetProvider>
+        </NotificationsProvider>
+      </CampaignProvider>
     </AuthProvider>
   );
 }
