@@ -16,16 +16,18 @@ export function snapToSessionGrid(position: GridPosition, settings: SessionGridS
 
   const radius = settings.cellSize / 2;
   if (settings.type === 'square') {
+    const originX = settings.originX ?? 0;
+    const originY = settings.originY ?? 0;
     if (settings.squareSnapMode === 'cell-center') {
       const target = { x: position.x + objectSize.width / 2, y: position.y + objectSize.height / 2 };
       const center = {
-        x: Math.round((target.x - radius) / settings.cellSize) * settings.cellSize + radius,
-        y: Math.round((target.y - radius) / settings.cellSize) * settings.cellSize + radius,
+        x: Math.round((target.x - originX - radius) / settings.cellSize) * settings.cellSize + originX + radius,
+        y: Math.round((target.y - originY - radius) / settings.cellSize) * settings.cellSize + originY + radius,
       };
       return { x: center.x - objectSize.width / 2, y: center.y - objectSize.height / 2 };
     }
     const step = radius;
-    return { x: Math.round(position.x / step) * step, y: Math.round(position.y / step) * step };
+    return { x: Math.round((position.x - originX) / step) * step + originX, y: Math.round((position.y - originY) / step) * step + originY };
   }
 
   const target = { x: position.x + objectSize.width / 2, y: position.y + objectSize.height / 2 };

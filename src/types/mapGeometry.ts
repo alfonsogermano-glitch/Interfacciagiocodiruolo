@@ -46,6 +46,8 @@ export interface SessionGridSettings {
   distance: number;
   unit: string;
   cellSize: number;
+  originX?: number;
+  originY?: number;
 }
 
 export interface SceneContextMetadata {

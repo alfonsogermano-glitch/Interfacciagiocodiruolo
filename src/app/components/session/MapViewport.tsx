@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent } from 'react';
-import { configureSessionMapCenter, configureSessionMapFit, setSessionMapSelectionArmed, useActiveSessionMapTool, useSessionMapMeasureMode, useSessionMapMeasurementsVisibleToAll, useSessionMapSelectionArmed, useSessionMapSelectionMode, type SessionMapFitMode, type SessionMapTool } from './mapToolStore';
+import { configureSessionMapCenter, configureSessionMapFit, setSessionMapCalibrationActive, setSessionMapSelectionArmed, updateSessionGrid, useActiveSessionMapTool, useSessionMapCalibrationActive, useSessionMapMeasureMode, useSessionMapMeasurementsVisibleToAll, useSessionMapSelectionArmed, useSessionMapSelectionMode, type SessionMapFitMode, type SessionMapTool } from './mapToolStore';
 import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
 import type { SessionGridSettings } from '../../../types/mapGeometry';
 import { snapToSessionGrid, type GridObjectSize } from './mapGridSnap';
@@ -135,7 +135,7 @@ function CanvasGrid({ settings, patternId }: { settings: SessionGridSettings; pa
       : lineStyle === 'corners'
         ? `M 0 0 L ${cornerHalf} ${cornerHalf} M ${size} 0 L ${size - cornerHalf} ${cornerHalf} M 0 ${size} L ${cornerHalf} ${size - cornerHalf} M ${size} ${size} L ${size - cornerHalf} ${size - cornerHalf}`
         : `M 0 0 H ${size} M 0 0 V ${size}`;
-    return <svg data-session-map-grid="square" aria-hidden="true" className="pointer-events-none absolute -left-[20000px] -top-[20000px] z-[2] h-[40000px] w-[40000px]" style={{ color, opacity: settings.opacity }}><defs><pattern id={patternId} x={20000} y={20000} width={size} height={size} patternUnits="userSpaceOnUse"><path d={squarePath} fill="none" stroke="currentColor" strokeWidth="1" {...strokeProps} />{lineStyle === 'dotted' && <circle cx="0" cy="0" r="2" fill="currentColor" />}</pattern></defs><rect width="100%" height="100%" fill={`url(#${patternId})`} /></svg>;
+    return <svg data-session-map-grid="square" aria-hidden="true" className="pointer-events-none absolute -left-[20000px] -top-[20000px] z-[2] h-[40000px] w-[40000px]" style={{ color, opacity: settings.opacity }}><defs><pattern id={patternId} x={20000 + (settings.originX ?? 0)} y={20000 + (settings.originY ?? 0)} width={size} height={size} patternUnits="userSpaceOnUse"><path d={squarePath} fill="none" stroke="currentColor" strokeWidth="1" {...strokeProps} />{lineStyle === 'dotted' && <circle cx="0" cy="0" r="2" fill="currentColor" />}</pattern></defs><rect width="100%" height="100%" fill={`url(#${patternId})`} /></svg>;
   }
   const pointy = settings.type === 'hex-pointy';
   const radius = size / 2;
@@ -178,6 +178,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const selectionArmed = useSessionMapSelectionArmed();
   const measureMode = useSessionMapMeasureMode();
   const measurementsVisibleToAll = useSessionMapMeasurementsVisibleToAll();
+  const calibrationActive = useSessionMapCalibrationActive();
   const [view, setView] = useState<ViewTransform>(() => readStoredView(mapId));
   const [placement, setPlacement] = useState(mapPlacement);
   const [panning, setPanning] = useState(false);
@@ -193,6 +194,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const [selectedTokenIds, setSelectedTokenIds] = useState<Set<string>>(() => new Set());
   const [selectionDraft, setSelectionDraft] = useState<SelectionGesture | null>(null);
   const selectionGestureRef = useRef<SelectionGesture | null>(null);
+  const [calibrationStart, setCalibrationStart] = useState<SelectionPoint | null>(null);
   const [visualMeasurement, setVisualMeasurement] = useState<VisualMeasurement | null>(null);
   const visualMeasurementRef = useRef<VisualMeasurement | null>(null);
   const visualMeasurementTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -253,7 +255,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   }, [mapTokens]);
 
   useEffect(() => {
-    const clearSelection = (event: KeyboardEvent) => { if (event.key === 'Escape') setSelectedTokenIds(new Set()); };
+    const clearSelection = (event: KeyboardEvent) => { if (event.key === 'Escape') { setSelectedTokenIds(new Set()); setCalibrationStart(null); setSessionMapCalibrationActive(false); } };
     window.addEventListener('keydown', clearSelection);
     return () => window.removeEventListener('keydown', clearSelection);
   }, []);
@@ -262,6 +264,12 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     visualMeasurementTimersRef.current.forEach(clearTimeout);
     Object.values(remoteMeasurementTimersRef.current).flat().forEach(clearTimeout);
   }, []);
+
+  useEffect(() => {
+    if (!calibrationActive) setCalibrationStart(null);
+  }, [calibrationActive]);
+
+  useEffect(() => () => setSessionMapCalibrationActive(false), []);
 
   useEffect(() => {
     if (measurementsVisibleToAll) return;
@@ -349,6 +357,31 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const measurementPoint = (event: ReactPointerEvent<HTMLDivElement>) => {
     const point = worldPoint(event);
     return point ? snapToSessionGrid(point, gridSettings) : null;
+  };
+
+  const captureCalibrationPoint = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!calibrationActive || event.button !== 0) return false;
+    const point = worldPoint(event);
+    if (!point) return false;
+    event.preventDefault();
+    if (!calibrationStart) {
+      setCalibrationStart(point);
+      return true;
+    }
+    const deltaX = Math.abs(point.x - calibrationStart.x);
+    const deltaY = Math.abs(point.y - calibrationStart.y);
+    const axisDistance = Math.max(deltaX, deltaY);
+    const estimatedCells = Math.max(1, Math.round(axisDistance / Math.max(1, gridSettings.cellSize)));
+    const answer = window.prompt('Quante caselle ci sono tra i due punti selezionati?', String(estimatedCells));
+    const cells = Number(answer?.replace(',', '.'));
+    if (answer !== null && Number.isFinite(cells) && cells > 0 && axisDistance > 0) {
+      const cellSize = axisDistance / cells;
+      const modulo = (value: number) => ((value % cellSize) + cellSize) % cellSize;
+      updateSessionGrid({ cellSize, originX: modulo(calibrationStart.x), originY: modulo(calibrationStart.y), visible: true });
+    }
+    setCalibrationStart(null);
+    setSessionMapCalibrationActive(false);
+    return true;
   };
 
   const broadcastMeasurement = (action: 'update' | 'finish', measurement: VisualMeasurement) => {
@@ -501,12 +534,12 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     setPanning(false);
   };
 
-  const handleViewportPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => { if (!beginVisualMeasurement(event) && !beginSelection(event)) beginPan(event); };
+  const handleViewportPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => { if (!captureCalibrationPoint(event) && !beginVisualMeasurement(event) && !beginSelection(event)) beginPan(event); };
   const handleViewportPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => { if (!moveVisualMeasurement(event) && !moveSelection(event)) movePan(event); };
   const handleViewportPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => { if (!finishVisualMeasurement(event) && !finishSelection(event)) finishPan(event); };
 
   const beginTokenMove = (event: ReactPointerEvent<HTMLElement>, token: SessionMapToken) => {
-    if (activeTool === 'measure' || !isOwner || token.locked || event.button !== 0) return;
+    if (calibrationActive || activeTool === 'measure' || !isOwner || token.locked || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
     setTransformTokenId(null);
@@ -656,7 +689,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     data-map-tool-active={activeTool}
     data-map-panning={panning || undefined}
     data-map-move-target={moveTargetAvailable ? 'movable' : 'fixed'}
-    className={`relative h-full min-h-0 w-full overflow-hidden touch-none bg-[radial-gradient(circle_at_center,#262a31_0%,#14161b_58%,#0d0f13_100%)] ${activeTool === 'select' && selectionArmed ? 'cursor-crosshair' : ''}`}
+    className={`relative h-full min-h-0 w-full overflow-hidden touch-none bg-[radial-gradient(circle_at_center,#262a31_0%,#14161b_58%,#0d0f13_100%)] ${calibrationActive || activeTool === 'select' && selectionArmed ? 'cursor-crosshair' : ''}`}
     onWheel={zoom}
     onAuxClick={event => { if (event.button === 1) event.preventDefault(); }}
     onPointerDown={handleViewportPointerDown}
@@ -679,6 +712,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       {selectionDraft && <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-20 overflow-visible">
         {selectionDraft.mode === 'rectangle' ? <rect x={Math.min(selectionDraft.start.x, selectionDraft.current.x)} y={Math.min(selectionDraft.start.y, selectionDraft.current.y)} width={Math.abs(selectionDraft.current.x - selectionDraft.start.x)} height={Math.abs(selectionDraft.current.y - selectionDraft.start.y)} fill="rgba(34,211,238,0.12)" stroke="#22d3ee" strokeWidth={1.5 / view.scale} strokeDasharray={`${6 / view.scale} ${4 / view.scale}`} /> : <polyline points={[...selectionDraft.points, selectionDraft.current].map(point => `${point.x},${point.y}`).join(' ')} fill="none" stroke="#22d3ee" strokeWidth={1.5 / view.scale} strokeDasharray={`${6 / view.scale} ${4 / view.scale}`} />}
       </svg>}
+      {calibrationStart && <div aria-hidden="true" className="pointer-events-none absolute z-[22]" style={{ left: calibrationStart.x, top: calibrationStart.y }}><span className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-cyan-400 shadow-[0_0_0_3px_rgba(3,7,18,0.85)]" style={{ width: 14 / view.scale, height: 14 / view.scale }} /><span className="absolute left-3 top-3 whitespace-nowrap rounded-md border border-cyan-300/60 bg-slate-950/90 px-2 py-1 font-semibold text-cyan-100 shadow-lg" style={{ fontSize: 12 / view.scale }}>Seleziona un secondo incrocio distante</span></div>}
       {visualMeasurement && <MeasurementGraphic measurement={visualMeasurement} view={view} gridSettings={gridSettings} />}
       {Object.entries(remoteMeasurements).map(([key, measurement]) => <MeasurementGraphic key={key} measurement={measurement} view={view} gridSettings={gridSettings} />)}
       <div data-session-map-tokens className="pointer-events-none absolute inset-0 z-[3]">
@@ -718,7 +752,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
              <span
                data-map-interactive
                data-map-movable={isOwner && !token.locked ? 'true' : 'false'}
-                className={`pointer-events-auto absolute inset-0 z-[7] rounded-full ${activeTool === 'select' && selectionArmed ? 'cursor-crosshair' : isOwner ? token.locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
+                className={`pointer-events-auto absolute inset-0 z-[7] rounded-full ${calibrationActive || activeTool === 'select' && selectionArmed ? 'cursor-crosshair' : isOwner ? token.locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
                onPointerDown={event => beginTokenMove(event, token)}
                onPointerMove={moveToken}
                onPointerUp={finishTokenMove}

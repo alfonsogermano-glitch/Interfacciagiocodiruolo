@@ -100,8 +100,10 @@ assert.match(viewportSource, /preferredX = tokenRight \+ 12[\s\S]*bg-\[var\(--da
 assert.match(topBarSource, /data-session-map-center[\s\S]*Centra la visuale sulla mappa[\s\S]*Crosshair/, 'la barra centrale espone il comando per ritrovare la mappa');
 assert.match(viewportSource, /configureSessionMapCenter[\s\S]*viewport\.clientWidth \/ 2[\s\S]*viewport\.clientHeight \/ 2/, 'il comando centra la visuale sul centro geometrico della mappa');
 assert.match(mapObjectLayersSource, /move === 'front'[\s\S]*objects\.length - 1[\s\S]*move === 'back'[\s\S]*Math\.min[\s\S]*Math\.max/, 'le operazioni di livello coprono spostamento singolo e assoluto');
-assert.match(gridSnapSource, /Math\.round\(position\.x \/ step\)[\s\S]*Math\.round\(position\.y \/ step\)/, 'la griglia quadrata aggancia l’angolo a mezze celle');
-assert.match(gridSnapSource, /squareSnapMode === 'cell-center'[\s\S]*target\.x - radius[\s\S]*objectSize\.width \/ 2/, 'la griglia quadrata puo agganciare il centro dell’oggetto al centro cella');
+assert.match(gridSnapSource, /Math\.round\(\(position\.x - originX\) \/ step\)[\s\S]*Math\.round\(\(position\.y - originY\) \/ step\)/, 'la griglia quadrata aggancia l’angolo a mezze celle rispettando l’origine calibrata');
+assert.match(gridSnapSource, /squareSnapMode === 'cell-center'[\s\S]*target\.x - originX - radius[\s\S]*objectSize\.width \/ 2/, 'la griglia quadrata puo agganciare il centro dell’oggetto al centro cella');
+assert.match(topBarSource, /data-session-map-calibrate[\s\S]*Calibra mappa/, 'la barra centrale espone la calibrazione della griglia sulla mappa');
+assert.match(viewportSource, /axisDistance \/ cells[\s\S]*originX:[\s\S]*originY:/, 'la calibrazione ricava una cella frazionaria e allinea l’origine');
 assert.match(topBarSource, /Posizionamento oggetti[\s\S]*Mezzo passo[\s\S]*Centro casella/, 'il pannello griglia permette di scegliere lo snap quadrato');
 assert.match(gridSnapSource, /objectSize\.width \/ 2[\s\S]*objectSize\.height \/ 2[\s\S]*nearestPoint/, 'le griglie esagonali agganciano il centro dell’oggetto al centro cella');
 assert.match(mapToolStoreSource, /unit: 'Metri'/, 'Metri e l’unita predefinita della griglia');
@@ -115,6 +117,7 @@ assert.match(viewportSource, /configureSessionMapFit[\s\S]*gridSettings\.type ==
 assert.match(viewportSource, /width: fittedWidth, height: fittedHeight/, 'le dimensioni calibrate della mappa vengono salvate nella posizione condivisa');
 assert.match(viewportSource, /settings\.color \?\? '#38bdf8'/, 'le griglie salvate senza colore mantengono il colore predefinito');
 assert.match(workspaceSource, /session-map-grids/, 'le impostazioni griglia persistono per Capitolo');
+assert.match(homeSource, /setInterval\(refresh, 2000\)[\s\S]*refreshJoinedCampaigns[\s\S]*sessionActive/, 'il giocatore recupera lo stato sessione se perde il broadcast di avvio');
 assert.match(sidebarSource, /isOwner \? \[\.\.\.ICONS, \.\.\.GM_ICONS\] : ICONS/, 'la rail aggiunge strumenti solo per il GM');
 assert.match(sidebarSource, /label: 'Incontri'/, 'la scheda Incontri resta disponibile al GM');
 assert.doesNotMatch(encounterManagerSource, /Ripubblica scena|Nascondi scena attiva|Avvia encounter/, 'la scheda Incontri non duplica i controlli operativi');

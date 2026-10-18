@@ -30,6 +30,8 @@ const mapFitListeners = new Set<() => void>();
 let mapCenterAvailable = false;
 let mapCenterHandler: (() => void) | null = null;
 const mapCenterListeners = new Set<() => void>();
+let mapCalibrationActive = false;
+const mapCalibrationListeners = new Set<() => void>();
 
 export function setActiveSessionMapTool(tool: SessionMapTool) {
   if (tool === activeMapTool) return;
@@ -151,6 +153,20 @@ export function useSessionMapCenterAvailable() {
   return useSyncExternalStore(
     listener => { mapCenterListeners.add(listener); return () => mapCenterListeners.delete(listener); },
     () => mapCenterAvailable,
+    () => false,
+  );
+}
+
+export function setSessionMapCalibrationActive(active: boolean) {
+  if (active === mapCalibrationActive) return;
+  mapCalibrationActive = active;
+  mapCalibrationListeners.forEach(listener => listener());
+}
+
+export function useSessionMapCalibrationActive() {
+  return useSyncExternalStore(
+    listener => { mapCalibrationListeners.add(listener); return () => mapCalibrationListeners.delete(listener); },
+    () => mapCalibrationActive,
     () => false,
   );
 }

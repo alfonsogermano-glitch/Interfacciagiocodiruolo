@@ -229,6 +229,18 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
     void promise;
   }, [activeCampaign?.id, isOwner]);
 
+  // Il broadcast rende immediato l'avvio, ma non deve essere l'unica fonte:
+  // un giocatore puo collegarsi mentre il canale si sta ancora sottoscrivendo
+  // e perdere proprio l'evento session_change. Finche resta nella schermata
+  // d'attesa, rilegge quindi lo stato persistito con un polling leggero.
+  useEffect(() => {
+    if (isOwner || !activeCampaign?.id || sessionActive) return;
+    const refresh = () => { void refreshJoinedCampaigns(); };
+    refresh();
+    const interval = window.setInterval(refresh, 2000);
+    return () => window.clearInterval(interval);
+  }, [activeCampaign?.id, isOwner, refreshJoinedCampaigns, sessionActive]);
+
   // Il GM, al rientro, verifica se una sessione è rimasta attiva troppo a
   // lungo (es. ha chiuso il browser senza terminarla esplicitamente) e la
   // chiude automaticamente, senza intaccare le disconnessioni brevi/pausa
@@ -574,11 +586,15 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
         try { window.localStorage.removeItem('hsc_active_encounter'); } catch { /* Storage may be unavailable. */ }
       }
       const accessToken = session?.access_token ?? publicAnonKey;
-      await fetch(`${SERVER_BASE}/campaigns/${activeCampaign.id}/session`, {
+      const response = await fetch(`${SERVER_BASE}/campaigns/${activeCampaign.id}/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ active: nextActive }),
       });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error ?? `HTTP ${response.status}`);
+      }
 
       setLocalSessionActive(nextActive);
       setAutoClosedNotice(false);
