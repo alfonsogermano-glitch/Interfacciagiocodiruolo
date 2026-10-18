@@ -69,6 +69,8 @@ interface ChannelEntry {
   retryTimeout: ReturnType<typeof setTimeout> | null;
   retryCount: number;
   hasScheduledRetry: boolean;
+  desiredPresence: Record<string, unknown> | null;
+  presenceQueue: Promise<void>;
   subscribeChannel: () => Promise<void>;
 }
 
@@ -78,6 +80,17 @@ const MAX_RETRIES = 5;
 function setReady(entry: ChannelEntry, ready: boolean) {
   entry.isReady = ready;
   safeForEach(entry.readyListeners, ready, 'ready');
+}
+
+function reconcilePresence(entry: ChannelEntry) {
+  entry.presenceQueue = entry.presenceQueue.then(async () => {
+    const channel = entry.channel;
+    if (!entry.isActive || !entry.isReady || !channel) return;
+    if (entry.desiredPresence) await channel.track(entry.desiredPresence);
+    else await channel.untrack();
+  }).catch(error => {
+    console.error('[campaignChannel] errore aggiornamento Presence:', error);
+  });
 }
 
 // Un registro condiviso da più consumer indipendenti non deve mai lasciare
@@ -108,6 +121,8 @@ function createEntry(topic: string): ChannelEntry {
     retryTimeout: null,
     retryCount: 0,
     hasScheduledRetry: false,
+    desiredPresence: null,
+    presenceQueue: Promise.resolve(),
     subscribeChannel: async () => {},
   };
 
@@ -142,6 +157,7 @@ function createEntry(topic: string): ChannelEntry {
         entry.retryCount = 0;
         entry.hasScheduledRetry = false;
         setReady(entry, true);
+        reconcilePresence(entry);
         return;
       }
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
@@ -194,12 +210,11 @@ function releaseChannel(topic: string) {
 export interface UseRealtimeChannelOptions {
   onBroadcast?: Partial<Record<BroadcastEvent, BroadcastHandler>>;
   onPresenceSync?: PresenceHandler;
+  presence?: Record<string, unknown> | null;
 }
 
 export interface UseRealtimeChannelResult {
   isReady: boolean;
-  track: (payload: Record<string, unknown>) => Promise<void>;
-  untrack: () => Promise<void>;
   send: (event: BroadcastEvent, payload: Record<string, unknown>) => Promise<void>;
   presenceState: () => Record<string, any>;
 }
@@ -221,6 +236,10 @@ export function useRealtimeChannel(topic: string | null | undefined, options: Us
     if (!topic) return;
     const entry = acquireChannel(topic);
     entryRef.current = entry;
+    if (optionsRef.current.presence !== undefined) {
+      entry.desiredPresence = optionsRef.current.presence;
+      reconcilePresence(entry);
+    }
     setIsReady(entry.isReady);
 
     const unregisterFns: Array<() => void> = [];
@@ -244,21 +263,23 @@ export function useRealtimeChannel(topic: string | null | undefined, options: Us
     unregisterFns.push(() => entry.readyListeners.delete(readyHandler));
 
     return () => {
+      if (optionsRef.current.presence !== undefined) {
+        entry.desiredPresence = null;
+        reconcilePresence(entry);
+      }
       unregisterFns.forEach((fn) => fn());
       entryRef.current = null;
       releaseChannel(topic);
     };
   }, [topic]);
 
-  const track = useCallback(async (payload: Record<string, unknown>) => {
-    const ch = entryRef.current?.channel;
-    if (ch) await ch.track(payload);
-  }, []);
-
-  const untrack = useCallback(async () => {
-    const ch = entryRef.current?.channel;
-    if (ch) await ch.untrack();
-  }, []);
+  const presenceSignature = JSON.stringify(options.presence);
+  useEffect(() => {
+    const entry = entryRef.current;
+    if (!entry || optionsRef.current.presence === undefined) return;
+    entry.desiredPresence = optionsRef.current.presence;
+    reconcilePresence(entry);
+  }, [topic, presenceSignature]);
 
   const send = useCallback(async (event: BroadcastEvent, payload: Record<string, unknown>) => {
     if (selectedContentMode() === 'local') {
@@ -271,10 +292,18 @@ export function useRealtimeChannel(topic: string | null | undefined, options: Us
 
   const presenceState = useCallback(() => entryRef.current?.channel?.presenceState() ?? {}, []);
 
-  return { isReady, track, untrack, send, presenceState };
+  return { isReady, send, presenceState };
 }
 
 /** Convenience wrapper: stesso hook, topic già formattato per una campagna. */
 export function useCampaignChannel(campaignId: string | null | undefined, options: UseRealtimeChannelOptions = {}): UseRealtimeChannelResult {
   return useRealtimeChannel(campaignId ? `campaign:${campaignId}` : null, options);
+}
+
+export async function clearCampaignPresence(campaignId: string) {
+  const entry = registry.get(`campaign:${campaignId}`);
+  if (!entry) return;
+  entry.desiredPresence = null;
+  reconcilePresence(entry);
+  await entry.presenceQueue;
 }

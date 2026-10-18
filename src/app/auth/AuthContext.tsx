@@ -42,7 +42,7 @@ const beforeSignOutHandlers = new Set<() => void | Promise<void>>();
 
 export function registerBeforeSignOut(handler: () => void | Promise<void>) {
   beforeSignOutHandlers.add(handler);
-  return () => beforeSignOutHandlers.delete(handler);
+  return () => { beforeSignOutHandlers.delete(handler); };
 }
 
 function fallbackUserFromIdentities(session: Session): AuthUser {

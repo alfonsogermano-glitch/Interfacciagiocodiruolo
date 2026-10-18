@@ -18,13 +18,18 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
     const channel = supabase.channel('online:all', { config: { private: false, presence: { key: user.id } } });
     const refreshPresence = () => { void channel.track({ profileId: user.id, online_at: new Date().toISOString() }); };
     const refreshWhenVisible = () => { if (document.visibilityState === 'visible') refreshPresence(); };
-    channel.on('presence', { event: 'sync' }, () => {
+    const syncOnlineProfiles = () => {
       const ids = new Set<string>();
       Object.values(channel.presenceState()).forEach((presences: any) => presences.forEach((presence: any) => {
         if (typeof presence.profileId === 'string') ids.add(presence.profileId);
       }));
       setOnlineProfileIds(ids);
-    }).subscribe(status => {
+    };
+    channel
+      .on('presence', { event: 'sync' }, syncOnlineProfiles)
+      .on('presence', { event: 'join' }, syncOnlineProfiles)
+      .on('presence', { event: 'leave' }, syncOnlineProfiles)
+      .subscribe(status => {
       if (status === 'SUBSCRIBED') refreshPresence();
     });
     document.addEventListener('visibilitychange', refreshWhenVisible);

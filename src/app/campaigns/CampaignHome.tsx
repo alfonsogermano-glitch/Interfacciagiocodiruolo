@@ -5,7 +5,7 @@ import {
   LayoutGrid, Package, Settings2, X,
 } from 'lucide-react';
 import { Copy, CopyPlus } from '@/app/components/IconeCopia';
-import { registerBeforeSignOut, useAuth } from '../auth/AuthContext';
+import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
 import { useCampaignChannel } from '../../services/realtime/campaignChannel';
 import { useOnlinePresence } from '../presence/PresenceContext';
@@ -543,7 +543,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
   // consumer, errore "cannot add X callbacks... after subscribe()" - bug
   // trovato e diagnosticato dal vivo il 2026-07-20). Qui un solo punto
   // possiede davvero il canale, con un solo retry condiviso.
-  const { isReady: channelReady, track, untrack, send } = useCampaignChannel(activeCampaign?.id ?? null, {
+  const { isReady: channelReady, send } = useCampaignChannel(activeCampaign?.id ?? null, {
     onBroadcast: {
       session_change: (msg) => {
         const active = msg?.payload?.active;
@@ -568,26 +568,6 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
       setGmOnline(online);
     },
   });
-
-  useEffect(() => {
-    if (!channelReady || !user?.id) return;
-    const presence = {
-      profileId: user.id,
-      role: isOwner ? 'gm' : 'player',
-      ...(ownCharacterId ? { characterId: ownCharacterId } : {}),
-      online_at: new Date().toISOString(),
-    };
-    const refreshPresence = () => { void track({ ...presence, online_at: new Date().toISOString() }); };
-    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') refreshPresence(); };
-    refreshPresence();
-    document.addEventListener('visibilitychange', refreshWhenVisible);
-    const unregisterBeforeSignOut = registerBeforeSignOut(untrack);
-    return () => {
-      unregisterBeforeSignOut();
-      document.removeEventListener('visibilitychange', refreshWhenVisible);
-      void untrack();
-    };
-  }, [channelReady, user?.id, isOwner, ownCharacterId, track, untrack]);
 
   const handleToggleSession = async () => {
     if (!activeCampaign?.id) return;

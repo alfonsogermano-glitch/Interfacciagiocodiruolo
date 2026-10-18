@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { PresenceProvider } from './presence/PresenceContext';
+import { CampaignPresenceCoordinator } from './presence/CampaignPresenceCoordinator';
 import LandingPage from './landing/LandingPage';
 import { PrivacyPolicy } from './legal/PrivacyPolicy';
 import { DeleteData } from './legal/DeleteData';
@@ -177,7 +178,7 @@ const normalizeGmTab = (tabId: string) =>
 
 function AuthGate() {
   const { user, isLoading, signOut, isPasswordRecovery, clearPasswordRecovery } = useAuth();
-  const { setActiveCampaign, selectedCampaignId, campaigns } = useCampaign();
+  const { setActiveCampaign, selectedCampaignId, campaigns, activeCampaign } = useCampaign();
 
   // sessionStorage (non localStorage): la vista corrente deve sopravvivere
   // a un refresh (F5, stessa scheda) ma NON a una chiusura completa del
@@ -386,6 +387,10 @@ function AuthGate() {
 
   return (
     <>
+      <CampaignPresenceCoordinator
+        campaignId={view === 'campaign-home' ? activeCampaign?.id ?? null : null}
+        isOwner={activeCampaign?.ownerId === user.id}
+      />
       <AppShell
         settings={dashboardSettings}
         leftSidebar={view === 'campaign-home' && sessionWorkspaceActive ? null : (
