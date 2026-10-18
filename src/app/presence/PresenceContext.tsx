@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { registerBeforeSignOut, useAuth, supabase } from '../auth/AuthContext';
 import { selectedContentMode } from '../../services/storage/persistenceMode';
 
@@ -12,6 +12,7 @@ const PresenceContext = createContext<PresenceContextValue | null>(null);
 export function PresenceProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [onlineProfileIds, setOnlineProfileIds] = useState<Set<string>>(new Set());
+  const offlineAtByProfileRef = useRef(new Map<string, number>());
 
   useEffect(() => {
     if (!user?.id || selectedContentMode() === 'local') { setOnlineProfileIds(new Set()); return; }
@@ -22,7 +23,12 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
     const syncOnlineProfiles = () => {
       const ids = new Set<string>();
       Object.values(channel.presenceState()).forEach((presences: any) => presences.forEach((presence: any) => {
-        if (typeof presence.profileId === 'string') ids.add(presence.profileId);
+        if (typeof presence.profileId !== 'string') return;
+        const offlineAt = offlineAtByProfileRef.current.get(presence.profileId) ?? 0;
+        const onlineAt = Date.parse(presence.online_at ?? '') || 0;
+        if (offlineAt && onlineAt <= offlineAt) return;
+        if (onlineAt > offlineAt) offlineAtByProfileRef.current.delete(presence.profileId);
+        ids.add(presence.profileId);
       }));
       setOnlineProfileIds(ids);
     };
@@ -31,7 +37,13 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
         if (typeof payload?.profileId !== 'string') return;
         setOnlineProfileIds(previous => {
           const next = new Set(previous);
-          if (payload.online) next.add(payload.profileId); else next.delete(payload.profileId);
+          if (payload.online) {
+            offlineAtByProfileRef.current.delete(payload.profileId);
+            next.add(payload.profileId);
+          } else {
+            offlineAtByProfileRef.current.set(payload.profileId, Number(payload.statusAt) || Date.now());
+            next.delete(payload.profileId);
+          }
           return next;
         });
       })
@@ -41,7 +53,7 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       .subscribe(status => {
       if (status === 'SUBSCRIBED') {
         refreshPresence();
-        void channel.send({ type: 'broadcast', event: 'online_status', payload: { profileId: user.id, online: true } });
+        void channel.send({ type: 'broadcast', event: 'online_status', payload: { profileId: user.id, online: true, statusAt: Date.now() } });
       }
     });
     document.addEventListener('visibilitychange', refreshWhenVisible);
@@ -52,7 +64,7 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
       document.removeEventListener('visibilitychange', refreshWhenVisible);
       window.removeEventListener('focus', refreshPresence);
       window.removeEventListener('online', refreshPresence);
-      await channel.send({ type: 'broadcast', event: 'online_status', payload: { profileId: user.id, online: false } });
+      await channel.send({ type: 'broadcast', event: 'online_status', payload: { profileId: user.id, online: false, statusAt: Date.now() } });
       await channel.untrack();
     });
     return () => {
