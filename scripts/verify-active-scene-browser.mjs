@@ -104,6 +104,10 @@ assert.match(gridSnapSource, /Math\.round\(\(position\.x - originX\) \/ step\)[\
 assert.match(gridSnapSource, /squareSnapMode === 'cell-center'[\s\S]*target\.x - originX - radius[\s\S]*objectSize\.width \/ 2/, 'la griglia quadrata puo agganciare il centro dell’oggetto al centro cella');
 assert.match(topBarSource, /data-session-map-calibrate[\s\S]*Calibra mappa/, 'la barra centrale espone la calibrazione della griglia sulla mappa');
 assert.match(viewportSource, /axisDistance \/ cells[\s\S]*originX:[\s\S]*originY:/, 'la calibrazione ricava una cella frazionaria e allinea l’origine');
+assert.match(topBarSource, /disabled=\{!gridEditable && \(id === 'grid' \|\| id === 'fog' \|\| id === 'walls'\)\}/, 'griglia, nebbia e muri restano disabilitati ai giocatori');
+assert.match(viewportSource, /isOwner && menuIcon\(token\.visible[\s\S]*isOwner && menuIcon\(token\.locked[\s\S]*Nascondi etichetta token/, 'il menu giocatore nasconde visibilita globale e blocco ma conserva il titolo');
+assert.match(viewportSource, /!viewport \|\| !token \|\| \(!isOwner && token\.locked\)/, 'un giocatore non puo aprire il menu di un token bloccato dal GM');
+assert.match(workspaceSource, /map_token_action[\s\S]*unlockedIds[\s\S]*\['name', 'showLabel', 'labelColor', 'conditions'\]/, 'le azioni token dei giocatori passano dal GM e non possono alterare blocco o visibilita');
 assert.match(topBarSource, /Posizionamento oggetti[\s\S]*Mezzo passo[\s\S]*Centro casella/, 'il pannello griglia permette di scegliere lo snap quadrato');
 assert.match(gridSnapSource, /objectSize\.width \/ 2[\s\S]*objectSize\.height \/ 2[\s\S]*nearestPoint/, 'le griglie esagonali agganciano il centro dell’oggetto al centro cella');
 assert.match(mapToolStoreSource, /unit: 'Metri'/, 'Metri e l’unita predefinita della griglia');

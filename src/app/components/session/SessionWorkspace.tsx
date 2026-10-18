@@ -13,6 +13,7 @@ import { useActiveScene } from './useActiveScene';
 import { useCampaignDocument } from '../shared/useCampaignDocument';
 import type { SessionMapToken, SessionMapTokenVisual } from '../../../types/sessionMapToken';
 import { doBoundsOverlap, getRotatedSquareBounds, reorderMapObjects, type MapLayerMove } from './mapObjectLayers';
+import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
 
 const TREE_WIDTH_STORAGE_KEY = 'hollowgate.session.tree-width';
 const TREE_DEFAULT_WIDTH = 280;
@@ -62,6 +63,10 @@ export function SessionWorkspace({
   onEndSession: () => Promise<void>;
 }) {
   const { activeScene, channelReady, publish } = useActiveScene(campaignId);
+  const playerMapActionHandlerRef = useRef<(payload: any) => void>(() => {});
+  const { send: sendCampaignEvent } = useCampaignChannel(campaignId, { onBroadcast: { map_token_action: message => {
+    if (isOwner) playerMapActionHandlerRef.current(message?.payload);
+  } } });
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
@@ -153,6 +158,10 @@ export function SessionWorkspace({
       ? { ...chapterPreview(selectedChapter, mapPlacements[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.mapPlacement : undefined)), gridSettings: chapterGrids[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.gridSettings : undefined) ?? DEFAULT_SESSION_GRID, mapTokens: chapterTokens[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.mapTokens : undefined) ?? [] }
       : publicChapterPreview;
   const mapPlacement: MapPlacement = display?.mapPlacement ?? { x: 0, y: 0, locked: false };
+  const requestMapTokenAction = (action: string, data: Record<string, unknown>) => {
+    if (!display) return;
+    void sendCampaignEvent('map_token_action', { action, chapterId: display.chapterId, ...data });
+  };
   const chooseScene = async (scene: Scene, chapter: Chapter) => {
     setSelectedChapterId(chapter.id);
     setSelectedSceneId(scene.id);
@@ -189,6 +198,7 @@ export function SessionWorkspace({
 
   const moveMapTokens = (positions: Record<string, { x: number; y: number }>) => {
     if (!display) return;
+    if (!isOwner) { requestMapTokenAction('move', { positions }); return; }
     const now = new Date().toISOString();
     const tokens = (display.mapTokens ?? []).map(token => positions[token.id]
       ? { ...token, ...positions[token.id], updatedAt: now }
@@ -198,6 +208,7 @@ export function SessionWorkspace({
 
   const moveMapTokenLayer = (tokenId: string, move: MapLayerMove) => {
     if (!display) return;
+    if (!isOwner) { requestMapTokenAction('layer', { tokenIds: [tokenId], move }); return; }
     const tokens = display.mapTokens ?? [];
     const fallbackSize = display.gridSettings?.cellSize ?? DEFAULT_SESSION_GRID.cellSize;
     updateMapTokens(reorderMapObjects(tokens, tokenId, move, (first, second) => {
@@ -212,6 +223,7 @@ export function SessionWorkspace({
 
   const moveMapTokensLayer = (tokenIds: string[], move: MapLayerMove) => {
     if (!display || tokenIds.length === 0) return;
+    if (!isOwner) { requestMapTokenAction('layer', { tokenIds, move }); return; }
     const tokens = display.mapTokens ?? [];
     const ids = new Set(tokenIds);
     const selected = tokens.filter(token => ids.has(token.id));
@@ -239,7 +251,7 @@ export function SessionWorkspace({
   };
 
   const setMapTokenLocked = (tokenId: string, locked: boolean) => {
-    if (!display) return;
+    if (!isOwner || !display) return;
     const tokens = display.mapTokens ?? [];
     const target = tokens.find(token => token.id === tokenId);
     const now = new Date().toISOString();
@@ -250,6 +262,7 @@ export function SessionWorkspace({
 
   const updateMapToken = (tokenId: string, update: Partial<SessionMapToken>) => {
     if (!display) return;
+    if (!isOwner) { requestMapTokenAction('update', { tokenIds: [tokenId], update }); return; }
     const tokens = display.mapTokens ?? [];
     const target = tokens.find(token => token.id === tokenId);
     const sharedUpdate = Object.fromEntries(Object.entries(update).filter(([key]) => ['visible', 'showLabel', 'labelColor'].includes(key)));
@@ -263,6 +276,7 @@ export function SessionWorkspace({
 
   const updateMapTokensBatch = (tokenIds: string[], update: Partial<SessionMapToken>) => {
     if (!display) return;
+    if (!isOwner) { requestMapTokenAction('update', { tokenIds, update }); return; }
     const ids = new Set(tokenIds);
     const now = new Date().toISOString();
     updateMapTokens((display.mapTokens ?? []).map(token => ids.has(token.id) ? { ...token, ...update, updatedAt: now } : token));
@@ -270,6 +284,7 @@ export function SessionWorkspace({
 
   const updateMapTokenTransforms = (updates: Record<string, Partial<SessionMapToken>>) => {
     if (!display) return;
+    if (!isOwner) { requestMapTokenAction('transform', { updates }); return; }
     const now = new Date().toISOString();
     updateMapTokens((display.mapTokens ?? []).map(token => updates[token.id]
       ? { ...token, ...updates[token.id], updatedAt: now }
@@ -278,6 +293,7 @@ export function SessionWorkspace({
 
   const setMapTokenMagnetEnabled = (tokenId: string, enabled: boolean) => {
     if (!display) return;
+    if (!isOwner) { requestMapTokenAction('magnet-enabled', { tokenId, enabled }); return; }
     const tokens = display.mapTokens ?? [];
     const target = tokens.find(token => token.id === tokenId);
     if (!target) return;
@@ -288,6 +304,7 @@ export function SessionWorkspace({
 
   const linkMapTokens = (tokenId: string, otherTokenId: string) => {
     if (!display || tokenId === otherTokenId) return;
+    if (!isOwner) { requestMapTokenAction('magnet-link', { tokenId, otherTokenId }); return; }
     const tokens = display.mapTokens ?? [];
     const token = tokens.find(candidate => candidate.id === tokenId);
     const other = tokens.find(candidate => candidate.id === otherTokenId);
@@ -301,6 +318,7 @@ export function SessionWorkspace({
 
   const unlinkMapToken = (tokenId: string) => {
     if (!display) return;
+    if (!isOwner) { requestMapTokenAction('magnet-unlink', { tokenId }); return; }
     const tokens = display.mapTokens ?? [];
     const target = tokens.find(token => token.id === tokenId);
     if (!target?.magnetGroupId) return;
@@ -311,6 +329,7 @@ export function SessionWorkspace({
 
   const deleteMapToken = (tokenId: string) => {
     if (!display) return;
+    if (!isOwner) { requestMapTokenAction('delete', { tokenIds: [tokenId] }); return; }
     const tokens = display.mapTokens ?? [];
     const deleted = tokens.find(token => token.id === tokenId);
     const next = tokens.filter(token => token.id !== tokenId);
@@ -320,6 +339,7 @@ export function SessionWorkspace({
 
   const deleteMapTokensBatch = (tokenIds: string[]) => {
     if (!display) return;
+    if (!isOwner) { requestMapTokenAction('delete', { tokenIds }); return; }
     const ids = new Set(tokenIds);
     const next = (display.mapTokens ?? []).filter(token => !ids.has(token.id));
     const groupCounts = new globalThis.Map<string, number>();
@@ -329,9 +349,34 @@ export function SessionWorkspace({
 
   const createMapTokenMagnetGroup = (tokenIds: string[]) => {
     if (!display || tokenIds.length < 2) return;
+    if (!isOwner) { requestMapTokenAction('magnet-group', { tokenIds }); return; }
     const ids = new Set(tokenIds);
     const groupId = crypto.randomUUID();
     updateMapTokens((display.mapTokens ?? []).map(token => ids.has(token.id) ? { ...token, magnetEnabled: true, magnetGroupId: groupId } : token));
+  };
+
+  playerMapActionHandlerRef.current = (payload: any) => {
+    if (!isOwner || !display || !payload || payload.chapterId !== display.chapterId) return;
+    const tokens = display.mapTokens ?? [];
+    const unlockedIds = new Set(tokens.filter(token => !token.locked).map(token => token.id));
+    const requestedIds = Array.isArray(payload.tokenIds) ? payload.tokenIds.filter((id: unknown): id is string => typeof id === 'string' && unlockedIds.has(id)) : [];
+    if (payload.action === 'move' && payload.positions && typeof payload.positions === 'object') {
+      const positions = Object.fromEntries(Object.entries(payload.positions).filter(([id, position]: [string, any]) => unlockedIds.has(id) && Number.isFinite(position?.x) && Number.isFinite(position?.y))) as Record<string, { x: number; y: number }>;
+      moveMapTokens(positions);
+    } else if (payload.action === 'layer' && requestedIds.length > 0 && ['forward', 'backward', 'front', 'back'].includes(payload.move)) {
+      if (requestedIds.length === 1) moveMapTokenLayer(requestedIds[0], payload.move);
+      else moveMapTokensLayer(requestedIds, payload.move);
+    } else if (payload.action === 'update' && requestedIds.length > 0 && payload.update && typeof payload.update === 'object') {
+      const allowed = Object.fromEntries(Object.entries(payload.update).filter(([key]) => ['name', 'showLabel', 'labelColor', 'conditions'].includes(key)));
+      if (Object.keys(allowed).length > 0) updateMapTokensBatch(requestedIds, allowed);
+    } else if (payload.action === 'transform' && payload.updates && typeof payload.updates === 'object') {
+      const updates = Object.fromEntries(Object.entries(payload.updates).filter(([id, update]: [string, any]) => unlockedIds.has(id) && update && Number.isFinite(update.x) && Number.isFinite(update.y) && Number.isFinite(update.size) && Number.isFinite(update.rotation)));
+      updateMapTokenTransforms(updates);
+    } else if (payload.action === 'delete' && requestedIds.length > 0) deleteMapTokensBatch(requestedIds);
+    else if (payload.action === 'magnet-enabled' && typeof payload.tokenId === 'string' && unlockedIds.has(payload.tokenId)) setMapTokenMagnetEnabled(payload.tokenId, !!payload.enabled);
+    else if (payload.action === 'magnet-link' && typeof payload.tokenId === 'string' && typeof payload.otherTokenId === 'string' && unlockedIds.has(payload.tokenId) && unlockedIds.has(payload.otherTokenId)) linkMapTokens(payload.tokenId, payload.otherTokenId);
+    else if (payload.action === 'magnet-unlink' && typeof payload.tokenId === 'string' && unlockedIds.has(payload.tokenId)) unlinkMapToken(payload.tokenId);
+    else if (payload.action === 'magnet-group' && requestedIds.length > 1) createMapTokenMagnetGroup(requestedIds);
   };
 
   useEffect(() => {

@@ -34,6 +34,7 @@ type BroadcastEvent =
   | 'chat_delete'
   | 'notification'
   | 'map_measurement'
+  | 'map_token_action'
   | 'character_owner_change';
 const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = [
   'INSERT',
@@ -49,6 +50,7 @@ const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = [
   'chat_delete',
   'notification',
   'map_measurement',
+  'map_token_action',
   'character_owner_change',
 ];
 

@@ -252,7 +252,17 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
 
   useEffect(() => {
     setSelectedTokenIds(current => new Set([...current].filter(id => mapTokens.some(token => token.id === id && !token.locked))));
-  }, [mapTokens]);
+    if (!isOwner) {
+      setTokenDraftPositions(current => Object.fromEntries(Object.entries(current).filter(([id, position]) => {
+        const token = mapTokens.find(candidate => candidate.id === id);
+        return !token || token.x !== position.x || token.y !== position.y;
+      })));
+      setTokenDraftTransforms(current => Object.fromEntries(Object.entries(current).filter(([id, transform]) => {
+        const token = mapTokens.find(candidate => candidate.id === id);
+        return !token || token.x !== transform.x || token.y !== transform.y || token.size !== transform.size || (token.rotation ?? 0) !== transform.rotation;
+      })));
+    }
+  }, [isOwner, mapTokens]);
 
   useEffect(() => {
     const clearSelection = (event: KeyboardEvent) => { if (event.key === 'Escape') { setSelectedTokenIds(new Set()); setCalibrationStart(null); setSessionMapCalibrationActive(false); } };
@@ -539,7 +549,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const handleViewportPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => { if (!finishVisualMeasurement(event) && !finishSelection(event)) finishPan(event); };
 
   const beginTokenMove = (event: ReactPointerEvent<HTMLElement>, token: SessionMapToken) => {
-    if (calibrationActive || activeTool === 'measure' || !isOwner || token.locked || event.button !== 0) return;
+    if (calibrationActive || activeTool === 'measure' || token.locked || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
     setTransformTokenId(null);
@@ -590,6 +600,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     tokenGestureRef.current = null;
     onTokensMove?.(gesture.positions);
+    if (!isOwner) return;
     setTokenDraftPositions(current => {
       const next = { ...current };
       Object.keys(gesture.positions).forEach(id => delete next[id]);
@@ -598,13 +609,12 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   };
 
   const openTokenMenu = (event: ReactMouseEvent<HTMLElement>, tokenId: string) => {
-    if (!isOwner) return;
     event.preventDefault();
     event.stopPropagation();
     setTransformTokenId(null);
     const token = mapTokens.find(candidate => candidate.id === tokenId);
     const viewport = viewportRef.current;
-    if (!viewport || !token) return;
+    if (!viewport || !token || (!isOwner && token.locked)) return;
     if (!selectedTokenIds.has(tokenId) && !token.locked) setSelectedTokenIds(new Set([tokenId]));
     const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token;
     const size = tokenDraftTransforms[token.id]?.size ?? getTokenSize(token, gridSettings.cellSize);
@@ -675,6 +685,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     tokenTransformGestureRef.current = null;
     onTokenTransformsChange?.(gesture.drafts);
+    if (!isOwner) return;
     setTokenDraftTransforms(current => {
       const next = { ...current };
       Object.keys(gesture.drafts).forEach(id => delete next[id]);
@@ -751,8 +762,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
              <div style={{ transform: `rotate(${rotation}deg)` }}><TokenGhostShape entity={token} fallbackIcon={tokenFallback} size={size} /></div>
              <span
                data-map-interactive
-               data-map-movable={isOwner && !token.locked ? 'true' : 'false'}
-                className={`pointer-events-auto absolute inset-0 z-[7] rounded-full ${calibrationActive || activeTool === 'select' && selectionArmed ? 'cursor-crosshair' : isOwner ? token.locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
+               data-map-movable={!token.locked ? 'true' : 'false'}
+                className={`pointer-events-auto absolute inset-0 z-[7] rounded-full ${calibrationActive || activeTool === 'select' && selectionArmed ? 'cursor-crosshair' : token.locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'}`}
                onPointerDown={event => beginTokenMove(event, token)}
                onPointerMove={moveToken}
                onPointerUp={finishTokenMove}
@@ -764,7 +775,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
               {visibleConditions.length > 0 && <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-[5]">{visibleConditions.map((condition, index) => { const ConditionIcon = getTokenConditionIcon(condition); const angle = conditionStartAngle + index * conditionStep; const iconStyle = { width: conditionSize * 0.58, height: conditionSize * 0.58 }; const iconAdjustment = CONDITION_ICON_ADJUSTMENTS[condition.standardKey ?? '']; return <span key={condition.id} className="absolute rounded-full bg-slate-800/95 text-white shadow-md" style={{ width: conditionSize, height: conditionSize, left: size / 2 + Math.cos(angle) * conditionRadius - conditionSize / 2, top: size / 2 + Math.sin(angle) * conditionRadius - conditionSize / 2 }}><span className="absolute inset-0 flex items-center justify-center" style={iconAdjustment ? { transform: `translate(${conditionSize * iconAdjustment.x}px, ${conditionSize * iconAdjustment.y}px)` } : undefined}>{condition.standardKey === 'prone' ? <img src="/condition-prone.svg" alt="" className="h-[70%] w-[70%] object-contain invert" /> : condition.standardKey === 'incapacitated' ? <img src="/condition-incapacitated.svg" alt="" className="h-[64%] w-[64%] object-contain invert" /> : condition.standardKey === 'stunned' ? <img src="/condition-stunned.png" alt="" className="h-[70%] w-[70%] object-contain invert" /> : condition.standardKey === 'unconscious' ? <img src="/condition-unconscious.png" alt="" className="h-[68%] w-[68%] object-contain invert" /> : condition.standardKey === 'restrained' ? <img src="/condition-restrained.png" alt="" className="h-[58%] w-[58%] object-contain invert" /> : condition.standardKey === 'paralyzed' ? <img src="/condition-paralyzed-v3.png" alt="" className="h-[70%] w-[70%] object-contain invert" /> : <ConditionIcon data-static-icon={condition.standardKey === 'blinded' ? true : undefined} style={iconStyle} />}</span></span>; })}</div>}
              {token.showLabel && <span className="pointer-events-none absolute left-1/2 top-full -translate-x-1/2 whitespace-nowrap border border-[var(--dash-border)] font-semibold leading-none text-[var(--dash-text-strong)] shadow-lg backdrop-blur-sm" style={{ backgroundColor: token.labelColor ?? 'var(--dash-surface)', marginTop: size * 0.04, maxWidth: size * 5, borderRadius: size * 0.1, borderWidth: 1 / view.scale, padding: `${size * 0.06}px ${size * 0.12}px`, fontSize: size * 0.14 }}>{token.name}</span>}
            </button></TooltipTrigger>{(conditions.length > 0 || !token.showLabel) && <TooltipContent side="top"><div className="space-y-1.5">{!token.showLabel && <div className="font-semibold">{token.name}</div>}{[...conditions].sort((a, b) => a.name.localeCompare(b.name, 'it')).map(condition => { const ConditionIcon = getTokenConditionIcon(condition); return <div key={condition.id} className="flex items-center gap-1.5">{condition.standardKey === 'prone' ? <img src="/condition-prone-v2.svg" alt="" className="h-4 w-4 object-contain invert" /> : condition.standardKey === 'incapacitated' ? <img src="/condition-incapacitated-v2.svg" alt="" className="h-4 w-4 object-contain invert" /> : condition.standardKey === 'stunned' ? <img src="/condition-stunned-v2.png" alt="" className="h-4 w-4 object-contain invert" /> : condition.standardKey === 'unconscious' ? <img src="/condition-unconscious.png" alt="" className="h-4 w-4 object-contain invert" /> : condition.standardKey === 'restrained' ? <img src="/condition-restrained-v2.png" alt="" className="h-4 w-4 object-contain invert" /> : condition.standardKey === 'paralyzed' ? <img src="/condition-paralyzed-v3.png" alt="" className="h-5 w-5 object-contain invert" /> : <ConditionIcon className={`h-3.5 w-3.5 ${condition.standardKey === 'dead' ? 'text-red-400' : ''}`} />}<span>{condition.name}</span></div>; })}</div></TooltipContent>}</Tooltip>
-          {isOwner && transformTokenId === token.id && !token.locked && <svg data-map-interactive className="pointer-events-none absolute z-20 overflow-visible" width={size} height={size + rotationLineLength + rotationHandleSize / 2} viewBox={`0 0 ${size} ${size + rotationLineLength + rotationHandleSize / 2}`} style={{ transform: `translate3d(${position.x}px, ${position.y}px, 0) rotate(${rotation}deg)`, transformOrigin: `${size / 2}px ${size / 2}px` }}>
+           {transformTokenId === token.id && !token.locked && <svg data-map-interactive className="pointer-events-none absolute z-20 overflow-visible" width={size} height={size + rotationLineLength + rotationHandleSize / 2} viewBox={`0 0 ${size} ${size + rotationLineLength + rotationHandleSize / 2}`} style={{ transform: `translate3d(${position.x}px, ${position.y}px, 0) rotate(${rotation}deg)`, transformOrigin: `${size / 2}px ${size / 2}px` }}>
             <path d={`M 0 0 H ${size} V ${size} H 0 Z M ${size / 2} ${size} V ${size + rotationLineLength}`} fill="none" stroke="#67e8f9" strokeWidth={selectionBorderWidth} />
             {([[0, 0], [size, 0], [0, size], [size, size]] as const).map(([x, y], index) => <rect key={index} role="slider" aria-label="Ridimensiona token" tabIndex={0} className="pointer-events-auto cursor-nwse-resize" x={x - handleSize / 2} y={y - handleSize / 2} width={handleSize} height={handleSize} fill="white" stroke="#06b6d4" strokeWidth={selectionBorderWidth} transform={`rotate(${-rotation} ${x} ${y})`} onPointerDown={event => beginTokenTransform(event, token, 'resize')} onPointerMove={moveTokenTransform} onPointerUp={finishTokenTransform} onPointerCancel={finishTokenTransform} />)}
             <circle role="slider" aria-label="Ruota token" tabIndex={0} className="pointer-events-auto cursor-grab active:cursor-grabbing" cx={size / 2} cy={size + rotationLineLength} r={rotationHandleSize / 2} fill="#06b6d4" stroke="white" strokeWidth={2 / view.scale} transform={`rotate(${-rotation} ${size / 2} ${size + rotationLineLength})`} onPointerDown={event => beginTokenTransform(event, token, 'rotate')} onPointerMove={moveTokenTransform} onPointerUp={finishTokenTransform} onPointerCancel={finishTokenTransform} />
@@ -805,8 +816,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
          onWheel={event => event.stopPropagation()}
       >
         <div className="mb-3 flex flex-wrap gap-1.5">
-          {menuIcon(token.visible === false ? 'Mostra ai giocatori' : 'Nascondi ai giocatori', <button type="button" aria-label={token.visible === false ? 'Mostra token ai giocatori' : 'Nascondi token ai giocatori'} onClick={() => applyTokenUpdate({ visible: token.visible === false })} className={iconClass}>{token.visible === false ? <EyeOff data-static-icon className="h-5 w-5" /> : <Eye data-static-icon className="h-5 w-5" />}</button>)}
-          {menuIcon(token.locked ? 'Sblocca token' : 'Blocca token', <button type="button" aria-label={token.locked ? 'Sblocca token' : 'Blocca token'} onClick={() => batch ? onTokensChange?.(targetIds, { locked: !token.locked }) : onTokenLockChange?.(token.id, !token.locked)} className={`${iconClass} ${token.locked ? 'bg-cyan-400/20 text-cyan-200' : ''}`}>{token.locked ? <Unlock className="h-5 w-5" /> : <Lock className="h-5 w-5" />}</button>)}
+           {isOwner && menuIcon(token.visible === false ? 'Mostra ai giocatori' : 'Nascondi ai giocatori', <button type="button" aria-label={token.visible === false ? 'Mostra token ai giocatori' : 'Nascondi token ai giocatori'} onClick={() => applyTokenUpdate({ visible: token.visible === false })} className={iconClass}>{token.visible === false ? <EyeOff data-static-icon className="h-5 w-5" /> : <Eye data-static-icon className="h-5 w-5" />}</button>)}
+           {isOwner && menuIcon(token.locked ? 'Sblocca token' : 'Blocca token', <button type="button" aria-label={token.locked ? 'Sblocca token' : 'Blocca token'} onClick={() => batch ? onTokensChange?.(targetIds, { locked: !token.locked }) : onTokenLockChange?.(token.id, !token.locked)} className={`${iconClass} ${token.locked ? 'bg-cyan-400/20 text-cyan-200' : ''}`}>{token.locked ? <Unlock className="h-5 w-5" /> : <Lock className="h-5 w-5" />}</button>)}
           {menuIcon('Illuminazione: disponibile con la nebbia', <button type="button" disabled aria-label="Illuminazione non ancora disponibile" className={iconClass}><Flashlight className="h-5 w-5" /></button>)}
           {menuIcon(token.locked ? 'Sblocca il token per trasformarlo' : 'Dimensione e rotazione', <button type="button" disabled={token.locked} aria-label="Dimensione e rotazione" onClick={() => { setTransformTokenId(token.id); setTokenMenu(null); }} className={iconClass}><Maximize2 className="h-5 w-5" /></button>)}
            {menuIcon('Condizioni', <button type="button" aria-label="Condizioni" onClick={() => { setConditionScrollRatio(0); setTokenMenu(current => current ? { ...current, panel: current.panel === 'conditions' ? null : 'conditions' } : null); }} className={`${iconClass} ${(token.conditions?.length ?? 0) > 0 ? 'bg-cyan-400/20 text-cyan-200' : ''}`}><Skull className="h-5 w-5" /></button>)}
