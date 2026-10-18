@@ -10,6 +10,7 @@ import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { RulesetTag } from '../shared/RulesetTag';
 import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
+import { useOnlinePresence } from '../../presence/PresenceContext';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
@@ -32,7 +33,7 @@ interface OverviewCampaign {
   sessionActive?: boolean;
   memberCount: number;
   memberNames: string[];
-  characters: { id: string; name: string }[];
+  characters: { id: string; name: string; ownerProfileId?: string }[];
   isOwned: boolean;
 }
 
@@ -58,6 +59,7 @@ interface CampaignsPageProps {
 
 export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProps) {
   const { session, user } = useAuth();
+  const { onlineProfileIds } = useOnlinePresence();
   const { createCampaign, joinedCampaigns } = useCampaign();
 
   const [ownedCampaigns, setOwnedCampaigns] = useState<OverviewCampaign[]>([]);
@@ -123,7 +125,7 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
             ]);
             const charsData = charsRes.ok ? await charsRes.json() : { characters: [] };
             const memberNamesData = memberNamesRes.ok ? await memberNamesRes.json() : { members: [] };
-            const characters = (charsData.characters ?? []).map((ch: any) => ({ id: ch.id, name: ch.name }));
+            const characters = (charsData.characters ?? []).map((ch: any) => ({ id: ch.id, name: ch.name, ownerProfileId: ch.owner_profile_id }));
             const memberNames = (memberNamesData.members ?? [])
               .map((m: any) => m.displayName)
               .filter(Boolean);
@@ -373,12 +375,13 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
                             onClick={(e) => { e.stopPropagation(); onNavigate({ tabId: 'players', entityId: ch.id, entityType: 'character' }); }}
                             className="inline-flex items-center gap-1 underline-offset-2 hover:text-[var(--dash-accent-2)] hover:underline"
                           >
-                            <span
-                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                                onlineCharIds[campaign.id]?.has(ch.id) ? 'bg-green-400' : 'bg-gray-600'
-                              }`}
-                            />
                             {ch.name}
+                            <span
+                              role="status"
+                              aria-label={onlineCharIds[campaign.id]?.has(ch.id) ? 'Dentro la campagna' : ch.ownerProfileId && onlineProfileIds.has(ch.ownerProfileId) ? 'Online' : 'Offline'}
+                              title={onlineCharIds[campaign.id]?.has(ch.id) ? 'Dentro la campagna' : ch.ownerProfileId && onlineProfileIds.has(ch.ownerProfileId) ? 'Online' : 'Offline'}
+                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${onlineCharIds[campaign.id]?.has(ch.id) ? 'bg-green-400' : ch.ownerProfileId && onlineProfileIds.has(ch.ownerProfileId) ? 'bg-amber-400' : 'bg-gray-600'}`}
+                            />
                           </button>
                           {i < campaign.characters.length - 1 && <span className="ml-1">,</span>}
                         </span>

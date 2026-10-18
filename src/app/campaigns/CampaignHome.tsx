@@ -8,6 +8,7 @@ import { Copy, CopyPlus } from '@/app/components/IconeCopia';
 import { useAuth } from '../auth/AuthContext';
 import { useCampaign } from './CampaignContext';
 import { useCampaignChannel } from '../../services/realtime/campaignChannel';
+import { useOnlinePresence } from '../presence/PresenceContext';
 import {
   loadCharactersByOwner, copyCharacterToCampaign, unassignCharacterFromCampaign,
   duplicateCharacter, deleteCharacter, setCharacterAvailableForPlayers, releaseCharacter,
@@ -130,7 +131,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
 
   const [isToggling, setIsToggling] = useState(false);
   const [gmOnline, setGmOnline] = useState(false);
-  const [onlineProfileIds, setOnlineProfileIds] = useState<Set<string>>(() => new Set());
+  const [campaignOnlineProfileIds, setCampaignOnlineProfileIds] = useState<Set<string>>(() => new Set());
   const [localSessionActive, setLocalSessionActive] = useState<boolean | null>(null);
   const [ownCharacterId, setOwnCharacterId] = useState<string | null>(null);
   const [characterLookupDone, setCharacterLookupDone] = useState(false);
@@ -210,6 +211,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
   const availabilityToggleLocksRef = useRef<Set<string>>(new Set());
   const lookupSeqRef = useRef(0);
   const isOwner = activeCampaign?.ownerId === user?.id;
+  const { onlineProfileIds: globallyOnlineProfileIds } = useOnlinePresence();
   const sessionActivatedAt = activeCampaign?.sessionActivatedAt ? Date.parse(activeCampaign.sessionActivatedAt) : NaN;
   const sessionExpired = !!activeCampaign?.sessionActive
     && Number.isFinite(sessionActivatedAt)
@@ -559,7 +561,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
     onPresenceSync: (state) => {
       const profileIds = new Set<string>();
       Object.values(state).forEach((presences: any) => presences.forEach((presence: any) => { if (typeof presence.profileId === 'string') profileIds.add(presence.profileId); }));
-      setOnlineProfileIds(profileIds);
+      setCampaignOnlineProfileIds(profileIds);
       const online = Object.values(state).some((presences: any) =>
         presences.some((p: any) => p.role === 'gm')
       );
@@ -1193,7 +1195,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
       key={ch.id}
       variant="grid"
       name={ch.name}
-      nameIndicator={<span role="status" aria-label={onlineProfileIds.has(row.profileId) ? 'Online' : 'Offline'} title={onlineProfileIds.has(row.profileId) ? 'Online' : 'Offline'} className={`h-2.5 w-2.5 shrink-0 rounded-full border border-black/30 ${onlineProfileIds.has(row.profileId) ? 'bg-emerald-400' : 'bg-slate-500'}`} />}
+      nameIndicator={(() => { const inCampaign = campaignOnlineProfileIds.has(row.profileId); const online = globallyOnlineProfileIds.has(row.profileId); const label = inCampaign ? 'Dentro la campagna' : online ? 'Online' : 'Offline'; return <span role="status" aria-label={label} title={label} className={`h-2.5 w-2.5 shrink-0 rounded-full border border-black/30 ${inCampaign ? 'bg-emerald-400' : online ? 'bg-amber-400' : 'bg-slate-500'}`} />; })()}
       subtitle={ch.styleViaggio}
       secondaryText={ch.description}
       onClick={() => onOpenSessionEntity('pg', ch.id)}

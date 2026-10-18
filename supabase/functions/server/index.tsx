@@ -2900,7 +2900,7 @@ app.get("/make-server-771c5bfd/campaigns/overview", async (c) => {
       const members = await campaignStore.get(campaignMembersKey(camp.id)) ?? [];
       const { data: chars } = await admin
         .from("characters")
-        .select("id, name")
+        .select("id, name, owner_profile_id")
         .eq("campaign_id", camp.id)
         .eq("status", "active");
 
@@ -2931,7 +2931,7 @@ app.get("/make-server-771c5bfd/campaigns/overview", async (c) => {
         ...camp,
         memberCount: members.length,
         memberNames,
-        characters: (chars ?? []).map((ch: any) => ({ id: ch.id, name: ch.name })),
+        characters: (chars ?? []).map((ch: any) => ({ id: ch.id, name: ch.name, ownerProfileId: ch.owner_profile_id })),
       };
     })
   );

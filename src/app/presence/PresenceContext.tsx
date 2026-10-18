@@ -1,4 +1,6 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { useAuth, supabase } from '../auth/AuthContext';
+import { selectedContentMode } from '../../services/storage/persistenceMode';
 
 type PresenceContextValue = {
   onlineProfileIds: Set<string>;
@@ -7,18 +9,25 @@ type PresenceContextValue = {
 
 const PresenceContext = createContext<PresenceContextValue | null>(null);
 
-// Presenza globale ("loggato su Hollow Gate ora") - DISATTIVATA. Il canale
-// online:all (ex presence:global) non si è mai sottoscritto con successo
-// (CHANNEL_ERROR persistente, causa mai confermata) e non ha alcun
-// consumer di useOnlinePresence() nel resto del codice. Tenerlo attivo
-// aveva un costo reale: il rejoin automatico della libreria falliva in
-// loop indefinito su ogni pagina per ogni utente collegato (trovato
-// durante l'indagine sul mancato aggiornamento realtime di CampaignHome,
-// 2026-07-19 - non risultato esserne la causa diretta, ma comunque rumore
-// senza beneficio). Nessun tentativo di connessione finché non si
-// riprende in mano la feature.
 export function PresenceProvider({ children }: { children: React.ReactNode }) {
-  const [onlineProfileIds] = useState<Set<string>>(new Set());
+  const { user } = useAuth();
+  const [onlineProfileIds, setOnlineProfileIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!user?.id || selectedContentMode() === 'local') { setOnlineProfileIds(new Set()); return; }
+    const channel = supabase.channel('online:all', { config: { private: false, presence: { key: user.id } } });
+    channel.on('presence', { event: 'sync' }, () => {
+      const ids = new Set<string>();
+      Object.values(channel.presenceState()).forEach((presences: any) => presences.forEach((presence: any) => {
+        if (typeof presence.profileId === 'string') ids.add(presence.profileId);
+      }));
+      setOnlineProfileIds(ids);
+    }).subscribe(status => {
+      if (status === 'SUBSCRIBED') void channel.track({ profileId: user.id, online_at: new Date().toISOString() });
+    });
+    const heartbeat = window.setInterval(() => { void channel.track({ profileId: user.id, online_at: new Date().toISOString() }); }, 15000);
+    return () => { window.clearInterval(heartbeat); void supabase.removeChannel(channel); };
+  }, [user?.id]);
 
   return (
     <PresenceContext.Provider value={{
