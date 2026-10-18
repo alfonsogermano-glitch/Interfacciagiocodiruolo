@@ -27,12 +27,10 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
     }).subscribe(status => {
       if (status === 'SUBSCRIBED') refreshPresence();
     });
-    const heartbeat = window.setInterval(refreshPresence, 5000);
     document.addEventListener('visibilitychange', refreshWhenVisible);
     window.addEventListener('focus', refreshPresence);
     window.addEventListener('online', refreshPresence);
     return () => {
-      window.clearInterval(heartbeat);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
       window.removeEventListener('focus', refreshPresence);
       window.removeEventListener('online', refreshPresence);

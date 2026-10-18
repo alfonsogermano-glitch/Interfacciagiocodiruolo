@@ -580,10 +580,8 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
     const refreshPresence = () => { void track({ ...presence, online_at: new Date().toISOString() }); };
     const refreshWhenVisible = () => { if (document.visibilityState === 'visible') refreshPresence(); };
     refreshPresence();
-    const heartbeat = window.setInterval(refreshPresence, 10000);
     document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => {
-      window.clearInterval(heartbeat);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
       void untrack();
     };
