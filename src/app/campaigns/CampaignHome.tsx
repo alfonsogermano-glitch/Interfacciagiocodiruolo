@@ -132,6 +132,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
   const [isToggling, setIsToggling] = useState(false);
   const [gmOnline, setGmOnline] = useState(false);
   const [campaignOnlineProfileIds, setCampaignOnlineProfileIds] = useState<Set<string>>(() => new Set());
+  const [forcedOfflineProfileIds, setForcedOfflineProfileIds] = useState<Set<string>>(() => new Set());
   const [localSessionActive, setLocalSessionActive] = useState<boolean | null>(null);
   const [ownCharacterId, setOwnCharacterId] = useState<string | null>(null);
   const [characterLookupDone, setCharacterLookupDone] = useState(false);
@@ -557,6 +558,18 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
       INSERT: handleEntityBroadcast,
       UPDATE: handleEntityBroadcast,
       DELETE: handleEntityBroadcast,
+      presence_status: (msg) => {
+        const profileId = msg?.payload?.profileId;
+        if (typeof profileId !== 'string' || typeof msg?.payload?.online !== 'boolean') return;
+        setForcedOfflineProfileIds(previous => {
+          const next = new Set(previous);
+          if (msg.payload.online) next.delete(profileId); else next.add(profileId);
+          return next;
+        });
+        if (!msg.payload.online) window.setTimeout(() => {
+          setForcedOfflineProfileIds(previous => { const next = new Set(previous); next.delete(profileId); return next; });
+        }, 8000);
+      },
     },
     onPresenceSync: (state) => {
       const profileIds = new Set<string>();
@@ -1175,7 +1188,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
       key={ch.id}
       variant="grid"
       name={ch.name}
-      nameIndicator={(() => { const inCampaign = campaignOnlineProfileIds.has(row.profileId); const online = globallyOnlineProfileIds.has(row.profileId); const label = inCampaign ? 'Dentro la campagna' : online ? 'Online' : 'Offline'; return <span role="status" aria-label={label} title={label} className={`h-2.5 w-2.5 shrink-0 rounded-full border border-black/30 ${inCampaign ? 'bg-emerald-400' : online ? 'bg-amber-400' : 'bg-slate-500'}`} />; })()}
+      nameIndicator={(() => { const forcedOffline = forcedOfflineProfileIds.has(row.profileId); const inCampaign = !forcedOffline && campaignOnlineProfileIds.has(row.profileId); const online = !forcedOffline && globallyOnlineProfileIds.has(row.profileId); const label = inCampaign ? 'Dentro la campagna' : online ? 'Online' : 'Offline'; return <span role="status" aria-label={label} title={label} className={`h-2.5 w-2.5 shrink-0 rounded-full border border-black/30 ${inCampaign ? 'bg-emerald-400' : online ? 'bg-amber-400' : 'bg-slate-500'}`} />; })()}
       subtitle={ch.styleViaggio}
       secondaryText={ch.description}
       onClick={() => onOpenSessionEntity('pg', ch.id)}

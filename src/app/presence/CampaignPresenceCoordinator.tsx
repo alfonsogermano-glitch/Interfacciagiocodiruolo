@@ -16,14 +16,22 @@ export function CampaignPresenceCoordinator({ campaignId, isOwner }: CampaignPre
     entered_at: new Date().toISOString(),
   } : null, [campaignId, profileId, isOwner]);
 
-  useCampaignChannel(campaignId, {
+  const { isReady, send } = useCampaignChannel(campaignId, {
     presence,
   });
 
   useEffect(() => {
+    if (!isReady || !profileId) return;
+    void send('presence_status', { profileId, online: true });
+  }, [isReady, profileId, send]);
+
+  useEffect(() => {
     if (!campaignId) return;
-    return registerBeforeSignOut(() => clearCampaignPresence(campaignId));
-  }, [campaignId]);
+    return registerBeforeSignOut(async () => {
+      if (profileId) await send('presence_status', { profileId, online: false });
+      await clearCampaignPresence(campaignId);
+    });
+  }, [campaignId, profileId, send]);
 
   return null;
 }

@@ -68,6 +68,8 @@ assert.doesNotMatch(homeSource, /\btrack\(|\buntrack\(/, 'CampaignHome osserva P
 assert.doesNotMatch(campaignsPageSource, /\btrack\(|\buntrack\(/, 'la lista campagne osserva Presence senza possederla');
 assert.match(presenceCoordinatorSource, /useCampaignChannel[\s\S]*\{\s*presence,/, 'un solo coordinatore pubblica la presenza nella campagna');
 assert.match(campaignChannelSource, /desiredPresence[\s\S]*presenceQueue[\s\S]*reconcilePresence/, 'gli aggiornamenti Presence sono serializzati e ripristinabili');
+assert.match(campaignChannelSource, /'presence_status'/, 'il canale privato della campagna propaga subito login e logout');
+assert.match(presenceCoordinatorSource, /send\('presence_status',[\s\S]*online:\s*false/, 'il coordinatore notifica il logout prima di lasciare la campagna');
 assert.match(presenceContextSource, /shuttingDown[\s\S]*channel\.untrack/, 'il logout blocca nuovi track prima di rimuovere la Presence globale');
 assert.match(presenceContextSource, /online_status[\s\S]*online:\s*false[\s\S]*channel\.untrack/, 'il logout notifica immediatamente lo stato offline prima di chiudere Presence');
 assert.match(authContextSource, /Promise\.race[\s\S]*setTimeout\(\(\) => resolve\(null\), 500\)/, 'il logout non resta bloccato su un untrack lento');

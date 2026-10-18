@@ -14,8 +14,13 @@ import { useOnlinePresence } from '../../presence/PresenceContext';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 
-function CampaignPresenceWatcher({ campaignId, onSync }: { campaignId: string; onSync: (state: Record<string, any>) => void }) {
-  useCampaignChannel(campaignId, { onPresenceSync: onSync });
+function CampaignPresenceWatcher({ campaignId, onSync, onStatus }: { campaignId: string; onSync: (state: Record<string, any>) => void; onStatus: (profileId: string, online: boolean) => void }) {
+  useCampaignChannel(campaignId, {
+    onPresenceSync: onSync,
+    onBroadcast: { presence_status: msg => {
+      if (typeof msg?.payload?.profileId === 'string' && typeof msg?.payload?.online === 'boolean') onStatus(msg.payload.profileId, msg.payload.online);
+    } },
+  });
   return null;
 }
 
@@ -76,6 +81,7 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const loadSeqRef = useRef(0);
   const [campaignOnlineProfileIds, setCampaignOnlineProfileIds] = useState<Record<string, Set<string>>>({});
+  const [forcedOfflineProfileIds, setForcedOfflineProfileIds] = useState<Record<string, Set<string>>>({});
 
   const [showCampaignForm, setShowCampaignForm] = useState(false);
   const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
@@ -257,6 +263,17 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
           if (typeof presence.profileId === 'string') profileIds.add(presence.profileId);
         }));
         setCampaignOnlineProfileIds(previous => ({ ...previous, [campaign.id]: profileIds }));
+      }} onStatus={(profileId, online) => {
+        setForcedOfflineProfileIds(previous => {
+          const next = new Set(previous[campaign.id] ?? []);
+          if (online) next.delete(profileId); else next.add(profileId);
+          return { ...previous, [campaign.id]: next };
+        });
+        if (!online) window.setTimeout(() => setForcedOfflineProfileIds(previous => {
+          const next = new Set(previous[campaign.id] ?? []);
+          next.delete(profileId);
+          return { ...previous, [campaign.id]: next };
+        }), 8000);
       }} />)}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Campagne</h2>
@@ -395,9 +412,9 @@ export function CampaignsPage({ onNavigate, onEnterCampaign }: CampaignsPageProp
                             {ch.name}
                             <span
                               role="status"
-                              aria-label={ch.ownerProfileId && campaignOnlineProfileIds[campaign.id]?.has(ch.ownerProfileId) ? 'Dentro la campagna' : ch.ownerProfileId && onlineProfileIds.has(ch.ownerProfileId) ? 'Online' : 'Offline'}
-                              title={ch.ownerProfileId && campaignOnlineProfileIds[campaign.id]?.has(ch.ownerProfileId) ? 'Dentro la campagna' : ch.ownerProfileId && onlineProfileIds.has(ch.ownerProfileId) ? 'Online' : 'Offline'}
-                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${ch.ownerProfileId && campaignOnlineProfileIds[campaign.id]?.has(ch.ownerProfileId) ? 'bg-green-400' : ch.ownerProfileId && onlineProfileIds.has(ch.ownerProfileId) ? 'bg-amber-400' : 'bg-gray-600'}`}
+                              aria-label={ch.ownerProfileId && !forcedOfflineProfileIds[campaign.id]?.has(ch.ownerProfileId) && campaignOnlineProfileIds[campaign.id]?.has(ch.ownerProfileId) ? 'Dentro la campagna' : ch.ownerProfileId && !forcedOfflineProfileIds[campaign.id]?.has(ch.ownerProfileId) && onlineProfileIds.has(ch.ownerProfileId) ? 'Online' : 'Offline'}
+                              title={ch.ownerProfileId && !forcedOfflineProfileIds[campaign.id]?.has(ch.ownerProfileId) && campaignOnlineProfileIds[campaign.id]?.has(ch.ownerProfileId) ? 'Dentro la campagna' : ch.ownerProfileId && !forcedOfflineProfileIds[campaign.id]?.has(ch.ownerProfileId) && onlineProfileIds.has(ch.ownerProfileId) ? 'Online' : 'Offline'}
+                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${ch.ownerProfileId && !forcedOfflineProfileIds[campaign.id]?.has(ch.ownerProfileId) && campaignOnlineProfileIds[campaign.id]?.has(ch.ownerProfileId) ? 'bg-green-400' : ch.ownerProfileId && !forcedOfflineProfileIds[campaign.id]?.has(ch.ownerProfileId) && onlineProfileIds.has(ch.ownerProfileId) ? 'bg-amber-400' : 'bg-gray-600'}`}
                             />
                           </button>
                           {i < campaign.characters.length - 1 && <span className="ml-1">,</span>}

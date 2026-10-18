@@ -35,6 +35,7 @@ type BroadcastEvent =
   | 'notification'
   | 'map_measurement'
   | 'map_token_action'
+  | 'presence_status'
   | 'character_owner_change';
 const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = [
   'INSERT',
@@ -51,6 +52,7 @@ const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = [
   'notification',
   'map_measurement',
   'map_token_action',
+  'presence_status',
   'character_owner_change',
 ];
 
