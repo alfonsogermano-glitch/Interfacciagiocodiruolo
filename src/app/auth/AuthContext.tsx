@@ -214,8 +214,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    const results = await Promise.allSettled(Array.from(beforeSignOutHandlers, handler => handler()));
-    results.forEach(result => {
+    const presenceCleanup = Promise.allSettled(Array.from(beforeSignOutHandlers, handler => handler()));
+    const results = await Promise.race([
+      presenceCleanup,
+      new Promise<null>(resolve => window.setTimeout(() => resolve(null), 500)),
+    ]);
+    results?.forEach(result => {
       if (result.status === 'rejected') console.error('Errore rimozione presenza prima del logout:', result.reason);
     });
     try {

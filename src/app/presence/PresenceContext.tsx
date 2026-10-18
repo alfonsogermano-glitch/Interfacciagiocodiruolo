@@ -15,8 +15,9 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!user?.id || selectedContentMode() === 'local') { setOnlineProfileIds(new Set()); return; }
+    let shuttingDown = false;
     const channel = supabase.channel('online:all', { config: { private: false, presence: { key: user.id } } });
-    const refreshPresence = () => { void channel.track({ profileId: user.id, online_at: new Date().toISOString() }); };
+    const refreshPresence = () => { if (!shuttingDown) void channel.track({ profileId: user.id, online_at: new Date().toISOString() }); };
     const refreshWhenVisible = () => { if (document.visibilityState === 'visible') refreshPresence(); };
     const syncOnlineProfiles = () => {
       const ids = new Set<string>();
@@ -35,8 +36,15 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
     document.addEventListener('visibilitychange', refreshWhenVisible);
     window.addEventListener('focus', refreshPresence);
     window.addEventListener('online', refreshPresence);
-    const unregisterBeforeSignOut = registerBeforeSignOut(async () => { await channel.untrack(); });
+    const unregisterBeforeSignOut = registerBeforeSignOut(async () => {
+      shuttingDown = true;
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+      window.removeEventListener('focus', refreshPresence);
+      window.removeEventListener('online', refreshPresence);
+      await channel.untrack();
+    });
     return () => {
+      shuttingDown = true;
       unregisterBeforeSignOut();
       document.removeEventListener('visibilitychange', refreshWhenVisible);
       window.removeEventListener('focus', refreshPresence);

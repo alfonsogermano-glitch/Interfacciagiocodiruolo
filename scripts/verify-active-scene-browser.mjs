@@ -51,6 +51,8 @@ const sceneEncounterServiceSource = readFileSync('src/services/campaign/sceneEnc
 const campaignsPageSource = readFileSync('src/app/components/gm/CampaignsPage.tsx', 'utf8');
 const presenceCoordinatorSource = readFileSync('src/app/presence/CampaignPresenceCoordinator.tsx', 'utf8');
 const campaignChannelSource = readFileSync('src/services/realtime/campaignChannel.ts', 'utf8');
+const presenceContextSource = readFileSync('src/app/presence/PresenceContext.tsx', 'utf8');
+const authContextSource = readFileSync('src/app/auth/AuthContext.tsx', 'utf8');
 assert.match(homeSource, /return <SessionWorkspace/, 'Avvia sessione apre la workspace dedicata');
 assert.match(homeSource, /sessionExpired[\s\S]*AUTO_CLOSE_AFTER_MS/, 'una sessione scaduta viene esclusa prima del render della workspace');
 assert.match(homeSource, /setLocalSessionActive\(false\)[\s\S]*fetch\(`\$\{SERVER_BASE\}\/campaigns/, 'la chiusura automatica nasconde subito la sessione prima del cleanup remoto');
@@ -66,6 +68,8 @@ assert.doesNotMatch(homeSource, /\btrack\(|\buntrack\(/, 'CampaignHome osserva P
 assert.doesNotMatch(campaignsPageSource, /\btrack\(|\buntrack\(/, 'la lista campagne osserva Presence senza possederla');
 assert.match(presenceCoordinatorSource, /useCampaignChannel[\s\S]*\{\s*presence,/, 'un solo coordinatore pubblica la presenza nella campagna');
 assert.match(campaignChannelSource, /desiredPresence[\s\S]*presenceQueue[\s\S]*reconcilePresence/, 'gli aggiornamenti Presence sono serializzati e ripristinabili');
+assert.match(presenceContextSource, /shuttingDown[\s\S]*channel\.untrack/, 'il logout blocca nuovi track prima di rimuovere la Presence globale');
+assert.match(authContextSource, /Promise\.race[\s\S]*setTimeout\(\(\) => resolve\(null\), 500\)/, 'il logout non resta bloccato su un untrack lento');
 for (const tool of ['Muovi', 'Seleziona', 'Griglia', 'Misura', 'Disegna', 'Puntina', 'Nebbia', 'Muri', 'Puntatore']) assert.match(topBarSource, new RegExp(`label: '${tool}'`), `toolbar sessione include ${tool}`);
 for (const icon of ['MoveMapIcon', 'SelectMapIcon', 'GridMapIcon', 'MeasureMapIcon', 'WallsMapIcon', 'PointerMapIcon']) assert.match(topBarSource, new RegExp(`function ${icon}`), `icona toolbar multipart ${icon}`);
 for (const animation of ['MoveVertical', 'MoveHorizontal', 'SelectTrack', 'GridCell', 'MeasureFill', 'Draw', 'Pin', 'Fog', 'WallBrick1', 'WallBrick10', 'Pointer']) assert.match(indexCssSource, new RegExp(`@keyframes mapTool${animation}`), `animazione toolbar ${animation}`);
