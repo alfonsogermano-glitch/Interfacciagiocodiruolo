@@ -6,6 +6,9 @@ export type { SessionGridLineStyle, SessionGridSettings, SessionGridType } from 
 export type SessionMapTool = 'move' | 'select' | 'grid' | 'measure' | 'draw' | 'pin' | 'fog' | 'walls' | 'pointer';
 export type SessionMapSelectionMode = 'rectangle' | 'freehand';
 export type SessionMapMeasureMode = 'line' | 'circle' | 'cone' | 'visibility';
+export type SessionMapDrawMode = 'grab' | 'freehand' | 'polygon' | 'line' | 'rectangle' | 'circle' | 'triangle' | 'hexagon' | 'eraser';
+export type SessionMapDrawingStyle = { strokeColor: string; fillColor: string; strokeWidth: number; opacity: number; fillOpacity: number; lineStyle: 'solid' | 'dashed' | 'dotted' | 'dash-dot' | 'long-dash' };
+export const DEFAULT_SESSION_DRAW_STYLE: SessionMapDrawingStyle = { strokeColor: '#22d3ee', fillColor: '#22d3ee', strokeWidth: 4, opacity: 1, fillOpacity: 0.18, lineStyle: 'solid' };
 export const DEFAULT_SESSION_GRID: SessionGridSettings = { visible: true, type: 'square', lineStyle: 'solid', color: '#38bdf8', opacity: 0, snap: false, squareSnapMode: 'half-step', distance: 5, unit: 'Metri', cellSize: 100 };
 
 let activeMapTool: SessionMapTool = 'move';
@@ -18,6 +21,11 @@ let measureMode: SessionMapMeasureMode | null = null;
 const measureModeListeners = new Set<() => void>();
 let measurementsVisibleToAll = true;
 const measurementVisibilityListeners = new Set<() => void>();
+let drawMode: SessionMapDrawMode = 'freehand';
+let drawStyle = DEFAULT_SESSION_DRAW_STYLE;
+let drawSnapshot: { mode: SessionMapDrawMode; style: SessionMapDrawingStyle } = { mode: drawMode, style: drawStyle };
+const drawListeners = new Set<() => void>();
+let clearDrawingsHandler: (() => void) | null = null;
 const gridListeners = new Set<() => void>();
 let gridSettings = DEFAULT_SESSION_GRID;
 let gridEditable = false;
@@ -94,6 +102,21 @@ export function useSessionMapMeasurementsVisibleToAll() {
     () => true,
   );
 }
+
+export function setSessionMapDrawMode(mode: SessionMapDrawMode) {
+  drawMode = mode; drawSnapshot = { mode: drawMode, style: drawStyle }; drawListeners.forEach(listener => listener());
+}
+
+export function updateSessionMapDrawStyle(update: Partial<SessionMapDrawingStyle>) {
+  drawStyle = { ...drawStyle, ...update }; drawSnapshot = { mode: drawMode, style: drawStyle }; drawListeners.forEach(listener => listener());
+}
+
+export function useSessionMapDrawSettings() {
+  return useSyncExternalStore(listener => { drawListeners.add(listener); return () => drawListeners.delete(listener); }, () => drawSnapshot, (): { mode: SessionMapDrawMode; style: SessionMapDrawingStyle } => ({ mode: 'freehand', style: DEFAULT_SESSION_DRAW_STYLE }));
+}
+
+export function configureSessionMapDrawingClear(handler: (() => void) | null) { clearDrawingsHandler = handler; }
+export function requestSessionMapDrawingClear() { clearDrawingsHandler?.(); }
 
 export function configureSessionGrid(settings: SessionGridSettings, editable: boolean, onChange: ((settings: SessionGridSettings) => void) | null) {
   gridSettings = settings;

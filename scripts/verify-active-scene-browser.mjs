@@ -114,7 +114,12 @@ assert.match(gridSnapSource, /Math\.round\(\(position\.x - originX\) \/ step\)[\
 assert.match(gridSnapSource, /squareSnapMode === 'cell-center'[\s\S]*target\.x - originX - radius[\s\S]*objectSize\.width \/ 2/, 'la griglia quadrata puo agganciare il centro dell’oggetto al centro cella');
 assert.match(topBarSource, /data-session-map-calibrate[\s\S]*Calibra mappa/, 'la barra centrale espone la calibrazione della griglia sulla mappa');
 assert.match(viewportSource, /axisDistance \/ cells[\s\S]*originX:[\s\S]*originY:/, 'la calibrazione ricava una cella frazionaria e allinea l’origine');
-assert.match(topBarSource, /disabled=\{!gridEditable && \(id === 'grid' \|\| id === 'fog' \|\| id === 'walls'\)\}/, 'griglia, nebbia e muri restano disabilitati ai giocatori');
+assert.match(topBarSource, /disabled=\{!gridEditable && \(id === 'grid' \|\| id === 'draw' \|\| id === 'fog' \|\| id === 'walls'\)\}/, 'disegno, griglia, nebbia e muri restano disabilitati ai giocatori');
+assert.match(topBarSource, /data-session-draw-panel[\s\S]*Seleziona elemento[\s\S]*Disegno a mano libera[\s\S]*Poligono[\s\S]*Elimina tutti/, 'Disegna espone strumenti, stili e cancellazione totale');
+assert.match(topBarSource, /DRAW_LINE_STYLES[\s\S]*dash-dot[\s\S]*long-dash[\s\S]*Stile linea disegno/, 'Disegna offre più stili grafici per linee e contorni');
+assert.match(viewportSource, /beginDrawing[\s\S]*buildDrawing\('polygon'[\s\S]*data-session-map-drawings/, 'il viewport crea e renderizza forme e poligoni persistenti');
+assert.match(viewportSource, /document\.addEventListener\('pointerdown', closeMenus\)/, 'i menu contestuali della mappa si chiudono con un click esterno');
+assert.match(workspaceSource, /session-map-drawings[\s\S]*mapDrawings:[\s\S]*onDrawingCreate/, 'i disegni persistono per capitolo e vengono pubblicati nella scena');
 assert.match(viewportSource, /isOwner && menuIcon\(token\.visible[\s\S]*isOwner && menuIcon\(token\.locked[\s\S]*Nascondi etichetta token/, 'il menu giocatore nasconde visibilita globale e blocco ma conserva il titolo');
 assert.match(viewportSource, /!viewport \|\| !token \|\| \(!isOwner && token\.locked\)/, 'un giocatore non puo aprire il menu di un token bloccato dal GM');
 assert.match(workspaceSource, /map_token_action[\s\S]*unlockedIds[\s\S]*\['name', 'showLabel', 'labelColor', 'conditions'\]/, 'le azioni token dei giocatori passano dal GM e non possono alterare blocco o visibilita');

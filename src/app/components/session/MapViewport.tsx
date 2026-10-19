@@ -1,15 +1,17 @@
 import { Fragment, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent } from 'react';
-import { configureSessionMapCenter, configureSessionMapFit, setSessionMapCalibrationActive, setSessionMapSelectionArmed, updateSessionGrid, useActiveSessionMapTool, useSessionMapCalibrationActive, useSessionMapMeasureMode, useSessionMapMeasurementsVisibleToAll, useSessionMapSelectionArmed, useSessionMapSelectionMode, type SessionMapFitMode, type SessionMapTool } from './mapToolStore';
+import { configureSessionMapCenter, configureSessionMapFit, setSessionMapCalibrationActive, setSessionMapSelectionArmed, updateSessionGrid, useActiveSessionMapTool, useSessionMapCalibrationActive, useSessionMapDrawSettings, useSessionMapMeasureMode, useSessionMapMeasurementsVisibleToAll, useSessionMapSelectionArmed, useSessionMapSelectionMode, type SessionMapDrawMode, type SessionMapFitMode, type SessionMapTool } from './mapToolStore';
 import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
 import type { SessionGridSettings } from '../../../types/mapGeometry';
 import { snapToSessionGrid, type GridObjectSize } from './mapGridSnap';
 import type { SessionMapToken, SessionMapTokenCondition, SessionMapTokenVisual } from '../../../types/sessionMapToken';
+import type { SessionMapDrawing, SessionMapDrawingKind, SessionMapPoint } from '../../../types/sessionMapDrawing';
 import { registerSessionMapTokenDropHandler } from './sessionMapTokenDropStore';
 import { TokenGhostShape } from '../shared/TokenGhostShape';
 import { MARGIN_SCALE } from '../shared/tokenShapes';
 import { getRotatedSquareBounds, isBoundsFullyContained, polygonCoverage, rectangleCoverage, type MapLayerMove } from './mapObjectLayers';
 import { Accessibility, ArrowDown, ArrowUp, BatteryLow, Bed, Biohazard, ChevronsDown, ChevronsUp, CircleX, EarOff, Eye, EyeOff, Flashlight, Ghost, Hand, Heart, HeartCrack, Layers3, Lock, LockKeyhole, Magnet, Maximize2, Mountain, Orbit, Palette, ScanEye, Skull, Star, Trash2, Unlock, UserRoundX, X, type LucideIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
+import { Copy } from '../IconeCopia';
 
 const MIN_SCALE = 0.3;
 const MAX_SCALE = 6;
@@ -44,6 +46,7 @@ type TokenTransformGesture = { pointerId: number; tokenId: string; kind: 'resize
 type SelectionPoint = { x: number; y: number };
 type SelectionGesture = { pointerId: number; mode: 'rectangle' | 'freehand'; start: SelectionPoint; current: SelectionPoint; points: SelectionPoint[] };
 type VisualMeasurement = { id: string; pointerId: number; mode: 'line' | 'circle' | 'cone'; start: SelectionPoint; end: SelectionPoint; fading?: boolean };
+type DrawingGesture = { pointerId: number; mode: Exclude<SessionMapDrawMode, 'grab' | 'polygon' | 'eraser'>; start: SessionMapPoint; current: SessionMapPoint; points: SessionMapPoint[] };
 
 interface MapViewportProps {
   campaignId?: string;
@@ -54,6 +57,12 @@ interface MapViewportProps {
   mapPlacement: MapPlacement;
   gridSettings: SessionGridSettings;
   mapTokens?: SessionMapToken[];
+  mapDrawings?: SessionMapDrawing[];
+  onDrawingCreate?: (drawing: SessionMapDrawing) => void;
+  onDrawingChange?: (drawingId: string, update: Partial<SessionMapDrawing>) => void;
+  onDrawingDelete?: (drawingId: string) => void;
+  onDrawingDuplicate?: (drawingId: string) => void;
+  onDrawingLayerMove?: (drawingId: string, move: MapLayerMove) => void;
   onMapPlacementChange?: (placement: MapPlacement) => void;
   onTokenDrop?: (visual: SessionMapTokenVisual, position: TokenPosition, size: number) => void;
   onTokensMove?: (positions: Record<string, TokenPosition>) => void;
@@ -69,6 +78,34 @@ interface MapViewportProps {
   onTokenMagnetEnabledChange?: (tokenId: string, enabled: boolean) => void;
   onTokenMagnetLink?: (tokenId: string, otherTokenId: string) => void;
   onTokenMagnetUnlink?: (tokenId: string) => void;
+}
+
+function drawingLineDash(style: SessionMapDrawing['style']['lineStyle']) {
+  return style === 'dashed' ? '10 7' : style === 'dotted' ? '1 7' : style === 'dash-dot' ? '12 6 2 6' : style === 'long-dash' ? '20 8' : undefined;
+}
+
+function drawingGraphic(drawing: SessionMapDrawing, interactive = false) {
+  const dash = drawingLineDash(drawing.style.lineStyle);
+  const common = { fill: drawing.kind === 'line' || drawing.kind === 'freehand' ? 'none' : drawing.style.fillColor, fillOpacity: drawing.style.fillOpacity, stroke: drawing.style.strokeColor, strokeWidth: drawing.style.strokeWidth, strokeDasharray: dash, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, vectorEffect: 'non-scaling-stroke' as const, opacity: drawing.style.opacity };
+  const points = drawing.points?.map(point => `${point.x},${point.y}`).join(' ') ?? '';
+  const hit = interactive ? { className: 'pointer-events-auto', style: { cursor: 'pointer' } } : {};
+  if (drawing.kind === 'line') return <polyline points={points} {...common} {...hit} />;
+  if (drawing.kind === 'freehand') return <polyline points={points} {...common} {...hit} />;
+  if (drawing.kind === 'polygon') return <polygon points={points} {...common} {...hit} />;
+  if (drawing.kind === 'circle') return <ellipse cx={drawing.width / 2} cy={drawing.height / 2} rx={drawing.width / 2} ry={drawing.height / 2} {...common} {...hit} />;
+  if (drawing.kind === 'triangle') return <polygon points={`${drawing.width / 2},0 ${drawing.width},${drawing.height} 0,${drawing.height}`} {...common} {...hit} />;
+  if (drawing.kind === 'hexagon') return <polygon points={`${drawing.width * .25},0 ${drawing.width * .75},0 ${drawing.width},${drawing.height / 2} ${drawing.width * .75},${drawing.height} ${drawing.width * .25},${drawing.height} 0,${drawing.height / 2}`} {...common} {...hit} />;
+  return <rect width={drawing.width} height={drawing.height} {...common} {...hit} />;
+}
+
+function buildDrawing(kind: SessionMapDrawingKind, points: SessionMapPoint[], style: SessionMapDrawing['style']): SessionMapDrawing | null {
+  if (points.length < 2 || kind === 'polygon' && points.length < 3) return null;
+  const minX = Math.min(...points.map(point => point.x)); const minY = Math.min(...points.map(point => point.y));
+  const maxX = Math.max(...points.map(point => point.x)); const maxY = Math.max(...points.map(point => point.y));
+  const width = Math.max(1, maxX - minX); const height = Math.max(1, maxY - minY);
+  if (Math.hypot(width, height) < 4) return null;
+  const now = new Date().toISOString();
+  return { id: crypto.randomUUID(), kind, x: minX, y: minY, width, height, rotation: 0, points: ['freehand', 'polygon', 'line'].includes(kind) ? points.map(point => ({ x: point.x - minX, y: point.y - minY })) : undefined, style: { ...style }, locked: false, visible: true, createdAt: now, updatedAt: now };
 }
 
 function MeasurementGraphic({ measurement, view, gridSettings }: { measurement: VisualMeasurement; view: ViewTransform; gridSettings: SessionGridSettings }) {
@@ -171,13 +208,14 @@ function readStoredView(mapId: string): ViewTransform {
   return { x: 0, y: 0, scale: 1 };
 }
 
-export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwner, mapPlacement, gridSettings, mapTokens = [], onMapPlacementChange, onTokenDrop, onTokensMove, onTokenLayerMove, onTokensLayerMove, onTokenLockChange, onTokenChange, onTokensChange, onTokenTransformsChange, onTokenDelete, onTokensDelete, onTokensCreateMagnetGroup, onTokenMagnetEnabledChange, onTokenMagnetLink, onTokenMagnetUnlink }: MapViewportProps) {
+export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwner, mapPlacement, gridSettings, mapTokens = [], mapDrawings = [], onDrawingCreate, onDrawingChange, onDrawingDelete, onDrawingDuplicate, onDrawingLayerMove, onMapPlacementChange, onTokenDrop, onTokensMove, onTokenLayerMove, onTokensLayerMove, onTokenLockChange, onTokenChange, onTokensChange, onTokenTransformsChange, onTokenDelete, onTokensDelete, onTokensCreateMagnetGroup, onTokenMagnetEnabledChange, onTokenMagnetLink, onTokenMagnetUnlink }: MapViewportProps) {
   const measurementClientIdRef = useRef(crypto.randomUUID());
   const activeTool = useActiveSessionMapTool();
   const selectionMode = useSessionMapSelectionMode();
   const selectionArmed = useSessionMapSelectionArmed();
   const measureMode = useSessionMapMeasureMode();
   const measurementsVisibleToAll = useSessionMapMeasurementsVisibleToAll();
+  const drawSettings = useSessionMapDrawSettings();
   const calibrationActive = useSessionMapCalibrationActive();
   const [view, setView] = useState<ViewTransform>(() => readStoredView(mapId));
   const [placement, setPlacement] = useState(mapPlacement);
@@ -202,11 +240,32 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const remoteMeasurementTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>[]>>({});
   const lastMeasurementBroadcastRef = useRef(0);
   const [conditionScrollRatio, setConditionScrollRatio] = useState(0);
+  const drawingGestureRef = useRef<DrawingGesture | null>(null);
+  const [drawingDraft, setDrawingDraft] = useState<SessionMapDrawing | null>(null);
+  const [polygonPoints, setPolygonPoints] = useState<SessionMapPoint[]>([]);
+  const [polygonHover, setPolygonHover] = useState<SessionMapPoint | null>(null);
+  const [lineStart, setLineStart] = useState<SessionMapPoint | null>(null);
+  const [lineHover, setLineHover] = useState<SessionMapPoint | null>(null);
+  const drawingMoveRef = useRef<{ pointerId: number; id: string; startX: number; startY: number; x: number; y: number } | null>(null);
+  const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null);
+  const [drawingMenu, setDrawingMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const drawingTransformRef = useRef<{ pointerId: number; id: string; kind: 'resize' | 'rotate'; corner?: 'nw' | 'ne' | 'sw' | 'se'; startX: number; startY: number; origin: SessionMapDrawing; centerX: number; centerY: number; startAngle: number } | null>(null);
   const conditionListRef = useRef<HTMLDivElement>(null);
   const placementRef = useRef(mapPlacement);
   const placementElementRef = useRef<HTMLDivElement>(null);
   const onMapPlacementChangeRef = useRef(onMapPlacementChange);
   onMapPlacementChangeRef.current = onMapPlacementChange;
+
+  useEffect(() => {
+    if (!tokenMenu && !drawingMenu) return;
+    const closeMenus = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('[role="menu"]')) return;
+      setTokenMenu(null); setDrawingMenu(null);
+    };
+    document.addEventListener('pointerdown', closeMenus);
+    return () => document.removeEventListener('pointerdown', closeMenus);
+  }, [tokenMenu, drawingMenu]);
 
   const { send: sendCampaignEvent } = useCampaignChannel(campaignId ?? mapId.split(':')[0], { onBroadcast: { map_measurement: message => {
     const payload = message?.payload;
@@ -452,6 +511,122 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     return true;
   };
 
+  const draftFromGesture = (gesture: DrawingGesture) => buildDrawing(gesture.mode as SessionMapDrawingKind, gesture.mode === 'freehand' ? gesture.points : [gesture.start, gesture.current], drawSettings.style);
+
+  const beginDrawing = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!isOwner || activeTool !== 'draw' || event.button !== 0 || (event.target as Element).closest('[data-map-interactive]')) return false;
+    const point = worldPoint(event);
+    if (!point) return false;
+    setSelectedDrawingId(null); drawingTransformRef.current = null; setDrawingDraft(null);
+    if (drawSettings.mode === 'polygon') {
+      event.preventDefault();
+      if (polygonPoints.length >= 3 && Math.hypot(point.x - polygonPoints[0].x, point.y - polygonPoints[0].y) <= 14 / view.scale) {
+        const drawing = buildDrawing('polygon', polygonPoints, drawSettings.style); if (drawing) onDrawingCreate?.(drawing);
+        setPolygonPoints([]); setPolygonHover(null);
+      } else setPolygonPoints(current => [...current, point]);
+      return true;
+    }
+    if (drawSettings.mode === 'line') {
+      event.preventDefault();
+      if (!lineStart) { setLineStart(point); setLineHover(point); }
+      else { const drawing = buildDrawing('line', [lineStart, point], drawSettings.style); if (drawing) onDrawingCreate?.(drawing); setLineStart(null); setLineHover(null); }
+      return true;
+    }
+    if (drawSettings.mode === 'grab') { setSelectedDrawingId(null); setDrawingMenu(null); event.preventDefault(); return true; }
+    if (drawSettings.mode === 'eraser') return false;
+    const gesture: DrawingGesture = { pointerId: event.pointerId, mode: drawSettings.mode, start: point, current: point, points: [point] };
+    drawingGestureRef.current = gesture;
+    setDrawingDraft(draftFromGesture(gesture));
+    event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId);
+    return true;
+  };
+
+  const moveDrawing = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (activeTool === 'draw' && drawSettings.mode === 'polygon' && polygonPoints.length > 0) setPolygonHover(worldPoint(event));
+    if (activeTool === 'draw' && drawSettings.mode === 'line' && lineStart) setLineHover(worldPoint(event));
+    const gesture = drawingGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return false;
+    const point = worldPoint(event); if (!point) return true;
+    gesture.current = point;
+    if (gesture.mode === 'freehand') { const last = gesture.points[gesture.points.length - 1]; if (Math.hypot(point.x - last.x, point.y - last.y) >= 2 / view.scale) gesture.points.push(point); }
+    setDrawingDraft(draftFromGesture(gesture));
+    return true;
+  };
+
+  const finishDrawing = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = drawingGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return false;
+    const point = worldPoint(event); if (point) { gesture.current = point; if (gesture.mode === 'freehand') gesture.points.push(point); }
+    const drawing = draftFromGesture(gesture); if (drawing) onDrawingCreate?.(drawing);
+    drawingGestureRef.current = null; setDrawingDraft(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    return true;
+  };
+
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setPolygonPoints([]); setPolygonHover(null); setLineStart(null); setLineHover(null); setSelectedDrawingId(null); setDrawingMenu(null); drawingTransformRef.current = null; drawingMoveRef.current = null; setDrawingDraft(null); }
+      if (event.key === 'Enter' && polygonPoints.length >= 3) { const drawing = buildDrawing('polygon', polygonPoints, drawSettings.style); if (drawing) onDrawingCreate?.(drawing); setPolygonPoints([]); setPolygonHover(null); }
+    };
+    document.addEventListener('keydown', keydown); return () => document.removeEventListener('keydown', keydown);
+  }, [polygonPoints, drawSettings.style, onDrawingCreate]);
+
+  useEffect(() => {
+    if (activeTool === 'draw' && drawSettings.mode === 'polygon') return;
+    setPolygonPoints([]); setPolygonHover(null);
+  }, [activeTool, drawSettings.mode, mapId]);
+
+  useEffect(() => {
+    if (activeTool === 'draw' && drawSettings.mode === 'line') return;
+    setLineStart(null); setLineHover(null);
+  }, [activeTool, drawSettings.mode, mapId]);
+
+  const beginDrawingMove = (event: ReactPointerEvent<SVGElement>, drawing: SessionMapDrawing) => {
+    if (!isOwner || activeTool !== 'draw' || drawSettings.mode !== 'grab' || drawing.locked || event.button !== 0) return;
+    event.preventDefault(); event.stopPropagation(); drawingTransformRef.current = null; setDrawingDraft(null); setSelectedDrawingId(drawing.id);
+    drawingMoveRef.current = { pointerId: event.pointerId, id: drawing.id, startX: event.clientX, startY: event.clientY, x: drawing.x, y: drawing.y };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveSelectedDrawing = (event: ReactPointerEvent<SVGElement>) => {
+    const gesture = drawingMoveRef.current; if (!gesture || gesture.pointerId !== event.pointerId) return;
+    const x = gesture.x + (event.clientX - gesture.startX) / view.scale; const y = gesture.y + (event.clientY - gesture.startY) / view.scale;
+    setDrawingDraft(mapDrawings.find(item => item.id === gesture.id) ? { ...mapDrawings.find(item => item.id === gesture.id)!, x, y } : null);
+  };
+  const finishSelectedDrawing = (event: ReactPointerEvent<SVGElement>) => {
+    const gesture = drawingMoveRef.current; if (!gesture || gesture.pointerId !== event.pointerId) return;
+    const x = gesture.x + (event.clientX - gesture.startX) / view.scale; const y = gesture.y + (event.clientY - gesture.startY) / view.scale;
+    onDrawingChange?.(gesture.id, { x, y }); drawingMoveRef.current = null; setDrawingDraft(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  const beginDrawingTransform = (event: ReactPointerEvent<SVGElement>, drawing: SessionMapDrawing, kind: 'resize' | 'rotate', corner?: 'nw' | 'ne' | 'sw' | 'se') => {
+    event.preventDefault(); event.stopPropagation();
+    const rect = viewportRef.current?.getBoundingClientRect(); if (!rect) return;
+    const centerX = rect.left + view.x + (drawing.x + drawing.width / 2) * view.scale;
+    const centerY = rect.top + view.y + (drawing.y + drawing.height / 2) * view.scale;
+    drawingTransformRef.current = { pointerId: event.pointerId, id: drawing.id, kind, corner, startX: event.clientX, startY: event.clientY, origin: drawing, centerX, centerY, startAngle: Math.atan2(event.clientY - centerY, event.clientX - centerX) };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveDrawingTransform = (event: ReactPointerEvent<SVGElement>) => {
+    const gesture = drawingTransformRef.current; if (!gesture || gesture.pointerId !== event.pointerId) return;
+    const origin = gesture.origin;
+    if (gesture.kind === 'rotate') {
+      const angle = Math.atan2(event.clientY - gesture.centerY, event.clientX - gesture.centerX);
+      setDrawingDraft({ ...origin, rotation: origin.rotation + (angle - gesture.startAngle) * 180 / Math.PI });
+      return;
+    }
+    const dx = (event.clientX - gesture.startX) / view.scale; const dy = (event.clientY - gesture.startY) / view.scale;
+    const west = gesture.corner?.includes('w'); const north = gesture.corner?.includes('n');
+    const width = Math.max(8, origin.width + (west ? -dx : dx)); const height = Math.max(8, origin.height + (north ? -dy : dy));
+    setDrawingDraft({ ...origin, x: west ? origin.x + origin.width - width : origin.x, y: north ? origin.y + origin.height - height : origin.y, width, height, points: origin.points?.map(point => ({ x: point.x * width / origin.width, y: point.y * height / origin.height })) });
+  };
+  const finishDrawingTransform = (event: ReactPointerEvent<SVGElement>) => {
+    const gesture = drawingTransformRef.current; if (!gesture || gesture.pointerId !== event.pointerId) return;
+    const draft = drawingDraft; if (draft) onDrawingChange?.(gesture.id, { x: draft.x, y: draft.y, width: draft.width, height: draft.height, rotation: draft.rotation, points: draft.points });
+    drawingTransformRef.current = null; setDrawingDraft(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
   const beginSelection = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (activeTool !== 'select' || !selectionArmed || event.button !== 0 || (event.target as Element).closest('[data-map-interactive]')) return false;
     const point = worldPoint(event);
@@ -544,18 +719,18 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     setPanning(false);
   };
 
-  const handleViewportPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => { if (!captureCalibrationPoint(event) && !beginVisualMeasurement(event) && !beginSelection(event)) beginPan(event); };
-  const handleViewportPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => { if (!moveVisualMeasurement(event) && !moveSelection(event)) movePan(event); };
-  const handleViewportPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => { if (!finishVisualMeasurement(event) && !finishSelection(event)) finishPan(event); };
+  const handleViewportPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => { const target = event.target as Element; if (!target.closest('[role="menu"]')) { setTokenMenu(null); setDrawingMenu(null); } if (!target.closest('[data-map-interactive]')) { setSelectedDrawingId(null); drawingTransformRef.current = null; setDrawingDraft(null); } if (!captureCalibrationPoint(event) && !beginVisualMeasurement(event) && !beginDrawing(event) && !beginSelection(event)) beginPan(event); };
+  const handleViewportPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => { if (!moveVisualMeasurement(event) && !moveDrawing(event) && !moveSelection(event)) movePan(event); };
+  const handleViewportPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => { if (!finishVisualMeasurement(event) && !finishDrawing(event) && !finishSelection(event)) finishPan(event); };
 
   const beginTokenMove = (event: ReactPointerEvent<HTMLElement>, token: SessionMapToken) => {
     if (calibrationActive || activeTool === 'measure' || token.locked || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
+    setSelectedDrawingId(null); drawingTransformRef.current = null; setDrawingDraft(null);
     setTransformTokenId(null);
     setTokenMenu(null);
     const selectionMembers = selectedTokenIds.has(token.id) ? mapTokens.filter(candidate => selectedTokenIds.has(candidate.id) && !candidate.locked) : [];
-    if (activeTool === 'select' && selectionMembers.length === 0) setSelectedTokenIds(new Set([token.id]));
     const linkedTokens = selectionMembers.length > 0 ? selectionMembers : token.magnetGroupId
       ? mapTokens.filter(candidate => candidate.magnetGroupId === token.magnetGroupId && !candidate.locked)
       : [token];
@@ -612,10 +787,10 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     event.preventDefault();
     event.stopPropagation();
     setTransformTokenId(null);
+    setDrawingMenu(null);
     const token = mapTokens.find(candidate => candidate.id === tokenId);
     const viewport = viewportRef.current;
     if (!viewport || !token || (!isOwner && token.locked)) return;
-    if (!selectedTokenIds.has(tokenId) && !token.locked) setSelectedTokenIds(new Set([tokenId]));
     const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token;
     const size = tokenDraftTransforms[token.id]?.size ?? getTokenSize(token, gridSettings.cellSize);
     const rotation = tokenDraftTransforms[token.id]?.rotation ?? token.rotation ?? 0;
@@ -700,13 +875,13 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     data-map-tool-active={activeTool}
     data-map-panning={panning || undefined}
     data-map-move-target={moveTargetAvailable ? 'movable' : 'fixed'}
-    className={`relative h-full min-h-0 w-full overflow-hidden touch-none bg-[radial-gradient(circle_at_center,#262a31_0%,#14161b_58%,#0d0f13_100%)] ${calibrationActive || activeTool === 'select' && selectionArmed ? 'cursor-crosshair' : ''}`}
+    className={`relative h-full min-h-0 w-full overflow-hidden touch-none bg-[radial-gradient(circle_at_center,#262a31_0%,#14161b_58%,#0d0f13_100%)] ${calibrationActive || activeTool === 'select' && selectionArmed || activeTool === 'draw' && !['grab', 'eraser'].includes(drawSettings.mode) ? 'cursor-crosshair' : activeTool === 'draw' && drawSettings.mode === 'eraser' ? 'cursor-cell' : ''}`}
     onWheel={zoom}
     onAuxClick={event => { if (event.button === 1) event.preventDefault(); }}
     onPointerDown={handleViewportPointerDown}
     onPointerMove={handleViewportPointerMove}
     onPointerUp={handleViewportPointerUp}
-    onPointerCancel={event => { if (!finishVisualMeasurement(event) && !finishSelection(event)) finishPan(event); }}
+    onPointerCancel={event => { if (!finishVisualMeasurement(event) && !finishDrawing(event) && !finishSelection(event)) finishPan(event); }}
     onPointerLeave={() => { if (!panning) setMoveTargetAvailable(false); }}
     onLostPointerCapture={() => { panRef.current = null; selectionGestureRef.current = null; setSelectionDraft(null); setPanning(false); }}
   >
@@ -720,6 +895,20 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         {children}
       </div>
       <CanvasGrid settings={gridSettings} patternId={`canvas-grid-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}`} />
+      <svg data-session-map-drawings className="pointer-events-none absolute inset-0 z-[3] h-full w-full overflow-visible">
+        {mapDrawings.map(drawing => {
+          const rendered = drawingDraft?.id === drawing.id ? drawingDraft : drawing;
+          if (drawing.visible === false && !isOwner) return null;
+          const interactive = isOwner;
+          return <g key={drawing.id} data-map-interactive={interactive || undefined} transform={`translate(${rendered.x} ${rendered.y}) rotate(${rendered.rotation} ${rendered.width / 2} ${rendered.height / 2})`} opacity={isOwner && drawing.visible === false ? 0.35 : 1} onPointerDown={event => { if (activeTool === 'draw' && drawSettings.mode === 'eraser' && !drawing.locked) { event.preventDefault(); event.stopPropagation(); onDrawingDelete?.(drawing.id); } else beginDrawingMove(event, drawing); }} onPointerMove={moveSelectedDrawing} onPointerUp={finishSelectedDrawing} onPointerCancel={finishSelectedDrawing} onContextMenu={event => { if (!isOwner) return; event.preventDefault(); event.stopPropagation(); setTokenMenu(null); if (activeTool === 'draw' && drawSettings.mode === 'grab') setSelectedDrawingId(drawing.id); const rect = viewportRef.current?.getBoundingClientRect(); if (rect) setDrawingMenu({ id: drawing.id, x: event.clientX - rect.left, y: event.clientY - rect.top }); }}>
+            {drawingGraphic(rendered, interactive)}
+            {selectedDrawingId === drawing.id && <g><rect x={-4 / view.scale} y={-4 / view.scale} width={rendered.width + 8 / view.scale} height={rendered.height + 8 / view.scale} fill="none" stroke="#67e8f9" strokeWidth={1.5 / view.scale} strokeDasharray={`${5 / view.scale} ${3 / view.scale}`} vectorEffect="non-scaling-stroke" />{!drawing.locked && ([['nw', 0, 0], ['ne', rendered.width, 0], ['sw', 0, rendered.height], ['se', rendered.width, rendered.height]] as const).map(([corner, x, y]) => <rect key={corner} className="pointer-events-auto cursor-nwse-resize" x={x - 5 / view.scale} y={y - 5 / view.scale} width={10 / view.scale} height={10 / view.scale} fill="white" stroke="#06b6d4" strokeWidth={1.5 / view.scale} onPointerDown={event => beginDrawingTransform(event, drawing, 'resize', corner)} onPointerMove={moveDrawingTransform} onPointerUp={finishDrawingTransform} onPointerCancel={finishDrawingTransform} />)}{!drawing.locked && <><line x1={rendered.width / 2} y1={0} x2={rendered.width / 2} y2={-28 / view.scale} stroke="#67e8f9" strokeWidth={1.5 / view.scale} /><circle className="pointer-events-auto cursor-grab" cx={rendered.width / 2} cy={-32 / view.scale} r={7 / view.scale} fill="#06b6d4" stroke="white" strokeWidth={2 / view.scale} onPointerDown={event => beginDrawingTransform(event, drawing, 'rotate')} onPointerMove={moveDrawingTransform} onPointerUp={finishDrawingTransform} onPointerCancel={finishDrawingTransform} /></>}</g>}
+          </g>;
+        })}
+        {drawingDraft && !mapDrawings.some(item => item.id === drawingDraft.id) && <g transform={`translate(${drawingDraft.x} ${drawingDraft.y})`}>{drawingGraphic(drawingDraft)}</g>}
+        {polygonPoints.length > 0 && <g><polyline points={[...polygonPoints, polygonHover ?? polygonPoints[polygonPoints.length - 1]].map(point => `${point.x},${point.y}`).join(' ')} fill={drawSettings.style.fillColor} fillOpacity={drawSettings.style.fillOpacity} stroke={drawSettings.style.strokeColor} strokeWidth={drawSettings.style.strokeWidth} strokeDasharray="6 4" />{polygonPoints.map((point, index) => <circle key={index} cx={point.x} cy={point.y} r={(index === 0 && polygonPoints.length >= 3 ? 8 : 5) / view.scale} fill={index === 0 && polygonPoints.length >= 3 ? '#22c55e' : '#f8fafc'} stroke="#0f172a" strokeWidth={2 / view.scale} />)}</g>}
+        {lineStart && lineHover && <line x1={lineStart.x} y1={lineStart.y} x2={lineHover.x} y2={lineHover.y} stroke={drawSettings.style.strokeColor} strokeWidth={drawSettings.style.strokeWidth} strokeDasharray="6 4" strokeLinecap="round" />}
+      </svg>
       {selectionDraft && <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-20 overflow-visible">
         {selectionDraft.mode === 'rectangle' ? <rect x={Math.min(selectionDraft.start.x, selectionDraft.current.x)} y={Math.min(selectionDraft.start.y, selectionDraft.current.y)} width={Math.abs(selectionDraft.current.x - selectionDraft.start.x)} height={Math.abs(selectionDraft.current.y - selectionDraft.start.y)} fill="rgba(34,211,238,0.12)" stroke="#22d3ee" strokeWidth={1.5 / view.scale} strokeDasharray={`${6 / view.scale} ${4 / view.scale}`} /> : <polyline points={[...selectionDraft.points, selectionDraft.current].map(point => `${point.x},${point.y}`).join(' ')} fill="none" stroke="#22d3ee" strokeWidth={1.5 / view.scale} strokeDasharray={`${6 / view.scale} ${4 / view.scale}`} />}
       </svg>}
@@ -756,7 +945,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
            return <Fragment key={token.id}><Tooltip><TooltipTrigger asChild><button
             type="button"
             aria-label={`Token di ${token.name}`}
-             className={`pointer-events-none absolute touch-none border-0 bg-transparent p-0 ${token.locked ? 'drop-shadow-[0_0_3px_rgba(251,191,36,0.9)]' : ''}`}
+             className={`pointer-events-none absolute touch-none border-0 bg-transparent p-0 transition-[filter] duration-150 hover:drop-shadow-[0_0_7px_rgba(34,211,238,0.95)] ${tokenMenu?.tokenId === token.id ? 'drop-shadow-[0_0_7px_rgba(34,211,238,0.95)]' : ''}`}
              style={{ transform: `translate3d(${position.x}px, ${position.y}px, 0)`, opacity: isOwner && token.visible === false ? 0.45 : 1 }}
            >
              <div style={{ transform: `rotate(${rotation}deg)` }}><TokenGhostShape entity={token} fallbackIcon={tokenFallback} size={size} /></div>
@@ -784,6 +973,25 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         })}
       </div>
     </div>
+    {drawingMenu && (() => {
+      const drawing = mapDrawings.find(item => item.id === drawingMenu.id); if (!drawing) return null;
+      const updateStyle = (update: Partial<SessionMapDrawing['style']>) => onDrawingChange?.(drawing.id, { style: { ...drawing.style, ...update } });
+      const styles = ([['solid', undefined, 'Continua'], ['dashed', '10 7', 'Tratteggiata'], ['dotted', '1 7', 'Puntini'], ['dash-dot', '12 6 2 6', 'Tratto-punto'], ['long-dash', '20 8', 'Tratti lunghi']] as const);
+      return <div data-map-interactive role="menu" className="absolute z-50 w-[min(92vw,390px)] rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 p-3 text-xs shadow-2xl" style={{ left: drawingMenu.x, top: drawingMenu.y }} onPointerDown={event => event.stopPropagation()}>
+        <div className="flex flex-wrap gap-1">
+          <button type="button" title={drawing.visible === false ? 'Mostra' : 'Nascondi'} onClick={() => onDrawingChange?.(drawing.id, { visible: drawing.visible === false })} className="rounded-lg p-2 hover:bg-white/10">{drawing.visible === false ? <EyeOff data-static-icon className="h-5 w-5" /> : <Eye data-static-icon className="h-5 w-5" />}</button>
+          <button type="button" title={drawing.locked ? 'Sblocca' : 'Blocca'} onClick={() => onDrawingChange?.(drawing.id, { locked: !drawing.locked })} className={`rounded-lg p-2 hover:bg-white/10 ${drawing.locked ? 'bg-cyan-400/20 text-cyan-200 ring-1 ring-cyan-300/50' : ''}`}>{drawing.locked ? <Unlock data-static-icon className="h-5 w-5" /> : <Lock data-static-icon className="h-5 w-5" />}</button>
+          {!(activeTool === 'draw' && drawSettings.mode === 'grab') && <button type="button" title="Resize" disabled={drawing.locked} onClick={() => { setSelectedDrawingId(drawing.id); setDrawingMenu(null); }} className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-40"><Maximize2 data-static-icon className="h-5 w-5" /></button>}
+          <button type="button" title="Duplica" onClick={() => { onDrawingDuplicate?.(drawing.id); setDrawingMenu(null); }} className="rounded-lg p-2 hover:bg-white/10"><Copy data-static-icon className="h-5 w-5" /></button>
+          <button type="button" title="Porta sopra" onClick={() => onDrawingLayerMove?.(drawing.id, 'forward')} className="rounded-lg p-2 hover:bg-white/10"><ArrowUp data-static-icon className="h-5 w-5" /></button>
+          <button type="button" title="Porta sotto" onClick={() => onDrawingLayerMove?.(drawing.id, 'backward')} className="rounded-lg p-2 hover:bg-white/10"><ArrowDown data-static-icon className="h-5 w-5" /></button>
+          <button type="button" title="Elimina" onClick={() => { onDrawingDelete?.(drawing.id); setDrawingMenu(null); setSelectedDrawingId(null); }} className="ml-auto rounded-lg p-2 text-red-300 hover:bg-red-500/15"><Trash2 data-static-icon className="h-5 w-5" /></button>
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-2 border-t border-[var(--dash-border-soft)] pt-2"><label className="flex items-center justify-between gap-2 text-[var(--dash-muted)]">Linea<input type="color" aria-label="Colore linea figura" value={drawing.style.strokeColor} onChange={event => updateStyle({ strokeColor: event.target.value })} className="h-8 w-12 bg-transparent" /></label><label className="flex items-center justify-between gap-2 text-[var(--dash-muted)]">Interno<input type="color" aria-label="Colore interno figura" value={drawing.style.fillColor} onChange={event => updateStyle({ fillColor: event.target.value })} className="h-8 w-12 bg-transparent" /></label></div>
+        <div className="mt-2 grid grid-cols-5 gap-1">{styles.map(([value, dash, label]) => <button key={value} type="button" title={label} aria-label={label} aria-pressed={drawing.style.lineStyle === value} onClick={() => updateStyle({ lineStyle: value })} className={`rounded-md border p-1.5 ${drawing.style.lineStyle === value ? 'border-cyan-300 bg-cyan-400/15 text-cyan-200' : 'border-[var(--dash-border-soft)] text-[var(--dash-muted)]'}`}><svg viewBox="0 0 60 10" className="h-3 w-full"><line x1="1" y1="5" x2="59" y2="5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray={dash} /></svg></button>)}</div>
+        <div className="mt-2 space-y-2 border-t border-[var(--dash-border-soft)] pt-2">{([['strokeWidth', 'Spessore', 0.5, 32, 0.5, drawing.style.strokeWidth], ['opacity', 'Opacità', 0.01, 1, 0.01, drawing.style.opacity], ['fillOpacity', 'Riempimento', 0, 1, 0.01, drawing.style.fillOpacity]] as const).map(([key, label, min, max, step, value]) => <label key={key} className="grid grid-cols-[78px_1fr_42px] items-center gap-2 text-[11px] text-[var(--dash-muted)]"><span>{label}</span><input type="range" min={min} max={max} step={step} value={value} onChange={event => updateStyle({ [key]: Number(event.target.value) })} className="accent-cyan-400" /><span className="text-right text-[var(--dash-text)]">{key === 'strokeWidth' ? Number(value).toFixed(1) : `${Math.round(Number(value) * 100)}%`}</span></label>)}</div>
+      </div>;
+    })()}
     {tokenMenu && (() => {
        const token = mapTokens.find(candidate => candidate.id === tokenMenu.tokenId);
        if (!token) return null;

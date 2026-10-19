@@ -8,10 +8,11 @@ import type { Chapter } from '../../../types/chapter';
 import type { Scene } from '../../../types/scene';
 import { ActiveSceneMap } from './ActiveSceneMap';
 import { MapViewport, type MapPlacement } from './MapViewport';
-import { configureSessionGrid, DEFAULT_SESSION_GRID, type SessionGridSettings } from './mapToolStore';
+import { configureSessionGrid, configureSessionMapDrawingClear, DEFAULT_SESSION_GRID, type SessionGridSettings } from './mapToolStore';
 import { useActiveScene } from './useActiveScene';
 import { useCampaignDocument } from '../shared/useCampaignDocument';
 import type { SessionMapToken, SessionMapTokenVisual } from '../../../types/sessionMapToken';
+import type { SessionMapDrawing } from '../../../types/sessionMapDrawing';
 import { doBoundsOverlap, getRotatedSquareBounds, reorderMapObjects, type MapLayerMove } from './mapObjectLayers';
 import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
 
@@ -49,6 +50,8 @@ function publicMapTokens(tokens: SessionMapToken[]) {
   return tokens.filter((token) => !token.hiddenFromPlayers && token.visible !== false);
 }
 
+function publicMapDrawings(drawings: SessionMapDrawing[]) { return drawings.filter(drawing => drawing.visible !== false); }
+
 export function SessionWorkspace({
   campaignId,
   campaignName,
@@ -80,6 +83,7 @@ export function SessionWorkspace({
   const [mapPlacements, setMapPlacements] = useCampaignDocument<Record<string, MapPlacement>>('session-map-placements', {});
   const [chapterGrids, setChapterGrids] = useCampaignDocument<Record<string, SessionGridSettings>>('session-map-grids', {});
   const [chapterTokens, setChapterTokens] = useCampaignDocument<Record<string, SessionMapToken[]>>('session-map-tokens', {});
+  const [chapterDrawings, setChapterDrawings] = useCampaignDocument<Record<string, SessionMapDrawing[]>>('session-map-drawings', {});
   const [treeWidth, setTreeWidth] = useState(readTreeWidth);
   const [treeHidden, setTreeHidden] = useState(false);
   const [resizingTree, setResizingTree] = useState(false);
@@ -130,11 +134,12 @@ export function SessionWorkspace({
       ?? (activeScene?.chapterId === chapter.id ? activeScene.mapPlacement : undefined)
       ?? { x: 0, y: 0, locked: false };
     const tokens = chapterTokens[chapter.id] ?? (activeScene?.chapterId === chapter.id ? activeScene.mapTokens : undefined) ?? [];
-    void publish({ ...chapterPreview(chapter, placement), gridSettings: chapterGrids[chapter.id] ?? DEFAULT_SESSION_GRID, mapTokens: publicMapTokens(tokens) }).catch(error => {
+    const drawings = chapterDrawings[chapter.id] ?? (activeScene?.chapterId === chapter.id ? activeScene.mapDrawings : undefined) ?? [];
+    void publish({ ...chapterPreview(chapter, placement), gridSettings: chapterGrids[chapter.id] ?? DEFAULT_SESSION_GRID, mapTokens: publicMapTokens(tokens), mapDrawings: publicMapDrawings(drawings) }).catch(error => {
       sessionChapterPublishedRef.current = false;
       console.error('Pubblicazione Capitolo iniziale non riuscita:', error);
     });
-  }, [activeScene?.chapterId, channelReady, chapterGrids, chapterTokens, chapters, isOwner, loading, mapPlacements, publish]);
+  }, [activeScene?.chapterId, channelReady, chapterDrawings, chapterGrids, chapterTokens, chapters, isOwner, loading, mapPlacements, publish]);
 
   const orderedChapters = useMemo(() => [...chapters].sort((a, b) => {
     if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
@@ -153,9 +158,9 @@ export function SessionWorkspace({
     contextMetadata: { timeOfDay: '', period: '', condition: '' },
   } : null;
   const display = selectedScene && selectedChapter
-    ? { ...buildActiveScenePublication(campaignId, selectedScene, selectedChapter), mapPlacement: mapPlacements[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.mapPlacement : undefined), gridSettings: chapterGrids[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.gridSettings : undefined) ?? DEFAULT_SESSION_GRID, mapTokens: chapterTokens[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.mapTokens : undefined) ?? [] }
+    ? { ...buildActiveScenePublication(campaignId, selectedScene, selectedChapter), mapPlacement: mapPlacements[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.mapPlacement : undefined), gridSettings: chapterGrids[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.gridSettings : undefined) ?? DEFAULT_SESSION_GRID, mapTokens: chapterTokens[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.mapTokens : undefined) ?? [], mapDrawings: chapterDrawings[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.mapDrawings : undefined) ?? [] }
     : selectedChapter
-      ? { ...chapterPreview(selectedChapter, mapPlacements[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.mapPlacement : undefined)), gridSettings: chapterGrids[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.gridSettings : undefined) ?? DEFAULT_SESSION_GRID, mapTokens: chapterTokens[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.mapTokens : undefined) ?? [] }
+      ? { ...chapterPreview(selectedChapter, mapPlacements[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.mapPlacement : undefined)), gridSettings: chapterGrids[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.gridSettings : undefined) ?? DEFAULT_SESSION_GRID, mapTokens: chapterTokens[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.mapTokens : undefined) ?? [], mapDrawings: chapterDrawings[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.mapDrawings : undefined) ?? [] }
       : publicChapterPreview;
   const mapPlacement: MapPlacement = display?.mapPlacement ?? { x: 0, y: 0, locked: false };
   const requestMapTokenAction = (action: string, data: Record<string, unknown>) => {
@@ -167,7 +172,7 @@ export function SessionWorkspace({
     setSelectedSceneId(scene.id);
     if (scene.status !== 'ready' || !channelReady) return;
     setPublishingId(scene.id);
-    try { const tokens = chapterTokens[chapter.id] ?? (activeScene?.chapterId === chapter.id ? activeScene.mapTokens : undefined) ?? []; await publish({ ...buildActiveScenePublication(campaignId, scene, chapter), mapPlacement: mapPlacements[chapter.id] ?? { x: 0, y: 0, locked: false }, gridSettings: chapterGrids[chapter.id] ?? DEFAULT_SESSION_GRID, mapTokens: publicMapTokens(tokens) }); }
+    try { const tokens = chapterTokens[chapter.id] ?? (activeScene?.chapterId === chapter.id ? activeScene.mapTokens : undefined) ?? []; const drawings = chapterDrawings[chapter.id] ?? (activeScene?.chapterId === chapter.id ? activeScene.mapDrawings : undefined) ?? []; await publish({ ...buildActiveScenePublication(campaignId, scene, chapter), mapPlacement: mapPlacements[chapter.id] ?? { x: 0, y: 0, locked: false }, gridSettings: chapterGrids[chapter.id] ?? DEFAULT_SESSION_GRID, mapTokens: publicMapTokens(tokens), mapDrawings: publicMapDrawings(drawings) }); }
     catch (error) { console.error('Pubblicazione Scena dalla sessione non riuscita:', error); }
     finally { setPublishingId(null); }
   };
@@ -189,6 +194,26 @@ export function SessionWorkspace({
     setChapterTokens(current => ({ ...current, [display.chapterId]: tokens }));
     if (channelReady) void publish({ ...display, mapTokens: publicMapTokens(tokens), publishedAt: new Date().toISOString() });
   };
+
+  const updateMapDrawings = (drawings: SessionMapDrawing[]) => {
+    if (!isOwner || !display) return;
+    setChapterDrawings(current => ({ ...current, [display.chapterId]: drawings }));
+    if (channelReady) void publish({ ...display, mapDrawings: publicMapDrawings(drawings), publishedAt: new Date().toISOString() });
+  };
+
+  const addMapDrawing = (drawing: SessionMapDrawing) => updateMapDrawings([...(display?.mapDrawings ?? []), drawing]);
+  const updateMapDrawing = (id: string, update: Partial<SessionMapDrawing>) => updateMapDrawings((display?.mapDrawings ?? []).map(item => item.id === id ? { ...item, ...update, updatedAt: new Date().toISOString() } : item));
+  const deleteMapDrawing = (id: string) => updateMapDrawings((display?.mapDrawings ?? []).filter(item => item.id !== id));
+  const duplicateMapDrawing = (id: string) => {
+    const source = display?.mapDrawings?.find(item => item.id === id); if (!source) return;
+    const now = new Date().toISOString(); updateMapDrawings([...(display?.mapDrawings ?? []), { ...source, id: crypto.randomUUID(), x: source.x + 12, y: source.y + 12, points: source.points?.map(point => ({ ...point })), style: { ...source.style }, createdAt: now, updatedAt: now }]);
+  };
+  const moveMapDrawingLayer = (id: string, move: MapLayerMove) => updateMapDrawings(reorderMapObjects(display?.mapDrawings ?? [], id, move, () => true));
+
+  useEffect(() => {
+    configureSessionMapDrawingClear(isOwner && display ? () => updateMapDrawings([]) : null);
+    return () => configureSessionMapDrawingClear(null);
+  }, [display?.chapterId, display?.mapDrawings, isOwner]);
 
   const addMapToken = (visual: SessionMapTokenVisual, position: { x: number; y: number }, size: number) => {
     if (!display) return;
@@ -506,7 +531,7 @@ export function SessionWorkspace({
 
       <main className="relative min-h-0 overflow-hidden bg-[radial-gradient(circle_at_center,#262a31_0%,#14161b_58%,#0d0f13_100%)]">
         {isOwner && treeHidden && <button type="button" onClick={() => setTreeHidden(false)} aria-label="Mostra pannello Capitoli e Scene" title="Mostra pannello" className="absolute left-3 top-3 z-40 rounded-lg border border-white/15 bg-black/60 p-2 text-white/70 shadow-lg backdrop-blur hover:text-white"><PanelLeftOpen className="h-4 w-4" /></button>}
-        {display ? (display.mapUrl || display.sceneImageUrl ? <MapViewport key={`${display.campaignId}:${display.chapterId}`} mapId={`${display.campaignId}:${display.chapterId}`} backgroundUrl={display.mapMetadata.previewUrl ?? display.mapUrl ?? display.sceneImageUrl} isOwner={isOwner} mapPlacement={mapPlacement} gridSettings={display.gridSettings ?? DEFAULT_SESSION_GRID} mapTokens={(display.mapTokens ?? []).filter(token => isOwner || !token.hiddenFromPlayers)} onMapPlacementChange={updateMapPlacement} onTokenDrop={addMapToken} onTokensMove={moveMapTokens} onTokenLayerMove={moveMapTokenLayer} onTokensLayerMove={moveMapTokensLayer} onTokenLockChange={setMapTokenLocked} onTokenChange={updateMapToken} onTokensChange={updateMapTokensBatch} onTokenTransformsChange={updateMapTokenTransforms} onTokenDelete={deleteMapToken} onTokensDelete={deleteMapTokensBatch} onTokensCreateMagnetGroup={createMapTokenMagnetGroup} onTokenMagnetEnabledChange={setMapTokenMagnetEnabled} onTokenMagnetLink={linkMapTokens} onTokenMagnetUnlink={unlinkMapToken}><ActiveSceneMap scene={display} unframed fill={Boolean(mapPlacement.width && mapPlacement.height)} /></MapViewport> : <div className="grid h-full min-h-[55vh] place-items-center px-8 text-center"><div><Map className="mx-auto h-12 w-12 text-white/20" /><p className="mt-3 text-sm text-white/45">Nessuna mappa assegnata a questo Capitolo.</p></div></div>) : <div className="grid h-full min-h-[60vh] place-items-center text-center"><div><Map className="mx-auto h-14 w-14 text-white/15" /><h1 className="mt-4 text-xl font-semibold text-white/70">In attesa della mappa</h1><p className="mt-2 text-sm text-white/40">Il Game Master selezionerà il Capitolo da giocare.</p></div></div>}
+        {display ? (display.mapUrl || display.sceneImageUrl ? <MapViewport key={`${display.campaignId}:${display.chapterId}`} mapId={`${display.campaignId}:${display.chapterId}`} backgroundUrl={display.mapMetadata.previewUrl ?? display.mapUrl ?? display.sceneImageUrl} isOwner={isOwner} mapPlacement={mapPlacement} gridSettings={display.gridSettings ?? DEFAULT_SESSION_GRID} mapTokens={(display.mapTokens ?? []).filter(token => isOwner || !token.hiddenFromPlayers)} mapDrawings={display.mapDrawings ?? []} onDrawingCreate={addMapDrawing} onDrawingChange={updateMapDrawing} onDrawingDelete={deleteMapDrawing} onDrawingDuplicate={duplicateMapDrawing} onDrawingLayerMove={moveMapDrawingLayer} onMapPlacementChange={updateMapPlacement} onTokenDrop={addMapToken} onTokensMove={moveMapTokens} onTokenLayerMove={moveMapTokenLayer} onTokensLayerMove={moveMapTokensLayer} onTokenLockChange={setMapTokenLocked} onTokenChange={updateMapToken} onTokensChange={updateMapTokensBatch} onTokenTransformsChange={updateMapTokenTransforms} onTokenDelete={deleteMapToken} onTokensDelete={deleteMapTokensBatch} onTokensCreateMagnetGroup={createMapTokenMagnetGroup} onTokenMagnetEnabledChange={setMapTokenMagnetEnabled} onTokenMagnetLink={linkMapTokens} onTokenMagnetUnlink={unlinkMapToken}><ActiveSceneMap scene={display} unframed fill={Boolean(mapPlacement.width && mapPlacement.height)} /></MapViewport> : <div className="grid h-full min-h-[55vh] place-items-center px-8 text-center"><div><Map className="mx-auto h-12 w-12 text-white/20" /><p className="mt-3 text-sm text-white/45">Nessuna mappa assegnata a questo Capitolo.</p></div></div>) : <div className="grid h-full min-h-[60vh] place-items-center text-center"><div><Map className="mx-auto h-14 w-14 text-white/15" /><h1 className="mt-4 text-xl font-semibold text-white/70">In attesa della mappa</h1><p className="mt-2 text-sm text-white/40">Il Game Master selezionerà il Capitolo da giocare.</p></div></div>}
       </main>
     </div>
   );
