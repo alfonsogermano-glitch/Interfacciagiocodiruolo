@@ -8,7 +8,7 @@ import type { Chapter } from '../../../types/chapter';
 import type { Scene } from '../../../types/scene';
 import { ActiveSceneMap } from './ActiveSceneMap';
 import { MapViewport, type MapPlacement } from './MapViewport';
-import { configureSessionGrid, configureSessionMapDrawingClear, DEFAULT_SESSION_GRID, type SessionGridSettings } from './mapToolStore';
+import { configureSessionGrid, configureSessionMapDrawingClear, configureSessionMapHistory, DEFAULT_SESSION_GRID, type SessionGridSettings } from './mapToolStore';
 import { useActiveScene } from './useActiveScene';
 import { useCampaignDocument } from '../shared/useCampaignDocument';
 import type { SessionMapToken, SessionMapTokenVisual } from '../../../types/sessionMapToken';
@@ -20,6 +20,16 @@ const TREE_WIDTH_STORAGE_KEY = 'hollowgate.session.tree-width';
 const TREE_DEFAULT_WIDTH = 280;
 const TREE_MIN_WIDTH = 220;
 const TREE_MAX_WIDTH = 480;
+const MAP_HISTORY_LIMIT = 50;
+
+type SessionMapHistorySnapshot = {
+  placement: MapPlacement;
+  grid: SessionGridSettings;
+  tokens: SessionMapToken[];
+  drawings: SessionMapDrawing[];
+};
+
+type SessionMapHistory = { past: SessionMapHistorySnapshot[]; future: SessionMapHistorySnapshot[] };
 
 function readTreeWidth() {
   if (typeof window === 'undefined') return TREE_DEFAULT_WIDTH;
@@ -89,6 +99,8 @@ export function SessionWorkspace({
   const [resizingTree, setResizingTree] = useState(false);
   const treeResizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const sessionChapterPublishedRef = useRef(false);
+  const mapHistoryRef = useRef(new globalThis.Map<string, SessionMapHistory>());
+  const [mapHistoryVersion, setMapHistoryVersion] = useState(0);
 
   useEffect(() => {
     const syncQuickRollEdge = () => {
@@ -163,6 +175,55 @@ export function SessionWorkspace({
       ? { ...chapterPreview(selectedChapter, mapPlacements[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.mapPlacement : undefined)), gridSettings: chapterGrids[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.gridSettings : undefined) ?? DEFAULT_SESSION_GRID, mapTokens: chapterTokens[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.mapTokens : undefined) ?? [], mapDrawings: chapterDrawings[selectedChapter.id] ?? (activeScene?.chapterId === selectedChapter.id ? activeScene.mapDrawings : undefined) ?? [] }
       : publicChapterPreview;
   const mapPlacement: MapPlacement = display?.mapPlacement ?? { x: 0, y: 0, locked: false };
+  const currentMapSnapshot = (): SessionMapHistorySnapshot => ({
+    placement: structuredClone(mapPlacement),
+    grid: structuredClone(display?.gridSettings ?? DEFAULT_SESSION_GRID),
+    tokens: structuredClone(display?.mapTokens ?? []),
+    drawings: structuredClone(display?.mapDrawings ?? []),
+  });
+  const recordMapHistory = () => {
+    if (!isOwner || !display) return;
+    const history = mapHistoryRef.current.get(display.chapterId) ?? { past: [], future: [] };
+    const snapshot = currentMapSnapshot();
+    if (JSON.stringify(history.past.at(-1)) !== JSON.stringify(snapshot)) history.past = [...history.past, snapshot].slice(-MAP_HISTORY_LIMIT);
+    history.future = [];
+    mapHistoryRef.current.set(display.chapterId, history);
+    setMapHistoryVersion(version => version + 1);
+  };
+  const applyMapHistorySnapshot = (snapshot: SessionMapHistorySnapshot) => {
+    if (!isOwner || !display) return;
+    const chapterId = display.chapterId;
+    setMapPlacements(current => ({ ...current, [chapterId]: structuredClone(snapshot.placement) }));
+    setChapterGrids(current => ({ ...current, [chapterId]: structuredClone(snapshot.grid) }));
+    setChapterTokens(current => ({ ...current, [chapterId]: structuredClone(snapshot.tokens) }));
+    setChapterDrawings(current => ({ ...current, [chapterId]: structuredClone(snapshot.drawings) }));
+    if (channelReady) void publish({ ...display, mapPlacement: snapshot.placement, gridSettings: snapshot.grid, mapTokens: publicMapTokens(snapshot.tokens), mapDrawings: publicMapDrawings(snapshot.drawings), publishedAt: new Date().toISOString() });
+  };
+  const undoMapChange = () => {
+    if (!display) return;
+    const history = mapHistoryRef.current.get(display.chapterId);
+    const snapshot = history?.past.pop();
+    if (!history || !snapshot) return;
+    history.future = [...history.future, currentMapSnapshot()].slice(-MAP_HISTORY_LIMIT);
+    mapHistoryRef.current.set(display.chapterId, history);
+    applyMapHistorySnapshot(snapshot);
+    setMapHistoryVersion(version => version + 1);
+  };
+  const redoMapChange = () => {
+    if (!display) return;
+    const history = mapHistoryRef.current.get(display.chapterId);
+    const snapshot = history?.future.pop();
+    if (!history || !snapshot) return;
+    history.past = [...history.past, currentMapSnapshot()].slice(-MAP_HISTORY_LIMIT);
+    mapHistoryRef.current.set(display.chapterId, history);
+    applyMapHistorySnapshot(snapshot);
+    setMapHistoryVersion(version => version + 1);
+  };
+  useEffect(() => {
+    const history = display ? mapHistoryRef.current.get(display.chapterId) : undefined;
+    configureSessionMapHistory(isOwner && display ? undoMapChange : null, isOwner && display ? redoMapChange : null, Boolean(history?.past.length), Boolean(history?.future.length));
+    return () => configureSessionMapHistory(null, null, false, false);
+  }, [display?.chapterId, display?.mapPlacement, display?.gridSettings, display?.mapTokens, display?.mapDrawings, isOwner, mapHistoryVersion]);
   const requestMapTokenAction = (action: string, data: Record<string, unknown>) => {
     if (!display) return;
     void sendCampaignEvent('map_token_action', { action, chapterId: display.chapterId, ...data });
@@ -177,38 +238,69 @@ export function SessionWorkspace({
     finally { setPublishingId(null); }
   };
 
-  const updateMapPlacement = (placement: MapPlacement) => {
+  const updateMapPlacement = (placement: MapPlacement, recordHistory = true) => {
     if (!isOwner || !display) return;
+    if (recordHistory) recordMapHistory();
     setMapPlacements(current => ({ ...current, [display.chapterId]: placement }));
     if (channelReady) void publish({ ...display, mapPlacement: placement, publishedAt: new Date().toISOString() });
   };
 
-  const updateGridSettings = (settings: SessionGridSettings) => {
+  const updateGridSettings = (settings: SessionGridSettings, recordHistory = true) => {
     if (!isOwner || !display) return;
+    if (recordHistory) recordMapHistory();
     setChapterGrids(current => ({ ...current, [display.chapterId]: settings }));
     if (channelReady) void publish({ ...display, gridSettings: settings, publishedAt: new Date().toISOString() });
   };
 
-  const updateMapTokens = (tokens: SessionMapToken[]) => {
+  const updateMapTokens = (tokens: SessionMapToken[], recordHistory = true) => {
     if (!isOwner || !display) return;
+    if (recordHistory) recordMapHistory();
     setChapterTokens(current => ({ ...current, [display.chapterId]: tokens }));
     if (channelReady) void publish({ ...display, mapTokens: publicMapTokens(tokens), publishedAt: new Date().toISOString() });
   };
 
-  const updateMapDrawings = (drawings: SessionMapDrawing[]) => {
+  const updateMapDrawings = (drawings: SessionMapDrawing[], recordHistory = true) => {
     if (!isOwner || !display) return;
+    if (recordHistory) recordMapHistory();
     setChapterDrawings(current => ({ ...current, [display.chapterId]: drawings }));
     if (channelReady) void publish({ ...display, mapDrawings: publicMapDrawings(drawings), publishedAt: new Date().toISOString() });
   };
 
   const addMapDrawing = (drawing: SessionMapDrawing) => updateMapDrawings([...(display?.mapDrawings ?? []), drawing]);
   const updateMapDrawing = (id: string, update: Partial<SessionMapDrawing>) => updateMapDrawings((display?.mapDrawings ?? []).map(item => item.id === id ? { ...item, ...update, updatedAt: new Date().toISOString() } : item));
-  const deleteMapDrawing = (id: string) => updateMapDrawings((display?.mapDrawings ?? []).filter(item => item.id !== id));
+  const updateMapDrawingsBatch = (ids: string[], update: Partial<SessionMapDrawing>) => { const selected = new Set(ids); const now = new Date().toISOString(); updateMapDrawings((display?.mapDrawings ?? []).map(item => selected.has(item.id) ? { ...item, ...update, updatedAt: now } : item)); };
+  const moveMapDrawings = (positions: Record<string, { x: number; y: number }>) => {
+    const now = new Date().toISOString();
+    updateMapDrawings((display?.mapDrawings ?? []).map(item => positions[item.id] ? { ...item, ...positions[item.id], updatedAt: now } : item));
+  };
+  const updateMapDrawingTransforms = (updates: Record<string, Partial<SessionMapDrawing>>) => { const now = new Date().toISOString(); updateMapDrawings((display?.mapDrawings ?? []).map(item => updates[item.id] ? { ...item, ...updates[item.id], updatedAt: now } : item)); };
+  const deleteMapDrawing = (id: string) => {
+    const remaining = (display?.mapDrawings ?? []).filter(item => item.id !== id);
+    const groups = new globalThis.Map<string, number>(); remaining.forEach(item => { if (item.magnetGroupId) groups.set(item.magnetGroupId, (groups.get(item.magnetGroupId) ?? 0) + 1); });
+    updateMapDrawings(remaining.map(item => item.magnetGroupId && (groups.get(item.magnetGroupId) ?? 0) < 2 ? { ...item, magnetEnabled: false, magnetGroupId: null } : item));
+  };
   const duplicateMapDrawing = (id: string) => {
     const source = display?.mapDrawings?.find(item => item.id === id); if (!source) return;
-    const now = new Date().toISOString(); updateMapDrawings([...(display?.mapDrawings ?? []), { ...source, id: crypto.randomUUID(), x: source.x + 12, y: source.y + 12, points: source.points?.map(point => ({ ...point })), style: { ...source.style }, createdAt: now, updatedAt: now }]);
+    const now = new Date().toISOString(); updateMapDrawings([...(display?.mapDrawings ?? []), { ...source, id: crypto.randomUUID(), x: source.x + 12, y: source.y + 12, points: source.points?.map(point => ({ ...point })), style: { ...source.style }, magnetEnabled: false, magnetGroupId: null, createdAt: now, updatedAt: now }]);
+  };
+  const deleteMapDrawingsBatch = (ids: string[]) => { const selected = new Set(ids); updateMapDrawings((display?.mapDrawings ?? []).filter(item => !selected.has(item.id))); };
+  const duplicateMapDrawingsBatch = (ids: string[]) => {
+    const selected = new Set(ids); const now = new Date().toISOString(); const copies = (display?.mapDrawings ?? []).filter(item => selected.has(item.id)).map(source => ({ ...source, id: crypto.randomUUID(), x: source.x + 12, y: source.y + 12, points: source.points?.map(point => ({ ...point })), style: { ...source.style }, magnetEnabled: false, magnetGroupId: null, createdAt: now, updatedAt: now }));
+    updateMapDrawings([...(display?.mapDrawings ?? []), ...copies]);
   };
   const moveMapDrawingLayer = (id: string, move: MapLayerMove) => updateMapDrawings(reorderMapObjects(display?.mapDrawings ?? [], id, move, () => true));
+  const moveMapDrawingsLayer = (ids: string[], move: MapLayerMove) => {
+    const selectedIds = new Set(ids); const drawings = display?.mapDrawings ?? []; const selected = drawings.filter(item => selectedIds.has(item.id)); const remaining = drawings.filter(item => !selectedIds.has(item.id));
+    if (move === 'front' || move === 'forward') updateMapDrawings([...remaining, ...selected]); else updateMapDrawings([...selected, ...remaining]);
+  };
+  const createMapDrawingMagnetGroup = (ids: string[]) => {
+    const selected = new Set(ids); if (selected.size < 2) return;
+    const groupId = crypto.randomUUID(); updateMapDrawings((display?.mapDrawings ?? []).map(item => selected.has(item.id) ? { ...item, magnetEnabled: true, magnetGroupId: groupId } : item));
+  };
+  const disableMapDrawingMagnetGroup = (id: string) => {
+    const source = display?.mapDrawings?.find(item => item.id === id); if (!source) return;
+    updateMapDrawings((display?.mapDrawings ?? []).map(item => item.id === id || source.magnetGroupId && item.magnetGroupId === source.magnetGroupId ? { ...item, magnetEnabled: false, magnetGroupId: null } : item));
+  };
 
   useEffect(() => {
     configureSessionMapDrawingClear(isOwner && display ? () => updateMapDrawings([]) : null);
@@ -407,7 +499,7 @@ export function SessionWorkspace({
   useEffect(() => {
     if (!isOwner || !display?.mapTokens?.some(token => token.size == null)) return;
     const size = display.gridSettings?.cellSize ?? DEFAULT_SESSION_GRID.cellSize;
-    updateMapTokens(display.mapTokens.map(token => token.size == null ? { ...token, size } : token));
+    updateMapTokens(display.mapTokens.map(token => token.size == null ? { ...token, size } : token), false);
   }, [display?.chapterId, display?.gridSettings?.cellSize, display?.mapTokens, isOwner]);
 
   useEffect(() => {
@@ -421,7 +513,7 @@ export function SessionWorkspace({
       squareSnapMode: settings.squareSnapMode ?? 'half-step',
     };
     configureSessionGrid(normalizedSettings, isOwner && Boolean(display), isOwner ? updateGridSettings : null);
-    if (isOwner && display && (settings.visible === false || settings.unit !== normalizedSettings.unit || !settings.lineStyle || !settings.squareSnapMode)) updateGridSettings(normalizedSettings);
+    if (isOwner && display && (settings.visible === false || settings.unit !== normalizedSettings.unit || !settings.lineStyle || !settings.squareSnapMode)) updateGridSettings(normalizedSettings, false);
     return () => configureSessionGrid(DEFAULT_SESSION_GRID, false, null);
   }, [display?.chapterId, display?.gridSettings, display?.id, display?.mapPlacement, isOwner]);
 
@@ -531,7 +623,7 @@ export function SessionWorkspace({
 
       <main className="relative min-h-0 overflow-hidden bg-[radial-gradient(circle_at_center,#262a31_0%,#14161b_58%,#0d0f13_100%)]">
         {isOwner && treeHidden && <button type="button" onClick={() => setTreeHidden(false)} aria-label="Mostra pannello Capitoli e Scene" title="Mostra pannello" className="absolute left-3 top-3 z-40 rounded-lg border border-white/15 bg-black/60 p-2 text-white/70 shadow-lg backdrop-blur hover:text-white"><PanelLeftOpen className="h-4 w-4" /></button>}
-        {display ? (display.mapUrl || display.sceneImageUrl ? <MapViewport key={`${display.campaignId}:${display.chapterId}`} mapId={`${display.campaignId}:${display.chapterId}`} backgroundUrl={display.mapMetadata.previewUrl ?? display.mapUrl ?? display.sceneImageUrl} isOwner={isOwner} mapPlacement={mapPlacement} gridSettings={display.gridSettings ?? DEFAULT_SESSION_GRID} mapTokens={(display.mapTokens ?? []).filter(token => isOwner || !token.hiddenFromPlayers)} mapDrawings={display.mapDrawings ?? []} onDrawingCreate={addMapDrawing} onDrawingChange={updateMapDrawing} onDrawingDelete={deleteMapDrawing} onDrawingDuplicate={duplicateMapDrawing} onDrawingLayerMove={moveMapDrawingLayer} onMapPlacementChange={updateMapPlacement} onTokenDrop={addMapToken} onTokensMove={moveMapTokens} onTokenLayerMove={moveMapTokenLayer} onTokensLayerMove={moveMapTokensLayer} onTokenLockChange={setMapTokenLocked} onTokenChange={updateMapToken} onTokensChange={updateMapTokensBatch} onTokenTransformsChange={updateMapTokenTransforms} onTokenDelete={deleteMapToken} onTokensDelete={deleteMapTokensBatch} onTokensCreateMagnetGroup={createMapTokenMagnetGroup} onTokenMagnetEnabledChange={setMapTokenMagnetEnabled} onTokenMagnetLink={linkMapTokens} onTokenMagnetUnlink={unlinkMapToken}><ActiveSceneMap scene={display} unframed fill={Boolean(mapPlacement.width && mapPlacement.height)} /></MapViewport> : <div className="grid h-full min-h-[55vh] place-items-center px-8 text-center"><div><Map className="mx-auto h-12 w-12 text-white/20" /><p className="mt-3 text-sm text-white/45">Nessuna mappa assegnata a questo Capitolo.</p></div></div>) : <div className="grid h-full min-h-[60vh] place-items-center text-center"><div><Map className="mx-auto h-14 w-14 text-white/15" /><h1 className="mt-4 text-xl font-semibold text-white/70">In attesa della mappa</h1><p className="mt-2 text-sm text-white/40">Il Game Master selezionerà il Capitolo da giocare.</p></div></div>}
+        {display ? (display.mapUrl || display.sceneImageUrl ? <MapViewport key={`${display.campaignId}:${display.chapterId}`} mapId={`${display.campaignId}:${display.chapterId}`} backgroundUrl={display.mapMetadata.previewUrl ?? display.mapUrl ?? display.sceneImageUrl} isOwner={isOwner} mapPlacement={mapPlacement} gridSettings={display.gridSettings ?? DEFAULT_SESSION_GRID} mapTokens={(display.mapTokens ?? []).filter(token => isOwner || !token.hiddenFromPlayers)} mapDrawings={display.mapDrawings ?? []} onDrawingCreate={addMapDrawing} onDrawingChange={updateMapDrawing} onDrawingsChange={updateMapDrawingsBatch} onDrawingsMove={moveMapDrawings} onDrawingTransformsChange={updateMapDrawingTransforms} onDrawingDelete={deleteMapDrawing} onDrawingsDelete={deleteMapDrawingsBatch} onDrawingDuplicate={duplicateMapDrawing} onDrawingsDuplicate={duplicateMapDrawingsBatch} onDrawingLayerMove={moveMapDrawingLayer} onDrawingsLayerMove={moveMapDrawingsLayer} onDrawingsCreateMagnetGroup={createMapDrawingMagnetGroup} onDrawingMagnetDisable={disableMapDrawingMagnetGroup} onMapPlacementChange={updateMapPlacement} onTokenDrop={addMapToken} onTokensMove={moveMapTokens} onTokenLayerMove={moveMapTokenLayer} onTokensLayerMove={moveMapTokensLayer} onTokenLockChange={setMapTokenLocked} onTokenChange={updateMapToken} onTokensChange={updateMapTokensBatch} onTokenTransformsChange={updateMapTokenTransforms} onTokenDelete={deleteMapToken} onTokensDelete={deleteMapTokensBatch} onTokensCreateMagnetGroup={createMapTokenMagnetGroup} onTokenMagnetEnabledChange={setMapTokenMagnetEnabled} onTokenMagnetLink={linkMapTokens} onTokenMagnetUnlink={unlinkMapToken}><ActiveSceneMap scene={display} unframed fill={Boolean(mapPlacement.width && mapPlacement.height)} /></MapViewport> : <div className="grid h-full min-h-[55vh] place-items-center px-8 text-center"><div><Map className="mx-auto h-12 w-12 text-white/20" /><p className="mt-3 text-sm text-white/45">Nessuna mappa assegnata a questo Capitolo.</p></div></div>) : <div className="grid h-full min-h-[60vh] place-items-center text-center"><div><Map className="mx-auto h-14 w-14 text-white/15" /><h1 className="mt-4 text-xl font-semibold text-white/70">In attesa della mappa</h1><p className="mt-2 text-sm text-white/40">Il Game Master selezionerà il Capitolo da giocare.</p></div></div>}
       </main>
     </div>
   );

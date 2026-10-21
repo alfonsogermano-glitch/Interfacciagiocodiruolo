@@ -6,9 +6,11 @@ export type { SessionGridLineStyle, SessionGridSettings, SessionGridType } from 
 export type SessionMapTool = 'move' | 'select' | 'grid' | 'measure' | 'draw' | 'pin' | 'fog' | 'walls' | 'pointer';
 export type SessionMapSelectionMode = 'rectangle' | 'freehand';
 export type SessionMapMeasureMode = 'line' | 'circle' | 'cone' | 'visibility';
-export type SessionMapDrawMode = 'grab' | 'freehand' | 'polygon' | 'line' | 'rectangle' | 'circle' | 'triangle' | 'hexagon' | 'eraser';
+export type SessionMapDrawMode = 'grab' | 'freehand' | 'polygon' | 'line' | 'rectangle' | 'circle' | 'triangle' | 'hexagon' | 'text' | 'eraser';
 export type SessionMapDrawingStyle = { strokeColor: string; fillColor: string; strokeWidth: number; opacity: number; fillOpacity: number; lineStyle: 'solid' | 'dashed' | 'dotted' | 'dash-dot' | 'long-dash' };
+export type SessionMapTextStyle = { content: string; fontSize: number; fontFamily: string; bold: boolean; italic: boolean; underline: boolean; strike: boolean; align: 'left' | 'center' | 'right'; color: string; strokeColor: string; horizontalScale: number; orientation: 'horizontal' | 'vertical' };
 export const DEFAULT_SESSION_DRAW_STYLE: SessionMapDrawingStyle = { strokeColor: '#22d3ee', fillColor: '#22d3ee', strokeWidth: 4, opacity: 1, fillOpacity: 0.18, lineStyle: 'solid' };
+export const DEFAULT_SESSION_TEXT_STYLE: SessionMapTextStyle = { content: 'Testo', fontSize: 24, fontFamily: 'Arial', bold: false, italic: false, underline: false, strike: false, align: 'left', color: '#ffffff', strokeColor: '#111827', horizontalScale: 1, orientation: 'horizontal' };
 export const DEFAULT_SESSION_GRID: SessionGridSettings = { visible: true, type: 'square', lineStyle: 'solid', color: '#38bdf8', opacity: 0, snap: false, squareSnapMode: 'half-step', distance: 5, unit: 'Metri', cellSize: 100 };
 
 let activeMapTool: SessionMapTool = 'move';
@@ -23,7 +25,8 @@ let measurementsVisibleToAll = true;
 const measurementVisibilityListeners = new Set<() => void>();
 let drawMode: SessionMapDrawMode = 'freehand';
 let drawStyle = DEFAULT_SESSION_DRAW_STYLE;
-let drawSnapshot: { mode: SessionMapDrawMode; style: SessionMapDrawingStyle } = { mode: drawMode, style: drawStyle };
+let textStyle = DEFAULT_SESSION_TEXT_STYLE;
+let drawSnapshot: { mode: SessionMapDrawMode; style: SessionMapDrawingStyle; textStyle: SessionMapTextStyle } = { mode: drawMode, style: drawStyle, textStyle };
 const drawListeners = new Set<() => void>();
 let clearDrawingsHandler: (() => void) | null = null;
 const gridListeners = new Set<() => void>();
@@ -38,6 +41,11 @@ const mapFitListeners = new Set<() => void>();
 let mapCenterAvailable = false;
 let mapCenterHandler: (() => void) | null = null;
 const mapCenterListeners = new Set<() => void>();
+let mapUndoAvailable = false;
+let mapRedoAvailable = false;
+let mapUndoHandler: (() => void) | null = null;
+let mapRedoHandler: (() => void) | null = null;
+const mapHistoryListeners = new Set<() => void>();
 let mapCalibrationActive = false;
 const mapCalibrationListeners = new Set<() => void>();
 
@@ -104,15 +112,17 @@ export function useSessionMapMeasurementsVisibleToAll() {
 }
 
 export function setSessionMapDrawMode(mode: SessionMapDrawMode) {
-  drawMode = mode; drawSnapshot = { mode: drawMode, style: drawStyle }; drawListeners.forEach(listener => listener());
+  drawMode = mode; drawSnapshot = { mode: drawMode, style: drawStyle, textStyle }; drawListeners.forEach(listener => listener());
 }
 
 export function updateSessionMapDrawStyle(update: Partial<SessionMapDrawingStyle>) {
-  drawStyle = { ...drawStyle, ...update }; drawSnapshot = { mode: drawMode, style: drawStyle }; drawListeners.forEach(listener => listener());
+  drawStyle = { ...drawStyle, ...update }; drawSnapshot = { mode: drawMode, style: drawStyle, textStyle }; drawListeners.forEach(listener => listener());
 }
 
+export function updateSessionMapTextStyle(update: Partial<SessionMapTextStyle>) { textStyle = { ...textStyle, ...update }; drawSnapshot = { mode: drawMode, style: drawStyle, textStyle }; drawListeners.forEach(listener => listener()); }
+
 export function useSessionMapDrawSettings() {
-  return useSyncExternalStore(listener => { drawListeners.add(listener); return () => drawListeners.delete(listener); }, () => drawSnapshot, (): { mode: SessionMapDrawMode; style: SessionMapDrawingStyle } => ({ mode: 'freehand', style: DEFAULT_SESSION_DRAW_STYLE }));
+  return useSyncExternalStore(listener => { drawListeners.add(listener); return () => drawListeners.delete(listener); }, () => drawSnapshot, () => ({ mode: 'freehand' as const, style: DEFAULT_SESSION_DRAW_STYLE, textStyle: DEFAULT_SESSION_TEXT_STYLE }));
 }
 
 export function configureSessionMapDrawingClear(handler: (() => void) | null) { clearDrawingsHandler = handler; }
@@ -178,6 +188,26 @@ export function useSessionMapCenterAvailable() {
     () => mapCenterAvailable,
     () => false,
   );
+}
+
+export function configureSessionMapHistory(undo: (() => void) | null, redo: (() => void) | null, canUndo: boolean, canRedo: boolean) {
+  const availabilityChanged = mapUndoAvailable !== canUndo || mapRedoAvailable !== canRedo;
+  mapUndoHandler = undo;
+  mapRedoHandler = redo;
+  mapUndoAvailable = canUndo;
+  mapRedoAvailable = canRedo;
+  if (availabilityChanged) mapHistoryListeners.forEach(listener => listener());
+}
+
+export function requestSessionMapUndo() { mapUndoHandler?.(); }
+export function requestSessionMapRedo() { mapRedoHandler?.(); }
+
+export function useSessionMapUndoAvailable() {
+  return useSyncExternalStore(listener => { mapHistoryListeners.add(listener); return () => mapHistoryListeners.delete(listener); }, () => mapUndoAvailable, () => false);
+}
+
+export function useSessionMapRedoAvailable() {
+  return useSyncExternalStore(listener => { mapHistoryListeners.add(listener); return () => mapHistoryListeners.delete(listener); }, () => mapRedoAvailable, () => false);
 }
 
 export function setSessionMapCalibrationActive(active: boolean) {
