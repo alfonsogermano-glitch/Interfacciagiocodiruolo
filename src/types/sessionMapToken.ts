@@ -31,6 +31,7 @@ export interface SessionMapToken extends SessionMapTokenVisual {
   x: number;
   y: number;
   locked?: boolean;
+  pinned?: boolean;
   visible?: boolean;
   showLabel?: boolean;
   labelColor?: string;
@@ -38,6 +39,7 @@ export interface SessionMapToken extends SessionMapTokenVisual {
   rotation?: number;
   magnetEnabled?: boolean;
   magnetGroupId?: string | null;
+  createdByProfileId?: string | null;
   conditions?: SessionMapTokenCondition[];
   createdAt: string;
   updatedAt: string;

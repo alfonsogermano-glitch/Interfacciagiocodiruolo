@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, FolderPlus, RotateCcw, Trash2 } from 'lucide-react';
+import { Plus, FolderPlus, RotateCcw, Trash2, X } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useCampaignNotesSection, type UseCampaignNotesSectionResult } from './shared/useCampaignNotesSection';
@@ -9,6 +9,7 @@ import { TrashRow } from './shared/TrashRow';
 import { TrashItemPreview } from './shared/TrashItemPreview';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
+import { completeSessionNotePick, SESSION_NOTE_OPEN_EVENT, SESSION_NOTE_PICK_EVENT, type SessionNoteOpenRequest, type SessionNotePickRequest } from './sessionNoteBrowserEvents';
 
 // 'trash' = il pannello destro mostra il placeholder dedicato del Cestino,
 // non la nota attiva selezionata in precedenza - stato SEPARATO da
@@ -58,6 +59,8 @@ export function SessionNotesPanel() {
   const [sidebarWidth, setSidebarWidth] = useState(readStoredNotesSidebarWidth);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [activeScope, setActiveScope] = useState<NotesScope>('shared');
+  const [notePickRequest, setNotePickRequest] = useState<SessionNotePickRequest | null>(null);
+  const [pendingOpenNoteId, setPendingOpenNoteId] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState({ shared: true, gm: true, trash: false });
   const [confirmEmptyTrash, setConfirmEmptyTrash] = useState(false);
   // Elemento specifico selezionato dentro il Cestino (per l'anteprima nel
@@ -149,6 +152,11 @@ export function SessionNotesPanel() {
     savedTabOrder: activeCampaign?.tabOrderCampaignNotes ?? activeCampaign?.tabOrder,
     onPersistTabOrder: (order) => updateCampaign(activeCampaignId, { tabOrderCampaignNotes: order }),
     onSelectNote: () => setActiveScope('shared'),
+    onPickNote: (noteId, noteLabel) => {
+      if (!notePickRequest) return;
+      completeSessionNotePick({ poiId: notePickRequest.poiId, noteId, noteLabel, visibleToPlayers: true });
+      setNotePickRequest(null);
+    },
   });
 
   // Chiamato SEMPRE (le regole di React vietano hook condizionali), ma
@@ -167,6 +175,11 @@ export function SessionNotesPanel() {
     savedTabOrder: activeCampaign?.tabOrderGmNotes,
     onPersistTabOrder: (order) => updateCampaign(activeCampaignId, { tabOrderGmNotes: order }),
     onSelectNote: () => setActiveScope('gm'),
+    onPickNote: (noteId, noteLabel) => {
+      if (!notePickRequest) return;
+      completeSessionNotePick({ poiId: notePickRequest.poiId, noteId, noteLabel, visibleToPlayers: false });
+      setNotePickRequest(null);
+    },
     enabled: isOwner,
   });
 
@@ -178,13 +191,43 @@ export function SessionNotesPanel() {
     enabled: isOwner,
   });
 
+  useEffect(() => {
+    const openLinkedNote = (event: Event) => {
+      const request = (event as CustomEvent<SessionNoteOpenRequest>).detail;
+      if (!request?.deliver || typeof request.noteId !== 'string') return;
+      setPendingOpenNoteId(request.noteId);
+    };
+    window.addEventListener(SESSION_NOTE_OPEN_EVENT, openLinkedNote);
+    return () => window.removeEventListener(SESSION_NOTE_OPEN_EVENT, openLinkedNote);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingOpenNoteId) return;
+    if (sharedSection.openNote(pendingOpenNoteId)) {
+      setActiveScope('shared');
+      setPendingOpenNoteId(null);
+    } else if (isOwner && gmSection.openNote(pendingOpenNoteId)) {
+      setActiveScope('gm');
+      setPendingOpenNoteId(null);
+    }
+  }, [gmSection, isOwner, pendingOpenNoteId, sharedSection]);
+
+  useEffect(() => {
+    const beginNotePick = (event: Event) => {
+      const request = (event as CustomEvent<SessionNotePickRequest>).detail;
+      if (request?.deliver && typeof request.poiId === 'string') setNotePickRequest(request);
+    };
+    window.addEventListener(SESSION_NOTE_PICK_EVENT, beginNotePick);
+    return () => window.removeEventListener(SESSION_NOTE_PICK_EVENT, beginNotePick);
+  }, []);
+
   // Solo apertura/chiusura dell'accordion - NON tocca activeScope/
   // selectedTrashItem (bug corretto: espandere l'header "Cestino" faceva
   // scattare lo stesso placeholder di una selezione vera). Il contesto
   // attivo cambia solo dal click su una riga (onSelectNote per le sezioni
   // Note, onSelect di TrashRow per il Cestino).
   const toggleSection = (key: keyof typeof openSections) => {
-    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   // Lista piatta unica (note + cartelle), piu' recente cestinato per primo -
@@ -199,7 +242,10 @@ export function SessionNotesPanel() {
       deletedAt: f.deleted_at,
       onRestore: () => trash.restoreFolder(f.id),
       onPurge: () => trash.purgeFolder(f.id),
-      onSelect: () => { setActiveScope('trash'); setSelectedTrashItem({ kind: 'folder', id: f.id }); },
+      onSelect: () => {
+        setActiveScope('trash');
+        setSelectedTrashItem({ kind: 'folder', id: f.id });
+      },
     })),
     ...trash.notes.map((n) => ({
       key: `note-${n.id}`,
@@ -209,7 +255,10 @@ export function SessionNotesPanel() {
       deletedAt: n.deleted_at,
       onRestore: () => trash.restoreNote(n.id),
       onPurge: () => trash.purgeNote(n.id),
-      onSelect: () => { setActiveScope('trash'); setSelectedTrashItem({ kind: 'note', id: n.id }); },
+      onSelect: () => {
+        setActiveScope('trash');
+        setSelectedTrashItem({ kind: 'note', id: n.id });
+      },
     })),
   ].sort((a, b) => (a.deletedAt < b.deletedAt ? 1 : -1));
 
@@ -218,12 +267,8 @@ export function SessionNotesPanel() {
   // se l'elemento viene ripristinato/eliminato definitivamente (anche da un
   // altro client) sparisce da qui automaticamente, senza bisogno di un
   // effect dedicato per "sganciare" la selezione.
-  const selectedTrashNote = selectedTrashItem?.kind === 'note'
-    ? trash.notes.find(n => n.id === selectedTrashItem.id) ?? null
-    : null;
-  const selectedTrashFolder = selectedTrashItem?.kind === 'folder'
-    ? trash.folders.find(f => f.id === selectedTrashItem.id) ?? null
-    : null;
+  const selectedTrashNote = selectedTrashItem?.kind === 'note' ? (trash.notes.find((n) => n.id === selectedTrashItem.id) ?? null) : null;
+  const selectedTrashFolder = selectedTrashItem?.kind === 'folder' ? (trash.folders.find((f) => f.id === selectedTrashItem.id) ?? null) : null;
 
   // Pulsanti "nuova nota"/"nuova cartella" nell'header di sezione - stesso
   // slot extraAction gia' usato da PNG/Mostri in SessionCharactersPanel.tsx
@@ -238,12 +283,7 @@ export function SessionNotesPanel() {
     <div className="flex items-center gap-1">
       <Tooltip>
         <TooltipTrigger asChild>
-          <button
-            type="button"
-            onClick={section.handleAddNote}
-            aria-label="Nuova nota"
-            className="flex shrink-0 items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
-          >
+          <button type="button" onClick={section.handleAddNote} aria-label="Nuova nota" className="flex shrink-0 items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]">
             <Plus className="h-3.5 w-3.5" />
           </button>
         </TooltipTrigger>
@@ -252,15 +292,7 @@ export function SessionNotesPanel() {
       {showFolderButton && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={section.handleCreateFolder}
-              disabled={section.createDisabledReason !== null}
-              aria-label="Nuova cartella"
-              className={`flex shrink-0 items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors ${
-                section.createDisabledReason !== null ? 'cursor-not-allowed opacity-40' : 'hover:text-[var(--dash-text-strong)]'
-              }`}
-            >
+            <button type="button" onClick={section.handleCreateFolder} disabled={section.createDisabledReason !== null} aria-label="Nuova cartella" className={`flex shrink-0 items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors ${section.createDisabledReason !== null ? 'cursor-not-allowed opacity-40' : 'hover:text-[var(--dash-text-strong)]'}`}>
               <FolderPlus className="h-3.5 w-3.5" />
             </button>
           </TooltipTrigger>
@@ -272,36 +304,23 @@ export function SessionNotesPanel() {
 
   return (
     <>
-      <div
-        ref={notesPanelRef}
-        data-note-split-panel="true"
-        className={`flex h-full min-w-0 select-none ${isResizingSidebar ? 'cursor-col-resize' : ''}`}
-      >
-        <div
-          data-note-sidebar="true"
-          style={{ width: sidebarWidth }}
-          className="shrink-0 overflow-y-auto py-3"
-        >
+      <div ref={notesPanelRef} data-note-split-panel="true" className={`flex h-full min-w-0 select-none ${isResizingSidebar ? 'cursor-col-resize' : ''}`}>
+        <div data-note-sidebar="true" style={{ width: sidebarWidth }} className="shrink-0 overflow-y-auto py-3">
+          {notePickRequest && (
+            <div className="mx-2 mb-3 rounded-lg border border-[var(--dash-accent)]/50 bg-[var(--dash-accent)]/10 px-3 py-2 text-xs text-[var(--dash-text-strong)]">
+              <div className="font-semibold">Collega una nota al PDI</div>
+              <div className="mt-1 text-[var(--dash-muted)]">Seleziona una nota dall’elenco.</div>
+              <button type="button" onClick={() => setNotePickRequest(null)} className="mt-2 inline-flex items-center gap-1 text-[var(--dash-accent)] hover:underline"><X className="h-3.5 w-3.5" />Annulla</button>
+            </div>
+          )}
           {isOwner && (
             <>
-              <SectionHeader
-                title="Note del GM"
-                count={gmSection.count}
-                isOpen={openSections.gm}
-                onToggle={() => toggleSection('gm')}
-                extraAction={openSections.gm ? renderSectionHeaderAction(gmSection, true) : undefined}
-              />
+              <SectionHeader title="Note del GM" count={gmSection.count} isOpen={openSections.gm} onToggle={() => toggleSection('gm')} extraAction={openSections.gm ? renderSectionHeaderAction(gmSection, true) : undefined} />
               {openSections.gm && <div className="space-y-1 px-2 pb-2">{gmSection.renderSidebar()}</div>}
             </>
           )}
 
-          <SectionHeader
-            title="Note della Campagna"
-            count={sharedSection.count}
-            isOpen={openSections.shared}
-            onToggle={() => toggleSection('shared')}
-            extraAction={openSections.shared ? renderSectionHeaderAction(sharedSection, isOwner) : undefined}
-          />
+          <SectionHeader title="Note della Campagna" count={sharedSection.count} isOpen={openSections.shared} onToggle={() => toggleSection('shared')} extraAction={openSections.shared ? renderSectionHeaderAction(sharedSection, isOwner) : undefined} />
           {openSections.shared && <div className="space-y-1 px-2 pb-2">{sharedSection.renderSidebar()}</div>}
 
           {isOwner && (
@@ -312,56 +331,30 @@ export function SessionNotesPanel() {
                 count={trash.count}
                 isOpen={openSections.trash}
                 onToggle={() => toggleSection('trash')}
-                extraAction={openSections.trash && trash.count > 0 ? (
-                  <div className="flex items-center gap-1">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={trash.restoreAll}
-                          aria-label="Ripristina tutto"
-                          className="flex shrink-0 items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]"
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">Ripristina tutto</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmEmptyTrash(true)}
-                          aria-label="Svuota cestino"
-                          className="flex shrink-0 items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-danger-text)]"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">Svuota cestino</TooltipContent>
-                    </Tooltip>
-                  </div>
-                ) : undefined}
+                extraAction={
+                  openSections.trash && trash.count > 0 ? (
+                    <div className="flex items-center gap-1">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button type="button" onClick={trash.restoreAll} aria-label="Ripristina tutto" className="flex shrink-0 items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-text-strong)]">
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">Ripristina tutto</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button type="button" onClick={() => setConfirmEmptyTrash(true)} aria-label="Svuota cestino" className="flex shrink-0 items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-1.5 text-[var(--dash-muted)] transition-colors hover:text-[var(--dash-danger-text)]">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">Svuota cestino</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  ) : undefined
+                }
               />
-              {openSections.trash && (
-                <div className="space-y-1 px-2 pb-2">
-                  {trashRows.length === 0 ? (
-                    <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Cestino vuoto.</div>
-                  ) : (
-                    trashRows.map((row) => (
-                      <TrashRow
-                        key={row.key}
-                        name={row.name}
-                        typeLabel={row.typeLabel}
-                        scopeLabel={row.scopeLabel}
-                        onRestore={row.onRestore}
-                        onPurge={row.onPurge}
-                        onSelect={row.onSelect}
-                      />
-                    ))
-                  )}
-                </div>
-              )}
+              {openSections.trash && <div className="space-y-1 px-2 pb-2">{trashRows.length === 0 ? <div className="px-3 py-2 text-xs text-[var(--dash-muted)]">Cestino vuoto.</div> : trashRows.map((row) => <TrashRow key={row.key} name={row.name} typeLabel={row.typeLabel} scopeLabel={row.scopeLabel} onRestore={row.onRestore} onPurge={row.onPurge} onSelect={row.onSelect} />)}</div>}
             </>
           )}
         </div>
@@ -384,13 +377,7 @@ export function SessionNotesPanel() {
           style={{ width: 9, marginLeft: -4, marginRight: -4, touchAction: 'none' }}
           className="group relative z-20 shrink-0 cursor-col-resize"
         >
-          <div
-            className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${
-              isResizingSidebar
-                ? 'bg-[var(--dash-accent)]'
-                : 'bg-[var(--dash-border-soft)] group-hover:bg-[var(--dash-accent)]'
-            }`}
-          />
+          <div className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${isResizingSidebar ? 'bg-[var(--dash-accent)]' : 'bg-[var(--dash-border-soft)] group-hover:bg-[var(--dash-accent)]'}`} />
         </div>
 
         <div className="min-w-0 flex-1 overflow-auto p-4">
@@ -402,25 +389,17 @@ export function SessionNotesPanel() {
             // sezioni Note non viene mai toccato da qui, resta esattamente
             // quello che era.
             selectedTrashNote ? (
-              <TrashItemPreview
-                name={selectedTrashNote.tab_name}
-                typeLabel={selectedTrashNote.entity_type === 'campaign' ? 'Nota' : 'Sotto-tab'}
-                scopeLabel={selectedTrashNote.hidden ? 'GM' : 'Campagna'}
-                content={selectedTrashNote.content}
-              />
+              <TrashItemPreview name={selectedTrashNote.tab_name} typeLabel={selectedTrashNote.entity_type === 'campaign' ? 'Nota' : 'Sotto-tab'} scopeLabel={selectedTrashNote.hidden ? 'GM' : 'Campagna'} content={selectedTrashNote.content} />
             ) : selectedTrashFolder ? (
-              <TrashItemPreview
-                name={selectedTrashFolder.name}
-                typeLabel="Cartella"
-                scopeLabel={selectedTrashFolder.entity_type === 'gmnotes' ? 'GM' : 'Campagna'}
-                content={null}
-              />
+              <TrashItemPreview name={selectedTrashFolder.name} typeLabel="Cartella" scopeLabel={selectedTrashFolder.entity_type === 'gmnotes' ? 'GM' : 'Campagna'} content={null} />
             ) : (
-              <div className="flex h-full items-center justify-center text-center text-sm text-[var(--dash-muted)]">
-                Seleziona un elemento dalla lista per vederne l'anteprima, oppure usa "Ripristina"/"Elimina definitivamente".
-              </div>
+              <div className="flex h-full items-center justify-center text-center text-sm text-[var(--dash-muted)]">Seleziona un elemento dalla lista per vederne l'anteprima, oppure usa "Ripristina"/"Elimina definitivamente".</div>
             )
-          ) : activeScope === 'gm' && isOwner ? gmSection.renderDetail() : sharedSection.renderDetail()}
+          ) : activeScope === 'gm' && isOwner ? (
+            gmSection.renderDetail()
+          ) : (
+            sharedSection.renderDetail()
+          )}
         </div>
       </div>
       {sharedSection.renderDialogs()}
@@ -430,7 +409,10 @@ export function SessionNotesPanel() {
           title="Svuotare il cestino?"
           message="Tutti gli elementi nel cestino verranno eliminati per sempre. Questa azione non è reversibile."
           confirmLabel="Elimina definitivamente"
-          onConfirm={() => { setConfirmEmptyTrash(false); trash.emptyTrash(); }}
+          onConfirm={() => {
+            setConfirmEmptyTrash(false);
+            trash.emptyTrash();
+          }}
           onCancel={() => setConfirmEmptyTrash(false)}
         />
       )}

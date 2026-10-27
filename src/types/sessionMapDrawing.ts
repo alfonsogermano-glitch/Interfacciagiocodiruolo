@@ -39,9 +39,11 @@ export interface SessionMapDrawing {
   style: SessionMapDrawingStyle;
   text?: SessionMapDrawingText;
   locked?: boolean;
+  pinned?: boolean;
   visible?: boolean;
   magnetEnabled?: boolean;
   magnetGroupId?: string | null;
+  createdByProfileId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

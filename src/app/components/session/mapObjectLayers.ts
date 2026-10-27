@@ -1,4 +1,72 @@
 export type MapLayerMove = 'forward' | 'backward' | 'front' | 'back';
+export type MapObjectFamily = string;
+export type MapObjectRef = { family: MapObjectFamily; id: string };
+
+const refKey = (ref: MapObjectRef) => `${ref.family}\u0000${ref.id}`;
+
+export function reconcileMapObjectOrder(
+  order: MapObjectRef[] | undefined,
+  families: ReadonlyArray<readonly [MapObjectFamily, ReadonlyArray<{ id: string }>]>,
+) {
+  const available = new Set(families.flatMap(([family, objects]) => objects.map(object => refKey({ family, id: object.id }))));
+  const seen = new Set<string>();
+  const next: MapObjectRef[] = [];
+  for (const ref of order ?? []) {
+    if (!ref || typeof ref.family !== 'string' || typeof ref.id !== 'string') continue;
+    const key = refKey(ref);
+    if (!available.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    next.push({ family: ref.family, id: ref.id });
+  }
+  // Missing legacy objects retain the historical drawings -> tokens -> POIs visual order.
+  for (const [family, objects] of families) for (const object of objects) {
+    const ref = { family, id: object.id };
+    const key = refKey(ref);
+    if (!seen.has(key)) {
+      seen.add(key);
+      next.push(ref);
+    }
+  }
+  return next;
+}
+
+export function moveMapObjectBlock(order: MapObjectRef[], refs: MapObjectRef[], move: MapLayerMove, overlaps?: (first: MapObjectRef, second: MapObjectRef) => boolean) {
+  const selectedKeys = new Set(refs.map(refKey));
+  if (selectedKeys.size === 0) return order;
+  const selected = order.filter(ref => selectedKeys.has(refKey(ref)));
+  if (selected.length === 0) return order;
+  const remaining = order.filter(ref => !selectedKeys.has(refKey(ref)));
+  const firstIndex = order.findIndex(ref => selectedKeys.has(refKey(ref)));
+  const selectedBeforeFirst = order.slice(0, firstIndex).filter(ref => selectedKeys.has(refKey(ref))).length;
+  const insertion = firstIndex - selectedBeforeFirst;
+  let target = insertion;
+  if (move === 'front') target = remaining.length;
+  else if (move === 'back') target = 0;
+  else if (move === 'forward') {
+    if (overlaps) {
+      const candidate = order.findIndex((ref, index) => index > firstIndex && !selectedKeys.has(refKey(ref)) && selected.some(item => overlaps(item, ref)));
+      if (candidate === -1) return order;
+      const candidateKey = refKey(order[candidate]);
+      target = remaining.findIndex(ref => refKey(ref) === candidateKey) + 1;
+    } else target = Math.min(remaining.length, insertion + 1);
+  } else if (overlaps) {
+    let candidate = -1;
+    for (let index = firstIndex - 1; index >= 0; index -= 1) {
+      const ref = order[index];
+      if (!selectedKeys.has(refKey(ref)) && selected.some(item => overlaps(item, ref))) { candidate = index; break; }
+    }
+    if (candidate === -1) return order;
+    const candidateKey = refKey(order[candidate]);
+    target = remaining.findIndex(ref => refKey(ref) === candidateKey);
+  } else target = Math.max(0, insertion - 1);
+  const next = [...remaining.slice(0, target), ...selected, ...remaining.slice(target)];
+  return next.every((ref, index) => refKey(ref) === refKey(order[index])) ? order : next;
+}
+
+export function filterMapObjectOrder(order: MapObjectRef[], visible: ReadonlyArray<MapObjectRef>) {
+  const keys = new Set(visible.map(refKey));
+  return order.filter(ref => keys.has(refKey(ref)));
+}
 
 export interface MapObjectBounds {
   x: number;
@@ -26,6 +94,13 @@ export function getRotatedSquareBounds(position: { x: number; y: number }, size:
   const boundsSize = size * (Math.abs(Math.cos(angle)) + Math.abs(Math.sin(angle)));
   const offset = (boundsSize - size) / 2;
   return { x: position.x - offset, y: position.y - offset, width: boundsSize, height: boundsSize };
+}
+
+export function getRotatedRectBounds(position: { x: number; y: number }, width: number, height: number, rotation = 0): MapObjectBounds {
+  const angle = rotation * Math.PI / 180;
+  const boundsWidth = Math.abs(width * Math.cos(angle)) + Math.abs(height * Math.sin(angle));
+  const boundsHeight = Math.abs(width * Math.sin(angle)) + Math.abs(height * Math.cos(angle));
+  return { x: position.x + (width - boundsWidth) / 2, y: position.y + (height - boundsHeight) / 2, width: boundsWidth, height: boundsHeight };
 }
 
 export function rectangleCoverage(bounds: MapObjectBounds, selection: MapObjectBounds) {

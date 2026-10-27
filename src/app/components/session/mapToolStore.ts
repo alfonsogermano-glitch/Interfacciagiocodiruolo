@@ -7,6 +7,10 @@ export type SessionMapTool = 'move' | 'select' | 'grid' | 'measure' | 'draw' | '
 export type SessionMapSelectionMode = 'rectangle' | 'freehand';
 export type SessionMapMeasureMode = 'line' | 'circle' | 'cone' | 'visibility';
 export type SessionMapDrawMode = 'grab' | 'freehand' | 'polygon' | 'line' | 'rectangle' | 'circle' | 'triangle' | 'hexagon' | 'text' | 'eraser';
+export type SessionMapFogMode = 'grab' | 'quick-select' | 'polygon' | 'freehand' | 'rectangle' | 'circle' | 'triangle' | 'hexagon' | 'cutter';
+export type SessionMapFogOperation = 'cover' | 'reveal';
+export type SessionMapFogOverlapMode = 'fit' | 'trim' | 'join' | 'overlay';
+export type SessionMapFogSettings = { mode: SessionMapFogMode; operation: SessionMapFogOperation; previewAsPlayer: boolean; overlapMode: SessionMapFogOverlapMode; color: string; strokeWidth: number; styleRevision: number; fullMapCovered: boolean };
 export type SessionMapDrawingStyle = { strokeColor: string; fillColor: string; strokeWidth: number; opacity: number; fillOpacity: number; lineStyle: 'solid' | 'dashed' | 'dotted' | 'dash-dot' | 'long-dash' };
 export type SessionMapTextStyle = { content: string; fontSize: number; fontFamily: string; bold: boolean; italic: boolean; underline: boolean; strike: boolean; align: 'left' | 'center' | 'right'; color: string; strokeColor: string; horizontalScale: number; orientation: 'horizontal' | 'vertical' };
 export const DEFAULT_SESSION_DRAW_STYLE: SessionMapDrawingStyle = { strokeColor: '#22d3ee', fillColor: '#22d3ee', strokeWidth: 4, opacity: 1, fillOpacity: 0.18, lineStyle: 'solid' };
@@ -28,6 +32,12 @@ let drawStyle = DEFAULT_SESSION_DRAW_STYLE;
 let textStyle = DEFAULT_SESSION_TEXT_STYLE;
 let drawSnapshot: { mode: SessionMapDrawMode; style: SessionMapDrawingStyle; textStyle: SessionMapTextStyle } = { mode: drawMode, style: drawStyle, textStyle };
 const drawListeners = new Set<() => void>();
+let fogSettings: SessionMapFogSettings = { mode: 'grab', operation: 'cover', previewAsPlayer: false, overlapMode: 'overlay', color: '#111827', strokeWidth: 2, styleRevision: 0, fullMapCovered: false };
+let fogSnapshot = fogSettings;
+const fogListeners = new Set<() => void>();
+let coverFullMapHandler: (() => void) | null = null;
+let clearFogHandler: (() => void) | null = null;
+let clearFogSelectionHandler: (() => void) | null = null;
 let clearDrawingsHandler: (() => void) | null = null;
 const gridListeners = new Set<() => void>();
 let gridSettings = DEFAULT_SESSION_GRID;
@@ -46,6 +56,10 @@ let mapRedoAvailable = false;
 let mapUndoHandler: (() => void) | null = null;
 let mapRedoHandler: (() => void) | null = null;
 const mapHistoryListeners = new Set<() => void>();
+let sessionMapCurrentUserId: string | null = null;
+
+export function setSessionMapCurrentUserId(userId: string | null) { sessionMapCurrentUserId = userId; }
+export function getSessionMapCurrentUserId() { return sessionMapCurrentUserId; }
 let mapCalibrationActive = false;
 const mapCalibrationListeners = new Set<() => void>();
 
@@ -127,6 +141,38 @@ export function useSessionMapDrawSettings() {
 
 export function configureSessionMapDrawingClear(handler: (() => void) | null) { clearDrawingsHandler = handler; }
 export function requestSessionMapDrawingClear() { clearDrawingsHandler?.(); }
+
+export function updateSessionMapFogSettings(update: Partial<SessionMapFogSettings>) {
+  const styleChanged = (update.color !== undefined && update.color !== fogSettings.color) || (update.strokeWidth !== undefined && update.strokeWidth !== fogSettings.strokeWidth);
+  fogSettings = { ...fogSettings, ...update, styleRevision: styleChanged ? fogSettings.styleRevision + 1 : fogSettings.styleRevision };
+  fogSnapshot = fogSettings;
+  fogListeners.forEach(listener => listener());
+}
+
+export function useSessionMapFogSettings() {
+  return useSyncExternalStore(listener => { fogListeners.add(listener); return () => fogListeners.delete(listener); }, () => fogSnapshot, () => fogSettings);
+}
+
+export function hydrateSessionMapFogStyle(style: Pick<SessionMapFogSettings, 'color' | 'strokeWidth'>) {
+  if (style.color === fogSettings.color && style.strokeWidth === fogSettings.strokeWidth) return;
+  fogSettings = { ...fogSettings, ...style };
+  fogSnapshot = fogSettings;
+  fogListeners.forEach(listener => listener());
+}
+
+export function setSessionMapFogFullMapCovered(covered: boolean) {
+  if (fogSettings.fullMapCovered === covered) return;
+  fogSettings = { ...fogSettings, fullMapCovered: covered };
+  fogSnapshot = fogSettings;
+  fogListeners.forEach(listener => listener());
+}
+
+export function configureSessionMapFogCoverFullMap(handler: (() => void) | null) { coverFullMapHandler = handler; }
+export function requestSessionMapFogCoverFullMap() { coverFullMapHandler?.(); }
+export function configureSessionMapFogClear(handler: (() => void) | null) { clearFogHandler = handler; }
+export function requestSessionMapFogClear() { clearFogHandler?.(); }
+export function configureSessionMapFogSelectionClear(handler: (() => void) | null) { clearFogSelectionHandler = handler; }
+export function requestSessionMapFogSelectionClear() { clearFogSelectionHandler?.(); }
 
 export function configureSessionGrid(settings: SessionGridSettings, editable: boolean, onChange: ((settings: SessionGridSettings) => void) | null) {
   gridSettings = settings;

@@ -45,6 +45,7 @@ export interface UseCampaignNotesSectionParams {
    *  sono sempre montate, ma solo una alla volta "possiede" la colonna di
    *  dettaglio a destra (vedi activeScope li'). */
   onSelectNote: () => void;
+  onPickNote?: (noteId: string, noteLabel: string) => void;
   /** false = niente fetch ne' sottoscrizione realtime, folders/customTabs
    *  restano vuoti - usato per l'istanza scope='gm' quando il chiamante non
    *  e' GM: l'hook va comunque chiamato SEMPRE (le regole di React vietano
@@ -64,6 +65,7 @@ export interface UseCampaignNotesSectionResult {
   handleAddNote: () => void;
   handleCreateFolder: () => void;
   createDisabledReason: string | null;
+  openNote: (noteId: string) => boolean;
 }
 
 /**
@@ -75,18 +77,7 @@ export interface UseCampaignNotesSectionResult {
  * section.renderRows(), che le tratta come i directItems di useFolderSection
  * esattamente come farebbe con PNG/Mostri in SessionCharactersPanel.tsx.
  */
-export function useCampaignNotesSection({
-  campaignId,
-  sessionKey,
-  accessToken,
-  canEdit,
-  currentUserId,
-  scope,
-  savedTabOrder,
-  onPersistTabOrder,
-  onSelectNote,
-  enabled = true,
-}: UseCampaignNotesSectionParams): UseCampaignNotesSectionResult {
+export function useCampaignNotesSection({ campaignId, sessionKey, accessToken, canEdit, currentUserId, scope, savedTabOrder, onPersistTabOrder, onSelectNote, onPickNote, enabled = true }: UseCampaignNotesSectionParams): UseCampaignNotesSectionResult {
   const [menuColors] = useState(() => getCurrentPaletteColors());
 
   const tabs = useEntityTabs({
@@ -107,7 +98,7 @@ export function useCampaignNotesSection({
   // Duplica il fetch tra le due istanze montate in SessionNotesPanel.tsx, ma
   // il volume di note di campagna e' talmente piccolo che non vale la pena
   // di un parametro server dedicato solo per evitarlo.
-  const scopedTabs = tabs.customTabs.filter(t => t.hidden === (scope === 'gm'));
+  const scopedTabs = tabs.customTabs.filter((t) => t.hidden === (scope === 'gm'));
 
   // Ordine di lista = tabOrder gia' salvato (tabOrderCampaignNotes/
   // tabOrderGmNotes), non l'ordine di arrivo dal server - tabs.orderedTabs
@@ -115,9 +106,7 @@ export function useCampaignNotesSection({
   // Nessun drag-riordino nella lista verticale per ora (vedi il piano): la
   // sola fonte d'ordine resta questo mapping.
   const orderIndex = new Map(tabs.orderedTabs.map((t, i) => [t.id, i]));
-  const scopedTabsSorted = [...scopedTabs].sort(
-    (a, b) => (orderIndex.get(a.id) ?? 0) - (orderIndex.get(b.id) ?? 0)
-  );
+  const scopedTabsSorted = [...scopedTabs].sort((a, b) => (orderIndex.get(a.id) ?? 0) - (orderIndex.get(b.id) ?? 0));
 
   const folderEntityType = scope === 'gm' ? 'gmnotes' : 'campaignnotes';
   const emptyLabel = scope === 'gm' ? 'Nessuna nota del GM.' : 'Nessuna nota di campagna.';
@@ -129,24 +118,9 @@ export function useCampaignNotesSection({
     accessToken: accessToken ?? null,
     canEdit,
     enabled,
-    items: scopedTabsSorted.map(t => ({ ...t, folderId: t.folder_id })),
-    renderCard: (note) => (
-      <NoteListRow
-        note={note}
-        tabs={tabs}
-        canEdit={canEditNote(note, currentUserId, canEdit)}
-        isGm={canEdit}
-        folders={section.folders.map(f => ({ id: f.id, name: f.name }))}
-        colors={menuColors}
-        isSelected={tabs.currentTab === note.id}
-        onSelect={onSelectNote}
-      />
-    ),
-    renderGhostCard: (note) => (
-      <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-3 py-2 text-sm text-[var(--dash-text)]">
-        {note.tab_name}
-      </div>
-    ),
+    items: scopedTabsSorted.map((t) => ({ ...t, folderId: t.folder_id })),
+    renderCard: (note) => <NoteListRow note={note} tabs={tabs} canEdit={canEditNote(note, currentUserId, canEdit)} isGm={canEdit} folders={section.folders.map((f) => ({ id: f.id, name: f.name }))} colors={menuColors} isSelected={tabs.currentTab === note.id} onSelect={() => { onSelectNote(); onPickNote?.(note.id, note.tab_name); }} />,
+    renderGhostCard: (note) => <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-3 py-2 text-sm text-[var(--dash-text)]">{note.tab_name}</div>,
     itemLabel: 'note',
     onMoveCard: (tabId, folderId) => tabs.handleMoveCustomTabToFolder(tabId, folderId),
     // Niente merge fine-grained (stesso motivo di reloadFolders in
@@ -156,7 +130,9 @@ export function useCampaignNotesSection({
     // (folder_id delle note orfane azzerato dalla FK "on delete set null",
     // vedi supabase-add-notes-folders.sql - il reload lo riflette subito
     // invece di aspettare il broadcast realtime riga-per-riga).
-    onFolderDeleted: async () => { await tabs.reloadCustomTabs(); },
+    onFolderDeleted: async () => {
+      await tabs.reloadCustomTabs();
+    },
     maxVisibleDescendantShortcuts: 4,
     menuColors,
   });
@@ -164,9 +140,7 @@ export function useCampaignNotesSection({
   // Vista vuota (stesso calcolo di npcCurrentViewEmpty/monsterCurrentViewEmpty
   // in SessionCharactersPanel.tsx): nessuna sotto-cartella e nessuna nota
   // diretta nella cartella corrente.
-  const currentViewEmpty =
-    section.folders.filter(f => f.parentFolderId === section.currentFolderId).length === 0 &&
-    scopedTabsSorted.filter(t => (t.folder_id ?? null) === section.currentFolderId).length === 0;
+  const currentViewEmpty = section.folders.filter((f) => f.parentFolderId === section.currentFolderId).length === 0 && scopedTabsSorted.filter((t) => (t.folder_id ?? null) === section.currentFolderId).length === 0;
 
   // Nessuna selezione automatica (ne' "prima nota", ne' "sgancia se la
   // cartella cambia"): la selezione resta interamente in mano all'utente,
@@ -175,20 +149,13 @@ export function useCampaignNotesSection({
   // nota selezionata sparisce (nascosta/eliminata da altri), useEntityTabs
   // la sgancia gia' da solo (torna a currentTab='', vedi il suo effect
   // "torna alla tab di default").
-  const selectedTab = scopedTabsSorted.find(t => t.id === tabs.currentTab) ?? null;
+  const selectedTab = scopedTabsSorted.find((t) => t.id === tabs.currentTab) ?? null;
 
   const renderSidebar = (): React.ReactNode => (
     <>
       {section.folderPath.length > 0 && (
         <div className="mb-2">
-          <FolderBreadcrumb
-            sectionLabel={scope === 'gm' ? 'Note del GM' : 'Note della Campagna'}
-            path={section.folderPath}
-            entityType={folderEntityType}
-            dropTarget={section.dnd.dropTarget}
-            onNavigate={section.setCurrentFolderId}
-            compact
-          />
+          <FolderBreadcrumb sectionLabel={scope === 'gm' ? 'Note del GM' : 'Note della Campagna'} path={section.folderPath} entityType={folderEntityType} dropTarget={section.dnd.dropTarget} onNavigate={section.setCurrentFolderId} compact />
         </div>
       )}
       <div className="space-y-1">
@@ -200,56 +167,30 @@ export function useCampaignNotesSection({
 
   const renderDetail = (): React.ReactNode => {
     if (!selectedTab || !(canEdit || !selectedTab.hidden)) {
-      return (
-        <div className="flex h-full items-center justify-center text-sm text-[var(--dash-muted)]">
-          Seleziona una nota dalla lista
-        </div>
-      );
+      return <div className="flex h-full items-center justify-center text-sm text-[var(--dash-muted)]">Seleziona una nota dalla lista</div>;
     }
-    return (
-      <NoteSubTabs
-        note={selectedTab}
-        campaignId={campaignId}
-        accessToken={accessToken}
-        canEdit={canEditNote(selectedTab, currentUserId, canEdit)}
-        onPersistSubTabOrder={(order) => tabs.handlePersistSubTabOrder(selectedTab.id, order)}
-      />
-    );
+    return <NoteSubTabs note={selectedTab} campaignId={campaignId} accessToken={accessToken} canEdit={canEditNote(selectedTab, currentUserId, canEdit)} onPersistSubTabOrder={(order) => tabs.handlePersistSubTabOrder(selectedTab.id, order)} />;
   };
 
   const renderDialogs = (): React.ReactNode => (
     <>
-      {section.iconPickerFolder && (
-        <FolderIconPicker
-          selectedIconId={section.iconPickerFolder.icon}
-          onSelect={section.selectFolderIcon}
-          onClose={section.closeIconPicker}
-        />
-      )}
+      {section.iconPickerFolder && <FolderIconPicker selectedIconId={section.iconPickerFolder.icon} onSelect={section.selectFolderIcon} onClose={section.closeIconPicker} />}
       {section.deleteFolderTarget && (
         <ConfirmDialog
           title="Eliminare questa cartella?"
-          message={
-            section.deleteFolderCascadeContent
-              ? `"${section.deleteFolderTarget.name}" e tutto il suo contenuto verranno spostati nel Cestino - potrai ripristinarli in seguito.`
-              : `"${section.deleteFolderTarget.name}" verrà spostata nel Cestino. Le note al suo interno non vengono cestinate: torneranno semplicemente senza cartella.`
-          }
+          message={section.deleteFolderCascadeContent ? `"${section.deleteFolderTarget.name}" e tutto il suo contenuto verranno spostati nel Cestino - potrai ripristinarli in seguito.` : `"${section.deleteFolderTarget.name}" verrà spostata nel Cestino. Le note al suo interno non vengono cestinate: torneranno semplicemente senza cartella.`}
           confirmLabel={section.deleteFolderCascadeContent ? 'Elimina tutto' : 'Elimina'}
-          extraContent={section.deleteFolderContents && (
-            <label className="flex items-start gap-2 text-sm text-[var(--dash-text)]">
-              <input
-                type="checkbox"
-                checked={section.deleteFolderCascadeContent}
-                onChange={(e) => section.setDeleteFolderCascadeContent(e.target.checked)}
-                className="mt-0.5"
-              />
-              <span>
-                Elimina anche il contenuto: {section.deleteFolderContents.itemCount} {section.itemLabel}
-                {section.deleteFolderContents.folderCount > 0 && ` e ${section.deleteFolderContents.folderCount} sotto-cartell${section.deleteFolderContents.folderCount === 1 ? 'a' : 'e'}`}
-                {' '}verranno spostati nel Cestino.
-              </span>
-            </label>
-          )}
+          extraContent={
+            section.deleteFolderContents && (
+              <label className="flex items-start gap-2 text-sm text-[var(--dash-text)]">
+                <input type="checkbox" checked={section.deleteFolderCascadeContent} onChange={(e) => section.setDeleteFolderCascadeContent(e.target.checked)} className="mt-0.5" />
+                <span>
+                  Elimina anche il contenuto: {section.deleteFolderContents.itemCount} {section.itemLabel}
+                  {section.deleteFolderContents.folderCount > 0 && ` e ${section.deleteFolderContents.folderCount} sotto-cartell${section.deleteFolderContents.folderCount === 1 ? 'a' : 'e'}`} verranno spostati nel Cestino.
+                </span>
+              </label>
+            )
+          }
           onConfirm={section.confirmDeleteFolder}
           onCancel={section.cancelDeleteFolder}
         />
@@ -266,5 +207,11 @@ export function useCampaignNotesSection({
     handleAddNote: () => tabs.handleAddCustomTab('Nuova nota', { hidden: scope === 'gm', folderId: section.currentFolderId }),
     handleCreateFolder: section.handleCreateFolder,
     createDisabledReason: section.createDisabledReason,
+    openNote: (noteId) => {
+      if (!scopedTabsSorted.some((note) => note.id === noteId)) return false;
+      tabs.setCurrentTab(noteId);
+      onSelectNote();
+      return true;
+    },
   };
 }

@@ -1,17 +1,23 @@
 import { Fragment, useEffect, useRef, useState, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent } from 'react';
-import { configureSessionMapCenter, configureSessionMapFit, setSessionMapCalibrationActive, setSessionMapSelectionArmed, updateSessionGrid, useActiveSessionMapTool, useSessionMapCalibrationActive, useSessionMapDrawSettings, useSessionMapMeasureMode, useSessionMapMeasurementsVisibleToAll, useSessionMapSelectionArmed, useSessionMapSelectionMode, type SessionMapDrawMode, type SessionMapFitMode, type SessionMapTool } from './mapToolStore';
+import { configureSessionMapCenter, configureSessionMapFit, configureSessionMapFogClear, configureSessionMapFogCoverFullMap, configureSessionMapFogSelectionClear, getSessionMapCurrentUserId, hydrateSessionMapFogStyle, setSessionMapCalibrationActive, setSessionMapFogFullMapCovered, setSessionMapSelectionArmed, updateSessionGrid, useActiveSessionMapTool, useSessionMapCalibrationActive, useSessionMapDrawSettings, useSessionMapFogSettings, useSessionMapMeasureMode, useSessionMapMeasurementsVisibleToAll, useSessionMapSelectionArmed, useSessionMapSelectionMode, type SessionMapDrawMode, type SessionMapFitMode, type SessionMapFogMode, type SessionMapTool } from './mapToolStore';
 import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
 import type { SessionGridSettings } from '../../../types/mapGeometry';
 import { snapToSessionGrid, type GridObjectSize } from './mapGridSnap';
 import type { SessionMapToken, SessionMapTokenCondition, SessionMapTokenVisual } from '../../../types/sessionMapToken';
 import type { SessionMapDrawing, SessionMapDrawingKind, SessionMapPoint } from '../../../types/sessionMapDrawing';
+import type { SessionMapPoi } from '../../../types/sessionMapPoi';
+import type { SessionMapFog, SessionMapFogKind } from '../../../types/sessionMapFog';
 import { registerSessionMapTokenDropHandler } from './sessionMapTokenDropStore';
 import { TokenGhostShape } from '../shared/TokenGhostShape';
 import { MARGIN_SCALE } from '../shared/tokenShapes';
-import { getRotatedSquareBounds, isBoundsFullyContained, polygonCoverage, rectangleCoverage, type MapLayerMove } from './mapObjectLayers';
-import { Accessibility, AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowRight, ArrowUp, BatteryLow, Bed, Biohazard, Bold, ChevronsDown, ChevronsUp, CircleX, EarOff, Eye, EyeOff, Flashlight, Ghost, GripHorizontal, Hand, Heart, HeartCrack, Italic, Layers3, Lock, LockKeyhole, Magnet, Maximize2, Mountain, Orbit, Palette, ScanEye, Skull, Star, Strikethrough, Trash2, Type, Underline, Unlock, UserRoundX, X, type LucideIcon } from 'lucide-react';
+import { getRotatedRectBounds, getRotatedSquareBounds, isBoundsFullyContained, pointInPolygon, polygonCoverage, reconcileMapObjectOrder, rectangleCoverage, type MapLayerMove, type MapObjectRef } from './mapObjectLayers';
+import { Accessibility, AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowRight, ArrowUp, BatteryLow, Bed, Biohazard, Bold, ChevronsDown, ChevronsUp, CircleX, ClipboardCopy, ClipboardPaste, CloudFog, EarOff, Eye, EyeOff, Flashlight, Ghost, GripHorizontal, Hand, Heart, HeartCrack, Italic, Layers3, Link, Lock, LockKeyhole, Magnet, Maximize2, Mountain, Orbit, Palette, Pin, ScanEye, Shapes, Skull, Slash, Spline, Star, Strikethrough, Trash2, Type, Underline, Unlock, UserRoundX, X, type LucideIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { Copy } from '../IconeCopia';
+import { NoteIconGlyph, NoteIconGrid } from './shared/NoteIconGrid';
+import { ContextHint } from './shared/ContextHint';
+import { requestSessionNoteOpen } from './sessionNoteBrowserEvents';
+import { projectId } from '/utils/supabase/info';
 
 const MIN_SCALE = 0.3;
 const MAX_SCALE = 6;
@@ -116,6 +122,7 @@ type DrawingGesture = {
   current: SessionMapPoint;
   points: SessionMapPoint[];
 };
+type FogGesture = { pointerId: number; mode: Exclude<SessionMapFogMode, 'grab' | 'quick-select' | 'polygon' | 'cutter'>; start: SessionMapPoint; current: SessionMapPoint; points: SessionMapPoint[] };
 
 interface MapViewportProps {
   campaignId?: string;
@@ -123,10 +130,22 @@ interface MapViewportProps {
   mapId: string;
   backgroundUrl?: string | null;
   isOwner: boolean;
+  currentUserId?: string | null;
+  currentUserAccessToken?: string | null;
   mapPlacement: MapPlacement;
   gridSettings: SessionGridSettings;
   mapTokens?: SessionMapToken[];
   mapDrawings?: SessionMapDrawing[];
+  mapFog?: SessionMapFog[];
+  mapPois?: SessionMapPoi[];
+  mapObjectOrder?: MapObjectRef[];
+  onPoiCreate?: (position: TokenPosition) => void;
+  onPoiMove?: (poiId: string, position: TokenPosition) => void;
+  onPoiChange?: (poiId: string, update: Partial<SessionMapPoi>) => void;
+  onPoiDelete?: (poiId: string) => void;
+  onPoiDuplicate?: (poiId: string) => void;
+  onPoiPaste?: (source: SessionMapPoi, position: TokenPosition) => void;
+  onPoiLayerMove?: (poiId: string, move: MapLayerMove) => void;
   onDrawingCreate?: (drawing: SessionMapDrawing) => void;
   onDrawingChange?: (drawingId: string, update: Partial<SessionMapDrawing>) => void;
   onDrawingsChange?: (drawingIds: string[], update: Partial<SessionMapDrawing>) => void;
@@ -140,6 +159,14 @@ interface MapViewportProps {
   onDrawingsLayerMove?: (drawingIds: string[], move: MapLayerMove) => void;
   onDrawingsCreateMagnetGroup?: (drawingIds: string[]) => void;
   onDrawingMagnetDisable?: (drawingId: string) => void;
+  onFogCreate?: (fog: SessionMapFog) => void;
+  onFogChange?: (fogId: string, update: Partial<SessionMapFog>) => void;
+  onFogsChange?: (fogIds: string[], update: Partial<SessionMapFog>) => void;
+  onFogsMove?: (updates: Record<string, Partial<SessionMapFog>>) => void;
+  onFogTransformsChange?: (updates: Record<string, Partial<SessionMapFog>>) => void;
+  onFogDelete?: (fogId: string) => void;
+  onFogsDelete?: (fogIds: string[]) => void;
+  onFogCoverFullMap?: (fog: SessionMapFog) => void;
   onMapPlacementChange?: (placement: MapPlacement) => void;
   onTokenDrop?: (visual: SessionMapTokenVisual, position: TokenPosition, size: number) => void;
   onTokensMove?: (positions: Record<string, TokenPosition>) => void;
@@ -162,36 +189,180 @@ function drawingLineDash(style: SessionMapDrawing['style']['lineStyle']) {
 }
 
 function measureMapText(text: NonNullable<SessionMapDrawing['text']>, strokeWidth: number) {
-  const lines = text.content.split(/\r?\n/); const canvas = document.createElement('canvas'); const context = canvas.getContext('2d');
+  const lines = text.content.split(/\r?\n/);
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
   if (context) context.font = `${text.italic ? 'italic ' : ''}${text.bold ? '700 ' : ''}${text.fontSize}px ${text.fontFamily}`;
-  const width = Math.max(...lines.map(line => context?.measureText(line).width ?? line.length * text.fontSize * .6), 1) + Math.max(1, strokeWidth / 2);
+  const width = Math.max(...lines.map((line) => context?.measureText(line).width ?? line.length * text.fontSize * 0.6), 1) + Math.max(1, strokeWidth / 2);
   const height = Math.max(text.fontSize * 1.15 * lines.length, text.fontSize);
   const horizontalScale = text.horizontalScale ?? 1;
   return text.orientation === 'vertical'
     ? {
         width: Math.ceil(Math.max(text.fontSize * 1.15 * lines.length, text.fontSize) * horizontalScale + Math.max(1, strokeWidth / 2)),
-        height: Math.ceil(Math.max(...lines.map(line => Math.max(line.length, 1))) * text.fontSize * 1.15 + Math.max(1, strokeWidth / 2)),
+        height: Math.ceil(Math.max(...lines.map((line) => Math.max(line.length, 1))) * text.fontSize * 1.15 + Math.max(1, strokeWidth / 2)),
       }
     : { width: Math.ceil(width * horizontalScale), height: Math.ceil(height) };
 }
 
-function withMeasuredTextBounds(drawing: SessionMapDrawing) { return drawing.kind === 'text' && drawing.text ? { ...drawing, ...measureMapText(drawing.text, drawing.style.strokeWidth) } : drawing; }
+function withMeasuredTextBounds(drawing: SessionMapDrawing) {
+  return drawing.kind === 'text' && drawing.text ? { ...drawing, ...measureMapText(drawing.text, drawing.style.strokeWidth) } : drawing;
+}
+
+function pointSegmentDistance(point: SessionMapPoint, start: SessionMapPoint, end: SessionMapPoint) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  if (dx === 0 && dy === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+  const position = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy)));
+  return Math.hypot(point.x - (start.x + position * dx), point.y - (start.y + position * dy));
+}
+
+function simplifyPathPoints(points: SessionMapPoint[], tolerance: number): SessionMapPoint[] {
+  if (points.length <= 2) return points.map((point) => ({ ...point }));
+  let farthestIndex = 0;
+  let farthestDistance = 0;
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const distance = pointSegmentDistance(points[index], points[0], points[points.length - 1]);
+    if (distance > farthestDistance) {
+      farthestDistance = distance;
+      farthestIndex = index;
+    }
+  }
+  if (farthestDistance <= tolerance) return [{ ...points[0] }, { ...points[points.length - 1] }];
+  const before = simplifyPathPoints(points.slice(0, farthestIndex + 1), tolerance);
+  const after = simplifyPathPoints(points.slice(farthestIndex), tolerance);
+  return [...before.slice(0, -1), ...after];
+}
+
+function convertDrawingToPath(drawing: SessionMapDrawing): SessionMapPoint[] {
+  if (drawing.kind === 'rectangle')
+    return [
+      { x: 0, y: 0 },
+      { x: drawing.width, y: 0 },
+      { x: drawing.width, y: drawing.height },
+      { x: 0, y: drawing.height },
+    ];
+  if (drawing.kind === 'triangle')
+    return [
+      { x: drawing.width / 2, y: 0 },
+      { x: drawing.width, y: drawing.height },
+      { x: 0, y: drawing.height },
+    ];
+  if (drawing.kind === 'hexagon')
+    return [
+      { x: drawing.width * 0.25, y: 0 },
+      { x: drawing.width * 0.75, y: 0 },
+      { x: drawing.width, y: drawing.height / 2 },
+      { x: drawing.width * 0.75, y: drawing.height },
+      { x: drawing.width * 0.25, y: drawing.height },
+      { x: 0, y: drawing.height / 2 },
+    ];
+  if (drawing.kind === 'circle') {
+    const count = Math.max(12, Math.min(32, Math.round((Math.PI * Math.max(drawing.width, drawing.height)) / 24)));
+    return Array.from({ length: count }, (_, index) => {
+      const angle = -Math.PI / 2 + (index * Math.PI * 2) / count;
+      return { x: drawing.width / 2 + (Math.cos(angle) * drawing.width) / 2, y: drawing.height / 2 + (Math.sin(angle) * drawing.height) / 2 };
+    });
+  }
+  return drawing.points?.map((point) => ({ ...point })) ?? [];
+}
+
+function drawingVisualCenter(drawing: SessionMapDrawing) {
+  const rotationCenter = { x: drawing.width / 2, y: drawing.height / 2 };
+  if (!drawing.points?.length) return rotationCenter;
+  const angle = (drawing.rotation * Math.PI) / 180;
+  const rotatedPoints = drawing.points.map((point) => {
+    const dx = point.x - rotationCenter.x;
+    const dy = point.y - rotationCenter.y;
+    return {
+      x: rotationCenter.x + dx * Math.cos(angle) - dy * Math.sin(angle),
+      y: rotationCenter.y + dx * Math.sin(angle) + dy * Math.cos(angle),
+    };
+  });
+  return {
+    x: (Math.min(...rotatedPoints.map((point) => point.x)) + Math.max(...rotatedPoints.map((point) => point.x))) / 2,
+    y: (Math.min(...rotatedPoints.map((point) => point.y)) + Math.max(...rotatedPoints.map((point) => point.y))) / 2,
+  };
+}
+
+function pointInsidePolygon(point: SessionMapPoint, polygon: SessionMapPoint[]) {
+  let inside = false;
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+    const a = polygon[index];
+    const b = polygon[previous];
+    if (a.y > point.y !== b.y > point.y && point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+}
+
+function segmentsIntersect(a: SessionMapPoint, b: SessionMapPoint, c: SessionMapPoint, d: SessionMapPoint) {
+  const cross = (p: SessionMapPoint, q: SessionMapPoint, r: SessionMapPoint) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  const abC = cross(a, b, c);
+  const abD = cross(a, b, d);
+  const cdA = cross(c, d, a);
+  const cdB = cross(c, d, b);
+  const boundsOverlap = Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x)) <= Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x)) && Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y)) <= Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y));
+  return boundsOverlap && abC * abD <= 0 && cdA * cdB <= 0;
+}
+
+function drawingWorldPoints(drawing: SessionMapDrawing) {
+  if (!drawing.points?.length) return [];
+  const center = { x: drawing.width / 2, y: drawing.height / 2 };
+  const angle = (drawing.rotation * Math.PI) / 180;
+  return drawing.points.map((point) => {
+    const dx = point.x - center.x;
+    const dy = point.y - center.y;
+    return { x: drawing.x + center.x + dx * Math.cos(angle) - dy * Math.sin(angle), y: drawing.y + center.y + dx * Math.sin(angle) + dy * Math.cos(angle) };
+  });
+}
+
+function drawingPathIntersectsPolygon(drawing: SessionMapDrawing, selection: SessionMapPoint[]) {
+  const points = drawingWorldPoints(drawing);
+  if (points.length < 2 || selection.length < 3) return false;
+  if (points.some((point) => pointInsidePolygon(point, selection))) return true;
+  const drawingSegments = points.slice(0, -1).map((point, index) => [point, points[index + 1]] as const);
+  if (drawing.kind === 'polygon') drawingSegments.push([points[points.length - 1], points[0]]);
+  const selectionSegments = selection.map((point, index) => [point, selection[(index + 1) % selection.length]] as const);
+  if (drawingSegments.some(([a, b]) => selectionSegments.some(([c, d]) => segmentsIntersect(a, b, c, d)))) return true;
+  return drawing.kind === 'polygon' && selection.some((point) => pointInsidePolygon(point, points));
+}
+
+function textCurveControlCount(content: string) {
+  const characterCount = Array.from(content.replace(/\s/g, '')).length;
+  return characterCount <= 1 ? 0 : characterCount <= 4 ? 1 : characterCount <= 24 ? 5 : 7;
+}
+
+function normalizedTextCurveOffsets(text: NonNullable<SessionMapDrawing['text']>) {
+  const count = textCurveControlCount(text.content);
+  const source = text.curveOffsets ?? [];
+  if (source.length === count) return source;
+  if (source.length === 0) return Array.from({ length: count }, () => 0);
+  const values = [0, ...source, 0];
+  return Array.from({ length: count }, (_, index) => {
+    const sourcePosition = ((index + 1) / (count + 1)) * (source.length + 1);
+    const lower = Math.floor(sourcePosition);
+    const fraction = sourcePosition - lower;
+    return (values[lower] ?? 0) * (1 - fraction) + (values[lower + 1] ?? 0) * fraction;
+  });
+}
 
 function curvedTextPath(drawing: SessionMapDrawing) {
   if (!drawing.text) return '';
   const vertical = drawing.text.orientation === 'vertical';
-  const offsets = drawing.text.curveOffsets?.slice(0, 5) ?? [];
-  const values = [0, ...Array.from({ length: 5 }, (_, index) => offsets[index] ?? 0), 0];
-  const points = values.map((offset, index) => vertical
-    ? { x: drawing.width / 2 + offset, y: drawing.height * index / 6 }
-    : { x: drawing.width * index / 6, y: Math.min(drawing.height, drawing.text!.fontSize) + offset });
+  const offsets = normalizedTextCurveOffsets(drawing.text);
+  const values = [0, ...offsets, 0];
+  const segments = offsets.length + 1;
+  const endPadding = drawing.text.fontSize * 0.45;
+  const points = values.map((offset, index) => (vertical ? { x: drawing.width / 2 + offset, y: -endPadding + ((drawing.height + endPadding * 2) * index) / segments } : { x: -endPadding + ((drawing.width + endPadding * 2) * index) / segments, y: Math.min(drawing.height, drawing.text!.fontSize) + offset }));
   let path = `M ${points[0].x} ${points[0].y}`;
-  for (let index = 1; index < points.length - 1; index += 1) {
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const previous = points[Math.max(0, index - 1)];
+    const current = points[index];
     const next = points[index + 1];
-    path += ` Q ${points[index].x} ${points[index].y} ${(points[index].x + next.x) / 2} ${(points[index].y + next.y) / 2}`;
+    const following = points[Math.min(points.length - 1, index + 2)];
+    const control1 = { x: current.x + (next.x - previous.x) / 6, y: current.y + (next.y - previous.y) / 6 };
+    const control2 = { x: next.x - (following.x - current.x) / 6, y: next.y - (following.y - current.y) / 6 };
+    path += ` C ${control1.x} ${control1.y} ${control2.x} ${control2.y} ${next.x} ${next.y}`;
   }
-  const last = points[points.length - 1];
-  path += ` T ${last.x} ${last.y}`;
   return path;
 }
 
@@ -214,15 +385,18 @@ function drawingGraphic(drawing: SessionMapDrawing, interactive = false, highlig
   if (drawing.kind === 'text' && drawing.text) {
     const decoration = [drawing.text.underline ? 'underline' : '', drawing.text.strike ? 'line-through' : ''].filter(Boolean).join(' ');
     const horizontalScale = drawing.text.horizontalScale ?? 1;
-    const curved = drawing.text.curveOffsets?.some(offset => Math.abs(offset) > 0.1);
+    const curved = normalizedTextCurveOffsets(drawing.text).some((offset) => Math.abs(offset) > 0.1);
     if (curved) {
       const pathId = `map-text-curve-${drawing.id.replace(/[^a-zA-Z0-9_-]/g, '')}`;
-      const startOffset = drawing.text.align === 'center' ? '50%' : drawing.text.align === 'right' ? '100%' : '0%';
       return (
         <svg width={drawing.width} height={drawing.height} overflow="visible" {...hit} style={{ opacity: drawing.style.opacity, filter: highlighted ? 'drop-shadow(0 0 2px #22d3ee) drop-shadow(0 0 5px rgba(34,211,238,.95))' : undefined }}>
-          <defs><path id={pathId} d={curvedTextPath(drawing)} /></defs>
-          <text fill={drawing.text.color} stroke={drawing.text.strokeColor} strokeWidth={Math.max(0.5, drawing.style.strokeWidth / 4)} paintOrder="stroke" fontFamily={drawing.text.fontFamily} fontSize={drawing.text.fontSize} fontWeight={drawing.text.bold ? 700 : 400} fontStyle={drawing.text.italic ? 'italic' : 'normal'} textDecoration={decoration} textAnchor={drawing.text.align === 'center' ? 'middle' : drawing.text.align === 'right' ? 'end' : 'start'} textLength={drawing.text.orientation === 'vertical' ? drawing.height : drawing.width} lengthAdjust="spacingAndGlyphs" style={{ writingMode: drawing.text.orientation === 'vertical' ? 'vertical-rl' : 'horizontal-tb', textOrientation: drawing.text.orientation === 'vertical' ? 'upright' : undefined }}>
-            <textPath href={`#${pathId}`} startOffset={startOffset}>{drawing.text.content}</textPath>
+          <defs>
+            <path id={pathId} d={curvedTextPath(drawing)} />
+          </defs>
+          <text fill={drawing.text.color} stroke={drawing.text.strokeColor} strokeWidth={Math.max(0.5, drawing.style.strokeWidth / 4)} paintOrder="stroke" fontFamily={drawing.text.fontFamily} fontSize={drawing.text.fontSize} fontWeight={drawing.text.bold ? 700 : 400} fontStyle={drawing.text.italic ? 'italic' : 'normal'} textDecoration={decoration} textAnchor="middle" style={{ writingMode: drawing.text.orientation === 'vertical' ? 'vertical-rl' : 'horizontal-tb', textOrientation: drawing.text.orientation === 'vertical' ? 'upright' : undefined }}>
+            <textPath href={`#${pathId}`} startOffset="50%">
+              {drawing.text.content}
+            </textPath>
           </text>
         </svg>
       );
@@ -267,6 +441,41 @@ function drawingGraphic(drawing: SessionMapDrawing, interactive = false, highlig
   return <rect width={drawing.width} height={drawing.height} {...common} {...hit} />;
 }
 
+function pointToSegmentDistance(point: SessionMapPoint, start: SessionMapPoint, end: SessionMapPoint) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+  const ratio = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared));
+  return Math.hypot(point.x - (start.x + ratio * dx), point.y - (start.y + ratio * dy));
+}
+
+function drawingContainsPoint(drawing: SessionMapDrawing, worldPoint: SessionMapPoint, scale: number) {
+  const centerX = drawing.x + drawing.width / 2;
+  const centerY = drawing.y + drawing.height / 2;
+  const angle = -(drawing.rotation ?? 0) * Math.PI / 180;
+  const worldDx = worldPoint.x - centerX;
+  const worldDy = worldPoint.y - centerY;
+  const point = {
+    x: worldDx * Math.cos(angle) - worldDy * Math.sin(angle) + drawing.width / 2,
+    y: worldDx * Math.sin(angle) + worldDy * Math.cos(angle) + drawing.height / 2,
+  };
+  const tolerance = (drawing.style.strokeWidth / 2 + 5) / Math.max(scale, 0.01);
+  const path = drawing.points ?? [];
+  const touchesPath = path.some((start, index) => index < path.length - 1 && pointToSegmentDistance(point, start, path[index + 1]) <= tolerance);
+  if (drawing.kind === 'line' || drawing.kind === 'freehand') return touchesPath;
+  if (drawing.kind === 'polygon') return pointInPolygon(point, path) || touchesPath || (path.length > 2 && pointToSegmentDistance(point, path[path.length - 1], path[0]) <= tolerance);
+  if (drawing.kind === 'circle') {
+    const radiusX = Math.max(1, drawing.width / 2);
+    const radiusY = Math.max(1, drawing.height / 2);
+    const normalized = ((point.x - radiusX) / (radiusX + tolerance)) ** 2 + ((point.y - radiusY) / (radiusY + tolerance)) ** 2;
+    return normalized <= 1;
+  }
+  if (drawing.kind === 'triangle') return pointInPolygon(point, [{ x: drawing.width / 2, y: 0 }, { x: drawing.width, y: drawing.height }, { x: 0, y: drawing.height }]);
+  if (drawing.kind === 'hexagon') return pointInPolygon(point, [{ x: drawing.width * 0.25, y: 0 }, { x: drawing.width * 0.75, y: 0 }, { x: drawing.width, y: drawing.height / 2 }, { x: drawing.width * 0.75, y: drawing.height }, { x: drawing.width * 0.25, y: drawing.height }, { x: 0, y: drawing.height / 2 }]);
+  return point.x >= -tolerance && point.x <= drawing.width + tolerance && point.y >= -tolerance && point.y <= drawing.height + tolerance;
+}
+
 function buildDrawing(kind: SessionMapDrawingKind, points: SessionMapPoint[], style: SessionMapDrawing['style']): SessionMapDrawing | null {
   if (points.length < 2 || (kind === 'polygon' && points.length < 3)) return null;
   const minX = Math.min(...points.map((point) => point.x));
@@ -288,12 +497,89 @@ function buildDrawing(kind: SessionMapDrawingKind, points: SessionMapPoint[], st
     points: ['freehand', 'polygon', 'line'].includes(kind) ? points.map((point) => ({ x: point.x - minX, y: point.y - minY })) : undefined,
     style: { ...style },
     locked: false,
+    pinned: false,
     visible: true,
     magnetEnabled: false,
     magnetGroupId: null,
     createdAt: now,
     updatedAt: now,
   };
+}
+
+function polygonArea(points: SessionMapPoint[]) {
+  return Math.abs(points.reduce((area, point, index) => {
+    const next = points[(index + 1) % points.length];
+    return area + point.x * next.y - next.x * point.y;
+  }, 0) / 2);
+}
+
+function segmentIntersection(a: SessionMapPoint, b: SessionMapPoint, c: SessionMapPoint, d: SessionMapPoint) {
+  const denominator = (b.x - a.x) * (d.y - c.y) - (b.y - a.y) * (d.x - c.x);
+  if (Math.abs(denominator) < 1e-7) return null;
+  const t = ((c.x - a.x) * (d.y - c.y) - (c.y - a.y) * (d.x - c.x)) / denominator;
+  const u = ((c.x - a.x) * (b.y - a.y) - (c.y - a.y) * (b.x - a.x)) / denominator;
+  if (t <= 1e-5 || t >= 1 - 1e-5 || u <= 1e-5 || u >= 1 - 1e-5) return null;
+  return { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) };
+}
+
+// A hand-drawn fog boundary can cross itself while retracing an area. Remove the
+// smaller loop at every crossing so persisted geometry contains only its shell.
+function outerFreehandContour(source: SessionMapPoint[]) {
+  let points = [...source];
+  for (let pass = 0; pass < source.length && points.length >= 4; pass += 1) {
+    let simplified = false;
+    for (let first = 0; first < points.length - 1 && !simplified; first += 1) {
+      for (let second = first + 2; second < points.length - 1; second += 1) {
+        if (first === 0 && second === points.length - 2) continue;
+        const crossing = segmentIntersection(points[first], points[first + 1], points[second], points[second + 1]);
+        if (!crossing) continue;
+        const loop = [crossing, ...points.slice(first + 1, second + 1)];
+        const remainder = [crossing, ...points.slice(second + 1), ...points.slice(0, first + 1)];
+        points = polygonArea(loop) > polygonArea(remainder) ? loop : remainder;
+        simplified = true;
+        break;
+      }
+    }
+    if (!simplified) break;
+  }
+  return points;
+}
+
+function buildFog(kind: SessionMapFogKind, points: SessionMapPoint[], operation: SessionMapFog['operation'], style: SessionMapFog['style']): SessionMapFog | null {
+  if (kind === 'freehand') points = outerFreehandContour(points);
+  if (points.length < 2 || (['polygon', 'freehand'].includes(kind) && points.length < 3)) return null;
+  const minX = Math.min(...points.map(point => point.x));
+  const minY = Math.min(...points.map(point => point.y));
+  const maxX = Math.max(...points.map(point => point.x));
+  const maxY = Math.max(...points.map(point => point.y));
+  const width = Math.max(1, maxX - minX);
+  const height = Math.max(1, maxY - minY);
+  if (Math.hypot(width, height) < 4) return null;
+  const now = new Date().toISOString();
+  return { id: crypto.randomUUID(), kind, operation, x: minX, y: minY, width, height, rotation: 0, points: ['polygon', 'freehand'].includes(kind) ? points.map(point => ({ x: point.x - minX, y: point.y - minY })) : undefined, style: { ...style }, enabled: true, locked: false, magnetEnabled: false, magnetGroupId: null, createdAt: now, updatedAt: now };
+}
+
+function fogShape(fog: SessionMapFog, props: Record<string, unknown> = {}) {
+  const points = fog.points?.map(point => `${point.x},${point.y}`).join(' ') ?? '';
+  if (fog.kind === 'polygon' || fog.kind === 'freehand') return <polygon points={points} {...props} />;
+  if (fog.kind === 'circle') return <ellipse cx={fog.width / 2} cy={fog.height / 2} rx={fog.width / 2} ry={fog.height / 2} {...props} />;
+  if (fog.kind === 'triangle') return <polygon points={`${fog.width / 2},0 ${fog.width},${fog.height} 0,${fog.height}`} {...props} />;
+  if (fog.kind === 'hexagon') return <polygon points={`${fog.width * 0.25},0 ${fog.width * 0.75},0 ${fog.width},${fog.height / 2} ${fog.width * 0.75},${fog.height} ${fog.width * 0.25},${fog.height} 0,${fog.height / 2}`} {...props} />;
+  return <rect width={fog.width} height={fog.height} {...props} />;
+}
+
+function fogContainsPoint(fog: SessionMapFog, worldPoint: SessionMapPoint) {
+  const centerX = fog.x + fog.width / 2;
+  const centerY = fog.y + fog.height / 2;
+  const angle = -fog.rotation * Math.PI / 180;
+  const dx = worldPoint.x - centerX;
+  const dy = worldPoint.y - centerY;
+  const point = { x: dx * Math.cos(angle) - dy * Math.sin(angle) + fog.width / 2, y: dx * Math.sin(angle) + dy * Math.cos(angle) + fog.height / 2 };
+  if (fog.kind === 'polygon' || fog.kind === 'freehand') return pointInPolygon(point, fog.points ?? []);
+  if (fog.kind === 'circle') return ((point.x - fog.width / 2) / Math.max(1, fog.width / 2)) ** 2 + ((point.y - fog.height / 2) / Math.max(1, fog.height / 2)) ** 2 <= 1;
+  if (fog.kind === 'triangle') return pointInPolygon(point, [{ x: fog.width / 2, y: 0 }, { x: fog.width, y: fog.height }, { x: 0, y: fog.height }]);
+  if (fog.kind === 'hexagon') return pointInPolygon(point, [{ x: fog.width * 0.25, y: 0 }, { x: fog.width * 0.75, y: 0 }, { x: fog.width, y: fog.height / 2 }, { x: fog.width * 0.75, y: fog.height }, { x: fog.width * 0.25, y: fog.height }, { x: 0, y: fog.height / 2 }]);
+  return point.x >= 0 && point.x <= fog.width && point.y >= 0 && point.y <= fog.height;
 }
 
 function MeasurementGraphic({ measurement, view, gridSettings }: { measurement: VisualMeasurement; view: ViewTransform; gridSettings: SessionGridSettings }) {
@@ -318,7 +604,7 @@ function MeasurementGraphic({ measurement, view, gridSettings }: { measurement: 
     },
   ];
   return (
-    <div aria-hidden="true" className={`pointer-events-none absolute inset-0 z-[21] overflow-visible transition-opacity duration-500 ${measurement.fading ? 'opacity-0' : 'opacity-100'}`}>
+    <div aria-hidden="true" className={`pointer-events-none absolute inset-0 z-[10000] overflow-visible transition-opacity duration-500 ${measurement.fading ? 'opacity-0' : 'opacity-100'}`}>
       <svg className="absolute inset-0 h-full w-full overflow-visible">
         {measurement.mode === 'circle' && (
           <>
@@ -492,7 +778,12 @@ function readStoredView(mapId: string): ViewTransform {
   return { x: 0, y: 0, scale: 1 };
 }
 
-export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwner, mapPlacement, gridSettings, mapTokens = [], mapDrawings = [], onDrawingCreate, onDrawingChange, onDrawingsChange, onDrawingsMove, onDrawingTransformsChange, onDrawingDelete, onDrawingsDelete, onDrawingDuplicate, onDrawingsDuplicate, onDrawingLayerMove, onDrawingsLayerMove, onDrawingsCreateMagnetGroup, onDrawingMagnetDisable, onMapPlacementChange, onTokenDrop, onTokensMove, onTokenLayerMove, onTokensLayerMove, onTokenLockChange, onTokenChange, onTokensChange, onTokenTransformsChange, onTokenDelete, onTokensDelete, onTokensCreateMagnetGroup, onTokenMagnetEnabledChange, onTokenMagnetLink, onTokenMagnetUnlink }: MapViewportProps) {
+export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwner, currentUserId, currentUserAccessToken, mapPlacement, gridSettings, mapTokens = [], mapDrawings = [], mapFog = [], mapPois = [], mapObjectOrder, onPoiCreate, onPoiMove, onPoiChange, onPoiDelete, onPoiDuplicate, onPoiPaste, onPoiLayerMove, onDrawingCreate, onDrawingChange, onDrawingsChange, onDrawingsMove, onDrawingTransformsChange, onDrawingDelete, onDrawingsDelete, onDrawingDuplicate, onDrawingsDuplicate, onDrawingLayerMove, onDrawingsLayerMove, onDrawingsCreateMagnetGroup, onDrawingMagnetDisable, onFogCreate, onFogChange, onFogsChange, onFogsMove, onFogTransformsChange, onFogDelete, onFogsDelete, onFogCoverFullMap, onMapPlacementChange, onTokenDrop, onTokensMove, onTokenLayerMove, onTokensLayerMove, onTokenLockChange, onTokenChange, onTokensChange, onTokenTransformsChange, onTokenDelete, onTokensDelete, onTokensCreateMagnetGroup, onTokenMagnetEnabledChange, onTokenMagnetLink, onTokenMagnetUnlink }: MapViewportProps) {
+  const objectOrder = reconcileMapObjectOrder(mapObjectOrder, [['drawing', mapDrawings], ['token', mapTokens], ['poi', mapPois]]);
+  const objectZIndex = new globalThis.Map(objectOrder.map((ref, index) => [`${ref.family}\u0000${ref.id}`, index + 3]));
+  const mapUserId = currentUserId ?? getSessionMapCurrentUserId();
+  const canMoveToken = (token: SessionMapToken) => token.pinned !== true && (isOwner || token.locked !== true);
+  const canControlToken = (token: SessionMapToken) => token.pinned !== true && (isOwner || (token.locked !== true && !!mapUserId && token.createdByProfileId === mapUserId));
   const measurementClientIdRef = useRef(crypto.randomUUID());
   const activeTool = useActiveSessionMapTool();
   const selectionMode = useSessionMapSelectionMode();
@@ -500,6 +791,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const measureMode = useSessionMapMeasureMode();
   const measurementsVisibleToAll = useSessionMapMeasurementsVisibleToAll();
   const drawSettings = useSessionMapDrawSettings();
+  const fogSettings = useSessionMapFogSettings();
   const calibrationActive = useSessionMapCalibrationActive();
   const [view, setView] = useState<ViewTransform>(() => readStoredView(mapId));
   const [placement, setPlacement] = useState(mapPlacement);
@@ -513,9 +805,31 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const [tokenDraftTransforms, setTokenDraftTransforms] = useState<Record<string, TokenTransform>>({});
   const [transformTokenId, setTransformTokenId] = useState<string | null>(null);
   const [tokenMenu, setTokenMenu] = useState<TokenMenu | null>(null);
+  const [poiMenu, setPoiMenu] = useState<{ poiId: string; x: number; y: number; panel: 'icons' | 'notes' | 'layers' | null } | null>(null);
+  const [poiNoteOptions, setPoiNoteOptions] = useState<Array<{ id: string; label: string; visibleToPlayers: boolean }>>([]);
+  const [poiNotesLoading, setPoiNotesLoading] = useState(false);
+  const [poiClipboard, setPoiClipboard] = useState<SessionMapPoi | null>(null);
+  const [poiDraftPositions, setPoiDraftPositions] = useState<Record<string, TokenPosition>>({});
+  const [poiDraftTransforms, setPoiDraftTransforms] = useState<Record<string, { size: number; rotation: number }>>({});
+  const [transformPoiId, setTransformPoiId] = useState<string | null>(null);
+  const poiMoveRef = useRef<{ pointerId: number; poiId: string; startX: number; startY: number; origin: TokenPosition; position: TokenPosition } | null>(null);
+  const poiTransformRef = useRef<{ pointerId: number; poiId: string; kind: 'resize' | 'rotate'; centerClientX: number; centerClientY: number; startDistance: number; startAngle: number; origin: { size: number; rotation: number }; draft: { size: number; rotation: number } } | null>(null);
+  const depthSelectionRef = useRef<{ x: number; y: number; key: string } | null>(null);
+  const [depthHoveredKeys, setDepthHoveredKeys] = useState<Set<string>>(() => new Set());
+  const [depthSelectedKey, setDepthSelectedKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (!transformPoiId) return;
+    const closePoiTransform = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target.closest('[data-map-poi-id]') : null;
+      if (target?.getAttribute('data-map-poi-id') !== transformPoiId) setTransformPoiId(null);
+    };
+    document.addEventListener('pointerdown', closePoiTransform, true);
+    return () => document.removeEventListener('pointerdown', closePoiTransform, true);
+  }, [transformPoiId]);
   const [selectedTokenIds, setSelectedTokenIds] = useState<Set<string>>(() => new Set());
   const [selectedDrawingIds, setSelectedDrawingIds] = useState<Set<string>>(() => new Set());
   const [hoveredDrawingId, setHoveredDrawingId] = useState<string | null>(null);
+  const hoveredMapElementRef = useRef<{ type: 'drawing' | 'token'; id: string } | null>(null);
   const [selectionDraft, setSelectionDraft] = useState<SelectionGesture | null>(null);
   const selectionGestureRef = useRef<SelectionGesture | null>(null);
   const [calibrationStart, setCalibrationStart] = useState<SelectionPoint | null>(null);
@@ -530,6 +844,71 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const [drawingDraft, setDrawingDraft] = useState<SessionMapDrawing | null>(null);
   const [polygonPoints, setPolygonPoints] = useState<SessionMapPoint[]>([]);
   const [polygonHover, setPolygonHover] = useState<SessionMapPoint | null>(null);
+  const fogGestureRef = useRef<FogGesture | null>(null);
+  const [fogDraft, setFogDraft] = useState<SessionMapFog | null>(null);
+  const [fogPolygonPoints, setFogPolygonPoints] = useState<SessionMapPoint[]>([]);
+  const [fogPolygonHover, setFogPolygonHover] = useState<SessionMapPoint | null>(null);
+  const [selectedFogIds, setSelectedFogIds] = useState<Set<string>>(() => new Set());
+  const quickFogSelectionRef = useRef<{ pointerId: number; ids: Set<string> } | null>(null);
+  const [fogSelectionMenu, setFogSelectionMenu] = useState<{ x: number; y: number } | null>(null);
+  const [fogMenu, setFogMenu] = useState<{ id: string; x: number; y: number; panel: 'magnets' | null } | null>(null);
+  const [fogClipboard, setFogClipboard] = useState<SessionMapFog | null>(null);
+  const [pathEditFogId, setPathEditFogId] = useState<string | null>(null);
+  const [fogPathDrafts, setFogPathDrafts] = useState<Record<string, SessionMapFog>>({});
+  const fogPathPointRef = useRef<{ pointerId: number; fogId: string; pointIndex: number; origin: SessionMapFog; draft: SessionMapFog } | null>(null);
+  useEffect(() => {
+    if (fogMenu) return;
+    fogTooltipHoveredRef.current = null;
+    setFogTooltip(null);
+  }, [fogMenu]);
+  const previousFogModeRef = useRef(fogSettings.mode);
+  const lastAppliedFogStyleRevisionRef = useRef(fogSettings.styleRevision);
+  const hydratedFogStyleRef = useRef<{ mapId: string; color: string; strokeWidth: number } | null>(null);
+  const fogMoveRef = useRef<{ pointerId: number; startX: number; startY: number; origins: Record<string, SessionMapPoint> } | null>(null);
+  const [fogMoveDrafts, setFogMoveDrafts] = useState<Record<string, SessionMapPoint>>({});
+  const [fogTransformDrafts, setFogTransformDrafts] = useState<Record<string, SessionMapFog>>({});
+  const fogTransformRef = useRef<{ pointerId: number; id: string; kind: 'resize' | 'rotate'; handle?: 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'; startX: number; startY: number; startAngle: number; centerClientX: number; centerClientY: number; origin: SessionMapFog; draft: SessionMapFog } | null>(null);
+  useEffect(() => {
+    if (lastAppliedFogStyleRevisionRef.current === fogSettings.styleRevision) return;
+    lastAppliedFogStyleRevisionRef.current = fogSettings.styleRevision;
+    hydratedFogStyleRef.current = { mapId, color: fogSettings.color, strokeWidth: fogSettings.strokeWidth };
+    if (mapFog.length > 0) onFogsChange?.(mapFog.map(fog => fog.id), { style: { color: fogSettings.color, strokeWidth: fogSettings.strokeWidth } });
+  }, [fogSettings.color, fogSettings.strokeWidth, fogSettings.styleRevision, mapFog, mapId, onFogsChange]);
+  useEffect(() => {
+    const existingStyle = [...mapFog].reverse().find(fog => fog.operation === 'cover')?.style ?? mapFog.at(-1)?.style;
+    if (existingStyle) {
+      hydratedFogStyleRef.current = { mapId, ...existingStyle };
+      hydrateSessionMapFogStyle(existingStyle);
+      return;
+    }
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(`hollowgate.map-fog-style.${mapId}`) ?? 'null');
+      if (stored && typeof stored.color === 'string' && Number.isFinite(stored.strokeWidth)) {
+        hydratedFogStyleRef.current = { mapId, color: stored.color, strokeWidth: stored.strokeWidth };
+        hydrateSessionMapFogStyle({ color: stored.color, strokeWidth: stored.strokeWidth });
+      } else hydratedFogStyleRef.current = { mapId, color: fogSettings.color, strokeWidth: fogSettings.strokeWidth };
+    } catch { /* The default fog style remains available. */ }
+  }, [mapFog, mapId]);
+  useEffect(() => {
+    const hydrated = hydratedFogStyleRef.current;
+    if (!hydrated || hydrated.mapId !== mapId || hydrated.color !== fogSettings.color || hydrated.strokeWidth !== fogSettings.strokeWidth) return;
+    window.localStorage.setItem(`hollowgate.map-fog-style.${mapId}`, JSON.stringify({ color: fogSettings.color, strokeWidth: fogSettings.strokeWidth }));
+  }, [fogSettings.color, fogSettings.strokeWidth, mapId]);
+  useEffect(() => {
+    if (!fogClipboard || !isOwner) return;
+    const paste = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'v' || event.repeat) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.matches('input, textarea, select') || target?.isContentEditable) return;
+      event.preventDefault();
+      const pointer = lastMapPointerRef.current;
+      const point = pointer ? mapPointFromClient(pointer.clientX, pointer.clientY) : null;
+      const now = new Date().toISOString();
+      onFogCreate?.({ ...structuredClone(fogClipboard), id: crypto.randomUUID(), x: point ? point.x - fogClipboard.width / 2 : fogClipboard.x + 20 / view.scale, y: point ? point.y - fogClipboard.height / 2 : fogClipboard.y + 20 / view.scale, magnetGroupId: null, createdAt: now, updatedAt: now });
+    };
+    document.addEventListener('keydown', paste);
+    return () => document.removeEventListener('keydown', paste);
+  }, [fogClipboard, isOwner, onFogCreate, view.scale]);
   const [lineStart, setLineStart] = useState<SessionMapPoint | null>(null);
   const [lineHover, setLineHover] = useState<SessionMapPoint | null>(null);
   const [textDraft, setTextDraft] = useState<{
@@ -542,14 +921,62 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const [drawingMoveDrafts, setDrawingMoveDrafts] = useState<Record<string, TokenPosition>>({});
   const [drawingTransformDrafts, setDrawingTransformDrafts] = useState<Record<string, SessionMapDrawing>>({});
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null);
+  const [pathEditDrawingId, setPathEditDrawingId] = useState<string | null>(null);
+  const [drawingClipboard, setDrawingClipboard] = useState<SessionMapDrawing | null>(null);
+  const [pastePrompt, setPastePrompt] = useState<{ x: number; y: number; point: SessionMapPoint; context: 'map' | 'drawing' | 'token' } | null>(null);
+  const lastMapPointerRef = useRef<{ clientX: number; clientY: number } | null>(null);
   const [drawingMenu, setDrawingMenu] = useState<{
     id: string;
     x: number;
     y: number;
   } | null>(null);
+  useEffect(() => {
+    if (activeTool !== 'fog') return;
+    setSelectedTokenIds(new Set());
+    setSelectedDrawingIds(new Set());
+    setSelectedDrawingId(null);
+    setHoveredDrawingId(null);
+    setTransformTokenId(null);
+    setTransformPoiId(null);
+    setTokenMenu(null);
+    setDrawingMenu(null);
+    setPoiMenu(null);
+    depthSelectionRef.current = null;
+    setDepthHoveredKeys(new Set());
+    setDepthSelectedKey(null);
+  }, [activeTool]);
+  useEffect(() => {
+    const modeChanged = previousFogModeRef.current !== fogSettings.mode;
+    previousFogModeRef.current = fogSettings.mode;
+    if (activeTool !== 'fog' || modeChanged) {
+      quickFogSelectionRef.current = null;
+      setSelectedFogIds(new Set());
+      setFogSelectionMenu(null);
+      setFogMenu(null);
+    }
+  }, [activeTool, fogSettings.mode]);
   const [drawingStyleEditorOpen, setDrawingStyleEditorOpen] = useState(false);
+  const [drawingLayerPanelOpen, setDrawingLayerPanelOpen] = useState(false);
   const [drawingTooltip, setDrawingTooltip] = useState<string | null>(null);
   const [tokenTooltip, setTokenTooltip] = useState<string | null>(null);
+  const [poiTooltip, setPoiTooltip] = useState<string | null>(null);
+  const [fogTooltip, setFogTooltip] = useState<string | null>(null);
+  const fogTooltipHoveredRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (poiMenu?.panel !== 'notes' || !campaignId) return;
+    let cancelled = false;
+    setPoiNotesLoading(true);
+    void fetch(`https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd/campaigns/${campaignId}/notes?entityType=campaign&entityId=${campaignId}`, {
+      headers: { Authorization: `Bearer ${currentUserAccessToken ?? ''}` },
+    }).then(async (response) => {
+      if (!response.ok) throw new Error('Caricamento note non riuscito');
+      const data = await response.json();
+      if (cancelled) return;
+      const notes = (Array.isArray(data.notes) ? data.notes : []).filter((note: any) => isOwner || (!note.hidden && (note.visibility ?? 'all') === 'all'));
+      setPoiNoteOptions(notes.map((note: any) => ({ id: String(note.id), label: String(note.tab_name ?? 'Nota'), visibleToPlayers: !note.hidden && (note.visibility ?? 'all') === 'all' })));
+    }).catch(() => { if (!cancelled) setPoiNoteOptions([]); }).finally(() => { if (!cancelled) setPoiNotesLoading(false); });
+    return () => { cancelled = true; };
+  }, [campaignId, currentUserAccessToken, isOwner, poiMenu?.panel]);
   const [drawingMagnetLink, setDrawingMagnetLink] = useState<{
     ids: string[];
     pointer: SessionMapPoint;
@@ -557,7 +984,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   } | null>(null);
   const menuDragRef = useRef<{
     pointerId: number;
-    menu: 'token' | 'drawing';
+    menu: 'token' | 'drawing' | 'poi' | 'fog';
     startX: number;
     startY: number;
     originX: number;
@@ -579,6 +1006,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     startAngle: number;
   } | null>(null);
   const textCurveRef = useRef<{ pointerId: number; drawing: SessionMapDrawing; index: number; startX: number; startY: number; offsets: number[]; draft: SessionMapDrawing } | null>(null);
+  const pathPointRef = useRef<{ pointerId: number; drawing: SessionMapDrawing; index: number; startX: number; startY: number; points: SessionMapPoint[]; draft: SessionMapDrawing } | null>(null);
   const conditionListRef = useRef<HTMLDivElement>(null);
   const placementRef = useRef(mapPlacement);
   const placementElementRef = useRef<HTMLDivElement>(null);
@@ -586,16 +1014,18 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   onMapPlacementChangeRef.current = onMapPlacementChange;
 
   useEffect(() => {
-    if (!tokenMenu && !drawingMenu) return;
+    if (!tokenMenu && !drawingMenu && !poiMenu) return;
     const closeMenus = (event: PointerEvent) => {
       const target = event.target;
-      if (target instanceof Element && target.closest('[role="menu"]')) return;
+      if (target instanceof Element && target.closest('[role="menu"], [data-map-paste-action]')) return;
       setTokenMenu(null);
       setDrawingMenu(null);
+      setPoiMenu(null);
+      setFogMenu(null);
     };
     document.addEventListener('pointerdown', closeMenus);
     return () => document.removeEventListener('pointerdown', closeMenus);
-  }, [tokenMenu, drawingMenu]);
+  }, [tokenMenu, drawingMenu, poiMenu]);
   useEffect(() => {
     if (!drawingMenu) setDrawingMenuDetached(false);
   }, [drawingMenu]);
@@ -649,7 +1079,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       registerSessionMapTokenDropHandler((visual, clientX, clientY, grabOffset) => {
         const rect = viewportRef.current?.getBoundingClientRect();
         const hitViewport = document.elementFromPoint(clientX, clientY)?.closest('[data-map-viewport]');
-        if (!rect || hitViewport !== viewportRef.current || clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom || !isOwner) return false;
+        if (!rect || hitViewport !== viewportRef.current || clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return false;
         const size = gridSettings.cellSize;
         const rawPosition = {
           x: (clientX - rect.left - view.x) / view.scale - size * grabOffset.x,
@@ -665,7 +1095,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         );
         return true;
       }),
-    [gridSettings, isOwner, onTokenDrop, view],
+    [gridSettings, onTokenDrop, view],
   );
 
   useEffect(() => {
@@ -683,7 +1113,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   }, [mapId, view]);
 
   useEffect(() => {
-    setSelectedTokenIds((current) => new Set([...current].filter((id) => mapTokens.some((token) => token.id === id && !token.locked))));
+    setSelectedTokenIds((current) => new Set([...current].filter((id) => mapTokens.some((token) => token.id === id && canMoveToken(token)))));
     if (!isOwner) {
       setTokenDraftPositions((current) =>
         Object.fromEntries(
@@ -710,11 +1140,94 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         setSelectedTokenIds(new Set());
         setCalibrationStart(null);
         setSessionMapCalibrationActive(false);
+        setDrawingClipboard(null);
+        setPoiClipboard(null);
+        setPastePrompt(null);
       }
     };
     window.addEventListener('keydown', clearSelection);
     return () => window.removeEventListener('keydown', clearSelection);
   }, []);
+
+  useEffect(() => {
+    if (!poiClipboard) return;
+    const pastePoi = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'v') return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.matches('input, textarea, select') || target.isContentEditable)) return;
+      const rect = viewportRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const pointer = lastMapPointerRef.current ?? { clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 };
+      const point = mapPointFromClient(pointer.clientX, pointer.clientY);
+      if (!point) return;
+      event.preventDefault();
+      onPoiPaste?.(poiClipboard, point);
+    };
+    document.addEventListener('keydown', pastePoi);
+    return () => document.removeEventListener('keydown', pastePoi);
+  }, [onPoiPaste, poiClipboard, view]);
+
+  useEffect(() => {
+    if (!drawingClipboard) return;
+    const handlePasteShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'v') return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.matches('input, textarea, select') || target.isContentEditable)) return;
+      const rect = viewportRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const pointer = lastMapPointerRef.current ?? { clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 };
+      const point = mapPointFromClient(pointer.clientX, pointer.clientY);
+      if (!point) return;
+      event.preventDefault();
+      pasteDrawingAt(point);
+    };
+    const cancelCopyOnOtherCommand = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const button = target.closest('button');
+      if (button && !button.matches('[data-map-copy-action], [data-map-paste-action]')) {
+        setDrawingClipboard(null);
+        setPastePrompt(null);
+      }
+    };
+    document.addEventListener('keydown', handlePasteShortcut);
+    document.addEventListener('pointerdown', cancelCopyOnOtherCommand, true);
+    return () => {
+      document.removeEventListener('keydown', handlePasteShortcut);
+      document.removeEventListener('pointerdown', cancelCopyOnOtherCommand, true);
+    };
+  }, [drawingClipboard, isOwner, onDrawingCreate, view]);
+
+  useEffect(() => {
+    const deleteSelectedElements = (event: KeyboardEvent) => {
+      if (event.key !== 'Delete') return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.matches('input, textarea, select') || target.isContentEditable)) return;
+      let tokenIds = [...selectedTokenIds].filter((id) => mapTokens.some((token) => token.id === id && canControlToken(token)));
+      let drawingIds = [...selectedDrawingIds].filter((id) => mapDrawings.some((drawing) => drawing.id === id && drawing.pinned !== true && (isOwner || (drawing.locked !== true && !!mapUserId && drawing.createdByProfileId === mapUserId))));
+      if (tokenIds.length === 0 && drawingIds.length === 0 && hoveredMapElementRef.current) {
+        const hovered = hoveredMapElementRef.current;
+        if (hovered.type === 'token' && mapTokens.some((token) => token.id === hovered.id && canControlToken(token))) tokenIds = [hovered.id];
+        if (hovered.type === 'drawing' && mapDrawings.some((drawing) => drawing.id === hovered.id && drawing.pinned !== true && (isOwner || (drawing.locked !== true && !!mapUserId && drawing.createdByProfileId === mapUserId)))) drawingIds = [hovered.id];
+      }
+      if (tokenIds.length === 0 && drawingIds.length === 0) return;
+      event.preventDefault();
+      if (tokenIds.length > 1 && !window.confirm(`Eliminare definitivamente i ${tokenIds.length} token selezionati?`)) return;
+      if (tokenIds.length > 1) onTokensDelete?.(tokenIds);
+      else if (tokenIds.length === 1) onTokenDelete?.(tokenIds[0]);
+      if (drawingIds.length > 1) onDrawingsDelete?.(drawingIds);
+      else if (drawingIds.length === 1) onDrawingDelete?.(drawingIds[0]);
+      setSelectedTokenIds(new Set());
+      setSelectedDrawingIds(new Set());
+      setSelectedDrawingId(null);
+      setPathEditDrawingId(null);
+      setTokenMenu(null);
+      setDrawingMenu(null);
+    };
+    document.addEventListener('keydown', deleteSelectedElements);
+    return () => document.removeEventListener('keydown', deleteSelectedElements);
+  }, [isOwner, mapDrawings, mapTokens, mapUserId, onDrawingDelete, onDrawingsDelete, onTokenDelete, onTokensDelete, selectedDrawingIds, selectedTokenIds]);
 
   useEffect(
     () => () => {
@@ -800,6 +1313,49 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     return () => configureSessionMapFit(false, null);
   }, [gridSettings.cellSize, gridSettings.type, isOwner, mapPlacement.locked, view.scale]);
 
+  useEffect(() => {
+    const fullMapFog = mapFog.filter(fog => fog.fullMap);
+    setSessionMapFogFullMapCovered(fullMapFog.length > 0);
+    if (!isOwner || !onFogCoverFullMap || !onFogsDelete) {
+      configureSessionMapFogCoverFullMap(null);
+      return;
+    }
+    configureSessionMapFogCoverFullMap(() => {
+      if (fullMapFog.length > 0) {
+        onFogsDelete(fullMapFog.map(fog => fog.id));
+        return;
+      }
+      const element = placementElementRef.current;
+      const width = placement.width ?? element?.offsetWidth;
+      const height = placement.height ?? element?.offsetHeight;
+      if (!width || !height) return;
+      const now = new Date().toISOString();
+      onFogCoverFullMap({ id: crypto.randomUUID(), kind: 'rectangle', operation: 'cover', x: placement.x, y: placement.y, width, height, rotation: 0, style: { color: fogSettings.color, strokeWidth: fogSettings.strokeWidth }, enabled: true, locked: true, magnetEnabled: false, magnetGroupId: null, fullMap: true, createdAt: now, updatedAt: now });
+    });
+    return () => configureSessionMapFogCoverFullMap(null);
+  }, [fogSettings.color, fogSettings.strokeWidth, isOwner, mapFog, onFogCoverFullMap, onFogsDelete, placement.height, placement.width, placement.x, placement.y]);
+
+  useEffect(() => {
+    if (!isOwner || !onFogsDelete) {
+      configureSessionMapFogClear(null);
+      return;
+    }
+    configureSessionMapFogClear(() => {
+      if (mapFog.length > 0) onFogsDelete(mapFog.map(fog => fog.id));
+    });
+    return () => configureSessionMapFogClear(null);
+  }, [isOwner, mapFog, onFogsDelete]);
+
+  useEffect(() => {
+    configureSessionMapFogSelectionClear(() => {
+      quickFogSelectionRef.current = null;
+      setSelectedFogIds(new Set());
+      setFogSelectionMenu(null);
+      setFogMenu(null);
+    });
+    return () => configureSessionMapFogSelectionClear(null);
+  }, []);
+
   const zoom = (event: WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
@@ -826,8 +1382,41 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     };
   };
 
+  const mapPointFromClient = (clientX: number, clientY: number): SessionMapPoint | null => {
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    return { x: (clientX - rect.left - view.x) / view.scale, y: (clientY - rect.top - view.y) / view.scale };
+  };
+  const showPastePrompt = (clientX: number, clientY: number, context: 'map' | 'drawing' | 'token') => {
+    if (!drawingClipboard) return;
+    const rect = viewportRef.current?.getBoundingClientRect();
+    const point = mapPointFromClient(clientX, clientY);
+    if (!rect || !point) return;
+    setPastePrompt({ x: clientX - rect.left, y: clientY - rect.top, point, context });
+  };
+  const pasteDrawingAt = (point: SessionMapPoint) => {
+    if (!drawingClipboard || !isOwner) return;
+    const now = new Date().toISOString();
+    const copy = structuredClone(drawingClipboard);
+    const visualCenter = drawingVisualCenter(copy);
+    onDrawingCreate?.({
+      ...copy,
+      id: crypto.randomUUID(),
+      x: point.x - visualCenter.x,
+      y: point.y - visualCenter.y,
+      magnetEnabled: false,
+      magnetGroupId: null,
+      pinned: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    setPastePrompt(null);
+    setTokenMenu(null);
+    setDrawingMenu(null);
+  };
+
   const measurementPoint = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const point = worldPoint(event);
+    const point = mapPointFromClient(event.clientX, event.clientY);
     return point ? snapToSessionGrid(point, gridSettings) : null;
   };
 
@@ -1043,28 +1632,35 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       const bounds = measureMapText(text, source?.style.strokeWidth ?? drawSettings.style.strokeWidth);
       const now = new Date().toISOString();
       if (source) onDrawingChange?.(source.id, { ...bounds, text });
-      else onDrawingCreate?.({
-        id: crypto.randomUUID(),
-        kind: 'text',
-        x: textDraft.point.x,
-        y: textDraft.point.y,
-        ...bounds,
-        rotation: 0,
-        style: { ...drawSettings.style, fillOpacity: 0 },
-        text,
-        locked: false,
-        visible: true,
-        magnetEnabled: false,
-        magnetGroupId: null,
-        createdAt: now,
-        updatedAt: now,
-      });
+      else
+        onDrawingCreate?.({
+          id: crypto.randomUUID(),
+          kind: 'text',
+          x: textDraft.point.x,
+          y: textDraft.point.y,
+          ...bounds,
+          rotation: 0,
+          style: { ...drawSettings.style, fillOpacity: 0 },
+          text,
+          locked: false,
+          pinned: false,
+          visible: true,
+          magnetEnabled: false,
+          magnetGroupId: null,
+          createdAt: now,
+          updatedAt: now,
+        });
     }
     setTextDraft(null);
   };
 
   useEffect(() => {
-    if (textDraft) requestAnimationFrame(() => { const input = textDraftRef.current; input?.focus(); input?.setSelectionRange(input.value.length, input.value.length); });
+    if (textDraft)
+      requestAnimationFrame(() => {
+        const input = textDraftRef.current;
+        input?.focus();
+        input?.setSelectionRange(input.value.length, input.value.length);
+      });
   }, [Boolean(textDraft)]);
   useEffect(() => {
     if (!textDraft) return;
@@ -1103,10 +1699,12 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         setLineStart(null);
         setLineHover(null);
         setSelectedDrawingId(null);
+        setPathEditDrawingId(null);
         setSelectedDrawingIds(new Set());
         setDrawingMenu(null);
         drawingTransformRef.current = null;
         textCurveRef.current = null;
+        pathPointRef.current = null;
         drawingMoveRef.current = null;
         setDrawingDraft(null);
         setDrawingMoveDrafts({});
@@ -1140,7 +1738,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   }, [activeTool, drawSettings.mode, mapId, textDraft?.editingId]);
 
   const beginDrawingMove = (event: ReactPointerEvent<SVGElement>, drawing: SessionMapDrawing) => {
-    if (!isOwner || calibrationActive || activeTool === 'measure' || drawing.locked || event.button !== 0) return;
+    if (!isOwner || drawing.pinned || calibrationActive || activeTool === 'measure' || event.button !== 0) return;
     if (selectionArmed && !selectedDrawingIds.has(drawing.id)) {
       setSelectedTokenIds(new Set());
       setSelectedDrawingIds(new Set());
@@ -1153,11 +1751,11 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     textCurveRef.current = null;
     setDrawingDraft(null);
     setSelectedDrawingId(null);
-    const selectionMembers = selectedDrawingIds.has(drawing.id) ? mapDrawings.filter((item) => selectedDrawingIds.has(item.id) && !item.locked) : [];
+    const selectionMembers = selectedDrawingIds.has(drawing.id) ? mapDrawings.filter((item) => selectedDrawingIds.has(item.id) && (isOwner || !item.locked)) : [];
     if (selectionMembers.length === 0) setSelectedDrawingIds(new Set());
-    const members = selectionMembers.length > 0 ? selectionMembers : drawing.magnetGroupId ? mapDrawings.filter((item) => item.magnetGroupId === drawing.magnetGroupId && !item.locked) : [drawing];
+    const members = selectionMembers.length > 0 ? selectionMembers : drawing.magnetGroupId ? mapDrawings.filter((item) => item.magnetGroupId === drawing.magnetGroupId && (isOwner || !item.locked)) : [drawing];
     const origins = Object.fromEntries(members.map((item) => [item.id, { x: item.x, y: item.y }]));
-    const selectedTokens = selectionMembers.length > 0 ? mapTokens.filter((item) => selectedTokenIds.has(item.id) && !item.locked) : [];
+    const selectedTokens = selectionMembers.length > 0 ? mapTokens.filter((item) => selectedTokenIds.has(item.id) && canMoveToken(item)) : [];
     const tokenOrigins = Object.fromEntries(
       selectedTokens.map((item) => {
         const position = tokenDraftPositions[item.id] ?? item;
@@ -1216,7 +1814,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     const normalizedDrawing = withMeasuredTextBounds(drawing);
     const centerX = rect.left + view.x + (normalizedDrawing.x + normalizedDrawing.width / 2) * view.scale;
     const centerY = rect.top + view.y + (normalizedDrawing.y + normalizedDrawing.height / 2) * view.scale;
-    const members = (selectedDrawingIds.has(drawing.id) ? mapDrawings.filter((item) => selectedDrawingIds.has(item.id) && !item.locked) : [drawing]).map(withMeasuredTextBounds);
+    const members = (selectedDrawingIds.has(drawing.id) ? mapDrawings.filter((item) => selectedDrawingIds.has(item.id) && (isOwner || !item.locked)) : [drawing]).map(withMeasuredTextBounds);
     const origins = Object.fromEntries(members.map((item) => [item.id, item]));
     drawingTransformRef.current = {
       pointerId: event.pointerId,
@@ -1259,10 +1857,10 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         const itemHeight = Math.max(8, item.height * scaleY);
         const text = item.text
           ? {
-               ...item.text,
-               fontSize: Math.max(1, item.text.fontSize * scaleY),
-               horizontalScale: ((item.text.horizontalScale ?? 1) * scaleX) / scaleY,
-               curveOffsets: item.text.curveOffsets?.map(offset => offset * (item.text?.orientation === 'vertical' ? scaleX : scaleY)),
+              ...item.text,
+              fontSize: Math.max(1, item.text.fontSize * scaleY),
+              horizontalScale: ((item.text.horizontalScale ?? 1) * scaleX) / scaleY,
+              curveOffsets: item.text.curveOffsets?.map((offset) => offset * (item.text?.orientation === 'vertical' ? scaleX : scaleY)),
             }
           : undefined;
         return [
@@ -1311,7 +1909,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     if (!drawing.text) return;
     event.preventDefault();
     event.stopPropagation();
-    const offsets = Array.from({ length: 5 }, (_, offsetIndex) => drawing.text?.curveOffsets?.[offsetIndex] ?? 0);
+    const offsets = normalizedTextCurveOffsets(drawing.text);
     textCurveRef.current = { pointerId: event.pointerId, drawing, index, startX: event.clientX, startY: event.clientY, offsets, draft: drawing };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -1320,7 +1918,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     if (!gesture || gesture.pointerId !== event.pointerId || !gesture.drawing.text) return;
     const vertical = gesture.drawing.text.orientation === 'vertical';
     const delta = (vertical ? event.clientX - gesture.startX : event.clientY - gesture.startY) / view.scale;
-    const curveOffsets = gesture.offsets.map((offset, index) => index === gesture.index ? offset + delta : offset);
+    const curveOffsets = gesture.offsets.map((offset, index) => (index === gesture.index ? offset + delta : offset));
     gesture.draft = { ...gesture.drawing, text: { ...gesture.drawing.text, curveOffsets } };
     setDrawingTransformDrafts({ [gesture.drawing.id]: gesture.draft });
   };
@@ -1329,6 +1927,35 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     if (!gesture || gesture.pointerId !== event.pointerId) return;
     onDrawingTransformsChange?.({ [gesture.drawing.id]: { text: gesture.draft.text } });
     textCurveRef.current = null;
+    setDrawingTransformDrafts({});
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  const beginPathPointMove = (event: ReactPointerEvent<SVGCircleElement>, drawing: SessionMapDrawing, index: number) => {
+    if (!drawing.points) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const points = drawing.points.map((point) => ({ ...point }));
+    pathPointRef.current = { pointerId: event.pointerId, drawing, index, startX: event.clientX, startY: event.clientY, points, draft: drawing };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const movePathPoint = (event: ReactPointerEvent<SVGCircleElement>) => {
+    const gesture = pathPointRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    const dx = (event.clientX - gesture.startX) / view.scale;
+    const dy = (event.clientY - gesture.startY) / view.scale;
+    const angle = (-gesture.drawing.rotation * Math.PI) / 180;
+    const localDx = dx * Math.cos(angle) - dy * Math.sin(angle);
+    const localDy = dx * Math.sin(angle) + dy * Math.cos(angle);
+    const points = gesture.points.map((point, index) => (index === gesture.index ? { x: point.x + localDx, y: point.y + localDy } : point));
+    gesture.draft = { ...gesture.drawing, points };
+    setDrawingTransformDrafts({ [gesture.drawing.id]: gesture.draft });
+  };
+  const finishPathPointMove = (event: ReactPointerEvent<SVGCircleElement>) => {
+    const gesture = pathPointRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    onDrawingTransformsChange?.({ [gesture.drawing.id]: { points: gesture.draft.points } });
+    pathPointRef.current = null;
     setDrawingTransformDrafts({});
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
@@ -1379,35 +2006,47 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         width: Math.abs(point.x - gesture.start.x),
         height: Math.abs(point.y - gesture.start.y),
       };
-      selected = mapTokens.filter((token) => !token.locked && rectangleCoverage(getTokenBounds(token, gridSettings.cellSize), bounds) > 0);
+      const rectangle = [
+        { x: bounds.x, y: bounds.y },
+        { x: bounds.x + bounds.width, y: bounds.y },
+        { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+        { x: bounds.x, y: bounds.y + bounds.height },
+      ];
+      selected = mapTokens.filter((token) => canMoveToken(token) && rectangleCoverage(getTokenBounds(token, gridSettings.cellSize), bounds) > 0);
       selectedDrawings = mapDrawings.filter(
         (drawing) =>
-          !drawing.locked &&
-          rectangleCoverage(
-            {
-              x: drawing.x,
-              y: drawing.y,
-              width: drawing.width,
-              height: drawing.height,
-            },
-            bounds,
-          ) > 0,
+          !drawing.pinned &&
+          (isOwner || !drawing.locked) &&
+          (drawing.points?.length
+            ? drawingPathIntersectsPolygon(drawing, rectangle)
+            : rectangleCoverage(
+                {
+                  x: drawing.x,
+                  y: drawing.y,
+                  width: drawing.width,
+                  height: drawing.height,
+                },
+                bounds,
+              ) > 0),
       );
     } else if (gesture.points.length >= 3 && Math.hypot(point.x - gesture.start.x, point.y - gesture.start.y) <= 24 / view.scale) {
       const polygon = [...gesture.points, gesture.start];
-      selected = mapTokens.filter((token) => !token.locked && polygonCoverage(getTokenBounds(token, gridSettings.cellSize), polygon) > 0);
+      selected = mapTokens.filter((token) => canMoveToken(token) && polygonCoverage(getTokenBounds(token, gridSettings.cellSize), polygon) > 0);
       selectedDrawings = mapDrawings.filter(
         (drawing) =>
-          !drawing.locked &&
-          polygonCoverage(
-            {
-              x: drawing.x,
-              y: drawing.y,
-              width: drawing.width,
-              height: drawing.height,
-            },
-            polygon,
-          ) > 0,
+          !drawing.pinned &&
+          (isOwner || !drawing.locked) &&
+          (drawing.points?.length
+            ? drawingPathIntersectsPolygon(drawing, polygon)
+            : polygonCoverage(
+                {
+                  x: drawing.x,
+                  y: drawing.y,
+                  width: drawing.width,
+                  height: drawing.height,
+                },
+                polygon,
+              ) > 0),
       );
     }
     setSelectedTokenIds(new Set(selected.map((token) => token.id)));
@@ -1487,6 +2126,413 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     setPanning(false);
   };
 
+  const canControlPoi = (poi: SessionMapPoi) => !poi.pinned && (isOwner || (!poi.locked && !!mapUserId && poi.createdByProfileId === mapUserId));
+  const beginPoiMove = (event: ReactPointerEvent<HTMLButtonElement>, poi: SessionMapPoi) => {
+    if (event.button !== 0 || !canControlPoi(poi)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setPoiMenu(null);
+    const origin = poiDraftPositions[poi.id] ?? poi;
+    poiMoveRef.current = { pointerId: event.pointerId, poiId: poi.id, startX: event.clientX, startY: event.clientY, origin, position: origin };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const movePoi = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const gesture = poiMoveRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    gesture.position = { x: gesture.origin.x + (event.clientX - gesture.startX) / view.scale, y: gesture.origin.y + (event.clientY - gesture.startY) / view.scale };
+    setPoiDraftPositions((current) => ({ ...current, [gesture.poiId]: gesture.position }));
+  };
+  const finishPoiMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const gesture = poiMoveRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    poiMoveRef.current = null;
+    onPoiMove?.(gesture.poiId, gesture.position);
+    if (isOwner)
+      setPoiDraftPositions((current) => {
+        const next = { ...current };
+        delete next[gesture.poiId];
+        return next;
+      });
+  };
+  const beginPoiTransform = (event: ReactPointerEvent<SVGElement>, poi: SessionMapPoi, kind: 'resize' | 'rotate') => {
+    if (event.button !== 0 || !canControlPoi(poi)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const position = poiDraftPositions[poi.id] ?? poi;
+    const origin = poiDraftTransforms[poi.id] ?? { size: poi.size, rotation: poi.rotation ?? 0 };
+    const centerClientX = rect.left + view.x + position.x * view.scale;
+    const centerClientY = rect.top + view.y + position.y * view.scale;
+    poiTransformRef.current = {
+      pointerId: event.pointerId,
+      poiId: poi.id,
+      kind,
+      centerClientX,
+      centerClientY,
+      startDistance: Math.max(1, Math.hypot(event.clientX - centerClientX, event.clientY - centerClientY)),
+      startAngle: Math.atan2(event.clientY - centerClientY, event.clientX - centerClientX),
+      origin,
+      draft: origin,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const movePoiTransform = (event: ReactPointerEvent<SVGElement>) => {
+    const gesture = poiTransformRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (gesture.kind === 'resize') {
+      const factor = Math.hypot(event.clientX - gesture.centerClientX, event.clientY - gesture.centerClientY) / gesture.startDistance;
+      gesture.draft = { ...gesture.origin, size: Math.min(240, Math.max(8, gesture.origin.size * factor)) };
+    } else {
+      const angle = Math.atan2(event.clientY - gesture.centerClientY, event.clientX - gesture.centerClientX);
+      gesture.draft = { ...gesture.origin, rotation: Math.round((gesture.origin.rotation + ((angle - gesture.startAngle) * 180) / Math.PI) * 10) / 10 };
+    }
+    setPoiDraftTransforms((current) => ({ ...current, [gesture.poiId]: gesture.draft }));
+  };
+  const finishPoiTransform = (event: ReactPointerEvent<SVGElement>) => {
+    const gesture = poiTransformRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    poiTransformRef.current = null;
+    onPoiChange?.(gesture.poiId, gesture.draft);
+    if (isOwner) setPoiDraftTransforms((current) => { const next = { ...current }; delete next[gesture.poiId]; return next; });
+  };
+  const openPoiMenu = (event: ReactMouseEvent<HTMLButtonElement>, poi: SessionMapPoi) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (openUnderlyingMapObjectMenu(event.clientX, event.clientY, { family: 'poi', id: poi.id })) return;
+    if (!isOwner && !canControlPoi(poi)) return;
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setTokenMenu(null);
+    setDrawingMenu(null);
+    setPoiMenu({ poiId: poi.id, x: Math.max(8, Math.min(event.clientX - rect.left + 12, rect.width - 398)), y: Math.max(8, Math.min(event.clientY - rect.top, rect.height - 300)), panel: null });
+  };
+
+  const openUnderlyingMapObjectMenu = (clientX: number, clientY: number, currentRef?: MapObjectRef) => {
+    const point = mapPointFromClient(clientX, clientY);
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!point || !rect) return false;
+    const contains = (bounds: { x: number; y: number; width: number; height: number }) => point.x >= bounds.x && point.x <= bounds.x + bounds.width && point.y >= bounds.y && point.y <= bounds.y + bounds.height;
+    const candidates = [...objectOrder].reverse().filter((ref) => {
+      if (ref.family === 'drawing') {
+        const drawing = mapDrawings.find(item => item.id === ref.id);
+        const moveDraft = drawing ? drawingMoveDrafts[drawing.id] : null;
+        const rendered = drawing ? drawingTransformDrafts[drawing.id] ?? (moveDraft ? { ...drawing, ...moveDraft } : drawing) : null;
+        return !!rendered && isOwner && drawingContainsPoint(rendered, point, view.scale);
+      }
+      if (ref.family === 'token') {
+        const token = mapTokens.find(item => item.id === ref.id);
+        const position = token ? tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token : null;
+        const size = tokenDraftTransforms[ref.id]?.size ?? (token ? getTokenSize(token, gridSettings.cellSize) : 0);
+        return !!token && !!position && (isOwner || canControlToken(token)) && contains({ x: position.x, y: position.y, width: size, height: size });
+      }
+      const poi = mapPois.find(item => item.id === ref.id);
+      const position = poi ? poiDraftPositions[poi.id] ?? poi : null;
+      const size = poi ? poiDraftTransforms[poi.id]?.size ?? poi.size : 0;
+      return !!poi && !!position && (isOwner || canControlPoi(poi)) && contains({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size });
+    });
+    if (candidates.length === 0) return false;
+    const previous = depthSelectionRef.current;
+    const samePoint = !!previous && Math.hypot(previous.x - clientX, previous.y - clientY) < 8;
+    const currentKey = samePoint ? previous.key : currentRef ? `${currentRef.family}\u0000${currentRef.id}` : null;
+    const currentIndex = candidates.findIndex(ref => `${ref.family}\u0000${ref.id}` === currentKey);
+    const target = candidates.length === 1 ? candidates[0] : candidates[(currentIndex + 1 + candidates.length) % candidates.length];
+    const targetKey = `${target.family}\u0000${target.id}`;
+    depthSelectionRef.current = { x: clientX, y: clientY, key: targetKey };
+    setDepthSelectedKey(targetKey);
+    const x = Math.max(8, clientX - rect.left + 12);
+    const y = Math.max(8, clientY - rect.top);
+    setTokenMenu(null); setDrawingMenu(null); setPoiMenu(null);
+    if (target.family === 'drawing') {
+      if (!selectedDrawingIds.has(target.id)) setSelectedDrawingIds(new Set([target.id]));
+      setSelectedDrawingId(target.id);
+      setDrawingStyleEditorOpen(false); setDrawingLayerPanelOpen(false); setDrawingMenu({ id: target.id, x, y });
+    } else if (target.family === 'token') {
+      const token = mapTokens.find(item => item.id === target.id);
+      if (token) setTokenMenu({ tokenId: token.id, x: Math.min(rect.width - 398, x), y, panel: null, nameDraft: token.name, customConditionDraft: '' });
+    } else setPoiMenu({ poiId: target.id, x: Math.min(rect.width - 398, x), y, panel: null });
+    return true;
+  };
+
+  const updateDepthHover = (clientX: number, clientY: number) => {
+    if (activeTool === 'fog') {
+      if (depthHoveredKeys.size > 0) setDepthHoveredKeys(new Set());
+      depthSelectionRef.current = null;
+      setDepthSelectedKey(null);
+      return;
+    }
+    const point = mapPointFromClient(clientX, clientY);
+    if (!point) return;
+    const contains = (bounds: { x: number; y: number; width: number; height: number }) => point.x >= bounds.x && point.x <= bounds.x + bounds.width && point.y >= bounds.y && point.y <= bounds.y + bounds.height;
+    const keys = new Set<string>();
+    let hoveredDrawingCandidate: string | null = null;
+    objectOrder.forEach((ref) => {
+      if (ref.family === 'drawing') {
+        const drawing = mapDrawings.find(item => item.id === ref.id);
+        const moveDraft = drawing ? drawingMoveDrafts[drawing.id] : null;
+        const rendered = drawing ? drawingTransformDrafts[drawing.id] ?? (moveDraft ? { ...drawing, ...moveDraft } : drawing) : null;
+        if (rendered && (isOwner || rendered.visible !== false) && drawingContainsPoint(rendered, point, view.scale)) {
+          keys.add(`drawing\u0000${rendered.id}`);
+          hoveredDrawingCandidate = rendered.id;
+        }
+      } else if (ref.family === 'token') {
+        const token = mapTokens.find(item => item.id === ref.id);
+        const position = token ? tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token : null;
+        const size = tokenDraftTransforms[ref.id]?.size ?? (token ? getTokenSize(token, gridSettings.cellSize) : 0);
+        if (token && position && contains({ x: position.x, y: position.y, width: size, height: size })) keys.add(`token\u0000${token.id}`);
+      } else {
+        const poi = mapPois.find(item => item.id === ref.id);
+        const position = poi ? poiDraftPositions[poi.id] ?? poi : null;
+        const size = poi ? poiDraftTransforms[poi.id]?.size ?? poi.size : 0;
+        if (poi && position && contains({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size })) keys.add(`poi\u0000${poi.id}`);
+      }
+    });
+    if (hoveredDrawingCandidate) hoveredMapElementRef.current = { type: 'drawing', id: hoveredDrawingCandidate };
+    else if (hoveredMapElementRef.current?.type === 'drawing') hoveredMapElementRef.current = null;
+    setDepthHoveredKeys((current) => current.size === keys.size && [...keys].every(key => current.has(key)) ? current : keys);
+    if (depthSelectedKey && !keys.has(depthSelectedKey)) {
+      depthSelectionRef.current = null;
+      setDepthSelectedKey(null);
+    }
+  };
+
+  const fogOperation = fogSettings.mode === 'cutter' ? 'reveal' : fogSettings.operation;
+  const fogStyle = { color: fogSettings.color, strokeWidth: fogSettings.strokeWidth };
+  const fogFromGesture = (gesture: FogGesture) => {
+    const points = gesture.mode === 'freehand' ? gesture.points : [gesture.start, gesture.current];
+    return buildFog(gesture.mode, points, fogOperation, fogStyle);
+  };
+  const beginFog = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!isOwner || activeTool !== 'fog' || event.button !== 0 || (event.target as Element).closest('[data-map-interactive]')) return false;
+    const point = worldPoint(event);
+    if (!point) return false;
+    if (fogSettings.mode === 'grab' || fogSettings.mode === 'quick-select') return true;
+    setSelectedFogIds(new Set());
+    setFogSelectionMenu(null);
+    setFogMenu(null);
+    if (fogSettings.mode === 'polygon' || fogSettings.mode === 'cutter') {
+      event.preventDefault();
+      const close = fogPolygonPoints.length >= 3 && Math.hypot(point.x - fogPolygonPoints[0].x, point.y - fogPolygonPoints[0].y) <= 14 / view.scale;
+      if (close) {
+        const fog = buildFog('polygon', fogPolygonPoints, fogOperation, fogStyle);
+        if (fog) onFogCreate?.(fog);
+        setFogPolygonPoints([]); setFogPolygonHover(null);
+      } else setFogPolygonPoints(current => [...current, point]);
+      return true;
+    }
+    const gesture: FogGesture = { pointerId: event.pointerId, mode: fogSettings.mode, start: point, current: point, points: [point] };
+    fogGestureRef.current = gesture;
+    setFogDraft(fogFromGesture(gesture));
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+    return true;
+  };
+  const moveFog = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = fogGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) {
+      if (activeTool === 'fog' && (fogSettings.mode === 'polygon' || fogSettings.mode === 'cutter')) setFogPolygonHover(worldPoint(event));
+      return false;
+    }
+    const point = worldPoint(event);
+    if (!point) return true;
+    gesture.current = point;
+    if (gesture.mode === 'freehand' && Math.hypot(point.x - gesture.points.at(-1)!.x, point.y - gesture.points.at(-1)!.y) >= 2 / view.scale) gesture.points.push(point);
+    setFogDraft(fogFromGesture(gesture));
+    return true;
+  };
+  const finishFog = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = fogGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return false;
+    const fog = fogFromGesture(gesture);
+    if (fog) onFogCreate?.(fog);
+    fogGestureRef.current = null;
+    setFogDraft(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    return true;
+  };
+  const beginFogMove = (event: ReactPointerEvent<SVGElement>, fog: SessionMapFog) => {
+    if (!isOwner || fog.locked || activeTool !== 'fog' || fogSettings.mode !== 'grab' || event.button !== 0) return;
+    event.preventDefault(); event.stopPropagation();
+    const selectedIds = selectedFogIds.has(fog.id) ? [...selectedFogIds] : [fog.id];
+    const selectedGroups = new Set(mapFog.filter(item => selectedIds.includes(item.id) && item.magnetGroupId).map(item => item.magnetGroupId));
+    const ids = mapFog.filter(item => !item.locked && (selectedIds.includes(item.id) || item.magnetGroupId && selectedGroups.has(item.magnetGroupId))).map(item => item.id);
+    setSelectedFogIds(new Set(ids));
+    fogMoveRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, origins: Object.fromEntries(mapFog.filter(item => ids.includes(item.id)).map(item => [item.id, { x: item.x, y: item.y }])) };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const openFogMenu = (event: ReactMouseEvent<SVGElement>, fog: SessionMapFog) => {
+    if (!isOwner) return;
+    event.preventDefault(); event.stopPropagation();
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setSelectedFogIds(new Set([fog.id]));
+    setFogSelectionMenu(null); setTokenMenu(null); setDrawingMenu(null); setPoiMenu(null);
+    setFogMenu({ id: fog.id, x: Math.max(8, Math.min(event.clientX - rect.left + 12, rect.width - 350)), y: Math.max(8, Math.min(event.clientY - rect.top, rect.height - 260)), panel: null });
+  };
+  const duplicateFog = (fog: SessionMapFog) => {
+    const now = new Date().toISOString();
+    onFogCreate?.({ ...structuredClone(fog), id: crypto.randomUUID(), x: fog.x + 20 / view.scale, y: fog.y + 20 / view.scale, magnetGroupId: null, createdAt: now, updatedAt: now });
+  };
+  const beginFogPathPointMove = (event: ReactPointerEvent<SVGCircleElement>, fog: SessionMapFog, pointIndex: number) => {
+    if (fog.locked) return;
+    event.preventDefault(); event.stopPropagation();
+    fogPathPointRef.current = { pointerId: event.pointerId, fogId: fog.id, pointIndex, origin: fog, draft: fog };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveFogPathPoint = (event: ReactPointerEvent<SVGCircleElement>) => {
+    const gesture = fogPathPointRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    const point = mapPointFromClient(event.clientX, event.clientY);
+    if (!point || !gesture.origin.points) return;
+    const center = { x: gesture.origin.x + gesture.origin.width / 2, y: gesture.origin.y + gesture.origin.height / 2 };
+    const angle = -gesture.origin.rotation * Math.PI / 180;
+    const dx = point.x - center.x;
+    const dy = point.y - center.y;
+    const local = { x: dx * Math.cos(angle) - dy * Math.sin(angle) + gesture.origin.width / 2, y: dx * Math.sin(angle) + dy * Math.cos(angle) + gesture.origin.height / 2 };
+    const points = gesture.origin.points.map((item, index) => index === gesture.pointIndex ? local : item);
+    gesture.draft = { ...gesture.origin, points };
+    setFogPathDrafts(current => ({ ...current, [gesture.fogId]: gesture.draft }));
+  };
+  const finishFogPathPointMove = (event: ReactPointerEvent<SVGCircleElement>) => {
+    const gesture = fogPathPointRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    onFogChange?.(gesture.fogId, { points: gesture.draft.points });
+    setFogPathDrafts(current => { const next = { ...current }; delete next[gesture.fogId]; return next; });
+    fogPathPointRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+  const beginQuickFogSelection = (event: ReactPointerEvent<SVGElement>, fog: SessionMapFog) => {
+    if (!isOwner || activeTool !== 'fog' || fogSettings.mode !== 'quick-select' || event.button !== 0) return false;
+    event.preventDefault(); event.stopPropagation();
+    const ids = new Set([fog.id]);
+    quickFogSelectionRef.current = { pointerId: event.pointerId, ids };
+    setSelectedFogIds(ids);
+    setFogSelectionMenu(null);
+    viewportRef.current?.setPointerCapture(event.pointerId);
+    return true;
+  };
+  const moveQuickFogSelection = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = quickFogSelectionRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return false;
+    const point = worldPoint(event);
+    if (!point) return true;
+    let changed = false;
+    mapFog.forEach(fog => {
+      if (fog.fullMap) return;
+      const position = fogMoveDrafts[fog.id];
+      const rendered = fogTransformDrafts[fog.id] ?? (position ? { ...fog, ...position } : fog);
+      if (fogContainsPoint(rendered, point) && !gesture.ids.has(fog.id)) { gesture.ids.add(fog.id); changed = true; }
+    });
+    if (changed) setSelectedFogIds(new Set(gesture.ids));
+    return true;
+  };
+  const finishQuickFogSelection = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = quickFogSelectionRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return false;
+    quickFogSelectionRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (rect && gesture.ids.size > 0) setFogSelectionMenu({ x: Math.max(8, Math.min(event.clientX - rect.left + 12, rect.width - 260)), y: Math.max(8, Math.min(event.clientY - rect.top + 12, rect.height - 90)) });
+    return true;
+  };
+  const moveSelectedFog = (event: ReactPointerEvent<SVGElement>) => {
+    const gesture = fogMoveRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    const dx = (event.clientX - gesture.startX) / view.scale;
+    const dy = (event.clientY - gesture.startY) / view.scale;
+    setFogMoveDrafts(Object.fromEntries(Object.entries(gesture.origins).map(([id, origin]) => [id, { x: origin.x + dx, y: origin.y + dy }])));
+    gesture.startX = event.clientX; gesture.startY = event.clientY;
+    gesture.origins = Object.fromEntries(Object.entries(gesture.origins).map(([id, origin]) => [id, { x: origin.x + dx, y: origin.y + dy }]));
+  };
+  const finishSelectedFog = (event: ReactPointerEvent<SVGElement>) => {
+    const gesture = fogMoveRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    onFogsMove?.(Object.fromEntries(Object.entries(gesture.origins).map(([id, position]) => [id, position])));
+    setFogMoveDrafts({});
+    fogMoveRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+  const beginFogTransform = (event: ReactPointerEvent<SVGElement>, fog: SessionMapFog, kind: 'resize' | 'rotate', handle?: 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w') => {
+    if (fog.locked) return;
+    event.preventDefault(); event.stopPropagation();
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const centerClientX = rect.left + view.x + (fog.x + fog.width / 2) * view.scale;
+    const centerClientY = rect.top + view.y + (fog.y + fog.height / 2) * view.scale;
+    fogTransformRef.current = { pointerId: event.pointerId, id: fog.id, kind, handle, startX: event.clientX, startY: event.clientY, startAngle: Math.atan2(event.clientY - centerClientY, event.clientX - centerClientX), centerClientX, centerClientY, origin: fog, draft: fog };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveFogTransform = (event: ReactPointerEvent<SVGElement>) => {
+    const gesture = fogTransformRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (gesture.kind === 'rotate') {
+      const angle = Math.atan2(event.clientY - gesture.centerClientY, event.clientX - gesture.centerClientX);
+      gesture.draft = { ...gesture.origin, rotation: gesture.origin.rotation + (angle - gesture.startAngle) * 180 / Math.PI };
+    } else {
+      const radians = -gesture.origin.rotation * Math.PI / 180;
+      const screenDx = (event.clientX - gesture.startX) / view.scale;
+      const screenDy = (event.clientY - gesture.startY) / view.scale;
+      const dx = screenDx * Math.cos(radians) - screenDy * Math.sin(radians);
+      const dy = screenDx * Math.sin(radians) + screenDy * Math.cos(radians);
+      let { width, height } = gesture.origin;
+      if (gesture.handle?.includes('w')) width -= dx;
+      else if (gesture.handle?.includes('e')) width += dx;
+      if (gesture.handle?.includes('n')) height -= dy;
+      else if (gesture.handle?.includes('s')) height += dy;
+      width = Math.max(4, width);
+      height = Math.max(4, height);
+      const originCenter = { x: gesture.origin.x + gesture.origin.width / 2, y: gesture.origin.y + gesture.origin.height / 2 };
+      const oppositeOrigin = {
+        x: gesture.handle?.includes('w') ? gesture.origin.width : gesture.handle?.includes('e') ? 0 : gesture.origin.width / 2,
+        y: gesture.handle?.includes('n') ? gesture.origin.height : gesture.handle?.includes('s') ? 0 : gesture.origin.height / 2,
+      };
+      const rotation = gesture.origin.rotation * Math.PI / 180;
+      const anchorOffset = { x: oppositeOrigin.x - gesture.origin.width / 2, y: oppositeOrigin.y - gesture.origin.height / 2 };
+      const anchorWorld = {
+        x: originCenter.x + anchorOffset.x * Math.cos(rotation) - anchorOffset.y * Math.sin(rotation),
+        y: originCenter.y + anchorOffset.x * Math.sin(rotation) + anchorOffset.y * Math.cos(rotation),
+      };
+      const oppositeDraft = {
+        x: gesture.handle?.includes('w') ? width : gesture.handle?.includes('e') ? 0 : width / 2,
+        y: gesture.handle?.includes('n') ? height : gesture.handle?.includes('s') ? 0 : height / 2,
+      };
+      const draftOffset = { x: oppositeDraft.x - width / 2, y: oppositeDraft.y - height / 2 };
+      const x = anchorWorld.x - width / 2 - (draftOffset.x * Math.cos(rotation) - draftOffset.y * Math.sin(rotation));
+      const y = anchorWorld.y - height / 2 - (draftOffset.x * Math.sin(rotation) + draftOffset.y * Math.cos(rotation));
+      gesture.draft = { ...gesture.origin, x, y, width, height, points: gesture.origin.points?.map(point => ({ x: point.x * width / gesture.origin.width, y: point.y * height / gesture.origin.height })) };
+    }
+    setFogTransformDrafts(current => ({ ...current, [gesture.id]: gesture.draft }));
+  };
+  const finishFogTransform = (event: ReactPointerEvent<SVGElement>) => {
+    const gesture = fogTransformRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    onFogTransformsChange?.({ [gesture.id]: gesture.draft });
+    setFogTransformDrafts(current => { const next = { ...current }; delete next[gesture.id]; return next; });
+    fogTransformRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setFogPolygonPoints([]); setFogPolygonHover(null); setFogDraft(null); setSelectedFogIds(new Set()); }
+      if (event.key === 'Enter' && fogPolygonPoints.length >= 3) {
+        const fog = buildFog('polygon', fogPolygonPoints, fogOperation, fogStyle);
+        if (fog) onFogCreate?.(fog);
+        setFogPolygonPoints([]); setFogPolygonHover(null);
+      }
+      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedFogIds.size > 0 && !(event.target instanceof HTMLInputElement) && !(event.target instanceof HTMLTextAreaElement)) {
+        event.preventDefault(); onFogsDelete?.([...selectedFogIds]); setSelectedFogIds(new Set());
+      }
+    };
+    document.addEventListener('keydown', keydown);
+    return () => document.removeEventListener('keydown', keydown);
+  }, [fogOperation, fogPolygonPoints, fogSettings.color, fogSettings.strokeWidth, onFogCreate, onFogsDelete, selectedFogIds]);
+  useEffect(() => {
+    if (activeTool === 'fog' && (fogSettings.mode === 'polygon' || fogSettings.mode === 'cutter')) return;
+    setFogPolygonPoints([]); setFogPolygonHover(null); setFogDraft(null);
+  }, [activeTool, fogSettings.mode, mapId]);
+
   const handleViewportPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (drawingMagnetLink) {
       event.preventDefault();
@@ -1496,6 +2542,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     if (!target.closest('[role="menu"]')) {
       setTokenMenu(null);
       setDrawingMenu(null);
+      setPoiMenu(null);
+      setFogSelectionMenu(null);
     }
     if (!target.closest('[data-map-interactive]')) {
       setSelectedTokenIds(new Set());
@@ -1504,17 +2552,31 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       drawingTransformRef.current = null;
       setDrawingDraft(null);
     }
-    if (!captureCalibrationPoint(event) && !beginVisualMeasurement(event) && !beginDrawing(event) && !beginSelection(event)) beginPan(event);
+    if (activeTool === 'pin' && event.button === 0 && !target.closest('[data-map-interactive]')) {
+      const point = worldPoint(event);
+      if (point) onPoiCreate?.(point);
+      event.preventDefault();
+      return;
+    }
+    if (!captureCalibrationPoint(event) && !beginVisualMeasurement(event) && !beginDrawing(event) && !beginFog(event) && !beginSelection(event)) beginPan(event);
   };
   const handleViewportPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!moveVisualMeasurement(event) && !moveDrawing(event) && !moveSelection(event)) movePan(event);
+    if (moveQuickFogSelection(event)) return;
+    if (drawingMoveRef.current) { moveSelectedDrawing(event as unknown as ReactPointerEvent<SVGElement>); return; }
+    if (poiMoveRef.current) { movePoi(event as unknown as ReactPointerEvent<HTMLButtonElement>); return; }
+    if (tokenGestureRef.current) { moveToken(event as unknown as ReactPointerEvent<HTMLElement>); return; }
+    if (!moveVisualMeasurement(event) && !moveDrawing(event) && !moveFog(event) && !moveSelection(event)) movePan(event);
   };
   const handleViewportPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!finishVisualMeasurement(event) && !finishDrawing(event) && !finishSelection(event)) finishPan(event);
+    if (finishQuickFogSelection(event)) return;
+    if (drawingMoveRef.current) { finishSelectedDrawing(event as unknown as ReactPointerEvent<SVGElement>); return; }
+    if (poiMoveRef.current) { finishPoiMove(event as unknown as ReactPointerEvent<HTMLButtonElement>); return; }
+    if (tokenGestureRef.current) { finishTokenMove(event as unknown as ReactPointerEvent<HTMLElement>); return; }
+    if (!finishVisualMeasurement(event) && !finishDrawing(event) && !finishFog(event) && !finishSelection(event)) finishPan(event);
   };
 
   const beginTokenMove = (event: ReactPointerEvent<HTMLElement>, token: SessionMapToken) => {
-    if (calibrationActive || activeTool === 'measure' || token.locked || event.button !== 0) return;
+    if (calibrationActive || activeTool === 'measure' || !canMoveToken(token) || event.button !== 0) return;
     if (selectionArmed && !selectedTokenIds.has(token.id)) {
       setSelectedTokenIds(new Set());
       setSelectedDrawingIds(new Set());
@@ -1528,8 +2590,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     setDrawingDraft(null);
     setTransformTokenId(null);
     setTokenMenu(null);
-    const selectionMembers = selectedTokenIds.has(token.id) ? mapTokens.filter((candidate) => selectedTokenIds.has(candidate.id) && !candidate.locked) : [];
-    const linkedTokens = selectionMembers.length > 0 ? selectionMembers : token.magnetGroupId ? mapTokens.filter((candidate) => candidate.magnetGroupId === token.magnetGroupId && !candidate.locked) : [token];
+    const selectionMembers = selectedTokenIds.has(token.id) ? mapTokens.filter((candidate) => selectedTokenIds.has(candidate.id) && canMoveToken(candidate)) : [];
+    const linkedTokens = selectionMembers.length > 0 ? selectionMembers : token.magnetGroupId ? mapTokens.filter((candidate) => candidate.magnetGroupId === token.magnetGroupId && canMoveToken(candidate)) : [token];
     const movingIds = new Set(linkedTokens.map((candidate) => candidate.id));
     if (selectionMembers.length === 0)
       linkedTokens.forEach((linkedToken) => {
@@ -1538,7 +2600,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         const tokenBounds = getTokenBounds(linkedToken, gridSettings.cellSize, tokenPosition);
         mapTokens.slice(tokenIndex + 1).forEach((candidate) => {
           const position = tokenDraftPositions[candidate.id] ?? candidate;
-          if (!candidate.locked && isBoundsFullyContained(getTokenBounds(candidate, gridSettings.cellSize, position), tokenBounds)) movingIds.add(candidate.id);
+          if (canMoveToken(candidate) && isBoundsFullyContained(getTokenBounds(candidate, gridSettings.cellSize, position), tokenBounds)) movingIds.add(candidate.id);
         });
       });
     const movingTokens = mapTokens.filter((candidate) => movingIds.has(candidate.id));
@@ -1548,7 +2610,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         return [candidate.id, { x: position.x, y: position.y }];
       }),
     );
-    const selectedDrawings = selectionMembers.length > 0 ? mapDrawings.filter((drawing) => selectedDrawingIds.has(drawing.id) && !drawing.locked) : [];
+    const selectedDrawings = selectionMembers.length > 0 ? mapDrawings.filter((drawing) => selectedDrawingIds.has(drawing.id) && !drawing.pinned && (isOwner || !drawing.locked)) : [];
     const drawingOrigins = Object.fromEntries(selectedDrawings.map((drawing) => [drawing.id, { x: drawing.x, y: drawing.y }]));
     tokenGestureRef.current = {
       pointerId: event.pointerId,
@@ -1601,9 +2663,35 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     });
   };
 
+  const beginDepthSelectedMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || !depthSelectedKey || !depthHoveredKeys.has(depthSelectedKey) || (event.target as Element).closest('[role="menu"]')) return false;
+    const separator = depthSelectedKey.indexOf('\u0000');
+    const family = depthSelectedKey.slice(0, separator);
+    const id = depthSelectedKey.slice(separator + 1);
+    if (family === 'drawing') {
+      const drawing = mapDrawings.find(item => item.id === id);
+      if (!drawing || !isOwner || drawing.pinned) return false;
+      beginDrawingMove(event as unknown as ReactPointerEvent<SVGElement>, drawing);
+    } else if (family === 'token') {
+      const token = mapTokens.find(item => item.id === id);
+      if (!token || !canMoveToken(token)) return false;
+      beginTokenMove(event as unknown as ReactPointerEvent<HTMLElement>, token);
+    } else if (family === 'poi') {
+      const poi = mapPois.find(item => item.id === id);
+      if (!poi || !canControlPoi(poi)) return false;
+      beginPoiMove(event as unknown as ReactPointerEvent<HTMLButtonElement>, poi);
+    } else return false;
+    setTokenMenu(null);
+    setDrawingMenu(null);
+    setPoiMenu(null);
+    return true;
+  };
+
   const openTokenMenu = (event: ReactMouseEvent<HTMLElement>, tokenId: string) => {
     event.preventDefault();
     event.stopPropagation();
+    if (openUnderlyingMapObjectMenu(event.clientX, event.clientY, { family: 'token', id: tokenId })) return;
+    showPastePrompt(event.clientX, event.clientY, 'token');
     if (selectionArmed && !selectedTokenIds.has(tokenId)) {
       setSessionMapSelectionArmed(false);
       setSelectedTokenIds(new Set());
@@ -1614,7 +2702,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     setTransformTokenId(null);
     const token = mapTokens.find((candidate) => candidate.id === tokenId);
     const viewport = viewportRef.current;
-    if (!viewport || !token || (!isOwner && token.locked)) return;
+    if (!viewport || !token || (!isOwner && !canControlToken(token))) return;
     const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token;
     const size = tokenDraftTransforms[token.id]?.size ?? getTokenSize(token, gridSettings.cellSize);
     const rotation = tokenDraftTransforms[token.id]?.rotation ?? token.rotation ?? 0;
@@ -1660,12 +2748,12 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   };
 
   const beginTokenTransform = (event: ReactPointerEvent<SVGElement>, token: SessionMapToken, kind: 'resize' | 'rotate') => {
-    if (token.locked || event.button !== 0) return;
+    if (!canControlToken(token) || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
     const rect = viewportRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const members = selectedTokenIds.has(token.id) && selectedTokenIds.size > 1 ? mapTokens.filter((candidate) => selectedTokenIds.has(candidate.id) && !candidate.locked) : token.magnetGroupId ? mapTokens.filter((candidate) => candidate.magnetGroupId === token.magnetGroupId) : [token];
+    const members = selectedTokenIds.has(token.id) && selectedTokenIds.size > 1 ? mapTokens.filter((candidate) => selectedTokenIds.has(candidate.id) && canControlToken(candidate)) : token.magnetGroupId ? mapTokens.filter((candidate) => candidate.magnetGroupId === token.magnetGroupId && canControlToken(candidate)) : [token];
     const origins = Object.fromEntries(
       members.map((member) => {
         const current = tokenDraftTransforms[member.id];
@@ -1749,7 +2837,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     });
   };
 
-  const beginMenuDrag = (event: ReactPointerEvent<HTMLButtonElement>, menu: 'token' | 'drawing', position: { x: number; y: number }) => {
+  const beginMenuDrag = (event: ReactPointerEvent<HTMLButtonElement>, menu: 'token' | 'drawing' | 'poi' | 'fog', position: { x: number; y: number }) => {
     event.preventDefault();
     event.stopPropagation();
     if (menu === 'drawing') setDrawingMenuDetached(true);
@@ -1770,7 +2858,9 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     const x = Math.max(0, Math.min((rect?.width ?? Infinity) - 48, drag.originX + event.clientX - drag.startX));
     const y = Math.max(0, Math.min((rect?.height ?? Infinity) - 40, drag.originY + event.clientY - drag.startY));
     if (drag.menu === 'token') setTokenMenu((current) => (current ? { ...current, x, y } : null));
-    else setDrawingMenu((current) => (current ? { ...current, x, y } : null));
+    else if (drag.menu === 'drawing') setDrawingMenu((current) => (current ? { ...current, x, y } : null));
+    else if (drag.menu === 'poi') setPoiMenu((current) => (current ? { ...current, x, y } : null));
+    else setFogMenu((current) => (current ? { ...current, x, y } : null));
   };
   const finishMenuDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const drag = menuDragRef.current;
@@ -1791,18 +2881,44 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       data-map-tool-active={activeTool}
       data-map-panning={panning || undefined}
       data-map-move-target={moveTargetAvailable ? 'movable' : 'fixed'}
-      className={`relative h-full min-h-0 w-full overflow-hidden touch-none bg-[radial-gradient(circle_at_center,#262a31_0%,#14161b_58%,#0d0f13_100%)] ${drawingMagnetLink || calibrationActive || (activeTool === 'select' && selectionArmed) || (activeTool === 'draw' && !['grab', 'eraser'].includes(drawSettings.mode)) ? 'cursor-crosshair' : activeTool === 'draw' && drawSettings.mode === 'eraser' ? 'cursor-cell' : ''}`}
+      className={`relative h-full min-h-0 w-full overflow-hidden touch-none bg-[radial-gradient(circle_at_center,#262a31_0%,#14161b_58%,#0d0f13_100%)] ${drawingMagnetLink || calibrationActive || (activeTool === 'select' && selectionArmed) || (activeTool === 'draw' && !['grab', 'eraser'].includes(drawSettings.mode)) || (activeTool === 'fog' && !['grab', 'quick-select'].includes(fogSettings.mode)) ? 'cursor-crosshair' : activeTool === 'draw' && drawSettings.mode === 'eraser' ? 'cursor-cell' : ''}`}
       onWheel={zoom}
       onAuxClick={(event) => {
         if (event.button === 1) event.preventDefault();
       }}
+      onPointerDownCapture={beginDepthSelectedMove}
       onPointerDown={handleViewportPointerDown}
-      onPointerMove={handleViewportPointerMove}
+      onPointerMove={(event) => {
+        lastMapPointerRef.current = { clientX: event.clientX, clientY: event.clientY };
+        updateDepthHover(event.clientX, event.clientY);
+        handleViewportPointerMove(event);
+      }}
       onPointerUp={handleViewportPointerUp}
       onContextMenu={(event) => {
+        if (isOwner && activeTool === 'fog') {
+          const point = mapPointFromClient(event.clientX, event.clientY);
+          const fog = point ? [...mapFog].reverse().find(item => !item.fullMap && fogContainsPoint(fogPathDrafts[item.id] ?? fogTransformDrafts[item.id] ?? { ...item, ...(fogMoveDrafts[item.id] ?? {}) }, point)) : null;
+          const rect = viewportRef.current?.getBoundingClientRect();
+          event.preventDefault();
+          event.stopPropagation();
+          if (fog && rect) {
+            setSelectedFogIds(new Set([fog.id])); setFogSelectionMenu(null); setTokenMenu(null); setDrawingMenu(null); setPoiMenu(null);
+            setFogMenu({ id: fog.id, x: Math.max(8, Math.min(event.clientX - rect.left + 12, rect.width - 350)), y: Math.max(8, Math.min(event.clientY - rect.top, rect.height - 260)), panel: null });
+          } else { setFogMenu(null); setSelectedFogIds(new Set()); }
+          return;
+        }
         if (drawingMagnetLink) {
           event.preventDefault();
           finishDrawingMagnetLink();
+          return;
+        }
+        if (drawingClipboard) {
+          event.preventDefault();
+          showPastePrompt(event.clientX, event.clientY, 'map');
+          return;
+        }
+        if (openUnderlyingMapObjectMenu(event.clientX, event.clientY)) {
+          event.preventDefault();
           return;
         }
         if (selectionArmed) {
@@ -1815,9 +2931,13 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         }
       }}
       onPointerCancel={(event) => {
+        if (finishQuickFogSelection(event)) return;
         if (!finishVisualMeasurement(event) && !finishDrawing(event) && !finishSelection(event)) finishPan(event);
       }}
       onPointerLeave={() => {
+        setDepthHoveredKeys(new Set());
+        depthSelectionRef.current = null;
+        setDepthSelectedKey(null);
         if (!panning) setMoveTargetAvailable(false);
       }}
       onLostPointerCapture={() => {
@@ -1851,26 +2971,28 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
           {children}
         </div>
         <CanvasGrid settings={gridSettings} patternId={`canvas-grid-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}`} />
-        <svg data-session-map-drawings className="pointer-events-none absolute inset-0 z-[3] h-full w-full overflow-visible">
+        <div data-session-map-drawings className="pointer-events-none absolute inset-0">
           {mapDrawings.map((drawing) => {
             if (textDraft?.editingId === drawing.id) return null;
             const moveDraft = drawingMoveDrafts[drawing.id];
             const renderedBase = drawingTransformDrafts[drawing.id] ?? (drawingDraft?.id === drawing.id ? drawingDraft : moveDraft ? { ...drawing, ...moveDraft } : drawing);
             const rendered = withMeasuredTextBounds(renderedBase);
             if (drawing.visible === false && !isOwner) return null;
-            const interactive = isOwner;
+            const interactive = isOwner && activeTool !== 'fog';
             return (
+              <svg key={drawing.id} className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" style={{ zIndex: objectZIndex.get(`drawing\u0000${drawing.id}`) }}>
               <g
-                key={drawing.id}
                 data-map-interactive={interactive || undefined}
                 transform={`translate(${rendered.x} ${rendered.y}) rotate(${rendered.rotation} ${rendered.width / 2} ${rendered.height / 2})`}
                 opacity={isOwner && drawing.visible === false ? 0.35 : 1}
                 onPointerEnter={() => {
+                  hoveredMapElementRef.current = { type: 'drawing', id: drawing.id };
                   setHoveredDrawingId(drawing.id);
                   if (drawingMagnetLink && !drawingMagnetLink.ids.includes(drawing.id)) setDrawingMagnetLink((current) => (current ? { ...current, hoveredId: drawing.id } : null));
                 }}
                 onPointerLeave={() => {
-                  setHoveredDrawingId((current) => current === drawing.id ? null : current);
+                  if (hoveredMapElementRef.current?.type === 'drawing' && hoveredMapElementRef.current.id === drawing.id) hoveredMapElementRef.current = null;
+                  setHoveredDrawingId((current) => (current === drawing.id ? null : current));
                   if (drawingMagnetLink?.hoveredId === drawing.id) setDrawingMagnetLink((current) => (current ? { ...current, hoveredId: null } : null));
                 }}
                 onPointerDown={(event) => {
@@ -1889,7 +3011,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                           : null,
                       );
                     }
-                  } else if (activeTool === 'draw' && drawSettings.mode === 'eraser' && !drawing.locked) {
+                  } else if (activeTool === 'draw' && drawSettings.mode === 'eraser' && !drawing.pinned) {
                     event.preventDefault();
                     event.stopPropagation();
                     onDrawingDelete?.(drawing.id);
@@ -1902,6 +3024,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                   if (!isOwner) return;
                   event.preventDefault();
                   event.stopPropagation();
+                  if (openUnderlyingMapObjectMenu(event.clientX, event.clientY, { family: 'drawing', id: drawing.id })) return;
+                  showPastePrompt(event.clientX, event.clientY, 'drawing');
                   if (drawingMagnetLink) {
                     finishDrawingMagnetLink();
                     return;
@@ -1914,6 +3038,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                     return;
                   }
                   setDrawingStyleEditorOpen(false);
+                  setDrawingLayerPanelOpen(false);
                   setDrawingTooltip(null);
                   const rect = viewportRef.current?.getBoundingClientRect();
                   if (rect) {
@@ -1934,11 +3059,19 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                   }
                 }}
               >
-                {drawingGraphic(rendered, interactive, hoveredDrawingId === drawing.id || selectedDrawingIds.has(drawing.id))}
-            {selectedDrawingId === drawing.id && (
+                {drawingGraphic(rendered, interactive, hoveredDrawingId === drawing.id || selectedDrawingIds.has(drawing.id) || depthHoveredKeys.has(`drawing\u0000${drawing.id}`))}
+                {pathEditDrawingId === drawing.id && !drawing.pinned && rendered.points && (
+                  <g aria-label="Modifica tracciato">
+                    {rendered.points.map((point, index) => (
+                      <circle key={`path-point-${index}`} role="slider" aria-label={`Nodo tracciato ${index + 1}`} tabIndex={0} className="pointer-events-auto cursor-move" cx={point.x} cy={point.y} r={6 / view.scale} fill="#1f2937" stroke="#fb923c" strokeWidth={2 / view.scale} vectorEffect="non-scaling-stroke" onPointerDown={(event) => beginPathPointMove(event, rendered, index)} onPointerMove={movePathPoint} onPointerUp={finishPathPointMove} onPointerCancel={finishPathPointMove} />
+                    ))}
+                  </g>
+                )}
+                {selectedDrawingId === drawing.id && (
                   <g>
                     <rect x={drawing.kind === 'text' ? 0 : -4 / view.scale} y={drawing.kind === 'text' ? 0 : -4 / view.scale} width={drawing.kind === 'text' ? rendered.width : rendered.width + 8 / view.scale} height={drawing.kind === 'text' ? rendered.height : rendered.height + 8 / view.scale} fill="none" stroke="#67e8f9" strokeWidth={1.5 / view.scale} strokeDasharray={`${5 / view.scale} ${3 / view.scale}`} vectorEffect="non-scaling-stroke" />
-                    {!drawing.locked &&
+                    {isOwner &&
+                      !drawing.pinned &&
                       (
                         [
                           ['nw', 0, 0],
@@ -1947,30 +3080,39 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                           ['se', rendered.width, rendered.height],
                         ] as const
                       ).map(([corner, x, y]) => <rect key={corner} className="pointer-events-auto cursor-nwse-resize" x={x - 5 / view.scale} y={y - 5 / view.scale} width={10 / view.scale} height={10 / view.scale} fill="white" stroke="#06b6d4" strokeWidth={1.5 / view.scale} onPointerDown={(event) => beginDrawingTransform(event, drawing, 'resize', corner)} onPointerMove={moveDrawingTransform} onPointerUp={finishDrawingTransform} onPointerCancel={finishDrawingTransform} />)}
-                     {!drawing.locked && (
-                       <>
+                    {isOwner && !drawing.pinned && (
+                      <>
                         <line x1={rendered.width / 2} y1={0} x2={rendered.width / 2} y2={-28 / view.scale} stroke="#67e8f9" strokeWidth={1.5 / view.scale} />
                         <circle className="pointer-events-auto cursor-grab" cx={rendered.width / 2} cy={-32 / view.scale} r={7 / view.scale} fill="#06b6d4" stroke="white" strokeWidth={2 / view.scale} onPointerDown={(event) => beginDrawingTransform(event, drawing, 'rotate')} onPointerMove={moveDrawingTransform} onPointerUp={finishDrawingTransform} onPointerCancel={finishDrawingTransform} />
-                       </>
-                     )}
-                     {!drawing.locked && drawing.kind === 'text' && rendered.text && Array.from({ length: 5 }, (_, index) => {
-                       const vertical = rendered.text?.orientation === 'vertical';
-                       const offset = rendered.text?.curveOffsets?.[index] ?? 0;
-                       const along = (index + 1) / 6;
-                       const handleSize = 8 / view.scale;
-                       const gap = 14 / view.scale;
-                       const positions = vertical
-                         ? [{ x: -gap + offset, y: rendered.height * along }, { x: rendered.width + gap + offset, y: rendered.height * along }]
-                         : [{ x: rendered.width * along, y: -gap + offset }, { x: rendered.width * along, y: rendered.height + gap + offset }];
-                       return positions.map((position, side) => (
-                         <rect key={`curve-${index}-${side}`} aria-label={`Curva testo punto ${index + 1}`} className={`pointer-events-auto ${vertical ? 'cursor-ew-resize' : 'cursor-ns-resize'}`} x={position.x - handleSize / 2} y={position.y - handleSize / 2} width={handleSize} height={handleSize} fill="#f8fafc" stroke="#a855f7" strokeWidth={1.5 / view.scale} onPointerDown={(event) => beginTextCurve(event, rendered, index)} onPointerMove={moveTextCurve} onPointerUp={finishTextCurve} onPointerCancel={finishTextCurve} />
-                       ));
-                     })}
-                   </g>
+                      </>
+                    )}
+                    {isOwner &&
+                      !drawing.pinned &&
+                      drawing.kind === 'text' &&
+                      rendered.text &&
+                      normalizedTextCurveOffsets(rendered.text).map((offset, index, offsets) => {
+                        const vertical = rendered.text?.orientation === 'vertical';
+                        const along = (index + 1) / (offsets.length + 1);
+                        const handleSize = 8 / view.scale;
+                        const gap = 14 / view.scale;
+                        const positions = vertical
+                          ? [
+                              { x: -gap + offset, y: rendered.height * along },
+                              { x: rendered.width + gap + offset, y: rendered.height * along },
+                            ]
+                          : [
+                              { x: rendered.width * along, y: -gap + offset },
+                              { x: rendered.width * along, y: rendered.height + gap + offset },
+                            ];
+                        return positions.map((position, side) => <rect key={`curve-${index}-${side}`} aria-label={`Curva testo punto ${index + 1}`} className={`pointer-events-auto ${vertical ? 'cursor-ew-resize' : 'cursor-ns-resize'}`} x={position.x - handleSize / 2} y={position.y - handleSize / 2} width={handleSize} height={handleSize} fill="#f8fafc" stroke="#a855f7" strokeWidth={1.5 / view.scale} onPointerDown={(event) => beginTextCurve(event, rendered, index)} onPointerMove={moveTextCurve} onPointerUp={finishTextCurve} onPointerCancel={finishTextCurve} />);
+                      })}
+                  </g>
                 )}
               </g>
+              </svg>
             );
           })}
+          <svg className="pointer-events-none absolute inset-0 z-[10000] h-full w-full overflow-visible">
           {drawingMagnetLink &&
             (() => {
               const source = mapDrawings.find((item) => item.id === drawingMagnetLink.ids[drawingMagnetLink.ids.length - 1]);
@@ -2007,7 +3149,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             </g>
           )}
           {lineStart && lineHover && <line x1={lineStart.x} y1={lineStart.y} x2={lineHover.x} y2={lineHover.y} stroke={drawSettings.style.strokeColor} strokeWidth={drawSettings.style.strokeWidth} strokeDasharray="6 4" strokeLinecap="round" />}
-        </svg>
+          </svg>
+        </div>
         {textDraft && (
           <textarea
             ref={textDraftRef}
@@ -2027,7 +3170,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             }}
             onPointerDown={(event) => event.stopPropagation()}
             spellCheck={false}
-            className="absolute z-30 min-w-10 resize-none overflow-hidden border-0 bg-transparent p-0 outline-none"
+            className="absolute z-[10000] min-w-10 resize-none overflow-hidden border-0 bg-transparent p-0 outline-none"
             style={{
               left: textDraft.point.x,
               top: textDraft.point.y,
@@ -2051,12 +3194,12 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
           />
         )}
         {selectionDraft && (
-          <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-20 overflow-visible">
+          <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-[10000] overflow-visible">
             {selectionDraft.mode === 'rectangle' ? <rect x={Math.min(selectionDraft.start.x, selectionDraft.current.x)} y={Math.min(selectionDraft.start.y, selectionDraft.current.y)} width={Math.abs(selectionDraft.current.x - selectionDraft.start.x)} height={Math.abs(selectionDraft.current.y - selectionDraft.start.y)} fill="rgba(34,211,238,0.12)" stroke="#22d3ee" strokeWidth={1.5 / view.scale} strokeDasharray={`${6 / view.scale} ${4 / view.scale}`} /> : <polyline points={[...selectionDraft.points, selectionDraft.current].map((point) => `${point.x},${point.y}`).join(' ')} fill="none" stroke="#22d3ee" strokeWidth={1.5 / view.scale} strokeDasharray={`${6 / view.scale} ${4 / view.scale}`} />}
           </svg>
         )}
         {calibrationStart && (
-          <div aria-hidden="true" className="pointer-events-none absolute z-[22]" style={{ left: calibrationStart.x, top: calibrationStart.y }}>
+          <div aria-hidden="true" className="pointer-events-none absolute z-[10000]" style={{ left: calibrationStart.x, top: calibrationStart.y }}>
             <span className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-cyan-400 shadow-[0_0_0_3px_rgba(3,7,18,0.85)]" style={{ width: 14 / view.scale, height: 14 / view.scale }} />
             <span className="absolute left-3 top-3 whitespace-nowrap rounded-md border border-cyan-300/60 bg-slate-950/90 px-2 py-1 font-semibold text-cyan-100 shadow-lg" style={{ fontSize: 12 / view.scale }}>
               Seleziona un secondo incrocio distante
@@ -2067,7 +3210,82 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         {Object.entries(remoteMeasurements).map(([key, measurement]) => (
           <MeasurementGraphic key={key} measurement={measurement} view={view} gridSettings={gridSettings} />
         ))}
-        <div data-session-map-tokens className="pointer-events-none absolute inset-0 z-[3]">
+        {depthHoveredKeys.size > 1 && (
+          <svg aria-hidden="true" className="pointer-events-none absolute inset-0 z-[9999] h-full w-full overflow-visible">
+            {objectOrder.map((ref) => {
+              const key = `${ref.family}\u0000${ref.id}`;
+              if (!depthHoveredKeys.has(key)) return null;
+              let bounds: { x: number; y: number; width: number; height: number } | null = null;
+              if (ref.family === 'drawing') {
+                const drawing = mapDrawings.find(item => item.id === ref.id);
+                if (drawing) bounds = getRotatedRectBounds(drawing, drawing.width, drawing.height, drawing.rotation ?? 0);
+              } else if (ref.family === 'token') {
+                const token = mapTokens.find(item => item.id === ref.id);
+                const position = token ? tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token : null;
+                if (token && position) { const size = tokenDraftTransforms[token.id]?.size ?? getTokenSize(token, gridSettings.cellSize); bounds = { x: position.x, y: position.y, width: size, height: size }; }
+              } else {
+                const poi = mapPois.find(item => item.id === ref.id);
+                const position = poi ? poiDraftPositions[poi.id] ?? poi : null;
+                const size = poi ? poiDraftTransforms[poi.id]?.size ?? poi.size : 0;
+                if (poi && position) bounds = { x: position.x - size / 2, y: position.y - size / 2, width: size, height: size };
+              }
+              const selected = key === depthSelectedKey;
+              return bounds ? <rect key={key} x={bounds.x} y={bounds.y} width={bounds.width} height={bounds.height} fill={selected ? 'rgba(251,191,36,0.12)' : 'rgba(34,211,238,0.04)'} stroke={selected ? '#fbbf24' : '#67e8f9'} strokeWidth={(selected ? 3 : 1.5) / view.scale} strokeDasharray={selected ? undefined : `${5 / view.scale} ${3 / view.scale}`} /> : null;
+            })}
+          </svg>
+        )}
+        <div data-session-map-pois className="pointer-events-none absolute inset-0">
+          {mapPois.map((poi) => {
+            const position = poiDraftPositions[poi.id] ?? poi;
+            const transform = poiDraftTransforms[poi.id];
+            const size = Math.max(8, transform?.size ?? poi.size);
+            const rotation = transform?.rotation ?? poi.rotation ?? 0;
+            const handleSize = Math.min(12, Math.max(6, size * view.scale * 0.14)) / view.scale;
+            const rotationHandleSize = Math.min(16, Math.max(8, size * view.scale * 0.18)) / view.scale;
+            const rotationLineLength = Math.min(32, Math.max(18, size * view.scale * 0.35)) / view.scale;
+            return (
+              <Tooltip key={poi.id}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    data-map-interactive
+                    data-map-poi-id={poi.id}
+                    aria-label={poi.label || 'Punto di interesse'}
+                    className={`${activeTool === 'fog' ? 'pointer-events-none' : 'pointer-events-auto'} absolute touch-none border-0 bg-transparent p-0 ${depthHoveredKeys.has(`poi\u0000${poi.id}`) ? 'drop-shadow-[0_0_7px_rgba(34,211,238,0.95)]' : ''} ${canControlPoi(poi) ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
+                    style={{ transform: `translate3d(${position.x - size / 2}px, ${position.y - size / 2}px, 0)`, width: size, height: size, opacity: isOwner && !poi.visibleToPlayers ? 0.45 : 1, color: poi.color, zIndex: objectZIndex.get(`poi\u0000${poi.id}`) }}
+                    onPointerDown={(event) => beginPoiMove(event, poi)}
+                    onPointerMove={movePoi}
+                    onPointerUp={finishPoiMove}
+                    onPointerCancel={finishPoiMove}
+                    onContextMenu={(event) => openPoiMenu(event, poi)}
+                    onDoubleClick={() => {
+                      if (poi.noteId) requestSessionNoteOpen(poi.noteId);
+                    }}
+                  >
+                    <span className="relative block h-full w-full" style={{ transform: `rotate(${rotation}deg)` }}>
+                      <NoteIconGlyph data-static-icon name={poi.iconName} className="h-full w-full drop-shadow-[0_2px_3px_rgba(0,0,0,.8)]" />
+                      {transformPoiId === poi.id && canControlPoi(poi) && (
+                        <svg data-map-interactive className="pointer-events-none absolute inset-0 overflow-visible" width={size} height={size}>
+                          <rect x={0} y={0} width={size} height={size} fill="none" stroke="#67e8f9" strokeWidth={1.5 / view.scale} strokeDasharray={`${5 / view.scale} ${3 / view.scale}`} vectorEffect="non-scaling-stroke" />
+                          {([[0, 0], [size, 0], [0, size], [size, size]] as const).map(([x, y], index) => <rect key={index} role="slider" aria-label="Ridimensiona PDI" tabIndex={0} className="pointer-events-auto cursor-nwse-resize" x={x - handleSize / 2} y={y - handleSize / 2} width={handleSize} height={handleSize} fill="white" stroke="#06b6d4" strokeWidth={1.5 / view.scale} onPointerDown={(event) => beginPoiTransform(event, poi, 'resize')} onPointerMove={movePoiTransform} onPointerUp={finishPoiTransform} onPointerCancel={finishPoiTransform} />)}
+                          <line x1={size / 2} y1={0} x2={size / 2} y2={-rotationLineLength} stroke="#67e8f9" strokeWidth={1.5 / view.scale} />
+                          <circle role="slider" aria-label="Ruota PDI" tabIndex={0} className="pointer-events-auto cursor-grab active:cursor-grabbing" cx={size / 2} cy={-rotationLineLength} r={rotationHandleSize / 2} fill="#06b6d4" stroke="white" strokeWidth={2 / view.scale} onPointerDown={(event) => beginPoiTransform(event, poi, 'rotate')} onPointerMove={movePoiTransform} onPointerUp={finishPoiTransform} onPointerCancel={finishPoiTransform} />
+                        </svg>
+                      )}
+                    </span>
+                    {poi.labelVisible && poi.label && (
+                      <span className="absolute left-full top-1/2 ml-1 -translate-y-1/2 whitespace-nowrap font-semibold drop-shadow-[0_2px_3px_rgba(0,0,0,.9)]" style={{ color: poi.color, fontSize: Math.max(10, size * 0.28) }}>
+                        {poi.label}
+                      </span>
+                    )}
+                  </button>
+                </TooltipTrigger>
+                {!poi.labelVisible && poi.label && <TooltipContent side="top">{poi.label}</TooltipContent>}
+              </Tooltip>
+            );
+          })}
+        </div>
+        <div data-session-map-tokens className="pointer-events-none absolute inset-0">
           {mapTokens.map((token) => {
             const transform = tokenDraftTransforms[token.id];
             const position = transform ?? tokenDraftPositions[token.id] ?? token;
@@ -2101,16 +3319,33 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                     <button
                       type="button"
                       aria-label={`Token di ${token.name}`}
-                      className={`pointer-events-none absolute touch-none border-0 bg-transparent p-0 transition-[filter] duration-150 hover:drop-shadow-[0_0_7px_rgba(34,211,238,0.95)] ${tokenMenu?.tokenId === token.id ? 'drop-shadow-[0_0_7px_rgba(34,211,238,0.95)]' : ''}`}
+                      className={`pointer-events-none absolute touch-none border-0 bg-transparent p-0 transition-[filter] duration-150 hover:drop-shadow-[0_0_7px_rgba(34,211,238,0.95)] ${tokenMenu?.tokenId === token.id || depthHoveredKeys.has(`token\u0000${token.id}`) ? 'drop-shadow-[0_0_7px_rgba(34,211,238,0.95)]' : ''}`}
                       style={{
                         transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
                         opacity: isOwner && token.visible === false ? 0.45 : 1,
+                        zIndex: token.entityKind === 'pg' && mapFog.some(fog => fog.operation === 'cover' && fog.enabled !== false) ? 9001 : objectZIndex.get(`token\u0000${token.id}`),
                       }}
                     >
                       <div style={{ transform: `rotate(${rotation}deg)` }}>
                         <TokenGhostShape entity={token} fallbackIcon={tokenFallback} size={size} />
                       </div>
-                      <span data-map-interactive data-selected-map-element={selectedTokenIds.has(token.id) ? 'true' : undefined} data-map-movable={!token.locked ? 'true' : 'false'} className={`pointer-events-auto absolute inset-0 z-[7] rounded-full ${calibrationActive || (activeTool === 'select' && selectionArmed) ? 'cursor-crosshair' : token.locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'}`} onPointerDown={(event) => beginTokenMove(event, token)} onPointerMove={moveToken} onPointerUp={finishTokenMove} onPointerCancel={finishTokenMove} onContextMenu={(event) => openTokenMenu(event, token.id)} />
+                      <span
+                        data-map-interactive
+                        data-selected-map-element={selectedTokenIds.has(token.id) ? 'true' : undefined}
+                        data-map-movable={canMoveToken(token) ? 'true' : 'false'}
+                        className={`${activeTool === 'fog' ? 'pointer-events-none' : 'pointer-events-auto'} absolute inset-0 z-[7] rounded-full ${calibrationActive || (activeTool === 'select' && selectionArmed) ? 'cursor-crosshair' : !canMoveToken(token) ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'}`}
+                        onPointerEnter={() => {
+                          hoveredMapElementRef.current = { type: 'token', id: token.id };
+                        }}
+                        onPointerLeave={() => {
+                          if (hoveredMapElementRef.current?.type === 'token' && hoveredMapElementRef.current.id === token.id) hoveredMapElementRef.current = null;
+                        }}
+                        onPointerDown={(event) => beginTokenMove(event, token)}
+                        onPointerMove={moveToken}
+                        onPointerUp={finishTokenMove}
+                        onPointerCancel={finishTokenMove}
+                        onContextMenu={(event) => openTokenMenu(event, token.id)}
+                      />
                       {dead && (
                         <span
                           aria-hidden="true"
@@ -2209,7 +3444,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                     </TooltipContent>
                   )}
                 </Tooltip>
-                {transformTokenId === token.id && !token.locked && (
+                {transformTokenId === token.id && canControlToken(token) && (
                   <svg
                     data-map-interactive
                     className="pointer-events-none absolute z-20 overflow-visible"
@@ -2239,22 +3474,239 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             );
           })}
         </div>
+        <svg data-session-map-fog className="pointer-events-none absolute inset-0 z-[9000] h-full w-full overflow-visible">
+          <defs>
+            {mapFog.map((fog, index) => {
+              if (fog.operation !== 'cover' || fog.enabled === false) return null;
+              const position = fogMoveDrafts[fog.id] ?? fog;
+              const rendered = fogPathDrafts[fog.id] ?? fogTransformDrafts[fog.id] ?? { ...fog, ...position };
+              return <mask key={fog.id} id={`session-fog-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index}`} maskUnits="userSpaceOnUse" x="-100000" y="-100000" width="200000" height="200000">
+                <rect x="-100000" y="-100000" width="200000" height="200000" fill="black" />
+                <g transform={`translate(${rendered.x} ${rendered.y}) rotate(${rendered.rotation} ${rendered.width / 2} ${rendered.height / 2})`}>{fogShape(rendered, { fill: 'white' })}</g>
+                {mapFog.slice(index + 1).filter(item => item.operation === 'reveal' && item.enabled !== false).map(item => {
+                  const revealPosition = fogMoveDrafts[item.id] ?? item;
+                  const reveal = fogPathDrafts[item.id] ?? fogTransformDrafts[item.id] ?? { ...item, ...revealPosition };
+                  return <g key={item.id} transform={`translate(${reveal.x} ${reveal.y}) rotate(${reveal.rotation} ${reveal.width / 2} ${reveal.height / 2})`}>{fogShape(reveal, { fill: 'black' })}</g>;
+                })}
+              </mask>;
+            })}
+          </defs>
+          {mapFog.map((fog, index) => fog.operation === 'cover' && fog.enabled !== false ? <rect key={fog.id} x="-100000" y="-100000" width="200000" height="200000" fill={fog.style.color} opacity={isOwner && !fogSettings.previewAsPlayer ? 0.38 : 1} mask={`url(#session-fog-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index})`} /> : null)}
+          {isOwner && mapFog.map((fog) => {
+            if (fog.fullMap) return null;
+            const position = fogMoveDrafts[fog.id] ?? fog;
+            const rendered = fogPathDrafts[fog.id] ?? fogTransformDrafts[fog.id] ?? { ...fog, ...position };
+            const selected = selectedFogIds.has(fog.id);
+            return <g key={`edit-${fog.id}`} data-map-interactive transform={`translate(${rendered.x} ${rendered.y}) rotate(${rendered.rotation} ${rendered.width / 2} ${rendered.height / 2})`} opacity={rendered.enabled === false ? 0.45 : 1} className={activeTool === 'fog' && ['grab', 'quick-select'].includes(fogSettings.mode) ? `pointer-events-auto ${rendered.locked ? 'cursor-not-allowed' : 'cursor-grab'}` : 'pointer-events-none'} onContextMenu={event => openFogMenu(event, rendered)} onPointerDown={(event) => {
+              if (beginQuickFogSelection(event, fog)) return;
+              beginFogMove(event, fog);
+            }} onPointerMove={moveSelectedFog} onPointerUp={finishSelectedFog} onPointerCancel={finishSelectedFog}>
+              {fogShape(rendered, { fill: 'transparent', stroke: rendered.operation === 'reveal' ? '#fb923c' : rendered.style.color, strokeWidth: rendered.style.strokeWidth / view.scale, vectorEffect: 'non-scaling-stroke' })}
+              {selected && !rendered.locked && <>
+                <rect x={-5 / view.scale} y={-5 / view.scale} width={rendered.width + 10 / view.scale} height={rendered.height + 10 / view.scale} fill="none" stroke="#fbbf24" strokeWidth={1.5 / view.scale} />
+                {([['nw', 0, 0, 'cursor-nwse-resize'], ['n', rendered.width / 2, 0, 'cursor-ns-resize'], ['ne', rendered.width, 0, 'cursor-nesw-resize'], ['e', rendered.width, rendered.height / 2, 'cursor-ew-resize'], ['se', rendered.width, rendered.height, 'cursor-nwse-resize'], ['s', rendered.width / 2, rendered.height, 'cursor-ns-resize'], ['sw', 0, rendered.height, 'cursor-nesw-resize'], ['w', 0, rendered.height / 2, 'cursor-ew-resize']] as const).map(([handle, x, y, cursor]) => <rect key={handle} className={`pointer-events-auto ${cursor}`} x={x - 5 / view.scale} y={y - 5 / view.scale} width={10 / view.scale} height={10 / view.scale} fill="white" stroke="#fbbf24" strokeWidth={1.5 / view.scale} onPointerDown={event => beginFogTransform(event, rendered, 'resize', handle)} onPointerMove={moveFogTransform} onPointerUp={finishFogTransform} onPointerCancel={finishFogTransform} />)}
+                <path d={`M ${rendered.width / 2} 0 V ${-28 / view.scale}`} stroke="#fbbf24" strokeWidth={1.5 / view.scale} />
+                <circle className="pointer-events-auto cursor-grab" cx={rendered.width / 2} cy={-28 / view.scale} r={6 / view.scale} fill="#fbbf24" stroke="white" strokeWidth={1.5 / view.scale} onPointerDown={event => beginFogTransform(event, rendered, 'rotate')} onPointerMove={moveFogTransform} onPointerUp={finishFogTransform} onPointerCancel={finishFogTransform} />
+              </>}
+              {pathEditFogId === rendered.id && rendered.points?.map((point, pointIndex) => <circle key={pointIndex} className="pointer-events-auto cursor-move" cx={point.x} cy={point.y} r={5 / view.scale} fill="#fbbf24" stroke="white" strokeWidth={1.5 / view.scale} onPointerDown={event => beginFogPathPointMove(event, rendered, pointIndex)} onPointerMove={moveFogPathPoint} onPointerUp={finishFogPathPointMove} onPointerCancel={finishFogPathPointMove} />)}
+            </g>;
+          })}
+          {isOwner && fogDraft && <g transform={`translate(${fogDraft.x} ${fogDraft.y})`}>{fogShape(fogDraft, { fill: fogDraft.style.color, fillOpacity: 0.38, stroke: fogDraft.style.color, strokeWidth: fogDraft.style.strokeWidth / view.scale })}</g>}
+          {isOwner && fogPolygonPoints.length > 0 && <polygon points={[...fogPolygonPoints, ...(fogPolygonHover ? [fogPolygonHover] : [])].map(point => `${point.x},${point.y}`).join(' ')} fill={fogSettings.color} fillOpacity={fogPolygonPoints.length >= 3 ? 0.38 : 0} stroke={fogSettings.color} strokeWidth={fogSettings.strokeWidth / view.scale} />}
+        </svg>
       </div>
+      {depthHoveredKeys.size > 1 && (
+        <div className="pointer-events-none absolute right-4 top-4 z-[10000] flex justify-end">
+          <ContextHint>
+            <strong>Oggetti sovrapposti:</strong> Ogni click destro del mouse seleziona un nuovo oggetto. E' possibile spostare quello evidenziato in giallo.
+          </ContextHint>
+        </div>
+      )}
+      {fogSelectionMenu && selectedFogIds.size > 0 && (
+        <div role="menu" aria-label="Azioni nebbia selezionata" className="absolute z-[10020] w-60 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)] p-3 text-[var(--dash-text)] shadow-2xl" style={{ left: fogSelectionMenu.x, top: fogSelectionMenu.y }}>
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--dash-border-soft)] pb-2">
+            <span className="text-sm font-semibold">Nebbia selezionata</span>
+            <span className="rounded-full bg-cyan-400/15 px-2 py-0.5 text-xs font-semibold text-cyan-200">{selectedFogIds.size}</span>
+          </div>
+          <button type="button" role="menuitem" onClick={() => { onFogsDelete?.([...selectedFogIds]); setSelectedFogIds(new Set()); setFogSelectionMenu(null); }} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-red-300 hover:bg-red-500/15"><Trash2 data-static-icon className="h-4 w-4" />Elimina selezionati</button>
+        </div>
+      )}
+      {fogMenu && (() => {
+        const fog = mapFog.find(item => item.id === fogMenu.id);
+        if (!fog) return null;
+        const actionClass = 'grid h-10 w-10 place-items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] text-[var(--dash-muted)] hover:border-[var(--dash-accent)] hover:text-[var(--dash-text-strong)] disabled:cursor-not-allowed disabled:opacity-30';
+        let fogIconIndex = 0;
+        const iconAction = (label: string, icon: ReactNode, action: () => void, disabled = false, destructive = false, keepsMenu = false) => {
+          const tooltipId = `fog-menu-${fogIconIndex++}`;
+          return <Tooltip open={fogTooltip === tooltipId}>
+            <TooltipTrigger asChild><span className="inline-flex" onPointerEnter={() => { fogTooltipHoveredRef.current = tooltipId; setFogTooltip(tooltipId); }} onPointerLeave={() => { if (fogTooltipHoveredRef.current === tooltipId) fogTooltipHoveredRef.current = null; setFogTooltip(current => current === tooltipId ? null : current); }} onFocus={() => setFogTooltip(tooltipId)} onBlur={() => { if (fogTooltipHoveredRef.current !== tooltipId) setFogTooltip(current => current === tooltipId ? null : current); }}><button type="button" role="menuitem" aria-label={label} disabled={disabled} onClick={() => { action(); if (!keepsMenu) setFogMenu(null); }} className={`${actionClass} ${destructive ? 'text-red-300 hover:bg-red-500/15 hover:text-red-200' : ''}`}>{icon}</button></span></TooltipTrigger>
+            <TooltipContent side="top">{label}</TooltipContent>
+          </Tooltip>;
+        };
+        return <div data-map-interactive role="menu" aria-label="Azioni figura nebbia" className="absolute z-50 w-[min(92vw,342px)] rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 p-3 text-xs text-[var(--dash-text)] shadow-2xl backdrop-blur" style={{ left: fogMenu.x, top: fogMenu.y }} onPointerDown={event => event.stopPropagation()} onWheel={event => event.stopPropagation()}>
+          <div className="mb-3 flex items-center justify-between gap-2 border-b border-[var(--dash-border-soft)] pb-2 font-semibold text-[var(--dash-text-strong)]"><span>Figura Nebbia</span><div className="flex items-center gap-2">{fog.locked && <Lock data-static-icon className="h-4 w-4 text-amber-300" />}<button type="button" aria-label="Sposta menu Nebbia" onPointerDown={event => beginMenuDrag(event, 'fog', fogMenu)} onPointerMove={moveMenuDrag} onPointerUp={finishMenuDrag} onPointerCancel={finishMenuDrag} className="cursor-move touch-none rounded p-1 text-[var(--dash-muted)] hover:bg-white/10 hover:text-[var(--dash-text-strong)]"><GripHorizontal data-static-icon className="h-4 w-4" /></button></div></div>
+          <div className="mb-3 grid grid-cols-[repeat(7,40px)] gap-1.5">
+            {iconAction(fog.enabled === false ? 'Attiva nebbia' : 'Disattiva nebbia', fog.enabled === false ? <span className="relative grid h-5 w-5 place-items-center"><CloudFog data-static-icon className="h-5 w-5" /><Slash data-static-icon className="absolute h-6 w-6 text-red-300" /></span> : <CloudFog data-static-icon className="h-5 w-5" />, () => onFogChange?.(fog.id, { enabled: fog.enabled === false }), false, false, true)}
+            {iconAction(fog.locked ? 'Sblocca nebbia' : 'Blocca nebbia', fog.locked ? <Unlock data-static-icon className="h-5 w-5" /> : <Lock data-static-icon className="h-5 w-5" />, () => onFogChange?.(fog.id, { locked: !fog.locked }), false, false, true)}
+            {iconAction('Duplica nebbia', <Copy data-static-icon className="h-5 w-5" />, () => duplicateFog(fog))}
+            {iconAction('Copia nebbia', <ClipboardCopy data-static-icon className="h-5 w-5" />, () => { setDrawingClipboard(null); setPoiClipboard(null); setFogClipboard(structuredClone(fog)); })}
+            {iconAction('Modifica tracciato', <Spline data-static-icon className="h-5 w-5" />, () => setPathEditFogId(current => current === fog.id ? null : fog.id), !fog.points?.length || fog.locked)}
+            {iconAction(fog.magnetGroupId ? 'Rimuovi collegamenti magnetici' : 'Collegamenti magnetici', <Magnet data-static-icon className="h-5 w-5" />, () => {
+              if (fog.magnetGroupId) { const ids = mapFog.filter(item => item.magnetGroupId === fog.magnetGroupId).map(item => item.id); onFogsChange?.(ids, { magnetEnabled: false, magnetGroupId: null }); setFogMenu(null); }
+              else setFogMenu(current => current ? { ...current, panel: current.panel === 'magnets' ? null : 'magnets' } : null);
+            }, fog.locked, false, true)}
+            {iconAction('Elimina nebbia', <Trash2 data-static-icon className="h-5 w-5" />, () => { onFogDelete?.(fog.id); setSelectedFogIds(new Set()); }, false, true)}
+          </div>
+          {fogMenu.panel === 'magnets' && <div className="mt-3 max-h-40 space-y-1 overflow-y-auto border-t border-[var(--dash-border-soft)] pt-2">
+            <div className="mb-1 text-xs font-semibold text-[var(--dash-muted)]">Collega a una forma</div>
+            {mapFog.filter(item => item.id !== fog.id && !item.locked && !item.fullMap).map((candidate, index) => <button key={candidate.id} type="button" onClick={() => {
+              const groupId = candidate.magnetGroupId ?? crypto.randomUUID();
+              const ids = [fog.id, ...mapFog.filter(item => item.id === candidate.id || item.magnetGroupId === candidate.magnetGroupId && candidate.magnetGroupId).map(item => item.id)];
+              onFogsChange?.([...new Set(ids)], { magnetEnabled: true, magnetGroupId: groupId }); setFogMenu(null);
+            }} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs hover:bg-white/10"><Magnet data-static-icon className="h-3.5 w-3.5 text-cyan-300" />Forma Nebbia {index + 1}</button>)}
+          </div>}
+        </div>;
+      })()}
+      {poiMenu &&
+        (() => {
+          const poi = mapPois.find((item) => item.id === poiMenu.poiId);
+          if (!poi) return null;
+          if (poi.pinned)
+            return isOwner ? (
+              <div data-map-interactive role="menu" className="absolute z-50 flex items-center gap-2 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 p-3 text-xs text-[var(--dash-text)] shadow-2xl backdrop-blur" style={{ left: poiMenu.x, top: poiMenu.y }} onPointerDown={(event) => event.stopPropagation()}>
+                <span className="px-1 font-semibold text-[var(--dash-text-strong)]">PDI fissato</span>
+                <Tooltip><TooltipTrigger asChild><button type="button" aria-label="Rimuovi fissaggio" onClick={() => { onPoiChange?.(poi.id, { pinned: false }); setPoiMenu(null); }} className="grid h-10 w-10 place-items-center rounded-lg border border-[var(--dash-border-soft)] bg-cyan-400/20 text-cyan-200 hover:border-[var(--dash-accent)]"><Pin data-static-icon className="h-5 w-5" /></button></TooltipTrigger><TooltipContent side="top">Rimuovi fissaggio</TooltipContent></Tooltip>
+              </div>
+            ) : null;
+          const actionClass = 'grid h-10 w-10 place-items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] text-[var(--dash-muted)] hover:border-[var(--dash-accent)] hover:text-[var(--dash-text-strong)] disabled:cursor-not-allowed disabled:opacity-30';
+          let poiIconIndex = 0;
+          const iconAction = (label: string, icon: ReactNode, action: () => void, disabled = false, destructive = false, togglesPanel = false) => {
+            const tooltipId = `poi-menu-${poiIconIndex++}`;
+            return <Tooltip open={poiTooltip === tooltipId}>
+              <TooltipTrigger asChild>
+                <span className="inline-flex" onPointerEnter={() => setPoiTooltip(tooltipId)} onPointerLeave={() => setPoiTooltip(null)} onFocus={() => setPoiTooltip(tooltipId)} onBlur={(event) => { if (!event.currentTarget.matches(':hover')) setPoiTooltip(null); }}><button type="button" aria-label={label} disabled={disabled} onClick={() => { if (!togglesPanel) setPoiMenu((current) => (current ? { ...current, panel: null } : null)); action(); }} className={`${actionClass} ${destructive ? 'text-red-300 hover:bg-red-500/15 hover:text-red-200' : ''}`}>{icon}</button></span>
+              </TooltipTrigger>
+              <TooltipContent side="top">{label}</TooltipContent>
+            </Tooltip>;
+          };
+          return (
+            <div data-map-interactive role="menu" className="absolute z-50 w-[min(92vw,390px)] rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 p-3 text-xs text-[var(--dash-text)] shadow-2xl backdrop-blur" style={{ left: poiMenu.x, top: poiMenu.y }} onPointerDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
+              <div className="mb-3 flex items-center justify-between gap-2 border-b border-[var(--dash-border-soft)] pb-2 font-semibold text-[var(--dash-text-strong)]">
+                <span>Punto di interesse</span>
+                <div className="flex items-center gap-2">
+                  {poi.noteId && <span className="font-normal text-[var(--dash-muted)]">Nota collegata</span>}
+                  {poi.locked && <Lock data-static-icon className="h-4 w-4 text-amber-300" />}
+                  <button type="button" aria-label="Sposta menu PDI" onPointerDown={(event) => beginMenuDrag(event, 'poi', poiMenu)} onPointerMove={moveMenuDrag} onPointerUp={finishMenuDrag} onPointerCancel={finishMenuDrag} className="cursor-move touch-none rounded p-1 text-[var(--dash-muted)] hover:bg-white/10 hover:text-[var(--dash-text-strong)]"><GripHorizontal data-static-icon className="h-4 w-4" /></button>
+                </div>
+              </div>
+              <div className="mb-3 grid grid-cols-[repeat(8,40px)] gap-1.5">
+                {iconAction('Modifica icona', <Shapes data-static-icon className="h-5 w-5" />, () => setPoiMenu((current) => (current ? { ...current, panel: current.panel === 'icons' ? null : 'icons' } : null)), false, false, true)}
+                <Tooltip open={poiTooltip === 'poi-color'}>
+                  <TooltipTrigger asChild>
+                    <label aria-label="Colore PDI" onPointerEnter={() => setPoiTooltip('poi-color')} onPointerLeave={() => setPoiTooltip(null)} className={`${actionClass} relative cursor-pointer`}>
+                      <Palette data-static-icon className="h-5 w-5" />
+                      <input type="color" value={poi.color} onClick={() => setPoiMenu((current) => (current ? { ...current, panel: null } : null))} onChange={(event) => onPoiChange?.(poi.id, { color: event.target.value })} className="absolute inset-0 cursor-pointer opacity-0" />
+                    </label>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Colore</TooltipContent>
+                </Tooltip>
+                {iconAction(poi.visibleToPlayers ? 'Nascondi ai giocatori' : 'Mostra ai giocatori', poi.visibleToPlayers ? <Eye data-static-icon className="h-5 w-5" /> : <EyeOff data-static-icon className="h-5 w-5" />, () => onPoiChange?.(poi.id, { visibleToPlayers: !poi.visibleToPlayers }), !isOwner)}
+                {iconAction(poi.locked ? 'Sblocca PDI' : 'Blocca PDI', poi.locked ? <Unlock data-static-icon className="h-5 w-5" /> : <Lock data-static-icon className="h-5 w-5" />, () => onPoiChange?.(poi.id, { locked: !poi.locked }), !isOwner)}
+                {iconAction('Luce disponibile con la nebbia di gioco', <Flashlight data-static-icon className="h-5 w-5" />, () => {}, true)}
+                {iconAction('Ridimensiona PDI', <Maximize2 data-static-icon className="h-5 w-5" />, () => { setTransformPoiId(poi.id); setPoiMenu(null); })}
+                {iconAction('Duplica PDI', <Copy data-static-icon className="h-5 w-5" />, () => { onPoiDuplicate?.(poi.id); setPoiMenu(null); })}
+                {iconAction('Copia PDI', <ClipboardCopy data-static-icon className="h-5 w-5" />, () => { setDrawingClipboard(null); setPoiClipboard(structuredClone(poi)); setPoiMenu(null); })}
+                {iconAction('Livelli', <Layers3 data-static-icon className="h-5 w-5" />, () => setPoiMenu((current) => (current ? { ...current, panel: current.panel === 'layers' ? null : 'layers' } : null)), false, false, true)}
+                {iconAction(poi.noteId ? 'Cambia nota collegata' : 'Collega nota', <Link data-static-icon className="h-5 w-5" />, () => setPoiMenu((current) => (current ? { ...current, panel: current.panel === 'notes' ? null : 'notes' } : null)), false, false, true)}
+                {isOwner && iconAction('Fissa PDI', <Pin data-static-icon className="h-5 w-5 -rotate-45" />, () => onPoiChange?.(poi.id, { pinned: true }))}
+                {iconAction('Elimina PDI', <Trash2 data-static-icon className="h-5 w-5" />, () => {
+                  onPoiDelete?.(poi.id);
+                  setPoiMenu(null);
+                }, false, true)}
+              </div>
+              <div className="flex gap-2">
+                <input aria-label="Etichetta PDI" value={poi.label} onFocus={() => setPoiMenu((current) => (current ? { ...current, panel: null } : null))} onChange={(event) => onPoiChange?.(poi.id, { label: event.target.value })} className="min-w-0 flex-1 rounded-lg border border-[var(--dash-border)] bg-[var(--dash-input)] px-3 py-2 text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]" />
+                <button type="button" aria-label={poi.labelVisible ? 'Nascondi etichetta' : 'Mostra etichetta'} onClick={() => { setPoiMenu((current) => (current ? { ...current, panel: null } : null)); onPoiChange?.(poi.id, { labelVisible: !poi.labelVisible }); }} className={actionClass}>
+                  {poi.labelVisible ? <Eye data-static-icon className="h-5 w-5" /> : <EyeOff data-static-icon className="h-5 w-5" />}
+                </button>
+              </div>
+              {poi.noteId && <button type="button" onClick={() => { setPoiMenu((current) => (current ? { ...current, panel: null } : null)); onPoiChange?.(poi.id, { noteId: null, noteVisibleToPlayers: false }); }} className="mt-2 text-[11px] text-[var(--dash-muted)] hover:text-[var(--dash-danger-text)]">Rimuovi collegamento alla nota</button>}
+              {poiMenu.panel === 'icons' && (
+                <div className="mt-3 border-t border-[var(--dash-border)] pt-3">
+                  <NoteIconGrid
+                    selectedName={poi.iconName}
+                    onChoose={(iconName) => {
+                      onPoiChange?.(poi.id, { iconName });
+                    }}
+                  />
+                </div>
+              )}
+              {poiMenu.panel === 'notes' && (
+                <div className="mt-3 max-h-64 overflow-y-auto border-t border-[var(--dash-border)] pt-3">
+                  {poiNotesLoading ? <div className="px-2 py-3 text-[var(--dash-muted)]">Caricamento note...</div> : poiNoteOptions.length === 0 ? <div className="px-2 py-3 text-[var(--dash-muted)]">Nessuna nota collegabile.</div> : (
+                    <div className="space-y-1">
+                      {poiNoteOptions.map((note) => <button key={note.id} type="button" onClick={() => { onPoiChange?.(poi.id, { noteId: note.id, noteVisibleToPlayers: note.visibleToPlayers, ...(poi.label === 'Punto di interesse' || !poi.label ? { label: note.label } : {}) }); setPoiMenu((current) => (current ? { ...current, panel: null } : null)); }} className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left ${poi.noteId === note.id ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/10 text-[var(--dash-text-strong)]' : 'border-[var(--dash-border-soft)] bg-[var(--dash-surface)] hover:bg-[var(--dash-surface-2)]'}`}><span className="truncate">{note.label}</span><span className="ml-3 shrink-0 text-[10px] text-[var(--dash-muted)]">{note.visibleToPlayers ? 'Campagna' : 'GM'}</span></button>)}
+                    </div>
+                  )}
+                </div>
+              )}
+              {poiMenu.panel === 'layers' && (
+                <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[var(--dash-border)] pt-3">
+                  {[['forward', 'Porta sopra', ArrowUp], ['backward', 'Porta sotto', ArrowDown], ['front', 'In primo piano', ChevronsUp], ['back', 'In fondo', ChevronsDown]].map(([move, label, Icon]) => <button key={String(move)} type="button" onClick={() => onPoiLayerMove?.(poi.id, move as MapLayerMove)} className="flex items-center gap-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-3 py-2 hover:bg-[var(--dash-surface-2)]"><Icon data-static-icon className="h-4 w-4" /><span>{String(label)}</span></button>)}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      {drawingClipboard &&
+        pastePrompt &&
+        (() => {
+          const viewportWidth = viewportRef.current?.clientWidth ?? 0;
+          const drawingMenuWidth = Math.max(160, Math.min(drawingStyleEditorOpen ? 390 : 460, viewportWidth - 16));
+          const drawingMenuX = drawingMenu ? Math.max(8, Math.min(drawingMenu.x, Math.max(8, viewportWidth - drawingMenuWidth - 8))) : 0;
+          const anchor = pastePrompt.context === 'token' && tokenMenu ? { x: tokenMenu.x, y: tokenMenu.y } : pastePrompt.context === 'drawing' && drawingMenu ? { x: drawingMenuX, y: drawingMenu.y } : { x: pastePrompt.x, y: pastePrompt.y };
+          const left = Math.max(8, Math.min(anchor.x, Math.max(8, viewportWidth - 44)));
+          const top = Math.max(8, anchor.y - 46);
+          return (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  data-map-interactive
+                  data-map-paste-action
+                  type="button"
+                  aria-label="Incolla figura"
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    event.nativeEvent.stopImmediatePropagation();
+                    pasteDrawingAt(pastePrompt.point);
+                  }}
+                  className="absolute z-[70] grid h-9 w-9 place-items-center rounded-lg border border-[var(--dash-border)] bg-[var(--dash-panel)] text-[var(--dash-text-strong)] shadow-2xl hover:bg-[var(--dash-surface-2)]"
+                  style={{ left, top }}
+                >
+                  <ClipboardCopy data-static-icon className="h-5 w-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Incolla</TooltipContent>
+            </Tooltip>
+          );
+        })()}
       {drawingMenu &&
         (() => {
-           const drawing = mapDrawings.find((item) => item.id === drawingMenu.id);
-           if (!drawing) return null;
-           const targetIds = selectedDrawingIds.has(drawing.id) ? [...selectedDrawingIds] : [drawing.id];
-           const targetDrawings = mapDrawings.filter((item) => targetIds.includes(item.id));
-           const drawingMenuTitle = targetIds.length === 1
-             ? drawing.kind === 'text' ? 'Testo' : 'Figura'
-             : targetDrawings.every((item) => item.kind === 'text') ? `Testi selezionati (${targetIds.length})`
-               : targetDrawings.every((item) => item.kind !== 'text') ? `Figure selezionate (${targetIds.length})`
-                 : `Elementi selezionati (${targetIds.length})`;
+          const drawing = mapDrawings.find((item) => item.id === drawingMenu.id);
+          if (!drawing) return null;
+          const targetIds = selectedDrawingIds.has(drawing.id) ? [...selectedDrawingIds] : [drawing.id];
+          const targetDrawings = mapDrawings.filter((item) => targetIds.includes(item.id));
+          const drawingMenuTitle = targetIds.length === 1 ? (drawing.kind === 'text' ? 'Testo' : 'Figura') : targetDrawings.every((item) => item.kind === 'text') ? `Testi selezionati (${targetIds.length})` : targetDrawings.every((item) => item.kind !== 'text') ? `Figure selezionate (${targetIds.length})` : `Elementi selezionati (${targetIds.length})`;
           const updateTargets = (update: Partial<SessionMapDrawing>) => (targetIds.length > 1 ? onDrawingsChange?.(targetIds, update) : onDrawingChange?.(drawing.id, update));
           const updateStyle = (update: Partial<SessionMapDrawing['style']>) => updateTargets({ style: { ...drawing.style, ...update } });
-          const updateText = (update: Partial<NonNullable<SessionMapDrawing['text']>>) => { if (!drawing.text) return; const text = { ...drawing.text, ...update }; updateTargets({ text, ...measureMapText(text, drawing.style.strokeWidth) }); };
-           const tooltipEvents = (id: string) => ({
+          const updateText = (update: Partial<NonNullable<SessionMapDrawing['text']>>) => {
+            if (!drawing.text) return;
+            const text = { ...drawing.text, ...update };
+            updateTargets({ text, ...measureMapText(text, drawing.style.strokeWidth) });
+          };
+          const tooltipEvents = (id: string) => ({
             onPointerEnter: () => setDrawingTooltip(id),
             onPointerLeave: () => setDrawingTooltip(null),
             onFocus: () => setDrawingTooltip(id),
@@ -2271,20 +3723,49 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             ['long-dash', '20 8', 'Tratti lunghi'],
           ] as const;
           const viewportWidth = viewportRef.current?.clientWidth ?? 0;
-          const menuX = tokenMenu && !drawingMenuDetached ? (tokenMenu.x + 800 <= viewportWidth ? tokenMenu.x + 410 : tokenMenu.x >= 410 ? tokenMenu.x - 402 : tokenMenu.x) : drawingMenu.x;
-          const menuY = tokenMenu && !drawingMenuDetached && tokenMenu.x + 800 > viewportWidth && tokenMenu.x < 410 ? tokenMenu.y + 320 : drawingMenu.y;
-          return (
-            <div data-map-interactive role="menu" className={`absolute z-50 cursor-default rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 p-2 text-xs shadow-2xl ${drawingStyleEditorOpen ? 'w-[min(92vw,390px)]' : 'w-max'}`} style={{ left: menuX, top: menuY }} onPointerDown={(event) => event.stopPropagation()}>
-              <div className="mb-2 flex items-center justify-between gap-2 border-b border-[var(--dash-border-soft)] px-1 pb-2 font-semibold text-[var(--dash-text-strong)]">
-                <span>{drawingMenuTitle}</span>
-                <button type="button" aria-label="Sposta menu figure" onPointerDown={(event) => beginMenuDrag(event, 'drawing', { x: menuX, y: menuY })} onPointerMove={moveMenuDrag} onPointerUp={finishMenuDrag} onPointerCancel={finishMenuDrag} className="cursor-move touch-none rounded p-1 text-[var(--dash-muted)] hover:bg-white/10 hover:text-[var(--dash-text-strong)]">
-                  <GripHorizontal data-static-icon className="h-4 w-4" />
-                </button>
+          const viewportHeight = viewportRef.current?.clientHeight ?? 0;
+          const menuWidth = Math.max(160, Math.min(390, viewportWidth - 16));
+          const drawingIconClass = 'grid h-10 w-10 place-items-center rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] text-[var(--dash-muted)] hover:border-[var(--dash-accent)] hover:text-[var(--dash-text-strong)] disabled:cursor-not-allowed disabled:opacity-30';
+          const tokenMenuWidth = Math.min(viewportWidth * 0.92, 390);
+          const roomForDrawingRight = tokenMenu ? tokenMenu.x + tokenMenuWidth + 12 + menuWidth <= viewportWidth - 8 : false;
+          const roomForDrawingLeft = tokenMenu ? tokenMenu.x >= menuWidth + 20 : false;
+          const preferredMenuX = tokenMenu && !drawingMenuDetached ? (roomForDrawingRight ? tokenMenu.x + tokenMenuWidth + 12 : roomForDrawingLeft ? tokenMenu.x - menuWidth - 12 : tokenMenu.x) : drawingMenu.x;
+          const preferredMenuY = tokenMenu && !drawingMenuDetached && !roomForDrawingRight && !roomForDrawingLeft ? tokenMenu.y + 320 : drawingMenu.y;
+          const menuX = Math.max(8, Math.min(preferredMenuX, Math.max(8, viewportWidth - menuWidth - 8)));
+          const estimatedMenuHeight = drawingStyleEditorOpen ? 420 : 160;
+          const menuY = Math.max(8, Math.min(preferredMenuY, Math.max(8, viewportHeight - estimatedMenuHeight - 8)));
+          if (drawing.pinned)
+            return (
+              <div data-map-interactive role="menu" className="absolute z-50 flex items-center gap-2 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 p-3 text-xs text-[var(--dash-text)] shadow-2xl backdrop-blur" style={{ left: Math.max(8, Math.min(drawingMenu.x, viewportWidth - 190)), top: Math.max(8, drawingMenu.y) }} onPointerDown={(event) => event.stopPropagation()}>
+                <span className="px-1 font-semibold text-[var(--dash-text-strong)]">{drawing.kind === 'text' ? 'Testo fissato' : 'Figura fissata'}</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="Rimuovi fissaggio"
+                      onClick={() => {
+                        onDrawingChange?.(drawing.id, { pinned: false });
+                        setDrawingMenu(null);
+                      }}
+                      className={`${drawingIconClass} bg-cyan-400/20 text-cyan-200`}
+                    >
+                      <Pin data-static-icon className="h-5 w-5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Rimuovi fissaggio</TooltipContent>
+                </Tooltip>
               </div>
-              <div className="flex flex-wrap gap-1">
+            );
+          return (
+            <div data-map-interactive role="menu" className="absolute z-50 cursor-default overflow-y-auto rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 p-3 text-xs text-[var(--dash-text)] shadow-2xl backdrop-blur" style={{ left: menuX, top: menuY, width: menuWidth, maxHeight: Math.max(120, viewportHeight - menuY - 8) }} onPointerDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
+              <div className="mb-3 flex items-center justify-between gap-2 border-b border-[var(--dash-border-soft)] pb-2 font-semibold text-[var(--dash-text-strong)]">
+                <span>{drawingMenuTitle}</span>
+                <div className="flex items-center gap-2">{drawing.locked && <Lock data-static-icon className="h-4 w-4 text-amber-300" />}<button type="button" aria-label="Sposta menu figure" onPointerDown={(event) => beginMenuDrag(event, 'drawing', { x: menuX, y: menuY })} onPointerMove={moveMenuDrag} onPointerUp={finishMenuDrag} onPointerCancel={finishMenuDrag} className="cursor-move touch-none rounded p-1 text-[var(--dash-muted)] hover:bg-white/10 hover:text-[var(--dash-text-strong)]"><GripHorizontal data-static-icon className="h-4 w-4" /></button></div>
+              </div>
+              <div className="mb-3 flex flex-wrap gap-1.5" onPointerDownCapture={(event) => { if (!(event.target as Element).closest('[aria-label="Livelli"]')) setDrawingLayerPanelOpen(false); }}>
                 <Tooltip open={drawingTooltip === 'visibility'}>
                   <TooltipTrigger asChild>
-                    <button {...tooltipEvents('visibility')} type="button" aria-label={drawing.visible === false ? 'Mostra' : 'Nascondi'} onClick={() => updateTargets({ visible: drawing.visible === false })} className="rounded-lg p-2 hover:bg-white/10">
+                    <button {...tooltipEvents('visibility')} type="button" aria-label={drawing.visible === false ? 'Mostra' : 'Nascondi'} onClick={() => updateTargets({ visible: drawing.visible === false })} className={drawingIconClass}>
                       {drawing.visible === false ? <EyeOff data-static-icon className="h-5 w-5" /> : <Eye data-static-icon className="h-5 w-5" />}
                     </button>
                   </TooltipTrigger>
@@ -2292,11 +3773,28 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                 </Tooltip>
                 <Tooltip open={drawingTooltip === 'lock'}>
                   <TooltipTrigger asChild>
-                    <button {...tooltipEvents('lock')} type="button" aria-label={drawing.locked ? 'Sblocca' : 'Blocca'} onClick={() => updateTargets({ locked: !drawing.locked })} className={`rounded-lg p-2 hover:bg-white/10 ${drawing.locked ? 'bg-cyan-400/20 text-cyan-200 ring-1 ring-cyan-300/50' : ''}`}>
+                    <button {...tooltipEvents('lock')} type="button" aria-label={drawing.locked ? 'Sblocca' : 'Blocca'} onClick={() => updateTargets({ locked: !drawing.locked })} className={`${drawingIconClass} ${drawing.locked ? 'bg-cyan-400/20 text-cyan-200' : ''}`}>
                       {drawing.locked ? <Unlock data-static-icon className="h-5 w-5" /> : <Lock data-static-icon className="h-5 w-5" />}
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="top">{drawing.locked ? 'Sblocca' : 'Blocca'}</TooltipContent>
+                </Tooltip>
+                <Tooltip open={drawingTooltip === 'pin'}>
+                  <TooltipTrigger asChild>
+                    <button
+                      {...tooltipEvents('pin')}
+                      type="button"
+                      aria-label="Fissa elemento"
+                      onClick={() => {
+                        updateTargets({ pinned: true });
+                        setDrawingMenu(null);
+                      }}
+                      className={drawingIconClass}
+                    >
+                      <Pin data-static-icon className="h-5 w-5 -rotate-45" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Fissa elemento</TooltipContent>
                 </Tooltip>
                 {!(activeTool === 'draw' && drawSettings.mode === 'grab') && (
                   <Tooltip>
@@ -2304,12 +3802,12 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                       <button
                         type="button"
                         aria-label="Resize"
-                        disabled={drawing.locked}
+                        disabled={!isOwner}
                         onClick={() => {
                           setSelectedDrawingId(drawing.id);
                           setDrawingMenu(null);
                         }}
-                        className="rounded-lg p-2 hover:bg-white/10 disabled:opacity-40"
+                        className={drawingIconClass}
                       >
                         <Maximize2 data-static-icon className="h-5 w-5" />
                       </button>
@@ -2327,28 +3825,37 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                         else onDrawingDuplicate?.(drawing.id);
                         setDrawingMenu(null);
                       }}
-                      className="rounded-lg p-2 hover:bg-white/10"
+                      className={drawingIconClass}
                     >
                       <Copy data-static-icon className="h-5 w-5" />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="top">Duplica</TooltipContent>
                 </Tooltip>
-                <Tooltip open={drawingTooltip === 'forward'}>
+                <Tooltip open={drawingTooltip === 'copy'}>
                   <TooltipTrigger asChild>
-                    <button {...tooltipEvents('forward')} type="button" aria-label="Porta sopra" onClick={() => (targetIds.length > 1 ? onDrawingsLayerMove?.(targetIds, 'forward') : onDrawingLayerMove?.(drawing.id, 'forward'))} className="rounded-lg p-2 hover:bg-white/10">
-                      <ArrowUp data-static-icon className="h-5 w-5" />
+                    <button
+                      {...tooltipEvents('copy')}
+                      data-map-copy-action
+                      type="button"
+                      aria-label="Copia"
+                      onClick={() => {
+                        setPoiClipboard(null);
+                        setDrawingClipboard(structuredClone(drawing));
+                        setPastePrompt(null);
+                        setDrawingTooltip(null);
+                        setDrawingMenu(null);
+                      }}
+                      className={`${drawingIconClass} ${drawingClipboard?.id === drawing.id ? 'bg-cyan-400/20 text-cyan-200' : ''}`}
+                    >
+                      <ClipboardPaste data-static-icon className="h-5 w-5" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="top">Porta sopra</TooltipContent>
+                  <TooltipContent side="top">Copia</TooltipContent>
                 </Tooltip>
-                <Tooltip open={drawingTooltip === 'backward'}>
-                  <TooltipTrigger asChild>
-                    <button {...tooltipEvents('backward')} type="button" aria-label="Porta sotto" onClick={() => (targetIds.length > 1 ? onDrawingsLayerMove?.(targetIds, 'backward') : onDrawingLayerMove?.(drawing.id, 'backward'))} className="rounded-lg p-2 hover:bg-white/10">
-                      <ArrowDown data-static-icon className="h-5 w-5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">Porta sotto</TooltipContent>
+                <Tooltip open={drawingTooltip === 'layers'}>
+                  <TooltipTrigger asChild><button {...tooltipEvents('layers')} type="button" aria-label="Livelli" onClick={() => { setDrawingLayerPanelOpen((open) => !open); setDrawingStyleEditorOpen(false); }} className={`${drawingIconClass} ${drawingLayerPanelOpen ? 'bg-cyan-400/20 text-cyan-200' : ''}`}><Layers3 data-static-icon className="h-5 w-5" /></button></TooltipTrigger>
+                  <TooltipContent side="top">Livelli</TooltipContent>
                 </Tooltip>
                 <Tooltip open={drawingTooltip === 'magnet'}>
                   <TooltipTrigger asChild>
@@ -2370,7 +3877,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                         setDrawingTooltip(null);
                         setDrawingMenu(null);
                       }}
-                      className={`rounded-lg p-2 hover:bg-white/10 ${drawing.magnetGroupId ? 'bg-cyan-400/20 text-cyan-200 ring-1 ring-cyan-300/50' : ''}`}
+                      className={`${drawingIconClass} ${drawing.magnetGroupId ? 'bg-cyan-400/20 text-cyan-200' : ''}`}
                     >
                       <Magnet data-static-icon className="h-5 w-5" />
                     </button>
@@ -2379,13 +3886,69 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                 </Tooltip>
                 <Tooltip open={drawingTooltip === 'style'}>
                   <TooltipTrigger asChild>
-                    <button {...tooltipEvents('style')} type="button" aria-label={drawing.kind === 'text' ? 'Modifica testo' : drawingStyleEditorOpen ? 'Chiudi modifiche' : 'Modifica grafica'} aria-expanded={drawing.kind !== 'text' && drawingStyleEditorOpen} onClick={() => { if (drawing.kind === 'text' && drawing.text) { setTextDraft({ point: { x: drawing.x, y: drawing.y }, value: drawing.text.content, editingId: drawing.id }); setDrawingMenu(null); setDrawingTooltip(null); } else setDrawingStyleEditorOpen((open) => !open); }} className={`rounded-lg p-2 hover:bg-white/10 ${drawing.kind !== 'text' && drawingStyleEditorOpen ? 'bg-cyan-400/20 text-cyan-200' : ''}`}>
+                    <button
+                      {...tooltipEvents('style')}
+                      type="button"
+                      aria-label={drawing.kind === 'text' ? 'Modifica testo' : drawingStyleEditorOpen ? 'Chiudi modifiche' : 'Modifica grafica'}
+                      aria-expanded={drawing.kind !== 'text' && drawingStyleEditorOpen}
+                      onClick={() => {
+                        if (drawing.kind === 'text' && drawing.text) {
+                          setTextDraft({ point: { x: drawing.x, y: drawing.y }, value: drawing.text.content, editingId: drawing.id });
+                          setDrawingMenu(null);
+                          setDrawingTooltip(null);
+                        } else setDrawingStyleEditorOpen((open) => !open);
+                      }}
+                      className={`${drawingIconClass} ${drawing.kind !== 'text' && drawingStyleEditorOpen ? 'bg-cyan-400/20 text-cyan-200' : ''}`}
+                    >
                       {drawing.kind === 'text' ? <Type data-static-icon className="h-5 w-5" /> : <Palette data-static-icon className="h-5 w-5" />}
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="top">{drawing.kind === 'text' ? 'Modifica testo' : drawingStyleEditorOpen ? 'Chiudi modifiche' : 'Modifica grafica'}</TooltipContent>
                 </Tooltip>
-                {drawing.kind === 'text' && <Tooltip><TooltipTrigger asChild><button type="button" aria-label={drawingStyleEditorOpen ? 'Chiudi formattazione testo' : 'Formattazione testo'} aria-expanded={drawingStyleEditorOpen} onClick={() => setDrawingStyleEditorOpen((open) => !open)} className={`rounded-lg p-2 hover:bg-white/10 ${drawingStyleEditorOpen ? 'bg-cyan-400/20 text-cyan-200' : ''}`}><Palette data-static-icon className="h-5 w-5" /></button></TooltipTrigger><TooltipContent side="top">{drawingStyleEditorOpen ? 'Chiudi formattazione testo' : 'Formattazione testo'}</TooltipContent></Tooltip>}
+                {drawing.kind === 'text' && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" aria-label={drawingStyleEditorOpen ? 'Chiudi formattazione testo' : 'Formattazione testo'} aria-expanded={drawingStyleEditorOpen} onClick={() => setDrawingStyleEditorOpen((open) => !open)} className={`${drawingIconClass} ${drawingStyleEditorOpen ? 'bg-cyan-400/20 text-cyan-200' : ''}`}>
+                        <Palette data-static-icon className="h-5 w-5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">{drawingStyleEditorOpen ? 'Chiudi formattazione testo' : 'Formattazione testo'}</TooltipContent>
+                  </Tooltip>
+                )}
+                {drawing.kind !== 'text' && (
+                  <Tooltip open={drawingTooltip === 'path'}>
+                    <TooltipTrigger asChild>
+                      <button
+                        {...tooltipEvents('path')}
+                        type="button"
+                        aria-label={pathEditDrawingId === drawing.id ? 'Termina modifica tracciato' : ['freehand', 'polygon', 'line'].includes(drawing.kind) ? 'Modifica tracciato' : 'Converti in tracciato'}
+                        disabled={!isOwner}
+                        onClick={() => {
+                          if (pathEditDrawingId === drawing.id) {
+                            setPathEditDrawingId(null);
+                            setDrawingTooltip(null);
+                            setDrawingMenu(null);
+                            return;
+                          }
+                          if (['freehand', 'polygon', 'line'].includes(drawing.kind)) {
+                            const points = drawing.kind === 'freehand' && drawing.points ? simplifyPathPoints(drawing.points, Math.max(1.5, Math.max(drawing.width, drawing.height) * 0.008)) : (drawing.points?.map((point) => ({ ...point })) ?? []);
+                            if (points.length >= 2 && JSON.stringify(points) !== JSON.stringify(drawing.points)) onDrawingChange?.(drawing.id, { points });
+                          } else {
+                            onDrawingChange?.(drawing.id, { kind: 'polygon', points: convertDrawingToPath(drawing) });
+                          }
+                          setPathEditDrawingId(drawing.id);
+                          setSelectedDrawingId(null);
+                          setDrawingTooltip(null);
+                          setDrawingMenu(null);
+                        }}
+                        className={`${drawingIconClass} ${pathEditDrawingId === drawing.id ? 'bg-cyan-400/20 text-cyan-200' : ''}`}
+                      >
+                        <Spline data-static-icon className="h-5 w-5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">{pathEditDrawingId === drawing.id ? 'Termina modifica tracciato' : ['freehand', 'polygon', 'line'].includes(drawing.kind) ? 'Modifica tracciato' : 'Converti in tracciato'}</TooltipContent>
+                  </Tooltip>
+                )}
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
@@ -2398,7 +3961,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                         setSelectedDrawingId(null);
                         setSelectedDrawingIds(new Set());
                       }}
-                      className="ml-auto rounded-lg p-2 text-red-300 hover:bg-red-500/15"
+                      className={`${drawingIconClass} text-red-300 hover:border-red-400/60 hover:bg-red-500/15 hover:text-red-200`}
                     >
                       <Trash2 data-static-icon className="h-5 w-5" />
                     </button>
@@ -2406,11 +3969,36 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                   <TooltipContent side="top">Elimina</TooltipContent>
                 </Tooltip>
               </div>
+              {drawingLayerPanelOpen && (
+                <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[var(--dash-border-soft)] pt-3">
+                  {[['forward', 'Porta sopra', ArrowUp], ['backward', 'Porta sotto', ArrowDown], ['front', 'In primo piano', ChevronsUp], ['back', 'In fondo', ChevronsDown]].map(([move, label, Icon]) => <button key={String(move)} type="button" onClick={() => { if (targetIds.length > 1) onDrawingsLayerMove?.(targetIds, move as MapLayerMove); else onDrawingLayerMove?.(drawing.id, move as MapLayerMove); }} className="flex items-center gap-2 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] px-3 py-2 hover:bg-[var(--dash-surface-2)]"><Icon data-static-icon className="h-4 w-4" /><span>{String(label)}</span></button>)}
+                </div>
+              )}
               {drawingStyleEditorOpen && drawing.kind === 'text' && drawing.text && (
                 <div className="mt-2 space-y-2 border-t border-[var(--dash-border-soft)] pt-2">
                   <div className="flex flex-wrap items-center gap-1">
-                    <Tooltip open={drawingTooltip === 'text-font'}><TooltipTrigger asChild><select {...tooltipEvents('text-font')} aria-label="Font testo figura" value={drawing.text.fontFamily} onChange={(event) => updateText({ fontFamily: event.target.value })} className="h-8 rounded border border-[var(--dash-border)] bg-[var(--dash-input)] px-2">{['Arial', 'Georgia', 'Times New Roman', 'Courier New', 'Verdana', 'Trebuchet MS', 'Cinzel', 'Uncial Antiqua', 'Crimson Text', 'Merriweather', 'Raleway'].map((font) => (<option key={font} style={{ fontFamily: font }}>{font}</option>))}</select></TooltipTrigger><TooltipContent side="top">Carattere</TooltipContent></Tooltip>
-                    <Tooltip open={drawingTooltip === 'text-size'}><TooltipTrigger asChild><select {...tooltipEvents('text-size')} aria-label="Dimensione testo figura" value={drawing.text.fontSize} onChange={(event) => updateText({ fontSize: Number(event.target.value) })} className="h-8 rounded border border-[var(--dash-border)] bg-[var(--dash-input)] px-2">{[6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 34].map((size) => (<option key={size}>{size}px</option>))}</select></TooltipTrigger><TooltipContent side="top">Dimensione testo</TooltipContent></Tooltip>
+                    <Tooltip open={drawingTooltip === 'text-font'}>
+                      <TooltipTrigger asChild>
+                        <select {...tooltipEvents('text-font')} aria-label="Font testo figura" value={drawing.text.fontFamily} onChange={(event) => updateText({ fontFamily: event.target.value })} className="h-8 rounded border border-[var(--dash-border)] bg-[var(--dash-input)] px-2">
+                          {['Arial', 'Georgia', 'Times New Roman', 'Courier New', 'Verdana', 'Trebuchet MS', 'Cinzel', 'Uncial Antiqua', 'Crimson Text', 'Merriweather', 'Raleway'].map((font) => (
+                            <option key={font} style={{ fontFamily: font }}>
+                              {font}
+                            </option>
+                          ))}
+                        </select>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Carattere</TooltipContent>
+                    </Tooltip>
+                    <Tooltip open={drawingTooltip === 'text-size'}>
+                      <TooltipTrigger asChild>
+                        <select {...tooltipEvents('text-size')} aria-label="Dimensione testo figura" value={drawing.text.fontSize} onChange={(event) => updateText({ fontSize: Number(event.target.value) })} className="h-8 rounded border border-[var(--dash-border)] bg-[var(--dash-input)] px-2">
+                          {[6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 34].map((size) => (
+                            <option key={size}>{size}px</option>
+                          ))}
+                        </select>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Dimensione testo</TooltipContent>
+                    </Tooltip>
                     {(
                       [
                         ['bold', 'Grassetto', Bold],
@@ -2419,7 +4007,14 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                         ['strike', 'Sbarrato', Strikethrough],
                       ] as const
                     ).map(([key, label, Icon]) => (
-                      <Tooltip key={key} open={drawingTooltip === `text-${key}`}><TooltipTrigger asChild><button {...tooltipEvents(`text-${key}`)} type="button" aria-label={label} aria-pressed={drawing.text?.[key]} onClick={() => updateText({ [key]: !drawing.text?.[key] })} className={`grid h-8 w-8 place-items-center rounded ${drawing.text?.[key] ? 'bg-cyan-400/20 text-cyan-200' : 'hover:bg-white/10'}`}><Icon className="h-4 w-4" /></button></TooltipTrigger><TooltipContent side="top">{label}</TooltipContent></Tooltip>
+                      <Tooltip key={key} open={drawingTooltip === `text-${key}`}>
+                        <TooltipTrigger asChild>
+                          <button {...tooltipEvents(`text-${key}`)} type="button" aria-label={label} aria-pressed={drawing.text?.[key]} onClick={() => updateText({ [key]: !drawing.text?.[key] })} className={`grid h-8 w-8 place-items-center rounded ${drawing.text?.[key] ? 'bg-cyan-400/20 text-cyan-200' : 'hover:bg-white/10'}`}>
+                            <Icon className="h-4 w-4" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">{label}</TooltipContent>
+                      </Tooltip>
                     ))}
                     {(
                       [
@@ -2428,10 +4023,24 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                         ['right', AlignRight],
                       ] as const
                     ).map(([align, Icon]) => (
-                      <Tooltip key={align} open={drawingTooltip === `text-align-${align}`}><TooltipTrigger asChild><button {...tooltipEvents(`text-align-${align}`)} type="button" aria-label={`Allinea ${align}`} aria-pressed={drawing.text?.align === align} onClick={() => updateText({ align })} className={`grid h-8 w-8 place-items-center rounded ${drawing.text?.align === align ? 'bg-cyan-400/20 text-cyan-200' : 'hover:bg-white/10'}`}><Icon className="h-4 w-4" /></button></TooltipTrigger><TooltipContent side="top">{align === 'left' ? 'Allinea a sinistra' : align === 'center' ? 'Allinea al centro' : 'Allinea a destra'}</TooltipContent></Tooltip>
+                      <Tooltip key={align} open={drawingTooltip === `text-align-${align}`}>
+                        <TooltipTrigger asChild>
+                          <button {...tooltipEvents(`text-align-${align}`)} type="button" aria-label={`Allinea ${align}`} aria-pressed={drawing.text?.align === align} onClick={() => updateText({ align })} className={`grid h-8 w-8 place-items-center rounded ${drawing.text?.align === align ? 'bg-cyan-400/20 text-cyan-200' : 'hover:bg-white/10'}`}>
+                            <Icon className="h-4 w-4" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">{align === 'left' ? 'Allinea a sinistra' : align === 'center' ? 'Allinea al centro' : 'Allinea a destra'}</TooltipContent>
+                      </Tooltip>
                     ))}
                     {(['horizontal', 'vertical'] as const).map((orientation) => (
-                      <Tooltip key={orientation} open={drawingTooltip === `text-${orientation}`}><TooltipTrigger asChild><button {...tooltipEvents(`text-${orientation}`)} type="button" aria-label={`Testo ${orientation === 'horizontal' ? 'orizzontale' : 'verticale'}`} aria-pressed={(drawing.text?.orientation ?? 'horizontal') === orientation} onClick={() => updateText({ orientation })} className={`grid h-8 w-8 place-items-center rounded ${(drawing.text?.orientation ?? 'horizontal') === orientation ? 'bg-cyan-400/20 text-cyan-200' : 'hover:bg-white/10'}`}>{orientation === 'horizontal' ? <ArrowRight data-static-icon className="h-4 w-4" /> : <ArrowDown data-static-icon className="h-4 w-4" />}</button></TooltipTrigger><TooltipContent side="top">Testo {orientation === 'horizontal' ? 'orizzontale' : 'verticale'}</TooltipContent></Tooltip>
+                      <Tooltip key={orientation} open={drawingTooltip === `text-${orientation}`}>
+                        <TooltipTrigger asChild>
+                          <button {...tooltipEvents(`text-${orientation}`)} type="button" aria-label={`Testo ${orientation === 'horizontal' ? 'orizzontale' : 'verticale'}`} aria-pressed={(drawing.text?.orientation ?? 'horizontal') === orientation} onClick={() => updateText({ orientation })} className={`grid h-8 w-8 place-items-center rounded ${(drawing.text?.orientation ?? 'horizontal') === orientation ? 'bg-cyan-400/20 text-cyan-200' : 'hover:bg-white/10'}`}>
+                            {orientation === 'horizontal' ? <ArrowRight data-static-icon className="h-4 w-4" /> : <ArrowDown data-static-icon className="h-4 w-4" />}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">Testo {orientation === 'horizontal' ? 'orizzontale' : 'verticale'}</TooltipContent>
+                      </Tooltip>
                     ))}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -2541,13 +4150,31 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             });
             setTokenMenu((current) => (current ? { ...current, customConditionDraft: '' } : null));
           };
+          if (token.pinned)
+            return (
+              <div data-map-interactive role="menu" className="absolute z-50 flex items-center gap-2 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 p-2 text-xs shadow-2xl" style={{ left: tokenMenu.x, top: tokenMenu.y }} onPointerDown={(event) => event.stopPropagation()}>
+                <span className="px-1 font-semibold text-[var(--dash-text-strong)]">Token fissato</span>
+                {menuIcon(
+                  'Rimuovi fissaggio',
+                  <button
+                    type="button"
+                    aria-label="Rimuovi fissaggio token"
+                    onClick={() => {
+                      onTokenChange?.(token.id, { pinned: false });
+                      setTokenMenu(null);
+                    }}
+                    className={`${iconClass} bg-cyan-400/20 text-cyan-200`}
+                  >
+                    <Pin data-static-icon className="h-5 w-5" />
+                  </button>,
+                )}
+              </div>
+            );
           return (
             <div data-map-interactive role="menu" className="absolute z-50 w-[min(92vw,390px)] rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 p-3 text-xs text-[var(--dash-text)] shadow-2xl backdrop-blur" style={{ left: tokenMenu.x, top: tokenMenu.y }} onPointerDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
               <div className="mb-3 flex items-center justify-between gap-2 border-b border-[var(--dash-border-soft)] pb-2 font-semibold text-[var(--dash-text-strong)]">
                 <span>{batch ? `Token selezionati (${targetIds.length})` : 'Token'}</span>
-                <button type="button" aria-label="Sposta menu token" onPointerDown={(event) => beginMenuDrag(event, 'token', tokenMenu)} onPointerMove={moveMenuDrag} onPointerUp={finishMenuDrag} onPointerCancel={finishMenuDrag} className="cursor-move touch-none rounded p-1 text-[var(--dash-muted)] hover:bg-white/10 hover:text-[var(--dash-text-strong)]">
-                  <GripHorizontal data-static-icon className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-2">{token.locked && <Lock data-static-icon className="h-4 w-4 text-amber-300" />}<button type="button" aria-label="Sposta menu token" onPointerDown={(event) => beginMenuDrag(event, 'token', tokenMenu)} onPointerMove={moveMenuDrag} onPointerUp={finishMenuDrag} onPointerCancel={finishMenuDrag} className="cursor-move touch-none rounded p-1 text-[var(--dash-muted)] hover:bg-white/10 hover:text-[var(--dash-text-strong)]"><GripHorizontal data-static-icon className="h-4 w-4" /></button></div>
               </div>
               <div className="mb-3 flex flex-wrap gap-1.5">
                 {isOwner &&
@@ -2575,6 +4202,21 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                       {token.locked ? <Unlock className="h-5 w-5" /> : <Lock className="h-5 w-5" />}
                     </button>,
                   )}
+                {isOwner &&
+                  menuIcon(
+                    'Fissa token',
+                    <button
+                      type="button"
+                      aria-label="Fissa token"
+                      onClick={() => {
+                        applyTokenUpdate({ pinned: true });
+                        setTokenMenu(null);
+                      }}
+                      className={iconClass}
+                    >
+                      <Pin data-static-icon className="h-5 w-5 -rotate-45" />
+                    </button>,
+                  )}
                 {menuIcon(
                   'Illuminazione: disponibile con la nebbia',
                   <button type="button" disabled aria-label="Illuminazione non ancora disponibile" className={iconClass}>
@@ -2582,10 +4224,10 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                   </button>,
                 )}
                 {menuIcon(
-                  token.locked ? 'Sblocca il token per trasformarlo' : 'Dimensione e rotazione',
+                  !canControlToken(token) ? 'Token non modificabile' : 'Dimensione e rotazione',
                   <button
                     type="button"
-                    disabled={token.locked}
+                    disabled={!canControlToken(token)}
                     aria-label="Dimensione e rotazione"
                     onClick={() => {
                       setTransformTokenId(token.id);

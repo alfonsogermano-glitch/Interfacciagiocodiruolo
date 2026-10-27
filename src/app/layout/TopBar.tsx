@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type SVGProps } from 'react';
 import { createPortal } from 'react-dom';
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowRight, Bell, Bold, Brush, Bug, Check, ChevronDown, Circle, CloudFog, Crosshair, Eraser, Eye, EyeOff, Hexagon, Italic, LassoSelect, LogOut, MapPin, Minus, MoreVertical, MousePointer2, Newspaper, Pencil, PenTool, Plus, Redo2, ScanLine, Search, Settings, Square as SquareIcon, Strikethrough, Trash2, Triangle, Type, Underline, Undo2, UserPlus, X } from 'lucide-react';
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowRight, Bell, Bold, Brush, Bug, Check, ChevronDown, Circle, CircleDashed, CircleMinus, CirclePlus, CloudFog, Combine, Crosshair, Eraser, Eye, EyeOff, Hexagon, Italic, LassoSelect, LogOut, MapPin, Minus, MoreVertical, MousePointer2, Newspaper, PaintRoller, Palette, Pencil, PenTool, Plus, Redo2, ScanEye, ScanLine, Scissors, Search, Settings, Slash, Sparkles, Square as SquareIcon, Strikethrough, Trash2, Triangle, Type, Underline, Undo2, UserPlus, X } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications, type NotificationRow } from '../notifications/NotificationsContext';
 import { useCampaign } from '../campaigns/CampaignContext';
@@ -11,7 +11,7 @@ import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from '../components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { usePortalContainer } from '../components/ui/portal-container';
-import { requestSessionMapCenter, requestSessionMapDrawingClear, requestSessionMapFit, requestSessionMapRedo, requestSessionMapUndo, setActiveSessionMapTool, setSessionMapCalibrationActive, setSessionMapDrawMode, setSessionMapMeasureMode, setSessionMapMeasurementsVisibleToAll, setSessionMapSelectionArmed, setSessionMapSelectionMode, updateSessionGrid, updateSessionMapDrawStyle, updateSessionMapTextStyle, useActiveSessionMapTool, useSessionGrid, useSessionMapCalibrationActive, useSessionMapCenterAvailable, useSessionMapDrawSettings, useSessionMapFitAvailable, useSessionMapMeasureMode, useSessionMapMeasurementsVisibleToAll, useSessionMapRedoAvailable, useSessionMapSelectionArmed, useSessionMapSelectionMode, useSessionMapUndoAvailable, type SessionMapDrawMode, type SessionMapMeasureMode } from '../components/session/mapToolStore';
+import { requestSessionMapCenter, requestSessionMapDrawingClear, requestSessionMapFit, requestSessionMapFogClear, requestSessionMapFogCoverFullMap, requestSessionMapFogSelectionClear, requestSessionMapRedo, requestSessionMapUndo, setActiveSessionMapTool, setSessionMapCalibrationActive, setSessionMapDrawMode, setSessionMapMeasureMode, setSessionMapMeasurementsVisibleToAll, setSessionMapSelectionArmed, setSessionMapSelectionMode, updateSessionGrid, updateSessionMapDrawStyle, updateSessionMapFogSettings, updateSessionMapTextStyle, useActiveSessionMapTool, useSessionGrid, useSessionMapCalibrationActive, useSessionMapCenterAvailable, useSessionMapDrawSettings, useSessionMapFitAvailable, useSessionMapFogSettings, useSessionMapMeasureMode, useSessionMapMeasurementsVisibleToAll, useSessionMapRedoAvailable, useSessionMapSelectionArmed, useSessionMapSelectionMode, useSessionMapUndoAvailable, type SessionMapDrawMode, type SessionMapFogMode, type SessionMapMeasureMode } from '../components/session/mapToolStore';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 const DRAW_LINE_STYLES = [
@@ -143,7 +143,7 @@ const SESSION_MAP_TOOLS = [
   { id: 'grid', label: 'Griglia', icon: GridMapIcon },
   { id: 'measure', label: 'Misura', icon: MeasureMapIcon },
   { id: 'draw', label: 'Disegna', icon: Pencil },
-  { id: 'pin', label: 'Puntina', icon: MapPin },
+  { id: 'pin', label: 'Punti di interesse (PDI)', icon: MapPin },
   { id: 'fog', label: 'Nebbia', icon: CloudFog },
   { id: 'walls', label: 'Muri', icon: WallsMapIcon },
   { id: 'pointer', label: 'Puntatore', icon: PointerMapIcon },
@@ -375,6 +375,7 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
   const measureMode = useSessionMapMeasureMode();
   const measurementsVisibleToAll = useSessionMapMeasurementsVisibleToAll();
   const drawSettings = useSessionMapDrawSettings();
+  const fogSettings = useSessionMapFogSettings();
   const { settings: gridSettings, editable: gridEditable } = useSessionGrid();
   const mapFitAvailable = useSessionMapFitAvailable();
   const mapCenterAvailable = useSessionMapCenterAvailable();
@@ -391,6 +392,12 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
   const [measurePanelOpen, setMeasurePanelOpen] = useState(false);
   const [drawPanelOpen, setDrawPanelOpen] = useState(false);
   const [drawPanelPosition, setDrawPanelPosition] = useState({ left: 0, top: 0 });
+  const [fogPanelOpen, setFogPanelOpen] = useState(false);
+  const [fogPanelPosition, setFogPanelPosition] = useState({ left: 0, top: 0 });
+  const [fogStyleOpen, setFogStyleOpen] = useState(false);
+  const [clearFogConfirmOpen, setClearFogConfirmOpen] = useState(false);
+  const [fogTooltip, setFogTooltip] = useState<string | null>(null);
+  const fogTooltipHoveredRef = useRef<string | null>(null);
   const [clearDrawingsConfirmOpen, setClearDrawingsConfirmOpen] = useState(false);
   const [activeDrawSlider, setActiveDrawSlider] = useState<'strokeWidth' | 'opacity' | 'fillOpacity' | null>(null);
   const [drawLineStyleOpen, setDrawLineStyleOpen] = useState(false);
@@ -430,14 +437,19 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
     setSelectPanelOpen(false);
     setMeasurePanelOpen(false);
     setDrawPanelOpen(false);
+    setFogPanelOpen(false);
+    setFogStyleOpen(false);
+    setClearFogConfirmOpen(false);
+    setFogTooltip(null);
+    fogTooltipHoveredRef.current = null;
     setDrawLineStyleOpen(false);
     setMapFitMenuOpen(false);
     setSessionMapSelectionArmed(false);
-    if (['select', 'grid', 'measure', 'draw'].includes(activeMapTool)) setActiveSessionMapTool('move');
+    if (['select', 'grid', 'measure', 'draw', 'fog'].includes(activeMapTool)) setActiveSessionMapTool('move');
   };
 
   useEffect(() => {
-    if (!gridPanelOpen && !selectPanelOpen && !measurePanelOpen && !drawPanelOpen) return;
+    if (!gridPanelOpen && !selectPanelOpen && !measurePanelOpen && !drawPanelOpen && !fogPanelOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closeMapToolPanels();
     };
@@ -453,7 +465,7 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
       document.removeEventListener('keydown', closeOnEscape);
       document.removeEventListener('contextmenu', closeOnContextMenu);
     };
-  }, [activeMapTool, drawPanelOpen, gridPanelOpen, measurePanelOpen, selectPanelOpen]);
+  }, [activeMapTool, drawPanelOpen, fogPanelOpen, gridPanelOpen, measurePanelOpen, selectPanelOpen]);
 
   useEffect(() => {
     if (!drawPanelOpen) setDrawLineStyleOpen(false);
@@ -471,6 +483,12 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
   const displayName = user?.displayName ?? 'Utente';
   const initials = displayName.trim().charAt(0).toUpperCase() || '?';
   const searchPlaceholder = (activeSection && SEARCH_PLACEHOLDERS[activeSection]) || 'Cerca...';
+  const fogTooltipEvents = (id: string) => ({
+    onPointerEnter: () => { fogTooltipHoveredRef.current = id; setFogTooltip(id); },
+    onPointerLeave: () => { if (fogTooltipHoveredRef.current === id) fogTooltipHoveredRef.current = null; setFogTooltip(current => current === id ? null : current); },
+    onFocus: () => setFogTooltip(id),
+    onBlur: () => { if (fogTooltipHoveredRef.current !== id) setFogTooltip(current => current === id ? null : current); },
+  });
 
   return (
     <header className="sticky top-0 z-[1000] flex h-12 shrink-0 items-center gap-2 border-b border-[var(--dash-border)] bg-[var(--dash-surface)] px-4">
@@ -491,8 +509,8 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
                     onClick={(event) => {
                       if (!gridEditable && (id === 'grid' || id === 'draw' || id === 'fog' || id === 'walls')) return;
                       setSessionMapCalibrationActive(false);
-                      if (id === 'select' || id === 'grid' || id === 'measure' || id === 'draw') {
-                        const isOpen = id === 'select' ? selectPanelOpen : id === 'grid' ? gridPanelOpen : id === 'measure' ? measurePanelOpen : drawPanelOpen;
+                      if (id === 'select' || id === 'grid' || id === 'measure' || id === 'draw' || id === 'fog') {
+                        const isOpen = id === 'select' ? selectPanelOpen : id === 'grid' ? gridPanelOpen : id === 'measure' ? measurePanelOpen : id === 'draw' ? drawPanelOpen : fogPanelOpen;
                         if (isOpen) {
                           closeMapToolPanels();
                           return;
@@ -504,10 +522,12 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
                         setGridPanelOpen(id === 'grid');
                         setMeasurePanelOpen(id === 'measure');
                         setDrawPanelOpen(id === 'draw');
+                        setFogPanelOpen(id === 'fog');
                         if (id === 'select') setSelectPanelPosition(position);
                         if (id === 'grid') setGridPanelPosition(position);
                         if (id === 'measure') setMeasurePanelPosition(position);
                         if (id === 'draw') setDrawPanelPosition(position);
+                        if (id === 'fog') setFogPanelPosition(position);
                         setActiveSessionMapTool(id);
                       } else {
                         closeMapToolPanels();
@@ -890,6 +910,77 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
                   </TooltipTrigger>
                   <TooltipContent side="bottom">{measurementsVisibleToAll ? 'Visibile a tutti' : 'Visibile solo a me'}</TooltipContent>
                 </Tooltip>
+              </div>,
+              portalTarget ?? document.body,
+            )}
+          {fogPanelOpen &&
+            createPortal(
+              <div data-session-fog-panel onPointerDownCapture={(event) => { if ((event.target as Element).closest('button')) requestSessionMapFogSelectionClear(); }} className="fixed z-[1100] w-max max-w-[96vw] -translate-x-1/2 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)] p-2 shadow-2xl" style={fogPanelPosition}>
+                <div className="flex flex-wrap items-center gap-1">
+                  <Tooltip open={fogTooltip === 'operation'}>
+                    <TooltipTrigger asChild><button {...fogTooltipEvents('operation')} type="button" aria-label={fogSettings.operation === 'cover' ? 'Modalità: aggiungi nebbia' : 'Modalità: togli nebbia'} aria-pressed={fogSettings.operation === 'reveal'} onClick={() => updateSessionMapFogSettings({ operation: fogSettings.operation === 'cover' ? 'reveal' : 'cover' })} className={`grid h-9 w-9 place-items-center rounded-md border ${fogSettings.operation === 'cover' ? 'border-emerald-400/70 bg-emerald-400/15 text-emerald-300' : 'border-red-400/70 bg-red-400/15 text-red-300'}`}>{fogSettings.operation === 'cover' ? <CirclePlus data-static-icon className="h-5 w-5" /> : <CircleMinus data-static-icon className="h-5 w-5" />}</button></TooltipTrigger>
+                    <TooltipContent side="bottom">{fogSettings.operation === 'cover' ? 'Aggiungi nebbia' : 'Togli nebbia'}</TooltipContent>
+                  </Tooltip>
+                  <span className="mx-1 h-6 w-px bg-[var(--dash-border-soft)]" />
+                  {(
+                    [
+                      ['grab', 'Seleziona elemento', MousePointer2],
+                      ['quick-select', 'Selezione veloce', CircleDashed],
+                      ['polygon', 'Poligono', PenTool],
+                      ['freehand', 'Mano libera', Pencil],
+                      ['rectangle', 'Rettangolo', SquareIcon],
+                      ['circle', 'Cerchio', Circle],
+                      ['triangle', 'Triangolo', Triangle],
+                      ['hexagon', 'Esagono', Hexagon],
+                      ['cutter', 'Forbici', Scissors],
+                    ] as const
+                  ).map(([mode, label, Icon]) => (
+                    <Tooltip key={mode} open={fogTooltip === mode}>
+                      <TooltipTrigger asChild>
+                        <button {...fogTooltipEvents(mode)} type="button" aria-label={label} aria-pressed={fogSettings.mode === mode} onClick={() => { updateSessionMapFogSettings({ mode: mode as SessionMapFogMode }); setActiveSessionMapTool('fog'); }} className={`grid h-9 w-9 place-items-center rounded-md border ${fogSettings.mode === mode ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/20 text-[var(--dash-text-strong)]' : 'border-transparent text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]'}`}>
+                          <Icon data-static-icon className="h-4.5 w-4.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">{label}</TooltipContent>
+                    </Tooltip>
+                  ))}
+                  <span className="mx-1 h-6 w-px bg-[var(--dash-border-soft)]" />
+                  <Tooltip open={fogTooltip === 'cover-all'}>
+                    <TooltipTrigger asChild><button {...fogTooltipEvents('cover-all')} type="button" aria-label={fogSettings.fullMapCovered ? 'Scopri tutta la mappa' : 'Copri tutta la mappa'} onClick={requestSessionMapFogCoverFullMap} className="grid h-9 w-9 place-items-center rounded-md text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]">{fogSettings.fullMapCovered ? <span className="relative grid h-5 w-5 place-items-center"><PaintRoller data-static-icon className="h-4.5 w-4.5" /><Slash data-static-icon className="absolute h-6 w-6 text-red-300" /></span> : <PaintRoller data-static-icon className="h-4.5 w-4.5" />}</button></TooltipTrigger>
+                    <TooltipContent side="bottom">{fogSettings.fullMapCovered ? 'Scopri tutta la mappa' : 'Copri tutta la mappa'}</TooltipContent>
+                  </Tooltip>
+                  <Tooltip open={fogTooltip === 'preview'}>
+                    <TooltipTrigger asChild><button {...fogTooltipEvents('preview')} type="button" aria-label="Simula visuale giocatori" aria-pressed={fogSettings.previewAsPlayer} onClick={() => updateSessionMapFogSettings({ previewAsPlayer: !fogSettings.previewAsPlayer })} className={`grid h-9 w-9 place-items-center rounded-md border ${fogSettings.previewAsPlayer ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/20 text-[var(--dash-text-strong)]' : 'border-transparent text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]'}`}><ScanEye data-static-icon className="h-4.5 w-4.5" /></button></TooltipTrigger>
+                    <TooltipContent side="bottom">Simula visuale giocatori</TooltipContent>
+                  </Tooltip>
+                  <Tooltip open={fogTooltip === 'overlap'}>
+                    <TooltipTrigger asChild><button {...fogTooltipEvents('overlap')} type="button" aria-label={`Sovrapposizione: ${fogSettings.overlapMode}`} onClick={() => { const modes = ['fit', 'trim', 'join', 'overlay'] as const; updateSessionMapFogSettings({ overlapMode: modes[(modes.indexOf(fogSettings.overlapMode) + 1) % modes.length] }); }} className="grid h-9 w-9 place-items-center rounded-md text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]"><Combine data-static-icon className="h-4.5 w-4.5" /></button></TooltipTrigger>
+                    <TooltipContent side="bottom">Sovrapposizione: {fogSettings.overlapMode}</TooltipContent>
+                  </Tooltip>
+                  <Tooltip open={fogTooltip === 'automatic'}>
+                    <TooltipTrigger asChild><span {...fogTooltipEvents('automatic')} className="inline-flex"><button type="button" disabled aria-label="Nebbia automatica non ancora disponibile" className="grid h-9 w-9 place-items-center rounded-md text-[var(--dash-muted)] opacity-40"><Sparkles data-static-icon className="h-4.5 w-4.5" /></button></span></TooltipTrigger>
+                    <TooltipContent side="bottom">Nebbia automatica: in preparazione</TooltipContent>
+                  </Tooltip>
+                  <Tooltip open={fogTooltip === 'style'}>
+                    <TooltipTrigger asChild><button {...fogTooltipEvents('style')} type="button" aria-label="Stile nebbia" aria-pressed={fogStyleOpen} onClick={() => setFogStyleOpen(open => !open)} className={`grid h-9 w-9 place-items-center rounded-md border ${fogStyleOpen ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/20 text-[var(--dash-text-strong)]' : 'border-transparent text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]'}`}><Palette data-static-icon className="h-4.5 w-4.5" /></button></TooltipTrigger>
+                    <TooltipContent side="bottom">Stile nebbia</TooltipContent>
+                  </Tooltip>
+                  <Tooltip open={fogTooltip === 'clear'}>
+                    <TooltipTrigger asChild><span {...fogTooltipEvents('clear')} className="inline-flex"><button type="button" aria-label="Elimina tutta la nebbia" disabled={clearFogConfirmOpen} onClick={() => setClearFogConfirmOpen(true)} className="grid h-9 w-9 place-items-center rounded-md text-red-300 hover:bg-red-500/15 disabled:opacity-40"><Trash2 data-static-icon className="h-4.5 w-4.5" /></button></span></TooltipTrigger>
+                    <TooltipContent side="bottom">Elimina tutta la nebbia</TooltipContent>
+                  </Tooltip>
+                </div>
+                {fogStyleOpen && <div className="mt-2 flex items-center gap-4 border-t border-[var(--dash-border-soft)] pt-2 text-xs text-[var(--dash-muted)]">
+                  <label className="flex items-center gap-2">Colore <input type="color" aria-label="Colore nebbia" value={fogSettings.color} onChange={event => updateSessionMapFogSettings({ color: event.target.value })} className="h-8 w-10 bg-transparent" /></label>
+                  <label className="flex flex-1 items-center gap-2">Spessore cornice <input type="range" aria-label="Spessore cornice nebbia" min="0.5" max="12" step="0.5" value={fogSettings.strokeWidth} onChange={event => updateSessionMapFogSettings({ strokeWidth: Number(event.target.value) })} className="flex-1 accent-[var(--dash-accent)]" /><span className="w-10 text-right">{fogSettings.strokeWidth}px</span></label>
+                </div>}
+                {clearFogConfirmOpen && <div role="alertdialog" aria-modal="true" aria-label="Conferma eliminazione nebbia" className="absolute inset-0 z-20 grid place-items-center rounded-xl bg-black/70 p-4 backdrop-blur-sm">
+                  <div className="w-full max-w-sm rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)] p-4 shadow-2xl">
+                    <h3 className="font-semibold text-[var(--dash-text-strong)]">Eliminare tutta la nebbia?</h3>
+                    <p className="mt-1 text-xs text-[var(--dash-muted)]">L'operazione rimuove tutte le forme Nebbia del Capitolo corrente.</p>
+                    <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setClearFogConfirmOpen(false)} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--dash-border)] px-3 py-2 text-xs"><X className="h-3.5 w-3.5" />Annulla</button><button type="button" onClick={() => { requestSessionMapFogClear(); setClearFogConfirmOpen(false); }} className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-500"><Trash2 className="h-3.5 w-3.5" />Elimina tutto</button></div>
+                  </div>
+                </div>}
               </div>,
               portalTarget ?? document.body,
             )}

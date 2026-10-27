@@ -20,39 +20,8 @@ import { selectedContentMode } from '../storage/persistenceMode';
 // subscribe), e il canale viene chiuso per davvero solo quando l'ultimo
 // consumer se ne va.
 
-type BroadcastEvent =
-  | 'INSERT'
-  | 'UPDATE'
-  | 'DELETE'
-  | 'session_change'
-  | 'active_scene_change'
-  | 'members_change'
-  | 'notes_change'
-  | 'dice_roll'
-  | 'chat_message'
-  | 'chat_reaction'
-  | 'chat_delete'
-  | 'notification'
-  | 'map_measurement'
-  | 'map_token_action'
-  | 'character_owner_change';
-const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = [
-  'INSERT',
-  'UPDATE',
-  'DELETE',
-  'session_change',
-  'active_scene_change',
-  'members_change',
-  'notes_change',
-  'dice_roll',
-  'chat_message',
-  'chat_reaction',
-  'chat_delete',
-  'notification',
-  'map_measurement',
-  'map_token_action',
-  'character_owner_change',
-];
+type BroadcastEvent = 'INSERT' | 'UPDATE' | 'DELETE' | 'session_change' | 'active_scene_change' | 'members_change' | 'notes_change' | 'dice_roll' | 'chat_message' | 'chat_reaction' | 'chat_delete' | 'notification' | 'map_measurement' | 'map_token_action' | 'map_poi_action' | 'map_object_layer_action' | 'character_owner_change';
+const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = ['INSERT', 'UPDATE', 'DELETE', 'session_change', 'active_scene_change', 'members_change', 'notes_change', 'dice_roll', 'chat_message', 'chat_reaction', 'chat_delete', 'notification', 'map_measurement', 'map_token_action', 'map_poi_action', 'map_object_layer_action', 'character_owner_change'];
 
 type BroadcastHandler = (msg: any) => void;
 type PresenceHandler = (state: Record<string, any>) => void;
@@ -83,14 +52,16 @@ function setReady(entry: ChannelEntry, ready: boolean) {
 }
 
 function reconcilePresence(entry: ChannelEntry) {
-  entry.presenceQueue = entry.presenceQueue.then(async () => {
-    const channel = entry.channel;
-    if (!entry.isActive || !entry.isReady || !channel) return;
-    if (entry.desiredPresence) await channel.track(entry.desiredPresence);
-    else await channel.untrack();
-  }).catch(error => {
-    console.error('[campaignChannel] errore aggiornamento Presence:', error);
-  });
+  entry.presenceQueue = entry.presenceQueue
+    .then(async () => {
+      const channel = entry.channel;
+      if (!entry.isActive || !entry.isReady || !channel) return;
+      if (entry.desiredPresence) await channel.track(entry.desiredPresence);
+      else await channel.untrack();
+    })
+    .catch((error) => {
+      console.error('[campaignChannel] errore aggiornamento Presence:', error);
+    });
 }
 
 // Un registro condiviso da più consumer indipendenti non deve mai lasciare
@@ -135,7 +106,10 @@ function createEntry(topic: string): ChannelEntry {
     if (!entry.isActive) return;
     // Modalita' Locale: nessuna connessione Realtime, i canali sono locali
     // (topic di campagna e profilo convivono sullo stesso dispositivo).
-    if (selectedContentMode() === 'local') { setReady(entry, true); return; }
+    if (selectedContentMode() === 'local') {
+      setReady(entry, true);
+      return;
+    }
     await supabase.realtime.setAuth();
     if (!entry.isActive) return;
 
@@ -168,11 +142,15 @@ function createEntry(topic: string): ChannelEntry {
         (async () => {
           try {
             await supabase.removeChannel(ch);
-          } catch { /* ignora */ }
+          } catch {
+            /* ignora */
+          }
           if (!entry.isActive) return;
           if (entry.retryCount >= MAX_RETRIES) return;
           entry.retryCount += 1;
-          entry.retryTimeout = setTimeout(() => { if (entry.isActive) subscribeChannel(); }, 1000);
+          entry.retryTimeout = setTimeout(() => {
+            if (entry.isActive) subscribeChannel();
+          }, 1000);
         })();
       }
     });
@@ -202,7 +180,13 @@ function releaseChannel(topic: string) {
   if (entry.refCount <= 0) {
     entry.isActive = false;
     if (entry.retryTimeout) clearTimeout(entry.retryTimeout);
-    if (entry.channel) { try { supabase.removeChannel(entry.channel); } catch { /* ignora */ } }
+    if (entry.channel) {
+      try {
+        supabase.removeChannel(entry.channel);
+      } catch {
+        /* ignora */
+      }
+    }
     registry.delete(topic);
   }
 }
@@ -245,13 +229,17 @@ export function useRealtimeChannel(topic: string | null | undefined, options: Us
     const unregisterFns: Array<() => void> = [];
 
     for (const event of KNOWN_BROADCAST_EVENTS) {
-      const handler: BroadcastHandler = (msg) => { optionsRef.current.onBroadcast?.[event]?.(msg); };
+      const handler: BroadcastHandler = (msg) => {
+        optionsRef.current.onBroadcast?.[event]?.(msg);
+      };
       const set = entry.broadcastListeners.get(event)!;
       set.add(handler);
       unregisterFns.push(() => set.delete(handler));
     }
 
-    const presenceHandler: PresenceHandler = (state) => { optionsRef.current.onPresenceSync?.(state); };
+    const presenceHandler: PresenceHandler = (state) => {
+      optionsRef.current.onPresenceSync?.(state);
+    };
     entry.presenceListeners.add(presenceHandler);
     // Un consumer aperto dopo il sync (es. la chat) deve ricevere subito
     // la fotografia già disponibile, senza attendere una nuova join/leave.
@@ -281,14 +269,17 @@ export function useRealtimeChannel(topic: string | null | undefined, options: Us
     reconcilePresence(entry);
   }, [topic, presenceSignature]);
 
-  const send = useCallback(async (event: BroadcastEvent, payload: Record<string, unknown>) => {
-    if (selectedContentMode() === 'local') {
-      safeForEach(entryRef.current?.broadcastListeners.get(event), { payload }, `local:${event}`);
-      return;
-    }
-    const ch = entryRef.current?.channel;
-    if (ch) await ch.send({ type: 'broadcast', event, payload });
-  }, [topic]);
+  const send = useCallback(
+    async (event: BroadcastEvent, payload: Record<string, unknown>) => {
+      if (selectedContentMode() === 'local') {
+        safeForEach(entryRef.current?.broadcastListeners.get(event), { payload }, `local:${event}`);
+        return;
+      }
+      const ch = entryRef.current?.channel;
+      if (ch) await ch.send({ type: 'broadcast', event, payload });
+    },
+    [topic],
+  );
 
   const presenceState = useCallback(() => entryRef.current?.channel?.presenceState() ?? {}, []);
 

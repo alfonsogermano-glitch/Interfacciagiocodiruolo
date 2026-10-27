@@ -3,6 +3,7 @@ import { MessageSquare, FileText, StickyNote, Dices, MapPinned, Swords } from 'l
 import { SlideOverPanel } from './SlideOverPanel';
 import { SessionCharactersPanel } from './SessionCharactersPanel';
 import { SessionNotesPanel } from './SessionNotesPanel';
+import { SESSION_NOTE_OPEN_EVENT, SESSION_NOTE_PICK_EVENT, type SessionNoteOpenRequest, type SessionNotePickRequest } from './sessionNoteBrowserEvents';
 import { SessionDicePanel } from './dice/SessionDicePanel';
 import { DiceRollHistoryDrawer } from './dice/DiceRollHistoryDrawer';
 import { DiceSessionProvider } from './dice/DiceSessionContext';
@@ -12,12 +13,7 @@ import { selectedContentMode } from '../../../services/storage/persistenceMode';
 import { useCampaign } from '../../campaigns/CampaignContext';
 import { useAuth } from '../../auth/AuthContext';
 import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
-import {
-  loadLatestChatAt,
-  readChatLastSeen,
-  writeChatLastSeen,
-  type ChatMessage,
-} from '../../../services/supabase/chatService';
+import { loadLatestChatAt, readChatLastSeen, writeChatLastSeen, type ChatMessage } from '../../../services/supabase/chatService';
 import type { SessionEntityOpenRequest } from '../../campaigns/CampaignHome';
 import { CombatTracker } from '../gm/CombatTracker';
 import { SceneEncounterManager } from '../gm/SceneEncounterManager';
@@ -60,37 +56,25 @@ const CHARACTERS_PANEL_VIEWPORT_GAP = 16;
 const DICE_PANEL_VIEWPORT_GAP = 16;
 
 function clampNotesPanelWidth(width: number, viewportWidth: number) {
-  const maxWidth = Math.max(
-    0,
-    viewportWidth - LEFT_SIDEBAR_WIDTH - SESSION_RAIL_WIDTH - NOTES_PANEL_VIEWPORT_GAP,
-  );
+  const maxWidth = Math.max(0, viewportWidth - LEFT_SIDEBAR_WIDTH - SESSION_RAIL_WIDTH - NOTES_PANEL_VIEWPORT_GAP);
   const minWidth = Math.min(NOTES_PANEL_MIN_WIDTH, maxWidth);
   return Math.min(Math.max(width, minWidth), maxWidth);
 }
 
 function clampChatPanelWidth(width: number, viewportWidth: number) {
-  const maxWidth = Math.max(
-    0,
-    viewportWidth - LEFT_SIDEBAR_WIDTH - SESSION_RAIL_WIDTH - NOTES_PANEL_VIEWPORT_GAP,
-  );
+  const maxWidth = Math.max(0, viewportWidth - LEFT_SIDEBAR_WIDTH - SESSION_RAIL_WIDTH - NOTES_PANEL_VIEWPORT_GAP);
   const minWidth = Math.min(CHAT_PANEL_MIN_WIDTH, maxWidth);
   return Math.min(Math.max(width, minWidth), maxWidth);
 }
 
 function clampCharactersPanelWidth(width: number, viewportWidth: number) {
-  const maxWidth = Math.max(
-    0,
-    viewportWidth - LEFT_SIDEBAR_WIDTH - SESSION_RAIL_WIDTH - CHARACTERS_PANEL_VIEWPORT_GAP,
-  );
+  const maxWidth = Math.max(0, viewportWidth - LEFT_SIDEBAR_WIDTH - SESSION_RAIL_WIDTH - CHARACTERS_PANEL_VIEWPORT_GAP);
   const minWidth = Math.min(CHARACTERS_PANEL_MIN_WIDTH, maxWidth);
   return Math.min(Math.max(width, minWidth), maxWidth);
 }
 
 function clampDicePanelWidth(width: number, viewportWidth: number) {
-  const maxWidth = Math.max(
-    0,
-    viewportWidth - LEFT_SIDEBAR_WIDTH - SESSION_RAIL_WIDTH - DICE_PANEL_VIEWPORT_GAP,
-  );
+  const maxWidth = Math.max(0, viewportWidth - LEFT_SIDEBAR_WIDTH - SESSION_RAIL_WIDTH - DICE_PANEL_VIEWPORT_GAP);
   const minWidth = Math.min(DICE_PANEL_MIN_WIDTH, maxWidth);
   return Math.min(Math.max(width, minWidth), maxWidth);
 }
@@ -169,6 +153,26 @@ interface SessionRightSidebarProps {
 
 export function SessionRightSidebar({ openCharacterRequest = null }: SessionRightSidebarProps) {
   const [openPanel, setOpenPanel] = useState<SessionPanelId | null>(null);
+  useEffect(() => {
+    const openNotePanel = (event: Event) => {
+      const request = (event as CustomEvent<SessionNoteOpenRequest>).detail;
+      if (!request?.noteId || request.deliver) return;
+      setOpenPanel('notes');
+      requestAnimationFrame(() => window.dispatchEvent(new CustomEvent<SessionNoteOpenRequest>(SESSION_NOTE_OPEN_EVENT, { detail: { ...request, deliver: true } })));
+    };
+    window.addEventListener(SESSION_NOTE_OPEN_EVENT, openNotePanel);
+    return () => window.removeEventListener(SESSION_NOTE_OPEN_EVENT, openNotePanel);
+  }, []);
+  useEffect(() => {
+    const openNotePicker = (event: Event) => {
+      const request = (event as CustomEvent<SessionNotePickRequest>).detail;
+      if (!request?.poiId || request.deliver) return;
+      setOpenPanel('notes');
+      requestAnimationFrame(() => window.dispatchEvent(new CustomEvent<SessionNotePickRequest>(SESSION_NOTE_PICK_EVENT, { detail: { ...request, deliver: true } })));
+    };
+    window.addEventListener(SESSION_NOTE_PICK_EVENT, openNotePicker);
+    return () => window.removeEventListener(SESSION_NOTE_PICK_EVENT, openNotePicker);
+  }, []);
   const notesPanelResizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const chatPanelResizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   const charactersPanelResizeRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
@@ -207,19 +211,33 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
       if (!cancelled) setPrivateMessages((current) => mergePrivateMessages(current, incoming));
     };
     const refresh = () => {
-      void loadPrivateChatInbox(activeCampaignId).then((inbox) => {
-        if (!cancelled) setPrivateMessages((current) => refreshPrivateInbox(current, inbox));
-      }).catch(() => { /* Errore mostrato nel pannello chat. */ });
+      void loadPrivateChatInbox(activeCampaignId)
+        .then((inbox) => {
+          if (!cancelled) setPrivateMessages((current) => refreshPrivateInbox(current, inbox));
+        })
+        .catch(() => {
+          /* Errore mostrato nel pannello chat. */
+        });
     };
     const seen = () => setPrivateSeenRevision((value) => value + 1);
-    const focus = () => { if (document.visibilityState === 'visible') refresh(); };
-    const unsubscribe = subscribePrivateChat(activeCampaignId, user.id, (message) => merge([message]), (ready) => { if (ready) refresh(); });
+    const focus = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    const unsubscribe = subscribePrivateChat(
+      activeCampaignId,
+      user.id,
+      (message) => merge([message]),
+      (ready) => {
+        if (ready) refresh();
+      },
+    );
     refresh();
     window.addEventListener('hollowgate:private-chat-seen', seen);
     window.addEventListener('storage', seen);
     document.addEventListener('visibilitychange', focus);
     return () => {
-      cancelled = true; unsubscribe();
+      cancelled = true;
+      unsubscribe();
       window.removeEventListener('hollowgate:private-chat-seen', seen);
       window.removeEventListener('storage', seen);
       document.removeEventListener('visibilitychange', focus);
@@ -238,7 +256,9 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
       const lastSeen = readChatLastSeen(activeCampaignId);
       if (!lastSeen || latest > lastSeen) setChatUnread(true);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [activeCampaignId]);
 
   // Aprire la chat spegne il pallino (i messaggi sono sotto gli occhi).
@@ -249,13 +269,16 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
   // Tiro pubblico entrato nella timeline della chat (mio o di altri): pallino
   // se la chat e' chiusa — anche per i propri tiri, come la cronica tiri —
   // altrimenti il tiro e' gia' visibile e si marca solo il timestamp "visto".
-  const handleRollIngested = useCallback((serverCreatedAt: string | null) => {
-    if (openPanel === 'chat' && !privateOpen) {
-      if (serverCreatedAt && activeCampaignId) writeChatLastSeen(activeCampaignId, serverCreatedAt);
-    } else {
-      setChatUnread(true);
-    }
-  }, [activeCampaignId, openPanel, privateOpen]);
+  const handleRollIngested = useCallback(
+    (serverCreatedAt: string | null) => {
+      if (openPanel === 'chat' && !privateOpen) {
+        if (serverCreatedAt && activeCampaignId) writeChatLastSeen(activeCampaignId, serverCreatedAt);
+      } else {
+        setChatUnread(true);
+      }
+    },
+    [activeCampaignId, openPanel, privateOpen],
+  );
 
   // Messaggi e allegati degli altri partecipanti in tempo reale: pallino se
   // la chat e' chiusa, aggiunta diretta alla timeline se e' aperta.
@@ -276,7 +299,7 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
   });
 
   const togglePanel = (id: SessionPanelId) => {
-    setOpenPanel(prev => (prev === id ? null : id));
+    setOpenPanel((prev) => (prev === id ? null : id));
   };
 
   useEffect(() => {
@@ -503,13 +526,7 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
       style={{ left: -4, width: 9, touchAction: 'none' }}
       className="group absolute inset-y-0 z-30 cursor-col-resize"
     >
-      <div
-        className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${
-          isResizingNotesPanel
-            ? 'bg-[var(--dash-accent)]'
-            : 'bg-transparent group-hover:bg-[var(--dash-accent)]'
-        }`}
-      />
+      <div className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${isResizingNotesPanel ? 'bg-[var(--dash-accent)]' : 'bg-transparent group-hover:bg-[var(--dash-accent)]'}`} />
     </div>
   );
 
@@ -532,13 +549,7 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
       style={{ left: -4, width: 9, touchAction: 'none' }}
       className="group absolute inset-y-0 z-30 cursor-col-resize"
     >
-      <div
-        className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${
-          isResizingChatPanel
-            ? 'bg-[var(--dash-accent)]'
-            : 'bg-transparent group-hover:bg-[var(--dash-accent)]'
-        }`}
-      />
+      <div className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${isResizingChatPanel ? 'bg-[var(--dash-accent)]' : 'bg-transparent group-hover:bg-[var(--dash-accent)]'}`} />
     </div>
   );
 
@@ -561,13 +572,7 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
       style={{ left: -4, width: 9, touchAction: 'none' }}
       className="group absolute inset-y-0 z-30 cursor-col-resize"
     >
-      <div
-        className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${
-          isResizingCharactersPanel
-            ? 'bg-[var(--dash-accent)]'
-            : 'bg-transparent group-hover:bg-[var(--dash-accent)]'
-        }`}
-      />
+      <div className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${isResizingCharactersPanel ? 'bg-[var(--dash-accent)]' : 'bg-transparent group-hover:bg-[var(--dash-accent)]'}`} />
     </div>
   );
 
@@ -590,13 +595,7 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
       style={{ left: -4, width: 9, touchAction: 'none' }}
       className="group absolute inset-y-0 z-30 cursor-col-resize"
     >
-      <div
-        className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${
-          isResizingDicePanel
-            ? 'bg-[var(--dash-accent)]'
-            : 'bg-transparent group-hover:bg-[var(--dash-accent)]'
-        }`}
-      />
+      <div className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${isResizingDicePanel ? 'bg-[var(--dash-accent)]' : 'bg-transparent group-hover:bg-[var(--dash-accent)]'}`} />
     </div>
   );
 
@@ -619,78 +618,49 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
       style={{ left: charactersSidebarWidth - 4, width: 9, touchAction: 'none' }}
       className="group absolute inset-y-0 z-40 cursor-col-resize"
     >
-      <div
-        className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${
-          isResizingCharactersSidebar
-            ? 'bg-[var(--dash-accent)]'
-            : 'bg-transparent group-hover:bg-[var(--dash-accent)]'
-        }`}
-      />
+      <div className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${isResizingCharactersSidebar ? 'bg-[var(--dash-accent)]' : 'bg-transparent group-hover:bg-[var(--dash-accent)]'}`} />
     </div>
   );
 
   const resizablePanelOpen = openPanel === 'notes' || openPanel === 'chat' || openPanel === 'characters' || openPanel === 'dice';
-  const activePanelWidth =
-    openPanel === 'notes' ? notesPanelWidth : openPanel === 'chat' ? chatPanelWidth : openPanel === 'characters' ? charactersPanelWidth : openPanel === 'dice' ? dicePanelWidth : undefined;
-  const activePanelResizeHandle =
-    openPanel === 'notes' ? notesPanelResizeHandle : openPanel === 'chat' ? chatPanelResizeHandle : openPanel === 'characters' ? charactersPanelResizeHandle : openPanel === 'dice' ? dicePanelResizeHandle : undefined;
+  const activePanelWidth = openPanel === 'notes' ? notesPanelWidth : openPanel === 'chat' ? chatPanelWidth : openPanel === 'characters' ? charactersPanelWidth : openPanel === 'dice' ? dicePanelWidth : undefined;
+  const activePanelResizeHandle = openPanel === 'notes' ? notesPanelResizeHandle : openPanel === 'chat' ? chatPanelResizeHandle : openPanel === 'characters' ? charactersPanelResizeHandle : openPanel === 'dice' ? dicePanelResizeHandle : undefined;
 
   return (
     <DiceSessionProvider onRollIngested={handleRollIngested}>
       <>
         <aside className="relative z-[950] flex h-full w-20 shrink-0 flex-col items-center gap-1 border-l border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
           {(isOwner ? [...ICONS, ...GM_ICONS] : ICONS).map(({ id, label, icon: Icon, enabled }) => (
-            <button
-              key={id}
-              type="button"
-              disabled={!enabled}
-              onClick={() => enabled && togglePanel(id)}
-              aria-label={label}
-              className={`flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2 text-center text-[11px] transition-colors ${
-                openPanel === id
-                  ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]'
-                  : enabled
-                    ? 'text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]'
-                    : 'text-[var(--dash-muted)] opacity-40 cursor-not-allowed'
-              }`}
-            >
+            <button key={id} type="button" disabled={!enabled} onClick={() => enabled && togglePanel(id)} aria-label={label} className={`flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2 text-center text-[11px] transition-colors ${openPanel === id ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]' : enabled ? 'text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]' : 'text-[var(--dash-muted)] opacity-40 cursor-not-allowed'}`}>
               <span className="relative inline-flex">
                 <Icon className="h-[18px] w-[18px]" />
-                {id === 'chat' && (privateUnread || (chatUnread && (openPanel !== 'chat' || privateOpen))) && (
-                  <span
-                    data-chat-unread
-                    aria-hidden="true"
-                    className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[var(--dash-accent)] ring-1 ring-[var(--dash-sidebar-bg)]"
-                  />
-                )}
+                {id === 'chat' && (privateUnread || (chatUnread && (openPanel !== 'chat' || privateOpen))) && <span data-chat-unread aria-hidden="true" className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[var(--dash-accent)] ring-1 ring-[var(--dash-sidebar-bg)]" />}
               </span>
               {label}
             </button>
           ))}
         </aside>
 
-        <SlideOverPanel
-          isOpen={openPanel !== null}
-          onClose={() => setOpenPanel(null)}
-          widthClassName={resizablePanelOpen ? 'max-w-none' : undefined}
-          panelWidth={activePanelWidth}
-          leftResizeHandle={activePanelResizeHandle}
-        >
+        <SlideOverPanel isOpen={openPanel !== null} onClose={() => setOpenPanel(null)} widthClassName={resizablePanelOpen ? 'max-w-none' : undefined} panelWidth={activePanelWidth} leftResizeHandle={activePanelResizeHandle}>
           {openPanel === 'chat' && <CampaignChatPanel incomingMessage={incomingChatMessage} onPrivateConversationChange={setPrivateOpen} />}
           {openPanel === 'characters' && (
-            <div
-              data-session-characters-resizable="true"
-              className="relative h-full min-h-0 overflow-hidden"
-              style={{ '--characters-list-width': `${charactersSidebarWidth}px` } as CSSProperties}
-            >
+            <div data-session-characters-resizable="true" className="relative h-full min-h-0 overflow-hidden" style={{ '--characters-list-width': `${charactersSidebarWidth}px` } as CSSProperties}>
               <SessionCharactersPanel initialSelection={openCharacterRequest} />
               {charactersSidebarResizeHandle}
             </div>
           )}
           {openPanel === 'notes' && <SessionNotesPanel />}
           {openPanel === 'dice' && <SessionDicePanel />}
-          {openPanel === 'encounters' && isOwner && <div className="h-full overflow-y-auto p-6"><SceneEncounterManager /></div>}
-          {openPanel === 'combat' && isOwner && <div className="h-full overflow-y-auto p-6"><CombatTracker /></div>}
+          {openPanel === 'encounters' && isOwner && (
+            <div className="h-full overflow-y-auto p-6">
+              <SceneEncounterManager />
+            </div>
+          )}
+          {openPanel === 'combat' && isOwner && (
+            <div className="h-full overflow-y-auto p-6">
+              <CombatTracker />
+            </div>
+          )}
         </SlideOverPanel>
 
         <DiceRollHistoryDrawer />

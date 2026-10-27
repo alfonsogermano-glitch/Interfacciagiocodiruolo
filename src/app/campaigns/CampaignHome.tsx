@@ -1474,7 +1474,7 @@ export function CampaignHome({ onGoToManagement, onOpenSessionEntity, onSessionS
   }
 
   if (sessionActive && activeCampaign) {
-    return <SessionWorkspace campaignId={activeCampaign.id} campaignName={activeCampaign.name} campaignLogoUrl={activeCampaign.logoUrl} isOwner={isOwner} onEndSession={handleToggleSession} />;
+    return <SessionWorkspace campaignId={activeCampaign.id} campaignName={activeCampaign.name} campaignLogoUrl={activeCampaign.logoUrl} isOwner={isOwner} currentUserId={user?.id} currentUserAccessToken={session?.access_token} onEndSession={handleToggleSession} />;
   }
 
   return (
