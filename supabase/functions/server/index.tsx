@@ -636,6 +636,103 @@ app.get("/make-server-771c5bfd/auth/me", async (c) => {
 
 // ─── Campaigns: List ────────────────────────────────────────────────────────
 
+app.post("/make-server-771c5bfd/campaigns/:id/map-vision", async (c) => {
+  try {
+    const token = c.req.header("Authorization")?.split(" ")[1];
+    if (!token) return c.json({ error: "Non autorizzato" }, 401);
+    const userId = await getUserIdFromToken(token);
+    if (!userId) return c.json({ error: "Token non valido" }, 401);
+    const campaignId = c.req.param("id");
+    const campaigns: Campaign[] = await campaignStore.get(campaignsKey(userId)) ?? [];
+    if (!campaigns.some((campaign) => campaign.id === campaignId)) return c.json({ error: "Solo il GM può analizzare la mappa" }, 403);
+    const geminiKey = Deno.env.get("GEMINI_API_KEY");
+    if (!geminiKey) return c.json({ error: "Gemini non configurato: GEMINI_API_KEY mancante", code: "GEMINI_NOT_CONFIGURED" }, 503);
+    const { imageData, mimeType, task } = await c.req.json();
+    if (typeof imageData !== "string" || !/^[A-Za-z0-9+/=]+$/.test(imageData)) return c.json({ error: "Immagine AI non valida" }, 400);
+    if (imageData.length * 0.75 > 10 * 1024 * 1024) return c.json({ error: "Immagine preparata troppo grande per l'analisi AI" }, 413);
+    const safeMimeType = ["image/webp", "image/png", "image/jpeg"].includes(mimeType) ? mimeType : "image/webp";
+    const safeTask = task === "blockers" ? "blockers" : "regions";
+    const taskPrompt = safeTask === "regions"
+      ? `Identify every distinct traversable architectural area visible in this crop: rooms, corridors, halls, closets, bathrooms, stair landings and enclosed courtyards. Trace the inside face of surrounding walls, not the room's furniture or floor decoration. A corridor continuing beyond the crop edge may touch that edge. Return one simple perimeter polygon per area, with vertices following the perimeter consecutively clockwise. Preserve L-shaped or irregular rooms; do not replace them with bounding rectangles. Return exactly {"regions":[{"normalizedPolygon":[{"x":0.1,"y":0.2}],"classification":"interior","confidence":0.9}],"blockers":[]}.`
+      : `Trace architectural line-of-sight barriers visible in this crop. Return center-line segments for solid walls and separate short segments for closed doors and windows. Merge collinear wall pieces, but never bridge across a door, window or open passage. Ignore grid lines, furniture, rugs and floor borders. Return exactly {"regions":[],"blockers":[{"normalizedStart":{"x":0.1,"y":0.2},"normalizedEnd":{"x":0.3,"y":0.2},"kind":"wall","confidence":0.9}]}. Allowed kinds are wall, door and window.`;
+    const configuredModel = (Deno.env.get("GEMINI_MAP_VISION_MODEL") ?? "gemini-2.5-flash").trim().replace(/^models\//, "");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 110_000);
+    const requestBody = JSON.stringify({
+        contents: [{ role: "user", parts: [
+          { text: `Analyze this crop from a top-down tabletop RPG battle map as an architectural floor plan. Coordinates must be normalized from 0 to 1 relative to this crop, with origin at its top-left. Ignore the cyan square grid, furniture, rugs, floor patterns, shadows, vegetation, tokens, labels and decorative borders. Do not invent geometry that is not visibly supported. ${taskPrompt}` },
+          { inlineData: { mimeType: safeMimeType, data: imageData } },
+        ] }],
+        generationConfig: {
+          temperature: 0.1,
+          responseMimeType: "application/json",
+          maxOutputTokens: 8192,
+        },
+      });
+    const discoveredModels: string[] = [];
+    try {
+      const modelsResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(geminiKey)}`, { signal: controller.signal });
+      if (modelsResponse.ok) {
+        const modelsPayload = await modelsResponse.json();
+        for (const item of modelsPayload?.models ?? []) {
+          const name = typeof item?.name === "string" ? item.name.replace(/^models\//, "") : "";
+          const specializedOutputModel = /(?:tts|image|audio|live)/i.test(name);
+          if (name.includes("gemini") && name.includes("flash") && !specializedOutputModel && item?.supportedGenerationMethods?.includes("generateContent")) discoveredModels.push(name);
+        }
+      }
+    } catch { /* The configured and known models remain available as fallbacks. */ }
+    const preferredDiscoveredModels = [...discoveredModels].sort((a, b) => {
+      const rank = (name: string) => name === "gemini-flash-lite-latest" ? 0 : name.includes("flash-lite") && !name.includes("preview") ? 1 : name === "gemini-flash-latest" ? 2 : name.includes("preview") ? 5 : 3;
+      return rank(a) - rank(b) || b.localeCompare(a);
+    });
+    const safeConfiguredModel = /(?:tts|image|audio|live)/i.test(configuredModel) ? "" : configuredModel;
+    const modelCandidates = [...new Set([...preferredDiscoveredModels.slice(0, 6), "gemini-flash-lite-latest", "gemini-flash-latest", safeConfiguredModel].filter(Boolean))];
+    let providerResponse: Response | null = null;
+    let model = configuredModel;
+    const transientErrors: string[] = [];
+    for (const candidate of modelCandidates) {
+      model = candidate;
+      providerResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidate)}:generateContent?key=${encodeURIComponent(geminiKey)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: requestBody, signal: controller.signal });
+      if (providerResponse.status === 404) continue;
+      if (providerResponse.status === 400) {
+        const candidateError = await providerResponse.clone().json().catch(() => null);
+        const candidateMessage = String(candidateError?.error?.message ?? "");
+        if (/image input modality is not enabled|does not support image|unsupported modality/i.test(candidateMessage)) continue;
+      }
+      if ([429, 500, 502, 503, 504].includes(providerResponse.status)) {
+        const firstFailure = await providerResponse.clone().json().catch(() => null);
+        transientErrors.push(`${candidate}: ${providerResponse.status} ${String(firstFailure?.error?.message ?? "errore temporaneo")}`);
+        await new Promise(resolve => setTimeout(resolve, 1200));
+        providerResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidate)}:generateContent?key=${encodeURIComponent(geminiKey)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: requestBody, signal: controller.signal });
+        if ([429, 500, 502, 503, 504].includes(providerResponse.status)) {
+          const retryFailure = await providerResponse.clone().json().catch(() => null);
+          transientErrors.push(`${candidate} retry: ${providerResponse.status} ${String(retryFailure?.error?.message ?? "errore temporaneo")}`);
+          continue;
+        }
+        if (providerResponse.status === 404) continue;
+      }
+      break;
+    }
+    clearTimeout(timeout);
+    if (!providerResponse?.ok) {
+      const googleError = await providerResponse?.json().catch(() => null);
+      const detail = googleError?.error?.message ? `: ${googleError.error.message}` : "";
+      const transientDetail = transientErrors.length > 0 ? `; tentativi temporanei: ${transientErrors.join(" | ")}` : "";
+      return c.json({ error: `Gemini non disponibile (${providerResponse?.status ?? "nessuna risposta"})${detail}; modelli provati: ${modelCandidates.join(", ")}${transientDetail}` }, 502);
+    }
+    const providerPayload = await providerResponse.json();
+    const text = providerPayload?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (typeof text !== "string") return c.json({ error: "Gemini non ha restituito geometria" }, 502);
+    const result = JSON.parse(text);
+    const regions = Array.isArray(result?.regions) ? result.regions.slice(0, 300) : [];
+    const blockers = Array.isArray(result?.blockers) ? result.blockers.slice(0, 1000) : [];
+    return c.json({ regions, blockers, provider: "gemini", model });
+  } catch (err) {
+    console.log("Errore map vision:", err instanceof Error ? err.message : "errore sconosciuto");
+    return c.json({ error: `Analisi AI non disponibile: ${err instanceof Error ? err.message : "errore sconosciuto"}` }, 502);
+  }
+});
+
 app.get("/make-server-771c5bfd/campaigns", async (c) => {
   try {
     const token = c.req.header("Authorization")?.split(" ")[1];

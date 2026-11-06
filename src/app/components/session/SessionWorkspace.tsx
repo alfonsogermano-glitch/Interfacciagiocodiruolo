@@ -774,6 +774,11 @@ export function SessionWorkspace({
     if (!isOwner) return;
     updateMapFog([...(display?.mapFog ?? []), fog]);
   };
+  const applyAutomaticFog = (generated: SessionMapFog[]) => {
+    if (!isOwner) return;
+    const manualFog = (display?.mapFog ?? []).filter(item => !item.automaticRegion && (!item.visionBlocker || item.visionBlocker.source === 'manual'));
+    updateMapFog([...manualFog, ...generated]);
+  };
   const changeMapFog = (id: string, update: Partial<SessionMapFog>) => {
     if (!isOwner) return;
     const now = new Date().toISOString();
@@ -906,6 +911,8 @@ export function SessionWorkspace({
         rotation: 0,
         lightRadius: 0,
         lightConfig: {},
+        light: { enabled: false, radius: 0 },
+        vision: { enabled: false, radius: 0 },
         noteId: null,
         noteVisibleToPlayers: false,
         label: "Punto di interesse",
@@ -1547,7 +1554,7 @@ export function SessionWorkspace({
     ) {
       const allowed = Object.fromEntries(
         Object.entries(payload.update).filter(([key]) =>
-          ["name", "showLabel", "labelColor", "conditions"].includes(key),
+          ["name", "showLabel", "labelColor", "conditions", "light", "vision"].includes(key),
         ),
       );
       if (Object.keys(allowed).length > 0)
@@ -1658,10 +1665,13 @@ export function SessionWorkspace({
               "labelVisible",
               "noteId",
               "noteVisibleToPlayers",
+              "light",
+              "vision",
             ].includes(key) &&
             (typeof value === "string" ||
               typeof value === "number" ||
               typeof value === "boolean" ||
+              (typeof value === "object" && value !== null) ||
               value === null),
         ),
       );
@@ -2146,7 +2156,9 @@ export function SessionWorkspace({
               onDrawingsLayerMove={moveMapDrawingsLayer}
               onDrawingsCreateMagnetGroup={createMapDrawingMagnetGroup}
               onDrawingMagnetDisable={disableMapDrawingMagnetGroup}
-              onFogCreate={addMapFog}
+               onFogCreate={addMapFog}
+               onFogReplaceAll={updateMapFog}
+              onAutomaticFogApply={applyAutomaticFog}
               onFogChange={changeMapFog}
               onFogsChange={changeMapFogBatch}
               onFogsMove={transformMapFog}

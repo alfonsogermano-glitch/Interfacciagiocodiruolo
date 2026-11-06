@@ -17,6 +17,8 @@ export interface SessionMapPoi {
   rotation: number;
   lightRadius: number;
   lightConfig?: SessionMapPoiLightConfig;
+  light?: SessionMapLightSource;
+  vision?: SessionMapVisionSource;
   noteId: string | null;
   noteVisibleToPlayers: boolean;
   label: string;
@@ -25,3 +27,4 @@ export interface SessionMapPoi {
   createdAt: string;
   updatedAt: string;
 }
+import type { SessionMapLightSource, SessionMapVisionSource } from './sessionMapLighting';

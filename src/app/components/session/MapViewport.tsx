@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent } from 'react';
-import { configureSessionMapCenter, configureSessionMapFit, configureSessionMapFogClear, configureSessionMapFogCoverFullMap, configureSessionMapFogSelectionClear, getSessionMapCurrentUserId, hydrateSessionMapFogStyle, setSessionMapCalibrationActive, setSessionMapFogFullMapCovered, setSessionMapSelectionArmed, updateSessionGrid, useActiveSessionMapTool, useSessionMapCalibrationActive, useSessionMapDrawSettings, useSessionMapFogSettings, useSessionMapMeasureMode, useSessionMapMeasurementsVisibleToAll, useSessionMapSelectionArmed, useSessionMapSelectionMode, type SessionMapDrawMode, type SessionMapFitMode, type SessionMapFogMode, type SessionMapTool } from './mapToolStore';
+import { configureSessionMapAutomaticFog, configureSessionMapCenter, configureSessionMapFit, configureSessionMapFogClear, configureSessionMapFogCoverFullMap, configureSessionMapFogSelectionClear, getSessionMapCurrentUserId, hydrateSessionMapFogStyle, setActiveSessionMapTool, setSessionMapAutomaticFogProgress, setSessionMapCalibrationActive, setSessionMapFogFullMapCovered, setSessionMapSelectionArmed, showSessionMapAutomaticFogError, showSessionMapAutomaticFogResult, updateSessionGrid, updateSessionMapFogSettings, useActiveSessionMapTool, useSessionMapCalibrationActive, useSessionMapDrawSettings, useSessionMapFogSettings, useSessionMapMeasureMode, useSessionMapMeasurementsVisibleToAll, useSessionMapSelectionArmed, useSessionMapSelectionMode, type SessionMapDrawMode, type SessionMapFitMode, type SessionMapFogMode, type SessionMapTool } from './mapToolStore';
 import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
 import type { SessionGridSettings } from '../../../types/mapGeometry';
 import { snapToSessionGrid, type GridObjectSize } from './mapGridSnap';
@@ -11,16 +11,21 @@ import { registerSessionMapTokenDropHandler } from './sessionMapTokenDropStore';
 import { TokenGhostShape } from '../shared/TokenGhostShape';
 import { MARGIN_SCALE } from '../shared/tokenShapes';
 import { getRotatedRectBounds, getRotatedSquareBounds, isBoundsFullyContained, pointInPolygon, polygonCoverage, reconcileMapObjectOrder, rectangleCoverage, type MapLayerMove, type MapObjectRef } from './mapObjectLayers';
-import { Accessibility, AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowRight, ArrowUp, BatteryLow, Bed, Biohazard, Bold, ChevronsDown, ChevronsUp, CircleX, ClipboardCopy, ClipboardPaste, CloudFog, EarOff, Eye, EyeOff, Flashlight, Ghost, GripHorizontal, Hand, Heart, HeartCrack, Italic, Layers3, Link, Lock, LockKeyhole, Magnet, Maximize2, Mountain, Orbit, Palette, Pin, ScanEye, Shapes, Skull, Slash, Spline, Star, Strikethrough, Trash2, Type, Underline, Unlock, UserRoundX, X, type LucideIcon } from 'lucide-react';
+import { Accessibility, AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowRight, ArrowUp, BatteryLow, Bed, Biohazard, Bold, ChevronsDown, ChevronsUp, CircleX, ClipboardCopy, ClipboardPaste, CloudFog, EarOff, Eye, EyeOff, Flashlight, Ghost, GripHorizontal, Hand, Heart, HeartCrack, Italic, Layers3, Link, Lock, LockKeyhole, Magnet, Maximize2, Minus, Mountain, Orbit, Palette, Pin, Plus, ScanEye, Shapes, Skull, Slash, Spline, Star, Strikethrough, Trash2, Type, Underline, Unlock, UserRoundX, X, type LucideIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { Copy } from '../IconeCopia';
 import { NoteIconGlyph, NoteIconGrid } from './shared/NoteIconGrid';
 import { ContextHint } from './shared/ContextHint';
+import { computeVisibilityPolygon, type AnalysisSegment } from '../../../lib/battleMapAnalysis';
+import { analyzeMapForAutomaticFog } from '../../../services/maps/automaticFogAnalysis';
+import { detectRoomAtPoint, preloadRoomFillImage } from '../../../lib/battleMapAnalysis';
 import { requestSessionNoteOpen } from './sessionNoteBrowserEvents';
 import { projectId } from '/utils/supabase/info';
+import polygonClipping from 'polygon-clipping';
 
 const MIN_SCALE = 0.3;
 const MAX_SCALE = 6;
+const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 const ZOOM_SENSITIVITY = 0.0008;
 const CONDITION_BADGE_SIZE_RATIO = 0.18;
 const CONDITION_BADGE_TOKEN_GAP_RATIO = 0.012;
@@ -39,6 +44,42 @@ const CONDITION_ICON_ADJUSTMENTS: Record<string, { x: number; y: number }> = {
   unconscious: { x: 0, y: -0.03 },
   prone: { x: 0, y: -0.05 },
 };
+
+function RadiusStepper({ value, unit, onChange }: { value: number; unit: string; onChange: (value: number) => void }) {
+  const update = (next: number) => onChange(Math.max(0, Number.isFinite(next) ? next : 0));
+  return <div className="mt-3 flex items-center gap-2">
+    <span className="w-12 text-[var(--dash-muted)]">Raggio</span>
+    <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] focus-within:border-[var(--dash-accent)]">
+      <button type="button" aria-label="Diminuisci raggio" onClick={() => update(value - 0.5)} className="flex w-8 shrink-0 items-center justify-center text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]"><Minus className="h-3.5 w-3.5" /></button>
+      <input aria-label="Raggio" type="number" min="0" step="0.5" value={value} onChange={(event) => update(Number(event.target.value))} className="min-w-0 flex-1 appearance-none border-x border-[var(--dash-border)] bg-transparent px-2 py-1.5 text-center text-[var(--dash-text-strong)] outline-none [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none" />
+      <button type="button" aria-label="Aumenta raggio" onClick={() => update(value + 0.5)} className="flex w-8 shrink-0 items-center justify-center text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]"><Plus className="h-3.5 w-3.5" /></button>
+    </div>
+    <span className="max-w-20 truncate text-[var(--dash-muted)]">{unit}</span>
+  </div>;
+}
+
+function ConeAngleStepper({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  const update = (next: number) => onChange(Math.min(180, Math.max(5, Number.isFinite(next) ? next : 60)));
+  return <div className="mt-2 flex items-center gap-2">
+    <span className="w-12 text-[var(--dash-muted)]">Apertura</span>
+    <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] focus-within:border-[var(--dash-accent)]">
+      <button type="button" aria-label="Diminuisci apertura cono" onClick={() => update(value - 5)} className="flex w-8 shrink-0 items-center justify-center text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]"><Minus className="h-3.5 w-3.5" /></button>
+      <input aria-label="Apertura cono" type="number" min="5" max="180" step="5" value={value} onChange={(event) => update(Number(event.target.value))} className="min-w-0 flex-1 appearance-none border-x border-[var(--dash-border)] bg-transparent px-2 py-1.5 text-center text-[var(--dash-text-strong)] outline-none [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+      <button type="button" aria-label="Aumenta apertura cono" onClick={() => update(value + 5)} className="flex w-8 shrink-0 items-center justify-center text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]"><Plus className="h-3.5 w-3.5" /></button>
+    </div>
+    <span className="text-[var(--dash-muted)]">°</span>
+  </div>;
+}
+
+function LightingShapeControls({ shape, coneAngle, onChange }: { shape?: 'circle' | 'cone'; coneAngle?: number; onChange: (update: { shape?: 'circle' | 'cone'; coneAngle?: number }) => void }) {
+  const activeShape = shape ?? 'circle';
+  return <>
+    <div className="mt-2 grid grid-cols-2 gap-2" aria-label="Forma sorgente">
+      {([['circle', 'Circolare'], ['cone', 'Conica']] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={activeShape === value} onClick={() => onChange({ shape: value, ...(value === 'cone' && coneAngle === undefined ? { coneAngle: 60 } : {}) })} className={`rounded-md border px-2 py-1.5 text-[10px] font-semibold transition ${activeShape === value ? 'border-cyan-400 bg-cyan-400/15 text-cyan-100' : 'border-[var(--dash-border)] bg-[var(--dash-input)] text-[var(--dash-muted)] hover:text-[var(--dash-text-strong)]'}`}>{label}</button>)}
+    </div>
+    {activeShape === 'cone' && <ConeAngleStepper value={coneAngle ?? 60} onChange={(value) => onChange({ coneAngle: value })} />}
+  </>;
+}
 const PAN_ENABLED_TOOLS = new Set<SessionMapTool>(['move', 'grid', 'pin', 'pointer']);
 
 type ViewTransform = { x: number; y: number; scale: number };
@@ -83,7 +124,7 @@ type TokenMenu = {
   tokenId: string;
   x: number;
   y: number;
-  panel: 'layers' | 'colors' | 'magnets' | 'conditions' | null;
+  panel: 'layers' | 'colors' | 'magnets' | 'conditions' | 'lighting' | null;
   nameDraft: string;
   customConditionDraft: string;
 };
@@ -122,7 +163,7 @@ type DrawingGesture = {
   current: SessionMapPoint;
   points: SessionMapPoint[];
 };
-type FogGesture = { pointerId: number; mode: Exclude<SessionMapFogMode, 'grab' | 'quick-select' | 'polygon' | 'cutter'>; start: SessionMapPoint; current: SessionMapPoint; points: SessionMapPoint[] };
+type FogGesture = { pointerId: number; mode: Exclude<SessionMapFogMode, 'grab' | 'room-fill' | 'quick-select' | 'polygon' | 'cutter'>; start: SessionMapPoint; current: SessionMapPoint; points: SessionMapPoint[] };
 
 interface MapViewportProps {
   campaignId?: string;
@@ -160,6 +201,8 @@ interface MapViewportProps {
   onDrawingsCreateMagnetGroup?: (drawingIds: string[]) => void;
   onDrawingMagnetDisable?: (drawingId: string) => void;
   onFogCreate?: (fog: SessionMapFog) => void;
+  onFogReplaceAll?: (fog: SessionMapFog[]) => void;
+  onAutomaticFogApply?: (fog: SessionMapFog[]) => void;
   onFogChange?: (fogId: string, update: Partial<SessionMapFog>) => void;
   onFogsChange?: (fogIds: string[], update: Partial<SessionMapFog>) => void;
   onFogsMove?: (updates: Record<string, Partial<SessionMapFog>>) => void;
@@ -186,6 +229,32 @@ interface MapViewportProps {
 
 function drawingLineDash(style: SessionMapDrawing['style']['lineStyle']) {
   return style === 'dashed' ? '10 7' : style === 'dotted' ? '1 7' : style === 'dash-dot' ? '12 6 2 6' : style === 'long-dash' ? '20 8' : undefined;
+}
+
+function toggleLightEffect(current: 'flicker' | 'radiant' | 'flicker-radiant' | undefined, toggled: 'flicker' | 'radiant') {
+  const flicker = current === 'flicker' || current === 'flicker-radiant';
+  const radiant = current === 'radiant' || current === 'flicker-radiant';
+  const nextFlicker = toggled === 'flicker' ? !flicker : flicker;
+  const nextRadiant = toggled === 'radiant' ? !radiant : radiant;
+  return nextFlicker && nextRadiant ? 'flicker-radiant' as const : nextFlicker ? 'flicker' as const : nextRadiant ? 'radiant' as const : undefined;
+}
+
+const LIGHT_FLICKER_PRESETS = [
+  ['none', 'Nessun tremolio'],
+  ['candle', 'Candela'],
+  ['torch', 'Torcia'],
+  ['embers', 'Braci'],
+  ['magic', 'Magica'],
+  ['storm', 'Tempesta'],
+] as const;
+
+function flickerGradientStops(preset: 'candle' | 'torch' | 'embers' | 'magic' | 'storm' | undefined, radiant: boolean) {
+  const inner = radiant ? 0.3 : 0;
+  if (preset === 'candle') return <><stop offset={inner} stopColor="black" /><stop offset={radiant ? 0.64 : 0.78} stopColor="#101010"><animate attributeName="offset" values={radiant ? '0.61;0.66;0.63;0.67;0.61' : '0.76;0.81;0.78;0.82;0.76'} dur="4.2s" calcMode="spline" keyTimes="0;0.25;0.5;0.75;1" keySplines=".4 0 .6 1;.4 0 .6 1;.4 0 .6 1;.4 0 .6 1" repeatCount="indefinite" /></stop><stop offset="1" stopColor="white" /></>;
+  if (preset === 'embers') return <><stop offset={inner} stopColor="#181818" /><stop offset={radiant ? 0.52 : 0.68} stopColor="#484848"><animate attributeName="stop-color" values="#484848;#090909;#202020;#484848" keyTimes="0;0.08;0.22;1" dur="5.8s" calcMode="discrete" repeatCount="indefinite" /></stop><stop offset={radiant ? 0.72 : 0.84} stopColor="#777" /><stop offset="1" stopColor="white" /></>;
+  if (preset === 'magic') return <><stop offset={inner} stopColor="black" /><stop offset={radiant ? 0.58 : 0.72} stopColor="#101010"><animate attributeName="stop-color" values="#080808;#606060;#080808" dur="3.4s" calcMode="spline" keyTimes="0;0.5;1" keySplines=".4 0 .6 1;.4 0 .6 1" repeatCount="indefinite" /></stop><stop offset={radiant ? 0.78 : 0.88} stopColor="#888"><animate attributeName="offset" values={radiant ? '0.72;0.82;0.72' : '0.84;0.92;0.84'} dur="3.4s" repeatCount="indefinite" /></stop><stop offset="1" stopColor="white" /></>;
+  if (preset === 'storm') return <><stop offset={inner} stopColor="#333" /><stop offset={radiant ? 0.66 : 0.8} stopColor="#666"><animate attributeName="stop-color" values="#666;#020202;#666;#090909;#666;#040404;#666;#111;#666" keyTimes="0;0.03;0.07;0.31;0.34;0.41;0.76;0.79;1" dur="7.3s" calcMode="discrete" repeatCount="indefinite" /><animate attributeName="offset" values={radiant ? '0.66;0.74;0.63;0.7;0.66' : '0.8;0.9;0.77;0.86;0.8'} keyTimes="0;0.11;0.38;0.81;1" dur="5.1s" calcMode="discrete" repeatCount="indefinite" /></stop><stop offset="1" stopColor="white" /></>;
+  return <><stop offset={inner} stopColor="black" /><stop offset={radiant ? 0.54 : 0.68} stopColor="#101010"><animate attributeName="stop-color" values="#101010;#2d2d2d;#080808;#242424;#101010" dur="2.1s" repeatCount="indefinite" /></stop><stop offset={radiant ? 0.68 : 0.82} stopColor="#181818"><animate attributeName="offset" values={radiant ? '0.62;0.73;0.66;0.71;0.62' : '0.76;0.87;0.8;0.85;0.76'} dur="2.7s" repeatCount="indefinite" /></stop><stop offset="1" stopColor="white" /></>;
 }
 
 function measureMapText(text: NonNullable<SessionMapDrawing['text']>, strokeWidth: number) {
@@ -559,7 +628,85 @@ function buildFog(kind: SessionMapFogKind, points: SessionMapPoint[], operation:
   return { id: crypto.randomUUID(), kind, operation, x: minX, y: minY, width, height, rotation: 0, points: ['polygon', 'freehand'].includes(kind) ? points.map(point => ({ x: point.x - minX, y: point.y - minY })) : undefined, style: { ...style }, enabled: true, locked: false, magnetEnabled: false, magnetGroupId: null, createdAt: now, updatedAt: now };
 }
 
+type FogRing = [number, number][];
+type FogPolygon = FogRing[];
+type FogMultiPolygon = FogPolygon[];
+
+function fogLocalRings(fog: SessionMapFog): SessionMapPoint[][] {
+  if (fog.rings?.length) return fog.rings;
+  if (fog.kind === 'circle') {
+    const count = Math.max(48, Math.min(128, Math.ceil(Math.PI * Math.max(fog.width, fog.height) / 8)));
+    return [Array.from({ length: count }, (_, index) => {
+      const angle = index * Math.PI * 2 / count;
+      return { x: fog.width / 2 + Math.cos(angle) * fog.width / 2, y: fog.height / 2 + Math.sin(angle) * fog.height / 2 };
+    })];
+  }
+  if (fog.kind === 'triangle') return [[{ x: fog.width / 2, y: 0 }, { x: fog.width, y: fog.height }, { x: 0, y: fog.height }]];
+  if (fog.kind === 'hexagon') return [[{ x: fog.width * .25, y: 0 }, { x: fog.width * .75, y: 0 }, { x: fog.width, y: fog.height / 2 }, { x: fog.width * .75, y: fog.height }, { x: fog.width * .25, y: fog.height }, { x: 0, y: fog.height / 2 }]];
+  if (fog.kind === 'polygon' || fog.kind === 'freehand') return [fog.points ?? []];
+  return [[{ x: 0, y: 0 }, { x: fog.width, y: 0 }, { x: fog.width, y: fog.height }, { x: 0, y: fog.height }]];
+}
+
+function fogWorldPolygon(fog: SessionMapFog): FogPolygon {
+  const angle = fog.rotation * Math.PI / 180;
+  const center = { x: fog.width / 2, y: fog.height / 2 };
+  return fogLocalRings(fog).filter(ring => ring.length >= 3).map(ring => ring.map(point => {
+    const dx = point.x - center.x; const dy = point.y - center.y;
+    return [fog.x + center.x + dx * Math.cos(angle) - dy * Math.sin(angle), fog.y + center.y + dx * Math.sin(angle) + dy * Math.cos(angle)] as [number, number];
+  }));
+}
+
+function fogsFromMultiPolygon(geometry: FogMultiPolygon, template: SessionMapFog, keepId = false): SessionMapFog[] {
+  const now = new Date().toISOString();
+  return geometry.filter(polygon => polygon[0]?.length >= 3).map((polygon, index) => {
+    const coordinates = polygon.flat();
+    const minX = Math.min(...coordinates.map(point => point[0])); const minY = Math.min(...coordinates.map(point => point[1]));
+    const maxX = Math.max(...coordinates.map(point => point[0])); const maxY = Math.max(...coordinates.map(point => point[1]));
+    const rings = polygon.map(ring => ring.map(([x, y]) => ({ x: x - minX, y: y - minY })));
+    return { ...template, id: keepId && index === 0 ? template.id : crypto.randomUUID(), kind: 'polygon', x: minX, y: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY), rotation: 0, points: rings[0], rings, createdAt: keepId ? template.createdAt : now, updatedAt: now };
+  });
+}
+
+function fogWorldPath(fog: SessionMapFog) {
+  return fogWorldPolygon(fog).map(ring => ring.length ? `M ${ring.map(([x, y]) => `${x} ${y}`).join(' L ')} Z` : '').join(' ');
+}
+
+function trimPolygonCollisions(points: SessionMapPoint[], obstacles: SessionMapPoint[][]) {
+  const bounds = (polygon: SessionMapPoint[]) => ({ minX: Math.min(...polygon.map(point => point.x)), maxX: Math.max(...polygon.map(point => point.x)), minY: Math.min(...polygon.map(point => point.y)), maxY: Math.max(...polygon.map(point => point.y)) });
+  const clip = (polygon: SessionMapPoint[], axis: 'x' | 'y', limit: number, keepGreater: boolean) => {
+    const result: SessionMapPoint[] = [];
+    for (let index = 0; index < polygon.length; index++) {
+      const current = polygon[index]; const previous = polygon[(index + polygon.length - 1) % polygon.length];
+      const currentInside = keepGreater ? current[axis] >= limit : current[axis] <= limit;
+      const previousInside = keepGreater ? previous[axis] >= limit : previous[axis] <= limit;
+      if (currentInside !== previousInside) {
+        const ratio = (limit - previous[axis]) / (current[axis] - previous[axis]);
+        result.push(axis === 'x' ? { x: limit, y: previous.y + (current.y - previous.y) * ratio } : { x: previous.x + (current.x - previous.x) * ratio, y: limit });
+      }
+      if (currentInside) result.push(current);
+    }
+    return result;
+  };
+  let result = points;
+  for (const obstacle of obstacles) {
+    if (result.length < 3 || obstacle.length < 3) continue;
+    const candidate = bounds(result); const blocked = bounds(obstacle);
+    const overlapX = Math.min(candidate.maxX, blocked.maxX) - Math.max(candidate.minX, blocked.minX);
+    const overlapY = Math.min(candidate.maxY, blocked.maxY) - Math.max(candidate.minY, blocked.minY);
+    if (overlapX <= 0 || overlapY <= 0) continue;
+    const candidateCenter = { x: (candidate.minX + candidate.maxX) / 2, y: (candidate.minY + candidate.maxY) / 2 };
+    const blockedCenter = { x: (blocked.minX + blocked.maxX) / 2, y: (blocked.minY + blocked.maxY) / 2 };
+    if (overlapX < overlapY) result = candidateCenter.x >= blockedCenter.x ? clip(result, 'x', blocked.maxX, true) : clip(result, 'x', blocked.minX, false);
+    else result = candidateCenter.y >= blockedCenter.y ? clip(result, 'y', blocked.maxY, true) : clip(result, 'y', blocked.minY, false);
+  }
+  return result.length >= 3 ? result : null;
+}
+
 function fogShape(fog: SessionMapFog, props: Record<string, unknown> = {}) {
+  if (fog.rings?.length) {
+    const path = fog.rings.map(ring => ring.length ? `M ${ring.map(point => `${point.x} ${point.y}`).join(' L ')} Z` : '').join(' ');
+    return <path d={path} fillRule="evenodd" clipRule="evenodd" {...props} />;
+  }
   const points = fog.points?.map(point => `${point.x},${point.y}`).join(' ') ?? '';
   if (fog.kind === 'polygon' || fog.kind === 'freehand') return <polygon points={points} {...props} />;
   if (fog.kind === 'circle') return <ellipse cx={fog.width / 2} cy={fog.height / 2} rx={fog.width / 2} ry={fog.height / 2} {...props} />;
@@ -575,6 +722,7 @@ function fogContainsPoint(fog: SessionMapFog, worldPoint: SessionMapPoint) {
   const dx = worldPoint.x - centerX;
   const dy = worldPoint.y - centerY;
   const point = { x: dx * Math.cos(angle) - dy * Math.sin(angle) + fog.width / 2, y: dx * Math.sin(angle) + dy * Math.cos(angle) + fog.height / 2 };
+  if (fog.rings?.length) return fog.rings.reduce((inside, ring) => pointInPolygon(point, ring) ? !inside : inside, false);
   if (fog.kind === 'polygon' || fog.kind === 'freehand') return pointInPolygon(point, fog.points ?? []);
   if (fog.kind === 'circle') return ((point.x - fog.width / 2) / Math.max(1, fog.width / 2)) ** 2 + ((point.y - fog.height / 2) / Math.max(1, fog.height / 2)) ** 2 <= 1;
   if (fog.kind === 'triangle') return pointInPolygon(point, [{ x: fog.width / 2, y: 0 }, { x: fog.width, y: fog.height }, { x: 0, y: fog.height }]);
@@ -778,7 +926,7 @@ function readStoredView(mapId: string): ViewTransform {
   return { x: 0, y: 0, scale: 1 };
 }
 
-export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwner, currentUserId, currentUserAccessToken, mapPlacement, gridSettings, mapTokens = [], mapDrawings = [], mapFog = [], mapPois = [], mapObjectOrder, onPoiCreate, onPoiMove, onPoiChange, onPoiDelete, onPoiDuplicate, onPoiPaste, onPoiLayerMove, onDrawingCreate, onDrawingChange, onDrawingsChange, onDrawingsMove, onDrawingTransformsChange, onDrawingDelete, onDrawingsDelete, onDrawingDuplicate, onDrawingsDuplicate, onDrawingLayerMove, onDrawingsLayerMove, onDrawingsCreateMagnetGroup, onDrawingMagnetDisable, onFogCreate, onFogChange, onFogsChange, onFogsMove, onFogTransformsChange, onFogDelete, onFogsDelete, onFogCoverFullMap, onMapPlacementChange, onTokenDrop, onTokensMove, onTokenLayerMove, onTokensLayerMove, onTokenLockChange, onTokenChange, onTokensChange, onTokenTransformsChange, onTokenDelete, onTokensDelete, onTokensCreateMagnetGroup, onTokenMagnetEnabledChange, onTokenMagnetLink, onTokenMagnetUnlink }: MapViewportProps) {
+export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwner, currentUserId, currentUserAccessToken, mapPlacement, gridSettings, mapTokens = [], mapDrawings = [], mapFog = [], mapPois = [], mapObjectOrder, onPoiCreate, onPoiMove, onPoiChange, onPoiDelete, onPoiDuplicate, onPoiPaste, onPoiLayerMove, onDrawingCreate, onDrawingChange, onDrawingsChange, onDrawingsMove, onDrawingTransformsChange, onDrawingDelete, onDrawingsDelete, onDrawingDuplicate, onDrawingsDuplicate, onDrawingLayerMove, onDrawingsLayerMove, onDrawingsCreateMagnetGroup, onDrawingMagnetDisable, onFogCreate, onFogReplaceAll, onAutomaticFogApply, onFogChange, onFogsChange, onFogsMove, onFogTransformsChange, onFogDelete, onFogsDelete, onFogCoverFullMap, onMapPlacementChange, onTokenDrop, onTokensMove, onTokenLayerMove, onTokensLayerMove, onTokenLockChange, onTokenChange, onTokensChange, onTokenTransformsChange, onTokenDelete, onTokensDelete, onTokensCreateMagnetGroup, onTokenMagnetEnabledChange, onTokenMagnetLink, onTokenMagnetUnlink }: MapViewportProps) {
   const objectOrder = reconcileMapObjectOrder(mapObjectOrder, [['drawing', mapDrawings], ['token', mapTokens], ['poi', mapPois]]);
   const objectZIndex = new globalThis.Map(objectOrder.map((ref, index) => [`${ref.family}\u0000${ref.id}`, index + 3]));
   const mapUserId = currentUserId ?? getSessionMapCurrentUserId();
@@ -805,12 +953,16 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const [tokenDraftTransforms, setTokenDraftTransforms] = useState<Record<string, TokenTransform>>({});
   const [transformTokenId, setTransformTokenId] = useState<string | null>(null);
   const [tokenMenu, setTokenMenu] = useState<TokenMenu | null>(null);
-  const [poiMenu, setPoiMenu] = useState<{ poiId: string; x: number; y: number; panel: 'icons' | 'notes' | 'layers' | null } | null>(null);
+  const [poiMenu, setPoiMenu] = useState<{ poiId: string; x: number; y: number; panel: 'icons' | 'notes' | 'layers' | 'lighting' | null } | null>(null);
   const [poiNoteOptions, setPoiNoteOptions] = useState<Array<{ id: string; label: string; visibleToPlayers: boolean }>>([]);
   const [poiNotesLoading, setPoiNotesLoading] = useState(false);
   const [poiClipboard, setPoiClipboard] = useState<SessionMapPoi | null>(null);
   const [poiDraftPositions, setPoiDraftPositions] = useState<Record<string, TokenPosition>>({});
   const [poiDraftTransforms, setPoiDraftTransforms] = useState<Record<string, { size: number; rotation: number }>>({});
+  const [coneDirectionDrafts, setConeDirectionDrafts] = useState<Record<string, number>>({});
+  const coneDirectionGestureRef = useRef<{ pointerId: number; key: string; family: 'token' | 'poi'; id: string; sourceType: 'light' | 'vision'; direction: number } | null>(null);
+  const coneDirectionFrameRef = useRef<number | null>(null);
+  const coneVisibilityCacheRef = useRef<Record<string, SessionMapPoint[]>>({});
   const [transformPoiId, setTransformPoiId] = useState<string | null>(null);
   const poiMoveRef = useRef<{ pointerId: number; poiId: string; startX: number; startY: number; origin: TokenPosition; position: TokenPosition } | null>(null);
   const poiTransformRef = useRef<{ pointerId: number; poiId: string; kind: 'resize' | 'rotate'; centerClientX: number; centerClientY: number; startDistance: number; startAngle: number; origin: { size: number; rotation: number }; draft: { size: number; rotation: number } } | null>(null);
@@ -848,6 +1000,25 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const [fogDraft, setFogDraft] = useState<SessionMapFog | null>(null);
   const [fogPolygonPoints, setFogPolygonPoints] = useState<SessionMapPoint[]>([]);
   const [fogPolygonHover, setFogPolygonHover] = useState<SessionMapPoint | null>(null);
+  const [roomFillBusy, setRoomFillBusy] = useState(false);
+  const [roomFillNotice, setRoomFillNotice] = useState<string | null>(null);
+  const roomFillFailuresRef = useRef(0);
+  const roomFillNoticeTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (fogDraft && mapFog.some(fog => fog.id === fogDraft.id)) setFogDraft(null);
+  }, [fogDraft, mapFog]);
+  useEffect(() => {
+    if (activeTool !== 'fog' || fogSettings.mode !== 'room-fill' || !backgroundUrl) return;
+    void preloadRoomFillImage(backgroundUrl).catch(() => undefined);
+  }, [activeTool, backgroundUrl, fogSettings.mode]);
+  useEffect(() => () => {
+    if (roomFillNoticeTimerRef.current !== null) window.clearTimeout(roomFillNoticeTimerRef.current);
+  }, []);
+  const [wallStart, setWallStart] = useState<SessionMapPoint | null>(null);
+  const [wallHover, setWallHover] = useState<SessionMapPoint | null>(null);
+  useEffect(() => {
+    if (activeTool !== 'walls') { setWallStart(null); setWallHover(null); }
+  }, [activeTool]);
   const [selectedFogIds, setSelectedFogIds] = useState<Set<string>>(() => new Set());
   const quickFogSelectionRef = useRef<{ pointerId: number; ids: Set<string> } | null>(null);
   const [fogSelectionMenu, setFogSelectionMenu] = useState<{ x: number; y: number } | null>(null);
@@ -864,7 +1035,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const previousFogModeRef = useRef(fogSettings.mode);
   const lastAppliedFogStyleRevisionRef = useRef(fogSettings.styleRevision);
   const hydratedFogStyleRef = useRef<{ mapId: string; color: string; strokeWidth: number } | null>(null);
-  const fogMoveRef = useRef<{ pointerId: number; startX: number; startY: number; origins: Record<string, SessionMapPoint> } | null>(null);
+  const fogMoveRef = useRef<{ pointerId: number; startX: number; startY: number; origins: Record<string, SessionMapPoint>; finalPositions: Record<string, SessionMapPoint> } | null>(null);
   const [fogMoveDrafts, setFogMoveDrafts] = useState<Record<string, SessionMapPoint>>({});
   const [fogTransformDrafts, setFogTransformDrafts] = useState<Record<string, SessionMapFog>>({});
   const fogTransformRef = useRef<{ pointerId: number; id: string; kind: 'resize' | 'rotate'; handle?: 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'; startX: number; startY: number; startAngle: number; centerClientX: number; centerClientY: number; origin: SessionMapFog; draft: SessionMapFog } | null>(null);
@@ -1334,6 +1505,48 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     });
     return () => configureSessionMapFogCoverFullMap(null);
   }, [fogSettings.color, fogSettings.strokeWidth, isOwner, mapFog, onFogCoverFullMap, onFogsDelete, placement.height, placement.width, placement.x, placement.y]);
+
+  useEffect(() => {
+    if (!isOwner || !backgroundUrl || !onAutomaticFogApply) {
+      configureSessionMapAutomaticFog(null);
+      return;
+    }
+    configureSessionMapAutomaticFog(() => {
+      const element = placementElementRef.current;
+      const width = placement.width ?? element?.offsetWidth;
+      const height = placement.height ?? element?.offsetHeight;
+      if (!width || !height) return;
+      setSessionMapAutomaticFogProgress(1, 'Preparazione analisi');
+      void analyzeMapForAutomaticFog({ imageUrl: backgroundUrl, placement: { width, height }, campaignId, accessToken: currentUserAccessToken, serverBase: SERVER_BASE, onProgress: setSessionMapAutomaticFogProgress }).then((analysis) => {
+        const regions = analysis.regions.filter(region => region.classification === 'interior' && region.polygon.length >= 3);
+        const blockers = [...analysis.blockers, ...analysis.candidateOpenings.filter(opening => opening.source === 'ai')];
+        if (regions.length === 0) {
+          showSessionMapAutomaticFogError('Non sono stati individuati ambienti interni chiusi. Prova con una mappa più nitida o CORS abilitato.');
+          return;
+        }
+        const now = new Date().toISOString();
+        const generatedRegions: SessionMapFog[] = regions.map(region => {
+          const minX = Math.min(...region.polygon.map(point => point.x));
+          const minY = Math.min(...region.polygon.map(point => point.y));
+          const maxX = Math.max(...region.polygon.map(point => point.x));
+          const maxY = Math.max(...region.polygon.map(point => point.y));
+          return { id: crypto.randomUUID(), kind: 'polygon', operation: 'cover', x: placement.x + minX, y: placement.y + minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY), rotation: 0, points: region.polygon.map(point => ({ x: point.x - minX, y: point.y - minY })), style: { color: fogSettings.color, strokeWidth: fogSettings.strokeWidth }, enabled: true, locked: false, magnetEnabled: false, magnetGroupId: null, automaticRegion: { classification: region.classification, confidence: region.confidence, source: region.source }, createdAt: now, updatedAt: now };
+        });
+        const generatedBlockers: SessionMapFog[] = blockers.map(blocker => {
+          const minX = Math.min(blocker.start.x, blocker.end.x);
+          const minY = Math.min(blocker.start.y, blocker.end.y);
+          return { id: crypto.randomUUID(), kind: 'freehand', operation: 'reveal', x: placement.x + minX, y: placement.y + minY, width: Math.max(1, Math.abs(blocker.end.x - blocker.start.x)), height: Math.max(1, Math.abs(blocker.end.y - blocker.start.y)), rotation: 0, points: [{ x: blocker.start.x - minX, y: blocker.start.y - minY }, { x: blocker.end.x - minX, y: blocker.end.y - minY }], style: { color: fogSettings.color, strokeWidth: fogSettings.strokeWidth }, enabled: false, locked: false, magnetEnabled: false, magnetGroupId: null, visionBlocker: { kind: blocker.kind, confidence: blocker.confidence, source: blocker.source }, createdAt: now, updatedAt: now };
+        });
+        const source = regions.some(region => region.source === 'ai') ? 'ai' : 'local';
+        showSessionMapAutomaticFogResult({ areas: regions.length, walls: blockers.filter(blocker => blocker.kind === 'wall').length, doors: blockers.filter(blocker => blocker.kind === 'door').length, windows: blockers.filter(blocker => blocker.kind === 'window').length, source, engine: analysis.engine ?? (source === 'ai' ? 'semantic-local' : 'heuristic') }, () => onAutomaticFogApply([...generatedRegions, ...generatedBlockers]));
+      }).catch((error) => {
+        const corsHint = error instanceof DOMException || String(error).includes('load battle map') ? ' Se la mappa proviene da un URL esterno, il server deve consentire CORS.' : '';
+        const detail = error instanceof Error && error.message.startsWith('GEMINI:') ? ` ${error.message.slice('GEMINI:'.length).trim()}` : '';
+        showSessionMapAutomaticFogError(`Analisi della mappa non riuscita.${detail}${corsHint}`);
+      });
+    });
+    return () => configureSessionMapAutomaticFog(null);
+  }, [backgroundUrl, campaignId, currentUserAccessToken, fogSettings.color, fogSettings.strokeWidth, isOwner, onAutomaticFogApply, placement.height, placement.width, placement.x, placement.y]);
 
   useEffect(() => {
     if (!isOwner || !onFogsDelete) {
@@ -2127,6 +2340,31 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   };
 
   const canControlPoi = (poi: SessionMapPoi) => !poi.pinned && (isOwner || (!poi.locked && !!mapUserId && poi.createdByProfileId === mapUserId));
+  const menuPositionFromBounds = (bounds: { left: number; right: number; top: number; bottom: number }, menuWidth = 390, menuHeight = 420) => {
+    const viewportRect = viewportRef.current?.getBoundingClientRect();
+    if (!viewportRect) return null;
+    const gap = 20;
+    const candidates = [
+      { x: bounds.right + gap, y: (bounds.top + bounds.bottom - menuHeight) / 2 },
+      { x: bounds.left - menuWidth - gap, y: (bounds.top + bounds.bottom - menuHeight) / 2 },
+      { x: (bounds.left + bounds.right - menuWidth) / 2, y: bounds.bottom + gap },
+      { x: (bounds.left + bounds.right - menuWidth) / 2, y: bounds.top - menuHeight - gap },
+    ];
+    const fitting = candidates.find(position => position.x >= 8 && position.y >= 8 && position.x + menuWidth <= viewportRect.width - 8 && position.y + menuHeight <= viewportRect.height - 8) ?? candidates[0];
+    return { x: Math.max(8, Math.min(fitting.x, viewportRect.width - menuWidth - 8)), y: Math.max(8, Math.min(fitting.y, viewportRect.height - menuHeight - 8)) };
+  };
+  const menuPositionBeside = (target: Element, menuWidth = 390, menuHeight = 420) => {
+    const viewportRect = viewportRef.current?.getBoundingClientRect();
+    if (!viewportRect) return null;
+    const targetRect = target.getBoundingClientRect();
+    return menuPositionFromBounds({ left: targetRect.left - viewportRect.left, right: targetRect.right - viewportRect.left, top: targetRect.top - viewportRect.top, bottom: targetRect.bottom - viewportRect.top }, menuWidth, menuHeight);
+  };
+  const menuPositionBesideMapBounds = (bounds: { x: number; y: number; width: number; height: number }) => menuPositionFromBounds({
+    left: view.x + bounds.x * view.scale,
+    right: view.x + (bounds.x + bounds.width) * view.scale,
+    top: view.y + bounds.y * view.scale,
+    bottom: view.y + (bounds.y + bounds.height) * view.scale,
+  });
   const beginPoiMove = (event: ReactPointerEvent<HTMLButtonElement>, poi: SessionMapPoi) => {
     if (event.button !== 0 || !canControlPoi(poi)) return;
     event.preventDefault();
@@ -2203,17 +2441,16 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     event.stopPropagation();
     if (openUnderlyingMapObjectMenu(event.clientX, event.clientY, { family: 'poi', id: poi.id })) return;
     if (!isOwner && !canControlPoi(poi)) return;
-    const rect = viewportRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    const position = menuPositionBeside(event.currentTarget);
+    if (!position) return;
     setTokenMenu(null);
     setDrawingMenu(null);
-    setPoiMenu({ poiId: poi.id, x: Math.max(8, Math.min(event.clientX - rect.left + 12, rect.width - 398)), y: Math.max(8, Math.min(event.clientY - rect.top, rect.height - 300)), panel: null });
+    setPoiMenu({ poiId: poi.id, ...position, panel: null });
   };
 
   const openUnderlyingMapObjectMenu = (clientX: number, clientY: number, currentRef?: MapObjectRef) => {
     const point = mapPointFromClient(clientX, clientY);
-    const rect = viewportRef.current?.getBoundingClientRect();
-    if (!point || !rect) return false;
+    if (!point || !viewportRef.current) return false;
     const contains = (bounds: { x: number; y: number; width: number; height: number }) => point.x >= bounds.x && point.x <= bounds.x + bounds.width && point.y >= bounds.y && point.y <= bounds.y + bounds.height;
     const candidates = [...objectOrder].reverse().filter((ref) => {
       if (ref.family === 'drawing') {
@@ -2242,8 +2479,25 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     const targetKey = `${target.family}\u0000${target.id}`;
     depthSelectionRef.current = { x: clientX, y: clientY, key: targetKey };
     setDepthSelectedKey(targetKey);
-    const x = Math.max(8, clientX - rect.left + 12);
-    const y = Math.max(8, clientY - rect.top);
+    let targetBounds: { x: number; y: number; width: number; height: number } | null = null;
+    if (target.family === 'drawing') {
+      const drawing = mapDrawings.find(item => item.id === target.id);
+      const moveDraft = drawing ? drawingMoveDrafts[drawing.id] : null;
+      const rendered = drawing ? withMeasuredTextBounds(drawingTransformDrafts[drawing.id] ?? (moveDraft ? { ...drawing, ...moveDraft } : drawing)) : null;
+      if (rendered) targetBounds = getRotatedRectBounds(rendered, rendered.width, rendered.height, rendered.rotation ?? 0);
+    } else if (target.family === 'token') {
+      const token = mapTokens.find(item => item.id === target.id);
+      const position = token ? tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token : null;
+      if (token && position) { const size = tokenDraftTransforms[token.id]?.size ?? getTokenSize(token, gridSettings.cellSize); targetBounds = { x: position.x, y: position.y, width: size, height: size }; }
+    } else {
+      const poi = mapPois.find(item => item.id === target.id);
+      const position = poi ? poiDraftPositions[poi.id] ?? poi : null;
+      const size = poi ? poiDraftTransforms[poi.id]?.size ?? poi.size : 0;
+      if (poi && position) targetBounds = { x: position.x - size / 2, y: position.y - size / 2, width: size, height: size };
+    }
+    const menuPosition = targetBounds ? menuPositionBesideMapBounds(targetBounds) : null;
+    if (!menuPosition) return false;
+    const { x, y } = menuPosition;
     setTokenMenu(null); setDrawingMenu(null); setPoiMenu(null);
     if (target.family === 'drawing') {
       if (!selectedDrawingIds.has(target.id)) setSelectedDrawingIds(new Set([target.id]));
@@ -2251,8 +2505,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       setDrawingStyleEditorOpen(false); setDrawingLayerPanelOpen(false); setDrawingMenu({ id: target.id, x, y });
     } else if (target.family === 'token') {
       const token = mapTokens.find(item => item.id === target.id);
-      if (token) setTokenMenu({ tokenId: token.id, x: Math.min(rect.width - 398, x), y, panel: null, nameDraft: token.name, customConditionDraft: '' });
-    } else setPoiMenu({ poiId: target.id, x: Math.min(rect.width - 398, x), y, panel: null });
+      if (token) setTokenMenu({ tokenId: token.id, x, y, panel: null, nameDraft: token.name, customConditionDraft: '' });
+    } else setPoiMenu({ poiId: target.id, x, y, panel: null });
     return true;
   };
 
@@ -2300,9 +2554,68 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
 
   const fogOperation = fogSettings.mode === 'cutter' ? 'reveal' : fogSettings.operation;
   const fogStyle = { color: fogSettings.color, strokeWidth: fogSettings.strokeWidth };
+  const showFogNotice = (message: string) => {
+    setRoomFillNotice(message);
+    if (roomFillNoticeTimerRef.current !== null) window.clearTimeout(roomFillNoticeTimerRef.current);
+    roomFillNoticeTimerRef.current = window.setTimeout(() => setRoomFillNotice(null), 2800);
+  };
+  const commitFog = (fog: SessionMapFog) => {
+    if (fog.operation !== 'cover' || fog.fullMap || fog.visionBlocker || !onFogReplaceAll) {
+      onFogCreate?.(fog);
+      return;
+    }
+    const candidates = mapFog.filter(item => item.operation === 'cover' && item.enabled !== false && !item.fullMap && !item.visionBlocker && !item.automaticRegion);
+    const draftPolygon = fogWorldPolygon(fog);
+    if (draftPolygon.length === 0 || fogSettings.overlapMode === 'overlay') {
+      onFogReplaceAll([...mapFog, fog]);
+      return;
+    }
+    if (fogSettings.overlapMode === 'fit') {
+      const occupied = candidates.reduce<FogMultiPolygon>((combined, item) => combined.length ? polygonClipping.union(combined, fogWorldPolygon(item)) : [fogWorldPolygon(item)], []);
+      const result = occupied.length ? polygonClipping.difference(draftPolygon, occupied) : [draftPolygon];
+      const additions = fogsFromMultiPolygon(result, fog);
+      if (additions.length === 0) {
+        showFogNotice('La sovrapposizione totale non è supportata: la nuova nebbia non è stata creata.');
+        return;
+      }
+      onFogReplaceAll([...mapFog, ...additions]);
+      return;
+    }
+    if (fogSettings.overlapMode === 'trim') {
+      let changed = false;
+      const next = mapFog.flatMap(item => {
+        if (!candidates.includes(item)) return [item];
+        const intersection = polygonClipping.intersection(fogWorldPolygon(item), draftPolygon);
+        if (intersection.length === 0) return [item];
+        changed = true;
+        return fogsFromMultiPolygon(polygonClipping.difference(fogWorldPolygon(item), draftPolygon), item, true);
+      });
+      if (changed) onFogReplaceAll(next);
+      return;
+    }
+    const target = [...candidates].reverse().find(item => polygonClipping.intersection(fogWorldPolygon(item), draftPolygon).length > 0);
+    if (!target) {
+      onFogReplaceAll([...mapFog, fog]);
+      return;
+    }
+    const merged = fogsFromMultiPolygon(polygonClipping.union(fogWorldPolygon(target), draftPolygon), { ...target, style: fog.style }, true);
+    onFogReplaceAll([...mapFog.filter(item => item.id !== target.id), ...merged]);
+  };
+  const bringFogToFront = (fogId: string) => {
+    const index = mapFog.findIndex(item => item.id === fogId);
+    if (index < 0 || index === mapFog.length - 1 || !onFogReplaceAll) return;
+    onFogReplaceAll([...mapFog.slice(0, index), ...mapFog.slice(index + 1), mapFog[index]]);
+  };
   const fogFromGesture = (gesture: FogGesture) => {
     const points = gesture.mode === 'freehand' ? gesture.points : [gesture.start, gesture.current];
     return buildFog(gesture.mode, points, fogOperation, fogStyle);
+  };
+  const snapFogPointToGrid = (point: SessionMapPoint) => {
+    if (!fogSettings.gridSnapEnabled || gridSettings.cellSize <= 0) return point;
+    if (gridSettings.type !== 'square') return snapToSessionGrid(point, { ...gridSettings, snap: true });
+    const step = fogSettings.gridSnapMode === 'full-step' ? gridSettings.cellSize : gridSettings.cellSize / 2;
+    const originX = gridSettings.originX ?? 0; const originY = gridSettings.originY ?? 0;
+    return { x: Math.round((point.x - originX) / step) * step + originX, y: Math.round((point.y - originY) / step) * step + originY };
   };
   const beginFog = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!isOwner || activeTool !== 'fog' || event.button !== 0 || (event.target as Element).closest('[data-map-interactive]')) return false;
@@ -2312,17 +2625,61 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     setSelectedFogIds(new Set());
     setFogSelectionMenu(null);
     setFogMenu(null);
+    if (fogSettings.mode === 'room-fill') {
+      event.preventDefault();
+      if (roomFillBusy || !backgroundUrl) return true;
+      const localPoint = { x: point.x - placement.x, y: point.y - placement.y };
+      if (localPoint.x < 0 || localPoint.y < 0 || localPoint.x > placement.width || localPoint.y > placement.height) return true;
+      setRoomFillBusy(true);
+      const excludedPolygons = mapFog.filter(fog => fog.operation === 'cover' && fog.enabled !== false && !fog.fullMap && !fog.visionBlocker && fog.points && fog.points.length >= 3).map(fog => {
+        const radians = fog.rotation * Math.PI / 180; const center = { x: fog.width / 2, y: fog.height / 2 };
+        return fog.points!.map(vertex => { const dx = vertex.x - center.x; const dy = vertex.y - center.y; return { x: fog.x - placement.x + center.x + dx * Math.cos(radians) - dy * Math.sin(radians), y: fog.y - placement.y + center.y + dx * Math.sin(radians) + dy * Math.cos(radians) }; });
+      });
+      const probeDistance = Math.max(4, gridSettings.cellSize * 0.3);
+      const probes = [localPoint, { x: localPoint.x - probeDistance, y: localPoint.y }, { x: localPoint.x + probeDistance, y: localPoint.y }, { x: localPoint.x, y: localPoint.y - probeDistance }, { x: localPoint.x, y: localPoint.y + probeDistance }].filter(probe => probe.x >= 0 && probe.y >= 0 && probe.x <= placement.width && probe.y <= placement.height);
+      void (async () => {
+        const candidates: SessionMapPoint[][] = [];
+        for (const probe of probes) {
+          const room = await detectRoomAtPoint(backgroundUrl, { width: placement.width, height: placement.height }, probe, excludedPolygons);
+          if (!room) continue;
+          const collisionSafeRoom = trimPolygonCollisions(room, excludedPolygons);
+          if (collisionSafeRoom) candidates.push(collisionSafeRoom);
+        }
+        const polygonArea = (polygon: SessionMapPoint[]) => Math.abs(polygon.reduce((sum, vertex, index) => { const next = polygon[(index + 1) % polygon.length]; return sum + vertex.x * next.y - next.x * vertex.y; }, 0) / 2);
+        return candidates.sort((a, b) => polygonArea(b) - polygonArea(a))[0] ?? null;
+      })().then((room) => {
+        if (!room) {
+          roomFillFailuresRef.current += 1;
+          if (roomFillFailuresRef.current >= 5) {
+            roomFillFailuresRef.current = 0;
+            setRoomFillNotice('In questo punto non è possibile generare il riempimento automatico della nebbia.');
+            if (roomFillNoticeTimerRef.current !== null) window.clearTimeout(roomFillNoticeTimerRef.current);
+            roomFillNoticeTimerRef.current = window.setTimeout(() => setRoomFillNotice(null), 2800);
+          }
+          return;
+        }
+        roomFillFailuresRef.current = 0;
+        setRoomFillNotice(null);
+        const fog = buildFog('polygon', room.map(vertex => ({ x: vertex.x + placement.x, y: vertex.y + placement.y })), fogOperation, fogStyle);
+        if (fog) {
+          setFogDraft(fog);
+           window.requestAnimationFrame(() => commitFog(fog));
+        }
+      }).catch(() => undefined).finally(() => setRoomFillBusy(false));
+      return true;
+    }
     if (fogSettings.mode === 'polygon' || fogSettings.mode === 'cutter') {
       event.preventDefault();
       const close = fogPolygonPoints.length >= 3 && Math.hypot(point.x - fogPolygonPoints[0].x, point.y - fogPolygonPoints[0].y) <= 14 / view.scale;
       if (close) {
         const fog = buildFog('polygon', fogPolygonPoints, fogOperation, fogStyle);
-        if (fog) onFogCreate?.(fog);
+        if (fog) commitFog(fog);
         setFogPolygonPoints([]); setFogPolygonHover(null);
-      } else setFogPolygonPoints(current => [...current, point]);
+      } else setFogPolygonPoints(current => [...current, snapFogPointToGrid(point)]);
       return true;
     }
-    const gesture: FogGesture = { pointerId: event.pointerId, mode: fogSettings.mode, start: point, current: point, points: [point] };
+    const start = fogSettings.mode === 'freehand' ? point : snapFogPointToGrid(point);
+    const gesture: FogGesture = { pointerId: event.pointerId, mode: fogSettings.mode, start, current: start, points: [start] };
     fogGestureRef.current = gesture;
     setFogDraft(fogFromGesture(gesture));
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -2332,12 +2689,15 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const moveFog = (event: ReactPointerEvent<HTMLDivElement>) => {
     const gesture = fogGestureRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId) {
-      if (activeTool === 'fog' && (fogSettings.mode === 'polygon' || fogSettings.mode === 'cutter')) setFogPolygonHover(worldPoint(event));
+      if (activeTool === 'fog' && (fogSettings.mode === 'polygon' || fogSettings.mode === 'cutter')) {
+        const point = worldPoint(event);
+        setFogPolygonHover(point ? snapFogPointToGrid(point) : point);
+      }
       return false;
     }
     const point = worldPoint(event);
     if (!point) return true;
-    gesture.current = point;
+    gesture.current = gesture.mode === 'freehand' ? point : snapFogPointToGrid(point);
     if (gesture.mode === 'freehand' && Math.hypot(point.x - gesture.points.at(-1)!.x, point.y - gesture.points.at(-1)!.y) >= 2 / view.scale) gesture.points.push(point);
     setFogDraft(fogFromGesture(gesture));
     return true;
@@ -2346,7 +2706,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     const gesture = fogGestureRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId) return false;
     const fog = fogFromGesture(gesture);
-    if (fog) onFogCreate?.(fog);
+    if (fog) commitFog(fog);
     fogGestureRef.current = null;
     setFogDraft(null);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
@@ -2356,10 +2716,12 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     if (!isOwner || fog.locked || activeTool !== 'fog' || fogSettings.mode !== 'grab' || event.button !== 0) return;
     event.preventDefault(); event.stopPropagation();
     const selectedIds = selectedFogIds.has(fog.id) ? [...selectedFogIds] : [fog.id];
+    if (!selectedFogIds.has(fog.id)) bringFogToFront(fog.id);
     const selectedGroups = new Set(mapFog.filter(item => selectedIds.includes(item.id) && item.magnetGroupId).map(item => item.magnetGroupId));
     const ids = mapFog.filter(item => !item.locked && (selectedIds.includes(item.id) || item.magnetGroupId && selectedGroups.has(item.magnetGroupId))).map(item => item.id);
     setSelectedFogIds(new Set(ids));
-    fogMoveRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, origins: Object.fromEntries(mapFog.filter(item => ids.includes(item.id)).map(item => [item.id, { x: item.x, y: item.y }])) };
+    const origins = Object.fromEntries(mapFog.filter(item => ids.includes(item.id)).map(item => [item.id, { x: item.x, y: item.y }]));
+    fogMoveRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, origins, finalPositions: origins };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const openFogMenu = (event: ReactMouseEvent<SVGElement>, fog: SessionMapFog) => {
@@ -2367,9 +2729,20 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     event.preventDefault(); event.stopPropagation();
     const rect = viewportRef.current?.getBoundingClientRect();
     if (!rect) return;
+    const targetRect = event.currentTarget.getBoundingClientRect();
+    const fogBounds = { minX: targetRect.left - rect.left, maxX: targetRect.right - rect.left, minY: targetRect.top - rect.top, maxY: targetRect.bottom - rect.top };
+    const menuWidth = Math.min(342, rect.width - 16); const menuHeight = 150; const gap = 36;
+    const sides = [
+      { space: rect.width - fogBounds.maxX, x: fogBounds.maxX + gap, y: (fogBounds.minY + fogBounds.maxY - menuHeight) / 2 },
+      { space: fogBounds.minX, x: fogBounds.minX - menuWidth - gap, y: (fogBounds.minY + fogBounds.maxY - menuHeight) / 2 },
+      { space: rect.height - fogBounds.maxY, x: (fogBounds.minX + fogBounds.maxX - menuWidth) / 2, y: fogBounds.maxY + gap },
+      { space: fogBounds.minY, x: (fogBounds.minX + fogBounds.maxX - menuWidth) / 2, y: fogBounds.minY - menuHeight - gap },
+    ];
+    const position = sides.find(side => side.x >= 8 && side.y >= 8 && side.x + menuWidth <= rect.width - 8 && side.y + menuHeight <= rect.height - 8) ?? [...sides].sort((a, b) => b.space - a.space)[0];
     setSelectedFogIds(new Set([fog.id]));
+    bringFogToFront(fog.id);
     setFogSelectionMenu(null); setTokenMenu(null); setDrawingMenu(null); setPoiMenu(null);
-    setFogMenu({ id: fog.id, x: Math.max(8, Math.min(event.clientX - rect.left + 12, rect.width - 350)), y: Math.max(8, Math.min(event.clientY - rect.top, rect.height - 260)), panel: null });
+    setFogMenu({ id: fog.id, x: Math.max(8, Math.min(position.x, rect.width - menuWidth - 8)), y: Math.max(8, Math.min(position.y, rect.height - menuHeight - 8)), panel: null });
   };
   const duplicateFog = (fog: SessionMapFog) => {
     const now = new Date().toISOString();
@@ -2392,13 +2765,13 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     const dy = point.y - center.y;
     const local = { x: dx * Math.cos(angle) - dy * Math.sin(angle) + gesture.origin.width / 2, y: dx * Math.sin(angle) + dy * Math.cos(angle) + gesture.origin.height / 2 };
     const points = gesture.origin.points.map((item, index) => index === gesture.pointIndex ? local : item);
-    gesture.draft = { ...gesture.origin, points };
+    gesture.draft = { ...gesture.origin, points, rings: gesture.origin.rings ? [points, ...gesture.origin.rings.slice(1)] : undefined };
     setFogPathDrafts(current => ({ ...current, [gesture.fogId]: gesture.draft }));
   };
   const finishFogPathPointMove = (event: ReactPointerEvent<SVGCircleElement>) => {
     const gesture = fogPathPointRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
-    onFogChange?.(gesture.fogId, { points: gesture.draft.points });
+    onFogChange?.(gesture.fogId, { points: gesture.draft.points, rings: gesture.draft.rings });
     setFogPathDrafts(current => { const next = { ...current }; delete next[gesture.fogId]; return next; });
     fogPathPointRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
@@ -2420,7 +2793,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     if (!point) return true;
     let changed = false;
     mapFog.forEach(fog => {
-      if (fog.fullMap) return;
+      if (fog.fullMap || fog.visionBlocker) return;
       const position = fogMoveDrafts[fog.id];
       const rendered = fogTransformDrafts[fog.id] ?? (position ? { ...fog, ...position } : fog);
       if (fogContainsPoint(rendered, point) && !gesture.ids.has(fog.id)) { gesture.ids.add(fog.id); changed = true; }
@@ -2442,14 +2815,27 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     if (!gesture || gesture.pointerId !== event.pointerId) return;
     const dx = (event.clientX - gesture.startX) / view.scale;
     const dy = (event.clientY - gesture.startY) / view.scale;
-    setFogMoveDrafts(Object.fromEntries(Object.entries(gesture.origins).map(([id, origin]) => [id, { x: origin.x + dx, y: origin.y + dy }])));
-    gesture.startX = event.clientX; gesture.startY = event.clientY;
-    gesture.origins = Object.fromEntries(Object.entries(gesture.origins).map(([id, origin]) => [id, { x: origin.x + dx, y: origin.y + dy }]));
+    const movingIds = new Set(Object.keys(gesture.origins));
+    const raw = Object.fromEntries(Object.entries(gesture.origins).map(([id, origin]) => [id, { x: origin.x + dx, y: origin.y + dy }]));
+    const targets = fogSettings.magnetEnabled ? mapFog.filter(fog => !movingIds.has(fog.id) && !fog.fullMap && !fog.visionBlocker && fog.enabled !== false && Math.abs((((fog.rotation ?? 0) % 180) + 180) % 180) < 1) : [];
+    const snapDistance = 12 / Math.sqrt(view.scale);
+    const xCorrections: number[] = []; const yCorrections: number[] = [];
+    mapFog.filter(fog => movingIds.has(fog.id) && Math.abs((((fog.rotation ?? 0) % 180) + 180) % 180) < 1).forEach(fog => {
+      const position = raw[fog.id]; if (!position) return;
+      targets.forEach(target => {
+        if (position.y < target.y + target.height + snapDistance && position.y + fog.height > target.y - snapDistance) xCorrections.push(target.x - position.x, target.x + target.width - position.x, target.x - position.x - fog.width, target.x + target.width - position.x - fog.width);
+        if (position.x < target.x + target.width + snapDistance && position.x + fog.width > target.x - snapDistance) yCorrections.push(target.y - position.y, target.y + target.height - position.y, target.y - position.y - fog.height, target.y + target.height - position.y - fog.height);
+      });
+    });
+    const snapX = xCorrections.filter(value => Math.abs(value) <= snapDistance).sort((a, b) => Math.abs(a) - Math.abs(b))[0] ?? 0;
+    const snapY = yCorrections.filter(value => Math.abs(value) <= snapDistance).sort((a, b) => Math.abs(a) - Math.abs(b))[0] ?? 0;
+    gesture.finalPositions = Object.fromEntries(Object.entries(raw).map(([id, position]) => [id, { x: position.x + snapX, y: position.y + snapY }]));
+    setFogMoveDrafts(gesture.finalPositions);
   };
   const finishSelectedFog = (event: ReactPointerEvent<SVGElement>) => {
     const gesture = fogMoveRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
-    onFogsMove?.(Object.fromEntries(Object.entries(gesture.origins).map(([id, position]) => [id, position])));
+    onFogsMove?.(gesture.finalPositions);
     setFogMoveDrafts({});
     fogMoveRef.current = null;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
@@ -2499,9 +2885,29 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         y: gesture.handle?.includes('n') ? height : gesture.handle?.includes('s') ? 0 : height / 2,
       };
       const draftOffset = { x: oppositeDraft.x - width / 2, y: oppositeDraft.y - height / 2 };
-      const x = anchorWorld.x - width / 2 - (draftOffset.x * Math.cos(rotation) - draftOffset.y * Math.sin(rotation));
-      const y = anchorWorld.y - height / 2 - (draftOffset.x * Math.sin(rotation) + draftOffset.y * Math.cos(rotation));
-      gesture.draft = { ...gesture.origin, x, y, width, height, points: gesture.origin.points?.map(point => ({ x: point.x * width / gesture.origin.width, y: point.y * height / gesture.origin.height })) };
+      let x = anchorWorld.x - width / 2 - (draftOffset.x * Math.cos(rotation) - draftOffset.y * Math.sin(rotation));
+      let y = anchorWorld.y - height / 2 - (draftOffset.x * Math.sin(rotation) + draftOffset.y * Math.cos(rotation));
+      const axisAligned = Math.abs(((((gesture.origin.rotation ?? 0) % 180) + 180) % 180)) < 1;
+      if (fogSettings.magnetEnabled && axisAligned && gesture.handle) {
+        const snapDistance = 12 / Math.sqrt(view.scale);
+        const candidates = mapFog.filter(fog => fog.id !== gesture.id && !fog.fullMap && !fog.visionBlocker && fog.enabled !== false && Math.abs(((((fog.rotation ?? 0) % 180) + 180) % 180)) < 1);
+        const nearest = (value: number, targets: number[]) => targets.reduce<{ value: number; distance: number } | null>((best, target) => { const distance = Math.abs(target - value); return distance <= snapDistance && (!best || distance < best.distance) ? { value: target, distance } : best; }, null);
+        if (gesture.handle.includes('w') || gesture.handle.includes('e')) {
+          const targets = candidates.filter(fog => y < fog.y + fog.height + snapDistance && y + height > fog.y - snapDistance).flatMap(fog => [fog.x, fog.x + fog.width]);
+          const edge = gesture.handle.includes('w') ? x : x + width;
+          const snap = nearest(edge, targets);
+          if (snap && gesture.handle.includes('w')) { const right = x + width; x = snap.value; width = Math.max(4, right - x); }
+          else if (snap) width = Math.max(4, snap.value - x);
+        }
+        if (gesture.handle.includes('n') || gesture.handle.includes('s')) {
+          const targets = candidates.filter(fog => x < fog.x + fog.width + snapDistance && x + width > fog.x - snapDistance).flatMap(fog => [fog.y, fog.y + fog.height]);
+          const edge = gesture.handle.includes('n') ? y : y + height;
+          const snap = nearest(edge, targets);
+          if (snap && gesture.handle.includes('n')) { const bottom = y + height; y = snap.value; height = Math.max(4, bottom - y); }
+          else if (snap) height = Math.max(4, snap.value - y);
+        }
+      }
+      gesture.draft = { ...gesture.origin, x, y, width, height, points: gesture.origin.points?.map(point => ({ x: point.x * width / gesture.origin.width, y: point.y * height / gesture.origin.height })), rings: gesture.origin.rings?.map(ring => ring.map(point => ({ x: point.x * width / gesture.origin.width, y: point.y * height / gesture.origin.height }))) };
     }
     setFogTransformDrafts(current => ({ ...current, [gesture.id]: gesture.draft }));
   };
@@ -2515,19 +2921,23 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   };
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { setFogPolygonPoints([]); setFogPolygonHover(null); setFogDraft(null); setSelectedFogIds(new Set()); }
+      if (event.key === 'Escape' && activeTool === 'fog' && (fogSettings.mode === 'polygon' || fogSettings.mode === 'cutter') && fogPolygonPoints.length > 0) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        setFogPolygonPoints([]); setFogPolygonHover(null); setFogDraft(null);
+        return;
+      }
       if (event.key === 'Enter' && fogPolygonPoints.length >= 3) {
         const fog = buildFog('polygon', fogPolygonPoints, fogOperation, fogStyle);
-        if (fog) onFogCreate?.(fog);
+        if (fog) commitFog(fog);
         setFogPolygonPoints([]); setFogPolygonHover(null);
       }
       if ((event.key === 'Delete' || event.key === 'Backspace') && selectedFogIds.size > 0 && !(event.target instanceof HTMLInputElement) && !(event.target instanceof HTMLTextAreaElement)) {
         event.preventDefault(); onFogsDelete?.([...selectedFogIds]); setSelectedFogIds(new Set());
       }
     };
-    document.addEventListener('keydown', keydown);
-    return () => document.removeEventListener('keydown', keydown);
-  }, [fogOperation, fogPolygonPoints, fogSettings.color, fogSettings.strokeWidth, onFogCreate, onFogsDelete, selectedFogIds]);
+    document.addEventListener('keydown', keydown, true);
+    return () => document.removeEventListener('keydown', keydown, true);
+  }, [activeTool, fogOperation, fogPolygonPoints, fogSettings.color, fogSettings.mode, fogSettings.strokeWidth, onFogCreate, onFogsDelete, selectedFogIds]);
   useEffect(() => {
     if (activeTool === 'fog' && (fogSettings.mode === 'polygon' || fogSettings.mode === 'cutter')) return;
     setFogPolygonPoints([]); setFogPolygonHover(null); setFogDraft(null);
@@ -2552,6 +2962,25 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       drawingTransformRef.current = null;
       setDrawingDraft(null);
     }
+    if (activeTool === 'walls' && event.button === 0 && !target.closest('[data-map-interactive]')) {
+      const point = worldPoint(event);
+      if (!point) return;
+      if (!wallStart) {
+        setWallStart(point);
+        setWallHover(point);
+      } else {
+        const minX = Math.min(wallStart.x, point.x);
+        const minY = Math.min(wallStart.y, point.y);
+        if (Math.hypot(point.x - wallStart.x, point.y - wallStart.y) >= 4 / view.scale) {
+          const now = new Date().toISOString();
+          onFogCreate?.({ id: crypto.randomUUID(), kind: 'freehand', operation: 'reveal', x: minX, y: minY, width: Math.max(1, Math.abs(point.x - wallStart.x)), height: Math.max(1, Math.abs(point.y - wallStart.y)), rotation: 0, points: [{ x: wallStart.x - minX, y: wallStart.y - minY }, { x: point.x - minX, y: point.y - minY }], style: { color: fogSettings.color, strokeWidth: fogSettings.strokeWidth }, enabled: false, locked: false, magnetEnabled: false, magnetGroupId: null, visionBlocker: { kind: 'wall', confidence: 1, source: 'manual' }, createdAt: now, updatedAt: now });
+        }
+        setWallStart(null);
+        setWallHover(null);
+      }
+      event.preventDefault();
+      return;
+    }
     if (activeTool === 'pin' && event.button === 0 && !target.closest('[data-map-interactive]')) {
       const point = worldPoint(event);
       if (point) onPoiCreate?.(point);
@@ -2560,7 +2989,16 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     }
     if (!captureCalibrationPoint(event) && !beginVisualMeasurement(event) && !beginDrawing(event) && !beginFog(event) && !beginSelection(event)) beginPan(event);
   };
+  const handleViewportPointerDownCapture = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button === 1) {
+      beginPan(event);
+      event.stopPropagation();
+      return;
+    }
+    beginDepthSelectedMove(event);
+  };
   const handleViewportPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (activeTool === 'walls' && wallStart) setWallHover(worldPoint(event));
     if (moveQuickFogSelection(event)) return;
     if (drawingMoveRef.current) { moveSelectedDrawing(event as unknown as ReactPointerEvent<SVGElement>); return; }
     if (poiMoveRef.current) { movePoi(event as unknown as ReactPointerEvent<HTMLButtonElement>); return; }
@@ -2703,18 +3141,9 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     const token = mapTokens.find((candidate) => candidate.id === tokenId);
     const viewport = viewportRef.current;
     if (!viewport || !token || (!isOwner && !canControlToken(token))) return;
-    const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token;
-    const size = tokenDraftTransforms[token.id]?.size ?? getTokenSize(token, gridSettings.cellSize);
-    const rotation = tokenDraftTransforms[token.id]?.rotation ?? token.rotation ?? 0;
-    const angle = (rotation * Math.PI) / 180;
-    const boundsSize = size * (Math.abs(Math.cos(angle)) + Math.abs(Math.sin(angle)));
-    const boundsX = position.x + (size - boundsSize) / 2;
-    const boundsY = position.y + (size - boundsSize) / 2;
-    const tokenLeft = view.x + boundsX * view.scale;
-    const tokenRight = view.x + (boundsX + boundsSize) * view.scale;
-    const preferredX = tokenRight + 12;
-    const x = preferredX + 398 <= viewport.clientWidth ? preferredX : Math.max(8, tokenLeft - 398 - 12);
-    const y = Math.max(8, Math.min(view.y + boundsY * view.scale, viewport.clientHeight - 300));
+    const menuPosition = menuPositionBeside(event.currentTarget);
+    if (!menuPosition) return;
+    const { x, y } = menuPosition;
     const selectedDrawing = mapDrawings.find((drawing) => selectedDrawingIds.has(drawing.id));
     if (selectedDrawing) {
       setTokenMenu({
@@ -2872,6 +3301,139 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const editingTextDrawing = textDraft?.editingId ? mapDrawings.find((drawing) => drawing.id === textDraft.editingId) : undefined;
   const activeTextStyle = editingTextDrawing?.text ?? drawSettings.textStyle;
   const activeTextStrokeWidth = editingTextDrawing?.style.strokeWidth ?? drawSettings.style.strokeWidth;
+  const automaticCoverFog = mapFog.filter(fog => fog.automaticRegion && fog.operation === 'cover' && fog.enabled !== false);
+  const automaticVisionBlockers: Array<Pick<AnalysisSegment, 'start' | 'end'>> = mapFog.flatMap(fog => {
+    if (!fog.visionBlocker || !fog.points || fog.points.length < 2) return [];
+    return [{ start: { x: fog.x + fog.points[0].x - placement.x, y: fog.y + fog.points[0].y - placement.y }, end: { x: fog.x + fog.points[1].x - placement.x, y: fog.y + fog.points[1].y - placement.y } }];
+  });
+  const distanceToWorld = (distance: number) => gridSettings.distance > 0 ? distance * gridSettings.cellSize / gridSettings.distance : 0;
+  const mapBounds = placement.width && placement.height ? { width: placement.width, height: placement.height } : null;
+  const coneDirection = (key: string, configured: number | undefined, fallback: number) => ((coneDirectionDrafts[key] ?? configured ?? fallback) - 90) * Math.PI / 180;
+  const largestOuterRing = (geometry: number[][][][]) => geometry.flatMap(polygon => polygon.slice(0, 1)).sort((a, b) => {
+    const area = (ring: number[][]) => Math.abs(ring.reduce((total, point, index) => total + point[0] * ring[(index + 1) % ring.length][1] - ring[(index + 1) % ring.length][0] * point[1], 0));
+    return area(b) - area(a);
+  })[0];
+  const flashlightBeamPoints = (source: { origin: SessionMapPoint; radius: number; coneAngle?: number; direction: number; sourceSize: number }) => {
+    const radius = distanceToWorld(source.radius);
+    const halfAngle = Math.min(180, Math.max(5, source.coneAngle ?? 60)) * Math.PI / 360;
+    const neckDistance = Math.min(radius * 0.22, source.sourceSize * 0.38);
+    const neckHalfWidth = Math.min(radius * 0.08, source.sourceSize * 0.16);
+    const capDepth = Math.min(radius * 0.16, Math.max(radius * 0.04, Math.tan(halfAngle) * radius * 0.22));
+    const capCenterDistance = Math.max(neckDistance, radius - capDepth);
+    const farHalfWidth = Math.min(radius * 1.5, Math.max(neckHalfWidth, Math.tan(halfAngle) * capCenterDistance));
+    const point = (forward: number, lateral: number) => ({
+      x: source.origin.x + Math.cos(source.direction) * forward - Math.sin(source.direction) * lateral,
+      y: source.origin.y + Math.sin(source.direction) * forward + Math.cos(source.direction) * lateral,
+    });
+    return [
+      point(neckDistance, neckHalfWidth),
+      ...Array.from({ length: 25 }, (_, index) => {
+        const angle = Math.PI / 2 - index * Math.PI / 24;
+        return point(capCenterDistance + Math.cos(angle) * capDepth, Math.sin(angle) * farHalfWidth);
+      }),
+      point(neckDistance, -neckHalfWidth),
+    ];
+  };
+  const visibilityPolygon = (source: { key: string; origin: SessionMapPoint; radius: number; shape?: 'circle' | 'cone'; coneAngle?: number; direction: number; sourceSize: number }) => {
+    if (!mapBounds) return [];
+    const visibility = computeVisibilityPolygon({ x: source.origin.x - placement.x, y: source.origin.y - placement.y }, automaticVisionBlockers, mapBounds, 512, distanceToWorld(source.radius), source.direction, source.shape === 'cone' ? Math.min(180, Math.max(5, source.coneAngle ?? 60)) * Math.PI / 180 : Math.PI * 2).map(point => ({ x: point.x + placement.x, y: point.y + placement.y }));
+    if (source.shape !== 'cone' || visibility.length < 3) return visibility;
+    const sourceRadius = source.sourceSize * 0.52;
+    const sourceCircle = Array.from({ length: 32 }, (_, index) => {
+      const angle = index * Math.PI * 2 / 32;
+      return [source.origin.x + Math.cos(angle) * sourceRadius, source.origin.y + Math.sin(angle) * sourceRadius] as [number, number];
+    });
+    try {
+      const clipped = polygonClipping.intersection(
+        [[visibility.map(point => [point.x, point.y] as [number, number])]],
+        [[flashlightBeamPoints(source).map(point => [point.x, point.y] as [number, number])]],
+      );
+      const largest = largestOuterRing(polygonClipping.union(clipped, [[sourceCircle]]));
+      if (!largest || largest.length < 3) return coneVisibilityCacheRef.current[source.key] ?? sourceCircle.map(([x, y]) => ({ x, y }));
+      const result = largest.map(([x, y]) => ({ x, y }));
+      coneVisibilityCacheRef.current[source.key] = result;
+      return result;
+    } catch {
+      // Keep the last valid mask during a degenerate drag frame. Replacing it
+      // with a fallback shape would make the fog flash until the next frame.
+      return coneVisibilityCacheRef.current[source.key] ?? sourceCircle.map(([x, y]) => ({ x, y }));
+    }
+  };
+  const publicLightSources = [
+    ...mapTokens.filter(token => token.visible !== false && token.light?.enabled && token.light.radius > 0).map(token => {
+      const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token;
+      const size = tokenDraftTransforms[token.id]?.size ?? getTokenSize(token, gridSettings.cellSize);
+      const key = `token:${token.id}:light`;
+      return { id: `token-${token.id}`, key, family: 'token' as const, entityId: token.id, sourceType: 'light' as const, interactive: canControlToken(token), origin: { x: position.x + size / 2, y: position.y + size / 2 }, radius: token.light!.radius, shape: token.light!.shape, coneAngle: token.light!.coneAngle, direction: coneDirection(key, token.light!.coneDirection, tokenDraftTransforms[token.id]?.rotation ?? token.rotation ?? 0), sourceSize: size, effect: token.light!.effect, flickerPreset: token.light!.flickerPreset };
+    }),
+    ...mapPois.filter(poi => poi.visibleToPlayers && poi.light?.enabled && poi.light.radius > 0).map(poi => {
+      const position = poiDraftPositions[poi.id] ?? poi;
+      const key = `poi:${poi.id}:light`;
+      return { id: `poi-${poi.id}`, key, family: 'poi' as const, entityId: poi.id, sourceType: 'light' as const, interactive: canControlPoi(poi), origin: position, radius: poi.light!.radius, shape: poi.light!.shape, coneAngle: poi.light!.coneAngle, direction: coneDirection(key, poi.light!.coneDirection, poiDraftTransforms[poi.id]?.rotation ?? poi.rotation ?? 0), sourceSize: poiDraftTransforms[poi.id]?.size ?? poi.size, effect: poi.light!.effect, flickerPreset: poi.light!.flickerPreset };
+    }),
+  ];
+  const privateVisionSources = [
+    ...mapTokens.filter(token => token.visible !== false && token.vision?.enabled && token.vision.radius > 0 && (isOwner || token.ownerProfileId === mapUserId || token.createdByProfileId === mapUserId)).map(token => {
+      const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token;
+      const size = tokenDraftTransforms[token.id]?.size ?? getTokenSize(token, gridSettings.cellSize);
+      const key = `token:${token.id}:vision`;
+      return { id: `token-${token.id}`, key, family: 'token' as const, entityId: token.id, sourceType: 'vision' as const, interactive: canControlToken(token), origin: { x: position.x + size / 2, y: position.y + size / 2 }, radius: token.vision!.radius, shape: token.vision!.shape, coneAngle: token.vision!.coneAngle, direction: coneDirection(key, token.vision!.coneDirection, tokenDraftTransforms[token.id]?.rotation ?? token.rotation ?? 0), sourceSize: size };
+    }),
+    ...mapPois.filter(poi => poi.visibleToPlayers && poi.vision?.enabled && poi.vision.radius > 0 && (isOwner || poi.createdByProfileId === mapUserId)).map(poi => {
+      const position = poiDraftPositions[poi.id] ?? poi;
+      const key = `poi:${poi.id}:vision`;
+      return { id: `poi-${poi.id}`, key, family: 'poi' as const, entityId: poi.id, sourceType: 'vision' as const, interactive: canControlPoi(poi), origin: position, radius: poi.vision!.radius, shape: poi.vision!.shape, coneAngle: poi.vision!.coneAngle, direction: coneDirection(key, poi.vision!.coneDirection, poiDraftTransforms[poi.id]?.rotation ?? poi.rotation ?? 0), sourceSize: poiDraftTransforms[poi.id]?.size ?? poi.size };
+    }),
+  ];
+  const publicLightPolygons = publicLightSources.map(visibilityPolygon).filter(points => points.length >= 3);
+  const publicLightEffects = publicLightSources.map(source => ({ source, points: visibilityPolygon(source) })).filter(item => item.points.length >= 3);
+  const privateVisionPolygons = privateVisionSources.map(visibilityPolygon).filter(points => points.length >= 3);
+  const beginConeDirection = (event: ReactPointerEvent<SVGCircleElement>, source: { key: string; family: 'token' | 'poi'; entityId: string; sourceType: 'light' | 'vision'; direction: number; interactive: boolean }) => {
+    if (event.button !== 0 || !source.interactive) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const direction = (source.direction * 180 / Math.PI + 90 + 360) % 360;
+    coneDirectionGestureRef.current = { pointerId: event.pointerId, key: source.key, family: source.family, id: source.entityId, sourceType: source.sourceType, direction };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveConeDirection = (event: ReactPointerEvent<SVGCircleElement>, origin: SessionMapPoint) => {
+    const gesture = coneDirectionGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const point = mapPointFromClient(event.clientX, event.clientY);
+    if (!point) return;
+    gesture.direction = (Math.atan2(point.y - origin.y, point.x - origin.x) * 180 / Math.PI + 90 + 360) % 360;
+    if (coneDirectionFrameRef.current !== null) return;
+    coneDirectionFrameRef.current = window.requestAnimationFrame(() => {
+      coneDirectionFrameRef.current = null;
+      const current = coneDirectionGestureRef.current;
+      if (current) setConeDirectionDrafts(drafts => ({ ...drafts, [current.key]: current.direction }));
+    });
+  };
+  const finishConeDirection = (event: ReactPointerEvent<SVGCircleElement>) => {
+    const gesture = coneDirectionGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (coneDirectionFrameRef.current !== null) {
+      window.cancelAnimationFrame(coneDirectionFrameRef.current);
+      coneDirectionFrameRef.current = null;
+    }
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    coneDirectionGestureRef.current = null;
+    const direction = Math.round(gesture.direction * 10) / 10;
+    if (gesture.family === 'token') {
+      const token = mapTokens.find(item => item.id === gesture.id);
+      const source = token?.[gesture.sourceType];
+      if (token && source) onTokenChange?.(token.id, { [gesture.sourceType]: { ...source, coneDirection: direction } });
+    } else {
+      const poi = mapPois.find(item => item.id === gesture.id);
+      const source = poi?.[gesture.sourceType];
+      if (poi && source) onPoiChange?.(poi.id, { [gesture.sourceType]: { ...source, coneDirection: direction } });
+    }
+    setConeDirectionDrafts(current => { const next = { ...current }; delete next[gesture.key]; return next; });
+  };
 
   return (
     <div
@@ -2886,7 +3448,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       onAuxClick={(event) => {
         if (event.button === 1) event.preventDefault();
       }}
-      onPointerDownCapture={beginDepthSelectedMove}
+      onPointerDownCapture={handleViewportPointerDownCapture}
       onPointerDown={handleViewportPointerDown}
       onPointerMove={(event) => {
         lastMapPointerRef.current = { clientX: event.clientX, clientY: event.clientY };
@@ -2897,7 +3459,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       onContextMenu={(event) => {
         if (isOwner && activeTool === 'fog') {
           const point = mapPointFromClient(event.clientX, event.clientY);
-          const fog = point ? [...mapFog].reverse().find(item => !item.fullMap && fogContainsPoint(fogPathDrafts[item.id] ?? fogTransformDrafts[item.id] ?? { ...item, ...(fogMoveDrafts[item.id] ?? {}) }, point)) : null;
+          const fog = point ? [...mapFog].reverse().find(item => !item.fullMap && !item.visionBlocker && fogContainsPoint(fogPathDrafts[item.id] ?? fogTransformDrafts[item.id] ?? { ...item, ...(fogMoveDrafts[item.id] ?? {}) }, point)) : null;
           const rect = viewportRef.current?.getBoundingClientRect();
           event.preventDefault();
           event.stopPropagation();
@@ -3040,16 +3602,15 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                   setDrawingStyleEditorOpen(false);
                   setDrawingLayerPanelOpen(false);
                   setDrawingTooltip(null);
-                  const rect = viewportRef.current?.getBoundingClientRect();
-                  if (rect) {
-                    const x = event.clientX - rect.left;
-                    const y = event.clientY - rect.top;
+                   const menuPosition = menuPositionBeside(event.currentTarget);
+                   if (menuPosition) {
+                     const { x, y } = menuPosition;
                     setDrawingMenu({ id: drawing.id, x, y });
                     const selectedToken = mapTokens.find((token) => selectedTokenIds.has(token.id));
                     if (selectedToken)
                       setTokenMenu({
                         tokenId: selectedToken.id,
-                        x: Math.min(rect.width - 398, x + 402),
+                         x: Math.max(8, Math.min((viewportRef.current?.clientWidth ?? 398) - 398, x + 402)),
                         y,
                         panel: null,
                         nameDraft: selectedToken.name,
@@ -3063,13 +3624,14 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                 {pathEditDrawingId === drawing.id && !drawing.pinned && rendered.points && (
                   <g aria-label="Modifica tracciato">
                     {rendered.points.map((point, index) => (
-                      <circle key={`path-point-${index}`} role="slider" aria-label={`Nodo tracciato ${index + 1}`} tabIndex={0} className="pointer-events-auto cursor-move" cx={point.x} cy={point.y} r={6 / view.scale} fill="#1f2937" stroke="#fb923c" strokeWidth={2 / view.scale} vectorEffect="non-scaling-stroke" onPointerDown={(event) => beginPathPointMove(event, rendered, index)} onPointerMove={movePathPoint} onPointerUp={finishPathPointMove} onPointerCancel={finishPathPointMove} />
+                      <circle key={`path-point-${index}`} role="slider" aria-label={`Nodo tracciato ${index + 1}`} tabIndex={0} className="pointer-events-auto cursor-move" cx={point.x} cy={point.y} r={6 / view.scale} fill="#1f2937" stroke="#fb923c" strokeWidth={2 / view.scale} onPointerDown={(event) => beginPathPointMove(event, rendered, index)} onPointerMove={movePathPoint} onPointerUp={finishPathPointMove} onPointerCancel={finishPathPointMove} />
                     ))}
                   </g>
                 )}
                 {selectedDrawingId === drawing.id && (
                   <g>
-                    <rect x={drawing.kind === 'text' ? 0 : -4 / view.scale} y={drawing.kind === 'text' ? 0 : -4 / view.scale} width={drawing.kind === 'text' ? rendered.width : rendered.width + 8 / view.scale} height={drawing.kind === 'text' ? rendered.height : rendered.height + 8 / view.scale} fill="none" stroke="#67e8f9" strokeWidth={1.5 / view.scale} strokeDasharray={`${5 / view.scale} ${3 / view.scale}`} vectorEffect="non-scaling-stroke" />
+                    <rect x={drawing.kind === 'text' ? 0 : -4 / view.scale} y={drawing.kind === 'text' ? 0 : -4 / view.scale} width={drawing.kind === 'text' ? rendered.width : rendered.width + 8 / view.scale} height={drawing.kind === 'text' ? rendered.height : rendered.height + 8 / view.scale} fill="none" stroke="#0f172a" strokeWidth={5 / view.scale} />
+                    <rect x={drawing.kind === 'text' ? 0 : -4 / view.scale} y={drawing.kind === 'text' ? 0 : -4 / view.scale} width={drawing.kind === 'text' ? rendered.width : rendered.width + 8 / view.scale} height={drawing.kind === 'text' ? rendered.height : rendered.height + 8 / view.scale} fill="none" stroke="#67e8f9" strokeWidth={3 / view.scale} strokeDasharray={`${7 / view.scale} ${4 / view.scale}`} />
                     {isOwner &&
                       !drawing.pinned &&
                       (
@@ -3079,7 +3641,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                           ['sw', 0, rendered.height],
                           ['se', rendered.width, rendered.height],
                         ] as const
-                      ).map(([corner, x, y]) => <rect key={corner} className="pointer-events-auto cursor-nwse-resize" x={x - 5 / view.scale} y={y - 5 / view.scale} width={10 / view.scale} height={10 / view.scale} fill="white" stroke="#06b6d4" strokeWidth={1.5 / view.scale} onPointerDown={(event) => beginDrawingTransform(event, drawing, 'resize', corner)} onPointerMove={moveDrawingTransform} onPointerUp={finishDrawingTransform} onPointerCancel={finishDrawingTransform} />)}
+                      ).map(([corner, x, y]) => <rect key={corner} className="pointer-events-auto cursor-nwse-resize" x={x - 7 / view.scale} y={y - 7 / view.scale} width={14 / view.scale} height={14 / view.scale} fill="white" stroke="#06b6d4" strokeWidth={3 / view.scale} onPointerDown={(event) => beginDrawingTransform(event, drawing, 'resize', corner)} onPointerMove={moveDrawingTransform} onPointerUp={finishDrawingTransform} onPointerCancel={finishDrawingTransform} />)}
                     {isOwner && !drawing.pinned && (
                       <>
                         <line x1={rendered.width / 2} y1={0} x2={rendered.width / 2} y2={-28 / view.scale} stroke="#67e8f9" strokeWidth={1.5 / view.scale} />
@@ -3117,7 +3679,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             (() => {
               const source = mapDrawings.find((item) => item.id === drawingMagnetLink.ids[drawingMagnetLink.ids.length - 1]);
               if (!source) return null;
-              return <line x1={source.x + source.width / 2} y1={source.y + source.height / 2} x2={drawingMagnetLink.pointer.x} y2={drawingMagnetLink.pointer.y} stroke="#67e8f9" strokeWidth={2 / view.scale} strokeDasharray={`${7 / view.scale} ${5 / view.scale}`} vectorEffect="non-scaling-stroke" />;
+              return <line x1={source.x + source.width / 2} y1={source.y + source.height / 2} x2={drawingMagnetLink.pointer.x} y2={drawingMagnetLink.pointer.y} stroke="#67e8f9" strokeWidth={2 / view.scale} strokeDasharray={`${7 / view.scale} ${5 / view.scale}`} />;
             })()}
           {drawingMagnetLink?.hoveredId &&
             (() => {
@@ -3142,13 +3704,13 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
           {drawingDraft && !mapDrawings.some((item) => item.id === drawingDraft.id) && <g transform={`translate(${drawingDraft.x} ${drawingDraft.y})`}>{drawingGraphic(drawingDraft)}</g>}
           {polygonPoints.length > 0 && (
             <g>
-              <polyline points={[...polygonPoints, polygonHover ?? polygonPoints[polygonPoints.length - 1]].map((point) => `${point.x},${point.y}`).join(' ')} fill={drawSettings.style.fillColor} fillOpacity={drawSettings.style.fillOpacity} stroke={drawSettings.style.strokeColor} strokeWidth={drawSettings.style.strokeWidth} strokeDasharray="6 4" />
+              <polyline points={[...polygonPoints, polygonHover ?? polygonPoints[polygonPoints.length - 1]].map((point) => `${point.x},${point.y}`).join(' ')} fill={drawSettings.style.fillColor} fillOpacity={drawSettings.style.fillOpacity} stroke={drawSettings.style.strokeColor} strokeWidth={drawSettings.style.strokeWidth} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
               {polygonPoints.map((point, index) => (
                 <circle key={index} cx={point.x} cy={point.y} r={(index === 0 && polygonPoints.length >= 3 ? 8 : 5) / view.scale} fill={index === 0 && polygonPoints.length >= 3 ? '#22c55e' : '#f8fafc'} stroke="#0f172a" strokeWidth={2 / view.scale} />
               ))}
             </g>
           )}
-          {lineStart && lineHover && <line x1={lineStart.x} y1={lineStart.y} x2={lineHover.x} y2={lineHover.y} stroke={drawSettings.style.strokeColor} strokeWidth={drawSettings.style.strokeWidth} strokeDasharray="6 4" strokeLinecap="round" />}
+          {lineStart && lineHover && <line x1={lineStart.x} y1={lineStart.y} x2={lineHover.x} y2={lineHover.y} stroke={drawSettings.style.strokeColor} strokeWidth={drawSettings.style.strokeWidth} strokeDasharray="6 4" strokeLinecap="round" vectorEffect="non-scaling-stroke" />}
           </svg>
         </div>
         {textDraft && (
@@ -3240,8 +3802,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             const transform = poiDraftTransforms[poi.id];
             const size = Math.max(8, transform?.size ?? poi.size);
             const rotation = transform?.rotation ?? poi.rotation ?? 0;
-            const handleSize = Math.min(12, Math.max(6, size * view.scale * 0.14)) / view.scale;
-            const rotationHandleSize = Math.min(16, Math.max(8, size * view.scale * 0.18)) / view.scale;
+            const handleSize = Math.min(16, Math.max(12, size * view.scale * 0.14)) / view.scale;
+            const rotationHandleSize = Math.min(18, Math.max(14, size * view.scale * 0.18)) / view.scale;
             const rotationLineLength = Math.min(32, Math.max(18, size * view.scale * 0.35)) / view.scale;
             return (
               <Tooltip key={poi.id}>
@@ -3266,7 +3828,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                       <NoteIconGlyph data-static-icon name={poi.iconName} className="h-full w-full drop-shadow-[0_2px_3px_rgba(0,0,0,.8)]" />
                       {transformPoiId === poi.id && canControlPoi(poi) && (
                         <svg data-map-interactive className="pointer-events-none absolute inset-0 overflow-visible" width={size} height={size}>
-                          <rect x={0} y={0} width={size} height={size} fill="none" stroke="#67e8f9" strokeWidth={1.5 / view.scale} strokeDasharray={`${5 / view.scale} ${3 / view.scale}`} vectorEffect="non-scaling-stroke" />
+                          <rect x={0} y={0} width={size} height={size} fill="none" stroke="#0f172a" strokeWidth={5 / view.scale} />
+                          <rect x={0} y={0} width={size} height={size} fill="none" stroke="#67e8f9" strokeWidth={3 / view.scale} strokeDasharray={`${7 / view.scale} ${4 / view.scale}`} />
                           {([[0, 0], [size, 0], [0, size], [size, size]] as const).map(([x, y], index) => <rect key={index} role="slider" aria-label="Ridimensiona PDI" tabIndex={0} className="pointer-events-auto cursor-nwse-resize" x={x - handleSize / 2} y={y - handleSize / 2} width={handleSize} height={handleSize} fill="white" stroke="#06b6d4" strokeWidth={1.5 / view.scale} onPointerDown={(event) => beginPoiTransform(event, poi, 'resize')} onPointerMove={movePoiTransform} onPointerUp={finishPoiTransform} onPointerCancel={finishPoiTransform} />)}
                           <line x1={size / 2} y1={0} x2={size / 2} y2={-rotationLineLength} stroke="#67e8f9" strokeWidth={1.5 / view.scale} />
                           <circle role="slider" aria-label="Ruota PDI" tabIndex={0} className="pointer-events-auto cursor-grab active:cursor-grabbing" cx={size / 2} cy={-rotationLineLength} r={rotationHandleSize / 2} fill="#06b6d4" stroke="white" strokeWidth={2 / view.scale} onPointerDown={(event) => beginPoiTransform(event, poi, 'rotate')} onPointerMove={movePoiTransform} onPointerUp={finishPoiTransform} onPointerCancel={finishPoiTransform} />
@@ -3292,12 +3855,12 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             const size = transform?.size ?? getTokenSize(token, gridSettings.cellSize);
             const rotation = transform?.rotation ?? token.rotation ?? 0;
             const renderedSize = size * view.scale;
-            const handleScreenSize = Math.min(12, Math.max(5, renderedSize * 0.12));
-            const rotationHandleScreenSize = Math.min(18, Math.max(8, renderedSize * 0.16));
+            const handleScreenSize = Math.min(16, Math.max(12, renderedSize * 0.12));
+            const rotationHandleScreenSize = Math.min(20, Math.max(14, renderedSize * 0.16));
             const handleSize = handleScreenSize / view.scale;
             const rotationHandleSize = rotationHandleScreenSize / view.scale;
             const rotationLineLength = Math.min(36, Math.max(16, renderedSize * 0.3)) / view.scale;
-            const selectionBorderWidth = 1.5 / view.scale;
+            const selectionBorderWidth = 3 / view.scale;
             const conditions = token.conditions ?? [];
             const dead = conditions.some((condition) => condition.standardKey === 'dead');
             const visibleConditions = conditions.filter((condition) => condition.standardKey !== 'dead').sort((a, b) => a.name.localeCompare(b.name, 'it'));
@@ -3456,6 +4019,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                       transformOrigin: `${size / 2}px ${size / 2}px`,
                     }}
                   >
+                    <path d={`M 0 0 H ${size} V ${size} H 0 Z M ${size / 2} ${size} V ${size + rotationLineLength}`} fill="none" stroke="#0f172a" strokeWidth={5 / view.scale} />
                     <path d={`M 0 0 H ${size} V ${size} H 0 Z M ${size / 2} ${size} V ${size + rotationLineLength}`} fill="none" stroke="#67e8f9" strokeWidth={selectionBorderWidth} />
                     {(
                       [
@@ -3474,8 +4038,29 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             );
           })}
         </div>
-        <svg data-session-map-fog className="pointer-events-none absolute inset-0 z-[9000] h-full w-full overflow-visible">
+        <svg key={`${mapId}:${mapFog.map(fog => fog.id).join(':')}`} data-session-map-fog className="pointer-events-none absolute inset-0 z-[9000] h-full w-full overflow-visible">
           <defs>
+            {privateVisionSources.map((source, index) => <radialGradient key={`vision-gradient-${source.id}`} id={`session-vision-gradient-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index}`} gradientUnits="userSpaceOnUse" cx={source.origin.x} cy={source.origin.y} r={distanceToWorld(source.radius)}><stop offset="0" stopColor="#3a3a3a" /><stop offset="0.72" stopColor="#707070" /><stop offset="1" stopColor="white" /></radialGradient>)}
+            {publicLightSources.map((source, index) => source.effect && <radialGradient key={`light-gradient-${source.id}`} id={`session-light-gradient-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index}`} gradientUnits="userSpaceOnUse" cx={source.origin.x} cy={source.origin.y} r={distanceToWorld(source.radius)}>
+              <stop offset="0" stopColor="black" />
+              {source.effect?.includes('flicker') ? flickerGradientStops(source.flickerPreset, source.effect === 'flicker-radiant') : <><stop offset="0.3" stopColor="black" /><stop offset="1" stopColor="white" /></>}
+            </radialGradient>)}
+            <mask id={`session-fog-outline-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}`} maskUnits="userSpaceOnUse" x="-100000" y="-100000" width="200000" height="200000">
+              <rect x="-100000" y="-100000" width="200000" height="200000" fill="white" />
+              {privateVisionPolygons.map((points, polygonIndex) => <polygon key={`outline-vision-${polygonIndex}`} points={points.map(point => `${point.x},${point.y}`).join(' ')} fill="black" />)}
+              {publicLightPolygons.map((points, polygonIndex) => <polygon key={`outline-light-${polygonIndex}`} points={points.map(point => `${point.x},${point.y}`).join(' ')} fill="black" />)}
+            </mask>
+            {mapFog.map((fog, index) => {
+              if (fog.operation !== 'cover' || fog.enabled === false) return null;
+              const position = fogMoveDrafts[fog.id] ?? fog;
+              const rendered = fogPathDrafts[fog.id] ?? fogTransformDrafts[fog.id] ?? { ...fog, ...position };
+              return <clipPath key={`vision-clip-${fog.id}`} id={`session-fog-shape-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index}`}><path d={fogWorldPath(rendered)} /></clipPath>;
+            })}
+            {automaticCoverFog.length > 0 && <clipPath id={`session-fog-automatic-shape-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}`}>{automaticCoverFog.map(fog => {
+              const position = fogMoveDrafts[fog.id] ?? fog;
+              const rendered = fogPathDrafts[fog.id] ?? fogTransformDrafts[fog.id] ?? { ...fog, ...position };
+              return <path key={fog.id} d={fogWorldPath(rendered)} />;
+            })}</clipPath>}
             {mapFog.map((fog, index) => {
               if (fog.operation !== 'cover' || fog.enabled === false) return null;
               const position = fogMoveDrafts[fog.id] ?? fog;
@@ -3488,31 +4073,85 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                   const reveal = fogPathDrafts[item.id] ?? fogTransformDrafts[item.id] ?? { ...item, ...revealPosition };
                   return <g key={item.id} transform={`translate(${reveal.x} ${reveal.y}) rotate(${reveal.rotation} ${reveal.width / 2} ${reveal.height / 2})`}>{fogShape(reveal, { fill: 'black' })}</g>;
                 })}
+                <g clipPath={`url(#session-fog-shape-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index})`}>{privateVisionPolygons.map((points, polygonIndex) => <polygon key={`vision-${polygonIndex}`} points={points.map(point => `${point.x},${point.y}`).join(' ')} fill={`url(#session-vision-gradient-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${polygonIndex})`} />)}</g>
+                <g clipPath={`url(#session-fog-shape-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index})`}>
+                  {publicLightEffects.map((item, lightIndex) => item.source.effect && <polygon key={`light-effect-${lightIndex}`} points={item.points.map(point => `${point.x},${point.y}`).join(' ')} fill={`url(#session-light-gradient-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${lightIndex})`} style={{ mixBlendMode: 'darken' }} />)}
+                  {publicLightEffects.map((item, lightIndex) => !item.source.effect && <polygon key={`light-${lightIndex}`} points={item.points.map(point => `${point.x},${point.y}`).join(' ')} fill="black" />)}
+                </g>
               </mask>;
             })}
+            {automaticCoverFog.length > 0 && <mask id={`session-fog-automatic-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}`} maskUnits="userSpaceOnUse" x="-100000" y="-100000" width="200000" height="200000">
+              <rect x="-100000" y="-100000" width="200000" height="200000" fill="black" />
+              {automaticCoverFog.map(fog => {
+                const position = fogMoveDrafts[fog.id] ?? fog;
+                const rendered = fogPathDrafts[fog.id] ?? fogTransformDrafts[fog.id] ?? { ...fog, ...position };
+                return <g key={fog.id} transform={`translate(${rendered.x} ${rendered.y}) rotate(${rendered.rotation} ${rendered.width / 2} ${rendered.height / 2})`}>{fogShape(rendered, { fill: 'white' })}</g>;
+              })}
+              {mapFog.filter(item => item.operation === 'reveal' && item.enabled !== false).map(item => {
+                const revealPosition = fogMoveDrafts[item.id] ?? item;
+                const reveal = fogPathDrafts[item.id] ?? fogTransformDrafts[item.id] ?? { ...item, ...revealPosition };
+                return <g key={item.id} transform={`translate(${reveal.x} ${reveal.y}) rotate(${reveal.rotation} ${reveal.width / 2} ${reveal.height / 2})`}>{fogShape(reveal, { fill: 'black' })}</g>;
+              })}
+              <g clipPath={`url(#session-fog-automatic-shape-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')})`}>{privateVisionPolygons.map((points, polygonIndex) => <polygon key={`automatic-vision-${polygonIndex}`} points={points.map(point => `${point.x},${point.y}`).join(' ')} fill={`url(#session-vision-gradient-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${polygonIndex})`} />)}</g>
+              <g clipPath={`url(#session-fog-automatic-shape-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')})`}>
+                {publicLightEffects.map((item, lightIndex) => item.source.effect && <polygon key={`automatic-light-effect-${lightIndex}`} points={item.points.map(point => `${point.x},${point.y}`).join(' ')} fill={`url(#session-light-gradient-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${lightIndex})`} style={{ mixBlendMode: 'darken' }} />)}
+                {publicLightEffects.map((item, lightIndex) => !item.source.effect && <polygon key={`automatic-light-${lightIndex}`} points={item.points.map(point => `${point.x},${point.y}`).join(' ')} fill="black" />)}
+              </g>
+            </mask>}
           </defs>
-          {mapFog.map((fog, index) => fog.operation === 'cover' && fog.enabled !== false ? <rect key={fog.id} x="-100000" y="-100000" width="200000" height="200000" fill={fog.style.color} opacity={isOwner && !fogSettings.previewAsPlayer ? 0.38 : 1} mask={`url(#session-fog-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index})`} /> : null)}
+          {mapFog.map((fog, index) => fog.operation === 'cover' && fog.enabled !== false && !fog.automaticRegion ? <rect key={fog.id} x="-100000" y="-100000" width="200000" height="200000" fill={fog.style.color} opacity={isOwner && !fogSettings.previewAsPlayer ? 0.38 : 1} mask={`url(#session-fog-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index})`} /> : null)}
+          {automaticCoverFog.length > 0 && <rect x="-100000" y="-100000" width="200000" height="200000" fill={automaticCoverFog[0].style.color} opacity={isOwner && !fogSettings.previewAsPlayer ? 0.38 : 1} mask={`url(#session-fog-automatic-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')})`} />}
+          {publicLightSources.map(source => source.shape === 'cone' ? <polygon key={`light-range-${source.id}`} points={flashlightBeamPoints(source).map(point => `${point.x},${point.y}`).join(' ')} fill="none" stroke="#fbbf24" strokeWidth={2} strokeDasharray="8 5" vectorEffect="non-scaling-stroke" pointerEvents="none" /> : <circle key={`light-range-${source.id}`} cx={source.origin.x} cy={source.origin.y} r={distanceToWorld(source.radius)} fill="none" stroke="#fbbf24" strokeWidth={2} strokeDasharray="8 5" vectorEffect="non-scaling-stroke" pointerEvents="none" />)}
+          {privateVisionSources.map(source => source.shape === 'cone' ? <polygon key={`vision-range-${source.id}`} points={flashlightBeamPoints(source).map(point => `${point.x},${point.y}`).join(' ')} fill="none" stroke="#38bdf8" strokeWidth={2} strokeDasharray="4 4" vectorEffect="non-scaling-stroke" pointerEvents="none" /> : <circle key={`vision-range-${source.id}`} cx={source.origin.x} cy={source.origin.y} r={distanceToWorld(source.radius)} fill="none" stroke="#38bdf8" strokeWidth={2} strokeDasharray="4 4" vectorEffect="non-scaling-stroke" pointerEvents="none" />)}
+          {[...publicLightSources, ...privateVisionSources].filter(source => source.shape === 'cone' && source.interactive).map(source => {
+            const radius = distanceToWorld(source.radius);
+            const cx = source.origin.x + Math.cos(source.direction) * radius;
+            const cy = source.origin.y + Math.sin(source.direction) * radius;
+            const color = source.sourceType === 'light' ? '#fbbf24' : '#38bdf8';
+            return <g key={`cone-direction-${source.key}`} data-cone-direction-handle>
+              <circle className="pointer-events-auto cursor-grab touch-none active:cursor-grabbing" cx={cx} cy={cy} r={12 / view.scale} fill="transparent" onPointerDown={event => beginConeDirection(event, source)} onPointerMove={event => moveConeDirection(event, source.origin)} onPointerUp={finishConeDirection} onPointerCancel={finishConeDirection} />
+              <circle cx={cx} cy={cy} r={6 / view.scale} fill={color} stroke="#0f172a" strokeWidth={2 / view.scale} pointerEvents="none" />
+            </g>;
+          })}
+          {isOwner && activeTool === 'walls' && wallStart && wallHover && <line x1={wallStart.x} y1={wallStart.y} x2={wallHover.x} y2={wallHover.y} stroke="#ef4444" strokeWidth={4} strokeDasharray="8 4" vectorEffect="non-scaling-stroke" />}
+          {isOwner && activeTool === 'walls' && mapFog.filter(fog => fog.visionBlocker && fog.points && fog.points.length >= 2).map(fog => <line key={`blocker-${fog.id}`} className="pointer-events-auto cursor-pointer" x1={fog.x + fog.points![0].x} y1={fog.y + fog.points![0].y} x2={fog.x + fog.points![1].x} y2={fog.y + fog.points![1].y} stroke={fog.visionBlocker!.kind === 'wall' ? '#ef4444' : fog.visionBlocker!.kind === 'door' ? '#f59e0b' : '#38bdf8'} strokeWidth={4} strokeDasharray="8 4" vectorEffect="non-scaling-stroke" onClick={event => { event.stopPropagation(); const kind = fog.visionBlocker!.kind === 'wall' ? 'door' : fog.visionBlocker!.kind === 'door' ? 'window' : 'wall'; onFogChange?.(fog.id, { visionBlocker: { ...fog.visionBlocker!, kind } }); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); if (window.confirm(`Eliminare ${fog.visionBlocker!.kind === 'wall' ? 'questo muro' : fog.visionBlocker!.kind === 'door' ? 'questa porta' : 'questa finestra'} dalla linea di vista?`)) onFogDelete?.(fog.id); }} />)}
           {isOwner && mapFog.map((fog) => {
-            if (fog.fullMap) return null;
+            if (fog.fullMap || fog.visionBlocker) return null;
             const position = fogMoveDrafts[fog.id] ?? fog;
             const rendered = fogPathDrafts[fog.id] ?? fogTransformDrafts[fog.id] ?? { ...fog, ...position };
             const selected = selectedFogIds.has(fog.id);
-            return <g key={`edit-${fog.id}`} data-map-interactive transform={`translate(${rendered.x} ${rendered.y}) rotate(${rendered.rotation} ${rendered.width / 2} ${rendered.height / 2})`} opacity={rendered.enabled === false ? 0.45 : 1} className={activeTool === 'fog' && ['grab', 'quick-select'].includes(fogSettings.mode) ? `pointer-events-auto ${rendered.locked ? 'cursor-not-allowed' : 'cursor-grab'}` : 'pointer-events-none'} onContextMenu={event => openFogMenu(event, rendered)} onPointerDown={(event) => {
+            const controlScale = Math.sqrt(view.scale);
+            return <Fragment key={`edit-${fog.id}`}>
+              <path d={fogWorldPath(rendered)} fill="none" stroke={rendered.operation === 'reveal' ? '#fb923c' : rendered.style.color} strokeWidth={Math.max(2, rendered.style.strokeWidth)} vectorEffect="non-scaling-stroke" pointerEvents="none" mask={`url(#session-fog-outline-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')})`} opacity={rendered.enabled === false ? 0.45 : 1} />
+              <g data-map-interactive transform={`translate(${rendered.x} ${rendered.y}) rotate(${rendered.rotation} ${rendered.width / 2} ${rendered.height / 2})`} opacity={rendered.enabled === false ? 0.45 : 1} className={activeTool === 'fog' && !rendered.locked && ['grab', 'quick-select'].includes(fogSettings.mode) ? 'pointer-events-auto cursor-grab' : 'pointer-events-none'} onContextMenu={event => openFogMenu(event, rendered)} onPointerDown={(event) => {
               if (beginQuickFogSelection(event, fog)) return;
               beginFogMove(event, fog);
             }} onPointerMove={moveSelectedFog} onPointerUp={finishSelectedFog} onPointerCancel={finishSelectedFog}>
-              {fogShape(rendered, { fill: 'transparent', stroke: rendered.operation === 'reveal' ? '#fb923c' : rendered.style.color, strokeWidth: rendered.style.strokeWidth / view.scale, vectorEffect: 'non-scaling-stroke' })}
+              {fogShape(rendered, { fill: 'transparent', stroke: 'transparent', strokeWidth: Math.max(8, rendered.style.strokeWidth), vectorEffect: 'non-scaling-stroke' })}
               {selected && !rendered.locked && <>
-                <rect x={-5 / view.scale} y={-5 / view.scale} width={rendered.width + 10 / view.scale} height={rendered.height + 10 / view.scale} fill="none" stroke="#fbbf24" strokeWidth={1.5 / view.scale} />
-                {([['nw', 0, 0, 'cursor-nwse-resize'], ['n', rendered.width / 2, 0, 'cursor-ns-resize'], ['ne', rendered.width, 0, 'cursor-nesw-resize'], ['e', rendered.width, rendered.height / 2, 'cursor-ew-resize'], ['se', rendered.width, rendered.height, 'cursor-nwse-resize'], ['s', rendered.width / 2, rendered.height, 'cursor-ns-resize'], ['sw', 0, rendered.height, 'cursor-nesw-resize'], ['w', 0, rendered.height / 2, 'cursor-ew-resize']] as const).map(([handle, x, y, cursor]) => <rect key={handle} className={`pointer-events-auto ${cursor}`} x={x - 5 / view.scale} y={y - 5 / view.scale} width={10 / view.scale} height={10 / view.scale} fill="white" stroke="#fbbf24" strokeWidth={1.5 / view.scale} onPointerDown={event => beginFogTransform(event, rendered, 'resize', handle)} onPointerMove={moveFogTransform} onPointerUp={finishFogTransform} onPointerCancel={finishFogTransform} />)}
-                <path d={`M ${rendered.width / 2} 0 V ${-28 / view.scale}`} stroke="#fbbf24" strokeWidth={1.5 / view.scale} />
-                <circle className="pointer-events-auto cursor-grab" cx={rendered.width / 2} cy={-28 / view.scale} r={6 / view.scale} fill="#fbbf24" stroke="white" strokeWidth={1.5 / view.scale} onPointerDown={event => beginFogTransform(event, rendered, 'rotate')} onPointerMove={moveFogTransform} onPointerUp={finishFogTransform} onPointerCancel={finishFogTransform} />
+                <rect x={-2 / controlScale} y={-2 / controlScale} width={rendered.width + 4 / controlScale} height={rendered.height + 4 / controlScale} fill="none" stroke="#facc15" strokeWidth={1.5} strokeDasharray="2 2.5" vectorEffect="non-scaling-stroke" />
+                {([['nw', 0, 0, 'cursor-nwse-resize'], ['n', rendered.width / 2, 0, 'cursor-ns-resize'], ['ne', rendered.width, 0, 'cursor-nesw-resize'], ['e', rendered.width, rendered.height / 2, 'cursor-ew-resize'], ['se', rendered.width, rendered.height, 'cursor-nwse-resize'], ['s', rendered.width / 2, rendered.height, 'cursor-ns-resize'], ['sw', 0, rendered.height, 'cursor-nesw-resize'], ['w', 0, rendered.height / 2, 'cursor-ew-resize']] as const).map(([handle, x, y, cursor]) => <rect key={handle} className={`pointer-events-auto ${cursor}`} x={x - 4 / controlScale} y={y - 4 / controlScale} width={8 / controlScale} height={8 / controlScale} fill="white" stroke="#facc15" strokeWidth={1.5} vectorEffect="non-scaling-stroke" onPointerDown={event => beginFogTransform(event, rendered, 'resize', handle)} onPointerMove={moveFogTransform} onPointerUp={finishFogTransform} onPointerCancel={finishFogTransform} />)}
+                <path d={`M ${rendered.width / 2} 0 V ${-22 / controlScale}`} stroke="#facc15" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+                <circle className="pointer-events-auto cursor-grab" cx={rendered.width / 2} cy={-22 / controlScale} r={6 / controlScale} fill="#facc15" stroke="#020617" strokeWidth={1.5} vectorEffect="non-scaling-stroke" onPointerDown={event => beginFogTransform(event, rendered, 'rotate')} onPointerMove={moveFogTransform} onPointerUp={finishFogTransform} onPointerCancel={finishFogTransform} />
               </>}
-              {pathEditFogId === rendered.id && rendered.points?.map((point, pointIndex) => <circle key={pointIndex} className="pointer-events-auto cursor-move" cx={point.x} cy={point.y} r={5 / view.scale} fill="#fbbf24" stroke="white" strokeWidth={1.5 / view.scale} onPointerDown={event => beginFogPathPointMove(event, rendered, pointIndex)} onPointerMove={moveFogPathPoint} onPointerUp={finishFogPathPointMove} onPointerCancel={finishFogPathPointMove} />)}
-            </g>;
+              {pathEditFogId === rendered.id && rendered.points?.map((point, pointIndex) => <circle key={pointIndex} className="pointer-events-auto cursor-move" cx={point.x} cy={point.y} r={6 / controlScale} fill="#facc15" stroke="#020617" strokeWidth={3} vectorEffect="non-scaling-stroke" onPointerDown={event => beginFogPathPointMove(event, rendered, pointIndex)} onPointerMove={moveFogPathPoint} onPointerUp={finishFogPathPointMove} onPointerCancel={finishFogPathPointMove} />)}
+              </g>
+            </Fragment>;
           })}
-          {isOwner && fogDraft && <g transform={`translate(${fogDraft.x} ${fogDraft.y})`}>{fogShape(fogDraft, { fill: fogDraft.style.color, fillOpacity: 0.38, stroke: fogDraft.style.color, strokeWidth: fogDraft.style.strokeWidth / view.scale })}</g>}
-          {isOwner && fogPolygonPoints.length > 0 && <polygon points={[...fogPolygonPoints, ...(fogPolygonHover ? [fogPolygonHover] : [])].map(point => `${point.x},${point.y}`).join(' ')} fill={fogSettings.color} fillOpacity={fogPolygonPoints.length >= 3 ? 0.38 : 0} stroke={fogSettings.color} strokeWidth={fogSettings.strokeWidth / view.scale} />}
+          {isOwner && fogSettings.overlapMode === 'overlay' && mapFog.flatMap((under, underIndex) => {
+            if (under.operation !== 'cover' || under.enabled === false || under.fullMap || under.visionBlocker) return [];
+            return mapFog.slice(underIndex + 1).flatMap(over => {
+              if (over.operation !== 'cover' || over.enabled === false || over.fullMap || over.visionBlocker) return [];
+              const underPosition = fogMoveDrafts[under.id]; const overPosition = fogMoveDrafts[over.id];
+              const renderedUnder = fogPathDrafts[under.id] ?? fogTransformDrafts[under.id] ?? (underPosition ? { ...under, ...underPosition } : under);
+              const renderedOver = fogPathDrafts[over.id] ?? fogTransformDrafts[over.id] ?? (overPosition ? { ...over, ...overPosition } : over);
+              if (polygonClipping.intersection(fogWorldPolygon(renderedUnder), fogWorldPolygon(renderedOver)).length === 0) return [];
+              const clipId = `fog-overlap-clip-${under.id}-${over.id}`.replace(/[^a-zA-Z0-9_-]/g, '');
+              return [<Fragment key={`fog-overlap-${under.id}-${over.id}`}><defs><clipPath id={clipId}><path d={fogWorldPath(renderedOver)} fill="black" fillRule="evenodd" clipRule="evenodd" /></clipPath></defs><path d={fogWorldPath(renderedUnder)} clipPath={`url(#${clipId})`} fill="none" stroke="#94a3b8" strokeOpacity={0.58} strokeWidth={1.5} strokeDasharray="2 2.5" vectorEffect="non-scaling-stroke" pointerEvents="none" /></Fragment>];
+            });
+          })}
+          {isOwner && fogDraft && <g transform={`translate(${fogDraft.x} ${fogDraft.y})`}>{fogShape(fogDraft, { fill: fogSettings.overlapMode === 'trim' ? '#ef4444' : fogSettings.overlapMode === 'join' ? '#3b82f6' : fogDraft.style.color, fillOpacity: 0.38, stroke: fogSettings.overlapMode === 'trim' ? '#ef4444' : fogSettings.overlapMode === 'join' ? '#3b82f6' : fogDraft.style.color, strokeWidth: fogDraft.style.strokeWidth, vectorEffect: 'non-scaling-stroke' })}</g>}
+          {isOwner && fogPolygonPoints.length > 0 && <polygon points={[...fogPolygonPoints, ...(fogPolygonHover ? [fogPolygonHover] : [])].map(point => `${point.x},${point.y}`).join(' ')} fill={fogSettings.overlapMode === 'trim' ? '#ef4444' : fogSettings.overlapMode === 'join' ? '#3b82f6' : fogSettings.color} fillOpacity={fogPolygonPoints.length >= 3 ? 0.38 : 0} stroke={fogSettings.overlapMode === 'trim' ? '#ef4444' : fogSettings.overlapMode === 'join' ? '#3b82f6' : fogSettings.color} strokeWidth={fogSettings.strokeWidth} vectorEffect="non-scaling-stroke" />}
         </svg>
       </div>
       {depthHoveredKeys.size > 1 && (
@@ -3522,6 +4161,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
           </ContextHint>
         </div>
       )}
+      {(roomFillBusy || roomFillNotice) && <div className={`pointer-events-none absolute left-1/2 z-[10030] max-w-md -translate-x-1/2 rounded-lg border px-3 py-2 text-center text-xs font-medium shadow-xl ${roomFillNotice ? 'border-amber-400/40 bg-amber-950/95 text-amber-100' : 'border-[var(--dash-border)] bg-[var(--dash-panel)]/95 text-[var(--dash-text-strong)]'}`} style={{ top: '66.666%' }}>{roomFillNotice ?? 'Rilevamento ambiente...'}</div>}
       {fogSelectionMenu && selectedFogIds.size > 0 && (
         <div role="menu" aria-label="Azioni nebbia selezionata" className="absolute z-[10020] w-60 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)] p-3 text-[var(--dash-text)] shadow-2xl" style={{ left: fogSelectionMenu.x, top: fogSelectionMenu.y }}>
           <div className="flex items-center justify-between gap-3 border-b border-[var(--dash-border-soft)] pb-2">
@@ -3547,6 +4187,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
           <div className="mb-3 flex items-center justify-between gap-2 border-b border-[var(--dash-border-soft)] pb-2 font-semibold text-[var(--dash-text-strong)]"><span>Figura Nebbia</span><div className="flex items-center gap-2">{fog.locked && <Lock data-static-icon className="h-4 w-4 text-amber-300" />}<button type="button" aria-label="Sposta menu Nebbia" onPointerDown={event => beginMenuDrag(event, 'fog', fogMenu)} onPointerMove={moveMenuDrag} onPointerUp={finishMenuDrag} onPointerCancel={finishMenuDrag} className="cursor-move touch-none rounded p-1 text-[var(--dash-muted)] hover:bg-white/10 hover:text-[var(--dash-text-strong)]"><GripHorizontal data-static-icon className="h-4 w-4" /></button></div></div>
           <div className="mb-3 grid grid-cols-[repeat(7,40px)] gap-1.5">
             {iconAction(fog.enabled === false ? 'Attiva nebbia' : 'Disattiva nebbia', fog.enabled === false ? <span className="relative grid h-5 w-5 place-items-center"><CloudFog data-static-icon className="h-5 w-5" /><Slash data-static-icon className="absolute h-6 w-6 text-red-300" /></span> : <CloudFog data-static-icon className="h-5 w-5" />, () => onFogChange?.(fog.id, { enabled: fog.enabled === false }), false, false, true)}
+            {iconAction('Muovi nebbia', <Hand data-static-icon className="h-5 w-5" />, () => { updateSessionMapFogSettings({ mode: 'grab' }); setActiveSessionMapTool('fog'); setSelectedFogIds(new Set([fog.id])); setFogMenu(null); }, fog.locked)}
             {iconAction(fog.locked ? 'Sblocca nebbia' : 'Blocca nebbia', fog.locked ? <Unlock data-static-icon className="h-5 w-5" /> : <Lock data-static-icon className="h-5 w-5" />, () => onFogChange?.(fog.id, { locked: !fog.locked }), false, false, true)}
             {iconAction('Duplica nebbia', <Copy data-static-icon className="h-5 w-5" />, () => duplicateFog(fog))}
             {iconAction('Copia nebbia', <ClipboardCopy data-static-icon className="h-5 w-5" />, () => { setDrawingClipboard(null); setPoiClipboard(null); setFogClipboard(structuredClone(fog)); })}
@@ -3612,7 +4253,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                 </Tooltip>
                 {iconAction(poi.visibleToPlayers ? 'Nascondi ai giocatori' : 'Mostra ai giocatori', poi.visibleToPlayers ? <Eye data-static-icon className="h-5 w-5" /> : <EyeOff data-static-icon className="h-5 w-5" />, () => onPoiChange?.(poi.id, { visibleToPlayers: !poi.visibleToPlayers }), !isOwner)}
                 {iconAction(poi.locked ? 'Sblocca PDI' : 'Blocca PDI', poi.locked ? <Unlock data-static-icon className="h-5 w-5" /> : <Lock data-static-icon className="h-5 w-5" />, () => onPoiChange?.(poi.id, { locked: !poi.locked }), !isOwner)}
-                {iconAction('Luce disponibile con la nebbia di gioco', <Flashlight data-static-icon className="h-5 w-5" />, () => {}, true)}
+                {iconAction('Illuminazione e vista', <Flashlight data-static-icon className="h-5 w-5" />, () => setPoiMenu((current) => (current ? { ...current, panel: current.panel === 'lighting' ? null : 'lighting' } : null)), false, false, true)}
                 {iconAction('Ridimensiona PDI', <Maximize2 data-static-icon className="h-5 w-5" />, () => { setTransformPoiId(poi.id); setPoiMenu(null); })}
                 {iconAction('Duplica PDI', <Copy data-static-icon className="h-5 w-5" />, () => { onPoiDuplicate?.(poi.id); setPoiMenu(null); })}
                 {iconAction('Copia PDI', <ClipboardCopy data-static-icon className="h-5 w-5" />, () => { setDrawingClipboard(null); setPoiClipboard(structuredClone(poi)); setPoiMenu(null); })}
@@ -3631,6 +4272,20 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                 </button>
               </div>
               {poi.noteId && <button type="button" onClick={() => { setPoiMenu((current) => (current ? { ...current, panel: null } : null)); onPoiChange?.(poi.id, { noteId: null, noteVisibleToPlayers: false }); }} className="mt-2 text-[11px] text-[var(--dash-muted)] hover:text-[var(--dash-danger-text)]">Rimuovi collegamento alla nota</button>}
+              {poiMenu.panel === 'lighting' && (
+                <div className="mt-3 space-y-3 border-t border-[var(--dash-border)] pt-3">
+                  {([['Illuminazione', 'Visibile a tutti e rimuove completamente la Nebbia', 'light'], ['Vista', 'Privata al proprietario e schiarisce la Nebbia', 'vision']] as const).map(([label, description, key]) => {
+                    const source = poi[key] ?? { enabled: false, radius: 0 };
+                    const lightEffect = key === 'light' ? poi.light?.effect : undefined;
+                    return <div key={key} className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-3">
+                      <div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-[var(--dash-text-strong)]">{label}</div><div className="mt-0.5 text-[10px] text-[var(--dash-muted)]">{description}</div></div><button type="button" role="switch" aria-checked={source.enabled} onClick={() => onPoiChange?.(poi.id, { [key]: { ...source, enabled: !source.enabled } })} className={`relative mt-0.5 h-5 w-9 rounded-full transition ${source.enabled ? 'bg-cyan-500' : 'bg-slate-600'}`}><span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition ${source.enabled ? 'left-[18px]' : 'left-0.5'}`} /></button></div>
+                       <RadiusStepper value={source.radius} unit={gridSettings.unit} onChange={(radius) => onPoiChange?.(poi.id, { [key]: { ...source, radius } })} />
+                       <LightingShapeControls shape={source.shape} coneAngle={source.coneAngle} onChange={(update) => onPoiChange?.(poi.id, { [key]: { ...source, ...update } })} />
+                       {key === 'light' && <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2"><select aria-label="Effetto tremolante" value={lightEffect?.includes('flicker') ? poi.light?.flickerPreset ?? 'torch' : 'none'} onChange={(event) => { const preset = event.target.value as typeof LIGHT_FLICKER_PRESETS[number][0]; const radiant = lightEffect?.includes('radiant') ?? false; onPoiChange?.(poi.id, { light: { ...source, effect: preset === 'none' ? radiant ? 'radiant' : undefined : radiant ? 'flicker-radiant' : 'flicker', flickerPreset: preset === 'none' ? undefined : preset } }); }} className="min-w-0 rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 py-1.5 text-[10px] font-semibold text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]">{LIGHT_FLICKER_PRESETS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{(() => { const active = lightEffect?.includes('radiant') ?? false; return <button type="button" aria-pressed={active} onClick={() => onPoiChange?.(poi.id, { light: { ...source, effect: toggleLightEffect(lightEffect, 'radiant') } })} className={`rounded-md border px-2 py-1.5 text-[10px] font-semibold transition ${active ? 'border-cyan-400 bg-cyan-400/15 text-cyan-100' : 'border-[var(--dash-border)] bg-[var(--dash-input)] text-[var(--dash-muted)] hover:text-[var(--dash-text-strong)]'}`}>Luce radiante</button>; })()}</div>}
+                    </div>;
+                  })}
+                </div>
+              )}
               {poiMenu.panel === 'icons' && (
                 <div className="mt-3 border-t border-[var(--dash-border)] pt-3">
                   <NoteIconGrid
@@ -4218,8 +4873,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                     </button>,
                   )}
                 {menuIcon(
-                  'Illuminazione: disponibile con la nebbia',
-                  <button type="button" disabled aria-label="Illuminazione non ancora disponibile" className={iconClass}>
+                  batch ? 'Illuminazione disponibile per un token alla volta' : 'Illuminazione e vista',
+                  <button type="button" disabled={batch} aria-label="Illuminazione e vista" onClick={() => setTokenMenu((current) => current ? { ...current, panel: current.panel === 'lighting' ? null : 'lighting' } : null)} className={`${iconClass} ${(token.light?.enabled || token.vision?.enabled) ? 'bg-cyan-400/20 text-cyan-200' : ''}`}>
                     <Flashlight className="h-5 w-5" />
                   </button>,
                 )}
@@ -4371,6 +5026,20 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                   </button>,
                 )}
               </div>
+              {!batch && tokenMenu.panel === 'lighting' && (
+                <div className="mt-3 space-y-3 border-t border-[var(--dash-border-soft)] pt-3">
+                  {([['Illuminazione', 'Visibile a tutti e rimuove completamente la Nebbia', 'light'], ['Vista', 'Privata al proprietario e schiarisce la Nebbia', 'vision']] as const).map(([label, description, key]) => {
+                    const source = token[key] ?? { enabled: false, radius: 0 };
+                    const lightEffect = key === 'light' ? token.light?.effect : undefined;
+                    return <div key={key} className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-3">
+                      <div className="flex items-start justify-between gap-3"><div><div className="font-semibold text-[var(--dash-text-strong)]">{label}</div><div className="mt-0.5 text-[10px] text-[var(--dash-muted)]">{description}</div></div><button type="button" role="switch" aria-checked={source.enabled} onClick={() => applyTokenUpdate({ [key]: { ...source, enabled: !source.enabled } })} className={`relative mt-0.5 h-5 w-9 rounded-full transition ${source.enabled ? 'bg-cyan-500' : 'bg-slate-600'}`}><span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition ${source.enabled ? 'left-[18px]' : 'left-0.5'}`} /></button></div>
+                       <RadiusStepper value={source.radius} unit={gridSettings.unit} onChange={(radius) => applyTokenUpdate({ [key]: { ...source, radius } })} />
+                       <LightingShapeControls shape={source.shape} coneAngle={source.coneAngle} onChange={(update) => applyTokenUpdate({ [key]: { ...source, ...update } })} />
+                       {key === 'light' && <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2"><select aria-label="Effetto tremolante" value={lightEffect?.includes('flicker') ? token.light?.flickerPreset ?? 'torch' : 'none'} onChange={(event) => { const preset = event.target.value as typeof LIGHT_FLICKER_PRESETS[number][0]; const radiant = lightEffect?.includes('radiant') ?? false; applyTokenUpdate({ light: { ...source, effect: preset === 'none' ? radiant ? 'radiant' : undefined : radiant ? 'flicker-radiant' : 'flicker', flickerPreset: preset === 'none' ? undefined : preset } }); }} className="min-w-0 rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 py-1.5 text-[10px] font-semibold text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]">{LIGHT_FLICKER_PRESETS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>{(() => { const active = lightEffect?.includes('radiant') ?? false; return <button type="button" aria-pressed={active} onClick={() => applyTokenUpdate({ light: { ...source, effect: toggleLightEffect(lightEffect, 'radiant') } })} className={`rounded-md border px-2 py-1.5 text-[10px] font-semibold transition ${active ? 'border-cyan-400 bg-cyan-400/15 text-cyan-100' : 'border-[var(--dash-border)] bg-[var(--dash-input)] text-[var(--dash-muted)] hover:text-[var(--dash-text-strong)]'}`}>Luce radiante</button>; })()}</div>}
+                    </div>;
+                  })}
+                </div>
+              )}
               {token.showLabel && tokenMenu.panel === 'colors' && (
                 <div className="mt-3 border-t border-[var(--dash-border-soft)] pt-3">
                   <div className="mb-2 flex items-center justify-between gap-2">

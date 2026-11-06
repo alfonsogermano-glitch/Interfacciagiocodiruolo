@@ -28,12 +28,24 @@ export interface SessionMapFog {
   height: number;
   rotation: number;
   points?: SessionMapFogPoint[];
+  /** Local-space polygon rings. The first ring is the shell; later rings are holes. */
+  rings?: SessionMapFogPoint[][];
   style: SessionMapFogStyle;
   enabled?: boolean;
   locked?: boolean;
   magnetEnabled?: boolean;
   magnetGroupId?: string | null;
   fullMap?: boolean;
+  automaticRegion?: {
+    classification: "interior" | "exterior";
+    confidence: number;
+    source: "local" | "ai";
+  };
+  visionBlocker?: {
+    kind: "wall" | "door" | "window";
+    confidence: number;
+    source: "local" | "ai" | "manual";
+  };
   createdAt: string;
   updatedAt: string;
 }

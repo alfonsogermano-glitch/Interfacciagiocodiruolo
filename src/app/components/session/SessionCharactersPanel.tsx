@@ -80,6 +80,7 @@ function toSessionMapTokenVisual(kind: EntityKind, entity: any): SessionMapToken
     tokenBorderVisible: entity.tokenBorderVisible ?? null,
     tokenBorderLabel: entity.tokenBorderLabel ?? null,
     hiddenFromPlayers: kind !== 'pg' && !entity.visibleToPlayers,
+    ownerProfileId: kind === 'pg' ? entity.ownerProfileId ?? null : null,
   };
 }
 

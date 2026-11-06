@@ -1,5 +1,6 @@
 import type { CropAreaPercent } from '../app/components/shared/SourceCroppedImage';
 import type { TokenBorderStyle, TokenBorderThickness } from './tokenStyle';
+import type { SessionMapLightSource, SessionMapVisionSource } from './sessionMapLighting';
 
 export type SessionMapTokenEntityKind = 'pg' | 'png' | 'mostro';
 
@@ -17,6 +18,7 @@ export interface SessionMapTokenVisual {
   tokenBorderVisible?: boolean | null;
   tokenBorderLabel?: string | null;
   hiddenFromPlayers?: boolean;
+  ownerProfileId?: string | null;
 }
 
 export interface SessionMapTokenCondition {
@@ -40,6 +42,8 @@ export interface SessionMapToken extends SessionMapTokenVisual {
   magnetEnabled?: boolean;
   magnetGroupId?: string | null;
   createdByProfileId?: string | null;
+  light?: SessionMapLightSource;
+  vision?: SessionMapVisionSource;
   conditions?: SessionMapTokenCondition[];
   createdAt: string;
   updatedAt: string;

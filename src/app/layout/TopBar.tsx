@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type SVGProps } from 'react';
 import { createPortal } from 'react-dom';
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowRight, Bell, Bold, Brush, Bug, Check, ChevronDown, Circle, CircleDashed, CircleMinus, CirclePlus, CloudFog, Combine, Crosshair, Eraser, Eye, EyeOff, Hexagon, Italic, LassoSelect, LogOut, MapPin, Minus, MoreVertical, MousePointer2, Newspaper, PaintRoller, Palette, Pencil, PenTool, Plus, Redo2, ScanEye, ScanLine, Scissors, Search, Settings, Slash, Sparkles, Square as SquareIcon, Strikethrough, Trash2, Triangle, Type, Underline, Undo2, UserPlus, X } from 'lucide-react';
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowRight, Bell, Bold, Brush, Bug, Check, ChevronDown, Circle, CircleDashed, CircleMinus, CirclePlus, CloudFog, Combine, Crosshair, Eraser, Eye, EyeOff, Grid2X2, Grid3X3, Hexagon, Italic, LassoSelect, LogOut, Magnet, MapPin, Minus, MoreVertical, MousePointer2, Newspaper, PaintBucket, PaintRoller, Palette, Pencil, PenTool, Plus, Redo2, ScanEye, ScanLine, Scissors, Search, Settings, Slash, Sparkles, Square as SquareIcon, Strikethrough, Trash2, Triangle, Type, Underline, Undo2, UserPlus, X } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications, type NotificationRow } from '../notifications/NotificationsContext';
 import { useCampaign } from '../campaigns/CampaignContext';
@@ -11,7 +11,7 @@ import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from '../components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { usePortalContainer } from '../components/ui/portal-container';
-import { requestSessionMapCenter, requestSessionMapDrawingClear, requestSessionMapFit, requestSessionMapFogClear, requestSessionMapFogCoverFullMap, requestSessionMapFogSelectionClear, requestSessionMapRedo, requestSessionMapUndo, setActiveSessionMapTool, setSessionMapCalibrationActive, setSessionMapDrawMode, setSessionMapMeasureMode, setSessionMapMeasurementsVisibleToAll, setSessionMapSelectionArmed, setSessionMapSelectionMode, updateSessionGrid, updateSessionMapDrawStyle, updateSessionMapFogSettings, updateSessionMapTextStyle, useActiveSessionMapTool, useSessionGrid, useSessionMapCalibrationActive, useSessionMapCenterAvailable, useSessionMapDrawSettings, useSessionMapFitAvailable, useSessionMapFogSettings, useSessionMapMeasureMode, useSessionMapMeasurementsVisibleToAll, useSessionMapRedoAvailable, useSessionMapSelectionArmed, useSessionMapSelectionMode, useSessionMapUndoAvailable, type SessionMapDrawMode, type SessionMapFogMode, type SessionMapMeasureMode } from '../components/session/mapToolStore';
+import { applySessionMapAutomaticFog, closeSessionMapAutomaticFog, requestSessionMapCenter, requestSessionMapDrawingClear, requestSessionMapFit, requestSessionMapFogClear, requestSessionMapFogCoverFullMap, requestSessionMapFogSelectionClear, requestSessionMapRedo, requestSessionMapUndo, setActiveSessionMapTool, setSessionMapCalibrationActive, setSessionMapDrawMode, setSessionMapMeasureMode, setSessionMapMeasurementsVisibleToAll, setSessionMapSelectionArmed, setSessionMapSelectionMode, updateSessionGrid, updateSessionMapDrawStyle, updateSessionMapFogSettings, updateSessionMapTextStyle, useActiveSessionMapTool, useSessionGrid, useSessionMapAutomaticFogState, useSessionMapCalibrationActive, useSessionMapCenterAvailable, useSessionMapDrawSettings, useSessionMapFitAvailable, useSessionMapFogSettings, useSessionMapMeasureMode, useSessionMapMeasurementsVisibleToAll, useSessionMapRedoAvailable, useSessionMapSelectionArmed, useSessionMapSelectionMode, useSessionMapUndoAvailable, type SessionMapDrawMode, type SessionMapFogMode, type SessionMapMeasureMode } from '../components/session/mapToolStore';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 const DRAW_LINE_STYLES = [
@@ -376,6 +376,7 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
   const measurementsVisibleToAll = useSessionMapMeasurementsVisibleToAll();
   const drawSettings = useSessionMapDrawSettings();
   const fogSettings = useSessionMapFogSettings();
+  const automaticFogState = useSessionMapAutomaticFogState();
   const { settings: gridSettings, editable: gridEditable } = useSessionGrid();
   const mapFitAvailable = useSessionMapFitAvailable();
   const mapCenterAvailable = useSessionMapCenterAvailable();
@@ -384,6 +385,8 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
   const mapRedoAvailable = useSessionMapRedoAvailable();
   const [gridPanelOpen, setGridPanelOpen] = useState(false);
   const [gridPanelPosition, setGridPanelPosition] = useState({ left: 0, top: 0 });
+  const [gridTooltip, setGridTooltip] = useState<string | null>(null);
+  const gridTooltipHoveredRef = useRef<string | null>(null);
   const [selectPanelOpen, setSelectPanelOpen] = useState(false);
   const [selectPanelPosition, setSelectPanelPosition] = useState({
     left: 0,
@@ -489,6 +492,12 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
     onFocus: () => setFogTooltip(id),
     onBlur: () => { if (fogTooltipHoveredRef.current !== id) setFogTooltip(current => current === id ? null : current); },
   });
+  const gridTooltipEvents = (id: string) => ({
+    onPointerEnter: () => { gridTooltipHoveredRef.current = id; setGridTooltip(id); },
+    onPointerLeave: () => { if (gridTooltipHoveredRef.current === id) gridTooltipHoveredRef.current = null; setGridTooltip(current => current === id ? null : current); },
+    onFocus: () => setGridTooltip(id),
+    onBlur: () => { if (gridTooltipHoveredRef.current !== id) setGridTooltip(current => current === id ? null : current); },
+  });
 
   return (
     <header className="sticky top-0 z-[1000] flex h-12 shrink-0 items-center gap-2 border-b border-[var(--dash-border)] bg-[var(--dash-surface)] px-4">
@@ -590,9 +599,9 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
           </div>
           {gridPanelOpen &&
             createPortal(
-                <div data-session-grid-panel className="fixed z-[1100] w-[min(92vw,550px)] -translate-x-1/2 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)] p-2.5 text-xs text-[var(--dash-text)] shadow-2xl" style={gridPanelPosition}>
-                <div className="grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)_200px]">
-                  <div className="flex justify-center gap-1.5 border-b border-[var(--dash-border-soft)] pb-2 sm:flex-col sm:border-b-0 sm:border-r sm:pb-0 sm:pr-2">
+                <div data-grid-settings-popover className="fixed z-[1100] w-[min(94vw,640px)] -translate-x-1/2 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)] p-3 text-xs text-[var(--dash-text)] shadow-2xl" style={gridPanelPosition}>
+                <div className="grid gap-3 sm:grid-cols-[48px_minmax(0,1fr)]">
+                  <div className="flex justify-evenly gap-1.5 border-b border-[var(--dash-border-soft)] pb-2 sm:-ml-1.5 sm:h-full sm:flex-col sm:items-center sm:justify-between sm:border-b-0 sm:border-r sm:py-2 sm:pb-2 sm:pr-1">
                     {(
                       [
                         ['square', SquareIcon, 'Quadrata'],
@@ -600,16 +609,19 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
                         ['hex-pointy', Hexagon, 'Esagonale a punta'],
                       ] as const
                     ).map(([type, Icon, label]) => (
-                      <button key={type} type="button" disabled={!gridEditable} title={label} aria-label={label} aria-pressed={gridSettings.type === type} onClick={() => updateSessionGrid({ type, visible: true })} className={`grid h-9 w-9 place-items-center rounded-md border ${gridSettings.type === type ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/20 text-[var(--dash-accent-2)]' : 'border-transparent text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]'} disabled:opacity-50`}>
-                        <Icon className={`h-5 w-5 ${type === 'hex-pointy' ? 'rotate-90' : ''}`} />
-                      </button>
+                      <Tooltip key={type} open={gridTooltip === `type-${type}`}>
+                        <TooltipTrigger asChild><button {...gridTooltipEvents(`type-${type}`)} type="button" disabled={!gridEditable} aria-label={label} aria-pressed={gridSettings.type === type} onClick={() => updateSessionGrid({ type, visible: true })} className={`grid h-10 w-10 place-items-center rounded-lg border ${gridSettings.type === type ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/20 text-[var(--dash-accent-2)]' : 'border-transparent text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]'} disabled:opacity-50`}><Icon className={`h-7 w-7 ${type === 'hex-pointy' ? 'rotate-90' : ''}`} /></button></TooltipTrigger>
+                        <TooltipContent side="left">{label}</TooltipContent>
+                      </Tooltip>
                     ))}
                   </div>
-                  <div className="space-y-2 sm:px-1">
-                    <label className="flex items-center justify-between gap-3 text-[11px] font-medium">
-                      Snap alla griglia
-                      <input type="checkbox" disabled={!gridEditable} checked={gridSettings.snap} onChange={(event) => updateSessionGrid({ snap: event.target.checked })} className="h-4 w-4 accent-[var(--dash-accent)]" />
-                    </label>
+                  <div className="grid gap-4 md:grid-cols-2">
+                   <div className="space-y-3">
+                     <div className="flex items-center justify-between gap-3">
+                       <span className="font-medium">Snap alla griglia</span>
+                       <button type="button" disabled={!gridEditable} aria-label="Snap alla griglia" aria-pressed={gridSettings.snap} onClick={() => updateSessionGrid({ snap: !gridSettings.snap })} className={`relative h-6 w-11 rounded-full border transition-colors ${gridSettings.snap ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]' : 'border-[var(--dash-border)] bg-[var(--dash-input)]'} disabled:opacity-50`}><span className="absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-white shadow transition-[left]" style={{ left: gridSettings.snap ? 'calc(100% - 19px)' : 3 }} /></button>
+                       {gridSettings.type === 'square' && gridSettings.snap && <select disabled={!gridEditable} aria-label="Posizionamento oggetti sulla griglia quadrata" value={gridSettings.squareSnapMode ?? 'half-step'} onChange={(event) => updateSessionGrid({ squareSnapMode: event.target.value as 'half-step' | 'cell-center' })} className="h-8 rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 text-xs"><option value="half-step">Mezzo passo</option><option value="cell-center">Centro casella</option></select>}
+                     </div>
                     <label className="block text-[11px] font-medium">
                       <span className="mb-1 block">Stile linea</span>
                       <select
@@ -654,7 +666,7 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
                         type="range"
                         min="0"
                         max="1"
-                        step="0.05"
+                         step="0.01"
                         disabled={!gridEditable}
                         value={gridSettings.opacity}
                         onChange={(event) =>
@@ -666,31 +678,22 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
                         className="block h-4 w-full accent-[var(--dash-accent)]"
                       />
                     </label>
-                  </div>
-                  <div className="space-y-1.5 border-t border-[var(--dash-border-soft)] pt-2 sm:border-l sm:border-t-0 sm:pl-2.5 sm:pt-0">
+                   </div>
+                   <div className="space-y-3 border-t border-[var(--dash-border-soft)] pt-3 md:border-l md:border-t-0 md:pl-4 md:pt-0">
                     <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] text-[var(--dash-muted)]">
                       <span className="leading-tight">Distanza per cella</span>
                       <span className="leading-tight">Unità</span>
-                      <input
-                        aria-label="Distanza per cella"
-                        type="number"
-                        min="0.1"
-                        step="0.1"
-                        disabled={!gridEditable}
-                        value={gridSettings.distance}
-                        onChange={(event) =>
-                          updateSessionGrid({
-                            distance: Math.max(0.1, Number(event.target.value) || 0.1),
-                          })
-                        }
-                        className="h-8 w-full rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 text-xs text-[var(--dash-text)]"
-                      />
+                       <div className="flex h-8 overflow-hidden rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)]">
+                         <Tooltip open={gridTooltip === 'distance-minus'}><TooltipTrigger asChild><button {...gridTooltipEvents('distance-minus')} type="button" aria-label="Riduci distanza per cella" disabled={!gridEditable || gridSettings.distance <= 0.1} onClick={() => updateSessionGrid({ distance: Math.max(0.1, Math.round((gridSettings.distance - 0.1) * 10) / 10) })} className="grid w-6 shrink-0 place-items-center text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] disabled:opacity-40"><Minus className="h-3 w-3" /></button></TooltipTrigger><TooltipContent side="bottom">Riduci distanza</TooltipContent></Tooltip>
+                         <input aria-label="Distanza per cella" type="number" min="0.1" step="0.1" disabled={!gridEditable} value={gridSettings.distance} onChange={(event) => updateSessionGrid({ distance: Math.max(0.1, Number(event.target.value) || 0.1) })} className="min-w-0 flex-1 appearance-none border-x border-[var(--dash-border)] bg-transparent px-1 text-center text-xs outline-none [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                         <Tooltip open={gridTooltip === 'distance-plus'}><TooltipTrigger asChild><button {...gridTooltipEvents('distance-plus')} type="button" aria-label="Aumenta distanza per cella" disabled={!gridEditable} onClick={() => updateSessionGrid({ distance: Math.round((gridSettings.distance + 0.1) * 10) / 10 })} className="grid w-6 shrink-0 place-items-center text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] disabled:opacity-40"><Plus className="h-3 w-3" /></button></TooltipTrigger><TooltipContent side="bottom">Aumenta distanza</TooltipContent></Tooltip>
+                       </div>
                       <input aria-label="Unità" value={gridSettings.unit} disabled={!gridEditable} onChange={(event) => updateSessionGrid({ unit: event.target.value })} className="h-8 w-full rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 text-xs text-[var(--dash-text)]" />
                     </div>
                     <p className="text-[10px] leading-tight text-[var(--dash-muted)]">Valore reale per cella, usato anche dal righello.</p>
-                    <div>
+                     <div>
                       <div className="mb-0.5 text-[11px] text-[var(--dash-muted)]">Dimensione cella</div>
-                      <div data-session-grid-size-stepper className="flex h-8 items-stretch overflow-hidden rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)]">
+                       <div data-grid-cell-size-control className="flex h-8 items-stretch overflow-hidden rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)]">
                         <button
                           type="button"
                           aria-label="Diminuisci dimensione cella"
@@ -731,78 +734,20 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </button>
-                      </div>
-                    </div>
+                       </div>
+                     </div>
+                     {gridEditable && gridSettings.type === 'square' && <div data-grid-map-fit-control className="relative">
+                       <Tooltip open={gridTooltip === 'map-fit'}><TooltipTrigger asChild><span {...gridTooltipEvents('map-fit')} className="block"><button type="button" disabled={!mapFitAvailable} aria-haspopup="menu" aria-expanded={mapFitAvailable && mapFitMenuOpen} onClick={() => setMapFitMenuOpen(open => !open)} className="flex h-8 w-full items-center justify-between rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface-2)] px-2 text-xs font-medium hover:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-40"><span>Adatta mappa alla griglia</span><ChevronDown className={`h-3.5 w-3.5 transition-transform ${mapFitMenuOpen ? 'rotate-180' : ''}`} /></button></span></TooltipTrigger><TooltipContent side="bottom">{mapFitAvailable ? 'Adatta la mappa alla griglia' : 'Sblocca la mappa per adattarla'}</TooltipContent></Tooltip>
+                       {mapFitAvailable && mapFitMenuOpen && <div role="menu" className="absolute right-0 top-full z-10 mt-1 w-full min-w-52 overflow-hidden rounded-md border border-[var(--dash-border)] bg-[var(--dash-panel)] shadow-xl">
+                         <button type="button" role="menuitem" onClick={() => { requestSessionMapFit('exact'); setMapFitMenuOpen(false); }} className="block w-full px-2.5 py-2 text-left hover:bg-[var(--dash-surface-2)]"><span className="block font-medium">Adatta entrambi i lati</span><span className="block text-[10px] text-[var(--dash-muted)]">Allineamento esatto</span></button>
+                         <button type="button" role="menuitem" onClick={() => { requestSessionMapFit('proportional'); setMapFitMenuOpen(false); }} className="block w-full border-t border-[var(--dash-border-soft)] px-2.5 py-2 text-left hover:bg-[var(--dash-surface-2)]"><span className="block font-medium">Mantieni proporzioni</span><span className="block text-[10px] text-[var(--dash-muted)]">Allinea il lato più vicino</span></button>
+                         <button type="button" role="menuitem" onClick={() => { requestSessionMapFit('reset'); setMapFitMenuOpen(false); }} className="block w-full border-t border-[var(--dash-border-soft)] px-2.5 py-2 text-left hover:bg-[var(--dash-surface-2)]"><span className="block font-medium">Ripristina mappa originale</span><span className="block text-[10px] text-[var(--dash-muted)]">Rimuove l'adattamento</span></button>
+                       </div>}
+                     </div>}
+                   </div>
                   </div>
-                </div>
-                {gridSettings.type === 'square' && gridSettings.snap && (
-                  <label className="flex items-center justify-between gap-3 border-t border-[var(--dash-border-soft)] pt-2 text-[11px] font-medium">
-                    <span>Posizionamento oggetti</span>
-                    <select
-                      disabled={!gridEditable}
-                      aria-label="Posizionamento oggetti sulla griglia quadrata"
-                      value={gridSettings.squareSnapMode ?? 'half-step'}
-                      onChange={(event) =>
-                        updateSessionGrid({
-                          squareSnapMode: event.target.value as 'half-step' | 'cell-center',
-                        })
-                      }
-                      className="h-8 rounded-md border border-[var(--dash-border)] bg-[var(--dash-input)] px-2 text-xs text-[var(--dash-text)]"
-                    >
-                      <option value="half-step">Mezzo passo</option>
-                      <option value="cell-center">Centro casella</option>
-                    </select>
-                  </label>
-                )}
-                {gridEditable && gridSettings.type === 'square' && (
-                  <div data-session-map-fit className="absolute bottom-8 right-2.5 w-20">
-                    <button type="button" disabled={!mapFitAvailable} title={mapFitAvailable ? 'Adatta la mappa alla griglia' : 'Sblocca la mappa per adattarla'} aria-haspopup="menu" aria-expanded={mapFitAvailable && mapFitMenuOpen} onClick={() => setMapFitMenuOpen((open) => !open)} className="flex h-8 w-full items-center justify-between rounded-md border border-[var(--dash-border)] bg-[var(--dash-surface-2)] px-2 text-[10px] font-medium text-[var(--dash-text)] hover:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-40">
-                      <span>Adatta</span>
-                      <ChevronDown className={`h-3 w-3 transition-transform ${mapFitMenuOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                    {mapFitAvailable && mapFitMenuOpen && (
-                      <div role="menu" className="absolute bottom-full right-0 z-10 mb-1 w-48 overflow-hidden rounded-md border border-[var(--dash-border)] bg-[var(--dash-panel)] shadow-xl">
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => {
-                            requestSessionMapFit('exact');
-                            setMapFitMenuOpen(false);
-                          }}
-                          className="block w-full px-2.5 py-2 text-left text-[11px] hover:bg-[var(--dash-surface-2)]"
-                        >
-                          <span className="block font-medium">Adatta entrambi i lati</span>
-                          <span className="block text-[10px] text-[var(--dash-muted)]">Allineamento esatto</span>
-                        </button>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => {
-                            requestSessionMapFit('proportional');
-                            setMapFitMenuOpen(false);
-                          }}
-                          className="block w-full border-t border-[var(--dash-border-soft)] px-2.5 py-2 text-left text-[11px] hover:bg-[var(--dash-surface-2)]"
-                        >
-                          <span className="block font-medium">Mantieni proporzioni</span>
-                          <span className="block text-[10px] text-[var(--dash-muted)]">Allinea il lato più vicino</span>
-                        </button>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => {
-                            requestSessionMapFit('reset');
-                            setMapFitMenuOpen(false);
-                          }}
-                          className="block w-full border-t border-[var(--dash-border-soft)] px-2.5 py-2 text-left text-[11px] hover:bg-[var(--dash-surface-2)]"
-                        >
-                          <span className="block font-medium">Ripristina mappa originale</span>
-                          <span className="block text-[10px] text-[var(--dash-muted)]">Rimuove l'adattamento</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>,
+                 </div>
+               </div>,
               portalTarget ?? document.body,
             )}
           {selectPanelOpen &&
@@ -921,10 +866,19 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
                     <TooltipTrigger asChild><button {...fogTooltipEvents('operation')} type="button" aria-label={fogSettings.operation === 'cover' ? 'Modalità: aggiungi nebbia' : 'Modalità: togli nebbia'} aria-pressed={fogSettings.operation === 'reveal'} onClick={() => updateSessionMapFogSettings({ operation: fogSettings.operation === 'cover' ? 'reveal' : 'cover' })} className={`grid h-9 w-9 place-items-center rounded-md border ${fogSettings.operation === 'cover' ? 'border-emerald-400/70 bg-emerald-400/15 text-emerald-300' : 'border-red-400/70 bg-red-400/15 text-red-300'}`}>{fogSettings.operation === 'cover' ? <CirclePlus data-static-icon className="h-5 w-5" /> : <CircleMinus data-static-icon className="h-5 w-5" />}</button></TooltipTrigger>
                     <TooltipContent side="bottom">{fogSettings.operation === 'cover' ? 'Aggiungi nebbia' : 'Togli nebbia'}</TooltipContent>
                   </Tooltip>
+                  <Tooltip open={fogTooltip === 'magnet'}>
+                    <TooltipTrigger asChild><button {...fogTooltipEvents('magnet')} type="button" aria-label="Calamita nebbia" aria-pressed={fogSettings.magnetEnabled} onClick={() => updateSessionMapFogSettings({ magnetEnabled: !fogSettings.magnetEnabled })} className={`grid h-9 w-9 place-items-center rounded-md border ${fogSettings.magnetEnabled ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/20 text-[var(--dash-text-strong)]' : 'border-transparent text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]'}`}><Magnet data-static-icon className="h-4.5 w-4.5" /></button></TooltipTrigger>
+                    <TooltipContent side="bottom">Calamita tra figure Nebbia</TooltipContent>
+                  </Tooltip>
+                  <Tooltip open={fogTooltip === 'grid-snap'}>
+                    <TooltipTrigger asChild><button {...fogTooltipEvents('grid-snap')} type="button" aria-label={!fogSettings.gridSnapEnabled ? 'Snap nebbia disattivato' : fogSettings.gridSnapMode === 'full-step' ? 'Snap nebbia: passo intero' : 'Snap nebbia: mezzo passo'} aria-pressed={fogSettings.gridSnapEnabled} onClick={() => { if (!fogSettings.gridSnapEnabled) updateSessionMapFogSettings({ gridSnapEnabled: true, gridSnapMode: 'full-step' }); else if (fogSettings.gridSnapMode === 'full-step') updateSessionMapFogSettings({ gridSnapMode: 'half-step' }); else updateSessionMapFogSettings({ gridSnapEnabled: false }); }} className={`grid h-9 w-9 place-items-center rounded-md border ${fogSettings.gridSnapEnabled ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/20 text-[var(--dash-text-strong)]' : 'border-transparent text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]'}`}>{fogSettings.gridSnapEnabled && fogSettings.gridSnapMode === 'half-step' ? <Grid3X3 data-static-icon className="h-4.5 w-4.5" /> : <Grid2X2 data-static-icon className="h-4.5 w-4.5" />}</button></TooltipTrigger>
+                    <TooltipContent side="bottom">{!fogSettings.gridSnapEnabled ? 'Snap griglia: disattivato (clic: passo intero)' : fogSettings.gridSnapMode === 'full-step' ? 'Snap griglia: passo intero (clic: mezzo passo)' : 'Snap griglia: mezzo passo (clic: disattiva)'}</TooltipContent>
+                  </Tooltip>
                   <span className="mx-1 h-6 w-px bg-[var(--dash-border-soft)]" />
                   {(
                     [
                       ['grab', 'Seleziona elemento', MousePointer2],
+                      ['room-fill', 'Riempi ambiente', PaintBucket],
                       ['quick-select', 'Selezione veloce', CircleDashed],
                       ['polygon', 'Poligono', PenTool],
                       ['freehand', 'Mano libera', Pencil],
@@ -954,12 +908,8 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
                     <TooltipContent side="bottom">Simula visuale giocatori</TooltipContent>
                   </Tooltip>
                   <Tooltip open={fogTooltip === 'overlap'}>
-                    <TooltipTrigger asChild><button {...fogTooltipEvents('overlap')} type="button" aria-label={`Sovrapposizione: ${fogSettings.overlapMode}`} onClick={() => { const modes = ['fit', 'trim', 'join', 'overlay'] as const; updateSessionMapFogSettings({ overlapMode: modes[(modes.indexOf(fogSettings.overlapMode) + 1) % modes.length] }); }} className="grid h-9 w-9 place-items-center rounded-md text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]"><Combine data-static-icon className="h-4.5 w-4.5" /></button></TooltipTrigger>
-                    <TooltipContent side="bottom">Sovrapposizione: {fogSettings.overlapMode}</TooltipContent>
-                  </Tooltip>
-                  <Tooltip open={fogTooltip === 'automatic'}>
-                    <TooltipTrigger asChild><span {...fogTooltipEvents('automatic')} className="inline-flex"><button type="button" disabled aria-label="Nebbia automatica non ancora disponibile" className="grid h-9 w-9 place-items-center rounded-md text-[var(--dash-muted)] opacity-40"><Sparkles data-static-icon className="h-4.5 w-4.5" /></button></span></TooltipTrigger>
-                    <TooltipContent side="bottom">Nebbia automatica: in preparazione</TooltipContent>
+                    <TooltipTrigger asChild><button {...fogTooltipEvents('overlap')} type="button" aria-label={`${{ fit: 'Adatta', trim: 'Ritaglia', join: 'Unisci', overlay: 'Sovrapponi' }[fogSettings.overlapMode]} nebbia`} onClick={() => { const modes = ['fit', 'trim', 'join', 'overlay'] as const; updateSessionMapFogSettings({ overlapMode: modes[(modes.indexOf(fogSettings.overlapMode) + 1) % modes.length] }); }} className="grid h-9 w-9 place-items-center rounded-md text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]"><Combine data-static-icon className="h-4.5 w-4.5" /></button></TooltipTrigger>
+                    <TooltipContent side="bottom">{{ fit: 'Adatta', trim: 'Ritaglia', join: 'Unisci', overlay: 'Sovrapponi' }[fogSettings.overlapMode]} nebbia</TooltipContent>
                   </Tooltip>
                   <Tooltip open={fogTooltip === 'style'}>
                     <TooltipTrigger asChild><button {...fogTooltipEvents('style')} type="button" aria-label="Stile nebbia" aria-pressed={fogStyleOpen} onClick={() => setFogStyleOpen(open => !open)} className={`grid h-9 w-9 place-items-center rounded-md border ${fogStyleOpen ? 'border-[var(--dash-accent)] bg-[var(--dash-accent)]/20 text-[var(--dash-text-strong)]' : 'border-transparent text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)]'}`}><Palette data-static-icon className="h-4.5 w-4.5" /></button></TooltipTrigger>
@@ -984,6 +934,29 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
               </div>,
               portalTarget ?? document.body,
             )}
+          {automaticFogState.status !== 'idle' && createPortal(
+            <div data-session-automatic-fog-dialog className="fixed inset-0 z-[1300] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-sm">
+              <div role={automaticFogState.status === 'error' ? 'alertdialog' : 'dialog'} aria-modal="true" aria-label="Nebbia automatica" className="w-full max-w-md overflow-hidden rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)] text-[var(--dash-text)] shadow-2xl">
+                <div className="flex items-center gap-3 border-b border-[var(--dash-border-soft)] px-4 py-3">
+                  <span className="grid h-9 w-9 place-items-center rounded-lg border border-[var(--dash-accent)]/45 bg-[var(--dash-accent)]/15 text-[var(--dash-accent-2)]"><Sparkles data-static-icon className="h-5 w-5" /></span>
+                  <div><h3 className="text-sm font-semibold text-[var(--dash-text-strong)]">Nebbia automatica</h3><p className="text-[11px] text-[var(--dash-muted)]">Analisi strutturale della mappa</p></div>
+                </div>
+                {automaticFogState.status === 'processing' && <div className="space-y-4 p-4">
+                  <div className="flex items-end justify-between gap-4"><div><div className="text-xs font-medium text-[var(--dash-text-strong)]">{automaticFogState.stage}</div><div className="mt-1 text-[11px] text-[var(--dash-muted)]">Individuazione di ambienti e ostacoli visivi</div></div><div className="font-mono text-xl font-semibold text-[var(--dash-accent-2)]">{automaticFogState.progress}%</div></div>
+                  <div className="h-2 overflow-hidden rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-input)]"><div className="h-full rounded-full bg-[linear-gradient(90deg,var(--dash-accent),var(--dash-accent-2))] transition-[width] duration-300" style={{ width: `${automaticFogState.progress}%` }} /></div>
+                  <div className="grid grid-cols-4 gap-1">{['Immagine', 'Bordi', 'Muri', 'Ambienti'].map((label, index) => <div key={label} className={`rounded-md px-1.5 py-1 text-center text-[9px] ${automaticFogState.progress >= [12, 42, 64, 100][index] ? 'bg-[var(--dash-accent)]/15 text-[var(--dash-accent-2)]' : 'bg-[var(--dash-surface-2)] text-[var(--dash-muted)]'}`}>{label}</div>)}</div>
+                </div>}
+                {automaticFogState.status === 'result' && <div className="p-4">
+                  <div className="rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-200">Analisi completata con motore {automaticFogState.engine === 'gemini' ? 'Gemini' : automaticFogState.engine === 'semantic-local' ? 'AI locale SegFormer' : 'euristico'}.</div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">{([['Aree', automaticFogState.areas], ['Muri', automaticFogState.walls], ['Porte', automaticFogState.doors], ['Finestre', automaticFogState.windows]] as const).map(([label, value]) => <div key={label} className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2"><div className="text-[10px] uppercase tracking-wide text-[var(--dash-muted)]">{label}</div><div className="mt-0.5 text-lg font-semibold text-[var(--dash-text-strong)]">{value}</div></div>)}</div>
+                  <p className="mt-3 text-[11px] leading-relaxed text-[var(--dash-muted)]">Controlla il risultato con lo strumento Muri. L'applicazione sostituisce solo la precedente Nebbia automatica e conserva gli elementi manuali.</p>
+                  <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={closeSessionMapAutomaticFog} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--dash-border)] px-3 py-2 text-xs hover:bg-[var(--dash-surface-2)]"><X className="h-3.5 w-3.5" />Annulla</button><button type="button" onClick={applySessionMapAutomaticFog} className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--dash-accent)] px-3 py-2 text-xs font-semibold text-[var(--dash-text-strong)] hover:brightness-110"><Check className="h-3.5 w-3.5" />Applica risultato</button></div>
+                </div>}
+                {automaticFogState.status === 'error' && <div className="p-4"><div className="rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs leading-relaxed text-red-200">{automaticFogState.error}</div><div className="mt-4 flex justify-end"><button type="button" onClick={closeSessionMapAutomaticFog} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--dash-border)] px-3 py-2 text-xs hover:bg-[var(--dash-surface-2)]"><X className="h-3.5 w-3.5" />Chiudi</button></div></div>}
+              </div>
+            </div>,
+            portalTarget ?? document.body,
+          )}
           {drawPanelOpen &&
             createPortal(
               <div data-session-draw-panel className="fixed z-[1100] w-[min(94vw,720px)] -translate-x-1/2 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)] p-2 shadow-2xl" style={drawPanelPosition}>
