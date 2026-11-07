@@ -39,9 +39,11 @@ import {
   configureSessionMapHistory,
   DEFAULT_SESSION_GRID,
   setSessionMapCurrentUserId,
+  setSessionMapReady,
   type SessionGridSettings,
 } from "./mapToolStore";
 import { useActiveScene } from "./useActiveScene";
+import { useCachedMapAsset } from "./useCachedMapAsset";
 import { useCampaignDocument } from "../shared/useCampaignDocument";
 import type {
   SessionMapToken,
@@ -67,6 +69,7 @@ const TREE_DEFAULT_WIDTH = 280;
 const TREE_MIN_WIDTH = 220;
 const TREE_MAX_WIDTH = 480;
 const MAP_HISTORY_LIMIT = 50;
+const MAP_HISTORY_BYTE_BUDGET = 24 * 1024 * 1024;
 
 type SessionMapHistorySnapshot = {
   placement: MapPlacement;
@@ -82,6 +85,25 @@ type SessionMapHistory = {
   past: SessionMapHistorySnapshot[];
   future: SessionMapHistorySnapshot[];
 };
+
+const mapHistorySnapshotSizes = new WeakMap<SessionMapHistorySnapshot, number>();
+function trimMapHistory(snapshots: SessionMapHistorySnapshot[]) {
+  const limited = snapshots.slice(-MAP_HISTORY_LIMIT);
+  let bytes = 0;
+  let firstKept = limited.length;
+  for (let index = limited.length - 1; index >= 0; index--) {
+    const snapshot = limited[index];
+    let size = mapHistorySnapshotSizes.get(snapshot);
+    if (size === undefined) {
+      size = JSON.stringify(snapshot).length * 2;
+      mapHistorySnapshotSizes.set(snapshot, size);
+    }
+    if (bytes + size > MAP_HISTORY_BYTE_BUDGET && firstKept < limited.length) break;
+    bytes += size;
+    firstKept = index;
+  }
+  return limited.slice(firstKept);
+}
 
 function readTreeWidth() {
   if (typeof window === "undefined") return TREE_DEFAULT_WIDTH;
@@ -163,7 +185,7 @@ export function SessionWorkspace({
   onEndSession: () => Promise<void>;
 }) {
   setSessionMapCurrentUserId(currentUserId);
-  const { activeScene, channelReady, publish } = useActiveScene(campaignId);
+  const { activeScene, channelReady, publish, publishMapPatch } = useActiveScene(campaignId);
   const playerMapActionHandlerRef = useRef<(payload: any) => void>(() => {});
   const playerMapPoiActionHandlerRef = useRef<(payload: any) => void>(() => {});
   const playerMapLayerActionHandlerRef = useRef<(payload: any) => void>(() => {});
@@ -487,6 +509,16 @@ export function SessionWorkspace({
             ),
           }
         : publicChapterPreview;
+  const mapAssetSource = display?.mapUrl ?? display?.mapMetadata.displayUrl ?? display?.sceneImageUrl ?? null;
+  const mapAsset = useCachedMapAsset(mapAssetSource);
+  const [renderedMapUrl, setRenderedMapUrl] = useState<string | null>(null);
+  useEffect(() => setRenderedMapUrl(null), [mapAssetSource]);
+  const mapReady = mapAsset.status === 'ready' && !!mapAsset.resolvedUrl && renderedMapUrl === mapAsset.resolvedUrl;
+  const mapEtaLabel = mapAsset.status === 'decoding' || (mapAsset.status === 'ready' && !mapReady) ? '< 1 s' : mapAsset.etaMs === null ? '--' : mapAsset.etaMs >= 60_000 ? `${Math.floor(mapAsset.etaMs / 60_000)} min ${Math.ceil(mapAsset.etaMs % 60_000 / 1000)} s` : `${Math.max(1, Math.ceil(mapAsset.etaMs / 1000))} s`;
+  useEffect(() => {
+    setSessionMapReady(mapReady);
+    return () => setSessionMapReady(false);
+  }, [mapReady, mapAssetSource]);
   const mapPlacement: MapPlacement = display?.mapPlacement ?? {
     x: 0,
     y: 0,
@@ -509,7 +541,7 @@ export function SessionWorkspace({
     };
     const snapshot = currentMapSnapshot();
     if (JSON.stringify(history.past.at(-1)) !== JSON.stringify(snapshot))
-      history.past = [...history.past, snapshot].slice(-MAP_HISTORY_LIMIT);
+      history.past = trimMapHistory([...history.past, snapshot]);
     history.future = [];
     mapHistoryRef.current.set(display.chapterId, history);
     setMapHistoryVersion((version) => version + 1);
@@ -542,9 +574,8 @@ export function SessionWorkspace({
       [chapterId]: structuredClone(snapshot.fog),
     }));
     setChapterObjectOrders((current) => ({ ...current, [chapterId]: structuredClone(snapshot.objectOrder) }));
-    if (channelReady)
-      void publish({
-        ...display,
+    if (channelReady) {
+      const fields = {
         mapPlacement: snapshot.placement,
         gridSettings: snapshot.grid,
         mapTokens: publicMapTokens(snapshot.tokens),
@@ -552,17 +583,20 @@ export function SessionWorkspace({
         mapPois: publicMapPois(snapshot.pois),
         mapFog: snapshot.fog,
         mapObjectOrder: publicMapObjectOrder(snapshot.objectOrder, snapshot.drawings, snapshot.tokens, snapshot.pois),
+      };
+      void publishMapPatch({
+        ...display,
+        ...fields,
         publishedAt: new Date().toISOString(),
-      });
+      }, fields);
+    }
   };
   const undoMapChange = () => {
     if (!display) return;
     const history = mapHistoryRef.current.get(display.chapterId);
     const snapshot = history?.past.pop();
     if (!history || !snapshot) return;
-    history.future = [...history.future, currentMapSnapshot()].slice(
-      -MAP_HISTORY_LIMIT,
-    );
+    history.future = trimMapHistory([...history.future, currentMapSnapshot()]);
     mapHistoryRef.current.set(display.chapterId, history);
     applyMapHistorySnapshot(snapshot);
     setMapHistoryVersion((version) => version + 1);
@@ -572,9 +606,7 @@ export function SessionWorkspace({
     const history = mapHistoryRef.current.get(display.chapterId);
     const snapshot = history?.future.pop();
     if (!history || !snapshot) return;
-    history.past = [...history.past, currentMapSnapshot()].slice(
-      -MAP_HISTORY_LIMIT,
-    );
+    history.past = trimMapHistory([...history.past, currentMapSnapshot()]);
     mapHistoryRef.current.set(display.chapterId, history);
     applyMapHistorySnapshot(snapshot);
     setMapHistoryVersion((version) => version + 1);
@@ -686,12 +718,14 @@ export function SessionWorkspace({
       ...current,
       [display.chapterId]: placement,
     }));
-    if (channelReady)
-      void publish({
+    if (channelReady) {
+      const publishedAt = new Date().toISOString();
+      void publishMapPatch({
         ...display,
         mapPlacement: placement,
-        publishedAt: new Date().toISOString(),
-      });
+        publishedAt,
+      }, { mapPlacement: placement });
+    }
   };
 
   const updateGridSettings = (
@@ -704,12 +738,14 @@ export function SessionWorkspace({
       ...current,
       [display.chapterId]: settings,
     }));
-    if (channelReady)
-      void publish({
+    if (channelReady) {
+      const publishedAt = new Date().toISOString();
+      void publishMapPatch({
         ...display,
         gridSettings: settings,
-        publishedAt: new Date().toISOString(),
-      });
+        publishedAt,
+      }, { gridSettings: settings });
+    }
   };
 
   const updateMapTokens = (tokens: SessionMapToken[], recordHistory = true) => {
@@ -723,13 +759,17 @@ export function SessionWorkspace({
       [display.chapterId]: tokens,
     }));
     setChapterObjectOrders((current) => ({ ...current, [display.chapterId]: objectOrder }));
-    if (channelReady)
-      void publish({
+    if (channelReady) {
+      const publicTokens = publicMapTokens(tokens);
+      const publicOrder = publicMapObjectOrder(objectOrder, drawings, tokens, pois);
+      const publishedAt = new Date().toISOString();
+      void publishMapPatch({
         ...display,
-        mapTokens: publicMapTokens(tokens),
-        mapObjectOrder: publicMapObjectOrder(objectOrder, drawings, tokens, pois),
-        publishedAt: new Date().toISOString(),
-      });
+        mapTokens: publicTokens,
+        mapObjectOrder: publicOrder,
+        publishedAt,
+      }, { mapTokens: publicTokens, mapObjectOrder: publicOrder });
+    }
   };
 
   const updateMapDrawings = (
@@ -746,13 +786,17 @@ export function SessionWorkspace({
       [display.chapterId]: drawings,
     }));
     setChapterObjectOrders((current) => ({ ...current, [display.chapterId]: objectOrder }));
-    if (channelReady)
-      void publish({
+    if (channelReady) {
+      const publicDrawings = publicMapDrawings(drawings);
+      const publicOrder = publicMapObjectOrder(objectOrder, drawings, tokens, pois);
+      const publishedAt = new Date().toISOString();
+      void publishMapPatch({
         ...display,
-        mapDrawings: publicMapDrawings(drawings),
-        mapObjectOrder: publicMapObjectOrder(objectOrder, drawings, tokens, pois),
-        publishedAt: new Date().toISOString(),
-      });
+        mapDrawings: publicDrawings,
+        mapObjectOrder: publicOrder,
+        publishedAt,
+      }, { mapDrawings: publicDrawings, mapObjectOrder: publicOrder });
+    }
   };
 
   const updateMapFog = (fog: SessionMapFog[], recordHistory = true) => {
@@ -762,22 +806,19 @@ export function SessionWorkspace({
       ...current,
       [display.chapterId]: fog,
     }));
-    if (channelReady)
-      void publish({
+    if (channelReady) {
+      const publishedAt = new Date().toISOString();
+      void publishMapPatch({
         ...display,
         mapFog: fog,
-        publishedAt: new Date().toISOString(),
-      });
+        publishedAt,
+      }, { mapFog: fog });
+    }
   };
 
   const addMapFog = (fog: SessionMapFog) => {
     if (!isOwner) return;
     updateMapFog([...(display?.mapFog ?? []), fog]);
-  };
-  const applyAutomaticFog = (generated: SessionMapFog[]) => {
-    if (!isOwner) return;
-    const manualFog = (display?.mapFog ?? []).filter(item => !item.automaticRegion && (!item.visionBlocker || item.visionBlocker.source === 'manual'));
-    updateMapFog([...manualFog, ...generated]);
   };
   const changeMapFog = (id: string, update: Partial<SessionMapFog>) => {
     if (!isOwner) return;
@@ -834,13 +875,17 @@ export function SessionWorkspace({
     const objectOrder = reconcileOrder(display.mapObjectOrder, drawings, tokens, pois);
     setChapterPois((current) => ({ ...current, [display.chapterId]: pois }));
     setChapterObjectOrders((current) => ({ ...current, [display.chapterId]: objectOrder }));
-    if (channelReady)
-      void publish({
+    if (channelReady) {
+      const publicPois = publicMapPois(pois);
+      const publicOrder = publicMapObjectOrder(objectOrder, drawings, tokens, pois);
+      const publishedAt = new Date().toISOString();
+      void publishMapPatch({
         ...display,
-        mapPois: publicMapPois(pois),
-        mapObjectOrder: publicMapObjectOrder(objectOrder, drawings, tokens, pois),
-        publishedAt: new Date().toISOString(),
-      });
+        mapPois: publicPois,
+        mapObjectOrder: publicOrder,
+        publishedAt,
+      }, { mapPois: publicPois, mapObjectOrder: publicOrder });
+    }
   };
   const moveMapObjectLayer = (refs: MapObjectRef[], move: MapLayerMove, actorProfileId = currentUserId) => {
     if (!display || refs.length === 0) return;
@@ -880,11 +925,11 @@ export function SessionWorkspace({
     if (next === current) return;
     recordMapHistory();
     setChapterObjectOrders((orders) => ({ ...orders, [display.chapterId]: next }));
-    if (channelReady) void publish({
-      ...display,
-      mapObjectOrder: publicMapObjectOrder(next, display.mapDrawings ?? [], display.mapTokens ?? [], display.mapPois ?? []),
-      publishedAt: new Date().toISOString(),
-    });
+    if (channelReady) {
+      const publicOrder = publicMapObjectOrder(next, display.mapDrawings ?? [], display.mapTokens ?? [], display.mapPois ?? []);
+      const publishedAt = new Date().toISOString();
+      void publishMapPatch({ ...display, mapObjectOrder: publicOrder, publishedAt }, { mapObjectOrder: publicOrder });
+    }
   };
   const addMapPoi = (
     position: { x: number; y: number },
@@ -2113,17 +2158,14 @@ export function SessionWorkspace({
         )}
         {display ? (
           display.mapUrl || display.sceneImageUrl ? (
+            <>
             <MapViewport
               key={`${display.campaignId}:${display.chapterId}`}
               campaignId={campaignId}
               currentUserId={currentUserId}
               currentUserAccessToken={currentUserAccessToken}
               mapId={`${display.campaignId}:${display.chapterId}`}
-              backgroundUrl={
-                display.mapMetadata.previewUrl ??
-                display.mapUrl ??
-                display.sceneImageUrl
-              }
+              backgroundUrl={mapAsset.resolvedUrl}
               isOwner={isOwner}
               mapPlacement={mapPlacement}
               gridSettings={display.gridSettings ?? DEFAULT_SESSION_GRID}
@@ -2158,7 +2200,6 @@ export function SessionWorkspace({
               onDrawingMagnetDisable={disableMapDrawingMagnetGroup}
                onFogCreate={addMapFog}
                onFogReplaceAll={updateMapFog}
-              onAutomaticFogApply={applyAutomaticFog}
               onFogChange={changeMapFog}
               onFogsChange={changeMapFogBatch}
               onFogsMove={transformMapFog}
@@ -2184,10 +2225,23 @@ export function SessionWorkspace({
             >
               <ActiveSceneMap
                 scene={display}
+                imageUrl={mapAsset.resolvedUrl}
+                onReady={setRenderedMapUrl}
                 unframed
                 fill={Boolean(mapPlacement.width && mapPlacement.height)}
               />
             </MapViewport>
+            {!mapReady && (
+              <div data-session-map-loading className="absolute inset-0 z-[9500] grid cursor-wait place-items-center bg-slate-950/72 p-6 backdrop-blur-sm">
+                <div role="status" aria-live="polite" className="w-full max-w-md rounded-2xl border border-[var(--dash-border)] bg-[var(--dash-panel)]/95 p-5 text-[var(--dash-text)] shadow-2xl">
+                  <div className="flex items-center justify-between gap-4"><div><div className="text-sm font-semibold text-[var(--dash-text-strong)]">Caricamento mappa di gioco</div><div className="mt-1 text-xs text-[var(--dash-muted)]">{mapAsset.status === 'checking' ? 'Ricerca nella cache locale...' : mapAsset.status === 'decoding' ? 'Preparazione immagine...' : mapAsset.status === 'ready' ? 'Finalizzazione grafica...' : mapAsset.status === 'error' ? 'Caricamento non riuscito' : 'Download della mappa...'}</div></div><div className="font-mono text-xl font-semibold text-[var(--dash-accent-2)]">{mapAsset.progress === null ? '...' : `${Math.round(mapAsset.progress)}%`}</div></div>
+                  <div className="mt-4 h-2.5 overflow-hidden rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-input)]"><div className={`h-full rounded-full bg-[linear-gradient(90deg,var(--dash-accent),var(--dash-accent-2))] transition-[width] duration-150 ${mapAsset.progress === null ? 'w-1/3 animate-pulse' : ''}`} style={mapAsset.progress === null ? undefined : { width: `${mapAsset.progress}%` }} /></div>
+                  <div className="mt-3 flex justify-between text-[11px] text-[var(--dash-muted)]"><span>{mapAsset.fromCache ? 'Cache locale' : 'Gli strumenti saranno disponibili al termine'}</span><span>Tempo rimanente: {mapEtaLabel}</span></div>
+                  {mapAsset.error && <div className="mt-3 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">{mapAsset.error}</div>}
+                </div>
+              </div>
+            )}
+            </>
           ) : (
             <div className="grid h-full min-h-[55vh] place-items-center px-8 text-center">
               <div>

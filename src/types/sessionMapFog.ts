@@ -36,11 +36,6 @@ export interface SessionMapFog {
   magnetEnabled?: boolean;
   magnetGroupId?: string | null;
   fullMap?: boolean;
-  automaticRegion?: {
-    classification: "interior" | "exterior";
-    confidence: number;
-    source: "local" | "ai";
-  };
   visionBlocker?: {
     kind: "wall" | "door" | "window";
     confidence: number;

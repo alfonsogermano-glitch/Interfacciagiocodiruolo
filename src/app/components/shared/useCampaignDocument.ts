@@ -38,6 +38,30 @@ export function useCampaignDocument<T>(key: string, fallback: T, options?: { ena
   const [record, setRecord] = useState({ scope, value: fallback, ready: false, dirty: false });
   const queue = useRef(Promise.resolve());
   const legacyKeyRef = useRef<string | null>(null);
+  const pendingSaveRef = useRef<{ campaignId: string; key: string; scope: string; value: T; deleteWhenNull: boolean } | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveRunningRef = useRef(false);
+
+  const flushPendingSave = () => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = null;
+    if (saveRunningRef.current || !pendingSaveRef.current) return;
+    const pending = pendingSaveRef.current;
+    pendingSaveRef.current = null;
+    saveRunningRef.current = true;
+    queue.current = queue.current.catch(() => {}).then(async () => {
+      if (persistenceKey(`${pending.campaignId}:${pending.key}`) !== pending.scope) return;
+      if (pending.deleteWhenNull && pending.value === null) await deleteCampaignDocument(pending.campaignId, pending.key);
+      else await saveCampaignDocument(pending.campaignId, pending.key, pending.value);
+      if (legacyKeyRef.current) {
+        try { window.localStorage.removeItem(legacyKeyRef.current); } catch { /* quota */ }
+        legacyKeyRef.current = null;
+      }
+    }).catch((error) => { toast.error(`Salvataggio ${pending.key}: ${error.message}`); }).finally(() => {
+      saveRunningRef.current = false;
+      if (pendingSaveRef.current) saveTimerRef.current = setTimeout(flushPendingSave, 0);
+    });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -71,22 +95,17 @@ export function useCampaignDocument<T>(key: string, fallback: T, options?: { ena
       if (!cancelled) toast.error(`Caricamento ${key}: ${error.message}`);
     });
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; flushPendingSave(); };
   }, [scope, enabled]);
 
   useEffect(() => {
     if (!enabled || !record.ready || !record.dirty || record.scope !== scope) return;
-    const value = record.value;
-    queue.current = queue.current.catch(() => {}).then(async () => {
-      if (persistenceKey(`${activeCampaignId}:${key}`) !== scope) return;
-      if (deleteWhenNull && value === null) await deleteCampaignDocument(activeCampaignId, key);
-      else await saveCampaignDocument(activeCampaignId, key, value);
-      if (legacyKeyRef.current) {
-        try { window.localStorage.removeItem(legacyKeyRef.current); } catch { /* quota */ }
-        legacyKeyRef.current = null;
-      }
-    }).catch((error) => { toast.error(`Salvataggio ${key}: ${error.message}`); });
+    pendingSaveRef.current = { campaignId: activeCampaignId, key, scope, value: record.value, deleteWhenNull };
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(flushPendingSave, 300);
   }, [record.value, record.ready, enabled, deleteWhenNull]);
+
+  useEffect(() => () => flushPendingSave(), []);
 
   const setValue: Dispatch<SetStateAction<T>> = (update) => setRecord((current) => ({
     ...current, dirty: true,

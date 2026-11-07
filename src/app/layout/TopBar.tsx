@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type SVGProps } from 'react';
 import { createPortal } from 'react-dom';
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowRight, Bell, Bold, Brush, Bug, Check, ChevronDown, Circle, CircleDashed, CircleMinus, CirclePlus, CloudFog, Combine, Crosshair, Eraser, Eye, EyeOff, Grid2X2, Grid3X3, Hexagon, Italic, LassoSelect, LogOut, Magnet, MapPin, Minus, MoreVertical, MousePointer2, Newspaper, PaintBucket, PaintRoller, Palette, Pencil, PenTool, Plus, Redo2, ScanEye, ScanLine, Scissors, Search, Settings, Slash, Sparkles, Square as SquareIcon, Strikethrough, Trash2, Triangle, Type, Underline, Undo2, UserPlus, X } from 'lucide-react';
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowRight, Bell, Bold, Brush, Bug, Check, ChevronDown, Circle, CircleDashed, CircleMinus, CirclePlus, CloudFog, Combine, Crosshair, Eraser, Eye, EyeOff, Grid2X2, Grid3X3, Hexagon, Italic, LassoSelect, LogOut, Magnet, MapPin, Minus, MoreVertical, MousePointer2, Newspaper, PaintBucket, PaintRoller, Palette, Pencil, PenTool, Plus, Redo2, ScanEye, ScanLine, Scissors, Search, Settings, Slash, Square as SquareIcon, Strikethrough, Trash2, Triangle, Type, Underline, Undo2, UserPlus, X } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications, type NotificationRow } from '../notifications/NotificationsContext';
 import { useCampaign } from '../campaigns/CampaignContext';
@@ -11,7 +11,7 @@ import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from '../components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 import { usePortalContainer } from '../components/ui/portal-container';
-import { applySessionMapAutomaticFog, closeSessionMapAutomaticFog, requestSessionMapCenter, requestSessionMapDrawingClear, requestSessionMapFit, requestSessionMapFogClear, requestSessionMapFogCoverFullMap, requestSessionMapFogSelectionClear, requestSessionMapRedo, requestSessionMapUndo, setActiveSessionMapTool, setSessionMapCalibrationActive, setSessionMapDrawMode, setSessionMapMeasureMode, setSessionMapMeasurementsVisibleToAll, setSessionMapSelectionArmed, setSessionMapSelectionMode, updateSessionGrid, updateSessionMapDrawStyle, updateSessionMapFogSettings, updateSessionMapTextStyle, useActiveSessionMapTool, useSessionGrid, useSessionMapAutomaticFogState, useSessionMapCalibrationActive, useSessionMapCenterAvailable, useSessionMapDrawSettings, useSessionMapFitAvailable, useSessionMapFogSettings, useSessionMapMeasureMode, useSessionMapMeasurementsVisibleToAll, useSessionMapRedoAvailable, useSessionMapSelectionArmed, useSessionMapSelectionMode, useSessionMapUndoAvailable, type SessionMapDrawMode, type SessionMapFogMode, type SessionMapMeasureMode } from '../components/session/mapToolStore';
+import { requestSessionMapCenter, requestSessionMapDrawingClear, requestSessionMapFit, requestSessionMapFogClear, requestSessionMapFogCoverFullMap, requestSessionMapFogSelectionClear, requestSessionMapRedo, requestSessionMapUndo, setActiveSessionMapTool, setSessionMapCalibrationActive, setSessionMapDrawMode, setSessionMapMeasureMode, setSessionMapMeasurementsVisibleToAll, setSessionMapSelectionArmed, setSessionMapSelectionMode, updateSessionGrid, updateSessionMapDrawStyle, updateSessionMapFogSettings, updateSessionMapTextStyle, useActiveSessionMapTool, useSessionGrid, useSessionMapCalibrationActive, useSessionMapCenterAvailable, useSessionMapDrawSettings, useSessionMapFitAvailable, useSessionMapFogSettings, useSessionMapMeasureMode, useSessionMapMeasurementsVisibleToAll, useSessionMapReady, useSessionMapRedoAvailable, useSessionMapSelectionArmed, useSessionMapSelectionMode, useSessionMapUndoAvailable, type SessionMapDrawMode, type SessionMapFogMode, type SessionMapMeasureMode } from '../components/session/mapToolStore';
 
 const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;
 const DRAW_LINE_STYLES = [
@@ -376,7 +376,7 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
   const measurementsVisibleToAll = useSessionMapMeasurementsVisibleToAll();
   const drawSettings = useSessionMapDrawSettings();
   const fogSettings = useSessionMapFogSettings();
-  const automaticFogState = useSessionMapAutomaticFogState();
+  const sessionMapReady = useSessionMapReady();
   const { settings: gridSettings, editable: gridEditable } = useSessionGrid();
   const mapFitAvailable = useSessionMapFitAvailable();
   const mapCenterAvailable = useSessionMapCenterAvailable();
@@ -452,6 +452,10 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
   };
 
   useEffect(() => {
+    if (!sessionMapReady) closeMapToolPanels();
+  }, [sessionMapReady]);
+
+  useEffect(() => {
     if (!gridPanelOpen && !selectPanelOpen && !measurePanelOpen && !drawPanelOpen && !fogPanelOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closeMapToolPanels();
@@ -514,9 +518,9 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
                     data-map-tool={id}
                     aria-label={label}
                     aria-pressed={activeMapTool === id}
-                    disabled={!gridEditable && (id === 'grid' || id === 'draw' || id === 'fog' || id === 'walls')}
+                    disabled={!sessionMapReady || (!gridEditable && (id === 'grid' || id === 'draw' || id === 'fog' || id === 'walls'))}
                     onClick={(event) => {
-                      if (!gridEditable && (id === 'grid' || id === 'draw' || id === 'fog' || id === 'walls')) return;
+                       if (!sessionMapReady || (!gridEditable && (id === 'grid' || id === 'draw' || id === 'fog' || id === 'walls'))) return;
                       setSessionMapCalibrationActive(false);
                       if (id === 'select' || id === 'grid' || id === 'measure' || id === 'draw' || id === 'fog') {
                         const isOpen = id === 'select' ? selectPanelOpen : id === 'grid' ? gridPanelOpen : id === 'measure' ? measurePanelOpen : id === 'draw' ? drawPanelOpen : fogPanelOpen;
@@ -555,7 +559,7 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
             <span aria-hidden="true" className="mx-0.5 h-5 w-px bg-[var(--dash-border-soft)]" />
             <Tooltip>
               <TooltipTrigger asChild>
-                <button type="button" data-session-map-center aria-label="Centra la visuale sulla mappa" disabled={!mapCenterAvailable} onClick={requestSessionMapCenter} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] disabled:cursor-not-allowed disabled:opacity-35">
+                 <button type="button" data-session-map-center aria-label="Centra la visuale sulla mappa" disabled={!sessionMapReady || !mapCenterAvailable} onClick={requestSessionMapCenter} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] disabled:cursor-not-allowed disabled:opacity-35">
                   <Crosshair className="h-4.5 w-4.5" />
                 </button>
               </TooltipTrigger>
@@ -568,7 +572,7 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
                   data-session-map-calibrate
                   aria-label="Calibra mappa"
                   aria-pressed={mapCalibrationActive}
-                  disabled={!gridEditable || gridSettings.type !== 'square'}
+                   disabled={!sessionMapReady || !gridEditable || gridSettings.type !== 'square'}
                   onClick={() => {
                     closeMapToolPanels();
                     setSessionMapCalibrationActive(!mapCalibrationActive);
@@ -582,7 +586,7 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <button type="button" aria-label="Annulla modifica mappa" disabled={!mapUndoAvailable} onClick={requestSessionMapUndo} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] disabled:cursor-not-allowed disabled:opacity-35">
+                 <button type="button" aria-label="Annulla modifica mappa" disabled={!sessionMapReady || !mapUndoAvailable} onClick={requestSessionMapUndo} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] disabled:cursor-not-allowed disabled:opacity-35">
                   <Undo2 className="h-4.5 w-4.5" />
                 </button>
               </TooltipTrigger>
@@ -590,7 +594,7 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <button type="button" aria-label="Ripristina modifica mappa" disabled={!mapRedoAvailable} onClick={requestSessionMapRedo} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] disabled:cursor-not-allowed disabled:opacity-35">
+                 <button type="button" aria-label="Ripristina modifica mappa" disabled={!sessionMapReady || !mapRedoAvailable} onClick={requestSessionMapRedo} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-[var(--dash-muted)] transition-colors hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)] disabled:cursor-not-allowed disabled:opacity-35">
                   <Redo2 className="h-4.5 w-4.5" />
                 </button>
               </TooltipTrigger>
@@ -934,29 +938,6 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
               </div>,
               portalTarget ?? document.body,
             )}
-          {automaticFogState.status !== 'idle' && createPortal(
-            <div data-session-automatic-fog-dialog className="fixed inset-0 z-[1300] grid place-items-center bg-slate-950/65 p-4 backdrop-blur-sm">
-              <div role={automaticFogState.status === 'error' ? 'alertdialog' : 'dialog'} aria-modal="true" aria-label="Nebbia automatica" className="w-full max-w-md overflow-hidden rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)] text-[var(--dash-text)] shadow-2xl">
-                <div className="flex items-center gap-3 border-b border-[var(--dash-border-soft)] px-4 py-3">
-                  <span className="grid h-9 w-9 place-items-center rounded-lg border border-[var(--dash-accent)]/45 bg-[var(--dash-accent)]/15 text-[var(--dash-accent-2)]"><Sparkles data-static-icon className="h-5 w-5" /></span>
-                  <div><h3 className="text-sm font-semibold text-[var(--dash-text-strong)]">Nebbia automatica</h3><p className="text-[11px] text-[var(--dash-muted)]">Analisi strutturale della mappa</p></div>
-                </div>
-                {automaticFogState.status === 'processing' && <div className="space-y-4 p-4">
-                  <div className="flex items-end justify-between gap-4"><div><div className="text-xs font-medium text-[var(--dash-text-strong)]">{automaticFogState.stage}</div><div className="mt-1 text-[11px] text-[var(--dash-muted)]">Individuazione di ambienti e ostacoli visivi</div></div><div className="font-mono text-xl font-semibold text-[var(--dash-accent-2)]">{automaticFogState.progress}%</div></div>
-                  <div className="h-2 overflow-hidden rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-input)]"><div className="h-full rounded-full bg-[linear-gradient(90deg,var(--dash-accent),var(--dash-accent-2))] transition-[width] duration-300" style={{ width: `${automaticFogState.progress}%` }} /></div>
-                  <div className="grid grid-cols-4 gap-1">{['Immagine', 'Bordi', 'Muri', 'Ambienti'].map((label, index) => <div key={label} className={`rounded-md px-1.5 py-1 text-center text-[9px] ${automaticFogState.progress >= [12, 42, 64, 100][index] ? 'bg-[var(--dash-accent)]/15 text-[var(--dash-accent-2)]' : 'bg-[var(--dash-surface-2)] text-[var(--dash-muted)]'}`}>{label}</div>)}</div>
-                </div>}
-                {automaticFogState.status === 'result' && <div className="p-4">
-                  <div className="rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-200">Analisi completata con motore {automaticFogState.engine === 'gemini' ? 'Gemini' : automaticFogState.engine === 'semantic-local' ? 'AI locale SegFormer' : 'euristico'}.</div>
-                  <div className="mt-3 grid grid-cols-2 gap-2">{([['Aree', automaticFogState.areas], ['Muri', automaticFogState.walls], ['Porte', automaticFogState.doors], ['Finestre', automaticFogState.windows]] as const).map(([label, value]) => <div key={label} className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-3 py-2"><div className="text-[10px] uppercase tracking-wide text-[var(--dash-muted)]">{label}</div><div className="mt-0.5 text-lg font-semibold text-[var(--dash-text-strong)]">{value}</div></div>)}</div>
-                  <p className="mt-3 text-[11px] leading-relaxed text-[var(--dash-muted)]">Controlla il risultato con lo strumento Muri. L'applicazione sostituisce solo la precedente Nebbia automatica e conserva gli elementi manuali.</p>
-                  <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={closeSessionMapAutomaticFog} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--dash-border)] px-3 py-2 text-xs hover:bg-[var(--dash-surface-2)]"><X className="h-3.5 w-3.5" />Annulla</button><button type="button" onClick={applySessionMapAutomaticFog} className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--dash-accent)] px-3 py-2 text-xs font-semibold text-[var(--dash-text-strong)] hover:brightness-110"><Check className="h-3.5 w-3.5" />Applica risultato</button></div>
-                </div>}
-                {automaticFogState.status === 'error' && <div className="p-4"><div className="rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs leading-relaxed text-red-200">{automaticFogState.error}</div><div className="mt-4 flex justify-end"><button type="button" onClick={closeSessionMapAutomaticFog} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--dash-border)] px-3 py-2 text-xs hover:bg-[var(--dash-surface-2)]"><X className="h-3.5 w-3.5" />Chiudi</button></div></div>}
-              </div>
-            </div>,
-            portalTarget ?? document.body,
-          )}
           {drawPanelOpen &&
             createPortal(
               <div data-session-draw-panel className="fixed z-[1100] w-[min(94vw,720px)] -translate-x-1/2 rounded-xl border border-[var(--dash-border)] bg-[var(--dash-panel)] p-2 shadow-2xl" style={drawPanelPosition}>

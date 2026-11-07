@@ -54,11 +54,6 @@ const fogListeners = new Set<() => void>();
 let coverFullMapHandler: (() => void) | null = null;
 let clearFogHandler: (() => void) | null = null;
 let clearFogSelectionHandler: (() => void) | null = null;
-let automaticFogHandler: (() => void) | null = null;
-export type SessionMapAutomaticFogState = { status: 'idle' | 'processing' | 'result' | 'error'; progress: number; stage: string; areas: number; walls: number; doors: number; windows: number; source: 'local' | 'ai' | null; engine: 'gemini' | 'semantic-local' | 'heuristic' | null; error: string | null };
-let automaticFogState: SessionMapAutomaticFogState = { status: 'idle', progress: 0, stage: '', areas: 0, walls: 0, doors: 0, windows: 0, source: null, engine: null, error: null };
-let automaticFogApplyHandler: (() => void) | null = null;
-const automaticFogListeners = new Set<() => void>();
 let clearDrawingsHandler: (() => void) | null = null;
 const gridListeners = new Set<() => void>();
 let gridSettings = DEFAULT_SESSION_GRID;
@@ -78,9 +73,19 @@ let mapUndoHandler: (() => void) | null = null;
 let mapRedoHandler: (() => void) | null = null;
 const mapHistoryListeners = new Set<() => void>();
 let sessionMapCurrentUserId: string | null = null;
+let sessionMapReady = false;
+const sessionMapReadyListeners = new Set<() => void>();
 
 export function setSessionMapCurrentUserId(userId: string | null) { sessionMapCurrentUserId = userId; }
 export function getSessionMapCurrentUserId() { return sessionMapCurrentUserId; }
+export function setSessionMapReady(ready: boolean) {
+  if (sessionMapReady === ready) return;
+  sessionMapReady = ready;
+  sessionMapReadyListeners.forEach(listener => listener());
+}
+export function useSessionMapReady() {
+  return useSyncExternalStore(listener => { sessionMapReadyListeners.add(listener); return () => sessionMapReadyListeners.delete(listener); }, () => sessionMapReady, () => false);
+}
 let mapCalibrationActive = false;
 const mapCalibrationListeners = new Set<() => void>();
 
@@ -199,33 +204,6 @@ export function configureSessionMapFogClear(handler: (() => void) | null) { clea
 export function requestSessionMapFogClear() { clearFogHandler?.(); }
 export function configureSessionMapFogSelectionClear(handler: (() => void) | null) { clearFogSelectionHandler = handler; }
 export function requestSessionMapFogSelectionClear() { clearFogSelectionHandler?.(); }
-export function configureSessionMapAutomaticFog(handler: (() => void) | null) { automaticFogHandler = handler; }
-export function requestSessionMapAutomaticFog() { automaticFogHandler?.(); }
-export function setSessionMapAutomaticFogProgress(progress: number, stage: string) {
-  const nextProgress = Math.max(0, Math.min(100, Math.round(progress)));
-  automaticFogState = { ...automaticFogState, status: 'processing', progress: automaticFogState.status === 'processing' ? Math.max(automaticFogState.progress, nextProgress) : nextProgress, stage, error: null };
-  automaticFogListeners.forEach(listener => listener());
-}
-export function showSessionMapAutomaticFogResult(summary: Pick<SessionMapAutomaticFogState, 'areas' | 'walls' | 'doors' | 'windows' | 'source' | 'engine'>, onApply: () => void) {
-  automaticFogApplyHandler = onApply;
-  automaticFogState = { status: 'result', progress: 100, stage: 'Analisi completata', ...summary, error: null };
-  automaticFogListeners.forEach(listener => listener());
-}
-export function showSessionMapAutomaticFogError(error: string) {
-  automaticFogApplyHandler = null;
-  automaticFogState = { ...automaticFogState, status: 'error', progress: 0, stage: '', error };
-  automaticFogListeners.forEach(listener => listener());
-}
-export function closeSessionMapAutomaticFog() {
-  automaticFogApplyHandler = null;
-  automaticFogState = { status: 'idle', progress: 0, stage: '', areas: 0, walls: 0, doors: 0, windows: 0, source: null, engine: null, error: null };
-  automaticFogListeners.forEach(listener => listener());
-}
-export function applySessionMapAutomaticFog() { const apply = automaticFogApplyHandler; closeSessionMapAutomaticFog(); apply?.(); }
-export function useSessionMapAutomaticFogState() {
-  return useSyncExternalStore(listener => { automaticFogListeners.add(listener); return () => automaticFogListeners.delete(listener); }, () => automaticFogState, () => automaticFogState);
-}
-
 export function configureSessionGrid(settings: SessionGridSettings, editable: boolean, onChange: ((settings: SessionGridSettings) => void) | null) {
   gridSettings = settings;
   gridEditable = editable;

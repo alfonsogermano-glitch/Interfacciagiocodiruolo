@@ -86,7 +86,6 @@
     "@3d-dice/dice-box-threejs": "0.0.12",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.1",
-    "@huggingface/transformers": "^3.8.1",
     "@iconify/react": "6.0.2",
     "@mui/icons-material": "7.3.5",
     "@mui/material": "7.3.5",

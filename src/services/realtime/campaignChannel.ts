@@ -20,8 +20,8 @@ import { selectedContentMode } from '../storage/persistenceMode';
 // subscribe), e il canale viene chiuso per davvero solo quando l'ultimo
 // consumer se ne va.
 
-type BroadcastEvent = 'INSERT' | 'UPDATE' | 'DELETE' | 'session_change' | 'active_scene_change' | 'members_change' | 'notes_change' | 'dice_roll' | 'chat_message' | 'chat_reaction' | 'chat_delete' | 'notification' | 'map_measurement' | 'map_token_action' | 'map_poi_action' | 'map_object_layer_action' | 'character_owner_change';
-const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = ['INSERT', 'UPDATE', 'DELETE', 'session_change', 'active_scene_change', 'members_change', 'notes_change', 'dice_roll', 'chat_message', 'chat_reaction', 'chat_delete', 'notification', 'map_measurement', 'map_token_action', 'map_poi_action', 'map_object_layer_action', 'character_owner_change'];
+type BroadcastEvent = 'INSERT' | 'UPDATE' | 'DELETE' | 'session_change' | 'active_scene_change' | 'active_scene_map_patch' | 'members_change' | 'notes_change' | 'dice_roll' | 'chat_message' | 'chat_reaction' | 'chat_delete' | 'notification' | 'map_measurement' | 'map_token_action' | 'map_poi_action' | 'map_object_layer_action' | 'character_owner_change';
+const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = ['INSERT', 'UPDATE', 'DELETE', 'session_change', 'active_scene_change', 'active_scene_map_patch', 'members_change', 'notes_change', 'dice_roll', 'chat_message', 'chat_reaction', 'chat_delete', 'notification', 'map_measurement', 'map_token_action', 'map_poi_action', 'map_object_layer_action', 'character_owner_change'];
 
 type BroadcastHandler = (msg: any) => void;
 type PresenceHandler = (state: Record<string, any>) => void;
@@ -44,7 +44,6 @@ interface ChannelEntry {
 }
 
 const registry = new Map<string, ChannelEntry>();
-const MAX_RETRIES = 5;
 
 function setReady(entry: ChannelEntry, ready: boolean) {
   entry.isReady = ready;
@@ -146,11 +145,13 @@ function createEntry(topic: string): ChannelEntry {
             /* ignora */
           }
           if (!entry.isActive) return;
-          if (entry.retryCount >= MAX_RETRIES) return;
           entry.retryCount += 1;
+          const retryDelay = Math.min(30_000, 1000 * 2 ** Math.min(entry.retryCount - 1, 5)) + Math.round(Math.random() * 500);
           entry.retryTimeout = setTimeout(() => {
+            entry.retryTimeout = null;
+            entry.hasScheduledRetry = false;
             if (entry.isActive) subscribeChannel();
-          }, 1000);
+          }, retryDelay);
         })();
       }
     });

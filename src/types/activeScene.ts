@@ -29,6 +29,26 @@ export interface ActiveScenePublication {
   publishedAt: string;
 }
 
+export type ActiveSceneMapFields = Partial<Pick<ActiveScenePublication,
+  'mapPlacement' | 'gridSettings' | 'mapTokens' | 'mapDrawings' | 'mapPois' | 'mapFog' | 'mapObjectOrder'
+>>;
+
+export interface ActiveSceneCollectionDelta<T extends { id: string }> {
+  upsert: T[];
+  deleteIds: string[];
+  order?: string[];
+}
+
+export type ActiveSceneMapPatch = Pick<ActiveScenePublication, 'id' | 'campaignId' | 'sceneId' | 'chapterId' | 'publishedAt'>
+  & Partial<Pick<ActiveScenePublication, 'mapPlacement' | 'gridSettings' | 'mapObjectOrder'>>
+  & {
+    basePublishedAt?: string;
+    mapTokensDelta?: ActiveSceneCollectionDelta<SessionMapToken>;
+    mapDrawingsDelta?: ActiveSceneCollectionDelta<SessionMapDrawing>;
+    mapPoisDelta?: ActiveSceneCollectionDelta<SessionMapPoi>;
+    mapFogDelta?: ActiveSceneCollectionDelta<SessionMapFog>;
+  };
+
 export function isActiveScenePublication(value: unknown): value is ActiveScenePublication {
   if (!value || typeof value !== 'object') return false;
   const item = value as Record<string, unknown>;

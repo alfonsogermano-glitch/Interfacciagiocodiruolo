@@ -529,6 +529,17 @@ export function isLineOfSightBlocked(from: AnalysisPoint, to: AnalysisPoint, blo
   return blockers.some(blocker => segmentsIntersect(from, to, blocker.start, blocker.end));
 }
 
+export function filterSegmentsNearCircle(origin: AnalysisPoint, radius: number, blockers: Pick<AnalysisSegment, 'start' | 'end'>[]) {
+  if (!Number.isFinite(radius)) return blockers;
+  return blockers.filter(blocker => {
+    const minX = Math.min(blocker.start.x, blocker.end.x);
+    const maxX = Math.max(blocker.start.x, blocker.end.x);
+    const minY = Math.min(blocker.start.y, blocker.end.y);
+    const maxY = Math.max(blocker.start.y, blocker.end.y);
+    return maxX >= origin.x - radius && minX <= origin.x + radius && maxY >= origin.y - radius && minY <= origin.y + radius;
+  });
+}
+
 /** Cast deterministic rays toward blocker endpoints and return the nearest-hit visibility polygon. */
 export function computeVisibilityPolygon(origin: AnalysisPoint, blockers: Pick<AnalysisSegment, 'start' | 'end'>[], bounds: { width: number; height: number }, maxPoints = 512, maxDistance = Infinity, direction = 0, fieldOfView = Math.PI * 2): AnalysisPoint[] {
   const boundary = [
