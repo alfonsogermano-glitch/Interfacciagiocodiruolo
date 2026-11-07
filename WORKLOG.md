@@ -1809,7 +1809,8 @@ Aggiornamento punto 112 (2026-10-10): l'utente ha eseguito con successo la migra
 - `ActiveSceneMap.tsx`: `decoding="sync"` → `decoding="async"` sull'immagine mappa per non bloccare il main thread sul decode di immagini grandi. Nuova prop opzionale `isMoving`.
 - `theme.css`: regole `[data-map-is-moving='true'] img { image-rendering: pixelated }` (nearst-neighbor durante il movimento, niente interpolazione costosa) e `[data-map-is-moving='true'] [data-session-map-grid] { opacity: 0.55 }` (griglia meno visibile mentre si sposta).
 - `MapViewport.tsx`: `contain: paint` sui layer di drawings, pois e tokens per isolare i ridisegni; `CanvasGrid` avvolto in div con `will-change: transform` e `contain: paint`.
-- `npm run check` completo PASS (typecheck, tutte le verifiche, build). Commit e push in corso.
+- `npm run check` completo PASS (typecheck, tutte le verifiche, build).
+114b. `fix:` **Griglia mappa invisibile durante pan/zoom** (2026-10-11). La regola `[data-map-is-moving='true'] [data-session-map-grid] { opacity: 0.55 }` rendeva la griglia quasi invisibile su sfondo scuro. Rimossa: durante il movimento la griglia resta visibile al 100%, l'ottimizzazione di fluidità si affida solo a `image-rendering: pixelated` sulle immagini della mappa. `npm run check` completo PASS. Commit e push in corso.
 
 Verifica finale di chiusura sessione (2026-10-09): `npm run check` completo PASS dopo i punti 90-107 (typecheck, tutte le verifiche, build produzione). Descrizioni finali brevi senza troncamento: HSC ambientato in un liceo americano, custom "Un mondo di gioco con le tue regole". App.tsx ripristinato identico a HEAD dopo il ritorno alla schermata campagna condivisa: eliminate modifiche residue dei soli fine-riga.
 
