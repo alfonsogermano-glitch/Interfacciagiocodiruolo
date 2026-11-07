@@ -964,6 +964,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const pendingZoomRef = useRef<{ deltaY: number; pointerX: number; pointerY: number } | null>(null);
   const depthHoverFrameRef = useRef<number | null>(null);
   const pendingDepthHoverRef = useRef<{ clientX: number; clientY: number } | null>(null);
+  const isMoving = panning || zoomFrameRef.current !== null || panFrameRef.current !== null;
   const viewportRef = useRef<HTMLDivElement>(null);
   const tokenGestureRef = useRef<TokenGesture | null>(null);
   const tokenTransformGestureRef = useRef<TokenTransformGesture | null>(null);
@@ -3577,9 +3578,11 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     >
       <div
         data-map-transform
+        data-map-is-moving={isMoving ? 'true' : undefined}
         className="relative w-full origin-top-left select-none"
         style={{
-          transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
+          transform: `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.scale})`,
+          willChange: 'transform',
         }}
       >
         <div
@@ -3590,13 +3593,16 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
           style={{
             width: placement.width,
             height: placement.height,
-            transform: `translate(${placement.x}px, ${placement.y}px)`,
+            transform: `translate3d(${placement.x}px, ${placement.y}px, 0)`,
+            willChange: 'transform',
           }}
         >
           {children}
         </div>
-        <CanvasGrid settings={gridSettings} patternId={`canvas-grid-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}`} />
-        <div data-session-map-drawings className="pointer-events-none absolute inset-0">
+        <div style={{ willChange: 'transform', transform: 'translateZ(0)', contain: 'paint' }}>
+          <CanvasGrid settings={gridSettings} patternId={`canvas-grid-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}`} />
+        </div>
+        <div data-session-map-drawings className="pointer-events-none absolute inset-0" style={{ contain: 'paint' }}>
           {visibleDrawings.map((drawing) => {
             if (textDraft?.editingId === drawing.id) return null;
             const moveDraft = drawingMoveDrafts[drawing.id];
@@ -3859,7 +3865,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             })}
           </svg>
         )}
-        <div data-session-map-pois className="pointer-events-none absolute inset-0">
+        <div data-session-map-pois className="pointer-events-none absolute inset-0" style={{ contain: 'paint' }}>
           {visiblePois.map((poi) => {
             const position = poiDraftPositions[poi.id] ?? poi;
             const transform = poiDraftTransforms[poi.id];
@@ -3911,7 +3917,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             );
           })}
         </div>
-        <div data-session-map-tokens className="pointer-events-none absolute inset-0">
+        <div data-session-map-tokens className="pointer-events-none absolute inset-0" style={{ contain: 'paint' }}>
           {visibleTokens.map((token) => {
             const transform = tokenDraftTransforms[token.id];
             const position = transform ?? tokenDraftPositions[token.id] ?? token;
