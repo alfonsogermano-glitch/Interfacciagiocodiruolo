@@ -236,6 +236,8 @@ export function SessionWorkspace({
   const [chapterFog, setChapterFog] = useCampaignDocument<
     Record<string, SessionMapFog[]>
   >("session-map-fog", {});
+  const chapterFogRef = useRef(chapterFog);
+  useEffect(() => { chapterFogRef.current = chapterFog; }, [chapterFog]);
   const [chapterObjectOrders, setChapterObjectOrders] = useCampaignDocument<Record<string, MapObjectRef[]>>(
     "session-map-object-order",
     {},
@@ -802,6 +804,7 @@ export function SessionWorkspace({
   const updateMapFog = (fog: SessionMapFog[], recordHistory = true) => {
     if (!isOwner || !display) return;
     if (recordHistory) recordMapHistory();
+    chapterFogRef.current = { ...chapterFogRef.current, [display.chapterId]: fog };
     setChapterFog((current) => ({
       ...current,
       [display.chapterId]: fog,
@@ -818,13 +821,13 @@ export function SessionWorkspace({
 
   const addMapFog = (fog: SessionMapFog) => {
     if (!isOwner) return;
-    updateMapFog([...(display?.mapFog ?? []), fog]);
+    updateMapFog([...(display ? chapterFogRef.current[display.chapterId] ?? display.mapFog ?? [] : []), fog]);
   };
   const changeMapFog = (id: string, update: Partial<SessionMapFog>) => {
     if (!isOwner) return;
     const now = new Date().toISOString();
     updateMapFog(
-      (display?.mapFog ?? []).map((item) =>
+      (display ? chapterFogRef.current[display.chapterId] ?? display.mapFog ?? [] : []).map((item) =>
         item.id === id ? { ...item, ...update, updatedAt: now } : item,
       ),
     );
@@ -837,7 +840,7 @@ export function SessionWorkspace({
     const selected = new Set(ids);
     const now = new Date().toISOString();
     updateMapFog(
-      (display?.mapFog ?? []).map((item) =>
+      (display ? chapterFogRef.current[display.chapterId] ?? display.mapFog ?? [] : []).map((item) =>
         selected.has(item.id) ? { ...item, ...update, updatedAt: now } : item,
       ),
     );
@@ -848,22 +851,36 @@ export function SessionWorkspace({
     if (!isOwner) return;
     const now = new Date().toISOString();
     updateMapFog(
-      (display?.mapFog ?? []).map((item) =>
+      (display ? chapterFogRef.current[display.chapterId] ?? display.mapFog ?? [] : []).map((item) =>
         updates[item.id]
           ? { ...item, ...updates[item.id], updatedAt: now }
           : item,
       ),
     );
   };
+  const updateMapFogExploration = (
+    updates: Record<string, Partial<SessionMapFog>>,
+  ) => {
+    if (!isOwner) return;
+    const now = new Date().toISOString();
+    updateMapFog(
+      (display ? chapterFogRef.current[display.chapterId] ?? display.mapFog ?? [] : []).map((item) =>
+        updates[item.id]
+          ? { ...item, ...updates[item.id], updatedAt: now }
+          : item,
+      ),
+      false,
+    );
+  };
   const deleteMapFog = (id: string) => {
     if (!isOwner) return;
-    updateMapFog((display?.mapFog ?? []).filter((item) => item.id !== id));
+    updateMapFog((display ? chapterFogRef.current[display.chapterId] ?? display.mapFog ?? [] : []).filter((item) => item.id !== id));
   };
   const deleteMapFogBatch = (ids: string[]) => {
     if (!isOwner) return;
     const selected = new Set(ids);
     updateMapFog(
-      (display?.mapFog ?? []).filter((item) => !selected.has(item.id)),
+      (display ? chapterFogRef.current[display.chapterId] ?? display.mapFog ?? [] : []).filter((item) => !selected.has(item.id)),
     );
   };
 
@@ -2204,6 +2221,7 @@ export function SessionWorkspace({
               onFogsChange={changeMapFogBatch}
               onFogsMove={transformMapFog}
               onFogTransformsChange={transformMapFog}
+              onFogExplorationChange={updateMapFogExploration}
               onFogDelete={deleteMapFog}
               onFogsDelete={deleteMapFogBatch}
               onFogCoverFullMap={addMapFog}

@@ -7,6 +7,7 @@ export type SessionMapFogKind =
   | "hexagon";
 
 export type SessionMapFogOperation = "cover" | "reveal";
+export type SessionMapFogPersistence = "volatile" | "semi-persistent" | "permanent";
 
 export type SessionMapFogPoint = {
   x: number;
@@ -22,6 +23,12 @@ export interface SessionMapFog {
   id: string;
   kind: SessionMapFogKind;
   operation: SessionMapFogOperation;
+  /** Missing on legacy fog means permanent, preserving the original behavior. */
+  persistence?: SessionMapFogPersistence;
+  /** Previously observed world-space polygons, including optional holes. */
+  exploredAreas?: SessionMapFogPoint[][][];
+  /** Subset of exploredAreas erased specifically by illumination. */
+  lightExploredAreas?: SessionMapFogPoint[][][];
   x: number;
   y: number;
   width: number;

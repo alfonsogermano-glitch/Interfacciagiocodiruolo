@@ -460,19 +460,19 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closeMapToolPanels();
     };
-    const closeOnContextMenu = (event: MouseEvent) => {
-      const target = event.target;
-      if (target instanceof Element && target.closest('[data-map-interactive]')) return;
-      event.preventDefault();
-      closeMapToolPanels();
-    };
     document.addEventListener('keydown', closeOnEscape);
-    document.addEventListener('contextmenu', closeOnContextMenu);
     return () => {
       document.removeEventListener('keydown', closeOnEscape);
-      document.removeEventListener('contextmenu', closeOnContextMenu);
     };
   }, [activeMapTool, drawPanelOpen, fogPanelOpen, gridPanelOpen, measurePanelOpen, selectPanelOpen]);
+
+  useEffect(() => {
+    if (activeMapTool !== 'select') setSelectPanelOpen(false);
+    if (activeMapTool !== 'grid') setGridPanelOpen(false);
+    if (activeMapTool !== 'measure') setMeasurePanelOpen(false);
+    if (activeMapTool !== 'draw') setDrawPanelOpen(false);
+    if (activeMapTool !== 'fog') setFogPanelOpen(false);
+  }, [activeMapTool]);
 
   useEffect(() => {
     if (!drawPanelOpen) setDrawLineStyleOpen(false);

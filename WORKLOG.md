@@ -1,6 +1,6 @@
 # WORKLOG — Stato progetto & consigli di workflow
 
-Ultimo aggiornamento: 2026-10-11
+Ultimo aggiornamento: 2026-11-07
 
 ## Stato attuale (verde)
 
@@ -1810,7 +1810,11 @@ Aggiornamento punto 112 (2026-10-10): l'utente ha eseguito con successo la migra
 - `theme.css`: regole `[data-map-is-moving='true'] img { image-rendering: pixelated }` (nearst-neighbor durante il movimento, niente interpolazione costosa) e `[data-map-is-moving='true'] [data-session-map-grid] { opacity: 0.55 }` (griglia meno visibile mentre si sposta).
 - `MapViewport.tsx`: `contain: paint` sui layer di drawings, pois e tokens per isolare i ridisegni; `CanvasGrid` avvolto in div con `will-change: transform` e `contain: paint`.
 - `npm run check` completo PASS (typecheck, tutte le verifiche, build).
-114b. `fix:` **Griglia mappa invisibile durante pan/zoom** (2026-10-11). La regola `[data-map-is-moving='true'] [data-session-map-grid] { opacity: 0.55 }` rendeva la griglia quasi invisibile su sfondo scuro. Rimossa: durante il movimento la griglia resta visibile al 100%, l'ottimizzazione di fluidità si affida solo a `image-rendering: pixelated` sulle immagini della mappa. `npm run check` completo PASS. Commit e push in corso.
+114b. `fix:` **Griglia mappa invisibile durante pan/zoom** (2026-10-11). La regola `[data-map-is-moving='true'] [data-session-map-grid] { opacity: 0.55 }` rendeva la griglia quasi invisibile su sfondo scuro. Rimossa: durante il movimento la griglia resta visibile al 100%, l'ottimizzazione di fluidità si affida solo a `image-rendering: pixelated` sulle immagini della mappa. `npm run check` completo PASS.
+
+115. `perf:` **Mappa sessione: tentata ottimizzazione pan/zoom diretto al DOM — RITIRATA** (2026-10-11). Si era provato a scrivere `translate3d` direttamente al DOM durante pan/zoom per evitare re-render React a 60fps, ma ha rotto la griglia SVG (pattern spezzati, posizionamento inconsistente tra DOM diretto e stato React). Ritirato completamente: tornato al commit `5dc0ceb` stabile, che usa `will-change: transform` + `translate3d` tramite React state, `decoding="async"` sull'immagine, `image-rendering: pixelated` solo durante il movimento e griglia sempre visibile al 100%. `npm run check` completo PASS. Nessun commit, nessuna modifica persistente da questo tentativo.
+
+116. `feat/perf:` **Mappa VTT stabile e nebbia individuale Persistente, Semi-persistente e Volatile** (2026-11-08). Rimossi il canvas SVG fisso 40.000×40.000, le promozioni GPU permanenti e il cambio dinamico a `pixelated`; griglia limitata alla vista e area globale 10.000×7.000 centrata/vincolata. Clipboard unificata e persistente per disegni, PDI e nebbia; clic centrale dedicato a Muovi/pan. Ogni figura nebbia salva modalità e geometrie esplorate: la vista schiarisce al 50% e la luce al 100%; Persistente non si cancella, Semi-persistente conserva al 50% le zone esplorate, Volatile viene cancellata progressivamente con fronte di vista a effetto “meteora” e viene eliminata quando non resta superficie. Le cancellazioni da luce sono tracciate separatamente, nascondono i token non controllati dove previsto e sono visibili anche al GM sulla nebbia semitrasparente. Dati legacy senza modalità = Persistente. Tooltip GM solo `Persistente`/`Semi-persistente`; icona composita CloudFog+Cog; menu vincolato al viewport. Spostamento nebbia robusto con pointer capture globale, cursore a pugno e traslazione solidale delle aree cancellate; contorni edit nascosti nelle porzioni eliminate. Rendering locale immediato, pubblicazione raggruppata ogni 50 ms senza conflitti con Sposta/Elimina. `npm run typecheck` e `npm run check` completi PASS; collaudo manuale GM completato. Unico commit/push di chiusura da eseguire.
 
 Verifica finale di chiusura sessione (2026-10-09): `npm run check` completo PASS dopo i punti 90-107 (typecheck, tutte le verifiche, build produzione). Descrizioni finali brevi senza troncamento: HSC ambientato in un liceo americano, custom "Un mondo di gioco con le tue regole". App.tsx ripristinato identico a HEAD dopo il ritorno alla schermata campagna condivisa: eliminate modifiche residue dei soli fine-riga.
 

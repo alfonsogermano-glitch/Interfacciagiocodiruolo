@@ -1122,8 +1122,3 @@ textarea:disabled,
   background: transparent;
   box-shadow: none;
 }
-
-/* Ottimizzazione movimento mappa: qualità ridotta durante pan/zoom veloce */
-[data-map-is-moving='true'] img {
-  image-rendering: pixelated;
-}

@@ -1,6 +1,6 @@
 import type { ActiveScenePublication } from '../../../types/activeScene';
 
-export function ActiveSceneMap({ scene, imageUrl, onReady, unframed = false, fill = false, isMoving = false }: { scene: ActiveScenePublication; imageUrl?: string | null; onReady?: (url: string) => void; unframed?: boolean; fill?: boolean; isMoving?: boolean }) {
+export function ActiveSceneMap({ scene, imageUrl, onReady, unframed = false, fill = false }: { scene: ActiveScenePublication; imageUrl?: string | null; onReady?: (url: string) => void; unframed?: boolean; fill?: boolean }) {
   const resolvedImageUrl = imageUrl === undefined ? scene.mapMetadata.displayUrl ?? scene.mapUrl ?? scene.sceneImageUrl : imageUrl;
   if (!resolvedImageUrl) return null;
 
@@ -8,7 +8,7 @@ export function ActiveSceneMap({ scene, imageUrl, onReady, unframed = false, fil
     <div
       className={`relative overflow-hidden bg-[var(--dash-input)] ${fill ? 'h-full w-full' : ''} ${unframed ? '' : 'rounded-xl border border-[var(--dash-border-soft)]'}`}
     >
-      <img key={resolvedImageUrl} src={resolvedImageUrl} alt={`Mappa di ${scene.chapterTitle}`} draggable={false} decoding="async" onLoad={() => requestAnimationFrame(() => requestAnimationFrame(() => onReady?.(resolvedImageUrl)))} className={`block w-full ${fill ? 'h-full object-fill' : 'h-auto'}`} style={isMoving ? { imageRendering: 'pixelated' } : undefined} />
+      <img key={resolvedImageUrl} src={resolvedImageUrl} alt={`Mappa di ${scene.chapterTitle}`} draggable={false} decoding="async" onLoad={() => requestAnimationFrame(() => requestAnimationFrame(() => onReady?.(resolvedImageUrl)))} className={`block w-full ${fill ? 'h-full object-fill' : 'h-auto'}`} />
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-label={`Aree di ${scene.title}`}>
         {scene.mapRegions.map(region => region.geometry.kind === 'rect' ? (
           <rect
