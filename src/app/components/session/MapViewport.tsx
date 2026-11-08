@@ -3826,7 +3826,12 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         fullyCovered = false;
         return;
       }
-      fullyCovered = (fog.opacity ?? 1) > 0;
+      const opacity = Math.max(0, Math.min(1, fog.opacity ?? 1));
+      const explored = fog.persistence !== 'permanent'
+        && exploredAreasContainPoint(fogExplorationCacheRef.current[fog.id] ?? fog.exploredAreas, point);
+      // Solo nebbia completamente opaca (opacità 1.0) e non esplorata blocca le interazioni.
+      // La nebbia semitrasparente (opacità < 1.0) non impedisce selezione né trascinamento.
+      fullyCovered = fullyCovered || (opacity >= 1.0 && !explored);
     });
     return fullyCovered;
   };
@@ -3844,7 +3849,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     if (!isOwner) {
       const center = { x: token.x + size / 2, y: token.y + size / 2 };
       const currentlyVisible = currentVisibilityPolygons.some(points => points.length >= 3 && pointInPolygon(center, points));
-      if (!currentlyVisible && !canControlToken(token) && mapFog.some(fog => fog.operation === 'cover' && fog.enabled !== false && fog.persistence === 'semi-persistent' && exploredAreasContainPoint(fog.exploredAreas, center) && fogContainsPoint(fog, center))) return false;
+      if (!currentlyVisible && !canControlToken(token) && mapFog.some(fog => fog.operation === 'cover' && fog.enabled !== false && fog.persistence === 'semi-persistent' && Math.max(0, Math.min(1, fog.opacity ?? 1)) >= 1.0 && exploredAreasContainPoint(fog.exploredAreas, center) && fogContainsPoint(fog, center))) return false;
     }
     return intersectsViewport({ x: token.x, y: token.y, width: size, height: size });
   });
