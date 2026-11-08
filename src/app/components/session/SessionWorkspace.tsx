@@ -230,6 +230,11 @@ export function SessionWorkspace({
         });
         if (payload.family === 'poi') setRemotePoiPositions((current) => ({ ...current, ...positions }));
         else setRemoteDrawingPositions((current) => ({ ...current, ...positions }));
+        if (isOwner && payload.finished === true && payload.family === 'drawing') {
+          const movableIds = new Set((display?.mapDrawings ?? []).filter((drawing) => !drawing.locked && !drawing.pinned).map((drawing) => drawing.id));
+          const allowed = Object.fromEntries(Object.entries(positions).filter(([id]) => movableIds.has(id)));
+          if (Object.keys(allowed).length > 0) moveMapDrawings(allowed);
+        }
       },
     },
   });
@@ -742,13 +747,14 @@ export function SessionWorkspace({
       ...(finished ? { tokenIds: Object.keys(positions) } : { positions }),
     });
   };
-  const previewMapObjectMove = (family: 'poi' | 'drawing', positions: Record<string, TokenPosition>) => {
+  const previewMapObjectMove = (family: 'poi' | 'drawing', positions: Record<string, TokenPosition>, finished = false) => {
     if (!display) return;
     void sendCampaignEvent('map_object_drag_preview', {
       family,
       positions,
       chapterId: display.chapterId,
       actorProfileId: currentUserId,
+      finished,
     });
   };
   const requestMapPoiAction = (
@@ -1793,6 +1799,9 @@ export function SessionWorkspace({
     )
       return;
     const pois = display.mapPois ?? [];
+    const movable = (id: unknown) =>
+      typeof id === "string" &&
+      pois.some((poi) => poi.id === id && !poi.locked && !poi.pinned);
     const controlled = (id: unknown) =>
       typeof id === "string" &&
       pois.some(
@@ -1810,7 +1819,7 @@ export function SessionWorkspace({
       addMapPoi(payload.position, payload.actorProfileId);
     else if (
       payload.action === "move" &&
-      controlled(payload.poiId) &&
+      movable(payload.poiId) &&
       Number.isFinite(payload.position?.x) &&
       Number.isFinite(payload.position?.y)
     )
@@ -2298,9 +2307,9 @@ export function SessionWorkspace({
               remoteTokenPositions={remoteTokenPositions}
               onTokenMovePreview={previewMapTokenMove}
               remotePoiPositions={remotePoiPositions}
-              onPoiMovePreview={(positions) => previewMapObjectMove('poi', positions)}
+              onPoiMovePreview={(positions, finished) => previewMapObjectMove('poi', positions, finished)}
               remoteDrawingPositions={remoteDrawingPositions}
-              onDrawingMovePreview={(positions) => previewMapObjectMove('drawing', positions)}
+              onDrawingMovePreview={(positions, finished) => previewMapObjectMove('drawing', positions, finished)}
               mapDrawings={display.mapDrawings ?? []}
               mapFog={display.mapFog ?? []}
                mapPois={(display.mapPois ?? []).filter(

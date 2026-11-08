@@ -991,6 +991,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const mapUserId = currentUserId ?? getSessionMapCurrentUserId();
   const canMoveToken = (token: SessionMapToken) => token.pinned !== true && (isOwner || token.locked !== true);
   const canControlToken = (token: SessionMapToken) => token.pinned !== true && (isOwner || (token.locked !== true && !!mapUserId && token.createdByProfileId === mapUserId));
+  const canMoveDrawing = (drawing: SessionMapDrawing) => drawing.pinned !== true && drawing.locked !== true;
+  const canEditDrawing = (drawing: SessionMapDrawing) => isOwner || (!!mapUserId && drawing.createdByProfileId === mapUserId);
   const measurementClientIdRef = useRef(crypto.randomUUID());
   const activeTool = useActiveSessionMapTool();
   const selectionMode = useSessionMapSelectionMode();
@@ -2059,7 +2061,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   }, [activeTool, drawSettings.mode, mapId, textDraft?.editingId]);
 
   const beginDrawingMove = (event: ReactPointerEvent<SVGElement>, drawing: SessionMapDrawing) => {
-    if (!isOwner || drawing.pinned || calibrationActive || activeTool === 'measure' || event.button !== 0) return;
+    if (!canMoveDrawing(drawing) || calibrationActive || activeTool === 'measure' || event.button !== 0) return;
     if (selectionArmed && !selectedDrawingIds.has(drawing.id)) {
       setSelectedTokenIds(new Set());
       setSelectedDrawingIds(new Set());
@@ -2072,9 +2074,9 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     textCurveRef.current = null;
     setDrawingDraft(null);
     setSelectedDrawingId(null);
-    const selectionMembers = selectedDrawingIds.has(drawing.id) ? mapDrawings.filter((item) => selectedDrawingIds.has(item.id) && (isOwner || !item.locked)) : [];
+    const selectionMembers = selectedDrawingIds.has(drawing.id) ? mapDrawings.filter((item) => selectedDrawingIds.has(item.id) && canMoveDrawing(item)) : [];
     if (selectionMembers.length === 0) setSelectedDrawingIds(new Set());
-    const members = selectionMembers.length > 0 ? selectionMembers : drawing.magnetGroupId ? mapDrawings.filter((item) => item.magnetGroupId === drawing.magnetGroupId && (isOwner || !item.locked)) : [drawing];
+    const members = selectionMembers.length > 0 ? selectionMembers : drawing.magnetGroupId ? mapDrawings.filter((item) => item.magnetGroupId === drawing.magnetGroupId && canMoveDrawing(item)) : [drawing];
     const origins = Object.fromEntries(members.map((item) => [item.id, remoteDrawingPositions[item.id] ?? { x: item.x, y: item.y }]));
     const selectedTokens = selectionMembers.length > 0 ? mapTokens.filter((item) => selectedTokenIds.has(item.id) && canMoveToken(item)) : [];
     const tokenOrigins = Object.fromEntries(
@@ -2473,7 +2475,9 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     setPanning(false);
   };
 
+  const canMovePoi = (poi: SessionMapPoi) => !poi.pinned && !poi.locked;
   const canControlPoi = (poi: SessionMapPoi) => !poi.pinned && (isOwner || (!poi.locked && !!mapUserId && poi.createdByProfileId === mapUserId));
+  const canOpenPoiMenu = (poi: SessionMapPoi) => isOwner || (!!mapUserId && poi.createdByProfileId === mapUserId);
   const menuPositionFromBounds = (bounds: { left: number; right: number; top: number; bottom: number }, menuWidth = 390, menuHeight = 420) => {
     const viewportRect = viewportRef.current?.getBoundingClientRect();
     if (!viewportRect) return null;
@@ -2500,7 +2504,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     bottom: view.y + (bounds.y + bounds.height) * view.scale,
   });
   const beginPoiMove = (event: ReactPointerEvent<HTMLButtonElement>, poi: SessionMapPoi) => {
-    if (event.button !== 0 || !canControlPoi(poi)) return;
+    if (event.button !== 0 || !canMovePoi(poi)) return;
     event.preventDefault();
     event.stopPropagation();
     setPoiMenu(null);
@@ -2580,7 +2584,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     event.preventDefault();
     event.stopPropagation();
     if (openUnderlyingMapObjectMenu(event.clientX, event.clientY, { family: 'poi', id: poi.id })) return;
-    if (!isOwner && !canControlPoi(poi)) return;
+    if (!canOpenPoiMenu(poi)) return;
     const position = menuPositionBeside(event.currentTarget);
     if (!position) return;
     setTokenMenu(null);
@@ -2597,7 +2601,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         const drawing = drawingById.get(ref.id);
         const moveDraft = drawing ? drawingMoveDrafts[drawing.id] ?? remoteDrawingPositions[drawing.id] : null;
         const rendered = drawing ? drawingTransformDrafts[drawing.id] ?? (moveDraft ? { ...drawing, ...moveDraft } : drawing) : null;
-        return !!rendered && isOwner && drawingContainsPoint(rendered, point, view.scale);
+        return !!rendered && canEditDrawing(drawing!) && drawingContainsPoint(rendered, point, view.scale);
       }
       if (ref.family === 'token') {
         const token = mapTokens.find(item => item.id === ref.id);
@@ -3903,7 +3907,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             const renderedBase = drawingTransformDrafts[drawing.id] ?? (drawingDraft?.id === drawing.id ? drawingDraft : moveDraft ? { ...drawing, ...moveDraft } : drawing);
             const rendered = withMeasuredTextBounds(renderedBase);
             if (drawing.visible === false && !isOwner) return null;
-            const interactive = isOwner && activeTool !== 'fog';
+            const interactive = (canMoveDrawing(drawing) || canEditDrawing(drawing)) && activeTool !== 'fog';
             return (
               <svg key={drawing.id} className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" style={{ zIndex: objectZIndex.get(`drawing\u0000${drawing.id}`) }}>
               <g
@@ -3946,7 +3950,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                 onPointerUp={finishSelectedDrawing}
                 onPointerCancel={finishSelectedDrawing}
                 onContextMenu={(event) => {
-                  if (!isOwner) return;
+                  if (!canEditDrawing(drawing)) return;
                   event.preventDefault();
                   event.stopPropagation();
                   if (openUnderlyingMapObjectMenu(event.clientX, event.clientY, { family: 'drawing', id: drawing.id })) return;
@@ -4176,7 +4180,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                     data-map-interactive
                     data-map-poi-id={poi.id}
                     aria-label={poi.label || 'Punto di interesse'}
-                    className={`${activeTool === 'fog' ? 'pointer-events-none' : 'pointer-events-auto'} absolute touch-none border-0 bg-transparent p-0 ${depthHoveredKeys.has(`poi\u0000${poi.id}`) ? 'drop-shadow-[0_0_7px_rgba(34,211,238,0.95)]' : ''} ${canControlPoi(poi) ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
+                    className={`${activeTool === 'fog' ? 'pointer-events-none' : 'pointer-events-auto'} absolute touch-none border-0 bg-transparent p-0 ${depthHoveredKeys.has(`poi\u0000${poi.id}`) ? 'drop-shadow-[0_0_7px_rgba(34,211,238,0.95)]' : ''} ${canMovePoi(poi) ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
                     style={{ transform: `translate3d(${position.x - size / 2}px, ${position.y - size / 2}px, 0)`, width: size, height: size, opacity: isOwner && !poi.visibleToPlayers ? 0.45 : 1, color: poi.color, zIndex: objectZIndex.get(`poi\u0000${poi.id}`) }}
                     onPointerDown={(event) => beginPoiMove(event, poi)}
                     onPointerMove={movePoi}
