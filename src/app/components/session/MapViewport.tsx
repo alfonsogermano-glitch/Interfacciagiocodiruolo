@@ -2556,7 +2556,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const beginPoiMove = (event: ReactPointerEvent<HTMLButtonElement>, poi: SessionMapPoi) => {
     const size = poiDraftTransforms[poi.id]?.size ?? poi.size;
     const position = poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi;
-    if (event.button !== 0 || !canMovePoi(poi) || isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size })) return;
+    if (event.button !== 0 || !canMovePoi(poi) || (!poiVisibilitySourceActive(poi) && isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size }))) return;
     event.preventDefault();
     event.stopPropagation();
     setPoiMenu(null);
@@ -2664,7 +2664,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       const poi = mapPois.find(item => item.id === ref.id);
       const position = poi ? poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi : null;
       const size = poi ? poiDraftTransforms[poi.id]?.size ?? poi.size : 0;
-      return !!poi && !!position && (isOwner || canControlPoi(poi)) && !isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size }) && contains({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size });
+      return !!poi && !!position && (isOwner || canControlPoi(poi)) && (!poiVisibilitySourceActive(poi) || !isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size })) && contains({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size });
     });
     if (candidates.length === 0) return false;
     const previous = depthSelectionRef.current;
@@ -2736,7 +2736,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         const poi = poiById.get(ref.id);
         const position = poi ? poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi : null;
         const size = poi ? poiDraftTransforms[poi.id]?.size ?? poi.size : 0;
-        if (poi && position && !isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size }) && contains({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size })) keys.add(`poi\u0000${poi.id}`);
+        if (poi && position && (!poiVisibilitySourceActive(poi) || !isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size })) && contains({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size })) keys.add(`poi\u0000${poi.id}`);
       }
     });
     if (hoveredDrawingCandidate) hoveredMapElementRef.current = { type: 'drawing', id: hoveredDrawingCandidate };
@@ -3587,11 +3587,11 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const flashlightBeamPoints = (source: { origin: SessionMapPoint; radius: number; coneAngle?: number; direction: number; sourceSize: number }) => {
     const radius = distanceToWorld(source.radius);
     const halfAngle = Math.min(180, Math.max(5, source.coneAngle ?? 60)) * Math.PI / 360;
-    // Il cono deve partire esattamente dal bordo della sorgente (token o PDI)
-    // con larghezza pari al diametro della sorgente, affinché non ci siano spazi
-    // né sovrapposizioni tra il simbolo della sorgente e l'inizio del fascio.
-    const neckDistance = source.sourceSize * 0.5;
-    const neckHalfWidth = source.sourceSize * 0.5;
+    // La punta del cono parte dal centro della sorgente (token o PDI) con un
+    // collo molto stretto, affinché il fascio sia lungo e sottile e si allarghi
+    // soltanto verso il raggio massimo, senza lasciare spazi attorno al simbolo.
+    const neckDistance = 0;
+    const neckHalfWidth = Math.max(1, source.sourceSize * 0.1);
     const capDepth = Math.min(radius * 0.16, Math.max(radius * 0.04, Math.tan(halfAngle) * radius * 0.22));
     const capCenterDistance = Math.max(neckDistance, radius - capDepth);
     const farHalfWidth = Math.min(radius * 1.5, Math.max(neckHalfWidth, Math.tan(halfAngle) * capCenterDistance));
@@ -3815,6 +3815,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const currentVisibilityPolygons = [...publicLightPolygons, ...privateVisionPolygons];
   const tokenVisibilitySourceActive = (token: SessionMapToken) =>
     token.visible !== false && ((token.light?.enabled && token.light.radius > 0) || (token.vision?.enabled && token.vision.radius > 0));
+  const poiVisibilitySourceActive = (poi: SessionMapPoi) =>
+    poi.visibleToPlayers !== false && ((poi.light?.enabled && poi.light.radius > 0) || (poi.vision?.enabled && poi.vision.radius > 0));
   const isPointFullyFogCovered = (point: SessionMapPoint) => {
     if (isOwner || currentVisibilityPolygons.some(points => points.length >= 3 && pointInPolygon(point, points))) return false;
     let fullyCovered = false;
@@ -4270,7 +4272,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             const handleSize = Math.min(16, Math.max(12, size * view.scale * 0.14)) / view.scale;
             const rotationHandleSize = Math.min(18, Math.max(14, size * view.scale * 0.18)) / view.scale;
             const rotationLineLength = Math.min(32, Math.max(18, size * view.scale * 0.35)) / view.scale;
-            const fullyFogCovered = isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size });
+            const fullyFogCovered = !poiVisibilitySourceActive(poi) && isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size });
             return (
               <Tooltip key={poi.id} open={openPoiTooltipId === poi.id} onOpenChange={(open) => setPoiTooltipOpen(poi.id, open)}>
                 <TooltipTrigger asChild>
