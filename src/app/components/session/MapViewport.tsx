@@ -3604,13 +3604,13 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     }),
   ], [coneDirectionDrafts, gridSettings.cellSize, isOwner, mapPois, mapTokens, mapUserId, poiDraftPositions, poiDraftTransforms, remotePoiPositions, remoteTokenPositions, tokenDraftPositions, tokenDraftTransforms]);
   const privateVisionSources = useMemo(() => [
-    ...mapTokens.filter(token => (isOwner || token.visible !== false) && token.vision?.enabled && token.vision.radius > 0 && (isOwner || token.ownerProfileId === mapUserId || token.createdByProfileId === mapUserId)).map(token => {
+    ...mapTokens.filter(token => (isOwner || token.visible !== false) && token.vision?.enabled && token.vision.radius > 0).map(token => {
       const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? remoteTokenPositions[token.id] ?? token;
       const size = tokenDraftTransforms[token.id]?.size ?? getTokenSize(token, gridSettings.cellSize);
       const key = `token:${token.id}:vision`;
       return { id: `token-${token.id}`, key, family: 'token' as const, entityId: token.id, sourceType: 'vision' as const, interactive: canControlToken(token), origin: { x: position.x + size / 2, y: position.y + size / 2 }, radius: token.vision!.radius, shape: token.vision!.shape, coneAngle: token.vision!.coneAngle, direction: coneDirection(key, token.vision!.coneDirection, tokenDraftTransforms[token.id]?.rotation ?? token.rotation ?? 0), sourceSize: size, outlineVisible: token.vision!.outlineVisible !== false };
     }),
-    ...mapPois.filter(poi => (isOwner || poi.visibleToPlayers) && poi.vision?.enabled && poi.vision.radius > 0 && (isOwner || poi.createdByProfileId === mapUserId)).map(poi => {
+    ...mapPois.filter(poi => (isOwner || poi.visibleToPlayers) && poi.vision?.enabled && poi.vision.radius > 0).map(poi => {
       const position = poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi;
       const key = `poi:${poi.id}:vision`;
       return { id: `poi-${poi.id}`, key, family: 'poi' as const, entityId: poi.id, sourceType: 'vision' as const, interactive: canControlPoi(poi), origin: position, radius: poi.vision!.radius, shape: poi.vision!.shape, coneAngle: poi.vision!.coneAngle, direction: coneDirection(key, poi.vision!.coneDirection, poiDraftTransforms[poi.id]?.rotation ?? poi.rotation ?? 0), sourceSize: poiDraftTransforms[poi.id]?.size ?? poi.size, outlineVisible: poi.vision!.outlineVisible !== false };
@@ -4714,7 +4714,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
               {poi.noteId && <button type="button" onClick={() => { setPoiMenu((current) => (current ? { ...current, panel: null } : null)); onPoiChange?.(poi.id, { noteId: null, noteVisibleToPlayers: false }); }} className="mt-2 text-[11px] text-[var(--dash-muted)] hover:text-[var(--dash-danger-text)]">Rimuovi collegamento alla nota</button>}
               {poiMenu.panel === 'lighting' && (
                 <div className="mt-3 space-y-3 border-t border-[var(--dash-border)] pt-3">
-                  {([['Illuminazione', 'Visibile a tutti e rimuove completamente la Nebbia', 'light'], ['Vista', 'Privata al proprietario e schiarisce la Nebbia', 'vision']] as const).map(([label, description, key]) => {
+                  {([['Illuminazione', 'Visibile a tutti e rimuove completamente la Nebbia', 'light'], ['Vista', 'Visibile ai giocatori e schiarisce la Nebbia', 'vision']] as const).map(([label, description, key]) => {
                     const source = poi[key] ?? { enabled: false, radius: 0 };
                     const lightEffect = key === 'light' ? poi.light?.effect : undefined;
                     return <div key={key} className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-3">
@@ -5478,7 +5478,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
               </div>
               {!batch && tokenMenu.panel === 'lighting' && (
                 <div className="mt-3 space-y-3 border-t border-[var(--dash-border-soft)] pt-3">
-                  {([['Illuminazione', 'Visibile a tutti e rimuove completamente la Nebbia', 'light'], ['Vista', 'Privata al proprietario e schiarisce la Nebbia', 'vision']] as const).map(([label, description, key]) => {
+                  {([['Illuminazione', 'Visibile a tutti e rimuove completamente la Nebbia', 'light'], ['Vista', 'Visibile ai giocatori e schiarisce la Nebbia', 'vision']] as const).map(([label, description, key]) => {
                     const source = token[key] ?? { enabled: false, radius: 0 };
                     const lightEffect = key === 'light' ? token.light?.effect : undefined;
                     return <div key={key} className="rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-surface)] p-3">
