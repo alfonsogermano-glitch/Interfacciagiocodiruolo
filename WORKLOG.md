@@ -1838,6 +1838,8 @@ Aggiornamento punto 112 (2026-10-10): l'utente ha eseguito con successo la migra
 
 127. `fix/lighting/realtime:` **Rotazione realtime delle sorgenti a cono** (2026-11-08). La direzione delle sorgenti Illuminazione e Vista a cono viene ora trasmessa durante il trascinamento della maniglia e riprodotta in tempo reale sugli schermi GM e giocatore, per token e PDI. L'anteprima usa un evento broadcast dedicato, mentre persistenza e cronologia restano limitate al rilascio; il valore remoto viene eliminato quando lo snapshot definitivo conferma la direzione salvata, evitando scatti di ritorno. `npm run typecheck`, `npm run check`, build produzione e `git diff --check` PASS.
 
+128. `fix/ui:` **Tooltip temporanei per i Punti di Interesse** (2026-11-08). I tooltip dei PDI non restano più persistenti durante il passaggio del mouse: si chiudono automaticamente dopo due secondi anche se il puntatore rimane fermo e possono riapparire soltanto dopo una nuova entrata sull'elemento. Il timer viene annullato alla chiusura o allo smontaggio del viewport per evitare aggiornamenti tardivi. `npm run typecheck`, `npm run check`, build produzione e `git diff --check` PASS.
+
 Verifica finale di chiusura sessione (2026-10-09): `npm run check` completo PASS dopo i punti 90-107 (typecheck, tutte le verifiche, build produzione). Descrizioni finali brevi senza troncamento: HSC ambientato in un liceo americano, custom "Un mondo di gioco con le tue regole". App.tsx ripristinato identico a HEAD dopo il ritorno alla schermata campagna condivisa: eliminate modifiche residue dei soli fine-riga.
 
 Verifica finale di chiusura sessione (2026-10-08): `npm run check` completo PASS dopo i punti 87-89 (typecheck, tutte le verifiche, build produzione).

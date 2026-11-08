@@ -1049,6 +1049,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const [transformTokenId, setTransformTokenId] = useState<string | null>(null);
   const [tokenMenu, setTokenMenu] = useState<TokenMenu | null>(null);
   const [poiMenu, setPoiMenu] = useState<{ poiId: string; x: number; y: number; panel: 'icons' | 'notes' | 'layers' | 'lighting' | null } | null>(null);
+  const [openPoiTooltipId, setOpenPoiTooltipId] = useState<string | null>(null);
+  const poiTooltipTimerRef = useRef<number | null>(null);
   const [poiNoteOptions, setPoiNoteOptions] = useState<Array<{ id: string; label: string; visibleToPlayers: boolean }>>([]);
   const [poiNotesLoading, setPoiNotesLoading] = useState(false);
   const [poiClipboard, setPoiClipboard] = useState<SessionMapPoi | null>(null);
@@ -1064,6 +1066,24 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const depthSelectionRef = useRef<{ x: number; y: number; key: string } | null>(null);
   const [depthHoveredKeys, setDepthHoveredKeys] = useState<Set<string>>(() => new Set());
   const [depthSelectedKey, setDepthSelectedKey] = useState<string | null>(null);
+  useEffect(() => () => {
+    if (poiTooltipTimerRef.current !== null) window.clearTimeout(poiTooltipTimerRef.current);
+  }, []);
+  const setPoiTooltipOpen = (poiId: string, open: boolean) => {
+    if (poiTooltipTimerRef.current !== null) {
+      window.clearTimeout(poiTooltipTimerRef.current);
+      poiTooltipTimerRef.current = null;
+    }
+    if (!open) {
+      setOpenPoiTooltipId(current => current === poiId ? null : current);
+      return;
+    }
+    setOpenPoiTooltipId(poiId);
+    poiTooltipTimerRef.current = window.setTimeout(() => {
+      poiTooltipTimerRef.current = null;
+      setOpenPoiTooltipId(current => current === poiId ? null : current);
+    }, 2000);
+  };
   useEffect(() => {
     if (!transformPoiId) return;
     const closePoiTransform = (event: PointerEvent) => {
@@ -4222,7 +4242,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             const rotationLineLength = Math.min(32, Math.max(18, size * view.scale * 0.35)) / view.scale;
             const fullyFogCovered = isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size });
             return (
-              <Tooltip key={poi.id}>
+              <Tooltip key={poi.id} open={openPoiTooltipId === poi.id} onOpenChange={(open) => setPoiTooltipOpen(poi.id, open)}>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
