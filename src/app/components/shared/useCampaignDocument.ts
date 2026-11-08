@@ -30,7 +30,7 @@ function readLegacyDocument<T>(key: string): T | null {
   }
 }
 
-export function useCampaignDocument<T>(key: string, fallback: T, options?: { enabled?: boolean; deleteWhenNull?: boolean }): [T, Dispatch<SetStateAction<T>>] {
+export function useCampaignDocument<T>(key: string, fallback: T, options?: { enabled?: boolean; deleteWhenNull?: boolean }): [T, Dispatch<SetStateAction<T>>, boolean] {
   const { activeCampaignId } = useCampaign();
   const enabled = options?.enabled ?? true;
   const deleteWhenNull = options?.deleteWhenNull ?? false;
@@ -112,5 +112,5 @@ export function useCampaignDocument<T>(key: string, fallback: T, options?: { ena
     value: typeof update === 'function' ? (update as (value: T) => T)(current.value) : update,
   }));
 
-  return [record.scope === scope ? record.value : fallback, setValue];
+  return [record.scope === scope ? record.value : fallback, setValue, record.scope === scope && record.ready];
 }

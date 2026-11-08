@@ -64,6 +64,8 @@ import {
 } from "./mapObjectLayers";
 import { useCampaignChannel } from "../../../services/realtime/campaignChannel";
 
+type TokenPosition = { x: number; y: number };
+
 const TREE_WIDTH_STORAGE_KEY = "hollowgate.session.tree-width";
 const TREE_DEFAULT_WIDTH = 280;
 const TREE_MIN_WIDTH = 220;
@@ -186,13 +188,28 @@ export function SessionWorkspace({
 }) {
   setSessionMapCurrentUserId(currentUserId);
   const { activeScene, channelReady, publish, publishMapPatch } = useActiveScene(campaignId);
+  const [remoteTokenPositions, setRemoteTokenPositions] = useState<Record<string, TokenPosition>>({});
   const playerMapActionHandlerRef = useRef<(payload: any) => void>(() => {});
   const playerMapPoiActionHandlerRef = useRef<(payload: any) => void>(() => {});
   const playerMapLayerActionHandlerRef = useRef<(payload: any) => void>(() => {});
   const { send: sendCampaignEvent } = useCampaignChannel(campaignId, {
     onBroadcast: {
       map_token_action: (message) => {
-        if (isOwner) playerMapActionHandlerRef.current(message?.payload);
+        const payload = message?.payload;
+        if (payload?.actorProfileId === currentUserId) return;
+        if (payload?.action === 'move-preview' && payload.positions && typeof payload.positions === 'object') {
+          const positions: Record<string, TokenPosition> = {};
+          Object.entries(payload.positions as Record<string, unknown>).forEach(([id, position]) => {
+            const candidate = position as Partial<TokenPosition> | null;
+            if (Number.isFinite(candidate?.x) && Number.isFinite(candidate?.y)) positions[id] = { x: candidate!.x!, y: candidate!.y! };
+          });
+          setRemoteTokenPositions((current) => ({ ...current, ...positions }));
+          return;
+        }
+        if (payload?.action === 'move-preview-end') {
+          return;
+        }
+        if (isOwner) playerMapActionHandlerRef.current(payload);
       },
       map_poi_action: (message) => {
         if (isOwner) playerMapPoiActionHandlerRef.current(message?.payload);
@@ -218,29 +235,30 @@ export function SessionWorkspace({
       enabled: isOwner,
       deleteWhenNull: true,
     });
-  const [mapPlacements, setMapPlacements] = useCampaignDocument<
+  const [mapPlacements, setMapPlacements, mapPlacementsReady] = useCampaignDocument<
     Record<string, MapPlacement>
-  >("session-map-placements", {});
-  const [chapterGrids, setChapterGrids] = useCampaignDocument<
+  >("session-map-placements", {}, { enabled: isOwner });
+  const [chapterGrids, setChapterGrids, chapterGridsReady] = useCampaignDocument<
     Record<string, SessionGridSettings>
-  >("session-map-grids", {});
-  const [chapterTokens, setChapterTokens] = useCampaignDocument<
+  >("session-map-grids", {}, { enabled: isOwner });
+  const [chapterTokens, setChapterTokens, chapterTokensReady] = useCampaignDocument<
     Record<string, SessionMapToken[]>
-  >("session-map-tokens", {});
-  const [chapterDrawings, setChapterDrawings] = useCampaignDocument<
+  >("session-map-tokens", {}, { enabled: isOwner });
+  const [chapterDrawings, setChapterDrawings, chapterDrawingsReady] = useCampaignDocument<
     Record<string, SessionMapDrawing[]>
-  >("session-map-drawings", {});
-  const [chapterPois, setChapterPois] = useCampaignDocument<
+  >("session-map-drawings", {}, { enabled: isOwner });
+  const [chapterPois, setChapterPois, chapterPoisReady] = useCampaignDocument<
     Record<string, SessionMapPoi[]>
-  >("session-map-pois", {});
-  const [chapterFog, setChapterFog] = useCampaignDocument<
+  >("session-map-pois", {}, { enabled: isOwner });
+  const [chapterFog, setChapterFog, chapterFogReady] = useCampaignDocument<
     Record<string, SessionMapFog[]>
-  >("session-map-fog", {});
+  >("session-map-fog", {}, { enabled: isOwner });
   const chapterFogRef = useRef(chapterFog);
   useEffect(() => { chapterFogRef.current = chapterFog; }, [chapterFog]);
-  const [chapterObjectOrders, setChapterObjectOrders] = useCampaignDocument<Record<string, MapObjectRef[]>>(
+  const [chapterObjectOrders, setChapterObjectOrders, chapterObjectOrdersReady] = useCampaignDocument<Record<string, MapObjectRef[]>>(
     "session-map-object-order",
     {},
+    { enabled: isOwner },
   );
   const [treeWidth, setTreeWidth] = useState(readTreeWidth);
   const [treeHidden, setTreeHidden] = useState(false);
@@ -321,6 +339,13 @@ export function SessionWorkspace({
       !isOwner ||
       !channelReady ||
       loading ||
+      !mapPlacementsReady ||
+      !chapterGridsReady ||
+      !chapterTokensReady ||
+      !chapterDrawingsReady ||
+      !chapterPoisReady ||
+      !chapterFogReady ||
+      !chapterObjectOrdersReady ||
       sessionChapterPublishedRef.current
     )
       return;
@@ -375,15 +400,22 @@ export function SessionWorkspace({
     activeScene?.chapterId,
     channelReady,
     chapterDrawings,
+    chapterDrawingsReady,
     chapterGrids,
+    chapterGridsReady,
     chapterFog,
+    chapterFogReady,
     chapterPois,
+    chapterPoisReady,
     chapterTokens,
+    chapterTokensReady,
     chapterObjectOrders,
+    chapterObjectOrdersReady,
     chapters,
     isOwner,
     loading,
     mapPlacements,
+    mapPlacementsReady,
     publish,
   ]);
 
@@ -511,6 +543,21 @@ export function SessionWorkspace({
             ),
           }
         : publicChapterPreview;
+  useEffect(() => {
+    if (!display?.mapTokens) return;
+    setRemoteTokenPositions((current) => {
+      let changed = false;
+      const next = { ...current };
+      display.mapTokens?.forEach((token) => {
+        const remote = next[token.id];
+        if (remote && remote.x === token.x && remote.y === token.y) {
+          delete next[token.id];
+          changed = true;
+        }
+      });
+      return changed ? next : current;
+    });
+  }, [display?.mapTokens]);
   const mapAssetSource = display?.mapUrl ?? display?.mapMetadata.displayUrl ?? display?.sceneImageUrl ?? null;
   const mapAsset = useCachedMapAsset(mapAssetSource);
   const [renderedMapUrl, setRenderedMapUrl] = useState<string | null>(null);
@@ -646,6 +693,15 @@ export function SessionWorkspace({
       chapterId: display.chapterId,
       actorProfileId: currentUserId,
       ...data,
+    });
+  };
+  const previewMapTokenMove = (positions: Record<string, TokenPosition>, finished = false) => {
+    if (!display) return;
+    void sendCampaignEvent('map_token_action', {
+      action: finished ? 'move-preview-end' : 'move-preview',
+      chapterId: display.chapterId,
+      actorProfileId: currentUserId,
+      ...(finished ? { tokenIds: Object.keys(positions) } : { positions }),
     });
   };
   const requestMapPoiAction = (
@@ -2189,6 +2245,8 @@ export function SessionWorkspace({
               mapTokens={(display.mapTokens ?? []).filter(
                 (token) => isOwner || !token.hiddenFromPlayers,
               )}
+              remoteTokenPositions={remoteTokenPositions}
+              onTokenMovePreview={previewMapTokenMove}
               mapDrawings={display.mapDrawings ?? []}
               mapFog={display.mapFog ?? []}
                mapPois={(display.mapPois ?? []).filter(

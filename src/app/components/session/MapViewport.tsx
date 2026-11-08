@@ -213,6 +213,8 @@ interface MapViewportProps {
   onMapPlacementChange?: (placement: MapPlacement) => void;
   onTokenDrop?: (visual: SessionMapTokenVisual, position: TokenPosition, size: number) => void;
   onTokensMove?: (positions: Record<string, TokenPosition>) => void;
+  onTokenMovePreview?: (positions: Record<string, TokenPosition>, finished?: boolean) => void;
+  remoteTokenPositions?: Record<string, TokenPosition>;
   onTokenLayerMove?: (tokenId: string, move: MapLayerMove) => void;
   onTokensLayerMove?: (tokenIds: string[], move: MapLayerMove) => void;
   onTokenLockChange?: (tokenId: string, locked: boolean) => void;
@@ -976,7 +978,7 @@ function readStoredView(mapId: string): ViewTransform {
   return { x: 0, y: 0, scale: 1 };
 }
 
-export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwner, currentUserId, currentUserAccessToken, mapPlacement, gridSettings, mapTokens = [], mapDrawings = [], mapFog = [], mapPois = [], mapObjectOrder, onPoiCreate, onPoiMove, onPoiChange, onPoiDelete, onPoiDuplicate, onPoiPaste, onPoiLayerMove, onDrawingCreate, onDrawingChange, onDrawingsChange, onDrawingsMove, onDrawingTransformsChange, onDrawingDelete, onDrawingsDelete, onDrawingDuplicate, onDrawingsDuplicate, onDrawingLayerMove, onDrawingsLayerMove, onDrawingsCreateMagnetGroup, onDrawingMagnetDisable, onFogCreate, onFogReplaceAll, onFogChange, onFogsChange, onFogsMove, onFogTransformsChange, onFogExplorationChange, onFogDelete, onFogsDelete, onFogCoverFullMap, onMapPlacementChange, onTokenDrop, onTokensMove, onTokenLayerMove, onTokensLayerMove, onTokenLockChange, onTokenChange, onTokensChange, onTokenTransformsChange, onTokenDelete, onTokensDelete, onTokensCreateMagnetGroup, onTokenMagnetEnabledChange, onTokenMagnetLink, onTokenMagnetUnlink }: MapViewportProps) {
+export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwner, currentUserId, currentUserAccessToken, mapPlacement, gridSettings, mapTokens = [], mapDrawings = [], mapFog = [], mapPois = [], mapObjectOrder, remoteTokenPositions = {}, onPoiCreate, onPoiMove, onPoiChange, onPoiDelete, onPoiDuplicate, onPoiPaste, onPoiLayerMove, onDrawingCreate, onDrawingChange, onDrawingsChange, onDrawingsMove, onDrawingTransformsChange, onDrawingDelete, onDrawingsDelete, onDrawingDuplicate, onDrawingsDuplicate, onDrawingLayerMove, onDrawingsLayerMove, onDrawingsCreateMagnetGroup, onDrawingMagnetDisable, onFogCreate, onFogReplaceAll, onFogChange, onFogsChange, onFogsMove, onFogTransformsChange, onFogExplorationChange, onFogDelete, onFogsDelete, onFogCoverFullMap, onMapPlacementChange, onTokenDrop, onTokensMove, onTokenMovePreview, onTokenLayerMove, onTokensLayerMove, onTokenLockChange, onTokenChange, onTokensChange, onTokenTransformsChange, onTokenDelete, onTokensDelete, onTokensCreateMagnetGroup, onTokenMagnetEnabledChange, onTokenMagnetLink, onTokenMagnetUnlink }: MapViewportProps) {
   const objectOrder = useMemo(() => reconcileMapObjectOrder(mapObjectOrder, [['drawing', mapDrawings], ['token', mapTokens], ['poi', mapPois]]), [mapDrawings, mapObjectOrder, mapPois, mapTokens]);
   const objectZIndex = useMemo(() => new globalThis.Map(objectOrder.map((ref, index) => [`${ref.family}\u0000${ref.id}`, index + 3])), [objectOrder]);
   const drawingById = useMemo(() => new globalThis.Map(mapDrawings.map(item => [item.id, item])), [mapDrawings]);
@@ -1032,6 +1034,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const tokenGestureRef = useRef<TokenGesture | null>(null);
   const tokenTransformGestureRef = useRef<TokenTransformGesture | null>(null);
   const [tokenDraftPositions, setTokenDraftPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const tokenPreviewSentAtRef = useRef(0);
   const [tokenDraftTransforms, setTokenDraftTransforms] = useState<Record<string, TokenTransform>>({});
   const [transformTokenId, setTransformTokenId] = useState<string | null>(null);
   const [tokenMenu, setTokenMenu] = useState<TokenMenu | null>(null);
@@ -2070,7 +2073,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     const selectedTokens = selectionMembers.length > 0 ? mapTokens.filter((item) => selectedTokenIds.has(item.id) && canMoveToken(item)) : [];
     const tokenOrigins = Object.fromEntries(
       selectedTokens.map((item) => {
-        const position = tokenDraftPositions[item.id] ?? item;
+        const position = tokenDraftPositions[item.id] ?? remoteTokenPositions[item.id] ?? item;
         return [item.id, { x: position.x, y: position.y }];
       }),
     );
@@ -3214,17 +3217,17 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     if (selectionMembers.length === 0)
       linkedTokens.forEach((linkedToken) => {
         const tokenIndex = mapTokens.findIndex((candidate) => candidate.id === linkedToken.id);
-        const tokenPosition = tokenDraftPositions[linkedToken.id] ?? linkedToken;
+        const tokenPosition = tokenDraftPositions[linkedToken.id] ?? remoteTokenPositions[linkedToken.id] ?? linkedToken;
         const tokenBounds = getTokenBounds(linkedToken, gridSettings.cellSize, tokenPosition);
         mapTokens.slice(tokenIndex + 1).forEach((candidate) => {
-          const position = tokenDraftPositions[candidate.id] ?? candidate;
+          const position = tokenDraftPositions[candidate.id] ?? remoteTokenPositions[candidate.id] ?? candidate;
           if (canMoveToken(candidate) && isBoundsFullyContained(getTokenBounds(candidate, gridSettings.cellSize, position), tokenBounds)) movingIds.add(candidate.id);
         });
       });
     const movingTokens = mapTokens.filter((candidate) => movingIds.has(candidate.id));
     const origins = Object.fromEntries(
       movingTokens.map((candidate) => {
-        const position = tokenDraftPositions[candidate.id] ?? candidate;
+        const position = tokenDraftPositions[candidate.id] ?? remoteTokenPositions[candidate.id] ?? candidate;
         return [candidate.id, { x: position.x, y: position.y }];
       }),
     );
@@ -3263,6 +3266,11 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     gesture.drawingPositions = Object.fromEntries(Object.entries(gesture.drawingOrigins).map(([id, itemOrigin]) => [id, { x: itemOrigin.x + delta.x, y: itemOrigin.y + delta.y }]));
     setTokenDraftPositions((current) => ({ ...current, ...gesture.positions }));
     setDrawingMoveDrafts(gesture.drawingPositions);
+    const now = performance.now();
+    if (now - tokenPreviewSentAtRef.current >= 33) {
+      tokenPreviewSentAtRef.current = now;
+      onTokenMovePreview?.(gesture.positions);
+    }
   };
 
   const finishTokenMove = (event: ReactPointerEvent<HTMLElement>) => {
@@ -3270,6 +3278,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     if (!gesture || gesture.pointerId !== event.pointerId) return;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     tokenGestureRef.current = null;
+    onTokenMovePreview?.(gesture.positions, true);
     onTokensMove?.(gesture.positions);
     if (Object.keys(gesture.drawingPositions).length > 0) onDrawingsMove?.(gesture.drawingPositions);
     setDrawingMoveDrafts({});
@@ -3544,7 +3553,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   };
   const publicLightSources = useMemo(() => [
     ...mapTokens.filter(token => (isOwner || token.visible !== false) && token.light?.enabled && token.light.radius > 0).map(token => {
-      const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token;
+      const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? remoteTokenPositions[token.id] ?? token;
       const size = tokenDraftTransforms[token.id]?.size ?? getTokenSize(token, gridSettings.cellSize);
       const key = `token:${token.id}:light`;
       return { id: `token-${token.id}`, key, family: 'token' as const, entityId: token.id, sourceType: 'light' as const, interactive: canControlToken(token), origin: { x: position.x + size / 2, y: position.y + size / 2 }, radius: token.light!.radius, shape: token.light!.shape, coneAngle: token.light!.coneAngle, direction: coneDirection(key, token.light!.coneDirection, tokenDraftTransforms[token.id]?.rotation ?? token.rotation ?? 0), sourceSize: size, effect: token.light!.effect, flickerPreset: token.light!.flickerPreset, outlineVisible: token.light!.outlineVisible !== false };
@@ -3554,10 +3563,10 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       const key = `poi:${poi.id}:light`;
       return { id: `poi-${poi.id}`, key, family: 'poi' as const, entityId: poi.id, sourceType: 'light' as const, interactive: canControlPoi(poi), origin: position, radius: poi.light!.radius, shape: poi.light!.shape, coneAngle: poi.light!.coneAngle, direction: coneDirection(key, poi.light!.coneDirection, poiDraftTransforms[poi.id]?.rotation ?? poi.rotation ?? 0), sourceSize: poiDraftTransforms[poi.id]?.size ?? poi.size, effect: poi.light!.effect, flickerPreset: poi.light!.flickerPreset, outlineVisible: poi.light!.outlineVisible !== false };
     }),
-  ], [coneDirectionDrafts, gridSettings.cellSize, isOwner, mapPois, mapTokens, mapUserId, poiDraftPositions, poiDraftTransforms, tokenDraftPositions, tokenDraftTransforms]);
+  ], [coneDirectionDrafts, gridSettings.cellSize, isOwner, mapPois, mapTokens, mapUserId, poiDraftPositions, poiDraftTransforms, remoteTokenPositions, tokenDraftPositions, tokenDraftTransforms]);
   const privateVisionSources = useMemo(() => [
     ...mapTokens.filter(token => (isOwner || token.visible !== false) && token.vision?.enabled && token.vision.radius > 0 && (isOwner || token.ownerProfileId === mapUserId || token.createdByProfileId === mapUserId)).map(token => {
-      const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token;
+      const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? remoteTokenPositions[token.id] ?? token;
       const size = tokenDraftTransforms[token.id]?.size ?? getTokenSize(token, gridSettings.cellSize);
       const key = `token:${token.id}:vision`;
       return { id: `token-${token.id}`, key, family: 'token' as const, entityId: token.id, sourceType: 'vision' as const, interactive: canControlToken(token), origin: { x: position.x + size / 2, y: position.y + size / 2 }, radius: token.vision!.radius, shape: token.vision!.shape, coneAngle: token.vision!.coneAngle, direction: coneDirection(key, token.vision!.coneDirection, tokenDraftTransforms[token.id]?.rotation ?? token.rotation ?? 0), sourceSize: size, outlineVisible: token.vision!.outlineVisible !== false };
@@ -3567,7 +3576,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       const key = `poi:${poi.id}:vision`;
       return { id: `poi-${poi.id}`, key, family: 'poi' as const, entityId: poi.id, sourceType: 'vision' as const, interactive: canControlPoi(poi), origin: position, radius: poi.vision!.radius, shape: poi.vision!.shape, coneAngle: poi.vision!.coneAngle, direction: coneDirection(key, poi.vision!.coneDirection, poiDraftTransforms[poi.id]?.rotation ?? poi.rotation ?? 0), sourceSize: poiDraftTransforms[poi.id]?.size ?? poi.size, outlineVisible: poi.vision!.outlineVisible !== false };
     }),
-  ], [coneDirectionDrafts, gridSettings.cellSize, isOwner, mapPois, mapTokens, mapUserId, poiDraftPositions, poiDraftTransforms, tokenDraftPositions, tokenDraftTransforms]);
+  ], [coneDirectionDrafts, gridSettings.cellSize, isOwner, mapPois, mapTokens, mapUserId, poiDraftPositions, poiDraftTransforms, remoteTokenPositions, tokenDraftPositions, tokenDraftTransforms]);
   const publicLightEffects = useMemo(() => publicLightSources.map(source => ({ source, points: visibilityPolygon(source) })).filter(item => item.points.length >= 3), [automaticVisionBlockers, gridSettings.cellSize, gridSettings.distance, placement.height, placement.width, placement.x, placement.y, publicLightSources]);
   const publicLightPolygons = publicLightEffects.map(item => item.points);
   const privateVisionPolygons = useMemo(() => privateVisionSources.map(visibilityPolygon).filter(points => points.length >= 3), [automaticVisionBlockers, gridSettings.cellSize, gridSettings.distance, placement.height, placement.width, placement.x, placement.y, privateVisionSources]);
@@ -3713,7 +3722,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   });
   const currentVisibilityPolygons = [...publicLightPolygons, ...privateVisionPolygons];
   const visibleTokens = mapTokens.filter(token => {
-    if (selectedTokenIds.has(token.id) || tokenMenu?.tokenId === token.id || tokenDraftPositions[token.id] || tokenDraftTransforms[token.id]) return true;
+    if (selectedTokenIds.has(token.id) || tokenMenu?.tokenId === token.id || tokenDraftPositions[token.id] || remoteTokenPositions[token.id] || tokenDraftTransforms[token.id]) return true;
     const size = getTokenSize(token, gridSettings.cellSize);
     if (!isOwner) {
       const center = { x: token.x + size / 2, y: token.y + size / 2 };
@@ -4185,7 +4194,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         <div data-session-map-tokens className="pointer-events-none absolute inset-0">
           {visibleTokens.map((token) => {
             const transform = tokenDraftTransforms[token.id];
-            const position = transform ?? tokenDraftPositions[token.id] ?? token;
+            const position = transform ?? tokenDraftPositions[token.id] ?? remoteTokenPositions[token.id] ?? token;
             const size = transform?.size ?? getTokenSize(token, gridSettings.cellSize);
             const rotation = transform?.rotation ?? token.rotation ?? 0;
             const renderedSize = size * view.scale;

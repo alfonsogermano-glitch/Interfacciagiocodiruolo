@@ -75,7 +75,7 @@ export function SetNewPasswordModal({ onComplete }: SetNewPasswordModalProps) {
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.92)', zIndex: 1000,
+      style={{ position: 'fixed', inset: 0, backgroundColor: '#000000', zIndex: 1000,
                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
     >
       {/* Logo sfondo */}
