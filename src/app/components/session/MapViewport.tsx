@@ -1060,6 +1060,26 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const coneDirectionGestureRef = useRef<{ pointerId: number; key: string; family: 'token' | 'poi'; id: string; sourceType: 'light' | 'vision'; direction: number } | null>(null);
   const coneDirectionFrameRef = useRef<number | null>(null);
   const coneVisibilityCacheRef = useRef<Record<string, SessionMapPoint[]>>({});
+  useEffect(() => {
+    setConeDirectionDrafts(current => {
+      let changed = false;
+      const next = { ...current };
+      Object.entries(current).forEach(([key, direction]) => {
+        const match = key.match(/^(token|poi):(.+):(light|vision)$/);
+        if (!match) return;
+        const [, family, id, sourceType] = match;
+        const entity = family === 'token'
+          ? mapTokens.find(item => item.id === id)
+          : mapPois.find(item => item.id === id);
+        const configured = entity?.[sourceType as 'light' | 'vision']?.coneDirection;
+        if (configured === direction) {
+          delete next[key];
+          changed = true;
+        }
+      });
+      return changed ? next : current;
+    });
+  }, [mapTokens, mapPois]);
   const [transformPoiId, setTransformPoiId] = useState<string | null>(null);
   const poiMoveRef = useRef<{ pointerId: number; poiId: string; startX: number; startY: number; origin: TokenPosition; position: TokenPosition } | null>(null);
   const poiTransformRef = useRef<{ pointerId: number; poiId: string; kind: 'resize' | 'rotate'; centerClientX: number; centerClientY: number; startDistance: number; startAngle: number; origin: { size: number; rotation: number }; draft: { size: number; rotation: number } } | null>(null);
@@ -2105,7 +2125,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     const selectedTokens = selectionMembers.length > 0 ? mapTokens.filter((item) => {
       const position = tokenDraftTransforms[item.id] ?? tokenDraftPositions[item.id] ?? remoteTokenPositions[item.id] ?? item;
       const size = tokenDraftTransforms[item.id]?.size ?? getTokenSize(item, gridSettings.cellSize);
-      return selectedTokenIds.has(item.id) && canMoveToken(item) && !isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size });
+      return selectedTokenIds.has(item.id) && canMoveToken(item) && (tokenVisibilitySourceActive(item) || !isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size }));
     }) : [];
     const tokenOrigins = Object.fromEntries(
       selectedTokens.map((item) => {
@@ -2371,11 +2391,12 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
         { x: bounds.x, y: bounds.y + bounds.height },
       ];
-      selected = mapTokens.filter((token) => canMoveToken(token) && rectangleCoverage(getTokenBounds(token, gridSettings.cellSize), bounds) > 0);
+      selected = mapTokens.filter((token) => canMoveToken(token) && (tokenVisibilitySourceActive(token) || !isBoundsFullyFogCovered(getTokenBounds(token, gridSettings.cellSize))) && rectangleCoverage(getTokenBounds(token, gridSettings.cellSize), bounds) > 0);
       selectedDrawings = mapDrawings.filter(
         (drawing) =>
-          !drawing.pinned &&
-          (isOwner || !drawing.locked) &&
+           !drawing.pinned &&
+           (isOwner || !drawing.locked) &&
+           !isBoundsFullyFogCovered(getRotatedRectBounds(drawing, drawing.width, drawing.height, drawing.rotation ?? 0)) &&
           (drawing.points?.length
             ? drawingPathIntersectsPolygon(drawing, rectangle)
             : rectangleCoverage(
@@ -2390,11 +2411,12 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       );
     } else if (gesture.points.length >= 3 && Math.hypot(point.x - gesture.start.x, point.y - gesture.start.y) <= 24 / view.scale) {
       const polygon = [...gesture.points, gesture.start];
-      selected = mapTokens.filter((token) => canMoveToken(token) && polygonCoverage(getTokenBounds(token, gridSettings.cellSize), polygon) > 0);
+      selected = mapTokens.filter((token) => canMoveToken(token) && (tokenVisibilitySourceActive(token) || !isBoundsFullyFogCovered(getTokenBounds(token, gridSettings.cellSize))) && polygonCoverage(getTokenBounds(token, gridSettings.cellSize), polygon) > 0);
       selectedDrawings = mapDrawings.filter(
         (drawing) =>
-          !drawing.pinned &&
-          (isOwner || !drawing.locked) &&
+           !drawing.pinned &&
+           (isOwner || !drawing.locked) &&
+           !isBoundsFullyFogCovered(getRotatedRectBounds(drawing, drawing.width, drawing.height, drawing.rotation ?? 0)) &&
           (drawing.points?.length
             ? drawingPathIntersectsPolygon(drawing, polygon)
             : polygonCoverage(
@@ -2637,7 +2659,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         const token = mapTokens.find(item => item.id === ref.id);
         const position = token ? tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token : null;
         const size = tokenDraftTransforms[ref.id]?.size ?? (token ? getTokenSize(token, gridSettings.cellSize) : 0);
-        return !!token && !!position && (isOwner || canControlToken(token)) && !isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size }) && contains({ x: position.x, y: position.y, width: size, height: size });
+        return !!token && !!position && (isOwner || canControlToken(token)) && (tokenVisibilitySourceActive(token) || !isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size })) && contains({ x: position.x, y: position.y, width: size, height: size });
       }
       const poi = mapPois.find(item => item.id === ref.id);
       const position = poi ? poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi : null;
@@ -2709,7 +2731,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         const token = tokenById.get(ref.id);
         const position = token ? tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token : null;
         const size = tokenDraftTransforms[ref.id]?.size ?? (token ? getTokenSize(token, gridSettings.cellSize) : 0);
-        if (token && position && !isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size }) && contains({ x: position.x, y: position.y, width: size, height: size })) keys.add(`token\u0000${token.id}`);
+        if (token && position && (tokenVisibilitySourceActive(token) || !isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size })) && contains({ x: position.x, y: position.y, width: size, height: size })) keys.add(`token\u0000${token.id}`);
       } else {
         const poi = poiById.get(ref.id);
         const position = poi ? poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi : null;
@@ -3253,7 +3275,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const beginTokenMove = (event: ReactPointerEvent<HTMLElement>, token: SessionMapToken) => {
     const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? remoteTokenPositions[token.id] ?? token;
     const size = tokenDraftTransforms[token.id]?.size ?? getTokenSize(token, gridSettings.cellSize);
-    if (calibrationActive || activeTool === 'measure' || !canMoveToken(token) || isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size }) || event.button !== 0) return;
+    if (calibrationActive || activeTool === 'measure' || !canMoveToken(token) || (!tokenVisibilitySourceActive(token) && isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size })) || event.button !== 0) return;
     if (selectionArmed && !selectedTokenIds.has(token.id)) {
       setSelectedTokenIds(new Set());
       setSelectedDrawingIds(new Set());
@@ -3270,7 +3292,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     const tokenCanJoinMove = (candidate: SessionMapToken) => {
       const candidatePosition = tokenDraftTransforms[candidate.id] ?? tokenDraftPositions[candidate.id] ?? remoteTokenPositions[candidate.id] ?? candidate;
       const candidateSize = tokenDraftTransforms[candidate.id]?.size ?? getTokenSize(candidate, gridSettings.cellSize);
-      return canMoveToken(candidate) && !isBoundsFullyFogCovered({ x: candidatePosition.x, y: candidatePosition.y, width: candidateSize, height: candidateSize });
+      return canMoveToken(candidate) && (tokenVisibilitySourceActive(candidate) || !isBoundsFullyFogCovered({ x: candidatePosition.x, y: candidatePosition.y, width: candidateSize, height: candidateSize }));
     };
     const selectionMembers = selectedTokenIds.has(token.id) ? mapTokens.filter((candidate) => selectedTokenIds.has(candidate.id) && tokenCanJoinMove(candidate)) : [];
     const linkedTokens = selectionMembers.length > 0 ? selectionMembers : token.magnetGroupId ? mapTokens.filter((candidate) => candidate.magnetGroupId === token.magnetGroupId && tokenCanJoinMove(candidate)) : [token];
@@ -3591,25 +3613,21 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     const pointLimit = relevantBlockers.length > 100 ? 384 : 512;
     const visibility = computeVisibilityPolygon(localOrigin, relevantBlockers, mapBounds, pointLimit, radius).map(point => ({ x: point.x + placement.x, y: point.y + placement.y }));
     if (source.shape !== 'cone' || visibility.length < 3) return visibility;
-    const sourceRadius = source.sourceSize * 0.52;
-    const sourceCircle = Array.from({ length: 32 }, (_, index) => {
-      const angle = index * Math.PI * 2 / 32;
-      return [source.origin.x + Math.cos(angle) * sourceRadius, source.origin.y + Math.sin(angle) * sourceRadius] as [number, number];
-    });
+    const beam = flashlightBeamPoints(source);
     try {
       const clipped = polygonClipping.intersection(
         [[visibility.map(point => [point.x, point.y] as [number, number])]],
-        [[flashlightBeamPoints(source).map(point => [point.x, point.y] as [number, number])]],
+        [[beam.map(point => [point.x, point.y] as [number, number])]],
       );
-      const largest = largestOuterRing(polygonClipping.union(clipped, [[sourceCircle]]));
-      if (!largest || largest.length < 3) return coneVisibilityCacheRef.current[source.key] ?? sourceCircle.map(([x, y]) => ({ x, y }));
+      const largest = largestOuterRing(clipped);
+      if (!largest || largest.length < 3) return coneVisibilityCacheRef.current[source.key] ?? beam;
       const result = largest.map(([x, y]) => ({ x, y }));
       coneVisibilityCacheRef.current[source.key] = result;
       return result;
     } catch {
       // Keep the last valid mask during a degenerate drag frame. Replacing it
       // with a fallback shape would make the fog flash until the next frame.
-      return coneVisibilityCacheRef.current[source.key] ?? sourceCircle.map(([x, y]) => ({ x, y }));
+      return coneVisibilityCacheRef.current[source.key] ?? beam;
     }
   };
   const publicLightSources = useMemo(() => [
@@ -3641,7 +3659,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const publicLightEffects = useMemo(() => publicLightSources.map(source => ({ source, points: visibilityPolygon(source) })).filter(item => item.points.length >= 3), [automaticVisionBlockers, gridSettings.cellSize, gridSettings.distance, placement.height, placement.width, placement.x, placement.y, publicLightSources]);
   const publicLightPolygons = publicLightEffects.map(item => item.points);
   const lightGradientId = (sourceKey: string) => `session-light-gradient-${mapId}-${sourceKey}`.replace(/[^a-zA-Z0-9_-]/g, '');
-  const privateVisionPolygons = useMemo(() => privateVisionSources.map(visibilityPolygon).filter(points => points.length >= 3), [automaticVisionBlockers, gridSettings.cellSize, gridSettings.distance, placement.height, placement.width, placement.x, placement.y, privateVisionSources]);
+  const privateVisionEffects = useMemo(() => privateVisionSources.map(source => ({ source, points: visibilityPolygon(source) })).filter(item => item.points.length >= 3), [automaticVisionBlockers, gridSettings.cellSize, gridSettings.distance, placement.height, placement.width, placement.x, placement.y, privateVisionSources]);
+  const privateVisionPolygons = privateVisionEffects.map(item => item.points);
   useEffect(() => {
     if (!isOwner || !onFogExplorationChange) return;
     const existingFogIds = new Set(mapFog.map(fog => fog.id));
@@ -3783,6 +3802,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     return intersectsViewport({ x: poi.x - size / 2, y: poi.y - size / 2, width: size, height: size });
   });
   const currentVisibilityPolygons = [...publicLightPolygons, ...privateVisionPolygons];
+  const tokenVisibilitySourceActive = (token: SessionMapToken) =>
+    token.visible !== false && ((token.light?.enabled && token.light.radius > 0) || (token.vision?.enabled && token.vision.radius > 0));
   const isPointFullyFogCovered = (point: SessionMapPoint) => {
     if (isOwner || currentVisibilityPolygons.some(points => points.length >= 3 && pointInPolygon(point, points))) return false;
     let fullyCovered = false;
@@ -3792,10 +3813,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         fullyCovered = false;
         return;
       }
-      const opacity = Math.max(0, Math.min(1, fog.opacity ?? 1));
-      const explored = fog.persistence !== 'permanent'
-        && exploredAreasContainPoint(fogExplorationCacheRef.current[fog.id] ?? fog.exploredAreas, point);
-      fullyCovered = opacity >= 0.99 && !explored;
+      fullyCovered = (fog.opacity ?? 1) > 0;
     });
     return fullyCovered;
   };
@@ -3855,6 +3873,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     coneDirectionGestureRef.current = null;
     const direction = Math.round(gesture.direction * 10) / 10;
+    setConeDirectionDrafts(current => ({ ...current, [gesture.key]: direction }));
     onConeDirectionPreview?.(gesture.key, direction, true);
     if (gesture.family === 'token') {
       const token = mapTokens.find(item => item.id === gesture.id);
@@ -3865,7 +3884,6 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       const source = poi?.[gesture.sourceType];
       if (poi && source) onPoiChange?.(poi.id, { [gesture.sourceType]: { ...source, coneDirection: direction } });
     }
-    setConeDirectionDrafts(current => { const next = { ...current }; delete next[gesture.key]; return next; });
   };
 
   return (
@@ -3974,6 +3992,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             const rendered = withMeasuredTextBounds(renderedBase);
             if (drawing.visible === false && !isOwner) return null;
             const fullyFogCovered = isBoundsFullyFogCovered(getRotatedRectBounds(rendered, rendered.width, rendered.height, rendered.rotation ?? 0));
+            if (fullyFogCovered && !isOwner) return null;
             const interactive = !fullyFogCovered && (canMoveDrawing(drawing) || canEditDrawing(drawing)) && activeTool !== 'fog';
             return (
               <svg key={drawing.id} className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" style={{ zIndex: objectZIndex.get(`drawing\u0000${drawing.id}`) }}>
@@ -4311,7 +4330,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             const conditionNaturalStep = 2 * Math.asin(Math.min(1, (conditionSize * (1 + CONDITION_BADGE_GAP_RATIO)) / (2 * conditionRadius)));
             const conditionStep = conditionCount > 1 ? Math.min(conditionNaturalStep, conditionMaxStep) : 0;
             const conditionStartAngle = -Math.PI / 2 - (conditionStep * (conditionCount - 1)) / 2;
-            const fullyFogCovered = isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size });
+            const fullyFogCovered = !tokenVisibilitySourceActive(token) && isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size });
             return (
               <Fragment key={token.id}>
                 <Tooltip>
@@ -4574,8 +4593,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         </svg>
       </div>
       <svg data-session-map-range-overlay className="pointer-events-none absolute inset-0 z-10 h-full w-full overflow-hidden">
-        {publicLightSources.filter(source => source.outlineVisible).map(source => source.shape === 'cone' ? <polygon key={`light-range-${source.id}`} points={flashlightBeamPoints(source).map(point => `${view.x + point.x * view.scale},${view.y + point.y * view.scale}`).join(' ')} fill="none" stroke="#fbbf24" strokeWidth={1.2} strokeDasharray={`${8 * view.scale} ${5 * view.scale}`} pointerEvents="none" /> : <circle key={`light-range-${source.id}`} cx={view.x + source.origin.x * view.scale} cy={view.y + source.origin.y * view.scale} r={distanceToWorld(source.radius) * view.scale} fill="none" stroke="#fbbf24" strokeWidth={1.2} strokeDasharray={`${8 * view.scale} ${5 * view.scale}`} pointerEvents="none" />)}
-        {privateVisionSources.filter(source => source.outlineVisible).map(source => source.shape === 'cone' ? <polygon key={`vision-range-${source.id}`} points={flashlightBeamPoints(source).map(point => `${view.x + point.x * view.scale},${view.y + point.y * view.scale}`).join(' ')} fill="none" stroke="#38bdf8" strokeWidth={1.2} strokeDasharray={`${4 * view.scale} ${4 * view.scale}`} pointerEvents="none" /> : <circle key={`vision-range-${source.id}`} cx={view.x + source.origin.x * view.scale} cy={view.y + source.origin.y * view.scale} r={distanceToWorld(source.radius) * view.scale} fill="none" stroke="#38bdf8" strokeWidth={1.2} strokeDasharray={`${4 * view.scale} ${4 * view.scale}`} pointerEvents="none" />)}
+        {publicLightEffects.filter(item => item.source.outlineVisible).map(({ source, points }) => source.shape === 'cone' ? <polygon key={`light-range-${source.id}`} points={points.map(point => `${view.x + point.x * view.scale},${view.y + point.y * view.scale}`).join(' ')} fill="none" stroke="#fbbf24" strokeWidth={1.2} strokeDasharray={`${8 * view.scale} ${5 * view.scale}`} pointerEvents="none" /> : <circle key={`light-range-${source.id}`} cx={view.x + source.origin.x * view.scale} cy={view.y + source.origin.y * view.scale} r={distanceToWorld(source.radius) * view.scale} fill="none" stroke="#fbbf24" strokeWidth={1.2} strokeDasharray={`${8 * view.scale} ${5 * view.scale}`} pointerEvents="none" />)}
+        {privateVisionEffects.filter(item => item.source.outlineVisible).map(({ source, points }) => source.shape === 'cone' ? <polygon key={`vision-range-${source.id}`} points={points.map(point => `${view.x + point.x * view.scale},${view.y + point.y * view.scale}`).join(' ')} fill="none" stroke="#38bdf8" strokeWidth={1.2} strokeDasharray={`${4 * view.scale} ${4 * view.scale}`} pointerEvents="none" /> : <circle key={`vision-range-${source.id}`} cx={view.x + source.origin.x * view.scale} cy={view.y + source.origin.y * view.scale} r={distanceToWorld(source.radius) * view.scale} fill="none" stroke="#38bdf8" strokeWidth={1.2} strokeDasharray={`${4 * view.scale} ${4 * view.scale}`} pointerEvents="none" />)}
         {[...publicLightSources, ...privateVisionSources].filter(source => source.shape === 'cone' && source.interactive).map(source => {
           const radius = distanceToWorld(source.radius);
           const cx = view.x + (source.origin.x + Math.cos(source.direction) * radius) * view.scale;

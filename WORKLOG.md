@@ -1840,6 +1840,8 @@ Aggiornamento punto 112 (2026-10-10): l'utente ha eseguito con successo la migra
 
 128. `fix/ui:` **Tooltip temporanei per i Punti di Interesse** (2026-11-08). I tooltip dei PDI non restano più persistenti durante il passaggio del mouse: si chiudono automaticamente dopo due secondi anche se il puntatore rimane fermo e possono riapparire soltanto dopo una nuova entrata sull'elemento. Il timer viene annullato alla chiusura o allo smontaggio del viewport per evitare aggiornamenti tardivi. `npm run typecheck`, `npm run check`, build produzione e `git diff --check` PASS.
 
+129. `fix/lighting:` **Cono di luce senza alone attorno al token** (2026-11-08). Il cono di Illuminazione e Vista termina ora con i due segmenti rettilinei previsti, senza più un cerchio aggiuntivo attorno alla sorgente che generava un buco nella nebbia. Il token che attiva luce o vista resta visibile anche quando si trova sotto nebbia, così da non sparire né apparire circondato da uno spazio scoperto. `npm run typecheck`, `npm run check`, build produzione e `git diff --check` PASS.
+
 Verifica finale di chiusura sessione (2026-10-09): `npm run check` completo PASS dopo i punti 90-107 (typecheck, tutte le verifiche, build produzione). Descrizioni finali brevi senza troncamento: HSC ambientato in un liceo americano, custom "Un mondo di gioco con le tue regole". App.tsx ripristinato identico a HEAD dopo il ritorno alla schermata campagna condivisa: eliminate modifiche residue dei soli fine-riga.
 
 Verifica finale di chiusura sessione (2026-10-08): `npm run check` completo PASS dopo i punti 87-89 (typecheck, tutte le verifiche, build produzione).
