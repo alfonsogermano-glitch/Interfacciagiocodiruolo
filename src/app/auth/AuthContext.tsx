@@ -133,11 +133,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (event === 'PASSWORD_RECOVERY') {
-        const hash = window.location.hash;
-        if (hash.includes('type=recovery')) {
-          setIsPasswordRecovery(true);
-          window.history.replaceState(null, '', window.location.pathname + window.location.search);
-        }
+        // L'evento Supabase è la fonte attendibile. Con PKCE il callback usa
+        // spesso `?code=...` e non contiene più `#type=recovery`.
+        setIsPasswordRecovery(true);
+        window.history.replaceState(null, '', window.location.pathname);
       }
       if (!isMounted) return;
 

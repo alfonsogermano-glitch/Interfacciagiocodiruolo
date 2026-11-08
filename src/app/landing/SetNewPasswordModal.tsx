@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, EyeOff, Loader2, X } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { supabase } from '../auth/AuthContext';
 
 function translateError(error: string): string {
@@ -66,6 +66,8 @@ export function SetNewPasswordModal({ onComplete }: SetNewPasswordModalProps) {
         setSuccess(true);
         setTimeout(onComplete, 2000);
       }
+    } catch {
+      setError('Impossibile aggiornare la password. Riprova.');
     } finally {
       setIsSubmitting(false);
     }
@@ -91,13 +93,6 @@ export function SetNewPasswordModal({ onComplete }: SetNewPasswordModalProps) {
                  padding: '2.5rem', width: '100%', maxWidth: 420, position: 'relative', zIndex: 1,
                  fontFamily: 'sans-serif' }}
       >
-        {/* Chiudi — porta comunque alla dashboard */}
-        <button type="button" onClick={onComplete} aria-label="Chiudi"
-          style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none',
-                   border: 'none', color: '#888', cursor: 'pointer', display: 'flex', padding: '0.25rem' }}>
-          <X size={20} />
-        </button>
-
         {success ? (
           /* Vista successo */
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem', padding: '1rem 0' }}>
