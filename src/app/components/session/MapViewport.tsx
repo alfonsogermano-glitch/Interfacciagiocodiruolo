@@ -3619,7 +3619,16 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         [[visibility.map(point => [point.x, point.y] as [number, number])]],
         [[beam.map(point => [point.x, point.y] as [number, number])]],
       );
-      const largest = largestOuterRing(clipped);
+      // Il cono deve iniziare dal bordo del token, non sovrapporlo: sottrae
+      // l'area occupata dalla pedina affinché tratteggio e maschera della
+      // nebbia non coprano il simbolo del token.
+      const tokenHoleRadius = source.sourceSize * 0.5;
+      const tokenHole = [[Array.from({ length: 32 }, (_, index) => {
+        const angle = index * Math.PI * 2 / 32;
+        return [source.origin.x + Math.cos(angle) * tokenHoleRadius, source.origin.y + Math.sin(angle) * tokenHoleRadius] as [number, number];
+      })]];
+      const cut = polygonClipping.difference(clipped, tokenHole);
+      const largest = largestOuterRing(cut);
       if (!largest || largest.length < 3) return coneVisibilityCacheRef.current[source.key] ?? beam;
       const result = largest.map(([x, y]) => ({ x, y }));
       coneVisibilityCacheRef.current[source.key] = result;
