@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type SVGProps } from 'react';
 import { createPortal } from 'react-dom';
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowRight, Bell, Bold, Brush, Bug, Check, ChevronDown, Circle, CircleDashed, CircleMinus, CirclePlus, CloudFog, Combine, Crosshair, Eraser, Eye, EyeOff, Grid2X2, Grid3X3, Hexagon, Italic, LassoSelect, LogOut, Magnet, MapPin, Minus, MoreVertical, MousePointer2, Newspaper, PaintBucket, PaintRoller, Palette, Pencil, PenTool, Plus, Redo2, ScanEye, ScanLine, Scissors, Search, Settings, Slash, Square as SquareIcon, Strikethrough, Trash2, Triangle, Type, Underline, Undo2, UserPlus, X } from 'lucide-react';
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowRight, Bell, Bold, Brush, Bug, Check, ChevronDown, Circle, CircleDashed, CircleMinus, CirclePlus, CloudFog, Combine, Crosshair, Eraser, Eye, EyeOff, Grid2X2, Grid3X3, Hexagon, Italic, KeyRound, LassoSelect, LogOut, Magnet, MapPin, Minus, MoreVertical, MousePointer2, Newspaper, PaintBucket, PaintRoller, Palette, Pencil, PenTool, Plus, Redo2, ScanEye, ScanLine, Scissors, Search, Settings, Slash, Square as SquareIcon, Strikethrough, Trash2, Triangle, Type, Underline, Undo2, UserPlus, X } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotifications, type NotificationRow } from '../notifications/NotificationsContext';
 import { useCampaign } from '../campaigns/CampaignContext';
@@ -28,6 +28,7 @@ interface TopBarProps {
   onLogout: () => void;
   onOpenSettings: (tab: 'general' | 'profile') => void;
   onReportBug: () => void;
+  onChangePassword: () => void;
 }
 
 function MoveMapIcon(props: SVGProps<SVGSVGElement>) {
@@ -364,7 +365,7 @@ function NotificationRowItem({ notification }: { notification: NotificationRow }
   );
 }
 
-export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout, onOpenSettings, onReportBug }: TopBarProps) {
+export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout, onOpenSettings, onReportBug, onChangePassword }: TopBarProps) {
   const { user } = useAuth();
   const { notifications, unreadCount, markAllAsRead } = useNotifications();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -1324,6 +1325,16 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
 
         {isUserMenuOpen && (
           <div className="absolute right-0 top-full mt-1 min-w-[160px] rounded-lg border border-[var(--dash-border)] bg-[var(--dash-surface)] py-1 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => {
+                setIsUserMenuOpen(false);
+                onChangePassword();
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)]"
+            >
+              <KeyRound className="h-4 w-4" /> Modifica password
+            </button>
             <button
               type="button"
               onClick={() => {
