@@ -89,6 +89,7 @@ type SessionMapHistory = {
 };
 
 const mapHistorySnapshotSizes = new WeakMap<SessionMapHistorySnapshot, number>();
+const mapHistorySnapshotActors = new WeakMap<SessionMapHistorySnapshot, string>();
 function trimMapHistory(snapshots: SessionMapHistorySnapshot[]) {
   const limited = snapshots.slice(-MAP_HISTORY_LIMIT);
   let bytes = 0;
@@ -195,6 +196,11 @@ export function SessionWorkspace({
   const playerMapActionHandlerRef = useRef<(payload: any) => void>(() => {});
   const playerMapPoiActionHandlerRef = useRef<(payload: any) => void>(() => {});
   const playerMapLayerActionHandlerRef = useRef<(payload: any) => void>(() => {});
+  const historyActorRef = useRef<string | null>(null);
+  const runAsHistoryActor = (payload: any, action: () => void) => {
+    historyActorRef.current = typeof payload?.actorProfileId === 'string' ? payload.actorProfileId : null;
+    try { action(); } finally { historyActorRef.current = null; }
+  };
   const { send: sendCampaignEvent } = useCampaignChannel(campaignId, {
     onBroadcast: {
       map_token_action: (message) => {
@@ -212,13 +218,13 @@ export function SessionWorkspace({
         if (payload?.action === 'move-preview-end') {
           return;
         }
-        if (isOwner) playerMapActionHandlerRef.current(payload);
+        if (isOwner) runAsHistoryActor(payload, () => playerMapActionHandlerRef.current(payload));
       },
       map_poi_action: (message) => {
-        if (isOwner) playerMapPoiActionHandlerRef.current(message?.payload);
+        if (isOwner) runAsHistoryActor(message?.payload, () => playerMapPoiActionHandlerRef.current(message?.payload));
       },
       map_object_layer_action: (message) => {
-        if (isOwner) playerMapLayerActionHandlerRef.current(message?.payload);
+        if (isOwner) runAsHistoryActor(message?.payload, () => playerMapLayerActionHandlerRef.current(message?.payload));
       },
       map_object_drag_preview: (message) => {
         const payload = message?.payload;
@@ -233,8 +239,14 @@ export function SessionWorkspace({
         if (isOwner && payload.finished === true && payload.family === 'drawing') {
           const movableIds = new Set((display?.mapDrawings ?? []).filter((drawing) => !drawing.locked && !drawing.pinned).map((drawing) => drawing.id));
           const allowed = Object.fromEntries(Object.entries(positions).filter(([id]) => movableIds.has(id)));
-          if (Object.keys(allowed).length > 0) moveMapDrawings(allowed);
+          if (Object.keys(allowed).length > 0) runAsHistoryActor(payload, () => moveMapDrawings(allowed));
         }
+      },
+      map_history_action: (message) => {
+        const payload = message?.payload;
+        if (!isOwner || typeof payload?.actorProfileId !== 'string' || payload.chapterId !== display?.chapterId) return;
+        if (payload.action === 'undo') undoMapChange(payload.actorProfileId);
+        if (payload.action === 'redo') redoMapChange(payload.actorProfileId);
       },
     },
   });
@@ -632,6 +644,7 @@ export function SessionWorkspace({
       future: [],
     };
     const snapshot = currentMapSnapshot();
+    mapHistorySnapshotActors.set(snapshot, historyActorRef.current ?? currentUserId ?? 'owner');
     if (JSON.stringify(history.past.at(-1)) !== JSON.stringify(snapshot))
       history.past = trimMapHistory([...history.past, snapshot]);
     history.future = [];
@@ -683,22 +696,30 @@ export function SessionWorkspace({
       }, fields);
     }
   };
-  const undoMapChange = () => {
+  const undoMapChange = (requestedBy?: string) => {
     if (!display) return;
     const history = mapHistoryRef.current.get(display.chapterId);
     const snapshot = history?.past.pop();
     if (!history || !snapshot) return;
-    history.future = trimMapHistory([...history.future, currentMapSnapshot()]);
+    const actor = mapHistorySnapshotActors.get(snapshot);
+    if (requestedBy && actor !== requestedBy) { history.past.push(snapshot); return; }
+    const current = currentMapSnapshot();
+    if (actor) mapHistorySnapshotActors.set(current, actor);
+    history.future = trimMapHistory([...history.future, current]);
     mapHistoryRef.current.set(display.chapterId, history);
     applyMapHistorySnapshot(snapshot);
     setMapHistoryVersion((version) => version + 1);
   };
-  const redoMapChange = () => {
+  const redoMapChange = (requestedBy?: string) => {
     if (!display) return;
     const history = mapHistoryRef.current.get(display.chapterId);
     const snapshot = history?.future.pop();
     if (!history || !snapshot) return;
-    history.past = trimMapHistory([...history.past, currentMapSnapshot()]);
+    const actor = mapHistorySnapshotActors.get(snapshot);
+    if (requestedBy && actor !== requestedBy) { history.future.push(snapshot); return; }
+    const current = currentMapSnapshot();
+    if (actor) mapHistorySnapshotActors.set(current, actor);
+    history.past = trimMapHistory([...history.past, current]);
     mapHistoryRef.current.set(display.chapterId, history);
     applyMapHistorySnapshot(snapshot);
     setMapHistoryVersion((version) => version + 1);
@@ -708,10 +729,10 @@ export function SessionWorkspace({
       ? mapHistoryRef.current.get(display.chapterId)
       : undefined;
     configureSessionMapHistory(
-      isOwner && display ? undoMapChange : null,
-      isOwner && display ? redoMapChange : null,
-      Boolean(history?.past.length),
-      Boolean(history?.future.length),
+      display ? (isOwner ? undoMapChange : () => void sendCampaignEvent('map_history_action', { action: 'undo', chapterId: display.chapterId, actorProfileId: currentUserId })) : null,
+      display ? (isOwner ? redoMapChange : () => void sendCampaignEvent('map_history_action', { action: 'redo', chapterId: display.chapterId, actorProfileId: currentUserId })) : null,
+      isOwner ? Boolean(history?.past.length) : Boolean(display),
+      isOwner ? Boolean(history?.future.length) : Boolean(display),
     );
     return () => configureSessionMapHistory(null, null, false, false);
   }, [

@@ -2061,7 +2061,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   }, [activeTool, drawSettings.mode, mapId, textDraft?.editingId]);
 
   const beginDrawingMove = (event: ReactPointerEvent<SVGElement>, drawing: SessionMapDrawing) => {
-    if (!canMoveDrawing(drawing) || calibrationActive || activeTool === 'measure' || event.button !== 0) return;
+    const drawingBounds = getRotatedRectBounds(drawing, drawing.width, drawing.height, drawing.rotation ?? 0);
+    if (!canMoveDrawing(drawing) || isBoundsFullyFogCovered(drawingBounds) || calibrationActive || activeTool === 'measure' || event.button !== 0) return;
     if (selectionArmed && !selectedDrawingIds.has(drawing.id)) {
       setSelectedTokenIds(new Set());
       setSelectedDrawingIds(new Set());
@@ -2074,11 +2075,16 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     textCurveRef.current = null;
     setDrawingDraft(null);
     setSelectedDrawingId(null);
-    const selectionMembers = selectedDrawingIds.has(drawing.id) ? mapDrawings.filter((item) => selectedDrawingIds.has(item.id) && canMoveDrawing(item)) : [];
+    const drawingCanJoinMove = (item: SessionMapDrawing) => canMoveDrawing(item) && !isBoundsFullyFogCovered(getRotatedRectBounds(item, item.width, item.height, item.rotation ?? 0));
+    const selectionMembers = selectedDrawingIds.has(drawing.id) ? mapDrawings.filter((item) => selectedDrawingIds.has(item.id) && drawingCanJoinMove(item)) : [];
     if (selectionMembers.length === 0) setSelectedDrawingIds(new Set());
-    const members = selectionMembers.length > 0 ? selectionMembers : drawing.magnetGroupId ? mapDrawings.filter((item) => item.magnetGroupId === drawing.magnetGroupId && canMoveDrawing(item)) : [drawing];
+    const members = selectionMembers.length > 0 ? selectionMembers : drawing.magnetGroupId ? mapDrawings.filter((item) => item.magnetGroupId === drawing.magnetGroupId && drawingCanJoinMove(item)) : [drawing];
     const origins = Object.fromEntries(members.map((item) => [item.id, remoteDrawingPositions[item.id] ?? { x: item.x, y: item.y }]));
-    const selectedTokens = selectionMembers.length > 0 ? mapTokens.filter((item) => selectedTokenIds.has(item.id) && canMoveToken(item)) : [];
+    const selectedTokens = selectionMembers.length > 0 ? mapTokens.filter((item) => {
+      const position = tokenDraftTransforms[item.id] ?? tokenDraftPositions[item.id] ?? remoteTokenPositions[item.id] ?? item;
+      const size = tokenDraftTransforms[item.id]?.size ?? getTokenSize(item, gridSettings.cellSize);
+      return selectedTokenIds.has(item.id) && canMoveToken(item) && !isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size });
+    }) : [];
     const tokenOrigins = Object.fromEntries(
       selectedTokens.map((item) => {
         const position = tokenDraftPositions[item.id] ?? remoteTokenPositions[item.id] ?? item;
@@ -2504,7 +2510,9 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     bottom: view.y + (bounds.y + bounds.height) * view.scale,
   });
   const beginPoiMove = (event: ReactPointerEvent<HTMLButtonElement>, poi: SessionMapPoi) => {
-    if (event.button !== 0 || !canMovePoi(poi)) return;
+    const size = poiDraftTransforms[poi.id]?.size ?? poi.size;
+    const position = poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi;
+    if (event.button !== 0 || !canMovePoi(poi) || isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size })) return;
     event.preventDefault();
     event.stopPropagation();
     setPoiMenu(null);
@@ -2601,18 +2609,18 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         const drawing = drawingById.get(ref.id);
         const moveDraft = drawing ? drawingMoveDrafts[drawing.id] ?? remoteDrawingPositions[drawing.id] : null;
         const rendered = drawing ? drawingTransformDrafts[drawing.id] ?? (moveDraft ? { ...drawing, ...moveDraft } : drawing) : null;
-        return !!rendered && canEditDrawing(drawing!) && drawingContainsPoint(rendered, point, view.scale);
+        return !!rendered && canEditDrawing(drawing!) && !isBoundsFullyFogCovered(getRotatedRectBounds(rendered, rendered.width, rendered.height, rendered.rotation ?? 0)) && drawingContainsPoint(rendered, point, view.scale);
       }
       if (ref.family === 'token') {
         const token = mapTokens.find(item => item.id === ref.id);
         const position = token ? tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token : null;
         const size = tokenDraftTransforms[ref.id]?.size ?? (token ? getTokenSize(token, gridSettings.cellSize) : 0);
-        return !!token && !!position && (isOwner || canControlToken(token)) && contains({ x: position.x, y: position.y, width: size, height: size });
+        return !!token && !!position && (isOwner || canControlToken(token)) && !isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size }) && contains({ x: position.x, y: position.y, width: size, height: size });
       }
       const poi = mapPois.find(item => item.id === ref.id);
       const position = poi ? poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi : null;
       const size = poi ? poiDraftTransforms[poi.id]?.size ?? poi.size : 0;
-      return !!poi && !!position && (isOwner || canControlPoi(poi)) && contains({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size });
+      return !!poi && !!position && (isOwner || canControlPoi(poi)) && !isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size }) && contains({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size });
     });
     if (candidates.length === 0) return false;
     const previous = depthSelectionRef.current;
@@ -2671,7 +2679,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         const drawing = mapDrawings.find(item => item.id === ref.id);
         const moveDraft = drawing ? drawingMoveDrafts[drawing.id] ?? remoteDrawingPositions[drawing.id] : null;
         const rendered = drawing ? drawingTransformDrafts[drawing.id] ?? (moveDraft ? { ...drawing, ...moveDraft } : drawing) : null;
-        if (rendered && (isOwner || rendered.visible !== false) && drawingContainsPoint(rendered, point, view.scale)) {
+        if (rendered && (isOwner || rendered.visible !== false) && !isBoundsFullyFogCovered(getRotatedRectBounds(rendered, rendered.width, rendered.height, rendered.rotation ?? 0)) && drawingContainsPoint(rendered, point, view.scale)) {
           keys.add(`drawing\u0000${rendered.id}`);
           hoveredDrawingCandidate = rendered.id;
         }
@@ -2679,12 +2687,12 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         const token = tokenById.get(ref.id);
         const position = token ? tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token : null;
         const size = tokenDraftTransforms[ref.id]?.size ?? (token ? getTokenSize(token, gridSettings.cellSize) : 0);
-        if (token && position && contains({ x: position.x, y: position.y, width: size, height: size })) keys.add(`token\u0000${token.id}`);
+        if (token && position && !isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size }) && contains({ x: position.x, y: position.y, width: size, height: size })) keys.add(`token\u0000${token.id}`);
       } else {
         const poi = poiById.get(ref.id);
         const position = poi ? poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi : null;
         const size = poi ? poiDraftTransforms[poi.id]?.size ?? poi.size : 0;
-        if (poi && position && contains({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size })) keys.add(`poi\u0000${poi.id}`);
+        if (poi && position && !isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size }) && contains({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size })) keys.add(`poi\u0000${poi.id}`);
       }
     });
     if (hoveredDrawingCandidate) hoveredMapElementRef.current = { type: 'drawing', id: hoveredDrawingCandidate };
@@ -3221,7 +3229,9 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   };
 
   const beginTokenMove = (event: ReactPointerEvent<HTMLElement>, token: SessionMapToken) => {
-    if (calibrationActive || activeTool === 'measure' || !canMoveToken(token) || event.button !== 0) return;
+    const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? remoteTokenPositions[token.id] ?? token;
+    const size = tokenDraftTransforms[token.id]?.size ?? getTokenSize(token, gridSettings.cellSize);
+    if (calibrationActive || activeTool === 'measure' || !canMoveToken(token) || isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size }) || event.button !== 0) return;
     if (selectionArmed && !selectedTokenIds.has(token.id)) {
       setSelectedTokenIds(new Set());
       setSelectedDrawingIds(new Set());
@@ -3235,8 +3245,13 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     setDrawingDraft(null);
     setTransformTokenId(null);
     setTokenMenu(null);
-    const selectionMembers = selectedTokenIds.has(token.id) ? mapTokens.filter((candidate) => selectedTokenIds.has(candidate.id) && canMoveToken(candidate)) : [];
-    const linkedTokens = selectionMembers.length > 0 ? selectionMembers : token.magnetGroupId ? mapTokens.filter((candidate) => candidate.magnetGroupId === token.magnetGroupId && canMoveToken(candidate)) : [token];
+    const tokenCanJoinMove = (candidate: SessionMapToken) => {
+      const candidatePosition = tokenDraftTransforms[candidate.id] ?? tokenDraftPositions[candidate.id] ?? remoteTokenPositions[candidate.id] ?? candidate;
+      const candidateSize = tokenDraftTransforms[candidate.id]?.size ?? getTokenSize(candidate, gridSettings.cellSize);
+      return canMoveToken(candidate) && !isBoundsFullyFogCovered({ x: candidatePosition.x, y: candidatePosition.y, width: candidateSize, height: candidateSize });
+    };
+    const selectionMembers = selectedTokenIds.has(token.id) ? mapTokens.filter((candidate) => selectedTokenIds.has(candidate.id) && tokenCanJoinMove(candidate)) : [];
+    const linkedTokens = selectionMembers.length > 0 ? selectionMembers : token.magnetGroupId ? mapTokens.filter((candidate) => candidate.magnetGroupId === token.magnetGroupId && tokenCanJoinMove(candidate)) : [token];
     const movingIds = new Set(linkedTokens.map((candidate) => candidate.id));
     if (selectionMembers.length === 0)
       linkedTokens.forEach((linkedToken) => {
@@ -3245,7 +3260,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         const tokenBounds = getTokenBounds(linkedToken, gridSettings.cellSize, tokenPosition);
         mapTokens.slice(tokenIndex + 1).forEach((candidate) => {
           const position = tokenDraftPositions[candidate.id] ?? remoteTokenPositions[candidate.id] ?? candidate;
-          if (canMoveToken(candidate) && isBoundsFullyContained(getTokenBounds(candidate, gridSettings.cellSize, position), tokenBounds)) movingIds.add(candidate.id);
+           if (tokenCanJoinMove(candidate) && isBoundsFullyContained(getTokenBounds(candidate, gridSettings.cellSize, position), tokenBounds)) movingIds.add(candidate.id);
         });
       });
     const movingTokens = mapTokens.filter((candidate) => movingIds.has(candidate.id));
@@ -3255,7 +3270,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         return [candidate.id, { x: position.x, y: position.y }];
       }),
     );
-    const selectedDrawings = selectionMembers.length > 0 ? mapDrawings.filter((drawing) => selectedDrawingIds.has(drawing.id) && !drawing.pinned && (isOwner || !drawing.locked)) : [];
+    const selectedDrawings = selectionMembers.length > 0 ? mapDrawings.filter((drawing) => selectedDrawingIds.has(drawing.id) && !drawing.pinned && (isOwner || !drawing.locked) && !isBoundsFullyFogCovered(getRotatedRectBounds(drawing, drawing.width, drawing.height, drawing.rotation ?? 0))) : [];
     const drawingOrigins = Object.fromEntries(selectedDrawings.map((drawing) => [drawing.id, { x: drawing.x, y: drawing.y }]));
     tokenGestureRef.current = {
       pointerId: event.pointerId,
@@ -3603,6 +3618,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   ], [coneDirectionDrafts, gridSettings.cellSize, isOwner, mapPois, mapTokens, mapUserId, poiDraftPositions, poiDraftTransforms, remotePoiPositions, remoteTokenPositions, tokenDraftPositions, tokenDraftTransforms]);
   const publicLightEffects = useMemo(() => publicLightSources.map(source => ({ source, points: visibilityPolygon(source) })).filter(item => item.points.length >= 3), [automaticVisionBlockers, gridSettings.cellSize, gridSettings.distance, placement.height, placement.width, placement.x, placement.y, publicLightSources]);
   const publicLightPolygons = publicLightEffects.map(item => item.points);
+  const lightGradientId = (sourceKey: string) => `session-light-gradient-${mapId}-${sourceKey}`.replace(/[^a-zA-Z0-9_-]/g, '');
   const privateVisionPolygons = useMemo(() => privateVisionSources.map(visibilityPolygon).filter(points => points.length >= 3), [automaticVisionBlockers, gridSettings.cellSize, gridSettings.distance, placement.height, placement.width, placement.x, placement.y, privateVisionSources]);
   useEffect(() => {
     if (!isOwner || !onFogExplorationChange) return;
@@ -3745,6 +3761,30 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     return intersectsViewport({ x: poi.x - size / 2, y: poi.y - size / 2, width: size, height: size });
   });
   const currentVisibilityPolygons = [...publicLightPolygons, ...privateVisionPolygons];
+  const isPointFullyFogCovered = (point: SessionMapPoint) => {
+    if (isOwner || currentVisibilityPolygons.some(points => points.length >= 3 && pointInPolygon(point, points))) return false;
+    let fullyCovered = false;
+    mapFog.forEach(fog => {
+      if (fog.enabled === false || fog.visionBlocker || !fogContainsPoint(fog, point)) return;
+      if (fog.operation === 'reveal') {
+        fullyCovered = false;
+        return;
+      }
+      const opacity = Math.max(0, Math.min(1, fog.opacity ?? 1));
+      const explored = fog.persistence !== 'permanent'
+        && exploredAreasContainPoint(fogExplorationCacheRef.current[fog.id] ?? fog.exploredAreas, point);
+      fullyCovered = opacity >= 0.99 && !explored;
+    });
+    return fullyCovered;
+  };
+  const isBoundsFullyFogCovered = (bounds: { x: number; y: number; width: number; height: number }) => {
+    if (isOwner) return false;
+    const insetX = Math.min(Math.max(bounds.width * 0.08, 0.5), bounds.width / 2);
+    const insetY = Math.min(Math.max(bounds.height * 0.08, 0.5), bounds.height / 2);
+    const xs = [bounds.x + insetX, bounds.x + bounds.width / 2, bounds.x + bounds.width - insetX];
+    const ys = [bounds.y + insetY, bounds.y + bounds.height / 2, bounds.y + bounds.height - insetY];
+    return xs.every(x => ys.every(y => isPointFullyFogCovered({ x, y })));
+  };
   const visibleTokens = mapTokens.filter(token => {
     if (selectedTokenIds.has(token.id) || tokenMenu?.tokenId === token.id || tokenDraftPositions[token.id] || remoteTokenPositions[token.id] || tokenDraftTransforms[token.id]) return true;
     const size = getTokenSize(token, gridSettings.cellSize);
@@ -3907,11 +3947,13 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             const renderedBase = drawingTransformDrafts[drawing.id] ?? (drawingDraft?.id === drawing.id ? drawingDraft : moveDraft ? { ...drawing, ...moveDraft } : drawing);
             const rendered = withMeasuredTextBounds(renderedBase);
             if (drawing.visible === false && !isOwner) return null;
-            const interactive = (canMoveDrawing(drawing) || canEditDrawing(drawing)) && activeTool !== 'fog';
+            const fullyFogCovered = isBoundsFullyFogCovered(getRotatedRectBounds(rendered, rendered.width, rendered.height, rendered.rotation ?? 0));
+            const interactive = !fullyFogCovered && (canMoveDrawing(drawing) || canEditDrawing(drawing)) && activeTool !== 'fog';
             return (
               <svg key={drawing.id} className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" style={{ zIndex: objectZIndex.get(`drawing\u0000${drawing.id}`) }}>
               <g
                 data-map-interactive={interactive || undefined}
+                pointerEvents={interactive ? 'auto' : 'none'}
                 transform={`translate(${rendered.x} ${rendered.y}) rotate(${rendered.rotation} ${rendered.width / 2} ${rendered.height / 2})`}
                 opacity={isOwner && drawing.visible === false ? 0.35 : 1}
                 onPointerEnter={() => {
@@ -4172,6 +4214,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             const handleSize = Math.min(16, Math.max(12, size * view.scale * 0.14)) / view.scale;
             const rotationHandleSize = Math.min(18, Math.max(14, size * view.scale * 0.18)) / view.scale;
             const rotationLineLength = Math.min(32, Math.max(18, size * view.scale * 0.35)) / view.scale;
+            const fullyFogCovered = isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size });
             return (
               <Tooltip key={poi.id}>
                 <TooltipTrigger asChild>
@@ -4180,7 +4223,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                     data-map-interactive
                     data-map-poi-id={poi.id}
                     aria-label={poi.label || 'Punto di interesse'}
-                    className={`${activeTool === 'fog' ? 'pointer-events-none' : 'pointer-events-auto'} absolute touch-none border-0 bg-transparent p-0 ${depthHoveredKeys.has(`poi\u0000${poi.id}`) ? 'drop-shadow-[0_0_7px_rgba(34,211,238,0.95)]' : ''} ${canMovePoi(poi) ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
+                    className={`${activeTool === 'fog' || fullyFogCovered ? 'pointer-events-none' : 'pointer-events-auto'} absolute touch-none border-0 bg-transparent p-0 ${depthHoveredKeys.has(`poi\u0000${poi.id}`) ? 'drop-shadow-[0_0_7px_rgba(34,211,238,0.95)]' : ''} ${canMovePoi(poi) ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
                     style={{ transform: `translate3d(${position.x - size / 2}px, ${position.y - size / 2}px, 0)`, width: size, height: size, opacity: isOwner && !poi.visibleToPlayers ? 0.45 : 1, color: poi.color, zIndex: objectZIndex.get(`poi\u0000${poi.id}`) }}
                     onPointerDown={(event) => beginPoiMove(event, poi)}
                     onPointerMove={movePoi}
@@ -4242,6 +4285,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             const conditionNaturalStep = 2 * Math.asin(Math.min(1, (conditionSize * (1 + CONDITION_BADGE_GAP_RATIO)) / (2 * conditionRadius)));
             const conditionStep = conditionCount > 1 ? Math.min(conditionNaturalStep, conditionMaxStep) : 0;
             const conditionStartAngle = -Math.PI / 2 - (conditionStep * (conditionCount - 1)) / 2;
+            const fullyFogCovered = isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size });
             return (
               <Fragment key={token.id}>
                 <Tooltip>
@@ -4253,7 +4297,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                       style={{
                         transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
                         opacity: isOwner && token.visible === false ? 0.45 : 1,
-                        zIndex: token.entityKind === 'pg' && mapFog.some(fog => fog.operation === 'cover' && fog.enabled !== false) ? 9001 : objectZIndex.get(`token\u0000${token.id}`),
+                        zIndex: !fullyFogCovered && token.entityKind === 'pg' && mapFog.some(fog => fog.operation === 'cover' && fog.enabled !== false) ? 9001 : objectZIndex.get(`token\u0000${token.id}`),
                       }}
                     >
                       <div style={{ transform: `rotate(${rotation}deg)` }}>
@@ -4263,7 +4307,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                         data-map-interactive
                         data-selected-map-element={selectedTokenIds.has(token.id) ? 'true' : undefined}
                         data-map-movable={canMoveToken(token) ? 'true' : 'false'}
-                        className={`${activeTool === 'fog' ? 'pointer-events-none' : 'pointer-events-auto'} absolute inset-0 z-[7] rounded-full ${calibrationActive || (activeTool === 'select' && selectionArmed) ? 'cursor-crosshair' : !canMoveToken(token) ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'}`}
+                        className={`${activeTool === 'fog' || fullyFogCovered ? 'pointer-events-none' : 'pointer-events-auto'} absolute inset-0 z-[7] rounded-full ${calibrationActive || (activeTool === 'select' && selectionArmed) ? 'cursor-crosshair' : !canMoveToken(token) ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'}`}
                         onPointerEnter={() => {
                           hoveredMapElementRef.current = { type: 'token', id: token.id };
                         }}
@@ -4407,7 +4451,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         </div>
         <svg key={`${mapId}:${mapFog.map(fog => fog.id).join(':')}`} data-session-map-fog className="pointer-events-none absolute inset-0 z-[9000] h-full w-full overflow-visible">
           <defs>
-            {publicLightSources.map((source, index) => source.effect && <radialGradient key={`light-gradient-${source.id}`} id={`session-light-gradient-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index}`} gradientUnits="userSpaceOnUse" cx={source.origin.x} cy={source.origin.y} r={distanceToWorld(source.radius)}>
+            {publicLightSources.map(source => source.effect && <radialGradient key={`light-gradient-${source.key}`} id={lightGradientId(source.key)} gradientUnits="userSpaceOnUse" cx={source.origin.x} cy={source.origin.y} r={distanceToWorld(source.radius)}>
               <stop offset="0" stopColor="black" />
               {source.effect?.includes('flicker') && !panning ? flickerGradientStops(source.flickerPreset, source.effect === 'flicker-radiant') : <><stop offset="0.3" stopColor="black" /><stop offset="1" stopColor="white" /></>}
             </radialGradient>)}
@@ -4444,7 +4488,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                 {showAsPlayer && <g clipPath={`url(#session-fog-shape-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index})`}>{privateVisionPolygons.map((points, polygonIndex) => <polygon key={`vision-${polygonIndex}`} points={points.map(point => `${point.x},${point.y}`).join(' ')} fill={attenuatedMaskColor} />)}</g>}
                 {persistence === 'volatile' && volatileTrailAreas?.length ? <path d={exploredAreasPath(volatileTrailAreas)} fill="black" stroke="black" strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeLinejoin="round" fillRule="evenodd" clipRule="evenodd" /> : null}
                 {persistence === 'volatile' && lightExploredAreas?.length ? <path d={exploredAreasPath(lightExploredAreas)} fill="black" stroke="black" strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeLinejoin="round" fillRule="evenodd" clipRule="evenodd" /> : null}
-                {showAsPlayer && <g clipPath={`url(#session-fog-shape-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index})`}>{publicLightEffects.map((item, lightIndex) => <polygon key={`light-${lightIndex}`} points={item.points.map(point => `${point.x},${point.y}`).join(' ')} fill="black" />)}</g>}
+                {showAsPlayer && <g clipPath={`url(#session-fog-shape-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index})`}>{publicLightEffects.map(item => <polygon key={`light-${item.source.key}`} points={item.points.map(point => `${point.x},${point.y}`).join(' ')} fill={item.source.effect ? `url(#${lightGradientId(item.source.key)})` : 'black'} />)}</g>}
                 {mapFog.slice(index + 1).filter(item => item.operation === 'reveal' && item.enabled !== false).map(item => {
                   const revealPosition = fogMoveDrafts[item.id] ?? item;
                   const reveal = fogPathDrafts[item.id] ?? fogTransformDrafts[item.id] ?? { ...item, ...revealPosition };
