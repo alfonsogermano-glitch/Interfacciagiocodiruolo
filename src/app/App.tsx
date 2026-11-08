@@ -35,9 +35,6 @@ const SettingsModal = lazy(() =>
 const ReportBugModal = lazy(() =>
   import('./components/ReportBugModal').then(module => ({ default: module.ReportBugModal }))
 );
-const ChangePasswordModal = lazy(() =>
-  import('./components/ChangePasswordModal').then(module => ({ default: module.ChangePasswordModal }))
-);
 const NewsPage = lazy(() =>
   import('./news/NewsPage').then(module => ({ default: module.NewsPage }))
 );
@@ -232,7 +229,6 @@ function AuthGate() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'profile'>('general');
   const [isReportBugOpen, setIsReportBugOpen] = useState(false);
-  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [draftDashboardSettings, setDraftDashboardSettings] =
     useState<DashboardSettings>(() => dashboardSettings);
 
@@ -425,7 +421,6 @@ function AuthGate() {
             onLogout={() => void signOut()}
             onOpenSettings={(tab) => openSettings(tab)}
             onReportBug={() => setIsReportBugOpen(true)}
-            onChangePassword={() => setIsChangePasswordOpen(true)}
           />
         }
       >
@@ -470,11 +465,6 @@ function AuthGate() {
         </Suspense>
       )}
 
-      {isChangePasswordOpen && user.email && (
-        <Suspense fallback={<LazyFeatureFallback />}>
-          <ChangePasswordModal email={user.email} onClose={() => setIsChangePasswordOpen(false)} />
-        </Suspense>
-      )}
     </>
   );
 }

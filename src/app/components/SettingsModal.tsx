@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, X, Camera, Settings as SettingsIcon, UserCircle2, Shield } from 'lucide-react';
+import { CheckCircle2, Eye, EyeOff, KeyRound, Loader2, X, Camera, Settings as SettingsIcon, UserCircle2, Shield } from 'lucide-react';
 import Cropper, { type Area } from 'react-easy-crop';
 import { SupabaseDebug } from './SupabaseDebug';
 import { AdminUsersPanel } from './AdminUsersPanel';
@@ -29,6 +29,13 @@ const labelStyle: React.CSSProperties = {
 const MAX_AVATAR_MB = 5;
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 3;
+
+function passwordError(message: string) {
+  if (message.includes('Invalid login credentials')) return 'La password attuale non è corretta.';
+  if (message.includes('New password should be different')) return 'La nuova password deve essere diversa da quella attuale.';
+  if (message.includes('Password should be at least')) return 'La password deve avere almeno 6 caratteri.';
+  return message;
+}
 
 async function getCroppedBlob(imageSrc: string, area: Area): Promise<Blob> {
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -60,6 +67,12 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
   const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+  const [passwordMessage, setPasswordMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -159,6 +172,42 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
       setIsSavingProfile(false);
     }
   };
+
+  const handleChangePassword = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setPasswordMessage(null);
+    if (!user?.email) return setPasswordMessage({ type: 'error', text: 'Non è disponibile un indirizzo email per questo account.' });
+    if (newPassword.length < 6) return setPasswordMessage({ type: 'error', text: 'La password deve avere almeno 6 caratteri.' });
+    if (newPassword !== confirmPassword) return setPasswordMessage({ type: 'error', text: 'Le due nuove password non coincidono.' });
+    if (newPassword === currentPassword) return setPasswordMessage({ type: 'error', text: 'La nuova password deve essere diversa da quella attuale.' });
+    setIsChangingPassword(true);
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email: user.email, password: currentPassword });
+      if (signInError) return setPasswordMessage({ type: 'error', text: passwordError(signInError.message) });
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+      if (updateError) return setPasswordMessage({ type: 'error', text: passwordError(updateError.message) });
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setPasswordMessage({ type: 'success', text: 'La password è stata aggiornata correttamente.' });
+    } catch {
+      setPasswordMessage({ type: 'error', text: 'Impossibile aggiornare la password. Riprova.' });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const passwordField = (id: string, label: string, value: string, onChange: (value: string) => void, autoComplete: string) => (
+    <label className="block">
+      <span style={labelStyle}>{label}</span>
+      <span className="relative block">
+        <input type={visiblePasswords[id] ? 'text' : 'password'} value={value} onChange={event => onChange(event.target.value)} autoComplete={autoComplete} required style={{ ...inputStyle, paddingRight: '2.75rem' }} />
+        <button type="button" aria-label={visiblePasswords[id] ? 'Nascondi password' : 'Mostra password'} onClick={() => setVisiblePasswords(current => ({ ...current, [id]: !current[id] }))} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--dash-muted)] hover:text-[var(--dash-text-strong)]">
+          {visiblePasswords[id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </span>
+    </label>
+  );
 
   // ── Vista di ritaglio: sostituisce tutto il modal mentre attiva ──
   if (rawImageSrc) {
@@ -377,6 +426,31 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
                 placeholder="Il tuo nome o alias" style={inputStyle} />
             </div>
 
+            <form onSubmit={handleChangePassword} className="mb-5 space-y-4 border-t border-[var(--dash-border)] pt-5">
+              <div className="flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-[var(--dash-accent)]" />
+                <h4 className="text-sm font-medium text-[var(--dash-text-strong)]">Modifica password</h4>
+              </div>
+              <p className="text-xs text-[var(--dash-muted)]">Inserisci la password attuale per confermare la modifica.</p>
+              {passwordField('current', 'Password attuale', currentPassword, setCurrentPassword, 'current-password')}
+              <div className="grid gap-4 sm:grid-cols-2">
+                {passwordField('new', 'Nuova password', newPassword, setNewPassword, 'new-password')}
+                {passwordField('confirm', 'Conferma nuova password', confirmPassword, setConfirmPassword, 'new-password')}
+              </div>
+              {passwordMessage && (
+                <div role={passwordMessage.type === 'error' ? 'alert' : 'status'} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${passwordMessage.type === 'success' ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300' : 'border-[var(--dash-danger-border)] bg-[var(--dash-danger-bg)] text-[var(--dash-danger-text)]'}`}>
+                  {passwordMessage.type === 'success' && <CheckCircle2 className="h-4 w-4 shrink-0" />}
+                  {passwordMessage.text}
+                </div>
+              )}
+              <div className="flex justify-end">
+                <button type="submit" disabled={isChangingPassword} className="flex items-center gap-2 rounded-md border border-[var(--dash-accent)] px-4 py-2 text-sm font-medium text-[var(--dash-accent)] transition-colors hover:bg-[var(--dash-accent)]/10 disabled:cursor-not-allowed disabled:opacity-60">
+                  {isChangingPassword && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isChangingPassword ? 'Aggiornamento...' : 'Aggiorna password'}
+                </button>
+              </div>
+            </form>
+
             {profileError && (
               <div style={{ backgroundColor: 'var(--dash-danger-bg)', border: '1px solid var(--dash-danger-border)',
                             borderRadius: 8, padding: '0.6rem 0.875rem', fontSize: '0.8rem', color: 'var(--dash-danger-text)',
@@ -386,12 +460,12 @@ export function SettingsModal({ draft, onChangeDraft, onSave, onCancel, initialT
             )}
 
             <div className="mt-6 flex justify-end gap-3 border-t border-[var(--dash-border)] pt-4">
-              <button type="button" onClick={onCancel} disabled={isSavingProfile}
+              <button type="button" onClick={onCancel} disabled={isSavingProfile || isChangingPassword}
                 className="inline-flex items-center gap-2 rounded-md border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-surface-2)]">
                 <X className="h-4 w-4 shrink-0" aria-hidden="true" />
                 Annulla
               </button>
-              <button type="button" onClick={handleSaveProfile} disabled={isSavingProfile}
+              <button type="button" onClick={handleSaveProfile} disabled={isSavingProfile || isChangingPassword}
                 className="flex items-center gap-2 rounded-md border border-[var(--dash-accent)] bg-[var(--dash-accent)] px-4 py-2 text-sm text-[var(--dash-text-strong)] transition-colors hover:bg-[var(--dash-accent-2)] disabled:cursor-not-allowed disabled:opacity-60">
                 {isSavingProfile && <Loader2 size={14} className="animate-spin" />}
                 {isSavingProfile ? 'Salvataggio...' : 'Salva profilo'}
