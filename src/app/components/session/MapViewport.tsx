@@ -2666,7 +2666,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       const size = poi ? poiDraftTransforms[poi.id]?.size ?? poi.size : 0;
       return !!poi && !!position && canMovePoi(poi) && (!poiVisibilitySourceActive(poi) || !isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size })) && contains({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size });
     });
-    if (candidates.length === 0) return false;
+    if (candidates.length < 2) return false;
     const previous = depthSelectionRef.current;
     const samePoint = !!previous && Math.hypot(previous.x - clientX, previous.y - clientY) < 8;
     const currentKey = samePoint ? previous.key : currentRef ? `${currentRef.family}\u0000${currentRef.id}` : null;
