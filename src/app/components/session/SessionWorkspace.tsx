@@ -140,9 +140,10 @@ function chapterPreview(
 }
 
 function publicMapTokens(tokens: SessionMapToken[]) {
-  return tokens.filter(
-    (token) => !token.hiddenFromPlayers && token.visible !== false,
-  );
+  // La visibilità della scheda sorgente controlla il catalogo laterale, non
+  // il token già posizionato. Sulla mappa l'unica autorità è il comando
+  // Mostra/Nascondi del token (`visible`).
+  return tokens.filter((token) => token.visible !== false);
 }
 
 function publicMapDrawings(drawings: SessionMapDrawing[]) {
@@ -2243,7 +2244,7 @@ export function SessionWorkspace({
               mapPlacement={mapPlacement}
               gridSettings={display.gridSettings ?? DEFAULT_SESSION_GRID}
               mapTokens={(display.mapTokens ?? []).filter(
-                (token) => isOwner || !token.hiddenFromPlayers,
+                (token) => isOwner || token.visible !== false,
               )}
               remoteTokenPositions={remoteTokenPositions}
               onTokenMovePreview={previewMapTokenMove}
