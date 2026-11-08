@@ -190,6 +190,8 @@ export function SessionWorkspace({
   setSessionMapCurrentUserId(currentUserId);
   const { activeScene, channelReady, publish, publishMapPatch } = useActiveScene(campaignId);
   const [remoteTokenPositions, setRemoteTokenPositions] = useState<Record<string, TokenPosition>>({});
+  const [remotePoiPositions, setRemotePoiPositions] = useState<Record<string, TokenPosition>>({});
+  const [remoteDrawingPositions, setRemoteDrawingPositions] = useState<Record<string, TokenPosition>>({});
   const playerMapActionHandlerRef = useRef<(payload: any) => void>(() => {});
   const playerMapPoiActionHandlerRef = useRef<(payload: any) => void>(() => {});
   const playerMapLayerActionHandlerRef = useRef<(payload: any) => void>(() => {});
@@ -217,6 +219,17 @@ export function SessionWorkspace({
       },
       map_object_layer_action: (message) => {
         if (isOwner) playerMapLayerActionHandlerRef.current(message?.payload);
+      },
+      map_object_drag_preview: (message) => {
+        const payload = message?.payload;
+        if (!payload || payload.actorProfileId === currentUserId || !['poi', 'drawing'].includes(payload.family) || !payload.positions || typeof payload.positions !== 'object') return;
+        const positions: Record<string, TokenPosition> = {};
+        Object.entries(payload.positions as Record<string, unknown>).forEach(([id, position]) => {
+          const candidate = position as Partial<TokenPosition> | null;
+          if (Number.isFinite(candidate?.x) && Number.isFinite(candidate?.y)) positions[id] = { x: candidate!.x!, y: candidate!.y! };
+        });
+        if (payload.family === 'poi') setRemotePoiPositions((current) => ({ ...current, ...positions }));
+        else setRemoteDrawingPositions((current) => ({ ...current, ...positions }));
       },
     },
   });
@@ -559,6 +572,30 @@ export function SessionWorkspace({
       return changed ? next : current;
     });
   }, [display?.mapTokens]);
+  useEffect(() => {
+    if (!display?.mapPois) return;
+    setRemotePoiPositions((current) => {
+      let changed = false;
+      const next = { ...current };
+      display.mapPois?.forEach((poi) => {
+        const remote = next[poi.id];
+        if (remote && remote.x === poi.x && remote.y === poi.y) { delete next[poi.id]; changed = true; }
+      });
+      return changed ? next : current;
+    });
+  }, [display?.mapPois]);
+  useEffect(() => {
+    if (!display?.mapDrawings) return;
+    setRemoteDrawingPositions((current) => {
+      let changed = false;
+      const next = { ...current };
+      display.mapDrawings?.forEach((drawing) => {
+        const remote = next[drawing.id];
+        if (remote && remote.x === drawing.x && remote.y === drawing.y) { delete next[drawing.id]; changed = true; }
+      });
+      return changed ? next : current;
+    });
+  }, [display?.mapDrawings]);
   const mapAssetSource = display?.mapUrl ?? display?.mapMetadata.displayUrl ?? display?.sceneImageUrl ?? null;
   const mapAsset = useCachedMapAsset(mapAssetSource);
   const [renderedMapUrl, setRenderedMapUrl] = useState<string | null>(null);
@@ -703,6 +740,15 @@ export function SessionWorkspace({
       chapterId: display.chapterId,
       actorProfileId: currentUserId,
       ...(finished ? { tokenIds: Object.keys(positions) } : { positions }),
+    });
+  };
+  const previewMapObjectMove = (family: 'poi' | 'drawing', positions: Record<string, TokenPosition>) => {
+    if (!display) return;
+    void sendCampaignEvent('map_object_drag_preview', {
+      family,
+      positions,
+      chapterId: display.chapterId,
+      actorProfileId: currentUserId,
     });
   };
   const requestMapPoiAction = (
@@ -1310,7 +1356,10 @@ export function SessionWorkspace({
         id: crypto.randomUUID(),
         locked: false,
         pinned: false,
-        visible: true,
+        // Eredita la visibilità della scheda solo alla creazione. Da questo
+        // momento il token vive autonomamente tramite il proprio comando
+        // Mostra/Nascondi e non segue più modifiche alla scheda sorgente.
+        visible: visual.hiddenFromPlayers !== true,
         showLabel: false,
         labelColor: "var(--dash-surface)",
         size,
@@ -2248,6 +2297,10 @@ export function SessionWorkspace({
               )}
               remoteTokenPositions={remoteTokenPositions}
               onTokenMovePreview={previewMapTokenMove}
+              remotePoiPositions={remotePoiPositions}
+              onPoiMovePreview={(positions) => previewMapObjectMove('poi', positions)}
+              remoteDrawingPositions={remoteDrawingPositions}
+              onDrawingMovePreview={(positions) => previewMapObjectMove('drawing', positions)}
               mapDrawings={display.mapDrawings ?? []}
               mapFog={display.mapFog ?? []}
                mapPois={(display.mapPois ?? []).filter(

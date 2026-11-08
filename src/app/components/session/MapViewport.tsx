@@ -215,6 +215,10 @@ interface MapViewportProps {
   onTokensMove?: (positions: Record<string, TokenPosition>) => void;
   onTokenMovePreview?: (positions: Record<string, TokenPosition>, finished?: boolean) => void;
   remoteTokenPositions?: Record<string, TokenPosition>;
+  onPoiMovePreview?: (positions: Record<string, TokenPosition>, finished?: boolean) => void;
+  remotePoiPositions?: Record<string, TokenPosition>;
+  onDrawingMovePreview?: (positions: Record<string, TokenPosition>, finished?: boolean) => void;
+  remoteDrawingPositions?: Record<string, TokenPosition>;
   onTokenLayerMove?: (tokenId: string, move: MapLayerMove) => void;
   onTokensLayerMove?: (tokenIds: string[], move: MapLayerMove) => void;
   onTokenLockChange?: (tokenId: string, locked: boolean) => void;
@@ -978,7 +982,7 @@ function readStoredView(mapId: string): ViewTransform {
   return { x: 0, y: 0, scale: 1 };
 }
 
-export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwner, currentUserId, currentUserAccessToken, mapPlacement, gridSettings, mapTokens = [], mapDrawings = [], mapFog = [], mapPois = [], mapObjectOrder, remoteTokenPositions = {}, onPoiCreate, onPoiMove, onPoiChange, onPoiDelete, onPoiDuplicate, onPoiPaste, onPoiLayerMove, onDrawingCreate, onDrawingChange, onDrawingsChange, onDrawingsMove, onDrawingTransformsChange, onDrawingDelete, onDrawingsDelete, onDrawingDuplicate, onDrawingsDuplicate, onDrawingLayerMove, onDrawingsLayerMove, onDrawingsCreateMagnetGroup, onDrawingMagnetDisable, onFogCreate, onFogReplaceAll, onFogChange, onFogsChange, onFogsMove, onFogTransformsChange, onFogExplorationChange, onFogDelete, onFogsDelete, onFogCoverFullMap, onMapPlacementChange, onTokenDrop, onTokensMove, onTokenMovePreview, onTokenLayerMove, onTokensLayerMove, onTokenLockChange, onTokenChange, onTokensChange, onTokenTransformsChange, onTokenDelete, onTokensDelete, onTokensCreateMagnetGroup, onTokenMagnetEnabledChange, onTokenMagnetLink, onTokenMagnetUnlink }: MapViewportProps) {
+export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwner, currentUserId, currentUserAccessToken, mapPlacement, gridSettings, mapTokens = [], mapDrawings = [], mapFog = [], mapPois = [], mapObjectOrder, remoteTokenPositions = {}, remotePoiPositions = {}, remoteDrawingPositions = {}, onPoiCreate, onPoiMove, onPoiMovePreview, onPoiChange, onPoiDelete, onPoiDuplicate, onPoiPaste, onPoiLayerMove, onDrawingCreate, onDrawingChange, onDrawingsChange, onDrawingsMove, onDrawingMovePreview, onDrawingTransformsChange, onDrawingDelete, onDrawingsDelete, onDrawingDuplicate, onDrawingsDuplicate, onDrawingLayerMove, onDrawingsLayerMove, onDrawingsCreateMagnetGroup, onDrawingMagnetDisable, onFogCreate, onFogReplaceAll, onFogChange, onFogsChange, onFogsMove, onFogTransformsChange, onFogExplorationChange, onFogDelete, onFogsDelete, onFogCoverFullMap, onMapPlacementChange, onTokenDrop, onTokensMove, onTokenMovePreview, onTokenLayerMove, onTokensLayerMove, onTokenLockChange, onTokenChange, onTokensChange, onTokenTransformsChange, onTokenDelete, onTokensDelete, onTokensCreateMagnetGroup, onTokenMagnetEnabledChange, onTokenMagnetLink, onTokenMagnetUnlink }: MapViewportProps) {
   const objectOrder = useMemo(() => reconcileMapObjectOrder(mapObjectOrder, [['drawing', mapDrawings], ['token', mapTokens], ['poi', mapPois]]), [mapDrawings, mapObjectOrder, mapPois, mapTokens]);
   const objectZIndex = useMemo(() => new globalThis.Map(objectOrder.map((ref, index) => [`${ref.family}\u0000${ref.id}`, index + 3])), [objectOrder]);
   const drawingById = useMemo(() => new globalThis.Map(mapDrawings.map(item => [item.id, item])), [mapDrawings]);
@@ -1035,6 +1039,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const tokenTransformGestureRef = useRef<TokenTransformGesture | null>(null);
   const [tokenDraftPositions, setTokenDraftPositions] = useState<Record<string, { x: number; y: number }>>({});
   const tokenPreviewSentAtRef = useRef(0);
+  const poiPreviewSentAtRef = useRef(0);
+  const drawingPreviewSentAtRef = useRef(0);
   const [tokenDraftTransforms, setTokenDraftTransforms] = useState<Record<string, TokenTransform>>({});
   const [transformTokenId, setTransformTokenId] = useState<string | null>(null);
   const [tokenMenu, setTokenMenu] = useState<TokenMenu | null>(null);
@@ -2069,7 +2075,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     const selectionMembers = selectedDrawingIds.has(drawing.id) ? mapDrawings.filter((item) => selectedDrawingIds.has(item.id) && (isOwner || !item.locked)) : [];
     if (selectionMembers.length === 0) setSelectedDrawingIds(new Set());
     const members = selectionMembers.length > 0 ? selectionMembers : drawing.magnetGroupId ? mapDrawings.filter((item) => item.magnetGroupId === drawing.magnetGroupId && (isOwner || !item.locked)) : [drawing];
-    const origins = Object.fromEntries(members.map((item) => [item.id, { x: item.x, y: item.y }]));
+    const origins = Object.fromEntries(members.map((item) => [item.id, remoteDrawingPositions[item.id] ?? { x: item.x, y: item.y }]));
     const selectedTokens = selectionMembers.length > 0 ? mapTokens.filter((item) => selectedTokenIds.has(item.id) && canMoveToken(item)) : [];
     const tokenOrigins = Object.fromEntries(
       selectedTokens.map((item) => {
@@ -2101,6 +2107,12 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       ...current,
       ...gesture.tokenPositions,
     }));
+    const now = performance.now();
+    if (now - drawingPreviewSentAtRef.current >= 33) {
+      drawingPreviewSentAtRef.current = now;
+      onDrawingMovePreview?.(gesture.positions);
+      if (Object.keys(gesture.tokenPositions).length > 0) onTokenMovePreview?.(gesture.tokenPositions);
+    }
   };
   const finishSelectedDrawing = (event: ReactPointerEvent<SVGElement>) => {
     const gesture = drawingMoveRef.current;
@@ -2109,6 +2121,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     const dy = (event.clientY - gesture.startY) / view.scale;
     const positions = Object.fromEntries(Object.entries(gesture.origins).map(([id, origin]) => [id, { x: origin.x + dx, y: origin.y + dy }]));
     const tokenPositions = Object.fromEntries(Object.entries(gesture.tokenOrigins).map(([id, origin]) => [id, { x: origin.x + dx, y: origin.y + dy }]));
+    onDrawingMovePreview?.(positions, true);
+    if (Object.keys(tokenPositions).length > 0) onTokenMovePreview?.(tokenPositions, true);
     onDrawingsMove?.(positions);
     if (Object.keys(tokenPositions).length > 0) onTokensMove?.(tokenPositions);
     drawingMoveRef.current = null;
@@ -2490,7 +2504,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     event.preventDefault();
     event.stopPropagation();
     setPoiMenu(null);
-    const origin = poiDraftPositions[poi.id] ?? poi;
+    const origin = poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi;
     poiMoveRef.current = { pointerId: event.pointerId, poiId: poi.id, startX: event.clientX, startY: event.clientY, origin, position: origin };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -2499,12 +2513,18 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     if (!gesture || gesture.pointerId !== event.pointerId) return;
     gesture.position = { x: gesture.origin.x + (event.clientX - gesture.startX) / view.scale, y: gesture.origin.y + (event.clientY - gesture.startY) / view.scale };
     setPoiDraftPositions((current) => ({ ...current, [gesture.poiId]: gesture.position }));
+    const now = performance.now();
+    if (now - poiPreviewSentAtRef.current >= 33) {
+      poiPreviewSentAtRef.current = now;
+      onPoiMovePreview?.({ [gesture.poiId]: gesture.position });
+    }
   };
   const finishPoiMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const gesture = poiMoveRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     poiMoveRef.current = null;
+    onPoiMovePreview?.({ [gesture.poiId]: gesture.position }, true);
     onPoiMove?.(gesture.poiId, gesture.position);
     if (isOwner)
       setPoiDraftPositions((current) => {
@@ -2519,7 +2539,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     event.stopPropagation();
     const rect = viewportRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const position = poiDraftPositions[poi.id] ?? poi;
+    const position = poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi;
     const origin = poiDraftTransforms[poi.id] ?? { size: poi.size, rotation: poi.rotation ?? 0 };
     const centerClientX = rect.left + view.x + position.x * view.scale;
     const centerClientY = rect.top + view.y + position.y * view.scale;
@@ -2575,7 +2595,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     const candidates = [...objectOrder].reverse().filter((ref) => {
       if (ref.family === 'drawing') {
         const drawing = drawingById.get(ref.id);
-        const moveDraft = drawing ? drawingMoveDrafts[drawing.id] : null;
+        const moveDraft = drawing ? drawingMoveDrafts[drawing.id] ?? remoteDrawingPositions[drawing.id] : null;
         const rendered = drawing ? drawingTransformDrafts[drawing.id] ?? (moveDraft ? { ...drawing, ...moveDraft } : drawing) : null;
         return !!rendered && isOwner && drawingContainsPoint(rendered, point, view.scale);
       }
@@ -2586,7 +2606,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         return !!token && !!position && (isOwner || canControlToken(token)) && contains({ x: position.x, y: position.y, width: size, height: size });
       }
       const poi = mapPois.find(item => item.id === ref.id);
-      const position = poi ? poiDraftPositions[poi.id] ?? poi : null;
+      const position = poi ? poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi : null;
       const size = poi ? poiDraftTransforms[poi.id]?.size ?? poi.size : 0;
       return !!poi && !!position && (isOwner || canControlPoi(poi)) && contains({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size });
     });
@@ -2602,7 +2622,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     let targetBounds: { x: number; y: number; width: number; height: number } | null = null;
     if (target.family === 'drawing') {
       const drawing = mapDrawings.find(item => item.id === target.id);
-      const moveDraft = drawing ? drawingMoveDrafts[drawing.id] : null;
+      const moveDraft = drawing ? drawingMoveDrafts[drawing.id] ?? remoteDrawingPositions[drawing.id] : null;
       const rendered = drawing ? withMeasuredTextBounds(drawingTransformDrafts[drawing.id] ?? (moveDraft ? { ...drawing, ...moveDraft } : drawing)) : null;
       if (rendered) targetBounds = getRotatedRectBounds(rendered, rendered.width, rendered.height, rendered.rotation ?? 0);
     } else if (target.family === 'token') {
@@ -2611,7 +2631,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       if (token && position) { const size = tokenDraftTransforms[token.id]?.size ?? getTokenSize(token, gridSettings.cellSize); targetBounds = { x: position.x, y: position.y, width: size, height: size }; }
     } else {
       const poi = mapPois.find(item => item.id === target.id);
-      const position = poi ? poiDraftPositions[poi.id] ?? poi : null;
+      const position = poi ? poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi : null;
       const size = poi ? poiDraftTransforms[poi.id]?.size ?? poi.size : 0;
       if (poi && position) targetBounds = { x: position.x - size / 2, y: position.y - size / 2, width: size, height: size };
     }
@@ -2645,7 +2665,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     objectOrder.forEach((ref) => {
       if (ref.family === 'drawing') {
         const drawing = mapDrawings.find(item => item.id === ref.id);
-        const moveDraft = drawing ? drawingMoveDrafts[drawing.id] : null;
+        const moveDraft = drawing ? drawingMoveDrafts[drawing.id] ?? remoteDrawingPositions[drawing.id] : null;
         const rendered = drawing ? drawingTransformDrafts[drawing.id] ?? (moveDraft ? { ...drawing, ...moveDraft } : drawing) : null;
         if (rendered && (isOwner || rendered.visible !== false) && drawingContainsPoint(rendered, point, view.scale)) {
           keys.add(`drawing\u0000${rendered.id}`);
@@ -2658,7 +2678,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         if (token && position && contains({ x: position.x, y: position.y, width: size, height: size })) keys.add(`token\u0000${token.id}`);
       } else {
         const poi = poiById.get(ref.id);
-        const position = poi ? poiDraftPositions[poi.id] ?? poi : null;
+        const position = poi ? poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi : null;
         const size = poi ? poiDraftTransforms[poi.id]?.size ?? poi.size : 0;
         if (poi && position && contains({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size })) keys.add(`poi\u0000${poi.id}`);
       }
@@ -3559,11 +3579,11 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       return { id: `token-${token.id}`, key, family: 'token' as const, entityId: token.id, sourceType: 'light' as const, interactive: canControlToken(token), origin: { x: position.x + size / 2, y: position.y + size / 2 }, radius: token.light!.radius, shape: token.light!.shape, coneAngle: token.light!.coneAngle, direction: coneDirection(key, token.light!.coneDirection, tokenDraftTransforms[token.id]?.rotation ?? token.rotation ?? 0), sourceSize: size, effect: token.light!.effect, flickerPreset: token.light!.flickerPreset, outlineVisible: token.light!.outlineVisible !== false };
     }),
     ...mapPois.filter(poi => (isOwner || poi.visibleToPlayers) && poi.light?.enabled && poi.light.radius > 0).map(poi => {
-      const position = poiDraftPositions[poi.id] ?? poi;
+      const position = poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi;
       const key = `poi:${poi.id}:light`;
       return { id: `poi-${poi.id}`, key, family: 'poi' as const, entityId: poi.id, sourceType: 'light' as const, interactive: canControlPoi(poi), origin: position, radius: poi.light!.radius, shape: poi.light!.shape, coneAngle: poi.light!.coneAngle, direction: coneDirection(key, poi.light!.coneDirection, poiDraftTransforms[poi.id]?.rotation ?? poi.rotation ?? 0), sourceSize: poiDraftTransforms[poi.id]?.size ?? poi.size, effect: poi.light!.effect, flickerPreset: poi.light!.flickerPreset, outlineVisible: poi.light!.outlineVisible !== false };
     }),
-  ], [coneDirectionDrafts, gridSettings.cellSize, isOwner, mapPois, mapTokens, mapUserId, poiDraftPositions, poiDraftTransforms, remoteTokenPositions, tokenDraftPositions, tokenDraftTransforms]);
+  ], [coneDirectionDrafts, gridSettings.cellSize, isOwner, mapPois, mapTokens, mapUserId, poiDraftPositions, poiDraftTransforms, remotePoiPositions, remoteTokenPositions, tokenDraftPositions, tokenDraftTransforms]);
   const privateVisionSources = useMemo(() => [
     ...mapTokens.filter(token => (isOwner || token.visible !== false) && token.vision?.enabled && token.vision.radius > 0 && (isOwner || token.ownerProfileId === mapUserId || token.createdByProfileId === mapUserId)).map(token => {
       const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? remoteTokenPositions[token.id] ?? token;
@@ -3572,11 +3592,11 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       return { id: `token-${token.id}`, key, family: 'token' as const, entityId: token.id, sourceType: 'vision' as const, interactive: canControlToken(token), origin: { x: position.x + size / 2, y: position.y + size / 2 }, radius: token.vision!.radius, shape: token.vision!.shape, coneAngle: token.vision!.coneAngle, direction: coneDirection(key, token.vision!.coneDirection, tokenDraftTransforms[token.id]?.rotation ?? token.rotation ?? 0), sourceSize: size, outlineVisible: token.vision!.outlineVisible !== false };
     }),
     ...mapPois.filter(poi => (isOwner || poi.visibleToPlayers) && poi.vision?.enabled && poi.vision.radius > 0 && (isOwner || poi.createdByProfileId === mapUserId)).map(poi => {
-      const position = poiDraftPositions[poi.id] ?? poi;
+      const position = poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi;
       const key = `poi:${poi.id}:vision`;
       return { id: `poi-${poi.id}`, key, family: 'poi' as const, entityId: poi.id, sourceType: 'vision' as const, interactive: canControlPoi(poi), origin: position, radius: poi.vision!.radius, shape: poi.vision!.shape, coneAngle: poi.vision!.coneAngle, direction: coneDirection(key, poi.vision!.coneDirection, poiDraftTransforms[poi.id]?.rotation ?? poi.rotation ?? 0), sourceSize: poiDraftTransforms[poi.id]?.size ?? poi.size, outlineVisible: poi.vision!.outlineVisible !== false };
     }),
-  ], [coneDirectionDrafts, gridSettings.cellSize, isOwner, mapPois, mapTokens, mapUserId, poiDraftPositions, poiDraftTransforms, remoteTokenPositions, tokenDraftPositions, tokenDraftTransforms]);
+  ], [coneDirectionDrafts, gridSettings.cellSize, isOwner, mapPois, mapTokens, mapUserId, poiDraftPositions, poiDraftTransforms, remotePoiPositions, remoteTokenPositions, tokenDraftPositions, tokenDraftTransforms]);
   const publicLightEffects = useMemo(() => publicLightSources.map(source => ({ source, points: visibilityPolygon(source) })).filter(item => item.points.length >= 3), [automaticVisionBlockers, gridSettings.cellSize, gridSettings.distance, placement.height, placement.width, placement.x, placement.y, publicLightSources]);
   const publicLightPolygons = publicLightEffects.map(item => item.points);
   const privateVisionPolygons = useMemo(() => privateVisionSources.map(visibilityPolygon).filter(points => points.length >= 3), [automaticVisionBlockers, gridSettings.cellSize, gridSettings.distance, placement.height, placement.width, placement.x, placement.y, privateVisionSources]);
@@ -3712,11 +3732,11 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     && bounds.y + bounds.height >= visibleWorldBounds.y - viewportMargin
     && bounds.y <= visibleWorldBounds.y + visibleWorldBounds.height + viewportMargin;
   const visibleDrawings = mapDrawings.filter(drawing => {
-    if (selectedDrawingIds.has(drawing.id) || drawingMoveDrafts[drawing.id] || drawingTransformDrafts[drawing.id] || drawingMenu?.id === drawing.id) return true;
+    if (selectedDrawingIds.has(drawing.id) || drawingMoveDrafts[drawing.id] || remoteDrawingPositions[drawing.id] || drawingTransformDrafts[drawing.id] || drawingMenu?.id === drawing.id) return true;
     return intersectsViewport(getRotatedRectBounds(drawing, drawing.width, drawing.height, drawing.rotation ?? 0));
   });
   const visiblePois = mapPois.filter(poi => {
-    if (poiMenu?.poiId === poi.id || poiDraftPositions[poi.id] || poiDraftTransforms[poi.id]) return true;
+    if (poiMenu?.poiId === poi.id || poiDraftPositions[poi.id] || remotePoiPositions[poi.id] || poiDraftTransforms[poi.id]) return true;
     const size = poi.size;
     return intersectsViewport({ x: poi.x - size / 2, y: poi.y - size / 2, width: size, height: size });
   });
@@ -3879,7 +3899,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         <div data-session-map-drawings className="pointer-events-none absolute inset-0">
           {visibleDrawings.map((drawing) => {
             if (textDraft?.editingId === drawing.id) return null;
-            const moveDraft = drawingMoveDrafts[drawing.id];
+            const moveDraft = drawingMoveDrafts[drawing.id] ?? remoteDrawingPositions[drawing.id];
             const renderedBase = drawingTransformDrafts[drawing.id] ?? (drawingDraft?.id === drawing.id ? drawingDraft : moveDraft ? { ...drawing, ...moveDraft } : drawing);
             const rendered = withMeasuredTextBounds(renderedBase);
             if (drawing.visible === false && !isOwner) return null;
@@ -4130,7 +4150,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                 if (token && position) { const size = tokenDraftTransforms[token.id]?.size ?? getTokenSize(token, gridSettings.cellSize); bounds = { x: position.x, y: position.y, width: size, height: size }; }
               } else {
                 const poi = mapPois.find(item => item.id === ref.id);
-                const position = poi ? poiDraftPositions[poi.id] ?? poi : null;
+                const position = poi ? poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi : null;
                 const size = poi ? poiDraftTransforms[poi.id]?.size ?? poi.size : 0;
                 if (poi && position) bounds = { x: position.x - size / 2, y: position.y - size / 2, width: size, height: size };
               }
@@ -4141,7 +4161,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         )}
         <div data-session-map-pois className="pointer-events-none absolute inset-0">
           {visiblePois.map((poi) => {
-            const position = poiDraftPositions[poi.id] ?? poi;
+            const position = poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi;
             const transform = poiDraftTransforms[poi.id];
             const size = Math.max(8, transform?.size ?? poi.size);
             const rotation = transform?.rotation ?? poi.rotation ?? 0;

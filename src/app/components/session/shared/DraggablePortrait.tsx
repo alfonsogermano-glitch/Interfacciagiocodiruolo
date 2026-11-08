@@ -88,7 +88,7 @@ export function DraggablePortrait({
   return (
     <div
       className={`relative shrink-0 overflow-hidden ${
-        isFlush ? '' : 'rounded-2xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] shadow-lg'
+        isFlush ? 'rounded-md' : 'rounded-2xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] shadow-lg'
       }`}
       style={isFlush ? { width: size, height: '100%' } : { width: size, height: size }}
     >

@@ -835,7 +835,7 @@ export function SessionCharactersPanel({ initialSelection = null }: SessionChara
       }`}
     >
       {dnd.dropTarget?.type === 'reorder-card' && dnd.dropTarget.beforeCardId === `${entry.kind}:${entry.id}` && <div data-card-drop-line className="pointer-events-none absolute -top-px left-3 right-3 h-0.5 bg-[var(--dash-accent)]" />}
-      <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-[var(--dash-input)]">
+      <div className="relative h-9 w-9 shrink-0 overflow-visible rounded-md bg-[var(--dash-input)]">
         <DraggablePortrait
           url={entry.portraitUrl}
           sourceImageUrl={entry.portraitSourceUrl}
