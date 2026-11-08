@@ -3587,8 +3587,11 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const flashlightBeamPoints = (source: { origin: SessionMapPoint; radius: number; coneAngle?: number; direction: number; sourceSize: number }) => {
     const radius = distanceToWorld(source.radius);
     const halfAngle = Math.min(180, Math.max(5, source.coneAngle ?? 60)) * Math.PI / 360;
-    const neckDistance = Math.min(radius * 0.22, source.sourceSize * 0.38);
-    const neckHalfWidth = Math.min(radius * 0.08, source.sourceSize * 0.16);
+    // Il cono deve partire esattamente dal bordo della sorgente (token o PDI)
+    // con larghezza pari al diametro della sorgente, affinché non ci siano spazi
+    // né sovrapposizioni tra il simbolo della sorgente e l'inizio del fascio.
+    const neckDistance = source.sourceSize * 0.5;
+    const neckHalfWidth = source.sourceSize * 0.5;
     const capDepth = Math.min(radius * 0.16, Math.max(radius * 0.04, Math.tan(halfAngle) * radius * 0.22));
     const capCenterDistance = Math.max(neckDistance, radius - capDepth);
     const farHalfWidth = Math.min(radius * 1.5, Math.max(neckHalfWidth, Math.tan(halfAngle) * capCenterDistance));

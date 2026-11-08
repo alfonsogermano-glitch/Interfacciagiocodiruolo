@@ -1844,6 +1844,8 @@ Aggiornamento punto 112 (2026-10-10): l'utente ha eseguito con successo la migra
 
 130. `fix/lighting:` **Cono di luce che inizia dal bordo del token** (2026-11-08). La porzione del cono di Illuminazione e Vista che si sovrappone al token viene ora sottratta dal poligono visibile, affinché tratteggio e maschera della nebbia inizino esattamente dal bordo della pedina senza coprirne il simbolo. Il token resta visibile e il cono non genera più sovrapposizioni grafiche. `npm run typecheck`, `npm run check`, build produzione e `git diff --check` PASS.
 
+131. `fix/lighting:` **Cono di luce continuo con bordo sorgente** (2026-11-08). Il collo del cono di Illuminazione e Vista parte ora esattamente dal bordo della sorgente (token o PDI) con larghezza pari al diametro della sorgente, eliminando qualsiasi spazio tra il simbolo e l'inizio del fascio. Per i PDI con luce a cono il cerchio di illuminazione attorno al PDI rimane come base e il cono tocca quella circonferenza senza interruzioni, creando continuità tra area circolare e cono. `npm run typecheck`, `npm run check`, build produzione e `git diff --check` PASS.
+
 Verifica finale di chiusura sessione (2026-10-09): `npm run check` completo PASS dopo i punti 90-107 (typecheck, tutte le verifiche, build produzione). Descrizioni finali brevi senza troncamento: HSC ambientato in un liceo americano, custom "Un mondo di gioco con le tue regole". App.tsx ripristinato identico a HEAD dopo il ritorno alla schermata campagna condivisa: eliminate modifiche residue dei soli fine-riga.
 
 Verifica finale di chiusura sessione (2026-10-08): `npm run check` completo PASS dopo i punti 87-89 (typecheck, tutte le verifiche, build produzione).
