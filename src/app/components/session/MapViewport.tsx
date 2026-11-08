@@ -3401,6 +3401,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     event.preventDefault();
     event.stopPropagation();
     if (openUnderlyingMapObjectMenu(event.clientX, event.clientY, { family: 'token', id: tokenId })) return;
+    if (!isOwner) return;
     showPastePrompt(event.clientX, event.clientY, 'token');
     if (selectionArmed && !selectedTokenIds.has(tokenId)) {
       setSessionMapSelectionArmed(false);
