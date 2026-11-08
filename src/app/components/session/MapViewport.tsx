@@ -2653,18 +2653,18 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         const drawing = drawingById.get(ref.id);
         const moveDraft = drawing ? drawingMoveDrafts[drawing.id] ?? remoteDrawingPositions[drawing.id] : null;
         const rendered = drawing ? drawingTransformDrafts[drawing.id] ?? (moveDraft ? { ...drawing, ...moveDraft } : drawing) : null;
-        return !!rendered && canEditDrawing(drawing!) && !isBoundsFullyFogCovered(getRotatedRectBounds(rendered, rendered.width, rendered.height, rendered.rotation ?? 0)) && drawingContainsPoint(rendered, point, view.scale);
+        return !!rendered && canMoveDrawing(drawing!) && !isBoundsFullyFogCovered(getRotatedRectBounds(rendered, rendered.width, rendered.height, rendered.rotation ?? 0)) && drawingContainsPoint(rendered, point, view.scale);
       }
       if (ref.family === 'token') {
         const token = mapTokens.find(item => item.id === ref.id);
         const position = token ? tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token : null;
         const size = tokenDraftTransforms[ref.id]?.size ?? (token ? getTokenSize(token, gridSettings.cellSize) : 0);
-        return !!token && !!position && (isOwner || canControlToken(token)) && (tokenVisibilitySourceActive(token) || !isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size })) && contains({ x: position.x, y: position.y, width: size, height: size });
+        return !!token && !!position && canMoveToken(token) && (tokenVisibilitySourceActive(token) || !isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size })) && contains({ x: position.x, y: position.y, width: size, height: size });
       }
       const poi = mapPois.find(item => item.id === ref.id);
       const position = poi ? poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi : null;
       const size = poi ? poiDraftTransforms[poi.id]?.size ?? poi.size : 0;
-      return !!poi && !!position && (isOwner || canControlPoi(poi)) && (!poiVisibilitySourceActive(poi) || !isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size })) && contains({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size });
+      return !!poi && !!position && canMovePoi(poi) && (!poiVisibilitySourceActive(poi) || !isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size })) && contains({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size });
     });
     if (candidates.length === 0) return false;
     const previous = depthSelectionRef.current;
@@ -2698,11 +2698,22 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     if (target.family === 'drawing') {
       if (!selectedDrawingIds.has(target.id)) setSelectedDrawingIds(new Set([target.id]));
       setSelectedDrawingId(target.id);
-      setDrawingStyleEditorOpen(false); setDrawingLayerPanelOpen(false); setDrawingMenu({ id: target.id, x, y });
+      const drawing = mapDrawings.find(item => item.id === target.id);
+      if (drawing && canEditDrawing(drawing)) {
+        setDrawingStyleEditorOpen(false); setDrawingLayerPanelOpen(false); setDrawingMenu({ id: target.id, x, y });
+      }
     } else if (target.family === 'token') {
       const token = mapTokens.find(item => item.id === target.id);
-      if (token) setTokenMenu({ tokenId: token.id, x, y, panel: null, nameDraft: token.name, customConditionDraft: '' });
-    } else setPoiMenu({ poiId: target.id, x, y, panel: null });
+      if (!selectedTokenIds.has(target.id)) setSelectedTokenIds(new Set([target.id]));
+      if (token && canControlToken(token)) {
+        setTokenMenu({ tokenId: token.id, x, y, panel: null, nameDraft: token.name, customConditionDraft: '' });
+      }
+    } else {
+      const poi = mapPois.find(item => item.id === target.id);
+      if (poi && canOpenPoiMenu(poi)) {
+        setPoiMenu({ poiId: target.id, x, y, panel: null });
+      }
+    }
     return true;
   };
 
@@ -4056,7 +4067,6 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
                 onPointerUp={finishSelectedDrawing}
                 onPointerCancel={finishSelectedDrawing}
                 onContextMenu={(event) => {
-                  if (!canEditDrawing(drawing)) return;
                   event.preventDefault();
                   event.stopPropagation();
                   if (openUnderlyingMapObjectMenu(event.clientX, event.clientY, { family: 'drawing', id: drawing.id })) return;
