@@ -25,6 +25,8 @@ export interface SessionMapFog {
   operation: SessionMapFogOperation;
   /** Missing on legacy fog means permanent, preserving the original behavior. */
   persistence?: SessionMapFogPersistence;
+  /** Base cover opacity from 0 to 1. Missing on legacy fog means fully opaque. */
+  opacity?: number;
   /** Previously observed world-space polygons, including optional holes. */
   exploredAreas?: SessionMapFogPoint[][][];
   /** Subset of exploredAreas erased specifically by illumination. */

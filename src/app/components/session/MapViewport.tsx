@@ -11,7 +11,7 @@ import { registerSessionMapTokenDropHandler } from './sessionMapTokenDropStore';
 import { TokenGhostShape } from '../shared/TokenGhostShape';
 import { MARGIN_SCALE } from '../shared/tokenShapes';
 import { getRotatedRectBounds, getRotatedSquareBounds, isBoundsFullyContained, pointInPolygon, polygonCoverage, reconcileMapObjectOrder, rectangleCoverage, type MapLayerMove, type MapObjectRef } from './mapObjectLayers';
-import { Accessibility, AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowRight, ArrowUp, BatteryLow, Bed, Biohazard, Bold, ChevronsDown, ChevronsUp, CircleX, ClipboardCopy, ClipboardPaste, CloudFog, Cog, EarOff, Eye, EyeOff, Flashlight, Ghost, GripHorizontal, Hand, Heart, HeartCrack, Italic, Layers3, Link, Lock, LockKeyhole, Magnet, Maximize2, Minus, Mountain, Orbit, Palette, Pin, Plus, ScanEye, Shapes, Skull, Slash, Spline, Star, Strikethrough, Trash2, Type, Underline, Unlock, UserRoundX, X, type LucideIcon } from 'lucide-react';
+import { Accessibility, AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowRight, ArrowUp, BatteryLow, Bed, Biohazard, Bold, ChevronsDown, ChevronsUp, CircleX, ClipboardCopy, ClipboardPaste, CloudFog, Cog, EarOff, Eye, EyeOff, Flashlight, Ghost, GripHorizontal, Hand, Heart, HeartCrack, Italic, Layers3, Link, Lock, LockKeyhole, Magnet, Maximize2, Minus, Mountain, Orbit, Palette, Pin, Plus, ScanEye, Shapes, Skull, Slash, SlidersHorizontal, Spline, Star, Strikethrough, Trash2, Type, Underline, Unlock, UserRoundX, X, type LucideIcon } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { Copy } from '../IconeCopia';
 import { NoteIconGlyph, NoteIconGrid } from './shared/NoteIconGrid';
@@ -625,7 +625,7 @@ function buildFog(kind: SessionMapFogKind, points: SessionMapPoint[], operation:
   const height = Math.max(1, maxY - minY);
   if (Math.hypot(width, height) < 4) return null;
   const now = new Date().toISOString();
-  return { id: crypto.randomUUID(), kind, operation, persistence: 'permanent', x: minX, y: minY, width, height, rotation: 0, points: ['polygon', 'freehand'].includes(kind) ? points.map(point => ({ x: point.x - minX, y: point.y - minY })) : undefined, style: { ...style }, enabled: true, locked: false, magnetEnabled: false, magnetGroupId: null, createdAt: now, updatedAt: now };
+  return { id: crypto.randomUUID(), kind, operation, persistence: 'permanent', opacity: 1, x: minX, y: minY, width, height, rotation: 0, points: ['polygon', 'freehand'].includes(kind) ? points.map(point => ({ x: point.x - minX, y: point.y - minY })) : undefined, style: { ...style }, enabled: true, locked: false, magnetEnabled: false, magnetGroupId: null, createdAt: now, updatedAt: now };
 }
 
 type FogRing = [number, number][];
@@ -865,13 +865,20 @@ function CanvasGrid({ settings, patternId, view, viewportWidth, viewportHeight, 
   const color = settings.color ?? '#38bdf8';
   const lineStyle = settings.lineStyle ?? 'solid';
   const strokeProps = lineStyle === 'dashed' ? { strokeDasharray: '6 5' } : lineStyle === 'dotted' ? { strokeDasharray: '1 6', strokeLinecap: 'round' as const } : {};
-  const margin = 256 / view.scale;
-  const requestedX = -view.x / view.scale - margin;
-  const requestedY = -view.y / view.scale - margin;
-  const visibleX = Math.max(worldBounds.minX, requestedX);
-  const visibleY = Math.max(worldBounds.minY, requestedY);
-  const visibleWidth = Math.max(0, Math.min(worldBounds.maxX, requestedX + viewportWidth / view.scale + margin * 2) - visibleX);
-  const visibleHeight = Math.max(0, Math.min(worldBounds.maxY, requestedY + viewportHeight / view.scale + margin * 2) - visibleY);
+  // Keep the SVG viewport on stable world-space tiles. Moving its fractional
+  // bounds every frame forces the browser to re-rasterize the pattern and
+  // produces visible sub-pixel shimmer at high zoom.
+  const tileSize = Math.ceil(Math.max(512, size * 16));
+  const viewportWorldX = -view.x / view.scale;
+  const viewportWorldY = -view.y / view.scale;
+  const viewportWorldWidth = viewportWidth / view.scale;
+  const viewportWorldHeight = viewportHeight / view.scale;
+  const visibleX = Math.max(worldBounds.minX, Math.floor((viewportWorldX - tileSize) / tileSize) * tileSize);
+  const visibleY = Math.max(worldBounds.minY, Math.floor((viewportWorldY - tileSize) / tileSize) * tileSize);
+  const visibleRight = Math.min(worldBounds.maxX, Math.ceil((viewportWorldX + viewportWorldWidth + tileSize) / tileSize) * tileSize);
+  const visibleBottom = Math.min(worldBounds.maxY, Math.ceil((viewportWorldY + viewportWorldHeight + tileSize) / tileSize) * tileSize);
+  const visibleWidth = Math.max(0, visibleRight - visibleX);
+  const visibleHeight = Math.max(0, visibleBottom - visibleY);
   if (visibleWidth === 0 || visibleHeight === 0) return null;
   const gridStyle = { left: visibleX, top: visibleY, width: visibleWidth, height: visibleHeight, color, opacity: settings.opacity };
   if (settings.type === 'square') {
@@ -1097,7 +1104,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const [selectedFogIds, setSelectedFogIds] = useState<Set<string>>(() => new Set());
   const quickFogSelectionRef = useRef<{ pointerId: number; ids: Set<string> } | null>(null);
   const [fogSelectionMenu, setFogSelectionMenu] = useState<{ x: number; y: number } | null>(null);
-  const [fogMenu, setFogMenu] = useState<{ id: string; x: number; y: number; panel: 'magnets' | 'persistence' | null } | null>(null);
+  const [fogMenu, setFogMenu] = useState<{ id: string; x: number; y: number; panel: 'magnets' | 'persistence' | 'opacity' | null } | null>(null);
+  const [fogOpacityDraft, setFogOpacityDraft] = useState<number | null>(null);
   const fogMenuRef = useRef<HTMLDivElement>(null);
   const [fogClipboard, setFogClipboard] = useState<SessionMapFog | null>(null);
   const fogExplorationCacheRef = useRef<Record<string, NonNullable<SessionMapFog['exploredAreas']>>>({});
@@ -1596,7 +1604,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       const height = placement.height ?? element?.offsetHeight;
       if (!width || !height) return;
       const now = new Date().toISOString();
-      onFogCoverFullMap({ id: crypto.randomUUID(), kind: 'rectangle', operation: 'cover', x: placement.x, y: placement.y, width, height, rotation: 0, style: { color: fogSettings.color, strokeWidth: fogSettings.strokeWidth }, enabled: true, locked: true, magnetEnabled: false, magnetGroupId: null, fullMap: true, createdAt: now, updatedAt: now });
+      onFogCoverFullMap({ id: crypto.randomUUID(), kind: 'rectangle', operation: 'cover', persistence: 'permanent', opacity: 1, x: placement.x, y: placement.y, width, height, rotation: 0, style: { color: fogSettings.color, strokeWidth: fogSettings.strokeWidth }, enabled: true, locked: true, magnetEnabled: false, magnetGroupId: null, fullMap: true, createdAt: now, updatedAt: now });
     });
     return () => configureSessionMapFogCoverFullMap(null);
   }, [fogSettings.color, fogSettings.strokeWidth, isOwner, mapFog, onFogCoverFullMap, onFogsDelete, placement.height, placement.width, placement.x, placement.y]);
@@ -4390,14 +4398,20 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
               const lightExploredAreas = moveOffset ? translateExploredAreas(fogLightExplorationCacheRef.current[fog.id] ?? fog.lightExploredAreas, moveOffset.x, moveOffset.y) : fogLightExplorationCacheRef.current[fog.id] ?? fog.lightExploredAreas;
               const volatileTrailAreas = moveOffset ? translateExploredAreas(fogVolatileTrailCacheRef.current[fog.id] ?? fog.exploredAreas, moveOffset.x, moveOffset.y) : fogVolatileTrailCacheRef.current[fog.id] ?? fog.exploredAreas;
               const persistence = fog.persistence ?? 'permanent';
+              const previewOpacity = fogMenu?.id === fog.id && fogMenu.panel === 'opacity' && fogOpacityDraft !== null ? fogOpacityDraft / 100 : fog.opacity ?? 1;
+              const baseOpacity = Math.max(0, Math.min(1, previewOpacity));
+              const attenuatedOpacity = Math.min(0.5, baseOpacity);
+              const attenuatedMaskLevel = baseOpacity > 0 ? attenuatedOpacity / baseOpacity : 0;
+              const attenuatedMaskColor = `rgb(${Math.round(attenuatedMaskLevel * 255)} ${Math.round(attenuatedMaskLevel * 255)} ${Math.round(attenuatedMaskLevel * 255)})`;
+              const showAsPlayer = !isOwner || fogSettings.previewAsPlayer;
               return <mask key={fog.id} id={`session-fog-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index}`} maskUnits="userSpaceOnUse" x={fogMaskBounds.x} y={fogMaskBounds.y} width={fogMaskBounds.width} height={fogMaskBounds.height}>
                 <rect x={fogMaskBounds.x} y={fogMaskBounds.y} width={fogMaskBounds.width} height={fogMaskBounds.height} fill="black" />
                 <g transform={`translate(${rendered.x} ${rendered.y}) rotate(${rendered.rotation} ${rendered.width / 2} ${rendered.height / 2})`}>{fogShape(rendered, { fill: 'white' })}</g>
-                {(!isOwner || fogSettings.previewAsPlayer) && persistence === 'semi-persistent' && exploredAreas?.length ? <path d={exploredAreasPath(exploredAreas)} fill="#808080" fillRule="evenodd" clipRule="evenodd" /> : null}
-                <g clipPath={`url(#session-fog-shape-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index})`}>{privateVisionPolygons.map((points, polygonIndex) => <polygon key={`vision-${polygonIndex}`} points={points.map(point => `${point.x},${point.y}`).join(' ')} fill="#808080" />)}</g>
-                {persistence === 'volatile' && volatileTrailAreas?.length ? <path d={exploredAreasPath(volatileTrailAreas)} fill="black" fillRule="evenodd" clipRule="evenodd" /> : null}
-                {persistence === 'volatile' && lightExploredAreas?.length ? <path d={exploredAreasPath(lightExploredAreas)} fill="black" fillRule="evenodd" clipRule="evenodd" /> : null}
-                <g clipPath={`url(#session-fog-shape-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index})`}>{publicLightEffects.map((item, lightIndex) => <polygon key={`light-${lightIndex}`} points={item.points.map(point => `${point.x},${point.y}`).join(' ')} fill="black" />)}</g>
+                {showAsPlayer && persistence === 'semi-persistent' && exploredAreas?.length ? <path d={exploredAreasPath(exploredAreas)} fill={attenuatedMaskColor} fillRule="evenodd" clipRule="evenodd" /> : null}
+                {showAsPlayer && <g clipPath={`url(#session-fog-shape-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index})`}>{privateVisionPolygons.map((points, polygonIndex) => <polygon key={`vision-${polygonIndex}`} points={points.map(point => `${point.x},${point.y}`).join(' ')} fill={attenuatedMaskColor} />)}</g>}
+                {persistence === 'volatile' && volatileTrailAreas?.length ? <path d={exploredAreasPath(volatileTrailAreas)} fill="black" stroke="black" strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeLinejoin="round" fillRule="evenodd" clipRule="evenodd" /> : null}
+                {persistence === 'volatile' && lightExploredAreas?.length ? <path d={exploredAreasPath(lightExploredAreas)} fill="black" stroke="black" strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeLinejoin="round" fillRule="evenodd" clipRule="evenodd" /> : null}
+                {showAsPlayer && <g clipPath={`url(#session-fog-shape-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index})`}>{publicLightEffects.map((item, lightIndex) => <polygon key={`light-${lightIndex}`} points={item.points.map(point => `${point.x},${point.y}`).join(' ')} fill="black" />)}</g>}
                 {mapFog.slice(index + 1).filter(item => item.operation === 'reveal' && item.enabled !== false).map(item => {
                   const revealPosition = fogMoveDrafts[item.id] ?? item;
                   const reveal = fogPathDrafts[item.id] ?? fogTransformDrafts[item.id] ?? { ...item, ...revealPosition };
@@ -4406,7 +4420,13 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
               </mask>;
             })}
           </defs>
-          {mapFog.map((fog, index) => fog.operation === 'cover' && fog.enabled !== false ? <rect key={fog.id} x={fogMaskBounds.x} y={fogMaskBounds.y} width={fogMaskBounds.width} height={fogMaskBounds.height} fill={fog.style.color} opacity={isOwner && !fogSettings.previewAsPlayer ? 0.38 : 1} mask={`url(#session-fog-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index})`} /> : null)}
+          {mapFog.map((fog, index) => {
+            if (fog.operation !== 'cover' || fog.enabled === false) return null;
+            const previewOpacity = fogMenu?.id === fog.id && fogMenu.panel === 'opacity' && fogOpacityDraft !== null ? fogOpacityDraft / 100 : fog.opacity ?? 1;
+            const baseOpacity = Math.max(0, Math.min(1, previewOpacity));
+            const opacity = isOwner && !fogSettings.previewAsPlayer ? Math.min(0.5, baseOpacity) : baseOpacity;
+            return <rect key={fog.id} x={fogMaskBounds.x} y={fogMaskBounds.y} width={fogMaskBounds.width} height={fogMaskBounds.height} fill={fog.style.color} opacity={opacity} mask={`url(#session-fog-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index})`} />;
+          })}
           {isOwner && activeTool === 'walls' && wallStart && wallHover && <line x1={wallStart.x} y1={wallStart.y} x2={wallHover.x} y2={wallHover.y} stroke="#ef4444" strokeWidth={4} strokeDasharray="8 4" vectorEffect="non-scaling-stroke" />}
           {isOwner && activeTool === 'walls' && mapFog.filter(fog => fog.visionBlocker && fog.points && fog.points.length >= 2).map(fog => <line key={`blocker-${fog.id}`} className="pointer-events-auto cursor-pointer" x1={fog.x + fog.points![0].x} y1={fog.y + fog.points![0].y} x2={fog.x + fog.points![1].x} y2={fog.y + fog.points![1].y} stroke={fog.visionBlocker!.kind === 'wall' ? '#ef4444' : fog.visionBlocker!.kind === 'door' ? '#f59e0b' : '#38bdf8'} strokeWidth={4} strokeDasharray="8 4" vectorEffect="non-scaling-stroke" onClick={event => { event.stopPropagation(); const kind = fog.visionBlocker!.kind === 'wall' ? 'door' : fog.visionBlocker!.kind === 'door' ? 'window' : 'wall'; onFogChange?.(fog.id, { visionBlocker: { ...fog.visionBlocker!, kind } }); }} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); if (window.confirm(`Eliminare ${fog.visionBlocker!.kind === 'wall' ? 'questo muro' : fog.visionBlocker!.kind === 'door' ? 'questa porta' : 'questa finestra'} dalla linea di vista?`)) onFogDelete?.(fog.id); }} />)}
           {isOwner && activeTool === 'fog' && mapFog.map((fog) => {
@@ -4416,7 +4436,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             const selected = selectedFogIds.has(fog.id);
             const controlScale = Math.sqrt(view.scale);
             return <Fragment key={`edit-${fog.id}`}>
-              <path d={fogWorldPath(rendered)} fill="none" stroke={rendered.operation === 'reveal' ? '#fb923c' : rendered.style.color} strokeWidth={Math.max(2, rendered.style.strokeWidth)} vectorEffect="non-scaling-stroke" pointerEvents="none" mask={rendered.operation === 'cover' ? `url(#session-fog-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${mapFog.findIndex(item => item.id === fog.id)})` : `url(#session-fog-outline-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')})`} opacity={rendered.enabled === false ? 0.45 : 1} />
+              {!fogSettings.previewAsPlayer && <path d={fogWorldPath(rendered)} fill="none" stroke={rendered.operation === 'reveal' ? '#fb923c' : rendered.style.color} strokeWidth={Math.max(2, rendered.style.strokeWidth)} vectorEffect="non-scaling-stroke" pointerEvents="none" mask={rendered.operation === 'cover' ? `url(#session-fog-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${mapFog.findIndex(item => item.id === fog.id)})` : `url(#session-fog-outline-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')})`} opacity={rendered.enabled === false ? 0.45 : 1} />}
               <g data-map-interactive transform={`translate(${rendered.x} ${rendered.y}) rotate(${rendered.rotation} ${rendered.width / 2} ${rendered.height / 2})`} opacity={rendered.enabled === false ? 0.45 : 1} className={activeTool === 'fog' && !rendered.locked && ['grab', 'quick-select'].includes(fogSettings.mode) ? `pointer-events-auto touch-none ${draggingFog ? 'cursor-grabbing' : 'cursor-grab'}` : 'pointer-events-none'} onContextMenu={event => openFogMenu(event, rendered)} onPointerDown={(event) => {
               if (beginQuickFogSelection(event, fog)) return;
               beginFogMove(event, fog);
@@ -4506,6 +4526,10 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
               const viewportHeight = viewportRef.current?.clientHeight ?? 0;
               return { ...current, panel, y: Math.max(8, Math.min(current.y, viewportHeight - 410)) };
             }), false, false, true)}
+            {iconAction('Opacità nebbia', <SlidersHorizontal data-static-icon className="h-5 w-5" />, () => {
+              setFogOpacityDraft(Math.round(Math.max(0, Math.min(1, fog.opacity ?? 1)) * 100));
+              setFogMenu(current => current ? { ...current, panel: current.panel === 'opacity' ? null : 'opacity', y: Math.max(8, Math.min(current.y, (viewportRef.current?.clientHeight ?? 0) - 300)) } : null);
+            }, false, false, true)}
             {iconAction('Muovi nebbia', <Hand data-static-icon className="h-5 w-5" />, () => { updateSessionMapFogSettings({ mode: 'grab' }); setActiveSessionMapTool('fog'); setSelectedFogIds(new Set([fog.id])); setFogMenu(null); }, fog.locked)}
             {iconAction(fog.locked ? 'Sblocca nebbia' : 'Blocca nebbia', fog.locked ? <Unlock data-static-icon className="h-5 w-5" /> : <Lock data-static-icon className="h-5 w-5" />, () => onFogChange?.(fog.id, { locked: !fog.locked }), false, false, true)}
             {iconAction('Duplica nebbia', <Copy data-static-icon className="h-5 w-5" />, () => duplicateFog(fog))}
@@ -4517,6 +4541,18 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
             }, fog.locked, false, true)}
             {iconAction('Elimina nebbia', <Trash2 data-static-icon className="h-5 w-5" />, () => { onFogDelete?.(fog.id); setSelectedFogIds(new Set()); }, false, true)}
           </div>
+          {fogMenu.panel === 'opacity' && (() => {
+            const savedPercent = Math.round(Math.max(0, Math.min(1, fog.opacity ?? 1)) * 100);
+            const percent = fogOpacityDraft ?? savedPercent;
+            const commitOpacity = () => {
+              if (percent !== savedPercent) onFogChange?.(fog.id, { opacity: percent / 100 });
+            };
+            return <div className="mt-3 space-y-3 border-t border-[var(--dash-border-soft)] pt-3">
+              <div className="flex items-center justify-between gap-3"><span className="font-semibold text-[var(--dash-text-strong)]">Opacità nebbia</span><span className="min-w-12 rounded-md bg-[var(--dash-surface-2)] px-2 py-1 text-center font-semibold text-cyan-200">{percent}%</span></div>
+              <input type="range" min={0} max={100} step={1} value={percent} aria-label="Opacità nebbia" onChange={event => setFogOpacityDraft(Number(event.target.value))} onPointerUp={commitOpacity} onKeyUp={event => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) commitOpacity(); }} onBlur={commitOpacity} className="w-full accent-cyan-400" />
+              <p className="text-[10px] leading-relaxed text-[var(--dash-muted)]">Sopra il 50%, vista, stati attenuati e visualizzazione GM restano al 50%. Sotto il 50% si allineano a questa opacità.</p>
+            </div>;
+          })()}
           {fogMenu.panel === 'persistence' && <div className="mt-3 space-y-1.5 border-t border-[var(--dash-border-soft)] pt-2">
             <div className="mb-1 text-xs font-semibold text-[var(--dash-muted)]">Comportamento dopo l'esplorazione</div>
             {([
