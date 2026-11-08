@@ -193,6 +193,7 @@ export function SessionWorkspace({
   const [remoteTokenPositions, setRemoteTokenPositions] = useState<Record<string, TokenPosition>>({});
   const [remotePoiPositions, setRemotePoiPositions] = useState<Record<string, TokenPosition>>({});
   const [remoteDrawingPositions, setRemoteDrawingPositions] = useState<Record<string, TokenPosition>>({});
+  const [remoteConeDirections, setRemoteConeDirections] = useState<Record<string, number>>({});
   const playerMapActionHandlerRef = useRef<(payload: any) => void>(() => {});
   const playerMapPoiActionHandlerRef = useRef<(payload: any) => void>(() => {});
   const playerMapLayerActionHandlerRef = useRef<(payload: any) => void>(() => {});
@@ -241,6 +242,11 @@ export function SessionWorkspace({
           const allowed = Object.fromEntries(Object.entries(positions).filter(([id]) => movableIds.has(id)));
           if (Object.keys(allowed).length > 0) runAsHistoryActor(payload, () => moveMapDrawings(allowed));
         }
+      },
+      map_cone_direction_preview: (message) => {
+        const payload = message?.payload;
+        if (!payload || payload.actorProfileId === currentUserId || payload.chapterId !== display?.chapterId || typeof payload.key !== 'string' || !Number.isFinite(payload.direction)) return;
+        setRemoteConeDirections(current => ({ ...current, [payload.key]: payload.direction }));
       },
       map_history_action: (message) => {
         const payload = message?.payload;
@@ -613,6 +619,23 @@ export function SessionWorkspace({
       return changed ? next : current;
     });
   }, [display?.mapDrawings]);
+  useEffect(() => {
+    setRemoteConeDirections(current => {
+      let changed = false;
+      const next = { ...current };
+      Object.entries(current).forEach(([key, direction]) => {
+        const match = key.match(/^(token|poi):(.+):(light|vision)$/);
+        if (!match) return;
+        const [, family, id, sourceType] = match;
+        const entity = family === 'token'
+          ? display?.mapTokens?.find(item => item.id === id)
+          : display?.mapPois?.find(item => item.id === id);
+        const configured = entity?.[sourceType as 'light' | 'vision']?.coneDirection;
+        if (configured === direction) { delete next[key]; changed = true; }
+      });
+      return changed ? next : current;
+    });
+  }, [display?.mapTokens, display?.mapPois]);
   const mapAssetSource = display?.mapUrl ?? display?.mapMetadata.displayUrl ?? display?.sceneImageUrl ?? null;
   const mapAsset = useCachedMapAsset(mapAssetSource);
   const [renderedMapUrl, setRenderedMapUrl] = useState<string | null>(null);
@@ -777,6 +800,10 @@ export function SessionWorkspace({
       actorProfileId: currentUserId,
       finished,
     });
+  };
+  const previewConeDirection = (key: string, direction: number, finished = false) => {
+    if (!display) return;
+    void sendCampaignEvent('map_cone_direction_preview', { key, direction, finished, chapterId: display.chapterId, actorProfileId: currentUserId });
   };
   const requestMapPoiAction = (
     action: string,
@@ -2331,6 +2358,8 @@ export function SessionWorkspace({
               onPoiMovePreview={(positions, finished) => previewMapObjectMove('poi', positions, finished)}
               remoteDrawingPositions={remoteDrawingPositions}
               onDrawingMovePreview={(positions, finished) => previewMapObjectMove('drawing', positions, finished)}
+              remoteConeDirections={remoteConeDirections}
+              onConeDirectionPreview={previewConeDirection}
               mapDrawings={display.mapDrawings ?? []}
               mapFog={display.mapFog ?? []}
                mapPois={(display.mapPois ?? []).filter(

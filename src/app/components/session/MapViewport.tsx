@@ -219,6 +219,8 @@ interface MapViewportProps {
   remotePoiPositions?: Record<string, TokenPosition>;
   onDrawingMovePreview?: (positions: Record<string, TokenPosition>, finished?: boolean) => void;
   remoteDrawingPositions?: Record<string, TokenPosition>;
+  onConeDirectionPreview?: (key: string, direction: number, finished?: boolean) => void;
+  remoteConeDirections?: Record<string, number>;
   onTokenLayerMove?: (tokenId: string, move: MapLayerMove) => void;
   onTokensLayerMove?: (tokenIds: string[], move: MapLayerMove) => void;
   onTokenLockChange?: (tokenId: string, locked: boolean) => void;
@@ -982,7 +984,7 @@ function readStoredView(mapId: string): ViewTransform {
   return { x: 0, y: 0, scale: 1 };
 }
 
-export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwner, currentUserId, currentUserAccessToken, mapPlacement, gridSettings, mapTokens = [], mapDrawings = [], mapFog = [], mapPois = [], mapObjectOrder, remoteTokenPositions = {}, remotePoiPositions = {}, remoteDrawingPositions = {}, onPoiCreate, onPoiMove, onPoiMovePreview, onPoiChange, onPoiDelete, onPoiDuplicate, onPoiPaste, onPoiLayerMove, onDrawingCreate, onDrawingChange, onDrawingsChange, onDrawingsMove, onDrawingMovePreview, onDrawingTransformsChange, onDrawingDelete, onDrawingsDelete, onDrawingDuplicate, onDrawingsDuplicate, onDrawingLayerMove, onDrawingsLayerMove, onDrawingsCreateMagnetGroup, onDrawingMagnetDisable, onFogCreate, onFogReplaceAll, onFogChange, onFogsChange, onFogsMove, onFogTransformsChange, onFogExplorationChange, onFogDelete, onFogsDelete, onFogCoverFullMap, onMapPlacementChange, onTokenDrop, onTokensMove, onTokenMovePreview, onTokenLayerMove, onTokensLayerMove, onTokenLockChange, onTokenChange, onTokensChange, onTokenTransformsChange, onTokenDelete, onTokensDelete, onTokensCreateMagnetGroup, onTokenMagnetEnabledChange, onTokenMagnetLink, onTokenMagnetUnlink }: MapViewportProps) {
+export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwner, currentUserId, currentUserAccessToken, mapPlacement, gridSettings, mapTokens = [], mapDrawings = [], mapFog = [], mapPois = [], mapObjectOrder, remoteTokenPositions = {}, remotePoiPositions = {}, remoteDrawingPositions = {}, remoteConeDirections = {}, onPoiCreate, onPoiMove, onPoiMovePreview, onPoiChange, onPoiDelete, onPoiDuplicate, onPoiPaste, onPoiLayerMove, onDrawingCreate, onDrawingChange, onDrawingsChange, onDrawingsMove, onDrawingMovePreview, onConeDirectionPreview, onDrawingTransformsChange, onDrawingDelete, onDrawingsDelete, onDrawingDuplicate, onDrawingsDuplicate, onDrawingLayerMove, onDrawingsLayerMove, onDrawingsCreateMagnetGroup, onDrawingMagnetDisable, onFogCreate, onFogReplaceAll, onFogChange, onFogsChange, onFogsMove, onFogTransformsChange, onFogExplorationChange, onFogDelete, onFogsDelete, onFogCoverFullMap, onMapPlacementChange, onTokenDrop, onTokensMove, onTokenMovePreview, onTokenLayerMove, onTokensLayerMove, onTokenLockChange, onTokenChange, onTokensChange, onTokenTransformsChange, onTokenDelete, onTokensDelete, onTokensCreateMagnetGroup, onTokenMagnetEnabledChange, onTokenMagnetLink, onTokenMagnetUnlink }: MapViewportProps) {
   const objectOrder = useMemo(() => reconcileMapObjectOrder(mapObjectOrder, [['drawing', mapDrawings], ['token', mapTokens], ['poi', mapPois]]), [mapDrawings, mapObjectOrder, mapPois, mapTokens]);
   const objectZIndex = useMemo(() => new globalThis.Map(objectOrder.map((ref, index) => [`${ref.family}\u0000${ref.id}`, index + 3])), [objectOrder]);
   const drawingById = useMemo(() => new globalThis.Map(mapDrawings.map(item => [item.id, item])), [mapDrawings]);
@@ -3535,7 +3537,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   }), [mapFog, placement.x, placement.y]);
   const distanceToWorld = (distance: number) => gridSettings.distance > 0 ? distance * gridSettings.cellSize / gridSettings.distance : 0;
   const mapBounds = placement.width && placement.height ? { width: placement.width, height: placement.height } : null;
-  const coneDirection = (key: string, configured: number | undefined, fallback: number) => ((coneDirectionDrafts[key] ?? configured ?? fallback) - 90) * Math.PI / 180;
+  const coneDirection = (key: string, configured: number | undefined, fallback: number) => ((coneDirectionDrafts[key] ?? remoteConeDirections[key] ?? configured ?? fallback) - 90) * Math.PI / 180;
   const largestOuterRing = (geometry: number[][][][]) => geometry.flatMap(polygon => polygon.slice(0, 1)).sort((a, b) => {
     const area = (ring: number[][]) => Math.abs(ring.reduce((total, point, index) => total + point[0] * ring[(index + 1) % ring.length][1] - ring[(index + 1) % ring.length][0] * point[1], 0));
     return area(b) - area(a);
@@ -3815,7 +3817,10 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     coneDirectionFrameRef.current = window.requestAnimationFrame(() => {
       coneDirectionFrameRef.current = null;
       const current = coneDirectionGestureRef.current;
-      if (current) setConeDirectionDrafts(drafts => ({ ...drafts, [current.key]: current.direction }));
+      if (current) {
+        setConeDirectionDrafts(drafts => ({ ...drafts, [current.key]: current.direction }));
+        onConeDirectionPreview?.(current.key, current.direction);
+      }
     });
   };
   const finishConeDirection = (event: ReactPointerEvent<SVGCircleElement>) => {
@@ -3830,6 +3835,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     coneDirectionGestureRef.current = null;
     const direction = Math.round(gesture.direction * 10) / 10;
+    onConeDirectionPreview?.(gesture.key, direction, true);
     if (gesture.family === 'token') {
       const token = mapTokens.find(item => item.id === gesture.id);
       const source = token?.[gesture.sourceType];

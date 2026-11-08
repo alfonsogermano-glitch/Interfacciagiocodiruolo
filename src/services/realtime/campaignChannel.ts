@@ -20,8 +20,8 @@ import { selectedContentMode } from '../storage/persistenceMode';
 // subscribe), e il canale viene chiuso per davvero solo quando l'ultimo
 // consumer se ne va.
 
-type BroadcastEvent = 'INSERT' | 'UPDATE' | 'DELETE' | 'session_change' | 'active_scene_change' | 'active_scene_map_patch' | 'members_change' | 'notes_change' | 'dice_roll' | 'chat_message' | 'chat_reaction' | 'chat_delete' | 'notification' | 'map_measurement' | 'map_token_action' | 'map_poi_action' | 'map_object_layer_action' | 'map_object_drag_preview' | 'map_history_action' | 'character_owner_change';
-const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = ['INSERT', 'UPDATE', 'DELETE', 'session_change', 'active_scene_change', 'active_scene_map_patch', 'members_change', 'notes_change', 'dice_roll', 'chat_message', 'chat_reaction', 'chat_delete', 'notification', 'map_measurement', 'map_token_action', 'map_poi_action', 'map_object_layer_action', 'map_object_drag_preview', 'map_history_action', 'character_owner_change'];
+type BroadcastEvent = 'INSERT' | 'UPDATE' | 'DELETE' | 'session_change' | 'active_scene_change' | 'active_scene_map_patch' | 'members_change' | 'notes_change' | 'dice_roll' | 'chat_message' | 'chat_reaction' | 'chat_delete' | 'notification' | 'map_measurement' | 'map_token_action' | 'map_poi_action' | 'map_object_layer_action' | 'map_object_drag_preview' | 'map_cone_direction_preview' | 'map_history_action' | 'character_owner_change';
+const KNOWN_BROADCAST_EVENTS: BroadcastEvent[] = ['INSERT', 'UPDATE', 'DELETE', 'session_change', 'active_scene_change', 'active_scene_map_patch', 'members_change', 'notes_change', 'dice_roll', 'chat_message', 'chat_reaction', 'chat_delete', 'notification', 'map_measurement', 'map_token_action', 'map_poi_action', 'map_object_layer_action', 'map_object_drag_preview', 'map_cone_direction_preview', 'map_history_action', 'character_owner_change'];
 
 type BroadcastHandler = (msg: any) => void;
 type PresenceHandler = (state: Record<string, any>) => void;
