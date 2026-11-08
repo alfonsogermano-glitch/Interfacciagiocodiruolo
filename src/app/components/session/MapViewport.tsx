@@ -2734,7 +2734,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         const drawing = mapDrawings.find(item => item.id === ref.id);
         const moveDraft = drawing ? drawingMoveDrafts[drawing.id] ?? remoteDrawingPositions[drawing.id] : null;
         const rendered = drawing ? drawingTransformDrafts[drawing.id] ?? (moveDraft ? { ...drawing, ...moveDraft } : drawing) : null;
-        if (rendered && (isOwner || rendered.visible !== false) && !isBoundsFullyFogCovered(getRotatedRectBounds(rendered, rendered.width, rendered.height, rendered.rotation ?? 0)) && drawingContainsPoint(rendered, point, view.scale)) {
+        if (rendered && canMoveDrawing(drawing!) && !isBoundsFullyFogCovered(getRotatedRectBounds(rendered, rendered.width, rendered.height, rendered.rotation ?? 0)) && drawingContainsPoint(rendered, point, view.scale)) {
           keys.add(`drawing\u0000${rendered.id}`);
           hoveredDrawingCandidate = rendered.id;
         }
@@ -2742,12 +2742,12 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         const token = tokenById.get(ref.id);
         const position = token ? tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? token : null;
         const size = tokenDraftTransforms[ref.id]?.size ?? (token ? getTokenSize(token, gridSettings.cellSize) : 0);
-        if (token && position && (tokenVisibilitySourceActive(token) || !isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size })) && contains({ x: position.x, y: position.y, width: size, height: size })) keys.add(`token\u0000${token.id}`);
+        if (token && position && canMoveToken(token) && (tokenVisibilitySourceActive(token) || !isBoundsFullyFogCovered({ x: position.x, y: position.y, width: size, height: size })) && contains({ x: position.x, y: position.y, width: size, height: size })) keys.add(`token\u0000${token.id}`);
       } else {
         const poi = poiById.get(ref.id);
         const position = poi ? poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi : null;
         const size = poi ? poiDraftTransforms[poi.id]?.size ?? poi.size : 0;
-        if (poi && position && (!poiVisibilitySourceActive(poi) || !isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size })) && contains({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size })) keys.add(`poi\u0000${poi.id}`);
+        if (poi && position && canMovePoi(poi) && (!poiVisibilitySourceActive(poi) || !isBoundsFullyFogCovered({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size })) && contains({ x: position.x - size / 2, y: position.y - size / 2, width: size, height: size })) keys.add(`poi\u0000${poi.id}`);
       }
     });
     if (hoveredDrawingCandidate) hoveredMapElementRef.current = { type: 'drawing', id: hoveredDrawingCandidate };
@@ -4637,7 +4637,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         })}
       </svg>
       {isOwner && fogPersistenceHint && <div className="pointer-events-none absolute z-[10040] max-w-64 rounded-md border border-amber-300/40 bg-slate-950/95 px-2.5 py-1.5 text-xs font-semibold text-amber-100 shadow-xl" style={{ left: fogPersistenceHint.x, top: fogPersistenceHint.y }}>{fogPersistenceHint.label}</div>}
-      {depthHoveredKeys.size > 1 && (
+      {depthHoveredKeys.size >= 2 && (
         <div className="pointer-events-none absolute right-4 top-4 z-[10000] flex justify-end">
           <ContextHint>
             <strong>Oggetti sovrapposti:</strong> Ogni click destro del mouse seleziona un nuovo oggetto. E' possibile spostare quello evidenziato in giallo.
