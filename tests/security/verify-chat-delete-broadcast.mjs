@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const service=readFileSync(new URL('../../src/services/supabase/chatService.ts',import.meta.url),'utf8');
+const panel=readFileSync(new URL('../../src/app/components/session/SessionChatPanel.tsx',import.meta.url),'utf8');
+const visibility=service.slice(service.indexOf('export async function chatMessageVisibility('),service.indexOf('export async function deleteChatMessage('));
+assert.match(visibility,/\.from\('chat_messages'\)/);
+assert.match(visibility,/\.select\('id'\)/);
+assert.match(visibility,/return 'unknown'/);
+const handler=panel.slice(panel.indexOf('const handleChatDeleteBroadcast'),panel.indexOf('const chatChannel ='));
+assert.match(handler,/chatMessageVisibility\(messageId\)/);
+assert.match(handler,/visibility !== 'missing'/);
+assert.doesNotMatch(handler,/removeRoll\(messageId\)/);
+console.log('Chat delete broadcast validation static regression: PASS');
