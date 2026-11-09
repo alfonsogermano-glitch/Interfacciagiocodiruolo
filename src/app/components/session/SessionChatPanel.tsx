@@ -34,6 +34,7 @@ import {
   readChatLastSeen,
   writeChatLastSeen,
   toggleChatReaction,
+  loadChatReactions,
   deleteChatMessage,
   type ChatAttachment,
   type ChatMessage,
@@ -251,16 +252,18 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
   const portalTarget = usePortalContainer();
 
   // Reazioni arrivate dagli altri partecipanti: aggiornano l'entry locale.
+  // Il broadcast segnala soltanto che le reazioni sono cambiate:
+  // il contenuto attendibile viene riletto dal database sotto RLS.
   const handleChatReactionBroadcast = useCallback((msg: { payload?: Record<string, unknown> } | null) => {
-    const payload = msg?.payload;
-    const messageId = typeof payload?.messageId === 'string' ? payload.messageId : null;
-    const reactions = payload?.reactions;
-    if (!messageId || !Array.isArray(reactions)) return;
-    const next = reactions as ChatReaction[];
-    setEntries((prev) => prev.map((entry) => (
-      entry.id === messageId ? { ...entry, reactions: next } : entry
-    )));
-    setSessionRollReactions((prev) => ({ ...prev, [messageId]: next }));
+    const messageId = typeof msg?.payload?.messageId === 'string' ? msg.payload.messageId : null;
+    if (!messageId) return;
+    void loadChatReactions(messageId).then((reactions) => {
+      if (!reactions) return; // Riga non visibile, eliminata o errore: ignora il broadcast.
+      setEntries((prev) => prev.map((entry) => (
+        entry.id === messageId ? { ...entry, reactions } : entry
+      )));
+      setSessionRollReactions((prev) => ({ ...prev, [messageId]: reactions }));
+    });
   }, []);
 
   // Voce cancellata da un altro partecipante: la rimuove dalla timeline e
