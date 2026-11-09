@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const service=readFileSync(new URL('../../src/services/supabase/chatService.ts',import.meta.url),'utf8');
+const panel=readFileSync(new URL('../../src/app/components/session/SessionChatPanel.tsx',import.meta.url),'utf8');
+assert.match(service,/export async function loadChatReactions\(/);
+const loader=service.slice(service.indexOf('export async function loadChatReactions('),service.indexOf('export async function toggleChatReaction('));
+assert.match(loader,/\.from\('chat_messages'\)/);
+assert.match(loader,/\.select\('reactions'\)/);
+const handler=panel.slice(panel.indexOf('const handleChatReactionBroadcast'),panel.indexOf('// Voce cancellata'));
+assert.match(handler,/loadChatReactions\(messageId\)/);
+assert.doesNotMatch(handler,/msg\?\.payload\?\.reactions|payload\?\.reactions|reactions as ChatReaction\[\]/);
+console.log('Chat reaction broadcast RLS refresh static regression: PASS');
