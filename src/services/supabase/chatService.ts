@@ -296,6 +296,21 @@ export async function saveRollEntry(roll: RollResult): Promise<string | null> {
   return existing?.created_at ?? null;
 }
 
+/** Verifica se un messaggio è ancora visibile tramite RLS.
+ * 'unknown' evita di scambiare errori di rete per cancellazioni riuscite.
+ * ATTENZIONE: 'missing' può anche significare che RLS non consente più SELECT.
+ */
+export async function chatMessageVisibility(messageId: string): Promise<'present' | 'missing' | 'unknown'> {
+  if (!supabase) return 'unknown';
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .select('id')
+    .eq('id', messageId)
+    .limit(1);
+  if (error || !Array.isArray(data)) return 'unknown';
+  return data.length > 0 ? 'present' : 'missing';
+}
+
 export async function deleteChatMessage(messageId: string): Promise<void> {
   if (!supabase) return;
   const { error } = await supabase.from('chat_messages').delete().eq('id', messageId);
