@@ -190,6 +190,25 @@ export function SessionWorkspace({
 }) {
   setSessionMapCurrentUserId(currentUserId);
   const { activeScene, channelReady, publish, publishMapPatch } = useActiveScene(campaignId);
+  // Avviso di connessione persa: senza questo indicatore un giocatore il cui
+  // WebSocket cade resta davanti a una mappa congelata senza capire perche'.
+  // Non lampeggia al caricamento iniziale: compare solo dopo che il canale
+  // era gia' pronto (caduta reale) o se la prima negoziazione supera i 5s.
+  const channelWasReadyRef = useRef(false);
+  const [connectionLost, setConnectionLost] = useState(false);
+  useEffect(() => {
+    if (channelReady) {
+      channelWasReadyRef.current = true;
+      setConnectionLost(false);
+      return;
+    }
+    if (channelWasReadyRef.current) {
+      setConnectionLost(true);
+      return;
+    }
+    const timer = setTimeout(() => setConnectionLost(true), 5000);
+    return () => clearTimeout(timer);
+  }, [channelReady]);
   const [remoteTokenPositions, setRemoteTokenPositions] = useState<Record<string, TokenPosition>>({});
   const [remotePoiPositions, setRemotePoiPositions] = useState<Record<string, TokenPosition>>({});
   const [remoteDrawingPositions, setRemoteDrawingPositions] = useState<Record<string, TokenPosition>>({});
@@ -2054,9 +2073,14 @@ export function SessionWorkspace({
 
   return (
     <div
-      className={`grid h-full min-h-0 grid-cols-1 overflow-hidden bg-[#111318] ${isOwner && !treeHidden ? "grid-rows-[minmax(220px,38vh)_minmax(0,1fr)] md:grid-cols-[var(--session-tree-width)_minmax(0,1fr)] md:grid-rows-1" : "grid-rows-1"}`}
+      className={`relative grid h-full min-h-0 grid-cols-1 overflow-hidden bg-[#111318] ${isOwner && !treeHidden ? "grid-rows-[minmax(220px,38vh)_minmax(0,1fr)] md:grid-cols-[var(--session-tree-width)_minmax(0,1fr)] md:grid-rows-1" : "grid-rows-1"}`}
       style={{ "--session-tree-width": `${treeWidth}px` } as CSSProperties}
     >
+      {connectionLost && (
+        <div className="pointer-events-none absolute left-1/2 top-3 z-[10060] -translate-x-1/2 rounded-full border border-amber-300/40 bg-slate-950/95 px-4 py-1.5 text-xs font-semibold text-amber-100 shadow-xl">
+          Connessione persa — riconnessione in corso…
+        </div>
+      )}
       {isOwner && !treeHidden && (
         <aside className="relative flex min-h-0 flex-col border-b border-white/10 bg-[#1a1d25] md:border-b-0 md:border-r">
           <div className="border-b border-white/10 px-4 py-4">

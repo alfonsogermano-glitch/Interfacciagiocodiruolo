@@ -1045,6 +1045,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const tokenPreviewSentAtRef = useRef(0);
   const poiPreviewSentAtRef = useRef(0);
   const drawingPreviewSentAtRef = useRef(0);
+  const conePreviewSentAtRef = useRef(0);
   const [tokenDraftTransforms, setTokenDraftTransforms] = useState<Record<string, TokenTransform>>({});
   const [transformTokenId, setTransformTokenId] = useState<string | null>(null);
   const [tokenMenu, setTokenMenu] = useState<TokenMenu | null>(null);
@@ -3887,7 +3888,14 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       const current = coneDirectionGestureRef.current;
       if (current) {
         setConeDirectionDrafts(drafts => ({ ...drafts, [current.key]: current.direction }));
-        onConeDirectionPreview?.(current.key, current.direction);
+        // Broadcast limitato a ~30fps come le altre anteprime: senza questo
+        // gate girava a 60fps (un frame per requestAnimationFrame) ed era il
+        // flusso piu' aggressivo per il limite eventi/sec del piano Free.
+        const now = performance.now();
+        if (now - conePreviewSentAtRef.current >= 33) {
+          conePreviewSentAtRef.current = now;
+          onConeDirectionPreview?.(current.key, current.direction);
+        }
       }
     });
   };

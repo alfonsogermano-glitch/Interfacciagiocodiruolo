@@ -154,6 +154,58 @@ export function useActiveScene(campaignId: string | null | undefined) {
     };
   }, []);
 
+  // Pubblica subito la modifica rimasta in coda. Usata dal debounce normale e
+  // dal ritorno della scheda in primo piano: un GM con la scheda in background
+  // subisce il throttle dei timer del browser (~1s, o peggio) e senza questo
+  // flush le modifiche in arrivo dai giocatori resterebbero sospese finche'
+  // la scheda non viene riattivata.
+  const flushPendingPublication = useCallback(() => {
+    if (publicationDebounceRef.current !== null) {
+      clearTimeout(publicationDebounceRef.current);
+      publicationDebounceRef.current = null;
+    }
+    const pending = publicationPendingRef.current;
+    publicationPendingRef.current = null;
+    if (!pending) return;
+    const { value: pendingValue, fields: pendingFields } = pending;
+    const publishedAtMs = Math.max(Date.now(), publicationClockRef.current + 1, Date.parse(pendingValue.publishedAt) || 0);
+    publicationClockRef.current = publishedAtMs;
+    const next = { ...pendingValue, publishedAt: new Date(publishedAtMs).toISOString() };
+    const operation = publicationQueueRef.current.then(async () => {
+      const latest = latestPublicationRef.current;
+      const persisted = latest && latest.id === next.id ? { ...latest, ...pendingFields, publishedAt: next.publishedAt } : next;
+      const patch: ActiveSceneMapPatch = {
+        id: next.id,
+        campaignId: next.campaignId,
+        sceneId: next.sceneId,
+        chapterId: next.chapterId,
+        publishedAt: next.publishedAt,
+        basePublishedAt: latest?.publishedAt,
+        ...(pendingFields.mapPlacement ? { mapPlacement: pendingFields.mapPlacement } : {}),
+        ...(pendingFields.gridSettings ? { gridSettings: pendingFields.gridSettings } : {}),
+        ...(pendingFields.mapObjectOrder && !sameObjectOrder(latest?.mapObjectOrder, pendingFields.mapObjectOrder) ? { mapObjectOrder: pendingFields.mapObjectOrder } : {}),
+        mapTokensDelta: pendingFields.mapTokens ? collectionDelta(latest?.mapTokens, pendingFields.mapTokens) : undefined,
+        mapDrawingsDelta: pendingFields.mapDrawings ? collectionDelta(latest?.mapDrawings, pendingFields.mapDrawings) : undefined,
+        mapPoisDelta: pendingFields.mapPois ? collectionDelta(latest?.mapPois, pendingFields.mapPois) : undefined,
+        mapFogDelta: pendingFields.mapFog ? collectionDelta(latest?.mapFog, pendingFields.mapFog) : undefined,
+      };
+      await saveActiveScene(campaignId, persisted);
+      latestPublicationRef.current = persisted;
+      setActiveScene(persisted);
+      await send('active_scene_map_patch', { patch });
+    });
+    publicationQueueRef.current = operation.catch(() => {});
+    void operation;
+  }, [campaignId, send]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') flushPendingPublication();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [flushPendingPublication]);
+
   const publish = useCallback(async (value: ActiveScenePublication) => {
     if (!campaignId) return;
     const publishedAtMs = Math.max(Date.now(), publicationClockRef.current + 1, Date.parse(value.publishedAt) || 0);
@@ -177,40 +229,9 @@ export function useActiveScene(campaignId: string | null | undefined) {
     }
     publicationDebounceRef.current = setTimeout(() => {
       publicationDebounceRef.current = null;
-      const pending = publicationPendingRef.current;
-      publicationPendingRef.current = null;
-      if (!pending) return;
-      const { value: pendingValue, fields: pendingFields } = pending;
-      const publishedAtMs = Math.max(Date.now(), publicationClockRef.current + 1, Date.parse(pendingValue.publishedAt) || 0);
-      publicationClockRef.current = publishedAtMs;
-      const next = { ...pendingValue, publishedAt: new Date(publishedAtMs).toISOString() };
-      const operation = publicationQueueRef.current.then(async () => {
-        const latest = latestPublicationRef.current;
-        const persisted = latest && latest.id === next.id ? { ...latest, ...pendingFields, publishedAt: next.publishedAt } : next;
-        const patch: ActiveSceneMapPatch = {
-          id: next.id,
-          campaignId: next.campaignId,
-          sceneId: next.sceneId,
-          chapterId: next.chapterId,
-          publishedAt: next.publishedAt,
-          basePublishedAt: latest?.publishedAt,
-          ...(pendingFields.mapPlacement ? { mapPlacement: pendingFields.mapPlacement } : {}),
-          ...(pendingFields.gridSettings ? { gridSettings: pendingFields.gridSettings } : {}),
-          ...(pendingFields.mapObjectOrder && !sameObjectOrder(latest?.mapObjectOrder, pendingFields.mapObjectOrder) ? { mapObjectOrder: pendingFields.mapObjectOrder } : {}),
-          mapTokensDelta: pendingFields.mapTokens ? collectionDelta(latest?.mapTokens, pendingFields.mapTokens) : undefined,
-          mapDrawingsDelta: pendingFields.mapDrawings ? collectionDelta(latest?.mapDrawings, pendingFields.mapDrawings) : undefined,
-          mapPoisDelta: pendingFields.mapPois ? collectionDelta(latest?.mapPois, pendingFields.mapPois) : undefined,
-          mapFogDelta: pendingFields.mapFog ? collectionDelta(latest?.mapFog, pendingFields.mapFog) : undefined,
-        };
-        await saveActiveScene(campaignId, persisted);
-        latestPublicationRef.current = persisted;
-        setActiveScene(persisted);
-        await send('active_scene_map_patch', { patch });
-      });
-      publicationQueueRef.current = operation.catch(() => {});
-      void operation;
+      flushPendingPublication();
     }, 100);
-  }, [campaignId, send]);
+  }, [campaignId, flushPendingPublication]);
 
   const clear = useCallback(async () => {
     if (!campaignId) return;

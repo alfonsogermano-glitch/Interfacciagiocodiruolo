@@ -277,7 +277,26 @@ export function useRealtimeChannel(topic: string | null | undefined, options: Us
         return;
       }
       const ch = entryRef.current?.channel;
-      if (ch) await ch.send({ type: 'broadcast', event, payload });
+      if (!ch) return;
+      // Diagnostica per la sessione live: un broadcast rifiutato (limite
+      // eventi/sec o payload troppo grande per il piano) era prima silenzioso
+      // e si manifestava solo come "aggiornamento non arrivato" sugli altri
+      // schermi. I payload degli snapshot completi sono gli unici che possono
+      // avvicinarsi al limite di 256KB del piano Free.
+      if (event === 'active_scene_change') {
+        const size = JSON.stringify(payload)?.length ?? 0;
+        if (size > 200 * 1024) {
+          console.warn(`[campaignChannel] broadcast "${event}" pesante: ${Math.round(size / 1024)}KB (limite piano Free: 256KB).`);
+        }
+      }
+      try {
+        const result = await ch.send({ type: 'broadcast', event, payload });
+        if (result !== 'ok') {
+          console.warn(`[campaignChannel] invio broadcast "${event}" non riuscito: ${result}`);
+        }
+      } catch (error) {
+        console.warn(`[campaignChannel] errore invio broadcast "${event}":`, error);
+      }
     },
     [topic],
   );
