@@ -1006,6 +1006,8 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const calibrationActive = useSessionMapCalibrationActive();
   const [view, setView] = useState<ViewTransform>(() => readStoredView(mapId));
   const [placement, setPlacement] = useState(mapPlacement);
+  // Unscaled map dimensions must be identical for GM and players.
+  const [intrinsicMapSize, setIntrinsicMapSize] = useState<{ width: number; height: number } | null>(null);
   const [panning, setPanning] = useState(false);
   const [moveTargetAvailable, setMoveTargetAvailable] = useState(false);
   const panRef = useRef<PanGesture | null>(null);
@@ -2968,6 +2970,22 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     roomFillNoticeTimerRef.current = window.setTimeout(() => setRoomFillNotice(null), 2800);
   };
   const commitFog = (fog: SessionMapFog) => {
+    if (fog.operation === 'reveal' && onFogReplaceAll) {
+      // Subtraction modifies existing cover geometry; it never creates a reveal object.
+      const cutter = fogWorldPolygon(fog);
+      let changed = false;
+      const next = mapFog.flatMap(item => {
+        if (item.operation !== 'cover' || item.enabled === false || item.visionBlocker) return [item];
+        const covered = fogWorldPolygon(item);
+        if (!polygonBoundsOverlap(polygonBounds(covered), polygonBounds(cutter))) return [item];
+        const difference = polygonClipping.difference(covered, cutter);
+        if (JSON.stringify(difference) === JSON.stringify([covered])) return [item];
+        changed = true;
+        return fogsFromMultiPolygon(difference, item, true);
+      });
+      if (changed) onFogReplaceAll(next);
+      return;
+    }
     if (fog.operation !== 'cover' || fog.fullMap || fog.visionBlocker || !onFogReplaceAll) {
       onFogCreate?.(fog);
       return;
@@ -4210,10 +4228,16 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
           ref={placementElementRef}
           data-map-placement
           data-map-movable={isOwner && !mapPlacement.locked ? 'true' : 'false'}
-          className={placement.width ? '' : 'w-full'}
+          className={placement.width || intrinsicMapSize ? '' : 'w-full'}
+          onLoadCapture={(event) => {
+            const image = event.target;
+            if (image instanceof HTMLImageElement && image.naturalWidth && image.naturalHeight) {
+              setIntrinsicMapSize({ width: image.naturalWidth, height: image.naturalHeight });
+            }
+          }}
           style={{
-            width: placement.width,
-            height: placement.height,
+            width: placement.width ?? intrinsicMapSize?.width,
+            height: placement.height ?? intrinsicMapSize?.height,
             transform: `translate(${placement.x}px, ${placement.y}px)`,
           }}
         >
@@ -4744,7 +4768,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
               if (fog.operation !== 'cover' || fog.enabled === false) return null;
               const position = fogMoveDrafts[fog.id] ?? fog;
               const rendered = fogPathDrafts[fog.id] ?? fogTransformDrafts[fog.id] ?? { ...fog, ...position };
-              return <clipPath key={`vision-clip-${fog.id}`} id={`session-fog-shape-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index}`}><path d={fogWorldPath(rendered)} /></clipPath>;
+              return <clipPath key={`vision-clip-${fog.id}`} id={`session-fog-shape-${mapId.replace(/[^a-zA-Z0-9_-]/g, '')}-${index}`}><path d={fogWorldPath(rendered)} clipRule="evenodd" fillRule="evenodd" /></clipPath>;
             })}
             {mapFog.map((fog, index) => {
               if (fog.operation !== 'cover' || fog.enabled === false) return null;
