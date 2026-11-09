@@ -35,6 +35,7 @@ import {
   writeChatLastSeen,
   toggleChatReaction,
   loadChatReactions,
+  chatMessageVisibility,
   deleteChatMessage,
   type ChatAttachment,
   type ChatMessage,
@@ -268,12 +269,17 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
 
   // Voce cancellata da un altro partecipante: la rimuove dalla timeline e
   // anche dalla copia locale del tiro (se e' presente nella sessione).
+  // Un evento chat_delete non è una prova di cancellazione: verifica il DB.
+  // Non eliminare i tiri locali in risposta al solo broadcast: potrebbero
+  // non avere una riga persistita, e un peer potrebbe falsificare l'evento.
   const handleChatDeleteBroadcast = useCallback((msg: { payload?: Record<string, unknown> } | null) => {
     const messageId = typeof msg?.payload?.messageId === 'string' ? msg.payload.messageId : null;
     if (!messageId) return;
-    setEntries((prev) => prev.filter((entry) => entry.id !== messageId));
-    removeRoll(messageId);
-  }, [removeRoll]);
+    void chatMessageVisibility(messageId).then((visibility) => {
+      if (visibility !== 'missing') return;
+      setEntries((prev) => prev.filter((entry) => entry.id !== messageId));
+    });
+  }, []);
 
   const chatChannel = useCampaignChannel(activeCampaign?.id, {
     onBroadcast: {
