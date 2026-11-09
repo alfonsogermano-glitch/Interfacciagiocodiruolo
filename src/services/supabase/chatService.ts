@@ -193,6 +193,18 @@ export async function sendChatAttachment(input: {
  * Ritorna la lista aggiornata o null se la riga non esiste/c'e' stato errore
  * (usato anche per i tiri solo-locali, che nel DB non hanno riga).
  */
+/** Recupera le reazioni dal DB sotto RLS; i broadcast non sono una fonte attendibile. */
+export async function loadChatReactions(messageId: string): Promise<ChatReaction[] | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .select('reactions')
+    .eq('id', messageId)
+    .limit(1);
+  if (error || !Array.isArray(data) || data.length === 0) return null;
+  return Array.isArray(data[0].reactions) ? data[0].reactions as ChatReaction[] : [];
+}
+
 export async function toggleChatReaction(
   messageId: string,
   input: { char: string; userId: string; userName: string },
