@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent } from 'react';
 import { configureSessionMapCenter, configureSessionMapFit, configureSessionMapFogClear, configureSessionMapFogCoverFullMap, configureSessionMapFogSelectionClear, getSessionMapCurrentUserId, hydrateSessionMapFogStyle, setActiveSessionMapTool, setSessionMapCalibrationActive, setSessionMapFogFullMapCovered, setSessionMapSelectionArmed, updateSessionGrid, updateSessionMapFogSettings, useActiveSessionMapTool, useSessionMapCalibrationActive, useSessionMapDrawSettings, useSessionMapFogSettings, useSessionMapMeasureMode, useSessionMapMeasurementsVisibleToAll, useSessionMapSelectionArmed, useSessionMapSelectionMode, type SessionMapDrawMode, type SessionMapFitMode, type SessionMapFogMode, type SessionMapTool } from './mapToolStore';
 import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
 import type { SessionGridSettings } from '../../../types/mapGeometry';
@@ -1046,6 +1046,141 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   const poiPreviewSentAtRef = useRef(0);
   const drawingPreviewSentAtRef = useRef(0);
   const conePreviewSentAtRef = useRef(0);
+  // Frame pendenti dei trascinamenti: senza coalescenza ogni pointermove
+  // (i mouse da gioco arrivano a centinaia di Hz) forzava un render completo
+  // del viewport e saturava il thread principale: l'oggetto restava fermo e
+  // poi scattava sulla posizione piu' recente. Il cono non aveva il problema
+  // perche' gia' passava da requestAnimationFrame.
+  const tokenMoveFrameRef = useRef<number | null>(null);
+  const poiMoveFrameRef = useRef<number | null>(null);
+  const drawingMoveFrameRef = useRef<number | null>(null);
+  // Levigatura delle posizioni ricevute in tempo reale: gli arrivi sono a
+  // ~30 Hz ma irregolari (burst e pause di rete), e sullo schermo di chi
+  // riceve il movimento risultava scattoso, soprattutto per i disegni (i
+  // token almeno vengono spostati con transform e compositati dalla GPU).
+  // Ogni posizione ricevuta diventa un bersaglio inseguito un frame alla
+  // volta: il tragitto diventa continuo a 60 fps invece di salti ogni
+  // mezzo secondo. Chi trascina non ne e' affetto (le proprie anteprime
+  // non tornano indietro), quindi la latenza percepita dall'autore della
+  // mossa non cambia.
+  const remoteSmoothPositionsRef = useRef<Record<string, { x: number; y: number }>>({});
+  const remoteSmoothTargetsRef = useRef<Record<string, { x: number; y: number }>>({});
+  const remoteSmoothRawKeysRef = useRef<Set<string>>(new Set());
+  const remoteSmoothFrameRef = useRef<number | null>(null);
+  const [remoteSmoothVersion, setRemoteSmoothVersion] = useState(0);
+  const smoothRemotePosition = (family: 'token' | 'poi' | 'drawing', id: string, fallback: { x: number; y: number } | undefined) =>
+    remoteSmoothPositionsRef.current[`${family}\u0000${id}`] ?? fallback;
+  const remoteEntityPosition = (family: 'token' | 'poi' | 'drawing', id: string): { x: number; y: number } | null => {
+    if (family === 'token') {
+      const token = mapTokens.find(item => item.id === id);
+      return token ? { x: token.x, y: token.y } : null;
+    }
+    if (family === 'poi') {
+      const poi = mapPois.find(item => item.id === id);
+      return poi ? { x: poi.x, y: poi.y } : null;
+    }
+    const drawing = mapDrawings.find(item => item.id === id);
+    return drawing ? { x: drawing.x, y: drawing.y } : null;
+  };
+  const runRemoteSmoothFrame = () => {
+    remoteSmoothFrameRef.current = null;
+    const targets = remoteSmoothTargetsRef.current;
+    const rawKeys = remoteSmoothRawKeysRef.current;
+    const smooth = remoteSmoothPositionsRef.current;
+    let changed = false;
+    let active = false;
+    Object.keys(targets).forEach((key) => {
+      const target = targets[key];
+      const current = smooth[key];
+      if (!current) {
+        smooth[key] = { ...target };
+        changed = true;
+        active = true;
+        return;
+      }
+      const dx = target.x - current.x;
+      const dy = target.y - current.y;
+      if (Math.hypot(dx, dy) <= 0.4) {
+        // Arrivato a destinazione. Con un bersaglio vivo (trascinamento in
+        // corso) la voce resta, cosi' il prossimo arrivo riprende da qui;
+        // senza bersaglio (patch autorevole applicata) la voce si rimuove e
+        // il render cade sull'autorevole, che e' lo stesso punto.
+        if (rawKeys.has(key)) {
+          if (current.x !== target.x || current.y !== target.y) {
+            smooth[key] = { x: target.x, y: target.y };
+            changed = true;
+          }
+          return;
+        }
+        delete smooth[key];
+        delete targets[key];
+        changed = true;
+        return;
+      }
+      // Fattore 0.45: recupera il ritardo di rete in ~5 frame (~80 ms)
+      // senza che il salto si percepisca.
+      smooth[key] = { x: current.x + dx * 0.45, y: current.y + dy * 0.45 };
+      changed = true;
+      active = true;
+    });
+    if (changed) setRemoteSmoothVersion(version => version + 1);
+    if (active) remoteSmoothFrameRef.current = window.requestAnimationFrame(runRemoteSmoothFrame);
+  };
+  // useLayoutEffect (non useEffect): la prima posizione ricevuta viene
+  // inizializzata prima della pittura, cosi' il frame col salto non viene
+  // mai mostrato e l'oggetto parte dalla posizione che si sta gia' vedendo.
+  useLayoutEffect(() => {
+    const targets: Record<string, { x: number; y: number }> = {};
+    const rawKeys = new Set<string>();
+    const collect = (family: 'token' | 'poi' | 'drawing', record: Record<string, { x: number; y: number }>) => {
+      Object.entries(record).forEach(([id, position]) => {
+        const key = `${family}\u0000${id}`;
+        targets[key] = position;
+        rawKeys.add(key);
+      });
+    };
+    collect('token', remoteTokenPositions);
+    collect('poi', remotePoiPositions);
+    collect('drawing', remoteDrawingPositions);
+    const smooth = remoteSmoothPositionsRef.current;
+    const familyAndId = (key: string) => {
+      const separator = key.indexOf('\u0000');
+      return [key.slice(0, separator) as 'token' | 'poi' | 'drawing', key.slice(separator + 1)] as const;
+    };
+    let changed = false;
+    // Le voci rimaste senza bersaglio (patch autorevole applicata) proseguono
+    // verso la posizione autorevole, che coincide col bersaglio finale.
+    Object.keys(smooth).forEach((key) => {
+      if (targets[key]) return;
+      const [family, id] = familyAndId(key);
+      const entity = remoteEntityPosition(family, id);
+      if (!entity) {
+        delete smooth[key];
+        changed = true;
+        return;
+      }
+      targets[key] = entity;
+    });
+    // Una posizione appena ricevuta parte dalla posizione autorevole corrente
+    // (quella che il giocatore sta gia' vedendo): l'oggetto accelera invece
+    // di saltare alla posizione ricevuta.
+    Object.keys(targets).forEach((key) => {
+      if (smooth[key]) return;
+      const [family, id] = familyAndId(key);
+      smooth[key] = remoteEntityPosition(family, id) ?? { ...targets[key] };
+      changed = true;
+    });
+    remoteSmoothTargetsRef.current = targets;
+    remoteSmoothRawKeysRef.current = rawKeys;
+    if (changed) setRemoteSmoothVersion(version => version + 1);
+    if (Object.keys(targets).length > 0 && remoteSmoothFrameRef.current === null) {
+      remoteSmoothFrameRef.current = window.requestAnimationFrame(runRemoteSmoothFrame);
+    }
+  }, [remoteTokenPositions, remotePoiPositions, remoteDrawingPositions, mapTokens, mapPois, mapDrawings]);
+  useEffect(() => () => {
+    if (remoteSmoothFrameRef.current !== null) window.cancelAnimationFrame(remoteSmoothFrameRef.current);
+    remoteSmoothFrameRef.current = null;
+  }, []);
   const [tokenDraftTransforms, setTokenDraftTransforms] = useState<Record<string, TokenTransform>>({});
   const [transformTokenId, setTransformTokenId] = useState<string | null>(null);
   const [tokenMenu, setTokenMenu] = useState<TokenMenu | null>(null);
@@ -1465,6 +1600,32 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
       );
     }
   }, [isOwner, mapTokens]);
+
+  // Bozze di trascinamento (PDI e disegni) per il giocatore: vanno rimosse
+  // non appende la posizione autorevole raggiunge quella della bozza, cioe'
+  // quando il patch del GM ha confermato la mossa. Senza questo spurgo la
+  // bozza restava per sempre e sovrascriveva anteprime e patch successive,
+  // bloccando l'oggetto sullo schermo del giocatore finche' non lo
+  // trascinava di nuovo. Stessa logica gia' applicata ai token sopra.
+  useEffect(() => {
+    if (isOwner) return;
+    setPoiDraftPositions((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([id, position]) => {
+          const poi = mapPois.find((candidate) => candidate.id === id);
+          return !!poi && (poi.x !== position.x || poi.y !== position.y);
+        }),
+      ),
+    );
+    setDrawingMoveDrafts((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([id, position]) => {
+          const drawing = mapDrawings.find((candidate) => candidate.id === id);
+          return !!drawing && (drawing.x !== position.x || drawing.y !== position.y);
+        }),
+      ),
+    );
+  }, [isOwner, mapDrawings, mapPois]);
 
   useEffect(() => {
     const clearSelection = (event: KeyboardEvent) => {
@@ -2153,21 +2314,30 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     const dy = (event.clientY - gesture.startY) / view.scale;
     gesture.positions = Object.fromEntries(Object.entries(gesture.origins).map(([id, origin]) => [id, { x: origin.x + dx, y: origin.y + dy }]));
     gesture.tokenPositions = Object.fromEntries(Object.entries(gesture.tokenOrigins).map(([id, origin]) => [id, { x: origin.x + dx, y: origin.y + dy }]));
-    setDrawingMoveDrafts(gesture.positions);
-    setTokenDraftPositions((current) => ({
-      ...current,
-      ...gesture.tokenPositions,
-    }));
-    const now = performance.now();
-    if (now - drawingPreviewSentAtRef.current >= 33) {
-      drawingPreviewSentAtRef.current = now;
-      onDrawingMovePreview?.(gesture.positions);
-      if (Object.keys(gesture.tokenPositions).length > 0) onTokenMovePreview?.(gesture.tokenPositions);
-    }
+    if (drawingMoveFrameRef.current !== null) return;
+    drawingMoveFrameRef.current = window.requestAnimationFrame(() => {
+      drawingMoveFrameRef.current = null;
+      const current = drawingMoveRef.current;
+      if (!current) return;
+      setDrawingMoveDrafts(current.positions);
+      setTokenDraftPositions((state) => ({ ...state, ...current.tokenPositions }));
+      const now = performance.now();
+      if (now - drawingPreviewSentAtRef.current >= 33) {
+        drawingPreviewSentAtRef.current = now;
+        onDrawingMovePreview?.(current.positions);
+        if (Object.keys(current.tokenPositions).length > 0) onTokenMovePreview?.(current.tokenPositions);
+      }
+    });
+  };
+  const cancelDrawingMoveFrame = () => {
+    if (drawingMoveFrameRef.current === null) return;
+    window.cancelAnimationFrame(drawingMoveFrameRef.current);
+    drawingMoveFrameRef.current = null;
   };
   const finishSelectedDrawing = (event: ReactPointerEvent<SVGElement>) => {
     const gesture = drawingMoveRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
+    cancelDrawingMoveFrame();
     const dx = (event.clientX - gesture.startX) / view.scale;
     const dy = (event.clientY - gesture.startY) / view.scale;
     const positions = Object.fromEntries(Object.entries(gesture.origins).map(([id, origin]) => [id, { x: origin.x + dx, y: origin.y + dy }]));
@@ -2177,12 +2347,18 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     onDrawingsMove?.(positions);
     if (Object.keys(tokenPositions).length > 0) onTokensMove?.(tokenPositions);
     drawingMoveRef.current = null;
-    setDrawingMoveDrafts({});
-    setTokenDraftPositions((current) => {
-      const next = { ...current };
-      Object.keys(tokenPositions).forEach((id) => delete next[id]);
-      return next;
-    });
+    // Per il GM lo stato autorevole e' gia' aggiornato: il bozza si puo'
+    // subito azzerare. Per il giocatore no: la conferma arriva con il patch
+    // del GM e azzerare subito farebbe scattare l'oggetto indietro e poi di
+    // nuovo avanti quando il patch arriva.
+    setDrawingMoveDrafts(isOwner ? {} : gesture.positions);
+    if (isOwner) {
+      setTokenDraftPositions((current) => {
+        const next = { ...current };
+        Object.keys(tokenPositions).forEach((id) => delete next[id]);
+        return next;
+      });
+    }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
@@ -2569,16 +2745,26 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     const gesture = poiMoveRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
     gesture.position = { x: gesture.origin.x + (event.clientX - gesture.startX) / view.scale, y: gesture.origin.y + (event.clientY - gesture.startY) / view.scale };
-    setPoiDraftPositions((current) => ({ ...current, [gesture.poiId]: gesture.position }));
-    const now = performance.now();
-    if (now - poiPreviewSentAtRef.current >= 33) {
-      poiPreviewSentAtRef.current = now;
-      onPoiMovePreview?.({ [gesture.poiId]: gesture.position });
-    }
+    if (poiMoveFrameRef.current !== null) return;
+    poiMoveFrameRef.current = window.requestAnimationFrame(() => {
+      poiMoveFrameRef.current = null;
+      const current = poiMoveRef.current;
+      if (!current) return;
+      setPoiDraftPositions((state) => ({ ...state, [current.poiId]: current.position }));
+      const now = performance.now();
+      if (now - poiPreviewSentAtRef.current >= 33) {
+        poiPreviewSentAtRef.current = now;
+        onPoiMovePreview?.({ [current.poiId]: current.position });
+      }
+    });
   };
   const finishPoiMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const gesture = poiMoveRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (poiMoveFrameRef.current !== null) {
+      window.cancelAnimationFrame(poiMoveFrameRef.current);
+      poiMoveFrameRef.current = null;
+    }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     poiMoveRef.current = null;
     onPoiMovePreview?.({ [gesture.poiId]: gesture.position }, true);
@@ -3359,24 +3545,36 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
     const delta = { x: position.x - origin.x, y: position.y - origin.y };
     gesture.positions = Object.fromEntries(Object.entries(gesture.origins).map(([id, itemOrigin]) => [id, { x: itemOrigin.x + delta.x, y: itemOrigin.y + delta.y }]));
     gesture.drawingPositions = Object.fromEntries(Object.entries(gesture.drawingOrigins).map(([id, itemOrigin]) => [id, { x: itemOrigin.x + delta.x, y: itemOrigin.y + delta.y }]));
-    setTokenDraftPositions((current) => ({ ...current, ...gesture.positions }));
-    setDrawingMoveDrafts(gesture.drawingPositions);
-    const now = performance.now();
-    if (now - tokenPreviewSentAtRef.current >= 33) {
-      tokenPreviewSentAtRef.current = now;
-      onTokenMovePreview?.(gesture.positions);
-    }
+    if (tokenMoveFrameRef.current !== null) return;
+    tokenMoveFrameRef.current = window.requestAnimationFrame(() => {
+      tokenMoveFrameRef.current = null;
+      const current = tokenGestureRef.current;
+      if (!current) return;
+      setTokenDraftPositions((state) => ({ ...state, ...current.positions }));
+      setDrawingMoveDrafts(current.drawingPositions);
+      const now = performance.now();
+      if (now - tokenPreviewSentAtRef.current >= 33) {
+        tokenPreviewSentAtRef.current = now;
+        onTokenMovePreview?.(current.positions);
+      }
+    });
   };
 
   const finishTokenMove = (event: ReactPointerEvent<HTMLElement>) => {
     const gesture = tokenGestureRef.current;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
+    if (tokenMoveFrameRef.current !== null) {
+      window.cancelAnimationFrame(tokenMoveFrameRef.current);
+      tokenMoveFrameRef.current = null;
+    }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     tokenGestureRef.current = null;
     onTokenMovePreview?.(gesture.positions, true);
     onTokensMove?.(gesture.positions);
     if (Object.keys(gesture.drawingPositions).length > 0) onDrawingsMove?.(gesture.drawingPositions);
-    setDrawingMoveDrafts({});
+    // Come per i disegni: il giocatore tiene la bozza finche' il patch del
+    // GM non conferma, altrimenti l'oggetto scatta indietro e poi avanti.
+    setDrawingMoveDrafts(isOwner || Object.keys(gesture.drawingPositions).length === 0 ? {} : gesture.drawingPositions);
     if (!isOwner) return;
     setTokenDraftPositions((current) => {
       const next = { ...current };
@@ -3656,30 +3854,30 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
   };
   const publicLightSources = useMemo(() => [
     ...mapTokens.filter(token => (isOwner || token.visible !== false) && token.light?.enabled && token.light.radius > 0).map(token => {
-      const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? remoteTokenPositions[token.id] ?? token;
+      const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? smoothRemotePosition('token', token.id, remoteTokenPositions[token.id]) ?? token;
       const size = tokenDraftTransforms[token.id]?.size ?? getTokenSize(token, gridSettings.cellSize);
       const key = `token:${token.id}:light`;
       return { id: `token-${token.id}`, key, family: 'token' as const, entityId: token.id, sourceType: 'light' as const, interactive: canControlToken(token), origin: { x: position.x + size / 2, y: position.y + size / 2 }, radius: token.light!.radius, shape: token.light!.shape, coneAngle: token.light!.coneAngle, direction: coneDirection(key, token.light!.coneDirection, tokenDraftTransforms[token.id]?.rotation ?? token.rotation ?? 0), sourceSize: size, effect: token.light!.effect, flickerPreset: token.light!.flickerPreset, outlineVisible: token.light!.outlineVisible !== false };
     }),
     ...mapPois.filter(poi => (isOwner || poi.visibleToPlayers) && poi.light?.enabled && poi.light.radius > 0).map(poi => {
-      const position = poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi;
+      const position = poiDraftPositions[poi.id] ?? smoothRemotePosition('poi', poi.id, remotePoiPositions[poi.id]) ?? poi;
       const key = `poi:${poi.id}:light`;
       return { id: `poi-${poi.id}`, key, family: 'poi' as const, entityId: poi.id, sourceType: 'light' as const, interactive: canControlPoi(poi), origin: position, radius: poi.light!.radius, shape: poi.light!.shape, coneAngle: poi.light!.coneAngle, direction: coneDirection(key, poi.light!.coneDirection, poiDraftTransforms[poi.id]?.rotation ?? poi.rotation ?? 0), sourceSize: poiDraftTransforms[poi.id]?.size ?? poi.size, effect: poi.light!.effect, flickerPreset: poi.light!.flickerPreset, outlineVisible: poi.light!.outlineVisible !== false };
     }),
-  ], [coneDirectionDrafts, gridSettings.cellSize, isOwner, mapPois, mapTokens, mapUserId, poiDraftPositions, poiDraftTransforms, remotePoiPositions, remoteTokenPositions, tokenDraftPositions, tokenDraftTransforms]);
+  ], [coneDirectionDrafts, gridSettings.cellSize, isOwner, mapPois, mapTokens, mapUserId, poiDraftPositions, poiDraftTransforms, remotePoiPositions, remoteSmoothVersion, remoteTokenPositions, tokenDraftPositions, tokenDraftTransforms]);
   const privateVisionSources = useMemo(() => [
     ...mapTokens.filter(token => (isOwner || token.visible !== false) && token.vision?.enabled && token.vision.radius > 0).map(token => {
-      const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? remoteTokenPositions[token.id] ?? token;
+      const position = tokenDraftTransforms[token.id] ?? tokenDraftPositions[token.id] ?? smoothRemotePosition('token', token.id, remoteTokenPositions[token.id]) ?? token;
       const size = tokenDraftTransforms[token.id]?.size ?? getTokenSize(token, gridSettings.cellSize);
       const key = `token:${token.id}:vision`;
       return { id: `token-${token.id}`, key, family: 'token' as const, entityId: token.id, sourceType: 'vision' as const, interactive: canControlToken(token), origin: { x: position.x + size / 2, y: position.y + size / 2 }, radius: token.vision!.radius, shape: token.vision!.shape, coneAngle: token.vision!.coneAngle, direction: coneDirection(key, token.vision!.coneDirection, tokenDraftTransforms[token.id]?.rotation ?? token.rotation ?? 0), sourceSize: size, outlineVisible: token.vision!.outlineVisible !== false };
     }),
     ...mapPois.filter(poi => (isOwner || poi.visibleToPlayers) && poi.vision?.enabled && poi.vision.radius > 0).map(poi => {
-      const position = poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi;
+      const position = poiDraftPositions[poi.id] ?? smoothRemotePosition('poi', poi.id, remotePoiPositions[poi.id]) ?? poi;
       const key = `poi:${poi.id}:vision`;
       return { id: `poi-${poi.id}`, key, family: 'poi' as const, entityId: poi.id, sourceType: 'vision' as const, interactive: canControlPoi(poi), origin: position, radius: poi.vision!.radius, shape: poi.vision!.shape, coneAngle: poi.vision!.coneAngle, direction: coneDirection(key, poi.vision!.coneDirection, poiDraftTransforms[poi.id]?.rotation ?? poi.rotation ?? 0), sourceSize: poiDraftTransforms[poi.id]?.size ?? poi.size, outlineVisible: poi.vision!.outlineVisible !== false };
     }),
-  ], [coneDirectionDrafts, gridSettings.cellSize, isOwner, mapPois, mapTokens, mapUserId, poiDraftPositions, poiDraftTransforms, remotePoiPositions, remoteTokenPositions, tokenDraftPositions, tokenDraftTransforms]);
+  ], [coneDirectionDrafts, gridSettings.cellSize, isOwner, mapPois, mapTokens, mapUserId, poiDraftPositions, poiDraftTransforms, remotePoiPositions, remoteSmoothVersion, remoteTokenPositions, tokenDraftPositions, tokenDraftTransforms]);
   const publicLightEffects = useMemo(() => publicLightSources.map(source => ({ source, points: visibilityPolygon(source) })).filter(item => item.points.length >= 3), [automaticVisionBlockers, gridSettings.cellSize, gridSettings.distance, placement.height, placement.width, placement.x, placement.y, publicLightSources]);
   const publicLightPolygons = publicLightEffects.map(item => item.points);
   const lightGradientId = (sourceKey: string) => `session-light-gradient-${mapId}-${sourceKey}`.replace(/[^a-zA-Z0-9_-]/g, '');
@@ -4025,7 +4223,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         <div data-session-map-drawings className="pointer-events-none absolute inset-0">
           {visibleDrawings.map((drawing) => {
             if (textDraft?.editingId === drawing.id) return null;
-            const moveDraft = drawingMoveDrafts[drawing.id] ?? remoteDrawingPositions[drawing.id];
+            const moveDraft = drawingMoveDrafts[drawing.id] ?? smoothRemotePosition('drawing', drawing.id, remoteDrawingPositions[drawing.id]);
             const renderedBase = drawingTransformDrafts[drawing.id] ?? (drawingDraft?.id === drawing.id ? drawingDraft : moveDraft ? { ...drawing, ...moveDraft } : drawing);
             const rendered = withMeasuredTextBounds(renderedBase);
             if (drawing.visible === false && !isOwner) return null;
@@ -4289,7 +4487,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         )}
         <div data-session-map-pois className="pointer-events-none absolute inset-0">
           {visiblePois.map((poi) => {
-            const position = poiDraftPositions[poi.id] ?? remotePoiPositions[poi.id] ?? poi;
+            const position = poiDraftPositions[poi.id] ?? smoothRemotePosition('poi', poi.id, remotePoiPositions[poi.id]) ?? poi;
             const transform = poiDraftTransforms[poi.id];
             const size = Math.max(8, transform?.size ?? poi.size);
             const rotation = transform?.rotation ?? poi.rotation ?? 0;
@@ -4343,7 +4541,7 @@ export function MapViewport({ children, campaignId, mapId, backgroundUrl, isOwne
         <div data-session-map-tokens className="pointer-events-none absolute inset-0">
           {visibleTokens.map((token) => {
             const transform = tokenDraftTransforms[token.id];
-            const position = transform ?? tokenDraftPositions[token.id] ?? remoteTokenPositions[token.id] ?? token;
+            const position = transform ?? tokenDraftPositions[token.id] ?? smoothRemotePosition('token', token.id, remoteTokenPositions[token.id]) ?? token;
             const size = transform?.size ?? getTokenSize(token, gridSettings.cellSize);
             const rotation = transform?.rotation ?? token.rotation ?? 0;
             const renderedSize = size * view.scale;

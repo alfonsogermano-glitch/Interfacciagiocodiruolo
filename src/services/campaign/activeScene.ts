@@ -1,4 +1,3 @@
-import { generateUUID } from '../../lib/uuid';
 import type { ActiveScenePublication } from '../../types/activeScene';
 import type { Chapter } from '../../types/chapter';
 import type { Scene } from '../../types/scene';
@@ -20,7 +19,13 @@ export function buildActiveScenePublication(
   }
 
   return {
-    id: generateUUID(),
+    // Id stabile e derivato dalla scena, mai un UUID generato alla chiamata:
+    // questa funzione viene eseguita ad ogni render di SessionWorkspace, e un
+    // id diverso ogni volta faceva scartare ogni patch di mappa inviata ai
+    // giocatori (vedi useActiveScene: il patch veniva confrontato con l'id
+    // della pubblicazione corrente). Con l'id deterministico display,
+    // pubblicazione e patch condividono lo stesso identificativo.
+    id: `scene:${scene.id}`,
     campaignId,
     sceneId: scene.id,
     chapterId: chapter.id,

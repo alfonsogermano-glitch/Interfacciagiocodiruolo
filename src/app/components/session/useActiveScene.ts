@@ -72,13 +72,29 @@ export function useActiveScene(campaignId: string | null | undefined) {
         const patch = message?.payload?.patch as ActiveSceneMapPatch | undefined;
         if (!patch || typeof patch.publishedAt !== 'string') return;
         setActiveScene(current => {
-          if (!current || current.id !== patch.id || current.campaignId !== patch.campaignId || current.sceneId !== patch.sceneId || current.chapterId !== patch.chapterId) return current;
+          // I delta del patch contengono solo dati di mappa, che vivono nel
+          // capitolo: id e scena della pubblicazione non devono bloccarli.
+          // Prima si esigeva anche current.id === patch.id, ma l'id veniva
+          // rigenerato ad ogni render quando una Scena era selezionata, e
+          // cosi' ogni aggiornamento (posizioni PDI, token, disegni, nebbia)
+          // veniva scartato silenziosamente sugli schermi dei giocatori.
+          if (!current || current.campaignId !== patch.campaignId || current.chapterId !== patch.chapterId) return current;
           if (patch.publishedAt <= current.publishedAt) return current;
-          if (patch.basePublishedAt && patch.basePublishedAt !== current.publishedAt) {
+          // Continuita': il patch dichiara lo stato su cui e' calcolato. Se
+          // coincide con quello gia' applicato qui, il delta e' applicabile.
+          // Senza continuita' (patch perso, snapshot non allineato, migrazione
+          // dell'id) si ricarica lo snapshot completo invece di ignorare.
+          const continuous = patch.basePublishedAt
+            ? patch.basePublishedAt === current.publishedAt
+            : patch.id === current.id;
+          if (!continuous) {
+            console.warn('[activeScene] patch di mappa non continua, ricarico lo snapshot completo:', { patchId: patch.id, currentId: current.id, basePublishedAt: patch.basePublishedAt, currentPublishedAt: current.publishedAt });
             void loadActiveScene(patch.campaignId).then(value => {
               if (!isActiveScenePublication(value)) return;
               setActiveScene(latest => {
-                if (latest && latest.id === value.id && latest.publishedAt >= value.publishedAt) return latest;
+                // Il confronto e' solo sul tempo: un snapshot piu' vecchio non
+                // deve mai sostituire lo stato corrente, anche se l'id differisce.
+                if (latest && latest.publishedAt >= value.publishedAt) return latest;
                 latestPublicationRef.current = value;
                 publicationClockRef.current = Math.max(publicationClockRef.current, Date.parse(value.publishedAt) || 0);
                 return value;
@@ -96,6 +112,10 @@ export function useActiveScene(campaignId: string | null | undefined) {
             mapDrawings: applyCollectionDelta(current.mapDrawings, patch.mapDrawingsDelta),
             mapPois: applyCollectionDelta(current.mapPois, patch.mapPoisDelta),
             mapFog: applyCollectionDelta(current.mapFog, patch.mapFogDelta),
+            // Allinea la pubblicazione del client a quella del GM (id e scena
+            // possono cambiare quando il GM passa da Capitolo a Scena).
+            id: patch.id,
+            sceneId: patch.sceneId,
             publishedAt: patch.publishedAt,
           };
           latestPublicationRef.current = next;
