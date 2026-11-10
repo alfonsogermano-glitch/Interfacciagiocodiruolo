@@ -27,6 +27,8 @@ jobs:
           node --test experimental/hybrid/web-demo/demo.test.mjs
           ! grep -E 'SUPABASE_SERVICE_ROLE_KEY|VITE_SUPABASE_ANON_KEY' experimental/hybrid/web-demo/demo.js
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: experimental/hybrid/web-demo
