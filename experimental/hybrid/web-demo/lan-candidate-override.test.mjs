@@ -26,3 +26,11 @@ test('can explicitly submit extra remote candidate, without changing peer config
  assert.equal(passed.sdpMid,'0');
  assert.equal(await tryAddLanCandidate({remoteDescription:null},'192.168.1.69'),'pending');
 });
+
+test('explicit GM-side Android IPv4 candidate can be attempted if offer carries IPv6 host only',()=>{
+ const android='v=0\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\na=mid:0\r\na=candidate:3 1 udp 123 2001:db8::9 56210 typ host\r\n';
+ assert.equal(lanCandidateFromSdp(android,'192.168.1.21'),null);
+ const candidate=lanCandidateFromSdp(android,'192.168.1.21',{allowNonMdns:true});
+ assert.ok(candidate);
+ assert.match(candidate.candidate,/ 192\.168\.1\.21 56210 typ host/);
+});

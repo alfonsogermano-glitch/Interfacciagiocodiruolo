@@ -9,7 +9,7 @@ export function isPrivateLanIPv4(input){
  if(a[0]===192&&a[1]===168)return true;
  return false;
 }
-export function lanCandidateFromSdp(sdp,ipv4){
+export function lanCandidateFromSdp(sdp,ipv4,{allowNonMdns=false}={}){
  if(!isPrivateLanIPv4(ipv4)||typeof sdp!=='string')return null;
  const lines=sdp.split(/\r?\n/);
  let mid=null,section=-1;
@@ -19,7 +19,9 @@ export function lanCandidateFromSdp(sdp,ipv4){
   if(!line.startsWith('a=candidate:'))continue;
   const fields=line.slice(2).trim().split(/\s+/);
   if(fields.length<8||fields[6]!=='typ'||fields[7]!=='host')continue;
-  if(!/\.local$/i.test(fields[4]))continue;
+  const mdns=/\.local$/i.test(fields[4]);
+  const otherFamily=fields[4].includes(':');
+  if(!mdns&&!(allowNonMdns&&otherFamily))continue;
   const port=Number(fields[5]);
   if(fields[2].toLowerCase()!=='udp'||!Number.isInteger(port)||port<1||port>65535)continue;
   fields[4]=ipv4;
@@ -27,9 +29,9 @@ export function lanCandidateFromSdp(sdp,ipv4){
  }
  return null;
 }
-export async function tryAddLanCandidate(pc,ipv4){
+export async function tryAddLanCandidate(pc,ipv4,options={}){
  if(!pc?.remoteDescription?.sdp||typeof pc.addIceCandidate!=='function')return 'pending';
- const candidate=lanCandidateFromSdp(pc.remoteDescription.sdp,ipv4);
+ const candidate=lanCandidateFromSdp(pc.remoteDescription.sdp,ipv4,options);
  if(!candidate)return 'no-mdns';
  try{await pc.addIceCandidate(candidate);return 'added'}
  catch(err){return 'rejected:'+String(err?.name||'error')}
