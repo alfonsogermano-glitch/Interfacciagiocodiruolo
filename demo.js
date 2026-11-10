@@ -1,5 +1,6 @@
 // Hollowgate Hybrid browser-to-browser experiment.
 import { assessAnswer } from './answer-guard.mjs';
+import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // No Supabase, no production Auth, and no permanent server-side data.
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
 // Manual signaling is intentionally temporary until Hollowgate Hub exists.
@@ -9,6 +10,7 @@ const stun={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
 const peers=new Map();
 let mode='gm',hostState=null,channel=null,playerPC=null,peerId=null,playerState=null,role='gm', applyingAnswer=false, appliedAnswerSdp=null;
 let latencyTimer=null, lastPingId=null, lastPingAt=0, latencyMs=null, sentPings=0, receivedPings=0;
+let connectClient=null, autoSession=false;
 const log=(text)=>{const line=document.createElement('div');line.textContent=new Date().toLocaleTimeString()+' · '+text;$('log').prepend(line)};
 const copy=async(id)=>{try{await navigator.clipboard.writeText($(id).value);log('Testo copiato negli appunti')}catch{ $(id).select();log('Seleziona e copia con Ctrl+C')}}; 
 $('copyHostAnswer').onclick=()=>copy('hostAnswer');$('copyPlayerOffer').onclick=()=>copy('playerOffer');
@@ -77,7 +79,7 @@ function beginHostPing(id,peer){
 }
 function endHostPing(id,peer){
  if(peer?.timer)clearInterval(peer.timer);
- peer.timer=null;peers.delete(id);updateLatency();
+ if(peer)peer.timer=null;peers.delete(id);updateLatency();
 }
 
 function broadcast(){
@@ -176,12 +178,11 @@ $('createOffer').onclick=async()=>{
   displayStatus('Offerta pronta: copiala al GM');
  }catch(e){log('Errore offerta: '+e.message)}
 };
-$('acceptOffer').onclick=async()=>{
- if(!hostState){log('Avvia prima la campagna');return}
+async function acceptRemoteOffer(offer, reply=null){
+ if(!hostState)throw Error('Avvia prima la campagna');
+ if(offer.type!=='offer'||typeof offer.sdp!=='string'||offer.sdp.length>100000)throw Error('Offerta non valida');
+ const conn=pc('GM');const id='P-'+genId().slice(0,6);
  try{
-  const offer=JSON.parse($('remoteOffer').value);
-  if(offer.type!=='offer'||typeof offer.sdp!=='string'||offer.sdp.length>100000)throw Error('Offerta non valida');
-  const conn=pc('GM');const id='P-'+genId().slice(0,6);
   conn.ondatachannel=e=>{
    const c=e.channel;
    c.onmessage=event=>{try{
@@ -209,16 +210,20 @@ $('acceptOffer').onclick=async()=>{
    c.onclose=()=>{endHostPing(id,peers.get(id));displayStatus('Giocatore '+id+' disconnesso')};
   };
   await conn.setRemoteDescription(offer);const answer=await conn.createAnswer();await conn.setLocalDescription(answer);await gathered(conn);
-  $('hostAnswer').value=JSON.stringify(conn.localDescription);
-  displayStatus('Risposta pronta: inviala al giocatore');
- }catch(e){log('Errore risposta: '+e.message)}
+  const result=JSON.stringify(conn.localDescription);
+  if(reply)await reply(result);
+  else { $('hostAnswer').value=result; displayStatus('Risposta pronta: inviala al giocatore') }
+  return conn;
+ }catch(e){conn.close();throw e}
+}
+$('acceptOffer').onclick=async()=>{
+ try{await acceptRemoteOffer(JSON.parse($('remoteOffer').value))}
+ catch(e){log('Errore risposta: '+e.message)}
 };
-$('applyAnswer').onclick=async()=>{
+async function applyRemoteAnswer(answer){
  if(applyingAnswer){log('Applicazione risposta già in corso');return}
- let answer;
  try{
   if(!playerPC)throw Error('Prima genera la richiesta');
-  answer=JSON.parse($('remoteAnswer').value);
   if(answer.type!=='answer'||typeof answer.sdp!=='string'||answer.sdp.length>100000)throw Error('Risposta non valida');
   const decision=assessAnswer(playerPC.signalingState,appliedAnswerSdp,answer.sdp);
   if(decision==='duplicate'){
@@ -235,6 +240,76 @@ $('applyAnswer').onclick=async()=>{
   displayStatus('Risposta accettata · connessione ICE in corso (controlla il registro)');
  }catch(e){log('Errore collegamento: '+e.message)}
  finally{applyingAnswer=false;$('applyAnswer').disabled=false}
+}
+$('applyAnswer').onclick=()=>{try{applyRemoteAnswer(JSON.parse($('remoteAnswer').value))}catch(e){log('Risposta non valida: '+e.message)}};
+
+function configuredHub(){
+ const value=$('connectEndpoint').value.trim();
+ if(!value)throw Error('Il servizio Hollowgate Connect non è ancora configurato. Usa lo scambio manuale.');
+ return validateHubEndpoint(value);
+}
+function configureConnectPanel(){
+ const ready=Boolean($('connectEndpoint').value.trim());
+ $('connectHost').disabled=!ready;
+ $('connectJoin').disabled=!ready;
+ $('hubInfo').textContent=ready?
+  'Modalità sperimentale: usa solo un endpoint HTTPS dedicato ai test, mai dati reali.':
+  'Collegamento automatico non ancora disponibile su GitHub Pages: manca un servizio HTTPS pubblico.';
+}
+$('connectEndpoint').addEventListener('input',configureConnectPanel);
+configureConnectPanel();
+async function closeConnect(){
+ autoSession=false;
+ if(connectClient){const old=connectClient;connectClient=null;await old.leave();}
+ $('roomCode').textContent='—';
+}
+$('connectHost').onclick=async()=>{
+ try{
+  const endpoint=configuredHub();
+  if(!hostState)$('startHost').click();
+  await closeConnect();
+  connectClient=createConnectClient({endpoint});
+  const {room}=await connectClient.createRoom();
+  autoSession=true;
+  $('roomCode').textContent=room;
+  displayStatus('Stanza '+room+' pronta: condividi soltanto questo codice');
+  const active=connectClient;
+  void active.listen(async message=>{
+   if(active!==connectClient)return;
+   if(message.kind==='offer'&&message.from!=='host'){
+    const offer=JSON.parse(message.description);
+    await acceptRemoteOffer(offer,answer=>active.send(message.from,'answer',answer));
+    log('Offerta di '+message.from+' accettata automaticamente');
+   }
+  },error=>log('Connect: '+error.message));
+ }catch(e){log('Connect non disponibile: '+e.message);await closeConnect()}
 };
-window.addEventListener('pagehide',()=>{stopPings();for(const [id,p] of peers){endHostPing(id,p);p.pc.close()}playerPC?.close()});
+$('connectJoin').onclick=async()=>{
+ try{
+  const endpoint=configuredHub();
+  const room=$('joinRoomCode').value.trim().toUpperCase();
+  if(!/^[A-Z2-9]{8}$/.test(room))throw Error('Codice stanza non valido');
+  await closeConnect();
+  connectClient=createConnectClient({endpoint});
+  await connectClient.joinRoom(room);
+  autoSession=true;
+  await $('createOffer').onclick();
+  if(!playerPC?.localDescription)throw Error('Offerta non generata');
+  await connectClient.send('host','offer',JSON.stringify(playerPC.localDescription));
+  displayStatus('Offerta inviata automaticamente alla stanza '+room);
+  const active=connectClient;
+  void active.listen(async message=>{
+   if(active!==connectClient)return;
+   if(message.kind==='answer'&&message.from==='host'){
+    await applyRemoteAnswer(JSON.parse(message.description));
+    log('Risposta ricevuta tramite Connect');
+   }
+  },error=>log('Connect: '+error.message));
+ }catch(e){log('Connect non disponibile: '+e.message);await closeConnect()}
+};
+$('connectDisconnect').onclick=async()=>{
+ await closeConnect();
+ displayStatus('Hollowgate Connect scollegato: le connessioni WebRTC esistenti non vengono interrotte');
+};
+window.addEventListener('pagehide',()=>{stopPings();void closeConnect();for(const [id,p] of peers){endHostPing(id,p);p.pc.close()}playerPC?.close()});
 log('Prova browser pronta — scegli GM oppure giocatore');
