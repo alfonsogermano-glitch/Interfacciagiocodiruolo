@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hollowgate Hybrid — Laboratorio WebRTC</title>
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<main>
+<header><div><div class="eyebrow">HOLLOWGATE · LABORATORIO ISOLATO</div><h1>Hybrid GM Host</h1><p>Prova una sessione in cui il Game Master ospita la partita nel proprio browser. Nessun dato viene inviato a Supabase.</p></div><span class="status" id="status">Non connesso</span></header>
+<aside class="warning"><strong>Prototipo sperimentale, non il VTT completo.</strong> Utilizza solo dati fittizi. Non richiede account Hollowgate e non utilizza i dati o le password reali. Il GM deve tenere aperta questa pagina. Per collegamenti fra reti diverse WebRTC potrebbe richiedere in futuro un relay TURN.</aside>
+<section class="mode">
+<button id="hostMode" class="selected">Sono il GM</button><button id="playerMode">Sono un giocatore</button>
+</section>
+<section id="hostSetup" class="card">
+<h2>1. Avvia una partita</h2><p>Lo stato della partita viene salvato in questo browser. Puoi ricaricare la pagina e continuare come GM, ma gli altri giocatori dovranno ricollegarsi.</p>
+<div class="controls"><button id="startHost">Avvia / riprendi la campagna demo</button><button id="resetHost" class="danger">Azzera soltanto i dati demo</button></div>
+<div id="hostSignal" hidden>
+<h3>2. Accetta un giocatore</h3><p>Il giocatore copia qui la propria offerta. Premi «Genera risposta», poi fagli copiare la risposta che apparirà. Ripeti per ogni giocatore.</p>
+<textarea id="remoteOffer" placeholder="Incolla l'offerta del giocatore"></textarea>
+<button id="acceptOffer">Genera risposta per il giocatore</button>
+<textarea id="hostAnswer" readonly placeholder="La risposta per il giocatore apparirà qui"></textarea>
+<button id="copyHostAnswer" class="secondary">Copia risposta</button>
+</div>
+</section>
+<section id="playerSetup" class="card" hidden>
+<h2>1. Collegati alla partita del GM</h2>
+<label for="playerName">Nome visualizzato di prova</label><input id="playerName" value="Giocatore" maxlength="32">
+<button id="createOffer">Genera richiesta di collegamento</button>
+<p>Copia l'offerta e inviala al GM (per esempio in chat). Dopo che il GM l'avrà accettata, incolla la sua risposta.</p>
+<textarea id="playerOffer" readonly placeholder="La tua offerta apparirà qui"></textarea><button id="copyPlayerOffer" class="secondary">Copia offerta</button>
+<textarea id="remoteAnswer" placeholder="Incolla qui la risposta del GM"></textarea><button id="applyAnswer">Completa collegamento</button>
+</section>
+<section id="session" class="card" hidden>
+<div class="session-head"><div><h2 id="sessionTitle">Campagna demo</h2><p id="roleInfo"></p></div><strong id="sequence">Stato #0</strong></div>
+<div class="play">
+<div><h3>Campo di gioco</h3><div id="board" class="board" aria-label="Mappa di prova"></div><div class="controls"><button id="moveLeft">← Muovi pedina</button><button id="moveRight">Muovi pedina →</button><button id="rollDice">Tira un d20</button></div><p class="hint">Il GM può muovere tutte le pedine. Ogni giocatore soltanto la propria.</p></div>
+<div><h3>Note e attività</h3><label for="noteText">Nuova nota</label><input id="noteText" placeholder="Scrivi una nota"><div class="controls"><button id="sendNote">Condividi nota</button><button id="secretNote">Nota privata GM</button></div><ol id="timeline"></ol></div>
+</div>
+</section>
+<section class="card compact"><h2>Registro tecnico</h2><div id="log" role="log" aria-live="polite"></div></section>
+<footer>Demo standalone su preview separata · Nessun account reale · Nessuna modifica al sito di produzione</footer>
+</main>
+<script type="module" src="./demo.js"></script>
+</body></html>
