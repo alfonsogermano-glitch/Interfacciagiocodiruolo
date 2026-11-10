@@ -22,5 +22,5 @@ test('browser demo reports actual WebRTC data-channel round-trip latency',()=>{
 });
 
 test('GM and players both perform independent round-trip timing with per-peer cleanup',()=>{
- for(const code of ['beginHostPing(id,peer)','endHostPing(id,peer)','peer.pendingPing===msg.id','peer.rttMs','tell(channel,{kind:\'pong\'','connected.map(([id,peer])'])assert.ok(app.includes(code),code);
+ for(const code of ['beginHostPing(id,peer)','endHostPing(id,peer)','peer?.pendingPing===msg.id','peer.rttMs','tell(channel,{kind:\'pong\'','connected.map(([id,peer])'])assert.ok(app.includes(code),code);
 });
