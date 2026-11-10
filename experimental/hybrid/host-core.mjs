@@ -82,6 +82,7 @@ export class HybridHost {
   }
   command(token, campaignId, action) {
     const { state, userId, isGM } = this.require(token, campaignId);
+    const nextState = structuredClone(state);
     if (!action || typeof action !== 'object') throw new Error('Invalid command');
     const { type } = action;
     let event;
@@ -91,12 +92,12 @@ export class HybridHost {
       if (['__proto__', 'constructor', 'prototype'].includes(id)) throw new Error('Invalid token id');
       const ownerId = assertString(action.ownerId, 'token owner');
       if (ownerId !== state.ownerId && !state.members.includes(ownerId)) throw new Error('Invalid token owner');
-      state.tokens[id] = { x: 0, y: 0, ownerId };
+      nextState.tokens[id] = { x: 0, y: 0, ownerId };
       event = { type, id, ownerId };
     } else if (type === 'move_token') {
       const id = assertString(action.id, 'token id', 80);
-      const target = state.tokens[id];
-      if (!Object.hasOwn(state.tokens, id) || !target || (!isGM && target.ownerId !== userId)) throw new Error('Forbidden token movement');
+      const target = nextState.tokens[id];
+      if (!Object.hasOwn(nextState.tokens, id) || !target || (!isGM && target.ownerId !== userId)) throw new Error('Forbidden token movement');
       const { x, y } = action;
       if (![x, y].every(v => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= 100000)) throw new Error('Invalid coordinates');
       target.x = x; target.y = y;
@@ -105,7 +106,7 @@ export class HybridHost {
       const text = assertString(action.text, 'note', 3000);
       const visibility = action.visibility === 'gm' ? 'gm' : 'public';
       if (visibility === 'gm' && !isGM) throw new Error('GM only');
-      state.notes.push({ text, ownerId: userId, visibility });
+      nextState.notes.push({ text, ownerId: userId, visibility });
       event = { type, text, ownerId: userId, visibility };
     } else if (type === 'roll') {
       const sides = action.sides;
@@ -117,11 +118,8 @@ export class HybridHost {
     event.sequence = state.sequence + 1;
     // Stage complete next state before notifying listeners. If disk write fails,
     // the in-memory state remains unchanged and no event is published.
-    const nextState = {
-      ...state,
-      sequence: event.sequence,
-      events: [...state.events, event],
-    };
+    nextState.sequence = event.sequence;
+    nextState.events.push(event);
     this.save(nextState);
     this.campaigns.set(campaignId, nextState);
     for (const entry of this.listeners.get(campaignId) ?? []) {
