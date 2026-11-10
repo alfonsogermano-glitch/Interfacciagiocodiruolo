@@ -72,7 +72,7 @@ assert.match(panel, /aria-label="Citazione"/, 'icona citazione assente');
 assert.match(panel, /aria-label="Cancella"/, 'icona cancella messaggio assente');
 assert.match(panel, /setConfirmDelete\(item\.key\)/, 'Cancella non apre la conferma');
 assert.match(panel, /void deleteEntry\(id\)/, 'dialog conferma non invoca deleteEntry');
-assert.match(panel, /await deleteChatMessage\(entryId\)/, 'deleteChatMessage non chiamata');
+assert.match(panel, /await deleteChatMessage\(entryId, activeCampaign\.id\)/, 'deleteChatMessage non chiamata');
 assert.match(
   panel,
   /chat_delete', \{ messageId: entryId \}/,
@@ -158,10 +158,14 @@ assert.match(
 );
 assert.ok(!/canAct\b/.test(panel), 'vecchio gate canAct ancora presente');
 assert.match(panel, /removeRoll\(entryId\)/, 'Elimina non toglie la copia locale del tiro');
-assert.match(panel, /removeRoll\(messageId\)/, 'broadcast chat_delete non toglie la copia locale');
+// I broadcast non sono attendibili: prima verificare sul DB, senza
+// cancellare tiri locali basandosi sul solo evento ricevuto.
+const deleteBroadcastHandler = panel.slice(panel.indexOf('const handleChatDeleteBroadcast'), panel.indexOf('const chatChannel ='));
+assert.match(deleteBroadcastHandler, /chatMessageVisibility\(messageId, activeCampaign\.id\)/, 'broadcast chat_delete senza verifica DB');
+assert.doesNotMatch(deleteBroadcastHandler, /removeRoll\(messageId\)/, 'broadcast non deve rimuovere tiri locali non verificati');
 assert.match(
   panel,
-  /setSessionRollReactions\(\(prev\) => \(\{ \.\.\.prev, \[messageId\]: next \}\)\)/,
+  /setSessionRollReactions\(\(prev\) => \(\{ \.\.\.prev, \[messageId\]: reactions \}\)\)/,
   'reazioni broadcast non unite ai tiri di sessione',
 );
 

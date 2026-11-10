@@ -1,0 +1,2546 @@
+{
+  "schema": "public",
+  "snapshot_date": "2026-11-10",
+  "description": "Read-only metadata fingerprints; excludes SQL bodies, RLS expressions, credentials and user records",
+  "indexes": [
+    {
+      "name": "campaign_documents_pkey",
+      "table": "campaign_documents",
+      "fingerprint": "6efcd80e502a41c6bf5554aeff0167bf"
+    },
+    {
+      "name": "campaign_invite_codes_pkey",
+      "table": "campaign_invite_codes",
+      "fingerprint": "241e7d8f142bb25470f1b78e44dec2fc"
+    },
+    {
+      "name": "idx_campaign_invite_codes_campaign",
+      "table": "campaign_invite_codes",
+      "fingerprint": "9824cb79f645da0e0dd7ad8d9446c5b9"
+    },
+    {
+      "name": "campaign_members_pkey",
+      "table": "campaign_members",
+      "fingerprint": "63631d06a72fdccc64e256f1891e7341"
+    },
+    {
+      "name": "campaigns_pkey",
+      "table": "campaigns",
+      "fingerprint": "edd5c9fae08c0b325bd3f0eee0056237"
+    },
+    {
+      "name": "idx_campaigns_current_invite_code",
+      "table": "campaigns",
+      "fingerprint": "ed13361ec6399e34d35c1f1c198d5ed0"
+    },
+    {
+      "name": "idx_campaigns_owner_active",
+      "table": "campaigns",
+      "fingerprint": "45b793168aebf811d2c33053980e7570"
+    },
+    {
+      "name": "chapters_campaign_id_id_uidx",
+      "table": "chapters",
+      "fingerprint": "45fa48519477c9677565e55c904c3f3c"
+    },
+    {
+      "name": "chapters_pkey",
+      "table": "chapters",
+      "fingerprint": "3f5d34a6653b3212eb45af9a12e15cd4"
+    },
+    {
+      "name": "idx_chapters_campaign",
+      "table": "chapters",
+      "fingerprint": "d88435651dff05d01f6a86b373cf051e"
+    },
+    {
+      "name": "character_equipment_character_idx",
+      "table": "character_equipment",
+      "fingerprint": "2ef7da730a76447c551a6a337f15d2e5"
+    },
+    {
+      "name": "character_equipment_pkey",
+      "table": "character_equipment",
+      "fingerprint": "a31383a4b12b9d6eb90521d8c149092f"
+    },
+    {
+      "name": "idx_character_equipment_catalog",
+      "table": "character_equipment",
+      "fingerprint": "c79e84504d086f1183211738dbdcbcc2"
+    },
+    {
+      "name": "idx_character_equipment_character",
+      "table": "character_equipment",
+      "fingerprint": "5fa994f60a8c8d5692b85855a255c816"
+    },
+    {
+      "name": "characters_pkey",
+      "table": "characters",
+      "fingerprint": "b8410be97df02f623932d54b5f366701"
+    },
+    {
+      "name": "idx_characters_campaign",
+      "table": "characters",
+      "fingerprint": "4dd0d5d703faa3e218d3a37e29d89a10"
+    },
+    {
+      "name": "idx_characters_chapter",
+      "table": "characters",
+      "fingerprint": "d33196086492b00c25dec8fc759cea3f"
+    },
+    {
+      "name": "idx_characters_folder",
+      "table": "characters",
+      "fingerprint": "a3b3964dc25d1870ebd71105957f01e3"
+    },
+    {
+      "name": "idx_characters_portrait_asset",
+      "table": "characters",
+      "fingerprint": "204e95e9b2dc321edc45b11a3b491201"
+    },
+    {
+      "name": "idx_characters_status",
+      "table": "characters",
+      "fingerprint": "7ddf7c791cbab7540635ac5b054e8db3"
+    },
+    {
+      "name": "chat_messages_pkey",
+      "table": "chat_messages",
+      "fingerprint": "9c25340290b73b58ae38f0448542d28d"
+    },
+    {
+      "name": "idx_chat_messages_campaign_created",
+      "table": "chat_messages",
+      "fingerprint": "cd0f9c952e54042cfd0544c87f42b81d"
+    },
+    {
+      "name": "idx_chat_messages_campaign_id",
+      "table": "chat_messages",
+      "fingerprint": "f9e623fe7f78347a920b3f3afb328371"
+    },
+    {
+      "name": "idx_chat_messages_created_at",
+      "table": "chat_messages",
+      "fingerprint": "7c443a5d483854253390e9aff45cb454"
+    },
+    {
+      "name": "clues_pkey",
+      "table": "clues",
+      "fingerprint": "209bbb96e0b474f821343bba2c965349"
+    },
+    {
+      "name": "idx_clues_campaign",
+      "table": "clues",
+      "fingerprint": "d8315c65fc1e1aceebe4ea4947ec8662"
+    },
+    {
+      "name": "idx_clues_chapter",
+      "table": "clues",
+      "fingerprint": "5f99e98a9f1a8736c91863eff63d4731"
+    },
+    {
+      "name": "idx_clues_environment",
+      "table": "clues",
+      "fingerprint": "50ccaf9da53c042497c89aab770cef18"
+    },
+    {
+      "name": "idx_clues_scene",
+      "table": "clues",
+      "fingerprint": "e5a3487f47bd03ac213d640f55cc4e45"
+    },
+    {
+      "name": "dashboard_settings_pkey",
+      "table": "dashboard_settings",
+      "fingerprint": "c1ceb5815acafc9fb9151f9e3cf9b601"
+    },
+    {
+      "name": "dice_custom_dice_library_order_idx",
+      "table": "dice_custom_dice",
+      "fingerprint": "648919c9ffa20a4856efd0af08ecc740"
+    },
+    {
+      "name": "dice_custom_dice_pkey",
+      "table": "dice_custom_dice",
+      "fingerprint": "e351c740e947808770a44dece6c3e4b3"
+    },
+    {
+      "name": "dice_formula_folders_library_order_idx",
+      "table": "dice_formula_folders",
+      "fingerprint": "453039e94372fab88ed9eeaa32b1d374"
+    },
+    {
+      "name": "dice_formula_folders_pkey",
+      "table": "dice_formula_folders",
+      "fingerprint": "78387155d7f4ea97350dd718b156e7ad"
+    },
+    {
+      "name": "dice_formulas_campaign_owner_updated_idx",
+      "table": "dice_formulas",
+      "fingerprint": "88f2b90efc5e5ea40a612411f9551485"
+    },
+    {
+      "name": "dice_formulas_library_order_idx",
+      "table": "dice_formulas",
+      "fingerprint": "7ed034cc4b77f6324b1a48cbac06846f"
+    },
+    {
+      "name": "dice_formulas_owner_profile_idx",
+      "table": "dice_formulas",
+      "fingerprint": "a30a64f5a88b25b0d7ba75cbfb478d96"
+    },
+    {
+      "name": "dice_formulas_pkey",
+      "table": "dice_formulas",
+      "fingerprint": "4dc68b02b4796f05c937bad171cbb101"
+    },
+    {
+      "name": "dice_standard_styles_owner_campaign_idx",
+      "table": "dice_standard_styles",
+      "fingerprint": "3955681279e26b6b2da8096ffe87d09b"
+    },
+    {
+      "name": "dice_standard_styles_pkey",
+      "table": "dice_standard_styles",
+      "fingerprint": "a314d5317a8afef68eff1b26133bbce0"
+    },
+    {
+      "name": "entity_notes_entity_idx",
+      "table": "entity_notes",
+      "fingerprint": "214492a4cf689691740b02a9aee35e3e"
+    },
+    {
+      "name": "entity_notes_pkey",
+      "table": "entity_notes",
+      "fingerprint": "5494593bf1ad962a6105bab7125ed174"
+    },
+    {
+      "name": "idx_entity_notes_campaign",
+      "table": "entity_notes",
+      "fingerprint": "c4438a0fae324ac2f5a01d8cf24678da"
+    },
+    {
+      "name": "idx_entity_notes_deleted_at",
+      "table": "entity_notes",
+      "fingerprint": "2f621af79a65c38a477910861adc6dd2"
+    },
+    {
+      "name": "idx_entity_notes_folder",
+      "table": "entity_notes",
+      "fingerprint": "9fa8af294170409820279a68d223b75c"
+    },
+    {
+      "name": "idx_entity_notes_owner",
+      "table": "entity_notes",
+      "fingerprint": "df78cd4fa8d4edf0a43af72a65674b04"
+    },
+    {
+      "name": "environment_narrative_mapping_pkey",
+      "table": "environment_narrative_mapping",
+      "fingerprint": "85119dcae2366bfc8b98f9c492645680"
+    },
+    {
+      "name": "environment_narrative_mapping_scene_uidx",
+      "table": "environment_narrative_mapping",
+      "fingerprint": "321e4e1763cf54f5fb1790d637b2b55a"
+    },
+    {
+      "name": "environments_pkey",
+      "table": "environments",
+      "fingerprint": "512aba29cc74bcbc31212a77e2b4cb44"
+    },
+    {
+      "name": "idx_environments_campaign",
+      "table": "environments",
+      "fingerprint": "3a64d18b24310f83be00526699a9603f"
+    },
+    {
+      "name": "idx_environments_chapter",
+      "table": "environments",
+      "fingerprint": "dc4c44f0c54638b9f8112ed999719b4e"
+    },
+    {
+      "name": "idx_environments_parent",
+      "table": "environments",
+      "fingerprint": "3ccade02bf46badc974439a11da906e4"
+    },
+    {
+      "name": "equipment_catalog_campaign_id_name_key",
+      "table": "equipment_catalog",
+      "fingerprint": "0d98c6c441acebcd540d06512b9bd93f"
+    },
+    {
+      "name": "equipment_catalog_pkey",
+      "table": "equipment_catalog",
+      "fingerprint": "910d2b66c2478fcc99d674dd339c3065"
+    },
+    {
+      "name": "idx_equipment_catalog_campaign",
+      "table": "equipment_catalog",
+      "fingerprint": "ac67f8b7281da6a31d9388cd36762d90"
+    },
+    {
+      "name": "folders_pkey",
+      "table": "folders",
+      "fingerprint": "522425e05a1a06a2bace643fa45e62d1"
+    },
+    {
+      "name": "idx_folders_campaign_type",
+      "table": "folders",
+      "fingerprint": "2ad0c5b18f7f94c732bd6ab9e60e53b5"
+    },
+    {
+      "name": "idx_folders_deleted_at",
+      "table": "folders",
+      "fingerprint": "a68c7b943c576fdb35a8024deb01bca4"
+    },
+    {
+      "name": "idx_folders_parent",
+      "table": "folders",
+      "fingerprint": "6a2a4043094089e690dfe05fdeae78cc"
+    },
+    {
+      "name": "idx_image_assets_owner",
+      "table": "image_assets",
+      "fingerprint": "d91ca579e350eb1b1b453a8ae723fc42"
+    },
+    {
+      "name": "image_assets_pkey",
+      "table": "image_assets",
+      "fingerprint": "af579304e0ecc63fb7ee248c8f32a058"
+    },
+    {
+      "name": "kv_store_771c5bfd_key_idx3",
+      "table": "kv_store_771c5bfd",
+      "fingerprint": "775efa22a51d3a4fd1c281ad93c9bcac"
+    },
+    {
+      "name": "kv_store_771c5bfd_pkey",
+      "table": "kv_store_771c5bfd",
+      "fingerprint": "80950066b2e6dd3dfffbab4e5bd36239"
+    },
+    {
+      "name": "idx_monsters_campaign",
+      "table": "monsters",
+      "fingerprint": "94fcfb990a181086062a4ef66aa8b894"
+    },
+    {
+      "name": "idx_monsters_chapter",
+      "table": "monsters",
+      "fingerprint": "0c5bd8868a2c51847b8d96c06c0cf2dc"
+    },
+    {
+      "name": "idx_monsters_environment",
+      "table": "monsters",
+      "fingerprint": "a3baaa6bb9a78b8c1ecbe90d7f235346"
+    },
+    {
+      "name": "idx_monsters_folder",
+      "table": "monsters",
+      "fingerprint": "a0b8a7adfc618b519f367e62ae0ffe0b"
+    },
+    {
+      "name": "idx_monsters_portrait_asset",
+      "table": "monsters",
+      "fingerprint": "e1d0801635f4c5100b9b5726fff14451"
+    },
+    {
+      "name": "idx_monsters_scene",
+      "table": "monsters",
+      "fingerprint": "112f71291765be19fa0945d45fc5302a"
+    },
+    {
+      "name": "monsters_pkey",
+      "table": "monsters",
+      "fingerprint": "f229d87c62710557206f64f7dfbb1145"
+    },
+    {
+      "name": "idx_news_posts_author",
+      "table": "news_posts",
+      "fingerprint": "b64701547938f240300ece5a5c083707"
+    },
+    {
+      "name": "news_posts_pkey",
+      "table": "news_posts",
+      "fingerprint": "053787d44cdd2255487c6b1a6068de53"
+    },
+    {
+      "name": "idx_notifications_recipient_created",
+      "table": "notifications",
+      "fingerprint": "6546910388ffff5002bc849cfab1eac1"
+    },
+    {
+      "name": "notifications_pkey",
+      "table": "notifications",
+      "fingerprint": "3435fbb51aa7e7d2ac858b253960952b"
+    },
+    {
+      "name": "idx_npcs_campaign",
+      "table": "npcs",
+      "fingerprint": "7500de8ac66de392f570b5419ac1a5b3"
+    },
+    {
+      "name": "idx_npcs_chapter",
+      "table": "npcs",
+      "fingerprint": "7c3d26d49f4f9564b4729f1bcc541fde"
+    },
+    {
+      "name": "idx_npcs_environment",
+      "table": "npcs",
+      "fingerprint": "73a8672ced9fc8bfdaddb5deae92d618"
+    },
+    {
+      "name": "idx_npcs_folder",
+      "table": "npcs",
+      "fingerprint": "aa549f77e26dd7944a05178c2731e840"
+    },
+    {
+      "name": "idx_npcs_portrait_asset",
+      "table": "npcs",
+      "fingerprint": "a6e85cc344c94a9d75fd4f5d68453095"
+    },
+    {
+      "name": "idx_npcs_scene",
+      "table": "npcs",
+      "fingerprint": "ec3ab60c807eba8efb4b970e19a2acef"
+    },
+    {
+      "name": "npcs_pkey",
+      "table": "npcs",
+      "fingerprint": "2149bcb7934c9f98a03ae957b6deb11e"
+    },
+    {
+      "name": "private_chat_messages_pkey",
+      "table": "private_chat_messages",
+      "fingerprint": "10b2b7d5f0efe9f36a76e007f0d2295d"
+    },
+    {
+      "name": "private_chat_recipient_timeline",
+      "table": "private_chat_messages",
+      "fingerprint": "1015283e5ccfe714b160bfe01496f1ab"
+    },
+    {
+      "name": "private_chat_sender_timeline",
+      "table": "private_chat_messages",
+      "fingerprint": "5a6f61f5e0075b9845025e3ef5f57ac2"
+    },
+    {
+      "name": "profiles_display_name_unique_ci",
+      "table": "profiles",
+      "fingerprint": "de3cd443ba6213df4e2b22fe459e35ae"
+    },
+    {
+      "name": "profiles_pkey",
+      "table": "profiles",
+      "fingerprint": "b7142bbffc23de763c1bd9f00489ec05"
+    },
+    {
+      "name": "scenes_campaign_idx",
+      "table": "scenes",
+      "fingerprint": "010abd4ee73ae71de2c6a7e8e3635aee"
+    },
+    {
+      "name": "scenes_chapter_order_idx",
+      "table": "scenes",
+      "fingerprint": "b1547cb1462ad08d81b56cab55123405"
+    },
+    {
+      "name": "scenes_environment_idx",
+      "table": "scenes",
+      "fingerprint": "52b52301d729ab37820a66825859d173"
+    },
+    {
+      "name": "scenes_pkey",
+      "table": "scenes",
+      "fingerprint": "9d7ebed1c1469f823221bd2f04e4ed87"
+    },
+    {
+      "name": "idx_situations_campaign",
+      "table": "situations",
+      "fingerprint": "e31c6362cda24fe9344ef6ce3fe89afe"
+    },
+    {
+      "name": "idx_situations_chapter",
+      "table": "situations",
+      "fingerprint": "e2bd9d71068981da16460cf4fb1455d1"
+    },
+    {
+      "name": "idx_situations_environment",
+      "table": "situations",
+      "fingerprint": "e709451ffafecbff651451c1502a8932"
+    },
+    {
+      "name": "idx_situations_scene",
+      "table": "situations",
+      "fingerprint": "30cf30cbe45895c80de72113329807f6"
+    },
+    {
+      "name": "situations_pkey",
+      "table": "situations",
+      "fingerprint": "e7e40b0c3125d65ce57482a6b68e5f51"
+    },
+    {
+      "name": "user_roles_pkey",
+      "table": "user_roles",
+      "fingerprint": "87a02a8cfa0f55410211ec573b6bfd1c"
+    },
+    {
+      "name": "idx_visual_assets_campaign",
+      "table": "visual_assets",
+      "fingerprint": "cbe9d00cb581bda7c647fdc3932bc7e7"
+    },
+    {
+      "name": "visual_assets_pkey",
+      "table": "visual_assets",
+      "fingerprint": "bac273e0bb1a5b7a744cefb0f240d592"
+    }
+  ],
+  "policies": [
+    {
+      "name": "campaign_documents_active_scene_member_read",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "campaign_documents",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "7896fe39c8fb9bfbc058a84f037fa440"
+    },
+    {
+      "name": "campaign_documents_owner",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "campaign_documents",
+      "command": "ALL",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "fd84561758a79a903318b1bd8142d9fb"
+    },
+    {
+      "name": "campaign_members_select_if_member_or_owner",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "campaign_members",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "b6039926f6909d21ed27eda454a4ab98"
+    },
+    {
+      "name": "campaigns_insert_own",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "campaigns",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "fa127ecbc48a169dd6a95239c52e2190"
+    },
+    {
+      "name": "campaigns_select_own",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "campaigns",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "72c5aa9188836a7fbcbd10bf49a8bb40"
+    },
+    {
+      "name": "campaigns_update_own",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "campaigns",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "72c5aa9188836a7fbcbd10bf49a8bb40"
+    },
+    {
+      "name": "chapters_delete_own",
+      "roles": [
+        "public"
+      ],
+      "table": "chapters",
+      "command": "DELETE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "4ab7aca9f247b08f88091f18e86f561e"
+    },
+    {
+      "name": "chapters_insert_own",
+      "roles": [
+        "public"
+      ],
+      "table": "chapters",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "0b760142254c190d515e88d1c7bade4b"
+    },
+    {
+      "name": "chapters_select_own_or_member",
+      "roles": [
+        "public"
+      ],
+      "table": "chapters",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "54703bca03816b68016d2c8dd2d5275c"
+    },
+    {
+      "name": "chapters_update_own",
+      "roles": [
+        "public"
+      ],
+      "table": "chapters",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "4ab7aca9f247b08f88091f18e86f561e"
+    },
+    {
+      "name": "character_equipment_access",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "character_equipment",
+      "command": "ALL",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "35bbcdced121605f5f0cffd7c171c5e8"
+    },
+    {
+      "name": "character_equipment_all_own",
+      "roles": [
+        "public"
+      ],
+      "table": "character_equipment",
+      "command": "ALL",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "10718df6e168f5b6c5b0a722de092e5c"
+    },
+    {
+      "name": "characters_delete_own",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "characters",
+      "command": "DELETE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "72c5aa9188836a7fbcbd10bf49a8bb40"
+    },
+    {
+      "name": "characters_insert_own",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "characters",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "fa127ecbc48a169dd6a95239c52e2190"
+    },
+    {
+      "name": "characters_select_own_or_member",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "characters",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "c9ee342dd7cf675510ff3d774a00e208"
+    },
+    {
+      "name": "characters_update_own",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "characters",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "72c5aa9188836a7fbcbd10bf49a8bb40"
+    },
+    {
+      "name": "chat_messages_delete",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "chat_messages",
+      "command": "DELETE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "5584b53e64d14a4f569c86ebb724f4c5"
+    },
+    {
+      "name": "chat_messages_insert",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "chat_messages",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": true,
+      "predicate_fingerprint": "663636083cb0c137dbd994f4505e5127"
+    },
+    {
+      "name": "chat_messages_select",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "chat_messages",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": true,
+      "predicate_fingerprint": "eb28d87532d6edd9b635727493ef89f7"
+    },
+    {
+      "name": "chat_messages_update_reactions",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "chat_messages",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "unconditional": true,
+      "predicate_fingerprint": "fe2e7aa3a94b94b876d7713f1517686d"
+    },
+    {
+      "name": "clues_all_own",
+      "roles": [
+        "public"
+      ],
+      "table": "clues",
+      "command": "ALL",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "a681e55ba0a5106ea6119e403522c22b"
+    },
+    {
+      "name": "dashboard_settings_delete_own",
+      "roles": [
+        "public"
+      ],
+      "table": "dashboard_settings",
+      "command": "DELETE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "72c5aa9188836a7fbcbd10bf49a8bb40"
+    },
+    {
+      "name": "dashboard_settings_insert_own",
+      "roles": [
+        "public"
+      ],
+      "table": "dashboard_settings",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "fa127ecbc48a169dd6a95239c52e2190"
+    },
+    {
+      "name": "dashboard_settings_select_own",
+      "roles": [
+        "public"
+      ],
+      "table": "dashboard_settings",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "72c5aa9188836a7fbcbd10bf49a8bb40"
+    },
+    {
+      "name": "dashboard_settings_update_own",
+      "roles": [
+        "public"
+      ],
+      "table": "dashboard_settings",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "72c5aa9188836a7fbcbd10bf49a8bb40"
+    },
+    {
+      "name": "dice_custom_dice_delete_own",
+      "roles": [
+        "public"
+      ],
+      "table": "dice_custom_dice",
+      "command": "DELETE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "a313bec146d3a7de5ca27ae096991cd3"
+    },
+    {
+      "name": "dice_custom_dice_insert_own_campaign",
+      "roles": [
+        "public"
+      ],
+      "table": "dice_custom_dice",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "74c26aa5fb1d45f35ce0573a3db935ea"
+    },
+    {
+      "name": "dice_custom_dice_select_own_campaign",
+      "roles": [
+        "public"
+      ],
+      "table": "dice_custom_dice",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "fc3d48d5fd2cd34ccbc1fcb46461968c"
+    },
+    {
+      "name": "dice_custom_dice_update_own_campaign",
+      "roles": [
+        "public"
+      ],
+      "table": "dice_custom_dice",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "db3dbafaf0a77ca4b421fcafc8eea6d2"
+    },
+    {
+      "name": "dice_formula_folders_delete_own",
+      "roles": [
+        "public"
+      ],
+      "table": "dice_formula_folders",
+      "command": "DELETE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "a313bec146d3a7de5ca27ae096991cd3"
+    },
+    {
+      "name": "dice_formula_folders_insert_own_campaign",
+      "roles": [
+        "public"
+      ],
+      "table": "dice_formula_folders",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "65b15351a9717132714c2be47c4f5708"
+    },
+    {
+      "name": "dice_formula_folders_select_own_campaign",
+      "roles": [
+        "public"
+      ],
+      "table": "dice_formula_folders",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "03328b86541e3ef5e52cd5846ca9df8c"
+    },
+    {
+      "name": "dice_formula_folders_update_own_campaign",
+      "roles": [
+        "public"
+      ],
+      "table": "dice_formula_folders",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "f747ec7fabbeeb8a296cb03b2ea6b350"
+    },
+    {
+      "name": "dice_formulas_delete_own",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "dice_formulas",
+      "command": "DELETE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "a313bec146d3a7de5ca27ae096991cd3"
+    },
+    {
+      "name": "dice_formulas_insert_own_campaign",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "dice_formulas",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "652f4c5cee3ba859a9b2d47073bb099c"
+    },
+    {
+      "name": "dice_formulas_select_own_campaign",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "dice_formulas",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "7ab34e936b671c792ff6372df663f196"
+    },
+    {
+      "name": "dice_formulas_update_own_campaign",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "dice_formulas",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "177b817d32cb8e91dab885f336c714de"
+    },
+    {
+      "name": "dice_standard_styles_delete_own",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "dice_standard_styles",
+      "command": "DELETE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "a313bec146d3a7de5ca27ae096991cd3"
+    },
+    {
+      "name": "dice_standard_styles_insert_own_campaign",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "dice_standard_styles",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "aad354928edc42f7514b537c69d136d7"
+    },
+    {
+      "name": "dice_standard_styles_select_own_campaign",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "dice_standard_styles",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "ab01f18f15e118afe1b7d480e3dec610"
+    },
+    {
+      "name": "dice_standard_styles_update_own_campaign",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "dice_standard_styles",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "2868a857cbc57ec741dba9145cfd5876"
+    },
+    {
+      "name": "environments_delete_own",
+      "roles": [
+        "public"
+      ],
+      "table": "environments",
+      "command": "DELETE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "c1b1de557cc181644742654c12e57254"
+    },
+    {
+      "name": "environments_insert_own",
+      "roles": [
+        "public"
+      ],
+      "table": "environments",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "b25250f4c7510f87aa53146bc7a5f1bf"
+    },
+    {
+      "name": "environments_select_own_or_member",
+      "roles": [
+        "public"
+      ],
+      "table": "environments",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "2e6ee9cffeb1a89936ed0dfc6c8b4c1b"
+    },
+    {
+      "name": "environments_update_own",
+      "roles": [
+        "public"
+      ],
+      "table": "environments",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "c1b1de557cc181644742654c12e57254"
+    },
+    {
+      "name": "equipment_catalog_all_own",
+      "roles": [
+        "public"
+      ],
+      "table": "equipment_catalog",
+      "command": "ALL",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "be1a5b113beef7c3e9200b9a829c46e4"
+    },
+    {
+      "name": "folders_delete_own",
+      "roles": [
+        "public"
+      ],
+      "table": "folders",
+      "command": "DELETE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "71225e47531ff5779676614b0c3e799c"
+    },
+    {
+      "name": "folders_insert_own",
+      "roles": [
+        "public"
+      ],
+      "table": "folders",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "5e2fbbdd6a60a64b114e5ee03a804ef1"
+    },
+    {
+      "name": "folders_select_own_or_member",
+      "roles": [
+        "public"
+      ],
+      "table": "folders",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "b674f5ab1aa37702eb0554d9f8a53b70"
+    },
+    {
+      "name": "folders_update_own",
+      "roles": [
+        "public"
+      ],
+      "table": "folders",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "71225e47531ff5779676614b0c3e799c"
+    },
+    {
+      "name": "image_assets_delete_own",
+      "roles": [
+        "public"
+      ],
+      "table": "image_assets",
+      "command": "DELETE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "a42e83683a153bb60e76b6e3c4084a6d"
+    },
+    {
+      "name": "image_assets_insert_own",
+      "roles": [
+        "public"
+      ],
+      "table": "image_assets",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "e101d7b556566440de8c653ae7d2571d"
+    },
+    {
+      "name": "image_assets_select_own",
+      "roles": [
+        "public"
+      ],
+      "table": "image_assets",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "a42e83683a153bb60e76b6e3c4084a6d"
+    },
+    {
+      "name": "image_assets_update_own",
+      "roles": [
+        "public"
+      ],
+      "table": "image_assets",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "42e1adc3abd0a396685365fb6047e44b"
+    },
+    {
+      "name": "monsters_delete_owner",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "monsters",
+      "command": "DELETE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "ddaca87b701b72946b6de58c422bac06"
+    },
+    {
+      "name": "monsters_insert_owner",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "monsters",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "3ed5b387f6a0c67aaa38d5704f683b37"
+    },
+    {
+      "name": "monsters_select_owner_or_visible",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "monsters",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "7b934995f9fca1a84c32029b5646adbe"
+    },
+    {
+      "name": "monsters_update_owner",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "monsters",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "ddaca87b701b72946b6de58c422bac06"
+    },
+    {
+      "name": "news_delete_admin_only",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "news_posts",
+      "command": "DELETE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "e11f0c9932693b5d17c2435ec95cee63"
+    },
+    {
+      "name": "news_insert_admin_only",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "news_posts",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "24258271648a30d0b5d9303378590295"
+    },
+    {
+      "name": "news_select_all_authenticated",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "news_posts",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": true,
+      "predicate_fingerprint": "eb28d87532d6edd9b635727493ef89f7"
+    },
+    {
+      "name": "notifications_select_own",
+      "roles": [
+        "public"
+      ],
+      "table": "notifications",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "8e105d32b9873d7a613b8ba789d12bbe"
+    },
+    {
+      "name": "npcs_delete_owner",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "npcs",
+      "command": "DELETE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "fa74ca8ff49a5d30c005f0aaff58dfbc"
+    },
+    {
+      "name": "npcs_insert_owner",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "npcs",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "ddc19e65eec10f7a73189ad901ef0d33"
+    },
+    {
+      "name": "npcs_select_owner_or_visible",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "npcs",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "50127cc3d2e2ccecc297ca96ae743a96"
+    },
+    {
+      "name": "npcs_update_owner",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "npcs",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "fa74ca8ff49a5d30c005f0aaff58dfbc"
+    },
+    {
+      "name": "private_chat_delete_own",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "private_chat_messages",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "7ad6a2822eadde2c5f90209a5a00df2b"
+    },
+    {
+      "name": "private_chat_read_pair",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "private_chat_messages",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "fbcad4787c1a924af9870d32e48e86d1"
+    },
+    {
+      "name": "private_chat_send_pair",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "private_chat_messages",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "608b2b7080c696b1b63428608528d6a3"
+    },
+    {
+      "name": "profiles_insert_own",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "profiles",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "80336293e1e7773984fc53cc256988c7"
+    },
+    {
+      "name": "profiles_select_own",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "profiles",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "b3158818130bc2650ee2c7bd09b38a45"
+    },
+    {
+      "name": "profiles_update_own",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "profiles",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "b3158818130bc2650ee2c7bd09b38a45"
+    },
+    {
+      "name": "scenes_delete_owner",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "scenes",
+      "command": "DELETE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "1a6ddbe59e39a0fabe53c8c77f9bdbee"
+    },
+    {
+      "name": "scenes_insert_owner",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "scenes",
+      "command": "INSERT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "3ac3ad02665bc9caec090c1375c6b8a4"
+    },
+    {
+      "name": "scenes_select_owner",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "scenes",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "1a6ddbe59e39a0fabe53c8c77f9bdbee"
+    },
+    {
+      "name": "scenes_update_owner",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "scenes",
+      "command": "UPDATE",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "ec3d66d0071c526008deeb14c4e7a2a7"
+    },
+    {
+      "name": "situations_all_own",
+      "roles": [
+        "public"
+      ],
+      "table": "situations",
+      "command": "ALL",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "c83ed318683c8dc669a593b7080b3028"
+    },
+    {
+      "name": "Read own application role",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "user_roles",
+      "command": "SELECT",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "5eebdfba311617743b110b29a41f23a0"
+    },
+    {
+      "name": "visual_assets_all_own",
+      "roles": [
+        "public"
+      ],
+      "table": "visual_assets",
+      "command": "ALL",
+      "permissive": "PERMISSIVE",
+      "unconditional": false,
+      "predicate_fingerprint": "513e1fc3ed94b354dced3a812780d170"
+    }
+  ],
+  "triggers": [
+    {
+      "name": "update_campaigns_updated_at",
+      "table": "campaigns",
+      "fingerprint": "64f84cfe95965ca2fbd4cda35fd5903b"
+    },
+    {
+      "name": "update_chapters_updated_at",
+      "table": "chapters",
+      "fingerprint": "efd56adbdff6470d9a0bff317b05ec21"
+    },
+    {
+      "name": "update_character_equipment_updated_at",
+      "table": "character_equipment",
+      "fingerprint": "85194347e82691536899c2a6c1846c66"
+    },
+    {
+      "name": "characters_broadcast_trigger",
+      "table": "characters",
+      "fingerprint": "e3226e18b9e0471493e9e21dacd9ec53"
+    },
+    {
+      "name": "characters_lock_origins_in_campaign",
+      "table": "characters",
+      "fingerprint": "f81051ba0cc7219654b71b36fa898321"
+    },
+    {
+      "name": "trg_check_character_folder_type",
+      "table": "characters",
+      "fingerprint": "3b60123c17243eb96c7cedf6950b7d2c"
+    },
+    {
+      "name": "update_characters_updated_at",
+      "table": "characters",
+      "fingerprint": "bac87fcabedd23718275bda871e6b70e"
+    },
+    {
+      "name": "update_clues_updated_at",
+      "table": "clues",
+      "fingerprint": "480903cf55ad0052555f76a3f1baa42c"
+    },
+    {
+      "name": "assign_dice_custom_die_sort_order_trigger",
+      "table": "dice_custom_dice",
+      "fingerprint": "930568919941cb1c25d0b59fd52ef3bf"
+    },
+    {
+      "name": "validate_dice_custom_die_face_groups_trigger",
+      "table": "dice_custom_dice",
+      "fingerprint": "00ecb9ba6a54c932982f749eb23ab2d8"
+    },
+    {
+      "name": "validate_dice_custom_die_trigger",
+      "table": "dice_custom_dice",
+      "fingerprint": "2768da6876f9c0ff1634aaee7d11d2d0"
+    },
+    {
+      "name": "assign_dice_formula_folder_sort_order_trigger",
+      "table": "dice_formula_folders",
+      "fingerprint": "c80a4759342a625600fdf1952d7cdcf9"
+    },
+    {
+      "name": "validate_dice_formula_folder_hierarchy_trigger",
+      "table": "dice_formula_folders",
+      "fingerprint": "77f3bdc4f9c07b1ff8d4a5477b75f91f"
+    },
+    {
+      "name": "assign_dice_formula_sort_order_trigger",
+      "table": "dice_formulas",
+      "fingerprint": "a3bb3f7b4f29e00eab4f24557bbde8cb"
+    },
+    {
+      "name": "validate_dice_formula_folder_assignment_trigger",
+      "table": "dice_formulas",
+      "fingerprint": "f1b204e841277e1aa0270d1c20eb1b5e"
+    },
+    {
+      "name": "entity_notes_broadcast_trigger",
+      "table": "entity_notes",
+      "fingerprint": "ccda03eb8ee50d82d65441840eab5835"
+    },
+    {
+      "name": "trg_check_entity_notes_folder_type",
+      "table": "entity_notes",
+      "fingerprint": "afe09134c7f1f9fcc541a36a38f6802d"
+    },
+    {
+      "name": "update_environments_updated_at",
+      "table": "environments",
+      "fingerprint": "eb404a85b152d4e034d66b1efa20edce"
+    },
+    {
+      "name": "update_equipment_catalog_updated_at",
+      "table": "equipment_catalog",
+      "fingerprint": "550053de0d6c917c1b26d8f6d9c36e41"
+    },
+    {
+      "name": "folders_broadcast_trigger",
+      "table": "folders",
+      "fingerprint": "15b97b474ab83e89cf9d52ff68ccae5a"
+    },
+    {
+      "name": "trg_check_folder_hierarchy",
+      "table": "folders",
+      "fingerprint": "97124781c611f7c481220f11eb0268b2"
+    },
+    {
+      "name": "update_image_assets_updated_at",
+      "table": "image_assets",
+      "fingerprint": "9032ede75e4b7608c977563918f0e1fe"
+    },
+    {
+      "name": "monsters_broadcast_trigger",
+      "table": "monsters",
+      "fingerprint": "ebfbe86d06016f9255c0db1a9f75d3f2"
+    },
+    {
+      "name": "trg_check_monster_folder_type",
+      "table": "monsters",
+      "fingerprint": "42942bca844956b9715f2f71133f8792"
+    },
+    {
+      "name": "update_monsters_updated_at",
+      "table": "monsters",
+      "fingerprint": "fd517c75bff3e104fb7e267b1bc5822e"
+    },
+    {
+      "name": "update_notifications_updated_at",
+      "table": "notifications",
+      "fingerprint": "140ded97d615b315c9ca3faf5abdc799"
+    },
+    {
+      "name": "npcs_broadcast_trigger",
+      "table": "npcs",
+      "fingerprint": "dc94c4f362a2780752edc002756f2c2c"
+    },
+    {
+      "name": "trg_check_npc_folder_type",
+      "table": "npcs",
+      "fingerprint": "50bfad9cdc6ea9c2d351768e87d790bf"
+    },
+    {
+      "name": "update_npcs_updated_at",
+      "table": "npcs",
+      "fingerprint": "e98f59d2bc95c15d44b76b5e18061934"
+    },
+    {
+      "name": "private_chat_validate",
+      "table": "private_chat_messages",
+      "fingerprint": "3e696e60637f6b93bd9b7414f8901763"
+    },
+    {
+      "name": "cleanup_deleted_scene_links",
+      "table": "scenes",
+      "fingerprint": "14f5e5bd0c24d52e42e08684c34dc624"
+    },
+    {
+      "name": "validate_campaign_scene",
+      "table": "scenes",
+      "fingerprint": "e9b83ab3fa2fb89706c7aaf55d621521"
+    },
+    {
+      "name": "update_situations_updated_at",
+      "table": "situations",
+      "fingerprint": "d21f4f9b1c4835d28fd3b8074f27af6d"
+    },
+    {
+      "name": "update_visual_assets_updated_at",
+      "table": "visual_assets",
+      "fingerprint": "0dd59e9e779efff90320549ed9bf312d"
+    }
+  ],
+  "functions": [
+    {
+      "args": "",
+      "name": "admin_list_users",
+      "fingerprint": "605c89656e08e807317180a898306202",
+      "security_definer": true
+    },
+    {
+      "args": "target_user_id uuid, new_role text",
+      "name": "admin_set_user_role",
+      "fingerprint": "941b54258b6e3b0e7d72b24472499742",
+      "security_definer": true
+    },
+    {
+      "args": "",
+      "name": "assign_dice_custom_die_sort_order",
+      "fingerprint": "f158d9e8a9318d0a8c51e3a0192b91cf",
+      "security_definer": true
+    },
+    {
+      "args": "",
+      "name": "assign_dice_formula_folder_sort_order",
+      "fingerprint": "688f70c34c8cc387404ddba2e627e3e2",
+      "security_definer": true
+    },
+    {
+      "args": "",
+      "name": "assign_dice_formula_sort_order",
+      "fingerprint": "04eb5326aa5b41a7352ba0d4f091cf09",
+      "security_definer": true
+    },
+    {
+      "args": "",
+      "name": "assign_standard_user_role",
+      "fingerprint": "f8831ed38adda7270c60a3e663be632d",
+      "security_definer": true
+    },
+    {
+      "args": "character_key text",
+      "name": "can_manage_character_equipment",
+      "fingerprint": "8094ee4d67e4b8a2050cef7ebcb86960",
+      "security_definer": true
+    },
+    {
+      "args": "",
+      "name": "characters_broadcast_changes",
+      "fingerprint": "6e4c8991465e66e61dcd43e1641a7696",
+      "security_definer": true
+    },
+    {
+      "args": "",
+      "name": "check_character_folder_type",
+      "fingerprint": "9e36ca7081d17b9edfc52c6b175ff8f9",
+      "security_definer": false
+    },
+    {
+      "args": "",
+      "name": "check_entity_notes_folder_type",
+      "fingerprint": "baca1a462233a8d5c700f39c20e15ecb",
+      "security_definer": false
+    },
+    {
+      "args": "",
+      "name": "check_folder_hierarchy",
+      "fingerprint": "5c6447375102511ea77f75f3d11076a9",
+      "security_definer": false
+    },
+    {
+      "args": "",
+      "name": "check_monster_folder_type",
+      "fingerprint": "cfbd79b85e586d5e830eb33fc63e510e",
+      "security_definer": false
+    },
+    {
+      "args": "",
+      "name": "check_npc_folder_type",
+      "fingerprint": "c5f72093c030f18059d6a3b3c2e8dcdc",
+      "security_definer": false
+    },
+    {
+      "args": "",
+      "name": "cleanup_deleted_scene_links",
+      "fingerprint": "308cebc62f5e0d83a0b5180eef1453aa",
+      "security_definer": true
+    },
+    {
+      "args": "p_campaign uuid, p_peer_a text, p_peer_b text",
+      "name": "clear_private_chat_conversation",
+      "fingerprint": "f3190ef9b5f1728328d245d01975b00e",
+      "security_definer": true
+    },
+    {
+      "args": "p_campaign_id uuid, p_owner_profile_id uuid, p_parent_folder_id uuid, p_name text, p_icon_name text",
+      "name": "create_dice_formula_folder",
+      "fingerprint": "e8df2e910f93bb4bf39afcc870959a69",
+      "security_definer": false
+    },
+    {
+      "args": "p_folder_id uuid, p_delete_contents boolean",
+      "name": "delete_dice_formula_folder",
+      "fingerprint": "8491f60626d9c19f96820f3d2788f91c",
+      "security_definer": true
+    },
+    {
+      "args": "",
+      "name": "handle_new_user",
+      "fingerprint": "e6d9252b928369b9dbb20958afdc48a5",
+      "security_definer": true
+    },
+    {
+      "args": "",
+      "name": "lock_characters_origins_in_campaign",
+      "fingerprint": "5ac8fb4364a07287ddb4aa989478cc39",
+      "security_definer": false
+    },
+    {
+      "args": "p_node_type text, p_node_id uuid, p_destination_folder_id uuid, p_destination_index integer",
+      "name": "move_dice_library_node",
+      "fingerprint": "93bbc3036f06f814845d8a151e882513",
+      "security_definer": true
+    },
+    {
+      "args": "p_campaign uuid, p_owner uuid, p_parent uuid",
+      "name": "next_dice_library_sort_order",
+      "fingerprint": "bd424496d04f5a45dce43bcec8e4e2f8",
+      "security_definer": true
+    },
+    {
+      "args": "p_campaign_id uuid, p_owner_profile_id uuid, p_parent_folder_id uuid",
+      "name": "normalize_dice_library_level",
+      "fingerprint": "352f5a43a47545e4da324d892d46ed1c",
+      "security_definer": true
+    },
+    {
+      "args": "p_name text, p_write boolean",
+      "name": "private_chat_asset_access",
+      "fingerprint": "ad65559074288212424a419c45b78ef4",
+      "security_definer": true
+    },
+    {
+      "args": "p_campaign text, p_profile text",
+      "name": "private_chat_is_member",
+      "fingerprint": "6982e4099779b681630cdb99024ec1e6",
+      "security_definer": true
+    },
+    {
+      "args": "p_campaign_id uuid",
+      "name": "private_chat_participants",
+      "fingerprint": "1094f90b0bf37a580b5a12d91739128a",
+      "security_definer": true
+    },
+    {
+      "args": "",
+      "name": "private_chat_validate_message",
+      "fingerprint": "4d45e02069472fd20f34f5c2bc78537c",
+      "security_definer": true
+    },
+    {
+      "args": "p_note_id uuid, p_title_icon text",
+      "name": "set_entity_note_title_icon",
+      "fingerprint": "b3965a3a3e4c4ea84822b28475213b31",
+      "security_definer": true
+    },
+    {
+      "args": "p_campaign_id uuid, p_owner_profile_id text",
+      "name": "soft_delete_campaign_and_revoke_members",
+      "fingerprint": "bf540484d3a6c49c8c24f0c3f807a5a9",
+      "security_definer": true
+    },
+    {
+      "args": "",
+      "name": "update_updated_at_column",
+      "fingerprint": "921fd61045bc72e81818f9849d90d08b",
+      "security_definer": false
+    },
+    {
+      "args": "",
+      "name": "validate_campaign_scene",
+      "fingerprint": "44c60d7fdbbf76fd15717d3e80d5daea",
+      "security_definer": true
+    },
+    {
+      "args": "",
+      "name": "validate_dice_custom_die",
+      "fingerprint": "8b9ad2a10fd69326b581039c3714f76d",
+      "security_definer": true
+    },
+    {
+      "args": "",
+      "name": "validate_dice_custom_die_face_groups",
+      "fingerprint": "82c47cba37394aef0aa1573f7fb4d6bf",
+      "security_definer": true
+    },
+    {
+      "args": "",
+      "name": "validate_dice_formula_folder_assignment",
+      "fingerprint": "dcd28881e0553bffcacc511d5b13d269",
+      "security_definer": true
+    },
+    {
+      "args": "",
+      "name": "validate_dice_formula_folder_hierarchy",
+      "fingerprint": "a99524a83e02bb22ce56d187e1cd3702",
+      "security_definer": true
+    }
+  ],
+  "constraints": [
+    {
+      "kind": "c",
+      "name": "campaign_documents_active_scene_public_shape",
+      "table": "campaign_documents",
+      "fingerprint": "fcd16853a7cdf33daeb05e904deebffd"
+    },
+    {
+      "kind": "f",
+      "name": "campaign_documents_campaign_id_fkey",
+      "table": "campaign_documents",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "p",
+      "name": "campaign_documents_pkey",
+      "table": "campaign_documents",
+      "fingerprint": "683df5a772621fc1c9ce859069243c22"
+    },
+    {
+      "kind": "f",
+      "name": "campaign_invite_codes_campaign_id_fkey",
+      "table": "campaign_invite_codes",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "p",
+      "name": "campaign_invite_codes_pkey",
+      "table": "campaign_invite_codes",
+      "fingerprint": "2a68b71499916a5a6818f1705331ee51"
+    },
+    {
+      "kind": "f",
+      "name": "campaign_members_campaign_id_fkey",
+      "table": "campaign_members",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "p",
+      "name": "campaign_members_pkey",
+      "table": "campaign_members",
+      "fingerprint": "d30c9afc68852132a5794f78482e5dc0"
+    },
+    {
+      "kind": "c",
+      "name": "campaigns_drama_check",
+      "table": "campaigns",
+      "fingerprint": "177e4f8bd8adb5a437e819d0a40f21e6"
+    },
+    {
+      "kind": "p",
+      "name": "campaigns_pkey",
+      "table": "campaigns",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "c",
+      "name": "adventures_status_check",
+      "table": "chapters",
+      "fingerprint": "ed07042d4278174e4acc4e5f0c4447c3"
+    },
+    {
+      "kind": "f",
+      "name": "chapters_campaign_id_fkey",
+      "table": "chapters",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "c",
+      "name": "chapters_kind_check",
+      "table": "chapters",
+      "fingerprint": "f1a67a2e725c6e4a88e347ec58449817"
+    },
+    {
+      "kind": "c",
+      "name": "chapters_location_metadata_object",
+      "table": "chapters",
+      "fingerprint": "ddeaf055ce0fe00f50ab3f23ea8ed6a8"
+    },
+    {
+      "kind": "c",
+      "name": "chapters_map_metadata_object",
+      "table": "chapters",
+      "fingerprint": "efb8d7ab0693bbeb459e282fdc8edb0b"
+    },
+    {
+      "kind": "p",
+      "name": "chapters_pkey",
+      "table": "chapters",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "c",
+      "name": "chapters_source_environment_object",
+      "table": "chapters",
+      "fingerprint": "2fd65bbe8ac8741336c883a9e8d07ab5"
+    },
+    {
+      "kind": "f",
+      "name": "character_equipment_catalog_item_id_fkey",
+      "table": "character_equipment",
+      "fingerprint": "6afc7567a155f071b90ab6c21fd43fb9"
+    },
+    {
+      "kind": "f",
+      "name": "character_equipment_character_id_fkey",
+      "table": "character_equipment",
+      "fingerprint": "c642b12e71c52c614645370c1dcb028b"
+    },
+    {
+      "kind": "c",
+      "name": "character_equipment_location_check",
+      "table": "character_equipment",
+      "fingerprint": "defc38b2cec5c94c07fd4179f7deec2e"
+    },
+    {
+      "kind": "p",
+      "name": "character_equipment_pkey",
+      "table": "character_equipment",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "c",
+      "name": "character_equipment_source_check",
+      "table": "character_equipment",
+      "fingerprint": "cebd76f42a37130780e6f6dc2a05faf0"
+    },
+    {
+      "kind": "f",
+      "name": "characters_campaign_id_fkey",
+      "table": "characters",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "f",
+      "name": "characters_chapter_id_fkey",
+      "table": "characters",
+      "fingerprint": "97a9b91bb8796bf211ed47d4c72aa52c"
+    },
+    {
+      "kind": "f",
+      "name": "characters_folder_id_fkey",
+      "table": "characters",
+      "fingerprint": "eed8dfa0fc990f83f682c52a242b70d1"
+    },
+    {
+      "kind": "c",
+      "name": "characters_frame_rotation_check",
+      "table": "characters",
+      "fingerprint": "aa46c982f9b5e1fbc664cd2f1cecc675"
+    },
+    {
+      "kind": "p",
+      "name": "characters_pkey",
+      "table": "characters",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "f",
+      "name": "characters_portrait_asset_id_fkey",
+      "table": "characters",
+      "fingerprint": "accf8444adcb64aa65a3727d9c17e7c7"
+    },
+    {
+      "kind": "c",
+      "name": "characters_status_check",
+      "table": "characters",
+      "fingerprint": "d2efbed3dc18182dd94722d13bd64f86"
+    },
+    {
+      "kind": "f",
+      "name": "chat_messages_campaign_id_fkey",
+      "table": "chat_messages",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "p",
+      "name": "chat_messages_pkey",
+      "table": "chat_messages",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "f",
+      "name": "clues_campaign_id_fkey",
+      "table": "clues",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "f",
+      "name": "clues_chapter_id_fkey",
+      "table": "clues",
+      "fingerprint": "97a9b91bb8796bf211ed47d4c72aa52c"
+    },
+    {
+      "kind": "f",
+      "name": "clues_environment_id_fkey",
+      "table": "clues",
+      "fingerprint": "101a2128e11d95657f8327599ddb179a"
+    },
+    {
+      "kind": "p",
+      "name": "clues_pkey",
+      "table": "clues",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "f",
+      "name": "clues_scene_id_fkey",
+      "table": "clues",
+      "fingerprint": "990e1596581170ac2cff234a7c32a469"
+    },
+    {
+      "kind": "p",
+      "name": "dashboard_settings_pkey",
+      "table": "dashboard_settings",
+      "fingerprint": "a83398d902422d5c5f79c83fe196611c"
+    },
+    {
+      "kind": "c",
+      "name": "dice_custom_dice_definition_mode_check",
+      "table": "dice_custom_dice",
+      "fingerprint": "edb645d7eda7d325ab6d72ecf6c953b7"
+    },
+    {
+      "kind": "f",
+      "name": "dice_custom_dice_folder_id_fkey",
+      "table": "dice_custom_dice",
+      "fingerprint": "14657cd70f5a5b9786e15e39beae9689"
+    },
+    {
+      "kind": "c",
+      "name": "dice_custom_dice_name_not_blank",
+      "table": "dice_custom_dice",
+      "fingerprint": "bb3014415b3823fff7e9c7e62b14b199"
+    },
+    {
+      "kind": "c",
+      "name": "dice_custom_dice_numeric_result_mode_check",
+      "table": "dice_custom_dice",
+      "fingerprint": "5a8b80d6b8c10ae7f730692adea14a46"
+    },
+    {
+      "kind": "p",
+      "name": "dice_custom_dice_pkey",
+      "table": "dice_custom_dice",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "c",
+      "name": "dice_custom_dice_quick_roll_quantity_check",
+      "table": "dice_custom_dice",
+      "fingerprint": "6c48e8d24658136eec992fe63a0634c0"
+    },
+    {
+      "kind": "c",
+      "name": "dice_custom_dice_result_display_mode_check",
+      "table": "dice_custom_dice",
+      "fingerprint": "6c91b28df69c071509a69184461a7329"
+    },
+    {
+      "kind": "c",
+      "name": "dice_custom_dice_skin_id",
+      "table": "dice_custom_dice",
+      "fingerprint": "d04281eaef2e603b71fef3324efcd680"
+    },
+    {
+      "kind": "c",
+      "name": "dice_custom_dice_supported_sides",
+      "table": "dice_custom_dice",
+      "fingerprint": "87c7ac9ada9baf87a6fee52d905403b5"
+    },
+    {
+      "kind": "c",
+      "name": "dice_custom_dice_texture_scale_check",
+      "table": "dice_custom_dice",
+      "fingerprint": "bc43040a54d1f1e7a1f531d87b57ec4e"
+    },
+    {
+      "kind": "c",
+      "name": "dice_formula_folders_name_not_blank",
+      "table": "dice_formula_folders",
+      "fingerprint": "bb3014415b3823fff7e9c7e62b14b199"
+    },
+    {
+      "kind": "f",
+      "name": "dice_formula_folders_parent_folder_id_fkey",
+      "table": "dice_formula_folders",
+      "fingerprint": "045368713a5c41a877e331b5fdc66deb"
+    },
+    {
+      "kind": "p",
+      "name": "dice_formula_folders_pkey",
+      "table": "dice_formula_folders",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "f",
+      "name": "dice_formulas_campaign_id_fkey",
+      "table": "dice_formulas",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "f",
+      "name": "dice_formulas_folder_id_fkey",
+      "table": "dice_formulas",
+      "fingerprint": "14657cd70f5a5b9786e15e39beae9689"
+    },
+    {
+      "kind": "c",
+      "name": "dice_formulas_items_check",
+      "table": "dice_formulas",
+      "fingerprint": "e126f12f117b5dbbe164fb3d9148ea2d"
+    },
+    {
+      "kind": "c",
+      "name": "dice_formulas_name_check",
+      "table": "dice_formulas",
+      "fingerprint": "bb3014415b3823fff7e9c7e62b14b199"
+    },
+    {
+      "kind": "f",
+      "name": "dice_formulas_owner_profile_id_fkey",
+      "table": "dice_formulas",
+      "fingerprint": "f83395cab2f2ecbdd5080537e1bbeea7"
+    },
+    {
+      "kind": "p",
+      "name": "dice_formulas_pkey",
+      "table": "dice_formulas",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "p",
+      "name": "dice_standard_styles_pkey",
+      "table": "dice_standard_styles",
+      "fingerprint": "6dd0c988b0a7a5b9e864289ba8efc725"
+    },
+    {
+      "kind": "c",
+      "name": "dice_standard_styles_skin_id",
+      "table": "dice_standard_styles",
+      "fingerprint": "d04281eaef2e603b71fef3324efcd680"
+    },
+    {
+      "kind": "c",
+      "name": "dice_standard_styles_supported_sides",
+      "table": "dice_standard_styles",
+      "fingerprint": "e3fa4dd65d3a50a335a4c3fc721e4dc7"
+    },
+    {
+      "kind": "c",
+      "name": "dice_standard_styles_texture_scale_check",
+      "table": "dice_standard_styles",
+      "fingerprint": "bc43040a54d1f1e7a1f531d87b57ec4e"
+    },
+    {
+      "kind": "f",
+      "name": "entity_notes_campaign_id_fkey",
+      "table": "entity_notes",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "c",
+      "name": "entity_notes_entity_type_check",
+      "table": "entity_notes",
+      "fingerprint": "dd287c71393a11ceae83180375f31267"
+    },
+    {
+      "kind": "f",
+      "name": "entity_notes_folder_id_fkey",
+      "table": "entity_notes",
+      "fingerprint": "eed8dfa0fc990f83f682c52a242b70d1"
+    },
+    {
+      "kind": "p",
+      "name": "entity_notes_pkey",
+      "table": "entity_notes",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "c",
+      "name": "entity_notes_title_icon_length_check",
+      "table": "entity_notes",
+      "fingerprint": "793b426660c5f5b1a201002ecbbb4585"
+    },
+    {
+      "kind": "c",
+      "name": "entity_notes_visibility_check",
+      "table": "entity_notes",
+      "fingerprint": "8846916f08be62ed7a1ec3eeaada2eb7"
+    },
+    {
+      "kind": "p",
+      "name": "environment_narrative_mapping_pkey",
+      "table": "environment_narrative_mapping",
+      "fingerprint": "0dd87ad5abbb0b521b6d5f67e583026b"
+    },
+    {
+      "kind": "c",
+      "name": "environment_narrative_mapping_shape",
+      "table": "environment_narrative_mapping",
+      "fingerprint": "d4fa1016719ed637f25b5f8a8a072dba"
+    },
+    {
+      "kind": "c",
+      "name": "environment_narrative_mapping_target_kind_check",
+      "table": "environment_narrative_mapping",
+      "fingerprint": "a8d33bcbc3135b46051615905278274e"
+    },
+    {
+      "kind": "f",
+      "name": "environments_campaign_id_fkey",
+      "table": "environments",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "f",
+      "name": "environments_chapter_id_fkey",
+      "table": "environments",
+      "fingerprint": "97a9b91bb8796bf211ed47d4c72aa52c"
+    },
+    {
+      "kind": "c",
+      "name": "environments_location_type_check",
+      "table": "environments",
+      "fingerprint": "38afd96951bc7626059458ce03008819"
+    },
+    {
+      "kind": "f",
+      "name": "environments_parent_location_id_fkey",
+      "table": "environments",
+      "fingerprint": "4114428cca25955f23f3f57c66e5a351"
+    },
+    {
+      "kind": "p",
+      "name": "environments_pkey",
+      "table": "environments",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "f",
+      "name": "equipment_catalog_campaign_id_fkey",
+      "table": "equipment_catalog",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "u",
+      "name": "equipment_catalog_campaign_id_name_key",
+      "table": "equipment_catalog",
+      "fingerprint": "a91f9378457d7bd73bd9904b93dd0602"
+    },
+    {
+      "kind": "p",
+      "name": "equipment_catalog_pkey",
+      "table": "equipment_catalog",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "c",
+      "name": "equipment_catalog_type_check",
+      "table": "equipment_catalog",
+      "fingerprint": "a9f6fba1012347445b07a6f6ab28c931"
+    },
+    {
+      "kind": "f",
+      "name": "folders_campaign_id_fkey",
+      "table": "folders",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "c",
+      "name": "folders_entity_type_check",
+      "table": "folders",
+      "fingerprint": "b8ebebd1044d106200021d95a7218463"
+    },
+    {
+      "kind": "f",
+      "name": "folders_parent_folder_id_fkey",
+      "table": "folders",
+      "fingerprint": "fefcb0b1880a5838ce3d28feb1cdc1fe"
+    },
+    {
+      "kind": "p",
+      "name": "folders_pkey",
+      "table": "folders",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "p",
+      "name": "image_assets_pkey",
+      "table": "image_assets",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "p",
+      "name": "kv_store_771c5bfd_pkey",
+      "table": "kv_store_771c5bfd",
+      "fingerprint": "729d3ed6c85722f863da384d2313331e"
+    },
+    {
+      "kind": "f",
+      "name": "monsters_campaign_id_fkey",
+      "table": "monsters",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "f",
+      "name": "monsters_chapter_id_fkey",
+      "table": "monsters",
+      "fingerprint": "97a9b91bb8796bf211ed47d4c72aa52c"
+    },
+    {
+      "kind": "f",
+      "name": "monsters_environment_id_fkey",
+      "table": "monsters",
+      "fingerprint": "101a2128e11d95657f8327599ddb179a"
+    },
+    {
+      "kind": "f",
+      "name": "monsters_folder_id_fkey",
+      "table": "monsters",
+      "fingerprint": "eed8dfa0fc990f83f682c52a242b70d1"
+    },
+    {
+      "kind": "c",
+      "name": "monsters_frame_rotation_check",
+      "table": "monsters",
+      "fingerprint": "aa46c982f9b5e1fbc664cd2f1cecc675"
+    },
+    {
+      "kind": "p",
+      "name": "monsters_pkey",
+      "table": "monsters",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "f",
+      "name": "monsters_portrait_asset_id_fkey",
+      "table": "monsters",
+      "fingerprint": "accf8444adcb64aa65a3727d9c17e7c7"
+    },
+    {
+      "kind": "f",
+      "name": "monsters_scene_id_fkey",
+      "table": "monsters",
+      "fingerprint": "990e1596581170ac2cff234a7c32a469"
+    },
+    {
+      "kind": "c",
+      "name": "monsters_tiro_follia_check",
+      "table": "monsters",
+      "fingerprint": "d31c1c93b9bcdee2cb848058c79dd304"
+    },
+    {
+      "kind": "f",
+      "name": "news_posts_author_id_fkey",
+      "table": "news_posts",
+      "fingerprint": "ae6ba0bf7632e453c7224f4ca3590f66"
+    },
+    {
+      "kind": "p",
+      "name": "news_posts_pkey",
+      "table": "news_posts",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "p",
+      "name": "notifications_pkey",
+      "table": "notifications",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "f",
+      "name": "npcs_campaign_id_fkey",
+      "table": "npcs",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "f",
+      "name": "npcs_chapter_id_fkey",
+      "table": "npcs",
+      "fingerprint": "97a9b91bb8796bf211ed47d4c72aa52c"
+    },
+    {
+      "kind": "f",
+      "name": "npcs_environment_id_fkey",
+      "table": "npcs",
+      "fingerprint": "101a2128e11d95657f8327599ddb179a"
+    },
+    {
+      "kind": "f",
+      "name": "npcs_folder_id_fkey",
+      "table": "npcs",
+      "fingerprint": "eed8dfa0fc990f83f682c52a242b70d1"
+    },
+    {
+      "kind": "c",
+      "name": "npcs_frame_rotation_check",
+      "table": "npcs",
+      "fingerprint": "aa46c982f9b5e1fbc664cd2f1cecc675"
+    },
+    {
+      "kind": "p",
+      "name": "npcs_pkey",
+      "table": "npcs",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "f",
+      "name": "npcs_portrait_asset_id_fkey",
+      "table": "npcs",
+      "fingerprint": "accf8444adcb64aa65a3727d9c17e7c7"
+    },
+    {
+      "kind": "f",
+      "name": "npcs_scene_id_fkey",
+      "table": "npcs",
+      "fingerprint": "990e1596581170ac2cff234a7c32a469"
+    },
+    {
+      "kind": "c",
+      "name": "private_chat_distinct_users",
+      "table": "private_chat_messages",
+      "fingerprint": "4316d78fe60cbd364e82f0453dfd259c"
+    },
+    {
+      "kind": "f",
+      "name": "private_chat_messages_campaign_id_fkey",
+      "table": "private_chat_messages",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "c",
+      "name": "private_chat_messages_content_check",
+      "table": "private_chat_messages",
+      "fingerprint": "580f973f3ebe40e50fb8b2d5e4edf4ca"
+    },
+    {
+      "kind": "c",
+      "name": "private_chat_messages_kind_check",
+      "table": "private_chat_messages",
+      "fingerprint": "11891b10ac2ff1c52428de1f8d9df3dc"
+    },
+    {
+      "kind": "p",
+      "name": "private_chat_messages_pkey",
+      "table": "private_chat_messages",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "f",
+      "name": "profiles_id_fkey",
+      "table": "profiles",
+      "fingerprint": "0061c9fb3a9abcf2edbcd4a42467a9c3"
+    },
+    {
+      "kind": "p",
+      "name": "profiles_pkey",
+      "table": "profiles",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "f",
+      "name": "scenes_campaign_id_fkey",
+      "table": "scenes",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "f",
+      "name": "scenes_chapter_campaign_fkey",
+      "table": "scenes",
+      "fingerprint": "5de4b036fe33253d46ddf713df1698a3"
+    },
+    {
+      "kind": "c",
+      "name": "scenes_context_metadata_object",
+      "table": "scenes",
+      "fingerprint": "ffc6675fb5e9b6b6580a875b73a746dc"
+    },
+    {
+      "kind": "f",
+      "name": "scenes_environment_id_fkey",
+      "table": "scenes",
+      "fingerprint": "101a2128e11d95657f8327599ddb179a"
+    },
+    {
+      "kind": "c",
+      "name": "scenes_map_regions_array",
+      "table": "scenes",
+      "fingerprint": "7ea10f7b64fc553fa009c2170988698c"
+    },
+    {
+      "kind": "c",
+      "name": "scenes_map_regions_objects",
+      "table": "scenes",
+      "fingerprint": "5b50dcda0fd81f2ddb5ae0189a3a4693"
+    },
+    {
+      "kind": "c",
+      "name": "scenes_no_self_next",
+      "table": "scenes",
+      "fingerprint": "63570c0f8a697fa15c727b08ee61af42"
+    },
+    {
+      "kind": "p",
+      "name": "scenes_pkey",
+      "table": "scenes",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "c",
+      "name": "scenes_sort_order_check",
+      "table": "scenes",
+      "fingerprint": "bf4b30f02b5c4d9058a91dd5ce3bc423"
+    },
+    {
+      "kind": "c",
+      "name": "scenes_source_environment_object",
+      "table": "scenes",
+      "fingerprint": "2fd65bbe8ac8741336c883a9e8d07ab5"
+    },
+    {
+      "kind": "c",
+      "name": "scenes_status_check",
+      "table": "scenes",
+      "fingerprint": "ea16b153f4a415cb7a5dd27ae5f73f25"
+    },
+    {
+      "kind": "c",
+      "name": "scenes_title_not_blank",
+      "table": "scenes",
+      "fingerprint": "1950f394886189039cc457b420d8e511"
+    },
+    {
+      "kind": "f",
+      "name": "situations_campaign_id_fkey",
+      "table": "situations",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "f",
+      "name": "situations_chapter_id_fkey",
+      "table": "situations",
+      "fingerprint": "97a9b91bb8796bf211ed47d4c72aa52c"
+    },
+    {
+      "kind": "f",
+      "name": "situations_environment_id_fkey",
+      "table": "situations",
+      "fingerprint": "101a2128e11d95657f8327599ddb179a"
+    },
+    {
+      "kind": "p",
+      "name": "situations_pkey",
+      "table": "situations",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    },
+    {
+      "kind": "f",
+      "name": "situations_scene_id_fkey",
+      "table": "situations",
+      "fingerprint": "990e1596581170ac2cff234a7c32a469"
+    },
+    {
+      "kind": "c",
+      "name": "situations_status_check",
+      "table": "situations",
+      "fingerprint": "a6203ed26117cae74c13207ccb52a802"
+    },
+    {
+      "kind": "p",
+      "name": "user_roles_pkey",
+      "table": "user_roles",
+      "fingerprint": "0a0db78b5fb70bf8475b3bd434e6842b"
+    },
+    {
+      "kind": "c",
+      "name": "user_roles_role_check",
+      "table": "user_roles",
+      "fingerprint": "48499923ab4679bf8880ebab632b6c2b"
+    },
+    {
+      "kind": "f",
+      "name": "user_roles_user_id_fkey",
+      "table": "user_roles",
+      "fingerprint": "85d8b2f5f0c0f6b4dcb854efb61a8cb1"
+    },
+    {
+      "kind": "f",
+      "name": "visual_assets_campaign_id_fkey",
+      "table": "visual_assets",
+      "fingerprint": "69546e11112845378956fdd275430249"
+    },
+    {
+      "kind": "p",
+      "name": "visual_assets_pkey",
+      "table": "visual_assets",
+      "fingerprint": "4c6419b3704337bbfe50f018842a9ad3"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const service=readFileSync(new URL('../../src/services/supabase/chatService.ts',import.meta.url),'utf8');
+const panel=readFileSync(new URL('../../src/app/components/session/SessionChatPanel.tsx',import.meta.url),'utf8');
+const visibility=service.slice(service.indexOf('export async function chatMessageVisibility('),service.indexOf('export async function deleteChatMessage('));
+assert.match(visibility,/\.from\('chat_messages'\)/);
+assert.match(visibility,/\.eq\('campaign_id', campaignId\)/);
+assert.match(visibility,/\.select\('id'\)/);
+assert.match(visibility,/return 'unknown'/);
+const handler=panel.slice(panel.indexOf('const handleChatDeleteBroadcast'),panel.indexOf('const chatChannel ='));
+assert.match(handler,/chatMessageVisibility\(messageId, activeCampaign\.id\)/);
+assert.match(handler,/visibility !== 'missing'/);
+assert.doesNotMatch(handler,/removeRoll\(messageId\)/);
+console.log('Chat delete broadcast validation static regression: PASS');
+
+const deletion=service.slice(service.indexOf('export async function deleteChatMessage('),service.indexOf('export async function clearChatMessages('));
+assert.ok(deletion.includes('campaignId: string): Promise<boolean>'));
+assert.ok(deletion.includes(".eq('campaign_id', campaignId)"));
+assert.ok(deletion.includes(".select('id')"));
+assert.ok(deletion.includes('return false'));
+assert.ok(deletion.includes('data.some('));
+const localDelete=panel.slice(panel.indexOf('const deleteEntry ='),panel.indexOf('// Copia: solo negli appunti'));
+assert.ok(localDelete.includes('await deleteChatMessage(entryId, activeCampaign.id)'));
+assert.ok(localDelete.includes('if (!deleted)'));
+assert.ok(localDelete.indexOf('if (!deleted)') < localDelete.indexOf('setEntries('));
+assert.ok(localDelete.indexOf('if (!deleted)') < localDelete.indexOf('removeRoll(entryId)'));
+assert.ok(localDelete.indexOf('if (!deleted)') < localDelete.indexOf("chatChannel.send('chat_delete'"));
+console.log('Chat delete database acknowledgement regression: PASS');

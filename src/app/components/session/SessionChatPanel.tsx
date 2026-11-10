@@ -34,6 +34,8 @@ import {
   readChatLastSeen,
   writeChatLastSeen,
   toggleChatReaction,
+  loadChatReactions,
+  chatMessageVisibility,
   deleteChatMessage,
   type ChatAttachment,
   type ChatMessage,
@@ -251,26 +253,33 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
   const portalTarget = usePortalContainer();
 
   // Reazioni arrivate dagli altri partecipanti: aggiornano l'entry locale.
+  // Il broadcast segnala soltanto che le reazioni sono cambiate:
+  // il contenuto attendibile viene riletto dal database sotto RLS.
   const handleChatReactionBroadcast = useCallback((msg: { payload?: Record<string, unknown> } | null) => {
-    const payload = msg?.payload;
-    const messageId = typeof payload?.messageId === 'string' ? payload.messageId : null;
-    const reactions = payload?.reactions;
-    if (!messageId || !Array.isArray(reactions)) return;
-    const next = reactions as ChatReaction[];
-    setEntries((prev) => prev.map((entry) => (
-      entry.id === messageId ? { ...entry, reactions: next } : entry
-    )));
-    setSessionRollReactions((prev) => ({ ...prev, [messageId]: next }));
-  }, []);
+    const messageId = typeof msg?.payload?.messageId === 'string' ? msg.payload.messageId : null;
+    if (!messageId || !activeCampaign?.id) return;
+    void loadChatReactions(messageId, activeCampaign.id).then((reactions) => {
+      if (!reactions) return; // Riga non visibile, eliminata o errore: ignora il broadcast.
+      setEntries((prev) => prev.map((entry) => (
+        entry.id === messageId ? { ...entry, reactions } : entry
+      )));
+      setSessionRollReactions((prev) => ({ ...prev, [messageId]: reactions }));
+    });
+  }, [activeCampaign?.id]);
 
   // Voce cancellata da un altro partecipante: la rimuove dalla timeline e
   // anche dalla copia locale del tiro (se e' presente nella sessione).
+  // Un evento chat_delete non è una prova di cancellazione: verifica il DB.
+  // Non eliminare i tiri locali in risposta al solo broadcast: potrebbero
+  // non avere una riga persistita, e un peer potrebbe falsificare l'evento.
   const handleChatDeleteBroadcast = useCallback((msg: { payload?: Record<string, unknown> } | null) => {
     const messageId = typeof msg?.payload?.messageId === 'string' ? msg.payload.messageId : null;
-    if (!messageId) return;
-    setEntries((prev) => prev.filter((entry) => entry.id !== messageId));
-    removeRoll(messageId);
-  }, [removeRoll]);
+    if (!messageId || !activeCampaign?.id) return;
+    void chatMessageVisibility(messageId, activeCampaign.id).then((visibility) => {
+      if (visibility !== 'missing') return;
+      setEntries((prev) => prev.filter((entry) => entry.id !== messageId));
+    });
+  }, [activeCampaign?.id]);
 
   const chatChannel = useCampaignChannel(activeCampaign?.id, {
     onBroadcast: {
@@ -470,19 +479,20 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
     if (target) void applyReaction(target.id, char);
   }, [reactionPicker, applyReaction]);
 
-  // Cancella la voce senza conferme: la toglie subito dalla timeline, la
-  // elimina dal DB (se la riga esiste) e lo broadcasta agli altri client.
+  // Aspetta la conferma del DB prima di togliere la voce dalla UI e
+  // notificare gli altri client. Errori di rete e RLS non cancellano nulla.
   const deleteEntry = useCallback(async (entryId: string) => {
-    setReactionPicker(null);
+    if (!activeCampaign?.id) return;
     const target = entries.find((entry) => entry.id === entryId);
+    const deleted = await deleteChatMessage(entryId, activeCampaign.id);
+    if (!deleted) {
+      toast.error('Impossibile eliminare il messaggio. Riprova.');
+      return;
+    }
+    setReactionPicker(null);
     setEntries((prev) => prev.filter((entry) => entry.id !== entryId));
-    // Toglie anche la copia locale del tiro: senza questo il merge dei tiri
-    // di sessione riporterebbe la voce appena cancellata.
+    // Rimuovi anche il tiro locale, ma solo dopo conferma persistente.
     removeRoll(entryId);
-    await deleteChatMessage(entryId);
-    // Allegato proprio: elimina anche i bytes dallo storage (best effort).
-    // Solo i miei: per quelli degli altri la RLS potrebbe non cancellare la
-    // riga e il file resterebbe comunque raggiungibile dalla chat.
     if (target?.kind === 'attachment' && target.attachment && user && target.senderId === user.id) {
       void removeContentAsset(target.attachment.bucket, target.attachment.assetPath, target.attachment.storage)
         .catch((error) => console.warn('[Chat] Allegato non rimosso dallo storage:', error));
@@ -490,7 +500,7 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
     void chatChannel.send('chat_delete', { messageId: entryId }).catch((error) => {
       console.error('[Chat] Errore broadcast cancellazione:', error);
     });
-  }, [chatChannel, removeRoll, entries, user]);
+  }, [chatChannel, removeRoll, entries, user, activeCampaign?.id]);
 
   // Copia: solo negli appunti (feedback "Copiato" per 1,5s). NON tocca il
   // composer: il testo puo' essere incollato in un'altra chat o in un altro

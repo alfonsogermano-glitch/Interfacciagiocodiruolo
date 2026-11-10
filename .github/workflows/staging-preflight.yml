@@ -1,0 +1,139 @@
+name: Isolated staging preflight
+on:
+  push:
+    branches:
+      - docs/ovh-staging-launch-plan
+    paths:
+      - 'infra/staging/local-supabase.sh'
+      - 'supabase/config.toml'
+      - 'tests/infrastructure/verify-local-config.py'
+      - 'scripts/audit-staging-migrations.py'
+      - 'tests/infrastructure/test-migration-readiness.py'
+      - 'supabase/migrations/**'
+      - 'supabase/20*.sql'
+      - 'docs/infrastructure/SCHEMA_CATALOG_METADATA_2026-11-10.json'
+      - 'tests/infrastructure/verify-schema-catalog.py'
+      - 'tests/infrastructure/test-schema-catalog.py'
+      - 'docs/infrastructure/SCHEMA_OBJECT_FINGERPRINTS_2026-11-10.json'
+      - 'tests/infrastructure/verify-schema-objects.py'
+      - 'tests/infrastructure/test-schema-objects.py'
+      - 'tests/infrastructure/test-local-supabase.sh'
+      - 'scripts/export-isolated-staging-schema.sh'
+      - 'tests/infrastructure/test-schema-export.sh'
+      - 'infra/staging/docker-compose.yml'
+      - 'infra/staging/smoke-test.sh'
+      - 'infra/staging/rls-smoke-test.sh'
+      - 'tests/infrastructure/test-live-staging.py'
+      - 'docs/security/proposals/chat_rls_staging_only.sql'
+      - 'infra/staging/chat-policy-smoke-test.sh'
+      - 'tests/infrastructure/test-chat-policy-smoke.py'
+      - 'infra/staging/roll-reaction-smoke-test.sh'
+      - 'tests/infrastructure/test-roll-reaction-contract.py'
+      - 'docs/security/proposals/chat_reaction_rpc_staging_only.sql'
+      - 'infra/staging/reaction-rpc-smoke-test.sh'
+      - 'tests/infrastructure/test-reaction-rpc.py'
+      - 'src/app/components/session/dice/DiceSessionContext.tsx'
+      - 'supabase/functions/dice-secret-roll/index.ts'
+      - 'src/services/supabase/chatService.ts'
+      - '.github/workflows/staging-preflight.yml'
+  pull_request:
+    paths:
+      - 'infra/staging/local-supabase.sh'
+      - 'supabase/config.toml'
+      - 'tests/infrastructure/verify-local-config.py'
+      - 'scripts/audit-staging-migrations.py'
+      - 'tests/infrastructure/test-migration-readiness.py'
+      - 'supabase/migrations/**'
+      - 'supabase/20*.sql'
+      - 'docs/infrastructure/SCHEMA_CATALOG_METADATA_2026-11-10.json'
+      - 'tests/infrastructure/verify-schema-catalog.py'
+      - 'tests/infrastructure/test-schema-catalog.py'
+      - 'docs/infrastructure/SCHEMA_OBJECT_FINGERPRINTS_2026-11-10.json'
+      - 'tests/infrastructure/verify-schema-objects.py'
+      - 'tests/infrastructure/test-schema-objects.py'
+      - 'tests/infrastructure/test-local-supabase.sh'
+      - 'scripts/export-isolated-staging-schema.sh'
+      - 'tests/infrastructure/test-schema-export.sh'
+      - 'infra/staging/docker-compose.yml'
+      - 'infra/staging/smoke-test.sh'
+      - 'infra/staging/rls-smoke-test.sh'
+      - 'tests/infrastructure/test-live-staging.py'
+      - 'docs/security/proposals/chat_rls_staging_only.sql'
+      - 'infra/staging/chat-policy-smoke-test.sh'
+      - 'tests/infrastructure/test-chat-policy-smoke.py'
+      - 'infra/staging/roll-reaction-smoke-test.sh'
+      - 'tests/infrastructure/test-roll-reaction-contract.py'
+      - 'docs/security/proposals/chat_reaction_rpc_staging_only.sql'
+      - 'infra/staging/reaction-rpc-smoke-test.sh'
+      - 'tests/infrastructure/test-reaction-rpc.py'
+      - 'src/app/components/session/dice/DiceSessionContext.tsx'
+      - 'supabase/functions/dice-secret-roll/index.ts'
+      - 'src/services/supabase/chatService.ts'
+      - '.github/workflows/staging-preflight.yml'
+permissions:
+  contents: read
+jobs:
+  local-guard-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate local Supabase configuration
+        run: python3 tests/infrastructure/verify-local-config.py
+      - name: Audit schema migration inventory (read-only)
+        run: |
+          python3 tests/infrastructure/test-migration-readiness.py -v
+          python3 scripts/audit-staging-migrations.py
+      - name: Validate read-only schema catalog
+        run: |
+          python3 tests/infrastructure/verify-schema-catalog.py
+          python3 tests/infrastructure/test-schema-catalog.py
+      - name: Validate schema objects metadata (read-only)
+        run: |
+          python3 tests/infrastructure/verify-schema-objects.py
+          python3 tests/infrastructure/test-schema-objects.py
+      - name: Validate protected local schema export
+        run: |
+          bash -n scripts/export-isolated-staging-schema.sh tests/infrastructure/test-schema-export.sh
+          bash tests/infrastructure/test-schema-export.sh
+      - name: Validate live PostgreSQL staging contract
+        run: python3 tests/infrastructure/test-live-staging.py
+      - name: Verify chat proposal integration contract
+        run: |
+          bash -n infra/staging/chat-policy-smoke-test.sh
+          python3 tests/infrastructure/test-chat-policy-smoke.py
+      - name: Check dice/reaction security contract
+        run: |
+          bash -n infra/staging/roll-reaction-smoke-test.sh
+          python3 tests/infrastructure/test-roll-reaction-contract.py
+      - name: Validate reaction RPC and author-only roll persistence
+        run: |
+          bash -n infra/staging/reaction-rpc-smoke-test.sh
+          python3 tests/infrastructure/test-reaction-rpc.py
+      - name: Syntax check
+        run: bash -n infra/staging/local-supabase.sh tests/infrastructure/test-local-supabase.sh
+      - name: Test local-only guardrails without Docker or credentials
+        run: bash tests/infrastructure/test-local-supabase.sh
+
+  postgres-restore-smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      STAGING_CONFIRM: LOCAL_ONLY
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start disposable PostgreSQL 17 (no published ports)
+        run: docker compose -f infra/staging/docker-compose.yml up -d --wait
+      - name: Perform real PostgreSQL backup and restore with synthetic fixture
+        run: bash infra/staging/smoke-test.sh
+      - name: Verify synthetic multi-campaign RLS in PostgreSQL
+        run: bash infra/staging/rls-smoke-test.sh
+      - name: Verify actual chat RLS proposal against disposable PostgreSQL
+        run: bash infra/staging/chat-policy-smoke-test.sh
+      - name: Verify public roll ownership and reaction update limits
+        run: bash infra/staging/roll-reaction-smoke-test.sh
+      - name: Test constrained reaction RPC on PostgreSQL
+        run: bash infra/staging/reaction-rpc-smoke-test.sh
+      - name: Remove disposable PostgreSQL volume and container
+        if: always()
+        run: docker compose -f infra/staging/docker-compose.yml down -v --remove-orphans

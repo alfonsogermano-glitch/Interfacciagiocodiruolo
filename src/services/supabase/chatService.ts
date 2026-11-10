@@ -193,6 +193,19 @@ export async function sendChatAttachment(input: {
  * Ritorna la lista aggiornata o null se la riga non esiste/c'e' stato errore
  * (usato anche per i tiri solo-locali, che nel DB non hanno riga).
  */
+/** Recupera le reazioni dal DB sotto RLS; i broadcast non sono una fonte attendibile. */
+export async function loadChatReactions(messageId: string, campaignId: string): Promise<ChatReaction[] | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .select('reactions')
+    .eq('campaign_id', campaignId)
+    .eq('id', messageId)
+    .limit(1);
+  if (error || !Array.isArray(data) || data.length === 0) return null;
+  return Array.isArray(data[0].reactions) ? data[0].reactions as ChatReaction[] : [];
+}
+
 export async function toggleChatReaction(
   messageId: string,
   input: { char: string; userId: string; userName: string },
@@ -284,10 +297,38 @@ export async function saveRollEntry(roll: RollResult): Promise<string | null> {
   return existing?.created_at ?? null;
 }
 
-export async function deleteChatMessage(messageId: string): Promise<void> {
-  if (!supabase) return;
-  const { error } = await supabase.from('chat_messages').delete().eq('id', messageId);
-  if (error) console.error('[chatService] Errore eliminazione voce chat:', error);
+/** Verifica se un messaggio è ancora visibile tramite RLS.
+ * 'unknown' evita di scambiare errori di rete per cancellazioni riuscite.
+ * ATTENZIONE: 'missing' può anche significare che RLS non consente più SELECT.
+ */
+export async function chatMessageVisibility(messageId: string, campaignId: string): Promise<'present' | 'missing' | 'unknown'> {
+  if (!supabase) return 'unknown';
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .select('id')
+    .eq('campaign_id', campaignId)
+    .eq('id', messageId)
+    .limit(1);
+  if (error || !Array.isArray(data)) return 'unknown';
+  return data.length > 0 ? 'present' : 'missing';
+}
+
+/** Conferma la cancellazione soltanto se il DB restituisce la riga eliminata.
+ * Un successo HTTP con zero righe (es. RLS) NON prova la cancellazione.
+ */
+export async function deleteChatMessage(messageId: string, campaignId: string): Promise<boolean> {
+  if (!supabase) return false;
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .delete()
+    .eq('campaign_id', campaignId)
+    .eq('id', messageId)
+    .select('id');
+  if (error) {
+    console.error('[chatService] Errore eliminazione voce chat:', error);
+    return false;
+  }
+  return Array.isArray(data) && data.some((row) => row.id === messageId);
 }
 
 /**

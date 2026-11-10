@@ -232,17 +232,15 @@ function DiceSessionProviderBody({ children, onRollIngested }: DiceSessionProvid
     if (seenRollIds.current.has(result.id)) return false;
     seenRollIds.current.add(result.id);
     setEntries((current) => [...current, { result, revealState: 'pending', receivedAt: Date.now() }]);
-    // Tiro pubblico: accoda per la persistenza in chat a fine rotolamento
-    // (idempotente: se anche gli altri client provano l'insert, il conflitto
-    // sull'id viene ignorato). Deve avvenire PRIMA di playAnimation, che con
-    // animazioni disattivate rivela (e quindi svuota la coda) sincronamente.
-    // Il pallino segue lo stesso momento.
-    if (result.visibility === 'public') {
+    // Solo l'autore salva nel DB: i peer ricevono il broadcast ma
+    // non tentano INSERT con il sender_id di un altro utente.
+    // Accodare prima dell'animazione, che può rivelare sincronicamente.
+    if (result.visibility === 'public' && result.rollerId === user?.id) {
       pendingChatRolls.current.set(result.id, result);
     }
     playAnimation(result);
     return true;
-  }, [playAnimation]);
+  }, [playAnimation, user?.id]);
 
   const setAnimationContainer = useCallback((container: HTMLElement | null) => {
     animationContainerRef.current = container;

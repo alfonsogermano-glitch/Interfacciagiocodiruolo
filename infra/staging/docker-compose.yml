@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: hollowgate_test
+      POSTGRES_PASSWORD: local_test_only
+      POSTGRES_DB: hollowgate_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hollowgate_test -d hollowgate_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # No published ports: local isolated Docker network only.
+
+volumes:
+  pgdata:
