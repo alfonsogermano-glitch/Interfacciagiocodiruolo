@@ -1,6 +1,7 @@
 // Hollowgate Hybrid browser-to-browser experiment.
 import { assessAnswer } from './answer-guard.mjs';
 import { retryDelay,canRetry } from './reconnect-policy.mjs';
+import { adaptPeerJsConnection } from './peerjs-adapter.mjs';
 import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // No Supabase, no production Auth, and no permanent server-side data.
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
@@ -277,23 +278,7 @@ function bindHostChannel(c,id,conn,{requireApproval=false}={}){
     displayStatus('Giocatore '+id+' disconnesso');
    };
 }
-function adaptPeerJsConnection(raw){
- let state='connecting';
- const adapter={
-  onopen:null,onclose:null,onmessage:null,
-  get readyState(){return state},
-  send(text){raw.send(JSON.parse(text))},
-  close(){raw.close()}
- };
- raw.on('open',()=>{state='open';adapter.onopen?.()});
- raw.on('data',packet=>{if(packet&&typeof packet==='object')adapter.onmessage?.({data:JSON.stringify(packet)})});
- raw.on('close',()=>{if(state!=='closed'){state='closed';adapter.onclose?.()}});
- raw.on('error',error=>{
-  log('PeerJS canale: '+(error.message??error.type??'errore'));
-  if(state!=='closed'){state='closed';adapter.onclose?.()}
- });
- return adapter;
-}
+const peerJsAdapter=raw=>adaptPeerJsConnection(raw,{onError:error=>log('PeerJS canale: '+(error.message??error.type??'errore'))});
 
 async function acceptRemoteOffer(offer, reply=null){
  if(!hostState)throw Error('Avvia prima la campagna');
@@ -463,7 +448,7 @@ function openQuickPeer(identity){
 function connectQuickPlayer(){
  if(quickStopRequested||quickRole!=='player'||!quickPeer||!quickRoom)return;
  const raw=quickPeer.connect(PEER_ID_PREFIX+quickRoom,{serialization:'json',reliable:true});
- const adapter=adaptPeerJsConnection(raw);
+ const adapter=peerJsAdapter(raw);
  quickConnection=adapter;
  bindPlayerChannel(adapter);
  const connectionTimeout=setTimeout(()=>{
@@ -532,7 +517,7 @@ $('quickHost').onclick=async()=>{
   });
   peer.on('connection',raw=>{
    const id='P-'+genId().slice(0,6);
-   bindHostChannel(adaptPeerJsConnection(raw),id,{close:()=>raw.close()},{requireApproval:true});
+   bindHostChannel(peerJsAdapter(raw),id,{close:()=>raw.close()},{requireApproval:true});
   });
   $('quickCode').textContent=code;
   displayStatus('Stanza demo '+code+' attiva: comunica il codice al giocatore');

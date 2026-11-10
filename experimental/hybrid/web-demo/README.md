@@ -97,3 +97,12 @@ ancora disponibile. Il contenuto demo del GM resta nel `localStorage`.
 Limiti: connessioni manuali non sono riconnesse, un riavvio del PC
 non garantisce il riuso del codice e la scadenza dei tentativi richiede
 un intervento dell'utente.
+
+## Fix sincronizzazione su browser mobile
+
+Quando PeerJS invia l'evento della connessione in ingresso, il canale può
+essere già in stato `open`. Il vecchio adattatore aspettava un ulteriore
+evento `open` che potrebbe non arrivare, facendo sembrare completata
+l'approvazione al GM senza inviare `approved` e `snapshot`.
+L'adattatore isolato `peerjs-adapter.mjs` ora legge anche `raw.open`
+ed è coperto da un test di regressione che riproduce questo ordine di eventi.

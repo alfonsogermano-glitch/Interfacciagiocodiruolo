@@ -35,7 +35,7 @@ test('optional Connect UI integrates HTTPS-only automatic room signaling while p
 test('quick PeerJS demo uses code-based signaling with existing encrypted game channels',()=>{
  for(const id of ['quickHost','quickJoin','quickRoom','quickCode','quickStop']) assert.ok(html.includes('id="'+id+'"'),id);
  assert.match(html,/peerjs@1\.5\.5\/dist\/peerjs\.min\.js/);
- for(const phrase of ['PEER_ID_PREFIX','newQuickCode()','openQuickPeer','quickPeer.connect(','bindHostChannel(adaptPeerJsConnection(raw)','bindPlayerChannel(adapter)'])assert.ok(app.includes(phrase),phrase);
+ for(const phrase of ['PEER_ID_PREFIX','newQuickCode()','openQuickPeer','quickPeer.connect(','bindHostChannel(peerJsAdapter(raw)','bindPlayerChannel(adapter)'])assert.ok(app.includes(phrase),phrase);
  assert.match(html,/non è autenticato/);
  assert.match(html,/metadati di collegamento e indirizzi IP/);
 });
@@ -60,4 +60,9 @@ test('quick reconnect is bounded, reuses room code and never skips GM approval',
 
 test('quick reconnect preserves approved token but still requires new GM authorization',()=>{
  for(const p of ['resumeKey:quickRole===\'player\'?quickResumeKey:null','request.setAssignedId?.(assigned)','previous=Object.entries(hostState.members).find','completeHostJoin(request.id,request.name,request.channel,request.conn,request.resumeKey)','if(peers.get(id)?.channel===c)','const connectionTimeout=setTimeout']) assert.ok(app.includes(p),p);
+});
+
+test('PeerJS adapter validates incoming already-open channels without missing GM authorization',()=>{
+ assert.match(app,/import \{ adaptPeerJsConnection \} from '.\/peerjs-adapter.mjs'/);
+ assert.match(app,/bindHostChannel\(peerJsAdapter\(raw\)/);
 });
