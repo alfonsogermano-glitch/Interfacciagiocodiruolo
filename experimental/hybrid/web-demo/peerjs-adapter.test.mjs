@@ -34,3 +34,12 @@ test('errors close the adapter and surface to caller',()=>{
  raw.emit('error',new Error('network'));
  assert.equal(failure,'network');assert.equal(close,1);assert.equal(peer.readyState,'closed');
 });
+
+test('already-open player connection invokes late open handler once to send join',async()=>{
+ const raw=fake(true),peer=adaptPeerJsConnection(raw);
+ let count=0;
+ peer.onopen=()=>{count++;peer.send(JSON.stringify({kind:'join'}))};
+ await Promise.resolve();
+ assert.equal(count,1);assert.deepEqual(raw.sent,[{kind:'join'}]);
+ raw.emit('open');assert.equal(count,1);
+});

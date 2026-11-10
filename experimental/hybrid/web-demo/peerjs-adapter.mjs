@@ -4,9 +4,19 @@
  * never rely solely on observing the raw 'open' event.
  */
 export function adaptPeerJsConnection(raw,{onError=()=>{}}={}) {
- let closed=false;
+ let closed=false,openNotified=false,openHandler=null;
+ const announceOpen=()=>{
+  if(closed||openNotified||raw.open!==true||!openHandler)return;
+  openNotified=true;openHandler();
+ };
  const adapter={
-  onopen:null,onclose:null,onmessage:null,
+  set onopen(fn){
+   openHandler=fn;
+   // PeerJS may already be open when a handler is registered.
+   if(raw.open===true)queueMicrotask(announceOpen);
+  },
+  get onopen(){return openHandler},
+  onclose:null,onmessage:null,
   get readyState(){return closed?'closed':raw.open===true?'open':'connecting'},
   send(value){
    if(adapter.readyState!=='open')throw Error('PeerJS data channel is not open');
@@ -14,7 +24,7 @@ export function adaptPeerJsConnection(raw,{onError=()=>{}}={}) {
   },
   close(){raw.close()}
  };
- raw.on('open',()=>{if(!closed)adapter.onopen?.()});
+ raw.on('open',announceOpen);
  raw.on('data',packet=>{
   if(closed)return;
   if(packet&&typeof packet==='object')adapter.onmessage?.({data:JSON.stringify(packet)});

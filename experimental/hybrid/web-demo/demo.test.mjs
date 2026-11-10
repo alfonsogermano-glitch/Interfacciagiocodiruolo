@@ -66,3 +66,8 @@ test('PeerJS adapter validates incoming already-open channels without missing GM
  assert.match(app,/import \{ adaptPeerJsConnection \} from '.\/peerjs-adapter.mjs'/);
  assert.match(app,/bindHostChannel\(peerJsAdapter\(raw\)/);
 });
+
+test('GM resends snapshot until client ACK and supports explicit resync',()=>{
+ for(const snippet of ['kind:\'snapshot-ack\'','kind:\'sync-request\'','awaitSnapshotAck(assigned)','sendFreshSnapshot(id)','SNAPSHOT_ACK_RETRIES','peer.syncAcked=true'])
+  assert.ok(app.includes(snippet),snippet);
+});
