@@ -35,7 +35,7 @@ jobs:
         run: python3 tests/infrastructure/verify-local-config.py
       - name: Audit schema migration inventory (read-only)
         run: |
-          python3 -m unittest discover -s tests/infrastructure -p 'test-migration-readiness.py' -v
+          python3 tests/infrastructure/test-migration-readiness.py -v
           python3 scripts/audit-staging-migrations.py
       - name: Syntax check
         run: bash -n infra/staging/local-supabase.sh tests/infrastructure/test-local-supabase.sh
