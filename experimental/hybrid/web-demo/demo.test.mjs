@@ -82,7 +82,7 @@ test('mobile quick join hides manual SDP controls and scrolls to first game snap
  assert.match(html,/id="quickDiagnostics"/);
  for(const token of ["$('playerSetup').hidden=true", "$('hostSetup').hidden=true", "requestAnimationFrame(()=>$('session').scrollIntoView", "quickDiag('Snapshot ricevuto", "quickDiag('Campo ricevuto"])
   assert.ok(app.includes(token),token);
- assert.match(html,/demo\.js\?v=turn-relay-optin-20261110/);
+ assert.match(html,/demo\.js\?v=turn-relay-diagnostics-20261111/);
 });
 
 test('snapshots are transferred through small bounded packets and reassembled before board render',()=>{
@@ -129,7 +129,7 @@ test('SDP diagnostics are emitted before async getStats and demo revision is vis
  const to=app.indexOf('async function inspectIceRoute(raw,onResult)',from);
  const segment=app.slice(from,to);
  assert.ok(segment.indexOf("log(side+' · '+negotiation)") < segment.indexOf('await inspectIceConnection(raw)'));
- assert.match(html,/Versione diagnostica: <strong>turn-relay-optin-20261110/);
+ assert.match(html,/Versione diagnostica: <strong>turn-relay-diagnostics-20261111/);
  assert.match(app,/Versione demo '\+DEMO_REVISION/);
 });
 
@@ -161,4 +161,11 @@ test('TURN opt-in uses relay-only ICE on both ends without storing secrets',()=>
  assert.match(app,/code='T'\+code\.slice\(1\)/);
  assert.match(html,/non vengono memorizzate credenziali/i);
  assert.doesNotMatch(app,/localStorage\.setItem\([^\n]*quickTurn/);
+});
+
+test('GM independently reports TURN ICE failures before timeout',()=>{
+ assert.match(app,/icecandidateerror/);
+ assert.match(app,/GM '\+id\+' TURN'/);
+ assert.match(app,/ICE relay-only/);
+ assert.match(html,/turn-relay-diagnostics-20261111/);
 });
