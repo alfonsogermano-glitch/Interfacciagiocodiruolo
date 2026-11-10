@@ -24,6 +24,7 @@ const genId=()=>crypto.randomUUID();
 const defaultState=()=>({title:'Campagna demo',sequence:0,owner:'gm',members:{},tokens:{gm:{owner:'gm',x:20,y:20}},activity:[]});
 const save=()=>{if(!hostState)return;localStorage.setItem(STORAGE,JSON.stringify(hostState))};
 const displayStatus=text=>{$('status').textContent=text;log(text)};
+const quickDiag=(text)=>{const el=$('quickDiagnostics');if(el)el.textContent=text};
 const updateLatency=()=>{
  const meter=$('latencyMeter');
  if(!meter)return;
@@ -55,6 +56,7 @@ function startPings(c){
 function selectMode(next){
  mode=next;updateLatency();$('hostMode').classList.toggle('selected',next==='gm');$('playerMode').classList.toggle('selected',next==='player');
  $('hostSetup').hidden=next!=='gm';$('playerSetup').hidden=next!=='player';$('session').hidden=true;
+ $('quickApprovals').parentElement.hidden=next==='player';
 }
 $('hostMode').onclick=()=>selectMode('gm');$('playerMode').onclick=()=>selectMode('player');
 $('startHost').onclick=()=>{
@@ -139,6 +141,8 @@ function applyCommand(actor,action){
 function render(){
  const state=mode==='gm'&&hostState?snapshot('gm'):playerState;
  if(!state)return;
+ if(!state.tokens||typeof state.tokens!=='object'||!Array.isArray(state.activity))throw Error('Struttura dello stato non valida');
+ const firstView=$('session').hidden;
  $('session').hidden=false;$('sessionTitle').textContent=state.title;
  $('roleInfo').textContent=state.role==='gm'?'Sei il GM autorevole — dati su questo browser':'Sei giocatore — stato ricevuto dal GM';
  $('sequence').textContent='Stato #'+state.sequence;
@@ -150,6 +154,11 @@ function render(){
  }
  const timeline=$('timeline');timeline.replaceChildren();
  for(const e of [...state.activity].reverse().slice(0,50)){const li=document.createElement('li');li.textContent='#'+e.sequence+' '+e.label;if(e.visibility==='gm')li.className='private';timeline.append(li)}
+ // On narrow screens the legacy manual-pairing form otherwise obscures the board.
+ if(mode==='player'&&firstView){
+  quickDiag('Campo ricevuto · stato #'+state.sequence+' · '+Object.keys(state.tokens).length+' pedine · visualizzazione attiva');
+  requestAnimationFrame(()=>$('session').scrollIntoView({behavior:'smooth',block:'start'}));
+ }
 }
 function act(action){
  if(mode==='gm'){if(!applyCommand('gm',action))log('Comando rifiutato');return}
@@ -209,6 +218,7 @@ function requestPlayerSnapshot(c,reason=''){
  tell(c,{kind:'sync-request'});
  log('Richiesta stato partita inviata al GM'+(reason?' · '+reason:''));
  $('quickReconnect').textContent='Autorizzazione ricevuta · sincronizzazione in corso';
+ quickDiag('Autorizzazione confermata. Stato partita non ancora ricevuto · richiesta '+(reason||'iniziale'));
  return true;
 }
 function startSnapshotRecovery(c){
@@ -243,6 +253,8 @@ function bindPlayerChannel(c){
    const m=JSON.parse(e.data);
    if(m.kind==='snapshot'){
     if(!m.state||typeof m.state.sequence!=='number')throw Error('Snapshot non valido');
+    log('Snapshot ricevuto dal GM · #'+m.state.sequence);
+    quickDiag('Snapshot ricevuto · visualizzazione del campo in corso');
     playerState=m.state;
     render();
     stopSnapshotRecovery();
@@ -254,6 +266,7 @@ function bindPlayerChannel(c){
     if(!playerState)displayStatus('Connessione aperta: attendo autorizzazione del GM');
    }
    else if(m.kind==='approved'){
+    quickDiag('Autorizzato dal GM · in attesa dello stato iniziale');
     displayStatus('Accesso autorizzato dal GM · recupero campo di gioco');
     startSnapshotRecovery(c);
    }
@@ -268,6 +281,7 @@ function bindPlayerChannel(c){
    }else if(m.kind==='error')log(m.reason)
   }catch(e){
    const details='Messaggio giocatore non elaborato: '+(e.message??'errore');
+   quickDiag(details);
    log(details);displayStatus('Errore sincronizzazione: '+(e.message??'errore'));
   }};
 }
@@ -604,6 +618,7 @@ $('quickHost').onclick=async()=>{
  try{
   stopQuickPeer();
   selectMode('gm');
+  $('hostSetup').hidden=true; // quick room does not use the manual SDP form
   if(!hostState)$('startHost').click();
   let code;
   try{code=sessionStorage.getItem(QUICK_SESSION)}catch{}
@@ -617,6 +632,7 @@ $('quickHost').onclick=async()=>{
    }else throw e;
   }
   quickPeer=peer;quickRole='gm';quickRoom=code;quickStopRequested=false;
+  quickDiag('Stanza demo attiva · in attesa delle richieste dei giocatori');
   try{sessionStorage.setItem(QUICK_SESSION,code)}catch{}
   peer.on('disconnected',()=>{
    if(quickStopRequested||quickPeer!==peer)return;
@@ -640,6 +656,8 @@ $('quickJoin').onclick=async()=>{
   stopQuickPeer();stopPings();
   if(playerPC){playerPC.close();playerPC=null}
   selectMode('player');playerState=null;
+  $('playerSetup').hidden=true; // hide lengthy manual offer/answer fields on mobile
+  quickDiag('Collegamento rapido · in attesa del Game Master');
   const peer=await openQuickPeer();
   quickPeer=peer;
   quickRole='player';quickRoom=code;quickStopRequested=false;quickRetryAttempt=0;quickResumeKey=crypto.randomUUID();

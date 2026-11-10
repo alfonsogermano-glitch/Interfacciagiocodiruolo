@@ -77,3 +77,10 @@ test('mobile player explicitly requests state after approval and retries without
  for(const piece of ["startSnapshotRecovery(c)","requestPlayerSnapshot(c,'autorizzazione')","kind:'sync-request'","stopSnapshotRecovery()","peers.get(id)?.channel===c","Errore sincronizzazione"])
   assert.ok(app.includes(piece),piece);
 });
+
+test('mobile quick join hides manual SDP controls and scrolls to first game snapshot',()=>{
+ assert.match(html,/id="quickDiagnostics"/);
+ for(const token of ["$('playerSetup').hidden=true", "$('hostSetup').hidden=true", "requestAnimationFrame(()=>$('session').scrollIntoView", "quickDiag('Snapshot ricevuto", "quickDiag('Campo ricevuto"])
+  assert.ok(app.includes(token),token);
+ assert.match(html,/demo\.js\?v=mobile-board-20261110/);
+});

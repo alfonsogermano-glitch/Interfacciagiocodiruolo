@@ -106,3 +106,12 @@ evento `open` che potrebbe non arrivare, facendo sembrare completata
 l'approvazione al GM senza inviare `approved` e `snapshot`.
 L'adattatore isolato `peerjs-adapter.mjs` ora legge anche `raw.open`
 ed è coperto da un test di regressione che riproduce questo ordine di eventi.
+
+## Mobile: layout and display trace (2026-11-10)
+The quick-room flow now hides the unrelated manual SDP setup form.
+Previously the entire player pairing form, including large textareas,
+remained visible above the actual game board on narrow screens. After
+a valid initial snapshot, the client displays a visible diagnostics line
+and scrolls to the board. Distinct diagnostic states show approval,
+snapshot arrival, render error and successful board display. The demo
+script URL has a version suffix to avoid a stale module cache on mobile.
