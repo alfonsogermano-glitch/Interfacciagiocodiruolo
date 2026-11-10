@@ -479,19 +479,20 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
     if (target) void applyReaction(target.id, char);
   }, [reactionPicker, applyReaction]);
 
-  // Cancella la voce senza conferme: la toglie subito dalla timeline, la
-  // elimina dal DB (se la riga esiste) e lo broadcasta agli altri client.
+  // Aspetta la conferma del DB prima di togliere la voce dalla UI e
+  // notificare gli altri client. Errori di rete e RLS non cancellano nulla.
   const deleteEntry = useCallback(async (entryId: string) => {
-    setReactionPicker(null);
+    if (!activeCampaign?.id) return;
     const target = entries.find((entry) => entry.id === entryId);
+    const deleted = await deleteChatMessage(entryId, activeCampaign.id);
+    if (!deleted) {
+      toast.error('Impossibile eliminare il messaggio. Riprova.');
+      return;
+    }
+    setReactionPicker(null);
     setEntries((prev) => prev.filter((entry) => entry.id !== entryId));
-    // Toglie anche la copia locale del tiro: senza questo il merge dei tiri
-    // di sessione riporterebbe la voce appena cancellata.
+    // Rimuovi anche il tiro locale, ma solo dopo conferma persistente.
     removeRoll(entryId);
-    await deleteChatMessage(entryId);
-    // Allegato proprio: elimina anche i bytes dallo storage (best effort).
-    // Solo i miei: per quelli degli altri la RLS potrebbe non cancellare la
-    // riga e il file resterebbe comunque raggiungibile dalla chat.
     if (target?.kind === 'attachment' && target.attachment && user && target.senderId === user.id) {
       void removeContentAsset(target.attachment.bucket, target.attachment.assetPath, target.attachment.storage)
         .catch((error) => console.warn('[Chat] Allegato non rimosso dallo storage:', error));
@@ -499,7 +500,7 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
     void chatChannel.send('chat_delete', { messageId: entryId }).catch((error) => {
       console.error('[Chat] Errore broadcast cancellazione:', error);
     });
-  }, [chatChannel, removeRoll, entries, user]);
+  }, [chatChannel, removeRoll, entries, user, activeCampaign?.id]);
 
   // Copia: solo negli appunti (feedback "Copiato" per 1,5s). NON tocca il
   // composer: il testo puo' essere incollato in un'altra chat o in un altro

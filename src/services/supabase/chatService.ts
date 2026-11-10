@@ -313,10 +313,22 @@ export async function chatMessageVisibility(messageId: string, campaignId: strin
   return data.length > 0 ? 'present' : 'missing';
 }
 
-export async function deleteChatMessage(messageId: string): Promise<void> {
-  if (!supabase) return;
-  const { error } = await supabase.from('chat_messages').delete().eq('id', messageId);
-  if (error) console.error('[chatService] Errore eliminazione voce chat:', error);
+/** Conferma la cancellazione soltanto se il DB restituisce la riga eliminata.
+ * Un successo HTTP con zero righe (es. RLS) NON prova la cancellazione.
+ */
+export async function deleteChatMessage(messageId: string, campaignId: string): Promise<boolean> {
+  if (!supabase) return false;
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .delete()
+    .eq('campaign_id', campaignId)
+    .eq('id', messageId)
+    .select('id');
+  if (error) {
+    console.error('[chatService] Errore eliminazione voce chat:', error);
+    return false;
+  }
+  return Array.isArray(data) && data.some((row) => row.id === messageId);
 }
 
 /**

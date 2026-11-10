@@ -12,3 +12,17 @@ assert.match(handler,/chatMessageVisibility\(messageId, activeCampaign\.id\)/);
 assert.match(handler,/visibility !== 'missing'/);
 assert.doesNotMatch(handler,/removeRoll\(messageId\)/);
 console.log('Chat delete broadcast validation static regression: PASS');
+
+const deletion=service.slice(service.indexOf('export async function deleteChatMessage('),service.indexOf('export async function clearChatMessages('));
+assert.match(deletion,/campaignId: string\\): Promise<boolean>/);
+assert.match(deletion,/\\.eq\\('campaign_id', campaignId\\)/);
+assert.match(deletion,/\\.select\\('id'\\)/);
+assert.match(deletion,/return false/);
+assert.match(deletion,/data\\.some\\(/);
+const localDelete=panel.slice(panel.indexOf('const deleteEntry ='),panel.indexOf('// Copia: solo negli appunti'));
+assert.match(localDelete,/await deleteChatMessage\\(entryId, activeCampaign\\.id\\)/);
+assert.match(localDelete,/if \\(!deleted\\)/);
+assert.ok(localDelete.indexOf('if (!deleted)') < localDelete.indexOf('setEntries('));
+assert.ok(localDelete.indexOf('if (!deleted)') < localDelete.indexOf('removeRoll(entryId)'));
+assert.ok(localDelete.indexOf('if (!deleted)') < localDelete.indexOf("chatChannel.send('chat_delete'"));
+console.log('Chat delete database acknowledgement regression: PASS');
