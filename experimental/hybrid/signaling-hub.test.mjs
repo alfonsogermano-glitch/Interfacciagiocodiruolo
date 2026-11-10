@@ -52,3 +52,18 @@ test('rooms expire in memory and leave revokes access',async t=>{
  assert.equal(hub.activeRooms,0);
  assert.equal((await call('poll',{room:gm.room,after:0},gm.token)).status,403);
 });
+
+test('room codes are always human-safe, unique, and available to players',async t=>{
+ const {call}=await setup(t);
+ const codes=new Set();
+ for(let i=0;i<48;i++){
+  const response=await call('create');
+  assert.equal(response.status,201);
+  const code=response.data.room;
+  assert.match(code,/^[A-HJ-NP-Z2-9]{8}$/);
+  assert.equal(codes.has(code),false);
+  codes.add(code);
+  const joined=await call('join',{room:code});
+  assert.equal(joined.status,200);
+ }
+});

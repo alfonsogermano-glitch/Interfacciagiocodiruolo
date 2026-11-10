@@ -79,7 +79,7 @@ function beginHostPing(id,peer){
 }
 function endHostPing(id,peer){
  if(peer?.timer)clearInterval(peer.timer);
- peer.timer=null;peers.delete(id);updateLatency();
+ if(peer)peer.timer=null;peers.delete(id);updateLatency();
 }
 
 function broadcast(){

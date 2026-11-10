@@ -50,3 +50,19 @@ Non assegnare domini della produzione.
 
 Il sito demo **non è** ancora integrato nel vero client React Hollowgate
 né nell'Host Node.js, e lo scambio WebRTC è manuale e senza identità reali.
+
+## Hollowgate Connect con codice stanza (in preparazione)
+
+La schermata ora comprende un pannello opzionale con creazione e inserimento
+di un codice stanza. Il pannello resta **disabilitato** quando manca un endpoint
+HTTPS del servizio; non è una funzione già disponibile sulla preview pubblica.
+Quando sarà presente il servizio autenticato, il client `connect-client.mjs`
+invierà solo l'offerta/risposta WebRTC al destinatario della stanza, mentre
+la sessione di gioco continuerà a transitare direttamente in WebRTC.
+Lo scambio manuale rimane il percorso di test funzionante.
+
+**Non pubblicare l'attuale server di segnalazione su Internet:** al momento
+usa identità sintetiche, stanza condivisa non autenticata e non prevede
+rate limiting, TLS, controlli di abuso o protezioni di origine. Il suo
+listener è limitato a localhost. Non puntare il pannello a Supabase o
+al sito di produzione.
