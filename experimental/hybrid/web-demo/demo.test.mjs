@@ -166,6 +166,6 @@ test('TURN opt-in uses relay-only ICE on both ends without storing secrets',()=>
 test('GM independently reports TURN ICE failures before timeout',()=>{
  assert.match(app,/icecandidateerror/);
  assert.match(app,/GM '\+id\+' TURN'/);
- assert.match(app,/ICE relay-only/);
+ assert.match(app,/isTurnRoom\(code\)\?'relay-only'/);
  assert.match(html,/turn-relay-diagnostics-20261111/);
 });
