@@ -127,3 +127,15 @@ keeps complete campaign history in its own browser; only the over-the-wire
 recent activity list is truncated. This feature is backed by a fake PeerJS
 bidirectional-channel test using a large activity history. A timestamped
 module URL invalidates stale mobile caches.
+
+## RTT diagnostics (2026-11-10)
+The previous display showed an exponential moving average of JavaScript
+round-trip ping/pong, which is NOT one-way network latency. It now displays
+a rolling sample window with typical (median), minimum and worst RTT.
+Where supported, the selected ICE candidate pair is reported from
+`RTCPeerConnection.getStats()` without exposing IP addresses.
+Direct `host/srflx` paths and `relay TURN` can therefore be distinguished.
+This is instrumentation, not a claim that 300 ms RTT is fixed; cellular
+radio, browser scheduling, and concurrent snapshot transfers can cause
+large swings. Always compare mobile data and same-WiFi tests while
+keeping both pages foregrounded.

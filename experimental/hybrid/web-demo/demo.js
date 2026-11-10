@@ -3,6 +3,7 @@ import { assessAnswer } from './answer-guard.mjs';
 import { retryDelay,canRetry } from './reconnect-policy.mjs';
 import { adaptPeerJsConnection } from './peerjs-adapter.mjs';
 import { snapshotPackets,createSnapshotAssembler } from './snapshot-wire.mjs';
+import { makeRttMeter,describeRtt,classifySelectedPair } from './latency-metrics.mjs';
 import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // No Supabase, no production Auth, and no permanent server-side data.
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
@@ -16,6 +17,8 @@ const pendingPeerJs=new Map();
 const SNAPSHOT_ACK_RETRIES=4;
 let mode='gm',hostState=null,channel=null,playerPC=null,peerId=null,playerState=null,role='gm', applyingAnswer=false, appliedAnswerSdp=null;
 let latencyTimer=null, lastPingId=null, lastPingAt=0, latencyMs=null, sentPings=0, receivedPings=0;
+const playerRtt=makeRttMeter();
+let quickRoute='percorso non disponibile';
 let connectClient=null, autoSession=false, pendingApprovalTimer=null;
 let snapshotRecoveryTimer=null, snapshotRecoveryTries=0;
 const log=(text)=>{const line=document.createElement('div');line.textContent=new Date().toLocaleTimeString()+' · '+text;$('log').prepend(line)};
@@ -32,16 +35,17 @@ const updateLatency=()=>{
  if(mode==='gm'){
   const connected=[...peers.entries()].filter(([,peer])=>peer.channel?.readyState==='open');
   meter.textContent=connected.length===0?'Latenza: nessun giocatore collegato':
-   connected.map(([id,peer])=>id+': '+(peer.rttMs===null?'misurazione in corso':Math.round(peer.rttMs)+' ms')).join(' · ');
+   connected.map(([id,peer])=>id+': '+describeRtt(peer.rttMeter?.summary())+
+    (peer.route?' · '+peer.route:'')).join(' | ');
  }else{
-  meter.textContent=latencyMs===null?'Latenza: in attesa di misurazione':
-   'Latenza: '+Math.round(latencyMs)+' ms · risposte '+receivedPings+'/'+sentPings;
+  meter.textContent='RTT giocatore: '+describeRtt(playerRtt.summary())+
+   ' · '+quickRoute+' · risposte '+receivedPings+'/'+sentPings;
  }
 
 };
 function stopPings(){
  if(latencyTimer!==null){clearInterval(latencyTimer);latencyTimer=null;}
- lastPingId=null;latencyMs=null;sentPings=0;receivedPings=0;updateLatency();
+ lastPingId=null;latencyMs=null;sentPings=0;receivedPings=0;playerRtt.clear();updateLatency();
 }
 function startPings(c){
  stopPings();
@@ -289,7 +293,7 @@ function bindPlayerChannel(c){
     tell(channel,{kind:'pong',id:m.id});
    }else if(m.kind==='pong'&&m.id===lastPingId){
     const next=performance.now()-lastPingAt;
-    if(Number.isFinite(next)&&next>=0){latencyMs=latencyMs===null?next:latencyMs*.7+next*.3;receivedPings++;updateLatency()}
+    if(Number.isFinite(next)&&next>=0){playerRtt.add(next);latencyMs=latencyMs===null?next:latencyMs*.7+next*.3;receivedPings++;updateLatency()}
    }else if(m.kind==='error')log(m.reason)
   }catch(e){
    const details='Messaggio giocatore non elaborato: '+(e.message??'errore');
@@ -313,7 +317,7 @@ function completeHostJoin(id,name,c,conn,resumeKey=null){
  const existing=hostState.tokens[assigned];
  hostState.members[assigned]={name,...(resumeKey?{resumeKey}:{})};
  if(!existing)hostState.tokens[assigned]={owner:assigned,x:20+peers.size*15,y:55};
- const peer={pc:conn,channel:c,timer:null,pendingPing:null,sentAt:0,rttMs:null,syncTimer:null,syncAttempts:0,syncAcked:false};
+ const peer={pc:conn,channel:c,timer:null,pendingPing:null,sentAt:0,rttMs:null,rttMeter:makeRttMeter(),route:'percorso non disponibile',syncTimer:null,syncAttempts:0,syncAcked:false};
  peers.set(assigned,peer);beginHostPing(assigned,peer);save();broadcast();awaitSnapshotAck(assigned);updateLatency();
  displayStatus('Giocatore '+name+' autorizzato e collegato');
  return assigned;
@@ -370,6 +374,7 @@ function bindHostChannel(c,id,conn,{requireApproval=false}={}){
      if(peer?.pendingPing===msg.id){
       const elapsed=performance.now()-peer.sentAt;
       if(Number.isFinite(elapsed)&&elapsed>=0){
+       peer.rttMeter?.add(elapsed);
        peer.rttMs=peer.rttMs===null?elapsed:peer.rttMs*.7+elapsed*.3;
        peer.pendingPing=null;updateLatency();
       }
@@ -410,6 +415,14 @@ function bindHostChannel(c,id,conn,{requireApproval=false}={}){
     if(peers.get(id)?.channel===c)endHostPing(id,peers.get(id));
     displayStatus('Giocatore '+id+' disconnesso');
    };
+}
+async function inspectIceRoute(raw,onResult){
+ try{
+  const pc=raw.peerConnection;
+  if(!pc||typeof pc.getStats!=='function')return;
+  const report=await pc.getStats();
+  onResult(classifySelectedPair(report));
+ }catch(e){log('Statistiche WebRTC non disponibili: '+e.message)}
 }
 const peerJsAdapter=raw=>adaptPeerJsConnection(raw,{onError:error=>log('PeerJS canale: '+(error.message??error.type??'errore'))});
 
@@ -559,7 +572,7 @@ function stopQuickPeer(){
  quickStopRequested=true;
  quickGeneration++;
  if(quickRetryTimer!==null){clearTimeout(quickRetryTimer);quickRetryTimer=null}
- quickConnection=null;quickRole=null;quickRoom=null;quickRetryAttempt=0;quickResumeKey=null;
+ quickConnection=null;quickRole=null;quickRoom=null;quickRetryAttempt=0;quickResumeKey=null;quickRoute='percorso non disponibile';
  for(const request of pendingPeerJs.values())request.channel.close();
  pendingPeerJs.clear();updateQuickApprovals();
  if(quickPeer){quickPeer.destroy();quickPeer=null}
@@ -600,6 +613,8 @@ function connectQuickPlayer(){
   if(quickRetryTimer!==null){clearTimeout(quickRetryTimer);quickRetryTimer=null}
   $('quickReconnect').textContent='Connessione ripristinata · autorizzazione del GM richiesta';
   onOpen?.();
+  void inspectIceRoute(raw,route=>{if(quickConnection===adapter){quickRoute=route;updateLatency()}});
+  setTimeout(()=>{if(quickConnection===adapter)void inspectIceRoute(raw,route=>{quickRoute=route;updateLatency()})},2500);
  };
  adapter.onclose=()=>{
   clearTimeout(connectionTimeout);
@@ -653,7 +668,14 @@ $('quickHost').onclick=async()=>{
   });
   peer.on('connection',raw=>{
    const id='P-'+genId().slice(0,6);
-   bindHostChannel(peerJsAdapter(raw),id,{close:()=>raw.close()},{requireApproval:true});
+   const adapter=peerJsAdapter(raw);
+   bindHostChannel(adapter,id,{close:()=>raw.close(),peerConnection:raw.peerConnection},{requireApproval:true});
+   const checkRoute=()=>void inspectIceRoute(raw,route=>{
+    const p=peers.get(id);
+    if(p?.channel===adapter){p.route=route;updateLatency()}
+   });
+   raw.on('open',()=>setTimeout(checkRoute,1000));
+   if(raw.open)setTimeout(checkRoute,1000);
   });
   $('quickCode').textContent=code;
   displayStatus('Stanza demo '+code+' attiva: comunica il codice al giocatore');
