@@ -35,7 +35,24 @@ INSERT INTO public.chat_messages VALUES
 GRANT USAGE ON SCHEMA public,auth TO authenticated;
 GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated;
 GRANT SELECT ON public.campaigns,public.campaign_members TO authenticated;
-GRANT SELECT,INSERT,UPDATE ON public.chat_messages TO authenticated;
+GRANT SELECT,INSERT,UPDATE,DELETE ON public.chat_messages TO authenticated;
+-- Exercise the chat proposal together with the deployed membership read model.
+-- These fixture policies mirror observed production SELECT semantics; they are
+-- not an export or a replacement for the complete production RLS policies.
+ALTER TABLE public.campaigns ENABLE ROW LEVEL SECURITY;
+CREATE POLICY campaigns_select_own ON public.campaigns FOR SELECT TO authenticated
+ USING (owner_profile_id = (SELECT auth.uid())::text);
+ALTER TABLE public.campaign_members ENABLE ROW LEVEL SECURITY;
+CREATE POLICY campaign_members_select_if_member_or_owner
+ ON public.campaign_members FOR SELECT TO authenticated
+ USING (
+   profile_id = (SELECT auth.uid())::text
+   OR EXISTS (
+     SELECT 1 FROM public.campaigns c
+     WHERE c.id=campaign_members.campaign_id
+       AND c.owner_profile_id=(SELECT auth.uid())::text
+   )
+ );
 ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
 SQL
 # The real SQL proposal from the branch, not recreated test-only policies.
@@ -77,6 +94,54 @@ assert_denied() {
 assert_denied cross_campaign "$PLAYER_A" "INSERT INTO public.chat_messages VALUES ('10000000-0000-4000-8000-000000000004','00000000-0000-4000-8000-0000000000b1','$PLAYER_A','player A','forged');"
 assert_denied spoof_sender "$PLAYER_A" "INSERT INTO public.chat_messages VALUES ('10000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-0000000000a1','$GM_A','GM A','forged');"
 assert_denied outsider_insert "$OUTSIDER" "INSERT INTO public.chat_messages VALUES ('10000000-0000-4000-8000-000000000006','00000000-0000-4000-8000-0000000000a1','$OUTSIDER','outsider','forged');"
+# Reproduce only the deployed delete rule in the isolated fixture;
+# the SELECT/INSERT/UPDATE proposal remains unchanged.
+"${compose[@]}" exec -T postgres psql -v ON_ERROR_STOP=1 -U hollowgate_test -d hollowgate_test <<'SQL'
+CREATE POLICY chat_messages_delete ON public.chat_messages FOR DELETE TO authenticated
+ USING (
+   sender_id=(SELECT auth.uid())::text
+   OR EXISTS (
+     SELECT 1 FROM public.campaigns c
+     WHERE c.id=chat_messages.campaign_id
+       AND c.owner_profile_id=(SELECT auth.uid())::text
+   )
+ );
+SQL
+# A GM may see their own campaign but must not see the other GM's.
+assert_visible() {
+  local result
+  result="$(query_as "$1" "$2" | tail -n 1)"
+  [[ "$result" == "$3" ]] || { echo "FAIL: $4 visibility expected $3 got $result" >&2; exit 1; }
+}
+assert_visible "$GM_A" "SELECT count(*) FROM public.campaigns;" 1 "GM campaign"
+assert_visible "$GM_A" "SELECT count(*) FROM public.campaign_members;" 1 "GM membership"
+assert_visible "$PLAYER_A" "SELECT count(*) FROM public.campaigns;" 0 "player campaigns"
+assert_visible "$PLAYER_A" "SELECT count(*) FROM public.campaign_members;" 1 "player membership"
+assert_visible "$OUTSIDER" "SELECT count(*) FROM public.campaigns;" 0 "outsider campaigns"
+assert_visible "$OUTSIDER" "SELECT count(*) FROM public.campaign_members;" 0 "outsider memberships"
+# In absence of INSERT and UPDATE membership policies, players cannot add themselves.
+assert_denied forge_membership "$OUTSIDER" "INSERT INTO public.campaign_members VALUES ('00000000-0000-4000-8000-0000000000a1','$OUTSIDER');"
+# DELETE returns zero rows when the authenticated user is neither the sender
+# nor the campaign owner. Use RETURNING rather than treating zero as SQL failure.
+assert_delete_count() {
+  local actual
+  actual="$(query_as "$1" "DELETE FROM public.chat_messages WHERE id='$2' RETURNING id;" | grep -c '^10000000-' || true)"
+  [[ "$actual" == "$3" ]] || { echo "FAIL: $4 deleted $actual rows, expected $3" >&2; exit 1; }
+}
+assert_delete_count "$PLAYER_A" 10000000-0000-4000-8000-000000000001 0 "player cannot delete GM's post"
+assert_delete_count "$PLAYER_B" 10000000-0000-4000-8000-000000000001 0 "other campaign cannot delete"
+assert_delete_count "$OUTSIDER" 10000000-0000-4000-8000-000000000001 0 "outsider cannot delete"
+assert_delete_count "$GM_A" 10000000-0000-4000-8000-000000000001 1 "GM deletes own post"
+assert_delete_count "$GM_A" 10000000-0000-4000-8000-000000000002 0 "GM cannot delete other campaign"
+# An author's delete is also allowed when the message belongs to their campaign.
+# A real player message is inserted within the same transaction for this assertion.
+author_delete="$(query_as "$PLAYER_A" "INSERT INTO public.chat_messages VALUES ('10000000-0000-4000-8000-000000000007','00000000-0000-4000-8000-0000000000a1','$PLAYER_A','player A','test'); DELETE FROM public.chat_messages WHERE id='10000000-0000-4000-8000-000000000007' RETURNING id;" | grep -c '^10000000-0000-4000-8000-000000000007
+changed="$(query_as "$PLAYER_A" "UPDATE public.chat_messages SET content='tampered' WHERE campaign_id='00000000-0000-4000-8000-0000000000a1' RETURNING id;" | tail -n 1)"
+[[ "$changed" == "" ]] || { echo "FAIL: UPDATE returned a row: $changed" >&2; exit 1; }
+echo 'PASS: deployed-shape chat SQL proposal enforces cross-campaign isolation on PostgreSQL 17'
+ || true)"
+[[ "$author_delete" == 1 ]] || { echo "FAIL: author deletion did not work" >&2; exit 1; }
+
 # With SQL UPDATE privilege but no RLS UPDATE policy, no row may be returned.
 changed="$(query_as "$PLAYER_A" "UPDATE public.chat_messages SET content='tampered' WHERE campaign_id='00000000-0000-4000-8000-0000000000a1' RETURNING id;" | tail -n 1)"
 [[ "$changed" == "" ]] || { echo "FAIL: UPDATE returned a row: $changed" >&2; exit 1; }
