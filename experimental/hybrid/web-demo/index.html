@@ -12,7 +12,19 @@
 <section class="mode">
 <button id="hostMode" class="selected">Sono il GM</button><button id="playerMode">Sono un giocatore</button>
 </section>
-<section class="card compact" id="connectPanel">
+<section class="card" id="quickPanel">
+<h2>Hollowgate Connect rapido — codice stanza</h2>
+<p>Prova il collegamento senza copiare offerte e risposte. Per questa demo usiamo temporaneamente il servizio pubblico di segnalazione PeerJS; <strong>nessun contenuto di gioco viene salvato sul server</strong>. Utilizza solo dati fittizi: non è autenticato con gli account reali.</p>
+<div class="controls">
+ <button id="quickHost">Crea stanza demo come GM</button>
+ <input id="quickRoom" class="room-input" placeholder="Codice di 12 caratteri" maxlength="12" aria-label="Codice stanza rapido">
+ <button id="quickJoin">Partecipa come giocatore</button>
+ <button id="quickStop" class="secondary">Disconnetti</button>
+</div>
+<p>Codice da comunicare ai giocatori: <strong id="quickCode" class="room-code">—</strong></p>
+<p class="hint">Il servizio esterno vede metadati di collegamento e indirizzi IP, non la cronologia della partita. Può essere indisponibile e alcuni router richiedono TURN. Resta disponibile il metodo manuale qui sotto.</p>
+</section>
+<details class="card compact" id="connectPanel"><summary>Opzioni avanzate — server Hollowgate Connect dedicato (non ancora disponibile)</summary>
 <h2>Hollowgate Connect — collegamento con codice stanza</h2>
 <p>Il sistema di connessione automatica è pronto per i test, ma richiede un servizio HTTPS separato che non è ancora pubblicato. La modalità manuale rimane disponibile.</p>
 <label for="connectEndpoint">Indirizzo HTTPS del servizio Connect (solo ambiente di prova)</label>
@@ -23,7 +35,7 @@
 <button id="connectJoin" disabled>Entra con codice</button>
 <button id="connectDisconnect" class="secondary">Chiudi Connect</button></div>
 <p>Codice della stanza GM: <strong id="roomCode">—</strong></p>
-</section>
+</details>
 <section id="hostSetup" class="card">
 <h2>1. Avvia una partita</h2><p>Lo stato della partita viene salvato in questo browser. Puoi ricaricare la pagina e continuare come GM, ma gli altri giocatori dovranno ricollegarsi.</p>
 <div class="controls"><button id="startHost">Avvia / riprendi la campagna demo</button><button id="resetHost" class="danger">Azzera soltanto i dati demo</button></div>
@@ -54,5 +66,6 @@
 <section class="card compact"><h2>Registro tecnico</h2><div id="log" role="log" aria-live="polite"></div></section>
 <footer>Demo standalone su preview separata · Nessun account reale · Nessuna modifica al sito di produzione</footer>
 </main>
+<script defer src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <script type="module" src="./demo.js"></script>
 </body></html>

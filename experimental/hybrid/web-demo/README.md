@@ -66,3 +66,21 @@ usa identità sintetiche, stanza condivisa non autenticata e non prevede
 rate limiting, TLS, controlli di abuso o protezioni di origine. Il suo
 listener è limitato a localhost. Non puntare il pannello a Supabase o
 al sito di produzione.
+
+## Collegamento rapido dimostrativo (PeerJS Cloud)
+
+È disponibile una modalità opzionale di prova **senza endpoint personalizzato**:
+il GM preme «Crea stanza demo come GM», invia il codice casuale di
+12 caratteri, e il giocatore preme «Partecipa come giocatore».
+Il broker pubblico PeerJS `0.peerjs.com` gestisce la segnalazione
+WebRTC (offerte, risposte, IP, metadati), mentre lo stato della
+campagna e i comandi restano sui canali WebRTC tra browser. Non si
+usa l'autenticazione degli utenti di Hollowgate. **Non inserire
+contenuti reali**. Disponibilità e limiti sono stabiliti dal provider
+terzo. TURN può essere necessario su altre reti.
+
+Questa prova **non equivale** al rilascio del server Hollowgate Connect
+proprietario: il codice `signaling-hub.mjs` resta locale/non
+pubblicabile finché non abbiamo infrastruttura HTTPS e autentificazione.
+Per la versione reale serviranno anche un sistema di accessi per
+campagna, sicurezza e protezioni contro gli abusi.
