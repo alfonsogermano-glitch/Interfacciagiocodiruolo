@@ -82,7 +82,7 @@ test('mobile quick join hides manual SDP controls and scrolls to first game snap
  assert.match(html,/id="quickDiagnostics"/);
  for(const token of ["$('playerSetup').hidden=true", "$('hostSetup').hidden=true", "requestAnimationFrame(()=>$('session').scrollIntoView", "quickDiag('Snapshot ricevuto", "quickDiag('Campo ricevuto"])
   assert.ok(app.includes(token),token);
- assert.match(html,/demo\.js\?v=lan-ice-trial-20261110/);
+ assert.match(html,/demo\.js\?v=ice-pair-report-20261110/);
 });
 
 test('snapshots are transferred through small bounded packets and reassembled before board render',()=>{
@@ -112,4 +112,9 @@ test('diagnostics distinguish signaling arrival, WebRTC opening and GM join requ
 test('LAN Wi-Fi toggle selects host-only ICE on both peers via marked room code',()=>{
  assert.match(html,/id="quickLan"/);
  for(const part of ["encodeRoomMode(newQuickCode(),$('quickLan').checked)","iceConfigForRoom(roomCode,stun)","openQuickPeer(PEER_ID_PREFIX+code,code)","openQuickPeer(undefined,code)","roomIceMode(quickRoom)==='lan'"])assert.ok(app.includes(part),part);
+});
+
+test('ICE failure includes candidate counts and pair attempts on both GM and player',()=>{
+ for(const fragment of ['awaitIceSnapshot(raw,\'Giocatore\')','awaitIceSnapshot(raw,\'GM \'+id)','inspectIceConnection(raw)'])
+  assert.ok(app.includes(fragment),fragment);
 });

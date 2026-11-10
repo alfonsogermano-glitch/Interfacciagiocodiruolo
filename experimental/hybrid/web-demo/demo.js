@@ -7,6 +7,7 @@ import { makeRttMeter,describeRtt,classifySelectedPair } from './latency-metrics
 import { newRoomCode,explainPeerFailure } from './room-lifecycle.mjs';
 import { connectionProblem,retryablePeerError } from './connection-diagnostics.mjs';
 import { encodeRoomMode,iceConfigForRoom,roomIceMode } from './lan-ice-mode.mjs';
+import { inspectIceConnection } from './ice-candidate-report.mjs';
 import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // No Supabase, no production Auth, and no permanent server-side data.
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
@@ -420,6 +421,11 @@ function bindHostChannel(c,id,conn,{requireApproval=false}={}){
     displayStatus('Giocatore '+id+' disconnesso');
    };
 }
+async function awaitIceSnapshot(raw,side){
+ const info=await inspectIceConnection(raw);
+ log(side+' · '+info);
+ return info;
+}
 async function inspectIceRoute(raw,onResult){
  try{
   const pc=raw.peerConnection;
@@ -621,6 +627,8 @@ function connectQuickPlayer(){
    const state=raw.peerConnection?.iceConnectionState??'non disponibile';
    const explanation=connectionProblem(state,raw.peerConnection?.connectionState);
    quickDiag(explanation||'Canale WebRTC non aperto (ICE: '+state+'). Verifica codice, Wi-Fi e rete ospiti.');
+   const iceSummary=awaitIceSnapshot(raw,'Giocatore');
+   void iceSummary.then(summary=>{if(summary)quickDiag('WebRTC non aperto · '+summary)});
    raw.close();
    scheduleQuickRetry();
   }
@@ -714,11 +722,16 @@ $('quickHost').onclick=async()=>{
    log('GM: richiesta di connessione PeerJS ricevuta da '+id+' · apertura WebRTC in corso');
    quickDiag('Richiesta PeerJS ricevuta · attendo apertura del canale WebRTC');
    raw.on('open',()=>{log('GM: canale WebRTC aperto per '+id);quickDiag('Canale WebRTC aperto · attendo richiesta di ingresso')});
-   raw.on('error',error=>{log('GM: errore canale '+id+' · '+error.message);quickDiag('Errore apertura WebRTC: '+error.message)});
+   raw.on('error',error=>{
+    log('GM: errore canale '+id+' · '+error.message);
+    quickDiag('Errore apertura WebRTC: '+error.message);
+    void awaitIceSnapshot(raw,'GM '+id);
+   });
    raw.on('iceStateChanged',state=>{
     log('GM: ICE '+id+' '+state);
     const diagnostic=connectionProblem(state,raw.peerConnection?.connectionState);
     if(diagnostic)quickDiag(diagnostic);
+    if(state==='disconnected'||state==='failed')void awaitIceSnapshot(raw,'GM '+id);
    });
    const adapter=peerJsAdapter(raw);
    bindHostChannel(adapter,id,{close:()=>raw.close(),peerConnection:raw.peerConnection},{requireApproval:true});
