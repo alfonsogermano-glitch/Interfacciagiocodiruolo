@@ -172,7 +172,7 @@ $('createOffer').onclick=async()=>{
 // Use the same game command handlers for manual WebRTC and quick-connect PeerJS.
 function bindPlayerChannel(c){
   channel=c;
-  channel.onopen=()=>{tell(channel,{kind:'join',name:validateName($('playerName').value)});startPings(channel);displayStatus('Connessione diretta aperta; attendo il GM')};
+  channel.onopen=()=>{tell(channel,{kind:'join',name:validateName($('playerName').value),resumeKey:quickRole==='player'?quickResumeKey:null});startPings(channel);displayStatus('Connessione diretta aperta; attendo il GM')};
   channel.onclose=()=>{stopPings();displayStatus('Connessione con il GM chiusa')};
   channel.onmessage=e=>{try{
    const m=JSON.parse(e.data);
@@ -188,13 +188,26 @@ function bindPlayerChannel(c){
    }else if(m.kind==='error')log(m.reason)
   }catch{log('Messaggio non valido')}};
 }
-function completeHostJoin(id,name,c,conn){
- if(peers.has(id))return;
- hostState.members[id]={name};
- hostState.tokens[id]={owner:id,x:20+peers.size*15,y:55};
+function completeHostJoin(id,name,c,conn,resumeKey=null){
+ // Resume only after an explicit fresh GM approval. Never trust resumeKey
+ // as authorization; it is just a lookup for the prior demo token.
+ let assigned=id;
+ if(typeof resumeKey==='string'&&/^[0-9a-f-]{36}$/.test(resumeKey)){
+  const previous=Object.entries(hostState.members).find(([,m])=>m.resumeKey===resumeKey);
+  if(previous)assigned=previous[0];
+ }
+ if(peers.has(assigned)){
+  const previous=peers.get(assigned);
+  endHostPing(assigned,previous);
+  previous.channel.close();
+ }
+ const existing=hostState.tokens[assigned];
+ hostState.members[assigned]={name,...(resumeKey?{resumeKey}:{})};
+ if(!existing)hostState.tokens[assigned]={owner:assigned,x:20+peers.size*15,y:55};
  const peer={pc:conn,channel:c,timer:null,pendingPing:null,sentAt:0,rttMs:null};
- peers.set(id,peer);beginHostPing(id,peer);save();broadcast();updateLatency();
+ peers.set(assigned,peer);beginHostPing(assigned,peer);save();broadcast();updateLatency();
  displayStatus('Giocatore '+name+' autorizzato e collegato');
+ return assigned;
 }
 function updateQuickApprovals(){
  const target=$('quickApprovals');
@@ -212,7 +225,8 @@ function updateQuickApprovals(){
    if(!pendingPeerJs.has(request.id))return;
    pendingPeerJs.delete(request.id);updateQuickApprovals();
    tell(request.channel,{kind:'approved'});
-   completeHostJoin(request.id,request.name,request.channel,request.conn);
+   const assigned=completeHostJoin(request.id,request.name,request.channel,request.conn,request.resumeKey);
+   request.setAssignedId?.(assigned);
   };
   reject.onclick=()=>{
    if(!pendingPeerJs.has(request.id))return;
@@ -245,7 +259,7 @@ function bindHostChannel(c,id,conn,{requireApproval=false}={}){
      if(requireApproval){
       if(!pendingPeerJs.has(id)&&!peers.has(id)){
        if(pendingPeerJs.size>=12){tell(c,{kind:'rejected'});c.close();return}
-       pendingPeerJs.set(id,{id,name,channel:c,conn});
+       pendingPeerJs.set(id,{id,name,channel:c,conn,resumeKey:msg.resumeKey,setAssignedId:(assigned)=>{id=assigned}});
        updateQuickApprovals();
        tell(c,{kind:'waiting'});
        log('Richiesta di accesso da '+name+' · '+id);
@@ -259,7 +273,7 @@ function bindHostChannel(c,id,conn,{requireApproval=false}={}){
    }catch{tell(c,{kind:'error',reason:'Comando non valido'})}};
    c.onclose=()=>{
     pendingPeerJs.delete(id);updateQuickApprovals();
-    endHostPing(id,peers.get(id));
+    if(peers.get(id)?.channel===c)endHostPing(id,peers.get(id));
     displayStatus('Giocatore '+id+' disconnesso');
    };
 }
@@ -417,7 +431,7 @@ $('connectDisconnect').onclick=async()=>{
 // It is NOT an authenticated Hollowgate Connect server.
 const PEER_ID_PREFIX='hollowgate-lab-';
 const ROOM_ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-let quickPeer=null,quickRole=null,quickRoom=null,quickConnection=null,quickRetryTimer=null,quickRetryAttempt=0,quickStopRequested=true,quickGeneration=0;
+let quickPeer=null,quickRole=null,quickRoom=null,quickConnection=null,quickRetryTimer=null,quickRetryAttempt=0,quickStopRequested=true,quickGeneration=0,quickResumeKey=null;
 function newQuickCode(){
  const bytes=crypto.getRandomValues(new Uint8Array(12));
  return Array.from(bytes,value=>ROOM_ALPHABET[value%ROOM_ALPHABET.length]).join('');
@@ -426,7 +440,7 @@ function stopQuickPeer(){
  quickStopRequested=true;
  quickGeneration++;
  if(quickRetryTimer!==null){clearTimeout(quickRetryTimer);quickRetryTimer=null}
- quickConnection=null;quickRole=null;quickRoom=null;quickRetryAttempt=0;
+ quickConnection=null;quickRole=null;quickRoom=null;quickRetryAttempt=0;quickResumeKey=null;
  for(const request of pendingPeerJs.values())request.channel.close();
  pendingPeerJs.clear();updateQuickApprovals();
  if(quickPeer){quickPeer.destroy();quickPeer=null}
@@ -452,8 +466,16 @@ function connectQuickPlayer(){
  const adapter=adaptPeerJsConnection(raw);
  quickConnection=adapter;
  bindPlayerChannel(adapter);
+ const connectionTimeout=setTimeout(()=>{
+  if(quickConnection===adapter&&adapter.readyState!=='open'){
+   log('Collegamento rapido: apertura scaduta, nuovo tentativo');
+   raw.close();
+   scheduleQuickRetry();
+  }
+ },12000);
  const onOpen=adapter.onopen, onClose=adapter.onclose;
  adapter.onopen=()=>{
+  clearTimeout(connectionTimeout);
   if(quickStopRequested||quickConnection!==adapter){raw.close();return}
   quickRetryAttempt=0;
   if(quickRetryTimer!==null){clearTimeout(quickRetryTimer);quickRetryTimer=null}
@@ -461,6 +483,7 @@ function connectQuickPlayer(){
   onOpen?.();
  };
  adapter.onclose=()=>{
+  clearTimeout(connectionTimeout);
   if(quickConnection!==adapter)return;
   onClose?.();
   scheduleQuickRetry();
@@ -526,7 +549,7 @@ $('quickJoin').onclick=async()=>{
   selectMode('player');playerState=null;
   const peer=await openQuickPeer();
   quickPeer=peer;
-  quickRole='player';quickRoom=code;quickStopRequested=false;quickRetryAttempt=0;
+  quickRole='player';quickRoom=code;quickStopRequested=false;quickRetryAttempt=0;quickResumeKey=crypto.randomUUID();
   connectQuickPlayer();
   $('quickReconnect').textContent='Collegamento in corso';
   displayStatus('Collegamento rapido verso '+code+' in corso');

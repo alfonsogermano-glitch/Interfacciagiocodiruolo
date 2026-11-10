@@ -57,3 +57,7 @@ test('quick reconnect is bounded, reuses room code and never skips GM approval',
  for(const p of ["scheduleQuickRetry()","quickRetryAttempt","retryDelay(","quickGeneration","quickStopRequested","sessionStorage.getItem(QUICK_SESSION)","sessionStorage.setItem(QUICK_SESSION","connectQuickPlayer()","requireApproval:true"])
   assert.ok(app.includes(p),p);
 });
+
+test('quick reconnect preserves approved token but still requires new GM authorization',()=>{
+ for(const p of ['resumeKey:quickRole===\'player\'?quickResumeKey:null','request.setAssignedId?.(assigned)','previous=Object.entries(hostState.members).find','completeHostJoin(request.id,request.name,request.channel,request.conn,request.resumeKey)','if(peers.get(id)?.channel===c)','const connectionTimeout=setTimeout']) assert.ok(app.includes(p),p);
+});
