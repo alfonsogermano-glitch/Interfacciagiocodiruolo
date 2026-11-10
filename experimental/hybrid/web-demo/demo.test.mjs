@@ -16,3 +16,7 @@ test('separate user workflow for GM/player and destructive demo reset confirmati
  for(const id of ['hostMode','playerMode','createOffer','acceptOffer','applyAnswer','resetHost','board','timeline'])assert.ok(html.includes('id="'+id+'"'),id);
  assert.match(app,/confirm\('Cancellare esclusivamente/);
 });
+test('browser demo reports actual WebRTC data-channel round-trip latency',()=>{
+ assert.match(html,/id="latencyMeter"/);
+ for(const p of ["kind:'ping'","kind:'pong'","performance.now()","startPings(channel)","stopPings()"])assert.ok(app.includes(p),p);
+});
