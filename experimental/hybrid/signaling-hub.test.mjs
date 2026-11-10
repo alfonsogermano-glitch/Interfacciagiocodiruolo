@@ -95,6 +95,7 @@ test('acknowledged signaling messages are removed from memory, while future mess
  const {call}=await setup(t);
  const host=(await call('create')).data;
  const player=(await call('join',{room:host.room})).data;
+ assert.equal((await call('decision',{room:host.room,peerId:player.peerId,approve:true},host.token)).status,200);
  await call('send',{room:host.room,to:'host',kind:'offer',description:'old'},player.token);
  const first=(await call('poll',{room:host.room,after:0},host.token)).data.messages[0];
  assert.equal(first.description,'old');

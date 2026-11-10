@@ -10,7 +10,7 @@ const stun={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
 const peers=new Map();
 let mode='gm',hostState=null,channel=null,playerPC=null,peerId=null,playerState=null,role='gm', applyingAnswer=false, appliedAnswerSdp=null;
 let latencyTimer=null, lastPingId=null, lastPingAt=0, latencyMs=null, sentPings=0, receivedPings=0;
-let connectClient=null, autoSession=false;
+let connectClient=null, autoSession=false, pendingApprovalTimer=null;
 const log=(text)=>{const line=document.createElement('div');line.textContent=new Date().toLocaleTimeString()+' · '+text;$('log').prepend(line)};
 const copy=async(id)=>{try{await navigator.clipboard.writeText($(id).value);log('Testo copiato negli appunti')}catch{ $(id).select();log('Seleziona e copia con Ctrl+C')}}; 
 $('copyHostAnswer').onclick=()=>copy('hostAnswer');$('copyPlayerOffer').onclick=()=>copy('playerOffer');
@@ -279,6 +279,8 @@ function configureConnectPanel(){
 $('connectEndpoint').addEventListener('input',configureConnectPanel);
 configureConnectPanel();
 async function closeConnect(){
+ if(pendingApprovalTimer!==null){clearInterval(pendingApprovalTimer);pendingApprovalTimer=null}
+ $('pendingApprovals').replaceChildren();
  autoSession=false;
  if(connectClient){const old=connectClient;connectClient=null;await old.leave();}
  $('roomCode').textContent='—';
@@ -294,6 +296,24 @@ $('connectHost').onclick=async()=>{
   $('roomCode').textContent=room;
   displayStatus('Stanza '+room+' pronta: condividi soltanto questo codice');
   const active=connectClient;
+  async function updatePending(){
+   if(active!==connectClient)return;
+   try{
+    const requests=await active.pendingRequests();
+    const list=$('pendingApprovals');list.replaceChildren();
+    for(const request of requests){
+     const item=document.createElement('div');item.className='approval-entry';
+     const name=document.createElement('span');name.textContent=request.name+' chiede di partecipare';
+     const yes=document.createElement('button');yes.textContent='Autorizza';
+     const no=document.createElement('button');no.textContent='Rifiuta';no.className='secondary';
+     yes.onclick=async()=>{try{await active.decide(request.peerId,true);await updatePending()}catch(e){log('Autorizzazione: '+e.message)}};
+     no.onclick=async()=>{try{await active.decide(request.peerId,false);await updatePending()}catch(e){log('Rifiuto: '+e.message)}};
+     item.append(name,yes,no);list.append(item);
+    }
+    $('pendingHint').textContent=requests.length?'Richieste in attesa: '+requests.length:'Nessuna richiesta di accesso in attesa';
+   }catch(e){log('Richieste: '+e.message)}
+  }
+  await updatePending();pendingApprovalTimer=setInterval(()=>{void updatePending()},2000);
   void active.listen(async message=>{
    if(active!==connectClient)return;
    if(message.kind==='offer'&&message.from!=='host'){
@@ -311,8 +331,11 @@ $('connectJoin').onclick=async()=>{
   if(!/^[A-Z2-9]{8}$/.test(room))throw Error('Codice stanza non valido');
   await closeConnect();
   connectClient=createConnectClient({endpoint});
-  await connectClient.joinRoom(room);
+  await connectClient.joinRoom(room,validateName($('playerName').value));
   autoSession=true;
+  displayStatus('Richiesta inviata · attendo autorizzazione del GM');
+  await connectClient.awaitApproval();
+  displayStatus('Accesso autorizzato dal GM · preparo WebRTC');
   await $('createOffer').onclick();
   if(!playerPC?.localDescription)throw Error('Offerta non generata');
   await connectClient.send('host','offer',JSON.stringify(playerPC.localDescription));

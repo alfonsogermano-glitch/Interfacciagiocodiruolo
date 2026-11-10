@@ -38,3 +38,19 @@ un indirizzo HTTPS proprietario.
 
 Il canale PeerJS usato nella demo precedente rimane il fallback
 sperimentale, e non fa parte del backend proprietario.
+
+## Gate GM approvazione (implementato solo nel prototipo dedicato)
+
+L'endpoint `/v1/join` crea esclusivamente una richiesta `pending`.
+Il GM consulta `/v1/pending` e sceglie `/v1/decision`, con
+approvazione o rifiuto esplicito. Fino a decisione positiva,
+`/v1/send` e `/v1/poll` restituiscono 403. Il giocatore controlla
+`/v1/status` e il client web attende l'autorizzazione prima di
+creare e inviare l'offerta WebRTC.
+
+**Attenzione:** il nome visualizzato del richiedente è dichiarato
+dal browser e non rappresenta un'identità autenticata. Il futuro
+server pubblico richiede ancora verifica dell'account esistente,
+autenticazione del GM, autorizzazioni per campagna e sicurezza di rete.
+Questa UI è accessibile solo nel pannello avanzato dedicato,
+non modifica il percorso demo PeerJS.

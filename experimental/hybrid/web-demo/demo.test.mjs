@@ -39,3 +39,8 @@ test('quick PeerJS demo uses code-based signaling with existing encrypted game c
  assert.match(html,/non è autenticato/);
  assert.match(html,/metadati di collegamento e indirizzi IP/);
 });
+
+test('dedicated Connect approval UI requires GM decision before player offers',()=>{
+ for(const id of ['pendingApprovals','pendingHint'])assert.match(html,new RegExp('id="'+id+'"'));
+ for(const snippet of ['await connectClient.awaitApproval()','active.pendingRequests()','active.decide(request.peerId,true)','active.decide(request.peerId,false)'])assert.ok(app.includes(snippet),snippet);
+});
