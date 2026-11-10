@@ -82,7 +82,7 @@ test('mobile quick join hides manual SDP controls and scrolls to first game snap
  assert.match(html,/id="quickDiagnostics"/);
  for(const token of ["$('playerSetup').hidden=true", "$('hostSetup').hidden=true", "requestAnimationFrame(()=>$('session').scrollIntoView", "quickDiag('Snapshot ricevuto", "quickDiag('Campo ricevuto"])
   assert.ok(app.includes(token),token);
- assert.match(html,/demo\.js\?v=mobile-board-20261110/);
+ assert.match(html,/demo\.js\?v=snapshot-chunks-20261110/);
 });
 
 test('snapshots are transferred through small bounded packets and reassembled before board render',()=>{
