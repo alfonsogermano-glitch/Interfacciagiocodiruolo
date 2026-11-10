@@ -44,3 +44,10 @@ test('dedicated Connect approval UI requires GM decision before player offers',(
  for(const id of ['pendingApprovals','pendingHint'])assert.match(html,new RegExp('id="'+id+'"'));
  for(const snippet of ['await connectClient.awaitApproval()','active.pendingRequests()','active.decide(request.peerId,true)','active.decide(request.peerId,false)'])assert.ok(app.includes(snippet),snippet);
 });
+
+test('quick PeerJS requires explicit GM approval before snapshot and token assignment',()=>{
+ assert.match(html,/id="quickApprovals"/);
+ assert.match(html,/id="quickApprovalInfo"/);
+ for(const part of ['pendingPeerJs.set(id,','requireApproval:true','completeHostJoin(request.id,','request.channel.close()','textContent=\'Autorizza\'','textContent=\'Rifiuta\''])assert.ok(app.includes(part),part);
+ assert.ok(app.indexOf('if(requireApproval)')<app.indexOf('completeHostJoin(id,name,c,conn);'));
+});
