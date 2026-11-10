@@ -15,7 +15,7 @@ import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
 // Manual signaling is intentionally temporary until Hollowgate Hub exists.
 const $=id=>document.getElementById(id);
-const DEMO_REVISION='turn-relay-optin-20261110';
+const DEMO_REVISION='turn-relay-diagnostics-20261111';
 const STORAGE='hollowgate-hybrid-web-demo-v1';
 // Codes are per-live-room, not durable across reloads: an old PeerJS ID can be stale.
 const stun={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
@@ -736,7 +736,7 @@ $('quickHost').onclick=async()=>{
   if(peer.id!==PEER_ID_PREFIX+code)throw Error('Il codice della stanza non corrisponde al PeerJS attivo');
   quickPeer=peer;quickRole='gm';quickRoom=code;quickStopRequested=false;
   quickDiag('Stanza '+(isTurnRoom(code)?'TURN relay (solo relay)':roomIceMode(code)==='lan'?'Wi-Fi locale (senza STUN)':'standard (STUN)')+' · attendo giocatori');
-  log('Nuova stanza verificata sul server PeerJS · codice '+code+' · ICE '+roomIceMode(code));
+  log('Nuova stanza verificata sul server PeerJS · codice '+code+' · ICE '+(isTurnRoom(code)?'relay-only':roomIceMode(code)));
   peer.on('disconnected',()=>{
    if(quickStopRequested||quickPeer!==peer)return;
    quickDiag('GM scollegato dal servizio di segnalazione: i nuovi ingressi non possono arrivare');
@@ -756,6 +756,31 @@ $('quickHost').onclick=async()=>{
   peer.on('connection',raw=>{
    if(hostGeneration!==quickGeneration||quickPeer!==peer){raw.close();return}
    const id='P-'+genId().slice(0,6);
+   if(isTurnRoom(code)){
+    // A working signaling connection does not demonstrate working TURN.
+    // Observe the underlying browser ICE agent even if PeerJS never opens.
+    let observedPc=null;
+    const attachTurnErrors=()=>{
+     const pc=raw.peerConnection;
+     if(!pc||pc===observedPc)return Boolean(observedPc);
+     observedPc=pc;
+     if(typeof pc.addEventListener==='function')pc.addEventListener('icecandidateerror',event=>{
+      if(hostGeneration!==quickGeneration||quickPeer!==peer)return;
+      log('GM '+id+': errore raccolta TURN/ICE '+(event.errorCode??'?')+' · '+(event.errorText??'senza dettagli'));
+     });
+     return true;
+    };
+    let turns=0;
+    const observer=setInterval(()=>{if(attachTurnErrors()||++turns>=25)clearInterval(observer)},400);
+    const watchdog=setTimeout(()=>{
+     clearInterval(observer);
+     if(hostGeneration!==quickGeneration||quickPeer!==peer||raw.open)return;
+     void awaitIceSnapshot(raw,'GM '+id+' TURN');
+     quickDiag('TURN: canale non aperto · controlla candidati relay e registro tecnico');
+    },10000);
+    raw.on('open',()=>{clearInterval(observer);clearTimeout(watchdog)});
+    raw.on('close',()=>{clearInterval(observer);clearTimeout(watchdog)});
+   }
    const playerLanIp=roomIceMode(code)==='lan'?$('quickLanPlayerIp').value.trim():'';
    let hostProbe=null,hostProbeBusy=false;
    const stopHostProbe=()=>{if(hostProbe!==null){clearInterval(hostProbe);hostProbe=null}};
