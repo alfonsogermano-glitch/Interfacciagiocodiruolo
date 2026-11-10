@@ -7,7 +7,7 @@ import { makeRttMeter,describeRtt,classifySelectedPair } from './latency-metrics
 import { newRoomCode,explainPeerFailure } from './room-lifecycle.mjs';
 import { connectionProblem,retryablePeerError } from './connection-diagnostics.mjs';
 import { encodeRoomMode,iceConfigForRoom,roomIceMode } from './lan-ice-mode.mjs';
-import { inspectIceConnection } from './ice-candidate-report.mjs';
+import { inspectIceConnection,describePeerNegotiation } from './ice-candidate-report.mjs';
 import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // No Supabase, no production Auth, and no permanent server-side data.
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
@@ -423,8 +423,10 @@ function bindHostChannel(c,id,conn,{requireApproval=false}={}){
 }
 async function awaitIceSnapshot(raw,side){
  const info=await inspectIceConnection(raw);
+ const negotiation=describePeerNegotiation(raw?.peerConnection);
  log(side+' · '+info);
- return info;
+ log(side+' · '+negotiation);
+ return info+' · '+negotiation;
 }
 async function inspectIceRoute(raw,onResult){
  try{
@@ -660,6 +662,7 @@ function connectQuickPlayer(){
   log('PeerJS giocatore: ICE '+state);
   const problem=connectionProblem(state,raw.peerConnection?.connectionState);
   if(problem)quickDiag(problem);
+  if(state==='disconnected'||state==='failed')void awaitIceSnapshot(raw,'Giocatore');
  });
 }
 function scheduleQuickRetry(){
