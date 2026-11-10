@@ -6,6 +6,7 @@ import { snapshotPackets,createSnapshotAssembler } from './snapshot-wire.mjs';
 import { makeRttMeter,describeRtt,classifySelectedPair } from './latency-metrics.mjs';
 import { newRoomCode,explainPeerFailure } from './room-lifecycle.mjs';
 import { connectionProblem,retryablePeerError } from './connection-diagnostics.mjs';
+import { encodeRoomMode,iceConfigForRoom,roomIceMode } from './lan-ice-mode.mjs';
 import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // No Supabase, no production Auth, and no permanent server-side data.
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
@@ -581,12 +582,12 @@ function stopQuickPeer(){
  $('quickCode').textContent='—';
  $('quickReconnect').textContent='Nessuna riconnessione in corso';
 }
-function openQuickPeer(identity){
+function openQuickPeer(identity,roomCode=null){
  const Peer=window.Peer;
  if(typeof Peer!=='function')throw Error('La libreria PeerJS non è disponibile. Controlla connessione e blocchi CDN.');
  const peer=new Peer(identity,{
   host:'0.peerjs.com',port:443,path:'/',secure:true,
-  config:stun,debug:1
+  config:iceConfigForRoom(roomCode,stun),debug:1
  });
  return new Promise((resolve,reject)=>{
   const timeout=setTimeout(()=>{peer.destroy();reject(Error('Il servizio pubblico di segnalazione non risponde'))},14000);
@@ -602,7 +603,7 @@ function connectQuickPlayer(){
   scheduleQuickRetry();return;
  }
  const raw=quickPeer.connect(PEER_ID_PREFIX+quickRoom,{serialization:'json',reliable:true});
- quickDiag('Stanza '+quickRoom+' richiesta · negoziazione WebRTC in corso');
+ quickDiag('Stanza '+quickRoom+' richiesta · negoziazione '+(roomIceMode(quickRoom)==='lan'?'LAN senza STUN':'WebRTC standard')+' in corso');
  log('PeerJS giocatore: richiesta canale verso stanza '+quickRoom);
  raw.on('error',error=>{
   if(quickStopRequested||quickConnection?.readyState==='open')return;
@@ -681,8 +682,8 @@ $('quickHost').onclick=async()=>{
   // Always acquire a FRESH identity, and display only the one returned by PeerJS.
   let code=null,peer=null;
   for(let tries=0;tries<3;tries++){
-   code=newQuickCode();
-   try{peer=await openQuickPeer(PEER_ID_PREFIX+code);break}
+   code=encodeRoomMode(newQuickCode(),$('quickLan').checked);
+   try{peer=await openQuickPeer(PEER_ID_PREFIX+code,code);break}
    catch(e){
     log(explainPeerFailure(e));
     if(!/unavailable-id|taken|already|in use/i.test(e.type+' '+e.message)||tries===2)throw e;
@@ -690,8 +691,8 @@ $('quickHost').onclick=async()=>{
   }
   if(peer.id!==PEER_ID_PREFIX+code)throw Error('Il codice della stanza non corrisponde al PeerJS attivo');
   quickPeer=peer;quickRole='gm';quickRoom=code;quickStopRequested=false;
-  quickDiag('Stanza demo attiva · in attesa delle richieste dei giocatori');
-  log('Nuova stanza verificata sul server PeerJS · codice '+code);
+  quickDiag('Stanza '+(roomIceMode(code)==='lan'?'Wi-Fi locale (senza STUN)':'standard (STUN)')+' · attendo giocatori');
+  log('Nuova stanza verificata sul server PeerJS · codice '+code+' · ICE '+roomIceMode(code));
   peer.on('disconnected',()=>{
    if(quickStopRequested||quickPeer!==peer)return;
    quickDiag('GM scollegato dal servizio di segnalazione: i nuovi ingressi non possono arrivare');
@@ -730,7 +731,7 @@ $('quickHost').onclick=async()=>{
   });
   $('quickCode').textContent=code;
   quickDiag('Stanza GM registrata · utilizza questo NUOVO codice dopo ogni ricaricamento');
-  displayStatus('Stanza demo '+code+' attiva: comunica il codice al giocatore');
+  displayStatus('Stanza demo '+code+' ('+(roomIceMode(code)==='lan'?'Wi-Fi locale':'standard')+') attiva: comunica il codice al giocatore');
  }catch(e){stopQuickPeer();const message=explainPeerFailure(e);quickDiag(message);log(message)}
  finally{button.disabled=false}
 };
@@ -744,7 +745,7 @@ $('quickJoin').onclick=async()=>{
   selectMode('player');playerState=null;
   $('playerSetup').hidden=true; // hide lengthy manual offer/answer fields on mobile
   quickDiag('Collegamento rapido · in attesa del Game Master');
-  const peer=await openQuickPeer();
+  const peer=await openQuickPeer(undefined,code);
   quickPeer=peer;
   quickRole='player';quickRoom=code;quickStopRequested=false;quickRetryAttempt=0;quickResumeKey=crypto.randomUUID();
   peer.on('error',error=>{
