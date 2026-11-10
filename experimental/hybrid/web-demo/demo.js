@@ -262,9 +262,9 @@ function updateQuickApprovals(){
     log('Il canale di '+request.name+' non è più aperto; richiesta da ripetere');
     pendingPeerJs.delete(request.id);updateQuickApprovals();return;
    }
+   tell(request.channel,{kind:'approved'});
    const assigned=completeHostJoin(request.id,request.name,request.channel,request.conn,request.resumeKey);
    pendingPeerJs.delete(request.id);updateQuickApprovals();
-   tell(request.channel,{kind:'approved'});
    request.setAssignedId?.(assigned);
   };
   reject.onclick=()=>{
