@@ -16,6 +16,7 @@ const SNAPSHOT_ACK_RETRIES=4;
 let mode='gm',hostState=null,channel=null,playerPC=null,peerId=null,playerState=null,role='gm', applyingAnswer=false, appliedAnswerSdp=null;
 let latencyTimer=null, lastPingId=null, lastPingAt=0, latencyMs=null, sentPings=0, receivedPings=0;
 let connectClient=null, autoSession=false, pendingApprovalTimer=null;
+let snapshotRecoveryTimer=null, snapshotRecoveryTries=0;
 const log=(text)=>{const line=document.createElement('div');line.textContent=new Date().toLocaleTimeString()+' · '+text;$('log').prepend(line)};
 const copy=async(id)=>{try{await navigator.clipboard.writeText($(id).value);log('Testo copiato negli appunti')}catch{ $(id).select();log('Seleziona e copia con Ctrl+C')}}; 
 $('copyHostAnswer').onclick=()=>copy('hostAnswer');$('copyPlayerOffer').onclick=()=>copy('playerOffer');
@@ -199,29 +200,76 @@ $('createOffer').onclick=async()=>{
  }catch(e){log('Errore offerta: '+e.message)}
 };
 // Use the same game command handlers for manual WebRTC and quick-connect PeerJS.
+function stopSnapshotRecovery(){
+ if(snapshotRecoveryTimer!==null){clearInterval(snapshotRecoveryTimer);snapshotRecoveryTimer=null}
+ snapshotRecoveryTries=0;
+}
+function requestPlayerSnapshot(c,reason=''){
+ if(channel!==c||c.readyState!=='open'||playerState)return false;
+ tell(c,{kind:'sync-request'});
+ log('Richiesta stato partita inviata al GM'+(reason?' · '+reason:''));
+ $('quickReconnect').textContent='Autorizzazione ricevuta · sincronizzazione in corso';
+ return true;
+}
+function startSnapshotRecovery(c){
+ stopSnapshotRecovery();
+ if(playerState)return;
+ // Request the latest state immediately after approval. Retry on mobile,
+ // where an initial DataChannel message may precede event registration.
+ requestPlayerSnapshot(c,'autorizzazione');
+ snapshotRecoveryTimer=setInterval(()=>{
+  if(channel!==c||c.readyState!=='open'||playerState){stopSnapshotRecovery();return}
+  if(++snapshotRecoveryTries>5){
+   stopSnapshotRecovery();
+   displayStatus('Autorizzato, ma stato della partita non ricevuto. Premi «Recupera campo di gioco».');
+   log('Snapshot mancante dopo cinque richieste; controllare anche registro GM');
+   return;
+  }
+  requestPlayerSnapshot(c,'tentativo '+snapshotRecoveryTries+'/5');
+ },2000);
+}
+$('quickSync').onclick=()=>{
+ if(!channel||channel.readyState!=='open'){displayStatus('Non è presente una connessione aperta con il GM');return}
+ // Explicit refresh is allowed only for an already-approved peer:
+ // the GM checks its authenticated channel entry before responding.
+ playerState=null;
+ startSnapshotRecovery(channel);
+};
 function bindPlayerChannel(c){
   channel=c;
   channel.onopen=()=>{tell(channel,{kind:'join',name:validateName($('playerName').value),resumeKey:quickRole==='player'?quickResumeKey:null});startPings(channel);displayStatus('Connessione diretta aperta; attendo il GM')};
-  channel.onclose=()=>{stopPings();displayStatus('Connessione con il GM chiusa')};
+  channel.onclose=()=>{stopSnapshotRecovery();stopPings();displayStatus('Connessione con il GM chiusa')};
   channel.onmessage=e=>{try{
    const m=JSON.parse(e.data);
    if(m.kind==='snapshot'){
     if(!m.state||typeof m.state.sequence!=='number')throw Error('Snapshot non valido');
     playerState=m.state;
     render();
+    stopSnapshotRecovery();
     tell(c,{kind:'snapshot-ack',sequence:playerState.sequence});
+    $('quickReconnect').textContent='Sincronizzazione completata · stato #'+playerState.sequence;
     displayStatus('Collegato al GM · stato #'+playerState.sequence);
    }
-   else if(m.kind==='waiting')displayStatus('Connessione aperta: attendo autorizzazione del GM')
-   else if(m.kind==='approved')displayStatus('Accesso autorizzato dal GM')
-   else if(m.kind==='rejected')displayStatus('Richiesta di accesso rifiutata dal GM')
+   else if(m.kind==='waiting'){
+    if(!playerState)displayStatus('Connessione aperta: attendo autorizzazione del GM');
+   }
+   else if(m.kind==='approved'){
+    displayStatus('Accesso autorizzato dal GM · recupero campo di gioco');
+    startSnapshotRecovery(c);
+   }
+   else if(m.kind==='rejected'){
+    stopSnapshotRecovery();displayStatus('Richiesta di accesso rifiutata dal GM');
+   }
    else if(m.kind==='ping'&&typeof m.id==='string'&&m.id.length<=80){
     tell(channel,{kind:'pong',id:m.id});
    }else if(m.kind==='pong'&&m.id===lastPingId){
     const next=performance.now()-lastPingAt;
     if(Number.isFinite(next)&&next>=0){latencyMs=latencyMs===null?next:latencyMs*.7+next*.3;receivedPings++;updateLatency()}
    }else if(m.kind==='error')log(m.reason)
-  }catch(e){log('Messaggio giocatore non elaborato: '+(e.message??'errore'))}};
+  }catch(e){
+   const details='Messaggio giocatore non elaborato: '+(e.message??'errore');
+   log(details);displayStatus('Errore sincronizzazione: '+(e.message??'errore'));
+  }};
 }
 function completeHostJoin(id,name,c,conn,resumeKey=null){
  // Resume only after an explicit fresh GM approval. Never trust resumeKey
@@ -262,10 +310,17 @@ function updateQuickApprovals(){
     log('Il canale di '+request.name+' non è più aperto; richiesta da ripetere');
     pendingPeerJs.delete(request.id);updateQuickApprovals();return;
    }
-   tell(request.channel,{kind:'approved'});
-   const assigned=completeHostJoin(request.id,request.name,request.channel,request.conn,request.resumeKey);
-   pendingPeerJs.delete(request.id);updateQuickApprovals();
-   request.setAssignedId?.(assigned);
+   try{
+    tell(request.channel,{kind:'approved'});
+    const assigned=completeHostJoin(request.id,request.name,request.channel,request.conn,request.resumeKey);
+    pendingPeerJs.delete(request.id);updateQuickApprovals();
+    request.setAssignedId?.(assigned);
+    log('Autorizzazione completata · stato iniziale inviato a '+request.name);
+   }catch(error){
+    const details='Errore sincronizzazione GM: '+error.message;
+    log(details);displayStatus(details);
+    tell(request.channel,{kind:'error',reason:'Il GM non è riuscito a sincronizzare la partita'});
+   }
   };
   reject.onclick=()=>{
    if(!pendingPeerJs.has(request.id))return;
@@ -301,7 +356,12 @@ function bindHostChannel(c,id,conn,{requireApproval=false}={}){
       log('Snapshot confermato da '+id+' · #'+msg.sequence);
      }
     }else if(msg.kind==='sync-request'){
-     if(peers.get(id)?.channel===c)sendFreshSnapshot(id);
+     if(peers.get(id)?.channel===c){
+      const sent=sendFreshSnapshot(id);
+      log('Recupero stato richiesto da '+id+' · '+(sent?'snapshot inviato':'canale non disponibile'));
+     }else{
+      log('Richiesta stato ignorata: giocatore non approvato · '+id);
+     }
     }else if(msg.kind==='join'){
      const name=validateName(msg.name);
      if(requireApproval){
@@ -469,6 +529,7 @@ function newQuickCode(){
  return Array.from(bytes,value=>ROOM_ALPHABET[value%ROOM_ALPHABET.length]).join('');
 }
 function stopQuickPeer(){
+ stopSnapshotRecovery();
  quickStopRequested=true;
  quickGeneration++;
  if(quickRetryTimer!==null){clearTimeout(quickRetryTimer);quickRetryTimer=null}
