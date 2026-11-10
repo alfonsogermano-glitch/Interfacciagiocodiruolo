@@ -8,12 +8,13 @@ import { newRoomCode,explainPeerFailure } from './room-lifecycle.mjs';
 import { connectionProblem,retryablePeerError } from './connection-diagnostics.mjs';
 import { encodeRoomMode,iceConfigForRoom,roomIceMode } from './lan-ice-mode.mjs';
 import { inspectIceConnection,describePeerNegotiation } from './ice-candidate-report.mjs';
+import { isPrivateLanIPv4,tryAddLanCandidate } from './lan-candidate-override.mjs';
 import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // No Supabase, no production Auth, and no permanent server-side data.
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
 // Manual signaling is intentionally temporary until Hollowgate Hub exists.
 const $=id=>document.getElementById(id);
-const DEMO_REVISION='ice-sdp-generation-20261110';
+const DEMO_REVISION='lan-explicit-ip-20261110';
 const STORAGE='hollowgate-hybrid-web-demo-v1';
 // Codes are per-live-room, not durable across reloads: an old PeerJS ID can be stale.
 const stun={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
@@ -614,6 +615,24 @@ function connectQuickPlayer(){
   scheduleQuickRetry();return;
  }
  const raw=quickPeer.connect(PEER_ID_PREFIX+quickRoom,{serialization:'json',reliable:true});
+ const lanIp=roomIceMode(quickRoom)==='lan'?$('quickLanHostIp').value.trim():'';
+ if(lanIp&&!isPrivateLanIPv4(lanIp)){quickDiag('Indirizzo IPv4 LAN del GM non valido');raw.close();return}
+ let overrideTimer=null,overrideFinished=false,overrideBusy=false;
+ const stopOverride=()=>{if(overrideTimer!==null){clearInterval(overrideTimer);overrideTimer=null}};
+ // PeerJS sets remote SDP asynchronously. Apply once when the answer exists.
+ // This adds an ICE candidate; it does not alter the SDP or browser security flags.
+ if(lanIp){
+  overrideTimer=setInterval(async()=>{
+   if(overrideFinished||overrideBusy||quickConnection?.readyState==='open'||quickStopRequested){stopOverride();return}
+   if(raw.peerConnection?.signalingState==='closed'){stopOverride();return}
+   overrideBusy=true;
+   const result=await tryAddLanCandidate(raw.peerConnection,lanIp);
+   overrideBusy=false;
+   if(result==='pending')return;
+   overrideFinished=true;stopOverride();
+   log('Giocatore: candidato LAN esplicito '+(result==='added'?'inserito nell’agente ICE':result==='no-mdns'?'non necessario (nessun mDNS nella risposta)':'non accettato ('+result+')'));
+  },350);
+ }
  quickDiag('Stanza '+quickRoom+' richiesta · negoziazione '+(roomIceMode(quickRoom)==='lan'?'LAN senza STUN':'WebRTC standard')+' in corso');
  log('PeerJS giocatore: richiesta canale verso stanza '+quickRoom);
  raw.on('error',error=>{
@@ -634,12 +653,14 @@ function connectQuickPlayer(){
    quickDiag(explanation||'Canale WebRTC non aperto (ICE: '+state+'). Verifica codice, Wi-Fi e rete ospiti.');
    const iceSummary=awaitIceSnapshot(raw,'Giocatore');
    void iceSummary.then(summary=>{if(summary)quickDiag('WebRTC non aperto · '+summary)});
+   stopOverride();
    raw.close();
    scheduleQuickRetry();
   }
  },12000);
  const onOpen=adapter.onopen, onClose=adapter.onclose;
  adapter.onopen=()=>{
+  stopOverride();
   clearTimeout(connectionTimeout);
   if(quickStopRequested||quickConnection!==adapter){raw.close();return}
   quickRetryAttempt=0;
@@ -651,6 +672,7 @@ function connectQuickPlayer(){
   setTimeout(()=>{if(quickConnection===adapter)void inspectIceRoute(raw,route=>{quickRoute=route;updateLatency()})},2500);
  };
  adapter.onclose=()=>{
+  stopOverride();
   clearTimeout(connectionTimeout);
   if(quickConnection!==adapter)return;
   const ice=raw.peerConnection?.iceConnectionState??'non disponibile';
