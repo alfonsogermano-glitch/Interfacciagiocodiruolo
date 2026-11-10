@@ -29,17 +29,17 @@ ALTER TABLE public.hollowgate_fixture_message ENABLE ROW LEVEL SECURITY;
 CREATE POLICY synthetic_member_select ON public.hollowgate_fixture_message FOR SELECT TO hollowgate_rls_actor
  USING (
   EXISTS (SELECT 1 FROM public.hollowgate_fixture_campaign c
-    WHERE c.id=campaign_id AND c.gm=current_setting('app.fixture_user', true))
+    WHERE c.id=hollowgate_fixture_message.campaign_id AND c.gm=current_setting('app.fixture_user', true))
   OR EXISTS (SELECT 1 FROM public.hollowgate_fixture_member m
-    WHERE m.campaign_id=campaign_id AND m.person=current_setting('app.fixture_user', true))
+    WHERE m.campaign_id=hollowgate_fixture_message.campaign_id AND m.person=current_setting('app.fixture_user', true))
  );
 CREATE POLICY synthetic_member_insert ON public.hollowgate_fixture_message FOR INSERT TO hollowgate_rls_actor
  WITH CHECK (
    sender=current_setting('app.fixture_user', true) AND
    (EXISTS (SELECT 1 FROM public.hollowgate_fixture_campaign c
-     WHERE c.id=campaign_id AND c.gm=current_setting('app.fixture_user', true))
+     WHERE c.id=hollowgate_fixture_message.campaign_id AND c.gm=current_setting('app.fixture_user', true))
     OR EXISTS (SELECT 1 FROM public.hollowgate_fixture_member m
-     WHERE m.campaign_id=campaign_id AND m.person=current_setting('app.fixture_user', true)))
+     WHERE m.campaign_id=hollowgate_fixture_message.campaign_id AND m.person=current_setting('app.fixture_user', true)))
  );
 SQL
 expect_count() {
