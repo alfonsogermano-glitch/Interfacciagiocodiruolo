@@ -71,3 +71,9 @@ test('GM resends snapshot until client ACK and supports explicit resync',()=>{
  for(const snippet of ['kind:\'snapshot-ack\'','msg.kind===\'sync-request\'','awaitSnapshotAck(assigned)','sendFreshSnapshot(id)','SNAPSHOT_ACK_RETRIES','peer.syncAcked=true'])
   assert.ok(app.includes(snippet),snippet);
 });
+
+test('mobile player explicitly requests state after approval and retries without bypassing GM checks',()=>{
+ assert.match(html,/id="quickSync"/);
+ for(const piece of ["startSnapshotRecovery(c)","requestPlayerSnapshot(c,'autorizzazione')","kind:'sync-request'","stopSnapshotRecovery()","peers.get(id)?.channel===c","Errore sincronizzazione"])
+  assert.ok(app.includes(piece),piece);
+});
