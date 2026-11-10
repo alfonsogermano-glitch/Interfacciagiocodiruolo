@@ -21,6 +21,15 @@ for variable in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_ID S
   fi
 done
 
+# The CLI can silently load project/root .env files, and config.json can override TOML.
+# Refuse these until an explicit allowlisted local-only env workflow is reviewed.
+[[ ! -e supabase/config.json && ! -L supabase/config.json ]] || refuse 'config.json overrides the reviewed local TOML'
+for dir in . supabase; do
+  for file in "$dir"/.env "$dir"/.env.*; do
+    [[ ! -e "$file" && ! -L "$file" ]] || refuse 'project environment files are not allowed in local staging rehearsal'
+  done
+done
+[[ -z "${SUPABASE_ENV:-}" && -z "${SUPABASE_EXPERIMENTAL_STACK:-}" ]] || refuse 'unreviewed Supabase environment or experimental stack override'
 [[ ! -e supabase/.temp/project-ref && ! -L supabase/.temp/project-ref ]] || refuse 'Supabase remote project link detected'
 [[ -f supabase/config.toml && ! -L supabase/config.toml ]] || refuse 'missing or symlinked supabase/config.toml; initialize and review a LOCAL project'
 # Refuse obvious remote secrets/URLs in a configuration file too (no secrets printed).

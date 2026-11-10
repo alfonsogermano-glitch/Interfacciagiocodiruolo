@@ -5,6 +5,10 @@ on:
       - docs/ovh-staging-launch-plan
     paths:
       - 'infra/staging/local-supabase.sh'
+      - 'supabase/config.toml'
+      - 'tests/infrastructure/verify-local-config.py'
+      - 'supabase/config.toml'
+      - 'tests/infrastructure/verify-local-config.py'
       - 'tests/infrastructure/test-local-supabase.sh'
       - '.github/workflows/staging-preflight.yml'
   pull_request:
@@ -19,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate local Supabase configuration
+        run: python3 tests/infrastructure/verify-local-config.py
       - name: Syntax check
         run: bash -n infra/staging/local-supabase.sh tests/infrastructure/test-local-supabase.sh
       - name: Test local-only guardrails without Docker or credentials

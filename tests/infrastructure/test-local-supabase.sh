@@ -42,6 +42,17 @@ rm "$root/app/supabase/.temp/project-ref"
 printf 'remote_url = "https://abc.supabase.co"\n' > "$root/app/supabase/config.toml"
 assert_reject env STAGING_CONFIRM=LOCAL_ONLY bash "$script" start
 printf 'project_id = "hollowgate-local"\n' > "$root/app/supabase/config.toml"
+# Reject configuration sources that would override reviewed config.toml.
+touch "$root/app/supabase/config.json"
+assert_reject env STAGING_CONFIRM=LOCAL_ONLY bash "$script" start
+rm "$root/app/supabase/config.json"
+printf 'SUPABASE_URL=https://evil.supabase.co\n' > "$root/app/.env.local"
+assert_reject env STAGING_CONFIRM=LOCAL_ONLY bash "$script" start
+rm "$root/app/.env.local"
+printf 'SUPABASE_DB_PASSWORD=fake\n' > "$root/app/supabase/.env"
+assert_reject env STAGING_CONFIRM=LOCAL_ONLY bash "$script" start
+rm "$root/app/supabase/.env"
+assert_reject env STAGING_CONFIRM=LOCAL_ONLY SUPABASE_ENV=production bash "$script" start
 : > "$CALL_LOG"
 env STAGING_CONFIRM=LOCAL_ONLY bash "$script" start > "$root/out" 2>&1
 grep -Fxq 'npx --no-install supabase --version' "$CALL_LOG"

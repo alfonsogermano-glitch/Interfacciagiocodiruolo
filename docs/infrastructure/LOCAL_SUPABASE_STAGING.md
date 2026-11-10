@@ -1,12 +1,12 @@
 # Hollowgate — piano di avvio backend locale completo
 
 ## Stato effettivo
-Aggiunto un launcher protetto per la **Supabase CLI locale**. Non è stato ancora avviato, non è un deployment OVHcloud e non contiene il backend Hollowgate completo. Al momento il repository non ha `supabase/config.toml`.
+Aggiunto un launcher protetto per la **Supabase CLI locale**. Non è stato ancora avviato, non è un deployment OVHcloud e non contiene il backend Hollowgate completo. Ora il repository include un `supabase/config.toml` sintetico che abilita localmente Auth, PostgreSQL 17, Realtime, Storage e API; questo **non** equivale al backend Hollowgate completo.
 
 ## Preparazione (solo computer di sviluppo)
 1. Installare Docker Desktop / Docker Engine, Node.js e Supabase CLI; verificare le versioni correnti sulla documentazione ufficiale.
-2. Installare **una versione fissata** di Supabase CLI come dipendenza di sviluppo e conservare il lockfile (non usare `npx --yes` o installazioni implicite). Da root repository eseguire `npx --no-install supabase init`, poi esaminare `supabase/config.toml`. Non collegare il progetto remoto con `supabase link`.
-3. Assicurarsi che non siano presenti credenziali, URL o identificativi Supabase remoti nelle variabili d'ambiente; il launcher verifica un insieme esplicito di variabili e rifiuta un eventuale link `supabase/.temp/project-ref` e URL remoti evidenti in `config.toml`. Le verifiche non sostituiscono la revisione manuale di configurazioni o file `.env`.
+2. Installare **una versione fissata** di Supabase CLI come dipendenza di sviluppo e conservare il lockfile (non usare `npx --yes` o installazioni implicite). Non eseguire più `supabase init`: `supabase/config.toml` è già versionato; verificarlo prima dell'avvio. Non collegare il progetto remoto con `supabase link`.
+3. Assicurarsi che non siano presenti credenziali, URL o identificativi Supabase remoti nelle variabili d'ambiente; il launcher verifica un insieme esplicito di variabili e rifiuta un eventuale link `supabase/.temp/project-ref` e URL remoti evidenti in `config.toml`. I file `.env` nella root e nella directory `supabase/`, `supabase/config.json` e gli override CLI sperimentali vengono rifiutati. La revisione manuale rimane necessaria per ogni cambiamento futuro.
 4. Avviare `STAGING_CONFIRM=LOCAL_ONLY bash infra/staging/local-supabase.sh start`. Per vedere stato o fermare: sostituire `start` con `status` o `stop`.
 5. Usare soltanto utenti, campagne e immagini **sintetici**. Non usare service role key, dump o JWT secret di produzione.
 
@@ -30,3 +30,9 @@ Non eseguire `supabase db reset`, `supabase db push`, `supabase link`, `supabase
 bash tests/infrastructure/test-local-supabase.sh
 ```
 Il test usa eseguibili simulati: non avvia Docker, non si collega a Supabase e non consuma credenziali. GitHub Actions lo esegue sulle modifiche allo staging. La versione CLI non è ancora fissata nel repository: fino all'installazione esplicita e alla configurazione locale il launcher si rifiuterà correttamente di partire.
+
+## Configurazione presente nella PR #47
+- `supabase/config.toml`: definisce uno stack **locale sintetico** con API, PostgreSQL 17, Auth, Realtime e Storage; email di test tramite Inbucket.
+- `python3 tests/infrastructure/verify-local-config.py`: verifica TOML e assenza di riferimenti noti alla produzione.
+- Prima di avviare la CLI, creare un network Docker con bind localhost seguendo la documentazione ufficiale: https://supabase.com/docs/guides/local-development . Non esporre le porte a Internet.
+- Non sono ancora state importate le migrazioni applicative, i bucket originali né le due Edge Functions. Nessun test d'integrazione con servizi reali è stato eseguito.
