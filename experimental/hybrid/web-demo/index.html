@@ -12,6 +12,18 @@
 <section class="mode">
 <button id="hostMode" class="selected">Sono il GM</button><button id="playerMode">Sono un giocatore</button>
 </section>
+<section class="card compact" id="connectPanel">
+<h2>Hollowgate Connect — collegamento con codice stanza</h2>
+<p>Il sistema di connessione automatica è pronto per i test, ma richiede un servizio HTTPS separato che non è ancora pubblicato. La modalità manuale rimane disponibile.</p>
+<label for="connectEndpoint">Indirizzo HTTPS del servizio Connect (solo ambiente di prova)</label>
+<input id="connectEndpoint" type="url" placeholder="https://connect-test.example.org" autocomplete="off">
+<p id="hubInfo" class="hint"></p>
+<div class="controls"><button id="connectHost" disabled>Crea stanza come GM</button>
+<input id="joinRoomCode" maxlength="8" placeholder="Codice stanza" aria-label="Codice stanza" class="room-input">
+<button id="connectJoin" disabled>Entra con codice</button>
+<button id="connectDisconnect" class="secondary">Chiudi Connect</button></div>
+<p>Codice della stanza GM: <strong id="roomCode">—</strong></p>
+</section>
 <section id="hostSetup" class="card">
 <h2>1. Avvia una partita</h2><p>Lo stato della partita viene salvato in questo browser. Puoi ricaricare la pagina e continuare come GM, ma gli altri giocatori dovranno ricollegarsi.</p>
 <div class="controls"><button id="startHost">Avvia / riprendi la campagna demo</button><button id="resetHost" class="danger">Azzera soltanto i dati demo</button></div>

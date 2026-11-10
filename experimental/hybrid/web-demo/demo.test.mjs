@@ -24,3 +24,10 @@ test('browser demo reports actual WebRTC data-channel round-trip latency',()=>{
 test('GM and players both perform independent round-trip timing with per-peer cleanup',()=>{
  for(const code of ['beginHostPing(id,peer)','endHostPing(id,peer)','peer?.pendingPing===msg.id','peer.rttMs','tell(channel,{kind:\'pong\'','connected.map(([id,peer])'])assert.ok(app.includes(code),code);
 });
+
+test('optional Connect UI integrates HTTPS-only automatic room signaling while preserving manual pairing',()=>{
+  const code=['connectHost','connectJoin','connectEndpoint','roomCode','joinRoomCode','connectDisconnect'];
+  for(const id of code)assert.ok(html.includes('id="'+id+'"'),id);
+  for(const snippet of ['createConnectClient','createRoom()','joinRoom(room)','acceptRemoteOffer(offer,answer=>','applyRemoteAnswer(JSON.parse(message.description))','void active.listen'])assert.ok(app.includes(snippet),snippet);
+  assert.match(html,/modalità manuale/i);
+});
