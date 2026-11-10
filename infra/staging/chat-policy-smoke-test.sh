@@ -135,14 +135,10 @@ assert_delete_count "$GM_A" 10000000-0000-4000-8000-000000000001 1 "GM deletes o
 assert_delete_count "$GM_A" 10000000-0000-4000-8000-000000000002 0 "GM cannot delete other campaign"
 # An author's delete is also allowed when the message belongs to their campaign.
 # A real player message is inserted within the same transaction for this assertion.
-author_delete="$(query_as "$PLAYER_A" "INSERT INTO public.chat_messages VALUES ('10000000-0000-4000-8000-000000000007','00000000-0000-4000-8000-0000000000a1','$PLAYER_A','player A','test'); DELETE FROM public.chat_messages WHERE id='10000000-0000-4000-8000-000000000007' RETURNING id;" | grep -c '^10000000-0000-4000-8000-000000000007
-changed="$(query_as "$PLAYER_A" "UPDATE public.chat_messages SET content='tampered' WHERE campaign_id='00000000-0000-4000-8000-0000000000a1' RETURNING id;" | tail -n 1)"
-[[ "$changed" == "" ]] || { echo "FAIL: UPDATE returned a row: $changed" >&2; exit 1; }
-echo 'PASS: deployed-shape chat SQL proposal enforces cross-campaign isolation on PostgreSQL 17'
- || true)"
+author_delete="$(query_as "$PLAYER_A" "INSERT INTO public.chat_messages VALUES ('10000000-0000-4000-8000-000000000007','00000000-0000-4000-8000-0000000000a1','$PLAYER_A','player A','test'); DELETE FROM public.chat_messages WHERE id='10000000-0000-4000-8000-000000000007' RETURNING id;" | grep -c '^10000000-0000-4000-8000-000000000007$' || true)"
 [[ "$author_delete" == 1 ]] || { echo "FAIL: author deletion did not work" >&2; exit 1; }
 
 # With SQL UPDATE privilege but no RLS UPDATE policy, no row may be returned.
 changed="$(query_as "$PLAYER_A" "UPDATE public.chat_messages SET content='tampered' WHERE campaign_id='00000000-0000-4000-8000-0000000000a1' RETURNING id;" | tail -n 1)"
 [[ "$changed" == "" ]] || { echo "FAIL: UPDATE returned a row: $changed" >&2; exit 1; }
-echo 'PASS: deployed-shape chat SQL proposal enforces cross-campaign isolation on PostgreSQL 17'
+echo 'PASS: campaign/member RLS and chat policy/delete matrix on isolated PostgreSQL 17'
