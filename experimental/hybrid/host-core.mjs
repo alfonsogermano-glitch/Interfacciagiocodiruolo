@@ -130,6 +130,21 @@ export class HybridHost {
     }
     return { sequence: nextState.sequence };
   }
+  /** Reconnection: replay events since a client-acknowledged sequence,
+   * preserving GM/private event filtering. The client must tolerate gaps
+   * because hidden GM-only events still consume global sequence numbers.
+   */
+  replay(token, campaignId, afterSequence) {
+    const { state, isGM } = this.require(token, campaignId);
+    if (!Number.isSafeInteger(afterSequence) || afterSequence < 0 || afterSequence > state.sequence) {
+      throw new Error('Invalid replay cursor');
+    }
+    return {
+      sequence: state.sequence,
+      events: state.events.filter(event => event.sequence > afterSequence)
+        .map(event => publicEvent(event, isGM)).filter(Boolean),
+    };
+  }
   subscribe(token, campaignId, callback) {
     this.require(token, campaignId);
     if (typeof callback !== 'function') throw new Error('Invalid callback');

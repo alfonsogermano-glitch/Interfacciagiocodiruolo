@@ -78,3 +78,22 @@ Auth, Storage o Realtime del sistema attuale siano stati migrati o sostituiti.
 - fog-of-war filtrato lato Host, asset e upload efficienti;
 - backup locali delle nuove campagne e protezione degli account Auth reali;
 - confronto prestazioni con cloud attuale e carico multi-client.
+
+## Primo trasporto browser-compatibile: localhost HTTP + SSE
+
+`loopback-transport.mjs` offre uno **spike locale** con server Node.js
+vincolato a `127.0.0.1`, snapshot e replay via HTTP, comandi POST autorizzati
+e notifiche Server-Sent Events (SSE). I test avviano **vere connessioni TCP**
+fra client di prova e Host, verificando almeno due partecipanti indipendenti,
+movimento autorizzato, note GM invisibili ai giocatori, replay con filtro
+e rifiuto di richieste malformate.
+
+```bash
+node --test experimental/hybrid/*.test.mjs
+```
+
+**Sicurezza:** access token temporanei non legati a identità vere; traffico
+HTTP non cifrato; servizio **solo loopback**. Non pubblicare il listener su
+`0.0.0.0`, non inoltrare porte, non usarlo su Internet. Il prossimo
+protocollo verso Hub richiederà autenticazione, TLS, pairing e un relay
+con permessi per campagna; il GM resterà l'unica fonte autorevole.
