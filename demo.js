@@ -1,6 +1,7 @@
 // Hollowgate Hybrid browser-to-browser experiment.
 import { assessAnswer } from './answer-guard.mjs';
 import { retryDelay,canRetry } from './reconnect-policy.mjs';
+import { adaptPeerJsConnection } from './peerjs-adapter.mjs';
 import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // No Supabase, no production Auth, and no permanent server-side data.
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
@@ -11,6 +12,7 @@ const QUICK_SESSION='hollowgate-hybrid-quick-room-v1';
 const stun={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
 const peers=new Map();
 const pendingPeerJs=new Map();
+const SNAPSHOT_ACK_RETRIES=4;
 let mode='gm',hostState=null,channel=null,playerPC=null,peerId=null,playerState=null,role='gm', applyingAnswer=false, appliedAnswerSdp=null;
 let latencyTimer=null, lastPingId=null, lastPingAt=0, latencyMs=null, sentPings=0, receivedPings=0;
 let connectClient=null, autoSession=false, pendingApprovalTimer=null;
@@ -82,7 +84,34 @@ function beginHostPing(id,peer){
 }
 function endHostPing(id,peer){
  if(peer?.timer)clearInterval(peer.timer);
- if(peer)peer.timer=null;peers.delete(id);updateLatency();
+ if(peer?.syncTimer)clearInterval(peer.syncTimer);
+ if(peer){peer.timer=null;peer.syncTimer=null}
+ if(peers.get(id)===peer)peers.delete(id);
+ updateLatency();
+}
+function sendFreshSnapshot(id){
+ const peer=peers.get(id);
+ if(!peer||peer.channel?.readyState!=='open')return false;
+ tell(peer.channel,{kind:'snapshot',state:snapshot(id)});
+ return true;
+}
+function awaitSnapshotAck(id){
+ const peer=peers.get(id);
+ if(!peer)return;
+ if(peer.syncTimer)clearInterval(peer.syncTimer);
+ peer.syncAttempts=0;
+ peer.syncTimer=setInterval(()=>{
+  if(peers.get(id)!==peer||peer.syncAcked||peer.channel.readyState!=='open'){
+   clearInterval(peer.syncTimer);peer.syncTimer=null;return;
+  }
+  if(++peer.syncAttempts>SNAPSHOT_ACK_RETRIES){
+   clearInterval(peer.syncTimer);peer.syncTimer=null;
+   log('Snapshot non confermato da '+id+'; il giocatore può richiedere un nuovo stato');
+   return;
+  }
+  sendFreshSnapshot(id);
+  log('Ritrasmissione snapshot #'+peer.syncAttempts+' a '+id);
+ },1500);
 }
 
 function broadcast(){
@@ -176,7 +205,13 @@ function bindPlayerChannel(c){
   channel.onclose=()=>{stopPings();displayStatus('Connessione con il GM chiusa')};
   channel.onmessage=e=>{try{
    const m=JSON.parse(e.data);
-   if(m.kind==='snapshot'){playerState=m.state;render();displayStatus('Collegato al GM · stato #'+playerState.sequence)}
+   if(m.kind==='snapshot'){
+    if(!m.state||typeof m.state.sequence!=='number')throw Error('Snapshot non valido');
+    playerState=m.state;
+    render();
+    tell(c,{kind:'snapshot-ack',sequence:playerState.sequence});
+    displayStatus('Collegato al GM · stato #'+playerState.sequence);
+   }
    else if(m.kind==='waiting')displayStatus('Connessione aperta: attendo autorizzazione del GM')
    else if(m.kind==='approved')displayStatus('Accesso autorizzato dal GM')
    else if(m.kind==='rejected')displayStatus('Richiesta di accesso rifiutata dal GM')
@@ -186,7 +221,7 @@ function bindPlayerChannel(c){
     const next=performance.now()-lastPingAt;
     if(Number.isFinite(next)&&next>=0){latencyMs=latencyMs===null?next:latencyMs*.7+next*.3;receivedPings++;updateLatency()}
    }else if(m.kind==='error')log(m.reason)
-  }catch{log('Messaggio non valido')}};
+  }catch(e){log('Messaggio giocatore non elaborato: '+(e.message??'errore'))}};
 }
 function completeHostJoin(id,name,c,conn,resumeKey=null){
  // Resume only after an explicit fresh GM approval. Never trust resumeKey
@@ -204,8 +239,8 @@ function completeHostJoin(id,name,c,conn,resumeKey=null){
  const existing=hostState.tokens[assigned];
  hostState.members[assigned]={name,...(resumeKey?{resumeKey}:{})};
  if(!existing)hostState.tokens[assigned]={owner:assigned,x:20+peers.size*15,y:55};
- const peer={pc:conn,channel:c,timer:null,pendingPing:null,sentAt:0,rttMs:null};
- peers.set(assigned,peer);beginHostPing(assigned,peer);save();broadcast();updateLatency();
+ const peer={pc:conn,channel:c,timer:null,pendingPing:null,sentAt:0,rttMs:null,syncTimer:null,syncAttempts:0,syncAcked:false};
+ peers.set(assigned,peer);beginHostPing(assigned,peer);save();broadcast();awaitSnapshotAck(assigned);updateLatency();
  displayStatus('Giocatore '+name+' autorizzato e collegato');
  return assigned;
 }
@@ -223,9 +258,13 @@ function updateQuickApprovals(){
   const reject=document.createElement('button');reject.textContent='Rifiuta';reject.className='secondary';
   accept.onclick=()=>{
    if(!pendingPeerJs.has(request.id))return;
-   pendingPeerJs.delete(request.id);updateQuickApprovals();
+   if(request.channel.readyState!=='open'){
+    log('Il canale di '+request.name+' non è più aperto; richiesta da ripetere');
+    pendingPeerJs.delete(request.id);updateQuickApprovals();return;
+   }
    tell(request.channel,{kind:'approved'});
    const assigned=completeHostJoin(request.id,request.name,request.channel,request.conn,request.resumeKey);
+   pendingPeerJs.delete(request.id);updateQuickApprovals();
    request.setAssignedId?.(assigned);
   };
   reject.onclick=()=>{
@@ -254,6 +293,15 @@ function bindHostChannel(c,id,conn,{requireApproval=false}={}){
        peer.pendingPing=null;updateLatency();
       }
      }
+    }else if(msg.kind==='snapshot-ack'){
+     const peer=peers.get(id);
+     if(peer?.channel===c && Number.isInteger(msg.sequence)){
+      peer.syncAcked=true;
+      if(peer.syncTimer){clearInterval(peer.syncTimer);peer.syncTimer=null}
+      log('Snapshot confermato da '+id+' · #'+msg.sequence);
+     }
+    }else if(msg.kind==='sync-request'){
+     if(peers.get(id)?.channel===c)sendFreshSnapshot(id);
     }else if(msg.kind==='join'){
      const name=validateName(msg.name);
      if(requireApproval){
@@ -277,23 +325,7 @@ function bindHostChannel(c,id,conn,{requireApproval=false}={}){
     displayStatus('Giocatore '+id+' disconnesso');
    };
 }
-function adaptPeerJsConnection(raw){
- let state='connecting';
- const adapter={
-  onopen:null,onclose:null,onmessage:null,
-  get readyState(){return state},
-  send(text){raw.send(JSON.parse(text))},
-  close(){raw.close()}
- };
- raw.on('open',()=>{state='open';adapter.onopen?.()});
- raw.on('data',packet=>{if(packet&&typeof packet==='object')adapter.onmessage?.({data:JSON.stringify(packet)})});
- raw.on('close',()=>{if(state!=='closed'){state='closed';adapter.onclose?.()}});
- raw.on('error',error=>{
-  log('PeerJS canale: '+(error.message??error.type??'errore'));
-  if(state!=='closed'){state='closed';adapter.onclose?.()}
- });
- return adapter;
-}
+const peerJsAdapter=raw=>adaptPeerJsConnection(raw,{onError:error=>log('PeerJS canale: '+(error.message??error.type??'errore'))});
 
 async function acceptRemoteOffer(offer, reply=null){
  if(!hostState)throw Error('Avvia prima la campagna');
@@ -463,7 +495,7 @@ function openQuickPeer(identity){
 function connectQuickPlayer(){
  if(quickStopRequested||quickRole!=='player'||!quickPeer||!quickRoom)return;
  const raw=quickPeer.connect(PEER_ID_PREFIX+quickRoom,{serialization:'json',reliable:true});
- const adapter=adaptPeerJsConnection(raw);
+ const adapter=peerJsAdapter(raw);
  quickConnection=adapter;
  bindPlayerChannel(adapter);
  const connectionTimeout=setTimeout(()=>{
@@ -532,7 +564,7 @@ $('quickHost').onclick=async()=>{
   });
   peer.on('connection',raw=>{
    const id='P-'+genId().slice(0,6);
-   bindHostChannel(adaptPeerJsConnection(raw),id,{close:()=>raw.close()},{requireApproval:true});
+   bindHostChannel(peerJsAdapter(raw),id,{close:()=>raw.close()},{requireApproval:true});
   });
   $('quickCode').textContent=code;
   displayStatus('Stanza demo '+code+' attiva: comunica il codice al giocatore');
