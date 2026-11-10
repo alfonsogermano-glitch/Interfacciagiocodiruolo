@@ -165,7 +165,7 @@ assert.match(deleteBroadcastHandler, /chatMessageVisibility\(messageId\)/, 'broa
 assert.doesNotMatch(deleteBroadcastHandler, /removeRoll\(messageId\)/, 'broadcast non deve rimuovere tiri locali non verificati');
 assert.match(
   panel,
-  /setSessionRollReactions\(\(prev\) => \(\{ \.\.\.prev, \[messageId\]: next \}\)\)/,
+  /setSessionRollReactions\(\(prev\) => \(\{ \.\.\.prev, \[messageId\]: reactions \}\)\)/,
   'reazioni broadcast non unite ai tiri di sessione',
 );
 
