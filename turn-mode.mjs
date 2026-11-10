@@ -7,8 +7,16 @@ export function turnIceConfig(url,username,credential){
  if(typeof url==='string'&&url.trim().startsWith('{')){
   let obj;
   try{obj=JSON.parse(url)}catch{throw Error('Configurazione TURN JSON non valida')}
-  const ice=obj.iceServers?.[0]??obj;
-  urls=ice.urls;username=ice.username;credential=ice.credential;
+  const servers=Array.isArray(obj.iceServers)?obj.iceServers:[obj];
+  // Never accidentally select a STUN-only entry when JSON contains both.
+  const turnEntries=servers.filter(server=>Array.isArray(server?.urls)?
+   server.urls.some(v=>typeof v==='string'&&/^turns?:/i.test(v)):
+   typeof server?.urls==='string'&&/^turns?:/i.test(server.urls));
+  if(!turnEntries.length)throw Error('Il JSON non contiene server TURN utilizzabili');
+  const first=turnEntries[0];
+  urls=turnEntries.flatMap(server=>Array.isArray(server.urls)?server.urls:[server.urls])
+   .filter(v=>typeof v==='string'&&/^turns?:/i.test(v));
+  username=first.username;credential=first.credential;
  }
  if(typeof urls==='string')urls=urls.trim().split(/[\s,]+/).filter(Boolean);
  if(!Array.isArray(urls)||urls.length===0||urls.length>8)
