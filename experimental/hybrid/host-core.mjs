@@ -128,7 +128,7 @@ export class HybridHost {
       const projected = publicEvent(event, receiver.userId === state.ownerId);
       if (projected) { try { entry.callback(projected); } catch { /* isolate consumer */ } }
     }
-    return { sequence: state.sequence };
+    return { sequence: nextState.sequence };
   }
   subscribe(token, campaignId, callback) {
     this.require(token, campaignId);

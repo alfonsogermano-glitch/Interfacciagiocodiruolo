@@ -21,4 +21,4 @@ jobs:
         with:
           node-version: '22'
       - name: Test per-campaign permissions and local persistence without Supabase
-        run: node --test experimental/hybrid/host-core.test.mjs
+        run: node --test experimental/hybrid/*.test.mjs

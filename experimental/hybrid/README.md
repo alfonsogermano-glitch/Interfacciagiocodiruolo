@@ -25,19 +25,32 @@ non identità verificate. La riapertura da file è consentita esclusivamente
 al processo locale del GM; **non esporla in un endpoint remoto**.
 Non usare questa versione con utenti o contenuti reali.
 
-## Salvataggi attuali da conservare
-La modalità `local` attuale del VTT è **IndexedDB del singolo browser**:
-non equivale a un host multiplayer. `cloud` attualmente usa Supabase.
-L'architettura proposta distingue invece:
+## Decisione definitiva: salvataggio locale obbligatorio
 
-1. **Locale personale** — IndexedDB per bozze e contenuti privati.
-2. **Campagna ospitata** — il GM Host è fonte autorevole e salva su disco.
-3. **Backup cloud opzionale** — una copia cifrata, non una seconda fonte di
-   verità modificabile durante la partita.
+In **Hollowgate Hybrid** non esiste più una preferenza utente `Locale / Cloud`:
+ogni campagna attiva è salvata **esclusivamente sul PC del GM Host**.
+I giocatori possono conservare una cache temporanea per grafica e
+riconnessione, ma non diventano una seconda fonte autorevole.
+Le bozze personali possono restare nel browser dell'utente.
 
-La migrazione dei vecchi dati richiede un wizard di export/import esplicito,
-con anteprima, checksum, backup e conferma prima del cambio di autorità:
-mai passare semplicemente da 'cloud' a 'local' reinterpretando i dati.
+**Hollowgate Hub** non conserva campagne, chat, mappe, token, note o cronologia
+dadi: trasporta solo messaggi, inviti e metadati minimi necessari al
+collegamento. Niente backup cloud nel nuovo progetto; il backup di sicurezza
+sarà locale (esportazione verso un secondo dispositivo/supporto a scelta del
+GM). Una sola copia sul disco non è protezione adeguata contro guasti.
+
+Non modifichiamo il toggle di salvataggio del sito attualmente in produzione
+finché non esistono un Host utilizzabile e uno strumento sicuro per recuperare
+i vecchi dati: eliminarlo **adesso** renderebbe inaccessibili campagne cloud.
+
+Il modulo `storage-policy.mjs` codifica questi invarianti e impedisce
+interpretazioni automatiche di `saveMode`. L'importazione di campagne
+provenienti da IndexedDB o Supabase è una migrazione esplicita, con backup,
+checksum SHA-256, controllo proprietà e conferma, mai una copia silenziosa.
+
+```bash
+node --test experimental/hybrid/*.test.mjs
+```
 
 ## Supabase
 Non serve per questi test. **Non** si deve dedurre da questo progetto che
