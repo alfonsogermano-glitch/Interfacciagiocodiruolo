@@ -19,7 +19,7 @@
  <label class="hint" for="quickLan"><input type="checkbox" id="quickLan"> Prova Wi-Fi locale (solo stessa rete, senza STUN)</label>
  <label class="hint" for="quickTurn"><input type="checkbox" id="quickTurn"> Usa relay TURN (prevale sulla modalità Wi-Fi locale)</label>
  <div class="controls">
-  <input id="quickTurnUrl" type="text" autocomplete="off" placeholder="TURN (turn:host:3478 o turns:host:5349)" aria-label="Indirizzo del relay TURN">
+  <input id="quickTurnUrl" type="text" autocomplete="off" placeholder="Incolla JSON rstream o URL TURN (anche multipli)" aria-label="Indirizzo del relay TURN">
   <input id="quickTurnUser" type="text" autocomplete="off" placeholder="Utente TURN" aria-label="Utente per server TURN">
   <input id="quickTurnPass" type="password" autocomplete="off" placeholder="Credenziale TURN" aria-label="Credenziale per server TURN">
  </div>
@@ -32,14 +32,15 @@
  <button id="quickSync" class="secondary">Recupera campo di gioco</button>
 </div>
 <p>Codice da comunicare ai giocatori: <strong id="quickCode" class="room-code">—</strong></p>
-<p class="hint">Modalità relay TURN: richiede un server TURN reale e credenziali autorizzate, da inserire su PC e cellulare. Crea una stanza con «Usa relay TURN»: il codice inizia con T e Android usa automaticamente relay-only. Non vengono memorizzate credenziali e il codice non le contiene. Non usare credenziali personali Hollowgate. La semplice presenza dei campi non fornisce un server TURN.</p>
+<div class="card compact"><button id="quickShare" hidden>Mostra QR per Android (TURN)</button><div id="quickQr" style="background:white;width:max-content;max-width:100%;margin:12px auto"></div><div class="controls"><input id="quickShareLink" readonly aria-label="Link temporaneo privato per Android" placeholder="Link rapido Android"><button id="quickCopyLink" type="button" class="secondary">Copia link</button></div><p class="hint">Il QR/link contiene le credenziali TURN temporanee e il codice stanza: mostralo solo al giocatore autorizzato. Non condividerlo pubblicamente. I dati vengono rimossi dall’indirizzo del browser Android appena aperta la pagina.</p></div>
+<p class="hint">Modalità relay TURN: sul PC puoi incollare il JSON scaricato da rstream direttamente nel campo URL, oppure compilare i tre campi. Sul cellulare basta scansionare il QR generato dal GM. Crea una stanza con «Usa relay TURN»: il codice inizia con T e Android usa automaticamente relay-only. Non vengono memorizzate credenziali e il codice non le contiene. Non usare credenziali personali Hollowgate. La semplice presenza dei campi non fornisce un server TURN.</p>
 <p class="hint">Prova bidirezionale opzionale: sul PC Game Master inserisci «IP LAN cellulare» (192.168.1.21) prima di creare la stanza. Sul cellulare inserisci «IP LAN GM» (192.168.1.69). I candidati vengono aggiunti solo nei browser. Se il traffico UDP non passa, servirà un relay TURN.</p>
 <p class="hint">Se in Wi-Fi locale la negoziazione ICE fallisce per mDNS, il giocatore può inserire nel campo «IP LAN GM» l'indirizzo IPv4 privato del computer Game Master (ad esempio 192.168.1.69). È un tentativo sperimentale: non apre porte e non modifica Chrome, ma richiede che i dispositivi possano comunicare nella LAN. L'indirizzo non viene inviato al servizio PeerJS.</p>
 <p class="hint">Con «Prova Wi-Fi locale», crea una stanza nuova e comunica il codice che inizia con <strong>L</strong>. Il cellulare seleziona automaticamente la stessa modalità. In 5G usa una stanza normale, con codice che inizia con <strong>W</strong>. Il risultato non è garantito se la rete blocca il traffico fra dispositivi.</p>
 <p class="hint">Dopo ogni ricaricamento, il GM deve premere «Crea stanza demo come GM» e comunicare il nuovo codice mostrato: quello precedente potrebbe non essere più valido.</p>
 <p id="quickReconnect" class="hint" aria-live="polite">Nessuna riconnessione in corso</p>
 <p id="quickDiagnostics" role="status" aria-live="polite" class="hint">Diagnostica: connessione non ancora avviata</p>
-<p class="hint">Versione diagnostica: <strong>turn-relay-diagnostics-20261111</strong> (verifica questo testo sul PC e sul cellulare)</p>
+<p class="hint">Versione diagnostica: <strong>turn-android-quickjoin-20261111</strong> (verifica questo testo sul PC e sul cellulare)</p>
 <div class="approvals">
  <h3>Richieste di ingresso (Game Master)</h3>
  <p class="hint" id="quickApprovalInfo">Nessun giocatore in attesa di autorizzazione</p>
@@ -92,5 +93,6 @@
 <footer>Demo standalone su preview separata · Nessun account reale · Nessuna modifica al sito di produzione</footer>
 </main>
 <script defer src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
-<script type="module" src="./demo.js?v=turn-relay-diagnostics-20261111"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script type="module" src="./demo.js?v=turn-android-quickjoin-20261111"></script>
 </body></html>
