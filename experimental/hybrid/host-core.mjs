@@ -88,6 +88,7 @@ export class HybridHost {
     if (type === 'assign_token') {
       if (!isGM) throw new Error('GM only');
       const id = assertString(action.id, 'token id', 80);
+      if (['__proto__', 'constructor', 'prototype'].includes(id)) throw new Error('Invalid token id');
       const ownerId = assertString(action.ownerId, 'token owner');
       if (ownerId !== state.ownerId && !state.members.includes(ownerId)) throw new Error('Invalid token owner');
       state.tokens[id] = { x: 0, y: 0, ownerId };
@@ -95,7 +96,7 @@ export class HybridHost {
     } else if (type === 'move_token') {
       const id = assertString(action.id, 'token id', 80);
       const target = state.tokens[id];
-      if (!target || (!isGM && target.ownerId !== userId)) throw new Error('Forbidden token movement');
+      if (!Object.hasOwn(state.tokens, id) || !target || (!isGM && target.ownerId !== userId)) throw new Error('Forbidden token movement');
       const { x, y } = action;
       if (![x, y].every(v => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= 100000)) throw new Error('Invalid coordinates');
       target.x = x; target.y = y;
@@ -113,11 +114,16 @@ export class HybridHost {
     } else {
       throw new Error('Unknown command');
     }
-    event.sequence = ++state.sequence;
-    this.save(state);
-    state.events.push(event);
-    // Persist event log as well; this prototype favors correctness over throughput.
-    this.save(state);
+    event.sequence = state.sequence + 1;
+    // Stage complete next state before notifying listeners. If disk write fails,
+    // the in-memory state remains unchanged and no event is published.
+    const nextState = {
+      ...state,
+      sequence: event.sequence,
+      events: [...state.events, event],
+    };
+    this.save(nextState);
+    this.campaigns.set(campaignId, nextState);
     for (const entry of this.listeners.get(campaignId) ?? []) {
       const receiver = this.tokens.get(entry.token);
       if (!receiver) continue;
