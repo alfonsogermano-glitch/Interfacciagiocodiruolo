@@ -33,10 +33,36 @@ export function createConnectClient({ endpoint, fetchFn = fetch, intervalMs = 75
     session = await request('create', {}, null);
     return { room: session.room, peerId: session.peerId };
   }
-  async function joinRoom(room) {
+  async function joinRoom(room,name='Giocatore') {
     if (session) throw Error('Session already exists');
-    session = await request('join', {room: String(room).trim().toUpperCase()}, null);
+    session = await request('join', {room: String(room).trim().toUpperCase(),name}, null);
     return {room: session.room, peerId: session.peerId};
+  }
+  async function pendingRequests(){
+    if(!session||session.role!=='host')throw Error('Only GM can list requests');
+    return (await request('pending',{room:session.room})).requests;
+  }
+  async function decide(peerId,approve){
+    if(!session||session.role!=='host')throw Error('Only GM can approve');
+    return request('decision',{room:session.room,peerId,approve});
+  }
+  async function getStatus(){
+    if(!session)throw Error('No session');
+    if(session.role==='host')return 'approved';
+    const result=await request('status',{room:session.room});
+    return result.status;
+  }
+  async function awaitApproval({timeoutMs=120000,stepMs=800}={}){
+    if(!session||session.role!=='player')throw Error('Only players await approval');
+    const initial=session;
+    const start=Date.now();
+    while(Date.now()-start<timeoutMs && initial===session){
+      const status=await getStatus();
+      if(status==='approved')return status;
+      if(status==='rejected')throw Error('Richiesta rifiutata dal GM');
+      await new Promise(resolve=>setTimeout(resolve,stepMs));
+    }
+    throw Error('Autorizzazione GM non ricevuta');
   }
   async function send(to, kind, description) {
     if (!session) throw Error('No session');
@@ -72,7 +98,7 @@ export function createConnectClient({ endpoint, fetchFn = fetch, intervalMs = 75
     await request('leave',{room:old.room},old.token).catch(()=>{});
   }
   return {
-    createRoom, joinRoom, send, poll, listen, leave,
+    createRoom, joinRoom, pendingRequests, decide, getStatus, awaitApproval, send, poll, listen, leave,
     get active(){return !!session},
     get room(){return session?.room ?? null},
     get peerId(){return session?.peerId ?? null},

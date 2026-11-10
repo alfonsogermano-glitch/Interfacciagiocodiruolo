@@ -20,6 +20,10 @@ test('GM and two players exchange signaling without storing gameplay content',as
  const alice=(await call('join',{room:gm.room})).data;
  const bob=(await call('join',{room:gm.room})).data;
  assert.equal(hub.activeRooms,1);
+ assert.equal((await call('send',{room:gm.room,to:'host',kind:'offer',description:'blocked'},alice.token)).status,403);
+ const pending=(await call('pending',{room:gm.room},gm.token)).data.requests;
+ assert.equal(pending.length,2);
+ for(const p of [alice,bob])assert.equal((await call('decision',{room:gm.room,peerId:p.peerId,approve:true},gm.token)).status,200);
  assert.equal((await call('send',{room:gm.room,to:'host',kind:'offer',description:'alice-offer'},alice.token)).status,200);
  const inbox=(await call('poll',{room:gm.room,after:0},gm.token)).data.messages;
  assert.equal(inbox.length,1);
@@ -34,6 +38,7 @@ test('reject unauthorized, peer spoofing and game payload',async t=>{
  const {call}=await setup(t);const gm=(await call('create')).data;
  const a=(await call('join',{room:gm.room})).data;
  const b=(await call('join',{room:gm.room})).data;
+ for(const p of [a,b])await call('decision',{room:gm.room,peerId:p.peerId,approve:true},gm.token);
  assert.equal((await call('poll',{room:gm.room,after:0})).status,403);
  assert.equal((await call('send',{room:gm.room,to:b.peerId,kind:'offer',description:'bad'},a.token)).status,400);
  assert.equal((await call('send',{room:gm.room,to:'host',kind:'game_state',description:'private-note'},a.token)).status,400);
@@ -104,4 +109,24 @@ test('unbounded room creation is rejected',async t=>{
  const {call}=await setup(t);
  for(let i=0;i<128;i++)assert.equal((await call('create')).status,201);
  assert.equal((await call('create')).status,429);
+});
+
+test('GM approval gate cannot be bypassed, rejection is observable and revokes ability to signal',async t=>{
+ const {call}=await setup(t);
+ const gm=(await call('create')).data;
+ const pending=(await call('join',{room:gm.room,name:'Alice'})).data;
+ assert.equal(pending.status,'pending');
+ assert.equal((await call('status',{room:gm.room},pending.token)).data.status,'pending');
+ assert.equal((await call('send',{room:gm.room,to:'host',kind:'offer',description:'unauthorized'},pending.token)).status,403);
+ assert.equal((await call('poll',{room:gm.room,after:0},pending.token)).status,403);
+ assert.equal((await call('decision',{room:gm.room,peerId:pending.peerId,approve:true},pending.token)).status,403);
+ assert.deepEqual((await call('pending',{room:gm.room},gm.token)).data.requests,[{peerId:pending.peerId,name:'Alice'}]);
+ assert.equal((await call('decision',{room:gm.room,peerId:pending.peerId,approve:false},gm.token)).status,200);
+ assert.equal((await call('status',{room:gm.room},pending.token)).data.status,'rejected');
+ assert.equal((await call('send',{room:gm.room,to:'host',kind:'offer',description:'stillblocked'},pending.token)).status,403);
+ assert.equal((await call('decision',{room:gm.room,peerId:pending.peerId,approve:true},gm.token)).status,400);
+ const allowed=(await call('join',{room:gm.room})).data;
+ assert.equal((await call('decision',{room:gm.room,peerId:allowed.peerId,approve:true},gm.token)).status,200);
+ assert.equal((await call('status',{room:gm.room},allowed.token)).data.status,'approved');
+ assert.equal((await call('send',{room:gm.room,to:'host',kind:'offer',description:'accepted'},allowed.token)).status,200);
 });

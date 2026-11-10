@@ -14,6 +14,11 @@ test('automatic room + two players signals offer and answer only to intended rec
   const gm=createConnectClient({endpoint}),alice=createConnectClient({endpoint}),bob=createConnectClient({endpoint});
   const room=(await gm.createRoom()).room; assert.match(room,/^[A-Z2-9]{8}$/);
   await alice.joinRoom(room);await bob.joinRoom(room);
+  assert.equal(await alice.getStatus(),'pending');
+  const pending=await gm.pendingRequests();
+  assert.equal(pending.length,2);
+  for(const participant of [alice,bob])await gm.decide(participant.peerId,true);
+  assert.equal(await alice.getStatus(),'approved');
   await alice.send('host','offer','offer-alice');
   const inbox=await gm.poll();assert.equal(inbox.length,1);
   assert.equal(inbox[0].from,alice.peerId);
@@ -37,4 +42,17 @@ test('session lifecycle rejects commands before join and after leave',async t=>{
   await player.leave();assert.equal(player.active,false);
   await assert.rejects(()=>player.poll(),/No session/);
   await gm.leave();
+});
+
+test('client approval flow rejects premature signaling and denied players',async t=>{
+ const hub=createSignalingHub(),endpoint=await hub.start();t.after(()=>hub.close());
+ const gm=createConnectClient({endpoint}),player=createConnectClient({endpoint});
+ await gm.createRoom();await player.joinRoom(gm.room,'Denied');
+ await assert.rejects(()=>player.send('host','offer','blocked'),/Await GM approval/);
+ const requests=await gm.pendingRequests();
+ assert.equal(requests[0].name,'Denied');
+ await gm.decide(player.peerId,false);
+ assert.equal(await player.getStatus(),'rejected');
+ await assert.rejects(()=>player.awaitApproval({timeoutMs:150,stepMs:10}),/rifiutata/);
+ await player.leave();await gm.leave();
 });
