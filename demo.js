@@ -10,12 +10,13 @@ import { encodeRoomMode,iceConfigForRoom,roomIceMode } from './lan-ice-mode.mjs'
 import { inspectIceConnection,describePeerNegotiation } from './ice-candidate-report.mjs';
 import { isPrivateLanIPv4,tryAddLanCandidate } from './lan-candidate-override.mjs';
 import { isTurnRoom,turnIceConfig,createJoinFragment,parseJoinFragment } from './turn-mode.mjs';
+import {probeTurn,explainTurnProbe} from './turn-preflight.mjs';
 import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // No Supabase, no production Auth, and no permanent server-side data.
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
 // Manual signaling is intentionally temporary until Hollowgate Hub exists.
 const $=id=>document.getElementById(id);
-const DEMO_REVISION='turn-android-quickjoin-20261111';
+const DEMO_REVISION='turn-preflight-20261111';
 const STORAGE='hollowgate-hybrid-web-demo-v1';
 // Codes are per-live-room, not durable across reloads: an old PeerJS ID can be stale.
 const stun={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
@@ -722,10 +723,25 @@ function scheduleQuickRetry(){
  },delay);
 }
 
+async function verifyTurnBeforeConnect(){
+ const config=turnIceConfig($('quickTurnUrl').value,$('quickTurnUser').value,$('quickTurnPass').value);
+ quickDiag('Verifico il server TURN senza aprire una stanza (massimo 10 secondi)…');
+ const result=await probeTurn(config);
+ const message=explainTurnProbe(result);
+ quickDiag(message);
+ log('Verifica TURN locale: '+message);
+ return result;
+}
+$('quickTurnTest').onclick=async()=>{
+ const button=$('quickTurnTest');button.disabled=true;
+ try{await verifyTurnBeforeConnect()}catch(e){quickDiag('Verifica TURN: '+e.message);log('Verifica TURN: '+e.message)}
+ finally{button.disabled=false}
+};
 $('quickHost').onclick=async()=>{
  const button=$('quickHost');button.disabled=true;
  try{
   stopQuickPeer();
+  if($('quickTurn').checked){const test=await verifyTurnBeforeConnect();if(!test.ok)throw Error('TURN non operativo: stanza relay-only non creata. Leggi il registro.');}
   const hostGeneration=quickGeneration;
   selectMode('gm');
   $('hostSetup').hidden=true; // quick room does not use the manual SDP form
@@ -872,6 +888,7 @@ $('quickJoin').onclick=async()=>{
   const code=$('quickRoom').value.trim().toUpperCase();
   if(!/^[A-HJ-NP-Z2-9]{12}$/.test(code))throw Error('Inserisci il codice stanza di 12 caratteri dato dal GM');
   stopQuickPeer();stopPings();
+  if(isTurnRoom(code)){const test=await verifyTurnBeforeConnect();if(!test.ok)throw Error('TURN non operativo su Android: collegamento non avviato. Leggi il registro.');}
   if(playerPC){playerPC.close();playerPC=null}
   selectMode('player');playerState=null;
   $('playerSetup').hidden=true; // hide lengthy manual offer/answer fields on mobile
