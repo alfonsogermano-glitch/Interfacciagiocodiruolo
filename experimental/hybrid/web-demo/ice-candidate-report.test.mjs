@@ -29,8 +29,8 @@ test('reports candidate pair outcomes from WebRTC stats',async()=>{
 test('ICE negotiation diagnosis distinguishes missing remote SDP from no remote candidates',async()=>{
  const {describePeerNegotiation}=await import('./ice-candidate-report.mjs');
  const pc={
-  localDescription:{type:'answer',sdp:'v=0\\r\\na=candidate:1 1 udp 1 host-example.local 5000 typ host\\r\\n'},
-  remoteDescription:{type:'offer',sdp:'v=0\\r\\n'},
+  localDescription:{type:'answer',sdp:'v=0\r\na=candidate:1 1 udp 1 host-example.local 5000 typ host\r\n'},
+  remoteDescription:{type:'offer',sdp:'v=0\r\n'},
   iceGatheringState:'complete',signalingState:'stable',iceConnectionState:'checking'
  };
  const msg=describePeerNegotiation(pc);
