@@ -39,14 +39,29 @@ collegamento. Niente backup cloud nel nuovo progetto; il backup di sicurezza
 sarà locale (esportazione verso un secondo dispositivo/supporto a scelta del
 GM). Una sola copia sul disco non è protezione adeguata contro guasti.
 
-Non modifichiamo il toggle di salvataggio del sito attualmente in produzione
-finché non esistono un Host utilizzabile e uno strumento sicuro per recuperare
-i vecchi dati: eliminarlo **adesso** renderebbe inaccessibili campagne cloud.
+## Taglio dati di test e conservazione degli account reali
 
-Il modulo `storage-policy.mjs` codifica questi invarianti e impedisce
-interpretazioni automatiche di `saveMode`. L'importazione di campagne
-provenienti da IndexedDB o Supabase è una migrazione esplicita, con backup,
-checksum SHA-256, controllo proprietà e conferma, mai una copia silenziosa.
+**Confermato dal proprietario:** tutte le campagne e i contenuti esistenti
+sono di prova e NON richiedono migrazione o conservazione in Hollowgate Hybrid.
+Il nuovo Host partirà con un archivio campagne **vuoto**.
+
+**Eccezione vincolante:** gli account esistenti sono reali e vanno preservati,
+inclusi identità e accesso. Non cancellare né reimpostare utenti Supabase
+Auth, identità, provider, recupero account o sessioni fino alla realizzazione
+e verifica di un percorso di autenticazione sostitutivo compatibile.
+Gli strumenti GM e giocatore restano accessibili a ogni account; il ruolo
+viene verificato per ciascuna campagna.
+
+Non cambiare né rimuovere ancora il selettore Locale/Cloud dal sito in
+produzione: la rimozione avverrà con il cutover verso Hybrid, dopo
+l'implementazione e il test del login utenti, e non comporterà la
+migrazione delle campagne di test. Non cancellare i dati test dal servizio
+remoto tramite script automatici: il taglio richiede una fase separata,
+backup minimo/ricognizione Auth e approvazione esplicita.
+
+Il modulo `storage-policy.mjs` impedisce che le vecchie preferenze
+`saveMode` determinino la persistenza Hybrid. Non include un percorso
+di importazione automatica dei vecchi contenuti.
 
 ```bash
 node --test experimental/hybrid/*.test.mjs
@@ -61,5 +76,5 @@ Auth, Storage o Realtime del sistema attuale siano stati migrati o sostituiti.
 - trasporto locale cifrato + Hub/relay e protezione rete/CGNAT;
 - sincronizzazione sequenziale e riconnessione, snapshot/resume;
 - fog-of-war filtrato lato Host, asset e upload efficienti;
-- backup cifrato e migrazione dati locali/cloud senza perdita;
+- backup locali delle nuove campagne e protezione degli account Auth reali;
 - confronto prestazioni con cloud attuale e carico multi-client.

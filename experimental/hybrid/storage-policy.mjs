@@ -3,7 +3,7 @@
  *
  * There is no "local/cloud" user preference in Hybrid. Session content lives
  * exclusively on the GM Host; players hold only a disposable client cache.
- * Legacy storage modes are input formats for explicit one-time import only.
+ * Existing campaign/test content is intentionally not migrated. Existing real\n * accounts must remain intact until replacement authentication is verified.
  */
 export const HYBRID_PERSISTENCE = Object.freeze({
   local: 'gm-host',
@@ -28,12 +28,3 @@ export function validateHybridPreferences(settings = {}) {
   return HYBRID_PERSISTENCE;
 }
 
-/** Blocks silent data re-interpretation. User data is imported only after
- * independently verified export + checksum + campaign owner approval.
- */
-export function validateLegacyImport({ source, backupVerified, ownerApproved, contentsHash }) {
-  if (source !== 'legacy-local' && source !== 'legacy-cloud') throw new Error('Unknown legacy source');
-  if (backupVerified !== true || ownerApproved !== true) throw new Error('Legacy data import requires backup and owner approval');
-  if (typeof contentsHash !== 'string' || !/^[a-f0-9]{64}$/.test(contentsHash)) throw new Error('SHA-256 checksum required');
-  return { source, destination: 'gm-host', importAllowed: true };
-}
