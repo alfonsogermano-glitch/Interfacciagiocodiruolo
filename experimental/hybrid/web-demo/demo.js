@@ -13,6 +13,7 @@ import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
 // Manual signaling is intentionally temporary until Hollowgate Hub exists.
 const $=id=>document.getElementById(id);
+const DEMO_REVISION='ice-sdp-visible-20261110';
 const STORAGE='hollowgate-hybrid-web-demo-v1';
 // Codes are per-live-room, not durable across reloads: an old PeerJS ID can be stale.
 const stun={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
@@ -422,10 +423,12 @@ function bindHostChannel(c,id,conn,{requireApproval=false}={}){
    };
 }
 async function awaitIceSnapshot(raw,side){
- const info=await inspectIceConnection(raw);
+ // Print SDP presence immediately: getStats() may take a while or never
+ // complete after the connection closes on mobile.
  const negotiation=describePeerNegotiation(raw?.peerConnection);
- log(side+' · '+info);
  log(side+' · '+negotiation);
+ const info=await inspectIceConnection(raw);
+ log(side+' · '+info);
  return info+' · '+negotiation;
 }
 async function inspectIceRoute(raw,onResult){
@@ -793,4 +796,5 @@ $('quickStop').onclick=()=>{
 };
 
 window.addEventListener('pagehide',()=>{stopQuickPeer();stopPings();void closeConnect();for(const [id,p] of peers){endHostPing(id,p);p.pc.close()}playerPC?.close()});
+log('Versione demo '+DEMO_REVISION+' · diagnostica SDP prima delle statistiche ICE');
 log('Prova browser pronta — scegli GM oppure giocatore');

@@ -82,7 +82,7 @@ test('mobile quick join hides manual SDP controls and scrolls to first game snap
  assert.match(html,/id="quickDiagnostics"/);
  for(const token of ["$('playerSetup').hidden=true", "$('hostSetup').hidden=true", "requestAnimationFrame(()=>$('session').scrollIntoView", "quickDiag('Snapshot ricevuto", "quickDiag('Campo ricevuto"])
   assert.ok(app.includes(token),token);
- assert.match(html,/demo\.js\?v=sdp-ice-diagnostics-20261110/);
+ assert.match(html,/demo\.js\?v=ice-sdp-visible-20261110/);
 });
 
 test('snapshots are transferred through small bounded packets and reassembled before board render',()=>{
@@ -122,4 +122,13 @@ test('ICE failure includes candidate counts and pair attempts on both GM and pla
 test('the ICE report logs negotiation SDP presence and candidate counts on both sides',()=>{
  for(const phrase of ['describePeerNegotiation(raw?.peerConnection)','const negotiation=describePeerNegotiation','awaitIceSnapshot(raw,\'GM \'+id)','awaitIceSnapshot(raw,\'Giocatore\')'])
   assert.ok(app.includes(phrase),phrase);
+});
+
+test('SDP diagnostics are emitted before async getStats and demo revision is visible',()=>{
+ const from=app.indexOf('async function awaitIceSnapshot(raw,side)');
+ const to=app.indexOf('async function inspectIceRoute(raw,onResult)',from);
+ const segment=app.slice(from,to);
+ assert.ok(segment.indexOf("log(side+' · '+negotiation)") < segment.indexOf('await inspectIceConnection(raw)'));
+ assert.match(html,/Versione diagnostica: <strong>ice-sdp-visible-20261110/);
+ assert.match(app,/Versione demo '\+DEMO_REVISION/);
 });
