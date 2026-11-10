@@ -608,6 +608,20 @@ function openQuickPeer(identity,roomCode=null){
   peer.on('error',err=>{clearTimeout(timeout);reject(Error(err?.message??'PeerJS: connessione fallita'))});
  });
 }
+function traceTurnGathering(raw,side){
+ // Stats expose only candidate types and counts. Never log IPs, TURN passwords or SDP.
+ if(!isTurnRoom(quickRoom))return;
+ const run=async()=>{
+  const pc=raw?.peerConnection;
+  if(!pc)return;
+  const info=await inspectIceConnection(raw);
+  log(side+' · TURN diagnostica: '+info+' · gathering '+pc.iceGatheringState+' · ICE '+pc.iceConnectionState);
+  if(pc.iceGatheringState==='complete'&&!/locale \[[^\]]*relay:[1-9]/.test(info))
+   quickDiag(side+': nessun candidato relay locale. Controlla credenziali TURN, scadenza e raggiungibilità del server.');
+ };
+ setTimeout(()=>void run(),3000);
+ setTimeout(()=>void run(),9000);
+}
 function connectQuickPlayer(){
  if(quickStopRequested||quickRole!=='player'||!quickPeer||!quickRoom)return;
  if(quickPeer.disconnected){
@@ -616,6 +630,7 @@ function connectQuickPlayer(){
   scheduleQuickRetry();return;
  }
  const raw=quickPeer.connect(PEER_ID_PREFIX+quickRoom,{serialization:'json',reliable:true});
+ traceTurnGathering(raw,'Giocatore');
  const lanIp=roomIceMode(quickRoom)==='lan'?$('quickLanHostIp').value.trim():'';
  if(lanIp&&!isPrivateLanIPv4(lanIp)){quickDiag('Indirizzo IPv4 LAN del GM non valido');raw.close();return}
  let overrideTimer=null,overrideFinished=false,overrideBusy=false;
@@ -773,6 +788,7 @@ $('quickHost').onclick=async()=>{
    }else if(playerLanIp)log('GM: indirizzo IPv4 del giocatore non valido · prova bidirezionale non attivata');
    raw.on('close',stopHostProbe);
    log('GM: richiesta di connessione PeerJS ricevuta da '+id+' · apertura WebRTC in corso');
+   traceTurnGathering(raw,'GM '+id);
    quickDiag('Richiesta PeerJS ricevuta · attendo apertura del canale WebRTC');
    raw.on('open',()=>{stopHostProbe();if(hostGeneration!==quickGeneration||quickPeer!==peer)return;log('GM: canale WebRTC aperto per '+id);quickDiag('Canale WebRTC aperto · attendo richiesta di ingresso')});
    raw.on('error',error=>{
