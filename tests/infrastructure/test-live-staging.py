@@ -10,7 +10,7 @@ COMPOSE=(ROOT/"infra/staging/docker-compose.yml").read_text()
 class StagingLiveContract(unittest.TestCase):
     def test_isolated_compose(self):
         self.assertIn("postgres:17-alpine",COMPOSE)
-        self.assertNotIn("ports:",COMPOSE)
+        self.assertFalse(any(line.strip().startswith("ports:") for line in COMPOSE.splitlines() if not line.lstrip().startswith("#")),"Docker service must not publish any ports")
     def test_workflow_runs_actual_restore(self):
         self.assertIn("bash infra/staging/smoke-test.sh",WORKFLOW)
         self.assertIn("bash infra/staging/rls-smoke-test.sh",WORKFLOW)
