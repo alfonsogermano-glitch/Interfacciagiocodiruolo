@@ -1,11 +1,13 @@
 // Hollowgate Hybrid browser-to-browser experiment.
 import { assessAnswer } from './answer-guard.mjs';
+import { retryDelay,canRetry } from './reconnect-policy.mjs';
 import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // No Supabase, no production Auth, and no permanent server-side data.
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
 // Manual signaling is intentionally temporary until Hollowgate Hub exists.
 const $=id=>document.getElementById(id);
 const STORAGE='hollowgate-hybrid-web-demo-v1';
+const QUICK_SESSION='hollowgate-hybrid-quick-room-v1';
 const stun={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
 const peers=new Map();
 const pendingPeerJs=new Map();
@@ -271,8 +273,11 @@ function adaptPeerJsConnection(raw){
  };
  raw.on('open',()=>{state='open';adapter.onopen?.()});
  raw.on('data',packet=>{if(packet&&typeof packet==='object')adapter.onmessage?.({data:JSON.stringify(packet)})});
- raw.on('close',()=>{state='closed';adapter.onclose?.()});
- raw.on('error',error=>log('PeerJS canale: '+(error.message??error.type??'errore')));
+ raw.on('close',()=>{if(state!=='closed'){state='closed';adapter.onclose?.()}});
+ raw.on('error',error=>{
+  log('PeerJS canale: '+(error.message??error.type??'errore'));
+  if(state!=='closed'){state='closed';adapter.onclose?.()}
+ });
  return adapter;
 }
 
@@ -412,16 +417,21 @@ $('connectDisconnect').onclick=async()=>{
 // It is NOT an authenticated Hollowgate Connect server.
 const PEER_ID_PREFIX='hollowgate-lab-';
 const ROOM_ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-let quickPeer=null;
+let quickPeer=null,quickRole=null,quickRoom=null,quickConnection=null,quickRetryTimer=null,quickRetryAttempt=0,quickStopRequested=true,quickGeneration=0;
 function newQuickCode(){
  const bytes=crypto.getRandomValues(new Uint8Array(12));
  return Array.from(bytes,value=>ROOM_ALPHABET[value%ROOM_ALPHABET.length]).join('');
 }
 function stopQuickPeer(){
+ quickStopRequested=true;
+ quickGeneration++;
+ if(quickRetryTimer!==null){clearTimeout(quickRetryTimer);quickRetryTimer=null}
+ quickConnection=null;quickRole=null;quickRoom=null;quickRetryAttempt=0;
  for(const request of pendingPeerJs.values())request.channel.close();
  pendingPeerJs.clear();updateQuickApprovals();
  if(quickPeer){quickPeer.destroy();quickPeer=null}
  $('quickCode').textContent='—';
+ $('quickReconnect').textContent='Nessuna riconnessione in corso';
 }
 function openQuickPeer(identity){
  const Peer=window.Peer;
@@ -436,15 +446,67 @@ function openQuickPeer(identity){
   peer.on('error',err=>{clearTimeout(timeout);reject(Error(err?.message??'PeerJS: connessione fallita'))});
  });
 }
+function connectQuickPlayer(){
+ if(quickStopRequested||quickRole!=='player'||!quickPeer||!quickRoom)return;
+ const raw=quickPeer.connect(PEER_ID_PREFIX+quickRoom,{serialization:'json',reliable:true});
+ const adapter=adaptPeerJsConnection(raw);
+ quickConnection=adapter;
+ bindPlayerChannel(adapter);
+ const onOpen=adapter.onopen, onClose=adapter.onclose;
+ adapter.onopen=()=>{
+  if(quickStopRequested||quickConnection!==adapter){raw.close();return}
+  quickRetryAttempt=0;
+  if(quickRetryTimer!==null){clearTimeout(quickRetryTimer);quickRetryTimer=null}
+  $('quickReconnect').textContent='Connessione ripristinata · autorizzazione del GM richiesta';
+  onOpen?.();
+ };
+ adapter.onclose=()=>{
+  if(quickConnection!==adapter)return;
+  onClose?.();
+  scheduleQuickRetry();
+ };
+}
+function scheduleQuickRetry(){
+ if(!canRetry({requested:!quickStopRequested&&quickRole==='player',connected:quickConnection?.readyState==='open',attempt:quickRetryAttempt+1}))return;
+ if(quickRetryTimer!==null)return;
+ const generation=quickGeneration;
+ const delay=retryDelay(++quickRetryAttempt);
+ $('quickReconnect').textContent='Riconnessione automatica: tentativo '+quickRetryAttempt+'/6';
+ displayStatus('Connessione interrotta · nuovo tentativo tra '+delay/1000+' s');
+ quickRetryTimer=setTimeout(()=>{
+  quickRetryTimer=null;
+  if(quickGeneration!==generation||quickStopRequested)return;
+  try{
+   if(quickPeer?.disconnected)quickPeer.reconnect();
+   connectQuickPlayer();
+  }catch(error){log('Riconnessione: '+error.message);scheduleQuickRetry()}
+ },delay);
+}
+
 $('quickHost').onclick=async()=>{
  const button=$('quickHost');button.disabled=true;
  try{
   stopQuickPeer();
   selectMode('gm');
   if(!hostState)$('startHost').click();
-  const code=newQuickCode();
-  const peer=await openQuickPeer(PEER_ID_PREFIX+code);
-  quickPeer=peer;
+  let code;
+  try{code=sessionStorage.getItem(QUICK_SESSION)}catch{}
+  if(!code||!/^[A-HJ-NP-Z2-9]{12}$/.test(code))code=newQuickCode();
+  let peer;
+  try{peer=await openQuickPeer(PEER_ID_PREFIX+code)}
+  catch(e){
+   // Another tab or old host may still own this ID. Never steal it.
+   if(code && /taken|unavailable|already/i.test(e.message)){
+    code=newQuickCode();peer=await openQuickPeer(PEER_ID_PREFIX+code);
+   }else throw e;
+  }
+  quickPeer=peer;quickRole='gm';quickRoom=code;quickStopRequested=false;
+  try{sessionStorage.setItem(QUICK_SESSION,code)}catch{}
+  peer.on('disconnected',()=>{
+   if(quickStopRequested||quickPeer!==peer)return;
+   displayStatus('Segnalazione GM disconnessa · tento di ripristinare la stanza');
+   try{peer.reconnect()}catch(e){log('Riconnessione GM: '+e.message)}
+  });
   peer.on('connection',raw=>{
    const id='P-'+genId().slice(0,6);
    bindHostChannel(adaptPeerJsConnection(raw),id,{close:()=>raw.close()},{requireApproval:true});
@@ -464,8 +526,9 @@ $('quickJoin').onclick=async()=>{
   selectMode('player');playerState=null;
   const peer=await openQuickPeer();
   quickPeer=peer;
-  const raw=peer.connect(PEER_ID_PREFIX+code,{serialization:'json',reliable:true});
-  bindPlayerChannel(adaptPeerJsConnection(raw));
+  quickRole='player';quickRoom=code;quickStopRequested=false;quickRetryAttempt=0;
+  connectQuickPlayer();
+  $('quickReconnect').textContent='Collegamento in corso';
   displayStatus('Collegamento rapido verso '+code+' in corso');
  }catch(e){stopQuickPeer();log('Collegamento rapido: '+e.message)}
  finally{button.disabled=false}

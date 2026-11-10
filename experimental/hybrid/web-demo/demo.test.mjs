@@ -51,3 +51,9 @@ test('quick PeerJS requires explicit GM approval before snapshot and token assig
  for(const part of ['pendingPeerJs.set(id,','requireApproval:true','completeHostJoin(request.id,','request.channel.close()','textContent=\'Autorizza\'','textContent=\'Rifiuta\''])assert.ok(app.includes(part),part);
  assert.ok(app.indexOf('if(requireApproval)')<app.indexOf('completeHostJoin(id,name,c,conn);'));
 });
+
+test('quick reconnect is bounded, reuses room code and never skips GM approval',()=>{
+ assert.match(html,/id="quickReconnect"/);
+ for(const p of ["scheduleQuickRetry()","quickRetryAttempt","retryDelay(","quickGeneration","quickStopRequested","sessionStorage.getItem(QUICK_SESSION)","sessionStorage.setItem(QUICK_SESSION","connectQuickPlayer()","requireApproval:true"])
+  assert.ok(app.includes(p),p);
+});

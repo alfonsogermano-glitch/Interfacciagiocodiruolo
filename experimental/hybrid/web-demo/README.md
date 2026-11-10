@@ -84,3 +84,16 @@ proprietario: il codice `signaling-hub.mjs` resta locale/non
 pubblicabile finché non abbiamo infrastruttura HTTPS e autentificazione.
 Per la versione reale serviranno anche un sistema di accessi per
 campagna, sicurezza e protezioni contro gli abusi.
+
+## Riconnessione sperimentale
+Sul collegamento PeerJS del giocatore, la chiusura del canale provoca fino
+a 6 tentativi, con intervalli crescenti (1, 2, 4, 8, 10, 10 secondi).
+Premendo «Disconnetti», i tentativi vengono annullati. Ogni tentativo
+apre un nuovo canale e deve essere **nuovamente autorizzato dal GM**;
+non si trasferiscono diritti d'accesso automaticamente. Il codice
+GM viene ricordato in `sessionStorage` per consentire la riapertura
+della pagina nella stessa scheda, se il suo identificatore PeerJS è
+ancora disponibile. Il contenuto demo del GM resta nel `localStorage`.
+Limiti: connessioni manuali non sono riconnesse, un riavvio del PC
+non garantisce il riuso del codice e la scadenza dei tentativi richiede
+un intervento dell'utente.
