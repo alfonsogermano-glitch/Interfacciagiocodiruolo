@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { request as httpRequest } from 'node:http';
 import { HybridHost } from './host-core.mjs';
 import { createLoopbackTransport } from './loopback-transport.mjs';
 
@@ -34,8 +35,15 @@ test('two player clients communicate with the GM Host and permissions hold over 
   assert.equal(denied.status,400);
   const other=await req('snapshot',c.token);
   assert.equal((await other.json()).tokens.hero.x,23);
-  const unsafe=await fetch(endpoint('snapshot'),{headers:{authorization:'Bearer '+b.token,Host:'evil.test'}});
-  assert.equal(unsafe.status,403);
+  // fetch() normalizes the Host header; use raw node:http to assert this guard.
+  const unsafeStatus = await new Promise((resolve,reject) => {
+    const call=httpRequest(endpoint('snapshot'), { headers: {
+      authorization: 'Bearer '+b.token, host:'evil.test',
+    } }, response => { response.resume(); resolve(response.statusCode); });
+    call.on('error',reject);
+    call.end();
+  });
+  assert.equal(unsafeStatus,403);
 });
 
 test('SSE streams only authorized events and replay never leaks GM notes',async t=>{
