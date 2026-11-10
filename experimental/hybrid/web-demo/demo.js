@@ -9,12 +9,13 @@ import { connectionProblem,retryablePeerError } from './connection-diagnostics.m
 import { encodeRoomMode,iceConfigForRoom,roomIceMode } from './lan-ice-mode.mjs';
 import { inspectIceConnection,describePeerNegotiation } from './ice-candidate-report.mjs';
 import { isPrivateLanIPv4,tryAddLanCandidate } from './lan-candidate-override.mjs';
+import { isTurnRoom,turnIceConfig } from './turn-mode.mjs';
 import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // No Supabase, no production Auth, and no permanent server-side data.
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
 // Manual signaling is intentionally temporary until Hollowgate Hub exists.
 const $=id=>document.getElementById(id);
-const DEMO_REVISION='lan-bidirectional-probe-20261110';
+const DEMO_REVISION='turn-relay-optin-20261110';
 const STORAGE='hollowgate-hybrid-web-demo-v1';
 // Codes are per-live-room, not durable across reloads: an old PeerJS ID can be stale.
 const stun={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
@@ -599,7 +600,7 @@ function openQuickPeer(identity,roomCode=null){
  if(typeof Peer!=='function')throw Error('La libreria PeerJS non è disponibile. Controlla connessione e blocchi CDN.');
  const peer=new Peer(identity,{
   host:'0.peerjs.com',port:443,path:'/',secure:true,
-  config:iceConfigForRoom(roomCode,stun),debug:1
+  config:isTurnRoom(roomCode)?turnIceConfig($('quickTurnUrl').value,$('quickTurnUser').value,$('quickTurnPass').value):iceConfigForRoom(roomCode,stun),debug:1
  });
  return new Promise((resolve,reject)=>{
   const timeout=setTimeout(()=>{peer.destroy();reject(Error('Il servizio pubblico di segnalazione non risponde'))},14000);
@@ -633,7 +634,7 @@ function connectQuickPlayer(){
    log('Giocatore: candidato LAN esplicito '+(result==='added'?'inserito nell’agente ICE':result==='no-mdns'?'non necessario (nessun mDNS nella risposta)':'non accettato ('+result+')'));
   },350);
  }
- quickDiag('Stanza '+quickRoom+' richiesta · negoziazione '+(roomIceMode(quickRoom)==='lan'?'LAN senza STUN':'WebRTC standard')+' in corso');
+ quickDiag('Stanza '+quickRoom+' richiesta · negoziazione '+(isTurnRoom(quickRoom)?'TURN relay':roomIceMode(quickRoom)==='lan'?'LAN senza STUN':'WebRTC standard')+' in corso');
  log('PeerJS giocatore: richiesta canale verso stanza '+quickRoom);
  raw.on('error',error=>{
   if(quickStopRequested||quickConnection?.readyState==='open')return;
@@ -720,6 +721,7 @@ $('quickHost').onclick=async()=>{
   let code=null,peer=null;
   for(let tries=0;tries<3;tries++){
    code=encodeRoomMode(newQuickCode(),$('quickLan').checked);
+   if($('quickTurn').checked)code='T'+code.slice(1);
    try{
     peer=await openQuickPeer(PEER_ID_PREFIX+code,code);
     if(hostGeneration!==quickGeneration){peer.destroy();return}
@@ -733,7 +735,7 @@ $('quickHost').onclick=async()=>{
   if(hostGeneration!==quickGeneration){peer?.destroy();return}
   if(peer.id!==PEER_ID_PREFIX+code)throw Error('Il codice della stanza non corrisponde al PeerJS attivo');
   quickPeer=peer;quickRole='gm';quickRoom=code;quickStopRequested=false;
-  quickDiag('Stanza '+(roomIceMode(code)==='lan'?'Wi-Fi locale (senza STUN)':'standard (STUN)')+' · attendo giocatori');
+  quickDiag('Stanza '+(isTurnRoom(code)?'TURN relay (solo relay)':roomIceMode(code)==='lan'?'Wi-Fi locale (senza STUN)':'standard (STUN)')+' · attendo giocatori');
   log('Nuova stanza verificata sul server PeerJS · codice '+code+' · ICE '+roomIceMode(code));
   peer.on('disconnected',()=>{
    if(quickStopRequested||quickPeer!==peer)return;
@@ -797,7 +799,7 @@ $('quickHost').onclick=async()=>{
   });
   $('quickCode').textContent=code;
   quickDiag('Stanza GM registrata · utilizza questo NUOVO codice dopo ogni ricaricamento');
-  displayStatus('Stanza demo '+code+' ('+(roomIceMode(code)==='lan'?'Wi-Fi locale':'standard')+') attiva: comunica il codice al giocatore');
+  displayStatus('Stanza demo '+code+' ('+(isTurnRoom(code)?'TURN relay':roomIceMode(code)==='lan'?'Wi-Fi locale':'standard')+') attiva: comunica il codice al giocatore');
  }catch(e){stopQuickPeer();const message=explainPeerFailure(e);quickDiag(message);log(message)}
  finally{button.disabled=false}
 };
