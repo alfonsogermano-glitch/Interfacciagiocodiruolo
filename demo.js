@@ -8,6 +8,7 @@ const STORAGE='hollowgate-hybrid-web-demo-v1';
 const stun={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
 const peers=new Map();
 let mode='gm',hostState=null,channel=null,playerPC=null,peerId=null,playerState=null,role='gm', applyingAnswer=false, appliedAnswerSdp=null;
+let latencyTimer=null, lastPingId=null, lastPingAt=0, latencyMs=null, sentPings=0, receivedPings=0;
 const log=(text)=>{const line=document.createElement('div');line.textContent=new Date().toLocaleTimeString()+' · '+text;$('log').prepend(line)};
 const copy=async(id)=>{try{await navigator.clipboard.writeText($(id).value);log('Testo copiato negli appunti')}catch{ $(id).select();log('Seleziona e copia con Ctrl+C')}}; 
 $('copyHostAnswer').onclick=()=>copy('hostAnswer');$('copyPlayerOffer').onclick=()=>copy('playerOffer');
@@ -15,6 +16,26 @@ const genId=()=>crypto.randomUUID();
 const defaultState=()=>({title:'Campagna demo',sequence:0,owner:'gm',members:{},tokens:{gm:{owner:'gm',x:20,y:20}},activity:[]});
 const save=()=>{if(!hostState)return;localStorage.setItem(STORAGE,JSON.stringify(hostState))};
 const displayStatus=text=>{$('status').textContent=text;log(text)};
+const updateLatency=()=>{
+ const meter=$('latencyMeter');
+ if(meter)meter.textContent=latencyMs===null?'Latenza: in attesa di misurazione':
+   'Latenza: '+Math.round(latencyMs)+' ms · risposte '+receivedPings+'/'+sentPings;
+};
+function stopPings(){
+ if(latencyTimer!==null){clearInterval(latencyTimer);latencyTimer=null;}
+ lastPingId=null;latencyMs=null;sentPings=0;receivedPings=0;updateLatency();
+}
+function startPings(c){
+ stopPings();
+ const pulse=()=>{
+  if(c.readyState!=='open')return;
+  const id=crypto.randomUUID();
+  lastPingId=id;lastPingAt=performance.now();sentPings++;
+  tell(c,{kind:'ping',id});updateLatency();
+ };
+ pulse();latencyTimer=setInterval(pulse,3000);
+}
+
 function selectMode(next){
  mode=next;$('hostMode').classList.toggle('selected',next==='gm');$('playerMode').classList.toggle('selected',next==='player');
  $('hostSetup').hidden=next!=='gm';$('playerSetup').hidden=next!=='player';$('session').hidden=true;
@@ -111,13 +132,20 @@ function gathered(connection){
 }
 $('createOffer').onclick=async()=>{
  try{
-  if(playerPC)playerPC.close();
+  if(playerPC)playerPC.close();stopPings();
   appliedAnswerSdp=null;applyingAnswer=false;$('remoteAnswer').value='';
   $('applyAnswer').disabled=false;
   playerPC=pc('Giocatore');channel=playerPC.createDataChannel('hollowgate',{ordered:true});
-  channel.onopen=()=>{tell(channel,{kind:'join',name:validateName($('playerName').value)});displayStatus('Connessione diretta aperta; attendo il GM')};
-  channel.onclose=()=>displayStatus('Connessione con il GM chiusa');
-  channel.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.kind==='snapshot'){playerState=m.state;render();displayStatus('Collegato al GM · stato #'+playerState.sequence)}else if(m.kind==='error')log(m.reason)}catch{log('Messaggio non valido')}};
+  channel.onopen=()=>{tell(channel,{kind:'join',name:validateName($('playerName').value)});startPings(channel);displayStatus('Connessione diretta aperta; attendo il GM')};
+  channel.onclose=()=>{stopPings();displayStatus('Connessione con il GM chiusa')};
+  channel.onmessage=e=>{try{
+   const m=JSON.parse(e.data);
+   if(m.kind==='snapshot'){playerState=m.state;render();displayStatus('Collegato al GM · stato #'+playerState.sequence)}
+   else if(m.kind==='pong'&&m.id===lastPingId){
+    const next=performance.now()-lastPingAt;
+    if(Number.isFinite(next)&&next>=0){latencyMs=latencyMs===null?next:latencyMs*.7+next*.3;receivedPings++;updateLatency()}
+   }else if(m.kind==='error')log(m.reason)
+  }catch{log('Messaggio non valido')}};
   const offer=await playerPC.createOffer();await playerPC.setLocalDescription(offer);await gathered(playerPC);
   $('playerOffer').value=JSON.stringify(playerPC.localDescription);
   displayStatus('Offerta pronta: copiala al GM');
@@ -133,7 +161,9 @@ $('acceptOffer').onclick=async()=>{
    const c=e.channel;
    c.onmessage=event=>{try{
     const msg=JSON.parse(event.data);
-    if(msg.kind==='join'){
+    if(msg.kind==='ping'&&typeof msg.id==='string'&&msg.id.length<=80){
+     tell(c,{kind:'pong',id:msg.id});
+    }else if(msg.kind==='join'){
      hostState.members[id]={name:validateName(msg.name)};
      hostState.tokens[id]={owner:id,x:20+peers.size*15,y:55};
      peers.set(id,{pc:conn,channel:c});save();broadcast();displayStatus('Giocatore '+id+' collegato');
@@ -171,5 +201,5 @@ $('applyAnswer').onclick=async()=>{
  }catch(e){log('Errore collegamento: '+e.message)}
  finally{applyingAnswer=false;$('applyAnswer').disabled=false}
 };
-window.addEventListener('pagehide',()=>{for(const p of peers.values())p.pc.close();playerPC?.close()});
+window.addEventListener('pagehide',()=>{stopPings();for(const p of peers.values())p.pc.close();playerPC?.close()});
 log('Prova browser pronta — scegli GM oppure giocatore');
