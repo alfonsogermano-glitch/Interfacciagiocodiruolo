@@ -257,15 +257,15 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
   // il contenuto attendibile viene riletto dal database sotto RLS.
   const handleChatReactionBroadcast = useCallback((msg: { payload?: Record<string, unknown> } | null) => {
     const messageId = typeof msg?.payload?.messageId === 'string' ? msg.payload.messageId : null;
-    if (!messageId) return;
-    void loadChatReactions(messageId).then((reactions) => {
+    if (!messageId || !activeCampaign?.id) return;
+    void loadChatReactions(messageId, activeCampaign.id).then((reactions) => {
       if (!reactions) return; // Riga non visibile, eliminata o errore: ignora il broadcast.
       setEntries((prev) => prev.map((entry) => (
         entry.id === messageId ? { ...entry, reactions } : entry
       )));
       setSessionRollReactions((prev) => ({ ...prev, [messageId]: reactions }));
     });
-  }, []);
+  }, [activeCampaign?.id]);
 
   // Voce cancellata da un altro partecipante: la rimuove dalla timeline e
   // anche dalla copia locale del tiro (se e' presente nella sessione).
@@ -274,12 +274,12 @@ export function SessionChatPanel({ incomingMessage = null }: { incomingMessage?:
   // non avere una riga persistita, e un peer potrebbe falsificare l'evento.
   const handleChatDeleteBroadcast = useCallback((msg: { payload?: Record<string, unknown> } | null) => {
     const messageId = typeof msg?.payload?.messageId === 'string' ? msg.payload.messageId : null;
-    if (!messageId) return;
-    void chatMessageVisibility(messageId).then((visibility) => {
+    if (!messageId || !activeCampaign?.id) return;
+    void chatMessageVisibility(messageId, activeCampaign.id).then((visibility) => {
       if (visibility !== 'missing') return;
       setEntries((prev) => prev.filter((entry) => entry.id !== messageId));
     });
-  }, []);
+  }, [activeCampaign?.id]);
 
   const chatChannel = useCampaignChannel(activeCampaign?.id, {
     onBroadcast: {
