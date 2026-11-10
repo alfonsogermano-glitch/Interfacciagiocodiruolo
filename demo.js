@@ -8,9 +8,10 @@ const $=id=>document.getElementById(id);
 const STORAGE='hollowgate-hybrid-web-demo-v1';
 const stun={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
 const peers=new Map();
+const pendingPeerJs=new Map();
 let mode='gm',hostState=null,channel=null,playerPC=null,peerId=null,playerState=null,role='gm', applyingAnswer=false, appliedAnswerSdp=null;
 let latencyTimer=null, lastPingId=null, lastPingAt=0, latencyMs=null, sentPings=0, receivedPings=0;
-let connectClient=null, autoSession=false;
+let connectClient=null, autoSession=false, pendingApprovalTimer=null;
 const log=(text)=>{const line=document.createElement('div');line.textContent=new Date().toLocaleTimeString()+' · '+text;$('log').prepend(line)};
 const copy=async(id)=>{try{await navigator.clipboard.writeText($(id).value);log('Testo copiato negli appunti')}catch{ $(id).select();log('Seleziona e copia con Ctrl+C')}}; 
 $('copyHostAnswer').onclick=()=>copy('hostAnswer');$('copyPlayerOffer').onclick=()=>copy('playerOffer');
@@ -174,6 +175,9 @@ function bindPlayerChannel(c){
   channel.onmessage=e=>{try{
    const m=JSON.parse(e.data);
    if(m.kind==='snapshot'){playerState=m.state;render();displayStatus('Collegato al GM · stato #'+playerState.sequence)}
+   else if(m.kind==='waiting')displayStatus('Connessione aperta: attendo autorizzazione del GM')
+   else if(m.kind==='approved')displayStatus('Accesso autorizzato dal GM')
+   else if(m.kind==='rejected')displayStatus('Richiesta di accesso rifiutata dal GM')
    else if(m.kind==='ping'&&typeof m.id==='string'&&m.id.length<=80){
     tell(channel,{kind:'pong',id:m.id});
    }else if(m.kind==='pong'&&m.id===lastPingId){
@@ -182,7 +186,44 @@ function bindPlayerChannel(c){
    }else if(m.kind==='error')log(m.reason)
   }catch{log('Messaggio non valido')}};
 }
-function bindHostChannel(c,id,conn){
+function completeHostJoin(id,name,c,conn){
+ if(peers.has(id))return;
+ hostState.members[id]={name};
+ hostState.tokens[id]={owner:id,x:20+peers.size*15,y:55};
+ const peer={pc:conn,channel:c,timer:null,pendingPing:null,sentAt:0,rttMs:null};
+ peers.set(id,peer);beginHostPing(id,peer);save();broadcast();updateLatency();
+ displayStatus('Giocatore '+name+' autorizzato e collegato');
+}
+function updateQuickApprovals(){
+ const target=$('quickApprovals');
+ if(!target)return;
+ target.replaceChildren();
+ $('quickApprovalInfo').textContent=pendingPeerJs.size?
+  'Giocatori in attesa: '+pendingPeerJs.size:
+  'Nessun giocatore in attesa di autorizzazione';
+ for(const request of pendingPeerJs.values()){
+  const row=document.createElement('div');row.className='approval-entry';
+  const name=document.createElement('span');name.textContent=request.name+' ('+request.id+')';
+  const accept=document.createElement('button');accept.textContent='Autorizza';
+  const reject=document.createElement('button');reject.textContent='Rifiuta';reject.className='secondary';
+  accept.onclick=()=>{
+   if(!pendingPeerJs.has(request.id))return;
+   pendingPeerJs.delete(request.id);updateQuickApprovals();
+   tell(request.channel,{kind:'approved'});
+   completeHostJoin(request.id,request.name,request.channel,request.conn);
+  };
+  reject.onclick=()=>{
+   if(!pendingPeerJs.has(request.id))return;
+   pendingPeerJs.delete(request.id);updateQuickApprovals();
+   tell(request.channel,{kind:'rejected'});
+   request.channel.close();
+   log('Ingresso rifiutato: '+request.name);
+  };
+  row.append(name,accept,reject);target.append(row);
+ }
+}
+
+function bindHostChannel(c,id,conn,{requireApproval=false}={}){
 
    c.onmessage=event=>{try{
     const msg=JSON.parse(event.data);
@@ -198,15 +239,27 @@ function bindHostChannel(c,id,conn){
       }
      }
     }else if(msg.kind==='join'){
-     hostState.members[id]={name:validateName(msg.name)};
-     hostState.tokens[id]={owner:id,x:20+peers.size*15,y:55};
-     const peer={pc:conn,channel:c,timer:null,pendingPing:null,sentAt:0,rttMs:null};
-     peers.set(id,peer);beginHostPing(id,peer);save();broadcast();updateLatency();displayStatus('Giocatore '+id+' collegato');
+     const name=validateName(msg.name);
+     if(requireApproval){
+      if(!pendingPeerJs.has(id)&&!peers.has(id)){
+       if(pendingPeerJs.size>=12){tell(c,{kind:'rejected'});c.close();return}
+       pendingPeerJs.set(id,{id,name,channel:c,conn});
+       updateQuickApprovals();
+       tell(c,{kind:'waiting'});
+       log('Richiesta di accesso da '+name+' · '+id);
+      }
+     }else{
+      completeHostJoin(id,name,c,conn);
+     }
     }else if(msg.kind==='command'){
      if(!peers.has(id)||!applyCommand(id,msg.action))tell(c,{kind:'error',reason:'Comando non autorizzato'});
     }
    }catch{tell(c,{kind:'error',reason:'Comando non valido'})}};
-   c.onclose=()=>{endHostPing(id,peers.get(id));displayStatus('Giocatore '+id+' disconnesso')};
+   c.onclose=()=>{
+    pendingPeerJs.delete(id);updateQuickApprovals();
+    endHostPing(id,peers.get(id));
+    displayStatus('Giocatore '+id+' disconnesso');
+   };
 }
 function adaptPeerJsConnection(raw){
  let state='connecting';
@@ -279,6 +332,8 @@ function configureConnectPanel(){
 $('connectEndpoint').addEventListener('input',configureConnectPanel);
 configureConnectPanel();
 async function closeConnect(){
+ if(pendingApprovalTimer!==null){clearInterval(pendingApprovalTimer);pendingApprovalTimer=null}
+ $('pendingApprovals').replaceChildren();
  autoSession=false;
  if(connectClient){const old=connectClient;connectClient=null;await old.leave();}
  $('roomCode').textContent='—';
@@ -294,6 +349,24 @@ $('connectHost').onclick=async()=>{
   $('roomCode').textContent=room;
   displayStatus('Stanza '+room+' pronta: condividi soltanto questo codice');
   const active=connectClient;
+  async function updatePending(){
+   if(active!==connectClient)return;
+   try{
+    const requests=await active.pendingRequests();
+    const list=$('pendingApprovals');list.replaceChildren();
+    for(const request of requests){
+     const item=document.createElement('div');item.className='approval-entry';
+     const name=document.createElement('span');name.textContent=request.name+' chiede di partecipare';
+     const yes=document.createElement('button');yes.textContent='Autorizza';
+     const no=document.createElement('button');no.textContent='Rifiuta';no.className='secondary';
+     yes.onclick=async()=>{try{await active.decide(request.peerId,true);await updatePending()}catch(e){log('Autorizzazione: '+e.message)}};
+     no.onclick=async()=>{try{await active.decide(request.peerId,false);await updatePending()}catch(e){log('Rifiuto: '+e.message)}};
+     item.append(name,yes,no);list.append(item);
+    }
+    $('pendingHint').textContent=requests.length?'Richieste in attesa: '+requests.length:'Nessuna richiesta di accesso in attesa';
+   }catch(e){log('Richieste: '+e.message)}
+  }
+  await updatePending();pendingApprovalTimer=setInterval(()=>{void updatePending()},2000);
   void active.listen(async message=>{
    if(active!==connectClient)return;
    if(message.kind==='offer'&&message.from!=='host'){
@@ -311,8 +384,11 @@ $('connectJoin').onclick=async()=>{
   if(!/^[A-Z2-9]{8}$/.test(room))throw Error('Codice stanza non valido');
   await closeConnect();
   connectClient=createConnectClient({endpoint});
-  await connectClient.joinRoom(room);
+  await connectClient.joinRoom(room,validateName($('playerName').value));
   autoSession=true;
+  displayStatus('Richiesta inviata · attendo autorizzazione del GM');
+  await connectClient.awaitApproval();
+  displayStatus('Accesso autorizzato dal GM · preparo WebRTC');
   await $('createOffer').onclick();
   if(!playerPC?.localDescription)throw Error('Offerta non generata');
   await connectClient.send('host','offer',JSON.stringify(playerPC.localDescription));
@@ -342,6 +418,8 @@ function newQuickCode(){
  return Array.from(bytes,value=>ROOM_ALPHABET[value%ROOM_ALPHABET.length]).join('');
 }
 function stopQuickPeer(){
+ for(const request of pendingPeerJs.values())request.channel.close();
+ pendingPeerJs.clear();updateQuickApprovals();
  if(quickPeer){quickPeer.destroy();quickPeer=null}
  $('quickCode').textContent='—';
 }
@@ -369,7 +447,7 @@ $('quickHost').onclick=async()=>{
   quickPeer=peer;
   peer.on('connection',raw=>{
    const id='P-'+genId().slice(0,6);
-   bindHostChannel(adaptPeerJsConnection(raw),id,{close:()=>raw.close()});
+   bindHostChannel(adaptPeerJsConnection(raw),id,{close:()=>raw.close()},{requireApproval:true});
   });
   $('quickCode').textContent=code;
   displayStatus('Stanza demo '+code+' attiva: comunica il codice al giocatore');
