@@ -48,7 +48,7 @@ PLAYER_B=00000000-0000-4000-8000-000000000004
 OUTSIDER=00000000-0000-4000-8000-000000000005
 query_as() {
   local actor="$1" statement="$2"
-  "${compose[@]}" exec -T postgres psql -XqAt -v ON_ERROR_STOP=1 -U hollowgate_test -d hollowgate_test <<SQL
+  "${compose[@]}" exec -T postgres psql -XqAt -v ON_ERROR_STOP=1 -U hollowgate_test -d hollowgate_test <<SQL | sed '1d'
 BEGIN;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','$actor',true);
@@ -79,6 +79,5 @@ assert_denied spoof_sender "$PLAYER_A" "INSERT INTO public.chat_messages VALUES 
 assert_denied outsider_insert "$OUTSIDER" "INSERT INTO public.chat_messages VALUES ('10000000-0000-4000-8000-000000000006','00000000-0000-4000-8000-0000000000a1','$OUTSIDER','outsider','forged');"
 # With SQL UPDATE privilege but no RLS UPDATE policy, no row may be returned.
 changed="$(query_as "$PLAYER_A" "UPDATE public.chat_messages SET content='tampered' WHERE campaign_id='00000000-0000-4000-8000-0000000000a1' RETURNING id;" | tail -n 1)"
-[[ "$changed" == "$PLAYER_A" ]] && { echo 'FAIL: UPDATE unexpectedly returned user identity' >&2; exit 1; }
 [[ "$changed" == "" ]] || { echo "FAIL: UPDATE returned a row: $changed" >&2; exit 1; }
 echo 'PASS: deployed-shape chat SQL proposal enforces cross-campaign isolation on PostgreSQL 17'
