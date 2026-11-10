@@ -13,7 +13,7 @@ import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
 // Manual signaling is intentionally temporary until Hollowgate Hub exists.
 const $=id=>document.getElementById(id);
-const DEMO_REVISION='ice-sdp-visible-20261110';
+const DEMO_REVISION='ice-sdp-generation-20261110';
 const STORAGE='hollowgate-hybrid-web-demo-v1';
 // Codes are per-live-room, not durable across reloads: an old PeerJS ID can be stale.
 const stun={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
@@ -689,6 +689,7 @@ $('quickHost').onclick=async()=>{
  const button=$('quickHost');button.disabled=true;
  try{
   stopQuickPeer();
+  const hostGeneration=quickGeneration;
   selectMode('gm');
   $('hostSetup').hidden=true; // quick room does not use the manual SDP form
   if(!hostState)$('startHost').click();
@@ -697,12 +698,17 @@ $('quickHost').onclick=async()=>{
   let code=null,peer=null;
   for(let tries=0;tries<3;tries++){
    code=encodeRoomMode(newQuickCode(),$('quickLan').checked);
-   try{peer=await openQuickPeer(PEER_ID_PREFIX+code,code);break}
+   try{
+    peer=await openQuickPeer(PEER_ID_PREFIX+code,code);
+    if(hostGeneration!==quickGeneration){peer.destroy();return}
+    break;
+   }
    catch(e){
     log(explainPeerFailure(e));
     if(!/unavailable-id|taken|already|in use/i.test(e.type+' '+e.message)||tries===2)throw e;
    }
   }
+  if(hostGeneration!==quickGeneration){peer?.destroy();return}
   if(peer.id!==PEER_ID_PREFIX+code)throw Error('Il codice della stanza non corrisponde al PeerJS attivo');
   quickPeer=peer;quickRole='gm';quickRoom=code;quickStopRequested=false;
   quickDiag('Stanza '+(roomIceMode(code)==='lan'?'Wi-Fi locale (senza STUN)':'standard (STUN)')+' · attendo giocatori');
@@ -724,16 +730,18 @@ $('quickHost').onclick=async()=>{
    quickDiag(message);displayStatus(message);
   });
   peer.on('connection',raw=>{
+   if(hostGeneration!==quickGeneration||quickPeer!==peer){raw.close();return}
    const id='P-'+genId().slice(0,6);
    log('GM: richiesta di connessione PeerJS ricevuta da '+id+' · apertura WebRTC in corso');
    quickDiag('Richiesta PeerJS ricevuta · attendo apertura del canale WebRTC');
-   raw.on('open',()=>{log('GM: canale WebRTC aperto per '+id);quickDiag('Canale WebRTC aperto · attendo richiesta di ingresso')});
+   raw.on('open',()=>{if(hostGeneration!==quickGeneration||quickPeer!==peer)return;log('GM: canale WebRTC aperto per '+id);quickDiag('Canale WebRTC aperto · attendo richiesta di ingresso')});
    raw.on('error',error=>{
     log('GM: errore canale '+id+' · '+error.message);
     quickDiag('Errore apertura WebRTC: '+error.message);
     void awaitIceSnapshot(raw,'GM '+id);
    });
    raw.on('iceStateChanged',state=>{
+    if(hostGeneration!==quickGeneration||quickPeer!==peer)return;
     log('GM: ICE '+id+' '+state);
     const diagnostic=connectionProblem(state,raw.peerConnection?.connectionState);
     if(diagnostic)quickDiag(diagnostic);
@@ -764,7 +772,9 @@ $('quickJoin').onclick=async()=>{
   selectMode('player');playerState=null;
   $('playerSetup').hidden=true; // hide lengthy manual offer/answer fields on mobile
   quickDiag('Collegamento rapido · in attesa del Game Master');
+  const playerGeneration=quickGeneration;
   const peer=await openQuickPeer(undefined,code);
+  if(playerGeneration!==quickGeneration){peer.destroy();return}
   quickPeer=peer;
   quickRole='player';quickRoom=code;quickStopRequested=false;quickRetryAttempt=0;quickResumeKey=crypto.randomUUID();
   peer.on('error',error=>{
