@@ -67,3 +67,41 @@ test('room codes are always human-safe, unique, and available to players',async 
   assert.equal(joined.status,200);
  }
 });
+
+test('CORS only allows the explicit browser preview origin',async t=>{
+ const origin='https://alfonsogermano-glitch.github.io';
+ const {hub}=await setup(t,{allowedOrigins:[origin]});
+ assert.equal(hub.activeRooms,0);
+});
+test('browser preflights are allowlisted, never wildcard, and deny unknown origins',async t=>{
+ const origin='https://alfonsogermano-glitch.github.io';
+ const hub=createSignalingHub({allowedOrigins:[origin]});
+ const url=await hub.start();t.after(()=>hub.close());
+ const allowed=await fetch(url+'/v1/create',{method:'OPTIONS',headers:{origin,'access-control-request-method':'POST','access-control-request-headers':'authorization,content-type'}});
+ assert.equal(allowed.status,204);
+ assert.equal(allowed.headers.get('access-control-allow-origin'),origin);
+ const rejected=await fetch(url+'/v1/create',{method:'POST',headers:{origin:'https://attacker.example','content-type':'application/json'},body:'{}'});
+ assert.equal(rejected.status,403);
+ assert.equal(rejected.headers.get('access-control-allow-origin'),null);
+ const ok=await fetch(url+'/v1/create',{method:'POST',headers:{origin,'content-type':'application/json'},body:'{}'});
+ assert.equal(ok.status,201);
+});
+test('acknowledged signaling messages are removed from memory, while future messages survive',async t=>{
+ const {call}=await setup(t);
+ const host=(await call('create')).data;
+ const player=(await call('join',{room:host.room})).data;
+ await call('send',{room:host.room,to:'host',kind:'offer',description:'old'},player.token);
+ const first=(await call('poll',{room:host.room,after:0},host.token)).data.messages[0];
+ assert.equal(first.description,'old');
+ assert.deepEqual((await call('poll',{room:host.room,after:first.id},host.token)).data.messages,[]);
+ await call('send',{room:host.room,to:'host',kind:'offer',description:'new'},player.token);
+ const second=(await call('poll',{room:host.room,after:first.id},host.token)).data.messages;
+ assert.equal(second.length,1);
+ assert.equal(second[0].description,'new');
+ assert.equal((await call('poll',{room:host.room,after:Number.MAX_SAFE_INTEGER},host.token)).status,400);
+});
+test('unbounded room creation is rejected',async t=>{
+ const {call}=await setup(t);
+ for(let i=0;i<128;i++)assert.equal((await call('create')).status,201);
+ assert.equal((await call('create')).status,429);
+});

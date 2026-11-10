@@ -7,6 +7,9 @@ const MAX_BODY = 125000;
 const ROOM_IDLE_MS = 30 * 60_000;
 const MAX_MAILBOX = 24;
 const MAX_PEERS = 12;
+const MAX_ROOMS = 128;
+const WINDOW_MS = 60_000;
+const MAX_REQUESTS_PER_WINDOW = 240;
 
 /**
  * Minimal *ephemeral signaling only* proof of concept.
@@ -14,23 +17,32 @@ const MAX_PEERS = 12;
  * All identities are demo capabilities. Never deploy to untrusted public
  * networks without real account auth, rate limiting, TLS, monitoring and abuse controls.
  */
-export function createSignalingHub({ hostname = '127.0.0.1', now = () => Date.now() } = {}) {
+export function createSignalingHub({ hostname = '127.0.0.1', now = () => Date.now(), allowedOrigins = [] } = {}) {
   if (hostname !== '127.0.0.1') throw new Error('Prototype must stay on loopback');
   const rooms = new Map();
+  const buckets = new Map();
+  const origins = new Set(allowedOrigins);
+  for(const origin of origins) {
+    const url = new URL(origin);
+    if(url.origin !== origin || (url.protocol !== 'https:' && url.hostname !== 'localhost' && url.hostname !== '127.0.0.1')) throw Error('Invalid allowed origin');
+  }
   const send = (res,status,data) => {
     res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});
     res.end(JSON.stringify(data));
   };
   const clean = () => {
+    for(const [ip,bucket] of buckets)if(now()-bucket.start>=WINDOW_MS)buckets.delete(ip);
     for (const [code,room] of rooms) if (now() - room.activity > ROOM_IDLE_MS) rooms.delete(code);
   };
   const parseBody = async req => {
     if (!/^application\/json(?:;|$)/i.test(req.headers['content-type'] ?? '')) throw Error('JSON required');
-    let body = '';
+    const parts=[];let size=0;
     for await (const part of req) {
-      body += part;
-      if (body.length > MAX_BODY) throw Error('Payload too large');
+      size+=part.length;
+      if(size>MAX_BODY)throw Error('Payload too large');
+      parts.push(part);
     }
+    const body=Buffer.concat(parts).toString('utf8');
     const value = JSON.parse(body);
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Invalid payload');
     return value;
@@ -48,8 +60,22 @@ export function createSignalingHub({ hostname = '127.0.0.1', now = () => Date.no
   };
   const server=createServer(async(req,res)=>{
     clean();
-    // The demo is intended to sit behind a future HTTPS reverse proxy;
-    // no cross-origin policy is opened for arbitrary websites.
+    const ip=req.socket.remoteAddress??'unknown';
+    const bucket=buckets.get(ip);
+    if(!bucket || now()-bucket.start>=WINDOW_MS)buckets.set(ip,{start:now(),count:1});
+    else if(++bucket.count>MAX_REQUESTS_PER_WINDOW){send(res,429,{error:'Rate limit exceeded'});return;}
+    const origin=req.headers.origin;
+    if(origin){
+      if(!origins.has(origin)){send(res,403,{error:'Origin not permitted'});return;}
+      res.setHeader('access-control-allow-origin',origin);
+      res.setHeader('vary','Origin');
+      res.setHeader('access-control-allow-methods','POST, OPTIONS');
+      res.setHeader('access-control-allow-headers','Content-Type, Authorization');
+    }
+    if(req.method==='OPTIONS' && origin && origins.has(origin)){
+      res.writeHead(204,{'cache-control':'no-store'});res.end();return;
+    }
+    // Loopback-only test server; allowlist is strict and never uses wildcard CORS.
     const url=new URL(req.url??'/', 'http://127.0.0.1');
     if (req.method !== 'POST' || !['/v1/create','/v1/join','/v1/send','/v1/poll','/v1/leave'].includes(url.pathname)) {
       send(res,404,{error:'Unknown endpoint'});return;
@@ -59,6 +85,7 @@ export function createSignalingHub({ hostname = '127.0.0.1', now = () => Date.no
     try { body=await parseBody(req); }
     catch(e){send(res,400,{error:e.message});return;}
     if(url.pathname==='/v1/create'){
+      if(rooms.size>=MAX_ROOMS){send(res,429,{error:'Room capacity reached'});return;}
       if (Object.keys(body).length!==0){send(res,400,{error:'Unexpected fields'});return;}
       let code;
       do {code=Array.from(randomBytes(8), byte => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[byte % 32]).join('')}while(code.length!==8||rooms.has(code));
@@ -80,10 +107,11 @@ export function createSignalingHub({ hostname = '127.0.0.1', now = () => Date.no
     const {room,actor}=found;
     if(url.pathname==='/v1/poll'){
       const after=body.after;
-      if(!Number.isSafeInteger(after)||after<0){send(res,400,{error:'Invalid cursor'});return;}
-      // Keep only receiver-specific messages, with no data persistency.
-      const msgs=room.queues.get(actor).filter(msg=>msg.id>after);
-      if(msgs.length && msgs.at(-1).id-after>MAX_MAILBOX){send(res,409,{error:'Reconnect with new offer'});return;}
+      if(!Number.isSafeInteger(after)||after<0||after>room.seq){send(res,400,{error:'Invalid cursor'});return;}
+      // The cursor is receiver-specific. Erase acknowledged messages immediately.
+      const inbox=room.queues.get(actor);
+      while(inbox.length && inbox[0].id<=after)inbox.shift();
+      const msgs=inbox.slice();
       send(res,200,{messages:msgs,cursor:room.seq});return;
     }
     if(url.pathname==='/v1/leave'){
