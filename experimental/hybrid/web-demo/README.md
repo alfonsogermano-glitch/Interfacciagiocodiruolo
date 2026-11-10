@@ -115,3 +115,15 @@ a valid initial snapshot, the client displays a visible diagnostics line
 and scrolls to the board. Distinct diagnostic states show approval,
 snapshot arrival, render error and successful board display. The demo
 script URL has a version suffix to avoid a stale module cache on mobile.
+
+## Snapshot packetization for mobile
+
+A mobile player can receive small PeerJS authorization messages while losing
+a larger campaign snapshot. For this reason the GM now bounds the activity
+history sent to a player (last 48 visible events) and sends game state in
+chunks of no more than 2400 characters each. The player reassembles all parts
+before applying state and acknowledging the current sequence. The GM still
+keeps complete campaign history in its own browser; only the over-the-wire
+recent activity list is truncated. This feature is backed by a fake PeerJS
+bidirectional-channel test using a large activity history. A timestamped
+module URL invalidates stale mobile caches.

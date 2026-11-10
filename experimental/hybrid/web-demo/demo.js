@@ -2,6 +2,7 @@
 import { assessAnswer } from './answer-guard.mjs';
 import { retryDelay,canRetry } from './reconnect-policy.mjs';
 import { adaptPeerJsConnection } from './peerjs-adapter.mjs';
+import { snapshotPackets,createSnapshotAssembler } from './snapshot-wire.mjs';
 import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // No Supabase, no production Auth, and no permanent server-side data.
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
@@ -95,7 +96,9 @@ function endHostPing(id,peer){
 function sendFreshSnapshot(id){
  const peer=peers.get(id);
  if(!peer||peer.channel?.readyState!=='open')return false;
- tell(peer.channel,{kind:'snapshot',state:snapshot(id)});
+ const packets=snapshotPackets(snapshot(id),crypto.randomUUID());
+ log('Invio stato a '+id+' · '+packets.length+' pacchetto/i');
+ for(const packet of packets)tell(peer.channel,packet);
  return true;
 }
 function awaitSnapshotAck(id){
@@ -119,7 +122,10 @@ function awaitSnapshotAck(id){
 
 function broadcast(){
  render();
- for(const [id,p] of peers)tell(p.channel,{kind:'snapshot',state:snapshot(id)});
+ for(const [id] of peers){
+  try{sendFreshSnapshot(id)}
+  catch(e){log('Errore invio stato a '+id+': '+e.message)}
+ }
 }
 function applyCommand(actor,action){
  if(!hostState||!action||typeof action!=='object')return false;
@@ -245,23 +251,29 @@ $('quickSync').onclick=()=>{
  playerState=null;
  startSnapshotRecovery(channel);
 };
+function applyPlayerSnapshot(state,c){
+ if(!state||typeof state.sequence!=='number')throw Error('Snapshot non valido');
+ log('Snapshot ricevuto dal GM · #'+state.sequence);
+ quickDiag('Snapshot ricevuto · visualizzazione del campo in corso');
+ playerState=state;
+ render();
+ stopSnapshotRecovery();
+ tell(c,{kind:'snapshot-ack',sequence:playerState.sequence});
+ $('quickReconnect').textContent='Sincronizzazione completata · stato #'+playerState.sequence;
+ displayStatus('Collegato al GM · stato #'+playerState.sequence);
+}
 function bindPlayerChannel(c){
   channel=c;
+  const assembler=createSnapshotAssembler(
+   state=>{try{applyPlayerSnapshot(state,c)}catch(e){quickDiag('Errore stato: '+e.message);log('Errore stato: '+e.message)}},
+   error=>{quickDiag(error);log(error)}
+  );
   channel.onopen=()=>{tell(channel,{kind:'join',name:validateName($('playerName').value),resumeKey:quickRole==='player'?quickResumeKey:null});startPings(channel);displayStatus('Connessione diretta aperta; attendo il GM')};
   channel.onclose=()=>{stopSnapshotRecovery();stopPings();displayStatus('Connessione con il GM chiusa')};
   channel.onmessage=e=>{try{
    const m=JSON.parse(e.data);
-   if(m.kind==='snapshot'){
-    if(!m.state||typeof m.state.sequence!=='number')throw Error('Snapshot non valido');
-    log('Snapshot ricevuto dal GM · #'+m.state.sequence);
-    quickDiag('Snapshot ricevuto · visualizzazione del campo in corso');
-    playerState=m.state;
-    render();
-    stopSnapshotRecovery();
-    tell(c,{kind:'snapshot-ack',sequence:playerState.sequence});
-    $('quickReconnect').textContent='Sincronizzazione completata · stato #'+playerState.sequence;
-    displayStatus('Collegato al GM · stato #'+playerState.sequence);
-   }
+   if(m.kind==='snapshot')applyPlayerSnapshot(m.state,c);
+   else if(assembler.accept(m)){} // Wait for all snapshot parts before rendering.
    else if(m.kind==='waiting'){
     if(!playerState)displayStatus('Connessione aperta: attendo autorizzazione del GM');
    }

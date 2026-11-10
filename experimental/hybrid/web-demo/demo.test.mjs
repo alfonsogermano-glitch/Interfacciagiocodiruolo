@@ -84,3 +84,8 @@ test('mobile quick join hides manual SDP controls and scrolls to first game snap
   assert.ok(app.includes(token),token);
  assert.match(html,/demo\.js\?v=mobile-board-20261110/);
 });
+
+test('snapshots are transferred through small bounded packets and reassembled before board render',()=>{
+ for(const phrase of ["snapshotPackets(snapshot(id),crypto.randomUUID())","for(const packet of packets)tell(peer.channel,packet)","createSnapshotAssembler(","applyPlayerSnapshot(state,c)","assembler.accept(m)"])
+  assert.ok(app.includes(phrase),phrase);
+});
