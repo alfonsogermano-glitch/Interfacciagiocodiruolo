@@ -139,3 +139,14 @@ This is instrumentation, not a claim that 300 ms RTT is fixed; cellular
 radio, browser scheduling, and concurrent snapshot transfers can cause
 large swings. Always compare mobile data and same-WiFi tests while
 keeping both pages foregrounded.
+
+## Ricaricamento e codice stanza
+
+L'identificativo pubblico PeerJS non viene più riutilizzato da
+`sessionStorage`: ogni avvio del GM registra un **nuovo codice verificato**
+come `peer.id`. Il giocatore deve usare il codice corrente mostrato dal
+GM, non un codice preso da prima del reload. Errore `peer-unavailable`
+rilevato sul client: si ferma la riconnessione silenziosa e compare
+una spiegazione sul codice non raggiungibile. Gli eventi di disconnessione
+e errore segnalazione del GM sono visibili, in particolare se il broker
+non accetta più richieste.

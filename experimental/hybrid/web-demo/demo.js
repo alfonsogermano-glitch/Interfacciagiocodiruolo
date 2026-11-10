@@ -4,13 +4,14 @@ import { retryDelay,canRetry } from './reconnect-policy.mjs';
 import { adaptPeerJsConnection } from './peerjs-adapter.mjs';
 import { snapshotPackets,createSnapshotAssembler } from './snapshot-wire.mjs';
 import { makeRttMeter,describeRtt,classifySelectedPair } from './latency-metrics.mjs';
+import { newRoomCode,explainPeerFailure } from './room-lifecycle.mjs';
 import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // No Supabase, no production Auth, and no permanent server-side data.
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
 // Manual signaling is intentionally temporary until Hollowgate Hub exists.
 const $=id=>document.getElementById(id);
 const STORAGE='hollowgate-hybrid-web-demo-v1';
-const QUICK_SESSION='hollowgate-hybrid-quick-room-v1';
+// Codes are per-live-room, not durable across reloads: an old PeerJS ID can be stale.
 const stun={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
 const peers=new Map();
 const pendingPeerJs=new Map();
@@ -564,8 +565,7 @@ const PEER_ID_PREFIX='hollowgate-lab-';
 const ROOM_ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 let quickPeer=null,quickRole=null,quickRoom=null,quickConnection=null,quickRetryTimer=null,quickRetryAttempt=0,quickStopRequested=true,quickGeneration=0,quickResumeKey=null;
 function newQuickCode(){
- const bytes=crypto.getRandomValues(new Uint8Array(12));
- return Array.from(bytes,value=>ROOM_ALPHABET[value%ROOM_ALPHABET.length]).join('');
+ return newRoomCode(crypto.getRandomValues(new Uint8Array(12)));
 }
 function stopQuickPeer(){
  stopSnapshotRecovery();
@@ -594,6 +594,11 @@ function openQuickPeer(identity){
 }
 function connectQuickPlayer(){
  if(quickStopRequested||quickRole!=='player'||!quickPeer||!quickRoom)return;
+ if(quickPeer.disconnected){
+  quickDiag('Segnalazione interrotta · attendo il ripristino della connessione PeerJS');
+  try{quickPeer.reconnect()}catch(e){log('Riconnessione PeerJS: '+e.message)}
+  scheduleQuickRetry();return;
+ }
  const raw=quickPeer.connect(PEER_ID_PREFIX+quickRoom,{serialization:'json',reliable:true});
  const adapter=peerJsAdapter(raw);
  quickConnection=adapter;
@@ -601,6 +606,7 @@ function connectQuickPlayer(){
  const connectionTimeout=setTimeout(()=>{
   if(quickConnection===adapter&&adapter.readyState!=='open'){
    log('Collegamento rapido: apertura scaduta, nuovo tentativo');
+   quickDiag('Nessuna risposta dalla stanza '+quickRoom+' · verifica che il GM stia ospitando questa stanza');
    raw.close();
    scheduleQuickRetry();
   }
@@ -647,24 +653,36 @@ $('quickHost').onclick=async()=>{
   selectMode('gm');
   $('hostSetup').hidden=true; // quick room does not use the manual SDP form
   if(!hostState)$('startHost').click();
-  let code;
-  try{code=sessionStorage.getItem(QUICK_SESSION)}catch{}
-  if(!code||!/^[A-HJ-NP-Z2-9]{12}$/.test(code))code=newQuickCode();
-  let peer;
-  try{peer=await openQuickPeer(PEER_ID_PREFIX+code)}
-  catch(e){
-   // Another tab or old host may still own this ID. Never steal it.
-   if(code && /taken|unavailable|already/i.test(e.message)){
-    code=newQuickCode();peer=await openQuickPeer(PEER_ID_PREFIX+code);
-   }else throw e;
+  // A page reload does not guarantee the previous PeerJS reservation survived.
+  // Always acquire a FRESH identity, and display only the one returned by PeerJS.
+  let code=null,peer=null;
+  for(let tries=0;tries<3;tries++){
+   code=newQuickCode();
+   try{peer=await openQuickPeer(PEER_ID_PREFIX+code);break}
+   catch(e){
+    log(explainPeerFailure(e));
+    if(!/unavailable-id|taken|already|in use/i.test(e.type+' '+e.message)||tries===2)throw e;
+   }
   }
+  if(peer.id!==PEER_ID_PREFIX+code)throw Error('Il codice della stanza non corrisponde al PeerJS attivo');
   quickPeer=peer;quickRole='gm';quickRoom=code;quickStopRequested=false;
   quickDiag('Stanza demo attiva · in attesa delle richieste dei giocatori');
-  try{sessionStorage.setItem(QUICK_SESSION,code)}catch{}
+  log('Nuova stanza verificata sul server PeerJS · codice '+code);
   peer.on('disconnected',()=>{
    if(quickStopRequested||quickPeer!==peer)return;
+   quickDiag('GM scollegato dal servizio di segnalazione: i nuovi ingressi non possono arrivare');
    displayStatus('Segnalazione GM disconnessa · tento di ripristinare la stanza');
    try{peer.reconnect()}catch(e){log('Riconnessione GM: '+e.message)}
+  });
+  peer.on('open',()=>{
+   if(quickStopRequested||quickPeer!==peer)return;
+   quickDiag('Stanza GM online sul server PeerJS · codice '+code);
+   displayStatus('Stanza '+code+' disponibile per nuove richieste');
+  });
+  peer.on('error',error=>{
+   if(quickStopRequested||quickPeer!==peer)return;
+   const message=explainPeerFailure(error);
+   quickDiag(message);displayStatus(message);
   });
   peer.on('connection',raw=>{
    const id='P-'+genId().slice(0,6);
@@ -678,8 +696,9 @@ $('quickHost').onclick=async()=>{
    if(raw.open)setTimeout(checkRoute,1000);
   });
   $('quickCode').textContent=code;
+  quickDiag('Stanza GM registrata · utilizza questo NUOVO codice dopo ogni ricaricamento');
   displayStatus('Stanza demo '+code+' attiva: comunica il codice al giocatore');
- }catch(e){stopQuickPeer();log('Collegamento rapido: '+e.message)}
+ }catch(e){stopQuickPeer();const message=explainPeerFailure(e);quickDiag(message);log(message)}
  finally{button.disabled=false}
 };
 $('quickJoin').onclick=async()=>{
@@ -695,6 +714,23 @@ $('quickJoin').onclick=async()=>{
   const peer=await openQuickPeer();
   quickPeer=peer;
   quickRole='player';quickRoom=code;quickStopRequested=false;quickRetryAttempt=0;quickResumeKey=crypto.randomUUID();
+  peer.on('error',error=>{
+   if(quickStopRequested||quickPeer!==peer)return;
+   const message=explainPeerFailure(error);
+   quickDiag(message);displayStatus(message);
+   if(error?.type==='peer-unavailable'){
+    // Do not silently retry a room the broker says does not exist.
+    if(quickRetryTimer!==null){clearTimeout(quickRetryTimer);quickRetryTimer=null}
+    quickStopRequested=true;quickGeneration++;
+    if(quickConnection)quickConnection.close();
+   }
+  });
+  peer.on('disconnected',()=>{
+   if(quickStopRequested||quickPeer!==peer)return;
+   quickDiag('Il giocatore ha perso il collegamento col server PeerJS; nuovo tentativo');
+   try{peer.reconnect()}catch(e){log('Ripristino segnalazione: '+e.message)}
+   scheduleQuickRetry();
+  });
   connectQuickPlayer();
   $('quickReconnect').textContent='Collegamento in corso';
   displayStatus('Collegamento rapido verso '+code+' in corso');

@@ -54,7 +54,7 @@ test('quick PeerJS requires explicit GM approval before snapshot and token assig
 
 test('quick reconnect is bounded, reuses room code and never skips GM approval',()=>{
  assert.match(html,/id="quickReconnect"/);
- for(const p of ["scheduleQuickRetry()","quickRetryAttempt","retryDelay(","quickGeneration","quickStopRequested","sessionStorage.getItem(QUICK_SESSION)","sessionStorage.setItem(QUICK_SESSION","connectQuickPlayer()","requireApproval:true"])
+ for(const p of ["scheduleQuickRetry()","quickRetryAttempt","retryDelay(","quickGeneration","quickStopRequested","newQuickCode()","peer.id!==PEER_ID_PREFIX+code","connectQuickPlayer()","requireApproval:true"])
   assert.ok(app.includes(p),p);
 });
 
@@ -82,7 +82,7 @@ test('mobile quick join hides manual SDP controls and scrolls to first game snap
  assert.match(html,/id="quickDiagnostics"/);
  for(const token of ["$('playerSetup').hidden=true", "$('hostSetup').hidden=true", "requestAnimationFrame(()=>$('session').scrollIntoView", "quickDiag('Snapshot ricevuto", "quickDiag('Campo ricevuto"])
   assert.ok(app.includes(token),token);
- assert.match(html,/demo\.js\?v=rtt-diagnostics-20261110/);
+ assert.match(html,/demo\.js\?v=room-lifecycle-20261110/);
 });
 
 test('snapshots are transferred through small bounded packets and reassembled before board render',()=>{
@@ -93,4 +93,13 @@ test('snapshots are transferred through small bounded packets and reassembled be
 test('RTT diagnostics report baseline median, spikes and selected ICE route for actual data channels',()=>{
  for(const token of ['playerRtt.add(next)','peer.rttMeter?.add(elapsed)','makeRttMeter()','describeRtt(playerRtt.summary())','classifySelectedPair(report)','peerConnection:raw.peerConnection'])
   assert.ok(app.includes(token),token);
+});
+
+test('after reload GM acquires a new live room and player sees broker peer-unavailable',()=>{
+ assert.doesNotMatch(app,/sessionStorage\.getItem\(QUICK_SESSION\)/);
+ assert.match(app,/peer\.id!==PEER_ID_PREFIX\+code/);
+ assert.match(app,/peer\.on\('error',error=>/);
+ assert.match(app,/error\?\.type==='peer-unavailable'/);
+ assert.match(html,/Dopo ogni ricaricamento/);
+ assert.match(app,/quickPeer\.disconnected/);
 });
