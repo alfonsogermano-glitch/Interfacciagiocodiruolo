@@ -18,8 +18,16 @@ const save=()=>{if(!hostState)return;localStorage.setItem(STORAGE,JSON.stringify
 const displayStatus=text=>{$('status').textContent=text;log(text)};
 const updateLatency=()=>{
  const meter=$('latencyMeter');
- if(meter)meter.textContent=latencyMs===null?'Latenza: in attesa di misurazione':
+ if(!meter)return;
+ if(mode==='gm'){
+  const connected=[...peers.entries()].filter(([,peer])=>peer.channel?.readyState==='open');
+  meter.textContent=connected.length===0?'Latenza: nessun giocatore collegato':
+   connected.map(([id,peer])=>id+': '+(peer.rttMs===null?'misurazione in corso':Math.round(peer.rttMs)+' ms')).join(' · ');
+ }else{
+  meter.textContent=latencyMs===null?'Latenza: in attesa di misurazione':
    'Latenza: '+Math.round(latencyMs)+' ms · risposte '+receivedPings+'/'+sentPings;
+ }
+
 };
 function stopPings(){
  if(latencyTimer!==null){clearInterval(latencyTimer);latencyTimer=null;}
@@ -37,7 +45,7 @@ function startPings(c){
 }
 
 function selectMode(next){
- mode=next;$('hostMode').classList.toggle('selected',next==='gm');$('playerMode').classList.toggle('selected',next==='player');
+ mode=next;updateLatency();$('hostMode').classList.toggle('selected',next==='gm');$('playerMode').classList.toggle('selected',next==='player');
  $('hostSetup').hidden=next!=='gm';$('playerSetup').hidden=next!=='player';$('session').hidden=true;
 }
 $('hostMode').onclick=()=>selectMode('gm');$('playerMode').onclick=()=>selectMode('player');
@@ -47,7 +55,7 @@ $('startHost').onclick=()=>{
 };
 $('resetHost').onclick=()=>{
  if(!confirm('Cancellare esclusivamente la campagna dimostrativa salvata in questo browser?'))return;
- localStorage.removeItem(STORAGE);hostState=defaultState();save();for(const p of peers.values())p.channel.close();peers.clear();displayStatus('Campagna di prova azzerata');render();
+ localStorage.removeItem(STORAGE);hostState=defaultState();save();for(const [id,p] of peers){endHostPing(id,p);p.channel.close()}peers.clear();updateLatency();displayStatus('Campagna di prova azzerata');render();
 };
 const validateName=s=>typeof s==='string'&&s.trim().length>0&&s.length<=32?s.trim():'Giocatore';
 const visibleTo=(activity,receiver)=>activity.filter(e=>e.visibility!=='gm'||receiver==='gm');
@@ -57,6 +65,21 @@ function snapshot(receiver){
  tokens:state.tokens,activity:visibleTo(state.activity,receiver)};
 }
 const tell=(p,body)=>{if(p?.readyState==='open')p.send(JSON.stringify(body))};
+function beginHostPing(id,peer){
+ if(peer.timer)clearInterval(peer.timer);
+ const pulse=()=>{
+  if(peer.channel.readyState!=='open')return;
+  peer.pendingPing=crypto.randomUUID();
+  peer.sentAt=performance.now();
+  tell(peer.channel,{kind:'ping',id:peer.pendingPing});
+ };
+ pulse();peer.timer=setInterval(pulse,3000);
+}
+function endHostPing(id,peer){
+ if(peer?.timer)clearInterval(peer.timer);
+ peer.timer=null;peers.delete(id);updateLatency();
+}
+
 function broadcast(){
  render();
  for(const [id,p] of peers)tell(p.channel,{kind:'snapshot',state:snapshot(id)});
@@ -141,7 +164,9 @@ $('createOffer').onclick=async()=>{
   channel.onmessage=e=>{try{
    const m=JSON.parse(e.data);
    if(m.kind==='snapshot'){playerState=m.state;render();displayStatus('Collegato al GM · stato #'+playerState.sequence)}
-   else if(m.kind==='pong'&&m.id===lastPingId){
+   else if(m.kind==='ping'&&typeof m.id==='string'&&m.id.length<=80){
+    tell(channel,{kind:'pong',id:m.id});
+   }else if(m.kind==='pong'&&m.id===lastPingId){
     const next=performance.now()-lastPingAt;
     if(Number.isFinite(next)&&next>=0){latencyMs=latencyMs===null?next:latencyMs*.7+next*.3;receivedPings++;updateLatency()}
    }else if(m.kind==='error')log(m.reason)
@@ -163,15 +188,25 @@ $('acceptOffer').onclick=async()=>{
     const msg=JSON.parse(event.data);
     if(msg.kind==='ping'&&typeof msg.id==='string'&&msg.id.length<=80){
      tell(c,{kind:'pong',id:msg.id});
+    }else if(msg.kind==='pong'){
+     const peer=peers.get(id);
+     if(peer?.pendingPing===msg.id){
+      const elapsed=performance.now()-peer.sentAt;
+      if(Number.isFinite(elapsed)&&elapsed>=0){
+       peer.rttMs=peer.rttMs===null?elapsed:peer.rttMs*.7+elapsed*.3;
+       peer.pendingPing=null;updateLatency();
+      }
+     }
     }else if(msg.kind==='join'){
      hostState.members[id]={name:validateName(msg.name)};
      hostState.tokens[id]={owner:id,x:20+peers.size*15,y:55};
-     peers.set(id,{pc:conn,channel:c});save();broadcast();displayStatus('Giocatore '+id+' collegato');
+     const peer={pc:conn,channel:c,timer:null,pendingPing:null,sentAt:0,rttMs:null};
+     peers.set(id,peer);beginHostPing(id,peer);save();broadcast();updateLatency();displayStatus('Giocatore '+id+' collegato');
     }else if(msg.kind==='command'){
      if(!peers.has(id)||!applyCommand(id,msg.action))tell(c,{kind:'error',reason:'Comando non autorizzato'});
     }
    }catch{tell(c,{kind:'error',reason:'Comando non valido'})}};
-   c.onclose=()=>{peers.delete(id);displayStatus('Giocatore '+id+' disconnesso')};
+   c.onclose=()=>{endHostPing(id,peers.get(id));displayStatus('Giocatore '+id+' disconnesso')};
   };
   await conn.setRemoteDescription(offer);const answer=await conn.createAnswer();await conn.setLocalDescription(answer);await gathered(conn);
   $('hostAnswer').value=JSON.stringify(conn.localDescription);
@@ -201,5 +236,5 @@ $('applyAnswer').onclick=async()=>{
  }catch(e){log('Errore collegamento: '+e.message)}
  finally{applyingAnswer=false;$('applyAnswer').disabled=false}
 };
-window.addEventListener('pagehide',()=>{stopPings();for(const p of peers.values())p.pc.close();playerPC?.close()});
+window.addEventListener('pagehide',()=>{stopPings();for(const [id,p] of peers){endHostPing(id,p);p.pc.close()}playerPC?.close()});
 log('Prova browser pronta — scegli GM oppure giocatore');
