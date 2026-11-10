@@ -27,3 +27,24 @@ export async function inspectIceConnection(raw,onReport) {
   return 'Statistiche ICE non disponibili: '+String(error?.message??'errore');
  }
 }
+
+/**
+ * SDP diagnostics: inspect whether each side has received the other's
+ * offer/answer and ICE candidates. Never log SDP, IPs, usernames or ports.
+ */
+export function describePeerNegotiation(pc){
+ if(!pc)return 'negoziazione peer non disponibile';
+ const sdpCounts=description=>{
+  if(!description?.sdp)return 'assente';
+  const candidates=description.sdp.match(/^a=candidate:/gm)||[];
+  const mdns=description.sdp.match(/^a=candidate:[^\r\n]*\.local(?:\s|$)/gm)||[];
+  const types=['host','srflx','prflx','relay']
+   .map(type=>type+':'+(description.sdp.match(new RegExp('^a=candidate:[^\\r\\n]* typ '+type+'(?:\\s|$)','gm'))||[]).length).join(' ');
+  return description.type+' ('+candidates.length+' candidati; mDNS '+mdns.length+'; '+types+')';
+ };
+ return 'SDP locale '+sdpCounts(pc.localDescription)+
+  ' · remoto '+sdpCounts(pc.remoteDescription)+
+  ' · raccolta '+(pc.iceGatheringState??'?')+
+  ' · segnalazione '+(pc.signalingState??'?')+
+  ' · ICE '+(pc.iceConnectionState??'?');
+}

@@ -25,3 +25,18 @@ test('reports candidate pair outcomes from WebRTC stats',async()=>{
  assert.match(result,/locale \[host:0 srflx:1/);
  assert.match(result,/remoto \[host:1/);
 });
+
+test('ICE negotiation diagnosis distinguishes missing remote SDP from no remote candidates',async()=>{
+ const {describePeerNegotiation}=await import('./ice-candidate-report.mjs');
+ const pc={
+  localDescription:{type:'answer',sdp:'v=0\\r\\na=candidate:1 1 udp 1 host-example.local 5000 typ host\\r\\n'},
+  remoteDescription:{type:'offer',sdp:'v=0\\r\\n'},
+  iceGatheringState:'complete',signalingState:'stable',iceConnectionState:'checking'
+ };
+ const msg=describePeerNegotiation(pc);
+ assert.match(msg,/SDP locale answer \(1 candidati/);
+ assert.match(msg,/mDNS 1/);
+ assert.match(msg,/remoto offer \(0 candidati/);
+ assert.match(msg,/raccolta complete/);
+ assert.doesNotMatch(msg,/host-example.local/);
+});
