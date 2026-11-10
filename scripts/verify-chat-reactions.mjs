@@ -161,7 +161,7 @@ assert.match(panel, /removeRoll\(entryId\)/, 'Elimina non toglie la copia locale
 // I broadcast non sono attendibili: prima verificare sul DB, senza
 // cancellare tiri locali basandosi sul solo evento ricevuto.
 const deleteBroadcastHandler = panel.slice(panel.indexOf('const handleChatDeleteBroadcast'), panel.indexOf('const chatChannel ='));
-assert.match(deleteBroadcastHandler, /chatMessageVisibility\(messageId\)/, 'broadcast chat_delete senza verifica DB');
+assert.match(deleteBroadcastHandler, /chatMessageVisibility\(messageId, activeCampaign\.id\)/, 'broadcast chat_delete senza verifica DB');
 assert.doesNotMatch(deleteBroadcastHandler, /removeRoll\(messageId\)/, 'broadcast non deve rimuovere tiri locali non verificati');
 assert.match(
   panel,
