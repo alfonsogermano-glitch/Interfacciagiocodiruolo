@@ -5,6 +5,7 @@ import { adaptPeerJsConnection } from './peerjs-adapter.mjs';
 import { snapshotPackets,createSnapshotAssembler } from './snapshot-wire.mjs';
 import { makeRttMeter,describeRtt,classifySelectedPair } from './latency-metrics.mjs';
 import { newRoomCode,explainPeerFailure } from './room-lifecycle.mjs';
+import { connectionProblem,retryablePeerError } from './connection-diagnostics.mjs';
 import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // No Supabase, no production Auth, and no permanent server-side data.
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
@@ -403,6 +404,7 @@ function bindHostChannel(c,id,conn,{requireApproval=false}={}){
        updateQuickApprovals();
        tell(c,{kind:'waiting'});
        log('Richiesta di accesso da '+name+' · '+id);
+       quickDiag('Giocatore '+name+' collegato via WebRTC · autorizzazione richiesta');
       }
      }else{
       completeHostJoin(id,name,c,conn);
@@ -600,13 +602,24 @@ function connectQuickPlayer(){
   scheduleQuickRetry();return;
  }
  const raw=quickPeer.connect(PEER_ID_PREFIX+quickRoom,{serialization:'json',reliable:true});
+ quickDiag('Stanza '+quickRoom+' richiesta · negoziazione WebRTC in corso');
+ log('PeerJS giocatore: richiesta canale verso stanza '+quickRoom);
+ raw.on('error',error=>{
+  if(quickStopRequested||quickConnection?.readyState==='open')return;
+  const problem=connectionProblem(raw.peerConnection?.iceConnectionState,raw.peerConnection?.connectionState);
+  const message=problem||explainPeerFailure(error);
+  quickDiag(message);
+  log('PeerJS giocatore: '+message);
+ });
  const adapter=peerJsAdapter(raw);
  quickConnection=adapter;
  bindPlayerChannel(adapter);
  const connectionTimeout=setTimeout(()=>{
   if(quickConnection===adapter&&adapter.readyState!=='open'){
    log('Collegamento rapido: apertura scaduta, nuovo tentativo');
-   quickDiag('Nessuna risposta dalla stanza '+quickRoom+' · verifica che il GM stia ospitando questa stanza');
+   const state=raw.peerConnection?.iceConnectionState??'non disponibile';
+   const explanation=connectionProblem(state,raw.peerConnection?.connectionState);
+   quickDiag(explanation||'Canale WebRTC non aperto (ICE: '+state+'). Verifica codice, Wi-Fi e rete ospiti.');
    raw.close();
    scheduleQuickRetry();
   }
@@ -618,6 +631,7 @@ function connectQuickPlayer(){
   quickRetryAttempt=0;
   if(quickRetryTimer!==null){clearTimeout(quickRetryTimer);quickRetryTimer=null}
   $('quickReconnect').textContent='Connessione ripristinata · autorizzazione del GM richiesta';
+  quickDiag('WebRTC aperto · richiesta di accesso inviata al GM');
   onOpen?.();
   void inspectIceRoute(raw,route=>{if(quickConnection===adapter){quickRoute=route;updateLatency()}});
   setTimeout(()=>{if(quickConnection===adapter)void inspectIceRoute(raw,route=>{quickRoute=route;updateLatency()})},2500);
@@ -625,9 +639,19 @@ function connectQuickPlayer(){
  adapter.onclose=()=>{
   clearTimeout(connectionTimeout);
   if(quickConnection!==adapter)return;
+  const ice=raw.peerConnection?.iceConnectionState??'non disponibile';
+  const diagnostic=connectionProblem(ice,raw.peerConnection?.connectionState);
+  if(diagnostic)quickDiag(diagnostic);
+  log('PeerJS giocatore: canale chiuso · ICE '+ice);
   onClose?.();
   scheduleQuickRetry();
  };
+ raw.on('iceStateChanged',state=>{
+  if(quickConnection!==adapter||quickStopRequested)return;
+  log('PeerJS giocatore: ICE '+state);
+  const problem=connectionProblem(state,raw.peerConnection?.connectionState);
+  if(problem)quickDiag(problem);
+ });
 }
 function scheduleQuickRetry(){
  if(!canRetry({requested:!quickStopRequested&&quickRole==='player',connected:quickConnection?.readyState==='open',attempt:quickRetryAttempt+1}))return;
@@ -686,6 +710,15 @@ $('quickHost').onclick=async()=>{
   });
   peer.on('connection',raw=>{
    const id='P-'+genId().slice(0,6);
+   log('GM: richiesta di connessione PeerJS ricevuta da '+id+' · apertura WebRTC in corso');
+   quickDiag('Richiesta PeerJS ricevuta · attendo apertura del canale WebRTC');
+   raw.on('open',()=>{log('GM: canale WebRTC aperto per '+id);quickDiag('Canale WebRTC aperto · attendo richiesta di ingresso')});
+   raw.on('error',error=>{log('GM: errore canale '+id+' · '+error.message);quickDiag('Errore apertura WebRTC: '+error.message)});
+   raw.on('iceStateChanged',state=>{
+    log('GM: ICE '+id+' '+state);
+    const diagnostic=connectionProblem(state,raw.peerConnection?.connectionState);
+    if(diagnostic)quickDiag(diagnostic);
+   });
    const adapter=peerJsAdapter(raw);
    bindHostChannel(adapter,id,{close:()=>raw.close(),peerConnection:raw.peerConnection},{requireApproval:true});
    const checkRoute=()=>void inspectIceRoute(raw,route=>{
