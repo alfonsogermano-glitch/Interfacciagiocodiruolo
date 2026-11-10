@@ -17,7 +17,7 @@ const MAX_REQUESTS_PER_WINDOW = 240;
  * All identities are demo capabilities. Never deploy to untrusted public
  * networks without real account auth, rate limiting, TLS, monitoring and abuse controls.
  */
-export function createSignalingHub({ hostname = '127.0.0.1', now = () => Date.now(), allowedOrigins = [] } = {}) {
+export function createSignalingHub({ hostname = '127.0.0.1', port = 0, now = () => Date.now(), allowedOrigins = [] } = {}) {
   if (hostname !== '127.0.0.1') throw new Error('Prototype must stay on loopback');
   const rooms = new Map();
   const buckets = new Map();
@@ -136,7 +136,7 @@ export function createSignalingHub({ hostname = '127.0.0.1', now = () => Date.no
     async start(){
       await new Promise((resolve,reject)=>{
         server.once('error',reject);
-        server.listen(0,hostname,resolve);
+        server.listen(port,hostname,resolve);
       });
       return 'http://127.0.0.1:'+server.address().port;
     },
