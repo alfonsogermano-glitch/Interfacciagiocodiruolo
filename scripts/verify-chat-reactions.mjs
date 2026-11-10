@@ -72,7 +72,7 @@ assert.match(panel, /aria-label="Citazione"/, 'icona citazione assente');
 assert.match(panel, /aria-label="Cancella"/, 'icona cancella messaggio assente');
 assert.match(panel, /setConfirmDelete\(item\.key\)/, 'Cancella non apre la conferma');
 assert.match(panel, /void deleteEntry\(id\)/, 'dialog conferma non invoca deleteEntry');
-assert.match(panel, /await deleteChatMessage\(entryId\)/, 'deleteChatMessage non chiamata');
+assert.match(panel, /await deleteChatMessage\(entryId, activeCampaign\.id\)/, 'deleteChatMessage non chiamata');
 assert.match(
   panel,
   /chat_delete', \{ messageId: entryId \}/,
