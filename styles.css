@@ -2,3 +2,5 @@
 .perf{margin:0 0 18px;font-size:.82rem;color:#9de8d4;font-variant-numeric:tabular-nums}
 
 .room-input{width:175px;max-width:100%;margin:0;letter-spacing:.15em;text-transform:uppercase;font-weight:700}
+
+.room-code{font-size:1.4rem;letter-spacing:.1em;color:#9de8d4}.room-input{width:220px}details summary{cursor:pointer;font-weight:700;margin-bottom:12px}

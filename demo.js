@@ -160,7 +160,15 @@ $('createOffer').onclick=async()=>{
   if(playerPC)playerPC.close();stopPings();
   appliedAnswerSdp=null;applyingAnswer=false;$('remoteAnswer').value='';
   $('applyAnswer').disabled=false;
-  playerPC=pc('Giocatore');channel=playerPC.createDataChannel('hollowgate',{ordered:true});
+  playerPC=pc('Giocatore');bindPlayerChannel(playerPC.createDataChannel('hollowgate',{ordered:true}));
+  const offer=await playerPC.createOffer();await playerPC.setLocalDescription(offer);await gathered(playerPC);
+  $('playerOffer').value=JSON.stringify(playerPC.localDescription);
+  displayStatus('Offerta pronta: copiala al GM');
+ }catch(e){log('Errore offerta: '+e.message)}
+};
+// Use the same game command handlers for manual WebRTC and quick-connect PeerJS.
+function bindPlayerChannel(c){
+  channel=c;
   channel.onopen=()=>{tell(channel,{kind:'join',name:validateName($('playerName').value)});startPings(channel);displayStatus('Connessione diretta aperta; attendo il GM')};
   channel.onclose=()=>{stopPings();displayStatus('Connessione con il GM chiusa')};
   channel.onmessage=e=>{try{
@@ -173,18 +181,9 @@ $('createOffer').onclick=async()=>{
     if(Number.isFinite(next)&&next>=0){latencyMs=latencyMs===null?next:latencyMs*.7+next*.3;receivedPings++;updateLatency()}
    }else if(m.kind==='error')log(m.reason)
   }catch{log('Messaggio non valido')}};
-  const offer=await playerPC.createOffer();await playerPC.setLocalDescription(offer);await gathered(playerPC);
-  $('playerOffer').value=JSON.stringify(playerPC.localDescription);
-  displayStatus('Offerta pronta: copiala al GM');
- }catch(e){log('Errore offerta: '+e.message)}
-};
-async function acceptRemoteOffer(offer, reply=null){
- if(!hostState)throw Error('Avvia prima la campagna');
- if(offer.type!=='offer'||typeof offer.sdp!=='string'||offer.sdp.length>100000)throw Error('Offerta non valida');
- const conn=pc('GM');const id='P-'+genId().slice(0,6);
- try{
-  conn.ondatachannel=e=>{
-   const c=e.channel;
+}
+function bindHostChannel(c,id,conn){
+
    c.onmessage=event=>{try{
     const msg=JSON.parse(event.data);
     if(msg.kind==='ping'&&typeof msg.id==='string'&&msg.id.length<=80){
@@ -208,7 +207,28 @@ async function acceptRemoteOffer(offer, reply=null){
     }
    }catch{tell(c,{kind:'error',reason:'Comando non valido'})}};
    c.onclose=()=>{endHostPing(id,peers.get(id));displayStatus('Giocatore '+id+' disconnesso')};
-  };
+}
+function adaptPeerJsConnection(raw){
+ let state='connecting';
+ const adapter={
+  onopen:null,onclose:null,onmessage:null,
+  get readyState(){return state},
+  send(text){raw.send(JSON.parse(text))},
+  close(){raw.close()}
+ };
+ raw.on('open',()=>{state='open';adapter.onopen?.()});
+ raw.on('data',packet=>{if(packet&&typeof packet==='object')adapter.onmessage?.({data:JSON.stringify(packet)})});
+ raw.on('close',()=>{state='closed';adapter.onclose?.()});
+ raw.on('error',error=>log('PeerJS canale: '+(error.message??error.type??'errore')));
+ return adapter;
+}
+
+async function acceptRemoteOffer(offer, reply=null){
+ if(!hostState)throw Error('Avvia prima la campagna');
+ if(offer.type!=='offer'||typeof offer.sdp!=='string'||offer.sdp.length>100000)throw Error('Offerta non valida');
+ const conn=pc('GM');const id='P-'+genId().slice(0,6);
+ try{
+  conn.ondatachannel=e=>bindHostChannel(e.channel,id,conn);
   await conn.setRemoteDescription(offer);const answer=await conn.createAnswer();await conn.setLocalDescription(answer);await gathered(conn);
   const result=JSON.stringify(conn.localDescription);
   if(reply)await reply(result);
@@ -311,5 +331,71 @@ $('connectDisconnect').onclick=async()=>{
  await closeConnect();
  displayStatus('Hollowgate Connect scollegato: le connessioni WebRTC esistenti non vengono interrotte');
 };
-window.addEventListener('pagehide',()=>{stopPings();void closeConnect();for(const [id,p] of peers){endHostPing(id,p);p.pc.close()}playerPC?.close()});
+
+// PeerJS Cloud is a shared third-party signaling broker for this **test**.
+// It is NOT an authenticated Hollowgate Connect server.
+const PEER_ID_PREFIX='hollowgate-lab-';
+const ROOM_ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+let quickPeer=null;
+function newQuickCode(){
+ const bytes=crypto.getRandomValues(new Uint8Array(12));
+ return Array.from(bytes,value=>ROOM_ALPHABET[value%ROOM_ALPHABET.length]).join('');
+}
+function stopQuickPeer(){
+ if(quickPeer){quickPeer.destroy();quickPeer=null}
+ $('quickCode').textContent='—';
+}
+function openQuickPeer(identity){
+ const Peer=window.Peer;
+ if(typeof Peer!=='function')throw Error('La libreria PeerJS non è disponibile. Controlla connessione e blocchi CDN.');
+ const peer=new Peer(identity,{
+  host:'0.peerjs.com',port:443,path:'/',secure:true,
+  config:stun,debug:1
+ });
+ return new Promise((resolve,reject)=>{
+  const timeout=setTimeout(()=>{peer.destroy();reject(Error('Il servizio pubblico di segnalazione non risponde'))},14000);
+  peer.on('open',()=>{clearTimeout(timeout);resolve(peer)});
+  peer.on('error',err=>{clearTimeout(timeout);reject(Error(err?.message??'PeerJS: connessione fallita'))});
+ });
+}
+$('quickHost').onclick=async()=>{
+ const button=$('quickHost');button.disabled=true;
+ try{
+  stopQuickPeer();
+  selectMode('gm');
+  if(!hostState)$('startHost').click();
+  const code=newQuickCode();
+  const peer=await openQuickPeer(PEER_ID_PREFIX+code);
+  quickPeer=peer;
+  peer.on('connection',raw=>{
+   const id='P-'+genId().slice(0,6);
+   bindHostChannel(adaptPeerJsConnection(raw),id,{close:()=>raw.close()});
+  });
+  $('quickCode').textContent=code;
+  displayStatus('Stanza demo '+code+' attiva: comunica il codice al giocatore');
+ }catch(e){stopQuickPeer();log('Collegamento rapido: '+e.message)}
+ finally{button.disabled=false}
+};
+$('quickJoin').onclick=async()=>{
+ const button=$('quickJoin');button.disabled=true;
+ try{
+  const code=$('quickRoom').value.trim().toUpperCase();
+  if(!/^[A-HJ-NP-Z2-9]{12}$/.test(code))throw Error('Inserisci il codice stanza di 12 caratteri dato dal GM');
+  stopQuickPeer();stopPings();
+  if(playerPC){playerPC.close();playerPC=null}
+  selectMode('player');playerState=null;
+  const peer=await openQuickPeer();
+  quickPeer=peer;
+  const raw=peer.connect(PEER_ID_PREFIX+code,{serialization:'json',reliable:true});
+  bindPlayerChannel(adaptPeerJsConnection(raw));
+  displayStatus('Collegamento rapido verso '+code+' in corso');
+ }catch(e){stopQuickPeer();log('Collegamento rapido: '+e.message)}
+ finally{button.disabled=false}
+};
+$('quickStop').onclick=()=>{
+ stopQuickPeer();stopPings();
+ displayStatus('Collegamento rapido terminato');
+};
+
+window.addEventListener('pagehide',()=>{stopQuickPeer();stopPings();void closeConnect();for(const [id,p] of peers){endHostPing(id,p);p.pc.close()}playerPC?.close()});
 log('Prova browser pronta — scegli GM oppure giocatore');
