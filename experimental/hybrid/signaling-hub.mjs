@@ -61,7 +61,7 @@ export function createSignalingHub({ hostname = '127.0.0.1', now = () => Date.no
     if(url.pathname==='/v1/create'){
       if (Object.keys(body).length!==0){send(res,400,{error:'Unexpected fields'});return;}
       let code;
-      do {code=randomBytes(5).toString('base64url').replace(/[-_01OI]/g,'A').slice(0,8).toUpperCase()}while(code.length!==8||rooms.has(code));
+      do {code=randomBytes(6).toString('base64url').replace(/[-_01OI]/g,'A').slice(0,8).toUpperCase()}while(code.length!==8||rooms.has(code));
       const token=random(),room={code,activity:now(),tokens:new Map([[token,'host']]),peers:new Set(['host']),queues:new Map([['host',[]]]),seq:0};
       rooms.set(code,room);
       send(res,201,{room:code,token,role:'host',peerId:'host',expiresAfterIdleMs:ROOM_IDLE_MS});return;
