@@ -23,6 +23,7 @@
   <input id="quickTurnUser" type="text" autocomplete="off" placeholder="Utente TURN" aria-label="Utente per server TURN">
   <input id="quickTurnPass" type="password" autocomplete="off" placeholder="Credenziale TURN" aria-label="Credenziale per server TURN">
  </div>
+ <button id="quickTurnTest" type="button" class="secondary">Verifica TURN (senza creare stanza)</button>
  <button id="quickHost">Crea stanza demo come GM</button>
  <input id="quickLanPlayerIp" class="room-input" inputmode="decimal" autocomplete="off" placeholder="IP LAN cellulare (opzionale: 192.168.1.21)" aria-label="Indirizzo IPv4 LAN del cellulare per prova ICE bidirezionale">
  <input id="quickRoom" class="room-input" placeholder="Codice di 12 caratteri" maxlength="12" aria-label="Codice stanza rapido">
@@ -40,7 +41,7 @@
 <p class="hint">Dopo ogni ricaricamento, il GM deve premere «Crea stanza demo come GM» e comunicare il nuovo codice mostrato: quello precedente potrebbe non essere più valido.</p>
 <p id="quickReconnect" class="hint" aria-live="polite">Nessuna riconnessione in corso</p>
 <p id="quickDiagnostics" role="status" aria-live="polite" class="hint">Diagnostica: connessione non ancora avviata</p>
-<p class="hint">Versione diagnostica: <strong>turn-android-quickjoin-20261111</strong> (verifica questo testo sul PC e sul cellulare)</p>
+<p class="hint">Versione diagnostica: <strong>turn-preflight-20261111</strong> (verifica questo testo sul PC e sul cellulare)</p>
 <div class="approvals">
  <h3>Richieste di ingresso (Game Master)</h3>
  <p class="hint" id="quickApprovalInfo">Nessun giocatore in attesa di autorizzazione</p>
@@ -94,5 +95,5 @@
 </main>
 <script defer src="https://cdn.jsdelivr.net/npm/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-<script type="module" src="./demo.js?v=turn-android-quickjoin-20261111"></script>
+<script type="module" src="./demo.js?v=turn-preflight-20261111"></script>
 </body></html>
