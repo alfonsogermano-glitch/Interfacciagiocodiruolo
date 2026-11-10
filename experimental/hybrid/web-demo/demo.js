@@ -14,7 +14,7 @@ import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
 // Manual signaling is intentionally temporary until Hollowgate Hub exists.
 const $=id=>document.getElementById(id);
-const DEMO_REVISION='lan-explicit-ip-20261110';
+const DEMO_REVISION='lan-bidirectional-probe-20261110';
 const STORAGE='hollowgate-hybrid-web-demo-v1';
 // Codes are per-live-room, not durable across reloads: an old PeerJS ID can be stale.
 const stun={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
@@ -754,10 +754,27 @@ $('quickHost').onclick=async()=>{
   peer.on('connection',raw=>{
    if(hostGeneration!==quickGeneration||quickPeer!==peer){raw.close();return}
    const id='P-'+genId().slice(0,6);
+   const playerLanIp=roomIceMode(code)==='lan'?$('quickLanPlayerIp').value.trim():'';
+   let hostProbe=null,hostProbeBusy=false;
+   const stopHostProbe=()=>{if(hostProbe!==null){clearInterval(hostProbe);hostProbe=null}};
+   if(playerLanIp&&isPrivateLanIPv4(playerLanIp)){
+    hostProbe=setInterval(async()=>{
+     if(hostGeneration!==quickGeneration||quickPeer!==peer||raw.open||raw.peerConnection?.signalingState==='closed'){stopHostProbe();return}
+     if(hostProbeBusy)return;
+     hostProbeBusy=true;
+     const result=await tryAddLanCandidate(raw.peerConnection,playerLanIp,{allowNonMdns:true});
+     hostProbeBusy=false;
+     if(result==='pending')return;
+     stopHostProbe();
+     log('GM '+id+': candidato Android LAN esplicito '+(result==='added'?'inserito nell’agente ICE':result));
+    },350);
+   }else if(playerLanIp)log('GM: indirizzo IPv4 del giocatore non valido · prova bidirezionale non attivata');
+   raw.on('close',stopHostProbe);
    log('GM: richiesta di connessione PeerJS ricevuta da '+id+' · apertura WebRTC in corso');
    quickDiag('Richiesta PeerJS ricevuta · attendo apertura del canale WebRTC');
-   raw.on('open',()=>{if(hostGeneration!==quickGeneration||quickPeer!==peer)return;log('GM: canale WebRTC aperto per '+id);quickDiag('Canale WebRTC aperto · attendo richiesta di ingresso')});
+   raw.on('open',()=>{stopHostProbe();if(hostGeneration!==quickGeneration||quickPeer!==peer)return;log('GM: canale WebRTC aperto per '+id);quickDiag('Canale WebRTC aperto · attendo richiesta di ingresso')});
    raw.on('error',error=>{
+    stopHostProbe();
     log('GM: errore canale '+id+' · '+error.message);
     quickDiag('Errore apertura WebRTC: '+error.message);
     void awaitIceSnapshot(raw,'GM '+id);
@@ -767,7 +784,7 @@ $('quickHost').onclick=async()=>{
     log('GM: ICE '+id+' '+state);
     const diagnostic=connectionProblem(state,raw.peerConnection?.connectionState);
     if(diagnostic)quickDiag(diagnostic);
-    if(state==='disconnected'||state==='failed')void awaitIceSnapshot(raw,'GM '+id);
+    if(state==='disconnected'||state==='failed'){stopHostProbe();void awaitIceSnapshot(raw,'GM '+id)}
    });
    const adapter=peerJsAdapter(raw);
    bindHostChannel(adapter,id,{close:()=>raw.close(),peerConnection:raw.peerConnection},{requireApproval:true});
