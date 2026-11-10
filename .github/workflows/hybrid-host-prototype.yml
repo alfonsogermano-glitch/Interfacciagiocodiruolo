@@ -21,4 +21,6 @@ jobs:
         with:
           node-version: '22'
       - name: Test per-campaign permissions and local persistence without Supabase
-        run: node --test experimental/hybrid/*.test.mjs
+        run: |
+          node --check experimental/hybrid/web-demo/demo.js
+          node --test experimental/hybrid/*.test.mjs experimental/hybrid/web-demo/*.test.mjs

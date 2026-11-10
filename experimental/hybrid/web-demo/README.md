@@ -32,3 +32,21 @@ static UI, without merging or redeploying the main Hollowgate application.
 
 Run static contract checks with
 `node --test experimental/hybrid/web-demo/demo.test.mjs`.
+
+## Preview pubblica mediante GitHub Pages
+
+La pubblicazione automatica su Vercel è stata rifiutata (403: nessun
+permesso di creare progetti). Anche `configure-pages` GitHub Actions è
+stato respinto (Pages non abilitato; integrazione senza permessi admin).
+Per evitare modifiche alla produzione è stato preparato un ramo
+**`gh-pages`**, contenente solo `index.html`, `demo.js`, `styles.css`.
+
+**Unica azione del proprietario del repository:** aprire
+`https://github.com/alfonsogermano-glitch/Interfacciagiocodiruolo/settings/pages`,
+selezionare «Deploy from a branch», scegliere `gh-pages` e `/(root)`,
+poi «Save». Il link *atteso*, da verificare dopo l'attivazione, è
+`https://alfonsogermano-glitch.github.io/Interfacciagiocodiruolo/`.
+Non assegnare domini della produzione.
+
+Il sito demo **non è** ancora integrato nel vero client React Hollowgate
+né nell'Host Node.js, e lo scambio WebRTC è manuale e senza identità reali.

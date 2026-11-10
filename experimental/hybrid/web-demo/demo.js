@@ -21,7 +21,7 @@ function selectMode(next){
 $('hostMode').onclick=()=>selectMode('gm');$('playerMode').onclick=()=>selectMode('player');
 $('startHost').onclick=()=>{
  if(!hostState){try{const x=JSON.parse(localStorage.getItem(STORAGE));hostState=x&&x.tokens&&Array.isArray(x.activity)?x:defaultState()}catch{hostState=defaultState()}}
- role='gm';peerId='gm';$('hostSignal').hidden=false;$('session').hidden=false;displayStatus('GM Host attivo, in attesa di giocatori');render();
+ save();role='gm';peerId='gm';$('hostSignal').hidden=false;$('session').hidden=false;displayStatus('GM Host attivo, in attesa di giocatori');render();
 };
 $('resetHost').onclick=()=>{
  if(!confirm('Cancellare esclusivamente la campagna dimostrativa salvata in questo browser?'))return;
