@@ -150,3 +150,13 @@ rilevato sul client: si ferma la riconnessione silenziosa e compare
 una spiegazione sul codice non raggiungibile. Gli eventi di disconnessione
 e errore segnalazione del GM sono visibili, in particolare se il broker
 non accetta più richieste.
+
+## Tentativo WebRTC solo LAN
+Il checkbox "Prova Wi-Fi locale" viene attivato prima di creare la stanza GM.
+Il codice generato inizia con `L`, e i due browser usano
+`RTCPeerConnection({iceServers:[]})` anziché STUN: il tentativo verifica
+una connessione diretta sulla rete domestica con candidati host. Non
+aggira firewall, isolamento Wi-Fi, multicast/mDNS bloccato o limitazioni
+del broker PeerJS. Il codice normale inizia con `W`, e mantiene STUN
+per l'accesso 5G o fra reti differenti. Il codice della stanza codifica
+la modalità; non ci sono configurazioni separate sul cellulare.
