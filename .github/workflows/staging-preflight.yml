@@ -29,6 +29,10 @@ on:
       - 'tests/infrastructure/test-chat-policy-smoke.py'
       - 'infra/staging/roll-reaction-smoke-test.sh'
       - 'tests/infrastructure/test-roll-reaction-contract.py'
+      - 'docs/security/proposals/chat_reaction_rpc_staging_only.sql'
+      - 'infra/staging/reaction-rpc-smoke-test.sh'
+      - 'tests/infrastructure/test-reaction-rpc.py'
+      - 'src/app/components/session/dice/DiceSessionContext.tsx'
       - 'supabase/functions/dice-secret-roll/index.ts'
       - 'src/services/supabase/chatService.ts'
       - '.github/workflows/staging-preflight.yml'
@@ -59,6 +63,10 @@ on:
       - 'tests/infrastructure/test-chat-policy-smoke.py'
       - 'infra/staging/roll-reaction-smoke-test.sh'
       - 'tests/infrastructure/test-roll-reaction-contract.py'
+      - 'docs/security/proposals/chat_reaction_rpc_staging_only.sql'
+      - 'infra/staging/reaction-rpc-smoke-test.sh'
+      - 'tests/infrastructure/test-reaction-rpc.py'
+      - 'src/app/components/session/dice/DiceSessionContext.tsx'
       - 'supabase/functions/dice-secret-roll/index.ts'
       - 'src/services/supabase/chatService.ts'
       - '.github/workflows/staging-preflight.yml'
@@ -97,6 +105,10 @@ jobs:
         run: |
           bash -n infra/staging/roll-reaction-smoke-test.sh
           python3 tests/infrastructure/test-roll-reaction-contract.py
+      - name: Validate reaction RPC and author-only roll persistence
+        run: |
+          bash -n infra/staging/reaction-rpc-smoke-test.sh
+          python3 tests/infrastructure/test-reaction-rpc.py
       - name: Syntax check
         run: bash -n infra/staging/local-supabase.sh tests/infrastructure/test-local-supabase.sh
       - name: Test local-only guardrails without Docker or credentials
@@ -120,6 +132,8 @@ jobs:
         run: bash infra/staging/chat-policy-smoke-test.sh
       - name: Verify public roll ownership and reaction update limits
         run: bash infra/staging/roll-reaction-smoke-test.sh
+      - name: Test constrained reaction RPC on PostgreSQL
+        run: bash infra/staging/reaction-rpc-smoke-test.sh
       - name: Remove disposable PostgreSQL volume and container
         if: always()
         run: docker compose -f infra/staging/docker-compose.yml down -v --remove-orphans
