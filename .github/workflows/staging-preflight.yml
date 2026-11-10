@@ -27,6 +27,10 @@ on:
       - 'docs/security/proposals/chat_rls_staging_only.sql'
       - 'infra/staging/chat-policy-smoke-test.sh'
       - 'tests/infrastructure/test-chat-policy-smoke.py'
+      - 'infra/staging/roll-reaction-smoke-test.sh'
+      - 'tests/infrastructure/test-roll-reaction-contract.py'
+      - 'supabase/functions/dice-secret-roll/index.ts'
+      - 'src/services/supabase/chatService.ts'
       - '.github/workflows/staging-preflight.yml'
   pull_request:
     paths:
@@ -53,6 +57,10 @@ on:
       - 'docs/security/proposals/chat_rls_staging_only.sql'
       - 'infra/staging/chat-policy-smoke-test.sh'
       - 'tests/infrastructure/test-chat-policy-smoke.py'
+      - 'infra/staging/roll-reaction-smoke-test.sh'
+      - 'tests/infrastructure/test-roll-reaction-contract.py'
+      - 'supabase/functions/dice-secret-roll/index.ts'
+      - 'src/services/supabase/chatService.ts'
       - '.github/workflows/staging-preflight.yml'
 permissions:
   contents: read
@@ -85,6 +93,10 @@ jobs:
         run: |
           bash -n infra/staging/chat-policy-smoke-test.sh
           python3 tests/infrastructure/test-chat-policy-smoke.py
+      - name: Check dice/reaction security contract
+        run: |
+          bash -n infra/staging/roll-reaction-smoke-test.sh
+          python3 tests/infrastructure/test-roll-reaction-contract.py
       - name: Syntax check
         run: bash -n infra/staging/local-supabase.sh tests/infrastructure/test-local-supabase.sh
       - name: Test local-only guardrails without Docker or credentials
@@ -106,6 +118,8 @@ jobs:
         run: bash infra/staging/rls-smoke-test.sh
       - name: Verify actual chat RLS proposal against disposable PostgreSQL
         run: bash infra/staging/chat-policy-smoke-test.sh
+      - name: Verify public roll ownership and reaction update limits
+        run: bash infra/staging/roll-reaction-smoke-test.sh
       - name: Remove disposable PostgreSQL volume and container
         if: always()
         run: docker compose -f infra/staging/docker-compose.yml down -v --remove-orphans
