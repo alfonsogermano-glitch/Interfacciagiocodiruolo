@@ -194,11 +194,12 @@ export async function sendChatAttachment(input: {
  * (usato anche per i tiri solo-locali, che nel DB non hanno riga).
  */
 /** Recupera le reazioni dal DB sotto RLS; i broadcast non sono una fonte attendibile. */
-export async function loadChatReactions(messageId: string): Promise<ChatReaction[] | null> {
+export async function loadChatReactions(messageId: string, campaignId: string): Promise<ChatReaction[] | null> {
   if (!supabase) return null;
   const { data, error } = await supabase
     .from('chat_messages')
     .select('reactions')
+    .eq('campaign_id', campaignId)
     .eq('id', messageId)
     .limit(1);
   if (error || !Array.isArray(data) || data.length === 0) return null;
@@ -300,11 +301,12 @@ export async function saveRollEntry(roll: RollResult): Promise<string | null> {
  * 'unknown' evita di scambiare errori di rete per cancellazioni riuscite.
  * ATTENZIONE: 'missing' può anche significare che RLS non consente più SELECT.
  */
-export async function chatMessageVisibility(messageId: string): Promise<'present' | 'missing' | 'unknown'> {
+export async function chatMessageVisibility(messageId: string, campaignId: string): Promise<'present' | 'missing' | 'unknown'> {
   if (!supabase) return 'unknown';
   const { data, error } = await supabase
     .from('chat_messages')
     .select('id')
+    .eq('campaign_id', campaignId)
     .eq('id', messageId)
     .limit(1);
   if (error || !Array.isArray(data)) return 'unknown';
