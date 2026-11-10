@@ -11,17 +11,23 @@ on:
       - 'tests/infrastructure/test-migration-readiness.py'
       - 'supabase/migrations/**'
       - 'supabase/20*.sql'
+      - 'docs/infrastructure/SCHEMA_CATALOG_METADATA_2026-11-10.json'
+      - 'tests/infrastructure/verify-schema-catalog.py'
+      - 'tests/infrastructure/test-schema-catalog.py'
+      - 'tests/infrastructure/test-local-supabase.sh'
+      - '.github/workflows/staging-preflight.yml'
+  pull_request:
+    paths:
+      - 'infra/staging/local-supabase.sh'
       - 'supabase/config.toml'
       - 'tests/infrastructure/verify-local-config.py'
       - 'scripts/audit-staging-migrations.py'
       - 'tests/infrastructure/test-migration-readiness.py'
       - 'supabase/migrations/**'
       - 'supabase/20*.sql'
-      - 'tests/infrastructure/test-local-supabase.sh'
-      - '.github/workflows/staging-preflight.yml'
-  pull_request:
-    paths:
-      - 'infra/staging/local-supabase.sh'
+      - 'docs/infrastructure/SCHEMA_CATALOG_METADATA_2026-11-10.json'
+      - 'tests/infrastructure/verify-schema-catalog.py'
+      - 'tests/infrastructure/test-schema-catalog.py'
       - 'tests/infrastructure/test-local-supabase.sh'
       - '.github/workflows/staging-preflight.yml'
 permissions:
@@ -37,6 +43,10 @@ jobs:
         run: |
           python3 tests/infrastructure/test-migration-readiness.py -v
           python3 scripts/audit-staging-migrations.py
+      - name: Validate read-only schema catalog
+        run: |
+          python3 tests/infrastructure/verify-schema-catalog.py
+          python3 tests/infrastructure/test-schema-catalog.py
       - name: Syntax check
         run: bash -n infra/staging/local-supabase.sh tests/infrastructure/test-local-supabase.sh
       - name: Test local-only guardrails without Docker or credentials

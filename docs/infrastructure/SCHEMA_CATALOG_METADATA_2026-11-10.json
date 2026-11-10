@@ -1,0 +1,3119 @@
+{
+  "schema": "public",
+  "snapshot_date": "2026-11-10",
+  "description": "Metadata only: excludes user records, credentials, RLS expressions, and executable DDL",
+  "tables": [
+    {
+      "rls": true,
+      "table": "campaign_documents",
+      "columns": [
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "document_key",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "payload",
+          "type": "jsonb",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "policies": [
+        {
+          "name": "campaign_documents_active_scene_member_read",
+          "command": "SELECT"
+        },
+        {
+          "name": "campaign_documents_owner",
+          "command": "ALL"
+        }
+      ],
+      "foreign_keys": [
+        "campaigns"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "campaign_invite_codes",
+      "columns": [
+        {
+          "name": "code",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "policies": [],
+      "foreign_keys": [
+        "campaigns"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "campaign_members",
+      "columns": [
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "profile_id",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "role",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "joined_at",
+          "type": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "policies": [
+        {
+          "name": "campaign_members_select_if_member_or_owner",
+          "command": "SELECT"
+        }
+      ],
+      "foreign_keys": [
+        "campaigns"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "campaigns",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "drama",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "owner_profile_id",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "ruleset",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "session_active",
+          "type": "bool",
+          "nullable": false
+        },
+        {
+          "name": "session_activated_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "invite_code",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "last_opened_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "logo_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "cover_image_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "cover_crop",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "cover_rotation_degrees",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "tab_order",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "tab_order_campaign_notes",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "tab_order_gm_notes",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "deleted_at",
+          "type": "timestamptz",
+          "nullable": true
+        }
+      ],
+      "policies": [
+        {
+          "name": "campaigns_insert_own",
+          "command": "INSERT"
+        },
+        {
+          "name": "campaigns_select_own",
+          "command": "SELECT"
+        },
+        {
+          "name": "campaigns_update_own",
+          "command": "UPDATE"
+        }
+      ],
+      "foreign_keys": []
+    },
+    {
+      "rls": true,
+      "table": "chapters",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "synopsis",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "scenes",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "npcs",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "clues",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "is_active",
+          "type": "bool",
+          "nullable": false
+        },
+        {
+          "name": "next_chapter_ids",
+          "type": "_uuid",
+          "nullable": false
+        },
+        {
+          "name": "map_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "map_metadata",
+          "type": "jsonb",
+          "nullable": false
+        },
+        {
+          "name": "location_metadata",
+          "type": "jsonb",
+          "nullable": false
+        },
+        {
+          "name": "source_environment",
+          "type": "jsonb",
+          "nullable": true
+        }
+      ],
+      "policies": [
+        {
+          "name": "chapters_delete_own",
+          "command": "DELETE"
+        },
+        {
+          "name": "chapters_insert_own",
+          "command": "INSERT"
+        },
+        {
+          "name": "chapters_select_own_or_member",
+          "command": "SELECT"
+        },
+        {
+          "name": "chapters_update_own",
+          "command": "UPDATE"
+        }
+      ],
+      "foreign_keys": [
+        "campaigns"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "character_equipment",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "character_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "catalog_item_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "source",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "type",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "location",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "inseparabile",
+          "type": "bool",
+          "nullable": true
+        },
+        {
+          "name": "is_vehicle",
+          "type": "bool",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "quantity",
+          "type": "int4",
+          "nullable": false
+        },
+        {
+          "name": "custom_data",
+          "type": "jsonb",
+          "nullable": false
+        }
+      ],
+      "policies": [
+        {
+          "name": "character_equipment_access",
+          "command": "ALL"
+        },
+        {
+          "name": "character_equipment_all_own",
+          "command": "ALL"
+        }
+      ],
+      "foreign_keys": [
+        "equipment_catalog",
+        "characters"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "characters",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "owner_profile_id",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "style",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "viaggio",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "portrait_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "background_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "sheet_data",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "tags",
+          "type": "_text",
+          "nullable": true
+        },
+        {
+          "name": "ruleset",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "token_color",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "token_background_color",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "token_border_style",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "portrait_image_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "portrait_cropped_image_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "portrait_crop",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "token_border_thickness",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "token_border_label",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "token_border_visible",
+          "type": "bool",
+          "nullable": true
+        },
+        {
+          "name": "portrait_source_image_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "portrait_crop_area",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "portrait_asset_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_asset_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_rotation_degrees",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_offset_x",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_offset_y",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_scale_x",
+          "type": "numeric",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_scale_y",
+          "type": "numeric",
+          "nullable": true
+        },
+        {
+          "name": "cover_image_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "cover_image_scale",
+          "type": "numeric",
+          "nullable": true
+        },
+        {
+          "name": "cover_crop",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "cover_rotation_degrees",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "frame_rotation",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "frame_rotation_degrees",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "cover_frame_offset_x",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "cover_frame_offset_y",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "cover_frame_scale_x",
+          "type": "numeric",
+          "nullable": true
+        },
+        {
+          "name": "cover_frame_scale_y",
+          "type": "numeric",
+          "nullable": true
+        },
+        {
+          "name": "cover_frame_asset_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "available_for_players",
+          "type": "bool",
+          "nullable": true
+        },
+        {
+          "name": "claimable_origin",
+          "type": "bool",
+          "nullable": true
+        },
+        {
+          "name": "original_owner_profile_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "folder_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "chapter_id",
+          "type": "uuid",
+          "nullable": true
+        }
+      ],
+      "policies": [
+        {
+          "name": "characters_delete_own",
+          "command": "DELETE"
+        },
+        {
+          "name": "characters_insert_own",
+          "command": "INSERT"
+        },
+        {
+          "name": "characters_select_own_or_member",
+          "command": "SELECT"
+        },
+        {
+          "name": "characters_update_own",
+          "command": "UPDATE"
+        }
+      ],
+      "foreign_keys": [
+        "campaigns",
+        "chapters",
+        "folders",
+        "image_assets"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "chat_messages",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "sender_id",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "sender_name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "sender_avatar_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "content",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "payload",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "reactions",
+          "type": "jsonb",
+          "nullable": true
+        }
+      ],
+      "policies": [
+        {
+          "name": "chat_messages_delete",
+          "command": "DELETE"
+        },
+        {
+          "name": "chat_messages_insert",
+          "command": "INSERT"
+        },
+        {
+          "name": "chat_messages_select",
+          "command": "SELECT"
+        },
+        {
+          "name": "chat_messages_update_reactions",
+          "command": "UPDATE"
+        }
+      ],
+      "foreign_keys": [
+        "campaigns"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "clues",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "chapter_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "revelation",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "discovered",
+          "type": "bool",
+          "nullable": true
+        },
+        {
+          "name": "discovery_date",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "discovered_by",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "tags",
+          "type": "_text",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "environment_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "location",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "connected_to",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "scene_id",
+          "type": "uuid",
+          "nullable": true
+        }
+      ],
+      "policies": [
+        {
+          "name": "clues_all_own",
+          "command": "ALL"
+        }
+      ],
+      "foreign_keys": [
+        "campaigns",
+        "chapters",
+        "environments",
+        "scenes"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "dashboard_settings",
+      "columns": [
+        {
+          "name": "key",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "value",
+          "type": "jsonb",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "owner_profile_id",
+          "type": "text",
+          "nullable": false
+        }
+      ],
+      "policies": [
+        {
+          "name": "dashboard_settings_delete_own",
+          "command": "DELETE"
+        },
+        {
+          "name": "dashboard_settings_insert_own",
+          "command": "INSERT"
+        },
+        {
+          "name": "dashboard_settings_select_own",
+          "command": "SELECT"
+        },
+        {
+          "name": "dashboard_settings_update_own",
+          "command": "UPDATE"
+        }
+      ],
+      "foreign_keys": []
+    },
+    {
+      "rls": true,
+      "table": "dice_custom_dice",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "owner_profile_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "sides",
+          "type": "int4",
+          "nullable": false
+        },
+        {
+          "name": "faces",
+          "type": "jsonb",
+          "nullable": false
+        },
+        {
+          "name": "body_color",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "symbol_color",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "icon_name",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "folder_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "sort_order",
+          "type": "int4",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "skin_id",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "effects_enabled",
+          "type": "bool",
+          "nullable": false
+        },
+        {
+          "name": "texture_scale",
+          "type": "int4",
+          "nullable": false
+        },
+        {
+          "name": "quick_roll_quantity",
+          "type": "int4",
+          "nullable": false
+        },
+        {
+          "name": "result_display_mode",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "definition_mode",
+          "type": "text",
+          "nullable": false
+        }
+      ],
+      "policies": [
+        {
+          "name": "dice_custom_dice_delete_own",
+          "command": "DELETE"
+        },
+        {
+          "name": "dice_custom_dice_insert_own_campaign",
+          "command": "INSERT"
+        },
+        {
+          "name": "dice_custom_dice_select_own_campaign",
+          "command": "SELECT"
+        },
+        {
+          "name": "dice_custom_dice_update_own_campaign",
+          "command": "UPDATE"
+        }
+      ],
+      "foreign_keys": [
+        "dice_formula_folders"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "dice_formula_folders",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "owner_profile_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "icon_name",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "parent_folder_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "sort_order",
+          "type": "int4",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "policies": [
+        {
+          "name": "dice_formula_folders_delete_own",
+          "command": "DELETE"
+        },
+        {
+          "name": "dice_formula_folders_insert_own_campaign",
+          "command": "INSERT"
+        },
+        {
+          "name": "dice_formula_folders_select_own_campaign",
+          "command": "SELECT"
+        },
+        {
+          "name": "dice_formula_folders_update_own_campaign",
+          "command": "UPDATE"
+        }
+      ],
+      "foreign_keys": [
+        "dice_formula_folders"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "dice_formulas",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "owner_profile_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "items",
+          "type": "jsonb",
+          "nullable": false
+        },
+        {
+          "name": "is_secret",
+          "type": "bool",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "icon_name",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "folder_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "sort_order",
+          "type": "int4",
+          "nullable": false
+        }
+      ],
+      "policies": [
+        {
+          "name": "dice_formulas_delete_own",
+          "command": "DELETE"
+        },
+        {
+          "name": "dice_formulas_insert_own_campaign",
+          "command": "INSERT"
+        },
+        {
+          "name": "dice_formulas_select_own_campaign",
+          "command": "SELECT"
+        },
+        {
+          "name": "dice_formulas_update_own_campaign",
+          "command": "UPDATE"
+        }
+      ],
+      "foreign_keys": [
+        "campaigns",
+        "dice_formula_folders",
+        "profiles"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "dice_standard_styles",
+      "columns": [
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "owner_profile_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "sides",
+          "type": "int4",
+          "nullable": false
+        },
+        {
+          "name": "body_color",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "symbol_color",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "skin_id",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "effects_enabled",
+          "type": "bool",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "texture_scale",
+          "type": "int4",
+          "nullable": false
+        }
+      ],
+      "policies": [
+        {
+          "name": "dice_standard_styles_delete_own",
+          "command": "DELETE"
+        },
+        {
+          "name": "dice_standard_styles_insert_own_campaign",
+          "command": "INSERT"
+        },
+        {
+          "name": "dice_standard_styles_select_own_campaign",
+          "command": "SELECT"
+        },
+        {
+          "name": "dice_standard_styles_update_own_campaign",
+          "command": "UPDATE"
+        }
+      ],
+      "foreign_keys": []
+    },
+    {
+      "rls": true,
+      "table": "entity_notes",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "entity_type",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "entity_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "tab_name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "position",
+          "type": "int4",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "hidden",
+          "type": "bool",
+          "nullable": false
+        },
+        {
+          "name": "folder_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "tab_order",
+          "type": "_text",
+          "nullable": true
+        },
+        {
+          "name": "deleted_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "owner_profile_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "visibility",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "content_rich",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "title_icon",
+          "type": "text",
+          "nullable": true
+        }
+      ],
+      "policies": [],
+      "foreign_keys": [
+        "campaigns",
+        "folders"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "environment_narrative_mapping",
+      "columns": [
+        {
+          "name": "environment_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "root_environment_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "chapter_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "scene_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "target_kind",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "policies": [],
+      "foreign_keys": []
+    },
+    {
+      "rls": true,
+      "table": "environments",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "atmosphere",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "image_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "map_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "features",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "hazards",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "tags",
+          "type": "_text",
+          "nullable": true
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "chapter_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "parent_location_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "map_location_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "location_type",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "icon_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "exit_points",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "hidden_details",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "npcs_present",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "sort_order",
+          "type": "int4",
+          "nullable": true
+        }
+      ],
+      "policies": [
+        {
+          "name": "environments_delete_own",
+          "command": "DELETE"
+        },
+        {
+          "name": "environments_insert_own",
+          "command": "INSERT"
+        },
+        {
+          "name": "environments_select_own_or_member",
+          "command": "SELECT"
+        },
+        {
+          "name": "environments_update_own",
+          "command": "UPDATE"
+        }
+      ],
+      "foreign_keys": [
+        "campaigns",
+        "chapters",
+        "environments"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "equipment_catalog",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "type",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "is_vehicle",
+          "type": "bool",
+          "nullable": true
+        },
+        {
+          "name": "tags",
+          "type": "_text",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "created_by",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "source",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "rarity",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "is_clue",
+          "type": "bool",
+          "nullable": true
+        },
+        {
+          "name": "is_story_item",
+          "type": "bool",
+          "nullable": true
+        },
+        {
+          "name": "is_active",
+          "type": "bool",
+          "nullable": true
+        },
+        {
+          "name": "is_public",
+          "type": "bool",
+          "nullable": true
+        },
+        {
+          "name": "image_asset_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "icon_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "icon_color",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "linked_environment_ids",
+          "type": "_text",
+          "nullable": true
+        },
+        {
+          "name": "linked_npc_ids",
+          "type": "_text",
+          "nullable": true
+        },
+        {
+          "name": "linked_monster_ids",
+          "type": "_text",
+          "nullable": true
+        },
+        {
+          "name": "container_item_id",
+          "type": "text",
+          "nullable": true
+        }
+      ],
+      "policies": [
+        {
+          "name": "equipment_catalog_all_own",
+          "command": "ALL"
+        }
+      ],
+      "foreign_keys": [
+        "campaigns"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "folders",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "entity_type",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "position",
+          "type": "int4",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "parent_folder_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "icon",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "deleted_at",
+          "type": "timestamptz",
+          "nullable": true
+        }
+      ],
+      "policies": [
+        {
+          "name": "folders_delete_own",
+          "command": "DELETE"
+        },
+        {
+          "name": "folders_insert_own",
+          "command": "INSERT"
+        },
+        {
+          "name": "folders_select_own_or_member",
+          "command": "SELECT"
+        },
+        {
+          "name": "folders_update_own",
+          "command": "UPDATE"
+        }
+      ],
+      "foreign_keys": [
+        "campaigns",
+        "folders"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "image_assets",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "owner_profile_id",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "source_image_url",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "policies": [
+        {
+          "name": "image_assets_delete_own",
+          "command": "DELETE"
+        },
+        {
+          "name": "image_assets_insert_own",
+          "command": "INSERT"
+        },
+        {
+          "name": "image_assets_select_own",
+          "command": "SELECT"
+        },
+        {
+          "name": "image_assets_update_own",
+          "command": "UPDATE"
+        }
+      ],
+      "foreign_keys": []
+    },
+    {
+      "rls": true,
+      "table": "kv_store_771c5bfd",
+      "columns": [
+        {
+          "name": "key",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "value",
+          "type": "jsonb",
+          "nullable": false
+        }
+      ],
+      "policies": [],
+      "foreign_keys": []
+    },
+    {
+      "rls": true,
+      "table": "monsters",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "base_type",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "size",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "threat_level",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "freschezza",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "max_freschezza",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "stress",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "stress_threshold",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "image_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "frame_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "traits",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "special_actions",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "tags",
+          "type": "_text",
+          "nullable": true
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "environment_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "chapter_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "base_monster_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "map_location_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "portrait_image_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "cover_image_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "portrait_crop",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_asset_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_rotation_degrees",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "portrait_rotation_degrees",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "cover_image_scale",
+          "type": "float4",
+          "nullable": true
+        },
+        {
+          "name": "cover_crop",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "cover_rotation_degrees",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "frame_rotation",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "frame_rotation_degrees",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "cover_frame_asset_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "caselle_frischezza_cruciali",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "attacco",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "difesa",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "trait_ids",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "custom_traits",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "special_action_ids",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "custom_special_actions",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "punto_debole",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "is_custom",
+          "type": "bool",
+          "nullable": true
+        },
+        {
+          "name": "audacia",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "caselle_freschezza_critiche",
+          "type": "_int4",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_offset_x",
+          "type": "float8",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_offset_y",
+          "type": "float8",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_scale_x",
+          "type": "float8",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_scale_y",
+          "type": "float8",
+          "nullable": true
+        },
+        {
+          "name": "cover_frame_offset_x",
+          "type": "float8",
+          "nullable": true
+        },
+        {
+          "name": "cover_frame_offset_y",
+          "type": "float8",
+          "nullable": true
+        },
+        {
+          "name": "cover_frame_scale_x",
+          "type": "float8",
+          "nullable": true
+        },
+        {
+          "name": "cover_frame_scale_y",
+          "type": "float8",
+          "nullable": true
+        },
+        {
+          "name": "tiro_follia",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "visible_to_players",
+          "type": "bool",
+          "nullable": false
+        },
+        {
+          "name": "tab_order",
+          "type": "jsonb",
+          "nullable": false
+        },
+        {
+          "name": "owner_profile_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "ruleset",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "token_color",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "token_background_color",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "token_border_style",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "token_border_thickness",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "token_border_label",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "token_border_visible",
+          "type": "bool",
+          "nullable": true
+        },
+        {
+          "name": "portrait_source_image_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "portrait_crop_area",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "portrait_asset_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "folder_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "scene_id",
+          "type": "uuid",
+          "nullable": true
+        }
+      ],
+      "policies": [
+        {
+          "name": "monsters_delete_owner",
+          "command": "DELETE"
+        },
+        {
+          "name": "monsters_insert_owner",
+          "command": "INSERT"
+        },
+        {
+          "name": "monsters_select_owner_or_visible",
+          "command": "SELECT"
+        },
+        {
+          "name": "monsters_update_owner",
+          "command": "UPDATE"
+        }
+      ],
+      "foreign_keys": [
+        "campaigns",
+        "chapters",
+        "environments",
+        "folders",
+        "image_assets",
+        "scenes"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "news_posts",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "author_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "content",
+          "type": "jsonb",
+          "nullable": false
+        }
+      ],
+      "policies": [
+        {
+          "name": "news_delete_admin_only",
+          "command": "DELETE"
+        },
+        {
+          "name": "news_insert_admin_only",
+          "command": "INSERT"
+        },
+        {
+          "name": "news_select_all_authenticated",
+          "command": "SELECT"
+        }
+      ],
+      "foreign_keys": [
+        "auth.users"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "notifications",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "recipient_profile_id",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "type",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "data",
+          "type": "jsonb",
+          "nullable": false
+        },
+        {
+          "name": "read",
+          "type": "bool",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": true
+        }
+      ],
+      "policies": [
+        {
+          "name": "notifications_select_own",
+          "command": "SELECT"
+        }
+      ],
+      "foreign_keys": []
+    },
+    {
+      "rls": true,
+      "table": "npcs",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "role",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "image_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "tags",
+          "type": "_text",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "environment_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "chapter_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "personality",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "secrets",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "location",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "portrait_image_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "portrait_cropped_image_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "portrait_crop",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "map_location_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "custom_location_name",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "freschezza",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "max_freschezza",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "caselle_frischezza_cruciali",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "attacco",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "difesa",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "tratti",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "tratti_personalizzati",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "azioni_speciali",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "azioni_speciali_personalizzate",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "punto_debole",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "visible_to_players",
+          "type": "bool",
+          "nullable": false
+        },
+        {
+          "name": "tab_order",
+          "type": "jsonb",
+          "nullable": false
+        },
+        {
+          "name": "owner_profile_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "d20_stats",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "ruleset",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "token_color",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "token_background_color",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "token_border_style",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "token_border_thickness",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "token_border_label",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "token_border_visible",
+          "type": "bool",
+          "nullable": true
+        },
+        {
+          "name": "portrait_rotation_degrees",
+          "type": "numeric",
+          "nullable": true
+        },
+        {
+          "name": "portrait_source_image_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "portrait_crop_area",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "portrait_asset_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_asset_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_rotation_degrees",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_offset_x",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_offset_y",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_scale_x",
+          "type": "numeric",
+          "nullable": true
+        },
+        {
+          "name": "portrait_frame_scale_y",
+          "type": "numeric",
+          "nullable": true
+        },
+        {
+          "name": "cover_image_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "cover_image_scale",
+          "type": "numeric",
+          "nullable": true
+        },
+        {
+          "name": "cover_crop",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "cover_rotation_degrees",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "frame_rotation",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "frame_rotation_degrees",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "cover_frame_offset_x",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "cover_frame_offset_y",
+          "type": "int4",
+          "nullable": true
+        },
+        {
+          "name": "cover_frame_scale_x",
+          "type": "numeric",
+          "nullable": true
+        },
+        {
+          "name": "cover_frame_scale_y",
+          "type": "numeric",
+          "nullable": true
+        },
+        {
+          "name": "cover_frame_asset_id",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "requestable",
+          "type": "bool",
+          "nullable": true
+        },
+        {
+          "name": "folder_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "scene_id",
+          "type": "uuid",
+          "nullable": true
+        }
+      ],
+      "policies": [
+        {
+          "name": "npcs_delete_owner",
+          "command": "DELETE"
+        },
+        {
+          "name": "npcs_insert_owner",
+          "command": "INSERT"
+        },
+        {
+          "name": "npcs_select_owner_or_visible",
+          "command": "SELECT"
+        },
+        {
+          "name": "npcs_update_owner",
+          "command": "UPDATE"
+        }
+      ],
+      "foreign_keys": [
+        "campaigns",
+        "chapters",
+        "environments",
+        "folders",
+        "image_assets",
+        "scenes"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "private_chat_messages",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "sender_id",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "recipient_id",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "sender_name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "sender_avatar_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "recipient_name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "recipient_avatar_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "content",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "payload",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "deleted_at",
+          "type": "timestamptz",
+          "nullable": true
+        }
+      ],
+      "policies": [
+        {
+          "name": "private_chat_delete_own",
+          "command": "UPDATE"
+        },
+        {
+          "name": "private_chat_read_pair",
+          "command": "SELECT"
+        },
+        {
+          "name": "private_chat_send_pair",
+          "command": "INSERT"
+        }
+      ],
+      "foreign_keys": [
+        "campaigns"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "profiles",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "display_name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "avatar_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "email",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "policies": [
+        {
+          "name": "profiles_insert_own",
+          "command": "INSERT"
+        },
+        {
+          "name": "profiles_select_own",
+          "command": "SELECT"
+        },
+        {
+          "name": "profiles_update_own",
+          "command": "UPDATE"
+        }
+      ],
+      "foreign_keys": [
+        "auth.users"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "scenes",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "chapter_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "environment_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "image_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "sort_order",
+          "type": "int4",
+          "nullable": false
+        },
+        {
+          "name": "next_scene_ids",
+          "type": "_uuid",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "map_regions",
+          "type": "jsonb",
+          "nullable": false
+        },
+        {
+          "name": "context_metadata",
+          "type": "jsonb",
+          "nullable": false
+        },
+        {
+          "name": "source_environment",
+          "type": "jsonb",
+          "nullable": true
+        }
+      ],
+      "policies": [
+        {
+          "name": "scenes_delete_owner",
+          "command": "DELETE"
+        },
+        {
+          "name": "scenes_insert_owner",
+          "command": "INSERT"
+        },
+        {
+          "name": "scenes_select_owner",
+          "command": "SELECT"
+        },
+        {
+          "name": "scenes_update_owner",
+          "command": "UPDATE"
+        }
+      ],
+      "foreign_keys": [
+        "campaigns",
+        "chapters",
+        "environments"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "situations",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "trigger_condition",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "consequences",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "tags",
+          "type": "_text",
+          "nullable": true
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "chapter_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "environment_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "trigger",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "consequences_array",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "choices",
+          "type": "jsonb",
+          "nullable": true
+        },
+        {
+          "name": "scene_id",
+          "type": "uuid",
+          "nullable": true
+        }
+      ],
+      "policies": [
+        {
+          "name": "situations_all_own",
+          "command": "ALL"
+        }
+      ],
+      "foreign_keys": [
+        "campaigns",
+        "chapters",
+        "environments",
+        "scenes"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "user_roles",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "role",
+          "type": "text",
+          "nullable": false
+        }
+      ],
+      "policies": [
+        {
+          "name": "Read own application role",
+          "command": "SELECT"
+        }
+      ],
+      "foreign_keys": [
+        "auth.users"
+      ]
+    },
+    {
+      "rls": true,
+      "table": "visual_assets",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "campaign_id",
+          "type": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "type",
+          "type": "text",
+          "nullable": false
+        },
+        {
+          "name": "url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "thumbnail_url",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "nullable": true
+        },
+        {
+          "name": "tags",
+          "type": "_text",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "image_data_url",
+          "type": "text",
+          "nullable": false
+        }
+      ],
+      "policies": [
+        {
+          "name": "visual_assets_all_own",
+          "command": "ALL"
+        }
+      ],
+      "foreign_keys": [
+        "campaigns"
+      ]
+    }
+  ]
+}
