@@ -1,0 +1,25 @@
+name: Isolated staging preflight
+on:
+  push:
+    branches:
+      - docs/ovh-staging-launch-plan
+    paths:
+      - 'infra/staging/local-supabase.sh'
+      - 'tests/infrastructure/test-local-supabase.sh'
+      - '.github/workflows/staging-preflight.yml'
+  pull_request:
+    paths:
+      - 'infra/staging/local-supabase.sh'
+      - 'tests/infrastructure/test-local-supabase.sh'
+      - '.github/workflows/staging-preflight.yml'
+permissions:
+  contents: read
+jobs:
+  local-guard-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax check
+        run: bash -n infra/staging/local-supabase.sh tests/infrastructure/test-local-supabase.sh
+      - name: Test local-only guardrails without Docker or credentials
+        run: bash tests/infrastructure/test-local-supabase.sh

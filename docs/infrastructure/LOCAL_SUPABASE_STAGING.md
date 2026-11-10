@@ -5,8 +5,8 @@ Aggiunto un launcher protetto per la **Supabase CLI locale**. Non è stato ancor
 
 ## Preparazione (solo computer di sviluppo)
 1. Installare Docker Desktop / Docker Engine, Node.js e Supabase CLI; verificare le versioni correnti sulla documentazione ufficiale.
-2. Da root repository eseguire `npx supabase init`, poi esaminare `supabase/config.toml` prima di committarlo. Non collegare il progetto remoto con `supabase link`.
-3. Assicurarsi che `SUPABASE_ACCESS_TOKEN` e `SUPABASE_DB_PASSWORD` non siano presenti nell'ambiente di test.
+2. Installare **una versione fissata** di Supabase CLI come dipendenza di sviluppo e conservare il lockfile (non usare `npx --yes` o installazioni implicite). Da root repository eseguire `npx --no-install supabase init`, poi esaminare `supabase/config.toml`. Non collegare il progetto remoto con `supabase link`.
+3. Assicurarsi che non siano presenti credenziali, URL o identificativi Supabase remoti nelle variabili d'ambiente; il launcher verifica un insieme esplicito di variabili e rifiuta un eventuale link `supabase/.temp/project-ref` e URL remoti evidenti in `config.toml`. Le verifiche non sostituiscono la revisione manuale di configurazioni o file `.env`.
 4. Avviare `STAGING_CONFIRM=LOCAL_ONLY bash infra/staging/local-supabase.sh start`. Per vedere stato o fermare: sostituire `start` con `status` o `stop`.
 5. Usare soltanto utenti, campagne e immagini **sintetici**. Non usare service role key, dump o JWT secret di produzione.
 
@@ -24,3 +24,9 @@ Non dichiarare completato il backend finché login, permessi RLS, mappe, dadi se
 
 ## Rischi operativi
 Non eseguire `supabase db reset`, `supabase db push`, `supabase link`, `supabase functions deploy` o comandi distruttivi sul progetto reale. Il launcher si rifiuta di avviarsi se rileva un link locale o variabili di credenziali remote; questa è una protezione aggiuntiva, non una garanzia assoluta di isolamento.
+
+## Test automatici della protezione locale
+```bash
+bash tests/infrastructure/test-local-supabase.sh
+```
+Il test usa eseguibili simulati: non avvia Docker, non si collega a Supabase e non consuma credenziali. GitHub Actions lo esegue sulle modifiche allo staging. La versione CLI non è ancora fissata nel repository: fino all'installazione esplicita e alla configurazione locale il launcher si rifiuterà correttamente di partire.

@@ -1,40 +1,45 @@
 #!/usr/bin/env bash
-# Hollowgate local Supabase staging. Never links to or resets a remote project.
+# Hollowgate — isolated local Supabase rehearsal. No remote access or production data.
 set -Eeuo pipefail
 cd "$(dirname "$0")/../.."
-if [[ "${STAGING_CONFIRM:-}" != "LOCAL_ONLY" ]]; then
-  echo "REFUSED: set STAGING_CONFIRM=LOCAL_ONLY to use isolated local Supabase" >&2
-  exit 2
-fi
-for tool in docker node npx; do
-  command -v "$tool" >/dev/null || { echo "Missing $tool" >&2; exit 2; }
-done
-docker info >/dev/null
-if [[ -f supabase/.temp/project-ref ]]; then
-  echo "REFUSED: Supabase CLI local project link detected; unlink in a separate reviewed operation." >&2
-  exit 2
-fi
-if [[ -n "${SUPABASE_ACCESS_TOKEN:-}" || -n "${SUPABASE_DB_PASSWORD:-}" ]]; then
-  echo "REFUSED: remote Supabase credentials must not be present during local rehearsal." >&2
-  exit 2
-fi
-if [[ ! -f supabase/config.toml ]]; then
-  echo "Missing supabase/config.toml: run 'npx supabase init' locally first, then review generated configuration." >&2
-  exit 2
-fi
+
+refuse() { printf 'REFUSED: %s\n' "$1" >&2; exit 2; }
+[[ "${STAGING_CONFIRM:-}" == LOCAL_ONLY ]] || refuse 'set STAGING_CONFIRM=LOCAL_ONLY'
+
 case "${1:-}" in
+  start|status|stop) action="$1" ;;
+  *) refuse 'usage: STAGING_CONFIRM=LOCAL_ONLY bash infra/staging/local-supabase.sh {start|status|stop}' ;;
+esac
+[[ "$#" -eq 1 ]] || refuse 'extra arguments are not permitted'
+
+# The CLI must never be given credentials or a link to a remote Supabase project.
+for variable in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_ID SUPABASE_PROJECT_REF \
+  SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY DATABASE_URL \
+  VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY; do
+  if [[ -n "${!variable:-}" ]]; then
+    refuse "$variable is set; remove remote environment credentials before running"
+  fi
+done
+
+[[ ! -e supabase/.temp/project-ref && ! -L supabase/.temp/project-ref ]] || refuse 'Supabase remote project link detected'
+[[ -f supabase/config.toml && ! -L supabase/config.toml ]] || refuse 'missing or symlinked supabase/config.toml; initialize and review a LOCAL project'
+# Refuse obvious remote secrets/URLs in a configuration file too (no secrets printed).
+if grep -Eiq '(https?://[^[:space:]"\047]*supabase\.co|postgres(ql)?://|service_role|access_token)' supabase/config.toml; then
+  refuse 'config.toml contains a remote endpoint or credential marker'
+fi
+
+for tool in docker node npx; do
+  command -v "$tool" >/dev/null 2>&1 || refuse "missing required executable: $tool"
+done
+docker info >/dev/null 2>&1 || refuse 'local Docker daemon unavailable'
+# --no-install avoids silently fetching a new, unreviewed CLI release.
+npx --no-install supabase --version >/dev/null 2>&1 || refuse 'install and pin Supabase CLI as a local dev dependency first'
+
+case "$action" in
   start)
-    npx --yes supabase start
-    echo "Local Supabase started. Do not use production credentials or production data."
+    npx --no-install supabase start
+    printf '%s\n' 'Local Supabase started; synthetic data only. Production untouched.'
     ;;
-  status)
-    npx --yes supabase status
-    ;;
-  stop)
-    npx --yes supabase stop
-    ;;
-  *)
-    echo "Usage: STAGING_CONFIRM=LOCAL_ONLY bash infra/staging/local-supabase.sh {start|status|stop}" >&2
-    exit 2
-    ;;
+  status) npx --no-install supabase status ;;
+  stop) npx --no-install supabase stop ;;
 esac
