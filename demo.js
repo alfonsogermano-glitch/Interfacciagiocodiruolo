@@ -9,13 +9,13 @@ import { connectionProblem,retryablePeerError } from './connection-diagnostics.m
 import { encodeRoomMode,iceConfigForRoom,roomIceMode } from './lan-ice-mode.mjs';
 import { inspectIceConnection,describePeerNegotiation } from './ice-candidate-report.mjs';
 import { isPrivateLanIPv4,tryAddLanCandidate } from './lan-candidate-override.mjs';
-import { isTurnRoom,turnIceConfig } from './turn-mode.mjs';
+import { isTurnRoom,turnIceConfig,createJoinFragment,parseJoinFragment } from './turn-mode.mjs';
 import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // No Supabase, no production Auth, and no permanent server-side data.
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
 // Manual signaling is intentionally temporary until Hollowgate Hub exists.
 const $=id=>document.getElementById(id);
-const DEMO_REVISION='turn-relay-diagnostics-20261111';
+const DEMO_REVISION='turn-android-quickjoin-20261111';
 const STORAGE='hollowgate-hybrid-web-demo-v1';
 // Codes are per-live-room, not durable across reloads: an old PeerJS ID can be stale.
 const stun={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
@@ -608,6 +608,19 @@ function openQuickPeer(identity,roomCode=null){
   peer.on('error',err=>{clearTimeout(timeout);reject(Error(err?.message??'PeerJS: connessione fallita'))});
  });
 }
+function traceTurnGathering(raw,side){
+ if(!isTurnRoom(quickRoom))return;
+ const run=async()=>{
+  const pc=raw?.peerConnection;
+  if(!pc)return;
+  const info=await inspectIceConnection(raw);
+  log(side+' · TURN diagnostica: '+info+' · gathering '+pc.iceGatheringState+' · ICE '+pc.iceConnectionState);
+  if(pc.iceGatheringState==='complete'&&!/locale \[[^\]]*relay:[1-9]/.test(info))
+   quickDiag(side+': nessun candidato relay locale. Controlla credenziali TURN, scadenza e raggiungibilità del server.');
+ };
+ setTimeout(()=>void run(),3000);
+ setTimeout(()=>void run(),9000);
+}
 function connectQuickPlayer(){
  if(quickStopRequested||quickRole!=='player'||!quickPeer||!quickRoom)return;
  if(quickPeer.disconnected){
@@ -616,6 +629,7 @@ function connectQuickPlayer(){
   scheduleQuickRetry();return;
  }
  const raw=quickPeer.connect(PEER_ID_PREFIX+quickRoom,{serialization:'json',reliable:true});
+ traceTurnGathering(raw,'Giocatore');
  const lanIp=roomIceMode(quickRoom)==='lan'?$('quickLanHostIp').value.trim():'';
  if(lanIp&&!isPrivateLanIPv4(lanIp)){quickDiag('Indirizzo IPv4 LAN del GM non valido');raw.close();return}
  let overrideTimer=null,overrideFinished=false,overrideBusy=false;
@@ -798,6 +812,7 @@ $('quickHost').onclick=async()=>{
    }else if(playerLanIp)log('GM: indirizzo IPv4 del giocatore non valido · prova bidirezionale non attivata');
    raw.on('close',stopHostProbe);
    log('GM: richiesta di connessione PeerJS ricevuta da '+id+' · apertura WebRTC in corso');
+   traceTurnGathering(raw,'GM '+id);
    quickDiag('Richiesta PeerJS ricevuta · attendo apertura del canale WebRTC');
    raw.on('open',()=>{stopHostProbe();if(hostGeneration!==quickGeneration||quickPeer!==peer)return;log('GM: canale WebRTC aperto per '+id);quickDiag('Canale WebRTC aperto · attendo richiesta di ingresso')});
    raw.on('error',error=>{
@@ -823,10 +838,33 @@ $('quickHost').onclick=async()=>{
    if(raw.open)setTimeout(checkRoute,1000);
   });
   $('quickCode').textContent=code;
+  $('quickShare').hidden=!isTurnRoom(code);
+  $('quickQr').replaceChildren();
+  $('quickShareLink').value='';
   quickDiag('Stanza GM registrata · utilizza questo NUOVO codice dopo ogni ricaricamento');
   displayStatus('Stanza demo '+code+' ('+(isTurnRoom(code)?'TURN relay':roomIceMode(code)==='lan'?'Wi-Fi locale':'standard')+') attiva: comunica il codice al giocatore');
  }catch(e){stopQuickPeer();const message=explainPeerFailure(e);quickDiag(message);log(message)}
  finally{button.disabled=false}
+};
+// Share TURN credentials only when the GM explicitly requests a temporary invite.
+$('quickShare').onclick=()=>{
+ try{
+  if(quickRole!=='gm'||!quickRoom||!isTurnRoom(quickRoom))throw Error('Prima crea una stanza TURN');
+  const cfg=turnIceConfig($('quickTurnUrl').value,$('quickTurnUser').value,$('quickTurnPass').value);
+  const link=location.origin+location.pathname+createJoinFragment(quickRoom,cfg);
+  $('quickShareLink').value=link;
+  $('quickQr').replaceChildren();
+  if(typeof window.QRCode==='function'){
+   new window.QRCode($('quickQr'),{text:link,width:220,height:220,correctLevel:window.QRCode.CorrectLevel.L});
+   quickDiag('Scansiona il QR con Android. Non condividere il QR pubblicamente.');
+  }else quickDiag('QR non disponibile: copia il link privato e aprilo su Android.');
+ }catch(e){quickDiag('Impossibile preparare l’accesso rapido: '+e.message)}
+};
+$('quickCopyLink').onclick=async()=>{
+ const link=$('quickShareLink').value;
+ if(!link){quickDiag('Genera prima il QR/link');return}
+ try{await navigator.clipboard.writeText(link);quickDiag('Link privato copiato. Invia soltanto al dispositivo Android.')}
+ catch{$('quickShareLink').select();quickDiag('Seleziona e copia il link manualmente.')}
 };
 $('quickJoin').onclick=async()=>{
  const button=$('quickJoin');button.disabled=true;
@@ -874,3 +912,20 @@ $('quickStop').onclick=()=>{
 window.addEventListener('pagehide',()=>{stopQuickPeer();stopPings();void closeConnect();for(const [id,p] of peers){endHostPing(id,p);p.pc.close()}playerPC?.close()});
 log('Versione demo '+DEMO_REVISION+' · diagnostica SDP prima delle statistiche ICE');
 log('Prova browser pronta — scegli GM oppure giocatore');
+
+// Use the fragment for a one-time handoff; remove credentials from address bar.
+try{
+ const invite=parseJoinFragment(location.hash);
+ if(invite){
+  history.replaceState(null,'',location.pathname+location.search);
+  $('quickRoom').value=invite.code;
+  $('quickTurnUrl').value=invite.config.iceServers[0].urls.join(' ');
+  $('quickTurnUser').value=invite.config.iceServers[0].username;
+  $('quickTurnPass').value=invite.config.iceServers[0].credential;
+  selectMode('player');
+  quickDiag('Invito TURN importato. Premi «Partecipa come giocatore».');
+ }
+}catch(e){
+ history.replaceState(null,'',location.pathname+location.search);
+ quickDiag('Invito non valido: '+e.message);
+}
