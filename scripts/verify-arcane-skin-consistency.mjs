@@ -34,7 +34,7 @@ assert.ok(data.includes('export const ARCANE_TEXTURE_SOURCE_DATA_URL = `data:ima
 assert.ok(data.includes('export const ARCANE_TEXTURE_DATA_URL = ARCANE_TEXTURE_SOURCE_DATA_URL;'), 'Arcane 2D and 3D must share the same source');
 assert.ok(skins.includes("import { ARCANE_TEXTURE_DATA_URL } from './arcaneTextureData.ts';") && skins.includes("case 'arcane':\n      return `url(\"${ARCANE_TEXTURE_DATA_URL}\")`;"), '2D Arcane surface must use the photograph');
 assert.ok(textures.includes("import { ARCANE_TEXTURE_SOURCE_DATA_URL } from './arcaneTextureData.ts';") && textures.includes("createTextureImage(ARCANE_TEXTURE_SOURCE_DATA_URL, 'arcane')"), '3D Arcane must preload the photographic source');
-assert.ok(textures.includes("descriptor && !descriptor.custom && descriptor.appearance.skinId === 'arcane'"), 'Arcane must finish loading before a 3D roll');
+assert.ok(textures.includes("descriptors.some((descriptor) => descriptor && descriptor.appearance.skinId === 'arcane')") && textures.includes('pending.push(arcaneTextureResource.ready)') && textures.includes('await Promise.all(pending)'), 'Arcane must finish loading before a 3D roll');
 assert.ok(textures.includes('isArcaneTextureReady()'), 'Arcane cache must distinguish placeholder from ready texture');
 assert.ok(textures.includes('drawArcanePhotoTexture(context, bump, size)') && textures.includes("context.filter = 'brightness(1.16) saturate(1.20) contrast(1.10)'"), 'Arcane 3D faces must use the vivid photographic treatment');
 assert.ok(profiles.includes("arcane: 'photo-unlit'"), 'Arcane must preserve luminous photographic color without scene-light dimming');
