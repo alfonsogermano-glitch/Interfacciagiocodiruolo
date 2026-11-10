@@ -24,6 +24,9 @@ on:
       - 'infra/staging/smoke-test.sh'
       - 'infra/staging/rls-smoke-test.sh'
       - 'tests/infrastructure/test-live-staging.py'
+      - 'docs/security/proposals/chat_rls_staging_only.sql'
+      - 'infra/staging/chat-policy-smoke-test.sh'
+      - 'tests/infrastructure/test-chat-policy-smoke.py'
       - '.github/workflows/staging-preflight.yml'
   pull_request:
     paths:
@@ -47,6 +50,9 @@ on:
       - 'infra/staging/smoke-test.sh'
       - 'infra/staging/rls-smoke-test.sh'
       - 'tests/infrastructure/test-live-staging.py'
+      - 'docs/security/proposals/chat_rls_staging_only.sql'
+      - 'infra/staging/chat-policy-smoke-test.sh'
+      - 'tests/infrastructure/test-chat-policy-smoke.py'
       - '.github/workflows/staging-preflight.yml'
 permissions:
   contents: read
@@ -75,6 +81,10 @@ jobs:
           bash tests/infrastructure/test-schema-export.sh
       - name: Validate live PostgreSQL staging contract
         run: python3 tests/infrastructure/test-live-staging.py
+      - name: Verify chat proposal integration contract
+        run: |
+          bash -n infra/staging/chat-policy-smoke-test.sh
+          python3 tests/infrastructure/test-chat-policy-smoke.py
       - name: Syntax check
         run: bash -n infra/staging/local-supabase.sh tests/infrastructure/test-local-supabase.sh
       - name: Test local-only guardrails without Docker or credentials
@@ -94,6 +104,8 @@ jobs:
         run: bash infra/staging/smoke-test.sh
       - name: Verify synthetic multi-campaign RLS in PostgreSQL
         run: bash infra/staging/rls-smoke-test.sh
+      - name: Verify actual chat RLS proposal against disposable PostgreSQL
+        run: bash infra/staging/chat-policy-smoke-test.sh
       - name: Remove disposable PostgreSQL volume and container
         if: always()
         run: docker compose -f infra/staging/docker-compose.yml down -v --remove-orphans
