@@ -14,6 +14,9 @@ on:
       - 'docs/infrastructure/SCHEMA_CATALOG_METADATA_2026-11-10.json'
       - 'tests/infrastructure/verify-schema-catalog.py'
       - 'tests/infrastructure/test-schema-catalog.py'
+      - 'docs/infrastructure/SCHEMA_OBJECT_FINGERPRINTS_2026-11-10.json'
+      - 'tests/infrastructure/verify-schema-objects.py'
+      - 'tests/infrastructure/test-schema-objects.py'
       - 'tests/infrastructure/test-local-supabase.sh'
       - '.github/workflows/staging-preflight.yml'
   pull_request:
@@ -28,6 +31,9 @@ on:
       - 'docs/infrastructure/SCHEMA_CATALOG_METADATA_2026-11-10.json'
       - 'tests/infrastructure/verify-schema-catalog.py'
       - 'tests/infrastructure/test-schema-catalog.py'
+      - 'docs/infrastructure/SCHEMA_OBJECT_FINGERPRINTS_2026-11-10.json'
+      - 'tests/infrastructure/verify-schema-objects.py'
+      - 'tests/infrastructure/test-schema-objects.py'
       - 'tests/infrastructure/test-local-supabase.sh'
       - '.github/workflows/staging-preflight.yml'
 permissions:
@@ -47,6 +53,10 @@ jobs:
         run: |
           python3 tests/infrastructure/verify-schema-catalog.py
           python3 tests/infrastructure/test-schema-catalog.py
+      - name: Validate schema objects metadata (read-only)
+        run: |
+          python3 tests/infrastructure/verify-schema-objects.py
+          python3 tests/infrastructure/test-schema-objects.py
       - name: Syntax check
         run: bash -n infra/staging/local-supabase.sh tests/infrastructure/test-local-supabase.sh
       - name: Test local-only guardrails without Docker or credentials
