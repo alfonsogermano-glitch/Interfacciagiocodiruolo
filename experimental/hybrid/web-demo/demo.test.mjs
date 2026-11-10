@@ -82,7 +82,7 @@ test('mobile quick join hides manual SDP controls and scrolls to first game snap
  assert.match(html,/id="quickDiagnostics"/);
  for(const token of ["$('playerSetup').hidden=true", "$('hostSetup').hidden=true", "requestAnimationFrame(()=>$('session').scrollIntoView", "quickDiag('Snapshot ricevuto", "quickDiag('Campo ricevuto"])
   assert.ok(app.includes(token),token);
- assert.match(html,/demo\.js\?v=room-lifecycle-20261110/);
+ assert.match(html,/demo\.js\?v=wifi-ice-debug-20261110/);
 });
 
 test('snapshots are transferred through small bounded packets and reassembled before board render',()=>{
@@ -102,4 +102,9 @@ test('after reload GM acquires a new live room and player sees broker peer-unava
  assert.match(app,/error\?\.type==='peer-unavailable'/);
  assert.match(html,/Dopo ogni ricaricamento/);
  assert.match(app,/quickPeer\.disconnected/);
+});
+
+test('diagnostics distinguish signaling arrival, WebRTC opening and GM join request',()=>{
+ for(const phrase of ['connectionProblem(','PeerJS giocatore: richiesta canale','GM: richiesta di connessione PeerJS ricevuta','GM: canale WebRTC aperto','autorizzazione richiesta','WebRTC aperto · richiesta di accesso inviata'])
+  assert.ok(app.includes(phrase),phrase);
 });
