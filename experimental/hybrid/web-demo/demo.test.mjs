@@ -82,7 +82,7 @@ test('mobile quick join hides manual SDP controls and scrolls to first game snap
  assert.match(html,/id="quickDiagnostics"/);
  for(const token of ["$('playerSetup').hidden=true", "$('hostSetup').hidden=true", "requestAnimationFrame(()=>$('session').scrollIntoView", "quickDiag('Snapshot ricevuto", "quickDiag('Campo ricevuto"])
   assert.ok(app.includes(token),token);
- assert.match(html,/demo\.js\?v=ice-sdp-visible-20261110/);
+ assert.match(html,/demo\.js\?v=ice-sdp-generation-20261110/);
 });
 
 test('snapshots are transferred through small bounded packets and reassembled before board render',()=>{
@@ -131,4 +131,9 @@ test('SDP diagnostics are emitted before async getStats and demo revision is vis
  assert.ok(segment.indexOf("log(side+' · '+negotiation)") < segment.indexOf('await inspectIceConnection(raw)'));
  assert.match(html,/Versione diagnostica: <strong>ice-sdp-visible-20261110/);
  assert.match(app,/Versione demo '\+DEMO_REVISION/);
+});
+
+test('late async room/peer startup cannot resurrect replaced sessions',()=>{
+ for(const token of ['const hostGeneration=quickGeneration','if(hostGeneration!==quickGeneration){peer.destroy();return}','if(hostGeneration!==quickGeneration||quickPeer!==peer){raw.close();return}','const playerGeneration=quickGeneration','if(playerGeneration!==quickGeneration){peer.destroy();return}'])
+  assert.ok(app.includes(token),token);
 });
