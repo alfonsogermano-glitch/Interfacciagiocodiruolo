@@ -1,11 +1,13 @@
 // Hollowgate Hybrid browser-to-browser experiment.
 import { assessAnswer } from './answer-guard.mjs';
+import { retryDelay,canRetry } from './reconnect-policy.mjs';
 import { createConnectClient, validateHubEndpoint } from './connect-client.mjs';
 // No Supabase, no production Auth, and no permanent server-side data.
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
 // Manual signaling is intentionally temporary until Hollowgate Hub exists.
 const $=id=>document.getElementById(id);
 const STORAGE='hollowgate-hybrid-web-demo-v1';
+const QUICK_SESSION='hollowgate-hybrid-quick-room-v1';
 const stun={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
 const peers=new Map();
 const pendingPeerJs=new Map();
@@ -170,7 +172,7 @@ $('createOffer').onclick=async()=>{
 // Use the same game command handlers for manual WebRTC and quick-connect PeerJS.
 function bindPlayerChannel(c){
   channel=c;
-  channel.onopen=()=>{tell(channel,{kind:'join',name:validateName($('playerName').value)});startPings(channel);displayStatus('Connessione diretta aperta; attendo il GM')};
+  channel.onopen=()=>{tell(channel,{kind:'join',name:validateName($('playerName').value),resumeKey:quickRole==='player'?quickResumeKey:null});startPings(channel);displayStatus('Connessione diretta aperta; attendo il GM')};
   channel.onclose=()=>{stopPings();displayStatus('Connessione con il GM chiusa')};
   channel.onmessage=e=>{try{
    const m=JSON.parse(e.data);
@@ -186,13 +188,26 @@ function bindPlayerChannel(c){
    }else if(m.kind==='error')log(m.reason)
   }catch{log('Messaggio non valido')}};
 }
-function completeHostJoin(id,name,c,conn){
- if(peers.has(id))return;
- hostState.members[id]={name};
- hostState.tokens[id]={owner:id,x:20+peers.size*15,y:55};
+function completeHostJoin(id,name,c,conn,resumeKey=null){
+ // Resume only after an explicit fresh GM approval. Never trust resumeKey
+ // as authorization; it is just a lookup for the prior demo token.
+ let assigned=id;
+ if(typeof resumeKey==='string'&&/^[0-9a-f-]{36}$/.test(resumeKey)){
+  const previous=Object.entries(hostState.members).find(([,m])=>m.resumeKey===resumeKey);
+  if(previous)assigned=previous[0];
+ }
+ if(peers.has(assigned)){
+  const previous=peers.get(assigned);
+  endHostPing(assigned,previous);
+  previous.channel.close();
+ }
+ const existing=hostState.tokens[assigned];
+ hostState.members[assigned]={name,...(resumeKey?{resumeKey}:{})};
+ if(!existing)hostState.tokens[assigned]={owner:assigned,x:20+peers.size*15,y:55};
  const peer={pc:conn,channel:c,timer:null,pendingPing:null,sentAt:0,rttMs:null};
- peers.set(id,peer);beginHostPing(id,peer);save();broadcast();updateLatency();
+ peers.set(assigned,peer);beginHostPing(assigned,peer);save();broadcast();updateLatency();
  displayStatus('Giocatore '+name+' autorizzato e collegato');
+ return assigned;
 }
 function updateQuickApprovals(){
  const target=$('quickApprovals');
@@ -210,7 +225,8 @@ function updateQuickApprovals(){
    if(!pendingPeerJs.has(request.id))return;
    pendingPeerJs.delete(request.id);updateQuickApprovals();
    tell(request.channel,{kind:'approved'});
-   completeHostJoin(request.id,request.name,request.channel,request.conn);
+   const assigned=completeHostJoin(request.id,request.name,request.channel,request.conn,request.resumeKey);
+   request.setAssignedId?.(assigned);
   };
   reject.onclick=()=>{
    if(!pendingPeerJs.has(request.id))return;
@@ -243,7 +259,7 @@ function bindHostChannel(c,id,conn,{requireApproval=false}={}){
      if(requireApproval){
       if(!pendingPeerJs.has(id)&&!peers.has(id)){
        if(pendingPeerJs.size>=12){tell(c,{kind:'rejected'});c.close();return}
-       pendingPeerJs.set(id,{id,name,channel:c,conn});
+       pendingPeerJs.set(id,{id,name,channel:c,conn,resumeKey:msg.resumeKey,setAssignedId:(assigned)=>{id=assigned}});
        updateQuickApprovals();
        tell(c,{kind:'waiting'});
        log('Richiesta di accesso da '+name+' · '+id);
@@ -257,7 +273,7 @@ function bindHostChannel(c,id,conn,{requireApproval=false}={}){
    }catch{tell(c,{kind:'error',reason:'Comando non valido'})}};
    c.onclose=()=>{
     pendingPeerJs.delete(id);updateQuickApprovals();
-    endHostPing(id,peers.get(id));
+    if(peers.get(id)?.channel===c)endHostPing(id,peers.get(id));
     displayStatus('Giocatore '+id+' disconnesso');
    };
 }
@@ -271,8 +287,11 @@ function adaptPeerJsConnection(raw){
  };
  raw.on('open',()=>{state='open';adapter.onopen?.()});
  raw.on('data',packet=>{if(packet&&typeof packet==='object')adapter.onmessage?.({data:JSON.stringify(packet)})});
- raw.on('close',()=>{state='closed';adapter.onclose?.()});
- raw.on('error',error=>log('PeerJS canale: '+(error.message??error.type??'errore')));
+ raw.on('close',()=>{if(state!=='closed'){state='closed';adapter.onclose?.()}});
+ raw.on('error',error=>{
+  log('PeerJS canale: '+(error.message??error.type??'errore'));
+  if(state!=='closed'){state='closed';adapter.onclose?.()}
+ });
  return adapter;
 }
 
@@ -412,16 +431,21 @@ $('connectDisconnect').onclick=async()=>{
 // It is NOT an authenticated Hollowgate Connect server.
 const PEER_ID_PREFIX='hollowgate-lab-';
 const ROOM_ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-let quickPeer=null;
+let quickPeer=null,quickRole=null,quickRoom=null,quickConnection=null,quickRetryTimer=null,quickRetryAttempt=0,quickStopRequested=true,quickGeneration=0,quickResumeKey=null;
 function newQuickCode(){
  const bytes=crypto.getRandomValues(new Uint8Array(12));
  return Array.from(bytes,value=>ROOM_ALPHABET[value%ROOM_ALPHABET.length]).join('');
 }
 function stopQuickPeer(){
+ quickStopRequested=true;
+ quickGeneration++;
+ if(quickRetryTimer!==null){clearTimeout(quickRetryTimer);quickRetryTimer=null}
+ quickConnection=null;quickRole=null;quickRoom=null;quickRetryAttempt=0;quickResumeKey=null;
  for(const request of pendingPeerJs.values())request.channel.close();
  pendingPeerJs.clear();updateQuickApprovals();
  if(quickPeer){quickPeer.destroy();quickPeer=null}
  $('quickCode').textContent='—';
+ $('quickReconnect').textContent='Nessuna riconnessione in corso';
 }
 function openQuickPeer(identity){
  const Peer=window.Peer;
@@ -436,15 +460,76 @@ function openQuickPeer(identity){
   peer.on('error',err=>{clearTimeout(timeout);reject(Error(err?.message??'PeerJS: connessione fallita'))});
  });
 }
+function connectQuickPlayer(){
+ if(quickStopRequested||quickRole!=='player'||!quickPeer||!quickRoom)return;
+ const raw=quickPeer.connect(PEER_ID_PREFIX+quickRoom,{serialization:'json',reliable:true});
+ const adapter=adaptPeerJsConnection(raw);
+ quickConnection=adapter;
+ bindPlayerChannel(adapter);
+ const connectionTimeout=setTimeout(()=>{
+  if(quickConnection===adapter&&adapter.readyState!=='open'){
+   log('Collegamento rapido: apertura scaduta, nuovo tentativo');
+   raw.close();
+   scheduleQuickRetry();
+  }
+ },12000);
+ const onOpen=adapter.onopen, onClose=adapter.onclose;
+ adapter.onopen=()=>{
+  clearTimeout(connectionTimeout);
+  if(quickStopRequested||quickConnection!==adapter){raw.close();return}
+  quickRetryAttempt=0;
+  if(quickRetryTimer!==null){clearTimeout(quickRetryTimer);quickRetryTimer=null}
+  $('quickReconnect').textContent='Connessione ripristinata · autorizzazione del GM richiesta';
+  onOpen?.();
+ };
+ adapter.onclose=()=>{
+  clearTimeout(connectionTimeout);
+  if(quickConnection!==adapter)return;
+  onClose?.();
+  scheduleQuickRetry();
+ };
+}
+function scheduleQuickRetry(){
+ if(!canRetry({requested:!quickStopRequested&&quickRole==='player',connected:quickConnection?.readyState==='open',attempt:quickRetryAttempt+1}))return;
+ if(quickRetryTimer!==null)return;
+ const generation=quickGeneration;
+ const delay=retryDelay(++quickRetryAttempt);
+ $('quickReconnect').textContent='Riconnessione automatica: tentativo '+quickRetryAttempt+'/6';
+ displayStatus('Connessione interrotta · nuovo tentativo tra '+delay/1000+' s');
+ quickRetryTimer=setTimeout(()=>{
+  quickRetryTimer=null;
+  if(quickGeneration!==generation||quickStopRequested)return;
+  try{
+   if(quickPeer?.disconnected)quickPeer.reconnect();
+   connectQuickPlayer();
+  }catch(error){log('Riconnessione: '+error.message);scheduleQuickRetry()}
+ },delay);
+}
+
 $('quickHost').onclick=async()=>{
  const button=$('quickHost');button.disabled=true;
  try{
   stopQuickPeer();
   selectMode('gm');
   if(!hostState)$('startHost').click();
-  const code=newQuickCode();
-  const peer=await openQuickPeer(PEER_ID_PREFIX+code);
-  quickPeer=peer;
+  let code;
+  try{code=sessionStorage.getItem(QUICK_SESSION)}catch{}
+  if(!code||!/^[A-HJ-NP-Z2-9]{12}$/.test(code))code=newQuickCode();
+  let peer;
+  try{peer=await openQuickPeer(PEER_ID_PREFIX+code)}
+  catch(e){
+   // Another tab or old host may still own this ID. Never steal it.
+   if(code && /taken|unavailable|already/i.test(e.message)){
+    code=newQuickCode();peer=await openQuickPeer(PEER_ID_PREFIX+code);
+   }else throw e;
+  }
+  quickPeer=peer;quickRole='gm';quickRoom=code;quickStopRequested=false;
+  try{sessionStorage.setItem(QUICK_SESSION,code)}catch{}
+  peer.on('disconnected',()=>{
+   if(quickStopRequested||quickPeer!==peer)return;
+   displayStatus('Segnalazione GM disconnessa · tento di ripristinare la stanza');
+   try{peer.reconnect()}catch(e){log('Riconnessione GM: '+e.message)}
+  });
   peer.on('connection',raw=>{
    const id='P-'+genId().slice(0,6);
    bindHostChannel(adaptPeerJsConnection(raw),id,{close:()=>raw.close()},{requireApproval:true});
@@ -464,8 +549,9 @@ $('quickJoin').onclick=async()=>{
   selectMode('player');playerState=null;
   const peer=await openQuickPeer();
   quickPeer=peer;
-  const raw=peer.connect(PEER_ID_PREFIX+code,{serialization:'json',reliable:true});
-  bindPlayerChannel(adaptPeerJsConnection(raw));
+  quickRole='player';quickRoom=code;quickStopRequested=false;quickRetryAttempt=0;quickResumeKey=crypto.randomUUID();
+  connectQuickPlayer();
+  $('quickReconnect').textContent='Collegamento in corso';
   displayStatus('Collegamento rapido verso '+code+' in corso');
  }catch(e){stopQuickPeer();log('Collegamento rapido: '+e.message)}
  finally{button.disabled=false}
