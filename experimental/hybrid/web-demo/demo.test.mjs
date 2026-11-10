@@ -35,7 +35,7 @@ test('optional Connect UI integrates HTTPS-only automatic room signaling while p
 test('quick PeerJS demo uses code-based signaling with existing encrypted game channels',()=>{
  for(const id of ['quickHost','quickJoin','quickRoom','quickCode','quickStop']) assert.ok(html.includes('id="'+id+'"'),id);
  assert.match(html,/peerjs@1\.5\.5\/dist\/peerjs\.min\.js/);
- for(const phrase of ['PEER_ID_PREFIX','newQuickCode()','openQuickPeer','quickPeer.connect(','bindHostChannel(adaptPeerJsConnection(raw)','bindPlayerChannel(adaptPeerJsConnection(raw))'])assert.ok(app.includes(phrase),phrase);
+ for(const phrase of ['PEER_ID_PREFIX','newQuickCode()','openQuickPeer','quickPeer.connect(','bindHostChannel(adaptPeerJsConnection(raw)','bindPlayerChannel(adapter)'])assert.ok(app.includes(phrase),phrase);
  assert.match(html,/non è autenticato/);
  assert.match(html,/metadati di collegamento e indirizzi IP/);
 });
