@@ -129,7 +129,7 @@ test('SDP diagnostics are emitted before async getStats and demo revision is vis
  const to=app.indexOf('async function inspectIceRoute(raw,onResult)',from);
  const segment=app.slice(from,to);
  assert.ok(segment.indexOf("log(side+' · '+negotiation)") < segment.indexOf('await inspectIceConnection(raw)'));
- assert.match(html,/Versione diagnostica: <strong>ice-sdp-visible-20261110/);
+ assert.match(html,/Versione diagnostica: <strong>ice-sdp-generation-20261110/);
  assert.match(app,/Versione demo '\+DEMO_REVISION/);
 });
 
