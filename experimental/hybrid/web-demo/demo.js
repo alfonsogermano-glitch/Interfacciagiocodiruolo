@@ -1,4 +1,5 @@
 // Hollowgate Hybrid browser-to-browser experiment.
+import { assessAnswer } from './answer-guard.mjs';
 // No Supabase, no production Auth, and no permanent server-side data.
 // GM is the only authority. WebRTC data channels are DTLS encrypted.
 // Manual signaling is intentionally temporary until Hollowgate Hub exists.
@@ -6,7 +7,7 @@ const $=id=>document.getElementById(id);
 const STORAGE='hollowgate-hybrid-web-demo-v1';
 const stun={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
 const peers=new Map();
-let mode='gm',hostState=null,channel=null,playerPC=null,peerId=null,playerState=null,role='gm', offerPending=false;
+let mode='gm',hostState=null,channel=null,playerPC=null,peerId=null,playerState=null,role='gm', applyingAnswer=false, appliedAnswerSdp=null;
 const log=(text)=>{const line=document.createElement('div');line.textContent=new Date().toLocaleTimeString()+' · '+text;$('log').prepend(line)};
 const copy=async(id)=>{try{await navigator.clipboard.writeText($(id).value);log('Testo copiato negli appunti')}catch{ $(id).select();log('Seleziona e copia con Ctrl+C')}}; 
 $('copyHostAnswer').onclick=()=>copy('hostAnswer');$('copyPlayerOffer').onclick=()=>copy('playerOffer');
@@ -85,7 +86,21 @@ function move(d){
 $('moveLeft').onclick=()=>move(-1);$('moveRight').onclick=()=>move(1);$('rollDice').onclick=()=>act({type:'roll'});
 function note(visibility){const text=$('noteText').value;if(!text.trim())return;act({type:'note',visibility,text});$('noteText').value=''}
 $('sendNote').onclick=()=>note('public');$('secretNote').onclick=()=>note('gm');
-function pc(){return new RTCPeerConnection(stun)}
+function pc(label){
+ const connection=new RTCPeerConnection(stun);
+ connection.oniceconnectionstatechange=()=>{
+  const state=connection.iceConnectionState;
+  log(label+' · ICE: '+state);
+  if(state==='failed')displayStatus('Connessione ICE fallita: probabilmente serve un relay TURN su queste reti');
+  else if(state==='disconnected')displayStatus('Connessione instabile: ICE disconnesso');
+ };
+ connection.onconnectionstatechange=()=>{
+  const state=connection.connectionState;
+  log(label+' · peer: '+state);
+  if(state==='failed')displayStatus('Connessione diretta fallita: ripeti una nuova offerta oppure usa un relay TURN');
+ };
+ return connection;
+}
 function gathered(connection){
  if(connection.iceGatheringState==='complete')return Promise.resolve();
  return new Promise((resolve,reject)=>{
@@ -96,7 +111,10 @@ function gathered(connection){
 }
 $('createOffer').onclick=async()=>{
  try{
-  if(playerPC)playerPC.close();playerPC=pc();channel=playerPC.createDataChannel('hollowgate',{ordered:true});
+  if(playerPC)playerPC.close();
+  appliedAnswerSdp=null;applyingAnswer=false;$('remoteAnswer').value='';
+  $('applyAnswer').disabled=false;
+  playerPC=pc('Giocatore');channel=playerPC.createDataChannel('hollowgate',{ordered:true});
   channel.onopen=()=>{tell(channel,{kind:'join',name:validateName($('playerName').value)});displayStatus('Connessione diretta aperta; attendo il GM')};
   channel.onclose=()=>displayStatus('Connessione con il GM chiusa');
   channel.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.kind==='snapshot'){playerState=m.state;render();displayStatus('Collegato al GM · stato #'+playerState.sequence)}else if(m.kind==='error')log(m.reason)}catch{log('Messaggio non valido')}};
@@ -110,7 +128,7 @@ $('acceptOffer').onclick=async()=>{
  try{
   const offer=JSON.parse($('remoteOffer').value);
   if(offer.type!=='offer'||typeof offer.sdp!=='string'||offer.sdp.length>100000)throw Error('Offerta non valida');
-  const conn=pc();const id='P-'+genId().slice(0,6);
+  const conn=pc('GM');const id='P-'+genId().slice(0,6);
   conn.ondatachannel=e=>{
    const c=e.channel;
    c.onmessage=event=>{try{
@@ -131,12 +149,27 @@ $('acceptOffer').onclick=async()=>{
  }catch(e){log('Errore risposta: '+e.message)}
 };
 $('applyAnswer').onclick=async()=>{
+ if(applyingAnswer){log('Applicazione risposta già in corso');return}
+ let answer;
  try{
   if(!playerPC)throw Error('Prima genera la richiesta');
-  const answer=JSON.parse($('remoteAnswer').value);
+  answer=JSON.parse($('remoteAnswer').value);
   if(answer.type!=='answer'||typeof answer.sdp!=='string'||answer.sdp.length>100000)throw Error('Risposta non valida');
-  await playerPC.setRemoteDescription(answer);displayStatus('Risposta ricevuta: attendo il canale diretto');
+  const decision=assessAnswer(playerPC.signalingState,appliedAnswerSdp,answer.sdp);
+  if(decision==='duplicate'){
+   log('Questa risposta è già stata accettata; non serve ripeterla');
+   return;
+  }
+  if(decision==='stale'){
+   log('Risposta non applicabile: la sessione WebRTC è già stabile o chiusa. Per ripartire premi «Genera richiesta di collegamento» e scambia codici nuovi.');
+   return;
+  }
+  applyingAnswer=true;$('applyAnswer').disabled=true;
+  await playerPC.setRemoteDescription(answer);
+  appliedAnswerSdp=answer.sdp;
+  displayStatus('Risposta accettata · connessione ICE in corso (controlla il registro)');
  }catch(e){log('Errore collegamento: '+e.message)}
+ finally{applyingAnswer=false;$('applyAnswer').disabled=false}
 };
 window.addEventListener('pagehide',()=>{for(const p of peers.values())p.pc.close();playerPC?.close()});
 log('Prova browser pronta — scegli GM oppure giocatore');
