@@ -36,7 +36,7 @@ jobs:
       - name: Validate password-gated Caddy trial syntax
         run: |
           mkdir -p "$RUNNER_TEMP/trial"
-          printf '%s' '$argon2id$v=19$m=19456,t=2,p=1$abcdefghijklmnopqrstuv$abcdefghijklmnopqrstuvwxyzabcdefghi' > "$RUNNER_TEMP/trial/hash"
+          printf '%s' '$2a$14$Zkx19XLiW6VYouLHR5NmfOFU0z2GTNmpkT/5qqR7hx4IjWJPDhjvG' > "$RUNNER_TEMP/trial/hash"
           docker run --rm \
             -v "$PWD/deploy/aruba/Caddyfile.auth-trial:/etc/caddy/Caddyfile:ro" \
             -v "$RUNNER_TEMP/trial/hash:/run/secrets/auth_trial_hash:ro" \

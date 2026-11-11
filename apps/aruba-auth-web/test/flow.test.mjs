@@ -107,9 +107,9 @@ test('private trial credential setup never places plaintext in CLI arguments',()
   const installer=readFileSync(new URL('../../../deploy/aruba/scripts/prepare-auth-trial.sh',import.meta.url),'utf8');
   const caddy=readFileSync(new URL('../../../deploy/aruba/Caddyfile.auth-trial',import.meta.url),'utf8');
   assert.match(installer,/read -r -s password/);
-  assert.match(installer,/process\.stdin/);
-  assert.match(installer,/argon2\.argon2id/);
+  assert.match(installer,/hash-password --algorithm bcrypt/);
+  assert.match(installer,/printf .*\\n.*password/);
   assert.match(installer,/install -m 600/);
   assert.doesNotMatch(installer,/--plaintext/);
-  assert.match(caddy,/basic_auth @trialProtected argon2id/);
+  assert.match(caddy,/basic_auth @trialProtected bcrypt/);
 });

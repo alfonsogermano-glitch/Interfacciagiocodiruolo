@@ -14,4 +14,4 @@ Before deployment, perform an independent test of the reverse-proxy authorizatio
 
 ## Password provisioning
 
-Run bash deploy/aruba/scripts/prepare-auth-trial.sh in SSH. This script asks for a fresh 16+ character test password twice without echo, sends plaintext via stdin into the staging Node container for Argon2id hashing, and writes only a 0600 hash file at /opt/hollowgate/config/auth_trial_hash. Username is tester. Never paste password into chat or reuse real credentials.
+Run bash deploy/aruba/scripts/prepare-auth-trial.sh in SSH. This script asks for a fresh 16+ character test password twice without echo, sends plaintext via stdin into the staging Node container for bcrypt hashing, and writes only a 0600 hash file at /opt/hollowgate/config/auth_trial_hash. Username is tester. Never paste password into chat or reuse real credentials.

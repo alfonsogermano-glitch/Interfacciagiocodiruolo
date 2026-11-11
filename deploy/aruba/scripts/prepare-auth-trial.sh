@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Set up a secret hash without exposing the plaintext on command line.
+# Set up a bcrypt secret hash via stdin, with no plaintext command arguments.
 set -Eeuo pipefail
 umask 077
 api="hollowgate-auth-staging-aruba-auth-staging-1"
@@ -15,16 +15,10 @@ IFS= read -r -s confirmation
 printf "\n"
 if [[ "$password" != "$confirmation" ]]; then echo "Le password non coincidono" >&2; unset password confirmation; exit 1; fi
 unset confirmation
-hash="$(printf '%s' "$password" |
-  sudo docker exec -i -w /app "$api" node --input-type=module -e '
-import argon2 from "argon2";
-let input="";for await(const chunk of process.stdin)input+=chunk;
-process.stdout.write(await argon2.hash(input,{
-  type:argon2.argon2id,memoryCost:19456,timeCost:2,parallelism:1
-}));
-')"
+hash="$(printf '%s\n' "$password" |
+  sudo docker run --rm -i caddy:2.10.2-alpine caddy hash-password --algorithm bcrypt)"
 unset password
-[[ "$hash" == '$argon2id$'* ]] || { echo "Errore Argon2id" >&2; exit 1; }
+[[ "$hash" == '$2'* ]] || { echo "Errore bcrypt" >&2; exit 1; }
 sudo install -m 600 /dev/null "$destination"
 printf '%s' "$hash" | sudo tee "$destination" >/dev/null
 unset hash
