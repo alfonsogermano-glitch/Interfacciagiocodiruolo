@@ -4,6 +4,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {WebSocketServer} from 'ws';
 import {createSession} from './session.mjs';
+import {createVttProtocol} from './vtt-protocol.mjs';
 import {createStateStore} from './state-store.mjs';
 import {isLocalGmOrigin} from './desktop/local-origin.mjs';
 const appDir=path.dirname(fileURLToPath(import.meta.url));
@@ -13,6 +14,7 @@ export function createHostServer({host='127.0.0.1',port=4177,archiveFile=path.jo
  const root=path.join(appDir,'public');
  const store=createStateStore(archiveFile);
  const session=createSession({initialState:store.load(),onChange:store.save});
+ const vtt=createVttProtocol();
  const server=http.createServer((req,res)=>{
   const url=(req.url||'').split('?')[0],name=routes.get(url);
   if(req.method!=='GET'||!name){res.writeHead(404).end('Not found');return}
@@ -34,10 +36,22 @@ export function createHostServer({host='127.0.0.1',port=4177,archiveFile=path.jo
    const now=Date.now();if(now-start>10000){start=now;count=0}
    if(++count>60){ws.close(1008,'Rate limit');return}
    let m;try{m=JSON.parse(data.toString('utf8'))}catch{ws.close(1007,'JSON non valido');return}
-   if(!session.handle(ws,m,local))ws.close(1008,'Operazione non consentita');
-   if(ws.hgRole)clearTimeout(timeout);
+   // VTT messages use a separate, versioned contract; legacy demo commands stay unchanged.
+   if(typeof m?.type==='string'&&m.type.startsWith('vtt:')){
+    vtt.handle(ws,m);
+    return;
+   }
+   const wasAuthenticated=Boolean(ws.hgRole);
+   if(!session.handle(ws,m,local)){
+    ws.close(1008,'Operazione non consentita');
+    return;
+   }
+   if(ws.hgRole){
+    clearTimeout(timeout);
+    if(!wasAuthenticated)vtt.join(ws,{role:ws.hgRole,actorId:ws.hgRole==='gm'?'gm':ws.hgPlayerId});
+   }
   });
-  ws.on('close',()=>{clearTimeout(timeout);session.detach(ws)});
+  ws.on('close',()=>{clearTimeout(timeout);vtt.leave(ws);session.detach(ws)});
   ws.on('error',()=>{});
  });
  return {
