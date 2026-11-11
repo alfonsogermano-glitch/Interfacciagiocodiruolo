@@ -49,3 +49,28 @@ test('real WebSocket GM/player negotiation publishes safe patch and recovers sna
  p.send(JSON.stringify({type:'vtt:command',version:1,campaignId:'demo',eventId:'evt2',command:'publishScene',payload:{sceneId:'other',title:'Wrong'}}));
  assert.equal((await rejectWait).status,'rejected');
 });
+
+test('real GM Host serves two independent browser players with identical event streams',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'hg-vtt-multibrowser-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const port=41894,host=createHostServer({port,archiveFile:join(dir,'state.json')});
+ await host.listen();
+ const clients=[];
+ t.after(async()=>{for(const ws of clients)ws.terminate();await host.close()});
+ const joinPeer=async(role,token,name)=>{
+  const ws=await connect(port);clients.push(ws);
+  const ready=wait(ws,m=>m.type==='joined');
+  ws.send(JSON.stringify({type:'hello',role,token,name}));
+  await ready;
+  return ws;
+ };
+ const gm=await joinPeer('gm',host.session.gmToken,'GM');
+ const p1=await joinPeer('player',host.session.playerToken,'Player PC');
+ const p2=await joinPeer('player',host.session.playerToken,'Player Android');
+ const changes=[wait(p1,m=>m.type==='vtt:patch'&&m.sequence===1),
+                wait(p2,m=>m.type==='vtt:patch'&&m.sequence===1)];
+ gm.send(JSON.stringify({type:'vtt:command',version:1,campaignId:'demo',eventId:'multi-1',command:'publishScene',payload:{sceneId:'same',title:'Scena condivisa'}}));
+ const [one,two]=await Promise.all(changes);
+ assert.equal(one.changes.scene.title,'Scena condivisa');
+ assert.equal(two.changes.scene.title,'Scena condivisa');
+ assert.equal(one.sequence,two.sequence);
+});
