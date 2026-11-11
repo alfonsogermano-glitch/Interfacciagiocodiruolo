@@ -23,7 +23,7 @@ rollback(){
   local code=$?
   trap - ERR
   echo "Attivazione non riuscita: ripristino dei servizi di prova..." >&2
-  sudo docker compose "${edge[@]:0:2}" up -d --no-deps --force-recreate caddy || true
+  sudo docker compose -f deploy/aruba/compose.edge-staging.yaml up -d --no-deps --force-recreate caddy || true
   sudo docker compose -p hollowgate-auth-staging -f deploy/aruba/compose.auth-staging.yaml up -d --no-deps --force-recreate aruba-auth-staging || true
   exit "$code"
 }
@@ -32,13 +32,27 @@ echo "Attivo prima il backend limitato al database di prova..."
 sudo docker compose "${db[@]}" up -d --no-deps --build aruba-auth-staging
 echo "Attivo poi il varco privato HTTPS..."
 sudo docker compose "${edge[@]}" up -d --no-deps --force-recreate caddy
-echo "Verifico che gli endpoint richiedano autenticazione aggiuntiva..."
-status="$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 https://staging.hollowgate.quest/auth/signup)"
-[[ "$status" == 401 ]] || { echo "Protezione assente, stato $status" >&2; false; }
-status="$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 https://staging.hollowgate.quest/login)"
-[[ "$status" == 401 ]] || { echo "Pagina privata non protetta: $status" >&2; false; }
-status="$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 https://staging.hollowgate.quest/health)"
-[[ "$status" == 200 ]] || { echo "Diagnostica non disponibile: $status" >&2; false; }
+
+# Test HTTPS via the local loopback with the correct hostname/SNI and TLS
+# verification. Direct public-domain curl from the VPS can fail on router
+# hairpin NAT even while external clients work. Retry until Caddy is ready.
+local_url="https://staging.hollowgate.quest"
+probe(){
+  local path="$1" expected="$2" actual=""
+  for ((attempt=1; attempt<=20; attempt++)); do
+    actual="$(curl -sS -o /dev/null -w "%{http_code}" --max-time 4 \
+      --resolve staging.hollowgate.quest:443:127.0.0.1 "$local_url$path" 2>/dev/null)" || actual=""
+    if [[ "$actual" == "$expected" ]]; then return 0; fi
+    sleep 1
+  done
+  echo "Controllo HTTPS fallito: $path (atteso $expected, ottenuto ${actual:-nessuna risposta})" >&2
+  return 1
+}
+echo "Verifico che pagine e API richiedano autenticazione aggiuntiva..."
+probe /auth/signup 401
+probe /login 401
+probe /auth-ui/app.mjs 401
+probe /health 200
 trap - ERR
 echo "AUTH_TRIAL_PRIVATE_SUCCESS: login/API protetti, diagnostica funzionante."
 echo "Apri https://staging.hollowgate.quest/signup con utente tester e password privata."
