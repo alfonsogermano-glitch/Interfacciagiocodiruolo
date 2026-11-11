@@ -1,0 +1,37 @@
+name: Aruba frontend staging verification
+on:
+  push:
+    branches: [infra/aruba-staging-frontend]
+  pull_request:
+    paths:
+      - 'Dockerfile.aruba'
+      - '.dockerignore'
+      - 'infra/aruba/**'
+      - 'scripts/verify-aruba-frontend-staging.mjs'
+      - '.github/workflows/aruba-staging.yml'
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node scripts/verify-aruba-frontend-staging.mjs
+      - run: docker compose -f infra/aruba/compose.yml config --quiet
+      - run: docker build -f Dockerfile.aruba -t hollowgate-aruba-staging .
+      - run: docker run -d --name hollowgate-aruba-smoke -p 127.0.0.1:18080:80 hollowgate-aruba-staging
+      - name: Verify static HTTP and SPA fallback
+        run: |
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if curl --fail --silent http://127.0.0.1:18080/healthz | grep -qx ok; then break; fi
+            sleep 2
+          done
+          curl --fail --silent http://127.0.0.1:18080/healthz | grep -qx ok
+          curl --fail --silent http://127.0.0.1:18080/ | grep -q '<div id="root"'
+          curl --fail --silent http://127.0.0.1:18080/privacy | grep -q '<div id="root"'
+      - name: Cleanup
+        if: always()
+        run: docker rm -f hollowgate-aruba-smoke || true
