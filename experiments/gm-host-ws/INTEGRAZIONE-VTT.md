@@ -31,3 +31,15 @@
 - [ ] Verifica che il VTT React operi senza Supabase nelle campagne GM Host
 
 La PR sperimentale non deve essere integrata su `main` finché i gate non sono soddisfatti.
+
+## Primo strato di protocollo implementato (11 novembre 2026)
+
+Il laboratorio dispone ora di un protocollo `vtt:*` separato dai messaggi `hello`, `move`, `state`, `roll` della demo già collaudata. Il server lo instrada solo dopo l'autenticazione e determina ruolo e identità dalla connessione WebSocket, non da attributi dichiarati dal client. File:
+
+- `vtt-protocol.mjs`: GM autorevole, pubblicazione della scena, assegnazione/movimento di token, filtro note private, `vtt:ack` con deduplicazione degli `eventId`, `vtt:snapshot` e `vtt:patch` con sequenza crescente, `vtt:resync`.
+- `vtt-client.mjs`: adattatore browser che scarta eventi obsoleti, richiede risincronizzazione in presenza di buchi di sequenza e sostituisce lo stato con snapshot autorevole.
+- `test/vtt-protocol.test.mjs`, `test/vtt-client.test.mjs`, `test/server.integration.test.mjs`: prove di autorizzazione, privacy, riordino, deduplicazione e collegamento effettivo GM/giocatore su WebSocket.
+
+**Limiti attuali:** campagna di laboratorio fissa `demo`, archivio VTT di laboratorio in memoria, comandi limitati a scene e token semplificati; nessuna persistenza delle scene VTT reali, nessuna autorizzazione individuale verificata dall'account Hollowgate, e nessuna integrazione attiva con i componenti React. Il protocollo è una base testata, non il rilascio del VTT completo.
+
+Prossima implementazione: schema condiviso con `activeScene` e adapter `campaignChannel` in modalità GM Host, mantenendo il comportamento Supabase/locale finché non è dimostrata equivalenza mediante test.
