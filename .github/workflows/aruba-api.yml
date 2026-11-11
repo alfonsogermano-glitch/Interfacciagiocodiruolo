@@ -27,6 +27,7 @@ jobs:
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm test
       - run: bash -n ../../deploy/aruba/scripts/test-auth-e2e.sh
+      - run: bash -n ../../deploy/aruba/scripts/test-password-reset-e2e.sh
       - run: docker build -t hollowgate-aruba-api:test .
       - name: Runtime smoke test with a rootless UID and a 0600 database secret
         run: |
@@ -97,6 +98,12 @@ jobs:
       - name: Verify restricted role permits login and denies privilege escalation
         run: |
           docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_auth_runtime_role.sql
+      - name: Install staging-only password-reset grants
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/006_password_reset_runtime.sql
+      - name: Verify reset permissions cannot change users or roles
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_password_reset_runtime.sql
 
   backup-restore-test:
     runs-on: ubuntu-latest
