@@ -69,3 +69,13 @@ Files: `deploy/aruba/Caddyfile.staging` and `deploy/aruba/compose.edge-staging.y
 Preflight: check `dig +short A staging.hollowgate.quest` (or `getent ahostsv4 staging.hollowgate.quest`) returns 212.237.9.78 and ensure AAAA does not point elsewhere; check no other service binds 80/443 with `sudo ss -lntp | grep -E ':(80|443)\\b'`. Do not install if ports already used. Create the staging DNS A record at the domain's actual DNS provider without changing `hollowgate.quest` or `www` or MX/SPF/DKIM/DMARC. Then run `sudo docker compose -f deploy/aruba/compose.edge-staging.yaml config`, and `sudo docker compose -f deploy/aruba/compose.edge-staging.yaml up -d`. Verify `curl -i https://staging.hollowgate.quest/health`, `curl -i https://staging.hollowgate.quest/ready`, and `curl -i https://staging.hollowgate.quest/auth/me` (expected 404 until explicitly enabled). Do not claim the certificate has been issued before the HTTPS probe succeeds.
 
 **Email**: sender `no-reply@hollowgate.quest` is not yet provisioned. Do not publish invented DNS records or send messages before choosing a transactional email provider and verifying ownership, SPF, DKIM and DMARC; existing MX and SPF entries must be preserved or adjusted deliberately to prevent mail disruption.
+
+## Transactional email adapter (not enabled in containers)
+
+\`apps/aruba-api/src/transactional-mail.mjs\` provides a send-only adapter for Resend, configured to use \`Hollowgate <no-reply@hollowgate.quest>\`. It is **not imported by the running backend**, not connected to public auth endpoints, and does not send until explicitly called by a future verified password-action flow. API tokens MUST be saved as a host-only secret with mode 600, never checked into Git or passed to a web browser. Mocked unit tests verify the request, idempotency and that provider error details are not returned to callers.
+
+Before any real send:
+1. Create a Resend account at https://resend.com and add \`hollowgate.quest\` as a sending domain (or select a deliberate, separately verified sending subdomain).
+2. Copy **only provider-generated** SPF/DKIM and return-path records to the authoritative Namecheap DNS panel. Do not replace existing MX/website records or publish guessed DNS values. Verify the sending domain in the provider dashboard.
+3. Issue a minimally scoped sending API key, provision it locally on Aruba as a protected secret (not in Git/chat), and test deliverability to an address you control.
+4. Implement rate-limited reset requests, atomic one-time token redemption, email verification, trusted redirects, server-side audit and outbound delivery logs **without storing raw reset URLs/tokens**. Never send real password-reset links while the staging URL has no verified frontend that can redeem them.
