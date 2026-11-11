@@ -1,0 +1,26 @@
+{
+  email admin@hollowgate.quest
+}
+
+staging.hollowgate.quest {
+  encode zstd gzip
+
+  # Only diagnostic endpoints are available publicly during the TLS rehearsal.
+  # Authentication remains loopback-only until the HTTPS trust boundary,
+  # antiforgery controls, email flow and data migration are audited.
+  @diagnostics path /health /ready
+  handle @diagnostics {
+    reverse_proxy aruba-auth-staging:3000
+  }
+
+  handle {
+    respond "Not Found" 404
+  }
+
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy no-referrer
+    X-Frame-Options DENY
+    -Server
+  }
+}
