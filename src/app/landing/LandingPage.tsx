@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { BookOpen, Users, Wifi, Settings } from 'lucide-react';
+import { Icon } from '@iconify/react';
 import { AuthModal } from './AuthModal';
 
 const TOTAL_DURATION = 1670;
@@ -141,10 +141,10 @@ export default function LandingPage() {
           {/* Card features in fondo */}
           <div style={{ display: 'flex', gap: '1.5rem', width: '100%', maxWidth: 1200 }}>
             {[
-              { icon: <BookOpen size={28} />, title: 'Gestisci Campagne', desc: 'Organizza capitoli, elementi di gioco e scenari in un unico posto.' },
-              { icon: <Users size={28} />, title: 'Crea Personaggi unici', desc: 'Schede con abilità, equipaggiamento e storia.' },
-              { icon: <Wifi size={28} />, title: 'Gioca Online', desc: 'Sessioni in tempo reale con il tuo gruppo ovunque.' },
-              { icon: <Settings size={28} />, title: 'Regolamenti integrati', desc: 'Regolamenti GDR disponibili o personalizzabili.' },
+              { icon: <Icon icon="ph:book-open-duotone" width={28} height={28} />, title: 'Gestisci Campagne', desc: 'Organizza capitoli, elementi di gioco e scenari in un unico posto.' },
+              { icon: <Icon icon="ph:users-duotone" width={28} height={28} />, title: 'Crea Personaggi unici', desc: 'Schede con abilità, equipaggiamento e storia.' },
+              { icon: <Icon icon="ph:wifi-high-duotone" width={28} height={28} />, title: 'Gioca Online', desc: 'Sessioni in tempo reale con il tuo gruppo ovunque.' },
+              { icon: <Icon icon="ph:gear-duotone" width={28} height={28} />, title: 'Regolamenti integrati', desc: 'Regolamenti GDR disponibili o personalizzabili.' },
             ].map((f, i) => (
               <div
                 key={i}

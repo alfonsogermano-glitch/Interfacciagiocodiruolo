@@ -1,15 +1,11 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { Icon } from '@iconify/react';
 import {
   Check,
-  DoorOpen,
   KeyRound,
   Loader2,
   Plus,
-  Scroll,
-  Skull,
-  UserCircle2,
   X,
-  Zap,
 } from 'lucide-react';
 import { Copy } from '@/app/components/IconeCopia';
 import { useAuth } from '../auth/AuthContext';
@@ -163,7 +159,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
             {user?.avatarUrl ? (
               <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
             ) : (
-              <Skull className="h-7 w-7 text-[var(--dash-accent)]" />
+              <Icon icon="ph:skull-duotone" className="h-7 w-7 text-[var(--dash-accent)]" />
             )}
           </div>
           <div>
@@ -177,7 +173,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
         {/* ─── Azioni rapide ──────────────────────────────────────────────── */}
         <section>
           <div className="mb-5 flex items-center gap-2.5">
-            <Zap className="h-5 w-5 text-[var(--dash-accent)]" />
+            <Icon icon="ph:lightning-duotone" className="h-5 w-5 text-[var(--dash-accent)]" />
             <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Azioni rapide</h2>
           </div>
 
@@ -187,7 +183,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
               onClick={() => { setCampaignFormError(null); setShowCampaignForm(true); }}
               className="group relative overflow-hidden rounded-2xl border-2 border-[var(--dash-border-soft)] bg-gradient-to-br from-indigo-600 to-indigo-950 p-6 text-left text-white shadow-lg transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
             >
-              <Scroll className="mb-4 h-9 w-9" />
+              <Icon icon="ph:scroll-duotone" className="mb-4 h-9 w-9" />
               <h3 className="text-lg font-semibold tracking-wide">Crea campagna</h3>
               <p className="mt-1 text-sm text-white/80">Avvia una nuova storia e diventa il Game Master.</p>
             </button>
@@ -197,7 +193,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
               onClick={openRulesetPicker}
               className="group relative overflow-hidden rounded-2xl border-2 border-[var(--dash-border-soft)] bg-gradient-to-br from-rose-700 to-red-950 p-6 text-left text-white shadow-lg transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
             >
-              <UserCircle2 className="mb-4 h-9 w-9" />
+              <Icon icon="ph:user-circle-duotone" className="mb-4 h-9 w-9" />
               <h3 className="text-lg font-semibold tracking-wide">Crea personaggio</h3>
               <p className="mt-1 text-sm text-white/80">Dai vita a un nuovo eroe pronto a entrare nella storia.</p>
             </button>
@@ -207,7 +203,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
               onClick={openJoinFlow}
               className="group relative overflow-hidden rounded-2xl border-2 border-[var(--dash-border-soft)] bg-gradient-to-br from-emerald-600 to-teal-950 p-6 text-left text-white shadow-lg transition-all hover:-translate-y-0.5 hover:border-[var(--dash-accent)] hover:shadow-[0_8px_28px_var(--dash-card-shadow)]"
             >
-              <DoorOpen className="mb-4 h-9 w-9" />
+              <Icon icon="ph:door-open-duotone" className="mb-4 h-9 w-9" />
               <h3 className="text-lg font-semibold tracking-wide">Unisciti a sessione</h3>
               <p className="mt-1 text-sm text-white/80">Inserisci un codice invito per entrare in una campagna.</p>
             </button>
@@ -218,7 +214,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
         <section ref={campaignsSectionRef}>
           <div className="mb-5">
             <div className="flex items-center gap-2.5">
-              <Scroll className="h-5 w-5 text-[var(--dash-accent)]" />
+              <Icon icon="ph:scroll-duotone" className="h-5 w-5 text-[var(--dash-accent)]" />
               <h2 className="text-xl font-semibold tracking-wide text-[var(--dash-text-strong)]">Campagne recenti</h2>
             </div>
           </div>
@@ -237,7 +233,7 @@ export function HomeScreen({ onEnterCampaign, scrollTarget, onScrollHandled, pal
             if (!mostRecentCampaign) {
               return (
                 <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-[var(--dash-border-soft)] bg-[var(--dash-surface)]/60 px-6 py-12 text-center">
-                  <Scroll className="h-10 w-10 text-[var(--dash-muted)]" />
+                  <Icon icon="ph:scroll-duotone" className="h-10 w-10 text-[var(--dash-muted)]" />
                   <p className="text-sm text-[var(--dash-muted)]">
                     Nessuna campagna creata.
                   </p>

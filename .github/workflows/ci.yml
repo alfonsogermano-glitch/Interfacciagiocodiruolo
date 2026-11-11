@@ -49,5 +49,7 @@ jobs:
       - run: node scripts/verify-vercel-preview-policy.mjs
       - run: node scripts/verify-dice-skin-regressions.mjs
       - run: npm run verify:dice-surface-profiles
+      - run: node scripts/verify-phosphor-sidebar-icons.mjs
+      - run: node scripts/verify-phosphor-home-icons.mjs
       - run: npm run check
       - run: npm audit --audit-level=high

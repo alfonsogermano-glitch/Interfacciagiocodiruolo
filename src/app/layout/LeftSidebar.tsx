@@ -1,6 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import type { LucideIcon } from 'lucide-react';
-import { Home, Users, Scroll } from 'lucide-react';
+import { Icon } from '@iconify/react';
 import type { Campaign } from '../campaigns/campaignTypes';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip';
 
@@ -24,12 +23,12 @@ interface LeftSidebarProps {
 }
 
 function SidebarButton({
-  icon: Icon,
+  icon,
   label,
   onClick,
   active,
 }: {
-  icon: LucideIcon;
+  icon: string;
   label: string;
   onClick: () => void;
   active?: boolean;
@@ -45,7 +44,7 @@ function SidebarButton({
           : 'text-[var(--dash-muted)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text)]'
       }`}
     >
-      <Icon className="h-5 w-5" />
+      <Icon icon={icon} className="h-5 w-5" />
       <span className="text-[10px] leading-tight text-center">{label}</span>
     </button>
   );
@@ -124,9 +123,9 @@ export function LeftSidebar({
       </div>
 
       <nav className="flex w-full flex-col items-center gap-1 px-2">
-        <SidebarButton icon={Home} label="Panoramica" onClick={onGoHome} active={view === 'home'} />
-        <SidebarButton icon={Users} label="Personaggi" onClick={onGoToCharacters} active={activeSection === 'characters'} />
-        <SidebarButton icon={Scroll} label="Campagne" onClick={onGoToCampaigns} active={activeSection === 'campaigns'} />
+        <SidebarButton icon="ph:house-duotone" label="Panoramica" onClick={onGoHome} active={view === 'home'} />
+        <SidebarButton icon="ph:users-three-duotone" label="Personaggi" onClick={onGoToCharacters} active={activeSection === 'characters'} />
+        <SidebarButton icon="ph:scroll-duotone" label="Campagne" onClick={onGoToCampaigns} active={activeSection === 'campaigns'} />
       </nav>
 
       <div className="my-2 h-px w-10 bg-[var(--dash-border-soft)]" />
