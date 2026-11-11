@@ -49,5 +49,11 @@ export function createCharacterService({pool}){
   if(!character)throw new CampaignRejected('Personaggio non trovato',404);
   return {character};
  }
- return {list,create,save};
+ async function archive(ownerId,campaignId,characterId){
+  safeId(ownerId,'Utente');safeId(campaignId,'Campagna');safeId(characterId,'Personaggio');
+  const {rows}=await pool.query('SELECT hollowgate_vtt.archive_owned_character($1,$2,$3) AS id',[ownerId,campaignId,characterId]);
+  if(!rows[0]?.id)throw new CampaignRejected('Personaggio non trovato o non autorizzato',404);
+  return {archivedId:characterId};
+ }
+ return {list,create,save,archive};
 }

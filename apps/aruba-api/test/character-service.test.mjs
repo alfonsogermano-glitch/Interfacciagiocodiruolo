@@ -50,3 +50,18 @@ test('save stores original CharacterSheetData and refuses forged owner/campaign/
  const hidden=createCharacterService({pool:{query:async()=>({rows:[{id:null}]})}});
  await assert.rejects(()=>hidden.save(owner,campaign,char,{campaignId:campaign,name:'Ken',sheetData:sheet}),e=>e.status===404);
 });
+
+test('archive is owner-scoped and does not issue DELETE against data tables',async()=>{
+ let stmt,params;
+ const service=createCharacterService({pool:{query:async(sql,args)=>{
+  stmt=sql;params=args;return {rows:[{id:char}]};
+ }}});
+ const result=await service.archive(owner,campaign,char);
+ assert.equal(result.archivedId,char);
+ assert.match(stmt,/archive_owned_character/);
+ assert.doesNotMatch(stmt,/DELETE|TRUNCATE/);
+ assert.deepEqual(params,[owner,campaign,char]);
+ const unavailable=createCharacterService({pool:{query:async()=>({rows:[{id:null}]})}});
+ await assert.rejects(()=>unavailable.archive(owner,campaign,char),e=>e.status===404);
+ await assert.rejects(()=>service.archive(owner,campaign,'unsafe'));
+});

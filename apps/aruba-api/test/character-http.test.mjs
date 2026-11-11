@@ -20,6 +20,7 @@ test('character endpoints are opt-in, scoped to cookie owner, and require CSRF o
   list:async(...args)=>{calls.push(['list',...args]);return {characters:[]}},
   create:async(...args)=>{calls.push(['create',...args]);return {character:{name:'PG'}}},
   save:async(...args)=>{calls.push(['save',...args]);return {character:{name:'Ken'}}},
+  archive:async(...args)=>{calls.push(['archive',...args]);return {archivedId:args[2]}},
  };
  const handler=createAuthHttpHandler({origin,login:async()=>{},getSessionUser:async t=>t?{id:owner}:null,revokeSession:async()=>{},campaigns,characters});
  await withServer(handler,async base=>{
@@ -43,7 +44,8 @@ test('character endpoints are opt-in, scoped to cookie owner, and require CSRF o
 test('original sheet PUT requires valid cookie, same-origin, and does not accept arbitrary IDs',async()=>{
  const calls=[];
  const characters={list:async()=>({characters:[]}),create:async()=>({character:{}}),
-  save:async(...args)=>{calls.push(args);return {character:{name:'Ken'}}}};
+  save:async(...args)=>{calls.push(args);return {character:{name:'Ken'}}},
+  archive:async()=>({archivedId:'ok'})};
  const handler=createAuthHttpHandler({origin,login:async()=>{},getSessionUser:async()=>({id:owner}),revokeSession:async()=>{},campaigns,characters});
  await withServer(handler,async base=>{
   const body={campaignId:campaign,name:'Ken',sheetData:{style:'Jock',viaggio:'Campione',ambiti:{},abilita:{},tratti:[],equipment:[]}};
@@ -54,5 +56,21 @@ test('original sheet PUT requires valid cookie, same-origin, and does not accept
   assert.equal((await fetch(url,req)).status,200);
   assert.deepEqual(calls[0],[owner,campaign,'ee2f1a87-b8ee-4b34-9da0-07efda11379a',body]);
   assert.equal((await fetch(base+'/vtt/characters/bad-id',req)).status,400);
+ });
+});
+
+test('archive endpoint checks session and CSRF and cannot trust user-provided owner',async()=>{
+ const calls=[];const characters={list:async()=>({characters:[]}),create:async()=>({character:{}}),
+  save:async()=>({character:{}}),archive:async(...args)=>{calls.push(args);return {archivedId:args[2]}}};
+ const handler=createAuthHttpHandler({origin,login:async()=>{},getSessionUser:async()=>({id:owner}),revokeSession:async()=>{},campaigns,characters});
+ await withServer(handler,async base=>{
+  const id='ee2f1a87-b8ee-4b34-9da0-07efda11379a';
+  const url=base+'/vtt/characters/'+id;
+  const req={method:'DELETE',headers:{...cookie,origin,'content-type':'application/json'},body:JSON.stringify({campaignId:campaign})};
+  assert.equal((await fetch(url,{...req,headers:{origin,'content-type':'application/json'}})).status,401);
+  assert.equal((await fetch(url,{...req,headers:{...cookie,origin:'https://evil.invalid','content-type':'application/json'}})).status,403);
+  assert.equal((await fetch(url,{...req,body:JSON.stringify({campaignId:campaign,ownerId:'forged'})})).status,400);
+  assert.equal((await fetch(url,req)).status,200);
+  assert.deepEqual(calls,[[owner,campaign,id]]);
  });
 });

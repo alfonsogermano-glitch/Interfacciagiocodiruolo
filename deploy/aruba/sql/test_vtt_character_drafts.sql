@@ -23,6 +23,14 @@ BEGIN
  SELECT count(*) INTO n FROM hollowgate_vtt.list_character_drafts(owner_a,c)
  WHERE id=d AND name='Ken' AND status='active' AND sheet_data->>'style'='Jock';
  IF n<>1 THEN RAISE EXCEPTION 'Full character sheet not stored';END IF;
+ SELECT hollowgate_vtt.archive_owned_character(owner_b,c,d) INTO result_id;
+ IF result_id IS NOT NULL THEN RAISE EXCEPTION 'Non-owner archived character'; END IF;
+ SELECT hollowgate_vtt.archive_owned_character(owner_a,c,d) INTO result_id;
+ IF result_id IS DISTINCT FROM d THEN RAISE EXCEPTION 'Owner could not archive character'; END IF;
+ SELECT count(*) INTO n FROM hollowgate_vtt.list_character_drafts(owner_a,c) WHERE id=d;
+ IF n<>0 THEN RAISE EXCEPTION 'Archived character remains visible'; END IF;
+ SELECT count(*) INTO n FROM hollowgate_vtt.character_drafts WHERE id=d AND status='archived' AND sheet_data->>'style'='Jock';
+ IF n<>1 THEN RAISE EXCEPTION 'Archived data was destroyed'; END IF;
  SELECT count(*) INTO n FROM hollowgate_vtt.list_character_drafts(owner_b,c) WHERE id=d;
  IF n<>0 THEN RAISE EXCEPTION 'Cross-account draft leaked';END IF;
  IF has_table_privilege('hollowgate_api_runtime','hollowgate_vtt.character_drafts','SELECT')

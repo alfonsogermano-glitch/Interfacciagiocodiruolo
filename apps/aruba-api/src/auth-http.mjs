@@ -79,7 +79,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   }
   if (campaigns !== null && (typeof campaigns.list !== 'function' || typeof campaigns.create !== 'function' || typeof campaigns.update !== 'function'))
     throw new TypeError('Invalid campaign service');
-  if(characters!==null && (typeof characters.list!=='function'||typeof characters.create!=='function'||typeof characters.save!=='function'||!campaigns))
+  if(characters!==null && (typeof characters.list!=='function'||typeof characters.create!=='function'||typeof characters.save!=='function'||typeof characters.archive!=='function'||!campaigns))
     throw new TypeError('Invalid character service');
   return async (req, res) => {
     try {
@@ -175,6 +175,20 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
           throw new HttpProblem(400,'Personaggio non valido');
         const body=await readJson(req,65536);
         return response(res,200,await characters.save(user.id,body.campaignId,characterId,body));
+      }
+      if(characters && req.url?.startsWith('/vtt/characters/') && req.method==='DELETE'){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const characterId=req.url.slice('/vtt/characters/'.length);
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(characterId))
+          throw new HttpProblem(400,'Personaggio non valido');
+        const body=await readJson(req);
+        if(typeof body.campaignId!=='string'||Object.keys(body).length!==1)
+          throw new HttpProblem(400,'Dati cancellazione non validi');
+        return response(res,200,await characters.archive(user.id,body.campaignId,characterId));
       }
       // Isolated read-only React pilot. A session is NEVER interpreted as
       // a Supabase token. Campaign data remains unavailable by design.
