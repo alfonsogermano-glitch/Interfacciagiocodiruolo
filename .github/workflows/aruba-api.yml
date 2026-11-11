@@ -127,7 +127,10 @@ jobs:
             -e POSTGRES_PASSWORD=ci-only-password \
             -e POSTGRES_DB=hollowgate postgres:17
           for i in $(seq 1 30); do
-            if docker exec hg-postgres-backup-ci pg_isready -U hollowgate -d hollowgate; then exit 0; fi
+            if docker exec hg-postgres-backup-ci psql -U hollowgate -d hollowgate -Atqc 'SELECT 1' 2>/dev/null | grep -qx 1; then
+              sleep 3
+              if docker exec hg-postgres-backup-ci psql -U hollowgate -d hollowgate -Atqc 'SELECT 1' 2>/dev/null | grep -qx 1; then exit 0; fi
+            fi
             sleep 1
           done
           exit 1
