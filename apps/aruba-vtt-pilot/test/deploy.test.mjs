@@ -46,3 +46,12 @@ test('Caddy proxies the real character API before the VTT index.html fallback',(
  assert.match(s,/check \/vtt\/characters 401/);
  assert.match(s,/check \/vtt\/characters\/00000000-0000-4000-8000-000000000000 401/);
 });
+
+test('original HSC panels include theme and utility layers without resetting site chrome',()=>{
+ const css=readFileSync(new URL('../src/legacy-wizard.css',import.meta.url),'utf8');
+ assert.match(css,/@import "tailwindcss\/theme";/);
+ assert.match(css,/@import "tailwindcss\/utilities" source\(none\);/);
+ assert.doesNotMatch(css,/@import "tailwindcss";/);
+ for(const part of ['CharacterCreationWizard','CompleteCharacterSheet','FrischezzaTracker','FoliaSpiral','ConditionsPanel','TurbePanel','EquipmentPanel'])
+  assert.ok(css.includes('/'+part+'.tsx'),part+' source missing');
+});

@@ -38,6 +38,12 @@ jobs:
           npm test
           npm run build
           test -f ../../deploy/aruba/dist/vtt-pilot/index.html
+          # Ensure theme spacing variables survive Vite/Tailwind production build.
+          css_file="$(find ../../deploy/aruba/dist/vtt-pilot/assets -name '*.css' -print -quit)"
+          test -n "$css_file"
+          grep -Fq -- '--spacing:' "$css_file"
+          grep -Fq -- '.gap-4' "$css_file"
+          grep -Fq -- '.p-4' "$css_file"
           if grep -R -i -l 'supabase\.co' ../../deploy/aruba/dist/vtt-pilot; then
             echo "Unexpected legacy backend inside Aruba pilot bundle" >&2
             exit 1

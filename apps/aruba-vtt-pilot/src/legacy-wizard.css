@@ -1,4 +1,8 @@
-@import "tailwindcss/utilities";
+/* Original widgets require Tailwind theme variables, especially --spacing.
+   Without theme their padding, height, width and gaps collapse. Do not
+   import preflight: the pilot has its own site-wide CSS reset. */
+@import "tailwindcss/theme";
+@import "tailwindcss/utilities" source(none);
 @source "../../../src/app/components/gm/CharacterCreationWizard.tsx";
 /* Specific palette variables of the already-approved black/gold Hollowgate. */
 .aruba-original-wizard{
