@@ -7,6 +7,7 @@ import { createSessionRepository } from './session-repository.mjs';
 import { createAuthHttpHandler } from './auth-http.mjs';
 import { createPasswordResetService } from './password-reset-service.mjs';
 import { createTransactionalMailer } from './transactional-mail.mjs';
+import {createSignupService} from './signup-service.mjs';
 
 const required = (name) => {
   const value = process.env[name];
@@ -44,17 +45,32 @@ async function main() {
     const login = createLoginService({pool, verifyPassword, hmacKey});
     const {getSessionUser, revokeSession} = createSessionRepository({pool});
     let passwordReset = null;
+    let signupService = null;
+    let mailer = null;
+    const getMailer = async () => {
+      if (!mailer) {
+        const key = (await readFile(required('RESEND_API_KEY_FILE'), 'utf8')).trim();
+        mailer = createTransactionalMailer({apiKey:key});
+      }
+      return mailer;
+    };
     const resetFlag = process.env.AUTH_PASSWORD_RESET_ENABLED;
     if (resetFlag === 'true') {
       // Both the mail secret and the PostgreSQL migration 006 must be
       // provisioned explicitly in staging before setting this flag.
-      const mailKey = (await readFile(required('RESEND_API_KEY_FILE'), 'utf8')).trim();
-      const mailer = createTransactionalMailer({apiKey:mailKey});
-      passwordReset = createPasswordResetService({pool,mailer,hmacKey});
+      passwordReset = createPasswordResetService({pool,mailer:await getMailer(),hmacKey});
     } else if (resetFlag && resetFlag !== 'false') {
       throw new Error('Unsupported AUTH_PASSWORD_RESET_ENABLED value');
     }
-    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset});
+    const signupFlag=process.env.AUTH_SIGNUP_ENABLED;
+    if (signupFlag === 'true') {
+      signupService=createSignupService({pool,mailer:await getMailer(),hmacKey});
+    } else if (signupFlag && signupFlag !== 'false') {
+      throw new Error('Unsupported AUTH_SIGNUP_ENABLED value');
+    }
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService});
+  } else if (process.env.AUTH_SIGNUP_ENABLED === 'true') {
+    throw new Error('Signup requires dedicated auth staging');
   } else if (process.env.AUTH_PASSWORD_RESET_ENABLED === 'true') {
     throw new Error('Password reset requires dedicated auth staging');
   } else if (process.env.AUTH_STAGING_ENABLED) {

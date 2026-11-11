@@ -4,6 +4,7 @@
 // of credentials or raw bearer/session tokens is permitted.
 import { LoginRejected } from './login-service.mjs';
 import { PasswordActionRejected } from './password-reset-service.mjs';
+import { SignupRejected } from './signup-service.mjs';
 
 const COOKIE = '__Host-hg_session';
 const COOKIE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -62,7 +63,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null }) {
   const allowedOrigin = new URL(origin);
   if (allowedOrigin.protocol !== 'https:' || allowedOrigin.origin !== origin ||
       !allowedOrigin.hostname) throw new TypeError('HTTPS origin required');
@@ -71,6 +72,9 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   }
   if (passwordReset !== null && (typeof passwordReset.request !== 'function' || typeof passwordReset.redeem !== 'function')) {
     throw new TypeError('Invalid passwordReset service');
+  }
+  if (signupService !== null && (typeof signupService.signup !== 'function' || typeof signupService.verify !== 'function')) {
+    throw new TypeError('Invalid signupService');
   }
   return async (req, res) => {
     try {
@@ -98,6 +102,20 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         const result = await passwordReset.redeem({token,newPassword});
         return response(res, 200, result);
       }
+      if (signupService && req.url === '/auth/signup' && req.method === 'POST') {
+        if (req.headers.origin !== origin) throw new HttpProblem(403, 'Origine non consentita');
+        const {email,displayName,password} = await readJson(req);
+        const result = await signupService.signup({
+          email,displayName,password,networkSubject:req.socket.remoteAddress,
+        });
+        return response(res,202,result);
+      }
+      if (signupService && req.url === '/auth/verify-email' && req.method === 'POST') {
+        if (req.headers.origin !== origin) throw new HttpProblem(403, 'Origine non consentita');
+        const {token} = await readJson(req);
+        const result = await signupService.verify({token});
+        return response(res,200,result);
+      }
       if (req.url === '/auth/me' && req.method === 'GET') {
         const token = extractSession(req);
         if (!token) return response(res, 401, { error: 'Non autenticato' });
@@ -113,6 +131,9 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
       }
       return response(res, 404, { error: 'Not found' });
     } catch (error) {
+      if (error instanceof SignupRejected) {
+        return response(res,error.status,{error:error.message});
+      }
       if (error instanceof PasswordActionRejected) {
         return response(res, error.status, { error: error.message });
       }
