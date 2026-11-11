@@ -57,3 +57,19 @@ test('logout uses server revocation without local storage',async()=>{
  const text=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
  assert.doesNotMatch(text,/supabase|localStorage|sessionStorage|Bearer/);
 });
+
+test('visual-only icon test keeps original left and right purposes distinct',()=>{
+ const code=readFileSync(new URL('../src/icon-study.tsx',import.meta.url),'utf8');
+ const left=readFileSync(new URL('../../../src/app/layout/LeftSidebar.tsx',import.meta.url),'utf8');
+ const right=readFileSync(new URL('../../../src/app/layout/GmSectionSidebar.tsx',import.meta.url),'utf8');
+ assert.match(left,/w-\[100px\]/);
+ assert.match(left,/label="Panoramica"/);
+ assert.match(left,/label="Personaggi"/);
+ assert.match(left,/label="Campagne"/);
+ assert.match(right,/w-20/);
+ assert.match(right,/id: 'chapters'/);
+ assert.match(right,/id: 'npcs'/);
+ assert.match(code,/SINISTRA · NAVIGAZIONE UTENTE/);
+ assert.match(code,/DESTRA · STRUMENTI GM/);
+ assert.doesNotMatch(code,/fetch\(/);
+});

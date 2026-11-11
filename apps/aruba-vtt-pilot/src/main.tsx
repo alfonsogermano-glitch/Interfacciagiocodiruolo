@@ -2,6 +2,7 @@ import {useEffect,useState,type FormEvent} from 'react';
 import {createRoot} from 'react-dom/client';
 import {loadPilotSession,logoutPilot,listOwnedCampaigns,createOwnedCampaign,RULESETS} from './client.mjs';
 import './styles.css';
+import IconStudy from './icon-study';
 
 type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';campaignsEnabled:boolean};
 type Campaign={id:string;ownerId:string;name:string;description:string;ruleset:string;createdAt:string};
@@ -152,4 +153,4 @@ function CampaignList({campaigns,loading,enabled}:{campaigns:Campaign[];loading:
   </div>
  </article>)}</div>;
 }
-createRoot(document.getElementById('root')!).render(<App/>);
+createRoot(document.getElementById('root')!).render(window.location.pathname==='/vtt/icon-study'?<IconStudy/>:<App/>);
