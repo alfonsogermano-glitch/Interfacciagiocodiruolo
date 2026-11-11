@@ -5,6 +5,7 @@
 import { LoginRejected } from './login-service.mjs';
 import { PasswordActionRejected } from './password-reset-service.mjs';
 import { SignupRejected } from './signup-service.mjs';
+import { CampaignRejected } from './campaign-service.mjs';
 
 const COOKIE = '__Host-hg_session';
 const COOKIE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -63,7 +64,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null }) {
   const allowedOrigin = new URL(origin);
   if (allowedOrigin.protocol !== 'https:' || allowedOrigin.origin !== origin ||
       !allowedOrigin.hostname) throw new TypeError('HTTPS origin required');
@@ -76,6 +77,8 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   if (signupService !== null && (typeof signupService.signup !== 'function' || typeof signupService.verify !== 'function')) {
     throw new TypeError('Invalid signupService');
   }
+  if (campaigns !== null && (typeof campaigns.list !== 'function' || typeof campaigns.create !== 'function'))
+    throw new TypeError('Invalid campaign service');
   return async (req, res) => {
     try {
       if (req.url === '/auth/login' && req.method === 'POST') {
@@ -116,6 +119,18 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         const result = await signupService.verify({token});
         return response(res,200,result);
       }
+      // Campaign authorization uses ONLY the active cookie session.
+      // No owner ID, role, or Supabase token from the request body is trusted.
+      if (campaigns && req.url === '/vtt/campaigns' && (req.method === 'GET' || req.method === 'POST')) {
+        const token=extractSession(req);
+        if (!token) return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if (!user) return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if (req.method === 'GET') return response(res,200,await campaigns.list(user.id));
+        if (req.headers.origin !== origin) throw new HttpProblem(403,'Origine non consentita');
+        const body=await readJson(req);
+        return response(res,201,await campaigns.create(user.id,body));
+      }
       // Isolated read-only React pilot. A session is NEVER interpreted as
       // a Supabase token. Campaign data remains unavailable by design.
       if (req.url === '/vtt/bootstrap' && req.method === 'GET') {
@@ -127,7 +142,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
           user,
           backend:'aruba-staging',
           capabilities:{
-            campaigns:{read:false,write:false},
+            campaigns:{read:!!campaigns,write:!!campaigns},
             characters:{read:false,write:false},
             gameSession:false,
           },
@@ -148,6 +163,9 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
       }
       return response(res, 404, { error: 'Not found' });
     } catch (error) {
+      if (error instanceof CampaignRejected) {
+        return response(res,error.status,{error:error.message});
+      }
       if (error instanceof SignupRejected) {
         return response(res,error.status,{error:error.message});
       }

@@ -8,6 +8,7 @@ import { createAuthHttpHandler } from './auth-http.mjs';
 import { createPasswordResetService } from './password-reset-service.mjs';
 import { createTransactionalMailer } from './transactional-mail.mjs';
 import {createSignupService} from './signup-service.mjs';
+import {createCampaignService} from './campaign-service.mjs';
 
 const required = (name) => {
   const value = process.env[name];
@@ -68,7 +69,15 @@ async function main() {
     } else if (signupFlag && signupFlag !== 'false') {
       throw new Error('Unsupported AUTH_SIGNUP_ENABLED value');
     }
-    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService});
+    // Campaigns are disabled unless explicitly opted in AND migration 008
+    // has been applied to the disposable test database.
+    const campaignsFlag=process.env.AUTH_VTT_CAMPAIGNS_ENABLED;
+    if (campaignsFlag && campaignsFlag !== 'false' && campaignsFlag !== 'true')
+      throw new Error('Unsupported AUTH_VTT_CAMPAIGNS_ENABLED value');
+    const campaigns=campaignsFlag==='true'?createCampaignService({pool}):null;
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns});
+  } else if (process.env.AUTH_VTT_CAMPAIGNS_ENABLED === 'true') {
+    throw new Error('Campaigns require dedicated staging');
   } else if (process.env.AUTH_SIGNUP_ENABLED === 'true') {
     throw new Error('Signup requires dedicated auth staging');
   } else if (process.env.AUTH_PASSWORD_RESET_ENABLED === 'true') {

@@ -18,7 +18,12 @@ BEGIN
  OR has_table_privilege('hollowgate_api_runtime','hollowgate_vtt.campaigns','UPDATE')
  OR has_table_privilege('hollowgate_api_runtime','hollowgate_vtt.campaigns','DELETE')
  THEN RAISE EXCEPTION 'Direct table privilege leaked'; END IF;
- IF has_function_privilege('public','hollowgate_vtt.create_owned_campaign(uuid,text,text,text)','EXECUTE')
- THEN RAISE EXCEPTION 'Public can create campaigns'; END IF;
+ IF EXISTS (
+ SELECT 1 FROM pg_proc p
+ JOIN pg_namespace n ON n.oid=p.pronamespace
+ CROSS JOIN LATERAL aclexplode(p.proacl) a
+ WHERE n.nspname='hollowgate_vtt' AND p.proname='create_owned_campaign'
+   AND a.grantee=0 AND a.privilege_type='EXECUTE'
+) THEN RAISE EXCEPTION 'Public can create campaigns'; END IF;
 END $$;
 ROLLBACK;
