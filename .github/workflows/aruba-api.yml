@@ -69,3 +69,9 @@ jobs:
       - name: Verify auth schema isolation and migration-safe identity constraints
         run: |
           docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_auth_foundation.sql
+      - name: Install session schema
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/002_auth_sessions.sql
+      - name: Verify session constraints and revocation
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_auth_sessions.sql
