@@ -6,6 +6,7 @@ on:
     paths:
       - 'experiments/gm-host-ws/**'
       - 'src/services/realtime/gmHostReactBridge.ts'
+      - 'src/services/realtime/GmHostScenePreview.tsx'
       - 'src/services/realtime/useGmHostSession.ts'
       - 'scripts/verify-gm-host-react-bridge.mts'
       - '.github/workflows/hybrid-gm-host-ws.yml'
@@ -13,6 +14,7 @@ on:
     paths:
       - 'experiments/gm-host-ws/**'
       - 'src/services/realtime/gmHostReactBridge.ts'
+      - 'src/services/realtime/GmHostScenePreview.tsx'
       - 'src/services/realtime/useGmHostSession.ts'
       - 'scripts/verify-gm-host-react-bridge.mts'
       - '.github/workflows/hybrid-gm-host-ws.yml'
@@ -33,6 +35,10 @@ jobs:
         run: node --test test/*.test.mjs
       - name: React transport adapter regression tests
         run: node --experimental-strip-types --test scripts/verify-gm-host-react-bridge.mts
+      - name: Install React dependencies for type checking
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: React TypeScript typecheck
+        run: npx tsc --noEmit
       - name: Syntax verification
         working-directory: experiments/gm-host-ws
         run: |
