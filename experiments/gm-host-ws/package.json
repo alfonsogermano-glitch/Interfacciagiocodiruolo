@@ -1,1 +1,60 @@
-{"name":"hollowgate-gm-host-ws-poc","private":true,"version":"0.1.0","type":"module","engines":{"node":">=20"},"scripts":{"start":"node server.mjs","test":"node --test test/*.test.mjs"},"dependencies":{"ws":"8.18.3"}}
+{
+  "name": "hollowgate-gm-host-desktop",
+  "productName": "Hollowgate GM Host",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "main": "desktop/main.mjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "desktop": "electron .",
+    "build:win": "electron-builder --win nsis --x64 --publish never"
+  },
+  "dependencies": {
+    "ws": "8.18.3"
+  },
+  "devDependencies": {
+    "electron": "^39.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "quest.hollowgate.gmhost",
+    "productName": "Hollowgate GM Host",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "desktop/**",
+      "public/**",
+      "server.mjs",
+      "session.mjs",
+      "state-store.mjs",
+      "package.json",
+      "node_modules/ws/**"
+    ],
+    "extraResources": [
+      {
+        "from": "desktop/bin/cloudflared-windows-amd64.exe",
+        "to": "cloudflared.exe"
+      }
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "Hollowgate-GM-Host-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}
