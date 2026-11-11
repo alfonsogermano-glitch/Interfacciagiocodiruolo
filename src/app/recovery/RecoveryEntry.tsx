@@ -60,6 +60,7 @@ export function RecoveryEntry({ onRetry, checking }: { onRetry: () => void; chec
             <RefreshCw className="h-4 w-4" /> {checking ? 'Controllo in corso…' : 'Riprova accesso account e campagne'}
           </button>
           <p className="text-xs text-white/60">Gli account, la registrazione e il recupero delle campagne online richiedono ancora il backend originale. Questa pagina non sostituisce il login né legge dati personali senza autorizzazione.</p>
+          <a className="inline-block text-sm text-amber-200 underline" href="/?online=1">Prova comunque l'accesso con account esistente</a>
         </div>
         <a href="/privacy" className="inline-flex items-center gap-1 text-sm text-white/65 underline">Informativa sulla privacy <ExternalLink className="h-3 w-3" /></a>
       </div>
