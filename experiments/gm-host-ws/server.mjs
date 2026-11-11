@@ -4,9 +4,15 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {WebSocketServer} from 'ws';
 import {createSession} from './session.mjs';
+import {createStateStore} from './state-store.mjs';
 const host='127.0.0.1',port=Number(process.env.HOLLOWGATE_PORT||4177);
 if(!Number.isInteger(port)||port<1024||port>65535)throw Error('Porta non valida');
-const root=path.join(path.dirname(fileURLToPath(import.meta.url)),'public'),session=createSession();
+const appDir=path.dirname(fileURLToPath(import.meta.url));
+const root=path.join(appDir,'public');
+// Only demo map position and dice events are saved, never role tokens or live player IDs.
+const campaignFile=process.env.HOLLOWGATE_DATA_FILE||path.join(appDir,'data','campaign.json');
+const store=createStateStore(campaignFile);
+const session=createSession({initialState:store.load(),onChange:store.save});
 const routes=new Map([['/','index.html'],['/client.js','client.js'],['/style.css','style.css']]);
 const server=http.createServer((req,res)=>{
  const url=(req.url||'').split('?')[0],name=routes.get(url);
@@ -38,5 +44,6 @@ server.listen(port,host,()=>{
  console.log('HOLLOWGATE GM HOST — DEMO ISOLATA');
  console.log('GM: http://localhost:'+port+'/#gm='+session.gmToken);
  console.log('In un secondo terminale: cloudflared tunnel --url http://localhost:'+port);
+ console.log('Salvataggio locale demo: '+campaignFile);
  console.log('NON usare dati reali. Arresta con Ctrl+C.');
 });
