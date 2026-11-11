@@ -12,7 +12,7 @@ Prototipo isolato: non è il VTT completo, non salva campagne, non usa Supabase 
 4. Apri **solo sul PC del GM** l'indirizzo `http://localhost:4177/#gm=...` riportato nella console. Non condividere questo URL.
 5. In un secondo PowerShell:
    ```powershell
-   cloudflared tunnel --url http://localhost:4177
+   cloudflared tunnel --url http://127.0.0.1:4177
    ```
 6. Copia l'indirizzo HTTPS `https://...trycloudflare.com` stampato da cloudflared nel campo della pagina GM, premi **Crea link giocatore**, poi **Copia link**.
 7. Invia il link privato al giocatore Android, aprilo in Chrome e premi **Entra nella sessione**. Prova spostamento e d20, confrontando la visualizzazione GM e Android.
