@@ -1,0 +1,14 @@
+@import "tailwindcss/utilities";
+@source "../../../src/app/components/gm/CharacterCreationWizard.tsx";
+/* Specific palette variables of the already-approved black/gold Hollowgate. */
+.aruba-original-wizard{
+ --dash-bg:#0e1214;--dash-panel:#181c1c;--dash-surface:#30291d;
+ --dash-surface-2:#24251f;--dash-input:#111716;--dash-border:#6e5839;
+ --dash-border-soft:#473b29;--dash-text:#dbd0ba;--dash-text-strong:#f5e8d1;
+ --dash-muted:#aaa398;--dash-accent:#b99863;--dash-accent-2:#e0bc7e;
+ position:fixed;inset:0;z-index:90;
+}
+.aruba-image-pending{position:fixed;inset:0;z-index:150;display:grid;place-items:center;background:#000b;padding:24px}
+.aruba-image-pending section{width:min(100%,460px);padding:28px;border:1px solid #94724b;border-radius:12px;background:#191c18;color:#e5d3b1}
+.aruba-image-pending p{line-height:1.6}.aruba-image-pending button{border:1px solid #ad8b56;border-radius:7px;background:#b4955c;color:#13140f;padding:10px 15px}
+.aruba-wizard-error{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:180;width:min(90vw,590px);background:#48282d;color:#ffe6e3;border:1px solid #ce8a85;border-radius:9px;padding:12px 20px}

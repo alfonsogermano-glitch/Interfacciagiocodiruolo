@@ -96,7 +96,7 @@ export function validateCharacterDraft(data){
  if(!data||typeof data!=='object'||Array.isArray(data)||
   !/^[0-9a-f-]{36}$/i.test(data.id)||!/^[0-9a-f-]{36}$/i.test(data.campaignId)||
   !/^[0-9a-f-]{36}$/i.test(data.ownerId)||typeof data.name!=='string'||data.name.length<1||
-  data.status!=='draft'||!data.sheetData||Array.isArray(data.sheetData)||typeof data.sheetData!=='object')
+  !['draft','active'].includes(data.status)||!data.sheetData||Array.isArray(data.sheetData)||typeof data.sheetData!=='object')
   throw new Error('Scheda personaggio non valida');
  return Object.freeze({id:data.id,campaignId:data.campaignId,ownerId:data.ownerId,name:data.name,
    status:data.status,sheetData:data.sheetData});
@@ -125,4 +125,28 @@ export async function createCharacterDraft(fetchImpl,campaignId,name,ownerId){
  const value=validateCharacterDraft((await r.json()).character);
  if(value.ownerId!==ownerId||value.campaignId!==campaignId)throw Error('Campagna o proprietario non corrispondente');
  return value;
+}
+
+/** The original wizard returns Character & {player,notes}; keep its structure
+ * but never trust ID, owner, campaign, or legacy Supabase image references. */
+export async function saveFullCharacterSheet(fetchImpl,campaignId,characterId,character,ownerId){
+ if(typeof character?.name!=='string'||character.name.trim().length<1||
+  typeof campaignId!=='string'||typeof characterId!=='string')
+  throw Error('Scheda personaggio non valida');
+ const {id,player,...sheetData}=character;
+ // Wizard's random client ID does not override authoritative Aruba draft UUID.
+ if(JSON.stringify(sheetData).includes('supabase.co')||JSON.stringify(sheetData).includes('data:image/'))
+  throw Error('Rimuovi i riferimenti alle immagini Supabase prima di salvare su Aruba.');
+ const r=await fetchImpl('/vtt/characters/'+characterId,{
+  method:'PUT',credentials:'same-origin',cache:'no-store',redirect:'error',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({campaignId,name:character.name.trim(),sheetData}),
+ });
+ if(r.status===401)throw Error('Sessione scaduta: effettua nuovamente il login.');
+ if(r.status===404)throw Error('Personaggio non trovato o non autorizzato.');
+ if(!r.ok)throw Error('Impossibile salvare la scheda completa.');
+ const result=validateCharacterDraft((await r.json()).character);
+ if(result.ownerId!==ownerId||result.campaignId!==campaignId||result.id!==characterId||result.status!=='active')
+  throw Error('Risposta della scheda non autorizzata.');
+ return result;
 }

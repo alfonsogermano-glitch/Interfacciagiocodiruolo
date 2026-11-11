@@ -2,6 +2,7 @@ import {useEffect,useState,type FormEvent} from 'react';
 import {createRoot} from 'react-dom/client';
 import {loadPilotSession,logoutPilot,listOwnedCampaigns,createOwnedCampaign,updateOwnedCampaign,RULESETS} from './client.mjs';
 import './styles.css';
+import './legacy-wizard.css';
 import IconStudy from './icon-study';
 import {ArubaQuickDice} from './ArubaQuickDice';
 import {ArubaCharacterDrafts} from './ArubaCharacterDrafts';
@@ -166,7 +167,7 @@ function App(){
     {section==='characters'&&<>
       <div className="overline">PERSONAGGI</div><h1>Personaggi</h1>
       {user.charactersEnabled&&activeCampaign?
-       <ArubaCharacterDrafts campaignId={activeCampaign.id} ownerId={user.id}/>:
+       <ArubaCharacterDrafts campaignId={activeCampaign.id} ownerId={user.id} ruleset={activeCampaign.ruleset}/>:
        <div className="empty">{activeCampaign?'Servizio personaggi in preparazione.':'Seleziona una campagna dalla barra sinistra.'}</div>}
     </>}
     {!['home','campaigns','characters'].includes(section)&&<>

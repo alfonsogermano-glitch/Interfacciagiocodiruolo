@@ -67,3 +67,5 @@
 .character-draft-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
 .character-draft-list article{display:flex;flex-direction:column;gap:9px;border:1px solid #715637;border-radius:10px;background:#201c16;padding:18px}
 .character-draft-list article span{font-size:11px;color:#bba88a}
+
+.character-edit-action{border:1px solid #a98c57;border-radius:6px;color:#17120c;background:#c6a779;padding:8px 10px}

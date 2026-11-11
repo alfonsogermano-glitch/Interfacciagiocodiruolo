@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {loadPilotSession,logoutPilot,validateBootstrap,validateCampaign,listOwnedCampaigns,createOwnedCampaign,updateOwnedCampaign,listCharacterDrafts,createCharacterDraft,validateCharacterDraft} from '../src/client.mjs';
+import {loadPilotSession,logoutPilot,validateBootstrap,validateCampaign,listOwnedCampaigns,createOwnedCampaign,updateOwnedCampaign,listCharacterDrafts,createCharacterDraft,validateCharacterDraft,saveFullCharacterSheet} from '../src/client.mjs';
 const user={id:'971e26ae-eecb-4f37-ad03-56b0c3000789',email:'tester@example.org',displayName:'Tester',role:'standard'};
 const caps=enabled=>({campaigns:{read:enabled,write:enabled},characters:{read:false,write:false},gameSession:false});
 const sample={id:'be2f1a87-b8ee-4b34-9da0-07efda11379a',ownerId:user.id,name:'Storia',description:'',ruleset:'hsc',createdAt:'2026-11-11'};
@@ -174,6 +174,42 @@ test('characters section links real Aruba draft storage without replacing origin
  const draft=readFileSync(new URL('../src/ArubaCharacterDrafts.tsx',import.meta.url),'utf8');
  assert.match(main,/section==='characters'/);
  assert.match(main,/user.charactersEnabled&&activeCampaign/);
- assert.match(draft,/editor originale/);
+ assert.match(draft,/CharacterCreationWizard/);
  assert.doesNotMatch(draft,/supabase|localStorage|sessionStorage/);
+});
+
+test('original HSC wizard mounts unmodified, with Aruba-only image dependency and original rules',()=>{
+ const vite=readFileSync(new URL('../vite.config.mjs',import.meta.url),'utf8');
+ const page=readFileSync(new URL('../src/ArubaCharacterDrafts.tsx',import.meta.url),'utf8');
+ const original=readFileSync(new URL('../../../src/app/components/gm/CharacterCreationWizard.tsx',import.meta.url),'utf8');
+ const shim=readFileSync(new URL('../src/ArubaImagePending.tsx',import.meta.url),'utf8');
+ assert.match(page,/from '\.\.\/\.\.\/\.\.\/src\/app\/components\/gm\/CharacterCreationWizard'/);
+ assert.match(page,/ruleset==='hsc'/);
+ assert.match(page,/onAdd=\{character=>\{void save\(character\);\}\}/);
+ assert.match(vite,/aruba-legacy-image-safety/);
+ assert.match(vite,/ImageCropUploadModal/);
+ assert.match(shim,/Supabase Storage/);
+ assert.doesNotMatch(shim,/import .*supabase/);
+ for(const label of ['Informazioni Base','Stile e Viaggio','Equipaggiamento','Tratti'])
+  assert.ok(original.includes(label));
+});
+test('Aruba full-sheet client preserves original mechanics but does not trust wizard ID',async()=>{
+ const character={id:'untrusted-id',name:'Ken',player:'hacker',notes:'Storia',style:'Jock',
+  viaggio:'Campione',ambiti:{Fisico:2},abilita:{Muscoli:2},tratti:[],equipment:[]};
+ const id='ee2f1a87-b8ee-4b34-9da0-07efda11379a';
+ let sent;
+ const response={id,ownerId:user.id,campaignId:sample.id,name:'Ken',sheetData:character,status:'active'};
+ const value=await saveFullCharacterSheet(async(path,request)=>{
+  sent={path,request};return {ok:true,json:async()=>({character:response})};
+ },sample.id,id,character,user.id);
+ assert.equal(value.status,'active');
+ assert.equal(sent.path,'/vtt/characters/'+id);
+ assert.equal(sent.request.credentials,'same-origin');
+ const payload=JSON.parse(sent.request.body);
+ assert.equal(payload.name,'Ken');
+ assert.equal(payload.sheetData.id,undefined);
+ assert.equal(payload.sheetData.player,undefined);
+ assert.equal(payload.sheetData.style,'Jock');
+ await assert.rejects(()=>saveFullCharacterSheet(async()=>({ok:true,json:async()=>({character:{...response,ownerId:'forged'}})}),sample.id,id,character,user.id));
+ await assert.rejects(()=>saveFullCharacterSheet(async()=>{},sample.id,id,{...character,coverImageUrl:'https://bad.supabase.co/abc'},user.id));
 });
