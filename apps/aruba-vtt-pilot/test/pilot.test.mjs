@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {loadPilotSession,logoutPilot,validateBootstrap,validateCampaign,listOwnedCampaigns,createOwnedCampaign,updateOwnedCampaign} from '../src/client.mjs';
+import {loadPilotSession,logoutPilot,validateBootstrap,validateCampaign,listOwnedCampaigns,createOwnedCampaign,updateOwnedCampaign,listCharacterDrafts,createCharacterDraft,validateCharacterDraft} from '../src/client.mjs';
 const user={id:'971e26ae-eecb-4f37-ad03-56b0c3000789',email:'tester@example.org',displayName:'Tester',role:'standard'};
 const caps=enabled=>({campaigns:{read:enabled,write:enabled},characters:{read:false,write:false},gameSession:false});
 const sample={id:'be2f1a87-b8ee-4b34-9da0-07efda11379a',ownerId:user.id,name:'Storia',description:'',ruleset:'hsc',createdAt:'2026-11-11'};
@@ -156,4 +156,24 @@ test('Aruba campaign modal is above the local dice toolbar',()=>{
  const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
  assert.match(css,/\.aruba-dice-floating\{[^}]*z-index:20/);
  assert.match(css,/\.modal-backdrop\{z-index:50\}/);
+});
+
+test('character draft client enforces campaign/owner isolation',async()=>{
+ const id='ee2f1a87-b8ee-4b34-9da0-07efda11379a';
+ const value={id,campaignId:sample.id,ownerId:user.id,name:'PG',status:'draft',sheetData:{}};
+ let sent;
+ const list=await listCharacterDrafts(async(path,options)=>{sent={path,options};return {ok:true,json:async()=>({characters:[value]})};},sample.id,user.id);
+ assert.equal(list.length,1);assert.equal(sent.options.credentials,'same-origin');
+ const draft=await createCharacterDraft(async(path,options)=>{sent={path,options};return {ok:true,json:async()=>({character:value})};},sample.id,' PG ',user.id);
+ assert.equal(draft.id,id);assert.deepEqual(JSON.parse(sent.options.body),{campaignId:sample.id,name:'PG'});
+ await assert.rejects(()=>listCharacterDrafts(async()=>({ok:true,json:async()=>({characters:[{...value,ownerId:'forged'}]})}),sample.id,user.id));
+ assert.throws(()=>validateCharacterDraft({...value,sheetData:null}));
+});
+test('characters section links real Aruba draft storage without replacing original wizard',()=>{
+ const main=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
+ const draft=readFileSync(new URL('../src/ArubaCharacterDrafts.tsx',import.meta.url),'utf8');
+ assert.match(main,/section==='characters'/);
+ assert.match(main,/user.charactersEnabled&&activeCampaign/);
+ assert.match(draft,/editor originale/);
+ assert.doesNotMatch(draft,/supabase|localStorage|sessionStorage/);
 });

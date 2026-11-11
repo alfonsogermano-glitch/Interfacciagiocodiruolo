@@ -4,9 +4,10 @@ import {loadPilotSession,logoutPilot,listOwnedCampaigns,createOwnedCampaign,upda
 import './styles.css';
 import IconStudy from './icon-study';
 import {ArubaQuickDice} from './ArubaQuickDice';
+import {ArubaCharacterDrafts} from './ArubaCharacterDrafts';
 import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,IdentificationBadgeIcon,GhostIcon,LightbulbIcon,BookmarkSimpleIcon,MapTrifoldIcon,ImageIcon,SwordIcon} from '@phosphor-icons/react';
 
-type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';campaignsEnabled:boolean};
+type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';campaignsEnabled:boolean;charactersEnabled:boolean};
 type Campaign={id:string;ownerId:string;name:string;description:string;ruleset:string;createdAt:string};
 type Status={state:'loading'}|{state:'unauthorized'}|{state:'error'}|{state:'ready';user:PilotUser};
 type Section='home'|'campaigns'|'characters'|'chapters'|'preparation'|'sheets'|'npcs'|'monsters'|'clues'|'equipment'|'map'|'situations'|'phases'|'combat'|'assets';
@@ -162,7 +163,13 @@ function App(){
       {activeCampaign&&<section className="selected-campaign" aria-label="Campagna selezionata"><div className="overline">CAMPAGNA SELEZIONATA · GAME MASTER</div><h2>{activeCampaign.name}</h2><p>{activeCampaign.description||'Nessuna descrizione'}</p><p>Regolamento: {RULESETS[activeCampaign.ruleset as keyof typeof RULESETS]}</p><p className="footnote">La campagna è stata riletta dall’API Aruba. Schede, note, mappe e sessioni non sono ancora collegate: non vengono creati dati fittizi.</p><button type="button" onClick={()=>setShowEdit(true)}>Modifica nome e descrizione</button><button type="button" onClick={()=>{setActiveCampaignId(null);setShowEdit(false);}}>Chiudi selezione</button></section>}
       {user.campaignsEnabled&&<p className="footnote">Le campagne Aruba sono nuove e separate dai dati storici Supabase. Le partecipazioni dei giocatori non sono ancora abilitate.</p>}
     </>}
-    {!['home','campaigns'].includes(section)&&<>
+    {section==='characters'&&<>
+      <div className="overline">PERSONAGGI</div><h1>Personaggi</h1>
+      {user.charactersEnabled&&activeCampaign?
+       <ArubaCharacterDrafts campaignId={activeCampaign.id} ownerId={user.id}/>:
+       <div className="empty">{activeCampaign?'Servizio personaggi in preparazione.':'Seleziona una campagna dalla barra sinistra.'}</div>}
+    </>}
+    {!['home','campaigns','characters'].includes(section)&&<>
       <div className="overline">STRUMENTI DI GIOCO</div>
       <h1>{menu.find(m=>m.id===section)?.label}</h1>
       <div className="placeholder">

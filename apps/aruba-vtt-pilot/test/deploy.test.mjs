@@ -25,3 +25,9 @@ test('campaign edit migration is installed only after 008 in staging test databa
  assert.ok(s.indexOf('008_vtt_campaigns.sql')<s.indexOf('009_vtt_campaign_updates.sql'));
  assert.match(s,/-d hollowgate_auth_test < deploy\/aruba\/sql\/009_vtt_campaign_updates\.sql/);
 });
+
+test('character schema is applied after the campaigns before activating staging',()=>{
+ assert.match(s,/010_vtt_character_drafts\.sql/);
+ assert.ok(s.indexOf('009_vtt_campaign_updates.sql')<s.indexOf('010_vtt_character_drafts.sql'));
+ assert.match(s,/compose\.character-trial\.yaml/);
+});
