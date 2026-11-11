@@ -3,16 +3,34 @@ import {createRoot} from 'react-dom/client';
 import {loadPilotSession,logoutPilot,listOwnedCampaigns,createOwnedCampaign,RULESETS} from './client.mjs';
 import './styles.css';
 import IconStudy from './icon-study';
+import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,IdentificationBadgeIcon,GhostIcon,LightbulbIcon,BookmarkSimpleIcon,MapTrifoldIcon,ImageIcon,SwordIcon} from '@phosphor-icons/react';
 
 type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';campaignsEnabled:boolean};
 type Campaign={id:string;ownerId:string;name:string;description:string;ruleset:string;createdAt:string};
 type Status={state:'loading'}|{state:'unauthorized'}|{state:'error'}|{state:'ready';user:PilotUser};
-type Section='home'|'campaigns'|'characters'|'notes'|'maps'|'dice';
+type Section='home'|'campaigns'|'characters'|'chapters'|'preparation'|'sheets'|'npcs'|'monsters'|'clues'|'equipment'|'map'|'situations'|'phases'|'combat'|'assets';
 const fetcher=fetch.bind(window);
-const menu:[Section,string,string][]=[
-  ['home','◈','Panoramica'],['campaigns','▤','Campagne'],['characters','♙','Personaggi'],
-  ['notes','▧','Note'],['maps','◇','Mappe'],['dice','⬡','Dadi 3D'],
-];
+// Keep the independently tested original Hollowgate left/right navigation contract.
+const leftMenu=[
+ {id:'home',label:'Panoramica',Icon:HouseIcon},
+ {id:'characters',label:'Personaggi',Icon:UsersThreeIcon},
+ {id:'campaigns',label:'Campagne',Icon:ScrollIcon},
+] as const;
+const gmMenu=[
+ {id:'chapters',label:'Capitoli e Scene',Icon:GitBranchIcon},
+ {id:'preparation',label:'Preparazione',Icon:PlayIcon},
+ {id:'sheets',label:'Schede',Icon:FileTextIcon},
+ {id:'npcs',label:'PNG',Icon:IdentificationBadgeIcon},
+ {id:'monsters',label:'Mostri',Icon:GhostIcon},
+ {id:'clues',label:'Indizi',Icon:LightbulbIcon},
+ {id:'equipment',label:'Archivio Oggetti',Icon:BookmarkSimpleIcon},
+ {id:'map',label:'Mappa legacy',Icon:MapTrifoldIcon},
+ {id:'situations',label:'Eventi legacy',Icon:ScrollIcon},
+ {id:'phases',label:'Fasi di Gioco',Icon:PlayIcon},
+ {id:'combat',label:'Combattimento',Icon:SwordIcon},
+ {id:'assets',label:'Asset Grafici',Icon:ImageIcon},
+] as const;
+const menu=[...leftMenu,...gmMenu];
 function App(){
  const [status,setStatus]=useState<Status>({state:'loading'});
  const [section,setSection]=useState<Section>('home');
@@ -69,21 +87,22 @@ function App(){
   </section>
  </main>;
  return <div className="workspace">
-  <aside className="sidebar">
-   <div className="identity"><span className="mark">✧</span><span className="wordmark">HOLLOWGATE</span><small>VIRTUAL TABLETOP</small></div>
-   <div className="nav-caption">IL TUO SPAZIO</div>
-   <nav aria-label="Navigazione principale">
-    {menu.map(([id,icon,label])=><button key={id} type="button"
+  <aside className="primary-sidebar" aria-label="Navigazione principale">
+   <div className="primary-identity" aria-label="Hollowgate"><span className="mark">✧</span><span>HOLLOWGATE</span></div>
+   <nav className="primary-nav">
+    {leftMenu.map(({id,label,Icon})=><button key={id} type="button" aria-label={label}
       aria-current={section===id?'page':undefined}
-      className={'nav-link'+(section===id?' active':'')}
-      onClick={()=>setSection(id)}><span aria-hidden="true">{icon}</span>{label}
-      {id!=='home'&&id!=='campaigns'&&<small>prossimamente</small>}</button>)}
+      className={'primary-link'+(section===id?' active':'')}
+      onClick={()=>setSection(id)}><Icon size={22} weight="duotone" aria-hidden="true"/><span>{label}</span></button>)}
    </nav>
-   <div className="sidebar-footer"><span className="online-indicator"/> Sessione Aruba verificata</div>
+   <div className="primary-campaigns" aria-label="Campagne">
+    {campaigns.slice(0,4).map(c=><button key={c.id} type="button" title={c.name}
+      onClick={()=>setSection('campaigns')}><span aria-hidden="true">✧</span><small>{c.name}</small></button>)}
+   </div>
   </aside>
   <div className="main-area">
    <header className="topbar">
-    <div><span className="crumb">HOLLOWGATE / </span>{menu.find(m=>m[0]===section)?.[2]}</div>
+    <div><span className="crumb">HOLLOWGATE / </span>{menu.find(m=>m.id===section)?.label}</div>
     <div className="profile"><span className="avatar">{user.displayName.slice(0,1).toUpperCase()}</span>
      <span className="profile-name">{user.displayName}</span>
      <button type="button" className="logout" onClick={()=>void logout()} disabled={closing}>Esci</button></div>
@@ -118,7 +137,7 @@ function App(){
     </>}
     {!['home','campaigns'].includes(section)&&<>
       <div className="overline">STRUMENTI DI GIOCO</div>
-      <h1>{menu.find(m=>m[0]===section)?.[2]}</h1>
+      <h1>{menu.find(m=>m.id===section)?.label}</h1>
       <div className="placeholder">
        <span className="placeholder-mark">✧</span><h2>Un nuovo capitolo sta prendendo forma</h2>
        <p>Stiamo recuperando i componenti del VTT originale e collegandoli ai nuovi servizi Aruba.
@@ -127,6 +146,13 @@ function App(){
     </>}
    </main>
   </div>
+  <aside className="gm-sidebar" aria-label="Strumenti Game Master">
+   {gmMenu.map(({id,label,Icon},i)=><div key={id} className={i===7?'gm-group-break':''}>
+    <button type="button" aria-label={label} aria-current={section===id?'page':undefined}
+      className={'gm-link'+(section===id?' active':'')} onClick={()=>setSection(id)}>
+      <Icon size={19} weight="duotone" aria-hidden="true"/><span>{label}</span>
+    </button></div>)}
+  </aside>
   {showCreate&&user.campaignsEnabled&&<div className="modal-backdrop" role="presentation" onClick={()=>setShowCreate(false)}>
     <form onSubmit={event=>void create(event)} className="modal" aria-label="Nuova campagna" onClick={event=>event.stopPropagation()}>
      <div className="overline">NUOVA STORIA</div><h2>Crea una campagna</h2>

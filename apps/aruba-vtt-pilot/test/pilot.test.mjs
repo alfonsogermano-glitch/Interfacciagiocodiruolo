@@ -73,3 +73,21 @@ test('visual-only icon test keeps original left and right purposes distinct',()=
  assert.match(code,/DESTRA · STRUMENTI GM/);
  assert.doesNotMatch(code,/fetch\(/);
 });
+
+test('Aruba pilot preserves the original Hollowgate left/right rail positions',()=>{
+ const code=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+ const left=code.slice(code.indexOf('const leftMenu='),code.indexOf('const gmMenu='));
+ const right=code.slice(code.indexOf('const gmMenu='),code.indexOf('const menu='));
+ for(const text of ['Panoramica','Personaggi','Campagne'])assert.ok(left.includes("label:'"+text+"'"));
+ for(const text of ['Capitoli e Scene','Preparazione','Schede','PNG','Mostri','Indizi','Archivio Oggetti'])assert.ok(right.includes("label:'"+text+"'"));
+ assert.match(code,/id:'npcs',label:'PNG',Icon:IdentificationBadgeIcon/);
+ assert.match(code,/id:'monsters',label:'Mostri',Icon:GhostIcon/);
+ assert.match(code,/className="primary-sidebar"/);
+ assert.match(code,/className="gm-sidebar"/);
+ assert.ok(code.indexOf('className="primary-sidebar"')<code.indexOf('className="main-area"'));
+ assert.ok(code.indexOf('className="main-area"')<code.indexOf('className="gm-sidebar"'));
+ assert.match(css,/\.primary-sidebar\{width:100px/);
+ assert.match(css,/\.gm-sidebar\{width:80px/);
+ assert.doesNotMatch(code,/from ['"](?:@supabase\/supabase-js|lucide-react)['"]/);
+});

@@ -2,3 +2,24 @@
 /* Standalone visual-only comparison. Does not affect existing VTT layout. */
 .icon-study{min-height:100vh;background:#0c1117;color:#eae1d1;padding:34px max(18px,3vw)}
 .study-heading{display:flex;align-items:center;justify-content:space-between;gap:25px}.study-heading h1{font:normal 34px Georgia,serif}.study-heading p,.study-center p{color:#b5b7b7;line-height:1.7}.study-heading a{color:#e5ca99}.study-weights{display:flex;flex-wrap:wrap;gap:12px;margin:20px 0;padding:14px 18px;border:1px solid #62553f;border-radius:10px}.study-weights legend{color:#d1b583}.study-weights label{display:flex;align-items:center;gap:7px;text-transform:capitalize}.study-example{display:grid;grid-template-columns:115px minmax(0,1fr) 115px;min-height:550px;border:1px solid #6c5c43;border-radius:12px;overflow:hidden}.study-left,.study-right{background:#161c22;display:flex;flex-direction:column;gap:4px;padding:15px 8px}.study-left{border-right:1px solid #4d4437}.study-right{border-left:1px solid #4d4437}.study-region{font-size:9px;line-height:1.4;letter-spacing:.05em;color:#b9a27f;text-align:center;margin-bottom:15px}.study-item{display:flex;align-items:center;flex-direction:column;text-align:center;gap:5px;padding:10px 2px;color:#d1b583;font-size:10px}.study-item span{color:#ded5c6}.study-campaigns{border-top:1px solid #4d4437;padding-top:12px;text-align:center;color:#aaa;font-size:9px}.study-campaign{background:#2b2c2b;border:1px solid #8c754e;border-radius:7px;padding:12px 3px;margin-top:10px}.study-center{padding:35px 5vw}.study-center h2{font:normal 28px Georgia,serif}.study-center h3{font:normal 21px Georgia,serif;margin-top:32px}.study-icons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.study-icons>div{display:flex;flex-direction:column;align-items:center;gap:6px;border:1px solid #4b4438;border-radius:8px;padding:17px;color:#d1b583}.study-icons span{color:#e2d7c4;font-size:12px}.study-warning{margin-top:25px;font-size:12px}@media(max-width:700px){.study-example{grid-template-columns:95px minmax(0,1fr) 95px}.study-center{padding:20px 12px}.study-icons{grid-template-columns:repeat(2,1fr)}.study-heading{flex-direction:column;align-items:flex-start}.study-item{font-size:9px}}
+
+/* Aruba migration: preserve original VTT 100px-left / 80px-right rail arrangement.
+   The existing login + campaigns remain functional; other GM sections fail closed. */
+.workspace{height:100vh;min-height:0;overflow:hidden}
+.primary-sidebar,.gm-sidebar{flex-shrink:0;height:100vh;overflow-y:auto;background:#11120f;color:#ddceaf}
+.primary-sidebar{width:100px;border-right:1px solid #57432b;display:flex;flex-direction:column;padding:12px 8px}
+.primary-identity{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:8px;letter-spacing:.04em;text-align:center;border-bottom:1px solid #594629;padding:0 0 12px;margin:0 0 12px}
+.primary-identity .mark{font-size:45px;line-height:1.3}
+.primary-nav{display:flex;flex-direction:column;gap:4px}
+.primary-link,.gm-link{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;background:transparent;border:0;border-radius:8px;color:#d9c5a0;text-align:center;gap:5px;line-height:1.15;min-height:57px;padding:7px 2px}
+.primary-link span,.gm-link span{font-size:10px}
+.primary-link.active,.gm-link.active,.primary-link:hover,.gm-link:hover{background:#544027;color:#ffe2a3}
+.primary-campaigns{margin-top:14px;border-top:1px solid #57432b;padding-top:10px;display:flex;flex-direction:column;gap:7px}
+.primary-campaigns button{background:#302719;color:#d8bf96;border:1px solid #6d5430;border-radius:8px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px}
+.primary-campaigns small{font-size:9px;overflow-wrap:anywhere}
+.gm-sidebar{width:80px;border-left:1px solid #57432b;display:flex;flex-direction:column;gap:3px;padding:12px 5px}
+.gm-link span{font-size:10px}
+.gm-group-break{margin-top:12px;border-top:1px solid #57432b;padding-top:12px}
+.main-area{height:100vh;overflow:auto}
+@media(max-width:900px){.primary-sidebar{width:100px;padding:12px 8px}.gm-sidebar{width:80px;padding:12px 5px}.primary-identity{margin-bottom:12px}.main-area{min-width:0}.topbar{padding:0 16px}}
+@media(max-width:560px){.primary-sidebar{width:100px}.gm-sidebar{width:80px}.primary-campaigns{display:none}.content{padding:20px 12px}.topbar{padding:0 10px}}
