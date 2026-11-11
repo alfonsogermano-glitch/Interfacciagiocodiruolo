@@ -1,0 +1,27 @@
+name: Hybrid GM Host WebSocket smoke
+on:
+  pull_request:
+    paths:
+      - 'experiments/gm-host-ws/**'
+      - '.github/workflows/hybrid-gm-host-ws.yml'
+  workflow_dispatch:
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install WebSocket dependency
+        working-directory: experiments/gm-host-ws
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Check syntax
+        working-directory: experiments/gm-host-ws
+        run: |
+          node --check server.mjs
+          node --check session.mjs
+          node --check public/client.js
+      - name: Tests
+        working-directory: experiments/gm-host-ws
+        run: npm test
