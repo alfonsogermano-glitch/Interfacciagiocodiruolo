@@ -22,6 +22,7 @@ export function createVttClient({send,onState=()=>{},onAck=()=>{},onError=()=>{}
   if(awaitingResync)return;
   const changes=frame.changes;
   if(changes.scene!==undefined)state.scene=structuredClone(changes.scene);
+  if(changes.activeScene!==undefined)state.activeScene=structuredClone(changes.activeScene);
   if(changes.token){
    const token=changes.token;
    if(typeof token.tokenId!=='string'||!Array.isArray(state.tokens))return;
