@@ -43,3 +43,11 @@ Il laboratorio dispone ora di un protocollo `vtt:*` separato dai messaggi `hello
 **Limiti attuali:** campagna di laboratorio fissa `demo`, archivio VTT di laboratorio in memoria, comandi limitati a scene e token semplificati; nessuna persistenza delle scene VTT reali, nessuna autorizzazione individuale verificata dall'account Hollowgate, e nessuna integrazione attiva con i componenti React. Il protocollo è una base testata, non il rilascio del VTT completo.
 
 Prossima implementazione: schema condiviso con `activeScene` e adapter `campaignChannel` in modalità GM Host, mantenendo il comportamento Supabase/locale finché non è dimostrata equivalenza mediante test.
+
+## Adattatore React isolato implementato
+
+- `src/services/realtime/gmHostReactBridge.ts`: client TypeScript opt-in che si autentica con l'host WebSocket, applica le patch in sequenza, scarta gli snapshot obsoleti e richiede un nuovo snapshot se rileva un salto di sequenza. Permette i comandi `publishScene`, `assignToken` e `moveToken` soltanto dopo l'autenticazione.
+- `src/services/realtime/useGmHostSession.ts`: hook React opt-in che espone stato, scena e token semplificati e pulisce le connessioni allo smontaggio.
+- `scripts/verify-gm-host-react-bridge.mts`: test del client usando WebSocket simulati e verifica degli eventi fuori ordine.
+
+**Importante:** questo hook non sostituisce ancora `campaignChannel.ts`, non supporta ancora `ActiveScenePublication` completo, e non viene montato automaticamente nelle schermate della produzione. È una base di compatibilità con React, mantenuta fuori dalla normale gestione delle campagne per evitare perdite di dati e permessi. Il prossimo passo è estendere il protocollo a scene complete con autorizzazioni per campagna e testarne la conversione in un'adattatore degli eventi `active_scene_change` e `active_scene_map_patch`.
