@@ -34,7 +34,7 @@ test('duplicate event ids do not apply twice, sequence gap requests full resync'
  assert.equal(v.handle(gm,publish),true);
  assert.equal(last(gm,'vtt:ack').status,'duplicate');
  assert.equal(last(p,'vtt:patch').sequence,seq);
- assert.equal(v.handle(p,{type:'vtt:resync',version:1,campaignId:'demo',lastSequence:seq-3}),true);
+ assert.equal(v.handle(p,{type:'vtt:resync',version:1,campaignId:'demo',lastSequence:0}),true);
  assert.equal(last(p,'vtt:snapshot').sequence,seq);
  assert.equal(v.handle(p,{type:'vtt:resync',version:1,campaignId:'wrong',lastSequence:0}),true);
  assert.equal(last(p,'vtt:error').code,'campaign_mismatch');
