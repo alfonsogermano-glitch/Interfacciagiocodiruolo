@@ -19,7 +19,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Pure logic regression tests
+      - name: Install WebSocket runtime for integration tests
+        working-directory: experiments/gm-host-ws
+        run: npm install --omit=dev --ignore-scripts --no-audit --no-fund
+      - name: Protocol and real WebSocket integration tests
         working-directory: experiments/gm-host-ws
         run: node --test test/*.test.mjs
       - name: Syntax verification
