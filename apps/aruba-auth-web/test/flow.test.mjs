@@ -118,9 +118,9 @@ test('pilot Caddy routes are Basic-Auth protected and bootstrap precedes assets'
   const config=readFileSync(new URL('../../../deploy/aruba/Caddyfile.auth-trial',import.meta.url),'utf8');
   const overlay=readFileSync(new URL('../../../deploy/aruba/compose.edge-auth-trial.yaml',import.meta.url),'utf8');
   assert.match(config,/@trialProtected path .*\/vtt\/\* \/vtt/);
-  assert.match(config,/handle \/vtt\/bootstrap \{/);
-  assert.ok(config.indexOf('handle /vtt/bootstrap')<config.indexOf('handle_path /vtt/*'));
-  assert.match(config,/handle \/vtt\/bootstrap \{[\s\S]*?reverse_proxy aruba-auth-staging:3000/);
+  assert.match(config,/@vttDataAPI path \/vtt\/bootstrap \/vtt\/campaigns/);
+  assert.ok(config.indexOf('handle @vttDataAPI')<config.indexOf('handle_path /vtt/*'));
+  assert.match(config,/handle @vttDataAPI \{[\s\S]*?reverse_proxy aruba-auth-staging:3000/);
   assert.match(config,/handle_path \/vtt\/\*/);
   assert.match(overlay,/\/srv\/vtt-pilot:ro/);
 });

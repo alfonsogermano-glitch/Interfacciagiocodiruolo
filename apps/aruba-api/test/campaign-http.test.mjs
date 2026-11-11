@@ -30,7 +30,7 @@ test('authenticated owner is derived from cookie and other users are isolated',a
  const entries=[{id:'campaign-1',ownerId:ownerA}];
  const campaigns={
   list:async id=>({campaigns:entries.filter(c=>c.ownerId===id)}),
-  create:async (id,body)=>({campaign:{id:'campaign-2',ownerId:id,...body}}),
+  create:async (id,body)=>({campaign:{id:'campaign-2',...body,ownerId:id}}),
  };
  await serve(request({id:ownerB,role:'standard'},campaigns),async base=>{
   const cookie={cookie:'__Host-hg_session='+token};
