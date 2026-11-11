@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {loadPilotSession,logoutPilot,listOwnedCampaigns,createOwnedCampaign,updateOwnedCampaign,RULESETS} from './client.mjs';
 import './styles.css';
 import IconStudy from './icon-study';
+import {ArubaQuickDice} from './ArubaQuickDice';
 import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,IdentificationBadgeIcon,GhostIcon,LightbulbIcon,BookmarkSimpleIcon,MapTrifoldIcon,ImageIcon,SwordIcon} from '@phosphor-icons/react';
 
 type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';campaignsEnabled:boolean};
@@ -180,6 +181,7 @@ function App(){
   </aside>
    </div>
   </div>
+  {activeCampaign&&<ArubaQuickDice campaignId={activeCampaign.id} userId={user.id} rollerName={user.displayName}/>}
   {showEdit&&activeCampaign&&user.campaignsEnabled&&<div className="modal-backdrop" role="presentation" onClick={()=>setShowEdit(false)}>
     <form onSubmit={event=>void editCampaign(event)} className="modal" aria-label="Modifica campagna" onClick={event=>event.stopPropagation()} key={activeCampaign.id}>
       <div className="overline">MODIFICA CAMPAGNA</div><h2>Modifica {activeCampaign.name}</h2>

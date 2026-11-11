@@ -21,3 +21,9 @@ Aggiunto `PATCH /vtt/campaigns/:id`, per cambiare soltanto **nome** e **descrizi
 Lo script di attivazione applica ora 008 e **009**, in ordine, esclusivamente al database `hollowgate_auth_test`, prima di avviare l'API aggiornata. Questo modifica lo staging test: eseguire solo dopo CI positiva e controllo del server. La produzione e gli account reali non vengono toccati.
 
 La dashboard Aruba mantiene 100 px a sinistra, 80 px a destra. Permette la selezione e la modifica dei metadati delle campagne effettivamente restituite dall'API; i componenti PG/PNG, note e sessioni originali devono ancora essere portati.
+
+## Recupero autentico del motore dadi
+
+Il portale Aruba riutilizza il **motore di calcolo originale** `diceEngine.ts` e `diceQuickRollState.ts` senza copiare o modificare gli algoritmi. La selezione standard d4/d6/d8/d10/d12/d20/d100, accumulo, rimozione, lancio e visualizzazione risultati sono ora collegati a una campagna Aruba selezionata. Il generatore usa `crypto.getRandomValues` originale anziché `Math.random`. L'interfaccia di tiro rapido è ancorata alla parte bassa sinistra dell'area di gioco, come nella disposizione precedente.
+
+**Limite esplicito:** solo cronologia di sessione locale in memoria, non viene salvata e non viene trasmessa ai giocatori. Il vecchio overlay 3D, le formule, i dadi personalizzati, la chat tiri condivisa e le skin non sono ancora collegati. Non presentare questo recupero come multiplayer pronto; in particolare i tiri segreti richiedono il trasporto e i ruoli di campagna.

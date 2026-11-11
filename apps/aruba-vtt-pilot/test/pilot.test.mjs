@@ -135,3 +135,19 @@ test('right GM sidebar starts beneath the full-width top bar, as in original App
  assert.match(css,/\.topbar\{flex-shrink:0\}/);
  assert.doesNotMatch(css,/\.gm-sidebar\{[^}]*margin-top:/);
 });
+
+test('Aruba lobby reuses the ORIGINAL dice game engine and quick-roll state without Supabase',()=>{
+ const main=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
+ const src=readFileSync(new URL('../src/ArubaQuickDice.tsx',import.meta.url),'utf8');
+ const engine=readFileSync(new URL('../../../src/app/components/session/dice/diceEngine.ts',import.meta.url),'utf8');
+ assert.match(main,/activeCampaign&&<ArubaQuickDice campaignId=\{activeCampaign\.id\} userId=\{user\.id\}/);
+ assert.match(src,/import \{rollDiceFormula\} from '\.\.\/\.\.\/\.\.\/src\/app\/components\/session\/dice\/diceEngine\.ts'/);
+ assert.match(src,/addStandardQuickDie,buildQuickRollItems,clearQuickRoll,decrementQuickDie/);
+ assert.match(src,/identity:\{campaignId,rollerId:userId,rollerName\}/);
+ assert.match(src,/formulaName:'Tiro rapido',visibility:'public'/);
+ assert.match(src,/useEffect\(\(\)=>\{[\s\S]*setEntries\(\[\]\);setHistory\(\[\]\)/);
+ assert.match(src,/Solo in questo browser/);
+ assert.doesNotMatch(src,/supabase|sessionStorage|localStorage|Math\.random/);
+ assert.match(engine,/cryptoDiceRng/);
+ assert.match(engine,/validateDiceFormula/);
+});

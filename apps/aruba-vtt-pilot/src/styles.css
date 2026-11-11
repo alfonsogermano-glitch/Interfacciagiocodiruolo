@@ -37,3 +37,23 @@
 .selected-campaign h2{margin:10px 0}.selected-campaign p{color:#c3b9a9;line-height:1.5}
 .primary-campaigns button[aria-pressed=true]{border-color:#e2bd80;background:#544027}
 .campaign-context{color:#e6c38d}
+
+/* The legacy quick roll lives near the lower left edge of the playable area, not in a sidebar.
+   Local-only result history is deliberately not presented as multiplayer chat. */
+.aruba-dice-floating{position:fixed;left:112px;bottom:18px;z-index:20;display:flex;align-items:flex-end;gap:7px}
+.aruba-dice-toggle,.aruba-dice-history-toggle{display:grid;place-items:center;background:#332718;color:#f0d29a;border:1px solid #9b7847;border-radius:100%;box-shadow:0 4px 20px #0008}
+.aruba-dice-toggle{width:46px;height:46px}.aruba-dice-history-toggle{position:relative;width:26px;height:26px;margin-bottom:9px}
+.aruba-dice-unread{position:absolute;right:-2px;top:-2px;width:8px;height:8px;background:#e0ad59;border-radius:50%}
+.aruba-dice-palette,.aruba-dice-history{border:1px solid #8b6b42;background:#181914f5;color:#ecdfc7;box-shadow:0 8px 30px #0009;border-radius:12px;padding:12px;min-width:250px;max-width:min(560px,calc(100vw - 210px))}
+.aruba-dice-palette{max-height:45vh;overflow:auto}
+.aruba-dice-types,.aruba-dice-actions,.aruba-dice-selected{display:flex;flex-wrap:wrap;gap:6px}
+.aruba-dice-types button,.aruba-dice-selected button{position:relative;background:#30291f;border:1px solid #715836;color:#e8d1aa;border-radius:7px;padding:10px;min-width:44px}
+.aruba-dice-types small{position:absolute;right:-3px;top:-7px;background:#ab8854;color:#16140d;border-radius:10px;font-size:10px;padding:1px 5px}
+.aruba-dice-actions{margin-top:10px;align-items:center}.aruba-dice-actions button,.aruba-dice-history-head button{padding:6px 11px;border:1px solid #aa8a53;border-radius:6px;background:#a78955;color:#191710}
+.aruba-dice-actions .secondary{background:transparent;color:#d0b98e}.aruba-dice-selected{margin-top:9px}
+.aruba-dice-history{position:absolute;bottom:60px;left:0;max-height:45vh;overflow-y:auto;min-width:290px}
+.aruba-dice-history-head{display:flex;justify-content:space-between;align-items:center}
+.aruba-dice-history p{font-size:11px;color:#bfb49f}.aruba-dice-history ol{padding:0;list-style:none}
+.aruba-dice-history li{display:flex;align-items:center;justify-content:space-between;gap:14px;border-top:1px solid #53452e;padding:7px 0;font-size:12px}
+.aruba-dice-history li strong{font-size:19px}.aruba-dice-error{position:absolute;bottom:65px;left:0;border:1px solid #b66d66;background:#402428;padding:9px;border-radius:6px;min-width:260px}
+@media(max-width:560px){.aruba-dice-floating{left:105px;bottom:10px}.aruba-dice-palette{position:absolute;bottom:55px;left:0;max-width:calc(100vw - 130px)}.aruba-dice-history{max-width:calc(100vw - 130px);min-width:230px}}
