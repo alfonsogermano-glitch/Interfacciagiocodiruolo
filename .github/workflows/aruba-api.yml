@@ -1,0 +1,29 @@
+name: Aruba API staging
+on:
+  push:
+    branches:
+      - feature/aruba-api-foundation
+    paths:
+      - 'apps/aruba-api/**'
+      - 'deploy/aruba/**'
+      - '.github/workflows/aruba-api.yml'
+  pull_request:
+    paths:
+      - 'apps/aruba-api/**'
+      - 'deploy/aruba/**'
+      - '.github/workflows/aruba-api.yml'
+
+jobs:
+  api-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/aruba-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm test
+      - run: docker build -t hollowgate-aruba-api:test .
