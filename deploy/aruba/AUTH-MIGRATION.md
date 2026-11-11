@@ -34,3 +34,9 @@ An internal PostgreSQL bucket table for per-account and per-network rate limits 
 ## Session repository (internal, NOT deployed)
 
 The API's session repository reads user identity and authorization role from PostgreSQL on each call, checks session expiration/revocation and user active/verified status, and revokes an opaque session token by hash. `/auth/me` and `/auth/logout` can be wired to these repository functions only after the API runs as a restricted PostgreSQL role and HTTPS proxy/client trust is configured and tested. Supabase sessions are not valid Aruba sessions.
+
+## Least-privilege application identity (005_auth_runtime_role.sql)
+
+Create a `NOLOGIN` group role `hollowgate_api_runtime` with only the SELECT/INSERT/UPDATE privileges currently required by the internal login/session services. It cannot change account roles, password credentials, raw password-action tokens, tables, or session identity fields. The CI test runs successful operations and privilege-escalation attempts using `SET ROLE`.
+
+**Deployment is not yet authorized:** before applying this or any other auth schema to Aruba, create and verify an off-host backup, provision a separate login principal with a locally generated database password, decide secret provisioning without exposing it in chat or Git, and configure Compose to use that principal instead of the initial `hollowgate` owner. The initial Compose service stays unchanged for now. The password recovery workflow must be designed separately; do not grant broader access merely to make it work.
