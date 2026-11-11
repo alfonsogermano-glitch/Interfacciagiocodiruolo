@@ -131,7 +131,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         const body=await readJson(req);
         return response(res,201,await campaigns.create(user.id,body));
       }
-      if(campaigns && new RegExp('^/vtt/campaigns/[0-9a-f-]{36}
+      if(campaigns && req.url?.startsWith('/vtt/campaigns/') && req.url.length === '/vtt/campaigns/'.length + 36 && req.method==='PATCH'){
         const token=extractSession(req);
         if(!token)return response(res,401,{error:'Non autenticato'});
         const user=await getSessionUser(token);
