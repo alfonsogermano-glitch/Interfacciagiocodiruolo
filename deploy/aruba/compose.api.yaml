@@ -1,0 +1,34 @@
+# Staging only. Run alongside the existing hollowgate PostgreSQL container.
+# Does not change the existing backend demo or publish an internet-accessible port.
+services:
+  aruba-api:
+    build:
+      context: ../../apps/aruba-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3002:3000"
+    environment:
+      PORT: "3000"
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: hollowgate
+      PGDATABASE: hollowgate
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    networks:
+      - hollowgate-db
+      - default
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+secrets:
+  postgres_password:
+    file: /opt/hollowgate/config/postgres_password
+
+networks:
+  hollowgate-db:
+    external: true
+    name: hollowgate-db
