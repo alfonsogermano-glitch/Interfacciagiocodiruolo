@@ -147,7 +147,7 @@ function App(){
        <span>Avvia una nuova storia e diventa Game Master.</span></button>
       <button type="button" className="quick-card" onClick={()=>setSection('characters')}>
        <span className="quick-symbol">♙</span><strong>Crea personaggio</strong>
-       <span>I personaggi saranno disponibili dopo la migrazione dei dati.</span></button>
+       <span>Apri le schede del regolamento HSC recuperate su Aruba.</span></button>
       <button type="button" className="quick-card" onClick={()=>setSection('campaigns')}>
        <span className="quick-symbol">⌁</span><strong>Unisciti a una sessione</strong>
        <span>Inviti e partecipazioni verranno abilitati con i relativi permessi.</span></button>
@@ -161,7 +161,7 @@ function App(){
        <button type="button" onClick={()=>setShowCreate(true)} disabled={!user.campaignsEnabled}>+ Nuova campagna</button></div>
       {campaignError&&<p className="error" role="alert">{campaignError}</p>}
       <CampaignList campaigns={campaigns} loading={campaignLoading} enabled={user.campaignsEnabled} activeId={activeCampaignId} onOpen={openCampaign}/>
-      {activeCampaign&&<section className="selected-campaign" aria-label="Campagna selezionata"><div className="overline">CAMPAGNA SELEZIONATA · GAME MASTER</div><h2>{activeCampaign.name}</h2><p>{activeCampaign.description||'Nessuna descrizione'}</p><p>Regolamento: {RULESETS[activeCampaign.ruleset as keyof typeof RULESETS]}</p><p className="footnote">La campagna è stata riletta dall’API Aruba. Schede, note, mappe e sessioni non sono ancora collegate: non vengono creati dati fittizi.</p><button type="button" onClick={()=>setShowEdit(true)}>Modifica nome e descrizione</button><button type="button" onClick={()=>{setActiveCampaignId(null);setShowEdit(false);}}>Chiudi selezione</button></section>}
+      {activeCampaign&&<section className="selected-campaign" aria-label="Campagna selezionata"><div className="overline">CAMPAGNA SELEZIONATA · GAME MASTER</div><h2>{activeCampaign.name}</h2><p>{activeCampaign.description||'Nessuna descrizione'}</p><p>Regolamento: {RULESETS[activeCampaign.ruleset as keyof typeof RULESETS]}</p><p className="footnote">La campagna è stata riletta dall’API Aruba. L'editor originale HSC è ora collegato ad Aruba nella sezione Personaggi. Note, mappe e sessioni restano da migrare.</p><button type="button" onClick={()=>setShowEdit(true)}>Modifica nome e descrizione</button><button type="button" onClick={()=>{setActiveCampaignId(null);setShowEdit(false);}}>Chiudi selezione</button></section>}
       {user.campaignsEnabled&&<p className="footnote">Le campagne Aruba sono nuove e separate dai dati storici Supabase. Le partecipazioni dei giocatori non sono ancora abilitate.</p>}
     </>}
     {section==='characters'&&<>
