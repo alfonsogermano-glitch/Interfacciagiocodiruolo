@@ -79,3 +79,9 @@ Before any real send:
 2. Copy **only provider-generated** SPF/DKIM and return-path records to the authoritative Namecheap DNS panel. Do not replace existing MX/website records or publish guessed DNS values. Verify the sending domain in the provider dashboard.
 3. Issue a minimally scoped sending API key, provision it locally on Aruba as a protected secret (not in Git/chat), and test deliverability to an address you control.
 4. Implement rate-limited reset requests, atomic one-time token redemption, email verification, trusted redirects, server-side audit and outbound delivery logs **without storing raw reset URLs/tokens**. Never send real password-reset links while the staging URL has no verified frontend that can redeem them.
+
+## Password reset implementation (not activated)
+
+Added apps/aruba-api/src/password-reset-service.mjs with unit tests and deploy/aruba/sql/006_password_reset_runtime.sql. The migration has NOT been applied; the service is NOT imported by the running API and the Caddy edge still exposes only /health and /ready. No real users or credentials have been modified.
+
+The service accepts reset requests with per-account and per-network HMAC-hashed database counters, uses identical generic acknowledgement for unknown and existing accounts, and emails a 256-bit opaque token to verified active accounts only. Only SHA-256 token digests are stored; action expires in 30 minutes. Redemption claims an unconsumed token atomically inside the same database transaction that updates Argon2id credentials and revokes all existing sessions. Failures roll back the transaction. Production activation still requires test database permission rehearsal, concurrent redemption tests against PostgreSQL, verified browser frontend, Origin/CSRF checks, abuse defense at proxy boundaries, Docker secret mounting for Resend, and email verification/registration workflows.
