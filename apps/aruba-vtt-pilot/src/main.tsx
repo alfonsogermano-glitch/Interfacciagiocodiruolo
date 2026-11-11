@@ -165,9 +165,9 @@ function App(){
       {user.campaignsEnabled&&<p className="footnote">Le campagne Aruba sono nuove e separate dai dati storici Supabase. Le partecipazioni dei giocatori non sono ancora abilitate.</p>}
     </>}
     {section==='characters'&&<>
-      {user.charactersEnabled&&activeCampaign?
-       <ArubaCharacterDrafts campaignId={activeCampaign.id} ownerId={user.id} ruleset={activeCampaign.ruleset}/>:
-       <div className="empty">{activeCampaign?'Servizio personaggi in preparazione.':'Seleziona una campagna dalla barra sinistra.'}</div>}
+      {user.charactersEnabled?
+       <ArubaCharacterDrafts campaigns={campaigns} activeCampaignId={activeCampaignId} ownerId={user.id}/>:
+       <div className="empty">Servizio personaggi in preparazione.</div>}
     </>}
     {!['home','campaigns','characters'].includes(section)&&<>
       <div className="overline">STRUMENTI DI GIOCO</div>

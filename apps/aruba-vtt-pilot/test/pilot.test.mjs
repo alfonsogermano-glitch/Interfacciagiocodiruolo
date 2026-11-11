@@ -173,7 +173,7 @@ test('characters section links real Aruba draft storage without replacing origin
  const main=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
  const draft=readFileSync(new URL('../src/ArubaCharacterDrafts.tsx',import.meta.url),'utf8');
  assert.match(main,/section==='characters'/);
- assert.match(main,/user.charactersEnabled&&activeCampaign/);
+ assert.match(main,/user.charactersEnabled\?/);
  assert.match(draft,/CharacterCreationWizard/);
  assert.doesNotMatch(draft,/supabase|localStorage|sessionStorage/);
 });
@@ -184,7 +184,7 @@ test('original HSC wizard mounts unmodified, with Aruba-only image dependency an
  const original=readFileSync(new URL('../../../src/app/components/gm/CharacterCreationWizard.tsx',import.meta.url),'utf8');
  const shim=readFileSync(new URL('../src/ArubaImagePending.tsx',import.meta.url),'utf8');
  assert.match(page,/from '\.\.\/\.\.\/\.\.\/src\/app\/components\/gm\/CharacterCreationWizard'/);
- assert.match(page,/ruleset==='hsc'/);
+ assert.match(page,/rulesetFor\(editing.campaignId\)==='hsc'/);
  assert.match(page,/onAdd=\{character=>\{void save\(character\);\}\}/);
  assert.match(vite,/aruba-legacy-image-safety/);
  assert.match(vite,/ImageCropUploadModal/);
@@ -272,4 +272,15 @@ test('Aruba imports original EntityCard and FilterToolbar visual components, wit
  assert.match(vite,/ArubaPortraitPending/);
  assert.match(css,/EntityCard\.tsx/);
  assert.match(original,/DraggablePortrait/);
+});
+
+test('global personaggi catalog loads all owned Aruba campaigns without requiring one selected',()=>{
+ const main=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
+ const page=readFileSync(new URL('../src/ArubaCharacterDrafts.tsx',import.meta.url),'utf8');
+ assert.match(main,/<ArubaCharacterDrafts campaigns=\{campaigns\} activeCampaignId=\{activeCampaignId\} ownerId=\{user.id\}/);
+ assert.match(page,/Promise\.all\(campaigns.map\(c=>listCharacterDrafts\(fetch,c.id,ownerId\)\)\)/);
+ assert.match(page,/campaignNameFor\(d.campaignId\)/);
+ assert.match(page,/campaignId=\{viewing.campaignId\}/);
+ assert.match(page,/Seleziona una campagna High School Cthulhu/);
+ assert.doesNotMatch(page,/localStorage|sessionStorage|supabase\.from/);
 });

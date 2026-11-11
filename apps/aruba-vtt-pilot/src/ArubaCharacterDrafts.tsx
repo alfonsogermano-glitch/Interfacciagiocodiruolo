@@ -11,8 +11,9 @@ import type {Character} from '../../../src/types/character';
 type HscCharacter=Character & {player:string;notes:string};
 type Draft={id:string;campaignId:string;ownerId:string;name:string;status:'draft'|'active';sheetData:Record<string,unknown>;createdAt?:string;updatedAt?:string};
 
-export function ArubaCharacterDrafts({campaignId,ownerId,ruleset}:{
- campaignId:string;ownerId:string;ruleset:string;
+type OwnedCampaign={id:string;name:string;ruleset:string};
+export function ArubaCharacterDrafts({campaigns,activeCampaignId,ownerId}:{
+ campaigns:OwnedCampaign[];activeCampaignId:string|null;ownerId:string;
 }){
  const [drafts,setDrafts]=useState<Draft[]>([]);
  const [loading,setLoading]=useState(true);
@@ -26,21 +27,31 @@ export function ArubaCharacterDrafts({campaignId,ownerId,ruleset}:{
  const [sort,setSort]=useState<SortMode>('recent');
  const [viewMode,setViewMode]=useState<ViewMode>('grid');
  const [filtersOpen,setFiltersOpen]=useState(false);
- const [filter,setFilter]=useState<'all'|'completed'|'draft'>('all');
+ const [filter,setFilter]=useState<'all'|'assigned'|'unassigned'>('all');
+ const [campaignFilter,setCampaignFilter]=useState('');
+ const [statusFilter,setStatusFilter]=useState<'all'|'completed'|'draft'>('all');
  const [page,setPage]=useState(1);
  const [pageSize,setPageSize]=useState(9);
  const savingRef=useRef(false);
  useEffect(()=>{
   let active=true;
   setDrafts([]);setEditingId(null);setViewingId(null);setCreating(false);setLoading(true);setError(null);
-  void listCharacterDrafts(fetch,campaignId,ownerId).then(list=>{if(active)setDrafts(list);})
-   .catch(e=>{if(active)setError(e instanceof Error?e.message:'Errore caricamento');})
+  void Promise.all(campaigns.map(c=>listCharacterDrafts(fetch,c.id,ownerId))).then(groups=>{
+   if(active)setDrafts(groups.flat());
+  }).catch(e=>{if(active)setError(e instanceof Error?e.message:'Errore caricamento');})
    .finally(()=>{if(active)setLoading(false);});
   return ()=>{active=false;};
- },[campaignId,ownerId]);
- useEffect(()=>setPage(1),[search,sort,filter,tab,pageSize]);
- const filtered=drafts.filter(d=>(filter==='all'||(filter==='completed'?d.status==='active':d.status==='draft'))
-  &&[d.name,String(d.sheetData.style??''),String(d.sheetData.viaggio??'')].some(value=>value.toLocaleLowerCase('it').includes(search.toLocaleLowerCase('it').trim())));
+ },[campaigns,ownerId]);
+ useEffect(()=>setPage(1),[search,sort,filter,campaignFilter,statusFilter,tab,pageSize]);
+ const activeCampaign=campaigns.find(c=>c.id===activeCampaignId);
+ const canCreate=activeCampaign?.ruleset==='hsc';
+ const rulesetFor=(id:string)=>campaigns.find(c=>c.id===id)?.ruleset??'';
+ const campaignNameFor=(id:string)=>campaigns.find(c=>c.id===id)?.name??'Campagna non disponibile';
+ const filtered=drafts.filter(d=>(filter!=='unassigned')&&
+  (statusFilter==='all'||(statusFilter==='completed'?d.status==='active':d.status==='draft'))&&
+  (!campaignFilter||d.campaignId===campaignFilter)&&
+  [d.name,String(d.sheetData.style??''),String(d.sheetData.viaggio??''),campaignNameFor(d.campaignId)]
+   .some(value=>value.toLocaleLowerCase('it').includes(search.toLocaleLowerCase('it').trim())));
  filtered.sort((a,b)=>sort==='name'?a.name.localeCompare(b.name,'it'):sort==='name-desc'?b.name.localeCompare(a.name,'it'):
   sort==='oldest'?(Date.parse(a.createdAt??'')||0)-(Date.parse(b.createdAt??'')||0):
   sort==='updated'?(Date.parse(b.updatedAt??'')||0)-(Date.parse(a.updatedAt??'')||0):
@@ -55,6 +66,8 @@ export function ArubaCharacterDrafts({campaignId,ownerId,ruleset}:{
   savingRef.current=true;setPending(true);setError(null);
   try{
    let target=editing;
+   const campaignId=creating?activeCampaign?.id:editing?.campaignId;
+   if(!campaignId)throw Error('Seleziona prima la campagna dalla barra sinistra');
    if(creating){
     const draft=await createCharacterDraft(fetch,campaignId,character.name,ownerId);
     target=draft;
@@ -78,7 +91,8 @@ export function ArubaCharacterDrafts({campaignId,ownerId,ruleset}:{
     </div>
     {tab==='characters'&&<div className="aruba-character-toolbar-actions">
      <button type="button" className="aruba-invite-disabled" disabled title="Inviti disponibili dopo il recupero delle sessioni">Hai un codice invito?</button>
-     <button type="button" className="aruba-new-character" disabled={pending||ruleset!=='hsc'}
+     <button type="button" className="aruba-new-character" disabled={pending||!canCreate}
+      title={!canCreate?'Seleziona una campagna High School Cthulhu nella barra sinistra':undefined}
       onClick={()=>{setError(null);setEditingId(null);setCreating(true);}}><Plus size={16}/>Nuovo personaggio</button>
     </div>}
    </div>
@@ -89,30 +103,38 @@ export function ArubaCharacterDrafts({campaignId,ownerId,ruleset}:{
       sort={sort} onSortChange={setSort} viewMode={viewMode} onViewModeChange={setViewMode}
       filtersOpen={filtersOpen} onToggleFilters={()=>setFiltersOpen(open=>!open)}
       filtersPanel={<div className="aruba-character-filter-panel">
+       <label>Campagna
+        <select value={campaignFilter} onChange={e=>setCampaignFilter(e.target.value)}>
+         <option value="">Tutte le campagne</option>
+         {campaigns.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+       </label>
        <label>Stato scheda
-        <select value={filter} onChange={e=>setFilter(e.target.value as typeof filter)}>
+        <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value as typeof statusFilter)}>
          <option value="all">Tutte</option><option value="completed">Schede completate</option><option value="draft">Bozze</option>
         </select>
        </label>
-       <span>Al momento sono visualizzati i personaggi della campagna selezionata. L'archivio globale originale richiede la migrazione delle assegnazioni.</span>
+       <span>Personaggi di tutte le campagne Aruba di tua proprietà. I personaggi non assegnati e quelli dei giocatori richiedono la migrazione dei permessi.</span>
       </div>}>
       <div className="aruba-character-filter-pills">
        <button type="button" aria-pressed={filter==='all'} onClick={()=>setFilter('all')}>Tutti ({drafts.length})</button>
-       <button type="button" aria-pressed={filter==='completed'} onClick={()=>setFilter('completed')}>Completati ({drafts.filter(d=>d.status==='active').length})</button>
-       <button type="button" aria-pressed={filter==='draft'} onClick={()=>setFilter('draft')}>Bozze ({drafts.filter(d=>d.status==='draft').length})</button>
+       <button type="button" aria-pressed={filter==='assigned'} onClick={()=>setFilter('assigned')}>In campagna ({drafts.length})</button>
+       <button type="button" aria-pressed={filter==='unassigned'} onClick={()=>setFilter('unassigned')}>Non in campagna (0)</button>
+       <button type="button" disabled title="Precompilati richiedibili disponibili dopo la migrazione dei permessi">I miei precompilati</button>
       </div>
      </EntityFilterToolbar>
      <h2 className="aruba-character-section-label"><Users size={17}/> I miei personaggi</h2>
      {error&&<p role="alert" className="error">{error}</p>}
      {loading?<div className="aruba-library-unavailable">Caricamento…</div>:filtered.length===0?
-      <div className="aruba-library-unavailable">{drafts.length?'Nessun personaggio trovato.':'Non hai ancora creato personaggi in questa campagna.'}</div>:
+      <div className="aruba-library-unavailable">{drafts.length?'Nessun personaggio trovato con questi filtri.':'Non hai ancora creato personaggi nelle tue campagne Aruba.'}</div>:
       <div className={viewMode==='grid'?'aruba-character-cards':'aruba-character-cards list'}>
        {pageItems.map(d=><EntityCard key={d.id} variant={viewMode} name={d.name}
         subtitle={[d.sheetData.style,d.sheetData.viaggio].filter(Boolean).join(' · ')||'Personaggio'}
-        secondaryText={d.status==='active'?'Scheda completata':'Bozza'}
+        secondaryText={campaignNameFor(d.campaignId)+' · '+(d.status==='active'?'Scheda completata':'Bozza')}
         badge={<span className="aruba-character-ruleset">High School Cthulhu</span>}
-        onClick={()=>{setError(null);if(d.status==='active')setViewingId(d.id);else setEditingId(d.id);}}
+        onClick={()=>{setError(null);if(d.status==='active')setViewingId(d.id);else if(rulesetFor(d.campaignId)==='hsc')setEditingId(d.id);}}
         cornerAction={<button className="aruba-character-edit" type="button"
+         disabled={rulesetFor(d.campaignId)!=='hsc'}
          aria-label={'Modifica '+d.name} onClick={()=>{setError(null);setEditingId(d.id);}}>
           <Pencil size={17}/>
         </button>}
@@ -122,13 +144,14 @@ export function ArubaCharacterDrafts({campaignId,ownerId,ruleset}:{
       totalPages={totalPages} startIndex={startIndex} endIndex={endIndex}
       totalItems={filtered.length} itemLabelPlural="personaggi"/>
     </>}
-   {viewing&&ruleset==='hsc'&&<ArubaCharacterSheetView
-     key={viewing.id} draft={viewing} campaignId={campaignId} ownerId={ownerId}
+   {viewing&&rulesetFor(viewing.campaignId)==='hsc'&&<ArubaCharacterSheetView
+     key={viewing.id} draft={viewing} campaignId={viewing.campaignId} ownerId={ownerId}
      onClose={()=>setViewingId(null)}
      onSaved={value=>setDrafts(list=>list.map(item=>item.id===value.id?value:item))}
      onArchived={id=>{setDrafts(list=>list.filter(item=>item.id!==id));setViewingId(null);}}
    />}
-   {(editing||creating)&&ruleset==='hsc'&&<div className="aruba-original-wizard" key={editing?.id??'new-character'}>
+   {(editing||creating)&&(creating?canCreate:editing&&rulesetFor(editing.campaignId)==='hsc')&&
+    <div className="aruba-original-wizard" key={editing?.id??'new-character'}>
      <CharacterCreationWizard
        existingCharacters={drafts.filter(d=>d.id!==editing?.id).map(d=>({id:d.id,name:d.name}))}
        initialCharacter={editing?.status==='active'?({
