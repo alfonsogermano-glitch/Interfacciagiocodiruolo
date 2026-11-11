@@ -1,9 +1,11 @@
-# Staging only. Run alongside the existing hollowgate PostgreSQL container.
-# Does not change the existing backend demo or publish an internet-accessible port.
+# Aruba staging only. Database secret was created by hgadmin (UID/GID 1001).
+# Run the API using the matching numeric identity so the host bind-mounted
+# 0600 secret can be read without weakening its filesystem permissions.
 services:
   aruba-api:
     build:
       context: ../../apps/aruba-api
+    user: "1001:1001"
     restart: unless-stopped
     ports:
       - "127.0.0.1:3002:3000"

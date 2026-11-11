@@ -27,3 +27,26 @@ jobs:
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm test
       - run: docker build -t hollowgate-aruba-api:test .
+      - name: Runtime smoke test with a rootless UID and a 0600 database secret
+        run: |
+          mkdir -p "$RUNNER_TEMP/hg-secret"
+          printf '%s' 'example-not-a-real-secret' > "$RUNNER_TEMP/hg-secret/password"
+          chmod 600 "$RUNNER_TEMP/hg-secret/password"
+          sudo chown 1001:1001 "$RUNNER_TEMP/hg-secret/password"
+          docker run -d --name hollowgate-aruba-smoke \
+            --user 1001:1001 \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            -e PGHOST=127.0.0.1 -e PGUSER=hollowgate \
+            -e PGDATABASE=hollowgate \
+            -e POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password \
+            -v "$RUNNER_TEMP/hg-secret/password:/run/secrets/postgres_password:ro" \
+            -p 127.0.0.1:13002:3000 hollowgate-aruba-api:test
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:13002/health; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs hollowgate-aruba-smoke
+          exit 1
