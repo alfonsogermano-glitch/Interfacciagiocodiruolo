@@ -93,7 +93,7 @@ test('private trial opt-in keeps static preview unchanged and requires Caddy gat
   assert.doesNotMatch(trial,/hollowgate-preview" content="static-only"/);
   assert.match(config,/basic_auth @trialProtected/);
   assert.match(config,/\/auth\/\*/);
-  assert.match(config,/\{file\.\/run\/secrets\/auth_trial_hash\}/);
+  assert.match(config,/import \/run\/secrets\/auth_trial_hash/);
   assert.match(config,/rewrite \* \/index\.trial\.html/);
   assert.match(config,/path \/auth\/login \/auth\/logout \/auth\/me/);
   assert.match(config,/handle \{\s*respond "Not Found" 404/);

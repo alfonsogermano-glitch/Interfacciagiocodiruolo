@@ -6,7 +6,8 @@ cd /opt/hollowgate/aruba-source
 [[ "$(git branch --show-current)" == "feature/aruba-api-foundation" ]] || { echo "Ramo Git inatteso" >&2; exit 1; }
 [[ -s /opt/hollowgate/config/resend_api_key ]] || { echo "Chiave Resend assente" >&2; exit 1; }
 [[ -s /opt/hollowgate/config/auth_trial_hash ]] || { echo "Password privata assente. Esegui prepare-auth-trial.sh" >&2; exit 1; }
-[[ "$(sudo head -c 4 /opt/hollowgate/config/auth_trial_hash)" == '$2a$' || "$(sudo head -c 4 /opt/hollowgate/config/auth_trial_hash)" == '$2b$' ]] || { echo "Hash bcrypt non valido" >&2; exit 1; }
+echo "Verifico la credenziale privata Caddy (senza leggere o mostrare password)..." 
+sudo python3 deploy/aruba/scripts/normalize-auth-trial-secret.py /opt/hollowgate/config/auth_trial_hash
 api="hollowgate-auth-staging-aruba-auth-staging-1"
 sudo docker exec "$api" sh -c '[ "$PGDATABASE" = hollowgate_auth_test ] && [ "$PGUSER" = hollowgate_auth_app ] && [ "$AUTH_STAGING_ENABLED" = true ]' || { echo "Il backend non è isolato" >&2; exit 1; }
 # Verify migration 007 exists in the disposable test database; no writes.

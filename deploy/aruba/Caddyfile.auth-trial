@@ -15,7 +15,7 @@ staging.hollowgate.quest {
   # Auth over HTTPS, using a bcrypt hash mounted as a Docker secret.
   @trialProtected path /login /signup /forgot-password /account/password /account/verify-email /auth-ui/* /auth/*
   basic_auth @trialProtected bcrypt "Hollowgate Aruba - Private Trial" {
-    tester {file./run/secrets/auth_trial_hash}
+    import /run/secrets/auth_trial_hash
   }
 
   @trialPages path /login /signup /forgot-password /account/password /account/verify-email

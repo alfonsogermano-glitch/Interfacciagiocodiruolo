@@ -36,11 +36,32 @@ jobs:
       - name: Validate password-gated Caddy trial syntax
         run: |
           mkdir -p "$RUNNER_TEMP/trial"
-          printf '%s' '$2a$14$Zkx19XLiW6VYouLHR5NmfOFU0z2GTNmpkT/5qqR7hx4IjWJPDhjvG' > "$RUNNER_TEMP/trial/hash"
+          printf 'tester %s\n' '$2a$14$Zkx19XLiW6VYouLHR5NmfOFU0z2GTNmpkT/5qqR7hx4IjWJPDhjvG' > "$RUNNER_TEMP/trial/hash"
           docker run --rm \
             -v "$PWD/deploy/aruba/Caddyfile.auth-trial:/etc/caddy/Caddyfile:ro" \
             -v "$RUNNER_TEMP/trial/hash:/run/secrets/auth_trial_hash:ro" \
             caddy:2.10.2-alpine caddy validate --config /etc/caddy/Caddyfile
+      - name: Verify Caddy accepts the expected secret and rejects wrong credentials
+        run: |
+          cat > "$RUNNER_TEMP/trial/Caddyfile" <<'EOF'
+          :8080 {
+            basic_auth bcrypt {
+              import /run/secrets/auth_trial_hash
+            }
+            respond "private" 200
+          }
+          EOF
+          docker run -d --name hollowgate-basic-auth-ci -p 127.0.0.1:18080:8080 \
+            -v "$RUNNER_TEMP/trial/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            -v "$RUNNER_TEMP/trial/hash:/run/secrets/auth_trial_hash:ro" \
+            caddy:2.10.2-alpine
+          for i in $(seq 1 20); do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/)" = 401 ]; then break; fi
+            sleep 1
+          done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' -u tester:hiccup http://127.0.0.1:18080/)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' -u tester:wrong http://127.0.0.1:18080/)" = 401
 
   api-test:
     runs-on: ubuntu-latest
@@ -58,6 +79,7 @@ jobs:
       - run: bash -n ../../deploy/aruba/scripts/test-password-reset-e2e.sh
       - run: bash -n ../../deploy/aruba/scripts/test-signup-e2e.sh
       - run: bash -n ../../deploy/aruba/scripts/prepare-auth-trial.sh
+      - run: python3 -m unittest discover -s ../../deploy/aruba/scripts/tests -p "test_*.py"
       - run: docker build -t hollowgate-aruba-api:test .
       - name: Runtime smoke test with a rootless UID and a 0600 database secret
         run: |

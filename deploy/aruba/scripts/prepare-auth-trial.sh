@@ -20,7 +20,7 @@ hash="$(printf '%s\n' "$password" |
 unset password
 [[ "$hash" == '$2'* ]] || { echo "Errore bcrypt" >&2; exit 1; }
 sudo install -m 600 /dev/null "$destination"
-printf '%s' "$hash" | sudo tee "$destination" >/dev/null
+printf 'tester %s\n' "$hash" | sudo tee "$destination" >/dev/null
 unset hash
 echo "Credenziale privata preparata. Username: tester"
 echo "Conserva la password in un gestore; non inviarla in chat."
