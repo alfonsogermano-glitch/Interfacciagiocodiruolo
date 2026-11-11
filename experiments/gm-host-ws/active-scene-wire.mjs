@@ -34,7 +34,6 @@ export function projectActiveScene(input,role){
  safe.mapTokens=tokens;
  safe.mapPois=pois.map(p=>{const out={...p};if(out.noteVisibleToPlayers!==true)out.noteId=null;return out});
  safe.mapDrawings=(safe.mapDrawings??[]).filter(d=>d.visible!==false);
- for(const d of safe.mapDrawings??[]){} // maintain order
  const invisibleDrawings=(input.mapDrawings??[]).filter(d=>d.visible===false).map(d=>d.id);
  for(const id of invisibleDrawings)hiddenIds.add(id);
  if(safe.mapObjectOrder)safe.mapObjectOrder=safe.mapObjectOrder.filter(o=>!hiddenIds.has(o.id));
