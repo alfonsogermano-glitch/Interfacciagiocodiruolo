@@ -5,15 +5,31 @@ on:
       - feature/aruba-api-foundation
     paths:
       - 'apps/aruba-api/**'
+      - 'apps/aruba-auth-web/**'
       - 'deploy/aruba/**'
       - '.github/workflows/aruba-api.yml'
   pull_request:
     paths:
       - 'apps/aruba-api/**'
+      - 'apps/aruba-auth-web/**'
       - 'deploy/aruba/**'
       - '.github/workflows/aruba-api.yml'
 
 jobs:
+  auth-web-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check browser JavaScript syntax
+        run: |
+          node --check apps/aruba-auth-web/flow.mjs
+          node --check apps/aruba-auth-web/app.mjs
+      - name: Test isolated auth browser flows
+        run: node --test apps/aruba-auth-web/test/*.test.mjs
+
   api-test:
     runs-on: ubuntu-latest
     defaults:
