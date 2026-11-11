@@ -40,3 +40,12 @@ The API's session repository reads user identity and authorization role from Pos
 Create a `NOLOGIN` group role `hollowgate_api_runtime` with only the SELECT/INSERT/UPDATE privileges currently required by the internal login/session services. It cannot change account roles, password credentials, raw password-action tokens, tables, or session identity fields. The CI test runs successful operations and privilege-escalation attempts using `SET ROLE`.
 
 **Deployment is not yet authorized:** before applying this or any other auth schema to Aruba, create and verify an off-host backup, provision a separate login principal with a locally generated database password, decide secret provisioning without exposing it in chat or Git, and configure Compose to use that principal instead of the initial `hollowgate` owner. The initial Compose service stays unchanged for now. The password recovery workflow must be designed separately; do not grant broader access merely to make it work.
+
+## Verified off-host backup before Aruba auth deployment
+
+1. From the VPS, with the source branch updated, run `bash deploy/aruba/scripts/backup-and-verify.sh`. The script dumps the current local `hollowgate` database in custom PostgreSQL format to `/opt/hollowgate/data/backups` with permissions 600, checks the archive, restores into a **separate temporary database**, verifies it is reachable, and removes that temporary database. It does not modify the source database or stop the API.
+2. Record the exact printed `VERIFIED_BACKUP_PATH` and checksum. On your **Windows PC** run `scp -i "$env:USERPROFILE\\.ssh\\hollowgate_aruba" -o IdentitiesOnly=yes hgadmin@212.237.9.78:/opt/hollowgate/data/backups/<actual-backup-filename>.dump "$env:USERPROFILE\\Documents\\"`. Replace the placeholder with the **actual basename** emitted by the script.
+3. Run `Get-FileHash "$env:USERPROFILE\\Documents\\<actual-backup-filename>.dump" -Algorithm SHA256` in Windows PowerShell and compare the digest with the printed VPS SHA256. Keep the file in encrypted or otherwise access-controlled off-host storage, because future database dumps can contain sensitive personal data.
+4. Do not delete the VPS copy until the off-host copy and restore rehearsal are verified. This does not replace a scheduled and tested backup policy.
+
+The CI job validates the script against disposable PostgreSQL 17 data. **Do not run SQL migrations or enable auth yet**; the restricted runtime principal, secret distribution and deployment still require a separate safe step.
