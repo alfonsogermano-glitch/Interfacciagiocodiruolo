@@ -1,9 +1,10 @@
+import type { ActiveScenePublication } from '../../types/activeScene';
 // Opt-in bridge for the actual Hollowgate React application.
 // Never silently swaps a real campaign's Supabase/local transport for the demo protocol.
 export type GmHostRole = 'gm' | 'player';
 export type GmHostScene = { sceneId: string; title: string; gmNotes?: string } | null;
 export type GmHostToken = { tokenId: string; owner: string; x: number; y: number };
-export type GmHostState = { scene: GmHostScene; tokens: GmHostToken[] };
+export type GmHostState = { scene: GmHostScene; tokens: GmHostToken[]; activeScene?: ActiveScenePublication | null };
 export type GmHostStatus = 'idle' | 'connecting' | 'authenticating' | 'connected' | 'disconnected' | 'error';
 export type GmHostFrame = Record<string, unknown>;
 type SocketLike = {
@@ -13,7 +14,7 @@ type SocketLike = {
   addEventListener(name: string, listener: (event: any) => void): void;
   removeEventListener(name: string, listener: (event: any) => void): void;
 };
-type Listener = (state: { status: GmHostStatus; sequence: number; scene: GmHostScene; tokens: GmHostToken[]; error: string | null }) => void;
+type Listener = (state: { status: GmHostStatus; sequence: number; scene: GmHostScene; tokens: GmHostToken[]; activeScene?: ActiveScenePublication | null; error: string | null }) => void;
 type SocketFactory = (url: string) => SocketLike;
 type Options = { role: GmHostRole; token: string; origin: string; createSocket?: SocketFactory; actorName?: string };
 const VERSION = 1;
@@ -26,6 +27,7 @@ const validToken = (t: unknown): t is GmHostToken =>
   typeof (t as any).owner === 'string' && Number.isFinite((t as any).x) && Number.isFinite((t as any).y);
 const snapshotCopy = (state: GmHostState): GmHostState => ({
   scene: state.scene ? { ...state.scene } : null, tokens: state.tokens.map(t => ({ ...t })),
+  ...(state.activeScene === undefined ? {} : { activeScene: state.activeScene === null ? null : structuredClone(state.activeScene) }),
 });
 export function createGmHostReactBridge(options: Options) {
   const url = new URL(options.origin);
@@ -75,6 +77,7 @@ export function createGmHostReactBridge(options: Options) {
         (delta.token !== undefined && !validToken(delta.token))) { resync(); return; }
     const next = snapshotCopy(state);
     if (delta.scene !== undefined) next.scene = delta.scene as GmHostScene;
+    if ('activeScene' in delta && delta.activeScene !== undefined) next.activeScene = structuredClone(delta.activeScene as ActiveScenePublication);
     if (delta.token !== undefined) {
       const t = delta.token as GmHostToken;
       const idx = next.tokens.findIndex(v => v.tokenId === t.tokenId);
@@ -112,7 +115,7 @@ export function createGmHostReactBridge(options: Options) {
     connect,
     subscribe(listener: Listener) { listeners.add(listener); listener(current()); return () => { listeners.delete(listener); }; },
     getSnapshot: current,
-    command(command: 'publishScene' | 'assignToken' | 'moveToken', payload: Record<string, unknown>, eventId: string) {
+    command(command: 'publishScene' | 'publishActiveScene' | 'assignToken' | 'moveToken', payload: Record<string, unknown>, eventId: string) {
       if (!authenticated || !/^[a-zA-Z0-9_-]{1,72}$/.test(eventId)) return false;
       return send({ type: 'vtt:command', version: VERSION, campaignId: CAMPAIGN, eventId, command, payload });
     },
