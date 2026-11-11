@@ -26,5 +26,28 @@ export function createCharacterService({pool}){
   if(!character)throw new Error('Character draft not visible');
   return {character};
  }
- return {list,create};
+ async function save(ownerId,campaignId,characterId,body){
+  safeId(ownerId,'Utente');safeId(campaignId,'Campagna');safeId(characterId,'Personaggio');
+  if(!body||typeof body!=='object'||Array.isArray(body)||
+   Object.keys(body).sort().join(',')!=='campaignId,name,sheetData'||
+   body.campaignId!==campaignId||typeof body.name!=='string'||
+   body.name.trim().length<1||body.name.trim().length>120||
+   !body.sheetData||typeof body.sheetData!=='object'||Array.isArray(body.sheetData)||
+   ['style','viaggio'].some(k=>typeof body.sheetData[k]!=='string')||
+   ['ambiti','abilita'].some(k=>!body.sheetData[k]||typeof body.sheetData[k]!=='object'||Array.isArray(body.sheetData[k]))||
+   ['tratti','equipment'].some(k=>!Array.isArray(body.sheetData[k]))||
+   JSON.stringify(body.sheetData).length>30000||
+   JSON.stringify(body.sheetData).includes('supabase.co')||
+   JSON.stringify(body.sheetData).includes('data:image/'))
+   throw new CampaignRejected('Scheda non valida o contiene immagini non ancora migrate',400);
+  const {rows}=await pool.query(
+   'SELECT hollowgate_vtt.save_owned_character_sheet($1,$2,$3,$4,$5::jsonb) AS id',
+   [ownerId,campaignId,characterId,body.name.trim(),JSON.stringify(body.sheetData)]);
+  if(!rows[0]?.id)throw new CampaignRejected('Personaggio non trovato o non autorizzato',404);
+  const result=await list(ownerId,campaignId);
+  const character=result.characters.find(x=>x.id===characterId);
+  if(!character)throw new CampaignRejected('Personaggio non trovato',404);
+  return {character};
+ }
+ return {list,create,save};
 }

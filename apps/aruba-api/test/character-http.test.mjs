@@ -19,6 +19,7 @@ test('character endpoints are opt-in, scoped to cookie owner, and require CSRF o
  const characters={
   list:async(...args)=>{calls.push(['list',...args]);return {characters:[]}},
   create:async(...args)=>{calls.push(['create',...args]);return {character:{name:'PG'}}},
+  save:async(...args)=>{calls.push(['save',...args]);return {character:{name:'Ken'}}},
  };
  const handler=createAuthHttpHandler({origin,login:async()=>{},getSessionUser:async t=>t?{id:owner}:null,revokeSession:async()=>{},campaigns,characters});
  await withServer(handler,async base=>{
@@ -36,5 +37,22 @@ test('character endpoints are opt-in, scoped to cookie owner, and require CSRF o
  await withServer(off,async base=>{
   assert.equal((await fetch(base+'/vtt/characters?campaignId='+campaign,{headers:cookie})).status,404);
   assert.equal((await fetch(base+'/vtt/bootstrap',{headers:cookie}).then(r=>r.json())).capabilities.characters.read,false);
+ });
+});
+
+test('original sheet PUT requires valid cookie, same-origin, and does not accept arbitrary IDs',async()=>{
+ const calls=[];
+ const characters={list:async()=>({characters:[]}),create:async()=>({character:{}}),
+  save:async(...args)=>{calls.push(args);return {character:{name:'Ken'}}}};
+ const handler=createAuthHttpHandler({origin,login:async()=>{},getSessionUser:async()=>({id:owner}),revokeSession:async()=>{},campaigns,characters});
+ await withServer(handler,async base=>{
+  const body={campaignId:campaign,name:'Ken',sheetData:{style:'Jock',viaggio:'Campione',ambiti:{},abilita:{},tratti:[],equipment:[]}};
+  const url=base+'/vtt/characters/ee2f1a87-b8ee-4b34-9da0-07efda11379a';
+  const req={method:'PUT',headers:{...cookie,origin,'content-type':'application/json'},body:JSON.stringify(body)};
+  assert.equal((await fetch(url,{...req,headers:{origin,'content-type':'application/json'}})).status,401);
+  assert.equal((await fetch(url,{...req,headers:{...cookie,origin:'https://evil.invalid','content-type':'application/json'}})).status,403);
+  assert.equal((await fetch(url,req)).status,200);
+  assert.deepEqual(calls[0],[owner,campaign,'ee2f1a87-b8ee-4b34-9da0-07efda11379a',body]);
+  assert.equal((await fetch(base+'/vtt/characters/bad-id',req)).status,400);
  });
 });

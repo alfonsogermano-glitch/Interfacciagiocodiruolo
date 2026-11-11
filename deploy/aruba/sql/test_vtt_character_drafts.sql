@@ -1,7 +1,7 @@
 BEGIN;
 DO $$
 DECLARE owner_a uuid:=gen_random_uuid();owner_b uuid:=gen_random_uuid();
- c uuid; d uuid; n integer;
+ c uuid; d uuid; n integer; result_id uuid;
 BEGIN
  INSERT INTO hollowgate_auth.users(id,email,display_name,status,email_verified_at,source)
  VALUES(owner_a,'draft-a@example.org','A','active',now(),'local'),
@@ -14,6 +14,15 @@ BEGIN
  SELECT count(*) INTO n FROM hollowgate_vtt.list_character_drafts(owner_a,c)
  WHERE id=d AND name='PG Test' AND sheet_data='{}'::jsonb;
  IF n<>1 THEN RAISE EXCEPTION 'Draft missing or malformed';END IF;
+ SELECT hollowgate_vtt.save_owned_character_sheet(owner_b,c,d,'Impersonatore',
+   '{"style":"Jock","viaggio":"Campione","ambiti":{},"abilita":{},"tratti":[],"equipment":[]}'::jsonb) INTO result_id;
+ IF result_id IS NOT NULL THEN RAISE EXCEPTION 'Non-owner modified character';END IF;
+ SELECT hollowgate_vtt.save_owned_character_sheet(owner_a,c,d,'Ken',
+   '{"style":"Jock","viaggio":"Campione","ambiti":{"Fisico":2},"abilita":{},"tratti":[],"equipment":[]}'::jsonb) INTO result_id;
+ IF result_id IS DISTINCT FROM d THEN RAISE EXCEPTION 'Owner cannot save character';END IF;
+ SELECT count(*) INTO n FROM hollowgate_vtt.list_character_drafts(owner_a,c)
+ WHERE id=d AND name='Ken' AND status='active' AND sheet_data->>'style'='Jock';
+ IF n<>1 THEN RAISE EXCEPTION 'Full character sheet not stored';END IF;
  SELECT count(*) INTO n FROM hollowgate_vtt.list_character_drafts(owner_b,c) WHERE id=d;
  IF n<>0 THEN RAISE EXCEPTION 'Cross-account draft leaked';END IF;
  IF has_table_privilege('hollowgate_api_runtime','hollowgate_vtt.character_drafts','SELECT')

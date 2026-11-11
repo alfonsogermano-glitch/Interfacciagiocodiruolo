@@ -18,6 +18,8 @@ echo 'Applico le modifiche metadata 009 solo al database hollowgate_auth_test...
 sudo docker exec -i hollowgate-postgres-1 psql -X -v ON_ERROR_STOP=1 -U hollowgate -d hollowgate_auth_test < deploy/aruba/sql/009_vtt_campaign_updates.sql
 echo 'Applico lo schema 010 delle bozze PG soltanto sul database hollowgate_auth_test...'
 sudo docker exec -i hollowgate-postgres-1 psql -X -v ON_ERROR_STOP=1 -U hollowgate -d hollowgate_auth_test < deploy/aruba/sql/010_vtt_character_drafts.sql
+echo 'Applico lo schema 011 delle schede PG complete sul database test...'
+sudo docker exec -i hollowgate-postgres-1 psql -X -v ON_ERROR_STOP=1 -U hollowgate -d hollowgate_auth_test < deploy/aruba/sql/011_vtt_character_sheets.sql
 echo 'Verifico la configurazione privata Caddy...'
 sudo docker compose "${edge[@]}" run --rm --no-deps --entrypoint caddy caddy validate --config /etc/caddy/Caddyfile
 rollback(){

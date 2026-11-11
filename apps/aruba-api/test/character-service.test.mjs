@@ -25,3 +25,28 @@ test('non-owner draft creation is rejected without fake data',async()=>{
  const service=createCharacterService({pool:{query:async()=>({rows:[{id:null}]})}});
  await assert.rejects(()=>service.create(owner,campaign,{name:'test'}),error=>error.status===404);
 });
+
+test('save stores original CharacterSheetData and refuses forged owner/campaign/image payloads',async()=>{
+ let saved;
+ const sheet={style:'Jock',viaggio:'Campione',ambiti:{Fisico:2,Scuola:1,Carisma:1,Strada:1},
+  abilita:{Muscoli:2},tratti:[],equipment:[],freschezza:12,follia:9};
+ const pool={query:async(sql,params)=>{
+  if(sql.includes('save_owned_character_sheet')){saved=params;return {rows:[{id:char}]}};
+  if(sql.includes('list_character_drafts'))return {rows:[{id:char,campaign_id:campaign,owner_id:owner,name:'Ken',sheet_data:sheet,status:'active'}]};
+  throw Error(sql);
+ }};
+ const service=createCharacterService({pool});
+ const result=await service.save(owner,campaign,char,{campaignId:campaign,name:' Ken ',sheetData:sheet});
+ assert.equal(result.character.name,'Ken');assert.equal(result.character.status,'active');
+ assert.equal(saved[0],owner);assert.equal(saved[2],char);
+ assert.equal(saved[3],'Ken');assert.deepEqual(JSON.parse(saved[4]),sheet);
+ for(const bad of [
+  {campaignId:campaign,name:'Ken',sheetData:sheet,ownerId:'forged'},
+  {campaignId:owner,name:'Ken',sheetData:sheet},
+  {campaignId:campaign,name:'Ken',sheetData:{...sheet,portraitImageUrl:'data:image/png;base64,AAAA'}},
+  {campaignId:campaign,name:'Ken',sheetData:{...sheet,portraitImageUrl:'https://x.supabase.co/image'}},
+  {campaignId:campaign,name:'Ken',sheetData:{}},
+ ])await assert.rejects(()=>service.save(owner,campaign,char,bad));
+ const hidden=createCharacterService({pool:{query:async()=>({rows:[{id:null}]})}});
+ await assert.rejects(()=>hidden.save(owner,campaign,char,{campaignId:campaign,name:'Ken',sheetData:sheet}),e=>e.status===404);
+});

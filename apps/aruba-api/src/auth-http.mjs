@@ -33,19 +33,19 @@ function extractSession(req) {
   return COOKIE_PATTERN.test(value) ? value : null;
 }
 
-async function readJson(req) {
+async function readJson(req,maxBody=MAX_BODY) {
   if (!req.headers['content-type']?.toLowerCase().startsWith('application/json')) {
     throw new HttpProblem(415, 'Content-Type non supportato');
   }
   const length = Number(req.headers['content-length'] ?? 0);
-  if (!Number.isSafeInteger(length) || length > MAX_BODY) {
+  if (!Number.isSafeInteger(length) || length > maxBody) {
     throw new HttpProblem(413, 'Richiesta troppo grande');
   }
   let total = 0;
   const chunks = [];
   for await (const chunk of req) {
     total += chunk.length;
-    if (total > MAX_BODY) throw new HttpProblem(413, 'Richiesta troppo grande');
+    if (total > maxBody) throw new HttpProblem(413, 'Richiesta troppo grande');
     chunks.push(chunk);
   }
   try {
@@ -79,7 +79,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   }
   if (campaigns !== null && (typeof campaigns.list !== 'function' || typeof campaigns.create !== 'function' || typeof campaigns.update !== 'function'))
     throw new TypeError('Invalid campaign service');
-  if(characters!==null && (typeof characters.list!=='function'||typeof characters.create!=='function'||!campaigns))
+  if(characters!==null && (typeof characters.list!=='function'||typeof characters.create!=='function'||typeof characters.save!=='function'||!campaigns))
     throw new TypeError('Invalid character service');
   return async (req, res) => {
     try {
@@ -163,6 +163,18 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if(typeof body.campaignId!=='string'||Object.keys(body).sort().join(',')!=='campaignId,name')
           throw new HttpProblem(400,'Dati personaggio non validi');
         return response(res,201,await characters.create(user.id,body.campaignId,{name:body.name}));
+      }
+      if(characters && req.url?.startsWith('/vtt/characters/') && req.method==='PUT'){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const characterId=req.url.slice('/vtt/characters/'.length);
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(characterId))
+          throw new HttpProblem(400,'Personaggio non valido');
+        const body=await readJson(req,65536);
+        return response(res,200,await characters.save(user.id,body.campaignId,characterId,body));
       }
       // Isolated read-only React pilot. A session is NEVER interpreted as
       // a Supabase token. Campaign data remains unavailable by design.
