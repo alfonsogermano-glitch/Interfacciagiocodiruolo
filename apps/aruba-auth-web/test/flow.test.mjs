@@ -81,3 +81,24 @@ test('static staging preview cannot send browser API requests',()=>{
   assert.doesNotMatch(caddy,/reverse_proxy[^\n]*\/auth/);
   assert.match(compose,/\.\.\/\.\.\/apps\/aruba-auth-web:\/srv\/auth-preview:ro/);
 });
+
+test('private trial opt-in keeps static preview unchanged and requires Caddy gate',()=>{
+  const fs=readFileSync;
+  const trial=fs(new URL('../index.trial.html',import.meta.url),'utf8');
+  const preview=fs(new URL('../index.html',import.meta.url),'utf8');
+  const config=fs(new URL('../../../deploy/aruba/Caddyfile.auth-trial',import.meta.url),'utf8');
+  const trialApi=fs(new URL('../../../deploy/aruba/compose.auth-trial.yaml',import.meta.url),'utf8');
+  const trialEdge=fs(new URL('../../../deploy/aruba/compose.edge-auth-trial.yaml',import.meta.url),'utf8');
+  assert.match(preview,/hollowgate-preview" content="static-only"/);
+  assert.doesNotMatch(trial,/hollowgate-preview" content="static-only"/);
+  assert.match(config,/basic_auth @trialProtected/);
+  assert.match(config,/\/auth\/\*/);
+  assert.match(config,/\{file\.\/run\/secrets\/auth_trial_hash\}/);
+  assert.match(config,/rewrite \* \/index\.trial\.html/);
+  assert.match(config,/path \/auth\/login \/auth\/logout \/auth\/me/);
+  assert.match(config,/handle \{\s*respond "Not Found" 404/);
+  assert.match(trialApi,/AUTH_PASSWORD_RESET_ENABLED: "true"/);
+  assert.match(trialApi,/AUTH_SIGNUP_ENABLED: "true"/);
+  assert.match(trialApi,/\/opt\/hollowgate\/config\/resend_api_key/);
+  assert.match(trialEdge,/\/opt\/hollowgate\/config\/auth_trial_hash/);
+});

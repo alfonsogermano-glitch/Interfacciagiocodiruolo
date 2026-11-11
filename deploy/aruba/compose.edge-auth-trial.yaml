@@ -1,0 +1,12 @@
+# Opt-in private trial overlay; never apply without a bcrypt secret.
+# Must be combined with compose.edge-staging.yaml, NOT used standalone.
+services:
+  caddy:
+    volumes:
+      - ./Caddyfile.auth-trial:/etc/caddy/Caddyfile:ro
+    secrets:
+      - auth_trial_hash
+
+secrets:
+  auth_trial_hash:
+    file: /opt/hollowgate/config/auth_trial_hash

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="color-scheme" content="dark">
+  <title>Hollowgate · Accesso</title>
+  <link rel="stylesheet" href="/auth-ui/styles.css">
+  <script type="module" src="/auth-ui/app.mjs"></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="brand">
+      <div class="brand-symbol" aria-hidden="true">✧</div>
+      <div class="brand-title">HOLLOWGATE</div>
+      <div class="brand-caption">PORTALE DI ACCESSO · AMBIENTE DI PROVA</div>
+    </header>
+    <section class="panel" aria-labelledby="page-title">
+      <div class="eyebrow">Il varco ti attende</div>
+      <h1 id="page-title">Accedi a Hollowgate</h1>
+      <p class="intro" id="page-intro">Inserisci le tue credenziali per continuare.</p>
+      <div class="preview-banner" role="note">Collaudo privato Aruba: usa soltanto un indirizzo email di prova.</div>
+      <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+      <form id="login-form" data-view="login" novalidate>
+        <label for="login-email">Indirizzo email</label>
+        <input id="login-email" name="email" type="email" autocomplete="email" maxlength="320" required>
+        <label for="login-password">Password</label>
+        <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+        <button type="submit">Accedi</button>
+        <nav class="links" aria-label="Altre azioni">
+          <a href="/forgot-password">Hai dimenticato la password?</a>
+          <a href="/signup">Crea un account</a>
+        </nav>
+      </form>
+
+      <form id="signup-form" data-view="signup" hidden novalidate>
+        <label for="signup-name">Nome visualizzato</label>
+        <input id="signup-name" name="displayName" type="text" autocomplete="nickname" maxlength="100" required>
+        <label for="signup-email">Indirizzo email</label>
+        <input id="signup-email" name="email" type="email" autocomplete="email" maxlength="320" required>
+        <label for="signup-password">Password (minimo 12 caratteri)</label>
+        <input id="signup-password" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required>
+        <label for="signup-confirm">Conferma password</label>
+        <input id="signup-confirm" name="confirm" type="password" autocomplete="new-password" required>
+        <button type="submit">Registrati</button>
+        <nav class="links"><a href="/login">Hai già un account? Accedi</a></nav>
+      </form>
+
+      <form id="forgot-form" data-view="forgot" hidden novalidate>
+        <label for="forgot-email">Indirizzo email</label>
+        <input id="forgot-email" name="email" type="email" autocomplete="email" maxlength="320" required>
+        <button type="submit">Richiedi il recupero</button>
+        <nav class="links"><a href="/login">Torna all'accesso</a></nav>
+      </form>
+
+      <form id="reset-form" data-view="reset" hidden novalidate>
+        <label for="reset-password">Nuova password (minimo 12 caratteri)</label>
+        <input id="reset-password" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required>
+        <label for="reset-confirm">Conferma nuova password</label>
+        <input id="reset-confirm" name="confirm" type="password" autocomplete="new-password" required>
+        <button type="submit">Aggiorna password</button>
+        <nav class="links"><a href="/login">Torna all'accesso</a></nav>
+      </form>
+
+      <form id="verify-form" data-view="verify" hidden>
+        <p>Premi il pulsante per confermare il tuo indirizzo email e attivare l'account.</p>
+        <button type="submit">Conferma indirizzo email</button>
+        <nav class="links"><a href="/login">Torna all'accesso</a></nav>
+      </form>
+    </section>
+    <footer>Ambiente di prova Aruba · Nessuna modifica agli account Hollowgate esistenti</footer>
+  </main>
+</body>
+</html>

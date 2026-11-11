@@ -1,0 +1,14 @@
+# Opt-in for isolated REAL email/browser tests. MUST be merged with
+# compose.auth-staging.yaml; never use for the main/production API.
+services:
+  aruba-auth-staging:
+    environment:
+      AUTH_PASSWORD_RESET_ENABLED: "true"
+      AUTH_SIGNUP_ENABLED: "true"
+      RESEND_API_KEY_FILE: /run/secrets/resend_api_key
+    secrets:
+      - resend_api_key
+
+secrets:
+  resend_api_key:
+    file: /opt/hollowgate/config/resend_api_key
