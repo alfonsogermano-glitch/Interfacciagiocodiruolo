@@ -32,6 +32,8 @@
       "public/**",
       "server.mjs",
       "session.mjs",
+      "vtt-protocol.mjs",
+      "vtt-client.mjs",
       "state-store.mjs",
       "package.json",
       "node_modules/ws/**"
