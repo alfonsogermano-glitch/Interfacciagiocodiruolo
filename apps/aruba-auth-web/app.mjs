@@ -3,7 +3,11 @@ import {resolveRoute,validatePasswords,createAuthApi} from './flow.mjs';
 // Never store a raw one-time token in history, storage or analytics.
 const route=resolveRoute(window.location.href);
 if(window.location.search||window.location.hash)window.history.replaceState(null,'',window.location.pathname);
-const api=createAuthApi({fetchImpl:window.fetch.bind(window),origin:window.location.origin});
+const isStaticPreview=document.querySelector('meta[name="hollowgate-preview"]')?.content==='static-only';
+// Static preview is fail-closed: never instantiate an API client or submit form data.
+const api=isStaticPreview?null:createAuthApi({
+  fetchImpl:window.fetch.bind(window),origin:window.location.origin,
+});
 const $=id=>document.getElementById(id);
 const forms={login:$('login-form'),signup:$('signup-form'),forgot:$('forgot-form'),
   reset:$('reset-form'),verify:$('verify-form')};
@@ -38,7 +42,12 @@ async function submit(form,work){
 }
 function wire(view,handler){
   forms[view].addEventListener('submit',event=>{
-    event.preventDefault();void submit(forms[view],handler);
+    event.preventDefault();
+    if(isStaticPreview){
+      notify('Questa è solo un’anteprima grafica. Nessun dato è stato inviato.');
+      return;
+    }
+    void submit(forms[view],handler);
   });
 }
 function validatePair(password,confirm){

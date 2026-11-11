@@ -64,3 +64,20 @@ test('static pages are self-contained, accessible and scrub URL token',()=>{
   assert.match(app,/wire\('reset'/);
   assert.doesNotMatch(app,/localStorage|sessionStorage|console\.log|innerHTML/);
 });
+
+test('static staging preview cannot send browser API requests',()=>{
+  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  const app=readFileSync(new URL('../app.mjs',import.meta.url),'utf8');
+  const caddy=readFileSync(new URL('../../../deploy/aruba/Caddyfile.staging',import.meta.url),'utf8');
+  const compose=readFileSync(new URL('../../../deploy/aruba/compose.edge-staging.yaml',import.meta.url),'utf8');
+  assert.match(html,/meta name="hollowgate-preview" content="static-only"/);
+  assert.match(html,/Anteprima grafica/);
+  assert.match(app,/isStaticPreview\?null:createAuthApi/);
+  assert.match(app,/if\(isStaticPreview\)/);
+  assert.match(caddy,/@authPreviewPages path \/login \/signup \/forgot-password \/account\/password \/account\/verify-email/);
+  assert.match(caddy,/@authPreviewAssets path \/auth-ui\/app\.mjs \/auth-ui\/flow\.mjs \/auth-ui\/styles\.css/);
+  assert.match(caddy,/connect-src 'none'/);
+  assert.match(caddy,/handle \{\s*respond "Not Found" 404/);
+  assert.doesNotMatch(caddy,/reverse_proxy[^\n]*\/auth/);
+  assert.match(compose,/\.\.\/\.\.\/apps\/aruba-auth-web:\/srv\/auth-preview:ro/);
+});

@@ -11,6 +11,7 @@ services:
       - "0.0.0.0:443:443"
     volumes:
       - ./Caddyfile.staging:/etc/caddy/Caddyfile:ro
+      - ../../apps/aruba-auth-web:/srv/auth-preview:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:

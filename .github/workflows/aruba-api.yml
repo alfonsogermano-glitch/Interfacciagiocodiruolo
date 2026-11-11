@@ -29,6 +29,10 @@ jobs:
           node --check apps/aruba-auth-web/app.mjs
       - name: Test isolated auth browser flows
         run: node --test apps/aruba-auth-web/test/*.test.mjs
+      - name: Validate Caddy staging configuration syntax
+        run: |
+          docker run --rm -v "$PWD/deploy/aruba/Caddyfile.staging:/etc/caddy/Caddyfile:ro" caddy:2.10.2-alpine \
+            caddy validate --config /etc/caddy/Caddyfile
 
   api-test:
     runs-on: ubuntu-latest
