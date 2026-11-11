@@ -1,4 +1,4 @@
-\\set ON_ERROR_STOP on
+\set ON_ERROR_STOP on
 BEGIN;
 INSERT INTO hollowgate_auth.rate_limit_buckets
   (action,subject_digest,window_start)
