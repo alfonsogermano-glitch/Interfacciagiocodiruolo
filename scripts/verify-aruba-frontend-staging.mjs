@@ -10,7 +10,7 @@ assert.match(dockerfile,/npm ci --no-audit --no-fund/);
 assert.match(dockerfile,/npm run build/);
 assert.match(dockerfile,/COPY --from=builder \/app\/dist \/srv\/hollowgate/);
 assert.match(caddy,/try_files \{path\} \/index\.html/);
-assert.match(caddy,/@health path \/healthz/);
+assert.match(caddy,/handle \/healthz/);
 assert.match(caddy,/file_server/);
 assert.match(compose,/127\.0\.0\.1:8080:80/);
 assert.doesNotMatch(compose,/^\s*-\s*["']?(?:0\.0\.0\.0:)?(?:443|80):/m);
