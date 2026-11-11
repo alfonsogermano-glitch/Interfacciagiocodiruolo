@@ -8,7 +8,7 @@ test('trial activation checks test DB, bcrypt and private auth before exposure',
   assert.match(s,/auth_trial_hash/);
   assert.match(s,/register_local_user/);
   assert.match(s,/caddy validate/);
-  assert.match(s,/status.*401/);
+  assert.match(s,/probe \/auth\/signup 401/);
   assert.match(s,/trap rollback ERR/);
   assert.match(s,/AUTH_TRIAL_PRIVATE_SUCCESS/);
 });
