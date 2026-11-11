@@ -28,7 +28,7 @@ BEGIN
     RAISE EXCEPTION 'Runtime has direct identity modification permission'; END IF;
 END $$;
 RESET ROLE;
-DO $
+DO $$
 BEGIN
   IF EXISTS(
     SELECT 1 FROM hollowgate_auth.users
@@ -40,6 +40,6 @@ BEGIN
     JOIN hollowgate_auth.users u ON r.user_id=u.id
     WHERE u.email='signup-fixture@example.invalid' AND r.role='standard'
   ) THEN RAISE EXCEPTION 'Missing standard role'; END IF;
-END $;
+END $$;
 ROLLBACK;
 SELECT 'SIGNUP_EMAIL_VERIFICATION_SUCCESS' AS result;
