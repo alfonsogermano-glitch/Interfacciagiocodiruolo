@@ -14,7 +14,7 @@ assert.match(caddy,/@health path \/healthz/);
 assert.match(caddy,/file_server/);
 assert.match(compose,/127\.0\.0\.1:8080:80/);
 assert.doesNotMatch(compose,/^\s*-\s*["']?(?:0\.0\.0\.0:)?(?:443|80):/m);
-assert.doesNotMatch(compose,/(?i)(password|secret|api_key):\s*[^\s#]+/);
+assert.doesNotMatch(compose,/(password|secret|api_key):\s*[^\s#]+/i);
 assert.match(doc,/Do not switch DNS/);
 assert.match(doc,/not migrated/);
 console.log('PASS: Aruba static staging config and no public exposure');
