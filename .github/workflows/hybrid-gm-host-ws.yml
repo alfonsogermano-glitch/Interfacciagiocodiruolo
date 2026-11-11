@@ -1,0 +1,76 @@
+name: Hollowgate GM Host desktop
+on:
+  push:
+    branches:
+      - experimental/hybrid-gm-host-spike
+    paths:
+      - 'experiments/gm-host-ws/**'
+      - 'src/services/realtime/gmHostReactBridge.ts'
+      - 'src/services/realtime/GmHostScenePreview.tsx'
+      - 'src/services/realtime/useGmHostSession.ts'
+      - 'scripts/verify-gm-host-react-bridge.mts'
+      - '.github/workflows/hybrid-gm-host-ws.yml'
+  pull_request:
+    paths:
+      - 'experiments/gm-host-ws/**'
+      - 'src/services/realtime/gmHostReactBridge.ts'
+      - 'src/services/realtime/GmHostScenePreview.tsx'
+      - 'src/services/realtime/useGmHostSession.ts'
+      - 'scripts/verify-gm-host-react-bridge.mts'
+      - '.github/workflows/hybrid-gm-host-ws.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install WebSocket runtime for integration tests
+        working-directory: experiments/gm-host-ws
+        run: npm install --omit=dev --ignore-scripts --no-audit --no-fund
+      - name: Protocol and real WebSocket integration tests
+        working-directory: experiments/gm-host-ws
+        run: node --test test/*.test.mjs
+      - name: React transport adapter regression tests
+        run: node --experimental-strip-types --test scripts/verify-gm-host-react-bridge.mts
+      - name: Install React dependencies for type checking
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: React TypeScript typecheck
+        run: npx tsc --noEmit
+      - name: Syntax verification
+        working-directory: experiments/gm-host-ws
+        run: |
+          node --check server.mjs
+          node --check desktop/main.mjs
+          node --check public/client.js
+  windows-installer:
+    runs-on: windows-latest
+    needs: test
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: experiments/gm-host-ws
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install desktop build tools
+        run: npm install --no-audit --no-fund
+      - name: Fetch and verify official cloudflared
+        shell: pwsh
+        run: ./scripts/fetch-cloudflared.ps1
+      - name: Build self-contained NSIS installer
+        run: npm run build:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: hollowgate-gm-host-windows-unsigned
+          path: experiments/gm-host-ws/dist/Hollowgate-GM-Host-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 14

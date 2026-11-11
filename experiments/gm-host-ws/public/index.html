@@ -1,0 +1,8 @@
+<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hollowgate GM Host · Prototipo WebSocket</title><link rel="stylesheet" href="/style.css"></head><body>
+<main><h1>HOLLOWGATE · GM HOST</h1><p class="muted">Prototipo isolato WebSocket. Nessun Supabase, WebRTC o dato reale. Il PC del GM deve restare acceso.</p>
+<div id="status" role="status">Inizializzazione…</div><button id="reconnect" type="button" hidden>Riconnetti la sessione</button>
+<section id="gmPanel" hidden><h2>Game Master</h2><label for="publicUrl">Indirizzo HTTPS del Cloudflare Tunnel</label><input id="publicUrl" placeholder="https://....trycloudflare.com"><button id="createLink">Crea link giocatore</button><input id="invite" readonly aria-label="Invito giocatore"><button id="copyInvite">Copia link</button><p class="muted">Il link include un token temporaneo nel frammento. Non pubblicarlo. Non è una piattaforma autenticata.</p></section>
+<section id="playerPanel" hidden><label for="playerName">Nome giocatore</label><input id="playerName" maxlength="32" value="Giocatore"><button id="connectPlayer">Entra nella sessione</button></section>
+<section><h2>Campo dimostrativo</h2><div id="board"></div><p><button id="left">← Muovi</button><button id="right">Muovi →</button><button id="roll">Tira d20</button></p><div id="latency">Latenza: —</div></section>
+<section><h2>Attività</h2><ol id="events"></ol></section><details><summary>Registro tecnico</summary><pre id="log"></pre></details>
+</main><script type="module" src="/client.js"></script></body></html>
