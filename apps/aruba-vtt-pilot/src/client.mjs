@@ -135,7 +135,7 @@ export async function saveFullCharacterSheet(fetchImpl,campaignId,characterId,ch
   throw Error('Scheda personaggio non valida');
  const {id,player,...sheetData}=character;
  // Wizard's random client ID does not override authoritative Aruba draft UUID.
- if(JSON.stringify(sheetData).includes('supabase.co')||JSON.stringify(sheetData).includes('data:image/'))
+ if(/supabase[.]co/i.test(JSON.stringify(sheetData))||JSON.stringify(sheetData).includes('data:image/'))
   throw Error('Rimuovi i riferimenti alle immagini Supabase prima di salvare su Aruba.');
  const r=await fetchImpl('/vtt/characters/'+characterId,{
   method:'PUT',credentials:'same-origin',cache:'no-store',redirect:'error',
