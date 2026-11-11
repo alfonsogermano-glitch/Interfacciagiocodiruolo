@@ -1,3 +1,4 @@
+import {projectActiveScene,validateActiveScenePublication} from './active-scene-wire.mjs';
 // VTT transport contract v1 — isolated laboratory state, NOT real campaign storage.
 // All mutation decisions occur on the GM-hosted server, never on a player client.
 const VERSION=1;
@@ -11,10 +12,11 @@ const safeScene=(scene,role)=>scene?role==='gm'?{...scene}:{sceneId:scene.sceneI
 
 export function createVttProtocol(){
  const peers=new Map(),seen=new Map();
- let sequence=0,scene=null;
+ let sequence=0,scene=null,activeScene=null;
  const tokens=new Map();
  const view=role=>({
   scene:safeScene(scene,role),
+  activeScene:activeScene?projectActiveScene(activeScene,role):null,
   tokens:[...tokens.values()].map(t=>({tokenId:t.tokenId,owner:t.owner,x:t.x,y:t.y}))
  });
  function snapshot(socket){
@@ -57,6 +59,13 @@ export function createVttProtocol(){
     scene={sceneId:payload.sceneId,title:payload.title,gmNotes:payload.gmNotes??''};
     changes={scene};
    }
+  }else if(command==='publishActiveScene'){
+   if(actor.role!=='gm')code='gm_only';
+   else if(!validateActiveScenePublication(payload.activeScene)||payload.activeScene.campaignId!==CAMPAIGN)code='invalid_active_scene';
+   else{
+    activeScene=projectActiveScene(payload.activeScene,'gm');
+    changes={activeScene};
+   }
   }else if(command==='assignToken'){
    if(actor.role!=='gm')code='gm_only';
    else if(!cleanId(payload.tokenId)||!cleanId(payload.owner)||
@@ -81,7 +90,9 @@ export function createVttProtocol(){
   if(seen.size>MAX_SEEN)seen.delete(seen.keys().next().value);
   ack(socket,eventId,'accepted');
   for(const [other,peer] of peers){
-   const cleanChanges=changes.scene?{scene:safeScene(changes.scene,peer.role)}:changes;
+   const cleanChanges={...changes};
+   if(changes.scene)cleanChanges.scene=safeScene(changes.scene,peer.role);
+   if(changes.activeScene)cleanChanges.activeScene=projectActiveScene(changes.activeScene,peer.role);
    emit(other,{type:'vtt:patch',version:VERSION,campaignId:CAMPAIGN,eventId,actorId:actor.actorId,sequence,changes:cleanChanges});
   }
   return true;
