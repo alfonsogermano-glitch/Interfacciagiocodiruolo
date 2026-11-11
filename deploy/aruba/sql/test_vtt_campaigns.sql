@@ -1,4 +1,4 @@
--- Isolated disposable PostgreSQL test DB; assumes migrations 001-008.
+-- Isolated disposable PostgreSQL test DB; assumes migrations 001-009.
 BEGIN;
 DO $$
 DECLARE owner_a uuid:=gen_random_uuid(); owner_b uuid:=gen_random_uuid();
@@ -15,8 +15,13 @@ BEGIN
  IF result_id IS DISTINCT FROM cid THEN RAISE EXCEPTION 'Owner cannot edit'; END IF;
  IF NOT EXISTS(SELECT 1 FROM hollowgate_vtt.campaigns WHERE id=cid AND name='Rinominata' AND description='nuova descrizione' AND ruleset='hsc')
  THEN RAISE EXCEPTION 'Campaign metadata changed incorrectly'; END IF;
- IF has_function_privilege('public','hollowgate_vtt.update_owned_campaign(uuid,uuid,text,text)','EXECUTE')
- THEN RAISE EXCEPTION 'PUBLIC can update campaigns'; END IF;
+ IF EXISTS (
+   SELECT 1 FROM pg_proc p JOIN pg_namespace ns ON ns.oid=p.pronamespace
+   CROSS JOIN LATERAL aclexplode(p.proacl) grant_entry
+   WHERE ns.nspname='hollowgate_vtt'
+     AND p.proname='update_owned_campaign'
+     AND grant_entry.grantee=0 AND grant_entry.privilege_type='EXECUTE'
+ ) THEN RAISE EXCEPTION 'PUBLIC can update campaigns'; END IF;
  SELECT count(*) INTO n FROM hollowgate_vtt.list_owned_campaigns(owner_a) WHERE id=cid AND name='Rinominata';
  IF n<>1 THEN RAISE EXCEPTION 'Owner cannot see campaign'; END IF;
  SELECT count(*) INTO n FROM hollowgate_vtt.list_owned_campaigns(owner_b) WHERE id=cid;
