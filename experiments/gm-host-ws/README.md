@@ -21,3 +21,8 @@ Prototipo isolato: non è il VTT completo, non salva campagne, non usa Supabase 
 Niente porte sul router, STUN o TURN. Richiede che il PC GM sia acceso e il tunnel resti attivo.
 
 **Sicurezza e limiti:** Quick Tunnel è un servizio per prove, non garantisce disponibilità e il suo indirizzo cambia. Il link concede accesso alla demo finché il server è acceso. Non usare account, credenziali o dati di campagne reali. Prima della produzione servono autenticazione individuale, autorizzazioni robuste, backup, salvataggio cifrato e integrazione con il client Hollowgate React. Il test su GitHub non dimostra connettività PC–Android.
+
+## Stato: persistenza locale di prova
+Il server salva automaticamente `data/campaign.json` con coordinate del GM e ultimi 50 eventi di dado. Il salvataggio avviene con file temporaneo e rinomina; giocatori, token e identità di sessione non vengono salvati. Dopo un riavvio occorre un nuovo link GM e un nuovo invito giocatore. Una copia del file `data/campaign.json` costituisce un backup manuale della demo. Se il file è danneggiato, il server blocca l'avvio per evitare sovrascritture involontarie.
+
+Test: `npm test` nella cartella `experiments/gm-host-ws`. Questo archivio **non** è ancora un salvataggio completo delle campagne del VTT di produzione.
