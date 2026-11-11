@@ -61,7 +61,10 @@ jobs:
         run: |
           docker run -d --name hg-auth-test -e POSTGRES_PASSWORD=ci-only-password -e POSTGRES_DB=hollowgate_test postgres:17
           for i in $(seq 1 30); do
-            if docker exec hg-auth-test pg_isready -U postgres -d hollowgate_test; then exit 0; fi
+            if docker exec hg-auth-test psql -U postgres -d hollowgate_test -Atqc 'SELECT 1' 2>/dev/null | grep -qx 1; then
+              sleep 3
+              if docker exec hg-auth-test psql -U postgres -d hollowgate_test -Atqc 'SELECT 1' 2>/dev/null | grep -qx 1; then exit 0; fi
+            fi
             sleep 1
           done
           exit 1
