@@ -1,47 +1,35 @@
-import type { LucideIcon } from 'lucide-react';
-import {
-  Ghost,
-  Swords,
-  Bookmark,
-  GitBranch,
-  Map,
-  Lightbulb,
-  Scroll,
-  Play,
-  Image,
-  FileText,
-} from 'lucide-react';
+import { Icon } from '@iconify/react';
 
 interface GmSectionSidebarProps {
   activeTab: string;
   onChangeTab: (tabId: string) => void;
 }
 
-const PRIMARY_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
-  { id: 'chapters', label: 'Capitoli e Scene', icon: GitBranch },
-  { id: 'scene-encounter', label: 'Preparazione', icon: Play },
-  { id: 'players', label: 'Schede', icon: FileText },
-  { id: 'npcs', label: 'PNG', icon: Ghost },
-  { id: 'monsters', label: 'Mostri', icon: Swords },
-  { id: 'clues', label: 'Indizi', icon: Lightbulb },
-  { id: 'equipment-catalog', label: 'Archivio Oggetti', icon: Bookmark },
+const PRIMARY_SECTIONS: { id: string; label: string; icon: string }[] = [
+  { id: 'chapters', label: 'Capitoli e Scene', icon: 'ph:git-branch-duotone' },
+  { id: 'scene-encounter', label: 'Preparazione', icon: 'ph:play-duotone' },
+  { id: 'players', label: 'Schede', icon: 'ph:file-text-duotone' },
+  { id: 'npcs', label: 'PNG', icon: 'ph:identification-badge-duotone' },
+  { id: 'monsters', label: 'Mostri', icon: 'ph:ghost-duotone' },
+  { id: 'clues', label: 'Indizi', icon: 'ph:lightbulb-duotone' },
+  { id: 'equipment-catalog', label: 'Archivio Oggetti', icon: 'ph:bookmark-simple-duotone' },
 ];
 
-const SECONDARY_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
-  { id: 'map', label: 'Mappa legacy', icon: Map },
-  { id: 'situations', label: 'Eventi legacy', icon: Scroll },
-  { id: 'phases', label: 'Fasi di Gioco', icon: Play },
-  { id: 'combat', label: 'Combattimento', icon: Swords },
-  { id: 'visual-assets', label: 'Asset Grafici', icon: Image },
+const SECONDARY_SECTIONS: { id: string; label: string; icon: string }[] = [
+  { id: 'map', label: 'Mappa legacy', icon: 'ph:map-trifold-duotone' },
+  { id: 'situations', label: 'Eventi legacy', icon: 'ph:scroll-duotone' },
+  { id: 'phases', label: 'Fasi di Gioco', icon: 'ph:play-duotone' },
+  { id: 'combat', label: 'Combattimento', icon: 'ph:sword-duotone' },
+  { id: 'visual-assets', label: 'Asset Grafici', icon: 'ph:image-duotone' },
 ];
 
 function SectionButton({
-  icon: Icon,
+  icon,
   label,
   active,
   onClick,
 }: {
-  icon: LucideIcon;
+  icon: string;
   label: string;
   active: boolean;
   onClick: () => void;
@@ -57,7 +45,7 @@ function SectionButton({
           : 'text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]'
       }`}
     >
-      <Icon className="h-[18px] w-[18px]" />
+      <Icon icon={icon} className="h-[18px] w-[18px]" />
       {label}
     </button>
   );

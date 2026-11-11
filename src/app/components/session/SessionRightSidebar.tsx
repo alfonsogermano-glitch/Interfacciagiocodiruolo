@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { MessageSquare, FileText, StickyNote, Dices, MapPinned, Swords } from 'lucide-react';
+import { Icon } from '@iconify/react';
 import { SlideOverPanel } from './SlideOverPanel';
 import { SessionCharactersPanel } from './SessionCharactersPanel';
 import { SessionNotesPanel } from './SessionNotesPanel';
@@ -21,16 +21,16 @@ import './sessionPanelResize.css';
 
 type SessionPanelId = 'chat' | 'characters' | 'notes' | 'dice' | 'encounters' | 'combat';
 
-const ICONS: { id: SessionPanelId; label: string; icon: typeof FileText; enabled: boolean }[] = [
-  { id: 'chat', label: 'Chat', icon: MessageSquare, enabled: true },
-  { id: 'characters', label: 'Schede', icon: FileText, enabled: true },
-  { id: 'notes', label: 'Note', icon: StickyNote, enabled: true },
-  { id: 'dice', label: 'Dadi', icon: Dices, enabled: true },
+const ICONS: { id: SessionPanelId; label: string; icon: string; enabled: boolean }[] = [
+  { id: 'chat', label: 'Chat', icon: 'ph:chat-duotone', enabled: true },
+  { id: 'characters', label: 'Schede', icon: 'ph:file-text-duotone', enabled: true },
+  { id: 'notes', label: 'Note', icon: 'ph:note-duotone', enabled: true },
+  { id: 'dice', label: 'Dadi', icon: 'ph:dice-five-duotone', enabled: true },
 ];
 
-const GM_ICONS: { id: SessionPanelId; label: string; icon: typeof FileText; enabled: boolean }[] = [
-  { id: 'encounters', label: 'Incontri', icon: MapPinned, enabled: true },
-  { id: 'combat', label: 'Combatti', icon: Swords, enabled: true },
+const GM_ICONS: { id: SessionPanelId; label: string; icon: string; enabled: boolean }[] = [
+  { id: 'encounters', label: 'Incontri', icon: 'ph:map-pin-duotone', enabled: true },
+  { id: 'combat', label: 'Combatti', icon: 'ph:sword-duotone', enabled: true },
 ];
 
 const NOTES_PANEL_STORAGE_KEY = 'hollowgate.notes.panel-width';
@@ -630,10 +630,10 @@ export function SessionRightSidebar({ openCharacterRequest = null }: SessionRigh
     <DiceSessionProvider onRollIngested={handleRollIngested}>
       <>
         <aside className="relative z-[950] flex h-full w-20 shrink-0 flex-col items-center gap-1 border-l border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
-          {(isOwner ? [...ICONS, ...GM_ICONS] : ICONS).map(({ id, label, icon: Icon, enabled }) => (
+          {(isOwner ? [...ICONS, ...GM_ICONS] : ICONS).map(({ id, label, icon, enabled }) => (
             <button key={id} type="button" disabled={!enabled} onClick={() => enabled && togglePanel(id)} aria-label={label} className={`flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2 text-center text-[11px] transition-colors ${openPanel === id ? 'bg-[var(--dash-accent)] text-[var(--dash-text-strong)]' : enabled ? 'text-[var(--dash-text)] hover:bg-[var(--dash-surface-2)] hover:text-[var(--dash-text-strong)]' : 'text-[var(--dash-muted)] opacity-40 cursor-not-allowed'}`}>
               <span className="relative inline-flex">
-                <Icon className="h-[18px] w-[18px]" />
+                <Icon icon={icon} className="h-[18px] w-[18px]" />
                 {id === 'chat' && (privateUnread || (chatUnread && (openPanel !== 'chat' || privateOpen))) && <span data-chat-unread aria-hidden="true" className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[var(--dash-accent)] ring-1 ring-[var(--dash-sidebar-bg)]" />}
               </span>
               {label}
