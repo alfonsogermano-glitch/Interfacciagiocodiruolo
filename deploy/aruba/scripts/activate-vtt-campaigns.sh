@@ -14,6 +14,8 @@ echo 'Compilo il nuovo VTT React isolato...'
 bash deploy/aruba/scripts/build-vtt-pilot.sh
 echo 'Controllo e installo lo schema 008 esclusivamente sul database hollowgate_auth_test...'
 sudo docker exec -i hollowgate-postgres-1 psql -X -v ON_ERROR_STOP=1 -U hollowgate -d hollowgate_auth_test < deploy/aruba/sql/008_vtt_campaigns.sql
+echo 'Applico le modifiche metadata 009 solo al database hollowgate_auth_test...'
+sudo docker exec -i hollowgate-postgres-1 psql -X -v ON_ERROR_STOP=1 -U hollowgate -d hollowgate_auth_test < deploy/aruba/sql/009_vtt_campaign_updates.sql
 echo 'Verifico la configurazione privata Caddy...'
 sudo docker compose "${edge[@]}" run --rm --no-deps --entrypoint caddy caddy validate --config /etc/caddy/Caddyfile
 rollback(){

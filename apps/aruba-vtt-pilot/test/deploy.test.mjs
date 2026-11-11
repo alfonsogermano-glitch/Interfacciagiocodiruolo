@@ -19,3 +19,9 @@ test('activation is guarded, isolated and probes private routes',()=>{
  assert.match(s,/check \/vtt\/campaigns 401/);
  assert.match(s,/check \/health 200/);
 });
+
+test('campaign edit migration is installed only after 008 in staging test database',()=>{
+ assert.match(s,/009_vtt_campaign_updates\.sql/);
+ assert.ok(s.indexOf('008_vtt_campaigns.sql')<s.indexOf('009_vtt_campaign_updates.sql'));
+ assert.match(s,/-d hollowgate_auth_test < deploy\/aruba\/sql\/009_vtt_campaign_updates\.sql/);
+});
