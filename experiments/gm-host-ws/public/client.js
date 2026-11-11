@@ -50,6 +50,19 @@ $('createLink').onclick=()=>{
  url.hash='join='+encodeURIComponent(inviteToken);
  $('invite').value=url.href;
 };
+if(role==='gm'&&window.hollowgateDesktop){
+ const applyTunnel=url=>{
+  if(!url){$('publicUrl').value='';$('invite').value='';status('Tunnel esterno non disponibile; la partita locale resta attiva.');return}
+  $('publicUrl').value=url;
+  if(window.__playerToken){$('createLink').click();status('Invito giocatore pronto.')}
+ };
+ window.hollowgateDesktop.onTunnelUrl(applyTunnel);
+ void window.hollowgateDesktop.getTunnelUrl().then(applyTunnel).catch(()=>{});
+ const observer=new MutationObserver(()=>{
+  if(window.__playerToken&&$('publicUrl').value&&!$('invite').value){$('createLink').click();observer.disconnect()}
+ });
+ observer.observe($('status'),{childList:true,subtree:true});
+}
 $('copyInvite').onclick=async()=>{try{await navigator.clipboard.writeText($('invite').value);status('Link copiato')}catch{status('Copia il link dal campo')}};
 function move(delta){if(socket?.readyState!==WebSocket.OPEN||!selfId||!state?.tokens[selfId]){status('Sessione scollegata: premi Riconnetti');return;}const t=state.tokens[selfId];send({type:'move',id:role==='gm'?'gm':undefined,x:Math.max(0,Math.min(100,t.x+delta)),y:t.y})}
 $('left').onclick=()=>move(-5);$('right').onclick=()=>move(5);$('roll').onclick=()=>send({type:'roll',sides:20});
