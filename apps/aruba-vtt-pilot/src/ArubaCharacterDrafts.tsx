@@ -3,6 +3,7 @@ import {listCharacterDrafts,createCharacterDraft,saveFullCharacterSheet,archiveO
 import {CompleteCharacterSheet} from '../../../src/app/components/CompleteCharacterSheet';
 import {CharacterCreationWizard} from '../../../src/app/components/gm/CharacterCreationWizard';
 import {EntityFilterToolbar,type SortMode,type ViewMode} from '../../../src/app/components/session/shared/EntityFilterToolbar';
+import {EntityCard} from '../../../src/app/components/session/shared/EntityCard';
 import {EntityPagination,paginateItems} from '../../../src/app/components/session/shared/EntityPagination';
 import {Plus,Users,UserRound,MoreVertical,Pencil} from 'lucide-react';
 import type {Character} from '../../../src/types/character';
@@ -106,18 +107,16 @@ export function ArubaCharacterDrafts({campaignId,ownerId,ruleset}:{
      {loading?<div className="aruba-library-unavailable">Caricamento…</div>:filtered.length===0?
       <div className="aruba-library-unavailable">{drafts.length?'Nessun personaggio trovato.':'Non hai ancora creato personaggi in questa campagna.'}</div>:
       <div className={viewMode==='grid'?'aruba-character-cards':'aruba-character-cards list'}>
-       {pageItems.map(d=><article className="aruba-character-card" key={d.id}>
-        <button type="button" className="aruba-character-card-main" onClick={()=>{setError(null);if(d.status==='active')setViewingId(d.id);else setEditingId(d.id);}}>
-         <div className="aruba-character-portrait"><UserRound size={36}/></div>
-         <div className="aruba-character-summary">
-          <strong>{d.name}</strong>
-          <span>{[d.sheetData.style,d.sheetData.viaggio].filter(Boolean).join(' · ')||'Personaggio'}</span>
-          <small>High School Cthulhu · {d.status==='active'?'Scheda completata':'Bozza'}</small>
-         </div>
-        </button>
-        <button className="aruba-character-edit" type="button" aria-label={'Modifica '+d.name}
-         onClick={()=>{setError(null);setEditingId(d.id);}}><Pencil size={17}/></button>
-       </article>)}
+       {pageItems.map(d=><EntityCard key={d.id} variant={viewMode} name={d.name}
+        subtitle={[d.sheetData.style,d.sheetData.viaggio].filter(Boolean).join(' · ')||'Personaggio'}
+        secondaryText={d.status==='active'?'Scheda completata':'Bozza'}
+        badge={<span className="aruba-character-ruleset">High School Cthulhu</span>}
+        onClick={()=>{setError(null);if(d.status==='active')setViewingId(d.id);else setEditingId(d.id);}}
+        cornerAction={<button className="aruba-character-edit" type="button"
+         aria-label={'Modifica '+d.name} onClick={()=>{setError(null);setEditingId(d.id);}}>
+          <Pencil size={17}/>
+        </button>}
+       />)}
       </div>}
      <EntityPagination page={safePage} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize}
       totalPages={totalPages} startIndex={startIndex} endIndex={endIndex}

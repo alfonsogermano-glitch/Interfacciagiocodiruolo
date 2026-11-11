@@ -261,3 +261,15 @@ test('global character entry respects original three tabs and invokes wizard wit
  assert.match(layout,/section!=='characters'&&<aside className="gm-sidebar"/);
  assert.match(styles,/main-workspace-row>\.content:has\(\.aruba-character-library\)/);
 });
+
+test('Aruba imports original EntityCard and FilterToolbar visual components, with safe image adapter',()=>{
+ const page=readFileSync(new URL('../src/ArubaCharacterDrafts.tsx',import.meta.url),'utf8');
+ const vite=readFileSync(new URL('../vite.config.mjs',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../src/legacy-wizard.css',import.meta.url),'utf8');
+ const original=readFileSync(new URL('../../../src/app/components/session/shared/EntityCard.tsx',import.meta.url),'utf8');
+ assert.match(page,/import \{EntityCard\} from/);
+ assert.match(page,/pageItems.map\(d=><EntityCard/);
+ assert.match(vite,/ArubaPortraitPending/);
+ assert.match(css,/EntityCard\.tsx/);
+ assert.match(original,/DraggablePortrait/);
+});
