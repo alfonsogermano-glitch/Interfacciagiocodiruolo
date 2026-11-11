@@ -102,15 +102,23 @@ function ArubaCharacterSheetView({draft,campaignId,ownerId,onClose,onSaved,onArc
  const [archiving,setArchiving]=useState(false);
  const queue=useRef<Promise<void>>(Promise.resolve());
  const busy=useRef(false);
+ const revision=useRef(0);
  function update(next:HscCharacter){
   if(archiving||busy.current)return;
+  const currentRevision=++revision.current;
   setWorking(next);setSaving(true);setError(null);
+  // Requests are serialized and only the LAST revision controls the save indicator.
   queue.current=queue.current.catch(()=>{}).then(async()=>{
    try{
     const result=await saveFullCharacterSheet(fetch,campaignId,draft.id,next,ownerId);
     onSaved(result);
-   }catch(e){setError(e instanceof Error?e.message:'Salvataggio non riuscito');throw e;}
-  }).finally(()=>setSaving(false));
+    if(currentRevision===revision.current)setError(null);
+   }catch(e){
+    if(currentRevision===revision.current)
+     setError(e instanceof Error?e.message:'Salvataggio non riuscito');
+    throw e;
+   }
+  }).finally(()=>{if(currentRevision===revision.current)setSaving(false);});
  }
  async function close(){
   if(archiving)return;
