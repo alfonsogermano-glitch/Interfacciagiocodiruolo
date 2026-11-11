@@ -1,39 +1,59 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {loadPilotSession,logoutPilot,validateBootstrap} from '../src/client.mjs';
+import {loadPilotSession,logoutPilot,validateBootstrap,validateCampaign,listOwnedCampaigns,createOwnedCampaign} from '../src/client.mjs';
 const user={id:'971e26ae-eecb-4f37-ad03-56b0c3000789',email:'tester@example.org',displayName:'Tester',role:'standard'};
-const capabilities={campaigns:{read:false,write:false},characters:{read:false,write:false},gameSession:false};
-test('VTT lobby authenticates only via same-origin Aruba cookie',async()=>{
-  let request;
-  const result=await loadPilotSession(async(path,options)=>{
-    request={path,options};
-    return {status:200,ok:true,json:async()=>({user,backend:'aruba-staging',capabilities})};
-  });
-  assert.equal(result.id,user.id);
-  assert.equal(request.path,'/vtt/bootstrap');
-  assert.equal(request.options.credentials,'same-origin');
-  assert.equal(request.options.cache,'no-store');
-  assert.equal(request.options.redirect,'error');
-  assert.equal(Object.isFrozen(result),true);
+const caps=enabled=>({campaigns:{read:enabled,write:enabled},characters:{read:false,write:false},gameSession:false});
+const sample={id:'be2f1a87-b8ee-4b34-9da0-07efda11379a',ownerId:user.id,name:'Storia',description:'',ruleset:'hsc',createdAt:'2026-11-11'};
+test('cookie-based login preserves explicit campaign feature gate',async()=>{
+ let request;
+ const x=await loadPilotSession(async(path,options)=>{
+  request={path,options};return {status:200,ok:true,json:async()=>({user,backend:'aruba-staging',capabilities:caps(true)})};
+ });
+ assert.equal(x.campaignsEnabled,true);
+ assert.equal(request.path,'/vtt/bootstrap');
+ assert.equal(request.options.credentials,'same-origin');
+ assert.equal(request.options.cache,'no-store');
+ assert.equal(Object.isFrozen(x),true);
+ assert.equal(validateBootstrap({user,backend:'aruba-staging',capabilities:caps(false)}).campaignsEnabled,false);
 });
-test('unauthorized session is not treated as a user',async()=>{
-  assert.equal(await loadPilotSession(async()=>({status:401,ok:false})),null);
-  await assert.rejects(()=>loadPilotSession(async()=>({status:503,ok:false})),/non disponibile/);
+test('unverified session cannot enter the UI',async()=>{
+ assert.equal(await loadPilotSession(async()=>({status:401,ok:false})),null);
+ await assert.rejects(()=>loadPilotSession(async()=>({status:503,ok:false})),/non disponibile/);
 });
-test('the new app fails closed on wrong backends or enabled game capabilities',()=>{
-  for(const payload of [
-    {user,backend:'supabase',capabilities},
-    {user:{...user,id:'spoofed'},backend:'aruba-staging',capabilities},
-    {user,backend:'aruba-staging',capabilities:{...capabilities,gameSession:true}},
-    {user,backend:'aruba-staging',capabilities:{...capabilities,campaigns:{read:true,write:false}}},
-  ])assert.throws(()=>validateBootstrap(payload));
+test('campaigns and games remain fail-closed on malformed capabilities',()=>{
+ for(const data of [
+  {user,backend:'supabase',capabilities:caps(false)},
+  {user:{...user,id:'spoofed'},backend:'aruba-staging',capabilities:caps(false)},
+  {user,backend:'aruba-staging',capabilities:{...caps(false),gameSession:true}},
+  {user,backend:'aruba-staging',capabilities:{...caps(false),campaigns:{read:true,write:false}}},
+ ])assert.throws(()=>validateBootstrap(data));
 });
-test('logout revokes session server-side and does not use local storage',async()=>{
-  let req;
-  await logoutPilot(async(path,options)=>{req={path,options};return {ok:true};});
-  assert.equal(req.path,'/auth/logout');
-  assert.equal(req.options.method,'POST');
-  assert.equal(req.options.credentials,'same-origin');
-  assert.doesNotMatch(readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8'),/supabase|localStorage|sessionStorage|Bearer/);
+test('campaign list is scoped to logged-in identity and rejects malformed records',async()=>{
+ const list=await listOwnedCampaigns(async()=>({ok:true,json:async()=>({campaigns:[
+  sample,{...sample,id:'be2f1a87-b8ee-4b34-9da0-07efda11379b',ownerId:'another-account'}]})}),user.id);
+ assert.equal(list.length,1);
+ assert.equal(list[0].ownerId,user.id);
+ assert.throws(()=>validateCampaign({...sample,name:null}));
+});
+test('campaign creation passes only whitelisted fields with same-origin cookies',async()=>{
+ let sent;
+ const created=await createOwnedCampaign(async(path,options)=>{
+  sent={path,options};return {ok:true,json:async()=>({campaign:sample})};
+ },{name:'Storia',description:'',ruleset:'hsc'},user.id);
+ assert.equal(created.id,sample.id);
+ assert.equal(sent.path,'/vtt/campaigns');
+ assert.equal(sent.options.credentials,'same-origin');
+ assert.deepEqual(Object.keys(JSON.parse(sent.options.body)).sort(),['description','name','ruleset']);
+ await assert.rejects(()=>createOwnedCampaign(async()=>{}, {name:'Storia',description:'',ruleset:'invalid'},user.id));
+ await assert.rejects(()=>createOwnedCampaign(async()=>({ok:true,json:async()=>({campaign:{...sample,ownerId:'wrong'}})}),
+  {name:'Storia',description:'',ruleset:'hsc'},user.id),/Proprietario/);
+});
+test('logout uses server revocation without local storage',async()=>{
+ let req;
+ await logoutPilot(async(path,options)=>{req={path,options};return {ok:true};});
+ assert.equal(req.path,'/auth/logout');
+ assert.equal(req.options.method,'POST');
+ const text=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
+ assert.doesNotMatch(text,/supabase|localStorage|sessionStorage|Bearer/);
 });
