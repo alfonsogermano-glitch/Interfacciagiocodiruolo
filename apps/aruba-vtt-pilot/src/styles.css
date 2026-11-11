@@ -78,12 +78,13 @@
  --dash-accent:#a98850;--dash-accent-2:#d1ad71;--dash-danger-border:#8f614a;
  color:var(--dash-text);min-height:100%;padding:0;max-width:none;margin:0;
 }
+/* Preserve original Tailwind control styles: do not override every
+   button with a higher-specificity background/border rule. */
 .aruba-character-library button,.aruba-character-library select,.aruba-character-sheet button,.aruba-original-wizard button,.aruba-original-wizard input,.aruba-original-wizard select{
- font-family:inherit;appearance:none;-webkit-appearance:none;border-radius:8px;
+ font-family:inherit;color-scheme:dark;
 }
-.aruba-character-library button,.aruba-character-sheet button{background-color:var(--dash-surface);color:var(--dash-text);border:1px solid var(--dash-border-soft);padding:8px 12px}
-.aruba-character-library button:hover:not(:disabled),.aruba-character-sheet button:hover:not(:disabled){border-color:var(--dash-accent-2);color:var(--dash-text-strong)}
 .aruba-character-library button:focus-visible,.aruba-character-sheet button:focus-visible{outline:2px solid var(--dash-accent-2);outline-offset:2px}
+.aruba-character-library .aruba-character-tabs button:hover:not(:disabled),.aruba-character-library .aruba-character-edit:hover{color:var(--dash-text-strong);border-color:var(--dash-accent-2)}
 .aruba-character-library button:disabled{opacity:.4;cursor:not-allowed}
 .aruba-character-toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:20px}
 .aruba-character-tabs{display:flex;align-items:center;gap:5px;padding:5px;border:1px solid var(--dash-border-soft);border-radius:16px;background:var(--dash-surface)}
@@ -118,3 +119,25 @@
 .main-workspace-row>.content:has(.aruba-character-library){padding:30px clamp(18px,3.5vw,56px);max-width:none;width:100%}
 .aruba-character-sheet{width:100%;max-width:none}
 @media(max-width:760px){.aruba-character-cards{grid-template-columns:1fr}.aruba-character-portrait{width:90px}.aruba-character-toolbar{align-items:flex-start}}
+
+/* One Noir black/gold token system for all staging chrome; do not fallback
+   to the original grey Noir, blue pilot, or legacy red HSC theme. */
+.workspace{
+ --dash-bg:#090a09;--dash-sidebar-bg:#11100d;--dash-panel:#171612;
+ --dash-surface:#211c15;--dash-surface-2:#292218;--dash-input:#161612;
+ --dash-border:#725834;--dash-border-soft:#4a3924;--dash-text:#e7dac2;
+ --dash-text-strong:#f8ead0;--dash-muted:#ad9d84;
+ --dash-accent:#b9975d;--dash-accent-2:#d8b77c;
+ background:var(--dash-bg);color:var(--dash-text);
+}
+.workspace .topbar{background:#11110f;border-color:var(--dash-border-soft)}
+.workspace .main-area{background:var(--dash-bg)}
+.workspace .main-workspace-row>.content{background:var(--dash-bg)}
+.workspace .primary-sidebar,.workspace .gm-sidebar{background:var(--dash-sidebar-bg);border-color:var(--dash-border-soft)}
+.workspace select,.workspace input,.workspace textarea{color-scheme:dark}
+.aruba-character-library select,.aruba-original-wizard select{background-color:var(--dash-input);color:var(--dash-text);border:1px solid var(--dash-border-soft)}
+.aruba-character-library .aruba-new-character{background:var(--dash-accent);color:#19130a}
+.aruba-character-library .aruba-character-tabs button.selected{background:var(--dash-accent);color:#19130a}
+.aruba-character-sheet{--dash-panel:#171612;--dash-surface:#211c15;--dash-border:#725834;--dash-border-soft:#4a3924;--dash-accent:#b9975d;--dash-accent-2:#d8b77c}
+.aruba-character-sheet button{font:inherit}
+.aruba-character-sheet .character-panel-return{background:var(--dash-surface);color:var(--dash-text);border:1px solid var(--dash-border);border-radius:8px;padding:8px 12px}
