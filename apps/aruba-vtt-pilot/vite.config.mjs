@@ -12,6 +12,8 @@ export default defineConfig({
     name:'aruba-legacy-image-safety',
     enforce:'pre',
     resolveId(id,importer){
+      if(id==='./ui/tooltip' && /\/src\/app\/components\/(FrischezzaTracker|FoliaSpiral)\.tsx$/.test(importer??''))
+        return resolve(root,'src/ArubaTooltip.tsx');
       if(id==='../shared/ImageCropUploadModal' && importer?.endsWith('/src/app/components/gm/CharacterCreationWizard.tsx'))
         return resolve(root,'src/ArubaImagePending.tsx');
       return null;

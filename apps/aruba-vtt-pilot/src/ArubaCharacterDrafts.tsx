@@ -1,5 +1,6 @@
 import {useEffect,useRef,useState,type FormEvent} from 'react';
-import {listCharacterDrafts,createCharacterDraft,saveFullCharacterSheet} from './client.mjs';
+import {listCharacterDrafts,createCharacterDraft,saveFullCharacterSheet,archiveOwnedCharacter} from './client.mjs';
+import {CompleteCharacterSheet} from '../../../src/app/components/CompleteCharacterSheet';
 import {CharacterCreationWizard} from '../../../src/app/components/gm/CharacterCreationWizard';
 import type {Character} from '../../../src/types/character';
 
@@ -13,11 +14,12 @@ export function ArubaCharacterDrafts({campaignId,ownerId,ruleset}:{
  const [loading,setLoading]=useState(true);
  const [pending,setPending]=useState(false);
  const [editingId,setEditingId]=useState<string|null>(null);
+ const [viewingId,setViewingId]=useState<string|null>(null);
  const [error,setError]=useState<string|null>(null);
  const savingRef=useRef(false);
  useEffect(()=>{
   let active=true;
-  setDrafts([]);setEditingId(null);setLoading(true);setError(null);
+  setDrafts([]);setEditingId(null);setViewingId(null);setLoading(true);setError(null);
   void listCharacterDrafts(fetch,campaignId,ownerId).then(list=>{if(active)setDrafts(list);})
    .catch(e=>{if(active)setError(e instanceof Error?e.message:'Errore caricamento');})
    .finally(()=>{if(active)setLoading(false);});
@@ -35,6 +37,7 @@ export function ArubaCharacterDrafts({campaignId,ownerId,ruleset}:{
   finally{setPending(false);}
  }
  const editing=drafts.find(d=>d.id===editingId);
+ const viewing=drafts.find(d=>d.id===viewingId&&d.status==='active');
  async function save(character:HscCharacter){
   if(!editing||savingRef.current)return;
   savingRef.current=true;setError(null);
@@ -60,9 +63,17 @@ export function ArubaCharacterDrafts({campaignId,ownerId,ruleset}:{
     <div className="empty">Nessun personaggio nella campagna.</div>:
     <div className="character-draft-list">{drafts.map(d=><article key={d.id}>
       <strong>{d.name}</strong><span>{d.status==='active'?'Scheda completa salvata su Aruba':'Bozza da completare'}</span>
+      {ruleset==='hsc'&&d.status==='active'&&<button type="button" className="character-edit-action"
+        onClick={()=>{setError(null);setViewingId(d.id);}}>Apri scheda</button>}
       {ruleset==='hsc'&&<button type="button" className="character-edit-action" onClick={()=>{setError(null);setEditingId(d.id);}}>
        {d.status==='active'?'Modifica scheda':'Completa scheda'}</button>}
     </article>)}</div>}
+   {viewing&&ruleset==='hsc'&&<ArubaCharacterSheetView
+     key={viewing.id} draft={viewing} campaignId={campaignId} ownerId={ownerId}
+     onClose={()=>setViewingId(null)}
+     onSaved={value=>setDrafts(list=>list.map(item=>item.id===value.id?value:item))}
+     onArchived={id=>{setDrafts(list=>list.filter(item=>item.id!==id));setViewingId(null);}}
+   />}
    {editing&&ruleset==='hsc'&&<div className="aruba-original-wizard" key={editing.id}>
      <CharacterCreationWizard
        existingCharacters={drafts.filter(d=>d.id!==editing.id).map(d=>({id:d.id,name:d.name}))}
@@ -75,5 +86,60 @@ export function ArubaCharacterDrafts({campaignId,ownerId,ruleset}:{
      />
      {error&&<p className="aruba-wizard-error" role="alert">{error}</p>}
    </div>}
+ </section>;
+}
+
+function ArubaCharacterSheetView({draft,campaignId,ownerId,onClose,onSaved,onArchived}:{
+ draft:Draft;campaignId:string;ownerId:string;
+ onClose:()=>void;onSaved:(value:Draft)=>void;onArchived:(id:string)=>void;
+}){
+ const [working,setWorking]=useState<HscCharacter>(()=>({
+  ...draft.sheetData,id:draft.id,name:draft.name,
+  player:'',notes:String(draft.sheetData.notes??''),
+ } as HscCharacter));
+ const [saving,setSaving]=useState(false);
+ const [error,setError]=useState<string|null>(null);
+ const [archiving,setArchiving]=useState(false);
+ const queue=useRef<Promise<void>>(Promise.resolve());
+ const busy=useRef(false);
+ function update(next:HscCharacter){
+  if(archiving||busy.current)return;
+  setWorking(next);setSaving(true);setError(null);
+  queue.current=queue.current.catch(()=>{}).then(async()=>{
+   try{
+    const result=await saveFullCharacterSheet(fetch,campaignId,draft.id,next,ownerId);
+    onSaved(result);
+   }catch(e){setError(e instanceof Error?e.message:'Salvataggio non riuscito');throw e;}
+  }).finally(()=>setSaving(false));
+ }
+ async function close(){
+  if(archiving)return;
+  try{await queue.current;onClose();}
+  catch{setError('Le modifiche non sono state salvate. Riprova prima di chiudere la scheda.');}
+ }
+ async function archive(){
+  if(busy.current)return;
+  busy.current=true;setArchiving(true);setError(null);
+  try{
+   await queue.current;
+   const id=await archiveOwnedCharacter(fetch,campaignId,draft.id,ownerId);
+   onArchived(id);
+  }catch(e){setError(e instanceof Error?e.message:'Archiviazione non riuscita');setArchiving(false);busy.current=false;}
+ }
+ return <section className="aruba-character-sheet" aria-label={'Scheda completa di '+working.name}>
+  <div className="aruba-character-sheet-status">
+   <button type="button" className="character-panel-return" onClick={()=>void close()} disabled={archiving}>Torna ai personaggi</button>
+   <span>{saving?'Salvataggio in corso…':error?'Modifiche non confermate':'Scheda salvata su Aruba'}</span>
+   {error&&<span className="unsaved" role="alert">{error}</span>}
+   {error&&<button type="button" className="character-panel-return" onClick={()=>update(working)}>Riprova salvataggio</button>}
+  </div>
+  <CompleteCharacterSheet
+   character={working}
+   audacia={working.audacia}
+   onAudaciaUpdate={value=>update({...working,audacia:value})}
+   onUpdate={update}
+   onDelete={()=>void archive()}
+  />
+  {archiving&&<p>Archiviazione in corso…</p>}
  </section>;
 }

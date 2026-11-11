@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {loadPilotSession,logoutPilot,validateBootstrap,validateCampaign,listOwnedCampaigns,createOwnedCampaign,updateOwnedCampaign,listCharacterDrafts,createCharacterDraft,validateCharacterDraft,saveFullCharacterSheet} from '../src/client.mjs';
+import {loadPilotSession,logoutPilot,validateBootstrap,validateCampaign,listOwnedCampaigns,createOwnedCampaign,updateOwnedCampaign,listCharacterDrafts,createCharacterDraft,validateCharacterDraft,saveFullCharacterSheet,archiveOwnedCharacter} from '../src/client.mjs';
 const user={id:'971e26ae-eecb-4f37-ad03-56b0c3000789',email:'tester@example.org',displayName:'Tester',role:'standard'};
 const caps=enabled=>({campaigns:{read:enabled,write:enabled},characters:{read:false,write:false},gameSession:false});
 const sample={id:'be2f1a87-b8ee-4b34-9da0-07efda11379a',ownerId:user.id,name:'Storia',description:'',ruleset:'hsc',createdAt:'2026-11-11'};
@@ -212,4 +212,27 @@ test('Aruba full-sheet client preserves original mechanics but does not trust wi
  assert.equal(payload.sheetData.style,'Jock');
  await assert.rejects(()=>saveFullCharacterSheet(async()=>({ok:true,json:async()=>({character:{...response,ownerId:'forged'}})}),sample.id,id,character,user.id));
  await assert.rejects(()=>saveFullCharacterSheet(async()=>{},sample.id,id,{...character,coverImageUrl:'https://bad.supabase.co/abc'},user.id));
+});
+
+test('original complete character sheet uses real Aruba save and owner-only soft archive',async()=>{
+ const source=readFileSync(new URL('../src/ArubaCharacterDrafts.tsx',import.meta.url),'utf8');
+ const original=readFileSync(new URL('../../../src/app/components/CompleteCharacterSheet.tsx',import.meta.url),'utf8');
+ const vite=readFileSync(new URL('../vite.config.mjs',import.meta.url),'utf8');
+ assert.match(source,/import \{CompleteCharacterSheet\} from/);
+ assert.match(source,/onAudaciaUpdate=\{value=>update/);
+ assert.match(source,/onDelete=\{\(\)=>void archive\(\)\}/);
+ assert.match(source,/queue\.current=queue\.current\.catch/);
+ for(const part of ['FrischezzaTracker','FoliaSpiral','ConditionsPanel','TurbePanel','EquipmentPanel'])
+  assert.match(original,new RegExp(part));
+ assert.match(vite,/ArubaTooltip/);
+});
+test('archive client uses same origin cookies and trusts no browser owner',async()=>{
+ const uuid='ee2f1a87-b8ee-4b34-9da0-07efda11379a';let sent;
+ const id=await archiveOwnedCharacter(async(url,request)=>{
+  sent={url,request};return {ok:true,json:async()=>({archivedId:uuid})};
+ },sample.id,uuid,user.id);
+ assert.equal(id,uuid);assert.equal(sent.request.method,'DELETE');
+ assert.equal(sent.request.credentials,'same-origin');
+ assert.deepEqual(JSON.parse(sent.request.body),{campaignId:sample.id});
+ await assert.rejects(()=>archiveOwnedCharacter(async()=>({ok:true,json:async()=>({archivedId:'other'})}),sample.id,uuid,user.id));
 });

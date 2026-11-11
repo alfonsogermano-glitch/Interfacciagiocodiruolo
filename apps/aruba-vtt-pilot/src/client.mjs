@@ -150,3 +150,19 @@ export async function saveFullCharacterSheet(fetchImpl,campaignId,characterId,ch
   throw Error('Risposta della scheda non autorizzata.');
  return result;
 }
+
+export async function archiveOwnedCharacter(fetchImpl,campaignId,characterId,ownerId){
+ if(!/^[0-9a-f-]{36}$/i.test(campaignId)||!/^[0-9a-f-]{36}$/i.test(characterId))
+  throw Error('ID di campagna o personaggio non valido');
+ const response=await fetchImpl('/vtt/characters/'+characterId,{
+  method:'DELETE',credentials:'same-origin',cache:'no-store',redirect:'error',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({campaignId}),
+ });
+ if(response.status===401)throw Error('Sessione scaduta');
+ if(response.status===404)throw Error('Personaggio non trovato o non autorizzato');
+ if(!response.ok)throw Error('Impossibile archiviare il personaggio');
+ const data=await response.json();
+ if(data.archivedId!==characterId)throw Error('Archiviazione non confermata');
+ return data.archivedId;
+}
