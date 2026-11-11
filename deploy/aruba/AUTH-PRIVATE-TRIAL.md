@@ -11,3 +11,7 @@ The current static preview remains the default. These files are an OPTIONAL alte
 Only use disposable test email/credentials; never reuse a real Hollowgate or Supabase password. Successful registration can send a real Resend verification email; existing Supabase accounts remain untouched. Keep the main Vercel site and Supabase users unchanged. Returning to the safe default is accomplished by reapplying the original compose.edge-staging.yaml for Caddy, and the original compose.auth-staging.yaml for auth API.
 
 Before deployment, perform an independent test of the reverse-proxy authorization boundary including 401 without Basic Auth and no public /auth/* leakage, no token in logs, cookie policies, origin checks, low-rate signup, and a monitored delivery test. Avoid automating this trial without an operator review.
+
+## Password provisioning
+
+Run bash deploy/aruba/scripts/prepare-auth-trial.sh in SSH. This script asks for a fresh 16+ character test password twice without echo, sends plaintext via stdin into the staging Node container for Argon2id hashing, and writes only a 0600 hash file at /opt/hollowgate/config/auth_trial_hash. Username is tester. Never paste password into chat or reuse real credentials.

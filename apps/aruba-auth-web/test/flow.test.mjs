@@ -102,3 +102,14 @@ test('private trial opt-in keeps static preview unchanged and requires Caddy gat
   assert.match(trialApi,/\/opt\/hollowgate\/config\/resend_api_key/);
   assert.match(trialEdge,/\/opt\/hollowgate\/config\/auth_trial_hash/);
 });
+
+test('private trial credential setup never places plaintext in CLI arguments',()=>{
+  const installer=readFileSync(new URL('../../../deploy/aruba/scripts/prepare-auth-trial.sh',import.meta.url),'utf8');
+  const caddy=readFileSync(new URL('../../../deploy/aruba/Caddyfile.auth-trial',import.meta.url),'utf8');
+  assert.match(installer,/read -r -s password/);
+  assert.match(installer,/process\.stdin/);
+  assert.match(installer,/argon2\.argon2id/);
+  assert.match(installer,/install -m 600/);
+  assert.doesNotMatch(installer,/--plaintext/);
+  assert.match(caddy,/basic_auth @trialProtected argon2id/);
+});
