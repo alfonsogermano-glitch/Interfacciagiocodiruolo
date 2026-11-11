@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const read = path => readFileSync(path,'utf8');
+const dockerfile=read('Dockerfile.aruba');
+const compose=read('infra/aruba/compose.yml');
+const caddy=read('infra/aruba/Caddyfile');
+const doc=read('infra/aruba/README.md');
+assert.match(dockerfile,/npm ci --no-audit --no-fund/);
+assert.match(dockerfile,/npm run build/);
+assert.match(dockerfile,/COPY --from=builder \/app\/dist \/srv\/hollowgate/);
+assert.match(caddy,/try_files \{path\} \/index\.html/);
+assert.match(caddy,/@health path \/healthz/);
+assert.match(caddy,/file_server/);
+assert.match(compose,/127\.0\.0\.1:8080:80/);
+assert.doesNotMatch(compose,/(?m)^\s*-\s*["']?(?:0\.0\.0\.0:)?(?:443|80):/);
+assert.doesNotMatch(compose,/(?i)(password|secret|api_key):\s*[^\s#]+/);
+assert.match(doc,/Do not switch DNS/);
+assert.match(doc,/not migrated/);
+console.log('PASS: Aruba static staging config and no public exposure');
