@@ -6,7 +6,7 @@ cd /opt/hollowgate/aruba-source
 [[ -s /opt/hollowgate/config/auth_trial_hash ]] || { echo 'Accesso privato non configurato' >&2; exit 1; }
 [[ -s /opt/hollowgate/config/resend_api_key ]] || { echo 'Resend non configurato' >&2; exit 1; }
 sudo docker exec hollowgate-auth-staging-aruba-auth-staging-1 sh -c '[ "$PGDATABASE" = hollowgate_auth_test ] && [ "$PGUSER" = hollowgate_auth_app ] && [ "$AUTH_STAGING_ENABLED" = true ]'
-db=( -p hollowgate-auth-staging -f deploy/aruba/compose.auth-staging.yaml -f deploy/aruba/compose.auth-trial.yaml -f deploy/aruba/compose.campaign-trial.yaml )
+db=( -p hollowgate-auth-staging -f deploy/aruba/compose.auth-staging.yaml -f deploy/aruba/compose.auth-trial.yaml -f deploy/aruba/compose.campaign-trial.yaml -f deploy/aruba/compose.character-trial.yaml )
 edge=( -f deploy/aruba/compose.edge-staging.yaml -f deploy/aruba/compose.edge-auth-trial.yaml )
 sudo docker compose "${db[@]}" config --quiet
 sudo docker compose "${edge[@]}" config --quiet
@@ -16,6 +16,8 @@ echo 'Controllo e installo lo schema 008 esclusivamente sul database hollowgate_
 sudo docker exec -i hollowgate-postgres-1 psql -X -v ON_ERROR_STOP=1 -U hollowgate -d hollowgate_auth_test < deploy/aruba/sql/008_vtt_campaigns.sql
 echo 'Applico le modifiche metadata 009 solo al database hollowgate_auth_test...'
 sudo docker exec -i hollowgate-postgres-1 psql -X -v ON_ERROR_STOP=1 -U hollowgate -d hollowgate_auth_test < deploy/aruba/sql/009_vtt_campaign_updates.sql
+echo 'Applico lo schema 010 delle bozze PG soltanto sul database hollowgate_auth_test...'
+sudo docker exec -i hollowgate-postgres-1 psql -X -v ON_ERROR_STOP=1 -U hollowgate -d hollowgate_auth_test < deploy/aruba/sql/010_vtt_character_drafts.sql
 echo 'Verifico la configurazione privata Caddy...'
 sudo docker compose "${edge[@]}" run --rm --no-deps --entrypoint caddy caddy validate --config /etc/caddy/Caddyfile
 rollback(){

@@ -69,3 +69,5 @@ test('PATCH campaign edit is cookie scoped and rejects CSRF and forged owner fie
   assert.equal(forged.status,200); // mock only: service-level schema validation is separately tested
  });
 });
+
+// Character-specific HTTP tests live separately from campaign compatibility.

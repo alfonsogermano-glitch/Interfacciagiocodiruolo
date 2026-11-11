@@ -37,3 +37,7 @@ Il portale Aruba riutilizza il **motore di calcolo originale** `diceEngine.ts` e
 5. **Dismissione Supabase:** esportare e verificare identità/dati degli account reali, confermare recupero per gli utenti, poi rimuovere dipendenze e progetto quando non esistono più blocchi di migrazione. Non provare a tenere accesi due siti in parallelo se non necessario al recupero utenti.
 
 **Stato attuale:** non esiste ancora una via verificata per trasferire gli account Supabase; il sito Aruba resta uno staging privato e non sostituisce il gioco online completo.
+
+## PG — Fondazione Aruba 010
+
+La migrazione 010 crea `hollowgate_vtt.character_drafts`, con `sheet_data jsonb` compatibile con i dati del tipo `CharacterSheetData` originale, più owner, campagna e stato `draft`. Non è una scheda completa: i campi di stile, viaggio e abilità attendono il recupero del `CharacterCreationWizard` originale. L'API autenticata `GET /vtt/characters?campaignId=...` e `POST /vtt/characters` usa il proprietario della sessione, mai un owner inviato dal browser, e funzioni SQL SECURE DEFINER. Il runtime non ha permessi diretti sulla tabella. Lo schema viene applicato solo in `hollowgate_auth_test`; feature `AUTH_VTT_CHARACTERS_ENABLED` accesa esclusivamente dall'overlay `compose.character-trial.yaml`. Sono bozze di prova: non importare personaggi reali finché non esiste una migrazione verificata.

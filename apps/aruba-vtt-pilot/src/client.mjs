@@ -13,11 +13,12 @@ export function validateBootstrap(data){
     throw new Error('Identità Aruba non valida');
   const c=data.capabilities;
   if(!c||typeof c.campaigns?.read!=='boolean'||c.campaigns.read!==c.campaigns.write||
-    c.characters?.read!==false||c.characters?.write!==false||c.gameSession!==false)
+    typeof c.characters?.read!=='boolean'||c.characters.read!==c.characters.write||
+    (c.characters.read&&!c.campaigns.read)||c.gameSession!==false)
     throw new Error('Funzionalità non autorizzate');
   return Object.freeze({
     id:data.user.id,email:data.user.email,displayName:data.user.displayName,role:data.user.role,
-    campaignsEnabled:c.campaigns.read,
+    campaignsEnabled:c.campaigns.read,charactersEnabled:c.characters.read,
   });
 }
 export async function loadPilotSession(fetchImpl){
@@ -89,4 +90,39 @@ export async function updateOwnedCampaign(fetchImpl,campaignId,data,ownerId){
  const campaign=validateCampaign((await response.json()).campaign);
  if(campaign.ownerId!==ownerId||campaign.id!==campaignId)throw new Error('Campagna non autorizzata');
  return campaign;
+}
+
+export function validateCharacterDraft(data){
+ if(!data||typeof data!=='object'||Array.isArray(data)||
+  !/^[0-9a-f-]{36}$/i.test(data.id)||!/^[0-9a-f-]{36}$/i.test(data.campaignId)||
+  !/^[0-9a-f-]{36}$/i.test(data.ownerId)||typeof data.name!=='string'||data.name.length<1||
+  data.status!=='draft'||!data.sheetData||Array.isArray(data.sheetData)||typeof data.sheetData!=='object')
+  throw new Error('Scheda personaggio non valida');
+ return Object.freeze({id:data.id,campaignId:data.campaignId,ownerId:data.ownerId,name:data.name,
+   status:data.status,sheetData:data.sheetData});
+}
+export async function listCharacterDrafts(fetchImpl,campaignId,ownerId){
+ const r=await fetchImpl('/vtt/characters?campaignId='+encodeURIComponent(campaignId),{
+  method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error'});
+ if(r.status===401)throw Error('Sessione scaduta');
+ if(!r.ok)throw Error('Impossibile caricare i personaggi');
+ const data=await r.json();
+ if(!Array.isArray(data.characters)||data.characters.length>100)throw Error('Elenco personaggi non valido');
+ const list=data.characters.map(validateCharacterDraft);
+ if(list.some(x=>x.ownerId!==ownerId||x.campaignId!==campaignId))
+  throw Error('Campagna o proprietario non corrispondente');
+ return list;
+}
+export async function createCharacterDraft(fetchImpl,campaignId,name,ownerId){
+ if(!/^[0-9a-f-]{36}$/i.test(campaignId)||typeof name!=='string'||name.trim().length<1||name.trim().length>120)
+  throw Error('Dati personaggio non validi');
+ const r=await fetchImpl('/vtt/characters',{
+  method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',
+  headers:{'Content-Type':'application/json'},body:JSON.stringify({campaignId,name:name.trim()})});
+ if(r.status===401)throw Error('Sessione scaduta');
+ if(r.status===404)throw Error('Campagna non trovata');
+ if(!r.ok)throw Error('Impossibile creare il personaggio');
+ const value=validateCharacterDraft((await r.json()).character);
+ if(value.ownerId!==ownerId||value.campaignId!==campaignId)throw Error('Campagna o proprietario non corrispondente');
+ return value;
 }

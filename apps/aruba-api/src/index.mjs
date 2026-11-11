@@ -9,6 +9,7 @@ import { createPasswordResetService } from './password-reset-service.mjs';
 import { createTransactionalMailer } from './transactional-mail.mjs';
 import {createSignupService} from './signup-service.mjs';
 import {createCampaignService} from './campaign-service.mjs';
+import {createCharacterService} from './character-service.mjs';
 
 const required = (name) => {
   const value = process.env[name];
@@ -75,7 +76,14 @@ async function main() {
     if (campaignsFlag && campaignsFlag !== 'false' && campaignsFlag !== 'true')
       throw new Error('Unsupported AUTH_VTT_CAMPAIGNS_ENABLED value');
     const campaigns=campaignsFlag==='true'?createCampaignService({pool}):null;
-    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns});
+    const characterFlag=process.env.AUTH_VTT_CHARACTERS_ENABLED;
+    if(characterFlag && characterFlag!=='false' && characterFlag!=='true')
+      throw new Error('Unsupported AUTH_VTT_CHARACTERS_ENABLED value');
+    if(characterFlag==='true' && !campaigns)throw new Error('Characters require campaigns');
+    const characters=characterFlag==='true'?createCharacterService({pool}):null;
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters});
+  } else if (process.env.AUTH_VTT_CHARACTERS_ENABLED === 'true') {
+    throw new Error('Characters require staging');
   } else if (process.env.AUTH_VTT_CAMPAIGNS_ENABLED === 'true') {
     throw new Error('Campaigns require dedicated staging');
   } else if (process.env.AUTH_SIGNUP_ENABLED === 'true') {

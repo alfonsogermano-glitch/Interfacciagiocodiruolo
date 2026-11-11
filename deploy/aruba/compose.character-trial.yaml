@@ -1,0 +1,5 @@
+# Optional: activate only after the 010 schema has been applied in staging.
+services:
+  aruba-auth-staging:
+    environment:
+      AUTH_VTT_CHARACTERS_ENABLED: "true"

@@ -64,7 +64,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null }) {
   const allowedOrigin = new URL(origin);
   if (allowedOrigin.protocol !== 'https:' || allowedOrigin.origin !== origin ||
       !allowedOrigin.hostname) throw new TypeError('HTTPS origin required');
@@ -79,6 +79,8 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   }
   if (campaigns !== null && (typeof campaigns.list !== 'function' || typeof campaigns.create !== 'function' || typeof campaigns.update !== 'function'))
     throw new TypeError('Invalid campaign service');
+  if(characters!==null && (typeof characters.list!=='function'||typeof characters.create!=='function'||!campaigns))
+    throw new TypeError('Invalid character service');
   return async (req, res) => {
     try {
       if (req.url === '/auth/login' && req.method === 'POST') {
@@ -141,6 +143,27 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         const body=await readJson(req);
         return response(res,200,await campaigns.update(user.id,campaignId,body));
       }
+      if(characters && req.url?.startsWith('/vtt/characters?') && req.method==='GET'){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        const url=new URL(req.url,origin);
+        if([...url.searchParams.keys()].some(key=>key!=='campaignId')||url.searchParams.getAll('campaignId').length!==1)
+          throw new HttpProblem(400,'Query non valida');
+        return response(res,200,await characters.list(user.id,url.searchParams.get('campaignId')));
+      }
+      if(characters && req.url==='/vtt/characters' && req.method==='POST'){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const body=await readJson(req);
+        if(typeof body.campaignId!=='string'||Object.keys(body).sort().join(',')!=='campaignId,name')
+          throw new HttpProblem(400,'Dati personaggio non validi');
+        return response(res,201,await characters.create(user.id,body.campaignId,{name:body.name}));
+      }
       // Isolated read-only React pilot. A session is NEVER interpreted as
       // a Supabase token. Campaign data remains unavailable by design.
       if (req.url === '/vtt/bootstrap' && req.method === 'GET') {
@@ -153,7 +176,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
           backend:'aruba-staging',
           capabilities:{
             campaigns:{read:!!campaigns,write:!!campaigns},
-            characters:{read:false,write:false},
+            characters:{read:!!characters,write:!!characters},
             gameSession:false,
           },
         });
