@@ -49,3 +49,7 @@ Create a `NOLOGIN` group role `hollowgate_api_runtime` with only the SELECT/INSE
 4. Do not delete the VPS copy until the off-host copy and restore rehearsal are verified. This does not replace a scheduled and tested backup policy.
 
 The CI job validates the script against disposable PostgreSQL 17 data. **Do not run SQL migrations or enable auth yet**; the restricted runtime principal, secret distribution and deployment still require a separate safe step.
+
+## Dedicated authentication staging API (port 3003)
+
+`deploy/aruba/compose.auth-staging.yaml` intentionally starts a separate API container against `hollowgate_auth_test` as the restricted `hollowgate_auth_app` database login, reading a host-local 0600 password file through a Compose secret. It binds **only** to 127.0.0.1:3003 and leaves the existing 3001/3002 services untouched. Login routes are **not enabled**; /ready proves a PostgreSQL connection only. Before starting, verify the database role can authenticate with its password and SELECT its permitted tables, and that it cannot modify user roles. Do not add the secret file to Git. If `/ready` returns 503, inspect container logs without printing secrets.
