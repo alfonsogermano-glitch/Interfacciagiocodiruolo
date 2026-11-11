@@ -3,6 +3,7 @@
 // DB role, and a rehearsal with disposable accounts. No server-side logging
 // of credentials or raw bearer/session tokens is permitted.
 import { LoginRejected } from './login-service.mjs';
+import { PasswordActionRejected } from './password-reset-service.mjs';
 
 const COOKIE = '__Host-hg_session';
 const COOKIE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -61,12 +62,15 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null }) {
   const allowedOrigin = new URL(origin);
   if (allowedOrigin.protocol !== 'https:' || allowedOrigin.origin !== origin ||
       !allowedOrigin.hostname) throw new TypeError('HTTPS origin required');
   for (const [name, fn] of Object.entries({ login, getSessionUser, revokeSession })) {
     if (typeof fn !== 'function') throw new TypeError(name + ' required');
+  }
+  if (passwordReset !== null && (typeof passwordReset.request !== 'function' || typeof passwordReset.redeem !== 'function')) {
+    throw new TypeError('Invalid passwordReset service');
   }
   return async (req, res) => {
     try {
@@ -79,6 +83,20 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         const result = await login({ email, password, networkSubject: req.socket.remoteAddress });
         return response(res, 200, { status: 'ok', expiresAt: result.expiresAt },
           `${COOKIE}=${result.token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=43200`);
+      }
+      // Entire recovery feature is absent until deliberately enabled at boot.
+      // Require exact Origin for both mutations, regardless of cookie state.
+      if (passwordReset && req.url === '/auth/password/request' && req.method === 'POST') {
+        if (req.headers.origin !== origin) throw new HttpProblem(403, 'Origine non consentita');
+        const { email } = await readJson(req);
+        const result = await passwordReset.request({email,networkSubject:req.socket.remoteAddress});
+        return response(res, 202, result);
+      }
+      if (passwordReset && req.url === '/auth/password/redeem' && req.method === 'POST') {
+        if (req.headers.origin !== origin) throw new HttpProblem(403, 'Origine non consentita');
+        const { token, newPassword } = await readJson(req);
+        const result = await passwordReset.redeem({token,newPassword});
+        return response(res, 200, result);
       }
       if (req.url === '/auth/me' && req.method === 'GET') {
         const token = extractSession(req);
@@ -95,6 +113,9 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
       }
       return response(res, 404, { error: 'Not found' });
     } catch (error) {
+      if (error instanceof PasswordActionRejected) {
+        return response(res, error.status, { error: error.message });
+      }
       if (error instanceof LoginRejected) {
         return response(res, error.status, { error: error.message });
       }

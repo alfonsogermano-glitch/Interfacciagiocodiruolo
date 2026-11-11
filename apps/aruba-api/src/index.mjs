@@ -5,6 +5,8 @@ import { verifyPassword } from './password.mjs';
 import { createLoginService } from './login-service.mjs';
 import { createSessionRepository } from './session-repository.mjs';
 import { createAuthHttpHandler } from './auth-http.mjs';
+import { createPasswordResetService } from './password-reset-service.mjs';
+import { createTransactionalMailer } from './transactional-mail.mjs';
 
 const required = (name) => {
   const value = process.env[name];
@@ -41,7 +43,20 @@ async function main() {
     const origin = required('AUTH_ORIGIN');
     const login = createLoginService({pool, verifyPassword, hmacKey});
     const {getSessionUser, revokeSession} = createSessionRepository({pool});
-    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession});
+    let passwordReset = null;
+    const resetFlag = process.env.AUTH_PASSWORD_RESET_ENABLED;
+    if (resetFlag === 'true') {
+      // Both the mail secret and the PostgreSQL migration 006 must be
+      // provisioned explicitly in staging before setting this flag.
+      const mailKey = (await readFile(required('RESEND_API_KEY_FILE'), 'utf8')).trim();
+      const mailer = createTransactionalMailer({apiKey:mailKey});
+      passwordReset = createPasswordResetService({pool,mailer,hmacKey});
+    } else if (resetFlag && resetFlag !== 'false') {
+      throw new Error('Unsupported AUTH_PASSWORD_RESET_ENABLED value');
+    }
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset});
+  } else if (process.env.AUTH_PASSWORD_RESET_ENABLED === 'true') {
+    throw new Error('Password reset requires dedicated auth staging');
   } else if (process.env.AUTH_STAGING_ENABLED) {
     throw new Error('Unsupported AUTH_STAGING_ENABLED value');
   }
