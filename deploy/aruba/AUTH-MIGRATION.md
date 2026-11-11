@@ -30,3 +30,7 @@ An opaque 32-byte reset/setup token is delivered only through a later verified e
 ## Abuse controls foundation (004_auth_rate_limits.sql)
 
 An internal PostgreSQL bucket table for per-account and per-network rate limits uses HMAC-SHA256 pseudonymous identifiers, not raw emails/IPs. The helper intentionally does not enable an endpoint, enforce a threshold or infer a client IP; those requirements must be implemented at the trusted proxy and API boundary before any public auth route is enabled. Never include HMAC key material in Git or logs. Password recovery must return a generic message whether or not an account exists.
+
+## Session repository (internal, NOT deployed)
+
+The API's session repository reads user identity and authorization role from PostgreSQL on each call, checks session expiration/revocation and user active/verified status, and revokes an opaque session token by hash. `/auth/me` and `/auth/logout` can be wired to these repository functions only after the API runs as a restricted PostgreSQL role and HTTPS proxy/client trust is configured and tested. Supabase sessions are not valid Aruba sessions.
