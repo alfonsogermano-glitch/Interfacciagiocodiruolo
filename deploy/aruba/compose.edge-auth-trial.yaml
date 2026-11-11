@@ -4,6 +4,7 @@ services:
   caddy:
     volumes:
       - ./Caddyfile.auth-trial:/etc/caddy/Caddyfile:ro
+      - ../../deploy/aruba/dist/vtt-pilot:/srv/vtt-pilot:ro
     secrets:
       - auth_trial_hash
 

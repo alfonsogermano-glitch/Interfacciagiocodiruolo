@@ -13,7 +13,7 @@ staging.hollowgate.quest {
 
   # Every sensitive page and /auth/* API request is protected with HTTP Basic
   # Auth over HTTPS, using a bcrypt hash mounted as a Docker secret.
-  @trialProtected path /login /signup /forgot-password /account/password /account/verify-email /auth-ui/* /auth/*
+  @trialProtected path /login /signup /forgot-password /account/password /account/verify-email /auth-ui/* /auth/* /vtt/* /vtt
   basic_auth @trialProtected bcrypt "Hollowgate Aruba - Private Trial" {
     import /run/secrets/auth_trial_hash
   }
@@ -29,6 +29,25 @@ staging.hollowgate.quest {
   handle @trialAssets {
     root * /srv/auth-preview
     uri strip_prefix /auth-ui
+    file_server
+  }
+
+  # Authenticated read-only bootstrap of the pilot's Aruba identity.
+  @vttBootstrap {
+    method GET
+    path /vtt/bootstrap
+  }
+  handle @vttBootstrap {
+    reverse_proxy aruba-auth-staging:3000
+  }
+
+  # React pilot assets only. Never expose legacy Supabase-backed application.
+  handle /vtt {
+    redir /vtt/ 308
+  }
+  handle_path /vtt/* {
+    root * /srv/vtt-pilot
+    try_files {path} /index.html
     file_server
   }
 

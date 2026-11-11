@@ -116,6 +116,23 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         const result = await signupService.verify({token});
         return response(res,200,result);
       }
+      // Isolated read-only React pilot. A session is NEVER interpreted as
+      // a Supabase token. Campaign data remains unavailable by design.
+      if (req.url === '/vtt/bootstrap' && req.method === 'GET') {
+        const token = extractSession(req);
+        if (!token) return response(res, 401, {error:'Non autenticato'});
+        const user = await getSessionUser(token);
+        if (!user) return response(res, 401, {error:'Non autenticato'}, LOGOUT_COOKIE);
+        return response(res, 200, {
+          user,
+          backend:'aruba-staging',
+          capabilities:{
+            campaigns:{read:false,write:false},
+            characters:{read:false,write:false},
+            gameSession:false,
+          },
+        });
+      }
       if (req.url === '/auth/me' && req.method === 'GET') {
         const token = extractSession(req);
         if (!token) return response(res, 401, { error: 'Non autenticato' });

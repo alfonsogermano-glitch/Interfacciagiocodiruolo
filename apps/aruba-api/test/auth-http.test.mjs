@@ -89,3 +89,27 @@ test('HTTP handler refuses insecure origin and oversized request',async()=>{
     assert.equal(h.called,0);
   });
 });
+
+test('VTT pilot bootstrap only accepts an active Aruba cookie; game capabilities fail closed',async()=>{
+  const h=createHarness();
+  await withServer(h.handler,async base=>{
+    const absent=await fetch(base+'/vtt/bootstrap');
+    assert.equal(absent.status,401);
+    const forged=await fetch(base+'/vtt/bootstrap',{headers:{cookie:'__Host-hg_session=bad'}});
+    assert.equal(forged.status,401);
+    const accepted=await fetch(base+'/vtt/bootstrap',{headers:{cookie:'__Host-hg_session='+TOKEN}});
+    assert.equal(accepted.status,200);
+    const payload=await accepted.json();
+    assert.deepEqual(payload,{
+      user:{id:'test-id',role:'standard'},backend:'aruba-staging',
+      capabilities:{
+        campaigns:{read:false,write:false},
+        characters:{read:false,write:false},
+        gameSession:false,
+      },
+    });
+    assert.equal(accepted.headers.get('cache-control'),'no-store');
+    assert.equal((await fetch(base+'/vtt/bootstrap?userId=other',{headers:{cookie:'__Host-hg_session='+TOKEN}})).status,404);
+    assert.equal((await fetch(base+'/vtt/bootstrap',{method:'POST',headers:{cookie:'__Host-hg_session='+TOKEN}})).status,404);
+  });
+});
