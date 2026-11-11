@@ -35,6 +35,7 @@ function App(){
  const [status,setStatus]=useState<Status>({state:'loading'});
  const [section,setSection]=useState<Section>('home');
  const [campaigns,setCampaigns]=useState<Campaign[]>([]);
+ const [activeCampaignId,setActiveCampaignId]=useState<string|null>(null);
  const [campaignError,setCampaignError]=useState<string|null>(null);
  const [campaignLoading,setCampaignLoading]=useState(false);
  const [showCreate,setShowCreate]=useState(false);
@@ -48,12 +49,17 @@ function App(){
   return ()=>{alive=false;};
  },[]);
  const user=status.state==='ready'?status.user:null;
+ const activeCampaign=user?.campaignsEnabled?campaigns.find(c=>c.id===activeCampaignId&&c.ownerId===user.id)??null:null;
+ function openCampaign(id:string){
+  if(!user?.campaignsEnabled||!campaigns.some(c=>c.id===id&&c.ownerId===user.id))return;
+  setActiveCampaignId(id);setSection('campaigns');
+ }
  useEffect(()=>{
   if(!user?.campaignsEnabled)return;
   let alive=true;
   setCampaignLoading(true);
   void listOwnedCampaigns(fetcher,user.id).then(result=>{
-    if(alive)setCampaigns(result);
+    if(alive){setCampaigns(result);setActiveCampaignId(id=>result.some(c=>c.id===id)?id:null);}
   }).catch(error=>{
     if(alive)setCampaignError(error instanceof Error?error.message:'Errore campagne');
   }).finally(()=>{if(alive)setCampaignLoading(false);});
@@ -69,6 +75,7 @@ function App(){
   try{
    const campaign=await createOwnedCampaign(fetcher,data,user.id);
    setCampaigns(current=>[campaign,...current]);
+   setActiveCampaignId(campaign.id);
    setShowCreate(false);
   }catch(error){setCampaignError(error instanceof Error?error.message:'Errore durante la creazione');}
   finally{setSubmitting(false);}
@@ -97,12 +104,13 @@ function App(){
    </nav>
    <div className="primary-campaigns" aria-label="Campagne">
     {campaigns.slice(0,4).map(c=><button key={c.id} type="button" title={c.name}
-      onClick={()=>setSection('campaigns')}><span aria-hidden="true">✧</span><small>{c.name}</small></button>)}
+      aria-pressed={activeCampaignId===c.id}
+      onClick={()=>openCampaign(c.id)}><span aria-hidden="true">✧</span><small>{c.name}</small></button>)}
    </div>
   </aside>
   <div className="main-area">
    <header className="topbar">
-    <div><span className="crumb">HOLLOWGATE / </span>{menu.find(m=>m.id===section)?.label}</div>
+    <div><span className="crumb">HOLLOWGATE / </span>{menu.find(m=>m.id===section)?.label}{activeCampaign&&section!=='home'&&<span className="campaign-context"> / {activeCampaign.name}</span>}</div>
     <div className="profile"><span className="avatar">{user.displayName.slice(0,1).toUpperCase()}</span>
      <span className="profile-name">{user.displayName}</span>
      <button type="button" className="logout" onClick={()=>void logout()} disabled={closing}>Esci</button></div>
@@ -125,21 +133,22 @@ function App(){
        <span>Inviti e partecipazioni verranno abilitati con i relativi permessi.</span></button>
      </div>
      <div className="section-heading"><h2>Campagne recenti</h2><button className="text-link" type="button" onClick={()=>setSection('campaigns')}>Vedi tutte</button></div>
-     <CampaignList campaigns={campaigns.slice(0,3)} loading={campaignLoading} enabled={user.campaignsEnabled}/>
+     <CampaignList campaigns={campaigns.slice(0,3)} loading={campaignLoading} enabled={user.campaignsEnabled} activeId={activeCampaignId} onOpen={openCampaign}/>
     </>}
     {section==='campaigns'&&<>
       <div className="overline">STORIE E AVVENTURE</div>
       <div className="section-title"><div><h1>Le tue campagne</h1><p className="muted">Gestisci le storie che hai creato come Game Master.</p></div>
        <button type="button" onClick={()=>setShowCreate(true)} disabled={!user.campaignsEnabled}>+ Nuova campagna</button></div>
       {campaignError&&<p className="error" role="alert">{campaignError}</p>}
-      <CampaignList campaigns={campaigns} loading={campaignLoading} enabled={user.campaignsEnabled}/>
+      <CampaignList campaigns={campaigns} loading={campaignLoading} enabled={user.campaignsEnabled} activeId={activeCampaignId} onOpen={openCampaign}/>
+      {activeCampaign&&<section className="selected-campaign" aria-label="Campagna selezionata"><div className="overline">CAMPAGNA SELEZIONATA · GAME MASTER</div><h2>{activeCampaign.name}</h2><p>{activeCampaign.description||'Nessuna descrizione'}</p><p>Regolamento: {RULESETS[activeCampaign.ruleset as keyof typeof RULESETS]}</p><p className="footnote">La campagna è stata riletta dall’API Aruba. Schede, note, mappe e sessioni non sono ancora collegate: non vengono creati dati fittizi.</p><button type="button" onClick={()=>setActiveCampaignId(null)}>Chiudi selezione</button></section>}
       {user.campaignsEnabled&&<p className="footnote">Le campagne Aruba sono nuove e separate dai dati storici Supabase. Le partecipazioni dei giocatori non sono ancora abilitate.</p>}
     </>}
     {!['home','campaigns'].includes(section)&&<>
       <div className="overline">STRUMENTI DI GIOCO</div>
       <h1>{menu.find(m=>m.id===section)?.label}</h1>
       <div className="placeholder">
-       <span className="placeholder-mark">✧</span><h2>Un nuovo capitolo sta prendendo forma</h2>
+       <span className="placeholder-mark">✧</span><h2>{activeCampaign?`Campagna: ${activeCampaign.name}`:'Seleziona prima una campagna'}</h2>
        <p>Stiamo recuperando i componenti del VTT originale e collegandoli ai nuovi servizi Aruba.
         Questa sezione rimane disabilitata fino a quando dati e autorizzazioni non saranno pronti.</p>
       </div>
@@ -167,15 +176,15 @@ function App(){
    </div>}
  </div>;
 }
-function CampaignList({campaigns,loading,enabled}:{campaigns:Campaign[];loading:boolean;enabled:boolean}){
+function CampaignList({campaigns,loading,enabled,activeId,onOpen}:{campaigns:Campaign[];loading:boolean;enabled:boolean;activeId:string|null;onOpen:(id:string)=>void}){
  if(!enabled)return <div className="empty">La gestione delle campagne sarà disponibile dopo la migrazione PostgreSQL 008.</div>;
  if(loading)return <div className="empty">Caricamento campagne Aruba…</div>;
  if(campaigns.length===0)return <div className="empty">Non hai ancora creato campagne su Aruba.</div>;
- return <div className="campaign-grid">{campaigns.map(c=><article className="campaign-card" key={c.id}>
+ return <div className="campaign-grid">{campaigns.map(c=><article className={'campaign-card'+(activeId===c.id?' selected':'')} key={c.id}>
   <div className="campaign-image"><span>✧</span></div><div className="campaign-body">
    <div className="campaign-type">{RULESETS[c.ruleset as keyof typeof RULESETS]}</div>
    <h3>{c.name}</h3><p>{c.description||'Una nuova avventura ti attende.'}</p>
-   <div className="campaign-bottom"><span>Game Master</span><span>Gestione capitoli in preparazione</span></div>
+   <div className="campaign-bottom"><span>Game Master</span><button type="button" onClick={()=>onOpen(c.id)} aria-pressed={activeId===c.id}>{activeId===c.id?'Selezionata':'Apri campagna'}</button></div>
   </div>
  </article>)}</div>;
 }

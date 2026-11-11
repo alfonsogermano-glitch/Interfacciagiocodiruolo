@@ -91,3 +91,13 @@ test('Aruba pilot preserves the original Hollowgate left/right rail positions',(
  assert.match(css,/\.gm-sidebar\{width:80px/);
  assert.doesNotMatch(code,/from ['"](?:@supabase\/supabase-js|lucide-react)['"]/);
 });
+
+test('campaign selection is only offered for Aruba-owned campaigns already returned by the API',()=>{
+ const code=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
+ assert.match(code,/campaigns\.some\(c=>c\.id===id&&c\.ownerId===user\.id\)/);
+ assert.match(code,/activeCampaign=user\?\.campaignsEnabled\?campaigns\.find\(c=>c\.id===activeCampaignId&&c\.ownerId===user\.id\)/);
+ assert.match(code,/setActiveCampaignId\(id=>result\.some\(c=>c\.id===id\)\?id:null\)/);
+ assert.match(code,/onClick=\{\(\)=>onOpen\(c\.id\)\}/);
+ assert.match(code,/onClick=\{\(\)=>openCampaign\(c\.id\)\}/);
+ assert.doesNotMatch(code,/localStorage|sessionStorage/);
+});

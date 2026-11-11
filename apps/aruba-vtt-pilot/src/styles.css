@@ -23,3 +23,11 @@
 .main-area{height:100vh;overflow:auto}
 @media(max-width:900px){.primary-sidebar{width:100px;padding:12px 8px}.gm-sidebar{width:80px;padding:12px 5px}.primary-identity{margin-bottom:12px}.main-area{min-width:0}.topbar{padding:0 16px}}
 @media(max-width:560px){.primary-sidebar{width:100px}.gm-sidebar{width:80px}.primary-campaigns{display:none}.content{padding:20px 12px}.topbar{padding:0 10px}}
+
+/* Restore real campaign selection without local storage or synthetic membership. */
+.campaign-card.selected{border-color:#d8b477;box-shadow:0 0 0 1px #a48651}
+.campaign-bottom button,.selected-campaign button{background:#332819;color:#f2d49a;border:1px solid #977849;border-radius:6px;padding:7px 10px;font-size:11px}
+.selected-campaign{margin-top:25px;padding:23px;border:1px solid #93754b;border-radius:12px;background:#1a1916}
+.selected-campaign h2{margin:10px 0}.selected-campaign p{color:#c3b9a9;line-height:1.5}
+.primary-campaigns button[aria-pressed=true]{border-color:#e2bd80;background:#544027}
+.campaign-context{color:#e6c38d}
