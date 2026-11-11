@@ -6,12 +6,14 @@ on:
     paths:
       - 'apps/aruba-api/**'
       - 'apps/aruba-auth-web/**'
+      - 'apps/aruba-vtt-pilot/**'
       - 'deploy/aruba/**'
       - '.github/workflows/aruba-api.yml'
   pull_request:
     paths:
       - 'apps/aruba-api/**'
       - 'apps/aruba-auth-web/**'
+      - 'apps/aruba-vtt-pilot/**'
       - 'deploy/aruba/**'
       - '.github/workflows/aruba-api.yml'
 
@@ -29,6 +31,17 @@ jobs:
           node --check apps/aruba-auth-web/app.mjs
       - name: Test isolated auth browser flows
         run: node --test apps/aruba-auth-web/test/*.test.mjs
+      - name: Test and build isolated Aruba React VTT lobby
+        working-directory: apps/aruba-vtt-pilot
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm test
+          npm run build
+          test -f ../../deploy/aruba/dist/vtt-pilot/index.html
+          if grep -R -i -l 'supabase\.co' ../../deploy/aruba/dist/vtt-pilot; then
+            echo "Unexpected legacy backend inside Aruba pilot bundle" >&2
+            exit 1
+          fi
       - name: Validate Caddy staging configuration syntax
         run: |
           docker run --rm -v "$PWD/deploy/aruba/Caddyfile.staging:/etc/caddy/Caddyfile:ro" caddy:2.10.2-alpine \

@@ -113,3 +113,14 @@ test('private trial credential setup never places plaintext in CLI arguments',()
   assert.doesNotMatch(installer,/--plaintext/);
   assert.match(caddy,/basic_auth @trialProtected bcrypt/);
 });
+
+test('pilot Caddy routes are Basic-Auth protected and bootstrap precedes assets',()=>{
+  const config=readFileSync(new URL('../../../deploy/aruba/Caddyfile.auth-trial',import.meta.url),'utf8');
+  const overlay=readFileSync(new URL('../../../deploy/aruba/compose.edge-auth-trial.yaml',import.meta.url),'utf8');
+  assert.match(config,/@trialProtected path .*\/vtt\/\* \/vtt/);
+  assert.match(config,/handle \/vtt\/bootstrap \{/);
+  assert.ok(config.indexOf('handle /vtt/bootstrap')<config.indexOf('handle_path /vtt/*'));
+  assert.match(config,/reverse_proxy @read aruba-auth-staging:3000/);
+  assert.match(config,/handle_path \/vtt\/\*/);
+  assert.match(overlay,/\/srv\/vtt-pilot:ro/);
+});
