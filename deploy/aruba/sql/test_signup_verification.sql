@@ -21,6 +21,15 @@ BEGIN
   verified:=hollowgate_auth.confirm_local_email(decode(repeat('af',32),'hex'));
   replay:=hollowgate_auth.confirm_local_email(decode(repeat('af',32),'hex'));
   IF NOT verified OR replay THEN RAISE EXCEPTION 'Single-use verification failed'; END IF;
+  IF has_table_privilege(current_user,'hollowgate_auth.users','UPDATE') OR
+     has_table_privilege(current_user,'hollowgate_auth.users','INSERT') OR
+     has_table_privilege(current_user,'hollowgate_auth.email_verifications','UPDATE') OR
+     has_table_privilege(current_user,'hollowgate_auth.user_roles','UPDATE') THEN
+    RAISE EXCEPTION 'Runtime has direct identity modification permission'; END IF;
+END $$;
+RESET ROLE;
+DO $
+BEGIN
   IF EXISTS(
     SELECT 1 FROM hollowgate_auth.users
     WHERE email='signup-fixture@example.invalid'
@@ -31,12 +40,6 @@ BEGIN
     JOIN hollowgate_auth.users u ON r.user_id=u.id
     WHERE u.email='signup-fixture@example.invalid' AND r.role='standard'
   ) THEN RAISE EXCEPTION 'Missing standard role'; END IF;
-  IF has_table_privilege(current_user,'hollowgate_auth.users','UPDATE') OR
-     has_table_privilege(current_user,'hollowgate_auth.users','INSERT') OR
-     has_table_privilege(current_user,'hollowgate_auth.email_verifications','UPDATE') OR
-     has_table_privilege(current_user,'hollowgate_auth.user_roles','UPDATE') THEN
-    RAISE EXCEPTION 'Runtime has direct identity modification permission'; END IF;
-END $$;
-RESET ROLE;
+END $;
 ROLLBACK;
 SELECT 'SIGNUP_EMAIL_VERIFICATION_SUCCESS' AS result;
