@@ -71,3 +71,22 @@ export async function logoutPilot(fetchImpl){
   });
   if(!response.ok)throw new Error('Impossibile terminare la sessione');
 }
+
+export async function updateOwnedCampaign(fetchImpl,campaignId,data,ownerId){
+ if(typeof campaignId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(campaignId)||
+  typeof data?.name!=='string'||data.name.trim().length<1||data.name.trim().length>100||
+  typeof data.description!=='string'||data.description.length>4000||
+  Object.keys(data).sort().join(',')!=='description,name')
+  throw new Error('Dati campagna non validi');
+ const response=await fetchImpl('/vtt/campaigns/'+campaignId,{
+  method:'PATCH',credentials:'same-origin',cache:'no-store',redirect:'error',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({name:data.name.trim(),description:data.description}),
+ });
+ if(response.status===401)throw new Error('Sessione scaduta: effettua nuovamente il login.');
+ if(response.status===404)throw new Error('Campagna non trovata o non autorizzata');
+ if(!response.ok)throw new Error('Impossibile modificare la campagna');
+ const campaign=validateCampaign((await response.json()).campaign);
+ if(campaign.ownerId!==ownerId||campaign.id!==campaignId)throw new Error('Campagna non autorizzata');
+ return campaign;
+}

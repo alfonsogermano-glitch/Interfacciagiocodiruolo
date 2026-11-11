@@ -77,7 +77,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   if (signupService !== null && (typeof signupService.signup !== 'function' || typeof signupService.verify !== 'function')) {
     throw new TypeError('Invalid signupService');
   }
-  if (campaigns !== null && (typeof campaigns.list !== 'function' || typeof campaigns.create !== 'function'))
+  if (campaigns !== null && (typeof campaigns.list !== 'function' || typeof campaigns.create !== 'function' || typeof campaigns.update !== 'function'))
     throw new TypeError('Invalid campaign service');
   return async (req, res) => {
     try {
@@ -130,6 +130,16 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if (req.headers.origin !== origin) throw new HttpProblem(403,'Origine non consentita');
         const body=await readJson(req);
         return response(res,201,await campaigns.create(user.id,body));
+      }
+      if(campaigns && /^\\/vtt\\/campaigns\\/[0-9a-f-]{36}$/i.test(req.url ?? '') && req.method==='PATCH'){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const campaignId=req.url.slice('/vtt/campaigns/'.length);
+        const body=await readJson(req);
+        return response(res,200,await campaigns.update(user.id,campaignId,body));
       }
       // Isolated read-only React pilot. A session is NEVER interpreted as
       // a Supabase token. Campaign data remains unavailable by design.

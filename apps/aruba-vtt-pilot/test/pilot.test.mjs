@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {loadPilotSession,logoutPilot,validateBootstrap,validateCampaign,listOwnedCampaigns,createOwnedCampaign} from '../src/client.mjs';
+import {loadPilotSession,logoutPilot,validateBootstrap,validateCampaign,listOwnedCampaigns,createOwnedCampaign,updateOwnedCampaign} from '../src/client.mjs';
 const user={id:'971e26ae-eecb-4f37-ad03-56b0c3000789',email:'tester@example.org',displayName:'Tester',role:'standard'};
 const caps=enabled=>({campaigns:{read:enabled,write:enabled},characters:{read:false,write:false},gameSession:false});
 const sample={id:'be2f1a87-b8ee-4b34-9da0-07efda11379a',ownerId:user.id,name:'Storia',description:'',ruleset:'hsc',createdAt:'2026-11-11'};
@@ -100,4 +100,19 @@ test('campaign selection is only offered for Aruba-owned campaigns already retur
  assert.match(code,/onClick=\{\(\)=>onOpen\(c\.id\)\}/);
  assert.match(code,/onClick=\{\(\)=>openCampaign\(c\.id\)\}/);
  assert.doesNotMatch(code,/localStorage|sessionStorage/);
+});
+
+test('campaign edit calls PATCH with only editable fields and rejects forged response ownership',async()=>{
+ let sent;
+ const updated=await updateOwnedCampaign(async(path,options)=>{
+  sent={path,options};return {ok:true,json:async()=>({campaign:{...sample,name:'Aggiornata'}})};
+ },sample.id,{name:' Aggiornata ',description:''},user.id);
+ assert.equal(updated.name,'Aggiornata');
+ assert.equal(sent.path,'/vtt/campaigns/'+sample.id);
+ assert.equal(sent.options.method,'PATCH');
+ assert.equal(sent.options.credentials,'same-origin');
+ assert.deepEqual(JSON.parse(sent.options.body),{name:'Aggiornata',description:''});
+ await assert.rejects(()=>updateOwnedCampaign(async()=>{},sample.id,{name:'X',description:'',ruleset:'custom'},user.id));
+ await assert.rejects(()=>updateOwnedCampaign(async()=>({ok:true,json:async()=>({campaign:{...sample,ownerId:'different'}})}),
+  sample.id,{name:'X',description:''},user.id),/autorizzata/);
 });

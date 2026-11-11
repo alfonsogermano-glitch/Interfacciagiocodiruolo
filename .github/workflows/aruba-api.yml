@@ -182,6 +182,9 @@ jobs:
       - name: Apply staging-native VTT campaign schema
         run: |
           docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/008_vtt_campaigns.sql
+      - name: Apply campaign update migration
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/009_vtt_campaign_updates.sql
       - name: Verify owner isolation and restricted campaign privileges
         run: |
           docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaigns.sql

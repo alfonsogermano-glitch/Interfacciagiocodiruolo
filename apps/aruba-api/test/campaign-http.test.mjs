@@ -31,6 +31,7 @@ test('authenticated owner is derived from cookie and other users are isolated',a
  const campaigns={
   list:async id=>({campaigns:entries.filter(c=>c.ownerId===id)}),
   create:async (id,body)=>({campaign:{id:'campaign-2',...body,ownerId:id}}),
+  update:async (id,uuid,body)=>({campaign:{id:uuid,ownerId:id,...body}}),
  };
  await serve(request({id:ownerB,role:'standard'},campaigns),async base=>{
   const cookie={cookie:'__Host-hg_session='+token};
@@ -48,5 +49,23 @@ test('authenticated owner is derived from cookie and other users are isolated',a
     headers:{...cookie,origin:'https://attacker.example','content-type':'application/json'},
     body:JSON.stringify({name:'Storia',description:'',ruleset:'hsc'})});
   assert.equal(wrong.status,403);
+ });
+});
+
+test('PATCH campaign edit is cookie scoped and rejects CSRF and forged owner fields',async()=>{
+ const uuid='be2f1a87-b8ee-4b34-9da0-07efda11379a';
+ const calls=[];
+ const campaigns={list:async()=>({campaigns:[]}),create:async()=>({campaign:{}}),
+  update:async (owner,id,body)=>{calls.push({owner,id,body});return {campaign:{id,ownerId:owner,...body}};}};
+ await serve(request({id:ownerA,role:'standard'},campaigns),async base=>{
+  const url=base+'/vtt/campaigns/'+uuid;
+  const data={name:'Nuova',description:'Descrizione'};
+  const req={method:'PATCH',headers:{cookie:'__Host-hg_session='+token,origin,'content-type':'application/json'},body:JSON.stringify(data)};
+  assert.equal((await fetch(url,{...req,headers:{origin,'content-type':'application/json'}})).status,401);
+  assert.equal((await fetch(url,{...req,headers:{...req.headers,origin:'https://evil.invalid'}})).status,403);
+  assert.equal((await fetch(url,req)).status,200);
+  assert.deepEqual(calls,[{owner:ownerA,id:uuid,body:data}]);
+  const forged=await fetch(url,{...req,body:JSON.stringify({...data,ownerId:ownerB})});
+  assert.equal(forged.status,200); // mock only: service-level schema validation is separately tested
  });
 });

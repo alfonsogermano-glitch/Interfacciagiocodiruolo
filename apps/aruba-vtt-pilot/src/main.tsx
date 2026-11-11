@@ -1,6 +1,6 @@
 import {useEffect,useState,type FormEvent} from 'react';
 import {createRoot} from 'react-dom/client';
-import {loadPilotSession,logoutPilot,listOwnedCampaigns,createOwnedCampaign,RULESETS} from './client.mjs';
+import {loadPilotSession,logoutPilot,listOwnedCampaigns,createOwnedCampaign,updateOwnedCampaign,RULESETS} from './client.mjs';
 import './styles.css';
 import IconStudy from './icon-study';
 import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,IdentificationBadgeIcon,GhostIcon,LightbulbIcon,BookmarkSimpleIcon,MapTrifoldIcon,ImageIcon,SwordIcon} from '@phosphor-icons/react';
@@ -39,6 +39,7 @@ function App(){
  const [campaignError,setCampaignError]=useState<string|null>(null);
  const [campaignLoading,setCampaignLoading]=useState(false);
  const [showCreate,setShowCreate]=useState(false);
+ const [showEdit,setShowEdit]=useState(false);
  const [submitting,setSubmitting]=useState(false);
  const [closing,setClosing]=useState(false);
  useEffect(()=>{
@@ -78,6 +79,21 @@ function App(){
    setActiveCampaignId(campaign.id);
    setShowCreate(false);
   }catch(error){setCampaignError(error instanceof Error?error.message:'Errore durante la creazione');}
+  finally{setSubmitting(false);}
+ }
+ async function editCampaign(event:FormEvent<HTMLFormElement>){
+  event.preventDefault();
+  if(!user?.campaignsEnabled||!activeCampaign||submitting)return;
+  const current=activeCampaign;
+  const data=new FormData(event.currentTarget);
+  setSubmitting(true);setCampaignError(null);
+  try{
+   const updated=await updateOwnedCampaign(fetcher,current.id,{
+    name:String(data.get('name')??''),description:String(data.get('description')??''),
+   },user.id);
+   setCampaigns(list=>list.map(c=>c.id===updated.id?updated:c));
+   setShowEdit(false);
+  }catch(error){setCampaignError(error instanceof Error?error.message:'Errore durante la modifica');}
   finally{setSubmitting(false);}
  }
  async function logout(){
@@ -141,7 +157,7 @@ function App(){
        <button type="button" onClick={()=>setShowCreate(true)} disabled={!user.campaignsEnabled}>+ Nuova campagna</button></div>
       {campaignError&&<p className="error" role="alert">{campaignError}</p>}
       <CampaignList campaigns={campaigns} loading={campaignLoading} enabled={user.campaignsEnabled} activeId={activeCampaignId} onOpen={openCampaign}/>
-      {activeCampaign&&<section className="selected-campaign" aria-label="Campagna selezionata"><div className="overline">CAMPAGNA SELEZIONATA · GAME MASTER</div><h2>{activeCampaign.name}</h2><p>{activeCampaign.description||'Nessuna descrizione'}</p><p>Regolamento: {RULESETS[activeCampaign.ruleset as keyof typeof RULESETS]}</p><p className="footnote">La campagna è stata riletta dall’API Aruba. Schede, note, mappe e sessioni non sono ancora collegate: non vengono creati dati fittizi.</p><button type="button" onClick={()=>setActiveCampaignId(null)}>Chiudi selezione</button></section>}
+      {activeCampaign&&<section className="selected-campaign" aria-label="Campagna selezionata"><div className="overline">CAMPAGNA SELEZIONATA · GAME MASTER</div><h2>{activeCampaign.name}</h2><p>{activeCampaign.description||'Nessuna descrizione'}</p><p>Regolamento: {RULESETS[activeCampaign.ruleset as keyof typeof RULESETS]}</p><p className="footnote">La campagna è stata riletta dall’API Aruba. Schede, note, mappe e sessioni non sono ancora collegate: non vengono creati dati fittizi.</p><button type="button" onClick={()=>setShowEdit(true)}>Modifica nome e descrizione</button><button type="button" onClick={()=>{setActiveCampaignId(null);setShowEdit(false);}}>Chiudi selezione</button></section>}
       {user.campaignsEnabled&&<p className="footnote">Le campagne Aruba sono nuove e separate dai dati storici Supabase. Le partecipazioni dei giocatori non sono ancora abilitate.</p>}
     </>}
     {!['home','campaigns'].includes(section)&&<>
@@ -162,6 +178,17 @@ function App(){
       <Icon size={19} weight="duotone" aria-hidden="true"/><span>{label}</span>
     </button></div>)}
   </aside>
+  {showEdit&&activeCampaign&&user.campaignsEnabled&&<div className="modal-backdrop" role="presentation" onClick={()=>setShowEdit(false)}>
+    <form onSubmit={event=>void editCampaign(event)} className="modal" aria-label="Modifica campagna" onClick={event=>event.stopPropagation()} key={activeCampaign.id}>
+      <div className="overline">MODIFICA CAMPAGNA</div><h2>Modifica {activeCampaign.name}</h2>
+      <label>Nome<input name="name" required maxLength={100} defaultValue={activeCampaign.name}/></label>
+      <label>Descrizione<textarea name="description" maxLength={4000} rows={4} defaultValue={activeCampaign.description}/></label>
+      {campaignError&&<p className="error" role="alert">{campaignError}</p>}
+      <p className="footnote">Il regolamento non viene modificato per evitare di alterare personaggi e dati esistenti.</p>
+      <div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowEdit(false)}>Annulla</button>
+       <button type="submit" disabled={submitting}>{submitting?'Salvataggio…':'Salva modifiche'}</button></div>
+    </form>
+   </div>}
   {showCreate&&user.campaignsEnabled&&<div className="modal-backdrop" role="presentation" onClick={()=>setShowCreate(false)}>
     <form onSubmit={event=>void create(event)} className="modal" aria-label="Nuova campagna" onClick={event=>event.stopPropagation()}>
      <div className="overline">NUOVA STORIA</div><h2>Crea una campagna</h2>
