@@ -19,3 +19,18 @@ test('rollback disables features and checks public API is 404',()=>{
   assert.match(s,/auth\/signup/);
   assert.match(s,/STATIC_PREVIEW_RESTORED/);
 });
+
+test('HTTPS activation checks local SNI and handles slow startup safely',()=>{
+  const activation=read('activate-auth-trial.sh');
+  const restore=read('restore-auth-preview.sh');
+  assert.match(activation,/--resolve staging\.hollowgate\.quest:443:127\.0\.0\.1/);
+  assert.match(activation,/attempt<=20/);
+  assert.match(activation,/probe \/auth\/signup 401/);
+  assert.match(activation,/probe \/login 401/);
+  assert.match(activation,/probe \/auth-ui\/app\.mjs 401/);
+  assert.match(activation,/probe \/health 200/);
+  assert.match(activation,/trap - ERR/);
+  assert.doesNotMatch(activation,/\$\{edge\[@\]:0:2\}/);
+  assert.match(restore,/--resolve staging\.hollowgate\.quest:443:127\.0\.0\.1/);
+  assert.match(restore,/i<=20/);
+});
