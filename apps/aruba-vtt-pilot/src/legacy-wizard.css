@@ -39,3 +39,6 @@
 .aruba-character-sheet-status{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px 0;color:#bbaa88;font-size:12px}
 .aruba-character-sheet-status .unsaved{color:#f2b6a7}
 .aruba-character-sheet .character-panel-return{padding:8px 12px;border:1px solid #947b56;border-radius:7px;color:#e5cca4;background:#24231c}
+
+@source "../../../src/app/components/session/shared/EntityFilterToolbar.tsx";
+@source "../../../src/app/components/session/shared/EntityPagination.tsx";

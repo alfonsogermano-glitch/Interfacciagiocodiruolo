@@ -69,3 +69,52 @@
 .character-draft-list article span{font-size:11px;color:#bba88a}
 
 .character-edit-action{border:1px solid #a98c57;border-radius:6px;color:#17120c;background:#c6a779;padding:8px 10px}
+
+/* Character library migration: original tab/toolbar flow, theme tokens, no browser-default buttons. */
+.aruba-character-library{
+ --dash-bg:#0b0d0d;--dash-panel:#171613;--dash-surface:#231e17;--dash-surface-2:#292319;
+ --dash-sidebar-bg:#10100e;--dash-input:#191714;--dash-border:#745b37;--dash-border-soft:#4c3b28;
+ --dash-text:#eadfc9;--dash-text-strong:#f5e8cf;--dash-muted:#b0a18d;
+ --dash-accent:#a98850;--dash-accent-2:#d1ad71;--dash-danger-border:#8f614a;
+ color:var(--dash-text);min-height:100%;padding:0;max-width:none;margin:0;
+}
+.aruba-character-library button,.aruba-character-library select,.aruba-character-sheet button,.aruba-original-wizard button,.aruba-original-wizard input,.aruba-original-wizard select{
+ font-family:inherit;appearance:none;-webkit-appearance:none;border-radius:8px;
+}
+.aruba-character-library button,.aruba-character-sheet button{background-color:var(--dash-surface);color:var(--dash-text);border:1px solid var(--dash-border-soft);padding:8px 12px}
+.aruba-character-library button:hover:not(:disabled),.aruba-character-sheet button:hover:not(:disabled){border-color:var(--dash-accent-2);color:var(--dash-text-strong)}
+.aruba-character-library button:focus-visible,.aruba-character-sheet button:focus-visible{outline:2px solid var(--dash-accent-2);outline-offset:2px}
+.aruba-character-library button:disabled{opacity:.4;cursor:not-allowed}
+.aruba-character-toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:20px}
+.aruba-character-tabs{display:flex;align-items:center;gap:5px;padding:5px;border:1px solid var(--dash-border-soft);border-radius:16px;background:var(--dash-surface)}
+.aruba-character-tabs button{border:0;border-radius:12px;background:transparent;padding:10px 17px;font-weight:500;color:var(--dash-muted)}
+.aruba-character-tabs button.selected{background:var(--dash-accent);color:#17120b}
+.aruba-character-toolbar-actions{display:flex;gap:10px;flex-wrap:wrap}
+.aruba-character-library .aruba-new-character{display:inline-flex;align-items:center;gap:8px;background:var(--dash-accent);border-color:var(--dash-accent);color:#17120b;font-weight:600;border-radius:14px;padding:12px 17px}
+.aruba-character-library .aruba-new-character:hover:not(:disabled){background:var(--dash-accent-2);color:#17120b}
+.aruba-character-filter-pills{display:flex;gap:7px;flex-wrap:wrap}
+.aruba-character-filter-pills button{border-radius:999px;font-size:12px;padding:6px 12px}
+.aruba-character-filter-pills button[aria-pressed=true]{background:var(--dash-accent);color:#17120b}
+.aruba-character-filter-panel{display:flex;gap:20px;align-items:flex-end;flex-wrap:wrap;color:var(--dash-muted);font-size:12px;padding:10px}
+.aruba-character-filter-panel label{display:grid;gap:7px}.aruba-character-filter-panel select{background:var(--dash-input);color:var(--dash-text);border:1px solid var(--dash-border);padding:9px 12px;min-width:180px}
+.aruba-character-section-label{display:flex;align-items:center;gap:9px;font:600 13px inherit;letter-spacing:.06em;text-transform:uppercase;color:var(--dash-muted);margin:22px 0 12px}
+.aruba-character-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(max(300px,calc((100% - 32px)/3)),1fr));gap:16px}
+.aruba-character-cards.list{display:flex;flex-direction:column;gap:8px}
+.aruba-character-card{position:relative;min-width:0;display:flex;border:1px solid var(--dash-border-soft);border-radius:16px;background:var(--dash-surface);overflow:hidden;min-height:150px}
+.aruba-character-card:hover{border-color:var(--dash-accent)}
+.aruba-character-card .aruba-character-card-main{display:flex;flex:1;gap:12px;text-align:left;border:0;padding:0;background:transparent;min-width:0}
+.aruba-character-portrait{display:grid;place-items:center;width:140px;flex-shrink:0;background:#181713;color:var(--dash-accent);border-right:1px solid var(--dash-border-soft)}
+.aruba-character-summary{display:flex;flex-direction:column;gap:7px;padding:15px 20px 15px 0;min-width:0}
+.aruba-character-summary strong{font:600 19px Georgia,serif;color:var(--dash-text-strong);overflow-wrap:anywhere}
+.aruba-character-summary span,.aruba-character-summary small{color:var(--dash-muted);font-size:12px}
+.aruba-character-card .aruba-character-edit{position:absolute;right:8px;top:8px;border-radius:50%;padding:5px;background:#17140fbd;color:var(--dash-muted)}
+.aruba-character-cards.list .aruba-character-card{min-height:68px}
+.aruba-character-cards.list .aruba-character-portrait{width:65px}
+.aruba-character-cards.list .aruba-character-portrait svg{width:22px}
+.aruba-character-cards.list .aruba-character-summary{padding:10px}
+.aruba-library-unavailable{border:1px dashed var(--dash-border-soft);padding:36px;border-radius:16px;text-align:center;color:var(--dash-muted)}
+/* Global Characters has no GM sidebar: scrolling reaches the right screen edge. */
+.main-workspace-row>.content{max-width:none;margin:0}
+.main-workspace-row>.content:has(.aruba-character-library){padding:30px clamp(18px,3.5vw,56px);max-width:none;width:100%}
+.aruba-character-sheet{width:100%;max-width:none}
+@media(max-width:760px){.aruba-character-cards{grid-template-columns:1fr}.aruba-character-portrait{width:90px}.aruba-character-toolbar{align-items:flex-start}}

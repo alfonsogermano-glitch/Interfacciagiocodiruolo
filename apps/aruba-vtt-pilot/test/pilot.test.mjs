@@ -245,3 +245,19 @@ test('character endpoints reject HTML SPA fallback with actionable error instead
  await assert.rejects(()=>createCharacterDraft(async()=>htmlResponse,sample.id,'Ken',user.id),
   /configurazione Caddy/);
 });
+
+test('global character entry respects original three tabs and invokes wizard without a redundant name input',()=>{
+ const character=readFileSync(new URL('../src/ArubaCharacterDrafts.tsx',import.meta.url),'utf8');
+ const layout=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
+ const styles=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+ assert.match(character,/EntityFilterToolbar/);
+ assert.match(character,/EntityPagination/);
+ assert.match(character,/id:'characters',label:'Personaggi'/);
+ assert.match(character,/id:'npcs',label:'PNG'/);
+ assert.match(character,/id:'monsters',label:'Mostri'/);
+ assert.match(character,/onClick=\{\(\)=>\{setError\(null\);setEditingId\(null\);setCreating\(true\);\}\}/);
+ assert.doesNotMatch(character,/name="name" required maxLength=\{120\}/);
+ assert.match(character,/createCharacterDraft\(fetch,campaignId,character\.name,ownerId\)/);
+ assert.match(layout,/section!=='characters'&&<aside className="gm-sidebar"/);
+ assert.match(styles,/main-workspace-row>\.content:has\(\.aruba-character-library\)/);
+});

@@ -165,7 +165,6 @@ function App(){
       {user.campaignsEnabled&&<p className="footnote">Le campagne Aruba sono nuove e separate dai dati storici Supabase. Le partecipazioni dei giocatori non sono ancora abilitate.</p>}
     </>}
     {section==='characters'&&<>
-      <div className="overline">PERSONAGGI</div><h1>Personaggi</h1>
       {user.charactersEnabled&&activeCampaign?
        <ArubaCharacterDrafts campaignId={activeCampaign.id} ownerId={user.id} ruleset={activeCampaign.ruleset}/>:
        <div className="empty">{activeCampaign?'Servizio personaggi in preparazione.':'Seleziona una campagna dalla barra sinistra.'}</div>}
@@ -180,13 +179,13 @@ function App(){
       </div>
     </>}
    </main>
-  <aside className="gm-sidebar" aria-label="Strumenti Game Master">
+  {section!=='characters'&&<aside className="gm-sidebar" aria-label="Strumenti Game Master">
    {gmMenu.map(({id,label,Icon},i)=><div key={id} className={i===7?'gm-group-break':''}>
     <button type="button" aria-label={label} aria-current={section===id?'page':undefined}
       className={'gm-link'+(section===id?' active':'')} onClick={()=>setSection(id)}>
       <Icon size={19} weight="duotone" aria-hidden="true"/><span>{label}</span>
     </button></div>)}
-  </aside>
+  </aside>}
    </div>
   </div>
   {activeCampaign&&<ArubaQuickDice campaignId={activeCampaign.id} userId={user.id} rollerName={user.displayName}/>}
