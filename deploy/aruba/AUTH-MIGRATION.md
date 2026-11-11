@@ -57,3 +57,7 @@ The CI job validates the script against disposable PostgreSQL 17 data. **Do not 
 ## Login HTTP on staging port 3003
 
 Starting with this revision the staging-only container can enable `POST /auth/login`, `GET /auth/me` and `POST /auth/logout`. It fails closed unless `AUTH_STAGING_ENABLED=true`, `PGDATABASE=hollowgate_auth_test` and `PGUSER=hollowgate_auth_app`. The host port is bound to `127.0.0.1:3003`, not exposed publicly. A persistent, random 32+ byte `/opt/hollowgate/config/auth_rate_limit_key` must be created by `hgadmin` on the VPS with mode 600 before recreating the staging container. This key is never committed, printed or transferred to clients. The test origin `https://staging.hollowgate.quest` is **not** a live deployment or an HTTPS proxy; use `curl` from the VPS with the corresponding Origin header solely for local functional tests. Secure cookies are not sent by browsers over plain HTTP. Do not alter the main API port 3002.
+
+## Local-only end-to-end test
+
+After confirming /ready HTTP 200 on the separate authentication staging container, run `bash deploy/aruba/scripts/test-auth-e2e.sh` from /opt/hollowgate/aruba-source. The script generates a disposable account and password, inserts only into `hollowgate_auth_test`, verifies wrong password/login/session/logout/revocation, and removes the fixture on exit. Secrets are passed on stdin and not shown in output. The test is intentionally restricted to the loopback port and does not activate public HTTPS or migrate real users.

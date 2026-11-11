@@ -26,6 +26,7 @@ jobs:
           node-version: '24'
       - run: npm install --ignore-scripts --no-audit --no-fund
       - run: npm test
+      - run: bash -n ../../deploy/aruba/scripts/test-auth-e2e.sh
       - run: docker build -t hollowgate-aruba-api:test .
       - name: Runtime smoke test with a rootless UID and a 0600 database secret
         run: |
