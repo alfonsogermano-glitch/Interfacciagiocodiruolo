@@ -62,3 +62,14 @@ test('players cannot publish ActiveScenePublication and invalid/oversized struct
  assert.equal(last(gm,'vtt:ack').status,'rejected');
  assert.equal(last(gm,'vtt:snapshot').state.activeScene,null);
 });
+
+test('published visible objects and map metadata strip non-schema private fields',()=>{
+ const input=publication();
+ input.mapTokens[0].gmSecret='token-private';
+ input.mapPois[0].gmSecret='poi-private';
+ input.mapDrawings[0].gmSecret='drawing-private';
+ input.mapMetadata.gmSecret='metadata-private';
+ input.contextMetadata.gmSecret='context-private';
+ const data=JSON.stringify(projectActiveScene(input,'player'));
+ for(const secret of ['token-private','poi-private','drawing-private','metadata-private','context-private'])assert.equal(data.includes(secret),false);
+});
