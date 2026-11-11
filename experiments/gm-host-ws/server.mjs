@@ -22,7 +22,7 @@ export function createHostServer({host='127.0.0.1',port=4177,archiveFile=path.jo
   res.writeHead(200,{'Content-Type':name.endsWith('.html')?'text/html; charset=utf-8':name.endsWith('.js')?'text/javascript; charset=utf-8':'text/css; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'",'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'});
   fs.createReadStream(p).on('error',()=>res.destroy()).pipe(res);
  });
- const wss=new WebSocketServer({noServer:true,maxPayload:8192,perMessageDeflate:false});
+ const wss=new WebSocketServer({noServer:true,maxPayload:2*1024*1024,perMessageDeflate:false});
  server.on('upgrade',(req,socket,head)=>{
   if(req.url!=='/ws'){socket.destroy();return}
   try{if(!req.headers.origin||new URL(req.headers.origin).host!==req.headers.host){socket.destroy();return}}catch{socket.destroy();return}
