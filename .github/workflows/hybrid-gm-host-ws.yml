@@ -5,10 +5,16 @@ on:
       - experimental/hybrid-gm-host-spike
     paths:
       - 'experiments/gm-host-ws/**'
+      - 'src/services/realtime/gmHostReactBridge.ts'
+      - 'src/services/realtime/useGmHostSession.ts'
+      - 'scripts/verify-gm-host-react-bridge.mts'
       - '.github/workflows/hybrid-gm-host-ws.yml'
   pull_request:
     paths:
       - 'experiments/gm-host-ws/**'
+      - 'src/services/realtime/gmHostReactBridge.ts'
+      - 'src/services/realtime/useGmHostSession.ts'
+      - 'scripts/verify-gm-host-react-bridge.mts'
       - '.github/workflows/hybrid-gm-host-ws.yml'
   workflow_dispatch:
 jobs:
@@ -25,6 +31,8 @@ jobs:
       - name: Protocol and real WebSocket integration tests
         working-directory: experiments/gm-host-ws
         run: node --test test/*.test.mjs
+      - name: React transport adapter regression tests
+        run: node --experimental-strip-types --test scripts/verify-gm-host-react-bridge.mts
       - name: Syntax verification
         working-directory: experiments/gm-host-ws
         run: |
