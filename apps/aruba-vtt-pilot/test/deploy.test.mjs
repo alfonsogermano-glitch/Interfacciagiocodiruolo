@@ -55,3 +55,13 @@ test('original HSC panels include theme and utility layers without resetting sit
  for(const part of ['CharacterCreationWizard','CompleteCharacterSheet','FrischezzaTracker','FoliaSpiral','ConditionsPanel','TurbePanel','EquipmentPanel'])
   assert.ok(css.includes('/'+part+'.tsx'),part+' source missing');
 });
+
+test('Tailwind Preflight resets native controls before the Aruba chrome styles',()=>{
+ const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+ const original=readFileSync(new URL('../src/legacy-wizard.css',import.meta.url),'utf8');
+ assert.ok(css.startsWith('/* The original Hollowgate controls rely on Tailwind Preflight'));
+ assert.match(css.slice(0,400),/@import "tailwindcss\/preflight"/);
+ assert.match(original,/@import "tailwindcss\/theme"/);
+ assert.match(css,/\.workspace\{[\s\S]*--dash-accent:#b9975d/);
+ assert.match(css,/section!=='characters'|main-workspace-row>\.content/);
+});
