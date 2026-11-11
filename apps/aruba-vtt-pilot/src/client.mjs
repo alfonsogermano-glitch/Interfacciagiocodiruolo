@@ -101,12 +101,19 @@ export function validateCharacterDraft(data){
  return Object.freeze({id:data.id,campaignId:data.campaignId,ownerId:data.ownerId,name:data.name,
    status:data.status,sheetData:data.sheetData});
 }
+async function characterApiJson(response){
+ const mime=response.headers?.get?.('content-type')??'';
+ if(mime&&!mime.toLowerCase().includes('application/json'))
+  throw Error('Il server ha restituito una pagina invece dei dati personaggio: controllare la configurazione Caddy.');
+ try{return await response.json();}
+ catch{throw Error('Risposta API personaggi non valida.');}
+}
 export async function listCharacterDrafts(fetchImpl,campaignId,ownerId){
  const r=await fetchImpl('/vtt/characters?campaignId='+encodeURIComponent(campaignId),{
   method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error'});
  if(r.status===401)throw Error('Sessione scaduta');
  if(!r.ok)throw Error('Impossibile caricare i personaggi');
- const data=await r.json();
+ const data=await characterApiJson(r);
  if(!Array.isArray(data.characters)||data.characters.length>100)throw Error('Elenco personaggi non valido');
  const list=data.characters.map(validateCharacterDraft);
  if(list.some(x=>x.ownerId!==ownerId||x.campaignId!==campaignId))
@@ -122,7 +129,7 @@ export async function createCharacterDraft(fetchImpl,campaignId,name,ownerId){
  if(r.status===401)throw Error('Sessione scaduta');
  if(r.status===404)throw Error('Campagna non trovata');
  if(!r.ok)throw Error('Impossibile creare il personaggio');
- const value=validateCharacterDraft((await r.json()).character);
+ const value=validateCharacterDraft((await characterApiJson(r)).character);
  if(value.ownerId!==ownerId||value.campaignId!==campaignId)throw Error('Campagna o proprietario non corrispondente');
  return value;
 }
@@ -145,7 +152,7 @@ export async function saveFullCharacterSheet(fetchImpl,campaignId,characterId,ch
  if(r.status===401)throw Error('Sessione scaduta: effettua nuovamente il login.');
  if(r.status===404)throw Error('Personaggio non trovato o non autorizzato.');
  if(!r.ok)throw Error('Impossibile salvare la scheda completa.');
- const result=validateCharacterDraft((await r.json()).character);
+ const result=validateCharacterDraft((await characterApiJson(r)).character);
  if(result.ownerId!==ownerId||result.campaignId!==campaignId||result.id!==characterId||result.status!=='active')
   throw Error('Risposta della scheda non autorizzata.');
  return result;
@@ -162,7 +169,7 @@ export async function archiveOwnedCharacter(fetchImpl,campaignId,characterId,own
  if(response.status===401)throw Error('Sessione scaduta');
  if(response.status===404)throw Error('Personaggio non trovato o non autorizzato');
  if(!response.ok)throw Error('Impossibile archiviare il personaggio');
- const data=await response.json();
+ const data=await characterApiJson(response);
  if(data.archivedId!==characterId)throw Error('Archiviazione non confermata');
  return data.archivedId;
 }

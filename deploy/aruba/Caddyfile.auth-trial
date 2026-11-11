@@ -32,8 +32,11 @@ staging.hollowgate.quest {
     file_server
   }
 
-  # Exact-path handler precedes generic VTT asset routes.
-  @vttDataAPI path /vtt/bootstrap /vtt/campaigns
+  # API paths MUST take precedence over the SPA fallback. Caddy's path
+  # matcher ignores the query string, so GET /vtt/characters?campaignId=...
+  # also matches /vtt/characters. The /vtt/characters/* route covers
+  # PUT/DELETE for individual sheets. Auth/ownership remain enforced by API.
+  @vttDataAPI path /vtt/bootstrap /vtt/campaigns /vtt/campaigns/* /vtt/characters /vtt/characters/*
   handle @vttDataAPI {
     reverse_proxy aruba-auth-staging:3000
   }

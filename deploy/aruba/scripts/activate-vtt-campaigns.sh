@@ -48,6 +48,8 @@ check(){
 }
 check /vtt/ 401
 check /vtt/campaigns 401
+check /vtt/characters 401
+check /vtt/characters/00000000-0000-4000-8000-000000000000 401
 check /auth/login 401
 check /health 200
 trap - ERR

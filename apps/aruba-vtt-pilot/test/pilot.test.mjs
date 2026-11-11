@@ -236,3 +236,12 @@ test('archive client uses same origin cookies and trusts no browser owner',async
  assert.deepEqual(JSON.parse(sent.request.body),{campaignId:sample.id});
  await assert.rejects(()=>archiveOwnedCharacter(async()=>({ok:true,json:async()=>({archivedId:'other'})}),sample.id,uuid,user.id));
 });
+
+test('character endpoints reject HTML SPA fallback with actionable error instead of Unexpected token',async()=>{
+ const htmlResponse={ok:true,headers:{get:()=> 'text/html; charset=utf-8'},
+  json:async()=>{throw SyntaxError("Unexpected token '<'")}};
+ await assert.rejects(()=>listCharacterDrafts(async()=>htmlResponse,sample.id,user.id),
+  /configurazione Caddy/);
+ await assert.rejects(()=>createCharacterDraft(async()=>htmlResponse,sample.id,'Ken',user.id),
+  /configurazione Caddy/);
+});
