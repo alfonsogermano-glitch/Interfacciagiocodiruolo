@@ -26,3 +26,7 @@ The existing VTT uses Supabase Auth UUIDs, `public.profiles`, and `public.user_r
 ## Password actions foundation (003_password_actions.sql)
 
 An opaque 32-byte reset/setup token is delivered only through a later verified email flow; the database stores only SHA-256, with strict 30-minute maximum validity, purpose, user ID and one-time consumption. Redemptions must atomically consume the token and update password credentials in one transaction while revoking all existing sessions. Do not expose any password reset endpoints until tested rate limiting, email verification, anti-enumeration, CSRF/origin controls, redirect allow-list, and email-delivery configuration are ready. This schema and token generator do not send emails and do not authenticate any user.
+
+## Abuse controls foundation (004_auth_rate_limits.sql)
+
+An internal PostgreSQL bucket table for per-account and per-network rate limits uses HMAC-SHA256 pseudonymous identifiers, not raw emails/IPs. The helper intentionally does not enable an endpoint, enforce a threshold or infer a client IP; those requirements must be implemented at the trusted proxy and API boundary before any public auth route is enabled. Never include HMAC key material in Git or logs. Password recovery must return a generic message whether or not an account exists.

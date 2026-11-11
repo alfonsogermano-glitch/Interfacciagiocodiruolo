@@ -81,3 +81,9 @@ jobs:
       - name: Verify reset tokens are expiring, single-use, and private
         run: |
           docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_password_actions.sql
+      - name: Install abuse-control counters
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/004_auth_rate_limits.sql
+      - name: Verify rate-limit table is private and increments atomically
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_auth_rate_limits.sql
