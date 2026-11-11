@@ -1,5 +1,5 @@
 import {useEffect,useState} from 'react';
-import {DicesIcon,ArrowDownIcon,ArrowUpIcon,XIcon} from '@phosphor-icons/react';
+import {DiceFiveIcon,ArrowDownIcon,ArrowUpIcon,XIcon} from '@phosphor-icons/react';
 import {rollDiceFormula} from '../../../src/app/components/session/dice/diceEngine.ts';
 import {
  addStandardQuickDie,buildQuickRollItems,clearQuickRoll,decrementQuickDie,
@@ -51,7 +51,7 @@ export function ArubaQuickDice({campaignId,userId,rollerName}:{
      {unread&&!historyOpen&&<span className="aruba-dice-unread" aria-label="Nuovi tiri"/>}
    </button>
    <button type="button" className="aruba-dice-toggle" aria-label="Tiro rapido"
-     aria-expanded={paletteOpen} onClick={()=>setPaletteOpen(current=>!current)}><DicesIcon size={25} weight="duotone"/></button>
+     aria-expanded={paletteOpen} onClick={()=>setPaletteOpen(current=>!current)}><DiceFiveIcon size={25} weight="duotone"/></button>
    {paletteOpen&&<div className="aruba-dice-palette" aria-label="Selezione dadi">
      <div className="aruba-dice-types">
        {SIDES.map(sides=>{
