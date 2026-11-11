@@ -120,7 +120,7 @@ test('pilot Caddy routes are Basic-Auth protected and bootstrap precedes assets'
   assert.match(config,/@trialProtected path .*\/vtt\/\* \/vtt/);
   assert.match(config,/handle \/vtt\/bootstrap \{/);
   assert.ok(config.indexOf('handle /vtt/bootstrap')<config.indexOf('handle_path /vtt/*'));
-  assert.match(config,/reverse_proxy @read aruba-auth-staging:3000/);
+  assert.match(config,/handle \/vtt\/bootstrap \{[\s\S]*?reverse_proxy aruba-auth-staging:3000/);
   assert.match(config,/handle_path \/vtt\/\*/);
   assert.match(overlay,/\/srv\/vtt-pilot:ro/);
 });

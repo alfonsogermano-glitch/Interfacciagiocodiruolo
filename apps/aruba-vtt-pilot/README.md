@@ -13,7 +13,7 @@ Unverified/expired sessions fail closed and never reach a game dashboard.
 
 Build only this isolated app using:
   bash deploy/aruba/scripts/build-vtt-pilot.sh
-The script runs npm in node:24-alpine scoped to apps/aruba-vtt-pilot and
+The script runs npm in node:24-alpine scoped to apps/aruba-vtt-pilot (without modifying a lockfile) and
 outputs deploy/aruba/dist/vtt-pilot, ignored by Git. It does not build the
 main Vercel app. The existing private trial overlay mounts that output read-only.
 

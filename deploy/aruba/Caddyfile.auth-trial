@@ -34,9 +34,8 @@ staging.hollowgate.quest {
 
   # Exact-path handler precedes generic VTT asset routes.
   handle /vtt/bootstrap {
-    @read method GET
-    reverse_proxy @read aruba-auth-staging:3000
-    respond "Method Not Allowed" 405
+    # API itself allows only GET; other methods are rejected fail-closed.
+    reverse_proxy aruba-auth-staging:3000
   }
 
   handle /vtt {
