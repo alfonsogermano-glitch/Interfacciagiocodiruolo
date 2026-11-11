@@ -51,3 +51,15 @@ Prossima implementazione: schema condiviso con `activeScene` e adapter `campaign
 - `scripts/verify-gm-host-react-bridge.mts`: test del client usando WebSocket simulati e verifica degli eventi fuori ordine.
 
 **Importante:** questo hook non sostituisce ancora `campaignChannel.ts`, non supporta ancora `ActiveScenePublication` completo, e non viene montato automaticamente nelle schermate della produzione. È una base di compatibilità con React, mantenuta fuori dalla normale gestione delle campagne per evitare perdite di dati e permessi. Il prossimo passo è estendere il protocollo a scene complete con autorizzazioni per campagna e testarne la conversione in un'adattatore degli eventi `active_scene_change` e `active_scene_map_patch`.
+
+## Pubblicazione completa scene e topologie (novembre 2026)
+
+- `active-scene-wire.mjs` proietta la struttura `ActiveScenePublication` usata da Hollowgate verso il giocatore, includendo URL mappa, griglia, regioni, pedine, disegni, PDI, nebbia e ordine degli oggetti.
+- Gli oggetti `hiddenFromPlayers`, le pedine con `visible: false`, i PDI `visibleToPlayers: false`, i disegni invisibili e i rispettivi riferimenti nell'ordine oggetti non vengono inviati ai giocatori. I riferimenti alle note dei PDI restano riservati quando `noteVisibleToPlayers` non è true. Gli oggetti visibili e i metadati vengono limitati ai campi dello schema pubblico.
+- Il comando GM `publishActiveScene` pubblica la scena completa usando il protocollo versionato `vtt:*`; i nuovi giocatori ricevono lo snapshot corrente. Il limite del payload WebSocket per questo laboratorio è stato portato a 2 MB e il documento scena accettato è limitato a 1 MB.
+- `gmHostReactBridge.ts` espone `activeScene` nel suo stato; `GmHostScenePreview.tsx` è una vista **opt-in** che riusa il renderer reale `ActiveSceneMap` di Hollowgate, ma non è ancora collegata al routing normale.
+- I test `active-scene-wire.test.mjs` e `multi-browser.test.mjs` verificano il filtro degli oggetti nascosti, la pubblicazione multiutente e il recupero dello stato dopo una riconnessione simulata.
+
+**PC↔PC stessa Wi-Fi, PC↔PC reti differenti, PC↔Android:** il protocollo è identico, perché tutti i browser giocatore comunicano con il server del GM attraverso un link HTTPS/WebSocket del tunnel; non dipende dal tipo di dispositivo o dalla Wi-Fi. La topologia e le autorizzazioni sono testate in laboratorio con più client WebSocket. Le prestazioni reali LAN e WAN, il failover e il funzionamento sul campo di ogni combinazione restano da collaudare. Nella versione attuale anche i PC nella stessa Wi-Fi usano il tunnel: non è stato introdotto un percorso LAN diretto.
+
+**Limitazioni fondamentali:** le immagini `mapUrl` che dipendono da URL autenticati non sono ancora distribuite dall'host locale. Non è ancora disponibile un'API asset autorizzata per immagini e media. L'intera `SessionWorkspace` con illuminazione, nebbia dinamica, strumenti e comandi giocatore non è ancora integrata. Il prototipo non deve ricevere campagne reali o contenuti segreti nei metadati non esplicitamente sottoposti a filtro.
