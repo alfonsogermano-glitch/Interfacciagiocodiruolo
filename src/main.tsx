@@ -16,6 +16,8 @@ function Entry() {
   const [mode, setMode] = useState<Mode>(() => {
     const params = new URLSearchParams(location.search);
     if (params.get("offline") === "1") return "recovery";
+    // Explicit user override. Never silently bypass the health check.
+    if (params.get("online") === "1") return "legacy";
     return "checking";
   });
   const retry = useCallback(async () => {
