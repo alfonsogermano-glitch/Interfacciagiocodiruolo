@@ -57,3 +57,6 @@
 .aruba-dice-history li{display:flex;align-items:center;justify-content:space-between;gap:14px;border-top:1px solid #53452e;padding:7px 0;font-size:12px}
 .aruba-dice-history li strong{font-size:19px}.aruba-dice-error{position:absolute;bottom:65px;left:0;border:1px solid #b66d66;background:#402428;padding:9px;border-radius:6px;min-width:260px}
 @media(max-width:560px){.aruba-dice-floating{left:105px;bottom:10px}.aruba-dice-palette{position:absolute;bottom:55px;left:0;max-width:calc(100vw - 130px)}.aruba-dice-history{max-width:calc(100vw - 130px);min-width:230px}}
+
+/* Edit/create dialogs must stay above the local quick dice widget. */
+.modal-backdrop{z-index:50}

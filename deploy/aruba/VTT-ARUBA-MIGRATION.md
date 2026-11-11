@@ -27,3 +27,13 @@ La dashboard Aruba mantiene 100 px a sinistra, 80 px a destra. Permette la selez
 Il portale Aruba riutilizza il **motore di calcolo originale** `diceEngine.ts` e `diceQuickRollState.ts` senza copiare o modificare gli algoritmi. La selezione standard d4/d6/d8/d10/d12/d20/d100, accumulo, rimozione, lancio e visualizzazione risultati sono ora collegati a una campagna Aruba selezionata. Il generatore usa `crypto.getRandomValues` originale anziché `Math.random`. L'interfaccia di tiro rapido è ancorata alla parte bassa sinistra dell'area di gioco, come nella disposizione precedente.
 
 **Limite esplicito:** solo cronologia di sessione locale in memoria, non viene salvata e non viene trasmessa ai giocatori. Il vecchio overlay 3D, le formule, i dadi personalizzati, la chat tiri condivisa e le skin non sono ancora collegati. Non presentare questo recupero come multiplayer pronto; in particolare i tiri segreti richiedono il trasporto e i ruoli di campagna.
+
+## Ordine di uscita da Supabase e Vercel (nessuna dismissione anticipata)
+
+1. **Identità:** inventario verificato degli utenti reali Supabase (senza copiare segreti o password), criterio di riconciliazione via email verificata, flusso di recupero accesso Aruba; non cancellare utenti o account prima della verifica individuale.
+2. **Interfaccia e dati:** importare i veri componenti originali con adapter Aruba anziché replicare pannelli incompleti; prima schede PG/PNG e archivio campagne, poi note, mappe, asset, dadi 3D.
+3. **Sessioni:** autorizzazioni GM/giocatore per singola campagna, scambio dati GM-hosted, signaling/TURN e collaudo LAN/Wi-Fi/5G, con particolare attenzione ad Android.
+4. **Pubblicazione:** backup e restore su VPS, test end-to-end con account e campagne di prova, configurazione dominio definitivo verso Aruba e HTTPS, monitoraggio; disattivare Vercel soltanto dopo il cutover verificato.
+5. **Dismissione Supabase:** esportare e verificare identità/dati degli account reali, confermare recupero per gli utenti, poi rimuovere dipendenze e progetto quando non esistono più blocchi di migrazione. Non provare a tenere accesi due siti in parallelo se non necessario al recupero utenti.
+
+**Stato attuale:** non esiste ancora una via verificata per trasferire gli account Supabase; il sito Aruba resta uno staging privato e non sostituisce il gioco online completo.

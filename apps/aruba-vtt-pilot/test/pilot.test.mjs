@@ -151,3 +151,9 @@ test('Aruba lobby reuses the ORIGINAL dice game engine and quick-roll state with
  assert.match(engine,/cryptoDiceRng/);
  assert.match(engine,/validateDiceFormula/);
 });
+
+test('Aruba campaign modal is above the local dice toolbar',()=>{
+ const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+ assert.match(css,/\.aruba-dice-floating\{[^}]*z-index:20/);
+ assert.match(css,/\.modal-backdrop\{z-index:50\}/);
+});
