@@ -1,6 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { Pool } from 'pg';
 import { createApp } from './app.mjs';
+import { verifyPassword } from './password.mjs';
+import { createLoginService } from './login-service.mjs';
+import { createSessionRepository } from './session-repository.mjs';
+import { createAuthHttpHandler } from './auth-http.mjs';
 
 const required = (name) => {
   const value = process.env[name];
@@ -24,7 +28,25 @@ async function main() {
   });
   pool.on('error', () => { /* idle connection error: readiness endpoint reports status */ });
 
-  const app = createApp({ checkDatabase: () => pool.query('SELECT 1') });
+  // Never enable auth on the main API, on another database, or with an owner role.
+  let authHandler = null;
+  if (process.env.AUTH_STAGING_ENABLED === 'true') {
+    if (process.env.PGDATABASE !== 'hollowgate_auth_test' ||
+        process.env.PGUSER !== 'hollowgate_auth_app') {
+      throw new Error('Auth staging requires the dedicated test database and restricted user');
+    }
+    const keyPath = required('AUTH_RATE_LIMIT_KEY_FILE');
+    const hmacKey = await readFile(keyPath);
+    if (hmacKey.length < 32) throw new Error('Auth rate-limit key is too short');
+    const origin = required('AUTH_ORIGIN');
+    const login = createLoginService({pool, verifyPassword, hmacKey});
+    const {getSessionUser, revokeSession} = createSessionRepository({pool});
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession});
+  } else if (process.env.AUTH_STAGING_ENABLED) {
+    throw new Error('Unsupported AUTH_STAGING_ENABLED value');
+  }
+
+  const app = createApp({ checkDatabase: () => pool.query('SELECT 1'), authHandler });
   const port = Number(process.env.PORT ?? 3000);
   app.listen(port, '0.0.0.0', () => console.log('Hollowgate API listening'));
 
