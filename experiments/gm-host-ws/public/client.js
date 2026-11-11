@@ -1,6 +1,15 @@
 const $=id=>document.getElementById(id);
-const params=new URLSearchParams(location.hash.slice(1)),gmToken=params.get('gm'),playerToken=params.get('join');
-history.replaceState(null,'',location.pathname);
+// Keep role credentials only within this browser tab; not in URLs or persistent storage.
+// A bare tunnel URL intentionally has no role and cannot join a private session.
+const params=new URLSearchParams(location.hash.slice(1));
+const freshGm=params.get('gm'),freshPlayer=params.get('join');
+if(freshGm||freshPlayer){
+ sessionStorage.removeItem('hg-demo-gm');sessionStorage.removeItem('hg-demo-player');
+ if(freshGm)sessionStorage.setItem('hg-demo-gm',freshGm);
+ else sessionStorage.setItem('hg-demo-player',freshPlayer);
+}
+const gmToken=sessionStorage.getItem('hg-demo-gm'),playerToken=sessionStorage.getItem('hg-demo-player');
+if(location.hash)history.replaceState(null,'',location.pathname+location.search);
 const role=gmToken?'gm':playerToken?'player':null;
 let socket=null,selfId=null,state=null,pingAt=0,inviteToken=null;
 const reconnect=$('reconnect');reconnect.onclick=connect;
@@ -33,6 +42,7 @@ function connect(){
  socket.addEventListener('error',()=>status('Errore WebSocket'));
 }
 if(role==='gm')connect();
+else if(!role){status('Manca il link di accesso. Sul PC usa l’indirizzo completo #gm=... mostrato in AVVIA_HOST; su Android apri il link #join=... creato dal GM.');$('left').disabled=true;$('right').disabled=true;$('roll').disabled=true;}
 $('connectPlayer').onclick=connect;
 $('createLink').onclick=()=>{
  let url;try{url=new URL($('publicUrl').value.trim());if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash)throw Error()}catch{status('Inserisci URL HTTPS del tunnel');return}
