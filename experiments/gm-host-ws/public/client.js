@@ -3,6 +3,7 @@ const params=new URLSearchParams(location.hash.slice(1)),gmToken=params.get('gm'
 history.replaceState(null,'',location.pathname);
 const role=gmToken?'gm':playerToken?'player':null;
 let socket=null,selfId=null,state=null,pingAt=0,inviteToken=null;
+const reconnect=$('reconnect');reconnect.onclick=connect;
 $('gmPanel').hidden=role!=='gm';$('playerPanel').hidden=role!=='player';
 const status=msg=>$('status').textContent=msg;
 const log=msg=>$('log').textContent=new Date().toLocaleTimeString()+' '+msg+'\n'+$('log').textContent.slice(0,5000);
@@ -16,17 +17,19 @@ function render(){
 }
 function connect(){
  if(!role){status('Apri il link GM stampato dal server o un invito giocatore');return}
- if(socket)socket.close();
+ if(socket&&[WebSocket.OPEN,WebSocket.CONNECTING].includes(socket.readyState))return;
+ selfId=null;reconnect.hidden=true;status('Connessione in corso…');
  socket=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');
+ const current=socket;
  socket.addEventListener('open',()=>{send({type:'hello',role,token:role==='gm'?gmToken:playerToken,name:$('playerName').value});status('Autenticazione…')});
  socket.addEventListener('message',ev=>{
   let m;try{m=JSON.parse(ev.data)}catch{return}
-  if(m.type==='joined'){if(m.role==='gm'&&typeof m.playerToken==='string')inviteToken=m.playerToken;selfId=m.id||'gm';status('Collegato come '+role);log('Sessione aperta')}
+  if(m.type==='joined'){reconnect.hidden=true;if(m.role==='gm'&&typeof m.playerToken==='string')inviteToken=m.playerToken;selfId=m.id||'gm';status('Collegato come '+role);log('Sessione aperta')}
   if(m.type==='state'){state=m.state;render()}
   if(m.type==='notice'||m.type==='error')status(m.text);
   if(m.type==='pong')$('latency').textContent='Latenza WebSocket: '+Math.round(performance.now()-pingAt)+' ms';
  });
- socket.addEventListener('close',()=>{status('Connessione chiusa: riapri il link per entrare');log('Connessione chiusa')});
+ socket.addEventListener('close',event=>{if(socket!==current)return;selfId=null;reconnect.hidden=false;status('Connessione chiusa (codice '+event.code+'). Premi Riconnetti.');log('Connessione chiusa · codice '+event.code)});
  socket.addEventListener('error',()=>status('Errore WebSocket'));
 }
 if(role==='gm')connect();
@@ -38,6 +41,6 @@ $('createLink').onclick=()=>{
  $('invite').value=url.href;
 };
 $('copyInvite').onclick=async()=>{try{await navigator.clipboard.writeText($('invite').value);status('Link copiato')}catch{status('Copia il link dal campo')}};
-function move(delta){if(!selfId||!state?.tokens[selfId])return;const t=state.tokens[selfId];send({type:'move',x:Math.max(0,Math.min(100,t.x+delta)),y:t.y})}
+function move(delta){if(socket?.readyState!==WebSocket.OPEN||!selfId||!state?.tokens[selfId]){status('Sessione scollegata: premi Riconnetti');return;}const t=state.tokens[selfId];send({type:'move',id:role==='gm'?'gm':undefined,x:Math.max(0,Math.min(100,t.x+delta)),y:t.y})}
 $('left').onclick=()=>move(-5);$('right').onclick=()=>move(5);$('roll').onclick=()=>send({type:'roll',sides:20});
 setInterval(()=>{if(socket?.readyState===WebSocket.OPEN){pingAt=performance.now();send({type:'ping'})}},3000);
