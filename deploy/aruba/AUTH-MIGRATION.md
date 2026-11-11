@@ -22,3 +22,7 @@ The existing VTT uses Supabase Auth UUIDs, `public.profiles`, and `public.user_r
 7. Cut over frontend/API only after end-to-end tests, rollback plan and independent backups; leave Vercel/Supabase intact meanwhile.
 
 **Do not apply this schema on a production service until the migration flow, restricted DB permissions, and backup restoration are implemented and tested.**
+
+## Password actions foundation (003_password_actions.sql)
+
+An opaque 32-byte reset/setup token is delivered only through a later verified email flow; the database stores only SHA-256, with strict 30-minute maximum validity, purpose, user ID and one-time consumption. Redemptions must atomically consume the token and update password credentials in one transaction while revoking all existing sessions. Do not expose any password reset endpoints until tested rate limiting, email verification, anti-enumeration, CSRF/origin controls, redirect allow-list, and email-delivery configuration are ready. This schema and token generator do not send emails and do not authenticate any user.
