@@ -8,3 +8,5 @@ Il codice originale di riferimento è:
 La nuova combinazione cromatica nero/oro è la sostituta della palette Noir, ma NON della struttura o delle interazioni.
 Le icone **Phosphor Duotone** della navigazione sono state approvate: nel portale Aruba sono consentite per le barre principali, con **PNG = Identification Badge** e **Mostri = Ghost**. La libreria non autorizza un redesign delle posizioni. Le altre icone specialistiche e le animazioni restano da valutare solo dopo il ripristino del VTT. Il confronto isolato rimane disponibile in `/vtt/icon-study`.
 Obiettivo: sito utilizzabile il più presto possibile. Non lavorare su redesign generali mentre la migrazione delle funzioni è incompleta.
+
+**Posizione vincolante della barra destra:** come nell'originale `AppShell`, la barra superiore occupa tutta l'area a destra della navigazione principale (compresi gli 80 px della futura barra GM). La colonna GM comincia solo **sotto** la barra superiore; la colonna sinistra da 100 px resta a tutta altezza. La zona centrale e la colonna GM scorrono indipendentemente. Non simulare il risultato con margini o overlay.

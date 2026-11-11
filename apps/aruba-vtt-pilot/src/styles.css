@@ -20,7 +20,13 @@
 .gm-sidebar{width:80px;border-left:1px solid #57432b;display:flex;flex-direction:column;gap:3px;padding:12px 5px}
 .gm-link span{font-size:10px}
 .gm-group-break{margin-top:12px;border-top:1px solid #57432b;padding-top:12px}
-.main-area{height:100vh;overflow:auto}
+/* Original AppShell contract: topbar spans content + GM rail; right rail
+   begins immediately BELOW topbar. Only main content and rail scroll. */
+.main-area{height:100vh;min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.main-workspace-row{display:flex;flex:1;min-width:0;min-height:0;overflow:hidden}
+.main-workspace-row>.content{flex:1;min-width:0;min-height:0;overflow-y:auto;width:100%}
+.main-workspace-row>.gm-sidebar{height:100%;min-height:0;overflow-y:auto}
+.topbar{flex-shrink:0}
 @media(max-width:900px){.primary-sidebar{width:100px;padding:12px 8px}.gm-sidebar{width:80px;padding:12px 5px}.primary-identity{margin-bottom:12px}.main-area{min-width:0}.topbar{padding:0 16px}}
 @media(max-width:560px){.primary-sidebar{width:100px}.gm-sidebar{width:80px}.primary-campaigns{display:none}.content{padding:20px 12px}.topbar{padding:0 10px}}
 

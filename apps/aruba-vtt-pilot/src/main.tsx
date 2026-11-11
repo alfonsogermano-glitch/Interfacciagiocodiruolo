@@ -131,6 +131,7 @@ function App(){
      <span className="profile-name">{user.displayName}</span>
      <button type="button" className="logout" onClick={()=>void logout()} disabled={closing}>Esci</button></div>
    </header>
+   <div className="main-workspace-row">
    <main className="content">
     {section==='home'&&<>
      <div className="overline">IL VARCO TI ATTENDE</div>
@@ -170,7 +171,6 @@ function App(){
       </div>
     </>}
    </main>
-  </div>
   <aside className="gm-sidebar" aria-label="Strumenti Game Master">
    {gmMenu.map(({id,label,Icon},i)=><div key={id} className={i===7?'gm-group-break':''}>
     <button type="button" aria-label={label} aria-current={section===id?'page':undefined}
@@ -178,6 +178,8 @@ function App(){
       <Icon size={19} weight="duotone" aria-hidden="true"/><span>{label}</span>
     </button></div>)}
   </aside>
+   </div>
+  </div>
   {showEdit&&activeCampaign&&user.campaignsEnabled&&<div className="modal-backdrop" role="presentation" onClick={()=>setShowEdit(false)}>
     <form onSubmit={event=>void editCampaign(event)} className="modal" aria-label="Modifica campagna" onClick={event=>event.stopPropagation()} key={activeCampaign.id}>
       <div className="overline">MODIFICA CAMPAGNA</div><h2>Modifica {activeCampaign.name}</h2>

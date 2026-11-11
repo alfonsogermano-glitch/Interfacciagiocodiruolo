@@ -116,3 +116,22 @@ test('campaign edit calls PATCH with only editable fields and rejects forged res
  await assert.rejects(()=>updateOwnedCampaign(async()=>({ok:true,json:async()=>({campaign:{...sample,ownerId:'different'}})}),
   sample.id,{name:'X',description:''},user.id),/autorizzata/);
 });
+
+test('right GM sidebar starts beneath the full-width top bar, as in original AppShell',()=>{
+ const code=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+ const shell=readFileSync(new URL('../../../src/app/layout/AppShell.tsx',import.meta.url),'utf8');
+ assert.match(shell,/\{topbar\}[\s\S]*className="flex flex-1 overflow-hidden"[\s\S]*\{rightSidebar\}/);
+ const mainStart=code.indexOf('<div className="main-area">');
+ const header=code.indexOf('<header className="topbar">',mainStart);
+ const row=code.indexOf('<div className="main-workspace-row">',header);
+ const content=code.indexOf('<main className="content">',row);
+ const sidebar=code.indexOf('<aside className="gm-sidebar"',content);
+ assert.ok(mainStart>=0&&header>mainStart&&row>header&&content>row&&sidebar>content);
+ assert.ok(code.indexOf('</header>',header)<row);
+ assert.match(css,/\.main-area\{[^}]*display:flex;flex-direction:column/);
+ assert.match(css,/\.main-workspace-row\{[^}]*display:flex;flex:1/);
+ assert.match(css,/\.main-workspace-row>\.gm-sidebar\{height:100%/);
+ assert.match(css,/\.topbar\{flex-shrink:0\}/);
+ assert.doesNotMatch(css,/\.gm-sidebar\{[^}]*margin-top:/);
+});
