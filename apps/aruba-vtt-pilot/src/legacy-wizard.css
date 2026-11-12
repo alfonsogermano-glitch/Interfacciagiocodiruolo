@@ -54,3 +54,6 @@
 
 @source "../../../src/app/components/shared/TokenStyleEditor.tsx";
 @source "../../../src/app/components/shared/TokenShapePreview.tsx";
+@source "../../../src/app/components/session/shared/EntityDetailView.tsx";
+@source "../../../src/app/components/session/shared/EntityTabBar.tsx";
+@source "../../../src/app/components/shared/RulesetTag.tsx";

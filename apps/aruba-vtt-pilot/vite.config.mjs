@@ -12,6 +12,31 @@ export default defineConfig({
     name:'aruba-legacy-image-safety',
     enforce:'pre',
     resolveId(id,importer){
+      // The real EntityDetailView is retained verbatim. Only its backend
+      // dependencies are isolated until native Aruba services are ready.
+      if(importer?.endsWith('/src/app/components/session/shared/EntityDetailView.tsx')){
+        const map={
+          './useEntityTabs':'ArubaBaseEntityTabs.ts',
+          '../../../campaigns/RulesetContext':'ArubaEntityDependencies.tsx',
+          './RichTextEditor':'ArubaEntityDependencies.tsx',
+          './EntityImageTab':'ArubaEntityDependencies.tsx',
+          './EntityImageExtras':'ArubaEntityDependencies.tsx',
+          '../../../../services/supabase/entitiesService':'ArubaEntityDependencies.tsx',
+          '../../../../services/supabase/charactersService':'ArubaEntityDependencies.tsx',
+          '../../../../services/campaign/entityReferenceService':'ArubaEntityDependencies.tsx',
+          '../../gm/monsters/MonsterFreschezzaComponents':'ArubaEntityDependencies.tsx',
+          '../../gm/monsters/MonsterCatalogComponents':'ArubaEntityDependencies.tsx',
+          '../../gm/monsters/monstersUtils':'ArubaEntityDependencies.tsx',
+          '../../../../data/monsterTraitsCatalog':'ArubaEntityDependencies.tsx',
+          '../../../../data/monsterSpecialActionsCatalog':'ArubaEntityDependencies.tsx',
+          './DraggablePortrait':'ArubaPortraitPending.tsx',
+        };
+        if(Object.hasOwn(map,id))return resolve(root,'src/'+map[id]);
+      }
+      if(id==='./useEntityTabs' && importer?.endsWith('/src/app/components/session/shared/EntityTabBar.tsx'))
+        return resolve(root,'src/ArubaBaseEntityTabs.ts');
+      if(id==='../../ui/tooltip' && importer?.endsWith('/src/app/components/session/shared/EntityTabBar.tsx'))
+        return resolve(root,'src/ArubaTooltip.tsx');
       if(id==='../ui/tooltip' && importer?.endsWith('/src/app/components/shared/TokenStyleEditor.tsx'))
         return resolve(root,'src/ArubaTooltip.tsx');
       if(id==='./DraggablePortrait' && importer?.endsWith('/src/app/components/session/shared/EntityCard.tsx'))
@@ -24,6 +49,16 @@ export default defineConfig({
         return resolve(root,'src/ArubaImagePending.tsx');
       return null;
     },
+  },{
+    name:'aruba-disable-unmigrated-entity-custom-tab-actions',
+    enforce:'pre',
+    transform(code,id){
+      if(!id.endsWith('/src/app/components/session/shared/EntityDetailView.tsx'))return null;
+      const from='<EntityTabBar canEdit={canEdit} tabs={tabs} tabIndicators={tabIndicators} />';
+      if(!code.includes(from))throw Error('Original EntityDetailView tab contract changed');
+      return code.replace(from,
+       '<EntityTabBar canEdit={false} tabs={tabs} tabIndicators={tabIndicators} />');
+    }
   },react(),tailwindcss()],
   resolve:{alias:{
     react:resolve(root,'node_modules/react'),

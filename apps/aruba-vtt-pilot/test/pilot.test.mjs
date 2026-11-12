@@ -216,11 +216,11 @@ test('Aruba full-sheet client preserves original mechanics but does not trust wi
 
 test('original complete character sheet uses real Aruba save and owner-only soft archive',async()=>{
  const source=readFileSync(new URL('../src/ArubaCharacterDetailPanel.tsx',import.meta.url),'utf8');
- const original=readFileSync(new URL('../../../src/app/components/CompleteCharacterSheet.tsx',import.meta.url),'utf8');
+ const original=readFileSync(new URL('../../../src/app/components/session/shared/EntityDetailView.tsx',import.meta.url),'utf8');
  const vite=readFileSync(new URL('../vite.config.mjs',import.meta.url),'utf8');
- assert.match(source,/import \{CompleteCharacterSheet\} from/);
- assert.match(source,/onAudaciaUpdate=\{value=>update/);
- assert.match(source,/onDelete=\{\(\)=>void archive\(\)\}/);
+ assert.match(source,/import \{EntityDetailView\} from/);
+ assert.match(source,/onUpdate=\{update\} canEdit=\{true\}/);
+assert.match(source,/async function archive\(\)/);
  assert.match(source,/queue\.current=queue\.current\.catch/);
  for(const part of ['FrischezzaTracker','FoliaSpiral','ConditionsPanel','TurbePanel','EquipmentPanel'])
   assert.match(original,new RegExp(part));
@@ -333,4 +333,19 @@ test('original Token Studio shares the same Aruba persisted character and queue 
  assert.match(original,/TokenShapePreview/);
  assert.match(vite,/TokenStyleEditor\.tsx/);
  assert.doesNotMatch(bridge,/supabase\.from|localStorage/);
+});
+
+test('real EntityDetailView HSC is compiled with isolated data adapters and original base tabs',()=>{
+ const panel=readFileSync(new URL('../src/ArubaCharacterDetailPanel.tsx',import.meta.url),'utf8');
+ const original=readFileSync(new URL('../../../src/app/components/session/shared/EntityDetailView.tsx',import.meta.url),'utf8');
+ const config=readFileSync(new URL('../vite.config.mjs',import.meta.url),'utf8');
+ const adapter=readFileSync(new URL('../src/ArubaBaseEntityTabs.ts',import.meta.url),'utf8');
+ assert.match(panel,/import \{EntityDetailView\}/);
+ assert.match(panel,/<EntityDetailView/);
+ assert.doesNotMatch(panel,/CompleteCharacterSheet/);
+ for(const name of ['Riepilogo','Condizioni & Follia','Equipaggiamento','Origini','Storia'])assert.ok(original.includes(name));
+ for(const source of ['useEntityTabs','RulesetContext','entitiesService','charactersService','entityReferenceService','EntityImageTab','RichTextEditor'])
+  assert.ok(config.includes(source));
+ assert.match(config,/aruba-disable-unmigrated-entity-custom-tab-actions/);
+ assert.match(adapter,/handleAddCustomTab:unavailable/);
 });

@@ -3,7 +3,7 @@ import {ArrowLeft} from 'lucide-react';
 import {listCharacterDrafts,saveFullCharacterSheet,archiveOwnedCharacter} from './client.mjs';
 import {EntityDetailRail,type EntityDetailRailSection} from '../../../src/app/components/session/shared/EntityDetailRail';
 import {SlideOverPanel} from '../../../src/app/components/session/SlideOverPanel';
-import {CompleteCharacterSheet} from '../../../src/app/components/CompleteCharacterSheet';
+import {EntityDetailView} from '../../../src/app/components/session/shared/EntityDetailView';
 import {TokenStyleEditor} from '../../../src/app/components/shared/TokenStyleEditor';
 import type {Character} from '../../../src/types/character';
 
@@ -59,10 +59,9 @@ export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,onClos
   </div>
  </div>;
 }
-/* Temporary persistence bridge ONLY. Next migration must replace this
- * legacy CompleteCharacterSheet with original EntityDetailView and its
- * shared tabs, avatar and token data adapters. It must never reappear inline
- * below the catalog. */
+/* Staging: ORIGINAL EntityDetailView base HSC tabs (summary, conditions,
+ * equipment, origins, storia). Backend-dependent custom notes are disabled
+ * until the Aruba notes API and permissions are ready. */
 function ArubaPersistedSheet({draft,ownerId,onChanged,onArchived,registerCloseGuard,section}:{
  draft:Draft;ownerId:string;onChanged:()=>void;onArchived:()=>void;
  registerCloseGuard:(guard:()=>Promise<void>)=>void;section:EntityDetailRailSection;
@@ -109,9 +108,13 @@ function ArubaPersistedSheet({draft,ownerId,onChanged,onArchived,registerCloseGu
    {error&&<span className="unsaved" role="alert">{error}</span>}
    {error&&<button type="button" className="character-panel-return" onClick={()=>update(working)}>Riprova salvataggio</button>}
   </div>
-  {section==='scheda'&&<CompleteCharacterSheet character={working} audacia={working.audacia}
-   onAudaciaUpdate={value=>update({...working,audacia:value})}
-   onUpdate={update} onDelete={()=>void archive()}/>}
+  {section==='scheda'&&<EntityDetailView
+    entityType="character" entity={working}
+    onUpdate={update} canEdit={true}
+    campaignId={campaignId} accessToken={null} isHSC={true}
+    showOwnerRow={false} showRail={false}
+    activeSection={section}
+   />}
   {section==='token'&&<div className="aruba-token-studio">
     <TokenStyleEditor
      name={working.name}
