@@ -50,3 +50,14 @@ export function maskArubaSessionNotesTrashHeader(source){
   throw Error('Destructive/global trash controls remain');
  return result;
 }
+
+/** In Aruba the trash list omits TipTap contents for privacy/size reasons.
+ * Never mislabel a rich document as empty just because preview is absent.
+ * Keep original preview structure and only replace its misleading fallback. */
+export function maskArubaTrashItemPreview(source){
+ const old='<span className="text-sm text-[var(--dash-muted)]">(vuoto)</span>';
+ if(typeof source!=='string'||source.split(old).length!==2)
+  throw Error('Original TrashItemPreview empty-content fallback changed');
+ return source.replace(old,
+  '<span className="text-sm text-[var(--dash-muted)]">Anteprima non caricata nel Cestino Aruba; il documento è conservato.</span>');
+}

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {resolve,dirname} from 'node:path';
-import {maskArubaTrashRow,maskArubaSessionNotesTrashHeader}
+import {maskArubaTrashRow,maskArubaSessionNotesTrashHeader,maskArubaTrashItemPreview}
  from '../src/ArubaSafeNotesTransforms.mjs';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../../..');
 test('original TrashRow loses ONLY irreversible purge controls',()=>{
@@ -30,4 +30,13 @@ test('original SessionNotesPanel keeps sections, resize and individual restore',
  assert.throws(()=>maskArubaSessionNotesTrashHeader(source.replace(
   'openSections.trash && trash.count > 0 ? (',
   'changed condition ? (')), /changed/);
+});
+
+test('archived TipTap documents are never falsely described as empty',()=>{
+ const source=readFileSync(resolve(root,'src/app/components/session/shared/TrashItemPreview.tsx'),'utf8');
+ const result=maskArubaTrashItemPreview(source);
+ assert.match(result,/il documento è conservato/);
+ assert.doesNotMatch(result,/\(vuoto\)/);
+ assert.match(result,/TrashItemPreview/);
+ assert.throws(()=>maskArubaTrashItemPreview(source.replace('(vuoto)','(empty)')),/changed/);
 });

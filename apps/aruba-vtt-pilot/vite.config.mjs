@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import {fileURLToPath} from 'node:url';
 import {resolve,dirname} from 'node:path';
-import {maskArubaTrashRow,maskArubaSessionNotesTrashHeader} from './src/ArubaSafeNotesTransforms.mjs';
+import {maskArubaTrashRow,maskArubaSessionNotesTrashHeader,maskArubaTrashItemPreview} from './src/ArubaSafeNotesTransforms.mjs';
 const root=dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   root,
@@ -27,6 +27,12 @@ export default defineConfig({
         return resolve(root,'src/ArubaEntityDependencies.tsx');
       if(importer?.includes('/src/app/components/') && /^(?:\.\.\/)*ui\/tooltip$/.test(id))
         return resolve(root,'src/ArubaTooltip.tsx');
+      // The original NoteListRow needs the true authenticated cookie context,
+      // not the generic disabled editor fallback, in the Campaign Notes build.
+      if(process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1' &&
+         importer?.endsWith('/src/app/components/session/shared/NoteListRow.tsx') &&
+         id==='../../../auth/AuthContext')
+        return resolve(root,'src/ArubaCampaignNotesContext.tsx');
       // Inline note tools must not activate legacy auth/realtime/dice services.
       // Keep original editor UI while blocking unsupported remote operations.
       if(importer?.includes('/src/app/components/session/shared/')){
@@ -112,6 +118,9 @@ export default defineConfig({
       if(process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1' &&
        id.endsWith('/src/app/components/session/shared/TrashRow.tsx'))
         return maskArubaTrashRow(code);
+      if(process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1' &&
+       id.endsWith('/src/app/components/session/shared/TrashItemPreview.tsx'))
+        return maskArubaTrashItemPreview(code);
       if(process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1' &&
        id.endsWith('/src/app/components/session/SessionNotesPanel.tsx'))
         return maskArubaSessionNotesTrashHeader(code);
