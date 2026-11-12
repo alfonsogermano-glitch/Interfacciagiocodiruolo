@@ -20,6 +20,7 @@ export function RichTextEditor(){
 }
 export function FreschezzaMaxEditor(){return null;}
 export function MonsterFreschezzaBoxesEditor(){return null;}
+export const FreschezzaBoxesEditor=MonsterFreschezzaBoxesEditor;
 export function CatalogSelectionBlock(){return null;}
 export function CustomEntriesEditor(){return null;}
 export const TERRIFYING_TRAIT_ID='terrifying';
