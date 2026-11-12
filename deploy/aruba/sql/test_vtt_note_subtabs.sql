@@ -57,5 +57,5 @@ BEGIN
  IF has_table_privilege('hollowgate_api_runtime','hollowgate_vtt.entity_notes','SELECT')
  OR has_table_privilege('hollowgate_api_runtime','hollowgate_vtt.entity_notes','UPDATE')
  THEN RAISE EXCEPTION 'Runtime has direct note table access';END IF;
-END $;
+END $$;
 ROLLBACK;
