@@ -114,6 +114,38 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' -u tester:hiccup http://127.0.0.1:18080/)" = 200
           test "$(curl -s -o /dev/null -w '%{http_code}' -u tester:wrong http://127.0.0.1:18080/)" = 401
 
+  notes-db-http-test:
+    # Real PostgreSQL + real API handlers, on a disposable isolated runner.
+    # No network calls to production; session identity alone uses CI cookies.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Start disposable PostgreSQL 17
+        run: |
+          docker run -d --name hg-notes-real-pg -p 127.0.0.1:15432:5432 \\
+            -e POSTGRES_PASSWORD=ci-only-password -e POSTGRES_DB=hollowgate_test postgres:17
+          for i in $(seq 1 30); do
+            if docker exec hg-notes-real-pg pg_isready -U postgres -d hollowgate_test >/dev/null 2>&1; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Apply actual Aruba migrations 001-025 (no test fixtures)
+        run: |
+          set -euo pipefail
+          for f in deploy/aruba/sql/[0-9][0-9][0-9]_*.sql; do
+            echo "Applying $f"
+            docker exec -i hg-notes-real-pg psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < "$f" > /dev/null
+          done
+      - name: Install API's PostgreSQL driver
+        working-directory: apps/aruba-api
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Exercise real SQL-backed API with owner/player cookie identities
+        working-directory: apps/aruba-api
+        run: node test/notes-db-http.integration.mjs
+
   notes-browser-test:
     runs-on: ubuntu-24.04
     steps:

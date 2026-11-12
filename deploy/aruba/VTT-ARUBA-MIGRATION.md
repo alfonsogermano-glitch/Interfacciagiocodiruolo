@@ -457,3 +457,17 @@ GM/shared/trash accordion rendering, absence of destructive controls,
 root and subtab creation, and TipTap JSON save. This browser test is
 complementary to SQL role tests, not a replacement for a staging
 deployment or human visual review. No deploy is performed.
+
+## Real PostgreSQL / HTTP integration QA (disposable CI only)
+
+`notes-db-http-test` applies migrations 001–025 to a temporary
+PostgreSQL 17 container and starts the actual `createApp` +
+`createAuthHttpHandler` + Campaign Notes/Folder services. All
+queries execute as `hollowgate_api_runtime`, never with table
+owner privileges. The real same-origin JavaScript transport writes,
+reloads and recovers TipTap documents, children and folders and verifies
+cross-member private Note isolation, CSRF and archive recovery.
+Only cookie identity resolution is an in-memory deterministic fixture;
+this is **not** a full real-login or full-stack browser E2E. The
+browser-on-mocked-API job remains separate. No staging/production
+environment or migration is touched.
