@@ -208,7 +208,8 @@ function App(){
         onClose={()=>setSessionPanel(null)}/>}
       {sessionPanel==='characters'&&user.charactersEnabled&&
        <ArubaSessionCharactersPanel campaignId={activeCampaign.id}
-        ownerId={user.id} onClose={()=>setSessionPanel(null)}
+        ownerId={user.id} initialSelection={sessionCharacterRequest}
+        onClose={()=>{setSessionPanel(null);closeSessionCharacter();}}
         onOpenCharacter={openSessionCharacter}/>}
     </>}
     {!['home','campaigns','characters','session'].includes(section)&&<>
