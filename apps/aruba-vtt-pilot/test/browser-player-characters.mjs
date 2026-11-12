@@ -60,7 +60,10 @@ try{
  await region.getByRole('button',{name:'Campagna di prova'}).waitFor();
  const opener=region.getByRole('button',{name:'Apri scheda assegnata di Mara'});
  await opener.click();
- try{await page.locator('[data-entity-context="player-assigned-detail"]').waitFor({timeout:8000});}
+ try{
+  await page.locator('[data-entity-context="player-assigned-detail"]').waitFor({state:'attached',timeout:8000});
+  await page.getByRole('region',{name:'Scheda di Mara'}).waitFor({timeout:8000});
+ }
  catch(e){
   console.error('PLAYER_DETAIL_DEBUG',JSON.stringify({
    openerCount:await opener.count(),overlayCount:await page.locator('[data-entity-context="player-assigned-detail"]').count(),
