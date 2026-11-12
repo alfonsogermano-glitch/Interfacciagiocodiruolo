@@ -105,3 +105,20 @@ servizio HTTP, nessun flag attivo, nessuna vista Note montata, nessuna autorizza
 dei membri o dei ruoli GM/giocatore e nessuna gestione cartelle. Il campo
 `visibility` è registrato ma non conferisce accesso ai giocatori. Migrazione
 eseguita esclusivamente nel PostgreSQL effimero della CI; script VPS e DNS invariati.
+
+## API Note di campagna: servizio isolato (non distribuito)
+
+Lo schema 015 ha ora un servizio Node.js dedicato, distinto dalle custom tab dei PG:
+`GET/POST /vtt/campaign-notes` e `PATCH/DELETE /vtt/campaign-notes/:id`.
+Tutte le operazioni ricavano il proprietario dalla sessione cookie Aruba;
+le modifiche richiedono Origin HTTPS esatto, payload whitelisted e le routine
+PostgreSQL SECURITY DEFINER owner-only. Le Note possono avere un padre fino a
+due livelli; nessuna identità GM/giocatore è accettata dal browser.
+
+**Feature rigorosamente spenta per default**: richiede
+`AUTH_VTT_CAMPAIGN_NOTES_ENABLED=true`, l'abilitazione delle campagne e lo
+schema 015 installato manualmente nel solo database test. Non aggiungere tale flag
+al compose VPS, non distribuire SQL 015 né mostrare pulsanti nell'interfaccia
+finché autorizzazioni membri, cartelle, NoteSubTabs originale e collaudo E2E
+non saranno disponibili. Il campo `visibility=all` è dato memorizzato, non
+concessione di accesso ai giocatori in questa fase.

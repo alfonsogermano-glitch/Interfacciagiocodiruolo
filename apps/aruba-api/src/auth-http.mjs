@@ -64,7 +64,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null,campaignNotes = null }) {
   const allowedOrigin = new URL(origin);
   if (allowedOrigin.protocol !== 'https:' || allowedOrigin.origin !== origin ||
       !allowedOrigin.hostname) throw new TypeError('HTTPS origin required');
@@ -84,6 +84,9 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   if(entityNotes!==null && (!characters ||
    ['list','create','save','archive'].some(k=>typeof entityNotes[k]!=='function')))
     throw new TypeError('Invalid entity notes service');
+  if(campaignNotes!==null && (!campaigns ||
+   ['list','create','save','archive'].some(key=>typeof campaignNotes[key]!=='function')))
+    throw new TypeError('Invalid campaign notes service');
   return async (req, res) => {
     try {
       if (req.url === '/auth/login' && req.method === 'POST') {
@@ -254,6 +257,49 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
           throw new HttpProblem(400,'Dati archivio nota non validi');
         return response(res,200,await entityNotes.archive(user.id,body.campaignId,body.characterId,noteId));
       }
+      // Campaign Notes are a distinct model from character custom tabs.
+      // Explicit staging-only opt-in. Ownership is derived only from the cookie.
+      if(campaignNotes && ['GET','POST','PATCH','DELETE'].includes(req.method) &&
+        (req.url?.startsWith('/vtt/campaign-notes?')||
+         req.url==='/vtt/campaign-notes'||req.url?.startsWith('/vtt/campaign-notes/'))){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==='GET'){
+          const url=new URL(req.url,origin);
+          if(url.pathname!=='/vtt/campaign-notes'||
+             !['campaignId','campaignId,parentId'].includes([...url.searchParams.keys()].sort().join(','))||
+             url.searchParams.getAll('campaignId').length!==1||
+             url.searchParams.getAll('parentId').length>1)
+            throw new HttpProblem(400,'Query Note non valida');
+          return response(res,200,await campaignNotes.list(user.id,
+            url.searchParams.get('campaignId'),url.searchParams.get('parentId')));
+        }
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const body=await readJson(req,65536);
+        if(req.method==='POST'){
+          if(req.url!=='/vtt/campaign-notes'||
+             Object.keys(body).sort().join(',')!=='campaignId,parentId,title')
+            throw new HttpProblem(400,'Creazione nota non valida');
+          return response(res,201,await campaignNotes.create(user.id,body.campaignId,
+            {title:body.title,parentId:body.parentId}));
+        }
+        const noteId=req.url?.startsWith('/vtt/campaign-notes/')?
+          req.url.slice('/vtt/campaign-notes/'.length):'';
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(noteId))
+          throw new HttpProblem(400,'Nota non valida');
+        if(req.method==='PATCH'){
+          if(Object.keys(body).sort().join(',')!=='campaignId,contentRich,position,title,visibility')
+            throw new HttpProblem(400,'Aggiornamento nota non valido');
+          return response(res,200,await campaignNotes.save(user.id,body.campaignId,noteId,
+            {title:body.title,contentRich:body.contentRich,
+             position:body.position,visibility:body.visibility}));
+        }
+        if(Object.keys(body).sort().join(',')!=='campaignId')
+          throw new HttpProblem(400,'Archiviazione nota non valida');
+        return response(res,200,await campaignNotes.archive(user.id,body.campaignId,noteId));
+      }
       // Isolated read-only React pilot. A session is NEVER interpreted as
       // a Supabase token. Campaign data remains unavailable by design.
       if (req.url === '/vtt/bootstrap' && req.method === 'GET') {
@@ -268,6 +314,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
             campaigns:{read:!!campaigns,write:!!campaigns},
             characters:{read:!!characters,write:!!characters},
             entityNotes:{read:!!entityNotes,write:!!entityNotes},
+            campaignNotes:{read:!!campaignNotes,write:!!campaignNotes},
             gameSession:false,
           },
         });
