@@ -372,7 +372,7 @@ test('note tabs are enabled only after authenticated server capability and never
  assert.match(auth,/entityNotes:\{read:!!entityNotes,write:!!entityNotes\}/);
  assert.match(client,/entityNotesEnabled:c\.entityNotes\?\.read===true/);
  assert.match(app,/notesEnabled=\{user.entityNotesEnabled\}/);
- assert.match(tabs,/const supported=notesEnabled&&enabled/);
+ assert.match(tabs,/const supported=notesContext.enabled&&enabled/);
  assert.match(provider,/canEdit=\{enabled&&props.canEdit\}/);
  assert.match(build,/ArubaEntityTabBar/);
 });
