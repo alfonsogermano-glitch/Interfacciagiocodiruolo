@@ -1,4 +1,4 @@
-import {useEffect,useRef,useState} from 'react';
+import {useCallback,useEffect,useRef,useState} from 'react';
 import {ArrowLeft} from 'lucide-react';
 import {listCharacterDrafts,saveFullCharacterSheet,archiveOwnedCharacter} from './client.mjs';
 import {EntityDetailRail,type EntityDetailRailSection} from '../../../src/app/components/session/shared/EntityDetailRail';
@@ -17,6 +17,15 @@ export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,onClos
  const [error,setError]=useState<string|null>(null);
  const [loading,setLoading]=useState(true);
  const [section,setSection]=useState<EntityDetailRailSection>('scheda');
+ const [closing,setClosing]=useState(false);
+ const [closeError,setCloseError]=useState<string|null>(null);
+ const closeGuard=useRef<()=>Promise<void>>(async()=>{});
+ const registerCloseGuard=useCallback((guard:()=>Promise<void>)=>{closeGuard.current=guard;},[]);
+ async function requestClose(){
+  if(closing)return;setClosing(true);setCloseError(null);
+  try{await closeGuard.current();onClose();}
+  catch{setCloseError('Il salvataggio non è confermato: verifica la scheda e riprova prima di uscire.');setClosing(false);}
+ }
  useEffect(()=>{
   let alive=true;setDraft(null);setLoading(true);setError(null);setSection('scheda');
   void listCharacterDrafts(fetch,campaignId,ownerId).then(list=>{
@@ -29,16 +38,18 @@ export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,onClos
   return ()=>{alive=false;};
  },[characterId,campaignId,ownerId]);
  return <div className="aruba-entity-overlay" data-entity-context="characters-detail">
-  <SlideOverPanel isOpen onClose={onClose} rightOffset="80px" widthClassName="w-full max-w-6xl">
+  <div className="aruba-entity-backdrop" role="presentation" onClick={()=>void requestClose()}/>
+  <SlideOverPanel isOpen onClose={()=>void requestClose()} rightOffset="80px" widthClassName="w-full max-w-6xl">
     <div className="aruba-entity-slide-content">
      <div className="aruba-entity-back-column">
-      <button type="button" onClick={onClose}><ArrowLeft size={17}/> Torna ai personaggi</button>
+      <button type="button" onClick={()=>void requestClose()} disabled={closing}><ArrowLeft size={17}/> Torna ai personaggi</button>
      </div>
      <div className="aruba-entity-detail-main">
+      {closeError&&<p className="error" role="alert">{closeError}</p>}
       {loading?<p>Caricamento della scheda da Aruba…</p>:
        error?<p role="alert" className="error">{error}</p>:
        draft&&section==='scheda'?
-        <ArubaPersistedSheet draft={draft} ownerId={ownerId} onClose={onClose} onChanged={onChanged} onArchived={onArchived}/>:
+        <ArubaPersistedSheet draft={draft} ownerId={ownerId} onChanged={onChanged} onArchived={onArchived} registerCloseGuard={registerCloseGuard}/>:
        draft?<div className="aruba-entity-unmigrated">
          <h2>{section==='immagine'?'Immagine e Avatar':'Token'}</h2>
          <p>Il pannello originale esiste nel VTT, ma le sue dipendenze da storage e gestione delle entità non sono ancora collegate ad Aruba.
@@ -56,8 +67,9 @@ export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,onClos
  * legacy CompleteCharacterSheet with original EntityDetailView and its
  * shared tabs, avatar and token data adapters. It must never reappear inline
  * below the catalog. */
-function ArubaPersistedSheet({draft,ownerId,onClose,onChanged,onArchived}:{
- draft:Draft;ownerId:string;onClose:()=>void;onChanged:()=>void;onArchived:()=>void;
+function ArubaPersistedSheet({draft,ownerId,onChanged,onArchived,registerCloseGuard}:{
+ draft:Draft;ownerId:string;onChanged:()=>void;onArchived:()=>void;
+ registerCloseGuard:(guard:()=>Promise<void>)=>void;
 }){
  const campaignId=draft.campaignId;
  const [working,setWorking]=useState<HscCharacter>(()=>({
@@ -70,6 +82,7 @@ function ArubaPersistedSheet({draft,ownerId,onClose,onChanged,onArchived}:{
  const queue=useRef<Promise<void>>(Promise.resolve());
  const busy=useRef(false);
  const revision=useRef(0);
+ useEffect(()=>{registerCloseGuard(()=>queue.current);},[registerCloseGuard]);
  function update(next:HscCharacter){
   if(archiving||busy.current)return;
   const currentRevision=++revision.current;
