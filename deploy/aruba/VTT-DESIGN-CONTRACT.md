@@ -25,3 +25,25 @@ Il pannello Token usa adesso il vero `TokenStyleEditor.tsx` e `TokenShapePreview
 
 ### Ripristino scheda moderna
 Il branch Aruba ora importa direttamente il componente originale EntityDetailView e le sue cinque tab HSC. La rail Scheda/Immagine/Token resta esterna e condivide lo stato del pannello. Sono disabilitate le tab personalizzate e gli editor immagini fino al completamento di API e storage Aruba; i servizi Supabase non sono importati nel bundle. Le modifiche ai campi HSC e al Token Studio utilizzano la stessa coda di salvataggio PostgreSQL. La parità completa e il test browser rimangono obbligatori prima del deploy.
+
+## Contratto del sistema originale delle Note (migrazione 013)
+
+Le sottoschede di un personaggio sono entità persistenti distinte dalla scheda PG.
+Il modello originale `EntityCustomTab` prevede: nome, ordine, contenuto legacy,
+documento TipTap `content_rich`, stato hidden, visibilità all/private,
+cartella, sotto-tab, proprietario e sincronizzazione realtime.
+
+Preparazione completata: schema `013_vtt_entity_notes.sql`, funzioni PostgreSQL
+SECURITY DEFINER e servizio API owner-only di lista/creazione/modifica/archivio,
+con contenuto TipTap JSON conservato fedelmente. Client isolato
+`entity-notes-client.mjs` mantiene il contratto dei campi base e cookie Aruba.
+**Questo non equivale ancora all'editor Note recuperato**: duplicazione,
+cartelle, sotto-tab, interazioni TipTap, modificatori, dadi, clipboard,
+cronologia, visibilità fra membri e realtime devono essere migrati insieme,
+senza simulazioni. Non usare `sheet_data` del PG per conservare queste note.
+
+Le API hanno flag `AUTH_VTT_ENTITY_NOTES_ENABLED`, volutamente assente nella
+configurazione di staging. La migrazione 013 è eseguita nel database usa-e-getta
+della CI, non nell'attivazione del VPS finché tutto il sottosistema non
+è pronto e verificato. Nessuna nuova richiesta al vecchio Supabase deve
+essere introdotta.
