@@ -21,7 +21,7 @@ export function useEntityTabs({baseTabs,savedTabOrder,onPersistTabOrder}:{
  const orderedTabs=[
   ...baseTabs.filter(tab=>tabOrder.includes(tab.id)).sort((a,b)=>tabOrder.indexOf(a.id)-tabOrder.indexOf(b.id)),
   ...baseTabs.filter(tab=>!tabOrder.includes(tab.id)),
- ];
+ ].map(tab=>({...tab,isCustom:false,hidden:false}));
  const unavailable=()=>{};
  const selectTabByClick=(id:string)=>{
   if(orderedTabs.some(tab=>tab.id===id)){setCurrentTab(id);setPendingFocusTabId(id);}

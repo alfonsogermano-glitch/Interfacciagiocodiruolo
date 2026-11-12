@@ -22,3 +22,6 @@ L'obiettivo successivo è l'estrazione/riuso integrale di `EntityDetailView` con
 Lo slide-over Aruba blocca l'interazione con le pagine sottostanti e verifica il completamento dei salvataggi pendenti prima della chiusura. Se il server non conferma l'ultimo salvataggio, resta aperto con errore visibile; i dati non vengono contrassegnati come salvati.
 
 Il pannello Token usa adesso il vero `TokenStyleEditor.tsx` e `TokenShapePreview.tsx`, senza la raccolta asset legacy; salva in `sheet_data` dello stesso personaggio Aruba tramite la coda di aggiornamenti della vista Scheda. Il ramo Immagine non è ancora collegato perché richiede lo storage. Il vecchio contenuto `CompleteCharacterSheet` resta temporaneo nella sola sezione Scheda e non deve essere considerato la vista originale finale.
+
+### Ripristino scheda moderna
+Il branch Aruba ora importa direttamente il componente originale EntityDetailView e le sue cinque tab HSC. La rail Scheda/Immagine/Token resta esterna e condivide lo stato del pannello. Sono disabilitate le tab personalizzate e gli editor immagini fino al completamento di API e storage Aruba; i servizi Supabase non sono importati nel bundle. Le modifiche ai campi HSC e al Token Studio utilizzano la stessa coda di salvataggio PostgreSQL. La parità completa e il test browser rimangono obbligatori prima del deploy.
