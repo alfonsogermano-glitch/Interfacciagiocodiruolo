@@ -206,22 +206,39 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if(req.method==='GET'){
           const url=new URL(req.url,origin);
           if(url.pathname!=='/vtt/entity-notes'||
-            [...url.searchParams.keys()].sort().join(',')!=='campaignId,characterId'||
+            !['campaignId,characterId','campaignId,characterId,parentId'].includes([...url.searchParams.keys()].sort().join(','))||
             url.searchParams.getAll('campaignId').length!==1||
-            url.searchParams.getAll('characterId').length!==1)
+            url.searchParams.getAll('characterId').length!==1||
+            url.searchParams.getAll('parentId').length>1)
             throw new HttpProblem(400,'Query note non valida');
-          return response(res,200,await entityNotes.list(user.id,
-            url.searchParams.get('campaignId'),url.searchParams.get('characterId')));
+          const campaignId=url.searchParams.get('campaignId');
+          const characterId=url.searchParams.get('characterId');
+          const parentId=url.searchParams.get('parentId');
+          return response(res,200,parentId===null?
+            await entityNotes.list(user.id,campaignId,characterId):
+            await entityNotes.list(user.id,campaignId,characterId,parentId));
         }
         const body=await readJson(req,65536);
         if(typeof body.campaignId!=='string'||typeof body.characterId!=='string')
           throw new HttpProblem(400,'Identità nota non valida');
         if(req.method==='POST'){
           if(req.url!=='/vtt/entity-notes'||
-             Object.keys(body).sort().join(',')!=='campaignId,characterId,tabName')
+             !['campaignId,characterId,tabName','campaignId,characterId,parentId,tabName']
+              .includes(Object.keys(body).sort().join(',')))
             throw new HttpProblem(400,'Dati creazione nota non validi');
           return response(res,201,await entityNotes.create(user.id,
-            body.campaignId,body.characterId,{tabName:body.tabName}));
+            body.campaignId,body.characterId,
+            body.parentId===undefined?{tabName:body.tabName}:{tabName:body.tabName,parentId:body.parentId}));
+        }
+        if(req.method==='PATCH' && req.url?.startsWith('/vtt/entity-notes/order/')){
+          const parentId=req.url.slice('/vtt/entity-notes/order/'.length);
+          if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parentId))
+            throw new HttpProblem(400,'Nota padre non valida');
+          if(Object.keys(body).sort().join(',')!=='campaignId,characterId,tabOrder')
+            throw new HttpProblem(400,'Ordine sottoschede non valido');
+          if(typeof entityNotes.setSubtabOrder!=='function')throw new HttpProblem(503,'Sottoschede non disponibili');
+          return response(res,200,await entityNotes.setSubtabOrder(user.id,
+            body.campaignId,body.characterId,parentId,body.tabOrder));
         }
         const noteId=req.url?.startsWith('/vtt/entity-notes/')?
           req.url.slice('/vtt/entity-notes/'.length):'';
