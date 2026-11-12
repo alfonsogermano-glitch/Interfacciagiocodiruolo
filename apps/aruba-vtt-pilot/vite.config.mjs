@@ -12,6 +12,8 @@ export default defineConfig({
     name:'aruba-legacy-image-safety',
     enforce:'pre',
     resolveId(id,importer){
+      if(importer?.includes('/src/app/components/') && id.endsWith('/campaigns/RulesetContext'))
+        return resolve(root,'src/ArubaEntityDependencies.tsx');
       if(importer?.includes('/src/app/components/') && /^(?:\.\.\/)*ui\/tooltip$/.test(id))
         return resolve(root,'src/ArubaTooltip.tsx');
       // The real EntityDetailView is retained verbatim. Only its backend
