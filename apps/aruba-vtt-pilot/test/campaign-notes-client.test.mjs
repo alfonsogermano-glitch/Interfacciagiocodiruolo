@@ -83,3 +83,18 @@ test('original note contract preserves real creator, GM scope and rich text',()=
  assert.throws(()=>toOriginalCampaignNoteTab({...note,folderId:'fake'}),/non valida/);
  assert.throws(()=>toOriginalCampaignNoteTab({...note,scope:'owner'}),/non valida/);
 });
+
+test('GM-authored private subtab inherits original UI edit ownership from parent',()=>{
+ const player='971e26ae-eecb-4f37-ad03-56b0c3000789';
+ const gm='ab2f1a87-b8ee-4b34-9da0-07efda11379a';
+ const note={id:child,campaignId:campaign,title:'Sotto-tab privata',
+  parentId:parent,contentRich:{type:'doc'},position:0,visibility:'private',
+  scope:'shared',folderId:null,creatorId:gm,editorOwnerId:player,
+  updatedAt:'2026-11-12T17:00:00.000Z'};
+ const original=toOriginalCampaignNoteTab(note);
+ assert.equal(original.owner_profile_id,player);
+ assert.equal(note.creatorId,gm,'actual author must remain the GM');
+ assert.throws(()=>toOriginalCampaignNoteTab({...note,editorOwnerId:'bad'}),/non valida/);
+ const fallback=toOriginalCampaignNoteTab({...note,editorOwnerId:undefined});
+ assert.equal(fallback.owner_profile_id,gm);
+});

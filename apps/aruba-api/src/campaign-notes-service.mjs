@@ -19,7 +19,8 @@ const map=row=>({
  id:row.id,title:row.title,contentRich:row.content_rich,
  parentId:row.parent_note_id,position:row.tab_position,visibility:row.visibility,
  scope:row.scope??'shared',folderId:row.folder_id??null,
- creatorId:row.creator_id??null,updatedAt:row.updated_at??null,
+ creatorId:row.creator_id??null,editorOwnerId:row.editor_owner_id??row.creator_id??null,
+ updatedAt:row.updated_at??null,
 });
 export function createCampaignNotesService({pool}){
  if(typeof pool?.query!=='function')throw new TypeError('PostgreSQL pool required');

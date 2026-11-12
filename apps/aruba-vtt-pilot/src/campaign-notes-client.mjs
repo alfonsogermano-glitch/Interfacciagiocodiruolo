@@ -27,11 +27,15 @@ function normalize(note,campaignId,parentId){
  if(note.creatorId!==undefined&&note.creatorId!==null&&
   (typeof note.creatorId!=='string'||!UUID.test(note.creatorId)))
   throw Error('Creatore Nota non valido');
+ if(note.editorOwnerId!==undefined&&note.editorOwnerId!==null&&
+  (typeof note.editorOwnerId!=='string'||!UUID.test(note.editorOwnerId)))
+  throw Error('Proprietario editor Nota non valido');
  if(note.updatedAt!==undefined&&note.updatedAt!==null&&
   (typeof note.updatedAt!=='string'||!Number.isFinite(Date.parse(note.updatedAt))))
   throw Error('Data aggiornamento Nota non valida');
  return Object.freeze({...note,scope:note.scope??'shared',
   folderId:note.folderId??null,creatorId:note.creatorId??null,
+  editorOwnerId:note.editorOwnerId??note.creatorId??null,
   updatedAt:note.updatedAt??null,campaignId});
 }
 export async function listArubaCampaignNotes(fetcher,campaignId,parentId=null){
@@ -98,13 +102,15 @@ export function toOriginalCampaignNoteTab(note){
    !['private','all'].includes(note.visibility)||
    !Number.isInteger(note.position)||
    (note.creatorId!==null&&note.creatorId!==undefined&&
-    (typeof note.creatorId!=='string'||!UUID.test(note.creatorId))))
+    (typeof note.creatorId!=='string'||!UUID.test(note.creatorId)))||
+   (note.editorOwnerId!==null&&note.editorOwnerId!==undefined&&
+    (typeof note.editorOwnerId!=='string'||!UUID.test(note.editorOwnerId))))
   throw Error('Nota Aruba non valida per UI originale');
  return Object.freeze({
   id:note.id,tab_name:note.title,content:'',content_rich:note.contentRich??null,
   position:note.position,hidden:note.scope==='gm',
   folder_id:note.folderId??null,tab_order:null,
-  owner_profile_id:note.creatorId??null,visibility:note.visibility,
+  owner_profile_id:note.editorOwnerId??note.creatorId??null,visibility:note.visibility,
   updated_at:note.updatedAt??'',
  });
 }

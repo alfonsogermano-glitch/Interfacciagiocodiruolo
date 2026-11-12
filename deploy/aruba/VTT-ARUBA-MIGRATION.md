@@ -317,3 +317,15 @@ Il server usa sempre la sessione come identità e NON accetta ruoli,
 `creatorId` o `ownerId` dal client. Gli endpoint esistenti restano
 disabilitati per default, fino al deploy in staging isolato dei
 successivi collaudi d'interfaccia.
+
+## Schema 022 — coerenza autorizzazioni NoteSubTabs originali
+
+La funzione di lettura verifica le sotto-tab private rispetto al
+contenitore: l'autore della Nota padre legge e modifica le sotto-tab
+anche se aggiunte dal GM. Altri giocatori non possono leggere
+sotto-tab private di un contenitore pubblico; le sotto-tab GM restano
+inaccessibili ai giocatori. `creatorId` continua a essere l'autore reale;
+`editorOwnerId` rappresenta invece chi può usare i controlli originali
+di modifica delle sotto-tab. Non viene sostituita l'identità dell'autore
+sul server o nella tabella. Le autorizzazioni restano applicate in SQL.
+Interfaccia ancora non montata, nessun deploy sul VPS.
