@@ -64,7 +64,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null }) {
   if(typeof notesPanelEnabled!=='boolean'||(notesPanelEnabled&&(!campaignNotes||!campaignFolders)))
     throw new TypeError('Original Notes panel requires both authenticated Notes and folders');
   const allowedOrigin = new URL(origin);
@@ -84,6 +84,8 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   if(characterAvailability!==null&&(!characters||
       typeof characterAvailability.list!=='function'||typeof characterAvailability.set!=='function'))
     throw new TypeError('Invalid character availability service');
+  if(playerCharacters!==null&&(!characterAssignments||typeof playerCharacters.list!=='function'))
+    throw new TypeError('Player character reads require assignments');
   if(characterAssignments!==null&&(!characters||!campaignRoster||!characterAvailability||
       typeof characterAssignments.list!=='function'||typeof characterAssignments.set!=='function'))
     throw new TypeError('Character assignments require characters, roster and availability');
@@ -173,6 +175,21 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         const campaignId=req.url.slice('/vtt/campaigns/'.length);
         const body=await readJson(req);
         return response(res,200,await campaigns.update(user.id,campaignId,body));
+      }
+      // Read-only player access to CURRENTLY assigned sheets; no owner write API.
+      // The SQL function checks the logged-in player, membership and campaign.
+      if(playerCharacters&&req.method==='GET'&&
+         req.url?.startsWith('/vtt/player-characters?')){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        const url=new URL(req.url,origin);
+        if(url.pathname!=='/vtt/player-characters'||
+           [...url.searchParams.keys()].join(',')!=='campaignId'||
+           url.searchParams.getAll('campaignId').length!==1)
+          throw new HttpProblem(400,'Query non valida');
+        return response(res,200,await playerCharacters.list(user.id,url.searchParams.get('campaignId')));
       }
       // Owner-authorized character assignments; SQL verifies campaign and active membership.
       // This capability is disabled unless the CI-only 028 schema is explicitly enabled.
@@ -509,6 +526,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
             characters:{read:!!characters,write:!!characters},
             characterAvailability:{read:!!characterAvailability,write:!!characterAvailability},
             characterAssignments:{read:!!characterAssignments,write:!!characterAssignments},
+            playerCharacters:{read:!!playerCharacters,write:false},
             entityNotes:{read:!!entityNotes,write:!!entityNotes},
             campaignNotes:{read:!!campaignNotes,write:!!campaignNotes},
             campaignNoteFolders:{read:!!campaignFolders,write:!!campaignFolders},

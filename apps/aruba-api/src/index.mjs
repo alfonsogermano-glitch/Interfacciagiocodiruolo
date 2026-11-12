@@ -13,6 +13,7 @@ import {createCampaignRosterService} from './campaign-roster-service.mjs';
 import {createCharacterService} from './character-service.mjs';
 import {createCharacterAvailabilityService} from './character-availability-service.mjs';
 import {createCharacterAssignmentService} from './character-assignment-service.mjs';
+import {createPlayerCharacterService} from './player-character-service.mjs';
 import {createEntityNotesService} from './entity-notes-service.mjs';
 import {createCampaignNotesService} from './campaign-notes-service.mjs';
 import {createCampaignFoldersService} from './campaign-folders-service.mjs';
@@ -110,6 +111,14 @@ async function main() {
     // Opt-in only after SQL 028 is installed in isolated staging.
     const characterAssignments=assignmentsFlag==='true'?
       createCharacterAssignmentService({pool}):null;
+    const playerCharactersFlag=process.env.AUTH_VTT_PLAYER_CHARACTERS_ENABLED;
+    if(playerCharactersFlag&&!['true','false'].includes(playerCharactersFlag))
+      throw new Error('Unsupported AUTH_VTT_PLAYER_CHARACTERS_ENABLED value');
+    if(playerCharactersFlag==='true'&&!characterAssignments)
+      throw new Error('Player character reads require assignments');
+    // Staging-only, explicit opt-in after migration 029.
+    const playerCharacters=playerCharactersFlag==='true'?
+      createPlayerCharacterService({pool}):null;
     const entityNotesFlag=process.env.AUTH_VTT_ENTITY_NOTES_ENABLED;
     if(entityNotesFlag && !['true','false'].includes(entityNotesFlag))
       throw new Error('Unsupported AUTH_VTT_ENTITY_NOTES_ENABLED value');
@@ -133,7 +142,9 @@ async function main() {
     if(notesPanelFlag==='true' && (!campaignNotes||!campaignFolders))
       throw new Error('Original Notes panel requires campaign Notes and folders');
     const notesPanelEnabled=notesPanelFlag==='true';
-    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters,entityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments});
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters,entityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments,playerCharacters});
+  } else if (process.env.AUTH_VTT_PLAYER_CHARACTERS_ENABLED === 'true') {
+    throw new Error('Player character reads require dedicated auth staging');
   } else if (process.env.AUTH_VTT_CHARACTER_ASSIGNMENTS_ENABLED === 'true') {
     throw new Error('Character assignments require dedicated auth staging');
   } else if (process.env.AUTH_VTT_CHARACTER_AVAILABILITY_ENABLED === 'true') {
