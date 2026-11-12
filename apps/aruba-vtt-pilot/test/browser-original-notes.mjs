@@ -36,7 +36,18 @@ const send=(route,status,body)=>route.fulfill({
 function mockApi(page,{enabled=true,authorized=true}={}){
  const store={notes:[],trash:[],folders:[],requests:[],next:0,
   characters:[{id:characterId,campaignId:campaign,ownerId:user,name:'Mara di prova',
-   status:'active',sheetData:{name:'Mara di prova'}}]};
+   status:'active',sheetData:{
+    name:'Mara di prova',style:'Jock',viaggio:'Campione',
+    description:'Fixture HSC per il test della scheda originale',
+    ambiti:{Fisico:2,Scuola:1,Carisma:1,Strada:1},
+    abilita:{Muscoli:1,Sport:1,Acrobatica:1,Resistenza:1,Freddezza:1,
+     Cultura:1,Tecnologia:1,Studio:1,'Pronto Soccorso':1,Scienze:1,
+     Esibirsi:1,Parlantina:1,Fascino:1,Intuito:1,Leadership:1,
+     'Furtività':1,Mira:1,Sopravvivenza:1,Crimine:1,Allerta:1},
+    freschezza:12,maxFreschezza:12,caselleFrischezzaCruciali:[8,12],
+    follia:9,maxFollia:9,conditions:[],turbe:[],audacia:1,prodigi:1,
+    legame:'',tratti:[],equipment:[],notes:'',
+   }}]};
  page.route('**/vtt/**',async route=>{
   const request=route.request(),url=new URL(request.url());
   const path=url.pathname,method=request.method();
