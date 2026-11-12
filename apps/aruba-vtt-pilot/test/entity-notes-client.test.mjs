@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {listArubaEntityNotes,createArubaEntityNote,saveArubaEntityNote,archiveArubaEntityNote}
+import {listArubaEntityNotes,createArubaEntityNote,saveArubaEntityNote,archiveArubaEntityNote,setArubaSubtabOrder}
  from '../src/entity-notes-client.mjs';
 const campaign='be2f1a87-b8ee-4b34-9da0-07efda11379a';
 const character='ee2f1a87-b8ee-4b34-9da0-07efda11379a';
@@ -46,4 +46,24 @@ test('Aruba notes client rejects cross-object mismatches, bad IDs and HTML fallb
  await assert.rejects(()=>listArubaEntityNotes(async()=>({ok:true,status:200,
   headers:{get:()=> 'text/html'},json:async()=>{throw SyntaxError('HTML')}}),
   campaign,character),/JSON/);
+});
+
+test('nested notes client uses parent identity only in scoped API paths and validates order',async()=>{
+ const calls=[];
+ const fetcher=async(path,options)=>{
+  calls.push({path,options});
+  if(options.method==='GET')return response({notes:[{...note,parent_note_id:id,tab_order:[]} ]});
+  if(options.method==='POST')return response({note:{...note,parent_note_id:id}});
+  return response({parentId:id,tabOrder:[id]});
+ };
+ const notes=await listArubaEntityNotes(fetcher,campaign,character,id);
+ assert.equal(notes[0].parent_note_id,id);
+ assert.equal(new URL('https://example.invalid'+calls[0].path).searchParams.get('parentId'),id);
+ await createArubaEntityNote(fetcher,campaign,character,'Figlio',id);
+ assert.equal(JSON.parse(calls[1].options.body).parentId,id);
+ const order=await setArubaSubtabOrder(fetcher,campaign,character,id,[id]);
+ assert.deepEqual(order,[id]);
+ assert.equal(calls[2].path,'/vtt/entity-notes/order/'+id);
+ await assert.rejects(()=>listArubaEntityNotes(fetcher,campaign,character,'invalid'));
+ await assert.rejects(()=>setArubaSubtabOrder(fetcher,campaign,character,id,[id,id]));
 });

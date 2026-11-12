@@ -38,9 +38,24 @@ BEGIN
  IF order_json IS DISTINCT FROM jsonb_build_array(child_b::text,child_a::text) THEN RAISE EXCEPTION 'Order not saved';END IF;
  SELECT hollowgate_vtt.set_owned_note_subtab_order(owner_b,campaign,character,parent,jsonb_build_array(child_b::text,child_a::text)) INTO result;
  IF result IS NOT NULL THEN RAISE EXCEPTION 'Guest wrote order';END IF;
- SELECT hollowgate_vtt.set_owned_note_subtab_order(owner_a,campaign,character,parent,jsonb_build_array(child_b::text,child_b::text)) INTO result;
- RAISE EXCEPTION 'Duplicate order unexpectedly allowed';
-EXCEPTION WHEN SQLSTATE '22023' THEN
- IF SQLERRM NOT LIKE '%subtab identifiers%' THEN RAISE;END IF;
-END $$;
+ BEGIN
+  SELECT hollowgate_vtt.set_owned_note_subtab_order(owner_a,campaign,character,parent,
+    jsonb_build_array(child_b::text,child_b::text)) INTO result;
+  RAISE EXCEPTION 'Duplicate order unexpectedly allowed';
+ EXCEPTION WHEN SQLSTATE '22023' THEN
+  IF SQLERRM NOT LIKE '%subtab identifiers%' THEN RAISE;END IF;
+ END;
+ SELECT hollowgate_vtt.archive_owned_character_note_v2(owner_b,campaign,character,parent) INTO result;
+ IF result IS NOT NULL THEN RAISE EXCEPTION 'Guest archived parent';END IF;
+ SELECT hollowgate_vtt.archive_owned_character_note_v2(owner_a,campaign,character,parent) INTO result;
+ IF result IS DISTINCT FROM parent THEN RAISE EXCEPTION 'Owner archive failed';END IF;
+ SELECT count(*) INTO count_n FROM hollowgate_vtt.list_owned_character_notes_v2(owner_a,campaign,character,parent);
+ IF count_n<>0 THEN RAISE EXCEPTION 'Archived parent still shows children';END IF;
+ SELECT count(*) INTO count_n FROM hollowgate_vtt.entity_notes
+ WHERE parent_note_id=parent AND status='archived';
+ IF count_n<>2 THEN RAISE EXCEPTION 'Archive did not cascade to children';END IF;
+ IF has_table_privilege('hollowgate_api_runtime','hollowgate_vtt.entity_notes','SELECT')
+ OR has_table_privilege('hollowgate_api_runtime','hollowgate_vtt.entity_notes','UPDATE')
+ THEN RAISE EXCEPTION 'Runtime has direct note table access';END IF;
+END $;
 ROLLBACK;

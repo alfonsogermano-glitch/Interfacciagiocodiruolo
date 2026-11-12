@@ -59,3 +59,33 @@ test('notes endpoints use cookie identity and enforce origin for every mutation'
   ]);
  });
 });
+
+test('nested note HTTP accepts one scoped parentId and authenticated order updates',async()=>{
+ const calls=[];const notes={
+  list:async(...args)=>{calls.push(['list',...args]);return {notes:[]};},
+  create:async(...args)=>{calls.push(['create',...args]);return {note:{id:note}};},
+  save:async()=>{throw Error('not needed');},
+  archive:async()=>{throw Error('not needed');},
+  setSubtabOrder:async(...args)=>{calls.push(['order',...args]);return {parentId:note,tabOrder:[note]};},
+ };
+ await server(handlerFor(notes),async base=>{
+  const url=base+'/vtt/entity-notes';
+  const query=url+'?campaignId='+campaign+'&characterId='+character+'&parentId='+note;
+  assert.equal((await fetch(query,{headers:cookie})).status,200);
+  assert.equal((await fetch(query+'&parentId='+note,{headers:cookie})).status,400);
+  const headers={...cookie,origin,'content-type':'application/json'};
+  assert.equal((await fetch(url,{method:'POST',headers,body:JSON.stringify({
+    campaignId:campaign,characterId:character,tabName:'Sotto-tab',parentId:note,
+  })})).status,201);
+  assert.equal((await fetch(url+'/order/'+note,{method:'PATCH',headers,
+    body:JSON.stringify({campaignId:campaign,characterId:character,tabOrder:[note]})})).status,200);
+  assert.equal((await fetch(url+'/order/'+note,{method:'PATCH',
+    headers:{...headers,origin:'https://wrong.example'},
+    body:JSON.stringify({campaignId:campaign,characterId:character,tabOrder:[note]})})).status,403);
+ });
+ assert.deepEqual(calls,[
+  ['list',owner,campaign,character,note],
+  ['create',owner,campaign,character,{tabName:'Sotto-tab',parentId:note}],
+  ['order',owner,campaign,character,note,[note]],
+ ]);
+});
