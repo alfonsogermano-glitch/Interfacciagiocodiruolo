@@ -347,5 +347,7 @@ test('real EntityDetailView HSC is compiled with isolated data adapters and orig
  for(const source of ['useEntityTabs','RulesetContext','entitiesService','charactersService','entityReferenceService','EntityImageTab','RichTextEditor'])
   assert.ok(config.includes(source));
  assert.match(config,/aruba-disable-unmigrated-entity-custom-tab-actions/);
- assert.match(adapter,/handleAddCustomTab:unavailable/);
+ assert.match(adapter,/handleAddCustomTab/);
+ assert.match(adapter,/createArubaEntityNote/);
+ assert.match(adapter,/saveArubaEntityNote/);
 });

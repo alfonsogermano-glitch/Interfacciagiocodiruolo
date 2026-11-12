@@ -32,13 +32,11 @@ export function useEntityTabs({
  const tabsContainerRef=useRef<HTMLDivElement|null>(null);
  const notesRef=useRef<Note[]>([]);
  const queueRef=useRef<Map<string,Promise<unknown>>>(new Map());
- const timerRef=useRef<Map<string,ReturnType<typeof setTimeout>>>(new Map());
  const generation=useRef(0);
  const setNotes=(value:Note[]|((current:Note[])=>Note[]))=>{
-  setCustomTabs(old=>{
-   const next=typeof value==='function'?value(old):value;
-   notesRef.current=next;return next;
-  });
+  const next=typeof value==='function'?value(notesRef.current):value;
+  notesRef.current=next;
+  setCustomTabs(next);
  };
  useEffect(()=>{
   const seq=++generation.current;setNotes([]);setError(null);
@@ -47,7 +45,7 @@ export function useEntityTabs({
    if(seq!==generation.current)return;
    setNotes(notes as Note[]);
   }).catch(e=>{if(seq===generation.current)setError(e instanceof Error?e.message:'Errore caricamento Note');});
-  return ()=>{generation.current++;timerRef.current.forEach(clearTimeout);timerRef.current.clear();};
+  return ()=>{generation.current++;};
  },[supported,campaignId,entityId]);
  const orderedTabs=useMemo(()=>{
   const merged=[
@@ -137,11 +135,10 @@ export function useEntityTabs({
   void persist(id,{content});
  };
  const handleCustomTabRichContentChange=(id:string,contentRich:Record<string,unknown>)=>{
-  const note=byId(id);if(!note||!canEdit)return;
-  const next={...note,content_rich:contentRich};
-  setNotes(prev=>prev.map(n=>n.id===id?next:n));
-  clearTimeout(timerRef.current.get(id));
-  timerRef.current.set(id,setTimeout(()=>{timerRef.current.delete(id);void persist(id,{content_rich:contentRich});},450));
+  if(!byId(id)||!canEdit)return;
+  // No unsent debounce timer: editor unmount/navigation must not drop the
+  // most recent JSON. The serialized queue always sends the newest snapshot.
+  void persist(id,{content_rich:contentRich});
  };
  const selectTabByClick=(id:string)=>{
   if(orderedTabs.some(tab=>tab.id===id)){
