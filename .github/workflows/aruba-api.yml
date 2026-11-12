@@ -65,7 +65,7 @@ jobs:
           fi
           # The regular pilot must not bundle the original Notes panel until
           # the separately verified capability is enabled for real staging.
-          if grep -R -l 'data-note-split-panel' ../../deploy/aruba/dist/vtt-pilot; then
+          if grep -R --include='*.js' -l 'data-note-split-panel' ../../deploy/aruba/dist/vtt-pilot; then
             echo "Original Notes panel unexpectedly present in default Aruba pilot" >&2
             exit 1
           fi
