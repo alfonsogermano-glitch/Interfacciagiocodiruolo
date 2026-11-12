@@ -14,7 +14,8 @@ test('original Notes route is server gated and lives in its own session rail',()
  assert.match(app,/<ArubaSessionCharactersPanel campaignId=\{activeCampaign.id\}/);
  assert.match(app,/sessionCharacterRequest&&user.charactersEnabled/);
  assert.match(app,/<ArubaCampaignCharacterCards/);
- assert.match(app,/<ArubaCampaignRoster key=\{activeCampaign.id\}/);
+ assert.match(app,/<ArubaCampaignPlayerRows key=\{activeCampaign.id\}/);
+ assert.match(app,/user\.charactersEnabled&&!user\.campaignRosterEnabled&&<ArubaCampaignCharacterCards/);
  assert.match(app,/sessionCharacterRequest.requestId/);
  assert.match(app,/requestSequence.current/);
  assert.match(app,/section==='session'&&activeCampaign/);
