@@ -17,7 +17,7 @@ LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
  SELECT f.id,'folder'::text,f.name,f.scope,f.parent_folder_id,f.updated_at
  FROM hollowgate_vtt.campaign_note_folders f JOIN authorized a ON a.id=f.campaign_id
  WHERE f.status='archived'
- ORDER BY archived_at DESC,id LIMIT 1000
+ ORDER BY 6 DESC,1 LIMIT 1000
 $$;
 
 CREATE FUNCTION hollowgate_vtt.restore_owned_campaign_note(
