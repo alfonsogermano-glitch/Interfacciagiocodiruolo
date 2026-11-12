@@ -1,4 +1,4 @@
-import {ArubaOriginalSessionNotesBoundary} from '@aruba-notes/original-session-notes';
+import {ArubaOriginalSessionNotesBoundary} from 'aruba-original-session-notes-entry';
 export function ArubaNotesRoute({campaignId,userId,ownerId}:{
  campaignId:string;userId:string;ownerId:string;
 }){

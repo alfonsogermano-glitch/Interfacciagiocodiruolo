@@ -16,7 +16,7 @@ export default defineConfig({
       // Original sources live above the isolated VTT npm project. Resolve
       // their TipTap imports from this project's real dependency tree; do NOT
       // force nested TipTap extension imports into nonexistent top-level dirs.
-      if(id==='@aruba-notes/original-session-notes')
+      if(id==='aruba-original-session-notes-entry')
         return resolve(root,process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1'?
           'src/ArubaOriginalSessionNotesBoundary.tsx':
           'src/ArubaOriginalNotesDisabled.tsx');
