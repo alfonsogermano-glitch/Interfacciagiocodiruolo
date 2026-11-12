@@ -122,3 +122,20 @@ al compose VPS, non distribuire SQL 015 né mostrare pulsanti nell'interfaccia
 finché autorizzazioni membri, cartelle, NoteSubTabs originale e collaudo E2E
 non saranno disponibili. Il campo `visibility=all` è dato memorizzato, non
 concessione di accesso ai giocatori in questa fase.
+
+## Schema 016 — membership e privacy Note (CI soltanto)
+
+Tabella `campaign_members` con ruoli **per campagna** `gm` e `player`,
+assegnati e revocati solo dal proprietario verificato; il proprietario
+è implicitamente GM nella propria campagna e può essere un giocatore altrove.
+La funzione di lettura `list_member_campaign_notes` applica nel database
+l'accesso `visibility='all'`, la proprietà della nota e l'eredità della
+visibilità del padre, senza fidarsi dei ruoli dichiarati dal client.
+Le Note private altrui non diventano visibili ai GM ospiti. Revoca e utente
+non verificato negano immediatamente la lettura; nessun privilegio diretto
+sulla tabella membership al runtime.
+
+**Questo è solo il livello di autorizzazione testato su PostgreSQL usa-e-getta**.
+Nessun invito, servizio HTTP per membri, scrittura GM, aggiornamento VPS,
+montaggio della UI Note o deploy della migrazione 016. Le API di Note 015
+rimangono owner-only e spente: non sostituirne i controlli con permessi frontend.
