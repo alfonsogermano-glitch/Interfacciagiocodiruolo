@@ -91,3 +91,17 @@ sostituito da `NoteSubTabs`. La pipeline di staging usa solo database
 usa-e-getta; `activate-vtt-campaigns.sh` non applica 013 o 014 al VPS.
 Mantieni la feature disabilitata su Aruba finché mancano le API di campagna
 e il test visuale/end-to-end.
+
+## Schema 015 — Note di campagna distinte dalle tab dei personaggi
+
+Nuova tabella `hollowgate_vtt.campaign_notes`, **indipendente da character_id**
+e dall'archivio `entity_notes`. La base dati mantiene contenuto TipTap JSON,
+parent/child fino a due livelli, ordine iniziale, visibilità registrata e
+archiviazione non distruttiva. Le routine SQL sono limitate al proprietario
+attivo e verificato della campagna; il runtime non ha privilegi sulle tabelle.
+
+**Non è ancora il sistema originale di Note di campagna completo**: nessun
+servizio HTTP, nessun flag attivo, nessuna vista Note montata, nessuna autorizzazione
+dei membri o dei ruoli GM/giocatore e nessuna gestione cartelle. Il campo
+`visibility` è registrato ma non conferisce accesso ai giocatori. Migrazione
+eseguita esclusivamente nel PostgreSQL effimero della CI; script VPS e DNS invariati.
