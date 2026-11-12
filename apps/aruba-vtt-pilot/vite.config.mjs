@@ -21,6 +21,17 @@ export default defineConfig({
         return resolve(root,'src/ArubaEntityDependencies.tsx');
       if(importer?.includes('/src/app/components/') && /^(?:\.\.\/)*ui\/tooltip$/.test(id))
         return resolve(root,'src/ArubaTooltip.tsx');
+      // Inline note tools must not activate legacy auth/realtime/dice services.
+      // Keep original editor UI while blocking unsupported remote operations.
+      if(importer?.includes('/src/app/components/session/shared/')){
+        const isolated={
+          '../../../auth/AuthContext':'ArubaNoteRuntime.tsx',
+          '../../../campaigns/CampaignContext':'ArubaNoteRuntime.tsx',
+          '../../../../services/supabase/diceCustomDiceService':'ArubaNoteRuntime.tsx',
+          '../dice/DiceSessionContext':'ArubaNoteRuntime.tsx',
+        };
+        if(Object.hasOwn(isolated,id))return resolve(root,'src/'+isolated[id]);
+      }
       // The real EntityDetailView is retained verbatim. Only its backend
       // dependencies are isolated until native Aruba services are ready.
       if(importer?.endsWith('/src/app/components/session/shared/EntityDetailView.tsx')){
