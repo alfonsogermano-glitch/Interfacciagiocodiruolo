@@ -115,7 +115,7 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' -u tester:wrong http://127.0.0.1:18080/)" = 401
 
   notes-browser-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
