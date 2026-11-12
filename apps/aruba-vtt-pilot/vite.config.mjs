@@ -60,6 +60,8 @@ export default defineConfig({
         };
         if(Object.hasOwn(map,id))return resolve(root,'src/'+map[id]);
       }
+      if(id==='./useEntityTabs' && importer?.endsWith('/src/app/components/session/shared/NoteSubTabs.tsx'))
+        return resolve(root,'src/ArubaBaseEntityTabs.ts');
       if(id==='./useEntityTabs' && importer?.endsWith('/src/app/components/session/shared/EntityTabBar.tsx'))
         return resolve(root,'src/ArubaBaseEntityTabs.ts');
       if(id==='../../ui/tooltip' && importer?.endsWith('/src/app/components/session/shared/EntityTabBar.tsx'))
