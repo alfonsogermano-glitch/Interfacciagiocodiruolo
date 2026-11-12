@@ -22,7 +22,6 @@ export default defineConfig({
         const map={
           './useEntityTabs':'ArubaBaseEntityTabs.ts',
           '../../../campaigns/RulesetContext':'ArubaEntityDependencies.tsx',
-          './RichTextEditor':'ArubaEntityDependencies.tsx',
           './EntityImageTab':'ArubaEntityDependencies.tsx',
           './EntityImageExtras':'ArubaEntityDependencies.tsx',
           '../../../../services/supabase/entitiesService':'ArubaEntityDependencies.tsx',
@@ -68,6 +67,7 @@ export default defineConfig({
     react:resolve(root,'node_modules/react'),
     'lucide-react':resolve(root,'node_modules/lucide-react'),
     '@':resolve(root,'../../src'),
+    '@tiptap':resolve(root,'node_modules/@tiptap'),
   }},
   base:'/vtt/',
   build:{

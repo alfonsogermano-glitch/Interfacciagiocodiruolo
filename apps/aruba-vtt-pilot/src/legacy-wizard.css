@@ -57,3 +57,9 @@
 @source "../../../src/app/components/session/shared/EntityDetailView.tsx";
 @source "../../../src/app/components/session/shared/EntityTabBar.tsx";
 @source "../../../src/app/components/shared/RulesetTag.tsx";
+
+@source "../../../src/app/components/session/shared/RichTextEditor.tsx";
+@source "../../../src/app/components/session/shared/NoteSlashMenu.tsx";
+@source "../../../src/app/components/session/shared/NoteSelectionToolbar.tsx";
+@source "../../../src/app/components/session/shared/NoteTableToolbar.tsx";
+@source "../../../src/app/components/session/shared/NoteModifierMenu.tsx";

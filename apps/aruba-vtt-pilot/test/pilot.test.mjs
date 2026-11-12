@@ -351,3 +351,13 @@ test('real EntityDetailView HSC is compiled with isolated data adapters and orig
  assert.match(adapter,/createArubaEntityNote/);
  assert.match(adapter,/saveArubaEntityNote/);
 });
+
+test('the actual original rich note editor remains the UI source, not a simplified Aruba replacement',()=>{
+ const vite=readFileSync(new URL('../vite.config.mjs',import.meta.url),'utf8');
+ const rich=readFileSync(new URL('../../../src/app/components/session/shared/RichTextEditor.tsx',import.meta.url),'utf8');
+ assert.doesNotMatch(vite,/'\.\/RichTextEditor':'ArubaEntityDependencies\.tsx'/);
+ assert.match(rich,/useEditor/);
+ assert.match(rich,/TIPTAP_BLOCK_EXTENSIONS/);
+ assert.match(rich,/InlineCheckbox/);
+ assert.match(rich,/NOTE_TABLE_EXTENSIONS/);
+});
