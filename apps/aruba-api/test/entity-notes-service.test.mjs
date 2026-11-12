@@ -37,10 +37,16 @@ test('rich TipTap notes are stored as JSON and archived reversibly',async()=>{
  assert.equal(saved.note.content_rich.type,'doc');
  assert.deepEqual(queryLog[0].params,[owner,campaign,character,id,'Diario','Test',
   '{"type":"doc"}',2,true,'private']);
+ // A child note is never returned by the root-list SQL query. Saving it
+ // must still acknowledge the persisted content without a root-list lookup.
+ assert.equal(queryLog.length,1);
+ assert.equal(saved.note.id,id);
+ assert.equal(saved.note.content,'Test');
+ assert.equal(saved.note.hidden,true);
  const archived=await service.archive(owner,campaign,character,id);
  assert.equal(archived.archivedId,id);
- assert.match(queryLog[2].sql,/archive_owned_character_note/);
- assert.doesNotMatch(queryLog[2].sql,/DELETE|TRUNCATE/);
+ assert.match(queryLog[1].sql,/archive_owned_character_note/);
+ assert.doesNotMatch(queryLog[1].sql,/DELETE|TRUNCATE/);
  for(const bad of [{...body,ownerId:owner},{...body,contentRich:[]},
   {...body,position:-1},{...body,visibility:'public'},
   {...body,content:'x'.repeat(32769)}])
@@ -75,4 +81,24 @@ test('note subtabs remain isolated by parent with exact ID and ordered UUID vali
  await assert.rejects(()=>notes.create(owner,campaign,character,{tabName:'x',parentId:'bad'}));
  await assert.rejects(()=>notes.setSubtabOrder(owner,campaign,character,id,[id,id]));
  await assert.rejects(()=>notes.setSubtabOrder(owner,campaign,character,id,['invalid']));
+});
+
+// Regression: DB accepts the child-note write, even though the root notes
+// listing excludes children; no API response may be undefined after save.
+test('saving a nested TipTap subtab acknowledges the exact owned write',async()=>{
+ const calls=[];
+ const service=createEntityNotesService({pool:{query:async(sql,params)=>{
+  calls.push({sql,params});
+  if(sql.includes('save_owned_character_note'))return {rows:[{id}]};
+  return {rows:[]}; // Root tab list would not contain this child.
+ }}});
+ const saved=await service.save(owner,campaign,character,id,{
+  tabName:'Sotto-tab',content:'Modificato',contentRich:{type:'doc',content:[]},
+  position:1,hidden:false,visibility:'all',
+ });
+ assert.equal(saved.note.id,id);
+ assert.equal(saved.note.content,'Modificato');
+ assert.deepEqual(saved.note.content_rich,{type:'doc',content:[]});
+ assert.equal(calls.length,1);
+ assert.match(calls[0].sql,/save_owned_character_note/);
 });

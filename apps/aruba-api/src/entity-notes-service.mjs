@@ -47,8 +47,14 @@ export function createEntityNotesService({pool}){
    [ownerId,campaignId,characterId,noteId,body.tabName.trim(),body.content,
     body.contentRich===null?null:JSON.stringify(body.contentRich),body.position,body.hidden,body.visibility]);
   if(!rows[0]?.id)throw new CampaignRejected('Nota non trovata o non autorizzata',404);
-  const all=await list(ownerId,campaignId,characterId);
-  return {note:all.notes.find(n=>n.id===noteId)};
+  // The write routine has already confirmed this exact note is owned and saved.
+  // Listing root tabs here would silently omit child notes (parent_note_id != NULL),
+  // causing the original TipTap editor to reject an otherwise successful write.
+  return {note:{
+   id:noteId,tab_name:body.tabName.trim(),content:body.content,
+   content_rich:body.contentRich,position:body.position,
+   hidden:body.hidden,visibility:body.visibility,
+  }};
  }
  async function archive(ownerId,campaignId,characterId,noteId){
   [ownerId,campaignId,characterId,noteId].forEach((id,i)=>safeId(id,['Utente','Campagna','Personaggio','Nota'][i]));
