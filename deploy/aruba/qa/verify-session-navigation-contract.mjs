@@ -65,9 +65,9 @@ assert(JSON.stringify(railIds)===JSON.stringify(contract.dashboardRailIds),
  'Dashboard rail entries no longer match inventory');
 const differences=contract.confirmedPilotDivergences.map(x=>x.id);
 assert(differences.length===7,'Navigation divergence inventory incomplete');
-assert(pilot.includes("gmMenu.filter(item=>item.id!=='notes'||notesPanelReady)")&&
+assert(pilot.includes('<ArubaSessionRightRail notesEnabled={notesPanelReady}')&&
  pilot.includes('<ArubaNotesRoute key={activeCampaign.id}'),
- 'Pilot Note location changed: re-audit before marking parity');
+ 'Pilot Notes/session rail changed: re-audit before marking parity');
 assert(pilot.includes('c.ownerId===user.id')&&pilot.includes('activeCampaign.ownerId===user.id'),
  'Owner-only pilot campaign gate changed: re-evaluate player access');
 assert(pilot.includes('className="topbar"')&&!pilot.includes('<TopBar'),

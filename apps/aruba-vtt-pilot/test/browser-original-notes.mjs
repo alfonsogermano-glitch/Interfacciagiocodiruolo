@@ -135,7 +135,10 @@ try{
   await page.goto(base,{waitUntil:'domcontentloaded'});
   await page.getByRole('button',{name:'Campagne',exact:true}).click();
   await page.getByRole('button',{name:'Apri campagna'}).click();
-  assert.equal(await page.getByRole('button',{name:'Note',exact:true}).count(),0);
+  await page.getByRole('button',{name:'Entra nella campagna'}).click();
+  await page.locator('[data-aruba-session-rail="true"]').waitFor();
+  assert.equal(await page.getByRole('button',{name:'Note',exact:true}).isDisabled(),true);
+  assert.equal(await page.locator('[data-note-split-panel="true"]').count(),0);
   assert.equal(await page.locator('[data-note-split-panel="true"]').count(),0);
   await page.close();
  }
@@ -155,6 +158,14 @@ try{
    'No Note tab before a selected campaign');
   await page.getByRole('button',{name:'Campagne',exact:true}).click();
   await page.getByRole('button',{name:'Apri campagna'}).click();
+  await page.getByRole('button',{name:'Entra nella campagna'}).click();
+  const sessionRail=page.locator('[data-aruba-session-rail="true"]');
+  await sessionRail.waitFor();
+  for(const label of ['Chat','Schede','Dadi','Incontri','Combatti'])
+   assert.equal(await sessionRail.getByRole('button',{name:label,exact:true}).isDisabled(),true,
+    label+' must not pretend to be migrated');
+  assert.equal(await sessionRail.getByRole('button',{name:'Note',exact:true}).isEnabled(),true);
+  assert.equal(await page.getByRole('button',{name:'Capitoli e Scene',exact:true}).count(),0);
   await page.getByRole('button',{name:'Note',exact:true}).click();
   await page.locator('[data-note-split-panel="true"]').waitFor();
   const slide=page.locator('[data-session-slide-over="true"]');
@@ -238,4 +249,4 @@ try{
  }
 }finally{await browser.close();}
 if(errors.length)throw Error('Browser console runtime errors: '+errors.join('; '));
-console.log('Original Hollowgate Notes browser QA passed: auth gating, GM rail, original slide-over Escape/close, split panel, root/subtab creation, TipTap save, folder creation and trash restore.');
+console.log('Original Hollowgate Notes browser QA passed: auth gating, session rail, original slide-over Escape/close, split panel, root/subtab creation, TipTap save, folder creation and trash restore.');

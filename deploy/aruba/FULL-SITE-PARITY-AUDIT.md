@@ -110,3 +110,17 @@ la navigazione originale al 100%.
 ## Limiti e prossimo lavoro
 
 Questa è la **prima ricognizione strutturale del codice**, non un'analisi conclusa file-per-file né una certificazione grafica. La mappatura del routing e dei contesti di sessione è stata aggiunta come secondo approfondimento. Restano da analizzare le dipendenze interne di `TopBar`, `CampaignHome` e `SessionWorkspace`, da riutilizzare con gli adattatori Aruba, quindi produrre screenshot baseline reali. Non dichiarare percentuali inventate né promettere il 100% prima della verifica sistematica.
+
+## Integrazione 04 — Barra di sessione distinta (pilot, non finale)
+
+Una vista campagna esplicita è ora raggiungibile da «Entra nella campagna».
+Mostra una barra **sessione** distinta dagli strumenti di gestione GM.
+L'ordine dei sei comandi corrisponde al codice originale:
+Chat, Schede, Note, Dadi, Incontri, Combatti. Solo Note è collegato
+al vero `SlideOverPanel` e ai servizi già testati; tutte le altre
+azioni sono realmente disabilitate. La vista non pretende di essere
+`CampaignHome`, né di simulare lo stato live/giocatori.
+
+Il prossimo lavoro è reinserire i componenti originali e il relativo
+contesto `SessionRightSidebar`/schede/dadi/chat, senza conservare
+questa vista temporanea nel rilascio definitivo.

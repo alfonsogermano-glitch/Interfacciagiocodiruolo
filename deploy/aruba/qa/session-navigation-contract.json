@@ -134,13 +134,13 @@
   "confirmedPilotDivergences": [
     {
       "id": "single-right-rail",
-      "state": "open",
-      "detail": "Pilot maps gmMenu directly, instead of switching between GmSectionSidebar and SessionRightSidebar"
+      "state": "partially-addressed",
+      "detail": "Pilot now renders a distinct contextual campaign session rail, but full original SessionRightSidebar and services are not migrated."
     },
     {
       "id": "notes-central-route",
       "state": "partially-addressed",
-      "detail": "Actual original SlideOverPanel now wraps Note panel with close/Escape, but Note remains a standalone GM nav destination: session-owned context rail still missing."
+      "detail": "Original SlideOverPanel now opens from session-specific Note icon, while CampaignHome and session state remain pending."
     },
     {
       "id": "owner-only-campaign-list",

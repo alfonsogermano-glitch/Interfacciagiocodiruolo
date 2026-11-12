@@ -217,3 +217,15 @@
   width:calc(100vw - 100px)!important;right:80px!important;
  }
 }
+
+/* Separate dashboard GM and campaign session rails, with the original
+   session icon order and 80px rail width. */
+.session-right-rail{width:80px;min-width:80px;display:flex;flex-direction:column;
+ align-items:center;gap:4px;padding:12px 3px;border-left:1px solid var(--dash-border-soft)}
+.session-rail-link{display:flex;flex-direction:column;align-items:center;
+ justify-content:center;gap:5px;min-height:56px;width:100%;border:0;
+ border-radius:8px;background:transparent;color:var(--dash-text);font-size:11px}
+.session-rail-link.active{background:var(--dash-accent);color:#1b140b}
+.session-rail-link:disabled{opacity:.42;cursor:not-allowed}
+.session-rail-link:not(:disabled):hover{background:var(--dash-surface-2)}
+.session-return{margin-top:22px}
