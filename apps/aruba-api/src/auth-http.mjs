@@ -64,7 +64,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null }) {
   const allowedOrigin = new URL(origin);
   if (allowedOrigin.protocol !== 'https:' || allowedOrigin.origin !== origin ||
       !allowedOrigin.hostname) throw new TypeError('HTTPS origin required');
@@ -81,6 +81,9 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
     throw new TypeError('Invalid campaign service');
   if(characters!==null && (typeof characters.list!=='function'||typeof characters.create!=='function'||typeof characters.save!=='function'||typeof characters.archive!=='function'||!campaigns))
     throw new TypeError('Invalid character service');
+  if(entityNotes!==null && (!characters ||
+   ['list','create','save','archive'].some(k=>typeof entityNotes[k]!=='function')))
+    throw new TypeError('Invalid entity notes service');
   return async (req, res) => {
     try {
       if (req.url === '/auth/login' && req.method === 'POST') {
@@ -189,6 +192,50 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if(typeof body.campaignId!=='string'||Object.keys(body).length!==1)
           throw new HttpProblem(400,'Dati cancellazione non validi');
         return response(res,200,await characters.archive(user.id,body.campaignId,characterId));
+      }
+      // Original character custom tabs: isolated staging-only notes.
+      // Exact URL patterns; query cannot smuggle owner or role.
+      if(entityNotes && req.url?.startsWith('/vtt/entity-notes') &&
+       ['GET','POST','PATCH','DELETE'].includes(req.method)){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method!=='GET' && req.headers.origin!==origin)
+          throw new HttpProblem(403,'Origine non consentita');
+        if(req.method==='GET'){
+          const url=new URL(req.url,origin);
+          if(url.pathname!=='/vtt/entity-notes'||
+            [...url.searchParams.keys()].sort().join(',')!=='campaignId,characterId'||
+            url.searchParams.getAll('campaignId').length!==1||
+            url.searchParams.getAll('characterId').length!==1)
+            throw new HttpProblem(400,'Query note non valida');
+          return response(res,200,await entityNotes.list(user.id,
+            url.searchParams.get('campaignId'),url.searchParams.get('characterId')));
+        }
+        const body=await readJson(req,65536);
+        if(typeof body.campaignId!=='string'||typeof body.characterId!=='string')
+          throw new HttpProblem(400,'Identità nota non valida');
+        if(req.method==='POST'){
+          if(req.url!=='/vtt/entity-notes'||
+             Object.keys(body).sort().join(',')!=='campaignId,characterId,tabName')
+            throw new HttpProblem(400,'Dati creazione nota non validi');
+          return response(res,201,await entityNotes.create(user.id,
+            body.campaignId,body.characterId,{tabName:body.tabName}));
+        }
+        const noteId=req.url?.startsWith('/vtt/entity-notes/')?
+          req.url.slice('/vtt/entity-notes/'.length):'';
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(noteId))
+          throw new HttpProblem(400,'Nota non valida');
+        if(req.method==='PATCH'){
+          if(Object.keys(body).sort().join(',')!=='campaignId,characterId,content,contentRich,hidden,position,tabName,visibility')
+            throw new HttpProblem(400,'Dati aggiornamento nota non validi');
+          const {campaignId,characterId,...changes}=body;
+          return response(res,200,await entityNotes.save(user.id,campaignId,characterId,noteId,changes));
+        }
+        if(Object.keys(body).sort().join(',')!=='campaignId,characterId')
+          throw new HttpProblem(400,'Dati archivio nota non validi');
+        return response(res,200,await entityNotes.archive(user.id,body.campaignId,body.characterId,noteId));
       }
       // Isolated read-only React pilot. A session is NEVER interpreted as
       // a Supabase token. Campaign data remains unavailable by design.

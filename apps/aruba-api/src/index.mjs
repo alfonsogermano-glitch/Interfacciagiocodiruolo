@@ -10,6 +10,7 @@ import { createTransactionalMailer } from './transactional-mail.mjs';
 import {createSignupService} from './signup-service.mjs';
 import {createCampaignService} from './campaign-service.mjs';
 import {createCharacterService} from './character-service.mjs';
+import {createEntityNotesService} from './entity-notes-service.mjs';
 
 const required = (name) => {
   const value = process.env[name];
@@ -81,7 +82,14 @@ async function main() {
       throw new Error('Unsupported AUTH_VTT_CHARACTERS_ENABLED value');
     if(characterFlag==='true' && !campaigns)throw new Error('Characters require campaigns');
     const characters=characterFlag==='true'?createCharacterService({pool}):null;
-    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters});
+    const entityNotesFlag=process.env.AUTH_VTT_ENTITY_NOTES_ENABLED;
+    if(entityNotesFlag && !['true','false'].includes(entityNotesFlag))
+      throw new Error('Unsupported AUTH_VTT_ENTITY_NOTES_ENABLED value');
+    if(entityNotesFlag==='true' && !characters)throw new Error('Entity notes require staging characters');
+    const entityNotes=entityNotesFlag==='true'?createEntityNotesService({pool}):null;
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters,entityNotes});
+  } else if (process.env.AUTH_VTT_ENTITY_NOTES_ENABLED === 'true') {
+    throw new Error('Entity notes require dedicated staging');
   } else if (process.env.AUTH_VTT_CHARACTERS_ENABLED === 'true') {
     throw new Error('Characters require staging');
   } else if (process.env.AUTH_VTT_CAMPAIGNS_ENABLED === 'true') {
