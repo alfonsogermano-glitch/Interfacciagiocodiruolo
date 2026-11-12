@@ -114,6 +114,36 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' -u tester:hiccup http://127.0.0.1:18080/)" = 200
           test "$(curl -s -o /dev/null -w '%{http_code}' -u tester:wrong http://127.0.0.1:18080/)" = 401
 
+  notes-browser-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install isolated browser QA dependencies
+        working-directory: apps/aruba-vtt-pilot
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Compile real original Notes navigation for disposable browser
+        working-directory: apps/aruba-vtt-pilot
+        run: npm run test:notes-navigation
+      - name: Check real original Note panel in Chromium against in-memory API
+        working-directory: apps/aruba-vtt-pilot
+        run: |
+          npx vite preview --config vite.notes-navigation.config.mjs --host 127.0.0.1 --port 4173 --strictPort > /tmp/hollowgate-notes-preview.log 2>&1 &
+          echo $! > /tmp/hollowgate-notes-preview.pid
+          trap 'kill $(cat /tmp/hollowgate-notes-preview.pid) 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:4173/ >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:4173/ >/dev/null
+          node test/browser-original-notes.mjs
+
+
   api-test:
     runs-on: ubuntu-latest
     defaults:

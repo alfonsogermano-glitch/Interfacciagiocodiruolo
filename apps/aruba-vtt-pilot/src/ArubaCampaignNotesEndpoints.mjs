@@ -7,7 +7,8 @@ export const listArubaEntityNotes=async(fetcher,campaignId,_entityId,parentId=nu
  (await listArubaCampaignNotes(fetcher,campaignId,parentId))
   .map(n=>({...toOriginalCampaignNoteTab(n),campaign_id:campaignId}));
 export const createArubaEntityNote=async(fetcher,campaignId,_entityId,title,parentId=null,scope=undefined)=>
- toOriginalCampaignNoteTab(await createArubaCampaignNote(fetcher,campaignId,title,parentId,scope));
+ ({...toOriginalCampaignNoteTab(await createArubaCampaignNote(fetcher,campaignId,title,parentId,scope)),
+   campaign_id:campaignId});
 export const saveArubaEntityNote=async(fetcher,campaignId,_entityId,noteId,row)=>
  saveArubaCampaignNote(fetcher,campaignId,{
  id:noteId,campaignId,title:row.tab_name,contentRich:row.content_rich,

@@ -443,3 +443,17 @@ than bundling the original Notes runtime. The separate
 original `SessionNotesPanel`, isolated Note tabs and trash via
 `vite.notes-navigation.config.mjs`, then scans the bundle for legacy
 Supabase URLs. This is a QA artifact, not a VPS or production deploy.
+
+## Chromium QA against isolated API fixtures (original Notes)
+
+The `notes-browser-test` GitHub Actions job installs a sandbox
+Chromium, compiles the actual main VTT app with the original
+SessionNotesPanel behind its authenticated capability, and navigates
+through the real right rail. All `/vtt/*` requests are intercepted and
+fulfilled from private in-memory fixtures; this job does not contact
+the VPS, production DB, or real user accounts.
+Checks include guest and feature-disabled access, campaign selection,
+GM/shared/trash accordion rendering, absence of destructive controls,
+root and subtab creation, and TipTap JSON save. This browser test is
+complementary to SQL role tests, not a replacement for a staging
+deployment or human visual review. No deploy is performed.
