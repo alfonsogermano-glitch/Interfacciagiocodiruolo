@@ -359,7 +359,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(folderId))
           throw new HttpProblem(400,'Cartella non valida');
         if(req.method==='DELETE'){
-          if(Object.keys(body).sort().join(',')!=='campaignId,cascade')
+          if(Object.keys(body).sort().join(',')!=='campaignId,cascade'||typeof body.cascade!=='boolean')
             throw new HttpProblem(400,'Archiviazione cartella non valida');
           return response(res,200,await campaignFolders.archive(user.id,folderId,body));
         }
