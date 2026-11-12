@@ -15,7 +15,7 @@ const fixture={id:charId,campaignId:campaign,ownerId:owner,name:'Mara',
  Cultura:1,Tecnologia:1,Studio:1,'Pronto Soccorso':1,Scienze:1,
  Esibirsi:1,Parlantina:1,Fascino:1,Intuito:1,Leadership:1,
  Furtività:1,Mira:1,Sopravvivenza:1,Crimine:1,Allerta:1},
- freschezza:12,maxFreschezza:12,follia:9,maxFollia:9,
+ freschezza:12,maxFreschezza:12,caselleFrischezzaCruciali:[8,12],follia:9,maxFollia:9,
  tratti:[],equipment:[],conditions:[],turbe:[],notes:''}};
 const capabilities={
  campaigns:{read:true,write:true},characters:{read:true,write:true},
