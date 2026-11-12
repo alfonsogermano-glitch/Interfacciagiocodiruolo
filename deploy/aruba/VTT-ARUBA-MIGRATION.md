@@ -242,3 +242,14 @@ Nessuna di queste rotte è disponibile senza
 sul VPS, e il VTT originale non è ancora montato. Manca tuttora la
 gestione completa cartelle (archivio/cascade, drag, riordino e icone)
 e il modello di scrittura per-GM/per-creatore oltre all'owner.
+
+## Schema 019 — icone, posizione e cestino cartelle (solo CI)
+
+Le routine `set_owned_note_folder_presentation` e
+`archive_owned_note_folder` sono limitate al proprietario della campagna.
+La prima modifica icona e posizione. La seconda supporta due modalità
+non distruttive: archivia solo la cartella (le note diventano senza cartella,
+le sottocartelle salgono di un livello) oppure archivia l'intero sottoalbero
+con le sue Note e sotto-tab, preservando tutti i documenti TipTap.
+L'interfaccia originale non viene ancora montata: mancano gli endpoint
+e i controlli UI con conferma utente. Lo schema 019 non è sul VPS.
