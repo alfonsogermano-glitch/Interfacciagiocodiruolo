@@ -19,6 +19,12 @@ export function validateBootstrap(data){
      typeof c.characterAvailability.read!=='boolean'||
      c.characterAvailability.read!==c.characterAvailability.write||
      (c.characterAvailability.read&&!c.characters.read)))||
+    (c.characterAssignments!==undefined&&(
+      typeof c.characterAssignments.read!=='boolean'||
+      c.characterAssignments.read!==c.characterAssignments.write||
+      (c.characterAssignments.read&&(
+       c.characters?.read!==true||c.characterAvailability?.read!==true||
+       c.campaignRoster?.read!==true))))||
     (c.campaignRoster!==undefined&&(
       typeof c.campaignRoster.read!=='boolean'||c.campaignRoster.write!==false||
       (c.campaignRoster.read&&!c.campaigns.read)))||
@@ -43,6 +49,7 @@ export function validateBootstrap(data){
     id:data.user.id,email:data.user.email,displayName:data.user.displayName,role:data.user.role,
     campaignsEnabled:c.campaigns.read,charactersEnabled:c.characters.read,
     characterAvailabilityEnabled:c.characterAvailability?.read===true,
+    characterAssignmentsEnabled:c.characterAssignments?.read===true,
     campaignRosterEnabled:c.campaignRoster?.read===true,
     entityNotesEnabled:c.entityNotes?.read===true,
     campaignNotesEnabled:c.campaignNotes?.read===true,
@@ -255,5 +262,42 @@ export async function setCharacterAvailability(fetchImpl,campaignId,characterId,
  const data=await characterApiJson(r);
  if(data.id!==characterId||data.availableForPlayers!==value)
   throw Error('Risposta disponibilità non valida');
+ return data;
+}
+
+const assignmentUuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Owner-only, explicitly gated API; never infer player ownership from a display name. */
+export async function listCharacterAssignments(fetchImpl,campaignId){
+ if(!assignmentUuid.test(campaignId))throw Error('Campagna non valida');
+ const res=await fetchImpl('/vtt/character-assignments?campaignId='+encodeURIComponent(campaignId),{
+  method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error',
+ });
+ if(res.status===401)throw Error('Sessione scaduta');
+ if(!res.ok)throw Error('Assegnazioni non disponibili');
+ const data=await characterApiJson(res);
+ if(!Array.isArray(data.assignments)||data.assignments.length>100)throw Error('Elenco assegnazioni non valido');
+ const result=new Map();
+ for(const row of data.assignments){
+  if(!row||!assignmentUuid.test(row.characterId)||!assignmentUuid.test(row.playerId)||
+     result.has(row.characterId))throw Error('Assegnazione non valida');
+  result.set(row.characterId,row.playerId);
+ }
+ return result;
+}
+export async function setCharacterAssignment(fetchImpl,campaignId,characterId,playerId){
+ if(!assignmentUuid.test(campaignId)||!assignmentUuid.test(characterId)||
+    (playerId!==null&&!assignmentUuid.test(playerId)))
+  throw Error('Dati assegnazione non validi');
+ const res=await fetchImpl('/vtt/character-assignments/'+characterId,{
+  method:'PATCH',credentials:'same-origin',cache:'no-store',redirect:'error',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({campaignId,playerId}),
+ });
+ if(res.status===401)throw Error('Sessione scaduta');
+ if(res.status===404)throw Error('Personaggio o giocatore non autorizzato');
+ if(!res.ok)throw Error('Impossibile aggiornare l’assegnazione');
+ const data=await characterApiJson(res);
+ if(data.characterId!==characterId||data.playerId!==playerId)
+  throw Error('Conferma assegnazione non valida');
  return data;
 }

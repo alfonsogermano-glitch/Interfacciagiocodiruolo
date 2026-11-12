@@ -266,8 +266,7 @@
  border-top:1px solid var(--dash-border-soft);overflow-wrap:anywhere}
 .aruba-campaign-member strong{font-size:12px;color:var(--dash-accent-2)}
 
-/* Original CampaignHome Players grouping: no characters are attributed
-   to a joined member until a real assignment model exists. */
+/* Original CampaignHome Players grouping, now based only on verified Aruba assignments. */
 .aruba-campaign-player-rows{min-width:0;margin-top:22px}
 .aruba-campaign-player-rows>h2{font-size:18px;font-weight:600;margin:0 0 6px}
 .aruba-campaign-player-row{min-width:0;padding:14px;margin-top:14px;
@@ -283,3 +282,10 @@
 .aruba-availability-toggle[aria-pressed="true"]{border-color:var(--dash-accent);
  color:var(--dash-accent-2)}
 .aruba-availability-toggle:disabled{opacity:.55}
+
+.aruba-assignment-label{display:flex;flex-direction:column;gap:6px;margin-top:10px;
+ font-size:12px;color:var(--dash-muted)}
+.aruba-assignment-label select{width:100%;min-width:0;padding:9px 10px;
+ background:var(--dash-surface);color:var(--dash-text);
+ border:1px solid var(--dash-border-soft);border-radius:8px}
+.aruba-assignment-label select:disabled{opacity:.55}

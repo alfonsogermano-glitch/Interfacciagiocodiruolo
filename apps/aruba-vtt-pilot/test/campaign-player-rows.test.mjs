@@ -32,5 +32,25 @@ test('rejected identity mismatch, invalid status, duplicate roster or missing GM
 test('campaign character opener does not wrap the availability button',()=>{
  const source=readFileSync(new URL('../src/ArubaCampaignPlayerRows.tsx',import.meta.url),'utf8');
  assert.match(source,/<div role="button" tabIndex=\{0\} className="aruba-campaign-character-open"/);
- assert.match(source,/onClick=\{\(\)=>onOpenCharacter\(c\.id\)\}\/>\s*<\/div>\s*\{row\.role==='gm'&&availabilityEnabled&&\s*<button/);
+ assert.match(source,/onClick=\{\(\)=>onOpenCharacter\(c\.id\)\}\/>\s*<\/div>\s*\{availabilityEnabled&&\s*<button/);
+});
+
+test('confirmed server assignment groups a GM-owned card beneath its player exactly once',()=>{
+ const links=new Map([[active.id,player]]);
+ const rows=composeOwnedCampaignPlayerRows(members,[active],owner,links);
+ assert.deepEqual(rows.map(r=>r.characters.map(c=>c.id)),[[],[active.id]]);
+ assert.equal(rows[1].characters[0].ownerId,owner,'assignment never transfers ownership');
+ const reset=composeOwnedCampaignPlayerRows(members,[active],owner,new Map());
+ assert.deepEqual(reset.map(r=>r.characters.length),[1,0]);
+});
+test('forged, unverified or stale player assignments fail closed',()=>{
+ for(const links of [
+  new Map([[active.id,owner]]),
+  new Map([[active.id,'other']]),
+  new Map([['unknown',player]]),
+  new Map([[active.id,player],['unknown',player]]),
+ ])
+  assert.throws(()=>composeOwnedCampaignPlayerRows(members,[active],owner,links));
+ assert.throws(()=>composeOwnedCampaignPlayerRows(members,[{...active,status:'draft'}],owner,
+  new Map([[active.id,player]])));
 });
