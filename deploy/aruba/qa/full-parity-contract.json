@@ -1,0 +1,248 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Baseline di confronto, NON certificazione di equivalenza grafica/funzionale",
+  "originalRef": "src/app/App.tsx",
+  "shellRef": [
+    "src/app/layout/AppShell.tsx",
+    "src/app/layout/LeftSidebar.tsx",
+    "src/app/layout/GmSectionSidebar.tsx",
+    "src/app/layout/TopBar.tsx"
+  ],
+  "arubaEntry": "apps/aruba-vtt-pilot/src/main.tsx",
+  "expectedShell": {
+    "leftSidebarPx": 100,
+    "rightSidebarPx": 80,
+    "topBarAboveRightSidebar": true
+  },
+  "leftNavigation": [
+    {
+      "id": "home",
+      "originalLabel": "Panoramica",
+      "state": "parziale",
+      "note": "Home nel pilot non ancora confrontata visivamente con HomeScreen originale"
+    },
+    {
+      "id": "characters",
+      "originalLabel": "Personaggi",
+      "state": "parziale",
+      "note": "EntityDetailView riutilizzato, ma immagini, avatar, PNG e mostri non completi"
+    },
+    {
+      "id": "campaigns",
+      "originalLabel": "Campagne",
+      "state": "parziale",
+      "note": "CRUD Aruba, ma CampaignsPage/CampaignHome originali non equivalenti"
+    }
+  ],
+  "rightNavigation": [
+    {
+      "id": "chapters",
+      "pilotId": "chapters",
+      "state": "da-migrare",
+      "note": "ChapterManager e scene originali non montati"
+    },
+    {
+      "id": "scene-encounter",
+      "pilotId": "preparation",
+      "state": "da-migrare",
+      "note": "SceneEncounterManager non montato"
+    },
+    {
+      "id": "players",
+      "pilotId": "sheets",
+      "state": "da-migrare",
+      "note": "PlayerCharacters/Schede sessione non montato"
+    },
+    {
+      "id": "npcs",
+      "pilotId": "npcs",
+      "state": "da-migrare",
+      "note": "NPCsManager/archivio PNG non montato"
+    },
+    {
+      "id": "monsters",
+      "pilotId": "monsters",
+      "state": "da-migrare",
+      "note": "MonstersManager non montato"
+    },
+    {
+      "id": "clues",
+      "pilotId": "clues",
+      "state": "da-migrare",
+      "note": "CluesManager non montato"
+    },
+    {
+      "id": "equipment-catalog",
+      "pilotId": "equipment",
+      "state": "da-migrare",
+      "note": "EquipmentCatalogPage non montato"
+    },
+    {
+      "id": "map",
+      "pilotId": "map",
+      "state": "da-migrare",
+      "note": "GameMap e tool di TopBar originali non montati"
+    },
+    {
+      "id": "situations",
+      "pilotId": "situations",
+      "state": "da-migrare",
+      "note": "SituationsManager legacy da valutare con piano rimozione"
+    },
+    {
+      "id": "phases",
+      "pilotId": "phases",
+      "state": "da-migrare",
+      "note": "GamePhases non montato"
+    },
+    {
+      "id": "combat",
+      "pilotId": "combat",
+      "state": "da-migrare",
+      "note": "CombatTracker non montato"
+    },
+    {
+      "id": "visual-assets",
+      "pilotId": "assets",
+      "state": "da-migrare",
+      "note": "VisualAssetsManager legacy da dismettere solo dopo verifica sostitutivi"
+    }
+  ],
+  "pilotExtraNavigation": [
+    {
+      "id": "notes",
+      "state": "divergente",
+      "note": "Voce aggiunta al rail GM pilot; nel VTT originale le Note sono in SessionNotesPanel, non una voce del GmSectionSidebar originale. Da riconciliare con navigazione sessione."
+    }
+  ],
+  "subsystems": [
+    {
+      "id": "app-shell",
+      "state": "divergente",
+      "source": "src/app/layout/AppShell.tsx",
+      "pilot": "apps/aruba-vtt-pilot/src/main.tsx",
+      "reason": "Il pilot ricostruisce la chrome UI invece di montare AppShell originale."
+    },
+    {
+      "id": "top-bar-map-tools",
+      "state": "da-migrare",
+      "source": "src/app/layout/TopBar.tsx",
+      "pilot": "apps/aruba-vtt-pilot/src/main.tsx",
+      "reason": "TopBar originale (map tools, dropdown e stato) non montata."
+    },
+    {
+      "id": "session-campaign-home",
+      "state": "da-migrare",
+      "source": "src/app/campaigns/CampaignHome.tsx",
+      "pilot": "apps/aruba-vtt-pilot/src/main.tsx",
+      "reason": "Assenti tab sessione originali e session state."
+    },
+    {
+      "id": "global-character-catalog",
+      "state": "parziale",
+      "source": "src/app/components/gm/MyCharactersPage.tsx",
+      "pilot": "apps/aruba-vtt-pilot/src/ArubaCharacterDrafts.tsx",
+      "reason": "PG/parziale; PNG/Mostri e workflow integrale non equivalenti."
+    },
+    {
+      "id": "character-detail",
+      "state": "parziale",
+      "source": "src/app/components/session/shared/EntityDetailView.tsx",
+      "pilot": "apps/aruba-vtt-pilot/src/ArubaCharacterDetailPanel.tsx",
+      "reason": "Parte editor originale montata, media/storage e integrazione multiplayer da completare."
+    },
+    {
+      "id": "campaign-notes",
+      "state": "parziale",
+      "source": "src/app/components/session/SessionNotesPanel.tsx",
+      "pilot": "apps/aruba-vtt-pilot/src/ArubaOriginalSessionNotesBoundary.tsx",
+      "reason": "Browser mock e HTTP+Postgres testati separatamente; non approvata la parità visiva e contestuale."
+    },
+    {
+      "id": "character-notes",
+      "state": "parziale",
+      "source": "src/app/components/session/shared/EntityDetailView.tsx",
+      "pilot": "apps/aruba-vtt-pilot/src/ArubaBaseEntityTabs.ts",
+      "reason": "RichTextEditor originale presente; permessi, interazioni ricche e realtime incompleti."
+    },
+    {
+      "id": "visual-media",
+      "state": "da-migrare",
+      "source": "src/app/components/gm/VisualAssetsManager.tsx",
+      "pilot": "apps/aruba-vtt-pilot/src/ArubaImagePending.tsx",
+      "reason": "Storage, avatar, immagini e token da collaudare; evitare pagine legacy."
+    },
+    {
+      "id": "maps-and-scenes",
+      "state": "da-migrare",
+      "source": "src/app/components/gm/GameMap.tsx",
+      "pilot": "apps/aruba-vtt-pilot/src/main.tsx",
+      "reason": "Mappe, misure, nebbia, layer, scene e strumenti TopBar assenti."
+    },
+    {
+      "id": "dice-3d-chat",
+      "state": "parziale",
+      "source": "src/app/App.tsx",
+      "pilot": "apps/aruba-vtt-pilot/src/ArubaQuickDice.tsx",
+      "reason": "Motore tiro rapido riutilizzato, non 3D/skin/chat condivisa e formule complete."
+    },
+    {
+      "id": "gm-player-connect",
+      "state": "da-migrare",
+      "source": "src/app/presence/CampaignPresenceCoordinator.tsx",
+      "pilot": "apps/aruba-vtt-pilot/src/main.tsx",
+      "reason": "Connessione GM-hosted, autorizzazioni, signaling e test rete Android/Wi-Fi/5G ancora non integrati."
+    },
+    {
+      "id": "account-migration",
+      "state": "bloccato",
+      "source": "src/app/auth/AuthContext.tsx",
+      "pilot": "apps/aruba-api/src/auth-http.mjs",
+      "reason": "Identità utenti reali da riconciliare; dati di prova soltanto."
+    },
+    {
+      "id": "accessibility-responsive",
+      "state": "non-verificato",
+      "source": "src/app/layout/AppShell.tsx",
+      "pilot": "apps/aruba-vtt-pilot/src/styles.css",
+      "reason": "Nessuna approvazione sistematica di overflow/wrap/modali e navigazione tastiera ai vari viewport."
+    }
+  ],
+  "viewportChecks": [
+    {
+      "width": 360,
+      "height": 800
+    },
+    {
+      "width": 390,
+      "height": 844
+    },
+    {
+      "width": 768,
+      "height": 1024
+    },
+    {
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "width": 1920,
+      "height": 1080
+    }
+  ],
+  "acceptance": {
+    "visualBaselineApproved": false,
+    "allRoutesMigrated": false,
+    "allRolesVerified": false,
+    "browserRealApiDatabasePassed": false,
+    "layoutDiffReviewed": false,
+    "mediaAnd3DVerified": false,
+    "networkGMPlayerVerified": false,
+    "accountReconciliationVerified": false,
+    "finalRollbackDrillPassed": false
+  }
+}
