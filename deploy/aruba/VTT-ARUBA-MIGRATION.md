@@ -59,3 +59,15 @@ Le variabili Noir nero/oro sono centralizzate nella workspace Aruba, i component
 
 ## Dettaglio originale EntityDetailView
 La migrazione importa direttamente EntityDetailView.tsx e le tab originali Riepilogo, Condizioni e Follia, Equipaggiamento, Origini e Storia. Il Token Studio originale è all'interno dello stesso componente. Servizi Supabase, custom tab, immagini, PNG e realtime sono intercettati e disabilitati dove mancano le API Aruba; NON sono funzionalità dichiarate recuperate. Il salvataggio della scheda HSC usa ancora l'API Aruba esistente. Non aggiornare produzione prima dei test nel browser e del recupero integrale delle dipendenze.
+
+## Original TipTap e sottoschede Aruba — integrazione in attesa di collaudo
+
+La PR ora include il vero `RichTextEditor.tsx` originale con le sue estensioni TipTap, le tab originali di `EntityDetailView` e `EntityTabBar`, i servizi PostgreSQL di note `013_vtt_entity_notes.sql`, un client dedicato `entity-notes-client.mjs` e `ArubaBaseEntityTabs.ts` che connette creazione, modifica, duplicazione, rinomina, visibilità, archiviazione e salvataggio JSON al backend Aruba. Il dettaglio dei personaggi e le note condividono lo stesso pannello, non esistono nuove finestre sostitutive.
+
+**Il servizio non è stato ancora attivato sul VPS.** `AUTH_VTT_ENTITY_NOTES_ENABLED` è opt-in ed è intenzionalmente assente dal compose staging. La sessione `/vtt/bootstrap` dichiara la capability `entityNotes`; `ArubaNotesProvider` e il wrapper dell'originale EntityTabBar consentono i controlli note solo se l'API li conferma. In caso contrario nessun endpoint note viene interrogato. Il nuovo SQL 013 viene collaudato **solo nel database effimero della CI**, non è incluso nello script `activate-vtt-campaigns.sh`.
+
+I servizi legacy di auth/realtime/dadi custom/Supabase Storage vengono isolati **soltanto** per il bundle Aruba. L'editor originale mantiene i controlli locali TipTap e gli elementi inline, ma gli effetti lato sessione, dadi condivisi, immagini caricate, cartelle note e sotto-tab NON sono ancora supportati su Aruba. I loro controlli non devono essere presentati come funzionalità completamente operative.
+
+`ArubaNotesWriteRegistry.mjs` collega le promesse di salvataggio note al sistema di chiusura dello slide-over: il pannello non deve chiudersi su errore di rete o su contenuto ancora pendente. Le note restano in una tabella propria, mai nel JSON della scheda. Permessi GM/giocatore, realtime, accessi per campagna non proprietaria, ordinamento drag & drop, cartelle, sotto-tab e tool dei dadi devono essere migrati e verificati con test browser prima del cutover.
+
+Stato dei test: la pipeline Aruba API staging verifica struttura SQL, sicurezza API/HTTP, client note, compilazione React originale, e test della coda salvataggi. **Non è un collaudo end-to-end del browser.** Non aggiornare ancora il VPS Aruba con questi cambiamenti incompleti.

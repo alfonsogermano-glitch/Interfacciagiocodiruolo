@@ -376,3 +376,17 @@ test('note tabs are enabled only after authenticated server capability and never
  assert.match(provider,/canEdit=\{enabled&&props.canEdit\}/);
  assert.match(build,/ArubaEntityTabBar/);
 });
+
+test('notes feature stays off until the Aruba API advertises capability in a verified bootstrap',()=>{
+ const common={user,backend:'aruba-staging',capabilities:{
+  campaigns:{read:true,write:true},characters:{read:true,write:true},
+  entityNotes:{read:false,write:false},gameSession:false,
+ }};
+ assert.equal(validateBootstrap(common).entityNotesEnabled,false);
+ assert.equal(validateBootstrap({...common,capabilities:{...common.capabilities,
+  entityNotes:{read:true,write:true}}}).entityNotesEnabled,true);
+ assert.throws(()=>validateBootstrap({...common,capabilities:{...common.capabilities,
+  entityNotes:{read:true,write:false}}}));
+ assert.throws(()=>validateBootstrap({...common,capabilities:{...common.capabilities,
+  characters:{read:false,write:false},entityNotes:{read:true,write:true}}}));
+});
