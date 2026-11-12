@@ -20,3 +20,5 @@ Primo riallineamento Aruba: il contesto di dettaglio è stato **sollevato all'Ap
 L'obiettivo successivo è l'estrazione/riuso integrale di `EntityDetailView` con adapter per immagini, token, note e schede custom; evitare di importarlo con chiamate Supabase vive o di ricrearne versioni ridotte scollegate dai pannelli. Testare insieme apertura/chiusura, contesto, cambio tab, lettura/salvataggio e sincronizzazione con la lista.
 
 Lo slide-over Aruba blocca l'interazione con le pagine sottostanti e verifica il completamento dei salvataggi pendenti prima della chiusura. Se il server non conferma l'ultimo salvataggio, resta aperto con errore visibile; i dati non vengono contrassegnati come salvati.
+
+Il pannello Token usa adesso il vero `TokenStyleEditor.tsx` e `TokenShapePreview.tsx`, senza la raccolta asset legacy; salva in `sheet_data` dello stesso personaggio Aruba tramite la coda di aggiornamenti della vista Scheda. Il ramo Immagine non è ancora collegato perché richiede lo storage. Il vecchio contenuto `CompleteCharacterSheet` resta temporaneo nella sola sezione Scheda e non deve essere considerato la vista originale finale.

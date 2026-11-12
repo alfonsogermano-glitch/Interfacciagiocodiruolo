@@ -12,6 +12,8 @@ export default defineConfig({
     name:'aruba-legacy-image-safety',
     enforce:'pre',
     resolveId(id,importer){
+      if(id==='../ui/tooltip' && importer?.endsWith('/src/app/components/shared/TokenStyleEditor.tsx'))
+        return resolve(root,'src/ArubaTooltip.tsx');
       if(id==='./DraggablePortrait' && importer?.endsWith('/src/app/components/session/shared/EntityCard.tsx'))
         return resolve(root,'src/ArubaPortraitPending.tsx');
       if(id==='../../ui/tooltip' && importer?.endsWith('/src/app/components/session/shared/EntityFilterToolbar.tsx'))

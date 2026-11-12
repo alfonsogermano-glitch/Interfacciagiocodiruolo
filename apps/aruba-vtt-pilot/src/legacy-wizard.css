@@ -51,3 +51,6 @@
 @source "../../../src/app/components/session/shared/EntityDetailRail.tsx";
 @source "../../../src/app/components/session/SlideOverPanel.tsx";
 @source "../../../apps/aruba-vtt-pilot/src/ArubaCharacterDetailPanel.tsx";
+
+@source "../../../src/app/components/shared/TokenStyleEditor.tsx";
+@source "../../../src/app/components/shared/TokenShapePreview.tsx";

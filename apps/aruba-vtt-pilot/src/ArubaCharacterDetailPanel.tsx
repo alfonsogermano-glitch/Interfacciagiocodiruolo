@@ -4,6 +4,7 @@ import {listCharacterDrafts,saveFullCharacterSheet,archiveOwnedCharacter} from '
 import {EntityDetailRail,type EntityDetailRailSection} from '../../../src/app/components/session/shared/EntityDetailRail';
 import {SlideOverPanel} from '../../../src/app/components/session/SlideOverPanel';
 import {CompleteCharacterSheet} from '../../../src/app/components/CompleteCharacterSheet';
+import {TokenStyleEditor} from '../../../src/app/components/shared/TokenStyleEditor';
 import type {Character} from '../../../src/types/character';
 
 type HscCharacter=Character & {player:string;notes:string};
@@ -48,13 +49,8 @@ export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,onClos
       {closeError&&<p className="error" role="alert">{closeError}</p>}
       {loading?<p>Caricamento della scheda da Aruba…</p>:
        error?<p role="alert" className="error">{error}</p>:
-       draft&&section==='scheda'?
-        <ArubaPersistedSheet draft={draft} ownerId={ownerId} onChanged={onChanged} onArchived={onArchived} registerCloseGuard={registerCloseGuard}/>:
-       draft?<div className="aruba-entity-unmigrated">
-         <h2>{section==='immagine'?'Immagine e Avatar':'Token'}</h2>
-         <p>Il pannello originale esiste nel VTT, ma le sue dipendenze da storage e gestione delle entità non sono ancora collegate ad Aruba.
-          Questa funzione non modifica né inventa dati.</p>
-       </div>:null}
+       draft?<ArubaPersistedSheet draft={draft} ownerId={ownerId} onChanged={onChanged} onArchived={onArchived}
+        registerCloseGuard={registerCloseGuard} section={section}/>:null}
      </div>
     </div>
   </SlideOverPanel>
@@ -67,9 +63,9 @@ export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,onClos
  * legacy CompleteCharacterSheet with original EntityDetailView and its
  * shared tabs, avatar and token data adapters. It must never reappear inline
  * below the catalog. */
-function ArubaPersistedSheet({draft,ownerId,onChanged,onArchived,registerCloseGuard}:{
+function ArubaPersistedSheet({draft,ownerId,onChanged,onArchived,registerCloseGuard,section}:{
  draft:Draft;ownerId:string;onChanged:()=>void;onArchived:()=>void;
- registerCloseGuard:(guard:()=>Promise<void>)=>void;
+ registerCloseGuard:(guard:()=>Promise<void>)=>void;section:EntityDetailRailSection;
 }){
  const campaignId=draft.campaignId;
  const [working,setWorking]=useState<HscCharacter>(()=>({
@@ -113,9 +109,29 @@ function ArubaPersistedSheet({draft,ownerId,onChanged,onArchived,registerCloseGu
    {error&&<span className="unsaved" role="alert">{error}</span>}
    {error&&<button type="button" className="character-panel-return" onClick={()=>update(working)}>Riprova salvataggio</button>}
   </div>
-  <CompleteCharacterSheet character={working} audacia={working.audacia}
+  {section==='scheda'&&<CompleteCharacterSheet character={working} audacia={working.audacia}
    onAudaciaUpdate={value=>update({...working,audacia:value})}
-   onUpdate={update} onDelete={()=>void archive()}/>
+   onUpdate={update} onDelete={()=>void archive()}/>}
+  {section==='token'&&<div className="aruba-token-studio">
+    <TokenStyleEditor
+     name={working.name}
+     crop={{x:0,y:0,scale:1}}
+     tokenColor={working.tokenColor}
+     tokenBackgroundColor={working.tokenBackgroundColor}
+     tokenBorderStyle={working.tokenBorderStyle}
+     tokenBorderThickness={working.tokenBorderThickness}
+     tokenBorderLabel={working.tokenBorderLabel}
+     tokenBorderVisible={working.tokenBorderVisible}
+     onChange={patch=>update({...working,...patch})}
+    />
+    <p className="aruba-token-notice">Il Token Studio originale salva forma, colore, bordo e etichetta su Aruba.
+      La fotografia sarà collegata al sistema immagini Aruba quando sarà migrato.</p>
+   </div>}
+  {section==='immagine'&&<div className="aruba-entity-unmigrated">
+    <h2>Immagine e Avatar</h2>
+    <p>L'editor originale di ritaglio e la raccolta immagini richiedono lo storage Aruba.
+      Nessun upload o modifica ai dati viene simulato in questa fase.</p>
+   </div>}
   {archiving&&<p>Archiviazione in corso…</p>}
  </section>;
 }

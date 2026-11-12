@@ -318,3 +318,19 @@ test('context detail overlay cannot silently close on an in-flight failed save',
  assert.match(src,/className="aruba-entity-backdrop"/);
  assert.match(css,/\.aruba-entity-backdrop\{position:fixed;inset:0;z-index:895/);
 });
+
+test('original Token Studio shares the same Aruba persisted character and queue across rail sections',()=>{
+ const bridge=readFileSync(new URL('../src/ArubaCharacterDetailPanel.tsx',import.meta.url),'utf8');
+ const original=readFileSync(new URL('../../../src/app/components/shared/TokenStyleEditor.tsx',import.meta.url),'utf8');
+ const vite=readFileSync(new URL('../vite.config.mjs',import.meta.url),'utf8');
+ assert.match(bridge,/import \{TokenStyleEditor\} from/);
+ assert.match(bridge,/draft\?<ArubaPersistedSheet draft=/);
+ assert.match(bridge,/section=\{section\}/);
+ assert.match(bridge,/section==='token'&&<div className="aruba-token-studio"/);
+ assert.match(bridge,/onChange=\{patch=>update\(\{\.\.\.working,\.\.\.patch\}\)\}/);
+ assert.match(bridge,/queue\.current=queue\.current\.catch/);
+ assert.match(bridge,/section==='immagine'/);
+ assert.match(original,/TokenShapePreview/);
+ assert.match(vite,/TokenStyleEditor\.tsx/);
+ assert.doesNotMatch(bridge,/supabase\.from|localStorage/);
+});
