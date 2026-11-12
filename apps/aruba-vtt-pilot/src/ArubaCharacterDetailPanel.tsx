@@ -5,6 +5,7 @@ import {EntityDetailRail,type EntityDetailRailSection} from '../../../src/app/co
 import {SlideOverPanel} from '../../../src/app/components/session/SlideOverPanel';
 import {EntityDetailView} from '../../../src/app/components/session/shared/EntityDetailView';
 import {ArubaNotesProvider} from './ArubaNotesCapability';
+import {awaitArubaNoteWrites,subscribeArubaNoteError} from './ArubaNotesWriteRegistry.mjs';
 import type {Character} from '../../../src/types/character';
 
 type HscCharacter=Character & {player:string;notes:string};
@@ -20,13 +21,18 @@ export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,notesE
  const [section,setSection]=useState<EntityDetailRailSection>('scheda');
  const [closing,setClosing]=useState(false);
  const [closeError,setCloseError]=useState<string|null>(null);
+ const [notesError,setNotesError]=useState<string|null>(null);
  const closeGuard=useRef<()=>Promise<void>>(async()=>{});
  const registerCloseGuard=useCallback((guard:()=>Promise<void>)=>{closeGuard.current=guard;},[]);
  async function requestClose(){
   if(closing)return;setClosing(true);setCloseError(null);
-  try{await closeGuard.current();onClose();}
+  try{await closeGuard.current();if(notesEnabled)await awaitArubaNoteWrites(campaignId,characterId);onClose();}
   catch{setCloseError('Il salvataggio non è confermato: verifica la scheda e riprova prima di uscire.');setClosing(false);}
  }
+ useEffect(()=>{
+  if(!notesEnabled){setNotesError(null);return;}
+  return subscribeArubaNoteError(campaignId,characterId,setNotesError);
+ },[notesEnabled,campaignId,characterId]);
  useEffect(()=>{
   let alive=true;setDraft(null);setLoading(true);setError(null);setSection('scheda');
   void listCharacterDrafts(fetch,campaignId,ownerId).then(list=>{
@@ -47,6 +53,7 @@ export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,notesE
      </div>
      <div className="aruba-entity-detail-main">
       {closeError&&<p className="error" role="alert">{closeError}</p>}
+      {notesError&&<p className="error" role="alert">Note non salvate: {notesError}</p>}
       {loading?<p>Caricamento della scheda da Aruba…</p>:
        error?<p role="alert" className="error">{error}</p>:
        draft?<ArubaPersistedSheet draft={draft} ownerId={ownerId} onChanged={onChanged} onArchived={onArchived}

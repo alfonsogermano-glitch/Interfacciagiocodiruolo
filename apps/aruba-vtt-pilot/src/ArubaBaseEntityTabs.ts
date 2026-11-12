@@ -1,5 +1,6 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {useArubaNotesEnabled} from './ArubaNotesCapability';
+import {registerArubaNoteWrite} from './ArubaNotesWriteRegistry.mjs';
 import {
  listArubaEntityNotes,createArubaEntityNote,saveArubaEntityNote,archiveArubaEntityNote,
 } from './entity-notes-client.mjs';
@@ -66,6 +67,7 @@ export function useEntityTabs({
   const previous=queueRef.current.get(id)??Promise.resolve();
   const next=previous.catch(()=>{}).then(task);
   queueRef.current.set(id,next);
+  registerArubaNoteWrite(campaignId!,entityId!,id,next);
   void next.catch(fail);
   return next;
  };
