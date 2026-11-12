@@ -24,8 +24,15 @@ function normalize(note,campaignId,parentId){
  if(note.scope!==undefined&&!['shared','gm'].includes(note.scope))throw Error('Sezione Nota non valida');
  if(note.folderId!==undefined&&note.folderId!==null&&!UUID.test(note.folderId))
   throw Error('Cartella Nota non valida');
+ if(note.creatorId!==undefined&&note.creatorId!==null&&
+  (typeof note.creatorId!=='string'||!UUID.test(note.creatorId)))
+  throw Error('Creatore Nota non valido');
+ if(note.updatedAt!==undefined&&note.updatedAt!==null&&
+  (typeof note.updatedAt!=='string'||!Number.isFinite(Date.parse(note.updatedAt))))
+  throw Error('Data aggiornamento Nota non valida');
  return Object.freeze({...note,scope:note.scope??'shared',
-  folderId:note.folderId??null,campaignId});
+  folderId:note.folderId??null,creatorId:note.creatorId??null,
+  updatedAt:note.updatedAt??null,campaignId});
 }
 export async function listArubaCampaignNotes(fetcher,campaignId,parentId=null){
  safeId(campaignId,'Campagna');if(parentId!==null)safeId(parentId,'Nota padre');
@@ -73,4 +80,31 @@ export async function moveArubaCampaignNoteToFolder(fetcher,campaignId,noteId,fo
  if(data.noteId!==noteId||data.folderId!==folderId)
   throw Error('Spostamento Nota non confermato');
  return folderId;
+}
+/**
+ * Convert only an authenticated, server-filtered Aruba Note to the exact
+ * original EntityCustomTab UI field names; never infer ownership from a
+ * guessed author or from campaignId. The note icon and tab order need
+ * separate persisted migrations, and remain unavailable (null) for now.
+ */
+export function toOriginalCampaignNoteTab(note){
+ if(!note||typeof note!=='object'||Array.isArray(note))throw Error('Nota mancante');
+ safeId(note.id,'Nota');safeId(note.campaignId,'Campagna');
+ if(note.parentId!==null&&note.parentId!==undefined)safeId(note.parentId,'Nota padre');
+ if(!['gm','shared'].includes(note.scope)||
+   (note.folderId!==null&&note.folderId!==undefined&&
+    (typeof note.folderId!=='string'||!UUID.test(note.folderId)))||
+   typeof note.title!=='string'||!note.title.trim()||
+   !['private','all'].includes(note.visibility)||
+   !Number.isInteger(note.position)||
+   (note.creatorId!==null&&note.creatorId!==undefined&&
+    (typeof note.creatorId!=='string'||!UUID.test(note.creatorId))))
+  throw Error('Nota Aruba non valida per UI originale');
+ return Object.freeze({
+  id:note.id,tab_name:note.title,content:'',content_rich:note.contentRich??null,
+  position:note.position,hidden:note.scope==='gm',
+  folder_id:note.folderId??null,tab_order:null,
+  owner_profile_id:note.creatorId??null,visibility:note.visibility,
+  updated_at:note.updatedAt??'',
+ });
 }

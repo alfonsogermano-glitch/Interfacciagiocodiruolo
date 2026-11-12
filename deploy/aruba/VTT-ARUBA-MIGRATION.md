@@ -281,3 +281,22 @@ di una sezione diversa da `gmnotes` o `campaignnotes`.
 `validateBootstrap` verifica anche `campaignNoteFolders` e richiede
 `campaignNotes` abilitato prima di accettare la capability.
 La UI originale NON è ancora montata e il VPS non è stato modificato.
+
+## Schema 020 — metadati Note per i componenti originali
+
+Il nuovo lettore `list_member_campaign_notes_ui` espone `creator_id`
+e `updated_at` solo dopo il filtro SQL per campagna e visibilità.
+Il GM può leggere le Note private della campagna; i giocatori non
+possono leggere Note private altrui o Note GM. La revoca si applica
+immediatamente anche ai metadati del creatore.
+Il servizio Aruba trasmette `creatorId` e `updatedAt`; il client
+`toOriginalCampaignNoteTab` conserva il contratto
+`EntityCustomTab` originale (`tab_name`, `content_rich`,
+`hidden`, `folder_id`, `owner_profile_id`).
+Nessun autore viene inventato: il nome utente per-note non può essere
+ricavato da `campaignId`. `tab_order` e `title_icon` non vengono
+falsamente indicati come persistiti prima della relativa migrazione.
+
+Il montaggio del pannello originale resta disabilitato: manca il
+salvataggio per membri/co-GM, oltre alle risorse del titolo e
+dell'ordine dei sotto-tab. Nessun VPS modificato.

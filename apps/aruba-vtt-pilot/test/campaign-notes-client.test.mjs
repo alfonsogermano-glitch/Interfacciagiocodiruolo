@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {listArubaCampaignNotes,createArubaCampaignNote,saveArubaCampaignNote,archiveArubaCampaignNote,moveArubaCampaignNoteToFolder}
+import {listArubaCampaignNotes,createArubaCampaignNote,saveArubaCampaignNote,archiveArubaCampaignNote,moveArubaCampaignNoteToFolder,toOriginalCampaignNoteTab}
  from '../src/campaign-notes-client.mjs';
 const campaign='be2f1a87-b8ee-4b34-9da0-07efda11379a';
 const parent='aa2f1a87-b8ee-4b34-9da0-07efda11379a';
@@ -64,4 +64,22 @@ test('client keeps GM scope, folder IDs, and only trusted same-origin move body'
  await assert.rejects(()=>createArubaCampaignNote(fetcher,campaign,'Figlio',parent,'gm'),/non valida/);
  await assert.rejects(()=>moveArubaCampaignNoteToFolder(fetcher,campaign,child,'invalid'),/non valido/);
  await assert.rejects(()=>listArubaCampaignNotes(async()=>json({notes:[{...root,scope:'unknown'}]}),campaign),/non valida/);
+});
+
+test('original note contract preserves real creator, GM scope and rich text',()=>{
+ const owner='971e26ae-eecb-4f37-ad03-56b0c3000789';
+ const note={id:child,campaignId:campaign,title:'Diario GM',parentId:null,
+  contentRich:{type:'doc'},position:2,visibility:'private',scope:'gm',
+  folderId:parent,creatorId:owner,updatedAt:'2026-11-12T14:00:00.000Z'};
+ const original=toOriginalCampaignNoteTab(note);
+ assert.deepEqual(original,{
+  id:child,tab_name:'Diario GM',content:'',content_rich:{type:'doc'},
+  position:2,hidden:true,folder_id:parent,tab_order:null,
+  owner_profile_id:owner,visibility:'private',updated_at:'2026-11-12T14:00:00.000Z',
+ });
+ assert.equal(toOriginalCampaignNoteTab({...note,scope:'shared'}).hidden,false);
+ assert.equal(toOriginalCampaignNoteTab({...note,creatorId:null}).owner_profile_id,null);
+ assert.throws(()=>toOriginalCampaignNoteTab({...note,creatorId:'fake'}),/non valida/);
+ assert.throws(()=>toOriginalCampaignNoteTab({...note,folderId:'fake'}),/non valida/);
+ assert.throws(()=>toOriginalCampaignNoteTab({...note,scope:'owner'}),/non valida/);
 });

@@ -19,6 +19,7 @@ const map=row=>({
  id:row.id,title:row.title,contentRich:row.content_rich,
  parentId:row.parent_note_id,position:row.tab_position,visibility:row.visibility,
  scope:row.scope??'shared',folderId:row.folder_id??null,
+ creatorId:row.creator_id??null,updatedAt:row.updated_at??null,
 });
 export function createCampaignNotesService({pool}){
  if(typeof pool?.query!=='function')throw new TypeError('PostgreSQL pool required');
@@ -36,7 +37,7 @@ export function createCampaignNotesService({pool}){
   id(userId,'Utente');id(campaignId,'Campagna');
   if(parentId!==null)id(parentId,'Nota padre');
   const {rows}=await pool.query(
-   'SELECT * FROM hollowgate_vtt.list_member_campaign_notes_with_folders($1,$2,$3)',
+   'SELECT * FROM hollowgate_vtt.list_member_campaign_notes_ui($1,$2,$3)',
    [userId,campaignId,parentId]);
   return {notes:rows.map(map)};
  }
