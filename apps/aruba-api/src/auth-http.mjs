@@ -271,6 +271,14 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
         if(req.method==='GET'){
           const url=new URL(req.url,origin);
+          if(url.pathname==='/vtt/campaign-notes/trash'){
+            if([...url.searchParams.keys()].sort().join(',')!=='campaignId'||
+               url.searchParams.getAll('campaignId').length!==1||
+               typeof campaignNotes.listTrash!=='function')
+              throw new HttpProblem(400,'Query Cestino non valida');
+            return response(res,200,await campaignNotes.listTrash(
+              user.id,url.searchParams.get('campaignId')));
+          }
           if(url.pathname!=='/vtt/campaign-notes'||
              !['campaignId','campaignId,parentId'].includes([...url.searchParams.keys()].sort().join(','))||
              url.searchParams.getAll('campaignId').length!==1||
@@ -282,6 +290,14 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
         const body=await readJson(req,65536);
         if(req.method==='POST'){
+          if(req.url==='/vtt/campaign-notes/trash/restore'){
+            if(Object.keys(body).sort().join(',')!=='campaignId,itemId,kind'||
+               !['note','folder'].includes(body.kind)||
+               typeof campaignNotes.restoreTrash!=='function')
+              throw new HttpProblem(400,'Ripristino Cestino non valido');
+            return response(res,200,await campaignNotes.restoreTrash(
+              user.id,body.campaignId,body.kind,body.itemId));
+          }
           if(req.url!=='/vtt/campaign-notes'||
              !['campaignId,parentId,title','campaignId,parentId,scope,title']
              .includes(Object.keys(body).sort().join(',')))

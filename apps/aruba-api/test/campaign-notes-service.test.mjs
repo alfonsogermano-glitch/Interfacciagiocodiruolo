@@ -149,3 +149,41 @@ test('GM scope transitions use DB permission checks and exact acknowledgements',
  const denied=createCampaignNotesService({pool:{query:async()=>({rows:[{id:null}]})}});
  await assert.rejects(()=>denied.changeScope(owner,campaign,parent,'shared'),e=>e.status===404);
 });
+
+test('trash reads and restores use owner-only SQL and do not expose purge',async()=>{
+ const calls=[];
+ const archived='2026-11-12T18:00:00.000Z';
+ const svc=createCampaignNotesService({pool:{query:async(sql,args)=>{
+  calls.push([sql,args]);
+  if(sql.includes('list_owned_campaign_trash'))return {rows:[
+   {id:parent,item_type:'note',name:'Segreti',scope:'gm',
+    parent_id:null,archived_at:archived},
+   {id:child,item_type:'note',name:'Sottoscheda',scope:'shared',
+    parent_id:parent,archived_at:archived},
+   {id:parent,item_type:'folder',name:'Archivio',scope:'gm',
+    parent_id:null,archived_at:archived},
+  ]};
+  return {rows:[{id:parent}]};
+ }}});
+ assert.deepEqual(await svc.listTrash(owner,campaign),{
+  notes:[
+   {id:parent,tab_name:'Segreti',content:'',entity_type:'campaign',
+    hidden:true,deleted_at:archived},
+   {id:child,tab_name:'Sottoscheda',content:'',entity_type:'note',
+    hidden:false,deleted_at:archived},
+  ],
+  folders:[{id:parent,name:'Archivio',entity_type:'gmnotes',deleted_at:archived}],
+ });
+ assert.deepEqual(await svc.restoreTrash(owner,campaign,'folder',parent),
+  {restoredId:parent,kind:'folder'});
+ assert.deepEqual(await svc.restoreTrash(owner,campaign,'note',parent),
+  {restoredId:parent,kind:'note'});
+ assert.match(calls[1][0],/restore_owned_note_folder/);
+ assert.match(calls[2][0],/restore_owned_campaign_note/);
+ assert.deepEqual(calls[2][1],[owner,campaign,parent]);
+ await assert.rejects(()=>svc.restoreTrash(owner,campaign,'purge',parent),e=>e.status===400);
+ assert.equal(calls.length,3);
+ const denied=createCampaignNotesService({pool:{query:async()=>({rows:[{id:null}]})}});
+ await assert.rejects(()=>denied.restoreTrash(owner,campaign,'note',parent),e=>e.status===404);
+ assert.equal('purgeTrash' in svc,false);
+});

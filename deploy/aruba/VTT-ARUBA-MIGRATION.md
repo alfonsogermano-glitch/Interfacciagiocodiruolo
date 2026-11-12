@@ -389,3 +389,20 @@ un'altra campagna o una sottoscheda non possono cambiare sezione.
 `PATCH /vtt/campaign-notes/scope/:id`, il client cookie Aruba e
 l'adattatore `ArubaCampaignEntityTabs` usano questa operazione.
 La UI originale resta fuori da `main.tsx`; nessun deploy al VPS.
+
+## Schema 025 — Cestino e ripristino conservativo
+
+Le funzioni PostgreSQL `list_owned_campaign_trash`,
+`restore_owned_campaign_note` e `restore_owned_note_folder`
+sono esclusivamente per il proprietario autenticato e attivo della
+campagna. Ripristinare una nota principale recupera anche le sue
+sotto-tab mantenendo i JSON TipTap, ma applica `visibility=private`;
+se la cartella originale è ancora archiviata, la nota torna senza
+cartella. Ripristinare una sottoscheda singola richiede il contenitore
+attivo. Ripristinare una cartella non ripristina automaticamente
+sottocartelle o note archiviate in precedenza (nessun batch ID storico),
+evitando risurrezioni indiscriminate.
+
+**Purge/empty trash disabilitati:** non esiste alcuna routine di
+cancellazione definitiva. Restore-all deve essere coordinato in
+ordine di dipendenze prima di esporlo. Nessuna attivazione sul VPS.

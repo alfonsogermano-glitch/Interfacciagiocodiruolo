@@ -136,5 +136,33 @@ export function createCampaignNotesService({pool}){
     throw new CampaignRejected('Nota non trovata o non autorizzata',404);
   return {noteId,scope};
  }
- return {list,listForMember,create,save,archive,moveToFolder,setTitleIcon,setSubtabOrder,changeScope};
+ async function listTrash(userId,campaignId){
+  id(userId,'Utente');id(campaignId,'Campagna');
+  const {rows}=await pool.query(
+   'SELECT * FROM hollowgate_vtt.list_owned_campaign_trash($1,$2)',
+   [userId,campaignId]);
+  return {
+   notes:rows.filter(row=>row.item_type==='note').map(row=>({
+    id:row.id,tab_name:row.name,content:'',entity_type:row.parent_id?'note':'campaign',
+    hidden:row.scope==='gm',deleted_at:row.archived_at,
+   })),
+   folders:rows.filter(row=>row.item_type==='folder').map(row=>({
+    id:row.id,name:row.name,entity_type:row.scope==='gm'?'gmnotes':'campaignnotes',
+    deleted_at:row.archived_at,
+   })),
+  };
+ }
+ async function restoreTrash(userId,campaignId,kind,itemId){
+  id(userId,'Utente');id(campaignId,'Campagna');id(itemId,'Cestino');
+  if(!['note','folder'].includes(kind))
+   throw new CampaignRejected('Tipo elemento Cestino non valido',400);
+  const proc=kind==='note'?'restore_owned_campaign_note':'restore_owned_note_folder';
+  const {rows}=await pool.query(
+   'SELECT hollowgate_vtt.'+proc+'($1,$2,$3) AS id',
+   [userId,campaignId,itemId]);
+  if(rows[0]?.id!==itemId)
+   throw new CampaignRejected('Elemento Cestino non trovato o non autorizzato',404);
+  return {restoredId:itemId,kind};
+ }
+ return {list,listForMember,create,save,archive,moveToFolder,setTitleIcon,setSubtabOrder,changeScope,listTrash,restoreTrash};
 }

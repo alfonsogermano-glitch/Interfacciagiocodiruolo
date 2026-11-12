@@ -168,3 +168,29 @@ test('campaign Note section switch requires same-origin GM authorization via SQL
  });
  assert.deepEqual(calls,[[owner,campaign,parent,'gm']]);
 });
+
+test('trash API requires owner session and same-origin restore; no destructive routes',async()=>{
+ const calls=[];
+ const notes={
+  listForMember:async()=>({notes:[]}),create:async()=>{},save:async()=>{},archive:async()=>{},
+  listTrash:async(...args)=>{calls.push(['list',...args]);return {notes:[],folders:[]}},
+  restoreTrash:async(...args)=>{calls.push(['restore',...args]);return {restoredId:parent,kind:args[2]}},
+ };
+ await server(notes,async base=>{
+  const path=base+'/vtt/campaign-notes/trash';
+  assert.equal((await fetch(path+'?campaignId='+campaign)).status,401);
+  assert.equal((await fetch(path+'?campaignId='+campaign,{headers:cookie})).status,200);
+  assert.equal((await fetch(path+'?campaignId='+campaign+'&ownerId='+owner,{headers:cookie})).status,400);
+  const restore=path+'/restore';
+  assert.equal((await fetch(restore,{method:'POST',headers:cookie})).status,403);
+  assert.equal((await fetch(restore,{method:'POST',headers:header,
+   body:JSON.stringify({campaignId:campaign,itemId:parent,kind:'note',role:'gm'})})).status,400);
+  assert.equal((await fetch(restore,{method:'POST',headers:header,
+   body:JSON.stringify({campaignId:campaign,itemId:parent,kind:'purge'})})).status,400);
+  assert.equal((await fetch(restore,{method:'POST',headers:header,
+   body:JSON.stringify({campaignId:campaign,itemId:parent,kind:'note'})})).status,200);
+  assert.equal((await fetch(path+'/empty',{method:'POST',headers:header,
+   body:JSON.stringify({campaignId:campaign})})).status,400);
+ });
+ assert.deepEqual(calls,[['list',owner,campaign],['restore',owner,campaign,'note',parent]]);
+});

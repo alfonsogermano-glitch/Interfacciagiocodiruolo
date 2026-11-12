@@ -158,3 +158,45 @@ export async function changeArubaCampaignNoteScope(fetcher,campaignId,noteId,sco
   throw Error('Cambio sezione Nota non confermato');
  return scope;
 }
+
+const mapTrashItem=(item,kind)=>{
+ if(!item||typeof item!=='object'||Array.isArray(item)||!UUID.test(item.id)||
+   typeof item.deleted_at!=='string'||!Number.isFinite(Date.parse(item.deleted_at)))
+  throw Error('Elemento Cestino non valido');
+ if(kind==='note'){
+  if(typeof item.tab_name!=='string'||!item.tab_name.trim()||
+    !['campaign','note'].includes(item.entity_type)||typeof item.hidden!=='boolean')
+   throw Error('Nota Cestino non valida');
+  return Object.freeze({
+   id:item.id,tab_name:item.tab_name,content:typeof item.content==='string'?item.content:'',
+   entity_type:item.entity_type,hidden:item.hidden,deleted_at:item.deleted_at,
+  });
+ }
+ if(typeof item.name!=='string'||!item.name.trim()||
+  !['gmnotes','campaignnotes'].includes(item.entity_type))
+  throw Error('Cartella Cestino non valida');
+ return Object.freeze({id:item.id,name:item.name,entity_type:item.entity_type,
+  deleted_at:item.deleted_at});
+};
+export async function listArubaCampaignTrash(fetcher,campaignId){
+ safeId(campaignId,'Campagna');
+ const data=await json(await fetcher('/vtt/campaign-notes/trash?'+
+  new URLSearchParams({campaignId}),opts('GET')));
+ if(!Array.isArray(data.notes)||!Array.isArray(data.folders)||
+  data.notes.length+data.folders.length>1000)
+  throw Error('Elenco Cestino non valido');
+ const notes=data.notes.map(item=>mapTrashItem(item,'note'));
+ const folders=data.folders.map(item=>mapTrashItem(item,'folder'));
+ if(new Set([...notes,...folders].map(item=>item.id)).size!==notes.length+folders.length)
+  throw Error('Elementi Cestino duplicati');
+ return {notes,folders};
+}
+export async function restoreArubaCampaignTrashItem(fetcher,campaignId,kind,itemId){
+ safeId(campaignId,'Campagna');safeId(itemId,'Cestino');
+ if(!['note','folder'].includes(kind))throw Error('Tipo Cestino non valido');
+ const data=await json(await fetcher('/vtt/campaign-notes/trash/restore',
+  opts('POST',{campaignId,kind,itemId})));
+ if(data.restoredId!==itemId||data.kind!==kind)
+  throw Error('Ripristino Cestino non confermato');
+ return itemId;
+}

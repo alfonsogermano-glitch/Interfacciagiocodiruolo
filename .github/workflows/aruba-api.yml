@@ -286,6 +286,12 @@ jobs:
       - name: Verify GM-only section moves and no accidental private Note disclosure
         run: |
           docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_note_scope_transitions.sql
+      - name: Install conservative Campaign Notes trash restoration 025 (CI only)
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/025_vtt_campaign_note_trash_restore.sql
+      - name: Verify owner-only trash recovery and private TipTap restoration
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_note_trash_restore.sql
       - name: Verify character draft isolation
         run: |
           docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_character_drafts.sql

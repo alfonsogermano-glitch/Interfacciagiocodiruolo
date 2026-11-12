@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {listArubaCampaignNotes,createArubaCampaignNote,saveArubaCampaignNote,archiveArubaCampaignNote,moveArubaCampaignNoteToFolder,toOriginalCampaignNoteTab,setArubaCampaignNoteTitleIcon,setArubaCampaignSubtabOrder,changeArubaCampaignNoteScope}
+import {listArubaCampaignNotes,createArubaCampaignNote,saveArubaCampaignNote,archiveArubaCampaignNote,moveArubaCampaignNoteToFolder,toOriginalCampaignNoteTab,setArubaCampaignNoteTitleIcon,setArubaCampaignSubtabOrder,changeArubaCampaignNoteScope,listArubaCampaignTrash,restoreArubaCampaignTrashItem}
  from '../src/campaign-notes-client.mjs';
 const campaign='be2f1a87-b8ee-4b34-9da0-07efda11379a';
 const parent='aa2f1a87-b8ee-4b34-9da0-07efda11379a';
@@ -141,4 +141,28 @@ test('section change client accepts only server-confirmed GM/shared operation',a
  await assert.rejects(()=>changeArubaCampaignNoteScope(fetcher,campaign,parent,'owner'),/non valida/);
  await assert.rejects(()=>changeArubaCampaignNoteScope(fetcher,campaign,parent,'shared'),/non confermato/);
  assert.equal(calls.length,2);
+});
+
+test('trash client maps original Cestino types and confirms only non-destructive restore',async()=>{
+ const modified=[];
+ const at='2026-11-12T18:00:00.000Z';
+ const fetcher=async(path,options)=>{
+  modified.push({path,options});
+  return {ok:true,status:200,headers:{get:()=> 'application/json'},json:async()=>options.method==='GET'?
+    {notes:[{id:child,tab_name:'Sottoscheda',content:'',entity_type:'note',hidden:false,deleted_at:at}],
+     folders:[{id:parent,name:'Archivio',entity_type:'gmnotes',deleted_at:at}]}:
+    {restoredId:child,kind:'note'}};
+ };
+ const trash=await listArubaCampaignTrash(fetcher,campaign);
+ assert.equal(trash.notes[0].entity_type,'note');
+ assert.equal(trash.folders[0].entity_type,'gmnotes');
+ await restoreArubaCampaignTrashItem(fetcher,campaign,'note',child);
+ assert.deepEqual(JSON.parse(modified[1].options.body),
+  {campaignId:campaign,kind:'note',itemId:child});
+ assert.equal(modified[1].options.credentials,'same-origin');
+ await assert.rejects(()=>restoreArubaCampaignTrashItem(fetcher,campaign,'purge',child),/non valido/);
+ await assert.rejects(()=>listArubaCampaignTrash(async()=>({
+  ok:true,status:200,headers:{get:()=> 'application/json'},
+  json:async()=>({notes:[{id:'invalid'}],folders:[]})
+ }),campaign),/non valido/);
 });
