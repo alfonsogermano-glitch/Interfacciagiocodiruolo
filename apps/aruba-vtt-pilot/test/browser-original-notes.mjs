@@ -12,11 +12,12 @@ const secondNote='cf317f44-a915-4839-8cd6-9c8c2295599d';
 const archivedNote='af3aa8a5-6333-4cbb-b2f1-ecbb394542e6';
 const folderId='46fb111f-61b3-4a60-b122-54e8d7689c0e';
 const characterId='eeaa5632-f050-4eb4-a0f4-3981443bf19e';
+const playerId='2675f0a2-ad43-4f2d-ad01-6cfb9e8919b0';
 const campaignRow={
  id:campaign,ownerId:user,name:'Campagna prova Note',description:'Solo browser test',
  ruleset:'hsc',createdAt:'2026-11-12T00:00:00.000Z',
 };
-const capability=enabled=>({
+const capability=(enabled,assignmentsEnabled=false)=>({
  backend:'aruba-staging',
  user:{id:user,email:'qa-notes@example.invalid',displayName:'GM di prova',role:'standard'},
  capabilities:{
@@ -24,6 +25,7 @@ const capability=enabled=>({
   campaignRoster:{read:true,write:false},
   characters:{read:true,write:true},
   characterAvailability:{read:true,write:true},
+  characterAssignments:{read:assignmentsEnabled,write:assignmentsEnabled},
   entityNotes:{read:false,write:false},
   campaignNotes:{read:true,write:true},
   campaignNoteFolders:{read:true,write:true},
@@ -35,9 +37,11 @@ const send=(route,status,body)=>route.fulfill({
  status,contentType:'application/json; charset=utf-8',
  headers:{'cache-control':'no-store'},body:JSON.stringify(body),
 });
-function mockApi(page,{enabled=true,authorized=true}={}){
+function mockApi(page,{enabled=true,authorized=true,assignmentsEnabled=false}={}){
  const store={notes:[],trash:[],folders:[],requests:[],next:0,
-  characterAvailability:new Map([[characterId,false]]),
+  characterAvailability:new Map([[characterId,assignmentsEnabled]]),
+  characterAssignments:new Map(),
+  rejectNextAssignment:false,
   characters:[{id:characterId,campaignId:campaign,ownerId:user,name:'Mara di prova',
    status:'active',sheetData:{
     name:'Mara di prova',style:'Jock',viaggio:'Campione',
@@ -62,8 +66,24 @@ function mockApi(page,{enabled=true,authorized=true}={}){
   const body=raw?JSON.parse(raw):{};
   store.requests.push({path,method,body});
   if(path==='/vtt/bootstrap')return send(route,authorized?200:401,
-   authorized?capability(enabled):{error:'Non autenticato'});
+   authorized?capability(enabled,assignmentsEnabled):{error:'Non autenticato'});
   if(!authorized)return send(route,401,{error:'Non autenticato'});
+  if(assignmentsEnabled&&path==='/vtt/character-assignments'&&method==='GET'){
+   if(url.searchParams.get('campaignId')!==campaign)return send(route,400,{error:'Invalid campaign'});
+   return send(route,200,{assignments:[...store.characterAssignments]
+    .map(([characterId,playerId])=>({characterId,playerId}))});
+  }
+  if(assignmentsEnabled&&path==='/vtt/character-assignments/'+characterId&&method==='PATCH'){
+   if(store.rejectNextAssignment){
+    store.rejectNextAssignment=false;
+    return send(route,404,{error:'Assignment not authorized'});
+   }
+   if(body.campaignId!==campaign||![playerId,null].includes(body.playerId))
+    return send(route,400,{error:'Invalid assignment'});
+   if(body.playerId===null)store.characterAssignments.delete(characterId);
+   else store.characterAssignments.set(characterId,body.playerId);
+   return send(route,200,{characterId,playerId:body.playerId});
+  }
   if(path==='/vtt/character-availability'&&method==='GET')
    return send(route,200,{characters:[...store.characterAvailability]
     .map(([id,availableForPlayers])=>({id,availableForPlayers}))});
@@ -75,7 +95,7 @@ function mockApi(page,{enabled=true,authorized=true}={}){
   if(path==='/vtt/characters'&&method==='GET')
    return send(route,200,{characters:store.characters});
   if(path==='/vtt/campaigns/'+campaign+'/roster'&&method==='GET')
-   return send(route,200,{members:[{userId:user,displayName:'GM di prova',role:'gm'},{userId:'2675f0a2-ad43-4f2d-ad01-6cfb9e8919b0',displayName:'Giocatore prova',role:'player'}]});
+   return send(route,200,{members:[{userId:user,displayName:'GM di prova',role:'gm'},{userId:playerId,displayName:'Giocatore prova',role:'player'}]});
   if(path==='/vtt/campaigns'&&method==='GET')
    return send(route,200,{campaigns:[campaignRow]});
   if(path==='/vtt/campaign-note-folders'&&method==='GET')
@@ -169,6 +189,52 @@ try{
   assert.equal(await page.getByRole('button',{name:'Note',exact:true}).isDisabled(),true);
   assert.equal(await page.locator('[data-note-split-panel="true"]').count(),0);
   assert.equal(await page.locator('[data-note-split-panel="true"]').count(),0);
+  await page.close();
+ }
+ // Browser contract for the REAL campaign Players rows, original EntityCard
+ // and original Schede detail. Assignments are fake-server fixtures ONLY.
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  page.on('pageerror',e=>errors.push('assigned '+e.message));
+  const store=mockApi(page,{assignmentsEnabled:true});
+  await page.goto(base,{waitUntil:'domcontentloaded'});
+  await page.getByRole('button',{name:'Campagne',exact:true}).click();
+  await page.getByRole('button',{name:'Apri campagna'}).click();
+  await page.getByRole('button',{name:'Entra nella campagna'}).click();
+  const gm=page.getByRole('region',{name:'Partecipante GM di prova'});
+  const player=page.getByRole('region',{name:'Partecipante Giocatore prova'});
+  const assignedCard='[data-campaign-character-id="'+characterId+'"]';
+  await gm.locator(assignedCard).waitFor();
+  assert.equal(await player.locator(assignedCard).count(),0);
+  const choose=gm.getByRole('combobox',{name:'Assegna Mara di prova a un giocatore'});
+  await choose.waitFor();
+  assert.equal(await choose.inputValue(),'');
+  // A rejected server request cannot move the character on screen.
+  store.rejectNextAssignment=true;
+  await choose.selectOption(playerId);
+  await page.getByRole('alert').filter({hasText:'Personaggio o giocatore non autorizzato'}).waitFor();
+  assert.equal(await choose.inputValue(),'');
+  assert.equal(await player.locator(assignedCard).count(),0);
+  // Confirmed assignment moves exactly one card; GM remains the owner.
+  await choose.selectOption(playerId);
+  await player.locator(assignedCard).waitFor();
+  assert.equal(await gm.locator(assignedCard).count(),0);
+  assert.equal(await page.locator(assignedCard).count(),1);
+  assert.equal(store.characters[0].ownerId,user);
+  assert.equal(store.characterAssignments.get(characterId),playerId);
+  const assigned=player.locator(assignedCard);
+  assert.equal(await assigned.getByRole('button',{name:'Disponibilità di Mara di prova'}).isDisabled(),true);
+  await assigned.getByRole('button',{name:'Apri scheda campagna di Mara di prova'}).click();
+  await page.getByRole('region',{name:'Scheda di Mara di prova'}).waitFor();
+  await page.locator('[data-entity-context="characters-detail"]')
+   .getByRole('button',{name:/Torna ai personaggi/}).click();
+  await page.locator('[data-entity-context="characters-detail"]').waitFor({state:'detached'});
+  const release=player.getByRole('combobox',{name:'Assegna Mara di prova a un giocatore'});
+  await release.selectOption('');
+  await gm.locator(assignedCard).waitFor();
+  assert.equal(await player.locator(assignedCard).count(),0);
+  assert.equal(await page.locator(assignedCard).count(),1);
+  assert.equal(store.characterAssignments.has(characterId),false);
   await page.close();
  }
  // The authenticated, explicitly enabled trial uses the REAL two-column
@@ -346,4 +412,4 @@ try{
  }
 }finally{await browser.close();}
 if(errors.length)throw Error('Browser console runtime errors: '+errors.join('; '));
-console.log('Original Hollowgate Notes browser QA passed: auth gating, session rail, original slide-over Escape/close, split panel, campaign EntityCard repeated selection, session character card/detail, root/subtab creation, TipTap save, folder creation and trash restore.');
+console.log('Original Hollowgate browser QA passed: authorized player assignment/revocation, rejected assignments, original EntityCard/detail, auth gating, session rail, original Note slide-over, TipTap persistence, folders and trash restore.');
