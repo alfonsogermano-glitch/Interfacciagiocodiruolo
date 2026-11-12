@@ -17,12 +17,16 @@ export function validateBootstrap(data){
     (c.characters.read&&!c.campaigns.read)||
     (c.entityNotes!==undefined&&(typeof c.entityNotes.read!=='boolean'||
       c.entityNotes.read!==c.entityNotes.write||
-      (c.entityNotes.read&&!c.characters.read)))||c.gameSession!==false)
+      (c.entityNotes.read&&!c.characters.read)))||
+    (c.campaignNotes!==undefined&&(typeof c.campaignNotes.read!=='boolean'||
+      c.campaignNotes.read!==c.campaignNotes.write||
+      (c.campaignNotes.read&&!c.campaigns.read)))||c.gameSession!==false)
     throw new Error('Funzionalità non autorizzate');
   return Object.freeze({
     id:data.user.id,email:data.user.email,displayName:data.user.displayName,role:data.user.role,
     campaignsEnabled:c.campaigns.read,charactersEnabled:c.characters.read,
     entityNotesEnabled:c.entityNotes?.read===true,
+    campaignNotesEnabled:c.campaignNotes?.read===true,
   });
 }
 export async function loadPilotSession(fetchImpl){

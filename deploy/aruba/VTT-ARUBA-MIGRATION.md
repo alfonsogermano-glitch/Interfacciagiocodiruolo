@@ -155,3 +155,17 @@ Lo staging rimane disabilitato per default con
 `AUTH_VTT_CAMPAIGN_NOTES_ENABLED` assente. L'attivazione futura richiede
 **sia schema 015 sia schema 016** nel database test e collaudo E2E,
 oltre alla UI originale Note; non distribuire ancora sul VPS.
+
+## Trasporto client Note di campagna — base isolata
+
+Il browser ha ora un client `campaign-notes-client.mjs` separato da
+`entity-notes-client.mjs`. Il primo usa sessione cookie e rotte
+`/vtt/campaign-notes`, valida UUID, padre, TipTap, visibilità e conferma
+delle mutazioni, senza inviare ownerId, role o JWT Supabase.
+`validateBootstrap` include la capability `campaignNotesEnabled` con
+controlli sulle dipendenze da `campaigns`.
+
+La UI originale `useCampaignNotesSection` usa cartelle, le sezioni GM/shared,
+`NoteListRow` e `NoteSubTabs`. **Non è stata ancora montata**: occorre
+prima supportare sul backend cartelle e permessi di scrittura per nota,
+senza costruire una lista semplificata sostitutiva. Nessun deploy sul VPS.
