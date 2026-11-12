@@ -203,3 +203,24 @@ prima che il suo contratto sia soddisfatto.
 Flag `AUTH_VTT_CAMPAIGN_NOTE_FOLDERS_ENABLED` assente di default,
 dipendente da `AUTH_VTT_CAMPAIGN_NOTES_ENABLED` e dallo schema 017.
 Nessuna modifica alla configurazione del VPS o alla UI esistente.
+
+## Schema 018 — collegamento Note/cartelle e separazione GM
+
+La tabella Note guadagna `scope = shared|gm` e `folder_id` opzionale
+(solo sulle note contenitore, non sulle sotto-tab). Le sotto-tab
+ereditano lo scope alla creazione. `create_owned_campaign_note_scoped`
+crea il contenitore nel relativo scope e
+`assign_owned_campaign_note_folder` assegna o rimuove la cartella
+con controllo della stessa campagna e sezione, senza concedere
+modifiche ai giocatori.
+
+La funzione di lettura membro di 016 viene ristretta anche per scope:
+i giocatori non leggono note GM nemmeno se pubblicate con
+`visibility=all`; una sottoscheda GM non si può enumerare tramite ID.
+Il lettore `list_member_campaign_notes_with_folders` restituisce
+folder_id e scope soltanto per documenti già autorizzati.
+Nessuna modifica distruttiva ai documenti TipTap esistenti.
+
+**CI isolata soltanto**: API HTTP per spostamento, archiviazione delle
+cartelle, riordino/icona e montaggio della UI originale ancora da completare.
+Non installare lo schema 018 sul VPS finché l'intero percorso non è collaudato.

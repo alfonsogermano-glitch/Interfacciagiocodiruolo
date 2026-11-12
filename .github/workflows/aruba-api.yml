@@ -230,6 +230,12 @@ jobs:
       - name: Verify folder depth, GM/shared scope and isolated ownership
         run: |
           docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_note_folders.sql
+      - name: Install campaign Note assignment and GM scope 018 (CI only)
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/018_vtt_campaign_note_folders_link.sql
+      - name: Verify Note folder isolation and GM notes invisible to players
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_note_folders_link.sql
       - name: Verify character draft isolation
         run: |
           docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_character_drafts.sql
