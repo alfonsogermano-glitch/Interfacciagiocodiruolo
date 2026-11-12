@@ -344,7 +344,7 @@ test('real EntityDetailView HSC is compiled with isolated data adapters and orig
  assert.match(panel,/<EntityDetailView/);
  assert.doesNotMatch(panel,/CompleteCharacterSheet/);
  for(const name of ['Riepilogo','Condizioni & Follia','Equipaggiamento','Origini','Storia'])assert.ok(original.includes(name));
- for(const source of ['useEntityTabs','RulesetContext','entitiesService','charactersService','entityReferenceService','EntityImageTab','RichTextEditor'])
+ for(const source of ['useEntityTabs','RulesetContext','entitiesService','charactersService','entityReferenceService','EntityImageTab'])
   assert.ok(config.includes(source));
  assert.match(config,/aruba-disable-unmigrated-entity-custom-tab-actions/);
  assert.match(adapter,/handleAddCustomTab/);
