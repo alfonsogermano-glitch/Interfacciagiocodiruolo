@@ -22,7 +22,7 @@ REVOKE ALL ON hollowgate_vtt.entity_notes FROM PUBLIC,hollowgate_api_runtime;
 
 CREATE OR REPLACE FUNCTION hollowgate_vtt.list_owned_character_notes(
  p_owner uuid,p_campaign uuid,p_character uuid)
-RETURNS TABLE(id uuid,tab_name text,content text,content_rich jsonb,position integer,
+RETURNS TABLE(id uuid,tab_name text,content text,content_rich jsonb,tab_position integer,
  hidden boolean,visibility text,created_at timestamptz,updated_at timestamptz)
 LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
  SELECT n.id,n.tab_name,n.content,n.content_rich,n.position,n.hidden,n.visibility,n.created_at,n.updated_at

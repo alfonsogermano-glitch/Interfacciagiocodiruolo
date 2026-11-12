@@ -26,7 +26,7 @@ BEGIN
   5,true,'private') INTO result_id;
  IF result_id IS DISTINCT FROM note THEN RAISE EXCEPTION 'Owner cannot modify note';END IF;
  SELECT count(*) INTO n FROM hollowgate_vtt.list_owned_character_notes(owner_a,campaign,character)
- WHERE id=note AND position=5 AND hidden AND visibility='private'
+ WHERE id=note AND tab_position=5 AND hidden AND visibility='private'
  AND content_rich->>'type'='doc' AND content='Contenuto';
  IF n<>1 THEN RAISE EXCEPTION 'Rich text was not saved';END IF;
  SELECT count(*) INTO n FROM hollowgate_vtt.list_owned_character_notes(owner_b,campaign,character);

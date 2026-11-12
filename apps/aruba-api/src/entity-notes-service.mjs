@@ -3,7 +3,7 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const safeId=(id,field)=>{if(typeof id!=='string'||!UUID.test(id))throw new CampaignRejected(field+' non valido',400);return id;};
 const mapped=row=>({
  id:row.id,tab_name:row.tab_name,content:row.content,content_rich:row.content_rich,
- position:row.position,hidden:row.hidden,visibility:row.visibility,
+ position:row.tab_position,hidden:row.hidden,visibility:row.visibility,
  created_at:row.created_at,updated_at:row.updated_at,
 });
 export function createEntityNotesService({pool}){
