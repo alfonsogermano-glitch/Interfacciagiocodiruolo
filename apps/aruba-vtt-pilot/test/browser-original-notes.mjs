@@ -65,7 +65,7 @@ function mockApi(page,{enabled=true,authorized=true}={}){
   if(path==='/vtt/characters'&&method==='GET')
    return send(route,200,{characters:store.characters});
   if(path==='/vtt/campaigns/'+campaign+'/roster'&&method==='GET')
-   return send(route,200,{members:[{userId:user,displayName:'GM di prova',role:'gm'}]});
+   return send(route,200,{members:[{userId:user,displayName:'GM di prova',role:'gm'},{userId:'2675f0a2-ad43-4f2d-ad01-6cfb9e8919b0',displayName:'Giocatore prova',role:'player'}]});
   if(path==='/vtt/campaigns'&&method==='GET')
    return send(route,200,{campaigns:[campaignRow]});
   if(path==='/vtt/campaign-note-folders'&&method==='GET')
@@ -179,6 +179,17 @@ try{
   await page.getByRole('button',{name:'Apri campagna'}).click();
   await page.getByRole('button',{name:'Entra nella campagna'}).click();
   await page.getByRole('region',{name:'Partecipanti campagna'}).waitFor();
+  const ownerRow=page.getByRole('region',{name:'Partecipante GM di prova'});
+  await ownerRow.waitFor();
+  assert.equal(await ownerRow.locator('[data-campaign-character-id="'+characterId+'"]').count(),1,
+   'A real GM-owned PG must appear under its verified owner');
+  assert.equal(await page.locator('[data-campaign-character-id="'+characterId+'"]').count(),1,
+   'No duplicate character card between Players and Personaggi sections');
+
+  await page.getByRole('region',{name:'Partecipante Giocatore prova'}).waitFor();
+  assert.equal(await page.getByRole('region',{name:'Partecipante Giocatore prova'})
+   .locator('[data-campaign-character-id]').count(),0,
+   'Do not fabricate a player assignment');
   await page.getByText('GM di prova').last().waitFor();
   const sessionRail=page.locator('[data-aruba-session-rail="true"]');
   await sessionRail.waitFor();

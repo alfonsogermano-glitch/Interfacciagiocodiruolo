@@ -11,7 +11,7 @@ import {ArubaNotesRoute} from './ArubaNotesRoute';
 import {ArubaSessionRightRail} from './ArubaSessionRightRail';
 import {ArubaSessionCharactersPanel} from './ArubaSessionCharactersPanel';
 import {ArubaCampaignCharacterCards,type SessionEntityOpenRequest} from './ArubaCampaignCharacterCards';
-import {ArubaCampaignRoster} from './ArubaCampaignRoster';
+import {ArubaCampaignPlayerRows} from './ArubaCampaignPlayerRows';
 import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,IdentificationBadgeIcon,GhostIcon,LightbulbIcon,BookmarkSimpleIcon,MapTrifoldIcon,ImageIcon,SwordIcon} from '@phosphor-icons/react';
 
 type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';campaignsEnabled:boolean;charactersEnabled:boolean;entityNotesEnabled:boolean;campaignNotesEnabled:boolean;campaignNoteFoldersEnabled:boolean;originalNotesPanelEnabled:boolean;campaignRosterEnabled:boolean};
@@ -199,8 +199,11 @@ function App(){
       <h1>{activeCampaign.name}</h1>
       <p className="muted">I comandi di sessione verranno attivati dopo la migrazione dei rispettivi servizi. La gestione GM rimane separata.</p>
       <button type="button" className="session-return" onClick={()=>{setSessionPanel(null);closeSessionCharacter();setSection('campaigns');}}>Torna alla gestione campagne</button>
-      {user.campaignRosterEnabled&&<ArubaCampaignRoster key={activeCampaign.id} campaignId={activeCampaign.id}/>}
-      {user.charactersEnabled&&<ArubaCampaignCharacterCards
+      {user.campaignRosterEnabled&&user.charactersEnabled&&
+       <ArubaCampaignPlayerRows key={activeCampaign.id} campaignId={activeCampaign.id}
+        ownerId={user.id} revision={characterCatalogRevision}
+        onOpenCharacter={openSessionCharacter}/>}
+      {user.charactersEnabled&&!user.campaignRosterEnabled&&<ArubaCampaignCharacterCards
        key={activeCampaign.id} campaignId={activeCampaign.id} ownerId={user.id}
        revision={characterCatalogRevision} onOpenCharacter={openSessionCharacter}/>}
 

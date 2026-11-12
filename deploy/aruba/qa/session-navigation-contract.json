@@ -145,7 +145,7 @@
     {
       "id": "owner-only-campaign-list",
       "state": "open",
-      "detail": "GM owner read-only roster now available behind server capability, with PostgreSQL authorization and revoked-member filtering. Player-owned campaign discovery and participation actions are not yet migrated."
+      "detail": "Owner-authorized roster and actual GM-owned active character cards are now combined in CampaignHome-like Players rows. Joined players without assigned PGs show empty rows; no character reassignment, joined-campaign discovery or player editing exists yet."
     },
     {
       "id": "session-workspace-missing",

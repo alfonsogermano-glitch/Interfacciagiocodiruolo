@@ -172,3 +172,21 @@ assente. **Non abilita** inviti, assegnazioni personaggi o presenza online.
 PNG e Mostri restano non migrati e non sono rappresentati con dati
 inventati. Questo è un incremento dell'API, non la conversione di
 `CampaignHome` né una certificazione grafica.
+
+## Integrazione 08 — Players raggruppati per proprietario reale (staging)
+
+L'elenco partecipanti e i PG attivi del GM sono ora combinati in
+righe simili alla sezione Players del `CampaignHome` originale.
+Il dato proviene esclusivamente dalle API cookie+SQL già verificate,
+senza introdurre proprietari artificiosi. I PG del GM compaiono sotto
+il GM, i membri giocatori senza schede restano visibili con un messaggio
+esplicito; non viene interpretata l'appartenenza alla campagna
+come assegnazione di un personaggio. Le card riutilizzano il vero
+`EntityCard`, con apertura del dettaglio contestuale e da tastiera.
+Quando il roster non è abilitato, rimane il comportamento PG precedente.
+
+**Attenzione:** manca ancora la migrazione di proprietà e assegnazioni
+PG dei giocatori, inclusa la distinzione fra precompilati disponibili,
+PG rivendicati, personaggi orfani e l'accesso delle campagne joined.
+Questo adattatore è un sottoinsieme corretto, non la
+`CampaignHome` completa. PNG, Mostri e realtime restano da migrare.
