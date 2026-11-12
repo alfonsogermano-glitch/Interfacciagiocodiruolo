@@ -4,26 +4,29 @@ const safeId=(id,field)=>{if(typeof id!=='string'||!UUID.test(id))throw new Camp
 const mapped=row=>({
  id:row.id,tab_name:row.tab_name,content:row.content,content_rich:row.content_rich,
  position:row.tab_position,hidden:row.hidden,visibility:row.visibility,
+ parent_note_id:row.parent_note_id??null,tab_order:row.tab_order??null,
  created_at:row.created_at,updated_at:row.updated_at,
 });
 export function createEntityNotesService({pool}){
  if(typeof pool?.query!=='function')throw new TypeError('PostgreSQL pool required');
- async function list(ownerId,campaignId,characterId){
+ async function list(ownerId,campaignId,characterId,parentId=null){
   safeId(ownerId,'Utente');safeId(campaignId,'Campagna');safeId(characterId,'Personaggio');
-  const {rows}=await pool.query('SELECT * FROM hollowgate_vtt.list_owned_character_notes($1,$2,$3)',
-   [ownerId,campaignId,characterId]);
+  if(parentId!==null)safeId(parentId,'Nota padre');
+  const {rows}=await pool.query('SELECT * FROM hollowgate_vtt.list_owned_character_notes_v2($1,$2,$3,$4)',
+   [ownerId,campaignId,characterId,parentId]);
   return {notes:rows.map(mapped)};
  }
  async function create(ownerId,campaignId,characterId,body){
   safeId(ownerId,'Utente');safeId(campaignId,'Campagna');safeId(characterId,'Personaggio');
   if(!body||typeof body!=='object'||Array.isArray(body)||
-    Object.keys(body).sort().join(',')!=='tabName'||
+    !['tabName','parentId,tabName'].includes(Object.keys(body).sort().join(','))||
+    (body.parentId!==undefined&&body.parentId!==null&&!UUID.test(body.parentId))||
     typeof body.tabName!=='string'||body.tabName.trim().length<1||body.tabName.trim().length>120)
    throw new CampaignRejected('Nome nota non valido',400);
-  const {rows}=await pool.query('SELECT hollowgate_vtt.create_owned_character_note($1,$2,$3,$4) AS id',
-   [ownerId,campaignId,characterId,body.tabName.trim()]);
+  const {rows}=await pool.query('SELECT hollowgate_vtt.create_owned_character_note_v2($1,$2,$3,$4,$5) AS id',
+   [ownerId,campaignId,characterId,body.tabName.trim(),body.parentId??null]);
   if(!rows[0]?.id)throw new CampaignRejected('Personaggio non trovato o non autorizzato',404);
-  const all=await list(ownerId,campaignId,characterId);
+  const all=await list(ownerId,campaignId,characterId,body.parentId??null);
   const note=all.notes.find(n=>n.id===rows[0].id);
   if(!note)throw new Error('Note not visible after insertion');
   return {note};
@@ -49,10 +52,19 @@ export function createEntityNotesService({pool}){
  }
  async function archive(ownerId,campaignId,characterId,noteId){
   [ownerId,campaignId,characterId,noteId].forEach((id,i)=>safeId(id,['Utente','Campagna','Personaggio','Nota'][i]));
-  const {rows}=await pool.query('SELECT hollowgate_vtt.archive_owned_character_note($1,$2,$3,$4) AS id',
+  const {rows}=await pool.query('SELECT hollowgate_vtt.archive_owned_character_note_v2($1,$2,$3,$4) AS id',
    [ownerId,campaignId,characterId,noteId]);
   if(!rows[0]?.id)throw new CampaignRejected('Nota non trovata o non autorizzata',404);
   return {archivedId:noteId};
  }
- return {list,create,save,archive};
+ async function setSubtabOrder(ownerId,campaignId,characterId,parentId,order){
+  [ownerId,campaignId,characterId,parentId].forEach((id,i)=>safeId(id,['Utente','Campagna','Personaggio','Nota padre'][i]));
+  if(!Array.isArray(order)||order.length>100||order.some(id=>typeof id!=='string'||!UUID.test(id))||
+    new Set(order).size!==order.length)throw new CampaignRejected('Ordine sottoschede non valido',400);
+  const {rows}=await pool.query('SELECT hollowgate_vtt.set_owned_note_subtab_order($1,$2,$3,$4,$5::jsonb) AS id',
+   [ownerId,campaignId,characterId,parentId,JSON.stringify(order)]);
+  if(!rows[0]?.id)throw new CampaignRejected('Sottoschede non autorizzate o ordine incoerente',404);
+  return {parentId,tabOrder:order};
+ }
+ return {list,create,save,archive,setSubtabOrder};
 }
