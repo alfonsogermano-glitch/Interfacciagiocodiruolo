@@ -206,6 +206,13 @@
       "source": "src/app/layout/AppShell.tsx",
       "pilot": "apps/aruba-vtt-pilot/src/styles.css",
       "reason": "Nessuna approvazione sistematica di overflow/wrap/modali e navigazione tastiera ai vari viewport."
+    },
+    {
+      "id": "session-right-rail",
+      "state": "divergente",
+      "source": "src/app/components/session/SessionRightSidebar.tsx",
+      "pilot": "apps/aruba-vtt-pilot/src/main.tsx",
+      "reason": "Original campaign-home uses a separate session rail with Chat/Schede/Note/Dadi plus GM Incontri/Combatti and a SlideOverPanel; pilot has a single GM dashboard rail and displays Notes as central route. Session player roles and cross-panel navigation are not restored."
     }
   ],
   "viewportChecks": [
@@ -243,6 +250,7 @@
     "mediaAnd3DVerified": false,
     "networkGMPlayerVerified": false,
     "accountReconciliationVerified": false,
-    "finalRollbackDrillPassed": false
+    "finalRollbackDrillPassed": false,
+    "sessionNavigationParityVerified": false
   }
 }

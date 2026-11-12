@@ -31,6 +31,8 @@ jobs:
           node --check apps/aruba-auth-web/app.mjs
       - name: Verify full-site migration audit inventory against original source
         run: node deploy/aruba/qa/verify-full-parity-audit.mjs
+      - name: Verify original campaign/session rail and contextual navigation
+        run: node deploy/aruba/qa/verify-session-navigation-contract.mjs
       - name: Test isolated auth browser flows
         run: node --test apps/aruba-auth-web/test/*.test.mjs
       - name: Test and build isolated Aruba React VTT lobby

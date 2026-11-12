@@ -49,6 +49,49 @@ L'inventario machine-readable è in `deploy/aruba/qa/full-parity-contract.json`.
 
 **6. Gate di pubblicazione.** Tutte le voci del JSON devono essere marcate `verificato` con evidenza reale e l'oggetto `acceptance` completamente `true`; `node deploy/aruba/qa/verify-full-parity-audit.mjs --release` deve terminare con codice 0; CI generale e Aruba verdi, screenshot approvati, backup/restore e piano rollback provati. Solo allora prendere in considerazione promozione su `main` e cutover.
 
+
+## Approfondimento 02 — Routing e due barre destre: divergente (verifica sorgenti)
+
+**Riferimenti:** `App.tsx` (gestione delle tre viste e passaggi di contesto);
+`GmSectionSidebar.tsx` (barra GM nella dashboard);
+`CampaignHome.tsx` (campagna, stato sessione, giocatori);
+`SessionRightSidebar.tsx` (barra sessione + pannello `SlideOverPanel`).
+Contratto machine-readable: `deploy/aruba/qa/session-navigation-contract.json`;
+validatore: `deploy/aruba/qa/verify-session-navigation-contract.mjs`.
+
+La **barra destra della dashboard** e la **barra destra della sessione**
+non sono intercambiabili. La prima mostra i 12 strumenti di gestione GM;
+non è presente nella dashboard quando il tab attivo è Personaggi o Campagne.
+La seconda mostra **Chat, Schede, Note, Dadi**, e soltanto al GM
+**Incontri, Combatti**. Il click sull'icona sessione apre il rispettivo
+`SlideOverPanel` sopra la vista campagna, invece di navigare alla
+pagina centrale. Il pannello Schede riceve `initialSelection` dalla
+card nella campagna, attraverso `App.openSessionEntity`. I collegamenti
+tra Note usano gli eventi originali `SESSION_NOTE_OPEN_EVENT` e
+`SESSION_NOTE_PICK_EVENT`. I pannelli di Chat, Schede, Note e Dadi
+hanno larghezze e resize specifici. La sessione attiva monta
+`SessionWorkspace` e può nascondere la barra sinistra.
+
+**Scostamenti Aruba confermati dal codice:** il pilot usa una barra destra
+GM unica, include una voce Note che apre una pagina centrale, limita
+`activeCampaign` alle sole campagne possedute dall'utente, non monta
+`CampaignHome`, `SessionWorkspace`, `SessionRightSidebar` e non
+usa la `TopBar` originale. Anche il collegamento card della campagna →
+Schede sessione non è riprodotto da un normale pannello di dettaglio
+dell'archivio Personaggi.
+
+**Conseguenza:** non spostare la barra delle Note dal pilot alla
+produzione mantenendo questo comportamento. La destinazione finale deve
+adattare la vera `SessionRightSidebar` o raggiungere l'identico
+comportamento e geometria sotto test; vietato sostituire il sistema
+con una pagina o una barra alternativa. Il layout originale è la base
+di screenshot, con i soli aggiornamenti nero/oro e icone concordati.
+
+Questa verifica è **strutturale** e non sostituisce test reali di
+realtime, giocatori e layout responsive. I sette scostamenti restano
+`open` fino a evidenze verificabili. Non toccare lo staging con
+questo audit.
+
 ## Limiti e prossimo lavoro
 
-Questa è la **prima ricognizione strutturale del codice**, non un'analisi conclusa file-per-file né una certificazione grafica. Il primo intervento successivo è la mappatura del routing e dei contesti sessione in `App.tsx`, `CampaignHome`, `TopBar` e `SessionRightSidebar`, poi le dipendenze e gli screenshot baseline. Non dichiarare percentuali inventate né promettere il 100% prima della verifica sistematica.
+Questa è la **prima ricognizione strutturale del codice**, non un'analisi conclusa file-per-file né una certificazione grafica. La mappatura del routing e dei contesti di sessione è stata aggiunta come secondo approfondimento. Restano da analizzare le dipendenze interne di `TopBar`, `CampaignHome` e `SessionWorkspace`, da riutilizzare con gli adattatori Aruba, quindi produrre screenshot baseline reali. Non dichiarare percentuali inventate né promettere il 100% prima della verifica sistematica.
