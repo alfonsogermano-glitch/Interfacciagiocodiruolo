@@ -172,3 +172,26 @@
 
 .aruba-entity-backdrop{position:fixed;inset:0;z-index:895;background:#0009}
 .aruba-entity-back-column button:disabled{opacity:.5;cursor:wait}
+
+/* Original SessionNotesPanel keeps its native splitter and both section
+   accordions; this only removes the catalog's outer padding in Aruba. */
+.workspace .main-workspace-row>.content:has(.aruba-original-notes-host){
+ padding:0;max-width:none;margin:0;display:flex;flex-direction:column;
+ min-height:0;overflow:hidden;
+}
+.aruba-original-notes-host{
+ flex:1 1 auto;min-height:0;min-width:0;width:100%;height:100%;
+ overflow:hidden;background:var(--dash-bg);color:var(--dash-text);
+}
+.aruba-original-notes-host [data-note-split-panel="true"]{
+ height:100%;min-height:0;min-width:0;
+}
+.aruba-original-notes-host [data-note-sidebar="true"]{
+ border-right:1px solid var(--dash-border-soft);
+ background:var(--dash-sidebar-bg);
+}
+@media(max-width:700px){
+ .aruba-original-notes-host [data-note-sidebar="true"]{
+  max-width:min(48vw,260px);
+ }
+}

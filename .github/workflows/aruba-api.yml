@@ -63,6 +63,12 @@ jobs:
             echo "Legacy Supabase endpoint found in original folder hook adapter" >&2
             exit 1
           fi
+          # The regular pilot must not bundle the original Notes panel until
+          # the separately verified capability is enabled for real staging.
+          if grep -R -l 'data-note-split-panel' ../../deploy/aruba/dist/vtt-pilot; then
+            echo "Original Notes panel unexpectedly present in default Aruba pilot" >&2
+            exit 1
+          fi
           test -f ../../deploy/aruba/dist/vtt-pilot/index.html
           # Ensure theme spacing variables survive Vite/Tailwind production build.
           css_file="$(find ../../deploy/aruba/dist/vtt-pilot/assets -name '*.css' -print -quit)"
