@@ -173,7 +173,17 @@ try{
   await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
   await page.getByRole('button',{name:'Apri scheda di Mara di prova'}).waitFor();
   await page.getByRole('button',{name:'Apri scheda di Mara di prova'}).click();
-  await page.locator('[data-entity-context="characters-detail"]').waitFor();
+  try{
+   await page.locator('[data-entity-context="characters-detail"]').waitFor({timeout:6000});
+  }catch(e){
+   console.error('CHARACTER_OPEN_DEBUG',JSON.stringify({
+    text:(await page.locator('body').innerText()).slice(0,1900),
+    errors,
+    count:await page.locator('[data-aruba-session-rail="true"]').count(),
+    requests:store.requests.slice(-12),
+   }));
+   throw e;
+  }
   assert.ok(store.requests.some(r=>r.path==='/vtt/characters'&&r.method==='GET'),
    'Session Schede must request owned campaign characters from Aruba');
   await page.locator('[data-entity-context="characters-detail"]')
