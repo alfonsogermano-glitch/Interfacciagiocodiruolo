@@ -83,9 +83,35 @@ export default defineConfig({
       if(!id.endsWith('/src/app/components/session/shared/EntityDetailView.tsx'))return null;
       const from='<EntityTabBar canEdit={canEdit} tabs={tabs} tabIndicators={tabIndicators} />';
       if(!code.includes(from))throw Error('Original EntityDetailView tab contract changed');
+      const fromRich=`{tabs.customTabs.map(tab =>
+            tabs.currentTab === tab.id && (canEdit || !tab.hidden) ? (
+              <RichTextEditor
+                key={tab.id}
+                legacyContent={tab.content}
+                richContent={tab.content_rich}
+                onChangeRich={(json) => tabs.handleCustomTabRichContentChange(tab.id, json)}
+                peerContents={tabs.customTabs.filter((peer) => peer.id !== tab.id).map((peer) => peer.content_rich)}
+                disabled={!canEdit}
+                placeholder="Scrivi qui..."
+                className="h-64 w-full overflow-y-auto rounded-[var(--note-block-radius)] border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-4 text-sm text-[var(--dash-text)] outline-none focus:border-[var(--dash-accent)]"
+                autoFocusOnSelect={tabs.pendingFocusTabId === tab.id}
+                onAutoFocusConsumed={() => tabs.clearPendingFocusTab(tab.id)}
+              />
+            ) : null
+          )}`;
+      if(!code.includes(fromRich))throw Error('Original custom note slot changed');
+      const replacement=`{tabs.customTabs.map(tab =>
+            tabs.currentTab === tab.id && (canEdit || !tab.hidden) ? (
+              <NoteSubTabs key={tab.id} note={tab} campaignId={campaignId}
+                accessToken={null} canEdit={canEdit}
+                onPersistSubTabOrder={order=>tabs.handlePersistSubTabOrder(tab.id,order)}/>
+            ) : null
+          )}`;
       return "import {ArubaEntityTabBar} from '@aruba-notes/ArubaNotesCapability';\n"+
+        "import {NoteSubTabs} from './NoteSubTabs';\n"+
         code.replace(from,
-         '<ArubaEntityTabBar canEdit={canEdit} tabs={tabs} tabIndicators={tabIndicators} />');
+         '<ArubaEntityTabBar canEdit={canEdit} tabs={tabs} tabIndicators={tabIndicators} />')
+         .replace(fromRich,replacement);
     }
   },react(),tailwindcss()],
   resolve:{alias:{

@@ -5,11 +5,13 @@ import {EntityTabBar} from '../../../src/app/components/session/shared/EntityTab
  * The original tab bar is preserved, but editable note operations stay
  * hidden until the authenticated API confirms the feature is enabled.
  */
-const Context=createContext(false);
-export function ArubaNotesProvider({enabled,children}:{enabled:boolean;children:ReactNode}){
- return <Context.Provider value={enabled}>{children}</Context.Provider>;
+type NotesContext={enabled:boolean;campaignId:string|null;characterId:string|null};
+const Context=createContext<NotesContext>({enabled:false,campaignId:null,characterId:null});
+export function ArubaNotesProvider({enabled,campaignId,characterId,children}:{enabled:boolean;campaignId:string;characterId:string;children:ReactNode}){
+ return <Context.Provider value={{enabled,campaignId,characterId}}>{children}</Context.Provider>;
 }
-export const useArubaNotesEnabled=()=>useContext(Context);
+export const useArubaNotesEnabled=()=>useContext(Context).enabled;
+export const useArubaNotesContext=()=>useContext(Context);
 export function ArubaEntityTabBar(props:ComponentProps<typeof EntityTabBar>){
  const enabled=useArubaNotesEnabled();
  return <EntityTabBar {...props} canEdit={enabled&&props.canEdit}/>;

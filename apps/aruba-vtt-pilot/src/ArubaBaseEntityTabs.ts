@@ -1,8 +1,8 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {useArubaNotesEnabled} from './ArubaNotesCapability';
+import {useArubaNotesContext} from './ArubaNotesCapability';
 import {registerArubaNoteWrite} from './ArubaNotesWriteRegistry.mjs';
 import {
- listArubaEntityNotes,createArubaEntityNote,saveArubaEntityNote,archiveArubaEntityNote,
+ listArubaEntityNotes,createArubaEntityNote,saveArubaEntityNote,archiveArubaEntityNote,setArubaSubtabOrder,
 } from './entity-notes-client.mjs';
 type BaseTab={id:string;label:string};
 type Note={id:string;tab_name:string;content:string;content_rich:Record<string,unknown>|null;
@@ -21,8 +21,14 @@ type Params={
 export function useEntityTabs({
  entityType,entityId,campaignId,canEdit=true,enabled=true,baseTabs,savedTabOrder,onPersistTabOrder,
 }:Params){
- const notesEnabled=useArubaNotesEnabled();
- const supported=notesEnabled&&enabled&&entityType==='character'&&!!entityId&&!!campaignId;
+ const notesContext=useArubaNotesContext();
+ const nested=entityType==='note';
+ const parentId=nested?entityId:null;
+ const scopeCharacterId=nested?notesContext.characterId:entityId;
+ const scopeCampaignId=nested?notesContext.campaignId:campaignId;
+ const supported=notesContext.enabled&&enabled&&
+  (entityType==='character'||entityType==='note')&&
+  !!entityId&&!!scopeCampaignId&&!!scopeCharacterId;
  const [customTabs,setCustomTabs]=useState<Note[]>([]);
  const [tabOrder,setTabOrder]=useState<string[]>(savedTabOrder??baseTabs.map(t=>t.id));
  const [currentTab,setCurrentTab]=useState(baseTabs[0]?.id??'');
@@ -44,12 +50,12 @@ export function useEntityTabs({
  useEffect(()=>{
   const seq=++generation.current;setNotes([]);setError(null);
   if(!supported)return;
-  void listArubaEntityNotes(fetch,campaignId!,entityId!).then(notes=>{
+  void listArubaEntityNotes(fetch,scopeCampaignId!,scopeCharacterId!,parentId).then(notes=>{
    if(seq!==generation.current)return;
    setNotes(notes as Note[]);
   }).catch(e=>{if(seq===generation.current)setError(e instanceof Error?e.message:'Errore caricamento Note');});
   return ()=>{generation.current++;};
- },[supported,campaignId,entityId]);
+ },[supported,scopeCampaignId,scopeCharacterId,parentId]);
  const orderedTabs=useMemo(()=>{
   const merged=[
    ...baseTabs.map(t=>({...t,isCustom:false,hidden:false})),
@@ -67,7 +73,7 @@ export function useEntityTabs({
   const previous=queueRef.current.get(id)??Promise.resolve();
   const next=previous.catch(()=>{}).then(task);
   queueRef.current.set(id,next);
-  registerArubaNoteWrite(campaignId!,entityId!,id,next);
+  registerArubaNoteWrite(scopeCampaignId!,scopeCharacterId!,id,next);
   void next.catch(fail);
   return next;
  };
@@ -78,18 +84,18 @@ export function useEntityTabs({
   setNotes(prev=>prev.map(n=>n.id===id?updated:n));
   return enqueue(id,async()=>{
    const latest=byId(id)??updated;
-   await saveArubaEntityNote(fetch,campaignId!,entityId!,id,latest);
+   await saveArubaEntityNote(fetch,scopeCampaignId!,scopeCharacterId!,id,latest);
   });
  };
  const reloadCustomTabs=useCallback(async()=>{
   if(!supported){setNotes([]);return;}
-  try{setNotes((await listArubaEntityNotes(fetch,campaignId!,entityId!)) as Note[]);setError(null);}
+  try{setNotes((await listArubaEntityNotes(fetch,scopeCampaignId!,scopeCharacterId!,parentId)) as Note[]);setError(null);}
   catch(e){fail(e);}
- },[supported,campaignId,entityId]);
+ },[supported,scopeCampaignId,scopeCharacterId,parentId]);
  const handleAddCustomTab=async(tabName='Nuova tab',opts?:{hidden?:boolean;visibility?:'all'|'private'})=>{
   if(!supported||!canEdit)return;
   try{
-   const row=await createArubaEntityNote(fetch,campaignId!,entityId!,tabName) as Note;
+   const row=await createArubaEntityNote(fetch,scopeCampaignId!,scopeCharacterId!,tabName,parentId) as Note;
    setNotes(prev=>[...prev,row]);
    setTabOrder(prev=>[...prev,row.id]);
    if(opts?.hidden||opts?.visibility==='private')
@@ -102,10 +108,10 @@ export function useEntityTabs({
   if(!supported||!canEdit)return;
   const source=byId(id);if(!source)return;
   try{
-   const created=await createArubaEntityNote(fetch,campaignId!,entityId!,source.tab_name+' (copia)') as Note;
+   const created=await createArubaEntityNote(fetch,scopeCampaignId!,scopeCharacterId!,source.tab_name+' (copia)',parentId) as Note;
    const cloned={...created,content:source.content,content_rich:source.content_rich,
     hidden:source.hidden,visibility:source.visibility,position:source.position+1};
-   await saveArubaEntityNote(fetch,campaignId!,entityId!,created.id,cloned);
+   await saveArubaEntityNote(fetch,scopeCampaignId!,scopeCharacterId!,created.id,cloned);
    setNotes(prev=>[...prev,cloned]);
    setTabOrder(prev=>[...prev,created.id]);setCurrentTab(created.id);
    setError(null);
@@ -121,13 +127,22 @@ export function useEntityTabs({
  };
  const handleSetNoteVisibility=(id:string,visibility:'all'|'private')=>
   {void persist(id,{visibility});};
+ const handlePersistSubTabOrder=(id:string,order:string[])=>{
+  const note=byId(id);
+  if(!supported||!canEdit||nested||!note)return;
+  const updated={...note,tab_order:order};
+  setNotes(prev=>prev.map(n=>n.id===id?updated:n));
+  void enqueue(id,async()=>{
+   await setArubaSubtabOrder(fetch,scopeCampaignId!,scopeCharacterId!,id,order);
+  });
+ };
  const handleDeleteCustomTab=async(id:string)=>{
   setConfirmDeleteTabId(null);
   if(!supported||!canEdit)return;
   try{
    const pending=queueRef.current.get(id);
    if(pending)await pending;
-   await archiveArubaEntityNote(fetch,campaignId!,entityId!,id);
+   await archiveArubaEntityNote(fetch,scopeCampaignId!,scopeCharacterId!,id);
    setNotes(prev=>prev.filter(n=>n.id!==id));
    setTabOrder(prev=>prev.filter(x=>x!==id));
    if(currentTab===id)setCurrentTab(baseTabs[0]?.id??'');
@@ -160,7 +175,7 @@ export function useEntityTabs({
   draggedTabId:null,dragOverId:null,tabsContainerRef,
   handlePointerDownTab:unavailable,handleAddCustomTab,
   handleDuplicateCustomTab,handleMoveCustomTabToFolder:unavailable,
-  handlePersistSubTabOrder:unavailable,handleRenameCustomTab,
+  handlePersistSubTabOrder,handleRenameCustomTab,
   handleToggleHideCustomTab,handleSetNoteVisibility,
   handleDeleteCustomTab,handleCustomTabContentChange,
   handleCustomTabRichContentChange,reloadCustomTabs,error,

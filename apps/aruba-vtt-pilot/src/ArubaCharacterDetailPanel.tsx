@@ -44,7 +44,7 @@ export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,notesE
   .finally(()=>{if(alive)setLoading(false);});
   return ()=>{alive=false;};
  },[characterId,campaignId,ownerId]);
- return <ArubaNotesProvider enabled={notesEnabled}><div className="aruba-entity-overlay" data-entity-context="characters-detail">
+ return <ArubaNotesProvider enabled={notesEnabled} campaignId={campaignId} characterId={characterId}><div className="aruba-entity-overlay" data-entity-context="characters-detail">
   <div className="aruba-entity-backdrop" role="presentation" onClick={()=>void requestClose()}/>
   <SlideOverPanel isOpen onClose={()=>void requestClose()} rightOffset="80px" widthClassName="w-full max-w-6xl">
     <div className="aruba-entity-slide-content">
