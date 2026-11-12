@@ -253,3 +253,16 @@ le sottocartelle salgono di un livello) oppure archivia l'intero sottoalbero
 con le sue Note e sotto-tab, preservando tutti i documenti TipTap.
 L'interfaccia originale non viene ancora montata: mancano gli endpoint
 e i controlli UI con conferma utente. Lo schema 019 non è sul VPS.
+
+## API icone/ordine e archiviazione cartelle — schema 019
+
+Le nuove rotte protette `PATCH /vtt/campaign-note-folders/presentation/:id`
+(`campaignId, icon, position`) e `DELETE /vtt/campaign-note-folders/:id`
+(`campaignId, cascade` booleano obbligatorio) usano esclusivamente le
+routine owner-only PostgreSQL 019. L'archiviazione è logica e non
+cancella i JSON TipTap. Le mutazioni richiedono cookie autenticato,
+Origin HTTPS esatto e payload whitelisted, senza `ownerId` o `role`.
+Come le altre cartelle, rimangono completamente inattive sul VPS
+senza il flag `AUTH_VTT_CAMPAIGN_NOTE_FOLDERS_ENABLED` e le migrazioni.
+La UI originale e il flusso ripristino dal Cestino richiedono
+ulteriore lavoro.

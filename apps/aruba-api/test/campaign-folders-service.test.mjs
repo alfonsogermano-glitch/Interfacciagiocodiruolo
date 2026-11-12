@@ -40,3 +40,35 @@ test('folder service refuses forged owner, scope, invalid parent and denied SQL 
  await assert.rejects(()=>folders.update(owner,folder,{campaignId:campaign,
   name:'X',parentId:null}),e=>e.status===404);
 });
+
+test('presentation and non-destructive archive enforce owner and explicit cascade',async()=>{
+ const calls=[];
+ const folders=createCampaignFoldersService({pool:{query:async(sql,args)=>{
+  calls.push([sql,args]);return {rows:[{id:folder}]};
+ }}});
+ assert.deepEqual(await folders.presentation(owner,folder,
+  {campaignId:campaign,icon:'book-open',position:12}),
+  {folderId:folder,icon:'book-open',position:12});
+ assert.match(calls[0][0],/set_owned_note_folder_presentation/);
+ assert.deepEqual(calls[0][1],[owner,campaign,folder,'book-open',12]);
+ assert.deepEqual(await folders.archive(owner,folder,{campaignId:campaign,cascade:false}),
+  {archivedId:folder,cascade:false});
+ assert.match(calls[1][0],/archive_owned_note_folder/);
+ assert.deepEqual(calls[1][1],[owner,campaign,folder,false]);
+ assert.deepEqual(await folders.archive(owner,folder,{campaignId:campaign,cascade:true}),
+  {archivedId:folder,cascade:true});
+ await assert.rejects(()=>folders.presentation(owner,folder,
+  {campaignId:campaign,icon:'x',position:-1}),e=>e.status===400);
+ await assert.rejects(()=>folders.presentation(owner,folder,
+  {campaignId:campaign,icon:null,position:0,ownerId:owner}),e=>e.status===400);
+ await assert.rejects(()=>folders.archive(owner,folder,
+  {campaignId:campaign,cascade:'true'}),e=>e.status===400);
+ await assert.rejects(()=>folders.archive(owner,folder,
+  {campaignId:campaign,cascade:false,role:'gm'}),e=>e.status===400);
+ assert.equal(calls.length,3,'Invalid requests must not reach PostgreSQL');
+ const denied=createCampaignFoldersService({pool:{query:async()=>({rows:[{id:null}]})}});
+ await assert.rejects(()=>denied.archive(owner,folder,
+  {campaignId:campaign,cascade:false}),e=>e.status===404);
+ await assert.rejects(()=>denied.presentation(owner,folder,
+  {campaignId:campaign,icon:null,position:0}),e=>e.status===404);
+});

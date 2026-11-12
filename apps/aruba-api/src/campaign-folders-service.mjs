@@ -53,5 +53,32 @@ export function createCampaignFoldersService({pool}){
    throw new CampaignRejected('Cartella non trovata o non autorizzata',404);
   return {folderId};
  }
- return {list,create,update};
+ async function presentation(ownerId,folderId,data){
+  id(ownerId,'Utente');id(folderId,'Cartella');
+  exact(data,['campaignId','icon','position']);
+  id(data.campaignId,'Campagna');
+  if(data.icon!==null&&(typeof data.icon!=='string'||data.icon.length>80)||
+   !Number.isInteger(data.position)||data.position<0||data.position>10000)
+   throw new CampaignRejected('Presentazione cartella non valida',400);
+  const {rows}=await pool.query(
+   'SELECT hollowgate_vtt.set_owned_note_folder_presentation($1,$2,$3,$4,$5) AS id',
+   [ownerId,data.campaignId,folderId,data.icon,data.position]);
+  if(rows[0]?.id!==folderId)
+   throw new CampaignRejected('Cartella non trovata o non autorizzata',404);
+  return {folderId,icon:data.icon,position:data.position};
+ }
+ async function archive(ownerId,folderId,data){
+  id(ownerId,'Utente');id(folderId,'Cartella');
+  exact(data,['campaignId','cascade']);
+  id(data.campaignId,'Campagna');
+  if(typeof data.cascade!=='boolean')
+   throw new CampaignRejected('Modalità archiviazione non valida',400);
+  const {rows}=await pool.query(
+   'SELECT hollowgate_vtt.archive_owned_note_folder($1,$2,$3,$4) AS id',
+   [ownerId,data.campaignId,folderId,data.cascade]);
+  if(rows[0]?.id!==folderId)
+   throw new CampaignRejected('Cartella non trovata o non autorizzata',404);
+  return {archivedId:folderId,cascade:data.cascade};
+ }
+ return {list,create,update,presentation,archive};
 }

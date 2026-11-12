@@ -88,7 +88,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
    ['listForMember','create','save','archive'].some(key=>typeof campaignNotes[key]!=='function')))
     throw new TypeError('Invalid campaign notes service');
   if(campaignFolders!==null && (!campaignNotes ||
-   ['list','create','update'].some(key=>typeof campaignFolders[key]!=='function')))
+   ['list','create','update','presentation','archive'].some(key=>typeof campaignFolders[key]!=='function')))
     throw new TypeError('Invalid campaign folders service');
   return async (req, res) => {
     try {
@@ -319,7 +319,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
       }
       // Campaign folder operations: authenticated session, isolated from PG tabs.
       // No client-provided role/owner/scope escalation. Explicit staging-only service.
-      if(campaignFolders && ['GET','POST','PATCH'].includes(req.method) &&
+      if(campaignFolders && ['GET','POST','PATCH','DELETE'].includes(req.method) &&
        (req.url==='/vtt/campaign-note-folders'||
         req.url?.startsWith('/vtt/campaign-note-folders?')||
         req.url?.startsWith('/vtt/campaign-note-folders/'))){
@@ -345,10 +345,24 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
             throw new HttpProblem(400,'Creazione cartella non valida');
           return response(res,201,await campaignFolders.create(user.id,body));
         }
+        if(req.method==='PATCH' &&
+          req.url?.startsWith('/vtt/campaign-note-folders/presentation/')){
+          const presentationId=req.url.slice('/vtt/campaign-note-folders/presentation/'.length);
+          if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(presentationId))
+            throw new HttpProblem(400,'Cartella non valida');
+          if(Object.keys(body).sort().join(',')!=='campaignId,icon,position')
+            throw new HttpProblem(400,'Presentazione cartella non valida');
+          return response(res,200,await campaignFolders.presentation(user.id,presentationId,body));
+        }
         const folderId=req.url?.startsWith('/vtt/campaign-note-folders/')?
           req.url.slice('/vtt/campaign-note-folders/'.length):'';
         if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(folderId))
           throw new HttpProblem(400,'Cartella non valida');
+        if(req.method==='DELETE'){
+          if(Object.keys(body).sort().join(',')!=='campaignId,cascade')
+            throw new HttpProblem(400,'Archiviazione cartella non valida');
+          return response(res,200,await campaignFolders.archive(user.id,folderId,body));
+        }
         if(Object.keys(body).sort().join(',')!=='campaignId,name,parentId')
           throw new HttpProblem(400,'Aggiornamento cartella non valido');
         return response(res,200,await campaignFolders.update(user.id,folderId,body));

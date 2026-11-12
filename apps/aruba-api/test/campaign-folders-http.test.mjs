@@ -34,6 +34,11 @@ test('folders HTTP scope comes only from session; no forged ownership, role or C
   list:async(...args)=>{calls.push(['list',...args]);return {folders:[]}},
   create:async(...args)=>{calls.push(['create',...args]);return {folderId:folder}},
   update:async(...args)=>{calls.push(['update',...args]);return {folderId:folder}},
+  presentation:async(...args)=>{calls.push(['presentation',...args]);return {folderId:folder}},
+  archive:async(...args)=>{
+   if(typeof args[2]?.cascade!=='boolean')throw Object.assign(new Error('Invalid cascade'),{status:400});
+   calls.push(['archive',...args]);return {archivedId:folder};
+  },
  };
  await withServer(folders,async base=>{
   const path=base+'/vtt/campaign-note-folders';
@@ -52,10 +57,26 @@ test('folders HTTP scope comes only from session; no forged ownership, role or C
    body:JSON.stringify({campaignId:campaign,name:'X',parentId:null})})).status,403);
   assert.equal((await fetch(path+'/'+folder,{method:'PATCH',headers:mutable,
    body:JSON.stringify({campaignId:campaign,name:'X',parentId:null})})).status,200);
+  const presentation=path+'/presentation/'+folder;
+  assert.equal((await fetch(presentation,{method:'PATCH',headers:{...mutable,
+   origin:'https://hostile.invalid'},body:JSON.stringify({campaignId:campaign,icon:null,position:0})})).status,403);
+  assert.equal((await fetch(presentation,{method:'PATCH',headers:mutable,
+   body:JSON.stringify({campaignId:campaign,icon:'notebook',position:2,ownerId:userId})})).status,400);
+  assert.equal((await fetch(presentation,{method:'PATCH',headers:mutable,
+   body:JSON.stringify({campaignId:campaign,icon:'notebook',position:2})})).status,200);
+  assert.equal((await fetch(path+'/'+folder,{method:'DELETE',headers:cookie})).status,403);
+  assert.equal((await fetch(path+'/'+folder,{method:'DELETE',headers:mutable,
+   body:JSON.stringify({campaignId:campaign,cascade:'false'})})).status,400);
+  assert.equal((await fetch(path+'/'+folder,{method:'DELETE',headers:mutable,
+   body:JSON.stringify({campaignId:campaign,cascade:false,role:'gm'})})).status,400);
+  assert.equal((await fetch(path+'/'+folder,{method:'DELETE',headers:mutable,
+   body:JSON.stringify({campaignId:campaign,cascade:true})})).status,200);
   const bootstrap=await fetch(base+'/vtt/bootstrap',{headers:cookie});
   assert.equal((await bootstrap.json()).capabilities.campaignNoteFolders.read,true);
  });
  assert.deepEqual(calls,[['list',userId,campaign,'shared'],
   ['create',userId,{campaignId:campaign,scope:'shared',name:'Archivio',parentId:null}],
-  ['update',userId,folder,{campaignId:campaign,name:'X',parentId:null}]]);
+  ['update',userId,folder,{campaignId:campaign,name:'X',parentId:null}],
+  ['presentation',userId,folder,{campaignId:campaign,icon:'notebook',position:2}],
+  ['archive',userId,folder,{campaignId:campaign,cascade:true}]]);
 });
