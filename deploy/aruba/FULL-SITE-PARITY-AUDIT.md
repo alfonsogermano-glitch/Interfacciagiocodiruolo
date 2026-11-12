@@ -92,6 +92,21 @@ realtime, giocatori e layout responsive. I sette scostamenti restano
 `open` fino a evidenze verificabili. Non toccare lo staging con
 questo audit.
 
+## Integrazione 03 — SlideOverPanel originale per Note (test browser)
+
+La build di prova usa ora direttamente `src/app/components/session/SlideOverPanel.tsx`
+per il pannello Note. Chromium verifica che il contenitore laterale originale
+esista, rimanga entro il viewport e risponda a Escape e al riclick.
+Il contenuto `SessionNotesPanel` e i relativi adapter TipTap/Aruba
+restano invariati. Il layout nero/oro eredita le variabili del pilot.
+
+**Parità ancora aperta:** la barra destra di sessione `SessionRightSidebar`
+completa non è ancora montata; il trigger Note si trova nel rail GM del
+pilot e il contesto centrale non è ancora `CampaignHome` /
+`SessionWorkspace`. Questo step elimina la sostituzione del
+contenitore laterale con una pagina Note centrale, **non** certifica
+la navigazione originale al 100%.
+
 ## Limiti e prossimo lavoro
 
 Questa è la **prima ricognizione strutturale del codice**, non un'analisi conclusa file-per-file né una certificazione grafica. La mappatura del routing e dei contesti di sessione è stata aggiunta come secondo approfondimento. Restano da analizzare le dipendenze interne di `TopBar`, `CampaignHome` e `SessionWorkspace`, da riutilizzare con gli adattatori Aruba, quindi produrre screenshot baseline reali. Non dichiarare percentuali inventate né promettere il 100% prima della verifica sistematica.

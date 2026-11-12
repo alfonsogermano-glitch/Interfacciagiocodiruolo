@@ -195,3 +195,25 @@
   max-width:min(48vw,260px);
  }
 }
+
+/* QA-only original session Notes overlay. Reuse the real SlideOverPanel
+   instead of presenting Notes as a central-page replacement. */
+.workspace .aruba-original-notes-host{
+ display:contents;
+}
+.workspace .aruba-original-notes-host [data-session-slide-over="true"]{
+ top:76px!important;bottom:0!important;right:80px!important;
+ width:min(1024px,calc(100vw - 180px))!important;
+ max-width:none;z-index:900;
+ background:#171612f5!important;
+ border-left:1px solid var(--dash-border-soft)!important;
+ color:var(--dash-text);
+}
+.workspace .aruba-original-notes-host [data-note-split-panel="true"]{
+ height:100%;min-height:0;width:100%;min-width:0;
+}
+@media(max-width:480px){
+ .workspace .aruba-original-notes-host [data-session-slide-over="true"]{
+  width:calc(100vw - 100px)!important;right:80px!important;
+ }
+}

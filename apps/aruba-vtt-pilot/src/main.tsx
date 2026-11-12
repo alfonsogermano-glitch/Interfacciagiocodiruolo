@@ -183,7 +183,8 @@ function App(){
     </>}
     {section==='notes'&&notesPanelReady&&activeCampaign&&
       <ArubaNotesRoute key={activeCampaign.id} campaignId={activeCampaign.id}
-       userId={user.id} ownerId={activeCampaign.ownerId}/>}
+       userId={user.id} ownerId={activeCampaign.ownerId}
+       onClose={()=>setSection('campaigns')}/>}
     {section==='notes'&&!notesPanelReady&&
       <div className="empty" role="status">Le Note originali saranno disponibili dopo l'abilitazione verificata delle API Aruba.</div>}
     {!['home','campaigns','characters','notes'].includes(section)&&<>
@@ -199,7 +200,7 @@ function App(){
   {section!=='characters'&&<aside className="gm-sidebar" aria-label="Strumenti Game Master">
    {gmMenu.filter(item=>item.id!=='notes'||notesPanelReady).map(({id,label,Icon},i)=><div key={id} className={id==='map'?'gm-group-break':''}>
     <button type="button" aria-label={label} aria-current={section===id?'page':undefined}
-      className={'gm-link'+(section===id?' active':'')} onClick={()=>{setSection(id);setEntityDetail(null);}}>
+      className={'gm-link'+(section===id?' active':'')} onClick={()=>{setSection(id==='notes'&&section==='notes'?'campaigns':id);setEntityDetail(null);}}>
       <Icon size={19} weight="duotone" aria-hidden="true"/><span>{label}</span>
     </button></div>)}
   </aside>}

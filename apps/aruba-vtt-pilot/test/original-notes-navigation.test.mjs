@@ -14,12 +14,17 @@ test('original Notes route is server gated and lives in the existing GM rail',()
  assert.match(app,/className=\{id==='map'\?'gm-group-break':''\}/,
   'original right rail group boundary must remain attached to map');
 });
-test('Notes route fills original two-column canvas and regular build stays disabled',()=>{
+test('Notes route uses the actual original SlideOverPanel and regular build stays disabled',()=>{
  const css=readFileSync(resolve(root,'src/styles.css'),'utf8');
  const vite=readFileSync(resolve(root,'vite.config.mjs'),'utf8');
  const defaultNotes=readFileSync(resolve(root,'src/ArubaOriginalNotesDisabled.tsx'),'utf8');
  assert.match(css,/\.content:has\(\.aruba-original-notes-host\)/);
  assert.match(css,/\[data-note-split-panel="true"\]/);
+ const route=readFileSync(resolve(root,'src/ArubaNotesRoute.tsx'),'utf8');
+ assert.match(route,/import \{SlideOverPanel\} from/);
+ assert.match(route,/<SlideOverPanel isOpen onClose=\{onClose\}/);
+ assert.match(css,/\[data-session-slide-over="true"\]/);
+
  assert.match(vite,/HG_CAMPAIGN_NOTES_CONTRACT==='1'/);
  assert.match(defaultNotes,/non attivato su questa build Aruba/);
 });

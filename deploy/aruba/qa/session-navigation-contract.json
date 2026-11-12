@@ -139,8 +139,8 @@
     },
     {
       "id": "notes-central-route",
-      "state": "open",
-      "detail": "Pilot notesPanelReady routes to a central ArubaNotesRoute; original uses SlideOverPanel in session right rail"
+      "state": "partially-addressed",
+      "detail": "Actual original SlideOverPanel now wraps Note panel with close/Escape, but Note remains a standalone GM nav destination: session-owned context rail still missing."
     },
     {
       "id": "owner-only-campaign-list",

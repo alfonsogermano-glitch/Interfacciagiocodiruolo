@@ -157,6 +157,14 @@ try{
   await page.getByRole('button',{name:'Apri campagna'}).click();
   await page.getByRole('button',{name:'Note',exact:true}).click();
   await page.locator('[data-note-split-panel="true"]').waitFor();
+  const slide=page.locator('[data-session-slide-over="true"]');
+  await slide.waitFor();
+  assert.equal(await slide.count(),1,'Real original SlideOverPanel must be mounted');
+  const slideBox=await slide.boundingBox();
+  assert.ok(slideBox&&slideBox.x>0&&slideBox.x+slideBox.width<=1441,
+   'Original Notes overlay must stay within 1440px viewport');
+  assert.ok(slideBox.width>=700,'Original Notes overlay must preserve editing width');
+
   await page.getByRole('button',{name:/Note della Campagna/}).waitFor();
   await page.getByRole('button',{name:/Note del GM/}).waitFor();
   await page.getByRole('button',{name:/Cestino/}).waitFor();
@@ -216,10 +224,18 @@ try{
   assert.ok(store.requests.some(r=>r.path==='/vtt/campaign-notes/trash/restore'&&
    r.body.itemId===archivedNote&&r.body.kind==='note'));
   assert.equal(await page.getByRole('button',{name:'Elimina definitivamente'}).count(),0);
-
+  // Original SlideOverPanel Escape closes its own panel and returns the
+  // pilot to the selected campaign instead of leaving a stale overlay.
+  await page.keyboard.press('Escape');
+  await slide.waitFor({state:'detached'});
+  assert.equal(await page.getByRole('button',{name:'Note',exact:true}).count(),1);
+  await page.getByRole('button',{name:'Note',exact:true}).click();
+  await slide.waitFor();
+  await page.getByRole('button',{name:'Note',exact:true}).click();
+  await slide.waitFor({state:'detached'});
   assert.equal(errors.length,0,'Browser runtime errors: '+errors.join('; '));
   await page.close();
  }
 }finally{await browser.close();}
 if(errors.length)throw Error('Browser console runtime errors: '+errors.join('; '));
-console.log('Original Hollowgate Notes browser QA passed: auth gating, GM rail, split panel, root/subtab creation, TipTap save, folder creation and trash restore.');
+console.log('Original Hollowgate Notes browser QA passed: auth gating, GM rail, original slide-over Escape/close, split panel, root/subtab creation, TipTap save, folder creation and trash restore.');
