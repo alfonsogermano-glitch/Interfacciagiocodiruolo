@@ -39,6 +39,12 @@ jobs:
           npm run build
           npm run test:original-folders
           npm run test:original-campaign-notes
+          npm run test:original-session-notes
+          test -d ../../deploy/aruba/dist/vtt-original-session-notes-contract
+          if grep -R -i -l 'supabase\\.co' ../../deploy/aruba/dist/vtt-original-session-notes-contract; then
+            echo "Old Supabase endpoint found in original SessionNotesPanel bundle" >&2
+            exit 1
+          fi
           test -d ../../deploy/aruba/dist/vtt-original-campaign-notes-contract
           if grep -R -i -l 'supabase\\.co' ../../deploy/aruba/dist/vtt-original-campaign-notes-contract; then
             echo "Legacy Supabase backend in original Campaign Notes contract" >&2

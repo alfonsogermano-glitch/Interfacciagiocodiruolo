@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import {fileURLToPath} from 'node:url';
 import {resolve,dirname} from 'node:path';
+import {maskArubaTrashRow,maskArubaSessionNotesTrashHeader} from './src/ArubaSafeNotesTransforms.mjs';
 const root=dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   root,
@@ -38,6 +39,19 @@ export default defineConfig({
         if(Object.hasOwn(isolated,id))return resolve(root,'src/'+isolated[id]);
       }
       if(process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1'){
+        if(importer?.endsWith('/src/app/components/session/SessionNotesPanel.tsx')){
+          if(id==='../../auth/AuthContext')return resolve(root,'src/ArubaCampaignNotesContext.tsx');
+          if(id==='../../campaigns/CampaignContext')return resolve(root,'src/ArubaOriginalPanelSession.tsx');
+          if(id==='./shared/useNotesTrash')return resolve(root,'src/ArubaOriginalNotesTrash.ts');
+        }
+        if(id==='../../../services/supabase/foldersService' &&
+         importer?.endsWith('/src/app/components/shared/useFolderSection.tsx'))
+          return resolve(root,'src/ArubaOriginalFolderService.ts');
+        if(id==='../../../../services/realtime/campaignChannel' &&
+         (importer?.endsWith('/src/app/components/shared/useFolderSection.tsx')||
+          importer?.endsWith('/src/app/components/session/shared/useCampaignNotesSection.tsx')))
+          return resolve(root,'src/ArubaNoLegacyCampaignRealtime.ts');
+
         if(id==='./useEntityTabs' &&
          (importer?.endsWith('/src/app/components/session/shared/useCampaignNotesSection.tsx')||
           importer?.endsWith('/src/app/components/session/shared/NoteSubTabs.tsx')||
@@ -95,6 +109,12 @@ export default defineConfig({
     name:'aruba-disable-unmigrated-entity-custom-tab-actions',
     enforce:'pre',
     transform(code,id){
+      if(process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1' &&
+       id.endsWith('/src/app/components/session/shared/TrashRow.tsx'))
+        return maskArubaTrashRow(code);
+      if(process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1' &&
+       id.endsWith('/src/app/components/session/SessionNotesPanel.tsx'))
+        return maskArubaSessionNotesTrashHeader(code);
       if(id.endsWith('/src/app/components/shared/useFolderSection.tsx')){
         const legacy='const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;';
         if(!code.includes(legacy))throw Error('Original folder hook backend contract changed');

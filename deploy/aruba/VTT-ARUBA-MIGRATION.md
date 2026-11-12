@@ -406,3 +406,22 @@ evitando risurrezioni indiscriminate.
 **Purge/empty trash disabilitati:** non esiste alcuna routine di
 cancellazione definitiva. Restore-all deve essere coordinato in
 ordine di dipendenze prima di esporlo. Nessuna attivazione sul VPS.
+
+## Original SessionNotesPanel e Cestino isolati (solo build, non produzione)
+
+L'adattatore `ArubaOriginalNotesTrash.ts` fornisce al vero
+`useNotesTrash` le chiamate per elenco e ripristino cookie-only.
+Gli aggiornamenti avvengono solo dopo la conferma del server e sono
+protetti da un generation guard in caso di cambio campagna/sessione.
+Le operazioni non supportate (`purgeNote`, `purgeFolder`,
+`emptyTrash`, `restoreAll`) falliscono esplicitamente.
+
+Il contratto Vite `test:original-session-notes` compila il
+**vero** `SessionNotesPanel` e `TrashRow` originali. Un transform
+fail-closed nasconde soltanto i comandi irreversibili e multipli,
+mantenendo sezioni Note GM/Campagna/Cestino, breadcrumb, anteprima e
+resize originale. Il codice storico non viene modificato.
+Questo bundle è di sola verifica, **non è montato in main.tsx**.
+Restano necessari l'adattamento pieno della sessione campagna,
+la persistenza delle preferenze di ordinamento sezione e un collaudo
+funzionale browser prima di attivarlo sul VPS.
