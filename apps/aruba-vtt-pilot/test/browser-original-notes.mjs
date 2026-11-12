@@ -157,7 +157,6 @@ try{
   // RichTextEditor should render from the real component.
   await page.locator('[contenteditable="true"]').first().waitFor();
   await page.locator('[contenteditable="true"]').first().fill('Test TipTap Aruba');
-  await page.waitForFunction(()=>false,{timeout:1}).catch(()=>{}); // no timers needed: observe network below
   await page.waitForTimeout(500);
   assert.ok(store.requests.some(r=>r.method==='PATCH'&&
    r.path==='/vtt/campaign-notes/'+secondNote&&
