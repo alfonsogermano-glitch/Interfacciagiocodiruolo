@@ -63,6 +63,7 @@ export default defineConfig({
   resolve:{alias:{
     react:resolve(root,'node_modules/react'),
     'lucide-react':resolve(root,'node_modules/lucide-react'),
+    '@':resolve(root,'../../src'),
   }},
   base:'/vtt/',
   build:{
