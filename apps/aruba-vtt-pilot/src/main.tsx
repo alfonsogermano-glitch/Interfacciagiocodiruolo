@@ -186,7 +186,7 @@ function App(){
     </>}
    </main>
   {section!=='characters'&&<aside className="gm-sidebar" aria-label="Strumenti Game Master">
-   {gmMenu.map(({id,label,Icon},i)=><div key={id} className={i===7?'gm-group-break':''}>
+   {gmMenu.map(({id,label,Icon},i)=><div key={id} className={id==='map'?'gm-group-break':''}>
     <button type="button" aria-label={label} aria-current={section===id?'page':undefined}
       className={'gm-link'+(section===id?' active':'')} onClick={()=>{setSection(id);setEntityDetail(null);}}>
       <Icon size={19} weight="duotone" aria-hidden="true"/><span>{label}</span>

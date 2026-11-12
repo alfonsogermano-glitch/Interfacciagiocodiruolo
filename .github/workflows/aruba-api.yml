@@ -40,6 +40,12 @@ jobs:
           npm run test:original-folders
           npm run test:original-campaign-notes
           npm run test:original-session-notes
+          npm run test:notes-navigation
+          test -f ../../deploy/aruba/dist/vtt-notes-navigation-preview/index.html
+          if grep -R -i -l 'supabase\\.co' ../../deploy/aruba/dist/vtt-notes-navigation-preview; then
+            echo "Legacy Supabase backend found in mounted original Notes preview" >&2
+            exit 1
+          fi
           test -d ../../deploy/aruba/dist/vtt-original-session-notes-contract
           if grep -R -i -l 'supabase\\.co' ../../deploy/aruba/dist/vtt-original-session-notes-contract; then
             echo "Old Supabase endpoint found in original SessionNotesPanel bundle" >&2

@@ -21,6 +21,11 @@ export function validateBootstrap(data){
     (c.campaignNotes!==undefined&&(typeof c.campaignNotes.read!=='boolean'||
       c.campaignNotes.read!==c.campaignNotes.write||
       (c.campaignNotes.read&&!c.campaigns.read)))||
+    (c.originalNotesPanel!==undefined&&(
+      typeof c.originalNotesPanel.read!=='boolean'||
+      c.originalNotesPanel.read!==c.originalNotesPanel.write||
+      (c.originalNotesPanel.read&&(
+        c.campaignNotes?.read!==true||c.campaignNoteFolders?.read!==true))))||
     (c.campaignNoteFolders!==undefined&&(
       typeof c.campaignNoteFolders.read!=='boolean'||
       c.campaignNoteFolders.read!==c.campaignNoteFolders.write||
@@ -33,6 +38,7 @@ export function validateBootstrap(data){
     entityNotesEnabled:c.entityNotes?.read===true,
     campaignNotesEnabled:c.campaignNotes?.read===true,
     campaignNoteFoldersEnabled:c.campaignNoteFolders?.read===true,
+    originalNotesPanelEnabled:c.originalNotesPanel?.read===true,
   });
 }
 export async function loadPilotSession(fetchImpl){

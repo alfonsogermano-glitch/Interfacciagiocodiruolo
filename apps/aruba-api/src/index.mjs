@@ -101,7 +101,15 @@ async function main() {
     if(campaignFoldersFlag==='true' && !campaignNotes)
       throw new Error('Campaign Note folders require campaign Notes');
     const campaignFolders=campaignFoldersFlag==='true'?createCampaignFoldersService({pool}):null;
-    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters,entityNotes,campaignNotes,campaignFolders});
+    const notesPanelFlag=process.env.AUTH_VTT_ORIGINAL_NOTES_PANEL_ENABLED;
+    if(notesPanelFlag && !['true','false'].includes(notesPanelFlag))
+      throw new Error('Unsupported AUTH_VTT_ORIGINAL_NOTES_PANEL_ENABLED value');
+    if(notesPanelFlag==='true' && (!campaignNotes||!campaignFolders))
+      throw new Error('Original Notes panel requires campaign Notes and folders');
+    const notesPanelEnabled=notesPanelFlag==='true';
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters,entityNotes,campaignNotes,campaignFolders,notesPanelEnabled});
+  } else if (process.env.AUTH_VTT_ORIGINAL_NOTES_PANEL_ENABLED === 'true') {
+    throw new Error('Original Notes panel requires dedicated auth staging');
   } else if (process.env.AUTH_VTT_CAMPAIGN_NOTE_FOLDERS_ENABLED === 'true') {
     throw new Error('Campaign Note folders require dedicated staging');
   } else if (process.env.AUTH_VTT_CAMPAIGN_NOTES_ENABLED === 'true') {

@@ -64,7 +64,9 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null,campaignNotes = null,campaignFolders = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false }) {
+  if(typeof notesPanelEnabled!=='boolean'||(notesPanelEnabled&&(!campaignNotes||!campaignFolders)))
+    throw new TypeError('Original Notes panel requires both authenticated Notes and folders');
   const allowedOrigin = new URL(origin);
   if (allowedOrigin.protocol !== 'https:' || allowedOrigin.origin !== origin ||
       !allowedOrigin.hostname) throw new TypeError('HTTPS origin required');
@@ -430,6 +432,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
             entityNotes:{read:!!entityNotes,write:!!entityNotes},
             campaignNotes:{read:!!campaignNotes,write:!!campaignNotes},
             campaignNoteFolders:{read:!!campaignFolders,write:!!campaignFolders},
+            originalNotesPanel:{read:notesPanelEnabled,write:notesPanelEnabled},
             gameSession:false,
           },
         });

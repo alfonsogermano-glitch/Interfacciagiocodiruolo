@@ -108,6 +108,7 @@ test('VTT pilot bootstrap only accepts an active Aruba cookie; game capabilities
         entityNotes:{read:false,write:false},
         campaignNotes:{read:false,write:false},
         campaignNoteFolders:{read:false,write:false},
+        originalNotesPanel:{read:false,write:false},
         gameSession:false,
       },
     });
@@ -115,4 +116,11 @@ test('VTT pilot bootstrap only accepts an active Aruba cookie; game capabilities
     assert.equal((await fetch(base+'/vtt/bootstrap?userId=other',{headers:{cookie:'__Host-hg_session='+TOKEN}})).status,404);
     assert.equal((await fetch(base+'/vtt/bootstrap',{method:'POST',headers:{cookie:'__Host-hg_session='+TOKEN}})).status,404);
   });
+});
+
+test('original Notes panel bootstrap cannot advertise disabled backend dependencies',()=>{
+ assert.throws(()=>createAuthHttpHandler({
+  origin,login:async()=>{},getSessionUser:async()=>null,revokeSession:async()=>{},
+  notesPanelEnabled:true,
+ }),/requires both/);
 });

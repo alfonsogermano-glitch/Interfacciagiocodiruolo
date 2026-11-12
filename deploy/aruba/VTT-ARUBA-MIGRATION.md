@@ -425,3 +425,21 @@ Questo bundle è di sola verifica, **non è montato in main.tsx**.
 Restano necessari l'adattamento pieno della sessione campagna,
 la persistenza delle preferenze di ordinamento sezione e un collaudo
 funzionale browser prima di attivarlo sul VPS.
+
+## Original Notes in real Aruba navigation — isolated preview
+
+The existing GM right-hand rail is unchanged except for a **server-gated**
+"Note" entry after "Schede". No button appears until
+`originalNotesPanel`, `campaignNotes` and `campaignNoteFolders`
+all arrive enabled from the authenticated `/vtt/bootstrap` response and
+the user has an actively selected owned campaign.
+The feature gate `AUTH_VTT_ORIGINAL_NOTES_PANEL_ENABLED` is **false by
+default**, and requires a separate dedicated staging environment with
+migrations 015–025 applied; it rejects dependencies that are disabled.
+
+The regular `vite build` resolves a fail-closed placeholder rather
+than bundling the original Notes runtime. The separate
+`npm run test:notes-navigation` assembles the **real full App** and its
+original `SessionNotesPanel`, isolated Note tabs and trash via
+`vite.notes-navigation.config.mjs`, then scans the bundle for legacy
+Supabase URLs. This is a QA artifact, not a VPS or production deploy.
