@@ -60,7 +60,15 @@ try{
  await region.getByRole('button',{name:'Campagna di prova'}).waitFor();
  const opener=region.getByRole('button',{name:'Apri scheda assegnata di Mara'});
  await opener.click();
- await page.locator('[data-entity-context="player-assigned-detail"]').waitFor();
+ try{await page.locator('[data-entity-context="player-assigned-detail"]').waitFor({timeout:8000});}
+ catch(e){
+  console.error('PLAYER_DETAIL_DEBUG',JSON.stringify({
+   openerCount:await opener.count(),overlayCount:await page.locator('[data-entity-context="player-assigned-detail"]').count(),
+   body:(await page.locator('body').innerText()).slice(0,1600),
+   errors,requests,
+  }));
+  throw e;
+ }
  await page.getByRole('region',{name:'Scheda di Mara'}).waitFor();
  assert.equal(await page.getByRole('button',{name:'Riprova salvataggio'}).count(),0);
  assert.equal(await page.getByRole('button',{name:/Archivia/}).count(),0);

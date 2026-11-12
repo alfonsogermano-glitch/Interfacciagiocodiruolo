@@ -58,10 +58,10 @@ export function ArubaAssignedCharacterPanel(){
    {characters.map(c=><div role="button" tabIndex={0} key={c.id}
      className="aruba-player-character-open" data-player-character-id={c.id}
      aria-label={'Apri scheda assegnata di '+c.name}
+     onClick={()=>setOpenId(c.id)}
      onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setOpenId(c.id);}}}>
     <EntityCard name={c.name}
-     subtitle={[c.sheetData.style,c.sheetData.viaggio].filter(Boolean).join(' · ')}
-     onClick={()=>setOpenId(c.id)}/>
+     subtitle={[c.sheetData.style,c.sheetData.viaggio].filter(Boolean).join(' · ')}/>
    </div>)}
   </div>}
   {selected&&original&&<div className="aruba-entity-overlay" data-entity-context="player-assigned-detail">
