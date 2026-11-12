@@ -9,6 +9,7 @@ import {ArubaCharacterDrafts} from './ArubaCharacterDrafts';
 import {ArubaCharacterDetailPanel} from './ArubaCharacterDetailPanel';
 import {ArubaNotesRoute} from './ArubaNotesRoute';
 import {ArubaSessionRightRail} from './ArubaSessionRightRail';
+import {ArubaSessionCharactersPanel} from './ArubaSessionCharactersPanel';
 import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,IdentificationBadgeIcon,GhostIcon,LightbulbIcon,BookmarkSimpleIcon,MapTrifoldIcon,ImageIcon,SwordIcon} from '@phosphor-icons/react';
 
 type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';campaignsEnabled:boolean;charactersEnabled:boolean;entityNotesEnabled:boolean;campaignNotesEnabled:boolean;campaignNoteFoldersEnabled:boolean;originalNotesPanelEnabled:boolean};
@@ -40,7 +41,8 @@ const menu=[...leftMenu,...gmMenu];
 function App(){
  const [status,setStatus]=useState<Status>({state:'loading'});
  const [section,setSection]=useState<Section>('home');
- const [sessionNotesOpen,setSessionNotesOpen]=useState(false);
+ const [sessionPanel,setSessionPanel]=useState<'notes'|'characters'|null>(null);
+ const [sessionCharacterId,setSessionCharacterId]=useState<string|null>(null);
  // Same architectural contract as original App.tsx/rightSidebarContext.
  // Detail selection belongs to App, not to the catalog or a legacy inline sheet.
  const [entityDetail,setEntityDetail]=useState<{kind:'characters-detail';entityType:'character';id:string;campaignId:string}|null>(null);
@@ -68,7 +70,7 @@ function App(){
   user.campaignNoteFoldersEnabled&&activeCampaign&&activeCampaign.ownerId===user.id);
  function openCampaign(id:string){
   if(!user?.campaignsEnabled||!campaigns.some(c=>c.id===id&&c.ownerId===user.id))return;
-  setActiveCampaignId(id);setSection('campaigns');setSessionNotesOpen(false);setEntityDetail(null);
+  setActiveCampaignId(id);setSection('campaigns');setSessionPanel(null);setSessionCharacterId(null);setEntityDetail(null);
  }
  useEffect(()=>{
   if(!user?.campaignsEnabled)return;
@@ -131,7 +133,7 @@ function App(){
     {leftMenu.map(({id,label,Icon})=><button key={id} type="button" aria-label={label}
       aria-current={section===id?'page':undefined}
       className={'primary-link'+(section===id?' active':'')}
-      onClick={()=>{setSection(id);setSessionNotesOpen(false);setEntityDetail(null);}}><Icon size={22} weight="duotone" aria-hidden="true"/><span>{label}</span></button>)}
+      onClick={()=>{setSection(id);setSessionPanel(null);setSessionCharacterId(null);setEntityDetail(null);}}><Icon size={22} weight="duotone" aria-hidden="true"/><span>{label}</span></button>)}
    </nav>
    <div className="primary-campaigns" aria-label="Campagne">
     {campaigns.slice(0,4).map(c=><button key={c.id} type="button" title={c.name}
@@ -173,7 +175,7 @@ function App(){
        <button type="button" onClick={()=>setShowCreate(true)} disabled={!user.campaignsEnabled}>+ Nuova campagna</button></div>
       {campaignError&&<p className="error" role="alert">{campaignError}</p>}
       <CampaignList campaigns={campaigns} loading={campaignLoading} enabled={user.campaignsEnabled} activeId={activeCampaignId} onOpen={openCampaign}/>
-      {activeCampaign&&<section className="selected-campaign" aria-label="Campagna selezionata"><div className="overline">CAMPAGNA SELEZIONATA · GAME MASTER</div><h2>{activeCampaign.name}</h2><p>{activeCampaign.description||'Nessuna descrizione'}</p><p>Regolamento: {RULESETS[activeCampaign.ruleset as keyof typeof RULESETS]}</p><p className="footnote">La campagna è stata riletta dall’API Aruba. L'editor originale HSC è ora collegato ad Aruba nella sezione Personaggi. Note, mappe e sessioni restano da migrare.</p><button type="button" onClick={()=>{setSessionNotesOpen(false);setSection('session');}}>Entra nella campagna</button><button type="button" onClick={()=>setShowEdit(true)}>Modifica nome e descrizione</button><button type="button" onClick={()=>{setActiveCampaignId(null);setSessionNotesOpen(false);setShowEdit(false);}}>Chiudi selezione</button></section>}
+      {activeCampaign&&<section className="selected-campaign" aria-label="Campagna selezionata"><div className="overline">CAMPAGNA SELEZIONATA · GAME MASTER</div><h2>{activeCampaign.name}</h2><p>{activeCampaign.description||'Nessuna descrizione'}</p><p>Regolamento: {RULESETS[activeCampaign.ruleset as keyof typeof RULESETS]}</p><p className="footnote">La campagna è stata riletta dall’API Aruba. L'editor originale HSC è ora collegato ad Aruba nella sezione Personaggi. Note, mappe e sessioni restano da migrare.</p><button type="button" onClick={()=>{setSessionPanel(null);setSection('session');}}>Entra nella campagna</button><button type="button" onClick={()=>setShowEdit(true)}>Modifica nome e descrizione</button><button type="button" onClick={()=>{setActiveCampaignId(null);setSessionPanel(null);setShowEdit(false);}}>Chiudi selezione</button></section>}
       {user.campaignsEnabled&&<p className="footnote">Le campagne Aruba sono nuove e separate dai dati storici Supabase. Le partecipazioni dei giocatori non sono ancora abilitate.</p>}
     </>}
     {section==='characters'&&<>
@@ -186,11 +188,15 @@ function App(){
       <div className="overline">CAMPAGNA · CONTESTO SESSIONE</div>
       <h1>{activeCampaign.name}</h1>
       <p className="muted">I comandi di sessione verranno attivati dopo la migrazione dei rispettivi servizi. La gestione GM rimane separata.</p>
-      <button type="button" className="session-return" onClick={()=>{setSessionNotesOpen(false);setSection('campaigns');}}>Torna alla gestione campagne</button>
-      {sessionNotesOpen&&notesPanelReady&&
+      <button type="button" className="session-return" onClick={()=>{setSessionPanel(null);setSection('campaigns');}}>Torna alla gestione campagne</button>
+      {sessionPanel==='notes'&&notesPanelReady&&
        <ArubaNotesRoute key={activeCampaign.id} campaignId={activeCampaign.id}
         userId={user.id} ownerId={activeCampaign.ownerId}
-        onClose={()=>setSessionNotesOpen(false)}/>}
+        onClose={()=>setSessionPanel(null)}/>}
+      {sessionPanel==='characters'&&user.charactersEnabled&&
+       <ArubaSessionCharactersPanel campaignId={activeCampaign.id}
+        ownerId={user.id} onClose={()=>setSessionPanel(null)}
+        onOpenCharacter={id=>setSessionCharacterId(id)}/>}
     </>}
     {!['home','campaigns','characters','session'].includes(section)&&<>
       <div className="overline">STRUMENTI DI GIOCO</div>
@@ -204,17 +210,27 @@ function App(){
    </main>
   {section==='session'&&activeCampaign?
     <ArubaSessionRightRail notesEnabled={notesPanelReady}
-     activePanel={sessionNotesOpen?'notes':null}
-     onToggleNotes={()=>setSessionNotesOpen(value=>!value)}/>:
+     charactersEnabled={!!user.charactersEnabled}
+     activePanel={sessionPanel}
+     onToggleNotes={()=>setSessionPanel(value=>value==='notes'?null:'notes')}
+     onToggleCharacters={()=>setSessionPanel(value=>value==='characters'?null:'characters')}/>:
    section!=='characters'&&<aside className="gm-sidebar" aria-label="Strumenti Game Master">
    {gmMenu.map(({id,label,Icon},i)=><div key={id} className={id==='map'?'gm-group-break':''}>
     <button type="button" aria-label={label} aria-current={section===id?'page':undefined}
-      className={'gm-link'+(section===id?' active':'')} onClick={()=>{setSection(id);setSessionNotesOpen(false);setEntityDetail(null);}}>
+      className={'gm-link'+(section===id?' active':'')} onClick={()=>{setSection(id);setSessionPanel(null);setEntityDetail(null);}}>
       <Icon size={19} weight="duotone" aria-hidden="true"/><span>{label}</span>
     </button></div>)}
   </aside>}
    </div>
   </div>
+  {section==='session'&&activeCampaign&&sessionCharacterId&&user.charactersEnabled&&
+   <ArubaCharacterDetailPanel key={activeCampaign.id+':'+sessionCharacterId}
+    characterId={sessionCharacterId} campaignId={activeCampaign.id}
+    ownerId={user.id} notesEnabled={user.entityNotesEnabled}
+    onClose={()=>setSessionCharacterId(null)}
+    onChanged={()=>setCharacterCatalogRevision(n=>n+1)}
+    onArchived={()=>{setCharacterCatalogRevision(n=>n+1);setSessionCharacterId(null);}}
+   />}
   {section==='characters'&&entityDetail&&user.charactersEnabled&&
    <ArubaCharacterDetailPanel key={entityDetail.campaignId+':'+entityDetail.id}
     characterId={entityDetail.id} campaignId={entityDetail.campaignId} ownerId={user.id} notesEnabled={user.entityNotesEnabled}

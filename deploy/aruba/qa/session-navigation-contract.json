@@ -164,8 +164,8 @@
     },
     {
       "id": "contextual-character-open",
-      "state": "open",
-      "detail": "Original campaign card request opens SessionCharactersPanel inside SlideOverPanel; pilot has an independent global character detail route"
+      "state": "partially-addressed",
+      "detail": "Session Schede now loads campaign characters via Aruba and opens the original EntityDetailView/rail. The full original SessionCharactersPanel, NPCs, monsters, player membership and cross-panel card event routing remain pending."
     }
   ],
   "futureEvidence": {

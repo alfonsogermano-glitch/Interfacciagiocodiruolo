@@ -11,6 +11,7 @@ const initialNote='fab34aae-beaf-4bca-9cce-9b497e114b94';
 const secondNote='cf317f44-a915-4839-8cd6-9c8c2295599d';
 const archivedNote='af3aa8a5-6333-4cbb-b2f1-ecbb394542e6';
 const folderId='46fb111f-61b3-4a60-b122-54e8d7689c0e';
+const characterId='eeaa5632-f050-4eb4-a0f4-3981443bf19e';
 const campaignRow={
  id:campaign,ownerId:user,name:'Campagna prova Note',description:'Solo browser test',
  ruleset:'hsc',createdAt:'2026-11-12T00:00:00.000Z',
@@ -33,7 +34,9 @@ const send=(route,status,body)=>route.fulfill({
  headers:{'cache-control':'no-store'},body:JSON.stringify(body),
 });
 function mockApi(page,{enabled=true,authorized=true}={}){
- const store={notes:[],trash:[],folders:[],requests:[],next:0};
+ const store={notes:[],trash:[],folders:[],requests:[],next:0,
+  characters:[{id:characterId,campaignId:campaign,ownerId:user,name:'Mara di prova',
+   status:'active',sheetData:{name:'Mara di prova'}}]};
  page.route('**/vtt/**',async route=>{
   const request=route.request(),url=new URL(request.url());
   const path=url.pathname,method=request.method();
@@ -47,6 +50,8 @@ function mockApi(page,{enabled=true,authorized=true}={}){
   if(path==='/vtt/bootstrap')return send(route,authorized?200:401,
    authorized?capability(enabled):{error:'Non autenticato'});
   if(!authorized)return send(route,401,{error:'Non autenticato'});
+  if(path==='/vtt/characters'&&method==='GET')
+   return send(route,200,{characters:store.characters});
   if(path==='/vtt/campaigns'&&method==='GET')
    return send(route,200,{campaigns:[campaignRow]});
   if(path==='/vtt/campaign-note-folders'&&method==='GET')
@@ -161,9 +166,21 @@ try{
   await page.getByRole('button',{name:'Entra nella campagna'}).click();
   const sessionRail=page.locator('[data-aruba-session-rail="true"]');
   await sessionRail.waitFor();
-  for(const label of ['Chat','Schede','Dadi','Incontri','Combatti'])
+  for(const label of ['Chat','Dadi','Incontri','Combatti'])
    assert.equal(await sessionRail.getByRole('button',{name:label,exact:true}).isDisabled(),true,
     label+' must not pretend to be migrated');
+  assert.equal(await sessionRail.getByRole('button',{name:'Schede',exact:true}).isEnabled(),true);
+  await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
+  await page.getByRole('button',{name:'Apri scheda di Mara di prova'}).waitFor();
+  await page.getByRole('button',{name:'Apri scheda di Mara di prova'}).click();
+  await page.locator('[data-entity-context="characters-detail"]').waitFor();
+  assert.ok(store.requests.some(r=>r.path==='/vtt/characters'&&r.method==='GET'),
+   'Session Schede must request owned campaign characters from Aruba');
+  await page.locator('[data-entity-context="characters-detail"]')
+   .getByRole('button',{name:/Torna ai personaggi/}).click();
+  await page.locator('[data-entity-context="characters-detail"]').waitFor({state:'detached'});
+  await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
+  await page.locator('.aruba-session-characters-host').waitFor({state:'detached'});
   assert.equal(await sessionRail.getByRole('button',{name:'Note',exact:true}).isEnabled(),true);
   assert.equal(await page.getByRole('button',{name:'Capitoli e Scene',exact:true}).count(),0);
   await page.getByRole('button',{name:'Note',exact:true}).click();
@@ -249,4 +266,4 @@ try{
  }
 }finally{await browser.close();}
 if(errors.length)throw Error('Browser console runtime errors: '+errors.join('; '));
-console.log('Original Hollowgate Notes browser QA passed: auth gating, session rail, original slide-over Escape/close, split panel, root/subtab creation, TipTap save, folder creation and trash restore.');
+console.log('Original Hollowgate Notes browser QA passed: auth gating, session rail, original slide-over Escape/close, split panel, session character card/detail, root/subtab creation, TipTap save, folder creation and trash restore.');

@@ -124,3 +124,16 @@ azioni sono realmente disabilitate. La vista non pretende di essere
 Il prossimo lavoro è reinserire i componenti originali e il relativo
 contesto `SessionRightSidebar`/schede/dadi/chat, senza conservare
 questa vista temporanea nel rilascio definitivo.
+
+## Integrazione 05 — Schede contestuali (pilot, non certificazione finale)
+
+Il pulsante Schede della barra sessione ora apre un elenco di
+personaggi attivi della campagna ottenuto dalle vere API Aruba.
+Selezionarne uno apre l'adattatore già esistente
+`ArubaCharacterDetailPanel` con il vero `EntityDetailView`,
+`EntityDetailRail` e `SlideOverPanel` originali; non apre le
+obsolete schermate riassuntive. Il controllo verifica campagna e
+proprietario prima di presentare le righe. Non ci sono dati inventati.
+Le sezioni PNG/Mostri, il percorso card da `CampaignHome` e la
+`SessionCharactersPanel` completa restano da migrare, così come
+la partecipazione dei giocatori. Nessun deploy sul VPS.

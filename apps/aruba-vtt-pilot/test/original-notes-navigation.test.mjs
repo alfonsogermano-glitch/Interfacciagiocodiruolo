@@ -11,6 +11,8 @@ test('original Notes route is server gated and lives in its own session rail',()
  assert.match(app,/activeCampaign\.ownerId===user\.id/);
  assert.match(app,/<ArubaNotesRoute key=\{activeCampaign\.id\}/);
  assert.match(app,/<ArubaSessionRightRail notesEnabled=\{notesPanelReady\}/);
+ assert.match(app,/<ArubaSessionCharactersPanel campaignId=\{activeCampaign.id\}/);
+ assert.match(app,/sessionCharacterId&&user.charactersEnabled/);
  assert.match(app,/section==='session'&&activeCampaign/);
  assert.doesNotMatch(app,/gmMenu\.filter\(item=>item\.id!=='notes'/);
  assert.match(app,/className=\{id==='map'\?'gm-group-break':''\}/,
