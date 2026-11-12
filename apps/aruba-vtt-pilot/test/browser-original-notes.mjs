@@ -209,7 +209,8 @@ try{
     r.request().method()==='POST'&&r.status()===200),
    page.getByRole('button',{name:'Ripristina'}).click(),
   ]);
-  await page.getByText('Nota da ripristinare').waitFor({state:'hidden'});
+  await page.locator('[data-note-sidebar="true"]')
+   .getByText('Nota da ripristinare').waitFor({state:'hidden'});
   assert.equal(store.trash.length,0);
   assert.equal(store.notes.find(n=>n.id===archivedNote)?.visibility,'private');
   assert.ok(store.requests.some(r=>r.path==='/vtt/campaign-notes/trash/restore'&&
