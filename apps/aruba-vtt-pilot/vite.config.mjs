@@ -82,6 +82,13 @@ export default defineConfig({
     name:'aruba-disable-unmigrated-entity-custom-tab-actions',
     enforce:'pre',
     transform(code,id){
+      if(id.endsWith('/src/app/components/shared/useFolderSection.tsx')){
+        const legacy='const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;';
+        if(!code.includes(legacy))throw Error('Original folder hook backend contract changed');
+        // The URL is only a historical argument; the Aruba transport ignores
+        // it. Strip the legacy hostname from this isolated bundle entirely.
+        return code.replace(legacy,"const SERVER_BASE = '/vtt';");
+      }
       if(!id.endsWith('/src/app/components/session/shared/EntityDetailView.tsx'))return null;
       const from='<EntityTabBar canEdit={canEdit} tabs={tabs} tabIndicators={tabIndicators} />';
       if(!code.includes(from))throw Error('Original EntityDetailView tab contract changed');

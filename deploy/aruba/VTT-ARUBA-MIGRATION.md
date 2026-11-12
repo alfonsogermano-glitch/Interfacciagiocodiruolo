@@ -344,3 +344,22 @@ I nuovi endpoint `PATCH /vtt/campaign-notes/icon/:id` e
 stretti. `toOriginalCampaignNoteTab` ora produce anche
 `title_icon` e `tab_order` autentici: mai placeholder.
 Nessun deploy del database e nessuna modifica alla UI o al VPS.
+
+## Compilazione del vero useFolderSection originale, senza Supabase
+
+`ArubaOriginalFolderTransport.mjs` adatta le firme del vecchio
+`foldersService` all'API cookie Aruba. Il modulo TypeScript
+`ArubaOriginalFolderService.ts` mantiene gli stessi tipi e helper
+puri originali (breadcrumb, 5 livelli, DnD, conteggi), mentre il
+resolver Vite sostituisce l'import Supabase **solo** quando il chiamante
+è `useFolderSection.tsx`. I componenti e la gerarchia UI originali
+rimangono immutati. `useArubaOriginalFolderSection` effettua il gate
+di sessione attraverso un valore non segreto e non lo invia mai come
+Bearer; lato server rimane il controllo della vera sessione cookie.
+L'adapter conserva solo mapping autorizzati dei folderId e rifiuta
+azioni con identificativi non letti dalla campagna corrente.
+
+Il componente non è ancora montato nella navigazione: manca
+l'integrazione dello stesso `useCampaignNotesSection` e del Cestino
+originale. Questa fase non aggiunge menu alternativi e non attiva
+alcuna funzionalità sul VPS.

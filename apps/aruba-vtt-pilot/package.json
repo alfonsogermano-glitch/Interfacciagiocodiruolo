@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build --config vite.config.mjs",
-    "test": "node --test test/*.test.mjs"
+    "test": "node --test test/*.test.mjs",
+    "test:original-folders": "vite build --config vite.original-folder-contract.config.mjs"
   },
   "dependencies": {
     "react": "18.3.1",

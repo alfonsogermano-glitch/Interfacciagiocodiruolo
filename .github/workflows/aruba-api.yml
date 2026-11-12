@@ -37,6 +37,14 @@ jobs:
           npm install --ignore-scripts --no-audit --no-fund
           npm test
           npm run build
+          npm run test:original-folders
+          # Verify that the original 5-level folder hook compiles with Aruba
+          # transport but does not import the old Supabase endpoint.
+          test -d ../../deploy/aruba/dist/vtt-original-folder-contract
+          if grep -R -i -l 'supabase\\.co' ../../deploy/aruba/dist/vtt-original-folder-contract; then
+            echo "Legacy Supabase endpoint found in original folder hook adapter" >&2
+            exit 1
+          fi
           test -f ../../deploy/aruba/dist/vtt-pilot/index.html
           # Ensure theme spacing variables survive Vite/Tailwind production build.
           css_file="$(find ../../deploy/aruba/dist/vtt-pilot/assets -name '*.css' -print -quit)"
