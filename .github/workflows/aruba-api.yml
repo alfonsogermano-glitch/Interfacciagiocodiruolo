@@ -248,6 +248,12 @@ jobs:
       - name: Verify GM private Note access, owner metadata and revocation
         run: |
           docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_note_ui_read.sql
+      - name: Install role- and author-scoped Campaign Note writes 021 (CI only)
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/021_vtt_campaign_note_member_writes.sql
+      - name: Verify owner, GM, author, rival, cross-campaign and revoked write isolation
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_note_member_writes.sql
       - name: Verify character draft isolation
         run: |
           docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_character_drafts.sql

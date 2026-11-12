@@ -300,3 +300,20 @@ falsamente indicati come persistiti prima della relativa migrazione.
 Il montaggio del pannello originale resta disabilitato: manca il
 salvataggio per membri/co-GM, oltre alle risorse del titolo e
 dell'ordine dei sotto-tab. Nessun VPS modificato.
+
+## Schema 021 — scrittura GM/autore per Nota, per campagna
+
+Le routine `create_member_campaign_note`,
+`save_member_campaign_note`, `archive_member_campaign_note` e
+`assign_member_campaign_note_folder` convalidano il ruolo ricavato
+da `campaign_member_role` e l'autore effettivo in PostgreSQL.
+Il GM può creare e gestire Note GM o condivise nella propria campagna;
+un giocatore può creare Note condivise e modificare, cestinare o
+spostare solo quelle di cui è autore. Le sotto-tab richiedono anche
+l'autorizzazione sul contenitore padre. Revoca e cross-campaign
+bloccano le scritture. I documenti TipTap vengono archiviati senza
+cancellazione fisica e non sono consentite cartelle di altre sezioni.
+Il server usa sempre la sessione come identità e NON accetta ruoli,
+`creatorId` o `ownerId` dal client. Gli endpoint esistenti restano
+disabilitati per default, fino al deploy in staging isolato dei
+successivi collaudi d'interfaccia.
