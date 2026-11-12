@@ -329,3 +329,18 @@ inaccessibili ai giocatori. `creatorId` continua a essere l'autore reale;
 di modifica delle sotto-tab. Non viene sostituita l'identità dell'autore
 sul server o nella tabella. Le autorizzazioni restano applicate in SQL.
 Interfaccia ancora non montata, nessun deploy sul VPS.
+
+## Schema 023 — elementi grafici e ordine originale delle Note
+
+Le Note persistono `title_icon` per NoteListRow e `tab_order`
+(JSONB: array ordinato di UUID) per NoteSubTabs. Le routine
+`set_member_campaign_note_title_icon` e
+`set_member_campaign_subtab_order` verificano i ruoli in campagna,
+l'identità dell'autore del contenitore, l'assenza di duplicati e che
+ogni elemento ordinato sia una sotto-tab attiva effettiva.
+Il lettore membro non restituisce questi dati a utenti senza permessi.
+I nuovi endpoint `PATCH /vtt/campaign-notes/icon/:id` e
+`PATCH /vtt/campaign-notes/order/:id` usano cookie, Origin e payload
+stretti. `toOriginalCampaignNoteTab` ora produce anche
+`title_icon` e `tab_order` autentici: mai placeholder.
+Nessun deploy del database e nessuna modifica alla UI o al VPS.

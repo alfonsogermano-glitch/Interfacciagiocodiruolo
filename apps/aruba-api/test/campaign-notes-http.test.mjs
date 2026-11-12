@@ -126,3 +126,27 @@ test('root GM Note creation and folder moves are session scoped and CSRF protect
   ['move',owner,campaign,parent,parent],
  ]);
 });
+
+test('member Note title icon and subtab order are session-scoped and origin protected',async()=>{
+ const calls=[];
+ const notes={
+  listForMember:async()=>({notes:[]}),create:async()=>{},save:async()=>{},
+  archive:async()=>{},
+  setTitleIcon:async(...args)=>{calls.push(['icon',...args]);return {noteId:parent,titleIcon:args[3]}},
+  setSubtabOrder:async(...args)=>{calls.push(['order',...args]);return {noteId:parent,tabOrder:args[3]}},
+ };
+ await server(notes,async base=>{
+  const path=base+'/vtt/campaign-notes';
+  assert.equal((await fetch(path+'/icon/'+parent,{method:'PATCH',headers:cookie})).status,403);
+  assert.equal((await fetch(path+'/icon/'+parent,{method:'PATCH',headers:header,
+   body:JSON.stringify({campaignId:campaign,titleIcon:'book-open',role:'gm'})})).status,400);
+  assert.equal((await fetch(path+'/icon/'+parent,{method:'PATCH',headers:header,
+   body:JSON.stringify({campaignId:campaign,titleIcon:'book-open'})})).status,200);
+  assert.equal((await fetch(path+'/order/'+parent,{method:'PATCH',headers:header,
+   body:JSON.stringify({campaignId:campaign,tabOrder:[parent],creatorId:owner})})).status,400);
+  assert.equal((await fetch(path+'/order/'+parent,{method:'PATCH',headers:header,
+   body:JSON.stringify({campaignId:campaign,tabOrder:[parent]})})).status,200);
+ });
+ assert.deepEqual(calls,[['icon',owner,campaign,parent,'book-open'],
+  ['order',owner,campaign,parent,[parent]]]);
+});

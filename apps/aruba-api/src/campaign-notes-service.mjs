@@ -21,6 +21,7 @@ const map=row=>({
  scope:row.scope??'shared',folderId:row.folder_id??null,
  creatorId:row.creator_id??null,editorOwnerId:row.editor_owner_id??row.creator_id??null,
  updatedAt:row.updated_at??null,
+ titleIcon:row.title_icon??null,tabOrder:row.tab_order??null,
 });
 export function createCampaignNotesService({pool}){
  if(typeof pool?.query!=='function')throw new TypeError('PostgreSQL pool required');
@@ -92,6 +93,30 @@ export function createCampaignNotesService({pool}){
    throw new CampaignRejected('Nota o cartella non trovata o non autorizzata',404);
   return {noteId,folderId};
  }
+ async function setTitleIcon(actorId,campaignId,noteId,icon){
+  [actorId,campaignId,noteId].forEach((v,i)=>id(v,['Utente','Campagna','Nota'][i]));
+  if(icon!==null&&(typeof icon!=='string'||icon.length<1||icon.length>80))
+    throw new CampaignRejected('Icona Nota non valida',400);
+  const {rows}=await pool.query(
+   'SELECT hollowgate_vtt.set_member_campaign_note_title_icon($1,$2,$3,$4) AS id',
+   [actorId,campaignId,noteId,icon]);
+  if(rows[0]?.id!==noteId)
+   throw new CampaignRejected('Nota non trovata o non autorizzata',404);
+  return {noteId,titleIcon:icon};
+ }
+ async function setSubtabOrder(actorId,campaignId,noteId,order){
+  [actorId,campaignId,noteId].forEach((v,i)=>id(v,['Utente','Campagna','Nota'][i]));
+  if(!Array.isArray(order)||order.length>100||
+   order.some(v=>typeof v!=='string'||!UUID.test(v))||
+   new Set(order).size!==order.length)
+    throw new CampaignRejected('Ordine sottoschede non valido',400);
+  const {rows}=await pool.query(
+   'SELECT hollowgate_vtt.set_member_campaign_subtab_order($1,$2,$3,$4::jsonb) AS id',
+   [actorId,campaignId,noteId,JSON.stringify(order)]);
+  if(rows[0]?.id!==noteId)
+   throw new CampaignRejected('Nota non trovata o non autorizzata',404);
+  return {noteId,tabOrder:order};
+ }
  async function archive(ownerId,campaignId,noteId){
   [ownerId,campaignId,noteId].forEach((v,i)=>id(v,['Utente','Campagna','Nota'][i]));
   const {rows}=await pool.query(
@@ -101,5 +126,5 @@ export function createCampaignNotesService({pool}){
    throw new CampaignRejected('Nota non trovata o non autorizzata',404);
   return {archivedId:noteId};
  }
- return {list,listForMember,create,save,archive,moveToFolder};
+ return {list,listForMember,create,save,archive,moveToFolder,setTitleIcon,setSubtabOrder};
 }

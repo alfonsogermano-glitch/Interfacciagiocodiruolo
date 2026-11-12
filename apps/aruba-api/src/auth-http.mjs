@@ -302,6 +302,26 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
           return response(res,200,await campaignNotes.moveToFolder(
             user.id,body.campaignId,movingId,body.folderId));
         }
+        if(req.method==='PATCH' &&
+           req.url?.startsWith('/vtt/campaign-notes/icon/')){
+          const iconNoteId=req.url.slice('/vtt/campaign-notes/icon/'.length);
+          if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(iconNoteId)||
+             Object.keys(body).sort().join(',')!=='campaignId,titleIcon'||
+             typeof campaignNotes.setTitleIcon!=='function')
+            throw new HttpProblem(400,'Icona Nota non valida');
+          return response(res,200,await campaignNotes.setTitleIcon(
+            user.id,body.campaignId,iconNoteId,body.titleIcon));
+        }
+        if(req.method==='PATCH' &&
+           req.url?.startsWith('/vtt/campaign-notes/order/')){
+          const parentNoteId=req.url.slice('/vtt/campaign-notes/order/'.length);
+          if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parentNoteId)||
+             Object.keys(body).sort().join(',')!=='campaignId,tabOrder'||
+             typeof campaignNotes.setSubtabOrder!=='function')
+            throw new HttpProblem(400,'Ordine sottoschede non valido');
+          return response(res,200,await campaignNotes.setSubtabOrder(
+            user.id,body.campaignId,parentNoteId,body.tabOrder));
+        }
         const noteId=req.url?.startsWith('/vtt/campaign-notes/')?
           req.url.slice('/vtt/campaign-notes/'.length):'';
         if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(noteId))

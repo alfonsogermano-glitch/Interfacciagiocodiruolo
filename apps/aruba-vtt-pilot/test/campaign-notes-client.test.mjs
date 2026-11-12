@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {listArubaCampaignNotes,createArubaCampaignNote,saveArubaCampaignNote,archiveArubaCampaignNote,moveArubaCampaignNoteToFolder,toOriginalCampaignNoteTab}
+import {listArubaCampaignNotes,createArubaCampaignNote,saveArubaCampaignNote,archiveArubaCampaignNote,moveArubaCampaignNoteToFolder,toOriginalCampaignNoteTab,setArubaCampaignNoteTitleIcon,setArubaCampaignSubtabOrder}
  from '../src/campaign-notes-client.mjs';
 const campaign='be2f1a87-b8ee-4b34-9da0-07efda11379a';
 const parent='aa2f1a87-b8ee-4b34-9da0-07efda11379a';
@@ -75,7 +75,8 @@ test('original note contract preserves real creator, GM scope and rich text',()=
  assert.deepEqual(original,{
   id:child,tab_name:'Diario GM',content:'',content_rich:{type:'doc'},
   position:2,hidden:true,folder_id:parent,tab_order:null,
-  owner_profile_id:owner,visibility:'private',updated_at:'2026-11-12T14:00:00.000Z',
+  title_icon:null,owner_profile_id:owner,visibility:'private',
+  updated_at:'2026-11-12T14:00:00.000Z',
  });
  assert.equal(toOriginalCampaignNoteTab({...note,scope:'shared'}).hidden,false);
  assert.equal(toOriginalCampaignNoteTab({...note,creatorId:null}).owner_profile_id,null);
@@ -97,4 +98,31 @@ test('GM-authored private subtab inherits original UI edit ownership from parent
  assert.throws(()=>toOriginalCampaignNoteTab({...note,editorOwnerId:'bad'}),/non valida/);
  const fallback=toOriginalCampaignNoteTab({...note,editorOwnerId:undefined});
  assert.equal(fallback.owner_profile_id,gm);
+});
+
+test('original NoteListRow icon and NoteSubTabs order survive Aruba roundtrip',async()=>{
+ const calls=[];
+ const fetcher=async(path,options)=>{
+  calls.push({path,options});
+  const body=JSON.parse(options.body);
+  return {status:200,ok:true,headers:{get:()=> 'application/json'},
+   json:async()=>path.includes('/icon/')?
+    {noteId:parent,titleIcon:body.titleIcon}:
+    {noteId:parent,tabOrder:body.tabOrder}};
+ };
+ await setArubaCampaignNoteTitleIcon(fetcher,campaign,parent,'book-open');
+ await setArubaCampaignSubtabOrder(fetcher,campaign,parent,[child]);
+ assert.deepEqual(JSON.parse(calls[0].options.body),
+  {campaignId:campaign,titleIcon:'book-open'});
+ assert.deepEqual(JSON.parse(calls[1].options.body),
+  {campaignId:campaign,tabOrder:[child]});
+ assert.equal(calls[0].options.credentials,'same-origin');
+ const root=toOriginalCampaignNoteTab({id:parent,campaignId:campaign,
+  title:'Diario',parentId:null,contentRich:null,position:0,visibility:'all',
+  scope:'shared',folderId:null,creatorId:null,titleIcon:'book-open',tabOrder:[child]});
+ assert.equal(root.title_icon,'book-open');
+ assert.deepEqual(root.tab_order,[child]);
+ await assert.rejects(()=>setArubaCampaignSubtabOrder(fetcher,campaign,parent,[child,child]),/non valido/);
+ await assert.rejects(()=>setArubaCampaignNoteTitleIcon(fetcher,campaign,parent,''),/non valida/);
+ assert.equal(calls.length,2,'Invalid write must not reach HTTP');
 });

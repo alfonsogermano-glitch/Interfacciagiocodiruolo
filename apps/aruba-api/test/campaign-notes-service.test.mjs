@@ -55,7 +55,7 @@ test('member reads use the database membership and privacy gate, never owner-onl
  const result=await notes.listForMember(member,campaign,parent);
  assert.deepEqual(result.notes,[{id:child,title:'Condivisa',contentRich:{type:'doc'},
   parentId:parent,position:0,visibility:'all',scope:'shared',folderId:null,
-  creatorId:null,editorOwnerId:null,updatedAt:null}]);
+  creatorId:null,editorOwnerId:null,updatedAt:null,titleIcon:null,tabOrder:null}]);
  assert.match(calls[0][0],/list_member_campaign_notes/);
  assert.doesNotMatch(calls[0][0],/list_owned_campaign_notes/);
  assert.deepEqual(calls[0][1],[member,campaign,parent]);
@@ -111,4 +111,27 @@ test('member role and author are never accepted as service payload fields',async
  await assert.rejects(()=>notes.create(owner,campaign,
   {title:'Nota',parentId:null,scope:'gm',role:'gm'}),e=>e.status===400);
  assert.equal(calls.length,before);
+});
+
+test('Note icons and persisted child order use member-scoped SQL and exact acknowledgements',async()=>{
+ const calls=[];
+ const noteId=parent;
+ const notes=createCampaignNotesService({pool:{query:async(sql,args)=>{
+  calls.push([sql,args]);return {rows:[{id:noteId}]};
+ }}});
+ assert.deepEqual(await notes.setTitleIcon(owner,campaign,noteId,'book-open'),
+  {noteId,titleIcon:'book-open'});
+ assert.match(calls[0][0],/set_member_campaign_note_title_icon/);
+ assert.deepEqual(calls[0][1],[owner,campaign,noteId,'book-open']);
+ assert.deepEqual(await notes.setSubtabOrder(owner,campaign,noteId,[child]),
+  {noteId,tabOrder:[child]});
+ assert.match(calls[1][0],/set_member_campaign_subtab_order/);
+ assert.deepEqual(calls[1][1],[owner,campaign,noteId,JSON.stringify([child])]);
+ await assert.rejects(()=>notes.setTitleIcon(owner,campaign,noteId,''),e=>e.status===400);
+ await assert.rejects(()=>notes.setSubtabOrder(owner,campaign,noteId,[child,child]),e=>e.status===400);
+ await assert.rejects(()=>notes.setSubtabOrder(owner,campaign,noteId,['invalid']),e=>e.status===400);
+ assert.equal(calls.length,2);
+ const deny=createCampaignNotesService({pool:{query:async()=>({rows:[{id:null}]})}});
+ await assert.rejects(()=>deny.setTitleIcon(owner,campaign,noteId,null),e=>e.status===404);
+ await assert.rejects(()=>deny.setSubtabOrder(owner,campaign,noteId,[child]),e=>e.status===404);
 });

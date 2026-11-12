@@ -33,9 +33,18 @@ function normalize(note,campaignId,parentId){
  if(note.updatedAt!==undefined&&note.updatedAt!==null&&
   (typeof note.updatedAt!=='string'||!Number.isFinite(Date.parse(note.updatedAt))))
   throw Error('Data aggiornamento Nota non valida');
+ if(note.titleIcon!==undefined&&note.titleIcon!==null&&
+   (typeof note.titleIcon!=='string'||note.titleIcon.length<1||note.titleIcon.length>80))
+  throw Error('Icona titolo Nota non valida');
+ if(note.tabOrder!==undefined&&note.tabOrder!==null&&
+  (!Array.isArray(note.tabOrder)||note.tabOrder.length>100||
+   note.tabOrder.some(x=>typeof x!=='string'||!UUID.test(x))||
+   new Set(note.tabOrder).size!==note.tabOrder.length))
+  throw Error('Ordine sottoschede non valido');
  return Object.freeze({...note,scope:note.scope??'shared',
   folderId:note.folderId??null,creatorId:note.creatorId??null,
   editorOwnerId:note.editorOwnerId??note.creatorId??null,
+  titleIcon:note.titleIcon??null,tabOrder:note.tabOrder??null,
   updatedAt:note.updatedAt??null,campaignId});
 }
 export async function listArubaCampaignNotes(fetcher,campaignId,parentId=null){
@@ -109,8 +118,33 @@ export function toOriginalCampaignNoteTab(note){
  return Object.freeze({
   id:note.id,tab_name:note.title,content:'',content_rich:note.contentRich??null,
   position:note.position,hidden:note.scope==='gm',
-  folder_id:note.folderId??null,tab_order:null,
+  folder_id:note.folderId??null,tab_order:note.tabOrder??null,
+  title_icon:note.titleIcon??null,
   owner_profile_id:note.editorOwnerId??note.creatorId??null,visibility:note.visibility,
   updated_at:note.updatedAt??'',
  });
+}
+
+export async function setArubaCampaignNoteTitleIcon(fetcher,campaignId,noteId,titleIcon){
+ safeId(campaignId,'Campagna');safeId(noteId,'Nota');
+ if(titleIcon!==null&&(typeof titleIcon!=='string'||titleIcon.length<1||titleIcon.length>80))
+  throw Error('Icona titolo Nota non valida');
+ const data=await json(await fetcher('/vtt/campaign-notes/icon/'+noteId,
+  opts('PATCH',{campaignId,titleIcon})));
+ if(data.noteId!==noteId||data.titleIcon!==titleIcon)
+  throw Error('Icona titolo Nota non confermata');
+ return titleIcon;
+}
+export async function setArubaCampaignSubtabOrder(fetcher,campaignId,noteId,tabOrder){
+ safeId(campaignId,'Campagna');safeId(noteId,'Nota');
+ if(!Array.isArray(tabOrder)||tabOrder.length>100||
+  tabOrder.some(v=>typeof v!=='string'||!UUID.test(v))||
+  new Set(tabOrder).size!==tabOrder.length)
+  throw Error('Ordine sottoschede non valido');
+ const data=await json(await fetcher('/vtt/campaign-notes/order/'+noteId,
+  opts('PATCH',{campaignId,tabOrder})));
+ if(data.noteId!==noteId||!Array.isArray(data.tabOrder)||
+  JSON.stringify(data.tabOrder)!==JSON.stringify(tabOrder))
+  throw Error('Riordino sottoschede non confermato');
+ return tabOrder;
 }
