@@ -169,3 +169,6 @@
 .aruba-entity-unmigrated p{color:var(--dash-muted);line-height:1.65}
 .aruba-entity-overlay .aruba-character-sheet{padding:0;margin:0}
 @media(max-width:780px){.aruba-entity-back-column{flex-basis:82px}.aruba-entity-detail-main{padding:12px}}
+
+.aruba-entity-backdrop{position:fixed;inset:0;z-index:895;background:#0009}
+.aruba-entity-back-column button:disabled{opacity:.5;cursor:wait}

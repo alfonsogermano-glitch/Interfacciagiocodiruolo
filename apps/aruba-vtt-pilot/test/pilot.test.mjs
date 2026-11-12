@@ -306,3 +306,15 @@ test('catalog opens original context rail and side panel via shared App state, n
  assert.match(css,/\.aruba-entity-overlay \[data-session-slide-over="true"\]/);
  assert.match(bridge,/salvataggio|Salvataggio/);
 });
+
+test('context detail overlay cannot silently close on an in-flight failed save',()=>{
+ const src=readFileSync(new URL('../src/ArubaCharacterDetailPanel.tsx',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+ assert.match(src,/async function requestClose\(\)/);
+ assert.match(src,/await closeGuard\.current\(\)/);
+ assert.match(src,/setCloseError\('Il salvataggio non è confermato/);
+ assert.match(src,/registerCloseGuard\(\(\)=>queue\.current\)/);
+ assert.match(src,/onClose=\{\(\)=>void requestClose\(\)\}/);
+ assert.match(src,/className="aruba-entity-backdrop"/);
+ assert.match(css,/\.aruba-entity-backdrop\{position:fixed;inset:0;z-index:895/);
+});
